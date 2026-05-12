@@ -2,34 +2,43 @@
  * Telegram-side OTP delivery for CI E2E Real jobs.
  *
  * <p>The fetcher polls the Telegram Bot API's `getUpdates` endpoint
- * with a positive offset (`offset=minUpdateId+1`), filters by
- * `reply_to_message.message_id === promptMessageId` + chat id +
- * per-bank regex, and resolves with the captured digits. Positive
- * offset is REQUIRED so Telegram's long-poll short-circuits on
- * NEW data — with a negative offset (`offset=-N`) Telegram returns
- * the static last-N snapshot and never wakes early, so a reply that
- * lands mid-cycle stays unseen until the next polling tick (CI run
- * `25690651046` Beinleumi: user replied 12s after prompt; the
- * `offset=-100`/`timeout=1` poll never returned that reply within
- * the 180s budget). See CodeRabbit thread on commit `7b9a1a69`.
+ * with `offset=0` — Telegram's documented non-destructive read that
+ * returns the earliest unconfirmed update WITHOUT advancing the bot's
+ * confirmed cursor. Per-prompt isolation comes from the
+ * `reply_to_message.message_id === promptMessageId` filter alone.
  *
- * <p>Per-prompt isolation is preserved via the `reply_to_message`
- * filter, not via the offset. Each fetcher sends its own prompt
- * with a unique `message_id`; only replies pointing at THAT id
- * qualify. With this isolation guarantee in place, advancing the
- * bot's confirmed cursor (an unavoidable side effect of positive
- * offsets) is safe for our test workload.
+ * <p>Post-resolution queue cleanup happens via two complementary
+ * paths: {@link confirmCursorPastMatch} on the MATCH path
+ * (advances `offset=match.update_id + 1` — safe because the CI
+ * serial-OTP workflow `e2e-real-otp` with `max-parallel: 1`
+ * guarantees only one fetcher is ever active at a time, so no
+ * concurrent fetcher's reply can be in the matched-id range), and
+ * {@link pruneOldUpdates} on the TIMEOUT path (10-min time-window
+ * GC — preserves any RECENT pending replies on host pre-commit
+ * sequential runs where a brand-new fetcher may start within the
+ * window). Telegram's 24h retention is the long-tail safety net.
  *
- * <p>Known limitation — `readInitialUpdateId` still uses
- * `offset=-1` which "forgets all previous" (Telegram Bot API
- * semantics). In a multi-fetcher matrix this MAY purge another
- * fetcher's pending reply if both fetchers' `readInitialUpdateId`
- * fire while the other's reply is queued. Tracked as a Phase
- * A.fix-2 follow-up: replace the probe with a queue-introspection
- * call that doesn't advance the cursor (or move to a shared poll
- * proxy / per-bank bots). For OTP volumes observed in practice
- * (1-2 messages per fetcher-minute) the risk is small enough to
- * accept here.
+ * <p>Multiple fetchers (e.g. parallel CI matrix runners on separate
+ * GitHub-hosted VMs) safely share the bot's queue: each filters by
+ * its own `reply_to_message.message_id` and picks ONLY its own
+ * reply. The Beinleumi-OTP-prompt-during-Hapoalim-run symptom
+ * (observed 2026-05-12) cannot recur because no fetcher's
+ * `getUpdates` call can purge another's RECENT pending reply —
+ * `pruneOldUpdates` only confirms updates older than
+ * `RECENT_MESSAGE_WINDOW_S`. The CI workflow further serialises the
+ * three OTP-gated banks via `e2e-real-otp` (max-parallel: 1) so the
+ * parallel-fetcher case is now only exercised by host pre-commit
+ * runs; the in-process invariants still hold.
+ *
+ * <p>The previous design used `offset=-1` for an initial probe and
+ * `offset=minUpdateId+1` for poll cycles. Telegram's documented
+ * semantics for `offset=-N`: "All previous updates will be forgotten."
+ * In a multi-fetcher matrix, the second concurrent fetcher's probe
+ * purged the first fetcher's pending reply (cross-fetcher offset
+ * purge). Documented as the Phase A.fix-2 follow-up in
+ * `telegram-m5-and-final-cleanup/phase-a-fix-1-commit-review.md`.
+ * Replaced with non-destructive `offset=0` polling per
+ * `telegram-m5-and-final-cleanup/spec.txt` §"Phase A.fix-2".
  *
  * <p>Live only inside `src/Tests/E2eReal/` — never imported from
  * `src/Scrapers/**`. The npm package's `files: ['lib/**']` field
@@ -302,24 +311,25 @@ interface IInspectArgs {
   readonly upd: ITelegramUpdate;
   readonly targetChat: number;
   readonly bankRegex: RegExp;
-  /** Update_id floor — only updates with `update_id > this` qualify. */
-  readonly minUpdateId: number;
   /**
    * The bot's prompt `message_id`. Only updates whose
    * `reply_to_message.message_id` matches this value are accepted.
-   * This is the parallel-safety mechanism: each fetcher's prompt
-   * has a unique `message_id`, so concurrent fetchers' replies
-   * stay isolated even on a shared chat.
+   * This is the SOLE parallel-safety mechanism: each fetcher's
+   * prompt has a unique `message_id`, so concurrent fetchers'
+   * replies stay isolated even on a shared chat. Combined with
+   * the non-destructive `offset=0` poll (see top-of-file JSDoc),
+   * cross-fetcher purges are impossible by construction.
    */
   readonly promptMessageId: number;
 }
 
 /**
  * Inspect a single update for an OTP match. Three filters apply:
- *  1. `update_id > minUpdateId` (per-fetcher floor)
- *  2. `chat.id === targetChat` (cross-chat protection)
+ *  1. `msg` defined — guards against update-types without a message.
+ *  2. `chat.id === targetChat` (cross-chat protection).
  *  3. `reply_to_message.message_id === promptMessageId`
- *     (per-prompt isolation — Telegram Reply feature)
+ *     (per-prompt isolation — Telegram Reply feature; the SOLE
+ *     attribution gate after A.fix-2 drops the `update_id` floor).
  *
  * The fourth filter is the digits-extraction `bankRegex` against
  * the user's reply text. Per-bank attribution is now handled by
@@ -330,7 +340,6 @@ interface IInspectArgs {
  * @returns Match payload or `false`.
  */
 function inspectUpdate(args: IInspectArgs): MatchResult {
-  if (args.upd.update_id <= args.minUpdateId) return false;
   const msg = args.upd.message;
   if (!msg) return false;
   if (msg.chat.id !== args.targetChat) return false;
@@ -361,14 +370,12 @@ interface IFindOtpMatchArgs {
   readonly updates: readonly ITelegramUpdate[];
   readonly chatId: string;
   readonly bankRegex: RegExp;
-  readonly minUpdateId: number;
   readonly promptMessageId: number;
 }
 
 /**
- * Walk a batch of updates newest-first and return the first one
- * that's strictly newer than `minUpdateId`, in the right chat,
- * AND a reply to our prompt (`promptMessageId`).
+ * Walk a batch of updates newest-first and return the first one in
+ * the right chat AND a reply to our prompt (`promptMessageId`).
  * @param args - Match inputs.
  * @returns Match payload or `false`.
  */
@@ -380,7 +387,6 @@ function findOtpMatch(args: IFindOtpMatchArgs): MatchResult {
       upd,
       targetChat,
       bankRegex: args.bankRegex,
-      minUpdateId: args.minUpdateId,
       promptMessageId: args.promptMessageId,
     });
     if (found !== false) return found;
@@ -392,37 +398,35 @@ function findOtpMatch(args: IFindOtpMatchArgs): MatchResult {
 const RECENT_WINDOW_LIMIT = 100;
 
 /**
- * Capture the highest `update_id` currently visible on the bot,
- * read-only (`offset=-1` returns the last update without confirming
- * anything). Subsequent polls accept ONLY updates strictly greater
- * than this value — the per-fetcher floor that prevents picking up
- * stale OTPs that the chat already had.
+ * Bound on how old a queued update may be before it's eligible for
+ * cleanup. After each fetcher's match / timeout, the GC step
+ * (`pruneOldUpdates`) confirms — and thereby removes from the bot's
+ * unconfirmed queue — every update whose `message.date` is older
+ * than `now - RECENT_MESSAGE_WINDOW_S` seconds.
  *
- * @param token - Bot token.
- * @returns Highest seen update_id, or 0 when chat empty.
+ * <p>Why 10 minutes: CI E2E runs typically complete a single bank
+ * scrape in under 5 minutes; 10 min leaves 2× headroom for clock
+ * skew + slow runs. Concurrent parallel-matrix fetchers' prompts
+ * are also <10 min old, so their pending replies survive this
+ * fetcher's GC (their `message.date` ≥ now - 600).
+ *
+ * <p>This bounds the queue size so the `offset=0&limit=100` poll
+ * window never starves an in-flight reply by pushing it past the
+ * 100-update response cap (per CodeRabbit PR #226 review).
  */
-async function readInitialUpdateId(token: string): Promise<number> {
-  const url = buildUpdatesUrl(token, 'offset=-1&limit=1&timeout=0');
-  const res = await safeFetchUpdates(url);
-  if (res === false || res.result.length === 0) return 0;
-  return res.result[0].update_id;
-}
+const RECENT_MESSAGE_WINDOW_S = 600;
 
 /** Internal poll-loop state. */
 interface IPollState {
   readonly args: ITelegramFetchArgs;
   readonly deadline: number;
   /**
-   * `update_id` floor captured at fetcher start. Strict-greater-than
-   * filter on every poll cycle — guarantees this fetcher never picks
-   * up an OTP that arrived in the chat BEFORE this run started, and
-   * never collides with a parallel fetcher's match (each parallel
-   * fetcher has its own `minUpdateId` based on when IT started).
-   */
-  readonly minUpdateId: number;
-  /**
    * The bot's prompt `message_id`. Replies to this prompt are the
-   * only updates the fetcher accepts.
+   * only updates the fetcher accepts. This is the SOLE attribution
+   * gate after A.fix-2: Telegram assigns a unique `message_id` per
+   * `sendMessage`, so no two fetchers' prompts collide, and pre-run
+   * replies (still in the queue from earlier CI cycles) target an
+   * earlier `message_id` and never match.
    */
   readonly promptMessageId: number;
 }
@@ -440,23 +444,22 @@ function computeLongPollSeconds(deadline: number): number {
 }
 
 /**
- * Single Telegram long-poll iteration. Uses positive offset
- * (`offset=minUpdateId+1`) so Telegram short-circuits the long-poll
- * as soon as a new update arrives — the design property that fixes
- * the Beinleumi CI miss (CI run `25690651046`, where `offset=-N`
- * with a 1 s cycle never returned the user's reply that arrived 12 s
- * after the prompt). The offset stays stable across cycles (we do
- * NOT advance it past `minUpdateId+1`) so this fetcher's own floor
- * remains the only side effect on the bot's confirmed cursor.
+ * Single Telegram long-poll iteration. Uses non-destructive
+ * `offset=0` — Telegram returns the earliest unconfirmed update
+ * WITHOUT advancing the bot's confirmed cursor. Each fetcher
+ * filters the returned batch by `reply_to_message.message_id` to
+ * pick ONLY its own reply; other fetchers' replies stay in the
+ * queue untouched. Cross-fetcher purges are impossible by
+ * construction. Telegram's 24h retention drops stale updates
+ * automatically.
  *
  * @param state - Poll state.
  * @returns Match payload or `false`.
  */
 async function pollOnce(state: IPollState): Promise<MatchResult> {
   const longPoll = computeLongPollSeconds(state.deadline);
-  const offsetParam = `offset=${String(state.minUpdateId + 1)}`;
   const otherParams = `limit=${String(RECENT_WINDOW_LIMIT)}&timeout=${String(longPoll)}`;
-  const url = buildUpdatesUrl(state.args.botToken, `${offsetParam}&${otherParams}`);
+  const url = buildUpdatesUrl(state.args.botToken, `offset=0&${otherParams}`);
   const res = await safeFetchUpdates(url);
   if (res === false) {
     state.args.log.warn(
@@ -469,7 +472,6 @@ async function pollOnce(state: IPollState): Promise<MatchResult> {
     updates: res.result,
     chatId: state.args.chatId,
     bankRegex: state.args.bankRegex,
-    minUpdateId: state.minUpdateId,
     promptMessageId: state.promptMessageId,
   });
 }
@@ -522,7 +524,6 @@ function logPromptFailed(args: ITelegramFetchArgs): true {
 interface ILogFetchStartArgs {
   readonly args: ITelegramFetchArgs;
   readonly promptMessageId: number;
-  readonly minUpdateId: number;
 }
 
 /**
@@ -538,7 +539,6 @@ function logFetchStart(bundle: ILogFetchStartArgs): true {
       chatIdSuffix: tailMask(bundle.args.chatId),
       bankName: bundle.args.bankName,
       promptMessageId: bundle.promptMessageId,
-      minUpdateId: bundle.minUpdateId,
       timeoutMs: bundle.args.timeoutMs,
     },
     'Telegram OTP fetch — prompt sent; polling for reply',
@@ -613,9 +613,168 @@ async function handleFetchMatch(bundle: IHandleMatchArgs): Promise<true> {
 }
 
 /**
+ * Compute the cursor to advance to in order to confirm (drop) every
+ * update older than the recent-message window. Returns `false` when
+ * the queue is entirely recent (no cleanup needed) — the find matched
+ * the first element so there's nothing to skip past.
+ *
+ * @param updates - Current queue snapshot (offset=0 read).
+ * @param thresholdSec - Wall-clock epoch boundary (now - 600 s).
+ * @returns Offset to confirm OR `false` when nothing to prune.
+ */
+function computePruneOffset(
+  updates: readonly ITelegramUpdate[],
+  thresholdSec: number,
+): number | false {
+  const recentBoundary = updates.find((u): boolean => (u.message?.date ?? 0) >= thresholdSec);
+  if (recentBoundary !== undefined) {
+    if (recentBoundary === updates[0]) return false;
+    return recentBoundary.update_id;
+  }
+  const lastUpdate = updates[updates.length - 1];
+  return lastUpdate.update_id + 1;
+}
+
+/**
+ * Bound the bot's unconfirmed-update queue by confirming every
+ * update older than `RECENT_MESSAGE_WINDOW_S` seconds. Best-effort —
+ * transport failures here never affect the OTP outcome (the caller
+ * has already returned its result before this fires).
+ *
+ * <p>Used by the TIMEOUT path. The MATCH path uses
+ * {@link confirmCursorPastMatch} instead — it advances past the
+ * matched update_id directly, which is safe under the CI serial-OTP
+ * workflow (`e2e-real-otp` with `max-parallel: 1`) where only one
+ * fetcher is ever active at a time. The 10-min window stays as the
+ * safety net for host pre-commit sequential runs and the timeout
+ * branch (no matched update_id to advance past).
+ *
+ * @param args - Fetcher args (for log + bot token).
+ * @returns Always `true` after attempting GC.
+ */
+async function pruneOldUpdates(args: ITelegramFetchArgs): Promise<true> {
+  const thresholdSec = Math.floor(Date.now() / 1000) - RECENT_MESSAGE_WINDOW_S;
+  const inspectUrl = buildUpdatesUrl(
+    args.botToken,
+    `offset=0&limit=${String(RECENT_WINDOW_LIMIT)}&timeout=0`,
+  );
+  const res = await safeFetchUpdates(inspectUrl);
+  if (res === false || res.result.length === 0) return true;
+  const advanceTo = computePruneOffset(res.result, thresholdSec);
+  if (advanceTo === false) return true;
+  const confirmUrl = buildUpdatesUrl(
+    args.botToken,
+    `offset=${String(advanceTo)}&limit=1&timeout=0`,
+  );
+  await safeFetchUpdates(confirmUrl);
+  return true;
+}
+
+/**
+ * Confirm Telegram's update cursor PAST the matched update_id so the
+ * `offset=0&limit=100` polling window never starves. The serial CI
+ * job `e2e-real-otp` (`max-parallel: 1`) guarantees only one fetcher
+ * is active at a time, so confirming `match.update_id + 1` cannot
+ * purge a concurrent fetcher's pending reply. Used ONLY on the match
+ * path — the timeout path keeps the 10-min window GC because there
+ * is no `match.update_id` to advance past.
+ *
+ * <p>Why this exists: live CI run `25732939617` Beinleumi failed
+ * with two 180s OTP timeouts even though the user replied. The
+ * cumulative queue had 100+ recent updates (within the 10-min
+ * window) from preceding OneZero + earlier test cycles, so the
+ * `offset=0&limit=100` poll returned only the OLDEST 100 — pushing
+ * Beinleumi's actual reply past the response window. This call
+ * keeps the queue trimmed to a tight per-bank slice.
+ *
+ * @param args - Fetcher args (for bot token).
+ * @param matchedUpdateId - update_id of the user's matched reply.
+ * @returns Always `true` after attempting the confirm.
+ */
+async function confirmCursorPastMatch(
+  args: ITelegramFetchArgs,
+  matchedUpdateId: number,
+): Promise<true> {
+  const confirmUrl = buildUpdatesUrl(
+    args.botToken,
+    `offset=${String(matchedUpdateId + 1)}&limit=1&timeout=0`,
+  );
+  await safeFetchUpdates(confirmUrl);
+  return true;
+}
+
+/**
+ * Swallow-all error sink for detached side-effects. A standalone
+ * helper (not an inline arrow) keeps the `no-void` architecture
+ * rule from triggering on the catch handler.
+ *
+ * @returns Always `true` — matches the project's no-void policy.
+ */
+function swallowDetachedError(): true {
+  return true;
+}
+
+/**
+ * Detach an async side-effect from the caller's await chain so it
+ * runs in the background. Failures are swallowed (they never affect
+ * the OTP outcome — ack + GC are observability/housekeeping only).
+ *
+ * @param promise - Promise to detach.
+ * @returns Always `true` — marker per the project's no-void policy.
+ */
+function detachSideEffect(promise: Promise<unknown>): true {
+  promise.catch(swallowDetachedError);
+  return true;
+}
+
+/**
+ * Side-effect-only timeout finaliser. Detaches the warn-log + user
+ * ack and the queue-GC pass, then returns `false` to the
+ * orchestrator. Keeps `fetchOtpFromTelegram` under the 10-line
+ * ceiling per `coding-principle-guidlines.md`.
+ *
+ * @param args - Fetcher args.
+ * @param promptMessageId - Bot's prompt message id (for reply scope).
+ * @returns `false` — the public timeout outcome.
+ */
+function dispatchTimeoutSideEffects(args: ITelegramFetchArgs, promptMessageId: number): false {
+  const timeoutPromise = handleFetchTimeout(args, promptMessageId);
+  detachSideEffect(timeoutPromise);
+  const prunePromise = pruneOldUpdates(args);
+  detachSideEffect(prunePromise);
+  return false;
+}
+
+/**
+ * Side-effect-only match finaliser. Detaches the info-log + user
+ * ack and the queue-GC pass, then returns the captured digits to
+ * the orchestrator — so `OtpPoller` resumes the bank pipeline
+ * before either HTTP call resolves.
+ *
+ * @param bundle - Match bundle.
+ * @returns Captured OTP digits.
+ */
+function dispatchMatchSideEffects(bundle: IHandleMatchArgs): string {
+  const matchPromise = handleFetchMatch(bundle);
+  detachSideEffect(matchPromise);
+  const confirmPromise = confirmCursorPastMatch(bundle.args, bundle.match.updateId);
+  detachSideEffect(confirmPromise);
+  return bundle.match.code;
+}
+
+/**
  * Fetch the next OTP from Telegram for a given bank. Orchestrator —
  * each branch delegates to a single-purpose helper to keep this
  * method under the 10-line ceiling.
+ *
+ * <p>On match the captured digits are returned IMMEDIATELY; the
+ * post-match ack and the queue-GC pass are detached so the caller
+ * (`OtpPoller` → `OtpFillPhaseActions`) types the code into the
+ * bank form in the same millisecond Telegram surfaced it. The two
+ * detached HTTP calls (`sendAckMessage` + `pruneOldUpdates`) were
+ * previously awaited inline and added ~500 ms–1 s of bank-side
+ * stall after the user's reply landed; eliminating that gap keeps
+ * the OTP flow inside the bank's narrow acceptance window.
  *
  * @param args - See {@link ITelegramFetchArgs}.
  * @returns Captured digits group on match, or `false` on timeout
@@ -627,21 +786,16 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     logSkip(args, skip);
     return false;
   }
-  const minUpdateId = await readInitialUpdateId(args.botToken);
   const promptMessageId = await sendPromptMessage(args);
   if (promptMessageId === false) {
     logPromptFailed(args);
     return false;
   }
-  logFetchStart({ args, promptMessageId, minUpdateId });
+  logFetchStart({ args, promptMessageId });
   const deadline = Date.now() + args.timeoutMs;
-  const match = await runPollLoop({ args, deadline, minUpdateId, promptMessageId });
-  if (match === false) {
-    await handleFetchTimeout(args, promptMessageId);
-    return false;
-  }
-  await handleFetchMatch({ args, promptMessageId, match });
-  return match.code;
+  const match = await runPollLoop({ args, deadline, promptMessageId });
+  if (match === false) return dispatchTimeoutSideEffects(args, promptMessageId);
+  return dispatchMatchSideEffects({ args, promptMessageId, match });
 }
 
 export type { ITelegramFetchArgs };

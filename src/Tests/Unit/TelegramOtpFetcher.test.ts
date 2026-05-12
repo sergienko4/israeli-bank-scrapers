@@ -1,7 +1,8 @@
 /**
  * Unit tests for {@link fetchOtpFromTelegram} — verify the
- * 4-tier validation, the long-poll loop, the regex match
- * semantics, and the acknowledge-by-offset advancement.
+ * 4-tier validation, the non-destructive `offset=0` long-poll
+ * loop, the regex match semantics, and the
+ * `reply_to_message.message_id`-scoped attribution (A.fix-2).
  *
  * No real network calls — `global.fetch` is replaced with a
  * jest.fn for every test and restored after.
@@ -267,6 +268,13 @@ function makeArgs(overrides?: Partial<ITelegramFetchArgs>): ITelegramFetchArgs {
 }
 
 /**
+ * Default fixture timestamp — a fixed 2024-05 epoch that
+ * {@link pruneOldUpdates} treats as stale, exercising the
+ * GC-confirm branch in TF-11.
+ */
+const STALE_FIXTURE_DATE_SEC = 1_715_200_000;
+
+/**
  * Build a Telegram update payload containing a reply to the bot's
  * prompt. Tests use this to simulate the user pressing "Reply" in
  * Telegram and typing the OTP digits.
@@ -274,25 +282,110 @@ function makeArgs(overrides?: Partial<ITelegramFetchArgs>): ITelegramFetchArgs {
  * @param text - User's reply text (typically just digits).
  * @param replyToId - The bot's prompt message_id (defaults to
  *   DEFAULT_PROMPT_ID).
- * @returns Update fixture.
+ * @returns Update fixture with the stale default date.
  */
 function makeReplyUpdate(
   updateId: number,
   text: string,
   replyToId: number = DEFAULT_PROMPT_ID,
 ): Record<string, unknown> {
+  return makeReplyUpdateAt({ updateId, text, replyToId, dateSec: STALE_FIXTURE_DATE_SEC });
+}
+
+/** Bundle for {@link makeReplyUpdateAt}. */
+interface IMakeReplyUpdateAtArgs {
+  readonly updateId: number;
+  readonly text: string;
+  readonly replyToId: number;
+  readonly dateSec: number;
+}
+
+/**
+ * Lower-level fixture builder used when the date matters — e.g.
+ * TELEGRAM-OFFSET-001 needs RECENT updates so the detached
+ * `pruneOldUpdates` GC stays on its early-return branch and never
+ * advances Telegram's cursor on the cross-fetcher fixture.
+ * @param args - All update knobs as a bundle (avoids the project's
+ *   3-param ceiling for the date case).
+ * @returns Update fixture.
+ */
+function makeReplyUpdateAt(args: IMakeReplyUpdateAtArgs): Record<string, unknown> {
   return {
-    update_id: updateId,
+    update_id: args.updateId,
     message: {
       chat: { id: -100456789 },
-      text,
-      date: 1715200000,
-      reply_to_message: { message_id: replyToId },
+      text: args.text,
+      date: args.dateSec,
+      reply_to_message: { message_id: args.replyToId },
     },
   };
 }
 
-afterEach((): void => {
+/**
+ * Drain microtasks until the spy has been invoked at least
+ * `targetCalls` times, or `maxTicks` ticks have elapsed. Tests need
+ * this because the fetcher detaches the post-match ack and the
+ * post-match GC pass (per `fetchOtpFromTelegram`'s
+ * {@link detachSideEffect}) so the captured OTP can be returned to
+ * the caller without waiting on observability/housekeeping HTTP
+ * roundtrips. The detached promises resolve on subsequent
+ * microtask ticks; chaining `Promise.resolve().then(...)`
+ * recursively yields one tick per recursion without tripping
+ * `no-await-in-loop`.
+ *
+ * @param spy - The installed fetch spy.
+ * @param targetCalls - Minimum invocation count to wait for.
+ * @param maxTicks - Recursion ceiling — guards against a hung detach.
+ * @returns True when the count reaches the target, false on ceiling.
+ */
+function flushDetachedSideEffects(
+  spy: jest.Mock,
+  targetCalls: number,
+  maxTicks = 50,
+): Promise<boolean> {
+  const isReached = spy.mock.calls.length >= targetCalls;
+  if (isReached) return Promise.resolve(true);
+  if (maxTicks <= 0) return Promise.resolve(false);
+  return Promise.resolve().then(
+    (): Promise<boolean> => flushDetachedSideEffects(spy, targetCalls, maxTicks - 1),
+  );
+}
+
+/**
+ * Content-based companion to {@link flushDetachedSideEffects}. The
+ * poll loop can produce thousands of getUpdates calls under a
+ * sticky mock, so a count-based flush returns immediately while the
+ * detached prune chain hasn't fired yet. This helper yields
+ * microtask ticks until a fetch URL matching the supplied regex
+ * appears in the spy — letting tests wait for the SPECIFIC call
+ * that confirms the side-effect they care about.
+ *
+ * @param spy - The installed fetch spy.
+ * @param urlRegex - Pattern the awaited URL must match.
+ * @param maxTicks - Recursion ceiling — guards against a hung detach.
+ * @returns True when a URL matches, false on ceiling.
+ */
+function flushUntilUrlPresent(spy: jest.Mock, urlRegex: RegExp, maxTicks = 200): Promise<boolean> {
+  const calls = spy.mock.calls as readonly (readonly [unknown, unknown?])[];
+  const isPresent = calls.some((call): boolean => {
+    const url = typeof call[0] === 'string' ? call[0] : '';
+    return urlRegex.test(url);
+  });
+  if (isPresent) return Promise.resolve(true);
+  if (maxTicks <= 0) return Promise.resolve(false);
+  return Promise.resolve().then(
+    (): Promise<boolean> => flushUntilUrlPresent(spy, urlRegex, maxTicks - 1),
+  );
+}
+
+afterEach(async (): Promise<void> => {
+  // Drain any detached ack/GC chains BEFORE tearing the fetch mock
+  // down. Otherwise late-firing detached promises would hit the
+  // restored `globalThis.fetch` (a real network call to Telegram in
+  // local dev / jest worker) and surface as cross-test pollution.
+  // `Number.MAX_SAFE_INTEGER` is unreachable so the helper always
+  // exhausts `maxTicks`; the boolean result is irrelevant here.
+  await flushDetachedSideEffects(fetchSpy, Number.MAX_SAFE_INTEGER, 20);
   restoreFetch();
   jest.clearAllMocks();
 });
@@ -300,15 +393,20 @@ afterEach((): void => {
 describe('fetchOtpFromTelegram', () => {
   it('TF-1 happy path — sends prompt then resolves on the user reply', async () => {
     installFetchWithDefaultPrompt([
-      // 1) Initial offset probe: returns the highest-known update_id.
-      { ok: true, result: [{ update_id: 99 }] },
-      // 2) First poll cycle returns the user's reply to our prompt.
+      // First poll cycle returns the user's reply to our prompt.
       { ok: true, result: [makeReplyUpdate(100, '654321')] },
     ]);
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('654321');
-    // floor probe + sendMessage + 1 poll cycle + ack-on-match = 4 calls.
+    // sendMessage + 1 poll cycle = 2 awaited calls. Ack + GC inspect
+    // are DETACHED so the caller gets the code immediately; flush
+    // microtasks before the call-count assertion. GC inspect falls
+    // through the mock's empty default → pruneOldUpdates returns
+    // early (no confirm). Expected total: prompt + poll + ack + GC
+    // inspect = 4.
+    const didReachFourCalls = await flushDetachedSideEffects(fetchSpy, 4);
+    expect(didReachFourCalls).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(4);
   });
 
@@ -319,9 +417,12 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe(false);
   });
 
-  it('TF-3 multi-reply — picks the latest update_id', async () => {
+  it('TF-3 multi-reply — newest matching reply wins on tiebreak', async () => {
+    // After A.fix-2 the selection rule is: first match (newest-first
+    // traversal via compareUpdateIdDesc) whose reply_to_message.
+    // message_id === promptMessageId. `update_id` is the tiebreak
+    // ordering key, not the selection criterion.
     installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 199 }] },
       {
         ok: true,
         result: [makeReplyUpdate(200, '111111'), makeReplyUpdate(201, '222222')],
@@ -332,41 +433,41 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe('222222');
   });
 
-  it('TF-4 positive-offset polling — readInitial uses offset=-1, pollOnce uses offset=minUpdateId+1', async () => {
-    // Probe returns update_id=9 → fetcher's minUpdateId=9 → all
-    // pollOnce calls MUST use offset=10. The negative-offset window
-    // (`offset=-N`) was the root cause of the Beinleumi CI miss
-    // (CI run 25690651046): with negative offset, Telegram does NOT
-    // short-circuit the long-poll on new data, so a reply landing
-    // mid-cycle stays unseen until the next tick. Positive offset
-    // fixes that — see TelegramOtpFetcher.ts top-of-file JSDoc.
-    installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 9 }] },
-      { ok: true, result: [makeReplyUpdate(10, '333333')] },
-    ]);
+  it('TF-4 non-destructive offset=0 — every getUpdates uses offset=0, no probe call', async () => {
+    // A.fix-2 contract: every poll call uses Telegram's documented
+    // non-destructive offset=0 (returns earliest unconfirmed without
+    // advancing the cursor). NO initial probe; the fetcher emits
+    // sendMessage first, then enters the poll loop. The previous
+    // design (`readInitialUpdateId` with offset=-1 + per-cycle
+    // `offset=minUpdateId+1`) was replaced 2026-05-12 because
+    // `offset=-1` is documented to "forget all previous updates",
+    // which purged parallel-CI-matrix fetchers' pending replies.
+    // See top-of-file JSDoc + telegram-m5-and-final-cleanup
+    // spec.txt §"Phase A.fix-2".
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(10, '333333')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
-    const getUpdatesUrls = readFetchCalls(fetchSpy)
-      .map(getCallUrl)
-      .filter((u): boolean => u.includes('/getUpdates'));
-    // Exactly two getUpdates calls expected: readInitial + 1 poll.
+    // After R2 (commit 9684be50+1) the match path runs:
+    //   prompt sendMessage + poll getUpdates + (detached) ack
+    //   sendMessage + (detached) confirmCursorPastMatch getUpdates
+    // = 4 total calls. The confirm uses offset=match.update_id+1
+    // (=11 here), NOT offset=0 — that's the per-fetcher queue-cleanup
+    // step that fixes the Beinleumi CI starvation from run
+    // 25732939617. So this test asserts:
+    //   1. Initial poll uses offset=0 (non-destructive read)
+    //   2. NO negative offset (no offset=-1 purge)
+    //   3. Confirm uses offset=11 (boundary-precise)
+    await flushDetachedSideEffects(fetchSpy, 4);
+    const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
     expect(getUpdatesUrls).toHaveLength(2);
-    expect(getUpdatesUrls[0]).toContain('offset=-1');
-    expect(getUpdatesUrls[1]).toContain('offset=10');
-    // No call uses the legacy negative-N window.
-    const negativeOffsets = getUpdatesUrls.filter((u): boolean => /offset=-\d{2,}/.test(u));
+    const hasInspectOffsetZero = getUpdatesUrls.some((u: string): boolean =>
+      /offset=0(?!\d)/.test(u),
+    );
+    expect(hasInspectOffsetZero).toBe(true);
+    const negativeOffsets = getUpdatesUrls.filter((u: string): boolean => /offset=-\d+/.test(u));
     expect(negativeOffsets).toHaveLength(0);
-  });
-
-  it('TF-4b strict-floor — rejects replies with update_id <= minUpdateId', async () => {
-    installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 500 }] },
-      // Update with update_id=500 (same as floor) MUST be filtered.
-      { ok: true, result: [makeReplyUpdate(500, '999999')] },
-    ]);
-    const args = makeArgs({ timeoutMs: 500 });
-    const result = await fetchOtpFromTelegram(args);
-    expect(result).toBe(false);
+    const hasConfirmAt11 = getUpdatesUrls.some((u: string): boolean => /offset=11(?!\d)/.test(u));
+    expect(hasConfirmAt11).toBe(true);
   });
 
   it('TF-4c reply-scoped — rejects messages that are NOT replies to our prompt', async () => {
@@ -393,6 +494,64 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs({ timeoutMs: 500 });
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
+  });
+
+  it('TELEGRAM-OFFSET-001 — poll uses offset=0, confirm uses match.update_id+1, no negative offset', async () => {
+    // A.fix-2 design (commit c0a45f27) used `offset=0` non-destructive
+    // reads everywhere to avoid cross-fetcher purges. Live CI run
+    // 25732939617 (HEAD 9684be50) Beinleumi proved that design starves
+    // the response window once the queue has ≥100 recent updates: the
+    // user's reply sat past position 100 and never came back from
+    // `getUpdates?offset=0&limit=100`. R2 (commit 9684be50+1) flips
+    // the match path back to `offset=match.update_id + 1` — safe
+    // because the CI serial-OTP workflow `e2e-real-otp` with
+    // `max-parallel: 1` guarantees only one fetcher is ever active
+    // at a time, so the confirm cannot purge a concurrent fetcher's
+    // reply. The initial poll still uses non-destructive `offset=0`
+    // so a brand-new fetcher starting WITHOUT a prior match doesn't
+    // depend on cursor state from an earlier process.
+    //
+    // Assertions:
+    //   1. NO call uses a negative offset (rules out the original
+    //      `offset=-1` purge that caused the 2026-05-12
+    //      Beinleumi-during-Hapoalim symptom).
+    //   2. The poll cycle uses `offset=0`.
+    //   3. The match-path confirm advances to exactly
+    //      `match.update_id + 1` (boundary-precise — catches
+    //      off-by-one regressions where the code returns
+    //      `match.update_id` or `match.update_id + 10`).
+    //   4. The fetcher correctly ignored the other-bank reply
+    //      (`reply_to_message.message_id=9999`) and picked our own.
+    const recentDateSec = Math.floor(Date.now() / 1000) - 60;
+    const otherBankReply = makeReplyUpdateAt({
+      updateId: 50,
+      text: '9876',
+      replyToId: 9999,
+      dateSec: recentDateSec,
+    });
+    const ourReply = makeReplyUpdateAt({
+      updateId: 51,
+      text: '1234',
+      replyToId: DEFAULT_PROMPT_ID,
+      dateSec: recentDateSec,
+    });
+    installFetchWithDefaultPrompt([{ ok: true, result: [otherBankReply, ourReply] }]);
+    const args = makeArgs();
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe('1234');
+    await flushDetachedSideEffects(fetchSpy, 4);
+    const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
+    const hasNegativeOffset = getUpdatesUrls.some((u: string): boolean => /offset=-\d+/.test(u));
+    expect(hasNegativeOffset).toBe(false);
+    const hasInspectOffsetZero = getUpdatesUrls.some((u: string): boolean =>
+      /offset=0(?!\d)/.test(u),
+    );
+    expect(hasInspectOffsetZero).toBe(true);
+    // Boundary-precise: matches offset=52 exactly, NOT offset=520/521/etc.
+    const hasConfirmPastMatch = getUpdatesUrls.some((u: string): boolean =>
+      /offset=52(?!\d)/.test(u),
+    );
+    expect(hasConfirmPastMatch).toBe(true);
   });
 
   it('TF-4d cross-prompt — rejects replies to a DIFFERENT prompt id', async () => {
@@ -426,20 +585,19 @@ describe('fetchOtpFromTelegram', () => {
     { label: 'TF-5d invalid timeout (zero)', overrides: { timeoutMs: 0 } },
   ];
 
-  skipReasonScenarios.map((sc): true => {
-    it(`${sc.label} — returns false synchronously, no network call`, async () => {
+  it.each(skipReasonScenarios)(
+    '$label — returns false synchronously, no network call',
+    async sc => {
       installFetchWithDefaultPrompt([]);
       const args = makeArgs(sc.overrides);
       const result = await fetchOtpFromTelegram(args);
       expect(result).toBe(false);
       expect(fetchSpy).not.toHaveBeenCalled();
-    });
-    return true;
-  });
+    },
+  );
 
   it('TF-6 wrong-chat — returns false; never picks the off-chat reply', async () => {
     installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 1 }] },
       {
         ok: true,
         result: [
@@ -460,15 +618,14 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe(false);
   });
 
-  it('TF-7 prompt-failed — returns false when sendMessage fails', async () => {
+  it('TF-7 prompt-failed — returns false when sendMessage fails (no poll calls)', async () => {
     // Telegram returns ok:false on sendMessage → fetcher cannot
-    // proceed (no message_id to scope replies against), aborts.
-    // The pre-prompt floor probe still runs because the
-    // race-free order captures `minUpdateId` BEFORE sending the
-    // prompt (TF-8).
+    // proceed (no message_id to scope replies against), aborts
+    // BEFORE the poll loop. With A.fix-2 there is no pre-prompt
+    // probe either — sendMessage is the first network call.
     installFetch({
       sendMessage: [{ ok: false, description: 'bad token' }],
-      getUpdates: [{ ok: true, result: [{ update_id: 1 }] }],
+      getUpdates: [],
     });
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
@@ -476,54 +633,44 @@ describe('fetchOtpFromTelegram', () => {
     const sendCalls = getSendMessageCalls(fetchSpy);
     const updateCalls = getGetUpdatesCalls(fetchSpy);
     expect(sendCalls).toHaveLength(1);
-    // Floor probe (1) + zero poll cycles (sendMessage failed before
-    // poll loop entered).
-    expect(updateCalls).toHaveLength(1);
+    // Zero poll cycles — sendMessage failed before the poll loop
+    // entered AND there is no longer a pre-prompt probe.
+    expect(updateCalls).toHaveLength(0);
   });
 
-  it('TF-8 race-free order — floor probe runs BEFORE sendMessage', async () => {
-    // Regression: with the OLD order (sendMessage → floor →
-    // poll), a fast SMS-to-Telegram forwarder could land its
-    // reply between sendMessage and the floor probe. The probe
-    // would then return that very reply's update_id as the
-    // floor, and the strict-greater filter (`update_id >
-    // minUpdateId`) would reject the reply we are waiting for.
-    // The fix is to capture the floor FIRST: any reply to our
-    // prompt is then guaranteed to have `update_id > floor` by
-    // construction. Per-prompt isolation comes from the
-    // `reply_to_message.message_id` filter (TF-4d), not from
-    // this floor.
-    installFetchWithDefaultPrompt([
-      // Floor probe — pre-prompt snapshot of the chat.
-      { ok: true, result: [{ update_id: 1000 }] },
-      // First poll cycle — forwarder's reply landed at update_id
-      // 1001 (which would have been the floor under the old
-      // order, causing the strict-greater filter to reject it).
-      { ok: true, result: [makeReplyUpdate(1001, '424242')] },
-    ]);
+  it('TF-8 sendMessage runs BEFORE first poll — no pre-prompt probe', async () => {
+    // A.fix-2 replaced the old order (probe → sendMessage → poll)
+    // with (sendMessage → poll) because the probe used
+    // `offset=-1` which Telegram interprets as "forget all
+    // previous updates" — purging concurrent parallel fetchers'
+    // pending replies. Per-prompt isolation comes from the
+    // `reply_to_message.message_id` filter (TF-4d) — the floor
+    // probe served no additional safety once that filter exists.
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(1001, '424242')] }]);
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('424242');
     const calls = readFetchCalls(fetchSpy);
-    const firstCall = calls[0];
-    const secondCall = calls[1];
-    const firstUrl = getCallUrl(firstCall);
-    const secondUrl = getCallUrl(secondCall);
-    expect(firstUrl).toContain('/getUpdates');
-    expect(secondUrl).toContain('/sendMessage');
+    const firstUrl = getCallUrl(calls[0]);
+    const secondUrl = getCallUrl(calls[1]);
+    expect(firstUrl).toContain('/sendMessage');
+    expect(secondUrl).toContain('/getUpdates');
+    expect(secondUrl).toContain('offset=0');
   });
 
   it('TF-9 ack on match — sends a confirmation reply scoped to the prompt', async () => {
     // UX: after a successful match the bot acknowledges receipt
     // so the user knows their reply was consumed and the scrape
     // is proceeding. Best-effort — failures must not affect the
-    // OTP flow (covered by TF-9b).
-    installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 1 }] },
-      { ok: true, result: [makeReplyUpdate(2, '424242')] },
-    ]);
+    // OTP flow (covered by TF-9b). Detached post-match per
+    // `fetchOtpFromTelegram`'s `detachSideEffect` wiring so the
+    // OTP digits return to the pipeline before this HTTP call
+    // resolves; flush microtasks before asserting on it.
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(2, '424242')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
+    // prompt + poll + ack + GC inspect = 4
+    await flushDetachedSideEffects(fetchSpy, 4);
     const sendMessageCalls = getSendMessageCalls(fetchSpy);
     // 1 prompt + 1 ack = 2 sendMessage calls.
     expect(sendMessageCalls.length).toBe(2);
@@ -535,10 +682,12 @@ describe('fetchOtpFromTelegram', () => {
   });
 
   it('TF-10 ack on timeout — sends a "no reply" message scoped to the prompt', async () => {
-    installFetchWithDefaultPrompt([{ ok: true, result: [{ update_id: 50 }] }]);
+    installFetchWithDefaultPrompt([]);
     const args = makeArgs({ timeoutMs: 500 });
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
+    // prompt + ≥1 poll + timeout-ack + GC inspect = ≥4
+    await flushDetachedSideEffects(fetchSpy, 4);
     const sendMessageCalls = getSendMessageCalls(fetchSpy);
     // 1 prompt + 1 timeout-ack.
     expect(sendMessageCalls.length).toBe(2);
@@ -547,5 +696,95 @@ describe('fetchOtpFromTelegram', () => {
     expect(ackBody.reply_to_message_id).toBe(DEFAULT_PROMPT_ID);
     const ackText = typeof ackBody.text === 'string' ? ackBody.text : '';
     expect(ackText).toMatch(/no reply/);
+  });
+
+  it('TF-11 confirm-past-match — advances cursor past matched update_id on the match path', async () => {
+    // Live CI evidence: run 25732939617 Beinleumi failed with TWO
+    // 180s OTP timeouts even though the user replied — the queue
+    // had ≥100 recent (≤ 10 min) updates from prior OneZero +
+    // earlier test cycles, so the `offset=0&limit=100` poll
+    // returned only the oldest 100 entries and Beinleumi's reply
+    // sat past the response window. Fix: on the MATCH path,
+    // confirm `offset=match.update_id + 1` so each fetcher cleans
+    // up after itself and the next fetcher starts with a trimmed
+    // queue. Safe under the CI serial-OTP workflow
+    // (`e2e-real-otp`, `max-parallel: 1`) because only one
+    // fetcher is ever active at a time — no concurrent reply can
+    // be in the matched-id range. Replaces the prior `TF-11
+    // prune-old-updates` test that exercised pruneOldUpdates on
+    // the match path; that helper now fires on the TIMEOUT path
+    // only, asserted by TF-12.
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(50, '111111')] }]);
+    const args = makeArgs();
+    await fetchOtpFromTelegram(args);
+    // prompt + poll + ack + confirm-past-match = 4
+    await flushDetachedSideEffects(fetchSpy, 4);
+    const getUpdatesCalls = getGetUpdatesCalls(fetchSpy);
+    const urls = getUpdatesCalls.map(getCallUrl);
+    // Boundary-aware regex per CodeRabbit PR #226 R2 review.
+    // Substring `u.includes('offset=51')` would also accept
+    // `offset=510 / 511 / 515 …`, so an off-by-one regression
+    // returning `match.update_id` (=50) or `match.update_id + 10`
+    // (=60) could silently pass. The `/offset=51(?!\d)/` pin
+    // catches it.
+    const hasConfirmCall = urls.some((u: string): boolean => /offset=51(?!\d)/.test(u));
+    expect(hasConfirmCall).toBe(true);
+    // Initial poll must use offset=0 (non-destructive read).
+    const hasInspectCall = urls.some((u: string): boolean => /offset=0(?!\d)/.test(u));
+    expect(hasInspectCall).toBe(true);
+  });
+
+  it('TF-12 prune-all-stale — confirms past last update_id when entire queue is stale', async () => {
+    // CodeRabbit PR #226 R2 review: TF-11 covered the "recent
+    // boundary mid-queue" path of computePruneOffset, but the
+    // ALL-STALE branch (return `updates[len-1].update_id + 1`)
+    // was uncovered — exactly the off-by-one site flagged in the
+    // R1 review. This test exercises the TIMEOUT path (where
+    // pruneOldUpdates still fires) with an all-stale queue, then
+    // asserts the confirm call uses the boundary-precise
+    // `offset=<lastId + 1>`.
+    //
+    // The poll loop spins tightly under the mock (each fetch
+    // resolves in microseconds) — thousands of iterations per
+    // 500 ms timeout — so a slot-array fixture would drain
+    // before pruneOldUpdates fires on the timeout. Use a sticky
+    // mock that returns the same staleResp for every getUpdates
+    // call regardless of slot. sendMessage still uses the
+    // queue-driven default.
+    const nowSec = Math.floor(Date.now() / 1000);
+    const ancientDate = nowSec - 1800; // 30 min old → stale
+    const staleResp = {
+      ok: true,
+      result: [
+        { update_id: 70, message: { chat: { id: -100456789 }, text: 'a', date: ancientDate } },
+        { update_id: 71, message: { chat: { id: -100456789 }, text: 'b', date: ancientDate } },
+        { update_id: 72, message: { chat: { id: -100456789 }, text: 'c', date: ancientDate } },
+      ],
+    };
+    /**
+     * Sticky fetch — sendMessage routes to defaultPromptResponse,
+     * getUpdates ALWAYS returns staleResp regardless of call count.
+     * Keeps the queue-drain problem out of the prune assertion.
+     * @param url - Telegram API URL.
+     * @returns Response stub.
+     */
+    const stickyImpl = (url: unknown): Promise<Response> => {
+      const u = typeof url === 'string' ? url : '';
+      const body = u.includes('/sendMessage') ? defaultPromptResponse() : staleResp;
+      const response = makeFetchResponse(body);
+      return Promise.resolve(response);
+    };
+    fetchSpy = jest.fn(stickyImpl);
+    originalFetch = globalThis.fetch;
+    (globalThis as { fetch: typeof fetch }).fetch = fetchSpy;
+    const args = makeArgs({ timeoutMs: 500 });
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe(false);
+    // Content-based wait: the poll loop emits thousands of calls
+    // under the sticky mock, so a count-based flush returns instantly
+    // while the detached prune chain hasn't yet fired the confirm
+    // call. Wait until offset=73 specifically appears.
+    const didConfirmAt73 = await flushUntilUrlPresent(fetchSpy, /offset=73(?!\d)/);
+    expect(didConfirmAt73).toBe(true);
   });
 });

@@ -14,9 +14,6 @@ on:
 
 permissions: {}
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 # ──────────────────────────────────────────────────────────────
 # Job DAG:
 #
@@ -32,6 +29,8 @@ jobs:
     name: Release Please
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: write
       pull-requests: write
@@ -52,6 +51,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: npm-publish
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: read
       id-token: write
