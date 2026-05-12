@@ -148,12 +148,24 @@ describe('ScrapePhaseActions — Wave 5 branches', () => {
     expect(isOkResult5).toBe(true);
   });
 
-  it('warnZeroAmounts: no txns total=0 (line 345 return early)', async () => {
+  it('all-accounts-empty: validate FAILS LOUD instead of returning success', async () => {
+    // Contract change 2026-05-12: `executeValidateResults` now
+    // fails when every account has 0 txns (silent scrape miss
+    // surfaced as O-4 per `telegram-m5-and-final-cleanup/status.txt`).
+    // The previous `warnZeroAmounts: no txns total=0` test asserted
+    // the old silent-success behaviour; replaced with the new
+    // fail-loud contract. The internal `warnZeroAmounts` early-return
+    // on total=0 is still hit (line 345 in source) — it just no
+    // longer matters because the outer `isAllAccountsEmpty` guard
+    // takes precedence.
     const accounts = [{ accountNumber: 'A1', balance: 100, txns: [] }];
     const ctx = makeMockContext({ scrape: some({ accounts }) });
     const result = await executeValidateResults(ctx);
     const isOkResult6 = isOk(result);
-    expect(isOkResult6).toBe(true);
+    expect(isOkResult6).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('scrape.post: all 1 accounts have 0 txns');
+    }
   });
 
   it('executeStampAccounts stamps count correctly when scrape.has is true', async () => {

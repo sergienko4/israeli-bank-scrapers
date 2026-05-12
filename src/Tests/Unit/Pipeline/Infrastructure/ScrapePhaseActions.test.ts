@@ -82,15 +82,117 @@ describe('executeValidateResults', () => {
     }
   });
 
-  it('stamps accounts count when scrape state has accounts', async () => {
+  it('stamps accounts count when scrape state has accounts with txns', async () => {
+    // The all-empty guard (isAllAccountsEmpty) fires when EVERY
+    // account has 0 txns — so this happy-path test must give the
+    // single account at least one real txn. The full all-empty
+    // failure path is covered in the dedicated cases below.
+    const txn = {
+      type: 'Normal',
+      date: '2026-01-01T00:00:00.000Z',
+      processedDate: '2026-01-01T00:00:00.000Z',
+      originalAmount: 100,
+      chargedAmount: 100,
+      originalCurrency: 'ILS',
+      description: '',
+      status: 'completed',
+    } as unknown as ITransaction;
     const ctx = makeMockContext({
-      scrape: some({ accounts: [{ accountNumber: 'A1', balance: 0, txns: [] }] }),
+      scrape: some({ accounts: [{ accountNumber: 'A1', balance: 0, txns: [txn] }] }),
     });
     const result = await executeValidateResults(ctx);
     const isOkResult10 = isOk(result);
     expect(isOkResult10).toBe(true);
     if (isOk(result)) {
       expect(result.value.diagnostics.lastAction).toContain('1 accounts');
+    }
+  });
+
+  it('SCRAPE-ALL-EMPTY-001 — fails when every account has 0 txns (multi-account scrape miss)', async () => {
+    // Live evidence: 22 of 25 local host runs on 2026-05-12 reported
+    // `[PRE] DIRECT: 0 accts, 0 recs, 0 eps frozen` but the test
+    // passed because assertSuccessfulScrape only checks errorType
+    // — not transaction counts. When every account has 0 txns it's
+    // a silent scrape miss, NOT a real bank state (legitimate state
+    // requires at least one account with activity in 180 days).
+    const ctx = makeMockContext({
+      scrape: some({
+        accounts: [
+          { accountNumber: 'A1', balance: 0, txns: [] },
+          { accountNumber: 'A2', balance: 0, txns: [] },
+          { accountNumber: 'A3', balance: 0, txns: [] },
+        ],
+      }),
+    });
+    const result = await executeValidateResults(ctx);
+    const isResultOk = isOk(result);
+    expect(isResultOk).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('scrape.post: all 3 accounts have 0 txns');
+      expect(result.errorMessage).toContain('scrape miss');
+    }
+  });
+
+  it('SCRAPE-ALL-EMPTY-002 — passes when at least one account has txns (rest may be 0)', async () => {
+    // Individual 0-txn accounts are legitimate (dormant cards,
+    // newly-issued cards, accounts with no 180-day activity). The
+    // guard fires ONLY when EVERY account is empty.
+    const txn = {
+      type: 'Normal',
+      date: '2026-01-01T00:00:00.000Z',
+      processedDate: '2026-01-01T00:00:00.000Z',
+      originalAmount: 100,
+      chargedAmount: 100,
+      originalCurrency: 'ILS',
+      description: 'real',
+      status: 'completed',
+    } as unknown as ITransaction;
+    const ctx = makeMockContext({
+      scrape: some({
+        accounts: [
+          { accountNumber: 'A1', balance: 0, txns: [] },
+          { accountNumber: 'A2', balance: 0, txns: [txn] },
+          { accountNumber: 'A3', balance: 0, txns: [] },
+        ],
+      }),
+    });
+    const result = await executeValidateResults(ctx);
+    const isResultOk = isOk(result);
+    expect(isResultOk).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.diagnostics.lastAction).toContain('3 accounts');
+    }
+  });
+
+  it('SCRAPE-ALL-EMPTY-003 — single-account-zero-txns also fails (one account is still "all")', async () => {
+    // Edge case in the user's rule "bank cannot be all 0 txns":
+    // a single account with 0 txns is still "every account empty".
+    // Guard catches the single-account case too.
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'A1', balance: 0, txns: [] }] }),
+    });
+    const result = await executeValidateResults(ctx);
+    const isResultOk = isOk(result);
+    expect(isResultOk).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('scrape.post: all 1 accounts have 0 txns');
+    }
+  });
+
+  it('SCRAPE-ALL-EMPTY-004 — zero-accounts case is NOT this guard (different failure mode)', async () => {
+    // The "0 accounts at all" case (scrape produced no accounts
+    // whatsoever) is a different failure handled elsewhere. This
+    // guard is scoped to "have accounts but every one is empty"
+    // per debugging-guidlines.md §3 minimal-fix-strategy — do not
+    // expand the failure surface beyond the user's reported case.
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [] }),
+    });
+    const result = await executeValidateResults(ctx);
+    const isResultOk = isOk(result);
+    expect(isResultOk).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.diagnostics.lastAction).toContain('0 accounts');
     }
   });
 

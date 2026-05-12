@@ -290,6 +290,14 @@ function executeValidateResults(input: IPipelineContext): Promise<Procedure<IPip
   const countStr = String(accountCount);
   if (input.scrape.has) logForensicAudit(input);
   warnZeroAmounts(input);
+  if (isAllAccountsEmpty(input)) {
+    // Detail in JSDoc on isAllAccountsEmpty — error message kept tight
+    // so a downstream `result.errorMessage.includes(...)` test stays
+    // readable, and the prettier 100-col reformat stays stable.
+    const errMsg = `scrape.post: all ${countStr} accounts have 0 txns — scrape miss`;
+    const failResult = fail(ScraperErrorTypes.Generic, errMsg);
+    return Promise.resolve(failResult);
+  }
   const diag = { ...input.diagnostics, lastAction: `scrape-post (${countStr} accounts)` };
   const result = succeed({ ...input, diagnostics: diag });
   return Promise.resolve(result);
@@ -347,6 +355,37 @@ function warnZeroAmounts(input: IPipelineContext): boolean {
     message: `ALL ${String(total)} transactions have 0.00 amounts`,
   });
   return true;
+}
+
+/**
+ * Hard sanity gate for SCRAPE.POST. Individual 0-txn accounts are
+ * legitimate (dormant cards, just-issued cards, accounts with no
+ * activity in the 180-day window). But when EVERY account in the
+ * scrape result has 0 txns, that's not a real bank state — it's a
+ * silent scrape miss. Live evidence:
+ *   - 22 of 25 local host runs on 2026-05-12 (`/c/tmp/runs/pipeline/
+ *     isracard/12-05-2026_*`) reported `[PRE] DIRECT: 0 accts, 0 recs,
+ *     0 eps frozen` AND `phase-stage result:"OK"`. The test passed
+ *     because the assertion checks `errorType === ''`, not the
+ *     transaction count.
+ *   - The 3 known-good runs that did scrape real data ALL had at
+ *     least one account with txns (8 accounts, distribution
+ *     0/22/25/25/6/6/0/0 → 5 of 8 accounts non-empty).
+ *
+ * Returns true ONLY when there's at least one account but every
+ * account has zero txns. The 0-accounts case is a different failure
+ * mode handled elsewhere; this guard intentionally does not expand
+ * its scope per `debugging-guidlines.md` §3 minimal-fix-strategy.
+ *
+ * @param input - Pipeline context after scraping.
+ * @returns True when all-accounts-empty sanity violation detected.
+ */
+function isAllAccountsEmpty(input: IPipelineContext): boolean {
+  if (!input.scrape.has) return false;
+  const accounts = input.scrape.value.accounts;
+  if (accounts.length === 0) return false;
+  const hasAnyTxn = accounts.some((a): boolean => a.txns.length > 0);
+  return !hasAnyTxn;
 }
 
 /**

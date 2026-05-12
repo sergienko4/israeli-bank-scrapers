@@ -275,13 +275,24 @@ describe('executeValidateResults deep branches', () => {
     expect(isOkResult29).toBe(true);
   });
 
-  it('skips warn when no txns across accounts', async () => {
+  it('fails when no txns across all accounts (all-empty guard fires)', async () => {
+    // Contract change 2026-05-12 per `SCRAPE-ALL-EMPTY-001` in
+    // ScrapePhaseActions.test.ts: `executeValidateResults` now
+    // fails loud when EVERY account has 0 txns (silent scrape
+    // miss). Previously this case returned success without warning;
+    // the warn-skip behaviour is still tested by the
+    // `warnZeroAmounts` semantics (warn fires ONLY on all-zero
+    // AMOUNT — not on all-empty TXN-LIST). The all-empty case is
+    // structurally a different signal and now fails.
     const ctx = makeMockContext({
       scrape: some({ accounts: [{ accountNumber: 'A1', balance: 0, txns: [] }] }),
     });
     const result = await executeValidateResults(ctx);
     const isOkResult30 = isOk(result);
-    expect(isOkResult30).toBe(true);
+    expect(isOkResult30).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('all 1 accounts have 0 txns');
+    }
   });
 
   it('does not warn when some txns have nonzero amounts', async () => {
