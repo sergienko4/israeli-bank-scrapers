@@ -332,41 +332,27 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe('222222');
   });
 
-  it('TF-4 positive-offset polling — readInitial uses offset=-1, pollOnce uses offset=minUpdateId+1', async () => {
-    // Probe returns update_id=9 → fetcher's minUpdateId=9 → all
-    // pollOnce calls MUST use offset=10. The negative-offset window
-    // (`offset=-N`) was the root cause of the Beinleumi CI miss
-    // (CI run 25690651046): with negative offset, Telegram does NOT
-    // short-circuit the long-poll on new data, so a reply landing
-    // mid-cycle stays unseen until the next tick. Positive offset
-    // fixes that — see TelegramOtpFetcher.ts top-of-file JSDoc.
-    installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 9 }] },
-      { ok: true, result: [makeReplyUpdate(10, '333333')] },
-    ]);
+  it('TF-4 non-destructive offset=0 — every getUpdates uses offset=0, no probe call', async () => {
+    // A.fix-2 contract: every poll call uses Telegram's documented
+    // non-destructive offset=0 (returns earliest unconfirmed without
+    // advancing the cursor). NO initial probe; the fetcher emits
+    // sendMessage first, then enters the poll loop. The previous
+    // design (`readInitialUpdateId` with offset=-1 + per-cycle
+    // `offset=minUpdateId+1`) was replaced 2026-05-12 because
+    // `offset=-1` is documented to "forget all previous updates",
+    // which purged parallel-CI-matrix fetchers' pending replies.
+    // See top-of-file JSDoc + telegram-m5-and-final-cleanup
+    // spec.txt §"Phase A.fix-2".
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(10, '333333')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
-    const getUpdatesUrls = readFetchCalls(fetchSpy)
-      .map(getCallUrl)
-      .filter((u): boolean => u.includes('/getUpdates'));
-    // Exactly two getUpdates calls expected: readInitial + 1 poll.
-    expect(getUpdatesUrls).toHaveLength(2);
-    expect(getUpdatesUrls[0]).toContain('offset=-1');
-    expect(getUpdatesUrls[1]).toContain('offset=10');
-    // No call uses the legacy negative-N window.
-    const negativeOffsets = getUpdatesUrls.filter((u): boolean => /offset=-\d{2,}/.test(u));
+    const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
+    expect(getUpdatesUrls).toHaveLength(1);
+    expect(getUpdatesUrls[0]).toContain('offset=0');
+    const isAllOffsetZero = getUpdatesUrls.every((u: string): boolean => /offset=0(?!\d)/.test(u));
+    expect(isAllOffsetZero).toBe(true);
+    const negativeOffsets = getUpdatesUrls.filter((u: string): boolean => /offset=-\d+/.test(u));
     expect(negativeOffsets).toHaveLength(0);
-  });
-
-  it('TF-4b strict-floor — rejects replies with update_id <= minUpdateId', async () => {
-    installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 500 }] },
-      // Update with update_id=500 (same as floor) MUST be filtered.
-      { ok: true, result: [makeReplyUpdate(500, '999999')] },
-    ]);
-    const args = makeArgs({ timeoutMs: 500 });
-    const result = await fetchOtpFromTelegram(args);
-    expect(result).toBe(false);
   });
 
   it('TF-4c reply-scoped — rejects messages that are NOT replies to our prompt', async () => {
@@ -393,6 +379,33 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs({ timeoutMs: 500 });
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
+  });
+
+  it('TELEGRAM-OFFSET-001 non-destructive offset=0 polling — picks own reply when queue has other banks', async () => {
+    // A.fix-2 contract per spec.txt §"Phase A.fix-2 — Telegram
+    // non-destructive `getUpdates`": every getUpdates call uses
+    // offset=0 (Telegram-documented non-destructive read) so multiple
+    // parallel fetchers (CI matrix runners) safely share the bot's
+    // queue. Each fetcher filters by reply_to_message.message_id and
+    // picks ONLY its own reply. NO call uses offset=-1 (the documented
+    // purge trigger that caused the cross-fetcher Beinleumi-during-
+    // Hapoalim symptom 2026-05-12).
+    installFetchWithDefaultPrompt([
+      {
+        ok: true,
+        // Queue contains another bank's reply (reply_to_message.message_id=9999)
+        // plus our own (reply_to_message.message_id=DEFAULT_PROMPT_ID=5000).
+        result: [makeReplyUpdate(50, '9876', 9999), makeReplyUpdate(51, '1234')],
+      },
+    ]);
+    const args = makeArgs();
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe('1234');
+    const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
+    const hasNegativeOffset = getUpdatesUrls.some((u: string): boolean => /offset=-\d+/.test(u));
+    expect(hasNegativeOffset).toBe(false);
+    const isAllOffsetZero = getUpdatesUrls.every((u: string): boolean => /offset=0(?!\d)/.test(u));
+    expect(isAllOffsetZero).toBe(true);
   });
 
   it('TF-4d cross-prompt — rejects replies to a DIFFERENT prompt id', async () => {
@@ -460,15 +473,14 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe(false);
   });
 
-  it('TF-7 prompt-failed — returns false when sendMessage fails', async () => {
+  it('TF-7 prompt-failed — returns false when sendMessage fails (no poll calls)', async () => {
     // Telegram returns ok:false on sendMessage → fetcher cannot
-    // proceed (no message_id to scope replies against), aborts.
-    // The pre-prompt floor probe still runs because the
-    // race-free order captures `minUpdateId` BEFORE sending the
-    // prompt (TF-8).
+    // proceed (no message_id to scope replies against), aborts
+    // BEFORE the poll loop. With A.fix-2 there is no pre-prompt
+    // probe either — sendMessage is the first network call.
     installFetch({
       sendMessage: [{ ok: false, description: 'bad token' }],
-      getUpdates: [{ ok: true, result: [{ update_id: 1 }] }],
+      getUpdates: [],
     });
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
@@ -476,41 +488,29 @@ describe('fetchOtpFromTelegram', () => {
     const sendCalls = getSendMessageCalls(fetchSpy);
     const updateCalls = getGetUpdatesCalls(fetchSpy);
     expect(sendCalls).toHaveLength(1);
-    // Floor probe (1) + zero poll cycles (sendMessage failed before
-    // poll loop entered).
-    expect(updateCalls).toHaveLength(1);
+    // Zero poll cycles — sendMessage failed before the poll loop
+    // entered AND there is no longer a pre-prompt probe.
+    expect(updateCalls).toHaveLength(0);
   });
 
-  it('TF-8 race-free order — floor probe runs BEFORE sendMessage', async () => {
-    // Regression: with the OLD order (sendMessage → floor →
-    // poll), a fast SMS-to-Telegram forwarder could land its
-    // reply between sendMessage and the floor probe. The probe
-    // would then return that very reply's update_id as the
-    // floor, and the strict-greater filter (`update_id >
-    // minUpdateId`) would reject the reply we are waiting for.
-    // The fix is to capture the floor FIRST: any reply to our
-    // prompt is then guaranteed to have `update_id > floor` by
-    // construction. Per-prompt isolation comes from the
-    // `reply_to_message.message_id` filter (TF-4d), not from
-    // this floor.
-    installFetchWithDefaultPrompt([
-      // Floor probe — pre-prompt snapshot of the chat.
-      { ok: true, result: [{ update_id: 1000 }] },
-      // First poll cycle — forwarder's reply landed at update_id
-      // 1001 (which would have been the floor under the old
-      // order, causing the strict-greater filter to reject it).
-      { ok: true, result: [makeReplyUpdate(1001, '424242')] },
-    ]);
+  it('TF-8 sendMessage runs BEFORE first poll — no pre-prompt probe', async () => {
+    // A.fix-2 replaced the old order (probe → sendMessage → poll)
+    // with (sendMessage → poll) because the probe used
+    // `offset=-1` which Telegram interprets as "forget all
+    // previous updates" — purging concurrent parallel fetchers'
+    // pending replies. Per-prompt isolation comes from the
+    // `reply_to_message.message_id` filter (TF-4d) — the floor
+    // probe served no additional safety once that filter exists.
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(1001, '424242')] }]);
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('424242');
     const calls = readFetchCalls(fetchSpy);
-    const firstCall = calls[0];
-    const secondCall = calls[1];
-    const firstUrl = getCallUrl(firstCall);
-    const secondUrl = getCallUrl(secondCall);
-    expect(firstUrl).toContain('/getUpdates');
-    expect(secondUrl).toContain('/sendMessage');
+    const firstUrl = getCallUrl(calls[0]);
+    const secondUrl = getCallUrl(calls[1]);
+    expect(firstUrl).toContain('/sendMessage');
+    expect(secondUrl).toContain('/getUpdates');
+    expect(secondUrl).toContain('offset=0');
   });
 
   it('TF-9 ack on match — sends a confirmation reply scoped to the prompt', async () => {
