@@ -290,22 +290,6 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
-        # Isracard NON-OK on CI as of CI run 25732939617 (HEAD 9684be50):
-        # the live login form now serves a 2-step OTP-LOBBY flow
-        # (#otpLobbyFormPassword + ng-click="ResendNewLogin") that the
-        # pipeline does not currently handle — fresh-runner runs land
-        # on the OTP-prelude variant, the submit click triggers
-        # SMS-send (not credentials-submit), and AUTH-DISCOVERY POST
-        # never sees REVEAL. Host runs PASS via Camoufox-profile-cache
-        # bypass to the marketing-homepage path; CI has no cache.
-        # `continue-on-error` for ISRACARD ONLY matches the same
-        # informational pattern e2e-smoke uses (line 205) — the test
-        # still runs and reports its outcome on the PR without
-        # blocking the merge gate. Tracked as O-3 in
-        # telegram-m5-and-final-cleanup/status.txt: needs OTP-FILL
-        # phase wired for Isracard (new feature, not a fix). All
-        # other Group A banks (VisaCal/Discount/Max) remain strict.
-        continue-on-error: ${{ matrix.bank == 'Isracard' }}
         env:
           # LOG_LEVEL=trace makes the pipeline write per-run artefacts
           # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
