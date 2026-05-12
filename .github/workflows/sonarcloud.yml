@@ -15,9 +15,6 @@ on:
       - '.github/workflows/sonarcloud.yml'
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 permissions: {}
 
 jobs:
@@ -25,6 +22,8 @@ jobs:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: read
       pull-requests: read
