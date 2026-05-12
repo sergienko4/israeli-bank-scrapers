@@ -383,6 +383,25 @@ function findOtpMatch(args: IFindOtpMatchArgs): MatchResult {
 /** Window of recent updates we ask Telegram for each cycle. */
 const RECENT_WINDOW_LIMIT = 100;
 
+/**
+ * Bound on how old a queued update may be before it's eligible for
+ * cleanup. After each fetcher's match / timeout, the GC step
+ * (`pruneOldUpdates`) confirms — and thereby removes from the bot's
+ * unconfirmed queue — every update whose `message.date` is older
+ * than `now - RECENT_MESSAGE_WINDOW_S` seconds.
+ *
+ * <p>Why 10 minutes: CI E2E runs typically complete a single bank
+ * scrape in under 5 minutes; 10 min leaves 2× headroom for clock
+ * skew + slow runs. Concurrent parallel-matrix fetchers' prompts
+ * are also <10 min old, so their pending replies survive this
+ * fetcher's GC (their `message.date` ≥ now - 600).
+ *
+ * <p>This bounds the queue size so the `offset=0&limit=100` poll
+ * window never starves an in-flight reply by pushing it past the
+ * 100-update response cap (per CodeRabbit PR #226 review).
+ */
+const RECENT_MESSAGE_WINDOW_S = 600;
+
 /** Internal poll-loop state. */
 interface IPollState {
   readonly args: ITelegramFetchArgs;
@@ -580,6 +599,60 @@ async function handleFetchMatch(bundle: IHandleMatchArgs): Promise<true> {
 }
 
 /**
+ * Compute the cursor to advance to in order to confirm (drop) every
+ * update older than the recent-message window. Returns `false` when
+ * the queue is entirely recent (no cleanup needed) — the find matched
+ * the first element so there's nothing to skip past.
+ *
+ * @param updates - Current queue snapshot (offset=0 read).
+ * @param thresholdSec - Wall-clock epoch boundary (now - 600 s).
+ * @returns Offset to confirm OR `false` when nothing to prune.
+ */
+function computePruneOffset(
+  updates: readonly ITelegramUpdate[],
+  thresholdSec: number,
+): number | false {
+  const recentBoundary = updates.find((u): boolean => (u.message?.date ?? 0) >= thresholdSec);
+  if (recentBoundary !== undefined) {
+    if (recentBoundary === updates[0]) return false;
+    return recentBoundary.update_id;
+  }
+  const lastUpdate = updates[updates.length - 1];
+  return lastUpdate.update_id + 1;
+}
+
+/**
+ * Bound the bot's unconfirmed-update queue by confirming every
+ * update older than `RECENT_MESSAGE_WINDOW_S` seconds. Best-effort —
+ * transport failures here never affect the OTP outcome (the caller
+ * has already returned its result before this fires).
+ *
+ * <p>Concurrent parallel-matrix fetchers' RECENT pending replies
+ * survive because their `message.date` is also within the window
+ * (their prompts were sent <10 min ago too).
+ *
+ * @param args - Fetcher args (for log + bot token).
+ * @returns Always `true` after attempting GC.
+ */
+async function pruneOldUpdates(args: ITelegramFetchArgs): Promise<true> {
+  const thresholdSec = Math.floor(Date.now() / 1000) - RECENT_MESSAGE_WINDOW_S;
+  const inspectUrl = buildUpdatesUrl(
+    args.botToken,
+    `offset=0&limit=${String(RECENT_WINDOW_LIMIT)}&timeout=0`,
+  );
+  const res = await safeFetchUpdates(inspectUrl);
+  if (res === false || res.result.length === 0) return true;
+  const advanceTo = computePruneOffset(res.result, thresholdSec);
+  if (advanceTo === false) return true;
+  const confirmUrl = buildUpdatesUrl(
+    args.botToken,
+    `offset=${String(advanceTo)}&limit=1&timeout=0`,
+  );
+  await safeFetchUpdates(confirmUrl);
+  return true;
+}
+
+/**
  * Fetch the next OTP from Telegram for a given bank. Orchestrator —
  * each branch delegates to a single-purpose helper to keep this
  * method under the 10-line ceiling.
@@ -604,9 +677,11 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
   const match = await runPollLoop({ args, deadline, promptMessageId });
   if (match === false) {
     await handleFetchTimeout(args, promptMessageId);
+    await pruneOldUpdates(args);
     return false;
   }
   await handleFetchMatch({ args, promptMessageId, match });
+  await pruneOldUpdates(args);
   return match.code;
 }
 

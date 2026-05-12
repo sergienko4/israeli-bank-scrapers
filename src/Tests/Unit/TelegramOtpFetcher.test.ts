@@ -1,7 +1,8 @@
 /**
  * Unit tests for {@link fetchOtpFromTelegram} — verify the
- * 4-tier validation, the long-poll loop, the regex match
- * semantics, and the acknowledge-by-offset advancement.
+ * 4-tier validation, the non-destructive `offset=0` long-poll
+ * loop, the regex match semantics, and the
+ * `reply_to_message.message_id`-scoped attribution (A.fix-2).
  *
  * No real network calls — `global.fetch` is replaced with a
  * jest.fn for every test and restored after.
@@ -300,15 +301,15 @@ afterEach((): void => {
 describe('fetchOtpFromTelegram', () => {
   it('TF-1 happy path — sends prompt then resolves on the user reply', async () => {
     installFetchWithDefaultPrompt([
-      // 1) Initial offset probe: returns the highest-known update_id.
-      { ok: true, result: [{ update_id: 99 }] },
-      // 2) First poll cycle returns the user's reply to our prompt.
+      // First poll cycle returns the user's reply to our prompt.
       { ok: true, result: [makeReplyUpdate(100, '654321')] },
     ]);
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('654321');
-    // floor probe + sendMessage + 1 poll cycle + ack-on-match = 4 calls.
+    // sendMessage + 1 poll cycle + ack-on-match + GC inspect = 4 calls
+    // after A.fix-2 (no readInitialUpdateId probe; pruneOldUpdates
+    // runs post-match to bound the queue per CodeRabbit #7).
     expect(fetchSpy).toHaveBeenCalledTimes(4);
   });
 
@@ -319,9 +320,12 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe(false);
   });
 
-  it('TF-3 multi-reply — picks the latest update_id', async () => {
+  it('TF-3 multi-reply — newest matching reply wins on tiebreak', async () => {
+    // After A.fix-2 the selection rule is: first match (newest-first
+    // traversal via compareUpdateIdDesc) whose reply_to_message.
+    // message_id === promptMessageId. `update_id` is the tiebreak
+    // ordering key, not the selection criterion.
     installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 199 }] },
       {
         ok: true,
         result: [makeReplyUpdate(200, '111111'), makeReplyUpdate(201, '222222')],
@@ -347,8 +351,8 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
     const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
-    expect(getUpdatesUrls).toHaveLength(1);
-    expect(getUpdatesUrls[0]).toContain('offset=0');
+    // 1 poll cycle + 1 GC inspect (pruneOldUpdates post-match) = 2 calls.
+    expect(getUpdatesUrls).toHaveLength(2);
     const isAllOffsetZero = getUpdatesUrls.every((u: string): boolean => /offset=0(?!\d)/.test(u));
     expect(isAllOffsetZero).toBe(true);
     const negativeOffsets = getUpdatesUrls.filter((u: string): boolean => /offset=-\d+/.test(u));
@@ -439,20 +443,19 @@ describe('fetchOtpFromTelegram', () => {
     { label: 'TF-5d invalid timeout (zero)', overrides: { timeoutMs: 0 } },
   ];
 
-  skipReasonScenarios.map((sc): true => {
-    it(`${sc.label} — returns false synchronously, no network call`, async () => {
+  it.each(skipReasonScenarios)(
+    '$label — returns false synchronously, no network call',
+    async sc => {
       installFetchWithDefaultPrompt([]);
       const args = makeArgs(sc.overrides);
       const result = await fetchOtpFromTelegram(args);
       expect(result).toBe(false);
       expect(fetchSpy).not.toHaveBeenCalled();
-    });
-    return true;
-  });
+    },
+  );
 
   it('TF-6 wrong-chat — returns false; never picks the off-chat reply', async () => {
     installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 1 }] },
       {
         ok: true,
         result: [
@@ -518,10 +521,7 @@ describe('fetchOtpFromTelegram', () => {
     // so the user knows their reply was consumed and the scrape
     // is proceeding. Best-effort — failures must not affect the
     // OTP flow (covered by TF-9b).
-    installFetchWithDefaultPrompt([
-      { ok: true, result: [{ update_id: 1 }] },
-      { ok: true, result: [makeReplyUpdate(2, '424242')] },
-    ]);
+    installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(2, '424242')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
     const sendMessageCalls = getSendMessageCalls(fetchSpy);
@@ -535,7 +535,7 @@ describe('fetchOtpFromTelegram', () => {
   });
 
   it('TF-10 ack on timeout — sends a "no reply" message scoped to the prompt', async () => {
-    installFetchWithDefaultPrompt([{ ok: true, result: [{ update_id: 50 }] }]);
+    installFetchWithDefaultPrompt([]);
     const args = makeArgs({ timeoutMs: 500 });
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
@@ -547,5 +547,42 @@ describe('fetchOtpFromTelegram', () => {
     expect(ackBody.reply_to_message_id).toBe(DEFAULT_PROMPT_ID);
     const ackText = typeof ackBody.text === 'string' ? ackBody.text : '';
     expect(ackText).toMatch(/no reply/);
+  });
+
+  it('TF-11 prune-old-updates — confirms updates older than the 10-min window', async () => {
+    // CodeRabbit PR #226 #7 + user direction 2026-05-12. After
+    // fetchOtpFromTelegram resolves (match OR timeout), it confirms
+    // every queued update whose `message.date` is older than
+    // `now - 600s`. Concurrent fetchers' RECENT replies (date >= now
+    // - 600) survive because their prompts are also <10 min old.
+    // This bounds the queue size so the offset=0&limit=100 read
+    // window never starves an in-flight reply.
+    const nowSec = Math.floor(Date.now() / 1000);
+    const ancientDate = nowSec - 1200; // 20 min old → stale, prune
+    const recentDate = nowSec - 100; // <2 min old → keep
+    installFetchWithDefaultPrompt([
+      { ok: true, result: [makeReplyUpdate(50, '111111')] },
+      // After match: GC inspect call returns mixed queue.
+      {
+        ok: true,
+        result: [
+          { update_id: 10, message: { chat: { id: -100456789 }, text: 'old', date: ancientDate } },
+          { update_id: 11, message: { chat: { id: -100456789 }, text: 'old2', date: ancientDate } },
+          {
+            update_id: 12,
+            message: { chat: { id: -100456789 }, text: 'recent', date: recentDate },
+          },
+        ],
+      },
+    ]);
+    const args = makeArgs();
+    await fetchOtpFromTelegram(args);
+    const getUpdatesCalls = getGetUpdatesCalls(fetchSpy);
+    const urls = getUpdatesCalls.map(getCallUrl);
+    // Expect at least one GC inspect (offset=0) AND one GC confirm
+    // call. The confirm offset MUST be the first recent update_id
+    // (12) — purges 10 + 11 but preserves 12.
+    const hasConfirmCall = urls.some((u: string): boolean => u.includes('offset=12'));
+    expect(hasConfirmCall).toBe(true);
   });
 });
