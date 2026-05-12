@@ -25,6 +25,10 @@ interface IAuditAccount {
 
 const LOG = createLogger('scrape-phase');
 
+const AUDIT_LABEL_SUCCESS = 'API Success' as const;
+const AUDIT_LABEL_ERROR = 'API Error' as const;
+type AuditLabel = typeof AUDIT_LABEL_SUCCESS | typeof AUDIT_LABEL_ERROR;
+
 /**
  * Log one qualified card's audit entry.
  * @param card - Card ID.
@@ -125,9 +129,9 @@ function isAccountIdMatch(accountNumber: string, card: string): boolean {
  * returns the existing `'API Success'` literal so happy-path callers
  * + downstream log-parsing greps stay compatible.
  *
- * <p>The pruned-card branch on line 189 of this file already emits the
- * same `API Error` token; sharing the vocabulary keeps the audit
- * surface a closed two-value enum (`API Success` | `API Error`)
+ * <p>The pruned-card branch in {@link logCardClassification} already
+ * emits the same `API Error` token; sharing the vocabulary keeps the
+ * audit surface a closed two-value enum (`API Success` | `API Error`)
  * rather than introducing a third token. M4.F4 evidence: Visacal CI
  * run `15180979` logged 48 HTTP-500 responses all labelled
  * `API Success` pre-fix.
@@ -135,11 +139,11 @@ function isAccountIdMatch(accountNumber: string, card: string): boolean {
  * @param scrapeSucceeded - True when an account record exists for the
  *   qualified card; false when SCRAPE failed (no record).
  * @returns Stable label literal — same vocabulary as the pruned-card
- *   branch on line 189 of this file.
+ *   branch in {@link logCardClassification}.
  */
-function resolveAuditLabel(scrapeSucceeded: boolean): 'API Success' | 'API Error' {
-  if (!scrapeSucceeded) return 'API Error';
-  return 'API Success';
+function resolveAuditLabel(scrapeSucceeded: boolean): AuditLabel {
+  if (!scrapeSucceeded) return AUDIT_LABEL_ERROR;
+  return AUDIT_LABEL_SUCCESS;
 }
 
 /**
@@ -209,7 +213,7 @@ function logCardClassification(
     const prunedLabel = showLastDigits(card);
     LOG.debug({
       stage: 'POST',
-      message: `[AUDIT] | ${prunedLabel} | PRUNED | API Error | 0 |`,
+      message: `[AUDIT] | ${prunedLabel} | PRUNED | ${AUDIT_LABEL_ERROR} | 0 |`,
     });
     return true;
   });
