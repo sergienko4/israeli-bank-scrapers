@@ -42,11 +42,22 @@ const ANGULAR_HELPER_SCRIPT = [
 /**
  * Inject the AngularJS sync helper into the page/frame context.
  * Idempotent — safe to call multiple times (overwrites same global).
+ *
+ * <p>Wrapped in try/catch (not just `.catch`) because some contexts
+ * (test mocks lacking `evaluate`, restricted cross-origin frames)
+ * throw SYNCHRONOUSLY before the returned promise even forms — the
+ * `.catch` on the chain would never see those. Failure is silent by
+ * design: the Angular sync is opportunistic, not load-bearing.
+ *
  * @param ctx - Page or Frame to inject into.
- * @returns True after injection.
+ * @returns True after injection (or silent noop on unsupported ctx).
  */
 async function ensureAngularHelper(ctx: Page | Frame): Promise<boolean> {
-  await ctx.evaluate(ANGULAR_HELPER_SCRIPT).catch((): false => false);
+  try {
+    await ctx.evaluate(ANGULAR_HELPER_SCRIPT);
+  } catch {
+    // Unsupported context (mock without evaluate, restricted frame, etc.).
+  }
   return true;
 }
 
@@ -63,16 +74,20 @@ async function syncAngularModel(
   selector: string,
   value: string,
 ): Promise<boolean> {
-  await ctx
-    .locator(selector)
-    .first()
-    .evaluate((el: Element, val: string): boolean => {
-      const w = globalThis as unknown as Record<string, unknown>;
-      const fn = w.__PIPELINE_NG_SYNC__ as ((e: Element, v: string) => boolean) | undefined;
-      if (fn) fn(el, val);
-      return true;
-    }, value)
-    .catch((): false => false);
+  try {
+    await ctx
+      .locator(selector)
+      .first()
+      .evaluate((el: Element, val: string): boolean => {
+        const w = globalThis as unknown as Record<string, unknown>;
+        const fn = w.__PIPELINE_NG_SYNC__ as ((e: Element, v: string) => boolean) | undefined;
+        if (fn) fn(el, val);
+        return true;
+      }, value);
+  } catch {
+    // Locator-chain or evaluate threw synchronously (mock ctx, missing
+    // method, restricted frame). Sync is opportunistic — safe to noop.
+  }
   return true;
 }
 
@@ -122,6 +137,20 @@ async function safeSiblingCount(locator: ReturnType<Page['locator']>): Promise<n
  * Fill a form input via mediator — Playwright .fill() with DOM+Angular fallback.
  * PIN-buffer detection: if .fill() succeeds but input has sibling inputs,
  * clear and fall through to pressSequentially (fires keypress for auto-advance).
+ *
+ * <p>Single-input success path also runs the AngularJS sync helper. Playwright's
+ * `.fill()` dispatches the native `input` event, which is enough for React /
+ * Vue / native forms — but AngularJS 1.x's `ng-model` directive needs
+ * `$setViewValue` + `$apply` to update the bound `$scope` field. Without that,
+ * a subsequent `ng-click` submit handler reads an empty `$scope` and rejects
+ * the form even though the DOM value is populated. The helper is idempotent
+ * for non-Angular pages (returns early when `window.angular` is undefined).
+ * Live evidence: Isracard CI run `25727925437` — `#otpLoginPwd` filled, DOM
+ * value set, but `ng-pristine ng-untouched ng-invalid-required` classes
+ * persisted across the click → `vm.ResendNewLogin('password','login')` saw
+ * empty `$scope.password` → no navigation → LOGIN.POST detected scope-intact
+ * → retry found form gone → 0 fields filled → reveal-missing downstream.
+ *
  * @param ctx - Page or Frame.
  * @param selector - Input selector.
  * @param value - Value to fill.
@@ -137,7 +166,10 @@ async function deepFillInput(ctx: Page | Frame, selector: string, value: string)
     .catch((): false => false);
   const siblings = didFill && (await safeSiblingCount(locator));
   const isSingleInput = didFill && typeof siblings === 'number' && siblings <= 1;
-  if (isSingleInput) return true;
+  if (isSingleInput) {
+    await ensureAngularHelper(ctx);
+    return syncAngularModel(ctx, selector, value);
+  }
   if (didFill)
     await locator.fill('', { timeout: FILL_ATTEMPT_TIMEOUT_MS }).catch((): false => false);
   // Fallback: DOM events + Angular Injected Helper

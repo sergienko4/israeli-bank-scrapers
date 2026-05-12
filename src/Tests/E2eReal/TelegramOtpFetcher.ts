@@ -6,15 +6,22 @@
  * returns the earliest unconfirmed update WITHOUT advancing the bot's
  * confirmed cursor. Per-prompt isolation comes from the
  * `reply_to_message.message_id === promptMessageId` filter alone.
- * No fetcher EVER advances the cursor; Telegram's 24h retention
- * drops stale updates automatically.
+ * No fetcher advances the cursor past RECENT updates (≤
+ * {@link RECENT_MESSAGE_WINDOW_S} seconds old); only stale updates
+ * are confirmed by {@link pruneOldUpdates} to bound queue size,
+ * and Telegram's 24h retention is the long-tail safety net.
  *
  * <p>Multiple fetchers (e.g. parallel CI matrix runners on separate
  * GitHub-hosted VMs) safely share the bot's queue: each filters by
  * its own `reply_to_message.message_id` and picks ONLY its own
  * reply. The Beinleumi-OTP-prompt-during-Hapoalim-run symptom
- * (observed 2026-05-12) is impossible by construction because no
- * fetcher's `getUpdates` call can purge another's pending reply.
+ * (observed 2026-05-12) cannot recur because no fetcher's
+ * `getUpdates` call can purge another's RECENT pending reply —
+ * `pruneOldUpdates` only confirms updates older than
+ * `RECENT_MESSAGE_WINDOW_S`. The CI workflow further serialises the
+ * three OTP-gated banks via `e2e-real-otp` (max-parallel: 1) so the
+ * parallel-fetcher case is now only exercised by host pre-commit
+ * runs; the in-process invariants still hold.
  *
  * <p>The previous design used `offset=-1` for an initial probe and
  * `offset=minUpdateId+1` for poll cycles. Telegram's documented
@@ -653,9 +660,77 @@ async function pruneOldUpdates(args: ITelegramFetchArgs): Promise<true> {
 }
 
 /**
+ * Swallow-all error sink for detached side-effects. A standalone
+ * helper (not an inline arrow) keeps the `no-void` architecture
+ * rule from triggering on the catch handler.
+ *
+ * @returns Always `true` — matches the project's no-void policy.
+ */
+function swallowDetachedError(): true {
+  return true;
+}
+
+/**
+ * Detach an async side-effect from the caller's await chain so it
+ * runs in the background. Failures are swallowed (they never affect
+ * the OTP outcome — ack + GC are observability/housekeeping only).
+ *
+ * @param promise - Promise to detach.
+ * @returns Always `true` — marker per the project's no-void policy.
+ */
+function detachSideEffect(promise: Promise<unknown>): true {
+  promise.catch(swallowDetachedError);
+  return true;
+}
+
+/**
+ * Side-effect-only timeout finaliser. Detaches the warn-log + user
+ * ack and the queue-GC pass, then returns `false` to the
+ * orchestrator. Keeps `fetchOtpFromTelegram` under the 10-line
+ * ceiling per `coding-principle-guidlines.md`.
+ *
+ * @param args - Fetcher args.
+ * @param promptMessageId - Bot's prompt message id (for reply scope).
+ * @returns `false` — the public timeout outcome.
+ */
+function dispatchTimeoutSideEffects(args: ITelegramFetchArgs, promptMessageId: number): false {
+  const timeoutPromise = handleFetchTimeout(args, promptMessageId);
+  detachSideEffect(timeoutPromise);
+  const prunePromise = pruneOldUpdates(args);
+  detachSideEffect(prunePromise);
+  return false;
+}
+
+/**
+ * Side-effect-only match finaliser. Detaches the info-log + user
+ * ack and the queue-GC pass, then returns the captured digits to
+ * the orchestrator — so `OtpPoller` resumes the bank pipeline
+ * before either HTTP call resolves.
+ *
+ * @param bundle - Match bundle.
+ * @returns Captured OTP digits.
+ */
+function dispatchMatchSideEffects(bundle: IHandleMatchArgs): string {
+  const matchPromise = handleFetchMatch(bundle);
+  detachSideEffect(matchPromise);
+  const prunePromise = pruneOldUpdates(bundle.args);
+  detachSideEffect(prunePromise);
+  return bundle.match.code;
+}
+
+/**
  * Fetch the next OTP from Telegram for a given bank. Orchestrator —
  * each branch delegates to a single-purpose helper to keep this
  * method under the 10-line ceiling.
+ *
+ * <p>On match the captured digits are returned IMMEDIATELY; the
+ * post-match ack and the queue-GC pass are detached so the caller
+ * (`OtpPoller` → `OtpFillPhaseActions`) types the code into the
+ * bank form in the same millisecond Telegram surfaced it. The two
+ * detached HTTP calls (`sendAckMessage` + `pruneOldUpdates`) were
+ * previously awaited inline and added ~500 ms–1 s of bank-side
+ * stall after the user's reply landed; eliminating that gap keeps
+ * the OTP flow inside the bank's narrow acceptance window.
  *
  * @param args - See {@link ITelegramFetchArgs}.
  * @returns Captured digits group on match, or `false` on timeout
@@ -675,14 +750,8 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
   logFetchStart({ args, promptMessageId });
   const deadline = Date.now() + args.timeoutMs;
   const match = await runPollLoop({ args, deadline, promptMessageId });
-  if (match === false) {
-    await handleFetchTimeout(args, promptMessageId);
-    await pruneOldUpdates(args);
-    return false;
-  }
-  await handleFetchMatch({ args, promptMessageId, match });
-  await pruneOldUpdates(args);
-  return match.code;
+  if (match === false) return dispatchTimeoutSideEffects(args, promptMessageId);
+  return dispatchMatchSideEffects({ args, promptMessageId, match });
 }
 
 export type { ITelegramFetchArgs };

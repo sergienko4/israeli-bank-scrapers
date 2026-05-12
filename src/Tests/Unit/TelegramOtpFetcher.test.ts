@@ -268,6 +268,13 @@ function makeArgs(overrides?: Partial<ITelegramFetchArgs>): ITelegramFetchArgs {
 }
 
 /**
+ * Default fixture timestamp — a fixed 2024-05 epoch that
+ * {@link pruneOldUpdates} treats as stale, exercising the
+ * GC-confirm branch in TF-11.
+ */
+const STALE_FIXTURE_DATE_SEC = 1_715_200_000;
+
+/**
  * Build a Telegram update payload containing a reply to the bot's
  * prompt. Tests use this to simulate the user pressing "Reply" in
  * Telegram and typing the OTP digits.
@@ -275,25 +282,83 @@ function makeArgs(overrides?: Partial<ITelegramFetchArgs>): ITelegramFetchArgs {
  * @param text - User's reply text (typically just digits).
  * @param replyToId - The bot's prompt message_id (defaults to
  *   DEFAULT_PROMPT_ID).
- * @returns Update fixture.
+ * @returns Update fixture with the stale default date.
  */
 function makeReplyUpdate(
   updateId: number,
   text: string,
   replyToId: number = DEFAULT_PROMPT_ID,
 ): Record<string, unknown> {
+  return makeReplyUpdateAt({ updateId, text, replyToId, dateSec: STALE_FIXTURE_DATE_SEC });
+}
+
+/** Bundle for {@link makeReplyUpdateAt}. */
+interface IMakeReplyUpdateAtArgs {
+  readonly updateId: number;
+  readonly text: string;
+  readonly replyToId: number;
+  readonly dateSec: number;
+}
+
+/**
+ * Lower-level fixture builder used when the date matters — e.g.
+ * TELEGRAM-OFFSET-001 needs RECENT updates so the detached
+ * `pruneOldUpdates` GC stays on its early-return branch and never
+ * advances Telegram's cursor on the cross-fetcher fixture.
+ * @param args - All update knobs as a bundle (avoids the project's
+ *   3-param ceiling for the date case).
+ * @returns Update fixture.
+ */
+function makeReplyUpdateAt(args: IMakeReplyUpdateAtArgs): Record<string, unknown> {
   return {
-    update_id: updateId,
+    update_id: args.updateId,
     message: {
       chat: { id: -100456789 },
-      text,
-      date: 1715200000,
-      reply_to_message: { message_id: replyToId },
+      text: args.text,
+      date: args.dateSec,
+      reply_to_message: { message_id: args.replyToId },
     },
   };
 }
 
-afterEach((): void => {
+/**
+ * Drain microtasks until the spy has been invoked at least
+ * `targetCalls` times, or `maxTicks` ticks have elapsed. Tests need
+ * this because the fetcher detaches the post-match ack and the
+ * post-match GC pass (per `fetchOtpFromTelegram`'s
+ * {@link detachSideEffect}) so the captured OTP can be returned to
+ * the caller without waiting on observability/housekeeping HTTP
+ * roundtrips. The detached promises resolve on subsequent
+ * microtask ticks; chaining `Promise.resolve().then(...)`
+ * recursively yields one tick per recursion without tripping
+ * `no-await-in-loop`.
+ *
+ * @param spy - The installed fetch spy.
+ * @param targetCalls - Minimum invocation count to wait for.
+ * @param maxTicks - Recursion ceiling — guards against a hung detach.
+ * @returns True when the count reaches the target, false on ceiling.
+ */
+function flushDetachedSideEffects(
+  spy: jest.Mock,
+  targetCalls: number,
+  maxTicks = 50,
+): Promise<boolean> {
+  const isReached = spy.mock.calls.length >= targetCalls;
+  if (isReached) return Promise.resolve(true);
+  if (maxTicks <= 0) return Promise.resolve(false);
+  return Promise.resolve().then(
+    (): Promise<boolean> => flushDetachedSideEffects(spy, targetCalls, maxTicks - 1),
+  );
+}
+
+afterEach(async (): Promise<void> => {
+  // Drain any detached ack/GC chains BEFORE tearing the fetch mock
+  // down. Otherwise late-firing detached promises would hit the
+  // restored `globalThis.fetch` (a real network call to Telegram in
+  // local dev / jest worker) and surface as cross-test pollution.
+  // `Number.MAX_SAFE_INTEGER` is unreachable so the helper always
+  // exhausts `maxTicks`; the boolean result is irrelevant here.
+  await flushDetachedSideEffects(fetchSpy, Number.MAX_SAFE_INTEGER, 20);
   restoreFetch();
   jest.clearAllMocks();
 });
@@ -307,9 +372,14 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('654321');
-    // sendMessage + 1 poll cycle + ack-on-match + GC inspect = 4 calls
-    // after A.fix-2 (no readInitialUpdateId probe; pruneOldUpdates
-    // runs post-match to bound the queue per CodeRabbit #7).
+    // sendMessage + 1 poll cycle = 2 awaited calls. Ack + GC inspect
+    // are DETACHED so the caller gets the code immediately; flush
+    // microtasks before the call-count assertion. GC inspect falls
+    // through the mock's empty default → pruneOldUpdates returns
+    // early (no confirm). Expected total: prompt + poll + ack + GC
+    // inspect = 4.
+    const didReachFourCalls = await flushDetachedSideEffects(fetchSpy, 4);
+    expect(didReachFourCalls).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(4);
   });
 
@@ -350,6 +420,10 @@ describe('fetchOtpFromTelegram', () => {
     installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(10, '333333')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
+    // GC inspect is detached post-match; flush so the inspect call is
+    // captured before we read the spy. Total: prompt + poll + ack +
+    // GC inspect = 4 (no confirm — mock default returns empty queue).
+    await flushDetachedSideEffects(fetchSpy, 4);
     const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
     // 1 poll cycle + 1 GC inspect (pruneOldUpdates post-match) = 2 calls.
     expect(getUpdatesUrls).toHaveLength(2);
@@ -385,7 +459,7 @@ describe('fetchOtpFromTelegram', () => {
     expect(result).toBe(false);
   });
 
-  it('TELEGRAM-OFFSET-001 non-destructive offset=0 polling — picks own reply when queue has other banks', async () => {
+  it('TELEGRAM-OFFSET-001 non-destructive offset=0 polling — picks own reply AND leaves the other bank in the queue', async () => {
     // A.fix-2 contract per spec.txt §"Phase A.fix-2 — Telegram
     // non-destructive `getUpdates`": every getUpdates call uses
     // offset=0 (Telegram-documented non-destructive read) so multiple
@@ -394,22 +468,64 @@ describe('fetchOtpFromTelegram', () => {
     // picks ONLY its own reply. NO call uses offset=-1 (the documented
     // purge trigger that caused the cross-fetcher Beinleumi-during-
     // Hapoalim symptom 2026-05-12).
+    //
+    // Per CodeRabbit PR #226 review on this test: also assert the
+    // CROSS-FETCHER invariant — after the first fetcher returns,
+    // an independent second poll of the same queue still observes
+    // the other bank's reply (`reply_to_message.message_id=9999`).
+    // Without this assertion the test passes even against a hypothetical
+    // implementation that destructively confirmed `match.update_id+1`,
+    // which is the exact regression class A.fix-2 prevents. Recent
+    // dates keep `pruneOldUpdates` on its early-return branch so the
+    // detached GC never advances the cursor on this fixture.
+    const recentDateSec = Math.floor(Date.now() / 1000) - 60;
+    const otherBankReply = makeReplyUpdateAt({
+      updateId: 50,
+      text: '9876',
+      replyToId: 9999,
+      dateSec: recentDateSec,
+    });
+    const ourReply = makeReplyUpdateAt({
+      updateId: 51,
+      text: '1234',
+      replyToId: DEFAULT_PROMPT_ID,
+      dateSec: recentDateSec,
+    });
+    const sharedQueue = [otherBankReply, ourReply];
     installFetchWithDefaultPrompt([
-      {
-        ok: true,
-        // Queue contains another bank's reply (reply_to_message.message_id=9999)
-        // plus our own (reply_to_message.message_id=DEFAULT_PROMPT_ID=5000).
-        result: [makeReplyUpdate(50, '9876', 9999), makeReplyUpdate(51, '1234')],
-      },
+      // Slot 1 — fetcher's poll cycle.
+      { ok: true, result: sharedQueue },
+      // Slot 2 — detached pruneOldUpdates inspect call.
+      { ok: true, result: sharedQueue },
+      // Slot 3 — simulated second-fetcher offset=0 read (cross-fetcher
+      // invariant: non-destructive, so still sees the 9999 reply).
+      { ok: true, result: sharedQueue },
     ]);
     const args = makeArgs();
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe('1234');
+    await flushDetachedSideEffects(fetchSpy, 4);
     const getUpdatesUrls = getGetUpdatesCalls(fetchSpy).map(getCallUrl);
     const hasNegativeOffset = getUpdatesUrls.some((u: string): boolean => /offset=-\d+/.test(u));
     expect(hasNegativeOffset).toBe(false);
     const isAllOffsetZero = getUpdatesUrls.every((u: string): boolean => /offset=0(?!\d)/.test(u));
     expect(isAllOffsetZero).toBe(true);
+    // Cross-fetcher invariant: a second offset=0 poll (concurrent fetcher
+    // on a separate CI matrix runner) STILL sees the other-bank reply
+    // since the first fetcher never advanced the cursor past it.
+    const secondReadUrl =
+      'https://api.telegram.org/botTEST_TOKEN/getUpdates?offset=0&limit=100&timeout=1';
+    const fetchProbe = fetchSpy as unknown as (u: string) => Promise<Response>;
+    const secondReadRaw = await fetchProbe(secondReadUrl);
+    const secondReadBody = (await secondReadRaw.json()) as {
+      readonly result: readonly {
+        readonly message?: { readonly reply_to_message?: { readonly message_id: number } };
+      }[];
+    };
+    const hasOtherBankReply = secondReadBody.result.some(
+      (u): boolean => u.message?.reply_to_message?.message_id === 9999,
+    );
+    expect(hasOtherBankReply).toBe(true);
   });
 
   it('TF-4d cross-prompt — rejects replies to a DIFFERENT prompt id', async () => {
@@ -520,10 +636,15 @@ describe('fetchOtpFromTelegram', () => {
     // UX: after a successful match the bot acknowledges receipt
     // so the user knows their reply was consumed and the scrape
     // is proceeding. Best-effort — failures must not affect the
-    // OTP flow (covered by TF-9b).
+    // OTP flow (covered by TF-9b). Detached post-match per
+    // `fetchOtpFromTelegram`'s `detachSideEffect` wiring so the
+    // OTP digits return to the pipeline before this HTTP call
+    // resolves; flush microtasks before asserting on it.
     installFetchWithDefaultPrompt([{ ok: true, result: [makeReplyUpdate(2, '424242')] }]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
+    // prompt + poll + ack + GC inspect = 4
+    await flushDetachedSideEffects(fetchSpy, 4);
     const sendMessageCalls = getSendMessageCalls(fetchSpy);
     // 1 prompt + 1 ack = 2 sendMessage calls.
     expect(sendMessageCalls.length).toBe(2);
@@ -539,6 +660,8 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs({ timeoutMs: 500 });
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
+    // prompt + ≥1 poll + timeout-ack + GC inspect = ≥4
+    await flushDetachedSideEffects(fetchSpy, 4);
     const sendMessageCalls = getSendMessageCalls(fetchSpy);
     // 1 prompt + 1 timeout-ack.
     expect(sendMessageCalls.length).toBe(2);
@@ -577,12 +700,21 @@ describe('fetchOtpFromTelegram', () => {
     ]);
     const args = makeArgs();
     await fetchOtpFromTelegram(args);
+    // prompt + poll + ack + GC inspect + GC confirm = 5
+    await flushDetachedSideEffects(fetchSpy, 5);
     const getUpdatesCalls = getGetUpdatesCalls(fetchSpy);
     const urls = getUpdatesCalls.map(getCallUrl);
-    // Expect at least one GC inspect (offset=0) AND one GC confirm
-    // call. The confirm offset MUST be the first recent update_id
-    // (12) — purges 10 + 11 but preserves 12.
-    const hasConfirmCall = urls.some((u: string): boolean => u.includes('offset=12'));
+    // Boundary-aware regex per CodeRabbit PR #226 review on TF-11.
+    // The previous substring `u.includes('offset=12')` would also
+    // match `offset=120 / 121 / 125 …`, so an off-by-one regression
+    // in `computePruneOffset` (e.g. all-stale branch returning
+    // `update_id` instead of `update_id + 1`) could silently pass.
+    // `/offset=12(?!\d)/` pins the value to exactly 12, and the
+    // companion `offset=0` pin verifies that GC inspect precedes
+    // confirm and uses the non-destructive read.
+    const hasConfirmCall = urls.some((u: string): boolean => /offset=12(?!\d)/.test(u));
     expect(hasConfirmCall).toBe(true);
+    const hasInspectCall = urls.some((u: string): boolean => /offset=0(?!\d)/.test(u));
+    expect(hasInspectCall).toBe(true);
   });
 });
