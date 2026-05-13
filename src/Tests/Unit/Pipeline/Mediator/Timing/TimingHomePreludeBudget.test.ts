@@ -55,6 +55,20 @@ function readHomeResolverSource(): string {
   return readFileSync(HOME_RESOLVER_PATH, 'utf8');
 }
 
+/**
+ * Structural detector for the `HOME_RESOLVER_ENTRY_TIMEOUT_MS`
+ * import — tolerates multi-line import formatting, whitespace
+ * variants, sibling named imports, and single- or double-quoted
+ * specifiers. Anchored to the `Timing/TimingConfig.js` specifier
+ * so an unrelated re-export from another module cannot accidentally
+ * satisfy the centralisation invariant.
+ *
+ * <p>`[\s\S]` (not `.`) keeps the brace-balanced segment portable
+ * across the lint rule that bans the `s` (dotAll) flag.
+ */
+const HOME_RESOLVER_ENTRY_TIMEOUT_IMPORT_REGEX =
+  /import\s*\{[\s\S]*?\bHOME_RESOLVER_ENTRY_TIMEOUT_MS\b[\s\S]*?\}\s*from\s*['"][^'"]*Timing\/TimingConfig\.js['"]/;
+
 describe('TimingHomePreludeBudget', () => {
   it('[HOME-PRELUDE-BUDGET-001] HomePreludeBudget_TimingConfig_ShouldStayAboveCiRaceFloor', () => {
     expect(HOME_PRELUDE_TIMEOUT_MS).toBeGreaterThanOrEqual(MIN_HOME_PRELUDE_TIMEOUT_MS);
@@ -65,9 +79,7 @@ describe('TimingHomePreludeBudget', () => {
 
   it('[HOME-PRELUDE-BUDGET-002] HomeResolver_NoLocalEntryTimeout_ShouldImportFromTimingConfig', () => {
     const source = readHomeResolverSource();
-    const hasTimingConfigImport = source.includes(
-      "import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js'",
-    );
+    const hasTimingConfigImport = HOME_RESOLVER_ENTRY_TIMEOUT_IMPORT_REGEX.test(source);
     const hasLocalEntryTimeoutLiteral = /const\s+ENTRY_TIMEOUT\s*=/.test(source);
     expect(hasTimingConfigImport).toBe(true);
     expect(hasLocalEntryTimeoutLiteral).toBe(false);
