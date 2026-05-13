@@ -1190,23 +1190,79 @@ function buildBucketingMethods(
 }
 
 /**
+ * Optional behaviour modifiers for {@link createNetworkDiscovery}.
+ */
+interface INetworkDiscoveryOpts {
+  /**
+   * When true, `page.on('response')` and `interceptPostResponses`
+   * are NOT attached at construction. Listeners attach lazily on
+   * the first `setCollectionActive(true)` call from the trace-
+   * lifecycle interceptor. Used by the production pipeline to
+   * keep the homepage / WAF-check window listener-free (I-3
+   * experiment 2026-05-13 — hCaptcha may observe pre-attached
+   * Playwright `page.on(...)` via the browser's CDP-mode signals).
+   * Default: false (eager attach — backwards-compatible with the
+   * 200+ unit tests that exercise `createNetworkDiscovery`
+   * directly without going through the interceptor).
+   */
+  readonly isDeferAttach?: boolean;
+}
+
+/**
  * Build the live INetworkDiscovery instance bound to a Playwright Page.
  * Captures responses, exposes WK-pattern discovery, and tracks the
  * dashboard-click moment so DASHBOARD.FINAL / SCRAPE.PRE can split
  * captures into pre-nav and post-nav buckets.
+ *
  * @param page - Playwright page to capture responses from.
+ * @param opts - Optional behaviour modifiers (see
+ *   {@link INetworkDiscoveryOpts}). Defaults preserve eager attach
+ *   so existing tests stay green.
  * @returns The live network-discovery instance.
  */
-function createNetworkDiscovery(page: Page): INetworkDiscovery {
+function createNetworkDiscovery(page: Page, opts: INetworkDiscoveryOpts = {}): INetworkDiscovery {
   const captured: IDiscoveredEndpoint[] = [];
-  const collectionState = buildCollectionState(true);
-  page.on('response', (r: Response): boolean => handleResponse(captured, r, collectionState.read));
-  interceptPostResponses(page, captured);
+  const isDeferAttach = opts.isDeferAttach === true;
+  // Initial collection state: false when deferring (no listeners
+  // yet, no captures), true when eager (legacy test-friendly path).
+  const collectionState = buildCollectionState(!isDeferAttach);
+  let isAttached = false;
+  /**
+   * Idempotent listener attachment. Eager mode calls this once
+   * synchronously; deferred mode invokes it from the first
+   * `setCollectionActive(true)` triggered by the trace-lifecycle
+   * interceptor at the post-AUTH phase boundary.
+   *
+   * @returns True when THIS call attached the listeners; false on
+   *   the repeat-call no-op (so the two branches differ — satisfies
+   *   sonarjs/no-invariant-returns).
+   */
+  const attachListenersOnce = (): boolean => {
+    if (isAttached) return false;
+    page.on('response', (r: Response): boolean =>
+      handleResponse(captured, r, collectionState.read),
+    );
+    interceptPostResponses(page, captured);
+    isAttached = true;
+    return true;
+  };
+  if (!isDeferAttach) attachListenersOnce();
+  /**
+   * Wrap collectionState.flip so deferred-mode lazy-attaches on
+   * first flip-to-active. Eager mode is a thin pass-through.
+   *
+   * @param active - True to record captures.
+   * @returns True after the flag is set.
+   */
+  const flipAndMaybeAttach = (active: boolean): true => {
+    if (active) attachListenersOnce();
+    return collectionState.flip(active);
+  };
   const clickState = buildDashboardClickState(false);
   const bucketing = buildBucketingMethods(captured, clickState);
   const lifecycle = {
     /** @inheritdoc */
-    setCollectionActive: collectionState.flip,
+    setCollectionActive: flipAndMaybeAttach,
   };
   const core = buildCoreMethods(captured);
   const endpoints = buildEndpointMethods(captured);

@@ -1633,7 +1633,11 @@ function buildGetCookies(page: Page): () => Promise<readonly ICookieSnapshot[]> 
  */
 function createElementMediator(page: Page): IElementMediator {
   const cache: IFormCache = { selector: '' };
-  const network = createNetworkDiscovery(page);
+  // Production path: defer page.on(...) attachment until the
+  // network-trace lifecycle interceptor flips the boundary gate
+  // ON (post-AUTH phase). Keeps the HOME / WAF-check window
+  // listener-free — see I-3 deferred-listener experiment 2026-05-13.
+  const network = createNetworkDiscovery(page, { isDeferAttach: true });
   const mediator: IElementMediator = {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
