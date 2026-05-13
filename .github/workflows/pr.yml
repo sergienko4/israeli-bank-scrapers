@@ -273,6 +273,17 @@ jobs:
           - VisaCal
           - Discount
           - Max
+          # Hapoalim moved back here from `e2e-real-otp` group (2026-05-13)
+          # to isolate the regression vector. Hapoalim uses
+          # `.withOtpFill(false)` (device-remembered session, no SMS
+          # interception required), so the OTP environment gate /
+          # Telegram bot routing was unnecessary infrastructure. The
+          # matrix move (commit bb0f4475 on 2026-05-12) shifted Hapoalim
+          # to a sequential post-approval slot and the test has been
+          # failing intermittently since. Restoring the original
+          # parallel Group A position to confirm the matrix path is
+          # the discriminator.
+          - Hapoalim
           # OTP-gated banks (Hapoalim / Beinleumi / OneZero) moved
           # to the dedicated `e2e-real-otp` job below — sequential
           # execution (max-parallel: 1) eliminates cross-fetcher
@@ -315,6 +326,11 @@ jobs:
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
           MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
           MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
+          # Hapoalim secrets follow the bank back to Group A.
+          # `withOtpFill(false)` means no OTP retriever is needed —
+          # the Telegram bot stays in the OTP group for Beinleumi/OneZero.
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
           # OTP-gated banks (Hapoalim / Beinleumi / OneZero) and the
           # Telegram bot secrets are wired into `e2e-real-otp` below;
           # this job no longer touches them so a missing OTP secret
@@ -401,7 +417,11 @@ jobs:
         bank:
           - OneZero
           - Beinleumi
-          - Hapoalim
+          # Hapoalim moved out of this group (2026-05-13) — it uses
+          # `withOtpFill(false)` so the OTP env gate / Telegram bot
+          # routing was never required. The sequential `max-parallel: 1`
+          # slot here (Hapoalim ran 3rd, post-approval) correlated with
+          # the recent CI failures; restored to parallel Group A above.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-node-deps
@@ -413,8 +433,9 @@ jobs:
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
-          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
-          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          # HAPOALIM_USER_CODE / HAPOALIM_PASSWORD removed from this
+          # group — Hapoalim moved to Group A above (`withOtpFill(false)`,
+          # no SMS interception needed).
           BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
           BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
           ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
