@@ -342,10 +342,15 @@ jobs:
           # time by the runtime layer (commit 3f1b966d). Network dumps
           # are required to triage auto-discovery failures (which URL
           # got picked out of the captured set, what response shape).
-          # Screenshots remain excluded — PNG redaction is unreliable.
+          # Pre-auth screenshots (init/home only) included since the
+          # bank page carries no user data before LOGIN — needed to
+          # triage WAF / challenge-wall hypotheses without speculation.
+          # LOGIN / OTP / DASHBOARD / SCRAPE screenshots remain excluded.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*-init-*.png
+            /tmp/runs/pipeline/**/screenshots/*-home-*.png
           retention-days: 7
           if-no-files-found: warn
 
@@ -432,9 +437,14 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: e2e-real-otp-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # Same pre-auth screenshot policy as Group A — init + home only
+          # so we can triage homepage WAF / challenge-wall failures
+          # (Hapoalim CI race investigated 2026-05-13) with visual proof.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*-init-*.png
+            /tmp/runs/pipeline/**/screenshots/*-home-*.png
           retention-days: 7
           if-no-files-found: warn
 
@@ -483,11 +493,14 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # Same artifact policy as Group A — pipeline.log + network/*.json
-          # are PII-redacted at write time; screenshots excluded.
+          # Same pre-auth screenshot policy as Group A — init + home only
+          # so we can triage homepage WAF / challenge-wall failures
+          # (Hapoalim CI race investigated 2026-05-13) with visual proof.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*-init-*.png
+            /tmp/runs/pipeline/**/screenshots/*-home-*.png
           retention-days: 7
           if-no-files-found: warn
 
