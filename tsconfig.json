@@ -22,7 +22,8 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "inlineSourceMap": true,
-    "inlineSources": true
+    "inlineSources": true,
+    "types": ["jest", "node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "src/Scrapers/Pipeline/EslintCanaries"]
