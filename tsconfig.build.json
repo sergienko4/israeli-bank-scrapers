@@ -2,7 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "ESNext",
-    "moduleResolution": "Bundler"
+    "moduleResolution": "Bundler",
+    "ignoreDeprecations": "6.0"
   },
   "exclude": ["node_modules", "**/*.test.ts", "src/Tests/**/*", "jest.config.js"]
 }
