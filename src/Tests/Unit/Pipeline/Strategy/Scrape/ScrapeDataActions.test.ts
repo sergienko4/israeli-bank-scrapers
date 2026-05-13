@@ -106,29 +106,17 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
     // Simulates Isracard's cross-cycle echo: same `confirmationNumber`
     // returned by every cycle response. Three echoes must collapse to
     // one — independent of date / description / amount equality.
-    const echoOne = makeTxn({
+    const echoTemplate: Partial<ITransaction> = {
       identifier: '252890416:42',
       date: '2026-05-13',
       description: 'echo-row',
       originalAmount: 240,
       chargedAmount: 0,
-    });
-    const echoTwo = makeTxn({
-      identifier: '252890416:42',
-      date: '2026-05-13',
-      description: 'echo-row',
-      originalAmount: 240,
-      chargedAmount: 0,
-    });
-    const echoThree = makeTxn({
-      identifier: '252890416:42',
-      date: '2026-05-13',
-      description: 'echo-row',
-      originalAmount: 240,
-      chargedAmount: 0,
-    });
+    };
+    const echoCount = 3;
+    const echoes = Array.from({ length: echoCount }, (): ITransaction => makeTxn(echoTemplate));
 
-    const result = deduplicateTxns([echoOne, echoTwo, echoThree], 0);
+    const result = deduplicateTxns(echoes, 0);
 
     expect(result).toHaveLength(1);
     expect(result[0].identifier).toBe('252890416:42');
@@ -139,26 +127,22 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
     // (e.g. two coffees at the same shop on the same day for the same
     // price). They MUST survive because bank IDs differ — false-positive
     // collapse on attribute hash alone is the bug Phase F closes.
-    const coffeeOne = makeTxn({
-      identifier: 'voucher-1001',
+    const sharedAttrs: Partial<ITransaction> = {
       date: '2026-04-15',
       description: 'coffee-shop',
       originalAmount: 12.5,
       chargedAmount: 12.5,
-    });
-    const coffeeTwo = makeTxn({
-      identifier: 'voucher-1002',
-      date: '2026-04-15',
-      description: 'coffee-shop',
-      originalAmount: 12.5,
-      chargedAmount: 12.5,
-    });
+    };
+    const distinctIds: readonly string[] = ['voucher-1001', 'voucher-1002'];
+    const coffees = distinctIds.map(
+      (id): ITransaction => makeTxn({ ...sharedAttrs, identifier: id }),
+    );
 
-    const result = deduplicateTxns([coffeeOne, coffeeTwo], 0);
+    const result = deduplicateTxns(coffees, 0);
 
     expect(result).toHaveLength(2);
     const ids = result.map((t): string | number | undefined => t.identifier).sort();
-    expect(ids).toEqual(['voucher-1001', 'voucher-1002']);
+    expect(ids).toEqual([...distinctIds]);
   });
 
   it('deduplicateTxns_NoIdentifierSameAttributes_ShouldFallBackAndCollapse', () => {
@@ -167,22 +151,16 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
     // placeholder pattern), the legacy `date|description|amount` hash
     // remains the fallback. Two identifier-less rows with identical
     // attributes still collapse to one (cannot distinguish them).
-    const noIdOne = makeTxn({
+    const noIdTemplate: Partial<ITransaction> = {
       identifier: undefined,
       date: '2026-04-10',
       description: 'mystery',
       originalAmount: 50,
       chargedAmount: 50,
-    });
-    const noIdTwo = makeTxn({
-      identifier: undefined,
-      date: '2026-04-10',
-      description: 'mystery',
-      originalAmount: 50,
-      chargedAmount: 50,
-    });
+    };
+    const noIdRows = Array.from({ length: 2 }, (): ITransaction => makeTxn(noIdTemplate));
 
-    const result = deduplicateTxns([noIdOne, noIdTwo], 0);
+    const result = deduplicateTxns(noIdRows, 0);
 
     expect(result).toHaveLength(1);
   });
@@ -192,16 +170,30 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
     // so without an explicit sort the consumer sees interleaved
     // "April / May / February" results. The dedup factory owns the
     // canonical sort: newest date first.
-    const oldest = makeTxn({ identifier: 'old', date: '2025-12-01' });
-    const middle = makeTxn({ identifier: 'mid', date: '2026-03-15' });
-    const newest = makeTxn({ identifier: 'new', date: '2026-05-08' });
+    interface IDatedRow {
+      readonly id: string;
+      readonly date: string;
+    }
+    const orderedByDateDesc: readonly IDatedRow[] = [
+      { id: 'new', date: '2026-05-08' },
+      { id: 'mid', date: '2026-03-15' },
+      { id: 'old', date: '2025-12-01' },
+    ];
+    const insertionOrder: readonly IDatedRow[] = [
+      orderedByDateDesc[2], // oldest first
+      orderedByDateDesc[0], // newest second
+      orderedByDateDesc[1], // middle last
+    ];
+    const txns = insertionOrder.map(
+      (row): ITransaction => makeTxn({ identifier: row.id, date: row.date }),
+    );
 
-    const result = deduplicateTxns([oldest, newest, middle], 0);
+    const result = deduplicateTxns(txns, 0);
 
-    expect(result).toHaveLength(3);
-    expect(result[0].identifier).toBe('new');
-    expect(result[1].identifier).toBe('mid');
-    expect(result[2].identifier).toBe('old');
+    expect(result).toHaveLength(orderedByDateDesc.length);
+    const resultIds = result.map((t): string | number | undefined => t.identifier);
+    const expectedIds = orderedByDateDesc.map((r): string => r.id);
+    expect(resultIds).toEqual(expectedIds);
   });
 
   it('deduplicateTxns_RunTwice_ShouldBeIdempotent', () => {
