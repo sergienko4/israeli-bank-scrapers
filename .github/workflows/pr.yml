@@ -249,9 +249,29 @@ jobs:
   # Same-repo PRs and manual dispatch only — secrets are not exposed to
   # forks (mirrors the prior gating of the now-removed E2eFull step).
   # ──────────────────────────────────────────────────────────────
+  # Single approval gate for the whole Group A matrix (2026-05-13).
+  # Holding `environment: e2e-real-otp` on the matrix job itself would
+  # spawn ONE approval gate per matrix cell (one click per bank) — the
+  # reviewer would have to click N times to release N banks. This
+  # gate-job concentrates the environment requirement in ONE non-matrix
+  # job; the matrix below `needs:` it, so a SINGLE approval click
+  # releases all banks in Group A at once.
+  e2e-real-group-a-gate:
+    name: E2E Real A — approval gate
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: e2e-real-otp
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group A approved; matrix jobs may proceed."
+
   e2e-real-group-a:
     name: E2E Real A (${{ matrix.bank }})
-    needs: validate
+    needs: e2e-real-group-a-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     # Single approval gate (2026-05-13) — the previously-separate
@@ -262,7 +282,6 @@ jobs:
     # (b) elimination of the sequential `max-parallel: 1` slot that
     # correlated with Hapoalim's CI failures (commit bb0f4475), and
     # (c) one approval click per PR instead of two-stage gating.
-    environment: e2e-real-otp
     timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
