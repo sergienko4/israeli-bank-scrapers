@@ -99,14 +99,55 @@ export const ELEMENTS_DOM_READY_TIMEOUT_MS = 10_000;
  * the resolver scans for the login trigger and before ACTION fires the
  * click. Sized below {@link HOME_FORM_READY_TIMEOUT_MS} so the total
  * per-phase wall stays unchanged.
+ *
+ * <p>Bumped 10_000 → 15_000 on 2026-05-13 to close the Hapoalim CI
+ * race (I-3): under throttled GitHub-runner bandwidth the bank's
+ * `load` event occasionally fires after 10 s because analytics
+ * scripts gate it, the non-fatal prelude returns false, then the
+ * downstream resolver scans a half-hydrated DOM and reports
+ * `GENERIC HOME PRE: no login nav link found`. Banks that settle
+ * fast (Discount, Beinleumi, Massad, VisaCal) early-exit on the
+ * underlying `Promise.all([load, networkidle])` so the bump is
+ * cross-bank safe. {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} carries
+ * the matching probe ceiling. Pinned by HOME-PRELUDE-BUDGET-001.
  */
-export const HOME_PRELUDE_TIMEOUT_MS = 10_000;
+export const HOME_PRELUDE_TIMEOUT_MS = 15_000;
 
 /** HOME settle ceiling after click — TIMING mission cut from 15000. */
 export const HOME_SETTLE_TIMEOUT_MS = 8000;
 
-/** HOME login-link / form-gate probe ceiling — TIMING cut from 15000. */
+/**
+ * HOME post-click short-probe ceiling — TIMING-mission cut from
+ * 15_000. Covers TWO post-navigation probes that are expected to
+ * succeed near-instantly:
+ * <ul>
+ *   <li>HOME.ACTION: `WK_HOME.ENTRY` re-locate at click time. The
+ *       PRE pass (see {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS}) has
+ *       already verified the trigger exists; this is a cheap
+ *       re-find to obtain the click locator.</li>
+ *   <li>HOME.POST: `WK_HOME.FORM_CHECK` form-gate verify after the
+ *       trigger click navigated to the login page. The form is
+ *       already rendered; this is a confirmation probe.</li>
+ * </ul>
+ *
+ * <p>Distinct from {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} which
+ * owns the pre-click entry-trigger DISCOVERY budget (page may
+ * still be hydrating; long budget needed).
+ */
 export const HOME_ENTRY_TIMEOUT_MS = 5000;
+
+/**
+ * HOME-resolver visible-text probe ceiling — owned here so a future
+ * TIMING cut cannot silently re-introduce the Hapoalim CI race.
+ *
+ * <p>Centralises the previously-orphan local literal in
+ * `Mediator/Home/HomeResolver.ts`. Sized to 20 s so the joint
+ * budget {@link HOME_PRELUDE_TIMEOUT_MS} + this ceiling = 35 s
+ * after first byte, comfortably above the ~25-30 s wall observed
+ * for Hapoalim on the slowest CI runners. Pinned by
+ * HOME-PRELUDE-BUDGET-001/002 (Tests/Unit/.../TimingHomePreludeBudget).
+ */
+export const HOME_RESOLVER_ENTRY_TIMEOUT_MS = 20_000;
 
 /** HOME SPA URL change wait after click (Angular routing delay). */
 export const HOME_SPA_NAV_TIMEOUT_MS = 10000;
@@ -212,8 +253,18 @@ export const DEFAULT_OTP_TIMEOUT_MS = 180_000;
 
 // ── AUTH-DISCOVERY phase ───────────────────────────────────────────
 
-/** AUTH-DISCOVERY dashboard reveal probe budget — TIMING cut from 8000. */
-export const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 3000;
+/**
+ * AUTH-DISCOVERY dashboard reveal probe budget.
+ *
+ * <p>PR #220 cut this to 3000 ms in the TIMING mission, but the cut
+ * left slow Azure-CI runners short of the time the bank's SPA needs
+ * to commit a REVEAL anchor in DOM. Phase E (PR-α') restores the
+ * pre-cut budget of 8000 ms; combined with the catalog-driven
+ * iteration in `MatrixLoopStrategy`, this eliminates the silent
+ * Isracard `AUTH_DISCOVERY_DASHBOARD_NOT_READY` family of failures
+ * the CI mask had been hiding.
+ */
+export const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 8000;
 
 /** AUTH-DISCOVERY auth-module sessionStorage poll ceiling — TIMING cut from 10000. */
 export const AUTH_POLL_TIMEOUT_MS = 3_000;
@@ -276,11 +327,27 @@ export const DASHBOARD_MENU_SETTLE_MS = 5000;
 /** DASHBOARD post-login redirect settle — TIMING cut from 15000. */
 export const DASHBOARD_SETTLE_MS = 5000;
 
-/** DASHBOARD success-probe resolveVisible ceiling — TIMING cut from 30000. */
-export const DASHBOARD_SUCCESS_TIMEOUT_MS = 8000;
+/**
+ * DASHBOARD success-probe resolveVisible ceiling.
+ *
+ * <p>PR #220 cut this to 8000 ms; Phase E (PR-α') restores the
+ * pre-cut 30000 ms so slow Azure-CI runners have the same envelope
+ * as the host runs. SPA-bound success-probes that race a 8 s
+ * window legitimately need this budget when the bank's hydration
+ * window is long (Backbase modules on Amex / Isracard).
+ */
+export const DASHBOARD_SUCCESS_TIMEOUT_MS = 30000;
 
-/** DASHBOARD reveal-string resolveVisible ceiling — TIMING cut from 15000. */
-export const DASHBOARD_REVEAL_TIMEOUT_MS = 3000;
+/**
+ * DASHBOARD reveal-string resolveVisible ceiling.
+ *
+ * <p>PR #220 cut this to 3000 ms; Phase E (PR-α') restores the
+ * pre-cut 15000 ms to give the reveal probe the same envelope as
+ * the original design. Combined with the longer
+ * {@link AUTH_DISCOVERY_DASHBOARD_WAIT_MS} this closes the CI race
+ * window the Isracard mask had been hiding.
+ */
+export const DASHBOARD_REVEAL_TIMEOUT_MS = 15000;
 
 /** DASHBOARD SPA-render timeout for href-extraction probe. */
 export const DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS = 10000;
@@ -302,8 +369,17 @@ export const DASHBOARD_CHANGE_PWD_TIMEOUT_MS = 3000;
 
 // ── NETWORK ────────────────────────────────────────────────────────
 
-/** Fire-and-forget POST interceptor timeout — TIMING cut from 120000. */
-export const NETWORK_POST_INTERCEPT_TIMEOUT_MS = 30_000;
+/**
+ * Fire-and-forget POST interceptor timeout.
+ *
+ * <p>PR #220 cut this to 30000 ms; Phase E (PR-α') restores the
+ * pre-cut 120000 ms. The interceptor watches for per-card txn
+ * POSTs throughout the dashboard hydration window; cycling-card
+ * banks (Amex / Isracard) issue these lazily as the user lands on
+ * each card view, and on slow CI runners the issuance can drag
+ * past 30 s.
+ */
+export const NETWORK_POST_INTERCEPT_TIMEOUT_MS = 120_000;
 
 /** Network capture poll interval for `waitForFirstId`. */
 export const NETWORK_WAIT_FIRST_ID_POLL_MS = 250;

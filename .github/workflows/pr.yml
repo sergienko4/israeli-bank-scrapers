@@ -223,43 +223,65 @@ jobs:
   # rate-limit budget when something is broken upstream.
   #
   #   Stage 0 — validate (lint/tsc/unit/e2e-mocked/build) MUST pass
-  #   Stage 1a — Group A (parallel runners): Isracard, VisaCal, Discount, Max
-  #   Stage 1b — Group OTP (SEQUENTIAL, one runner per bank, fixed order):
-  #              OneZero → Beinleumi → Hapoalim
-  #   Stage 2  — Group B (parallel runners): Amex   (needs: group-a)
+  #   Stage 1 — Group A (parallel runners, single approval gate):
+  #             Isracard, VisaCal, Discount, Max, Hapoalim,
+  #             Beinleumi, OneZero
+  #   Stage 2 — Group B (parallel runners): Amex   (needs: group-a)
   #
-  # Why the OTP group is sequential: the three OTP-gated banks share a
-  # single Telegram bot/chat for OTP delivery. Even with the
-  # non-destructive `offset=0` polling design in `TelegramOtpFetcher.ts`,
-  # running them in parallel matrix runners has historically surfaced
-  # cross-fetcher contention (Beinleumi-prompt-during-Hapoalim symptom,
-  # 2026-05-12). `max-parallel: 1` serialises the matrix so only ONE
-  # OTP fetcher is ever active against the bot at a time; each
-  # combination still runs on its own fresh ubuntu-latest runner
-  # (== its own container) — same isolation as Group A's parallel
-  # banks, just dispatched serially in the listed matrix order.
+  # Consolidated 2026-05-13: the separate `e2e-real-otp` job
+  # (sequential `max-parallel: 1`, OneZero → Beinleumi → Hapoalim)
+  # was removed. Its banks now run in parallel inside Group A
+  # under a single `environment: e2e-real-otp` approval gate. The
+  # non-OTP banks also wait for that single approval click — the
+  # trade-off is one manual gate per PR instead of two-stage gating,
+  # plus elimination of the sequential slot that correlated with
+  # Hapoalim's CI failures (commit bb0f4475 → 2026-05-12).
   #
   # Why Amex stays alone in Group B (`needs: e2e-real-group-a`):
   # project Rule #16 forbids Amex and Isracard from running
-  # concurrently. The OTP group runs independently of Amex — different
-  # bank, no shared IP-throttling risk — so the OTP group does NOT
-  # gate Group B.
+  # concurrently. Group B runs after Group A has finished.
   #
   # Wall time:
   #   validate (Stage 0)      ≈ 10–12 min
-  #   max(Group A banks)      ≈ 7 min   (4 in parallel, longest is Isracard)
-  #   Group OTP (serial × 3)  ≈ 9–12 min (3 × ~3-4 min each — OTP latency dominates)
-  #   Group B (Amex)          ≈ 7 min
-  #   Group A and Group OTP run in parallel; Group B follows Group A.
+  #   Group A (Stage 1)       ≈ 7–9 min  (7 banks parallel, longest is Isracard)
+  #   Group B (Stage 2)       ≈ 7 min
   #
   # Same-repo PRs and manual dispatch only — secrets are not exposed to
   # forks (mirrors the prior gating of the now-removed E2eFull step).
   # ──────────────────────────────────────────────────────────────
-  e2e-real-group-a:
-    name: E2E Real A (${{ matrix.bank }})
+  # Single approval gate for the whole Group A matrix (2026-05-13).
+  # Holding `environment: e2e-real-otp` on the matrix job itself would
+  # spawn ONE approval gate per matrix cell (one click per bank) — the
+  # reviewer would have to click N times to release N banks. This
+  # gate-job concentrates the environment requirement in ONE non-matrix
+  # job; the matrix below `needs:` it, so a SINGLE approval click
+  # releases all banks in Group A at once.
+  e2e-real-group-a-gate:
+    name: E2E Real A — approval gate
     needs: validate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    environment: e2e-real-otp
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group A approved; matrix jobs may proceed."
+
+  e2e-real-group-a:
+    name: E2E Real A (${{ matrix.bank }})
+    needs: e2e-real-group-a-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Single approval gate (2026-05-13) — the previously-separate
+    # `e2e-real-otp` job was merged here. ALL non-Amex banks run in
+    # parallel after ONE manual approval at this environment. Trade-off:
+    # non-OTP banks (Isracard/VisaCal/Discount/Max) also wait for the
+    # approval click, in exchange for: (a) maximum matrix parallelism,
+    # (b) elimination of the sequential `max-parallel: 1` slot that
+    # correlated with Hapoalim's CI failures (commit bb0f4475), and
+    # (c) one approval click per PR instead of two-stage gating.
     timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -273,10 +295,9 @@ jobs:
           - VisaCal
           - Discount
           - Max
-          # OTP-gated banks (Hapoalim / Beinleumi / OneZero) moved
-          # to the dedicated `e2e-real-otp` job below — sequential
-          # execution (max-parallel: 1) eliminates cross-fetcher
-          # contention on the shared Telegram bot.
+          - Hapoalim
+          - Beinleumi
+          - OneZero
           # Pepper deliberately omitted — its test file is opt-in via
           # `PEPPER_E2E_OPT_IN=1` due to Play Integrity attestation
           # gating (see comment in Pepper.e2e-real.test.ts). Bank-regex
@@ -290,22 +311,6 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
-        # Isracard NON-OK on CI as of CI run 25732939617 (HEAD 9684be50):
-        # the live login form now serves a 2-step OTP-LOBBY flow
-        # (#otpLobbyFormPassword + ng-click="ResendNewLogin") that the
-        # pipeline does not currently handle — fresh-runner runs land
-        # on the OTP-prelude variant, the submit click triggers
-        # SMS-send (not credentials-submit), and AUTH-DISCOVERY POST
-        # never sees REVEAL. Host runs PASS via Camoufox-profile-cache
-        # bypass to the marketing-homepage path; CI has no cache.
-        # `continue-on-error` for ISRACARD ONLY matches the same
-        # informational pattern e2e-smoke uses (line 205) — the test
-        # still runs and reports its outcome on the PR without
-        # blocking the merge gate. Tracked as O-3 in
-        # telegram-m5-and-final-cleanup/status.txt: needs OTP-FILL
-        # phase wired for Isracard (new feature, not a fix). All
-        # other Group A banks (VisaCal/Discount/Max) remain strict.
-        continue-on-error: ${{ matrix.bank == 'Isracard' }}
         env:
           # LOG_LEVEL=trace makes the pipeline write per-run artefacts
           # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
@@ -331,10 +336,17 @@ jobs:
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
           MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
           MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
-          # OTP-gated banks (Hapoalim / Beinleumi / OneZero) and the
-          # Telegram bot secrets are wired into `e2e-real-otp` below;
-          # this job no longer touches them so a missing OTP secret
-          # cannot poison the non-OTP banks' runners.
+          # OTP banks merged into Group A — single approval gate above.
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
+          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
+          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
+          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
         # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
         # has two it() blocks: 'scrapes transactions successfully' (happy)
@@ -358,101 +370,21 @@ jobs:
           # time by the runtime layer (commit 3f1b966d). Network dumps
           # are required to triage auto-discovery failures (which URL
           # got picked out of the captured set, what response shape).
-          # Screenshots remain excluded — PNG redaction is unreliable.
+          # Pre-auth screenshots (init/home only) included since the
+          # bank page carries no user data before LOGIN — needed to
+          # triage WAF / challenge-wall hypotheses without speculation.
+          # LOGIN / OTP / DASHBOARD / SCRAPE screenshots remain excluded.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*-init-*.png
+            /tmp/runs/pipeline/**/screenshots/*-home-*.png
           retention-days: 7
           if-no-files-found: warn
 
-  # ──────────────────────────────────────────────────────────────
-  # E2E Real OTP — sequential matrix, one runner per bank.
-  #
-  # `max-parallel: 1` makes GitHub Actions dispatch matrix
-  # combinations one at a time, in the listed order. Each
-  # combination still runs on its own fresh ubuntu-latest runner
-  # (== its own container — same isolation as Group A) — only the
-  # dispatch is serialised. This eliminates Telegram-bot
-  # cross-fetcher contention: at most one fetcher is ever active
-  # against the bot, so the queue belongs to that fetcher alone for
-  # the lifetime of the run.
-  #
-  # Order fixed (OneZero → Beinleumi → Hapoalim) so flake patterns
-  # are diff-stable across PRs — Hapoalim's HOME-PRE flake is
-  # easier to attribute when it always lands in the last slot.
-  # ──────────────────────────────────────────────────────────────
-  e2e-real-otp:
-    name: E2E Real OTP (${{ matrix.bank }})
-    needs: validate
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    # `environment: e2e-real-otp` gates the job behind a manual
-    # approval per the project's same-bot-shared-by-3-banks design.
-    # OTP-gated banks need a human to type the SMS code into Telegram
-    # within a 3-min window — kicking them off automatically on every
-    # PR push burns the operator's attention with no signal. Configure
-    # the environment at
-    # https://github.com/sergienko4/israeli-bank-scrapers/settings/environments
-    # with "Required reviewers" set to the maintainer; the matrix
-    # combinations (OneZero → Beinleumi → Hapoalim) will then queue
-    # in the "Waiting" state until the maintainer clicks Approve.
-    # If the environment hasn't been created yet, the job fails
-    # closed (no run) instead of silently dispatching — that's the
-    # safe default while the operator is offline.
-    environment: e2e-real-otp
-    timeout-minutes: 20
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        bank:
-          - OneZero
-          - Beinleumi
-          - Hapoalim
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      - name: E2E real OTP (${{ matrix.bank }})
-        env:
-          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
-          RUNS_ROOT: /tmp/runs
-          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
-          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
-          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
-          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
-          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
-          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
-          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
-          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          set -euo pipefail
-          node --experimental-vm-modules node_modules/jest/bin/jest.js \
-            --ci \
-            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
-            --testNamePattern='scrapes transactions successfully' \
-            --testPathIgnorePatterns='/node_modules/' \
-            --verbose \
-            --forceExit
-      - name: Upload diagnostics on failure (${{ matrix.bank }})
-        if: failure()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: e2e-real-otp-${{ matrix.bank }}-diag-${{ github.run_id }}
-          path: |
-            /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
-          retention-days: 7
-          if-no-files-found: warn
+  # `e2e-real-otp` job removed 2026-05-13 — OTP banks (Beinleumi /
+  # OneZero) merged into `e2e-real-group-a` above with a single
+  # approval gate covering the whole matrix. See Group A comment.
 
   e2e-real-group-b:
     name: E2E Real B (${{ matrix.bank }})
@@ -499,11 +431,14 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # Same artifact policy as Group A — pipeline.log + network/*.json
-          # are PII-redacted at write time; screenshots excluded.
+          # Same pre-auth screenshot policy as Group A — init + home only
+          # so we can triage homepage WAF / challenge-wall failures
+          # (Hapoalim CI race investigated 2026-05-13) with visual proof.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*-init-*.png
+            /tmp/runs/pipeline/**/screenshots/*-home-*.png
           retention-days: 7
           if-no-files-found: warn
 

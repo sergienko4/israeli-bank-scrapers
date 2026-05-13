@@ -1,0 +1,44 @@
+// POST https://api.cal-online.co.il/Transactions/api/financeDashboard/getBigNumberAndDetails
+// POST_BODY: {"bankAccountUniqueId":"FAKE_ACCT_VISACAL"}
+{
+  "result": {
+    "bigNumbers": [
+      {
+        "debitDate": "2026-05-15T00:00:00",
+        "prevDebitDate": "2026-04-15T00:00:00",
+        "totalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 0 }],
+        "prevTotalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 0 }],
+        "cards": [
+          {
+            "cardUniqueId": "FAKE_CARD_VISACAL_01",
+            "nextDebit": {
+              "debitDate": "2026-05-15T00:00:00",
+              "debitReason": "",
+              "totalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 0 }]
+            },
+            "prevDebit": {
+              "debitDate": "2026-04-15T00:00:00",
+              "totalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 0 }]
+            },
+            "additionalInfo": {
+              "cycleOpeningDate": null,
+              "cycleClosingDate": null,
+              "totalCycleTransactions": 0,
+              "totalBasketAmount": 0,
+              "currencySymbol": "₪",
+              "basketAmountComment": null,
+              "previousAccountsInfo": [],
+              "fixedDebitAmount": null
+            },
+            "debitSpreadInd": false
+          }
+        ]
+      }
+    ],
+    "debitCards": []
+  },
+  "statusDescription": "FAKE_HEB_52",
+  "statusTitle": null,
+  "statusCode": 1,
+  "groupPid": "00000000-0000-0000-0000-000000000004"
+}

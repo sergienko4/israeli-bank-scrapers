@@ -19,6 +19,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
+import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 
 /** Navigation strategy const — single source of truth. */
 const NAV_STRATEGY = {
@@ -29,9 +30,6 @@ const NAV_STRATEGY = {
 
 /** Navigation strategy for HOME.ACTION. */
 type NavStrategy = (typeof NAV_STRATEGY)[keyof typeof NAV_STRATEGY];
-
-/** Timeout for initial entry search. */
-const ENTRY_TIMEOUT = 15000;
 
 /** Discovery result from HOME.PRE — instructions for ACTION. */
 interface IHomeDiscovery {
@@ -58,7 +56,7 @@ async function resolveHomeStrategy(
 ): Promise<Procedure<IHomeDiscovery>> {
   const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
   const visible = await mediator
-    .resolveVisible(candidates, ENTRY_TIMEOUT)
+    .resolveVisible(candidates, HOME_RESOLVER_ENTRY_TIMEOUT_MS)
     .catch((): false => false);
   if (visible === false) {
     return fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');

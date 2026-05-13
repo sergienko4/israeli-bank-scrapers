@@ -107,12 +107,26 @@ function coerceNumber(val: ScalarFieldHit, fallback: number): number {
 }
 
 /**
- * Coerce a field value to identifier number.
- * @param val - Raw field value from findFieldValue.
- * @returns Number if numeric, false otherwise.
+ * Coerce a `findFieldValue` hit to a usable per-txn identifier.
+ *
+ * <p>Accepts both numeric IDs (Beinleumi `reference`, Hapoalim
+ * `referenceNumber`) and string IDs (Isracard `confirmationNumber` =
+ * `"252890416:42"`, Max `uid` = `"26050809581827413972659"`, Discount
+ * `Urn`, VisaCal `trnIntId`). Rejects the sentinel placeholder values
+ * Beinleumi emits on pending out-of-statement rows (`0`, empty string)
+ * so the identifier never collides with a real one in the dedup hash.
+ *
+ * <p>Phase F gap closed (2026-05-13): the prior implementation
+ * returned `false` for every string input, silently dropping the
+ * identifier for Isracard / Amex / Max / Discount / VisaCal.
+ *
+ * @param val - Raw field value from {@link findFieldValue}.
+ * @returns The identifier preserved as-is when usable, `false` when
+ *   the value is a sentinel placeholder.
  */
-function coerceIdentifier(val: ScalarFieldHit): number | false {
+function coerceIdentifier(val: ScalarFieldHit): string | number | false {
   if (typeof val === 'number') return val;
+  if (typeof val === 'string' && val.length > 0 && val !== '0') return val;
   return false;
 }
 

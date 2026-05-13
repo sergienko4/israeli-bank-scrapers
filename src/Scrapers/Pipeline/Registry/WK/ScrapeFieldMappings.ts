@@ -106,6 +106,11 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'chargedAmount',
     'transactionAmount',
     'ilsAmount',
+    // Isracard `approvedTransactions` rows carry the billed amount under
+    // `ilsBillingAmount`. Without this alias the auto-mapper falls back
+    // to `creditAmount - debitAmount = 0` and the today-pending charge
+    // surfaces with a phantom `0` amount (Phase F evidence 2026-05-13).
+    'ilsBillingAmount',
     'eventAmount',
     'movementAmount',
   ],
@@ -141,6 +146,18 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'confirmationNumber',
     'movementId',
     'transactionId',
+    // Phase F additions (2026-05-13) — bank-specific per-txn unique IDs
+    // surfaced by the cross-bank verification run. Every Israeli bank
+    // emits a stable `Asmachta`-style ID; the auto-mapper just needed
+    // the alias list to recognise them.
+    'seqVoucherNumber', // Isracard / Amex — vouchers + approvals
+    'voucherNumber', // Isracard / Amex — backup numeric ID
+    'seqConfirmationNumber', // Isracard approvedTransactions — long-form ID
+    'uid', // Max — base-X txn UID
+    'arn', // Max — acquirer reference number
+    'authorizationNumber', // Max — bank authorization id
+    'Urn', // Discount — operation-record URN
+    'runtimeReferenceId', // Max — runtimeReference.id top-level alias
   ],
   currency: [
     'trnCurrencySymbol',

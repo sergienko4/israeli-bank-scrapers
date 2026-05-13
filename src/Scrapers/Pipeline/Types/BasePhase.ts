@@ -362,10 +362,13 @@ abstract class BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     setActiveStage('PRE');
     const pre = await this.runPre(ctx, log);
-    if (!pre.success) return pre;
+    if (!pre.success) {
+      await this.takePhaseScreenshot(ctx, 'pre-fail');
+      return pre;
+    }
     if (!this.validatePrePayload(pre.value)) return this.contractViolation();
     await this.takePhaseScreenshot(pre.value, 'pre-done');
-    return await this.runStagesAfterPre(ctx, pre.value, log);
+    return this.runStagesAfterPre(ctx, pre.value, log);
   }
 
   /**
@@ -382,13 +385,14 @@ abstract class BasePhase {
     log: IPipelineContext['logger'],
   ): Promise<Procedure<IPipelineContext>> {
     const action = await this.runAction(input, log);
-    if (!action.success) return action;
+    if (!action.success) return this.snapshotAndReturn(input, action, 'action-fail');
     await this.takePhaseScreenshot(action.value, 'action-done');
     const post = await this.runPost(ctx, action.value, log);
-    if (!post.success) return post;
+    if (!post.success) return this.snapshotAndReturn(action.value, post, 'post-fail');
     await this.takePhaseScreenshot(post.value, 'post-done');
     const finalResult = await this.runFinal(ctx, post.value, log);
-    if (finalResult.success) await this.takePhaseScreenshot(finalResult.value, 'final-done');
+    if (!finalResult.success) return this.snapshotAndReturn(post.value, finalResult, 'final-fail');
+    await this.takePhaseScreenshot(finalResult.value, 'final-done');
     return finalResult;
   }
 
@@ -411,7 +415,15 @@ abstract class BasePhase {
    */
   private async takePhaseScreenshot(
     ctx: IPipelineContext,
-    suffix: 'pre-done' | 'action-done' | 'post-done' | 'final-done',
+    suffix:
+      | 'pre-done'
+      | 'action-done'
+      | 'post-done'
+      | 'final-done'
+      | 'pre-fail'
+      | 'action-fail'
+      | 'post-fail'
+      | 'final-fail',
   ): Promise<boolean> {
     if (!ctx.browser.has) return false;
     const label = `${this.name}-${suffix}`;
@@ -422,6 +434,29 @@ abstract class BasePhase {
     ctx.logger.debug({ message: `screenshot: ${target}` });
     await dumpFixtureHtml(ctx, label);
     return true;
+  }
+
+  /**
+   * Bundle a failure-snapshot capture with the early-return so each
+   * failing-stage branch in {@link runStagesAfterPre} stays inside the
+   * 10-line method ceiling. Forensic-grade only — the screenshot is
+   * non-fatal: on disk-write failure the original Procedure result is
+   * still returned unchanged.
+   *
+   * @param ctx - Pipeline context to screenshot (the LAST successful
+   *   stage's output; {@link takePhaseScreenshot} no-ops without browser).
+   * @param result - Original failure Procedure to forward to the caller.
+   * @param label - Failure-suffix tag (e.g. `'action-fail'`).
+   * @returns The same failure Procedure passed in, after the
+   *   screenshot attempt completes.
+   */
+  private async snapshotAndReturn(
+    ctx: IPipelineContext,
+    result: Procedure<IPipelineContext>,
+    label: 'action-fail' | 'post-fail' | 'final-fail',
+  ): Promise<Procedure<IPipelineContext>> {
+    await this.takePhaseScreenshot(ctx, label);
+    return result;
   }
 
   /**

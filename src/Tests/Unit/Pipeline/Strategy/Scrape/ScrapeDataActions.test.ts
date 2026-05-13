@@ -92,10 +92,126 @@ describe('deduplicateTxns', () => {
   });
 
   it('distinguishes different descriptions as separate txns', () => {
-    const a = makeTxn({ description: 'a' });
-    const b = makeTxn({ description: 'b' });
+    // Different identifiers required — Phase F dedup is identifier-first.
+    // Two genuinely-different txns must carry distinct bank IDs.
+    const a = makeTxn({ description: 'a', identifier: 'id-a' });
+    const b = makeTxn({ description: 'b', identifier: 'id-b' });
     const result = deduplicateTxns([a, b], 0);
     expect(result).toHaveLength(2);
+  });
+});
+
+describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort', () => {
+  it('deduplicateTxns_WithIdentifierEchoes_ShouldCollapseToOne', () => {
+    // Simulates Isracard's cross-cycle echo: same `confirmationNumber`
+    // returned by every cycle response. Three echoes must collapse to
+    // one — independent of date / description / amount equality.
+    const echoTemplate: Partial<ITransaction> = {
+      identifier: '252890416:42',
+      date: '2026-05-13',
+      description: 'echo-row',
+      originalAmount: 240,
+      chargedAmount: 0,
+    };
+    const echoCount = 3;
+    const echoes = Array.from({ length: echoCount }, (): ITransaction => makeTxn(echoTemplate));
+
+    const result = deduplicateTxns(echoes, 0);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].identifier).toBe('252890416:42');
+  });
+
+  it('deduplicateTxns_DistinctIdsSameAttributes_ShouldKeepBoth', () => {
+    // Two genuinely-different txns share date / description / amount
+    // (e.g. two coffees at the same shop on the same day for the same
+    // price). They MUST survive because bank IDs differ — false-positive
+    // collapse on attribute hash alone is the bug Phase F closes.
+    const sharedAttrs: Partial<ITransaction> = {
+      date: '2026-04-15',
+      description: 'coffee-shop',
+      originalAmount: 12.5,
+      chargedAmount: 12.5,
+    };
+    const distinctIds: readonly string[] = ['voucher-1001', 'voucher-1002'];
+    const coffees = distinctIds.map(
+      (id): ITransaction => makeTxn({ ...sharedAttrs, identifier: id }),
+    );
+
+    const result = deduplicateTxns(coffees, 0);
+
+    expect(result).toHaveLength(2);
+    const ids = result.map((t): string | number | undefined => t.identifier).sort();
+    expect(ids).toEqual([...distinctIds]);
+  });
+
+  it('deduplicateTxns_NoIdentifierSameAttributes_ShouldFallBackAndCollapse', () => {
+    // When the bank doesn't emit an identifier on a txn (rare — only
+    // observed on `outOfStatementChargeDateVouchers` with the
+    // placeholder pattern), the legacy `date|description|amount` hash
+    // remains the fallback. Two identifier-less rows with identical
+    // attributes still collapse to one (cannot distinguish them).
+    const noIdTemplate: Partial<ITransaction> = {
+      identifier: undefined,
+      date: '2026-04-10',
+      description: 'mystery',
+      originalAmount: 50,
+      chargedAmount: 50,
+    };
+    const noIdRows = Array.from({ length: 2 }, (): ITransaction => makeTxn(noIdTemplate));
+
+    const result = deduplicateTxns(noIdRows, 0);
+
+    expect(result).toHaveLength(1);
+  });
+
+  it('deduplicateTxns_MixedOrder_ShouldReturnSortedByDateDescending', () => {
+    // The matrix-loop concatenates chunks in oldest-cycle-first order,
+    // so without an explicit sort the consumer sees interleaved
+    // "April / May / February" results. The dedup factory owns the
+    // canonical sort: newest date first.
+    interface IDatedRow {
+      readonly id: string;
+      readonly date: string;
+    }
+    const orderedByDateDesc: readonly IDatedRow[] = [
+      { id: 'new', date: '2026-05-08' },
+      { id: 'mid', date: '2026-03-15' },
+      { id: 'old', date: '2025-12-01' },
+    ];
+    const insertionOrder: readonly IDatedRow[] = [
+      orderedByDateDesc[2], // oldest first
+      orderedByDateDesc[0], // newest second
+      orderedByDateDesc[1], // middle last
+    ];
+    const txns = insertionOrder.map(
+      (row): ITransaction => makeTxn({ identifier: row.id, date: row.date }),
+    );
+
+    const result = deduplicateTxns(txns, 0);
+
+    expect(result).toHaveLength(orderedByDateDesc.length);
+    const resultIds = result.map((t): string | number | undefined => t.identifier);
+    const expectedIds = orderedByDateDesc.map((r): string => r.id);
+    expect(resultIds).toEqual(expectedIds);
+  });
+
+  it('deduplicateTxns_RunTwice_ShouldBeIdempotent', () => {
+    // R-DEDUP-IDEMPOTENT — the 3 sister strategies already call dedup
+    // before `buildAccountResult`; Phase F adds the call to the 4
+    // strategies that skip it. A double-pass (existing + new) must be
+    // a no-op.
+    const raw = [
+      makeTxn({ identifier: 'a', date: '2026-05-01' }),
+      makeTxn({ identifier: 'a', date: '2026-05-01' }), // duplicate by identifier
+      makeTxn({ identifier: 'b', date: '2026-04-01' }),
+    ];
+
+    const onePass = deduplicateTxns(raw, 0);
+    const twoPass = deduplicateTxns(onePass, 0);
+
+    expect(twoPass).toEqual(onePass);
+    expect(twoPass).toHaveLength(2);
   });
 });
 

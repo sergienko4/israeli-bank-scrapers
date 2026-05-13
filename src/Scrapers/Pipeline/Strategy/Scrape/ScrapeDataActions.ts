@@ -75,11 +75,27 @@ function parseStartDate(raw: string): Date {
 }
 
 /**
- * Build dedup hash for a transaction.
+ * Build the dedup key for a transaction.
+ *
+ * <p>Bank-emitted identifiers (Asmachta / seqVoucherNumber / Urn /
+ * trnIntId / reference / etc.) are the authoritative dedup key — two
+ * rows sharing one mean the bank returned the same transaction in
+ * multiple cycle responses. The legacy attribute hash
+ * (`date|description|amount`) is the fallback when the identifier is
+ * absent (rare — only observed on placeholder rows the bank returns
+ * with a `0` reference).
+ *
+ * <p>Phase F gap closed (2026-05-13): two genuinely-different txns
+ * sharing the same date/description/amount (two coffees, two equal
+ * BIT transfers) used to collapse under the attribute hash alone.
+ * Identifier-first hashing preserves them.
+ *
  * @param t - Transaction to hash.
- * @returns Pipe-delimited key.
+ * @returns Stable dedup key — `id:${identifier}` when present, else
+ *   the legacy `${date}|${description}|${originalAmount}` triple.
  */
 function txnHash(t: ITransaction): TxnHashKey {
+  if (t.identifier !== undefined) return `id:${String(t.identifier)}` as TxnHashKey;
   const amt = String(t.originalAmount);
   return `${t.date}|${t.description}|${amt}` as TxnHashKey;
 }
@@ -254,10 +270,24 @@ function templatePostBody(
 // ── Deduplication ────────────────────────────────────────
 
 /**
- * Deduplicate and filter transactions by start date.
- * @param allTxns - Raw transactions.
- * @param startMs - Start date as epoch ms.
- * @returns Filtered unique transactions.
+ * Filter txns to a start-date window, collapse duplicates by
+ * {@link txnHash}, then sort newest-first.
+ *
+ * <p>R-DEDUP-IDEMPOTENT invariant: a second pass over an
+ * already-deduped array is a no-op — sister strategies that already
+ * call this factory before {@link buildAccountResult} are unaffected
+ * by the Phase F additions to the matrix-loop / direct / GET paths.
+ *
+ * <p>Sort step (added Phase F 2026-05-13): the matrix-loop concatenates
+ * chunks in oldest-cycle-first iteration order, which produced
+ * "interleaved by cycle, sorted within cycle" output in the consumer's
+ * `account.txns[]`. Sorting at the factory boundary gives every caller
+ * a chronological newest-first view regardless of upstream order.
+ *
+ * @param allTxns - Raw transactions concatenated from one or more
+ *   bank-API responses.
+ * @param startMs - Inclusive window lower bound as epoch ms.
+ * @returns In-range unique transactions sorted by `date` descending.
  */
 function deduplicateTxns(
   allTxns: readonly ITransaction[],
@@ -267,12 +297,15 @@ function deduplicateTxns(
     (t): IsAfterStartDate => (new Date(t.date).getTime() >= startMs) as IsAfterStartDate,
   );
   const seen = new Set<string>();
-  return afterStart.filter((t): ShouldRetainTxn => {
+  const unique = afterStart.filter((t): ShouldRetainTxn => {
     const key = txnHash(t);
     if (seen.has(key)) return false as ShouldRetainTxn;
     seen.add(key);
     return true as ShouldRetainTxn;
   });
+  return [...unique].sort(
+    (a, b): number => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
 }
 
 // ── Balance ──────────────────────────────────────────────
