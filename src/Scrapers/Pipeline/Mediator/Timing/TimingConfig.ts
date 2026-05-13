@@ -99,14 +99,55 @@ export const ELEMENTS_DOM_READY_TIMEOUT_MS = 10_000;
  * the resolver scans for the login trigger and before ACTION fires the
  * click. Sized below {@link HOME_FORM_READY_TIMEOUT_MS} so the total
  * per-phase wall stays unchanged.
+ *
+ * <p>Bumped 10_000 → 15_000 on 2026-05-13 to close the Hapoalim CI
+ * race (I-3): under throttled GitHub-runner bandwidth the bank's
+ * `load` event occasionally fires after 10 s because analytics
+ * scripts gate it, the non-fatal prelude returns false, then the
+ * downstream resolver scans a half-hydrated DOM and reports
+ * `GENERIC HOME PRE: no login nav link found`. Banks that settle
+ * fast (Discount, Beinleumi, Massad, VisaCal) early-exit on the
+ * underlying `Promise.all([load, networkidle])` so the bump is
+ * cross-bank safe. {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} carries
+ * the matching probe ceiling. Pinned by HOME-PRELUDE-BUDGET-001.
  */
-export const HOME_PRELUDE_TIMEOUT_MS = 10_000;
+export const HOME_PRELUDE_TIMEOUT_MS = 15_000;
 
 /** HOME settle ceiling after click — TIMING mission cut from 15000. */
 export const HOME_SETTLE_TIMEOUT_MS = 8000;
 
-/** HOME login-link / form-gate probe ceiling — TIMING cut from 15000. */
+/**
+ * HOME post-click short-probe ceiling — TIMING-mission cut from
+ * 15_000. Covers TWO post-navigation probes that are expected to
+ * succeed near-instantly:
+ * <ul>
+ *   <li>HOME.ACTION: `WK_HOME.ENTRY` re-locate at click time. The
+ *       PRE pass (see {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS}) has
+ *       already verified the trigger exists; this is a cheap
+ *       re-find to obtain the click locator.</li>
+ *   <li>HOME.POST: `WK_HOME.FORM_CHECK` form-gate verify after the
+ *       trigger click navigated to the login page. The form is
+ *       already rendered; this is a confirmation probe.</li>
+ * </ul>
+ *
+ * <p>Distinct from {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} which
+ * owns the pre-click entry-trigger DISCOVERY budget (page may
+ * still be hydrating; long budget needed).
+ */
 export const HOME_ENTRY_TIMEOUT_MS = 5000;
+
+/**
+ * HOME-resolver visible-text probe ceiling — owned here so a future
+ * TIMING cut cannot silently re-introduce the Hapoalim CI race.
+ *
+ * <p>Centralises the previously-orphan local literal in
+ * `Mediator/Home/HomeResolver.ts`. Sized to 20 s so the joint
+ * budget {@link HOME_PRELUDE_TIMEOUT_MS} + this ceiling = 35 s
+ * after first byte, comfortably above the ~25-30 s wall observed
+ * for Hapoalim on the slowest CI runners. Pinned by
+ * HOME-PRELUDE-BUDGET-001/002 (Tests/Unit/.../TimingHomePreludeBudget).
+ */
+export const HOME_RESOLVER_ENTRY_TIMEOUT_MS = 20_000;
 
 /** HOME SPA URL change wait after click (Angular routing delay). */
 export const HOME_SPA_NAV_TIMEOUT_MS = 10000;
