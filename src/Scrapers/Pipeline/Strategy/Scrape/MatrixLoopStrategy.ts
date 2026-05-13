@@ -190,19 +190,60 @@ function cycleToChunk(cycle: IBillingCycle): IMonthChunkLike {
  * @returns Parsed first-of-month Date.
  */
 function parseCycleDate(raw: string): Date {
-  const backbaseMatch = /^(\d{2})\/(\d{4})$/.exec(raw);
-  if (backbaseMatch) {
-    const month = Number(backbaseMatch[1]);
-    const year = Number(backbaseMatch[2]);
-    return new Date(year, month - 1, 1);
-  }
+  const fromBackbase = tryParseBackbase(raw);
+  if (fromBackbase !== false) return fromBackbase;
+  const fromIso = tryParseIso(raw);
+  if (fromIso !== false) return fromIso;
+  return currentMonthStart();
+}
+
+/** Lower bound for a calendar month, used by {@link tryParseBackbase}. */
+const MIN_CALENDAR_MONTH = 1;
+/** Upper bound for a calendar month, used by {@link tryParseBackbase}. */
+const MAX_CALENDAR_MONTH = 12;
+
+/**
+ * Parse the Backbase `MM/YYYY` shape with strict month-range
+ * validation. Values like `00/2026` or `13/2026` reject so callers
+ * fall through to ISO parse or the deterministic month-start
+ * fallback instead of silently shifting into adjacent years.
+ *
+ * @param raw - Raw cycle billing-date string.
+ * @returns First-of-month Date on success; `false` on miss.
+ */
+function tryParseBackbase(raw: string): Date | false {
+  const match = /^(\d{2})\/(\d{4})$/.exec(raw);
+  if (match === null) return false;
+  const month = Number(match[1]);
+  const year = Number(match[2]);
+  if (month < MIN_CALENDAR_MONTH || month > MAX_CALENDAR_MONTH) return false;
+  return new Date(year, month - 1, 1);
+}
+
+/**
+ * Parse the ISO-shape billing date Max + VisaCal emit. Returns the
+ * first-of-month derived from the parsed value, or `false` when
+ * `Date.parse` cannot interpret the input.
+ *
+ * @param raw - Raw cycle billing-date string.
+ * @returns First-of-month Date on success; `false` on miss.
+ */
+function tryParseIso(raw: string): Date | false {
   const isoDate = new Date(raw);
   const isoMs = isoDate.getTime();
-  if (Number.isNaN(isoMs)) {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  }
+  if (Number.isNaN(isoMs)) return false;
   return new Date(isoDate.getFullYear(), isoDate.getMonth(), 1);
+}
+
+/**
+ * Deterministic fallback — the first day of the current month —
+ * used when neither Backbase nor ISO parsing claims the input.
+ *
+ * @returns First-of-current-month Date.
+ */
+function currentMonthStart(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
 /**

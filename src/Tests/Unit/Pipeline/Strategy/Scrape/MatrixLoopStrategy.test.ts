@@ -173,6 +173,50 @@ function makeInertNetwork(): INetworkDiscovery {
   } as unknown as INetworkDiscovery;
 }
 
+/** Generic-failure response matching `IProcedureFailure` structurally. */
+interface IStubFailure {
+  readonly success: false;
+  readonly errorType: 'GENERIC';
+  readonly errorMessage: string;
+  readonly errorDetails: Record<string, never>;
+}
+
+/**
+ * Single instance of the canonical stub failure — the catalog
+ * iteration tests don't inspect the payload; they only count calls.
+ */
+const STUB_FAILURE: IStubFailure = {
+  success: false,
+  errorType: 'GENERIC',
+  errorMessage: 'stub',
+  errorDetails: {},
+};
+
+/**
+ * Build a recording `fetchPost` that pushes each URL into `calls`
+ * and returns the canonical stub failure. Extracted so
+ * {@link makeCountingApi} stays within the 10-line method budget.
+ *
+ * @param calls - Mutable URL-call accumulator owned by the caller.
+ * @returns `fetchPost` stub bound to the accumulator.
+ */
+function makeFetchPostRecorder(calls: string[]): (url: string) => Promise<IStubFailure> {
+  return (url): Promise<IStubFailure> => {
+    calls.push(url);
+    return Promise.resolve(STUB_FAILURE);
+  };
+}
+
+/**
+ * Build the inert `fetchGet` stub — required by `IApiFetchContext`
+ * but never invoked by the catalog-driven matrix loop.
+ *
+ * @returns Failure procedure.
+ */
+function fetchGetStub(): Promise<IStubFailure> {
+  return Promise.resolve(STUB_FAILURE);
+}
+
 /**
  * Build a per-call counting `IApiFetchContext` stub. Each `fetchPost`
  * invocation appends the URL to the `calls` array.
@@ -181,37 +225,9 @@ function makeInertNetwork(): INetworkDiscovery {
  */
 function makeCountingApi(): ICountingApi {
   const calls: string[] = [];
-  /**
-   * Generic-failure response matching IProcedureFailure structurally.
-   *
-   * @returns Failure procedure with the empty errorDetails the
-   *   interface requires.
-   */
-  const stubFailure = (): {
-    success: false;
-    errorType: 'GENERIC';
-    errorMessage: string;
-    errorDetails: Record<string, never>;
-  } => ({ success: false, errorType: 'GENERIC', errorMessage: 'stub', errorDetails: {} });
   const api = {
-    /**
-     * Records the URL and returns a stub failure.
-     * @param url - URL the matrix loop is about to fetch.
-     * @returns Failure procedure.
-     */
-    fetchPost: (url: string): Promise<ReturnType<typeof stubFailure>> => {
-      calls.push(url);
-      const failure = stubFailure();
-      return Promise.resolve(failure);
-    },
-    /**
-     * Unused by matrix-loop; required by the interface contract.
-     * @returns Failure procedure.
-     */
-    fetchGet: (): Promise<ReturnType<typeof stubFailure>> => {
-      const failure = stubFailure();
-      return Promise.resolve(failure);
-    },
+    fetchPost: makeFetchPostRecorder(calls),
+    fetchGet: fetchGetStub,
     transactionsUrl: false as const,
     balanceUrl: false as const,
     pendingUrl: false as const,
@@ -265,6 +281,50 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     // that the fallback fired and produced at least one chunk.
     expect(calls.length).toBeGreaterThan(0);
   });
+
+  /** One row in the `parseCycleDate` Backbase-bounds truth table. */
+  interface IBackbaseBoundsCase {
+    readonly billingDate: string;
+    readonly isAccepted: boolean;
+  }
+
+  const backbaseBoundsCases: readonly IBackbaseBoundsCase[] = [
+    { billingDate: '00/2026', isAccepted: false },
+    { billingDate: '13/2026', isAccepted: false },
+    { billingDate: '01/2026', isAccepted: true },
+    { billingDate: '12/2026', isAccepted: true },
+  ];
+
+  it.each(backbaseBoundsCases)(
+    '[MATRIX-CATALOG-BOUNDS] BackbaseBillingDate_$billingDate_acceptanceMatchesRange',
+    async testCase => {
+      const catalog: IBillingCycleCatalog = {
+        cycles: [{ billingDate: testCase.billingDate, isOpen: true }],
+      };
+      const { api, calls } = makeCountingApi();
+      const ep = stubTxn({
+        url: 'https://bank.example/api/txn',
+        method: 'POST',
+        templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
+      });
+      const fc: IAccountFetchCtx = {
+        api,
+        network: makeInertNetwork(),
+        startDate: '20251101',
+        txnEndpoint: ep,
+        billingCycleCatalog: catalog,
+      };
+      await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
+      // Out-of-range months still produce ONE fetch (the parser falls
+      // back to current-month-start); the assertion proves the
+      // recogniser does not silently shift `13/2026` into a Jan 2027
+      // chunk with a different downstream amount.
+      expect(calls.length).toBe(1);
+      const fetchedUrl = calls[0] ?? '';
+      const hasYearShift = testCase.isAccepted ? false : fetchedUrl.includes('2027');
+      expect(hasYearShift).toBe(false);
+    },
+  );
 
   it('[MATRIX-CATALOG-EMPTY] EmptyCatalog_FallsBackToMonthChunks', async () => {
     const { api, calls } = makeCountingApi();

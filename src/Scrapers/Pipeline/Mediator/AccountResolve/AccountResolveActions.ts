@@ -285,6 +285,24 @@ interface IDiscoveryResult {
 }
 
 /**
+ * Build the core {@link IAccountDiscovery} record (no optional fields).
+ * Extracted so {@link buildDiscoveryPayload} stays within the project's
+ * 10-line method budget.
+ *
+ * @param result - Account-resolution outcome from `discoverAccountsInPool`.
+ * @param captureIndex - Index of the capture that surfaced the account ids.
+ * @returns Base discovery record sans optional catalog.
+ */
+function buildBaseDiscovery(result: IDiscoveryResult, captureIndex: number): IAccountDiscovery {
+  return {
+    ids: result.ids,
+    records: result.records,
+    containers: result.containers,
+    endpointCaptureIndex: captureIndex,
+  };
+}
+
+/**
  * Assemble the {@link IAccountDiscovery} payload committed onto
  * `ctx.accountDiscovery`. Adds the optional billing-cycle catalog
  * when the detector recognises a known shape in the pre-nav pool;
@@ -300,13 +318,8 @@ function buildDiscoveryPayload(
   result: IDiscoveryResult,
   captureIndex: number,
 ): IAccountDiscovery {
+  const base = buildBaseDiscovery(result, captureIndex);
   const catalogOption = detectBillingCycleCatalog(pool);
-  const base: IAccountDiscovery = {
-    ids: result.ids,
-    records: result.records,
-    containers: result.containers,
-    endpointCaptureIndex: captureIndex,
-  };
   if (!isSome(catalogOption)) return base;
   const billingCycleCatalog: IBillingCycleCatalog = catalogOption.value;
   return { ...base, billingCycleCatalog };

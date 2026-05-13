@@ -298,23 +298,51 @@ describe('executeAccountResolvePost — cross-bank fixtures (PURE GENERIC)', () 
     }
   });
 
-  it('[ACCOUNT-RESOLVE-CATALOG] commits billingCycleCatalog when pre-nav buffer carries Backbase cycle shape', async () => {
-    const cardsCapture = makeCapture({
-      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
-      method: 'POST',
-      responseBody: { data: { cardsList: [{ cardSuffix: 'FAKE_C01', accountNumber: '111' }] } },
-    });
-    const cycleCapture = makeCapture({
-      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview',
-      method: 'POST',
-      responseBody: {
-        data: [
-          { billingDate: '06/2026', isFinalBillingDate: false },
-          { billingDate: '05/2026', isFinalBillingDate: true },
-        ],
-      },
-    });
-    const mediator = makePoolMediator({ captures: [cardsCapture, cycleCapture] });
+  /**
+   * Cards-only capture re-used by every billing-cycle test row —
+   * ACCOUNT-RESOLVE needs at least one id-bearing capture in the
+   * pool before the cycle-detector runs.
+   */
+  const cardsCapture = makeCapture({
+    url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
+    method: 'POST',
+    responseBody: { data: { cardsList: [{ cardSuffix: 'FAKE_C01', accountNumber: '111' }] } },
+  });
+
+  /** Backbase cycle-catalog capture — two cycles, one open. */
+  const backbaseCycleCapture = makeCapture({
+    url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview',
+    method: 'POST',
+    responseBody: {
+      data: [
+        { billingDate: '06/2026', isFinalBillingDate: false },
+        { billingDate: '05/2026', isFinalBillingDate: true },
+      ],
+    },
+  });
+
+  /** One row in the catalog-commit truth table. */
+  interface ICatalogCommitCase {
+    readonly id: string;
+    readonly captures: readonly IDiscoveredEndpoint[];
+    readonly expectedCycleCount: number | false;
+  }
+
+  const catalogCommitCases: readonly ICatalogCommitCase[] = [
+    {
+      id: '[ACCOUNT-RESOLVE-CATALOG] commits Backbase catalog when pre-nav buffer carries cycle shape',
+      captures: [cardsCapture, backbaseCycleCapture],
+      expectedCycleCount: 2,
+    },
+    {
+      id: '[ACCOUNT-RESOLVE-NO-CATALOG] omits catalog when pre-nav buffer carries no cycle shape',
+      captures: [cardsCapture],
+      expectedCycleCount: false,
+    },
+  ];
+
+  it.each(catalogCommitCases)('$id', async testCase => {
+    const mediator = makePoolMediator({ captures: testCase.captures });
     const baseCtx = makeMockContext();
     const ctx = {
       ...baseCtx,
@@ -325,28 +353,11 @@ describe('executeAccountResolvePost — cross-bank fixtures (PURE GENERIC)', () 
     expect(isResultOk).toBe(true);
     if (isOk(result) && result.value.accountDiscovery.has) {
       const catalog = result.value.accountDiscovery.value.billingCycleCatalog;
-      expect(catalog).toBeDefined();
-      expect(catalog?.cycles.length).toBe(2);
-    }
-  });
-
-  it('[ACCOUNT-RESOLVE-NO-CATALOG] omits billingCycleCatalog when pre-nav buffer carries no cycle shape', async () => {
-    const cardsCapture = makeCapture({
-      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
-      method: 'POST',
-      responseBody: { data: { cardsList: [{ cardSuffix: 'FAKE_C01', accountNumber: '111' }] } },
-    });
-    const mediator = makePoolMediator({ captures: [cardsCapture] });
-    const baseCtx = makeMockContext();
-    const ctx = {
-      ...baseCtx,
-      mediator: { has: true, value: mediator },
-    } as IPipelineContext;
-    const result = await executeAccountResolvePost(ctx);
-    const isResultOk = isOk(result);
-    expect(isResultOk).toBe(true);
-    if (isOk(result) && result.value.accountDiscovery.has) {
-      expect(result.value.accountDiscovery.value.billingCycleCatalog).toBeUndefined();
+      if (testCase.expectedCycleCount === false) {
+        expect(catalog).toBeUndefined();
+      } else {
+        expect(catalog?.cycles.length).toBe(testCase.expectedCycleCount);
+      }
     }
   });
 });

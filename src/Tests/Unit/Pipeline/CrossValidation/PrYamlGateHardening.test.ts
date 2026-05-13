@@ -49,19 +49,42 @@ function loadPrYaml(): IPrYamlDoc {
   return parse(raw) as IPrYamlDoc;
 }
 
+/** Stable YAML job-key prefix the workflow uses for every E2E Real matrix. */
+const E2E_REAL_JOB_KEY_PREFIX = 'e2e-real-';
+
+/** Stable display-name prefix the workflow emits for every E2E Real run. */
+const E2E_REAL_DISPLAY_PREFIX = 'E2E Real';
+
 /**
- * Read all jobs whose `name` field starts with `E2E Real`.
+ * Return `true` when a job entry belongs to the E2E Real family
+ * via EITHER its stable YAML key (`e2e-real-*`) OR its display
+ * name prefix (`E2E Real *`). Job-key match resists the brittle-
+ * filter bypass where someone renames the display name but keeps
+ * the masked `continue-on-error` clause.
+ *
+ * @param key - YAML job key (top-level property name under `jobs:`).
+ * @param job - Job definition.
+ * @returns True when the job participates in E2E Real coverage.
+ */
+function isE2eRealJob(key: string, job: IPrYamlJob): boolean {
+  if (key.startsWith(E2E_REAL_JOB_KEY_PREFIX)) return true;
+  const displayName = typeof job.name === 'string' ? job.name : '';
+  return displayName.startsWith(E2E_REAL_DISPLAY_PREFIX);
+}
+
+/**
+ * Read all jobs identified as E2E Real by either stable key or
+ * display name. Both predicates are AND-combined into one filter
+ * so the mask-detection survives display-name renames.
  *
  * @param doc - Parsed workflow document.
- * @returns Subset of jobs matching the `E2E Real *` prefix.
+ * @returns Subset of jobs matching the E2E Real family.
  */
 function findE2eRealJobs(doc: IPrYamlDoc): readonly IPrYamlJob[] {
   const jobs = doc.jobs ?? {};
-  const jobValues = Object.values(jobs);
-  return jobValues.filter((j): boolean => {
-    const n = typeof j.name === 'string' ? j.name : '';
-    return n.startsWith('E2E Real');
-  });
+  const entries = Object.entries(jobs);
+  const matched = entries.filter(([key, job]): boolean => isE2eRealJob(key, job));
+  return matched.map(([, job]): IPrYamlJob => job);
 }
 
 describe('PrYamlGateHardening', () => {
