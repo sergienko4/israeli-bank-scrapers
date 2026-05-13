@@ -24,6 +24,7 @@ import { tryBillingFallback } from '../BillingFallbackStrategy.js';
 import { tryMatrixLoop } from '../MatrixLoopStrategy.js';
 import {
   buildAccountResult,
+  deduplicateTxns,
   parseStartDate,
   resolveTxnUrl,
   scrapeWithMonthlyChunking,
@@ -114,13 +115,20 @@ async function scrapePostDirect(
   if (!isOk(raw)) return raw;
   const fieldMap = txnEpForParse(fc);
   const txns = parseFreshResponse(raw.value, fieldMap);
+  // Phase F (2026-05-13): single-response bodies still ship the same
+  // pending row in multiple txn-array sections (Isracard `approvals`
+  // + `outOfStatementChargeDateVouchers`). Route every assembly path
+  // through the dedup factory so consumers always receive a canonical
+  // unique-by-identifier list.
+  const startMs = parseStartDate(fc.startDate).getTime();
+  const unique = deduplicateTxns(txns, startMs);
   const assembly: IAccountAssemblyCtx = {
     fc,
     accountId: postCtx.accountId,
     displayId: postCtx.displayId,
     rawRecord: rawRecord ?? raw.value,
   };
-  return buildAccountResult(assembly, txns);
+  return buildAccountResult(assembly, unique);
 }
 
 /**
@@ -226,13 +234,19 @@ async function tryFirstWave(
     message: `tryFirstWave hit: account=${accountLabel} records=${recordCount}`,
   });
   const txns: readonly ITransaction[] = harvest.records;
+  // Phase F (2026-05-13): the DASHBOARD-side harvest carries the raw
+  // records extracted from one or more pre-nav captures. The same
+  // pending row can appear across capture boundaries on the
+  // card-family banks; dedup here mirrors the matrix-loop guarantee.
+  const startMs = parseStartDate(fc.startDate).getTime();
+  const unique = deduplicateTxns(txns, startMs);
   const assembly: IAccountAssemblyCtx = {
     fc,
     accountId: post.accountId,
     displayId: post.displayId,
     rawRecord: accountRecord,
   };
-  return buildAccountResult(assembly, txns);
+  return buildAccountResult(assembly, unique);
 }
 
 /**
@@ -297,7 +311,13 @@ async function scrapeOneAccountViaUrl(
   if (!isOk(raw)) return raw;
   const fieldMap = txnEpForParse(fc);
   const txns = parseFreshResponse(raw.value, fieldMap);
-  return buildAccountResult({ fc, accountId, displayId: accountId, rawRecord: raw.value }, txns);
+  // Phase F (2026-05-13): the GET path covers single-account banks
+  // (Beinleumi 38-row response, Hapoalim, Discount). Their flat `transactions[]`
+  // arrays still carry cross-page echoes when the bank paginates;
+  // dedup at the assembly boundary collapses them.
+  const startMs = parseStartDate(fc.startDate).getTime();
+  const unique = deduplicateTxns(txns, startMs);
+  return buildAccountResult({ fc, accountId, displayId: accountId, rawRecord: raw.value }, unique);
 }
 
 export { scrapeOneAccountPost, scrapeOneAccountViaUrl };

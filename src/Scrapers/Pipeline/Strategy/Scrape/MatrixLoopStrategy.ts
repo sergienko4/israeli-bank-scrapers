@@ -19,7 +19,12 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IBillingCycle } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
-import { buildAccountResult, parseStartDate, rateLimitPause } from './ScrapeDataActions.js';
+import {
+  buildAccountResult,
+  deduplicateTxns,
+  parseStartDate,
+  rateLimitPause,
+} from './ScrapeDataActions.js';
 import { withTrace } from './ScrapeTraceWrapper.js';
 import {
   EMPTY_TXN_ENDPOINT,
@@ -126,13 +131,20 @@ async function tryMatrixLoop(
   });
   const ctx: IChunkFetchArgs = { args, txnUrl: txnEndpoint.url, template };
   const allTxns = await collectChunkTxns(ctx, chunks);
-  LOG.debug({ accounts: 1, txns: allTxns.length });
+  // Phase F (2026-05-13): every cycle's response can echo the bank's
+  // pending / out-of-statement rows (Isracard approvedTransactions,
+  // israelAbroadVouchers.outOfStatementChargeDateVouchers). Without
+  // this call the concatenated `allTxns` carried N copies of each
+  // pending row — one per iterated chunk — into `account.txns[]`.
+  const startMs = parseStartDate(args.fc.startDate).getTime();
+  const unique = deduplicateTxns(allTxns, startMs);
+  LOG.debug({ accounts: 1, rawTxns: allTxns.length, uniqueTxns: unique.length });
   const assembly: IAccountAssemblyCtx = {
     fc: args.fc,
     accountId: args.accountId,
     displayId: args.displayId,
   };
-  return buildAccountResult(assembly, allTxns);
+  return buildAccountResult(assembly, unique);
 }
 
 /**

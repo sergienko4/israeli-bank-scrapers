@@ -403,3 +403,106 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     expect(calls.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Phase F — verifies `tryMatrixLoop` invokes `deduplicateTxns` on the
+ * concatenated chunk results so cross-cycle echoes never reach
+ * `buildAccountResult`. The bug fixed: Isracard / Amex returned the
+ * same pending-approval row in every cycle's response, and matrix-loop
+ * concatenated them all into the final account result (8 echoes for
+ * card 5290).
+ *
+ * <p>The fixture: every chunk fetch returns the SAME single-txn body.
+ * Without dedup, N chunks → N concatenated copies in the output.
+ * With dedup, the result must collapse to one.
+ */
+describe('tryMatrixLoop — Phase F dedup adoption', () => {
+  /** Identifier-bearing single-txn body the stub returns for every chunk. */
+  const echoBody = {
+    txns: [
+      {
+        purchaseDate: '2026-04-15T00:00:00',
+        businessName: 'echo-merchant',
+        originalAmount: 240,
+        originalCurrency: 'ILS',
+        ilsAmount: 240,
+        seqVoucherNumber: 'echo-id-001',
+      },
+    ],
+  };
+
+  /**
+   * Stub `fetchPost` that returns the echo body wrapped in the
+   * Procedure-success contract for every call.
+   *
+   * @param calls - Mutable accumulator owned by the test.
+   * @returns Recording `fetchPost`.
+   */
+  function makeEchoFetchPost(calls: IRecordedCall[]): (
+    url: string,
+    body: Record<string, unknown>,
+  ) => Promise<{
+    success: true;
+    value: Record<string, unknown>;
+  }> {
+    return (url, body): Promise<{ success: true; value: Record<string, unknown> }> => {
+      calls.push({ url, body });
+      return Promise.resolve({ success: true, value: echoBody });
+    };
+  }
+
+  /**
+   * Build a counting API whose `fetchPost` returns a successful body
+   * (the echo row) on every call. Mirrors {@link makeCountingApi}'s
+   * shape but swaps the failure stub for a success one.
+   *
+   * @returns Counting API + the recording accumulator.
+   */
+  function makeSuccessCountingApi(): { api: IApiFetchContext; calls: IRecordedCall[] } {
+    const calls: IRecordedCall[] = [];
+    const api = {
+      fetchPost: makeEchoFetchPost(calls),
+      fetchGet: fetchGetStub,
+      transactionsUrl: false as const,
+      balanceUrl: false as const,
+      pendingUrl: false as const,
+    } as unknown as IApiFetchContext;
+    return { api, calls };
+  }
+
+  it('[MATRIX-DEDUP-001] CrossCycleEchoes_ShouldCollapseToOne', async () => {
+    // 3 cycles → 3 fetchPost calls → 3 identical echo txns concatenated.
+    // After dedup (Phase F): result has 1 unique txn.
+    const catalog: IBillingCycleCatalog = {
+      cycles: [
+        { billingDate: '03/2026', isOpen: false },
+        { billingDate: '04/2026', isOpen: false },
+        { billingDate: '05/2026', isOpen: true },
+      ],
+    };
+    const { api, calls } = makeSuccessCountingApi();
+    const ep = stubTxn({
+      url: 'https://bank.example/api/txn',
+      method: 'POST',
+      templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
+    });
+    const fc: IAccountFetchCtx = {
+      api,
+      network: makeInertNetwork(),
+      startDate: '20260101',
+      txnEndpoint: ep,
+      billingCycleCatalog: catalog,
+    };
+
+    const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
+
+    expect(result).not.toBe(false);
+    if (result !== false && result.success) {
+      // Bug fix: 3 echoes collapse to 1 (by identifier or attribute hash).
+      expect(result.value.txns.length).toBe(1);
+    }
+    // Sanity: the strategy still made the 3 expected fetches before
+    // dedup ran on the concatenated output.
+    expect(calls.length).toBe(3);
+  });
+});
