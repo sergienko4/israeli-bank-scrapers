@@ -221,18 +221,27 @@ function tryParseBackbase(raw: string): Date | false {
 }
 
 /**
- * Parse the ISO-shape billing date Max + VisaCal emit. Returns the
- * first-of-month derived from the parsed value, or `false` when
- * `Date.parse` cannot interpret the input.
+ * Parse the ISO-shape billing date Max + VisaCal emit.
  *
- * @param raw - Raw cycle billing-date string.
+ * <p>Extracts year and month directly from the leading `YYYY-MM`
+ * fragment instead of going through `new Date(raw)` — the latter
+ * parses date-only strings (`2026-06-02`) as UTC midnight, then
+ * `getMonth()` reads LOCAL time, which silently rolls back the
+ * month in negative-UTC zones (UTC-5, UTC-8…). The regex path is
+ * timezone-independent: a string carrying `2026-06-02` always
+ * resolves to June 2026 regardless of the runner's locale.
+ *
+ * @param raw - Raw cycle billing-date string (date-only or full
+ *   ISO 8601 with time component).
  * @returns First-of-month Date on success; `false` on miss.
  */
 function tryParseIso(raw: string): Date | false {
-  const isoDate = new Date(raw);
-  const isoMs = isoDate.getTime();
-  if (Number.isNaN(isoMs)) return false;
-  return new Date(isoDate.getFullYear(), isoDate.getMonth(), 1);
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?/.exec(raw);
+  if (match === null) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < MIN_CALENDAR_MONTH || month > MAX_CALENDAR_MONTH) return false;
+  return new Date(year, month - 1, 1);
 }
 
 /**

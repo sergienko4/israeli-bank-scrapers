@@ -2,6 +2,8 @@
  * Unit tests for MatrixLoopStrategy — guard clauses (not-applicable paths).
  */
 
+import { jest } from '@jest/globals';
+
 import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
@@ -133,9 +135,15 @@ describe('tryMatrixLoop', () => {
  * 0-txn outcome at the catalog driver — what matters for these tests
  * is the CALL COUNT, not the payload).
  */
+/** Records one recorded fetchPost invocation. */
+interface IRecordedCall {
+  readonly url: string;
+  readonly body: Record<string, unknown>;
+}
+
 interface ICountingApi {
   readonly api: IApiFetchContext;
-  readonly calls: readonly string[];
+  readonly calls: readonly IRecordedCall[];
 }
 
 /**
@@ -193,16 +201,18 @@ const STUB_FAILURE: IStubFailure = {
 };
 
 /**
- * Build a recording `fetchPost` that pushes each URL into `calls`
- * and returns the canonical stub failure. Extracted so
+ * Build a recording `fetchPost` that pushes `{url, body}` into
+ * `calls` and returns the canonical stub failure. Extracted so
  * {@link makeCountingApi} stays within the 10-line method budget.
  *
- * @param calls - Mutable URL-call accumulator owned by the caller.
+ * @param calls - Mutable accumulator owned by the caller.
  * @returns `fetchPost` stub bound to the accumulator.
  */
-function makeFetchPostRecorder(calls: string[]): (url: string) => Promise<IStubFailure> {
-  return (url): Promise<IStubFailure> => {
-    calls.push(url);
+function makeFetchPostRecorder(
+  calls: IRecordedCall[],
+): (url: string, body: Record<string, unknown>) => Promise<IStubFailure> {
+  return (url, body): Promise<IStubFailure> => {
+    calls.push({ url, body });
     return Promise.resolve(STUB_FAILURE);
   };
 }
@@ -218,13 +228,31 @@ function fetchGetStub(): Promise<IStubFailure> {
 }
 
 /**
+ * Extract the calendar year encoded in an accepted cycle date.
+ * Supports both shapes the parser handles — Backbase `MM/YYYY` and
+ * ISO `YYYY-MM-DD`. Returns `NaN` on miss; the bounds test only
+ * consults this value when `isAccepted` is true so the miss path
+ * is unreached during normal runs.
+ *
+ * @param billingDate - Cycle date string.
+ * @returns Parsed year on success; `NaN` otherwise.
+ */
+function extractAcceptedYear(billingDate: string): number {
+  const backbase = /^\d{2}\/(\d{4})$/.exec(billingDate);
+  if (backbase !== null) return Number(backbase[1]);
+  const iso = /^(\d{4})-\d{2}/.exec(billingDate);
+  if (iso !== null) return Number(iso[1]);
+  return Number.NaN;
+}
+
+/**
  * Build a per-call counting `IApiFetchContext` stub. Each `fetchPost`
  * invocation appends the URL to the `calls` array.
  *
  * @returns Counting api stub.
  */
 function makeCountingApi(): ICountingApi {
-  const calls: string[] = [];
+  const calls: IRecordedCall[] = [];
   const api = {
     fetchPost: makeFetchPostRecorder(calls),
     fetchGet: fetchGetStub,
@@ -282,7 +310,7 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     expect(calls.length).toBeGreaterThan(0);
   });
 
-  /** One row in the `parseCycleDate` Backbase-bounds truth table. */
+  /** One row in the `parseCycleDate` bounds truth table. */
   interface IBackbaseBoundsCase {
     readonly billingDate: string;
     readonly isAccepted: boolean;
@@ -293,38 +321,67 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     { billingDate: '13/2026', isAccepted: false },
     { billingDate: '01/2026', isAccepted: true },
     { billingDate: '12/2026', isAccepted: true },
+    // ISO-shape misses — exercises tryParseIso's regex-miss and
+    // out-of-range branches before falling through to
+    // currentMonthStart under the frozen clock.
+    { billingDate: 'not-a-date', isAccepted: false },
+    { billingDate: '2026-13-01', isAccepted: false },
+    // ISO-shape happy path — explicitly fetched year matches the
+    // parsed year (timezone-safe regardless of runner locale).
+    { billingDate: '2026-07-15', isAccepted: true },
   ];
 
-  it.each(backbaseBoundsCases)(
-    '[MATRIX-CATALOG-BOUNDS] BackbaseBillingDate_$billingDate_acceptanceMatchesRange',
-    async testCase => {
-      const catalog: IBillingCycleCatalog = {
-        cycles: [{ billingDate: testCase.billingDate, isOpen: true }],
-      };
-      const { api, calls } = makeCountingApi();
-      const ep = stubTxn({
-        url: 'https://bank.example/api/txn',
-        method: 'POST',
-        templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
-      });
-      const fc: IAccountFetchCtx = {
-        api,
-        network: makeInertNetwork(),
-        startDate: '20251101',
-        txnEndpoint: ep,
-        billingCycleCatalog: catalog,
-      };
-      await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-      // Out-of-range months still produce ONE fetch (the parser falls
-      // back to current-month-start); the assertion proves the
-      // recogniser does not silently shift `13/2026` into a Jan 2027
-      // chunk with a different downstream amount.
-      expect(calls.length).toBe(1);
-      const fetchedUrl = calls[0] ?? '';
-      const hasYearShift = testCase.isAccepted ? false : fetchedUrl.includes('2027');
-      expect(hasYearShift).toBe(false);
-    },
-  );
+  /**
+   * Frozen system clock used by the bounds matrix — pins the
+   * "current month" fallback so the year-shift assertion never
+   * drifts when the real wall-clock advances past 2027.
+   */
+  const frozenClock = new Date('2026-05-15T12:00:00Z');
+
+  describe('with frozen system clock', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(frozenClock);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it.each(backbaseBoundsCases)(
+      '[MATRIX-CATALOG-BOUNDS] BackbaseBillingDate_$billingDate_acceptanceMatchesRange',
+      async testCase => {
+        const catalog: IBillingCycleCatalog = {
+          cycles: [{ billingDate: testCase.billingDate, isOpen: true }],
+        };
+        const { api, calls } = makeCountingApi();
+        const ep = stubTxn({
+          url: 'https://bank.example/api/txn',
+          method: 'POST',
+          templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
+        });
+        const fc: IAccountFetchCtx = {
+          api,
+          network: makeInertNetwork(),
+          startDate: '20251101',
+          txnEndpoint: ep,
+          billingCycleCatalog: catalog,
+        };
+        await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
+        // Out-of-range months still produce ONE fetch (the parser
+        // falls back to current-month-start under frozenClock,
+        // = May 2026). The assertion proves the recogniser does NOT
+        // silently shift `13/2026` into a January 2027 chunk.
+        expect(calls.length).toBe(1);
+        const [recorded] = calls;
+        const fetchedYear = Number(recorded.body.year);
+        const frozenYear = frozenClock.getUTCFullYear();
+        const acceptedYear = extractAcceptedYear(testCase.billingDate);
+        const expectedYear = testCase.isAccepted ? acceptedYear : frozenYear;
+        expect(fetchedYear).toBe(expectedYear);
+      },
+    );
+  });
 
   it('[MATRIX-CATALOG-EMPTY] EmptyCatalog_FallsBackToMonthChunks', async () => {
     const { api, calls } = makeCountingApi();
