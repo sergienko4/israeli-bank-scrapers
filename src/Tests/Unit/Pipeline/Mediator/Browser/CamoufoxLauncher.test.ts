@@ -1,6 +1,10 @@
 /**
  * Unit tests for CamoufoxLauncher — verify static re-exports + callable shape.
- * The full launch path requires a real Firefox binary and is validated in E2E.
+ *
+ * <p>The full launch path requires a real Firefox/Camoufox binary and
+ * is validated in `src/Tests/E2eMocked/CamoufoxLaunch.e2e-mocked.test.ts`.
+ * This file stays pure-unit: no OS process, no host-state dependency,
+ * deterministic and instantaneous.
  */
 
 import {
@@ -20,11 +24,5 @@ describe('CamoufoxLauncher module', () => {
 
   it('launchCamoufox references exist with arity 1', () => {
     expect(launchCamoufox.length).toBe(1);
-  });
-
-  it('invokes underlying Camoufox and closes browser if launched', async () => {
-    const browser = await launchCamoufox(true).catch((): undefined => undefined);
-    if (browser) await browser.close();
-    expect(true).toBe(true);
   });
 });
