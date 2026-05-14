@@ -75,29 +75,31 @@ function parseStartDate(raw: string): Date {
 }
 
 /**
- * Build the dedup key for a transaction.
+ * Composes the dedup key for a transaction by joining the values of
+ * the named fields with the `|` delimiter.
  *
- * <p>Bank-emitted identifiers (Asmachta / seqVoucherNumber / Urn /
- * trnIntId / reference / etc.) are the authoritative dedup key — two
- * rows sharing one mean the bank returned the same transaction in
- * multiple cycle responses. The legacy attribute hash
- * (`date|description|amount`) is the fallback when the identifier is
- * absent (rare — only observed on placeholder rows the bank returns
- * with a `0` reference).
+ * <p>Phase G (2026-05-14): the field-name array `dedupKeyFields`
+ * is supplied by DASHBOARD.FINAL per-card and travels through the
+ * harvest contract. Typical contents are `['identifier']` when
+ * the bank emits a per-txn unique id, or
+ * `['date', 'identifier', 'originalAmount']` when the
+ * identifier collides across rows (Beinleumi's `reference` is a
+ * transaction-TYPE code shared by recurring monthly txns).
  *
- * <p>Phase F gap closed (2026-05-13): two genuinely-different txns
- * sharing the same date/description/amount (two coffees, two equal
- * BIT transfers) used to collapse under the attribute hash alone.
- * Identifier-first hashing preserves them.
+ * <p>The function trusts the contract — DASHBOARD verifies field
+ * presence on every row before emit, so no `undefined` handling or
+ * fallback is encoded here. Pure composition.
  *
- * @param t - Transaction to hash.
- * @returns Stable dedup key — `id:${identifier}` when present, else
- *   the legacy `${date}|${description}|${originalAmount}` triple.
+ * @param t - Transaction whose fields supply the key components.
+ * @param dedupKeyFields - Non-empty array of {@link ITransaction}
+ *   field names. Order is significant — emitted key joins values in
+ *   the given order.
+ * @returns Composed dedup key string.
  */
-function txnHash(t: ITransaction): TxnHashKey {
-  if (t.identifier !== undefined) return `id:${String(t.identifier)}` as TxnHashKey;
-  const amt = String(t.originalAmount);
-  return `${t.date}|${t.description}|${amt}` as TxnHashKey;
+function txnHash(t: ITransaction, dedupKeyFields: readonly string[]): TxnHashKey {
+  return dedupKeyFields
+    .map((field): string => String((t as unknown as Record<string, unknown>)[field]))
+    .join('|') as TxnHashKey;
 }
 
 // ── Logger ───────────────────────────────────────────
@@ -270,35 +272,45 @@ function templatePostBody(
 // ── Deduplication ────────────────────────────────────────
 
 /**
- * Filter txns to a start-date window, collapse duplicates by
- * {@link txnHash}, then sort newest-first.
+ * Filters txns to a start-date window, collapses duplicates by
+ * {@link txnHash}, then sorts newest-first.
+ *
+ * <p>Phase G (2026-05-14): the dedup key is now driven by
+ * `dedupKeyFields` — a field-name array chosen per-card by
+ * DASHBOARD.FINAL and threaded through the harvest contract. The
+ * function no longer infers a key from the row's shape; callers
+ * supply the explicit tuple.
  *
  * <p>R-DEDUP-IDEMPOTENT invariant: a second pass over an
- * already-deduped array is a no-op — sister strategies that already
- * call this factory before {@link buildAccountResult} are unaffected
- * by the Phase F additions to the matrix-loop / direct / GET paths.
+ * already-deduped array with the same tuple is a no-op — sister
+ * strategies that call this factory before {@link buildAccountResult}
+ * are safe to double-call.
  *
- * <p>Sort step (added Phase F 2026-05-13): the matrix-loop concatenates
- * chunks in oldest-cycle-first iteration order, which produced
- * "interleaved by cycle, sorted within cycle" output in the consumer's
- * `account.txns[]`. Sorting at the factory boundary gives every caller
- * a chronological newest-first view regardless of upstream order.
+ * <p>Sort step (Phase F): the matrix-loop concatenates chunks in
+ * oldest-cycle-first iteration order, producing interleaved
+ * by-cycle output. Sorting at the factory boundary gives every
+ * caller a chronological newest-first view regardless of upstream
+ * order.
  *
  * @param allTxns - Raw transactions concatenated from one or more
  *   bank-API responses.
  * @param startMs - Inclusive window lower bound as epoch ms.
+ * @param dedupKeyFields - Non-empty array of {@link ITransaction}
+ *   field names used to compose each row's dedup key. Sourced from
+ *   {@link IDashboardTxnHarvest.dedupKeyFieldsByAccount} per card.
  * @returns In-range unique transactions sorted by `date` descending.
  */
 function deduplicateTxns(
   allTxns: readonly ITransaction[],
   startMs: number,
+  dedupKeyFields: readonly string[],
 ): readonly ITransaction[] {
   const afterStart = allTxns.filter(
     (t): IsAfterStartDate => (new Date(t.date).getTime() >= startMs) as IsAfterStartDate,
   );
   const seen = new Set<string>();
   const unique = afterStart.filter((t): ShouldRetainTxn => {
-    const key = txnHash(t);
+    const key = txnHash(t, dedupKeyFields);
     if (seen.has(key)) return false as ShouldRetainTxn;
     seen.add(key);
     return true as ShouldRetainTxn;
@@ -533,13 +545,23 @@ async function resolveBalance(ctx: IAccountAssemblyCtx): Promise<number> {
 
 export { applyGlobalDateFilter, scrapeWithMonthlyChunking } from './ScrapeChunking.js';
 
+/**
+ * Phase G ergonomic fallback when `fc.dedupKeyFields` is absent
+ * (legacy test mocks, frozen-mode replays that pre-date Phase G).
+ * Production SCRAPE.PRE always populates `fc.dedupKeyFields` from
+ * the harvest, so this constant is dead in live runs.
+ */
+const FALLBACK_DEDUP_KEY_FIELDS: readonly string[] = ['identifier'];
+
 export {
   buildAccountResult,
   buildFilterDataUrl,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   lookupBalance,
   parseStartDate,
   rateLimitPause,
   resolveTxnUrl,
   templatePostBody,
+  txnHash,
 };

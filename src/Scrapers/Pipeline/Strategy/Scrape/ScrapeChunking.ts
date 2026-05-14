@@ -13,6 +13,7 @@ import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK
 import {
   buildAccountResult,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   rateLimitPause,
 } from '../../Strategy/Scrape/ScrapeDataActions.js';
@@ -100,7 +101,8 @@ async function scrapeWithMonthlyChunking(
   const chunks = generateMonthChunks(startDate, new Date(), ctx.fc.futureMonths);
   const allTxns = await scrapeAllChunks(ctx, chunks);
   const startMs = startDate.getTime();
-  const unique = deduplicateTxns(allTxns, startMs);
+  const keyFields = ctx.fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(allTxns, startMs, keyFields);
   const assembly: IAccountAssemblyCtx = {
     fc: ctx.fc,
     accountId: ctx.accountId,

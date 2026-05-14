@@ -12,6 +12,7 @@
 
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
 import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.js';
+import { readDedupKeyFields } from '../../Mediator/Scrape/ScrapePhaseActions.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
@@ -19,6 +20,7 @@ import { redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { IDashboardTxnHarvest, ITxnEndpoint } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import { FALLBACK_DEDUP_KEY_FIELDS } from './ScrapeDataActions.js';
 import type { IAccountFetchCtx, IFetchAllAccountsCtx } from './ScrapeTypes.js';
 
 /** Whether the txn endpoint URL hosts on the current page origin. */
@@ -73,7 +75,12 @@ interface IPreDiscoveredArgs {
  */
 function buildLoadCtxFromPreDiscovered(args: IPreDiscoveredArgs): IFetchAllAccountsCtx {
   logTxnEndpoint(args.txnEndpoint);
-  const fc: IAccountFetchCtx = { ...args.fc, dashboardTxnHarvest: args.harvest };
+  const dedupKeyFields = readDedupKeyFields(args.harvest, FALLBACK_DEDUP_KEY_FIELDS);
+  const fc: IAccountFetchCtx = {
+    ...args.fc,
+    dashboardTxnHarvest: args.harvest,
+    dedupKeyFields,
+  };
   return {
     fc,
     ids: [...args.ids],

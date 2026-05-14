@@ -25,6 +25,7 @@ import { tryMatrixLoop } from '../MatrixLoopStrategy.js';
 import {
   buildAccountResult,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   resolveTxnUrl,
   scrapeWithMonthlyChunking,
@@ -121,7 +122,8 @@ async function scrapePostDirect(
   // through the dedup factory so consumers always receive a canonical
   // unique-by-identifier list.
   const startMs = parseStartDate(fc.startDate).getTime();
-  const unique = deduplicateTxns(txns, startMs);
+  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(txns, startMs, keyFields);
   const assembly: IAccountAssemblyCtx = {
     fc,
     accountId: postCtx.accountId,
@@ -239,7 +241,8 @@ async function tryFirstWave(
   // pending row can appear across capture boundaries on the
   // card-family banks; dedup here mirrors the matrix-loop guarantee.
   const startMs = parseStartDate(fc.startDate).getTime();
-  const unique = deduplicateTxns(txns, startMs);
+  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(txns, startMs, keyFields);
   const assembly: IAccountAssemblyCtx = {
     fc,
     accountId: post.accountId,
@@ -316,7 +319,8 @@ async function scrapeOneAccountViaUrl(
   // arrays still carry cross-page echoes when the bank paginates;
   // dedup at the assembly boundary collapses them.
   const startMs = parseStartDate(fc.startDate).getTime();
-  const unique = deduplicateTxns(txns, startMs);
+  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(txns, startMs, keyFields);
   return buildAccountResult({ fc, accountId, displayId: accountId, rawRecord: raw.value }, unique);
 }
 

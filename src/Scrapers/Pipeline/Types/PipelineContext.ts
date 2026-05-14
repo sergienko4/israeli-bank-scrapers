@@ -686,6 +686,26 @@ interface IDashboardTxnHarvest {
   readonly records: readonly ITransaction[];
   readonly capturedAccountId: string | false;
   readonly multiAccountScope: boolean;
+  /**
+   * Per-account dedup-key field tuple. Maps an accountId (or `''`
+   * sentinel for unscoped captures) to the list of
+   * {@link ITransaction} field names SCRAPE must use to dedup that
+   * account's rows.
+   *
+   * <p>Typical contents are `['identifier']` when every row in
+   * the account's harvest carries a distinct per-txn identifier, or
+   * `['date', 'identifier', 'originalAmount']` when the
+   * identifier collides across rows (Beinleumi's `reference` field
+   * is a transaction-TYPE code shared across recurring monthly txns).
+   *
+   * <p>DASHBOARD picks the tuple by shape inspection on the
+   * normalized-records sample (see
+   * {@link ./../Mediator/Dashboard/DedupKeyFieldsDetector}); the
+   * detector skips empty harvests and multi-scope captures, so the
+   * map is empty in those cases. SCRAPE consumers fall back to
+   * `['identifier']` when the map is empty (legacy/test ergonomics).
+   */
+  readonly dedupKeyFieldsByAccount?: ReadonlyMap<string, readonly string[]>;
 }
 
 /** Scrape phase discovery — qualification results from PRE step. */

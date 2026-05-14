@@ -22,6 +22,7 @@ import { isOk } from '../../Types/Procedure.js';
 import {
   buildAccountResult,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   rateLimitPause,
 } from './ScrapeDataActions.js';
@@ -137,7 +138,8 @@ async function tryMatrixLoop(
   // this call the concatenated `allTxns` carried N copies of each
   // pending row — one per iterated chunk — into `account.txns[]`.
   const startMs = parseStartDate(args.fc.startDate).getTime();
-  const unique = deduplicateTxns(allTxns, startMs);
+  const keyFields = args.fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(allTxns, startMs, keyFields);
   LOG.debug({ accounts: 1, rawTxns: allTxns.length, uniqueTxns: unique.length });
   const assembly: IAccountAssemblyCtx = {
     fc: args.fc,

@@ -5,7 +5,7 @@
     "bankAccounts": [
       {
         "bankName": "FAKE_HEB_53",
-        "bankAccountNum": "93-190691",
+        "bankAccountNum": "FAKE-000000",
         "currentBankAccountInd": true,
         "months": [
           {

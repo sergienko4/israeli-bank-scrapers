@@ -94,6 +94,15 @@ interface IAccountFetchCtx {
    * strategies fall back to `EMPTY_TXN_HARVEST` when omitted.
    */
   readonly dashboardTxnHarvest?: IDashboardTxnHarvest;
+  /**
+   * Phase G: per-card dedup-key field tuple sourced from
+   * `harvest.dedupKeyFieldsByAccount`. SCRAPE.PRE plucks the
+   * applicable tuple for the current iteration before handing fc to
+   * strategies. Optional at type level so legacy tests stay terse —
+   * production always populates. Strategies use a one-line ergonomic
+   * default `['identifier']` when absent.
+   */
+  readonly dedupKeyFields?: readonly string[];
 }
 
 /** Bundled options for fetching one account. */
