@@ -48,6 +48,9 @@ const SCENARIOS: readonly IPhaseHScenarioRow[] = [
   { bank: 'hapoalim', scenarioId: '204-empty-window' },
 ];
 
+/** Empty header map shared across synthesised endpoint entries. */
+const EMPTY_HEADERS: Readonly<Record<string, string>> = {};
+
 /**
  * Maps a fixture capture entry to a production {@link IDiscoveredEndpoint}.
  * Synthesises content-type / headers / timestamps deterministically so the
@@ -61,13 +64,10 @@ const SCENARIOS: readonly IPhaseHScenarioRow[] = [
 function captureToEndpoint(capture: IPhaseHCapture, index: number): IDiscoveredEndpoint {
   const contentType = capture.responseBody === null ? '' : 'application/json';
   return {
-    url: capture.url,
-    method: capture.method,
-    postData: capture.postData,
-    responseBody: capture.responseBody,
+    ...capture,
     contentType,
-    requestHeaders: {},
-    responseHeaders: {},
+    requestHeaders: EMPTY_HEADERS,
+    responseHeaders: EMPTY_HEADERS,
     timestamp: index,
     captureIndex: index,
   };

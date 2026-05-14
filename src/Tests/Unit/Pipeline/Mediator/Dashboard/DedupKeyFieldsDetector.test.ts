@@ -20,6 +20,22 @@ import detectDedupKeyFields from '../../../../../Scrapers/Pipeline/Mediator/Dash
 import type { ITransaction } from '../../../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../Transactions.js';
 
+/** Frozen default-transaction template — single source of truth for
+ *  the per-row fields {@link makeTxn} merges overrides onto. Keeping
+ *  the defaults out of the builder body satisfies the per-method
+ *  10-line ceiling (CodeRabbit review 2026-05-15). */
+const DEFAULT_TXN: Readonly<ITransaction> = Object.freeze({
+  type: TransactionTypes.Normal,
+  date: '2026-05-10',
+  processedDate: '2026-05-10',
+  originalAmount: -100,
+  originalCurrency: 'ILS',
+  chargedAmount: -100,
+  description: 'synthetic',
+  status: TransactionStatuses.Completed,
+  identifier: 'unique-id',
+});
+
 /**
  * Minimal `ITransaction` builder. Local to this file because the
  * detector's contract is independent of any cross-test helper.
@@ -27,18 +43,7 @@ import { TransactionStatuses, TransactionTypes } from '../../../../../Transactio
  * @returns Synthetic transaction.
  */
 function makeTxn(overrides: Partial<ITransaction>): ITransaction {
-  return {
-    type: TransactionTypes.Normal,
-    date: '2026-05-10',
-    processedDate: '2026-05-10',
-    originalAmount: -100,
-    originalCurrency: 'ILS',
-    chargedAmount: -100,
-    description: 'synthetic',
-    status: TransactionStatuses.Completed,
-    identifier: 'unique-id',
-    ...overrides,
-  };
+  return { ...DEFAULT_TXN, ...overrides };
 }
 
 describe('detectDedupKeyFields — Phase G contract', () => {

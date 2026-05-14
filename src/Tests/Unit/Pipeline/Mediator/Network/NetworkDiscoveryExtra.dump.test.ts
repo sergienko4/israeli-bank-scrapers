@@ -102,7 +102,7 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
     expect(ep).not.toBe(false);
   });
 
-  it('returns urlOnlyMatch when only URL match is a non-shape, non-replayable 2xx capture (Phase H locked rule)', async () => {
+  it('returns false when only URL match is a non-shape capture with populated body (Phase H refined)', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     discovery.markDashboardClickAt(0);
@@ -111,15 +111,13 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
       body: { total: 0 },
     });
     const ep = discovery.discoverTransactionsEndpoint();
-    // Phase H' (2026-05-14): user-locked rule supersedes the Phase 7e
-    // "urlFallback removed" decision — any 2xx response is acceptable,
-    // body shape is a confidence signal for tier preference only. URL
-    // match with no shape/replayable signal falls through to the new
-    // `urlOnlyMatch` tier; SCRAPE re-queries with the user's startDate
-    // and the auto-mapper resolves field aliases via WK on the
-    // populated response.
-    expect(ep).not.toBe(false);
-    if (ep !== false) expect(ep.pickerTier).toBe('urlOnlyMatch');
+    // Phase H' refined (2026-05-15): `urlOnlyMatch` only fires for
+    // 2xx-no-body responses (e.g. 204 No Content). A populated body
+    // that fails the txn-shape gate is a sibling URL like Hapoalim's
+    // `?type=totals&view=future` summary — not the txn endpoint.
+    // Picker correctly falls through to `none`; DASHBOARD.FINAL
+    // signals loud so the dashboard cannot commit the wrong URL.
+    expect(ep).toBe(false);
   });
 });
 

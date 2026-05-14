@@ -24,6 +24,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+
 const FIXTURE_FILE_PATH = fileURLToPath(import.meta.url);
 const FIXTURES_DIR = dirname(FIXTURE_FILE_PATH);
 
@@ -94,18 +96,45 @@ interface IRawPhaseHFixture {
 }
 
 /**
+ * Reports whether the parsed JSON has the expected `_fixture` + `pool`
+ * shape. Returns a boolean instead of throwing so the caller decides
+ * how to fail loud with a fixture-path-tagged message.
+ *
+ * @param parsed - Raw `JSON.parse` result.
+ * @returns True when both fields are present and `pool` is an array.
+ */
+function hasFixtureShape(parsed: unknown): parsed is IRawPhaseHFixture {
+  if (parsed === null || typeof parsed !== 'object') return false;
+  const candidate = parsed as { _fixture?: unknown; pool?: unknown };
+  return candidate._fixture !== undefined && Array.isArray(candidate.pool);
+}
+
+/**
  * Loads one bank's PII-redacted captured pool plus its assertion
  * metadata. Returns the parsed fixture for direct consumption by a
  * Phase H per-phase or full-flow factory test.
+ *
+ * <p>Fail-fast shape guard (CodeRabbit review 2026-05-15): throws a
+ * fixture-path-tagged error when the parsed JSON lacks the expected
+ * `_fixture` block or `pool` array. Catches malformed-fixture bugs
+ * at load time rather than letting `undefined` propagate to deep
+ * consumer code where the resulting error is cryptic.
  *
  * @param bank - Bank name (must be in {@link PHASE_H_BANKS}).
  * @param scenarioId - Scenario identifier inside the bank's folder
  *   (e.g. `204-empty-window`, `last-good`).
  * @returns Parsed fixture with metadata and captured pool.
+ * @throws {Error} When the fixture JSON does not match
+ *   {@link IRawPhaseHFixture}.
  */
 export function loadPhaseFixture(bank: PhaseHBank, scenarioId: string): IPhaseHFixture {
   const filePath = join(FIXTURES_DIR, bank, `${scenarioId}.json`);
   const raw = readFileSync(filePath, 'utf8');
-  const parsed: IRawPhaseHFixture = JSON.parse(raw) as IRawPhaseHFixture;
+  const parsed: unknown = JSON.parse(raw);
+  if (!hasFixtureShape(parsed)) {
+    throw new ScraperError(
+      `PHASE_H_FIXTURE_MALFORMED: ${filePath} — expected '_fixture' object and 'pool' array`,
+    );
+  }
   return { meta: parsed._fixture, pool: parsed.pool };
 }

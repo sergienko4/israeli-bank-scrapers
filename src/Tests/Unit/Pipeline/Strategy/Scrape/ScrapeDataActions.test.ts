@@ -53,7 +53,7 @@ function makeTxn(overrides: Partial<ITransaction> = {}): ITransaction {
  * production `txnHash` no longer infers a fallback — DASHBOARD picks
  * the tuple and SCRAPE passes it through.
  */
-const LEGACY_KEY_FIELDS: readonly string[] = ['identifier'];
+const LEGACY_KEY_FIELDS = ['identifier'] as const;
 
 /**
  * Phase G migration helper — wrap `deduplicateTxns` with the
@@ -184,7 +184,7 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
       chargedAmount: 50,
     };
     const noIdRows = Array.from({ length: 2 }, (): ITransaction => makeTxn(noIdTemplate));
-    const attributeKey: readonly string[] = ['date', 'description', 'originalAmount'];
+    const attributeKey = ['date', 'description', 'originalAmount'] as const;
 
     const result = deduplicateTxns(noIdRows, 0, attributeKey);
 

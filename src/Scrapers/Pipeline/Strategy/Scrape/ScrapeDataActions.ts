@@ -6,6 +6,7 @@
 import { setTimeout as timerWait } from 'node:timers/promises';
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import ScraperError from '../../../Base/ScraperError.js';
 import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.js';
 import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscoveryTypes.js';
 import { findFieldValue, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
@@ -74,6 +75,10 @@ function parseStartDate(raw: string): Date {
   return new Date(fmt);
 }
 
+/** Stringified `undefined` produced by `String(undefined)` — used by the
+ * row-shape guard below to detect catastrophic missing-field rows. */
+const UNDEFINED_SENTINEL = 'undefined';
+
 /**
  * Composes the dedup key for a transaction by joining the values of
  * the named fields with the `|` delimiter.
@@ -86,20 +91,41 @@ function parseStartDate(raw: string): Date {
  * identifier collides across rows (Beinleumi's `reference` is a
  * transaction-TYPE code shared by recurring monthly txns).
  *
- * <p>The function trusts the contract — DASHBOARD verifies field
- * presence on every row before emit, so no `undefined` handling or
- * fallback is encoded here. Pure composition.
+ * <p>Defensive runtime guards (CodeRabbit review 2026-05-15):
+ * <ul>
+ *   <li><b>Empty tuple</b> — DASHBOARD always emits a non-empty
+ *     array; an empty `dedupKeyFields` would hash every row to the
+ *     empty string and collapse every transaction into one. Throws
+ *     `DEDUP_KEY_FIELDS_EMPTY`.</li>
+ *   <li><b>All-undefined row</b> — when every named field is
+ *     absent on a row, the join hash degenerates to
+ *     `"undefined|undefined|..."` and unrelated rows collide into
+ *     one (frozen-mode replay or test mock without a DASHBOARD
+ *     harvest). The fallback emits a per-row fingerprint hash
+ *     based on the full row's JSON shape so distinct rows stay
+ *     distinct without throwing.</li>
+ * </ul>
  *
  * @param t - Transaction whose fields supply the key components.
  * @param dedupKeyFields - Non-empty array of {@link ITransaction}
  *   field names. Order is significant — emitted key joins values in
  *   the given order.
  * @returns Composed dedup key string.
+ * @throws {ScraperError} `DEDUP_KEY_FIELDS_EMPTY` when the tuple is
+ *   empty.
  */
 function txnHash(t: ITransaction, dedupKeyFields: readonly string[]): TxnHashKey {
-  return dedupKeyFields
-    .map((field): string => String((t as unknown as Record<string, unknown>)[field]))
-    .join('|') as TxnHashKey;
+  if (dedupKeyFields.length === 0) {
+    throw new ScraperError(
+      'DEDUP_KEY_FIELDS_EMPTY: dedupKeyFields contract violation — must be non-empty',
+    );
+  }
+  const row = t as unknown as Record<string, unknown>;
+  const values = dedupKeyFields.map((field): string => String(row[field]));
+  if (values.every((value): boolean => value === UNDEFINED_SENTINEL)) {
+    return `_degenerate:${JSON.stringify(t)}` as TxnHashKey;
+  }
+  return values.join('|') as TxnHashKey;
 }
 
 // ── Logger ───────────────────────────────────────────
@@ -550,8 +576,13 @@ export { applyGlobalDateFilter, scrapeWithMonthlyChunking } from './ScrapeChunki
  * (legacy test mocks, frozen-mode replays that pre-date Phase G).
  * Production SCRAPE.PRE always populates `fc.dedupKeyFields` from
  * the harvest, so this constant is dead in live runs.
+ *
+ * <p>Typed via `as const` (CodeRabbit review 2026-05-15) so the
+ * literal tuple shape is preserved through `readonly ['identifier']`,
+ * preventing accidental mutation or assignment of an unrelated
+ * string array at any consumer.
  */
-const FALLBACK_DEDUP_KEY_FIELDS: readonly string[] = ['identifier'];
+const FALLBACK_DEDUP_KEY_FIELDS = ['identifier'] as const;
 
 export {
   buildAccountResult,

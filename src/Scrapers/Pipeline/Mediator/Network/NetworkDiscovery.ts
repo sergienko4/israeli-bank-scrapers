@@ -302,15 +302,19 @@ interface ITierPickOutcome {
  * Rejects dashboard-widget URLs (M4.F2) via {@link isTxnWidgetUrl}
  * before scoring so widgets never reach SCRAPE.
  *
- * <p>Phase H' (2026-05-14) — body shape is a confidence signal for
- * tier preference, NOT a gating criterion. Any URL match in the
- * pool is picked: richest tier first (`postWithShape` /
- * `replayablePost` / `shapePassing`), then `urlOnlyMatch` as the
- * last-resort tier for 2xx-no-body responses (e.g. 204 No Content
- * for a dormant 30-day window). SCRAPE re-queries with the user's
- * `startDate` window; the auto-mapper resolves field aliases via
- * WK on the populated response. The fail-loud only fires when
- * `urlMatches.length === 0` (true no-URL-match).
+ * <p>Phase H' (2026-05-15, refined after live Hapoalim trace) —
+ * the `urlOnlyMatch` tier (last-resort pick) is restricted to
+ * <em>2xx-no-body</em> responses (e.g. 204 No Content for a dormant
+ * 30-day window). A captured response with a populated body that
+ * fails the txn-shape gate is NOT a transaction endpoint — it is a
+ * sibling URL like Hapoalim's `?type=totals&view=future` summary
+ * GET which matches the same WK pattern but carries no txn array.
+ * Picking such a URL via `urlOnlyMatch` would commit the wrong
+ * endpoint and silently produce zero-txn scrapes. The picker
+ * therefore falls through to `tier:'none'` on populated-but-
+ * non-matching bodies, letting DASHBOARD.FINAL fail loud per the
+ * user-locked principle "the dashboard ensures it has the values;
+ * if not, signal LOUD".
  *
  * @param pool - Candidate captured endpoints to consider.
  * @param patterns - WellKnown URL patterns to match.
@@ -335,7 +339,11 @@ function tierPick(
   if (shapePassing.length > 0) {
     return { endpoint: shapePassing[0], tier: 'shapePassing', matches };
   }
-  return { endpoint: urlMatches[0], tier: 'urlOnlyMatch', matches };
+  const emptyBodyMatch = urlMatches.find((ep): boolean => ep.responseBody === null);
+  if (emptyBodyMatch) {
+    return { endpoint: emptyBodyMatch, tier: 'urlOnlyMatch', matches };
+  }
+  return { endpoint: false, tier: 'none', matches };
 }
 
 /**
