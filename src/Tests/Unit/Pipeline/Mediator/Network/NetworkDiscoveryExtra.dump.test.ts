@@ -102,7 +102,7 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
     expect(ep).not.toBe(false);
   });
 
-  it('returns false when only URL match is a non-shape, non-replayable capture (Phase 7e strict)', async () => {
+  it('returns urlOnlyMatch when only URL match is a non-shape, non-replayable 2xx capture (Phase H locked rule)', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     discovery.markDashboardClickAt(0);
@@ -111,9 +111,15 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
       body: { total: 0 },
     });
     const ep = discovery.discoverTransactionsEndpoint();
-    // Phase 7e: urlFallback tier removed — DASHBOARD.FINAL fails loud
-    // rather than picking a wrong URL whose body has zero records.
-    expect(ep).toBe(false);
+    // Phase H' (2026-05-14): user-locked rule supersedes the Phase 7e
+    // "urlFallback removed" decision — any 2xx response is acceptable,
+    // body shape is a confidence signal for tier preference only. URL
+    // match with no shape/replayable signal falls through to the new
+    // `urlOnlyMatch` tier; SCRAPE re-queries with the user's startDate
+    // and the auto-mapper resolves field aliases via WK on the
+    // populated response.
+    expect(ep).not.toBe(false);
+    if (ep !== false) expect(ep.pickerTier).toBe('urlOnlyMatch');
   });
 });
 

@@ -255,7 +255,8 @@ type ShapeAwareTier =
   | 'postWithShape'
   | 'replayablePost'
   | 'shapePassing'
-  | 'preClickFallback';
+  | 'preClickFallback'
+  | 'urlOnlyMatch';
 
 /**
  * Emit one canonical structured event per `discoverShapeAware` call.
@@ -297,9 +298,19 @@ interface ITierPickOutcome {
 /**
  * Run the shape-aware tier preference over a single candidate pool
  * (post-click or pre-click). Returns the chosen endpoint with its
- * tier label, or `none` when the pool yields no usable URL.
+ * tier label, or `none` when the pool yields no URL match at all.
  * Rejects dashboard-widget URLs (M4.F2) via {@link isTxnWidgetUrl}
  * before scoring so widgets never reach SCRAPE.
+ *
+ * <p>Phase H' (2026-05-14) — body shape is a confidence signal for
+ * tier preference, NOT a gating criterion. Any URL match in the
+ * pool is picked: richest tier first (`postWithShape` /
+ * `replayablePost` / `shapePassing`), then `urlOnlyMatch` as the
+ * last-resort tier for 2xx-no-body responses (e.g. 204 No Content
+ * for a dormant 30-day window). SCRAPE re-queries with the user's
+ * `startDate` window; the auto-mapper resolves field aliases via
+ * WK on the populated response. The fail-loud only fires when
+ * `urlMatches.length === 0` (true no-URL-match).
  *
  * @param pool - Candidate captured endpoints to consider.
  * @param patterns - WellKnown URL patterns to match.
@@ -324,7 +335,7 @@ function tierPick(
   if (shapePassing.length > 0) {
     return { endpoint: shapePassing[0], tier: 'shapePassing', matches };
   }
-  return { endpoint: false, tier: 'none', matches };
+  return { endpoint: urlMatches[0], tier: 'urlOnlyMatch', matches };
 }
 
 /**

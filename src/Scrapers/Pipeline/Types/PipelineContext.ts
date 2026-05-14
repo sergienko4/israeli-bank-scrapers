@@ -656,7 +656,13 @@ interface ITxnEndpointInternal {
  * tier order and emits one of these labels per `discover.shapeAware`
  * event so the chosen URL's provenance is traceable from logs.
  */
-type PickerTier = 'postWithShape' | 'replayablePost' | 'shapePassing' | 'preClickFallback' | 'none';
+type PickerTier =
+  | 'postWithShape'
+  | 'replayablePost'
+  | 'shapePassing'
+  | 'preClickFallback'
+  | 'urlOnlyMatch'
+  | 'none';
 
 /**
  * DASHBOARD harvest committed by DASHBOARD.FINAL on a separate

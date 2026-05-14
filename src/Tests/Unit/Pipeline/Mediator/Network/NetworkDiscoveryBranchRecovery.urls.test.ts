@@ -203,18 +203,23 @@ describe('NetworkDiscovery — findCommonServicesUrl edges (L200, L251, L281)', 
     expect(url).toBe(false);
   });
 
-  it('discoverTransactionsEndpoint returns false when only URL match has no shape (Phase 7e)', async () => {
+  it('discoverTransactionsEndpoint returns urlOnlyMatch when only URL matches (Phase H locked rule)', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     discovery.markDashboardClickAt(0);
-    // URL matches but body lacks any transaction record.
+    // URL matches the WK txn pattern but body lacks a transactions
+    // array. Phase H' (2026-05-14): any 2xx response is acceptable —
+    // body shape is a confidence signal for tier preference only, not
+    // a gating criterion. Falls through to `urlOnlyMatch`; SCRAPE
+    // re-queries with the user's startDate window and the auto-mapper
+    // resolves field aliases via WK on the populated response.
     await simulate({
       url: 'https://api.bank.co.il/lastTransactions/1',
       body: { notTxnsArray: true },
     });
     const hit = discovery.discoverTransactionsEndpoint();
-    // Phase 7e: urlFallback tier removed — returns false so DASHBOARD.FINAL halts.
-    expect(hit).toBe(false);
+    expect(hit).not.toBe(false);
+    if (hit !== false) expect(hit.pickerTier).toBe('urlOnlyMatch');
   });
 
   it('discoverByPatterns returns false when no pattern matches any captured URL (L281)', async () => {

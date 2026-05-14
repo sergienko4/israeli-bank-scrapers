@@ -334,25 +334,36 @@ describe('Phase 7f follow-up — cross-bank DASHBOARD false-positive coverage', 
     expect(result).toBe(false);
   });
 
-  describe.each(ALL_FIXTURES)('$name (hard reject)', ({ envelope }) => {
-    it('returns false when the captured body is null (F-DASH-3 malformed response)', () => {
-      const network = makeFixtureNetworkWithBody(envelope, null);
-      const result = resolveTxnEndpoint(network);
-      expect(result).toBe(false);
-    });
+  describe.each(ALL_FIXTURES)(
+    '$name (soft-commit on 2xx-no-body, hard reject on primitive)',
+    ({ envelope }) => {
+      it('commits with EMPTY_FIELD_MAP when the captured body is null (Phase H 2xx-no-body)', () => {
+        // Phase H' (2026-05-14): user-locked rule supersedes the prior
+        // F-DASH-3 hard-reject — any 2xx response is acceptable, and a
+        // null body (e.g. 204 No Content for a dormant 30-day window)
+        // commits with EMPTY_FIELD_MAP. SCRAPE re-queries with the
+        // user's startDate window and the auto-mapper resolves field
+        // aliases via WK on the populated response.
+        const network = makeFixtureNetworkWithBody(envelope, null);
+        const result = resolveTxnEndpoint(network);
+        if (result === false) throw new ScraperError('expected 2xx-no-body soft-commit');
+        expect(result.endpoint.fieldMap).toEqual(EMPTY_FIELD_MAP_SHAPE);
+        expect(result.normalizedRecords).toEqual([]);
+      });
 
-    it('returns false when the captured body is a primitive string (non-object body)', () => {
-      const network = makeFixtureNetworkWithBody(envelope, 'not-an-object');
-      const result = resolveTxnEndpoint(network);
-      expect(result).toBe(false);
-    });
+      it('returns false when the captured body is a primitive string (non-object body)', () => {
+        const network = makeFixtureNetworkWithBody(envelope, 'not-an-object');
+        const result = resolveTxnEndpoint(network);
+        expect(result).toBe(false);
+      });
 
-    it('returns false when the captured body is a number (non-object body)', () => {
-      const network = makeFixtureNetworkWithBody(envelope, 42);
-      const result = resolveTxnEndpoint(network);
-      expect(result).toBe(false);
-    });
-  });
+      it('returns false when the captured body is a number (non-object body)', () => {
+        const network = makeFixtureNetworkWithBody(envelope, 42);
+        const result = resolveTxnEndpoint(network);
+        expect(result).toBe(false);
+      });
+    },
+  );
 
   // ── Soft-commit tier — replayablePost recovery (EMPTY_FIELD_MAP) ──
 

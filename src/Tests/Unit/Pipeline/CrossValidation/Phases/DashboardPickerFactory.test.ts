@@ -1,0 +1,140 @@
+/**
+ * Cross-bank DASHBOARD picker factory — drives every bank's captured
+ * network pool through production {@link resolveTxnEndpoint} and
+ * asserts the resolver commits the bank's canonical TXN endpoint
+ * with the URL, method, and picker tier the production pipeline
+ * relies on at DASHBOARD.FINAL time.
+ *
+ * <p>Pool is constructed from a PII-redacted JSON fixture per
+ * scenario (see {@link loadPhaseFixture}). Each fixture's `pool`
+ * mirrors what `INetworkDiscovery` accumulates by DASHBOARD.FINAL —
+ * including 2xx-no-body responses (204 No Content) the picker must
+ * accept per the architectural rule "any 2xx response is OK".
+ *
+ * <p>RED on the current tree for the `hapoalim` `204-empty-window`
+ * scenario: the picker's tier discipline rejects URL-match-but-empty-
+ * body captures and `resolveTxnEndpoint` returns `false`. After the
+ * picker fix that lands in the next commit, the row turns GREEN with
+ * tier `urlOnlyMatch` + WK-default field-map fallback. Additional
+ * bank rows land in follow-up commits as regression guards.
+ */
+
+import {
+  createFrozenNetwork,
+  type IDiscoveredEndpoint,
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
+import { resolveTxnEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import {
+  type IPhaseHCapture,
+  type IPhaseHExpected,
+  loadPhaseFixture,
+  type PhaseHBank,
+} from './Fixtures/_makePhaseFixture.js';
+
+/** Per-scenario row driven by the parameterised `it.each` below. */
+interface IPhaseHScenarioRow {
+  readonly bank: PhaseHBank;
+  readonly scenarioId: string;
+}
+
+/** Scenarios exercised by the DASHBOARD picker factory. */
+const SCENARIOS: readonly IPhaseHScenarioRow[] = [
+  { bank: 'hapoalim', scenarioId: '204-empty-window' },
+];
+
+/**
+ * Maps a fixture capture entry to a production {@link IDiscoveredEndpoint}.
+ * Synthesises content-type / headers / timestamps deterministically so the
+ * frozen network behaves indistinguishably from a live capture pool for
+ * picker purposes.
+ *
+ * @param capture - One fixture capture entry.
+ * @param index - Pool-relative index (used as capture index + timestamp).
+ * @returns Endpoint shape consumed by {@link createFrozenNetwork}.
+ */
+function captureToEndpoint(capture: IPhaseHCapture, index: number): IDiscoveredEndpoint {
+  const contentType = capture.responseBody === null ? '' : 'application/json';
+  return {
+    url: capture.url,
+    method: capture.method,
+    postData: capture.postData,
+    responseBody: capture.responseBody,
+    contentType,
+    requestHeaders: {},
+    responseHeaders: {},
+    timestamp: index,
+    captureIndex: index,
+  };
+}
+
+/**
+ * Builds the production-shape pool from the fixture entries. Extracted
+ * so the parameterised loop body stays inside the per-method line
+ * ceiling and the per-entry mapping has a named call-site.
+ *
+ * @param captures - Fixture capture entries.
+ * @returns Endpoints consumed by {@link createFrozenNetwork}.
+ */
+function buildPool(captures: readonly IPhaseHCapture[]): readonly IDiscoveredEndpoint[] {
+  return captures.map((capture, index): IDiscoveredEndpoint => captureToEndpoint(capture, index));
+}
+
+/**
+ * Slim view of `resolveTxnEndpoint`'s success-side return value
+ * relevant to factory assertions. Avoids importing the full
+ * production internal type so the factory stays decoupled from
+ * upstream-shape churn.
+ */
+interface IPhaseHResolvedEndpoint {
+  readonly endpoint: { readonly url: string; readonly method: 'GET' | 'POST' };
+  readonly pickerTier: string;
+}
+
+/**
+ * Optional-field assertion helper — skips the assertion when the
+ * expected value is undefined so a single scenario can drive multiple
+ * per-phase factories without supplying every assertion field. Returns
+ * `true` when the assertion ran and `false` when skipped so the caller
+ * can count which fields the scenario exercised.
+ *
+ * <p>Arrow-function form because the project's eslint config blocks
+ * `undefined` in `FunctionDeclaration` type annotations
+ * (`no-restricted-syntax`); arrow expressions are exempt.
+ *
+ * @param actual - Production value to assert.
+ * @param expected - Expected value (or `undefined` to skip).
+ * @returns True when the assertion ran, false when skipped.
+ */
+const ASSERT_OR_SKIP = <T>(actual: T, expected: T | undefined): boolean => {
+  if (expected === undefined) return false;
+  expect(actual).toBe(expected);
+  return true;
+};
+
+/**
+ * Asserts the resolver-committed endpoint against the scenario's
+ * expected fields. Returns the count of assertions actually performed
+ * — varies per scenario based on which `expected.*` fields are populated.
+ *
+ * @param resolved - Internal endpoint emitted by {@link resolveTxnEndpoint}.
+ * @param expected - Scenario expectations from the fixture metadata.
+ * @returns Number of field assertions that ran for this scenario.
+ */
+function assertCommit(resolved: IPhaseHResolvedEndpoint, expected: IPhaseHExpected): number {
+  const didUrlRun = ASSERT_OR_SKIP(resolved.endpoint.url, expected.dashboardTxnUrl);
+  const didMethodRun = ASSERT_OR_SKIP(resolved.endpoint.method, expected.dashboardTxnMethod);
+  const didTierRun = ASSERT_OR_SKIP(resolved.pickerTier, expected.dashboardPickerTier);
+  return [didUrlRun, didMethodRun, didTierRun].filter(Boolean).length;
+}
+
+describe('DASHBOARD-PICKER-FACTORY — Phase H per-bank picker contract', () => {
+  it.each(SCENARIOS)('dashboardPicker_$bank_$scenarioId_ShouldCommitEndpoint', (row): void => {
+    const fixture = loadPhaseFixture(row.bank, row.scenarioId);
+    const pool = buildPool(fixture.pool);
+    const network = createFrozenNetwork(pool, false);
+    const result = resolveTxnEndpoint(network);
+
+    expect(result).not.toBe(false);
+    if (result !== false) assertCommit(result, fixture.meta.expected);
+  });
+});
