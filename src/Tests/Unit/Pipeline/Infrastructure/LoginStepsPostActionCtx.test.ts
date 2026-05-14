@@ -185,6 +185,11 @@ function makeMockMediator(): IElementMediator {
        */
       setCollectionActive: (): true => true,
       /**
+       * No-op deferred-watcher attach in mock.
+       * @returns True.
+       */
+      attachAuthFailureWatcher: (): true => true,
+      /**
        * No-op click marker in mock.
        * @returns True.
        */

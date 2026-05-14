@@ -550,7 +550,12 @@ function makeFiredAuthWatcher(classifier: AuthFailureClassifier): IAuthFailureWa
    * @returns True.
    */
   const dispose = (): boolean => true;
-  return { waitForFailure, hasFailed, reset, dispose };
+  /**
+   * No-op start — these tests don't exercise deferred attach.
+   * @returns True.
+   */
+  const start = (): boolean => true;
+  return { start, waitForFailure, hasFailed, reset, dispose };
 }
 
 /**

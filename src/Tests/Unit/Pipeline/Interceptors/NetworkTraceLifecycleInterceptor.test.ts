@@ -47,6 +47,11 @@ function makeRecordingCtx(): {
             calls.push(active);
             return true;
           },
+          /**
+           * No-op deferred-watcher attach in this test surface.
+           * @returns True.
+           */
+          attachAuthFailureWatcher: (): true => true,
         },
       },
     },

@@ -147,6 +147,17 @@ interface IAuthFailure {
 /** Public watcher contract consumed by the LoginPhase. */
 interface IAuthFailureWatcher {
   /**
+   * Activates the response listener. Deferred attachment is required so
+   * Cloudflare's CDP/BiDi fingerprint does not observe a live listener
+   * during the HOME-phase WAF check window — the trace-lifecycle
+   * interceptor invokes this at LOGIN.PRE entry, past the HOME boundary.
+   * Idempotent: subsequent calls are no-ops.
+   *
+   * @returns `true` when this call performed the subscription,
+   * `false` when a prior call had already started the watcher.
+   */
+  readonly start: () => boolean;
+  /**
    * Resolve with the next observed auth failure, or false on timeout.
    * Returns the existing failure synchronously if one was already seen.
    */
@@ -273,6 +284,10 @@ interface IWatcherState {
    *  disposeFn can call page.off without a runtime guard. */
   responseHandler: (response: Response) => boolean;
   isDisposed: boolean;
+  /** True once `start()` has performed the `page.on('response', ...)`
+   *  subscription. Used by both `start` (idempotency) and `dispose`
+   *  (skip the `page.off` call when no subscription is live). */
+  isStarted: boolean;
 }
 
 /**
@@ -417,6 +432,21 @@ async function awaitFailure(
  */
 function buildWatcherApi(page: Page, state: IWatcherState): IAuthFailureWatcher {
   /**
+   * Subscribe the response handler to the page. Deferred attachment
+   * keeps Cloudflare's CDP/BiDi fingerprint listener-free during the
+   * HOME-phase WAF check window; the lifecycle interceptor invokes
+   * this at LOGIN.PRE entry (past the HOME boundary).
+   *
+   * @returns `true` when this call performed the subscription, `false`
+   * when a prior call had already started the watcher.
+   */
+  const startFn = (): boolean => {
+    if (state.isStarted) return false;
+    state.isStarted = true;
+    page.on('response', state.responseHandler);
+    return true;
+  };
+  /**
    * Reset captured state — used between retry attempts.
    * @returns True after reset.
    */
@@ -425,13 +455,17 @@ function buildWatcherApi(page: Page, state: IWatcherState): IAuthFailureWatcher 
     return true;
   };
   /**
-   * Stop listening to page responses; idempotent.
-   * @returns True when this call performed the unsubscribe, false when
-   * a prior dispose had already torn the watcher down (idempotent skip).
+   * Stop listening to page responses; idempotent across both
+   * un-started and already-disposed cases.
+   *
+   * @returns `true` when this call performed the unsubscribe, `false`
+   * when a prior dispose had already torn the watcher down OR when
+   * the watcher never started.
    */
   const disposeFn = (): boolean => {
     if (state.isDisposed) return false;
     state.isDisposed = true;
+    if (!state.isStarted) return false;
     page.off('response', state.responseHandler);
     return true;
   };
@@ -448,6 +482,7 @@ function buildWatcherApi(page: Page, state: IWatcherState): IAuthFailureWatcher 
    */
   const hasFailedFn = (): false | IAuthFailure => state.detected;
   return {
+    start: startFn,
     waitForFailure: waitFn,
     hasFailed: hasFailedFn,
     reset: resetFn,
@@ -475,10 +510,16 @@ function createAuthFailureWatcher(page: Page): IAuthFailureWatcher {
     detected: false,
     responseHandler: placeholderHandler,
     isDisposed: false,
+    isStarted: false,
   };
-  const handler = buildResponseHandler(state);
-  state.responseHandler = handler;
-  page.on('response', handler);
+  state.responseHandler = buildResponseHandler(state);
+  // Deferred attach: the page.on('response', ...) subscription happens
+  // in `start()`, invoked by `NetworkTraceLifecycleInterceptor` at
+  // LOGIN.PRE entry. Keeping the constructor listener-free closes the
+  // HOME-phase WAF fingerprint leak that surfaced on PR #228 CI run
+  // 25844771660 (Hapoalim Cloudflare hCaptcha wall — see
+  // `quality-and-security-cleanup-2026-05/status.txt` row
+  // `A.fix-hapoalim-leak`).
   return buildWatcherApi(page, state);
 }
 
@@ -504,6 +545,7 @@ function createFrozenAuthFailureWatcher(): IAuthFailureWatcher {
    */
   const stubOp = (): boolean => true;
   return {
+    start: stubOp,
     waitForFailure: stubWait,
     hasFailed: stubProbe,
     reset: stubOp,

@@ -241,6 +241,7 @@ describe('AuthFailureWatcher — Layer 1 (HTTP 4xx)', () => {
   it('fires on 401 to a WK auth URL', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse('https://bank.example/api/v2/auth/login', 401, '');
     mockPage.fire(fakeResponse);
     await settle();
@@ -256,6 +257,7 @@ describe('AuthFailureWatcher — Layer 1 (HTTP 4xx)', () => {
   it('fires on 403 to a WK auth URL', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse('https://bank.example/api/v2/authentication/login', 403, '');
     mockPage.fire(fakeResponse);
     await settle();
@@ -267,6 +269,7 @@ describe('AuthFailureWatcher — Layer 1 (HTTP 4xx)', () => {
   it('fires on 422 to a WK auth URL', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse('https://bank.example/api/v2/authentication/login', 422, '');
     mockPage.fire(fakeResponse);
     await settle();
@@ -278,6 +281,7 @@ describe('AuthFailureWatcher — Layer 1 (HTTP 4xx)', () => {
   it('ignores 401 on a NON-auth URL (e.g. analytics endpoint)', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse('https://api-js.mixpanel.com/track', 401, '');
     mockPage.fire(fakeResponse);
     await settle();
@@ -289,6 +293,7 @@ describe('AuthFailureWatcher — Layer 1 (HTTP 4xx)', () => {
   it('ignores 5xx on auth URLs (server error, not credential rejection)', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse('https://bank.example/api/v2/auth/login', 503, '');
     mockPage.fire(fakeResponse);
     await settle();
@@ -300,6 +305,7 @@ describe('AuthFailureWatcher — Layer 1 (HTTP 4xx)', () => {
   it('ignores 200 on auth URL with success body (no L2 pattern match)', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const successBody = JSON.stringify({ token: 'abc123', flow: 'AUTHENTICATE' });
     const fakeResponse = makeResponse('https://bank.example/api/v2/auth/login', 200, successBody);
     mockPage.fire(fakeResponse);
@@ -314,6 +320,7 @@ describe('AuthFailureWatcher — Layer 2 (HTTP 200 + body-error pattern)', () =>
   it('fires on Beinleumi-shape body { error_code: !=0 }', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse(
       'https://online.fibi.co.il/api/v2/auth/login',
       200,
@@ -333,6 +340,7 @@ describe('AuthFailureWatcher — Layer 2 (HTTP 200 + body-error pattern)', () =>
   it('fires on Max-shape body { Result: { LoginStatus: !=0 } }', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse(
       'https://www.max.co.il/api/login/login',
       200,
@@ -348,6 +356,7 @@ describe('AuthFailureWatcher — Layer 2 (HTTP 200 + body-error pattern)', () =>
   it('fires on Hapoalim-shape body { error: {...} }', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse(
       'https://login.bankhapoalim.co.il/authenticate/init',
       200,
@@ -363,6 +372,7 @@ describe('AuthFailureWatcher — Layer 2 (HTTP 200 + body-error pattern)', () =>
   it('fires on Discount-shape body { Status: !=SUCCESS }', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse(
       'https://start.telebank.co.il/Lobby/gatewayAPI/loginSuccessResponse',
       200,
@@ -378,6 +388,7 @@ describe('AuthFailureWatcher — Layer 2 (HTTP 200 + body-error pattern)', () =>
   it('ignores body-error patterns on NON-auth URLs', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     // Same Beinleumi-shape body but on an analytics endpoint.
     const fakeResponse = makeResponse(
       'https://analytics.example/event',
@@ -394,6 +405,7 @@ describe('AuthFailureWatcher — Layer 2 (HTTP 200 + body-error pattern)', () =>
   it('ignores 200 + body without any pattern match', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const benignBody = JSON.stringify({
       token: 'xyz',
       refreshToken: 'abc',
@@ -410,6 +422,7 @@ describe('AuthFailureWatcher — Layer 2 (HTTP 200 + body-error pattern)', () =>
   it('ignores body-error on 200 with `error: null` (Hapoalim success)', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const successBody = JSON.stringify({
       flow: 'AUTHENTICATE',
       state: 'LOGON',
@@ -433,6 +446,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('reset() clears prior detection so a later failure can fire', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const firstFailure = makeResponse('https://bank.example/api/v2/auth/login', 401, '');
     mockPage.fire(firstFailure);
     await settle();
@@ -452,6 +466,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('dispose() removes the listener', () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const before = mockPage.listenerCount();
     expect(before).toBe(1);
     watcher.dispose();
@@ -462,6 +477,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('waitForFailure resolves with existing failure synchronously', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const fakeResponse = makeResponse('https://bank.example/api/v2/auth/login', 401, '');
     mockPage.fire(fakeResponse);
     await settle();
@@ -474,6 +490,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('waitForFailure returns false on timeout when no failure observed', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const result = await watcher.waitForFailure(50);
     expect(result).toBe(false);
     watcher.dispose();
@@ -482,6 +499,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('waitForFailure path resolves on a Response observed during the wait', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     // Concurrently: launch waitForFailure with a generous timeout, then
     // fire a 4xx auth response. The listener captures it (state.detected
     // gets set), and waitForFailure's post-await re-read finds it.
@@ -507,6 +525,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('listener short-circuits on dispose (no state mutation after teardown)', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     watcher.dispose();
     const afterDispose = mockPage.listenerCount();
     expect(afterDispose).toBe(0);
@@ -523,6 +542,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('awaitFailure matcher rejects non-auth and non-fail responses', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const waitPromise = watcher.waitForFailure(120);
     /**
      * Fire a series of NON-matching responses, ensuring matcher branches
@@ -550,6 +570,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('awaitFailure picks up an L2 (body-error) hit captured during the wait', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     // Wait expects a 4xx (L1) — but during the wait window we fire a
     // 200+body-error which the listener captures via L2. After the
     // wait times out, awaitFailure re-reads state.detected and returns
@@ -576,6 +597,7 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
   it('listener ignores response when a failure is already detected', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const first = makeResponse('https://bank.example/api/v2/auth/login', 401, '{"a":1}');
     mockPage.fire(first);
     await settle();
@@ -595,6 +617,7 @@ describe('AuthFailureWatcher — edge cases (empty body, idempotency)', () => {
   it('handles 200 with empty body (no JSON to parse)', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const emptyResp = makeResponse('https://bank.example/api/v2/auth/login', 200, '');
     mockPage.fire(emptyResp);
     await settle();
@@ -606,6 +629,7 @@ describe('AuthFailureWatcher — edge cases (empty body, idempotency)', () => {
   it('handles 200 with malformed JSON body (parse fails gracefully)', async () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const malformed = makeResponse(
       'https://bank.example/api/v2/auth/login',
       200,
@@ -621,6 +645,7 @@ describe('AuthFailureWatcher — edge cases (empty body, idempotency)', () => {
   it('dispose() is idempotent — second call is a no-op', () => {
     const mockPage = makeMockPage();
     const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.start();
     const didFirstDispose = watcher.dispose();
     expect(didFirstDispose).toBe(true);
     const didSecondDispose = watcher.dispose();

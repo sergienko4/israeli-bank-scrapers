@@ -7,8 +7,18 @@
  * the interceptor calls `setCollectionActive` on every phase entry so
  * a missed activation is auto-corrected next iteration.
  *
+ * <p>Also owns the per-phase activation of the auth-failure watcher:
+ * the watcher's response listener attaches at LOGIN.PRE entry (past
+ * the HOME WAF check window) so Cloudflare's CDP fingerprint stays
+ * listener-free through HOME. The interceptor calls
+ * `attachAuthFailureWatcher` once per chain (idempotent at the
+ * registry level). Closes the leak documented in
+ * `quality-and-security-cleanup-2026-05/status.txt` row
+ * `A.fix-hapoalim-leak`.
+ *
  * Black-box rule: phases never touch the lifecycle. The interceptor
- * is the only consumer of `setCollectionActive`.
+ * is the only consumer of `setCollectionActive` and
+ * `attachAuthFailureWatcher`.
  */
 
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
@@ -18,6 +28,9 @@ import { succeed } from '../Types/Procedure.js';
 
 /** Sentinel returned by `Map.get` when a phase name is unknown. */
 const UNKNOWN_INDEX = -1;
+
+/** LOGIN phase name — auth-failure watcher attaches on entry to this phase. */
+const LOGIN_PHASE = 'login';
 
 /**
  * Build the phase-index lookup once at descriptor build time. The
@@ -48,7 +61,9 @@ function buildGateFlipper(
     if (!ctx.mediator.has) return succeed(ctx);
     const nextIdx = index.get(nextPhase) ?? UNKNOWN_INDEX;
     const isPostBoundary = nextIdx > boundaryIdx;
-    ctx.mediator.value.network.setCollectionActive(isPostBoundary);
+    const { network } = ctx.mediator.value;
+    network.setCollectionActive(isPostBoundary);
+    if (nextPhase === LOGIN_PHASE) network.attachAuthFailureWatcher();
     return succeed(ctx);
   };
 }

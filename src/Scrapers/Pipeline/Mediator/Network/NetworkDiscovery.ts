@@ -1344,11 +1344,24 @@ function createNetworkDiscovery(page: Page, opts: INetworkDiscoveryOpts = {}): I
     /** @inheritdoc */
     discoverApiOrigin: (): string | false => discoverApiOriginFromTraffic(captured),
   };
-  // Generic auth-failure watcher attached to the live page. The LoginPhase
-  // owns the lifecycle: it consumes the watcher in POST and disposes it
-  // before later phases run. See AuthFailureWatcher.ts for layer details.
+  // Generic auth-failure watcher. Constructor leaves the watcher idle —
+  // the response listener attaches only when the registry's
+  // `attachAuthFailureWatcher()` entrypoint is invoked by the trace-
+  // lifecycle interceptor at LOGIN.PRE entry, past the HOME WAF check
+  // window. Keeping the watcher idle through HOME closes the Cloudflare
+  // CDP fingerprint leak that surfaced on PR #228 CI run 25844771660
+  // (see `quality-and-security-cleanup-2026-05/status.txt` row
+  // `A.fix-hapoalim-leak`). LoginPhase still consumes the watcher in
+  // POST and disposes it before later phases run.
   const authFailureWatcher = createAuthFailureWatcher(page);
-  const failureGate = { authFailureWatcher };
+  const failureGate = {
+    authFailureWatcher,
+    /** @inheritdoc */
+    attachAuthFailureWatcher: (): true => {
+      authFailureWatcher.start();
+      return true;
+    },
+  };
   /**
    * Phase 7f — pick the txn endpoint from the post-click pool first,
    * then fall back to the full captured pool when the post-click pool
@@ -1461,6 +1474,8 @@ function createFrozenNetwork(
   const lifecycle = {
     /** @inheritdoc */
     setCollectionActive: (): true => true,
+    /** @inheritdoc */
+    attachAuthFailureWatcher: (): true => true,
   };
   const base = { ...core, ...epMethods, ...frozenHeaders, ...urlBuilders };
   return {

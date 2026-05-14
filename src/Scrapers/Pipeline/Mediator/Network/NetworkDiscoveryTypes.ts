@@ -78,6 +78,19 @@ interface INetworkDiscovery {
   setCollectionActive(active: boolean): true;
 
   /**
+   * Activates the bundled {@link IAuthFailureWatcher} listener.
+   * Deferred attachment is required so Cloudflare's CDP/BiDi
+   * fingerprint does not observe a live listener during the HOME
+   * phase WAF check window. The trace-lifecycle interceptor invokes
+   * this once on LOGIN.PRE entry, past the HOME boundary.
+   * Idempotent — repeated calls are no-ops. Frozen networks return
+   * `true` without side effects.
+   *
+   * @returns Always `true` after the call (caller-side audit).
+   */
+  attachAuthFailureWatcher(): true;
+
+  /**
    * Mark the moment DASHBOARD.ACTION dispatched its navigation click.
    * Used by `getPreNavCaptures` / `getPostNavCaptures` to split the
    * captured stream into the pre-nav (login + dashboard-landing

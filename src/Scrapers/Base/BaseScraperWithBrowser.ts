@@ -358,11 +358,15 @@ class BaseScraperWithBrowser<
       this.bankLog.debug('execute preparePage interceptor provided in options');
       await this.options.preparePage(this.page);
     }
-    this.page.on('requestfailed', request => {
-      const errorText = request.failure()?.errorText ?? 'unknown';
-      const failedUrl = request.url();
-      this.bankLog.debug('Request failed: %s %s', errorText, failedUrl);
-    });
+    // Listener removed 2026-05-14: a `page.on('requestfailed', ...)`
+    // here attached BEFORE navigation to the bank URL and surfaced on
+    // Cloudflare's CDP/BiDi fingerprint during the WAF check window.
+    // The handler did debug-only logging; removing has zero functional
+    // impact and closes the leak for legacy banks (Leumi / Mizrahi /
+    // Yahav / Behatsdaa / BeyahadBishvilha). Pipeline banks route any
+    // listener attachment through `NetworkDiscovery`'s central
+    // registry — see `quality-and-security-cleanup-2026-05` row
+    // `A.fix-hapoalim-leak`.
     return true;
   }
 

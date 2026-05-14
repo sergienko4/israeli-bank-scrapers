@@ -834,6 +834,43 @@ export default tseslint.config(
     },
   },
 
+  // 10b. CENTRAL LISTENER REGISTRY — every `page.on(...)` / `context.on(...)`
+  //      / `browserContext.on(...)` call within the Pipeline MUST live
+  //      inside `src/Scrapers/Pipeline/Mediator/Network/**`. Closes the
+  //      Cloudflare WAF fingerprint leak that surfaced on PR #228 CI run
+  //      25844771660 (Hapoalim hCaptcha wall) and enforces the
+  //      "one central place" rule from `general-rules-guidlines.md` P7
+  //      (mediator pattern, black-box core).
+  //
+  //      See `quality-and-security-cleanup-2026-05/implementation.txt`
+  //      section `A.fix-hapoalim-leak`.
+  {
+    files: ['src/Scrapers/Pipeline/**/*.ts'],
+    ignores: [
+      'src/Scrapers/Pipeline/Mediator/Network/**',
+      '**/EslintCanaries/**',
+      '**/*.test.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES_NEW,
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='on'][callee.object.name=/^(page|context|browserContext)$/]",
+          message:
+            '🚫 LISTENER LEAK: Use `NetworkDiscovery.attach*Handler` instead of direct `page.on(...)`. Listeners attached outside the central registry leak via CDP/BiDi fingerprint during the WAF check window — see `quality-and-security-cleanup-2026-05/status.txt` row `A.fix-hapoalim-leak`.',
+        },
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='on'][callee.object.type='ThisExpression']",
+          message:
+            '🚫 LISTENER LEAK: Use `NetworkDiscovery.attach*Handler` instead of direct `this.page.on(...)` / `this.context.on(...)`. See `quality-and-security-cleanup-2026-05` row `A.fix-hapoalim-leak`.',
+        },
+      ],
+    },
+  },
+
   // 11. SONARJS + UNICORN PARITY — local equivalents of the 19 SonarCloud
   //     rules that surfaced 661 issues during the v2 cleanup. Catching
   //     them here prevents recurrence at edit time, before commit.
