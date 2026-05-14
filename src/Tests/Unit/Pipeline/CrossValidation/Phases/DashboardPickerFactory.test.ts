@@ -25,6 +25,12 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import { resolveTxnEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
 import {
+  type IPhaseGFixtureCapture,
+  makeBankFixture,
+  PHASE_G_BANKS,
+  type PhaseGBank,
+} from '../../Strategy/Scrape/Fixtures/CrossBankDedup/_makeBankFixture.js';
+import {
   type IPhaseHCapture,
   type IPhaseHExpected,
   loadPhaseFixture,
@@ -137,4 +143,62 @@ describe('DASHBOARD-PICKER-FACTORY — Phase H per-bank picker contract', () => 
     expect(result).not.toBe(false);
     if (result !== false) assertCommit(result, fixture.meta.expected);
   });
+});
+
+/**
+ * Adapts a Phase G fixture capture (the PII-redacted txn-list
+ * response shipped at `Strategy/Scrape/Fixtures/CrossBankDedup/`)
+ * to a Phase H picker pool entry. Reuses the existing redacted body
+ * so this factory does not duplicate ~5000 lines of fixture JSON.
+ *
+ * @param capture - Phase G capture entry.
+ * @returns Phase H pool entry with status 200 (Phase G captures are
+ *   populated 2xx responses).
+ */
+function phaseGToPhaseHCapture(capture: IPhaseGFixtureCapture): IPhaseHCapture {
+  return {
+    url: capture.url,
+    method: capture.method,
+    postData: capture.postData ?? '',
+    status: 200,
+    responseBody: capture.responseBody,
+  };
+}
+
+/** Single-element row wrapper required by Jest's `it.each` tuple shape. */
+const PHASE_G_BANK_ROWS: readonly (readonly [PhaseGBank])[] = PHASE_G_BANKS.map(
+  (bank): readonly [PhaseGBank] => [bank] as const,
+);
+
+/**
+ * "Rich" picker tiers — any tier other than `urlOnlyMatch` or `none`
+ * indicates the picker recognized the body shape. Phase G fixtures
+ * have populated bodies; the EXACT rich tier depends on method + the
+ * fixture's `postData` field:
+ *   `postWithShape` — POST + populated postData + body has txn array
+ *   `replayablePost` — POST + populated postData + body NOT recognised
+ *   `shapePassing` — body has txn array, method GET, or POST with no postData
+ * The 6 cross-bank rows below assert membership in this set, not a
+ * specific tier — Phase G fixtures don't all carry postData, so POST
+ * banks legitimately downgrade from `postWithShape` to `shapePassing`.
+ */
+const RICH_PICKER_TIERS: readonly string[] = ['postWithShape', 'replayablePost', 'shapePassing'];
+
+describe('DASHBOARD-PICKER-FACTORY — Phase G regression guard cross-bank', () => {
+  it.each(PHASE_G_BANK_ROWS)(
+    'dashboardPicker_%s_lastGoodCapture_ShouldCommitViaRichTier',
+    (bank): void => {
+      const fixture = makeBankFixture(bank);
+      const pool = buildPool([phaseGToPhaseHCapture(fixture.capture)]);
+      const network = createFrozenNetwork(pool, false);
+      const result = resolveTxnEndpoint(network);
+
+      expect(result).not.toBe(false);
+      if (result !== false) {
+        expect(result.endpoint.url).toBe(fixture.capture.url);
+        expect(result.endpoint.method).toBe(fixture.meta.expectedMethod);
+        expect(RICH_PICKER_TIERS).toContain(result.pickerTier);
+      }
+    },
+  );
 });
