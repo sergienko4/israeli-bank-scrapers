@@ -729,7 +729,7 @@ interface IDashboardTxnHarvest {
    * {@link ./../Mediator/Dashboard/DateWindowParamsDetector}). Zero
    * bank-name knowledge — WK aliases drive the matching.
    */
-  readonly dateWindowParamsByAccount?: ReadonlyMap<string, readonly string[]>;
+  readonly dateWindowParamsByAccount?: ReadonlyMap<string, readonly [string, string]>;
 }
 
 /** Scrape phase discovery — qualification results from PRE step. */

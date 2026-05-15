@@ -93,6 +93,7 @@ describe('createFrozenNetwork — buildDiscoveredHeaders', () => {
           'x-site-id': 'SITE-777',
           'x-sid': 'SID-abc',
           'x-cid': 'CID-xyz',
+          'content-type': 'application/json;charset=UTF-8',
           // browser-standard — must be filtered
           'user-agent': 'Mozilla/5.0',
           accept: '*/*',
@@ -102,17 +103,25 @@ describe('createFrozenNetwork — buildDiscoveredHeaders', () => {
     const net = createFrozenNetwork(endpoints, 'Bearer FT');
     const opts = await net.buildDiscoveredHeaders();
     const h = opts.extraHeaders;
-    expect(h['Content-Type']).toBe('application/json');
+    // Captured content-type propagates verbatim (no hardcoded
+    // default — Phase H'' captured-headers-as-truth contract).
+    expect(h['content-type']).toBe('application/json;charset=UTF-8');
     expect(h.authorization).toBe('Bearer FT');
     expect(h.Origin).toBe('https://bank.example.com');
     expect(h.Referer).toBe('https://bank.example.com');
-    expect(h['X-Site-Id']).toBe('SITE-777');
+    // Captured `x-site-id` (lowercase) survives extractSpaHeaders;
+    // the mixed-case `X-Site-Id` fallback is suppressed by spaHasAny
+    // to avoid duplicate Site-Id headers (VisaCal 401 contract).
+    expect(h['x-site-id']).toBe('SITE-777');
+    expect(h['X-Site-Id']).toBeUndefined();
     // SPA custom headers propagate.
     expect(h['x-sid']).toBe('SID-abc');
     expect(h['x-cid']).toBe('CID-xyz');
-    // Browser-standard excluded.
-    expect(h['user-agent']).toBeUndefined();
-    expect(h.accept).toBeUndefined();
+    // Phase H'' minimal-filter contract: only the truly-browser-
+    // managed / forbidden header names are dropped. User-Agent and
+    // Accept propagate (VisaCal needs them to avoid 401).
+    expect(h['user-agent']).toBe('Mozilla/5.0');
+    expect(h.accept).toBe('*/*');
   });
 
   it('omits auth when cachedAuth is false', async (): Promise<void> => {

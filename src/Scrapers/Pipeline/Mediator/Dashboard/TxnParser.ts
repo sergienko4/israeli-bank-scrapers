@@ -321,12 +321,12 @@ function buildDateWindowParamsMap(
   pool: readonly IDateWindowProbeInput[],
   capturedAccountId: string | false,
   shouldSkip: boolean,
-): ReadonlyMap<string, readonly string[]> {
+): ReadonlyMap<string, readonly [string, string]> {
   if (shouldSkip) return new Map();
   const params = detectDateWindowParams(pool);
-  if (params.length === 0) return new Map();
+  if (params.length < 2) return new Map();
   const key = resolveDedupKeyMapKey(capturedAccountId);
-  return new Map([[key, params]]);
+  return new Map([[key, [params[0], params[1]]]]);
 }
 
 /**

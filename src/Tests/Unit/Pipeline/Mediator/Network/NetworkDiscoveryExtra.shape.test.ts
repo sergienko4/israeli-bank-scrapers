@@ -18,25 +18,32 @@ describe('NetworkDiscovery — live buildDiscoveredHeaders branches', () => {
     expect(opts.extraHeaders.Referer).toBe('https://spa.bank.co.il');
   });
 
-  it('assembleDiscoveredHeaders preserves Content-Type always', async () => {
+  it('assembleDiscoveredHeaders omits Content-Type when no SPA capture provides one', async () => {
+    // Phase H'' captured-headers-as-truth contract: no hardcoded
+    // Content-Type. With an empty capture pool, extraHeaders has
+    // no Content-Type and the fetch caller (or browser) sets the
+    // default — never a literal string from this module.
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     const opts = await discovery.buildDiscoveredHeaders();
-    expect(opts.extraHeaders['Content-Type']).toBe('application/json');
+    expect(opts.extraHeaders['Content-Type']).toBeUndefined();
+    expect(opts.extraHeaders['content-type']).toBeUndefined();
   });
 
-  it('assembleDiscoveredHeaders attaches authorization header when auth discovered', async () => {
+  it('assembleDiscoveredHeaders propagates the captured content-type when present', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
-    // Provide a captured auth endpoint with authorization header so
-    // discoverAuthThreeTier picks it up.
+    // Capture a txn-pattern endpoint carrying the SPA's content-type.
     await simulate({
-      url: 'https://api.bank.co.il/data',
+      url: 'https://api.bank.co.il/gatewayAPI/lastTransactions/full',
       body: {},
-      reqHeaders: { authorization: 'Bearer aaa-bbb-cccccc' },
+      reqHeaders: {
+        authorization: 'Bearer aaa-bbb-cccccc',
+        'content-type': 'application/json;charset=UTF-8',
+      },
     });
     const opts = await discovery.buildDiscoveredHeaders();
-    expect(typeof opts.extraHeaders['Content-Type']).toBe('string');
+    expect(opts.extraHeaders['content-type']).toBe('application/json;charset=UTF-8');
   });
 });
 

@@ -20,7 +20,7 @@ import type { IDashboardTxnHarvest } from '../../../../../Scrapers/Pipeline/Type
  * @param map - Map override.
  * @returns Synthetic harvest for the function-under-test.
  */
-function harvestWithMap(map: ReadonlyMap<string, readonly string[]>): IDashboardTxnHarvest {
+function harvestWithMap(map: ReadonlyMap<string, readonly [string, string]>): IDashboardTxnHarvest {
   return { ...EMPTY_TXN_HARVEST, dateWindowParamsByAccount: map };
 }
 

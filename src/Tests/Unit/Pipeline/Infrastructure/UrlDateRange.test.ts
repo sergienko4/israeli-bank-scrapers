@@ -153,4 +153,50 @@ describe("applyDateRangeAndAppend — Phase H'' detector-driven APPEND", () => {
     });
     expect(out).toBe(url);
   });
+
+  // Phase H'' (2026-05-15) — live regression guard. Hapoalim run
+  // `15-05-2026_11414346` proved the bug: URL had `retrievalStartDate`
+  // / `retrievalEndDate` (already WK aliases) and the detector emitted
+  // tuple `['startDate', 'endDate']` (from a sibling capture body).
+  // Appending the tuple's aliases on top of the URL's existing WK
+  // aliases produced a conflict — bank returned 302 redirect. The
+  // append step MUST skip when the URL already carries ANY WK
+  // fromDate AND ANY WK toDate alias, because `applyDateRangeToUrl`
+  // already substituted the date range in-place via WK matching.
+  it('SKIPS append when URL already has WK fromDate + WK toDate aliases (Hapoalim 302 regression)', () => {
+    const url =
+      'https://login.bankhapoalim.fake.example/ServerServices/current-account/transactions' +
+      '?numItemsPerPage=150&sortCode=1' +
+      '&retrievalEndDate=20260515&retrievalStartDate=20260415' +
+      '&accountId=00-000-000000&lang=he';
+    const outcome = applyDateRangeAndAppendWithCount(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: ['startDate', 'endDate'],
+    });
+    // URL's existing aliases get rewritten by applyDateRangeToUrl.
+    expect(outcome.url).toContain('retrievalStartDate=20250421');
+    expect(outcome.url).toContain('retrievalEndDate=20260420');
+    // The tuple aliases (startDate / endDate) MUST NOT have been
+    // appended — otherwise the bank sees conflicting param schemes.
+    expect(outcome.url).not.toContain('startDate=2025');
+    expect(outcome.url).not.toContain('endDate=2026');
+    expect(outcome.url).not.toContain('&startDate=');
+    expect(outcome.url).not.toContain('&endDate=');
+  });
+
+  it('still appends when URL has ONLY a WK fromDate alias (no toDate present)', () => {
+    // Defensive: if the URL has fromDate but no toDate, we still
+    // append the tuple to give the caller a complete window. (Real-
+    // world this is rare — banks pair both — but the test pins the
+    // behaviour deliberately.)
+    const url = 'https://x.example/api?fromDate=20260101&accountId=00-000-000000';
+    const out = applyDateRangeAndAppend(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: ['retrievalStartDate', 'retrievalEndDate'],
+    });
+    expect(out).toContain('fromDate=20250421');
+    expect(out).toContain('retrievalEndDate=20260420');
+  });
 });

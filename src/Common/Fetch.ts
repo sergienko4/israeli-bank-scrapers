@@ -321,14 +321,16 @@ interface IPostEvaluateArgs {
  * @returns [responseText, statusCode].
  */
 async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, number]> {
+  // No hardcoded headers: `args.innerExtraHeaders` is the single
+  // source of truth, populated from the captured SPA traffic by
+  // `buildDiscoveredHeaders`. Sibling implementation in
+  // Pipeline/Mediator/Network/Fetch.ts. See Hapoalim 302 incident
+  // (run 15-05-2026) for why captured wins over hardcoded.
   const response = await fetch(args.innerUrl, {
     method: 'POST',
     body: args.innerDataJson,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      ...args.innerExtraHeaders,
-    },
+    headers: { ...args.innerExtraHeaders },
   });
   if (response.status === 204) return ['', 204] as const;
   return [await response.text(), response.status] as const;

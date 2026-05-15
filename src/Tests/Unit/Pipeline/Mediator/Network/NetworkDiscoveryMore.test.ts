@@ -246,7 +246,11 @@ describe('NetworkDiscovery — assembleDiscoveredHeaders (live) + origin resolut
     await simulate({ url: 'https://api.bank.co.il/profile', body: { ok: true } });
     const fetchOpts = await discovery.buildDiscoveredHeaders();
     const headers = fetchOpts.extraHeaders;
-    expect(headers['Content-Type']).toBe('application/json');
+    // Phase H'' captured-headers-as-truth: no hardcoded
+    // Content-Type. The `/profile` capture is not a txn-pattern
+    // URL → extractSpaHeaders returns {} → Content-Type absent.
+    expect(headers.authorization).toBeUndefined();
+    expect(headers['Content-Type']).toBeUndefined();
   });
 
   it('cacheAuthToken — cached token returned on subsequent discoverAuthToken', async () => {

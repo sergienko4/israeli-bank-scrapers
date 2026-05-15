@@ -128,10 +128,43 @@ interface IDateRangeWithWindow extends IDateRange {
 }
 
 /**
+ * True when the URL's search params already carry both a WK fromDate
+ * alias AND a WK toDate alias (any names from {@link WK.fromDate} /
+ * {@link WK.toDate}). Used by {@link appendMissingAliases} to skip
+ * the append step when {@link applyDateRangeToUrl} already
+ * substituted the URL's existing aliases — otherwise appending the
+ * detector's tuple aliases produces conflicting param schemes that
+ * the bank may reject with 302 redirect.
+ *
+ * <p>Live regression evidence — Hapoalim run `15-05-2026_11414346`:
+ * URL had `retrievalStartDate`/`retrievalEndDate` (WK aliases). The
+ * detector emitted tuple `['startDate', 'endDate']` (from a sibling
+ * `?type=totals&view=future` body). Appending `startDate`/`endDate`
+ * on top of the substituted `retrievalStartDate`/`retrievalEndDate`
+ * produced both alias schemes simultaneously → bank 302'd → SCRAPE
+ * extracted 0 txns.
+ *
+ * @param params - URL search params to inspect.
+ * @returns True when both a WK fromDate alias and a WK toDate alias
+ *   are present (in any of their WK names).
+ */
+function urlAlreadyHasWkRange(params: URLSearchParams): boolean {
+  const keyIter = params.keys();
+  const keys = Array.from(keyIter);
+  const hasFrom = keys.some((key): boolean => FROM_KEYS.has(key));
+  if (!hasFrom) return false;
+  const hasTo = keys.some((key): boolean => TO_KEYS.has(key));
+  return hasTo;
+}
+
+/**
  * Phase H'' (2026-05-15): when the detector emitted a non-empty
  * WK-aliased tuple but neither alias is present in the captured URL,
  * APPEND both with options-driven values. Pass-through when either
- * alias is empty-string or already present in the URL.
+ * alias is empty-string or already present in the URL, or when the
+ * URL already carries any WK fromDate + any WK toDate alias (which
+ * means {@link applyDateRangeToUrl} already substituted them — see
+ * {@link urlAlreadyHasWkRange}).
  * @param params - URL search params (mutated in-place).
  * @param tuple - Detector tuple `[fromAlias, toAlias]`.
  * @param range - Bundled date range.
@@ -145,6 +178,7 @@ function appendMissingAliases(
   if (tuple.length < 2) return 0;
   const [fromAlias, toAlias] = tuple;
   if (fromAlias === '' || toAlias === '') return 0;
+  if (urlAlreadyHasWkRange(params)) return 0;
   let appended = 0;
   if (!params.has(fromAlias)) {
     const formattedFrom = moment(range.fromDate).format('YYYYMMDD');

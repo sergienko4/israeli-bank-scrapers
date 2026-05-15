@@ -89,7 +89,14 @@ describe('scrapeOneAccountViaUrl', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
+    // Phase H'' (2026-05-15): supply a non-empty `txnEndpoint.url` so
+    // the dormant short-circuit in `scrapeOneAccountViaUrl` doesn't
+    // fire — this test exercises the fetchGet-failure path on a real
+    // resolved URL, not the dormant rescue (which returns success-empty
+    // without fetching, per spec.txt:162).
+    const fc = makeFc(api, network, {
+      txnEndpoint: makeEndpoint({ url: 'https://example.com/x', method: 'GET' }),
+    });
     const result = await scrapeOneAccountViaUrl(fc, 'acc-1');
     const isOkResult6 = isOk(result);
     expect(isOkResult6).toBe(false);
@@ -108,7 +115,14 @@ describe('scrapeOneAccountViaUrl', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
+    // Phase H'' (2026-05-15): supply a non-empty `txnEndpoint.url` so the
+    // dormant short-circuit doesn't fire — this test exercises the
+    // happy-path fetchGet flow (resolved URL → fetch OK → parse → empty
+    // txns), distinct from the dormant-endpoint short-circuit covered
+    // by the test above.
+    const fc = makeFc(api, network, {
+      txnEndpoint: makeEndpoint({ url: 'https://example.com/x', method: 'GET' }),
+    });
     const result = await scrapeOneAccountViaUrl(fc, 'acc-1');
     const isOkResult7 = isOk(result);
     expect(isOkResult7).toBe(true);

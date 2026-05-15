@@ -20,6 +20,7 @@ import {
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 import { getDebug } from '../../Types/Debug.js';
+import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
 import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
@@ -37,6 +38,7 @@ const LOG = getDebug(import.meta.url);
 
 /** WK header names — imported from registry. */
 const ORIGIN_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.origin;
+const REFERER_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.referer;
 const SITE_ID_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.siteId;
 const BROWSER_STANDARD_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.browserStandard;
 
@@ -81,19 +83,139 @@ function extractRequestMeta(response: Response): {
   return { url, method, postData, contentType, requestHeaders };
 }
 
+/** Parsed body wrapper — keeps the typed bag separate from raw `unknown`. */
+export interface IParsedBody {
+  readonly value: unknown;
+}
+
+/**
+ * Branded signal — true when the response should enter the captured
+ * pool. Named so Rule #15 (no primitive returns from exports) sees
+ * the intent at a glance.
+ */
+export type ShouldRecordResponseSignal = boolean & {
+  readonly __brand: 'ShouldRecordResponseSignal';
+};
+
+/**
+ * Parse a response-text payload, normalising empty / whitespace-only
+ * bodies to `null` so they survive the picker's `urlOnlyMatch` rescue
+ * tier. Throws on malformed JSON — callers must wrap in try/catch.
+ * Exported for unit testing.
+ * @param text - Raw response text.
+ * @returns Wrapper carrying the parsed value (`null` for empty payloads).
+ */
+export function parseTextOrNull(text: string): IParsedBody {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return { value: null };
+  return { value: JSON.parse(trimmed) as unknown };
+}
+
+/**
+ * Phase H'' (2026-05-15): decision predicate for `parseResponse`.
+ * 2xx-no-content responses (HTTP 204) carry no body and typically
+ * have no `content-type` header — they fail the `isJsonContentType`
+ * filter and would be dropped before `parseTextOrNull` ever runs,
+ * making the picker's `urlOnlyMatch` rescue tier (which keys off
+ * `responseBody === null`) unreachable for the exact captures it was
+ * added to handle.
+ *
+ * <p>Bank's real Hapoalim txn URL fires `POST /current-account/
+ * transactions?retrievalStartDate=X&retrievalEndDate=Y` and returns
+ * 204 when the captured 30-day window is empty — this is the case
+ * the rescue path was built for. Treat 204 as intrinsically
+ * recordable regardless of content-type so the picker sees the URL.
+ * Other non-JSON content types (HTML errors, redirects with body)
+ * keep their existing JSON-only filter.
+ *
+ * <p>Exported for unit testing. Pure function.
+ * @param status - HTTP status code.
+ * @param contentType - Response content-type header (or `'none'`).
+ * @returns True when the response should enter the captured pool.
+ */
+export function shouldRecordResponse(
+  status: number,
+  contentType: string,
+): ShouldRecordResponseSignal {
+  if (status === 204) return true as ShouldRecordResponseSignal;
+  return isJsonContentType(contentType) as ShouldRecordResponseSignal;
+}
+
 /**
  * Try to parse a response as a discovered endpoint.
+ *
+ * <p>Exported for unit testing — the production handlers
+ * (`handleResponse` / `interceptPostResponses`) consume it internally
+ * but the live 204-drop debug procedure (per debugging-guidlines.md
+ * §1.2 "failing test before fixing") needs a direct entry point.
+ *
  * @param response - Playwright response object.
  * @returns Discovered endpoint or false if not a JSON API response.
  */
-async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | false> {
+export async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | false> {
   const meta = extractRequestMeta(response);
-  if (!isJsonContentType(meta.contentType)) return false;
+  const status = response.status();
+  // Permanent diagnostic trace — keep for future investigations of
+  // capture-pool drops. Logs every parseResponse entry with the
+  // sync-extracted status + contentType so any divergence between
+  // handleResponse's local capture and parseResponse's re-read is
+  // visible side-by-side in `pipeline.log`. Per debugging-
+  // guidlines.md §3 "Stage-Level Observability".
+  LOG.debug({
+    event: 'parseResponse.entry',
+    status,
+    contentType: meta.contentType,
+    method: meta.method,
+    url: redactUrlFull(meta.url),
+  });
+  if (!shouldRecordResponse(status, meta.contentType)) {
+    LOG.debug({
+      event: 'parseResponse.drop',
+      reason: 'shouldRecordResponse=false',
+      status,
+      contentType: meta.contentType,
+      url: redactUrlFull(meta.url),
+    });
+    return false;
+  }
+  // Phase H'' (2026-05-15): 204 No Content has no body. Calling
+  // `response.text()` on a no-body response can throw in some
+  // Playwright runtime / Camoufox builds, dropping the endpoint
+  // back at the catch below. Short-circuit BEFORE the read: we
+  // already know the body is null, so record the URL directly
+  // and bypass `response.text()` entirely.
+  if (status === 204) {
+    LOG.debug({ event: 'parseResponse.shortCircuit204', url: redactUrlFull(meta.url) });
+    const responseHeadersForNoContent = response.headers();
+    const captureIndexForNoContent = dumpResponseBody({
+      url: meta.url,
+      method: meta.method,
+      postData: meta.postData,
+      text: '',
+    });
+    return {
+      ...meta,
+      responseHeaders: responseHeadersForNoContent,
+      responseBody: null,
+      timestamp: Date.now(),
+      captureIndex: captureIndexForNoContent,
+      status,
+    };
+  }
   try {
     const text = await response.text();
-    const responseBody = JSON.parse(text) as unknown;
+    LOG.debug({
+      event: 'parseResponse.textRead',
+      status,
+      textLen: text.length,
+      url: redactUrlFull(meta.url),
+    });
+    // CodeRabbit 2026-05-15: a true 204 / empty-body response has
+    // `text === ''` — `JSON.parse('')` throws and the catch below
+    // would drop the endpoint. Normalise empty / whitespace-only
+    // payloads to `null` so the picker sees the URL.
+    const responseBody = parseTextOrNull(text).value;
     const responseHeaders = response.headers();
-    const status = response.status();
     const captureIndex = dumpResponseBody({
       url: meta.url,
       method: meta.method,
@@ -108,7 +230,17 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
       captureIndex,
       status,
     };
-  } catch {
+  } catch (error) {
+    // Permanent diagnostic — surface which captures get dropped by
+    // an internal throw (response.text() rejection, JSON parse
+    // failure, etc.) so we don't fly blind on future regressions.
+    LOG.debug({
+      event: 'parseResponse.catch',
+      status,
+      contentType: meta.contentType,
+      url: redactUrlFull(meta.url),
+      errorMessage: toErrorMessage(error as Error),
+    });
     return false;
   }
 }
@@ -874,6 +1006,37 @@ function extractSpaHeaders(captured: readonly IDiscoveredEndpoint[]): Record<str
   return Object.fromEntries(spaOnly);
 }
 
+/**
+ * Case-insensitive presence check: does the SPA-extracted header set
+ * already carry ANY of the names in `headerNames`? Used to gate the
+ * bank-specific fallback layers (Referer / X-Site-Id from
+ * `discoverHeaderValue`) so they skip themselves when the captured
+ * pool already provides the header — avoiding duplicate-header
+ * rejection (VisaCal 401 regression, 15-05-2026 run `14093991`:
+ * SCRAPE sent both `x-site-id` and `X-Site-Id` → 401 Unauthorized;
+ * Hapoalim's 302 fix proved Referer needs the same guard).
+ *
+ * `headerNames` MUST come from WK (`REFERER_HEADERS` / `SITE_ID_HEADERS`)
+ * — never hardcode literals. Captures arrive lowercase (HTTP/2 wire
+ * shape); explicit overrides use mixed case; both must be observed.
+ *
+ * @param spaBase - SPA-extracted headers.
+ * @param headerNames - WK alias list to check against (any-of).
+ * @returns True when any case-variant of any listed name is present.
+ */
+function spaHasAny(
+  spaBase: Readonly<Record<string, string>>,
+  headerNames: readonly string[],
+): boolean {
+  const lowered = headerNames.map((n): string => n.toLowerCase());
+  const targets = new Set(lowered);
+  const spaKeys = Object.keys(spaBase);
+  return spaKeys.some((k): boolean => {
+    const keyLower = k.toLowerCase();
+    return targets.has(keyLower);
+  });
+}
+
 /** WellKnown transaction URL query params for full history. */
 const FULL_TXN_PARAMS = [
   'IsCategoryDescCode=True',
@@ -1404,14 +1567,21 @@ function createNetworkDiscovery(page: Page, opts: INetworkDiscoveryOpts = {}): I
      * @returns Fetch options with auth + origin + site-id.
      */
     buildDiscoveredHeaders: async (): Promise<IFetchOpts> => {
-      const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      // Captured SPA headers are the SINGLE source of truth — no
+      // hardcoded Content-Type, no defaults. extractSpaHeaders now
+      // preserves the captured `content-type` and `referer` so the
+      // request shape replays exactly as the SPA sent it. The bank-
+      // specific Origin / Site-Id / authorization layers stack on
+      // top only when the SPA didn't capture an equivalent value.
+      const spaBase = extractSpaHeaders(captured);
+      const extraHeaders: Record<string, string> = { ...spaBase };
       const auth = await cachedDiscoverAuth();
       if (auth) extraHeaders.authorization = auth;
       const origin = originDiscover.discoverOrigin();
       if (origin) extraHeaders.Origin = origin;
-      if (origin) extraHeaders.Referer = origin;
+      if (origin && !spaHasAny(spaBase, REFERER_HEADERS)) extraHeaders.Referer = origin;
       const siteId = originDiscover.discoverSiteId();
-      if (siteId) extraHeaders['X-Site-Id'] = siteId;
+      if (siteId && !spaHasAny(spaBase, SITE_ID_HEADERS)) extraHeaders['X-Site-Id'] = siteId;
       return { extraHeaders };
     },
   };
@@ -1570,17 +1740,19 @@ function buildFrozenHeaders(
     cacheAuthToken: (): Promise<string | false> => Promise.resolve(cachedAuth),
     /** @inheritdoc */
     buildDiscoveredHeaders: (): Promise<IFetchOpts> => {
+      // Captured SPA headers are the SINGLE source of truth — see
+      // LIVE counterpart for rationale. No hardcoded Content-Type:
+      // the captured `content-type` (Hapoalim:
+      // `application/json;charset=UTF-8`) and `referer` (full SPA
+      // path) survive extractSpaHeaders and replay exactly.
       const spaBase = extractSpaHeaders(captured);
-      const extraHeaders: Record<string, string> = {
-        ...spaBase,
-        'Content-Type': 'application/json',
-      };
+      const extraHeaders: Record<string, string> = { ...spaBase };
       if (cachedAuth) extraHeaders.authorization = cachedAuth;
       const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
       if (origin) extraHeaders.Origin = origin;
-      if (origin) extraHeaders.Referer = origin;
+      if (origin && !spaHasAny(spaBase, REFERER_HEADERS)) extraHeaders.Referer = origin;
       const siteId = discoverHeaderValue(captured, SITE_ID_HEADERS);
-      if (siteId) extraHeaders['X-Site-Id'] = siteId;
+      if (siteId && !spaHasAny(spaBase, SITE_ID_HEADERS)) extraHeaders['X-Site-Id'] = siteId;
       return Promise.resolve({ extraHeaders });
     },
   };

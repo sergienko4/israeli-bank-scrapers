@@ -292,32 +292,6 @@ async function scrapeOneAccountPost(
 }
 
 /**
- * Phase H'' (2026-05-15): no txn URL resolved for this account.
- * When `txnEp.url === ''`, DASHBOARD.FINAL committed an empty
- * endpoint because the captured pool carried dormant-account
- * evidence — return a success-empty account result so the existing
- * `isAllAccountsEmpty` predicate in SCRAPE.POST stays as the single
- * loud signal for genuine misses (spec.txt:162 / spec.txt:717).
- * Otherwise the DASHBOARD endpoint contract was honored but no
- * URL fell out — fail loud to surface the contract violation.
- *
- * @param fc - Fetch context.
- * @param accountId - Account ID.
- * @param txnEp - Slim TXN endpoint plumbed by SCRAPE.PRE.
- * @returns Success-empty account (dormant) or fail-loud.
- */
-async function handleUnresolvableTxnUrl(
-  fc: IAccountFetchCtx,
-  accountId: string,
-  txnEp: ITxnEndpoint,
-): Promise<Procedure<ITransactionsAccount>> {
-  if (txnEp.url === '') {
-    return buildAccountResult({ fc, accountId, displayId: accountId }, []);
-  }
-  return fail(ScraperErrorTypes.Generic, 'No txn URL');
-}
-
-/**
  * GET strategy: resolve URL template and fetch.
  * If URL contains TransactionsAndGraphs → monthly iteration with filterData.
  * Otherwise → single GET.
@@ -333,12 +307,24 @@ async function scrapeOneAccountViaUrl(
   // SCRAPE never calls network.discoverTransactionsEndpoint() —
   // DASHBOARD owns discovery and the slim contract is the only source.
   const txnEp = fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT;
-  if (txnEp.url !== '' && isFilterDataUrl(txnEp.url)) {
+  // Phase H'' (2026-05-15): DASHBOARD.FINAL committed EMPTY_TXN_ENDPOINT
+  // when the captured pool carried dormant-account evidence — there is
+  // no real txn URL for this account. Short-circuit BEFORE the
+  // network-template fallback (`resolveTxnUrl`), which would otherwise
+  // pull a synthesised URL from a sibling capture and try to fetch
+  // against a non-txn endpoint — surfacing as "API Error" in the audit.
+  // Per spec.txt:162 / spec.txt:717 (A.fix-2.r4): individual dormant
+  // accounts succeed with txns:[]; only the ALL-empty case triggers
+  // the loud signal via `isAllAccountsEmpty` in SCRAPE.POST.
+  if (txnEp.url === '') {
+    return buildAccountResult({ fc, accountId, displayId: accountId }, []);
+  }
+  if (isFilterDataUrl(txnEp.url)) {
     return scrapeViaFilterData(fc, accountId, txnEp.url);
   }
   const urlCtx = { api: fc.api, network: fc.network, accountId, startDate: fc.startDate };
   const scrapeUrl = resolveTxnUrl(urlCtx);
-  if (!scrapeUrl) return handleUnresolvableTxnUrl(fc, accountId, txnEp);
+  if (!scrapeUrl) return fail(ScraperErrorTypes.Generic, 'No txn URL');
   const patchedUrl = patchUrlRange(scrapeUrl, fc);
   const raw = await fc.api.fetchGet<Record<string, unknown>>(patchedUrl);
   if (!isOk(raw)) return raw;

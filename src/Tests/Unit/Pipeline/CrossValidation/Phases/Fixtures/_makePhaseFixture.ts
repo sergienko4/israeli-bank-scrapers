@@ -106,7 +106,13 @@ interface IRawPhaseHFixture {
 function hasFixtureShape(parsed: unknown): parsed is IRawPhaseHFixture {
   if (parsed === null || typeof parsed !== 'object') return false;
   const candidate = parsed as { _fixture?: unknown; pool?: unknown };
-  return candidate._fixture !== undefined && Array.isArray(candidate.pool);
+  // CodeRabbit 2026-05-15: require `_fixture` to be a plain object —
+  // the previous `!== undefined` check accepted primitives like
+  // `_fixture: 1` / `_fixture: 'x'` which would pass shape validation
+  // but explode in consumer code with cryptic stack traces.
+  const fixture = candidate._fixture;
+  const isFixtureObject = fixture !== null && typeof fixture === 'object';
+  return isFixtureObject && Array.isArray(candidate.pool);
 }
 
 /**
