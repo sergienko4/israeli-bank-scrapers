@@ -22,14 +22,21 @@ import { launchCamoufox } from '../../Scrapers/Pipeline/Mediator/Browser/Camoufo
 
 /** Substrings that identify a launch failure caused by an absent
  *  binary — host has no Firefox/Camoufox installed (CI dependency
- *  install stage). Anything else is a real regression. */
+ *  install stage). Anything else is a real regression.
+ *
+ *  CodeRabbit review on commit 2ed8a628 — `browserType.launch` was
+ *  previously listed here as a benign fragment, but that token
+ *  appears verbatim in EVERY Playwright launch error (success or
+ *  failure). Including it in the allow-list silently swallowed
+ *  real regressions like `browserType.launch: Page closed` /
+ *  `Target closed`. The list now contains ONLY substrings that
+ *  identify a missing-binary failure. */
 const BENIGN_LAUNCH_ERROR_FRAGMENTS: readonly string[] = [
   'ENOENT',
   'no such file or directory',
   'executable does not exist',
   "Executable doesn't exist",
   'browser is not installed',
-  'browserType.launch',
 ];
 
 /**
@@ -44,6 +51,53 @@ function isBenignLaunchFailure(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return BENIGN_LAUNCH_ERROR_FRAGMENTS.some((fragment): boolean => message.includes(fragment));
 }
+
+describe('isBenignLaunchFailure — narrow benign fragments only', () => {
+  // CodeRabbit review on commit 2ed8a628 — `browserType.launch` was
+  // listed as a benign fragment, but that token appears verbatim in
+  // EVERY Playwright launch error (success or failure). Including
+  // it in the allow-list silently swallowed real regressions such
+  // as `browserType.launch: Page closed` / `Target closed` / etc.
+  // The fragment list now contains ONLY substrings that identify a
+  // missing-binary failure (ENOENT, no such file or directory,
+  // executable-not-found phrasings).
+
+  it('BLF-MISSING-001 matches the ENOENT error string', (): void => {
+    const isBenign = isBenignLaunchFailure(new Error('spawn /opt/camoufox: ENOENT'));
+    expect(isBenign).toBe(true);
+  });
+
+  it('BLF-MISSING-002 matches the "Executable doesn\'t exist" Playwright wording', (): void => {
+    const isBenign = isBenignLaunchFailure(
+      new Error("browserType.launch: Executable doesn't exist at /opt/camoufox/firefox"),
+    );
+    expect(isBenign).toBe(true);
+  });
+
+  it('BLF-MISSING-003 matches the "browser is not installed" Playwright wording', (): void => {
+    const isBenign = isBenignLaunchFailure(
+      new Error('browserType.launch: Chromium browser is not installed'),
+    );
+    expect(isBenign).toBe(true);
+  });
+
+  it('BLF-REGRESSION-001 does NOT swallow Page-closed Playwright failures', (): void => {
+    const isBenign = isBenignLaunchFailure(new Error('browserType.launch: Page closed'));
+    expect(isBenign).toBe(false);
+  });
+
+  it('BLF-REGRESSION-002 does NOT swallow generic Playwright launch crashes', (): void => {
+    const isBenign = isBenignLaunchFailure(
+      new Error('browserType.launch: Target page, context or browser has been closed'),
+    );
+    expect(isBenign).toBe(false);
+  });
+
+  it('BLF-REGRESSION-003 does NOT swallow non-Error rejections that lack any benign fragment', (): void => {
+    const isBenign = isBenignLaunchFailure('some opaque rejection');
+    expect(isBenign).toBe(false);
+  });
+});
 
 describe('CamoufoxLauncher real-binary smoke', () => {
   it('invokes underlying Camoufox and closes browser if launched', async () => {
