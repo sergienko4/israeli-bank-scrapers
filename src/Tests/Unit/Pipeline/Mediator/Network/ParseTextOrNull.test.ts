@@ -84,77 +84,99 @@ describe("parseTextOrNull — Phase H'' empty-body rescue", () => {
  *   <li>status 5xx + non-JSON content-type → drop</li>
  * </ul>
  */
+/** One row of the `shouldRecordResponse` decision matrix. The `note`
+ *  column carries the load-bearing WHY for rows whose intent isn't
+ *  obvious from the (status, contentType, expected) triple alone
+ *  (e.g. the live-Hapoalim 204+`none` bug, the HTML-envelope JSON
+ *  contract). */
+interface IShouldRecordCase {
+  readonly id: string;
+  readonly status: number;
+  readonly contentType: string;
+  readonly expected: boolean;
+  readonly note: string;
+}
+
+const SHOULD_RECORD_CASES: readonly IShouldRecordCase[] = [
+  { id: 'SRR-200-JSON', status: 200, contentType: 'application/json', expected: true, note: '' },
+  {
+    id: 'SRR-200-TEXT-PLAIN',
+    status: 200,
+    contentType: 'text/plain; charset=utf-8',
+    expected: true,
+    note: 'some bank APIs use text/plain',
+  },
+  {
+    id: 'SRR-200-HTML',
+    status: 200,
+    contentType: 'text/html',
+    expected: true,
+    note: 'HTML-envelope JSON APIs (some banks wrap JSON in HTML)',
+  },
+  {
+    id: 'SRR-200-IMAGE',
+    status: 200,
+    contentType: 'image/png',
+    expected: false,
+    note: 'binary assets',
+  },
+  {
+    id: 'SRR-200-NONE',
+    status: 200,
+    contentType: 'none',
+    expected: false,
+    note: 'no content-type sentinel',
+  },
+  {
+    id: 'SRR-204-NONE',
+    status: 204,
+    contentType: 'none',
+    expected: true,
+    note: 'Hapoalim live bug — 204 No Content has no content-type header, must bypass JSON filter',
+  },
+  {
+    id: 'SRR-204-JSON',
+    status: 204,
+    contentType: 'application/json',
+    expected: true,
+    note: 'defensive — some servers DO send content-type on 204',
+  },
+  {
+    id: 'SRR-204-HTML',
+    status: 204,
+    contentType: 'text/html',
+    expected: true,
+    note: 'defensive — 204 bypass applies regardless of content-type',
+  },
+  {
+    id: 'SRR-500-JSON',
+    status: 500,
+    contentType: 'application/json',
+    expected: true,
+    note: 'bank error envelopes are still recordable',
+  },
+  {
+    id: 'SRR-500-HTML',
+    status: 500,
+    contentType: 'text/html',
+    expected: true,
+    note: 'HTML error pages still parseable per the allow-list',
+  },
+  {
+    id: 'SRR-302-NONE',
+    status: 302,
+    contentType: 'none',
+    expected: false,
+    note: 'redirects without body',
+  },
+];
+
 describe('shouldRecordResponse — decision matrix', () => {
-  it('SRR-200-JSON returns true for status=200 + application/json', (): void => {
-    const shouldRecord = shouldRecordResponse(200, 'application/json');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-200-TEXT-PLAIN returns true for status=200 + text/plain (some bank APIs)', (): void => {
-    const shouldRecord = shouldRecordResponse(200, 'text/plain; charset=utf-8');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-200-HTML returns false for status=200 + text/html (error pages, redirects with body)', (): void => {
-    // Wait — text/html IS in the JSON_CONTENT_TYPES allow-list per
-    // the existing parseResponse contract (some bank "JSON" APIs
-    // return HTML envelopes). Pin the existing behaviour explicitly.
-    const shouldRecord = shouldRecordResponse(200, 'text/html');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-200-IMAGE returns false for status=200 + image/png (binary assets)', (): void => {
-    const shouldRecord = shouldRecordResponse(200, 'image/png');
-
-    expect(shouldRecord).toBe(false);
-  });
-
-  it('SRR-200-NONE returns false for status=200 + no content-type sentinel', (): void => {
-    const shouldRecord = shouldRecordResponse(200, 'none');
-
-    expect(shouldRecord).toBe(false);
-  });
-
-  it('SRR-204-NONE returns true for status=204 + no content-type — the Hapoalim live bug', (): void => {
-    // The actual live capture: HTTP 204 No Content has no
-    // content-type header → `extractRequestMeta` defaults to
-    // `'none'` sentinel. Without the 204 bypass, this was dropped.
-    const shouldRecord = shouldRecordResponse(204, 'none');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-204-JSON returns true for status=204 + application/json (defensive)', (): void => {
-    // Some servers DO send content-type on 204. Still record.
-    const shouldRecord = shouldRecordResponse(204, 'application/json');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-204-HTML returns true for status=204 + text/html (defensive)', (): void => {
-    const shouldRecord = shouldRecordResponse(204, 'text/html');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-500-JSON returns true for status=500 + JSON (bank error envelopes)', (): void => {
-    const shouldRecord = shouldRecordResponse(500, 'application/json');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-500-HTML returns true for status=500 + text/html (HTML error pages still parseable)', (): void => {
-    const shouldRecord = shouldRecordResponse(500, 'text/html');
-
-    expect(shouldRecord).toBe(true);
-  });
-
-  it('SRR-302-NONE returns false for status=302 + no content-type (redirects without body)', (): void => {
-    const shouldRecord = shouldRecordResponse(302, 'none');
-
-    expect(shouldRecord).toBe(false);
-  });
+  it.each(SHOULD_RECORD_CASES)(
+    '$id returns $expected for status=$status + contentType=$contentType ($note)',
+    (testCase: IShouldRecordCase): void => {
+      const shouldRecord = shouldRecordResponse(testCase.status, testCase.contentType);
+      expect(shouldRecord).toBe(testCase.expected);
+    },
+  );
 });
