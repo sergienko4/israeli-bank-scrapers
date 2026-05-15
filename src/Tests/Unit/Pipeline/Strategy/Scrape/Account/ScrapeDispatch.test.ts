@@ -263,21 +263,8 @@ describe('ScrapeDispatch per-account timeout helpers', () => {
     // not the dormant rescue path (which returns success-empty without
     // ever fetching, per spec.txt:162).
     const txnEndpoint: ITxnEndpoint = {
+      ...EMPTY_TXN_ENDPOINT,
       url: 'https://example.com/txn',
-      method: 'GET',
-      templatePostData: false,
-      fieldMap: {
-        date: '',
-        amount: '',
-        description: '',
-        currency: '',
-        identifier: '',
-        originalAmount: false,
-        processedDate: false,
-        balance: false,
-      },
-      pendingUrl: false,
-      billingUrl: false,
     };
     const fc: IAccountFetchCtx = { api, network, startDate: '20260101', txnEndpoint };
     const result = await __dispatchWithTimeout({
