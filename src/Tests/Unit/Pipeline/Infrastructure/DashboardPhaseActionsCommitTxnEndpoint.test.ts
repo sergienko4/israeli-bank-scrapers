@@ -89,6 +89,57 @@ describe('DASHBOARD.FINAL — commitTxnEndpoint fail-loud (Phase 7e contract)', 
     }
   });
 
+  it("F-DASH-2 dormant: commits empty endpoint when pool carries dormant-account evidence (Phase H'')", async () => {
+    // Phase H'' (2026-05-15): Hapoalim home-page/composite/myAccount
+    // body for a dormant account — empty WK txnContainers array +
+    // WK fromDate/toDate aliases at nested depth. resolveTxnEndpoint
+    // still returns false (no WK-txn URL), but the dormant-evidence
+    // detector flips the branch to commit-empty per spec.txt:162.
+    const dormantBody = {
+      homePageTiltes: [
+        {
+          data: {
+            retrievalTransactionData: {
+              retrievalStartDate: 0,
+              retrievalEndDate: 0,
+            },
+            transactions: [],
+          },
+        },
+      ],
+    };
+    const dormantCapture = {
+      url: 'https://bank.fake.example/ServerServices/general/home-page/composite/myAccount',
+      method: 'GET' as const,
+      postData: '',
+      status: 200,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      responseBody: dormantBody,
+      timestamp: 1,
+    };
+    const mediator = makeMediatorWithNetwork({
+      /**
+       * Picker returns false — no WK-txn URL in the pool.
+       *
+       * @returns false (always).
+       */
+      discoverTransactionsEndpoint: (): false => false,
+      /**
+       * Pool exposes the dormant-evidence capture so the
+       * detector flips the branch from fail-loud to commit-empty.
+       *
+       * @returns Single dormant capture.
+       */
+      getAllEndpoints: (): readonly [typeof dormantCapture] => [dormantCapture],
+    });
+    const ctx = makeReadyCtx(mediator);
+    const result = await executeCollectAndSignal(ctx);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+  });
+
   it('F-DASH-1: fails loud with DASHBOARD_TXN_ENDPOINT_MISSING when post-nav pool has no WK-txn match and wait expires', async () => {
     const mediator = makeMediatorWithNetwork({
       /**

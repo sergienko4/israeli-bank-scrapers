@@ -36,6 +36,7 @@ import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { createFrozenNetwork } from '../Network/NetworkDiscovery.js';
 import {
   readDashboardTxnHarvest,
+  readDateWindowParams,
   readDedupKeyFields,
   readPreDiscoveredTxn,
 } from './ScrapePhaseActions.js';
@@ -102,6 +103,7 @@ async function runFrozenScrape(
   // re-fetching (Hapoalim/Beinleumi 302 regression recovery).
   const dashboardTxnHarvest = readDashboardTxnHarvest(input);
   const dedupKeyFields = readDedupKeyFields(dashboardTxnHarvest, FALLBACK_DEDUP_KEY_FIELDS);
+  const dateWindowParams = readDateWindowParams(dashboardTxnHarvest);
   const fc: IAccountFetchCtx = {
     api,
     network: frozen,
@@ -110,6 +112,7 @@ async function runFrozenScrape(
     txnEndpoint,
     dashboardTxnHarvest,
     dedupKeyFields,
+    dateWindowParams,
   };
   const loadCtx = buildFrozenLoadCtx(disc, fc, txnEndpoint);
   const rawAccounts = await scrapeAllAccounts(loadCtx);

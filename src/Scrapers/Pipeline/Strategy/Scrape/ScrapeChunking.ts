@@ -8,7 +8,7 @@ import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { generateMonthChunks, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
-import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
+import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import {
   buildAccountResult,
@@ -42,7 +42,11 @@ async function scrapeOneChunk(
   replaceField(body as JsonRecord, WK.toDate, chunk.end);
   const chunkStart = new Date(chunk.start);
   const chunkEnd = new Date(chunk.end);
-  const patchedUrl = applyDateRangeToUrl(ctx.url, chunkStart, chunkEnd);
+  const patchedUrl = applyDateRangeAndAppend(ctx.url, {
+    fromDate: chunkStart,
+    toDate: chunkEnd,
+    windowParams: ctx.fc.dateWindowParams ?? [],
+  });
   const raw = await ctx.fc.api.fetchPost<Record<string, unknown>>(
     patchedUrl,
     body as Record<string, string | object>,

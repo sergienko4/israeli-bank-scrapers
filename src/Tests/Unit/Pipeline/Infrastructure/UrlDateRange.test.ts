@@ -6,6 +6,8 @@
  * Format-preserving: YYYYMMDD in -> YYYYMMDD out; ISO in -> ISO out.
  */
 import {
+  applyDateRangeAndAppend,
+  applyDateRangeAndAppendWithCount,
   applyDateRangeToUrl,
   applyDateRangeToUrlWithCount,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.js';
@@ -82,5 +84,73 @@ describe('applyDateRangeToUrlWithCount — swap counter', () => {
     const url = 'https://x.example/api?fromDate=20260321&unrelated=x';
     const outcome = applyDateRangeToUrlWithCount(url, FROM, TO);
     expect(outcome.swapped).toBe(1);
+  });
+});
+
+describe("applyDateRangeAndAppend — Phase H'' detector-driven APPEND", () => {
+  it('appends both missing aliases when URL lacks any WK date params', () => {
+    const url = 'https://x.example/api?accountId=00-000-000000&lang=he';
+    const out = applyDateRangeAndAppend(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: ['retrievalStartDate', 'retrievalEndDate'],
+    });
+    expect(out).toContain('retrievalStartDate=20250421');
+    expect(out).toContain('retrievalEndDate=20260420');
+    expect(out).toContain('accountId=00-000-000000');
+  });
+
+  it('leaves an existing alias untouched and appends only the missing one', () => {
+    const url = 'https://x.example/api?retrievalStartDate=20260321&accountId=00-000-000000';
+    const outcome = applyDateRangeAndAppendWithCount(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: ['retrievalStartDate', 'retrievalEndDate'],
+    });
+    expect(outcome.swapped).toBe(2);
+    expect(outcome.url).toContain('retrievalStartDate=20250421');
+    expect(outcome.url).toContain('retrievalEndDate=20260420');
+  });
+
+  it('appends only fromAlias when toAlias is already present', () => {
+    const url = 'https://x.example/api?retrievalEndDate=20260420&accountId=00-000-000000';
+    const outcome = applyDateRangeAndAppendWithCount(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: ['retrievalStartDate', 'retrievalEndDate'],
+    });
+    expect(outcome.swapped).toBe(2);
+    expect(outcome.url).toContain('retrievalStartDate=20250421');
+    expect(outcome.url).toContain('retrievalEndDate=20260420');
+  });
+
+  it('is a no-op when the tuple has fewer than 2 entries', () => {
+    const url = 'https://x.example/api?accountId=00-000-000000';
+    const out = applyDateRangeAndAppend(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: ['retrievalStartDate'],
+    });
+    expect(out).toBe(url);
+  });
+
+  it('is a no-op when either alias in the tuple is empty-string', () => {
+    const url = 'https://x.example/api?accountId=00-000-000000';
+    const out = applyDateRangeAndAppend(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: ['retrievalStartDate', ''],
+    });
+    expect(out).toBe(url);
+  });
+
+  it('preserves replace-only semantics when tuple is empty', () => {
+    const url = 'https://x.example/api?accountId=00-000-000000';
+    const out = applyDateRangeAndAppend(url, {
+      fromDate: FROM,
+      toDate: TO,
+      windowParams: [],
+    });
+    expect(out).toBe(url);
   });
 });

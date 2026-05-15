@@ -46,6 +46,7 @@ interface IPhaseHScenarioRow {
 /** Scenarios exercised by the DASHBOARD picker factory. */
 const SCENARIOS: readonly IPhaseHScenarioRow[] = [
   { bank: 'hapoalim', scenarioId: '204-empty-window' },
+  { bank: 'hapoalim', scenarioId: 'dormant-window-totals' },
 ];
 
 /** Empty header map shared across synthesised endpoint entries. */

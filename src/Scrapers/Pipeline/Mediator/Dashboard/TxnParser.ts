@@ -22,6 +22,7 @@ import type {
   ITxnFieldMap,
 } from '../../Types/PipelineContext.js';
 import { extractTransactions } from '../Scrape/ScrapeAutoMapper.js';
+import detectDateWindowParams, { type IDateWindowProbeInput } from './DateWindowParamsDetector.js';
 import detectDedupKeyFields from './DedupKeyFieldsDetector.js';
 
 /** Bundled date-range argument for {@link buildPerAccountBody}. */
@@ -298,6 +299,37 @@ function buildDedupKeyFieldsMap(
 }
 
 /**
+ * Phase H'' — builds the per-account date-window URL-param map from
+ * the captured pool. Mirrors {@link buildDedupKeyFieldsMap} but
+ * sources data from the whole pool (URL search params + top-level
+ * body keys), not just the picked endpoint's records — the WK alias
+ * for a bank's window may live on a sibling capture (e.g. Hapoalim's
+ * `?type=totals&view=future` body carries top-level `startDate` /
+ * `endDate` even when the detail txn POST never fired).
+ *
+ * <p>Returns an empty map when SCRAPE cannot reuse the harvest
+ * (multi-scope) or when no WK alias pair is observed.
+ *
+ * @param pool - Captured pool from `INetworkDiscovery.getAllEndpoints`.
+ * @param capturedAccountId - The account id encoded in the picked
+ *   capture's URL/body, or `false` when unscoped.
+ * @param shouldSkip - When true, the detector is not called.
+ * @returns Map keyed by capturedAccountId; empty map when `shouldSkip`
+ *   is true or no WK alias pair is observed.
+ */
+function buildDateWindowParamsMap(
+  pool: readonly IDateWindowProbeInput[],
+  capturedAccountId: string | false,
+  shouldSkip: boolean,
+): ReadonlyMap<string, readonly string[]> {
+  if (shouldSkip) return new Map();
+  const params = detectDateWindowParams(pool);
+  if (params.length === 0) return new Map();
+  const key = resolveDedupKeyMapKey(capturedAccountId);
+  return new Map([[key, params]]);
+}
+
+/**
  * Builds the DASHBOARD-side TXN harvest from the internal resolver
  * payload. Mirrors how ACCOUNT-RESOLVE builds {@link IAccountDiscovery}
  * — the phase that captured the response normalizes the records and
@@ -312,11 +344,15 @@ function buildDedupKeyFieldsMap(
  *
  * @param internal - DASHBOARD-internal resolver result.
  * @param accountIdCount - Accounts ACCOUNT-RESOLVE committed.
+ * @param pool - Captured network pool — handed to the Phase H''
+ *   date-window detector. Defaults to `[]` so legacy tests that
+ *   exercise only the dedup-key detector stay terse.
  * @returns Harvest payload for `ctx.dashboardTxnHarvest`.
  */
 function buildTxnHarvest(
   internal: ITxnEndpointInternal,
   accountIdCount: number,
+  pool: readonly IDateWindowProbeInput[] = [],
 ): IDashboardTxnHarvest {
   const capturedAccountId = extractAccountIdFromUrl(internal.endpoint.url);
   const isBodyShapeMulti = detectMultiAccountScope(internal.responseBodySample);
@@ -330,11 +366,17 @@ function buildTxnHarvest(
     capturedAccountId,
     shouldSkipDetector,
   );
+  const dateWindowParamsByAccount = buildDateWindowParamsMap(
+    pool,
+    capturedAccountId,
+    isMultiAccountScope,
+  );
   return {
     records: internal.normalizedRecords,
     capturedAccountId,
     multiAccountScope: isMultiAccountScope,
     dedupKeyFieldsByAccount,
+    dateWindowParamsByAccount,
   };
 }
 

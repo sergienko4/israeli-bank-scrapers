@@ -52,6 +52,7 @@ interface IDiscoveredEndpoint {
     | 'shapePassing'
     | 'preClickFallback'
     | 'urlOnlyMatch'
+    | 'windowParamsMatch'
     | 'none';
   /**
    * Phase 7f — true when the picker fell back to the pre-click pool

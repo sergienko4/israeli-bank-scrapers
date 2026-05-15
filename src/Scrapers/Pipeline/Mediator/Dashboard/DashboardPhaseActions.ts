@@ -23,11 +23,14 @@ import type {
   IPipelineContext,
   IResolvedTarget,
 } from '../../Types/PipelineContext.js';
+import { EMPTY_TXN_HARVEST } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
+import type { INetworkDiscovery } from '../Network/NetworkDiscoveryTypes.js';
 import { resolveTxnEndpoint } from '../Scrape/ScrapeAutoMapper.js';
+import { EMPTY_TXN_ENDPOINT } from '../Scrape/ScrapePhaseActions.js';
 import {
   DASHBOARD_FINAL_TXN_WAIT_MS,
   DASHBOARD_MENU_SETTLE_MS,
@@ -45,6 +48,7 @@ import {
   validateTrafficGate,
 } from './DashboardDiscovery.js';
 import checkChangePassword, { extractAuthFromContext } from './DashboardProbe.js';
+import detectDormantEvidence from './DormantEvidenceDetector.js';
 import { buildTxnHarvest } from './TxnParser.js';
 
 /** Should force-click for hidden menu toggles. */
@@ -1050,6 +1054,68 @@ function readAccountIdCount(ctx: IPipelineContext): number {
 }
 
 /**
+ * Phase H'' (2026-05-15): commit an empty endpoint shape when the
+ * captured pool carries dormant-account evidence. SCRAPE produces
+ * `txns:[]` naturally; the existing `isAllAccountsEmpty` predicate
+ * in SCRAPE.POST stays as the single loud signal per spec.txt:162.
+ *
+ * @param ctx - Pipeline context.
+ * @returns Outcome carrying the empty-endpoint commit.
+ */
+function commitDormantEmptyEndpoint(ctx: IPipelineContext): ITxnCommitOutcome {
+  ctx.logger.debug({
+    event: 'dashboard.txnEndpoint.dormantEmpty',
+    reason:
+      'resolveTxnEndpoint returned false; captured pool carries empty-window evidence — ' +
+      'committing empty endpoint per spec.txt:162',
+  });
+  const dormantCtx: IPipelineContext = {
+    ...ctx,
+    txnEndpoint: some(EMPTY_TXN_ENDPOINT),
+    dashboardTxnHarvest: some(EMPTY_TXN_HARVEST),
+  };
+  return { ok: true, ctx: dormantCtx, failure: fail(ScraperErrorTypes.Generic, '') };
+}
+
+/**
+ * Fail loud — picker returned no WK-txn URL AND no dormant evidence
+ * exists in the captured pool. The pipeline halts before SCRAPE per
+ * the binary contract (commit-or-halt).
+ *
+ * @param ctx - Pipeline context.
+ * @returns Outcome carrying the fail-loud procedure.
+ */
+function commitTxnEndpointFailLoud(ctx: IPipelineContext): ITxnCommitOutcome {
+  ctx.logger.debug({
+    event: 'dashboard.txnEndpoint.failLoud',
+    code: 'DASHBOARD_TXN_FIELDMAP_INCOMPLETE',
+    reason: 'resolveTxnEndpoint returned false; TXN body missing date or amount field aliases',
+  });
+  const failure = fail(
+    ScraperErrorTypes.Generic,
+    'DASHBOARD FINAL: DASHBOARD_TXN_FIELDMAP_INCOMPLETE — resolveTxnEndpoint returned false; ' +
+      'TXN body missing date or amount field aliases',
+  );
+  return { ok: false, ctx, failure };
+}
+
+/**
+ * Phase H'' (2026-05-15): branch on the captured pool when the
+ * picker returned false. Dormant evidence → commit-empty (Hapoalim
+ * home-page/composite/myAccount pattern); no evidence → fail loud
+ * per the legacy F-DASH-2 contract. Caller guarantees `mediator.has`.
+ *
+ * @param ctx - Pipeline context with a live mediator.
+ * @param network - Live network discovery handle (caller-narrowed).
+ * @returns Outcome — commit-empty (ok) or fail-loud (not ok).
+ */
+function handleNoTxnEndpoint(ctx: IPipelineContext, network: INetworkDiscovery): ITxnCommitOutcome {
+  const pool = network.getAllEndpoints();
+  if (detectDormantEvidence(pool)) return commitDormantEmptyEndpoint(ctx);
+  return commitTxnEndpointFailLoud(ctx);
+}
+
+/**
  * Phase 7e — commit the resolved TXN endpoint to `ctx.txnEndpoint`,
  * or fail loud with `DASHBOARD_TXN_FIELDMAP_INCOMPLETE` when the
  * resolver cannot pick a date AND amount field. Mirrors the
@@ -1071,25 +1137,7 @@ async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutco
     return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
   }
   const internal = resolveTxnEndpoint(ctx.mediator.value.network);
-  if (internal === false) {
-    // F-DASH-2: the picked TXN URL has no record exposing a date AND
-    // amount field WK_TXN recognises. DASHBOARD halts the pipeline —
-    // there is no bridge fallback in SCRAPE. The contract is binary:
-    // either DASHBOARD.FINAL commits a complete `ctx.txnEndpoint` or
-    // the run errors out. Never half-commit, never let SCRAPE
-    // re-discover.
-    ctx.logger.debug({
-      event: 'dashboard.txnEndpoint.failLoud',
-      code: 'DASHBOARD_TXN_FIELDMAP_INCOMPLETE',
-      reason: 'resolveTxnEndpoint returned false; TXN body missing date or amount field aliases',
-    });
-    const failure = fail(
-      ScraperErrorTypes.Generic,
-      'DASHBOARD FINAL: DASHBOARD_TXN_FIELDMAP_INCOMPLETE — resolveTxnEndpoint returned false; ' +
-        'TXN body missing date or amount field aliases',
-    );
-    return { ok: false, ctx, failure };
-  }
+  if (internal === false) return handleNoTxnEndpoint(ctx, ctx.mediator.value.network);
   // Phase 7f: commit ONLY the slim SCRAPE-facing endpoint to ctx.
   // captureIndex / responseBodySample / pickerTier / capturedPreClick
   // are DASHBOARD-internal artefacts that emit via telemetry but
@@ -1104,7 +1152,8 @@ async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutco
   // (Amex/Isracard would otherwise mirror the captured 5 records
   // across every card).
   const accountIdCount = readAccountIdCount(ctx);
-  const harvest = buildTxnHarvest(internal, accountIdCount);
+  const pool = ctx.mediator.value.network.getAllEndpoints();
+  const harvest = buildTxnHarvest(internal, accountIdCount, pool);
   const updated: IPipelineContext = {
     ...ctx,
     txnEndpoint: some(internal.endpoint),

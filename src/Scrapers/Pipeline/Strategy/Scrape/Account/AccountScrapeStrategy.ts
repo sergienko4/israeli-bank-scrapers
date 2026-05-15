@@ -12,7 +12,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
 import { isRangeIterable } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../../Mediator/Scrape/ScrapeReplayAction.js';
-import { applyDateRangeToUrlWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
+import { applyDateRangeAndAppendWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import { redactAccount } from '../../../Types/PiiRedactor.js';
@@ -69,7 +69,11 @@ function txnEpForParse(fc: IAccountFetchCtx): ITxnEndpoint['fieldMap'] {
 function patchUrlRange(url: string, fc: IAccountFetchCtx): PatchedUrlStr {
   const fromDate = parseStartDate(fc.startDate);
   const toDate = new Date();
-  const outcome = applyDateRangeToUrlWithCount(url, fromDate, toDate);
+  const outcome = applyDateRangeAndAppendWithCount(url, {
+    fromDate,
+    toDate,
+    windowParams: fc.dateWindowParams ?? [],
+  });
   if (outcome.swapped > 0) {
     LOG.debug({ message: `URL date-range patched (${String(outcome.swapped)} params)` });
   }
@@ -288,6 +292,32 @@ async function scrapeOneAccountPost(
 }
 
 /**
+ * Phase H'' (2026-05-15): no txn URL resolved for this account.
+ * When `txnEp.url === ''`, DASHBOARD.FINAL committed an empty
+ * endpoint because the captured pool carried dormant-account
+ * evidence — return a success-empty account result so the existing
+ * `isAllAccountsEmpty` predicate in SCRAPE.POST stays as the single
+ * loud signal for genuine misses (spec.txt:162 / spec.txt:717).
+ * Otherwise the DASHBOARD endpoint contract was honored but no
+ * URL fell out — fail loud to surface the contract violation.
+ *
+ * @param fc - Fetch context.
+ * @param accountId - Account ID.
+ * @param txnEp - Slim TXN endpoint plumbed by SCRAPE.PRE.
+ * @returns Success-empty account (dormant) or fail-loud.
+ */
+async function handleUnresolvableTxnUrl(
+  fc: IAccountFetchCtx,
+  accountId: string,
+  txnEp: ITxnEndpoint,
+): Promise<Procedure<ITransactionsAccount>> {
+  if (txnEp.url === '') {
+    return buildAccountResult({ fc, accountId, displayId: accountId }, []);
+  }
+  return fail(ScraperErrorTypes.Generic, 'No txn URL');
+}
+
+/**
  * GET strategy: resolve URL template and fetch.
  * If URL contains TransactionsAndGraphs → monthly iteration with filterData.
  * Otherwise → single GET.
@@ -308,7 +338,7 @@ async function scrapeOneAccountViaUrl(
   }
   const urlCtx = { api: fc.api, network: fc.network, accountId, startDate: fc.startDate };
   const scrapeUrl = resolveTxnUrl(urlCtx);
-  if (!scrapeUrl) return fail(ScraperErrorTypes.Generic, 'No txn URL');
+  if (!scrapeUrl) return handleUnresolvableTxnUrl(fc, accountId, txnEp);
   const patchedUrl = patchUrlRange(scrapeUrl, fc);
   const raw = await fc.api.fetchGet<Record<string, unknown>>(patchedUrl);
   if (!isOk(raw)) return raw;

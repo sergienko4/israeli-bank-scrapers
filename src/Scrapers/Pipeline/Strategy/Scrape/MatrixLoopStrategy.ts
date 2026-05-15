@@ -13,7 +13,7 @@ import {
   generateMonthChunks,
   isMonthlyEndpoint,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
+import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IBillingCycle } from '../../Types/PipelineContext.js';
@@ -90,7 +90,11 @@ async function fetchMatrixChunk(
     };
     const body = buildMonthBody(opts) as Record<string, string | object>;
     const monthEnd = new Date(yearNum, monthNum, 0);
-    const patchedUrl = applyDateRangeToUrl(ctx.txnUrl, chunkDate, monthEnd);
+    const patchedUrl = applyDateRangeAndAppend(ctx.txnUrl, {
+      fromDate: chunkDate,
+      toDate: monthEnd,
+      windowParams: ctx.args.fc.dateWindowParams ?? [],
+    });
     const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(patchedUrl, body);
     if (!isOk(raw)) return [];
     const fieldMap = (ctx.args.fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;

@@ -15,6 +15,7 @@ import type { Page, Response } from 'playwright-core';
 import {
   PIPELINE_WELL_KNOWN_API,
   PIPELINE_WELL_KNOWN_HEADERS,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS,
 } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
@@ -256,7 +257,52 @@ type ShapeAwareTier =
   | 'replayablePost'
   | 'shapePassing'
   | 'preClickFallback'
-  | 'urlOnlyMatch';
+  | 'urlOnlyMatch'
+  | 'windowParamsMatch';
+
+/**
+ * Phase H'' (2026-05-15): WK-aliased date-window param keys, joined
+ * from the WK txn-field registry. Used by the {@link hasWindowParams}
+ * picker probe so the `windowParamsMatch` tier can rescue Hapoalim
+ * dormant-account dashboards where the SPA fires only a populated
+ * `?type=totals&view=future` GET whose URL still exposes the canonical
+ * `fromDate` / `toDate` aliases.
+ */
+const WINDOW_FROM_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.fromDate);
+const WINDOW_TO_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.toDate);
+
+/**
+ * Safely parse a URL string. Returns false on any parse error so the
+ * caller can fall through without try/catch noise.
+ * @param input - Candidate URL.
+ * @returns Parsed URL or false.
+ */
+function safeParseWindowUrl(input: string): URL | false {
+  try {
+    return new URL(input);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when the URL's searchParams carry both a fromDate alias AND a
+ * toDate alias — signals that the captured endpoint is date-window
+ * aware even when its body fails the txn-shape gate. Pass-through on
+ * URL parse error.
+ * @param url - Captured URL.
+ * @returns True when both aliases are present in the query string.
+ */
+function hasWindowParams(url: string): boolean {
+  const parsed = safeParseWindowUrl(url);
+  if (parsed === false) return false;
+  const keyIter = parsed.searchParams.keys();
+  const keys = Array.from(keyIter);
+  const hasFrom = keys.some((key): boolean => WINDOW_FROM_KEYS.has(key));
+  if (!hasFrom) return false;
+  const hasTo = keys.some((key): boolean => WINDOW_TO_KEYS.has(key));
+  return hasTo;
+}
 
 /**
  * Emit one canonical structured event per `discoverShapeAware` call.
@@ -342,6 +388,16 @@ function tierPick(
   const emptyBodyMatch = urlMatches.find((ep): boolean => ep.responseBody === null);
   if (emptyBodyMatch) {
     return { endpoint: emptyBodyMatch, tier: 'urlOnlyMatch', matches };
+  }
+  // Phase H'' (2026-05-15): Hapoalim dormant-account rescue — pick a
+  // populated-body URL whose searchParams expose the canonical
+  // fromDate/toDate WK aliases. SCRAPE then writes the live window
+  // via `applyDateRangeToUrl`; the detector tuple supplied through
+  // `fc.dateWindowParams` covers the APPEND case when aliases are
+  // absent from the captured URL.
+  const windowParamsHit = urlMatches.find((ep): boolean => hasWindowParams(ep.url));
+  if (windowParamsHit) {
+    return { endpoint: windowParamsHit, tier: 'windowParamsMatch', matches };
   }
   return { endpoint: false, tier: 'none', matches };
 }
