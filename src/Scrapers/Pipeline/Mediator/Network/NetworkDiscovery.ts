@@ -141,6 +141,30 @@ export function shouldRecordResponse(
   return isJsonContentType(contentType) as ShouldRecordResponseSignal;
 }
 
+/** Branded boolean for the unsupported-URL gate. Rule #15 — exported
+ *  functions never return raw primitives. */
+export type IsUnsupportedUrlSignal = boolean & {
+  readonly __brand: 'IsUnsupportedUrlSignal';
+};
+
+/**
+ * Test if a URL is on the unsupported-URL block list. WK-driven via
+ * `PIPELINE_WELL_KNOWN_API.unsupported` — currently `.ashx` (Amex
+ * legacy ProxyRequestHandler). Excluded URLs never enter the captured
+ * pool, so no downstream picker / probe / extractor can ever see them.
+ * Per user direction 15-05-2026: `.ashx` removal was completed long
+ * ago — every bank goes through modern POST/GET. This is the
+ * enforcement gate.
+ *
+ * <p>Exported for unit testing. Pure function.
+ * @param url - Response URL.
+ * @returns True when the URL matches a WK unsupported pattern.
+ */
+export function isUnsupportedUrl(url: string): IsUnsupportedUrlSignal {
+  const isMatch = PIPELINE_WELL_KNOWN_API.unsupported.some((p): boolean => p.test(url));
+  return isMatch as IsUnsupportedUrlSignal;
+}
+
 /**
  * Try to parse a response as a discovered endpoint.
  *
@@ -168,6 +192,19 @@ export async function parseResponse(response: Response): Promise<IDiscoveredEndp
     method: meta.method,
     url: redactUrlFull(meta.url),
   });
+  // Unsupported-URL enforcement gate (Amex `.ashx` removal, 2026-05-15
+  // per user direction). Drop the response BEFORE any other logic so
+  // the URL never enters the captured pool and no downstream tier can
+  // pick it. WK-driven via `PIPELINE_WELL_KNOWN_API.unsupported`.
+  if (isUnsupportedUrl(meta.url)) {
+    LOG.debug({
+      event: 'parseResponse.drop',
+      reason: 'unsupportedUrl',
+      status,
+      url: redactUrlFull(meta.url),
+    });
+    return false;
+  }
   if (!shouldRecordResponse(status, meta.contentType)) {
     LOG.debug({
       event: 'parseResponse.drop',

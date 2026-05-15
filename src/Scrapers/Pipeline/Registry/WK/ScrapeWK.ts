@@ -75,6 +75,14 @@ export const PIPELINE_WELL_KNOWN_API = {
   // bank-agnostic; `/statuspage/` is the SPA module name, not a bank
   // identity.
   transactionWidgets: [/\/statuspage\//i],
+  /** Legacy URL extensions / handlers we don't support. `.ashx` is the
+   *  classic ASP.NET handler suffix (Amex's `ProxyRequestHandler.ashx`
+   *  legacy auth tier) — every migrated bank uses modern POST/GET
+   *  endpoints, never `.ashx`. Drop these at `parseResponse` entry so
+   *  they never reach the captured pool and can't be picked by any
+   *  downstream tier. Per user direction 15-05-2026: `.ashx` removal
+   *  was completed long ago; this is the enforcement gate. */
+  unsupported: [/\.ashx(\?|$)/i],
   balance: [/infoAndBalance/i, /dashboardBalances/i, /GetFrameStatus/i, /Frames.*api/i],
   // Auth endpoint patterns — cover every migrated bank's credentials
   // submission URL. Verified against real network captures in
