@@ -42,7 +42,8 @@ describe("readDateWindowParams — Phase H'' SCRAPE.PRE reader", () => {
   });
 
   it('returns the empty tuple when the map is present but empty', (): void => {
-    const harvest = harvestWithMap(new Map());
+    const emptyMap: ReadonlyMap<string, readonly [string, string]> = new Map();
+    const harvest = harvestWithMap(emptyMap);
     const result = readDateWindowParams(harvest);
 
     expect(result).toEqual([]);
