@@ -15,6 +15,7 @@ import {
   buildLoadCtxFromPreDiscovered,
   pivotToSpaIfNeeded,
 } from '../../Strategy/Scrape/GenericAutoScrapeStrategy.js';
+import { FALLBACK_DEDUP_KEY_FIELDS } from '../../Strategy/Scrape/ScrapeDataActions.js';
 import { EMPTY_TXN_ENDPOINT, type IAccountFetchCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
@@ -133,6 +134,57 @@ function readDashboardTxnHarvest(input: IPipelineContext | IActionContext): IDas
   return opt.value;
 }
 
+/**
+ * Reads the per-card dedup-key field tuple from the harvest's
+ * `dedupKeyFieldsByAccount` map. Phase G: DASHBOARD picks one tuple
+ * per capture; in practice the map has one entry, so the first value
+ * applies to every per-account dedup downstream.
+ *
+ * <p>Returns the supplied fallback tuple when DASHBOARD did not emit
+ * a map entry (empty harvest, multi-account-scope skip, or pre-Phase-G
+ * test mock). Never returns `null` / `undefined` per architecture rule.
+ *
+ * @param harvest - DASHBOARD harvest (may be `EMPTY_TXN_HARVEST`).
+ * @param fallback - Tuple returned when no map entry is present.
+ * @returns Resolved dedup-key field tuple.
+ */
+function readDedupKeyFields(
+  harvest: IDashboardTxnHarvest,
+  fallback: readonly string[],
+): readonly string[] {
+  const map = harvest.dedupKeyFieldsByAccount;
+  if (map === undefined || map.size === 0) return fallback;
+  const iterResult = map.values().next();
+  if (iterResult.done) return fallback;
+  return iterResult.value;
+}
+
+/** Empty WK-alias tuple — used when the harvest carries no detected pair. */
+const EMPTY_DATE_WINDOW_PARAMS: readonly string[] = Object.freeze([]);
+
+/**
+ * Reads the per-card WK-aliased `[fromAlias, toAlias]` tuple from the
+ * harvest's `dateWindowParamsByAccount` map. Phase H'' (2026-05-15):
+ * DASHBOARD picks one tuple per capture via shape inspection; in
+ * practice the map has one entry, so the first value applies to every
+ * per-account scrape downstream.
+ *
+ * <p>Returns {@link EMPTY_DATE_WINDOW_PARAMS} when DASHBOARD did not
+ * emit a map entry (empty harvest, multi-account-scope skip, or no
+ * WK alias pair observed in the pool). Never returns `null` /
+ * `undefined` per architecture rule.
+ *
+ * @param harvest - DASHBOARD harvest (may be `EMPTY_TXN_HARVEST`).
+ * @returns Resolved `[fromAlias, toAlias]` tuple or empty array.
+ */
+function readDateWindowParams(harvest: IDashboardTxnHarvest): readonly string[] {
+  const map = harvest.dateWindowParamsByAccount;
+  if (map === undefined || map.size === 0) return EMPTY_DATE_WINDOW_PARAMS;
+  const iterResult = map.values().next();
+  if (iterResult.done) return EMPTY_DATE_WINDOW_PARAMS;
+  return iterResult.value;
+}
+
 /** Empty catalog sentinel — used as the "no catalog" return value. */
 const EMPTY_CATALOG: IBillingCycleCatalog = { cycles: [] };
 
@@ -157,7 +209,13 @@ function readBillingCycleCatalog(input: IPipelineContext | IActionContext): IBil
 
 export { EMPTY_TXN_ENDPOINT } from '../../Strategy/Scrape/ScrapeTypes.js';
 export { EMPTY_TXN_HARVEST } from '../../Types/PipelineContext.js';
-export { readBillingCycleCatalog, readDashboardTxnHarvest, readPreDiscoveredTxn };
+export {
+  readBillingCycleCatalog,
+  readDashboardTxnHarvest,
+  readDateWindowParams,
+  readDedupKeyFields,
+  readPreDiscoveredTxn,
+};
 
 /**
  * DIRECT path: discover endpoints + load accounts + freeze network.
@@ -199,6 +257,8 @@ async function executeDirectDiscovery(
   const startDate = moment(input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(input.options);
   const billingCycleCatalog = readBillingCycleCatalog(input);
+  const dedupKeyFields = readDedupKeyFields(harvest, FALLBACK_DEDUP_KEY_FIELDS);
+  const dateWindowParams = readDateWindowParams(harvest);
   const fc: IAccountFetchCtx = {
     api,
     network,
@@ -207,6 +267,8 @@ async function executeDirectDiscovery(
     txnEndpoint,
     dashboardTxnHarvest: harvest,
     billingCycleCatalog,
+    dedupKeyFields,
+    dateWindowParams,
   };
   const preDiscovered = readPreDiscoveredAccounts(input);
   const loadCtx = buildLoadCtxFromPreDiscovered({

@@ -23,20 +23,57 @@ import {
 } from '../../StrategyTestHelpers.js';
 
 describe('scrapeOneAccountViaUrl', () => {
-  it('fails when no transaction URL can be resolved', async () => {
+  it("succeeds with empty txns when no URL resolves AND endpoint is empty (Phase H'' dormant)", async () => {
+    // Phase H'' (2026-05-15): per spec.txt:162 + spec.txt:717
+    // (A.fix-2.r4 — shipped in a892d9dd), an individual dormant
+    // account must succeed with empty txns; ALL-empty failure
+    // (isAllAccountsEmpty in SCRAPE.POST) stays the single loud
+    // signal. DASHBOARD.FINAL commits an empty endpoint (url='')
+    // when the captured pool carried dormant-account evidence;
+    // the SCRAPE GET path short-circuits on that signal.
     const api = makeApi({ fetchGet: stubFetchGetFail() });
     const network = makeNetwork({
       /**
-       * Test helper.
+       * Test helper — no captured template URL.
        *
-       * @returns Result.
+       * @returns false (no template URL discovered).
        */
       discoverTransactionsEndpoint: () => false,
     });
     const fc = makeFc(api, network);
     const result = await scrapeOneAccountViaUrl(fc, 'a');
     const isOkResult5 = isOk(result);
-    expect(isOkResult5).toBe(false);
+    expect(isOkResult5).toBe(true);
+    if (isOkResult5) {
+      expect(result.value.txns).toEqual([]);
+    }
+  });
+
+  it('fails when txn endpoint is present but URL still cannot be resolved', async () => {
+    // Defensive: a non-empty `fc.txnEndpoint` proves DASHBOARD committed
+    // a real endpoint, so an unresolvable URL here is a contract
+    // violation — keep the loud fail path so the regression surfaces
+    // immediately. (The dormant short-circuit only applies when the
+    // endpoint itself is the empty sentinel.)
+    const api = makeApi({ fetchGet: stubFetchGetFail() });
+    const network = makeNetwork({
+      /**
+       * Test helper — no template URL.
+       *
+       * @returns false.
+       */
+      discoverTransactionsEndpoint: () => false,
+    });
+    // makeApi defaults `transactionsUrl` to false; the mocked network's
+    // `buildTransactionUrl` also returns false by default. With the
+    // non-empty fc.txnEndpoint, the dormant short-circuit is skipped
+    // and resolveTxnUrl returns false → fail-loud.
+    const fc = makeFc(api, network, {
+      txnEndpoint: makeEndpoint({ url: 'https://example.com/x', method: 'GET' }),
+    });
+    const result = await scrapeOneAccountViaUrl(fc, 'a');
+    const isOkResult5b = isOk(result);
+    expect(isOkResult5b).toBe(false);
   });
 
   it('fails when fetchGet fails', async () => {
@@ -52,7 +89,14 @@ describe('scrapeOneAccountViaUrl', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
+    // Phase H'' (2026-05-15): supply a non-empty `txnEndpoint.url` so
+    // the dormant short-circuit in `scrapeOneAccountViaUrl` doesn't
+    // fire — this test exercises the fetchGet-failure path on a real
+    // resolved URL, not the dormant rescue (which returns success-empty
+    // without fetching, per spec.txt:162).
+    const fc = makeFc(api, network, {
+      txnEndpoint: makeEndpoint({ url: 'https://example.com/x', method: 'GET' }),
+    });
     const result = await scrapeOneAccountViaUrl(fc, 'acc-1');
     const isOkResult6 = isOk(result);
     expect(isOkResult6).toBe(false);
@@ -71,7 +115,14 @@ describe('scrapeOneAccountViaUrl', () => {
        */
       discoverTransactionsEndpoint: () => false,
     });
-    const fc = makeFc(api, network);
+    // Phase H'' (2026-05-15): supply a non-empty `txnEndpoint.url` so the
+    // dormant short-circuit doesn't fire — this test exercises the
+    // happy-path fetchGet flow (resolved URL → fetch OK → parse → empty
+    // txns), distinct from the dormant-endpoint short-circuit covered
+    // by the test above.
+    const fc = makeFc(api, network, {
+      txnEndpoint: makeEndpoint({ url: 'https://example.com/x', method: 'GET' }),
+    });
     const result = await scrapeOneAccountViaUrl(fc, 'acc-1');
     const isOkResult7 = isOk(result);
     expect(isOkResult7).toBe(true);

@@ -1534,10 +1534,16 @@ function resolveTxnEndpoint(network: INetworkDiscovery): ITxnEndpointInternal | 
   const ep = network.discoverTransactionsEndpoint();
   if (ep === false) return false;
   const body = ep.responseBody;
-  if (body === null) return false;
-  if (typeof body !== 'object') return false;
+  // Phase H' (2026-05-14): a null body is a valid 2xx-no-content
+  // response (e.g. 204 from Hapoalim's current-account transactions
+  // when the SPA-default 30-day window holds zero txns). Treat as
+  // an empty object so URL+method are still committed; SCRAPE
+  // re-queries with the user's wider startDate window and the
+  // auto-mapper resolves field aliases via WK on the populated
+  // response. Body MUST be `null | object`; primitives are rejected.
+  if (body !== null && typeof body !== 'object') return false;
   if (ep.method !== 'GET' && ep.method !== 'POST') return false;
-  const responseBody = body as ApiRecord;
+  const responseBody = (body ?? {}) as ApiRecord;
   const records = huntTransactions(responseBody);
   const fieldMap = resolveFieldMapOrEmpty(records);
   const method: 'GET' | 'POST' = ep.method;

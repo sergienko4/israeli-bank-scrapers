@@ -116,13 +116,31 @@ const RULES: readonly ILayerRule[] = [
       // Phase 7f follow-up: BalanceExtractor.ts NO LONGER imports
       // WK_TXN — it consumes `fc.txnEndpoint.fieldMap.balance`
       // (DASHBOARD-resolved) via its `aliases` parameter. The
-      // remaining two helpers below import URL/body parameter names
+      // remaining helpers below import URL/body parameter names
       // (`WK.fromDate` / `WK.toDate`) — a request-side concern that
       // `ITxnEndpoint.fieldMap` (response-record aliases) doesn't
       // cover. They stay allowlisted by design, not deferred work.
       path.join('Strategy', 'Scrape', 'ScrapeChunking.ts'),
       path.join('Mediator', 'Scrape', 'UrlDateRange.ts'),
       path.join('Mediator', 'Scrape', 'TxnShape.ts'),
+      // Phase H'' (2026-05-15): the date-window detector lives next to
+      // the DASHBOARD txn parser because it consumes the same captured
+      // pool, but it ONLY reads request-side WK aliases
+      // (`WK.fromDate` / `WK.toDate`) to emit the URL-param tuple
+      // SCRAPE injects via `applyDateRangeToUrl`. Same exception
+      // class as ScrapeChunking / UrlDateRange above.
+      path.join('Mediator', 'Dashboard', 'DateWindowParamsDetector.ts'),
+      // Phase H'' (2026-05-15): the dormant-evidence detector
+      // scans the captured pool for the WK txnContainers +
+      // fromDate/toDate signal that proves "window empty" rather
+      // than "no endpoint". Reads request-side WK aliases only —
+      // same exception class as DateWindowParamsDetector above.
+      path.join('Mediator', 'Dashboard', 'DormantEvidenceDetector.ts'),
+      // The picker tier `windowParamsMatch` lives in NetworkDiscovery
+      // and inspects `WK.fromDate` / `WK.toDate` aliases against
+      // captured URL search params. Request-side concern; same
+      // exception class as above.
+      path.join('Mediator', 'Network', 'NetworkDiscovery.ts'),
     ],
     forbidden: [
       path.join('Mediator', 'Dashboard'),

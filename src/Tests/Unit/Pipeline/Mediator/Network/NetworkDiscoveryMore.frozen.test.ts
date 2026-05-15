@@ -61,7 +61,11 @@ describe('NetworkDiscovery — createFrozenNetwork', () => {
     expect(fetchOpts.extraHeaders).toBeDefined();
     const headers = fetchOpts.extraHeaders;
     expect(headers.authorization).toBeUndefined();
-    expect(headers['Content-Type']).toBe('application/json');
+    // Phase H'' captured-headers-as-truth: no hardcoded
+    // Content-Type. No txn-pattern endpoint in this fixture →
+    // extractSpaHeaders returns {} → Content-Type absent.
+    expect(headers['Content-Type']).toBeUndefined();
+    expect(headers['content-type']).toBeUndefined();
   });
 
   it('frozen — discoverAuthToken + cacheAuthToken return pre-cached token', async () => {

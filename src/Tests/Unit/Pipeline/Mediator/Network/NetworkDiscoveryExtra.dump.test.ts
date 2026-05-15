@@ -102,7 +102,7 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
     expect(ep).not.toBe(false);
   });
 
-  it('returns false when only URL match is a non-shape, non-replayable capture (Phase 7e strict)', async () => {
+  it('returns false when only URL match is a non-shape capture with populated body (Phase H refined)', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     discovery.markDashboardClickAt(0);
@@ -111,8 +111,12 @@ describe('NetworkDiscovery — discoverShapeAware shape gate', () => {
       body: { total: 0 },
     });
     const ep = discovery.discoverTransactionsEndpoint();
-    // Phase 7e: urlFallback tier removed — DASHBOARD.FINAL fails loud
-    // rather than picking a wrong URL whose body has zero records.
+    // Phase H' refined (2026-05-15): `urlOnlyMatch` only fires for
+    // 2xx-no-body responses (e.g. 204 No Content). A populated body
+    // that fails the txn-shape gate is a sibling URL like Hapoalim's
+    // `?type=totals&view=future` summary — not the txn endpoint.
+    // Picker correctly falls through to `none`; DASHBOARD.FINAL
+    // signals loud so the dashboard cannot commit the wrong URL.
     expect(ep).toBe(false);
   });
 });

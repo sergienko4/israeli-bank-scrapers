@@ -307,3 +307,48 @@ describe.each(REAL_API_FIXTURES)(
     });
   },
 );
+
+// ── Phase H'' — `windowParamsMatch` rescue tier ─────────────────
+//
+// Forcing function: Hapoalim dormant-account dashboards where the
+// SPA never fires the txn POST during DASHBOARD-ACTION. The pool
+// carries one populated-body GET whose URL exposes the canonical
+// WK fromDate/toDate aliases (retrievalStartDate / retrievalEndDate).
+// Body fails the txn-shape gate (summary stub, no transactions[]).
+// Previously the picker fell through to `none` and DASHBOARD.FINAL
+// failed loud. The new `windowParamsMatch` tier rescues such pools
+// by committing the URL so SCRAPE can re-query with a wider window
+// via `applyDateRangeToUrl`.
+
+describe("Phase H'' — windowParamsMatch picker tier", () => {
+  const clickAt = 1_000_000_000_000;
+  const postClickTs = clickAt + 5_000;
+
+  it('rescues populated-body GET when URL exposes WK fromDate + toDate aliases', () => {
+    const dormant = makeFrozenCapture(
+      'https://login.bankhapoalim.fake.example/ServerServices/current-account/transactions' +
+        '?retrievalStartDate=20260415&retrievalEndDate=20260515&accountId=00-000-000000&lang=he',
+      postClickTs,
+      { summary: { balance: 150, lastTransactionDate: '20260315' } },
+    );
+    const network = createFrozenNetwork([dormant], false, clickAt);
+    const picked = network.discoverTransactionsEndpoint();
+    expect(picked).not.toBe(false);
+    if (picked !== false) {
+      expect(picked.url).toBe(dormant.url);
+      expect(picked.pickerTier).toBe('windowParamsMatch');
+    }
+  });
+
+  it('does NOT pick a URL exposing only one side of the WK alias pair', () => {
+    const fromOnly = makeFrozenCapture(
+      'https://login.bankhapoalim.fake.example/ServerServices/current-account/transactions' +
+        '?retrievalStartDate=20260415&accountId=00-000-000000&lang=he',
+      postClickTs,
+      { summary: { balance: 150 } },
+    );
+    const network = createFrozenNetwork([fromOnly], false, clickAt);
+    const picked = network.discoverTransactionsEndpoint();
+    expect(picked).toBe(false);
+  });
+});

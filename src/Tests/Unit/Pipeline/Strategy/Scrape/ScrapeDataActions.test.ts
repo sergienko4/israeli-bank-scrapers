@@ -11,6 +11,7 @@ import {
   rateLimitPause,
   resolveTxnUrl,
   templatePostBody,
+  txnHash,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.js';
 import type { IAccountAssemblyCtx } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -45,6 +46,27 @@ function makeTxn(overrides: Partial<ITransaction> = {}): ITransaction {
   return { ...defaults, ...overrides };
 }
 
+/**
+ * Phase G migration helper — sister tests call `deduplicateTxns` with
+ * the today-equivalent identifier-only key tuple so their behaviour
+ * is preserved after the Phase G signature change to 3 args. The
+ * production `txnHash` no longer infers a fallback — DASHBOARD picks
+ * the tuple and SCRAPE passes it through.
+ */
+const LEGACY_KEY_FIELDS = ['identifier'] as const;
+
+/**
+ * Phase G migration helper — wrap `deduplicateTxns` with the
+ * legacy `['identifier']` tuple. Restores 2-arg ergonomics for
+ * sister tests that pre-date Phase G.
+ * @param txns - Transactions to dedup.
+ * @param startMs - Window start (epoch ms).
+ * @returns Unique + sorted txns.
+ */
+function callDedupLegacy(txns: readonly ITransaction[], startMs: number): readonly ITransaction[] {
+  return deduplicateTxns(txns, startMs, LEGACY_KEY_FIELDS);
+}
+
 describe('parseStartDate', () => {
   it('converts YYYYMMDD string to Date', () => {
     const d = parseStartDate('20260115');
@@ -69,7 +91,7 @@ describe('deduplicateTxns', () => {
   it('removes duplicate transactions by date|description|amount', () => {
     const t1 = makeTxn();
     const t2 = makeTxn();
-    const result = deduplicateTxns([t1, t2], 0);
+    const result = callDedupLegacy([t1, t2], 0);
     expect(result).toHaveLength(1);
   });
 
@@ -79,7 +101,7 @@ describe('deduplicateTxns', () => {
       makeTxn({ date: '2026-02-01', description: 'b' }),
     ];
     const startMs = new Date('2026-01-15').getTime();
-    const result = deduplicateTxns(txns, startMs);
+    const result = callDedupLegacy(txns, startMs);
     expect(result).toHaveLength(1);
     expect(result[0].description).toBe('b');
   });
@@ -87,7 +109,7 @@ describe('deduplicateTxns', () => {
   it('returns empty array when all txns are before start', () => {
     const txns = [makeTxn({ date: '2025-01-01' })];
     const startMs = new Date('2026-01-01').getTime();
-    const result = deduplicateTxns(txns, startMs);
+    const result = callDedupLegacy(txns, startMs);
     expect(result).toEqual([]);
   });
 
@@ -96,7 +118,7 @@ describe('deduplicateTxns', () => {
     // Two genuinely-different txns must carry distinct bank IDs.
     const a = makeTxn({ description: 'a', identifier: 'id-a' });
     const b = makeTxn({ description: 'b', identifier: 'id-b' });
-    const result = deduplicateTxns([a, b], 0);
+    const result = callDedupLegacy([a, b], 0);
     expect(result).toHaveLength(2);
   });
 });
@@ -116,7 +138,7 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
     const echoCount = 3;
     const echoes = Array.from({ length: echoCount }, (): ITransaction => makeTxn(echoTemplate));
 
-    const result = deduplicateTxns(echoes, 0);
+    const result = callDedupLegacy(echoes, 0);
 
     expect(result).toHaveLength(1);
     expect(result[0].identifier).toBe('252890416:42');
@@ -138,19 +160,22 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
       (id): ITransaction => makeTxn({ ...sharedAttrs, identifier: id }),
     );
 
-    const result = deduplicateTxns(coffees, 0);
+    const result = callDedupLegacy(coffees, 0);
 
     expect(result).toHaveLength(2);
     const ids = result.map((t): string | number | undefined => t.identifier).sort();
     expect(ids).toEqual([...distinctIds]);
   });
 
-  it('deduplicateTxns_NoIdentifierSameAttributes_ShouldFallBackAndCollapse', () => {
-    // When the bank doesn't emit an identifier on a txn (rare — only
-    // observed on `outOfStatementChargeDateVouchers` with the
-    // placeholder pattern), the legacy `date|description|amount` hash
-    // remains the fallback. Two identifier-less rows with identical
-    // attributes still collapse to one (cannot distinguish them).
+  it('deduplicateTxns_NoIdentifierSameAttributes_AttributeKey_ShouldCollapse', () => {
+    // Phase G: when the detector sees any row with an absent or
+    // colliding identifier in the sample, it returns the composite
+    // tuple `['date','identifier','originalAmount']` — under that
+    // tuple, two rows with identical date+(undef id)+amount still
+    // collapse to one. This test pins the equivalent legacy
+    // `date|description|amount` attribute-tuple behaviour directly
+    // (kept as a regression guard for callers that supply their own
+    // attribute-only key).
     const noIdTemplate: Partial<ITransaction> = {
       identifier: undefined,
       date: '2026-04-10',
@@ -159,8 +184,9 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
       chargedAmount: 50,
     };
     const noIdRows = Array.from({ length: 2 }, (): ITransaction => makeTxn(noIdTemplate));
+    const attributeKey = ['date', 'description', 'originalAmount'] as const;
 
-    const result = deduplicateTxns(noIdRows, 0);
+    const result = deduplicateTxns(noIdRows, 0, attributeKey);
 
     expect(result).toHaveLength(1);
   });
@@ -188,7 +214,7 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
       (row): ITransaction => makeTxn({ identifier: row.id, date: row.date }),
     );
 
-    const result = deduplicateTxns(txns, 0);
+    const result = callDedupLegacy(txns, 0);
 
     expect(result).toHaveLength(orderedByDateDesc.length);
     const resultIds = result.map((t): string | number | undefined => t.identifier);
@@ -207,11 +233,33 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
       makeTxn({ identifier: 'b', date: '2026-04-01' }),
     ];
 
-    const onePass = deduplicateTxns(raw, 0);
-    const twoPass = deduplicateTxns(onePass, 0);
+    const onePass = callDedupLegacy(raw, 0);
+    const twoPass = callDedupLegacy(onePass, 0);
 
     expect(twoPass).toEqual(onePass);
     expect(twoPass).toHaveLength(2);
+  });
+});
+
+describe('TXN-HASH-COMPOSE — Phase G pure-function key composition', () => {
+  it('TXN-HASH-COMPOSE-001 — txnHash_SingleFieldTuple_ShouldReturnIdValue', () => {
+    const t = makeTxn({ identifier: 'voucher-1001' });
+
+    const key = txnHash(t, ['identifier']);
+
+    expect(key).toBe('voucher-1001');
+  });
+
+  it('TXN-HASH-COMPOSE-002 — txnHash_CompositeTuple_ShouldJoinNamedValues', () => {
+    const t = makeTxn({
+      identifier: 99380,
+      date: '2026-05-10',
+      originalAmount: -15000,
+    });
+
+    const key = txnHash(t, ['date', 'identifier', 'originalAmount']);
+
+    expect(key).toBe('2026-05-10|99380|-15000');
   });
 });
 

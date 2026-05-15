@@ -203,17 +203,20 @@ describe('NetworkDiscovery — findCommonServicesUrl edges (L200, L251, L281)', 
     expect(url).toBe(false);
   });
 
-  it('discoverTransactionsEndpoint returns false when only URL match has no shape (Phase 7e)', async () => {
+  it('discoverTransactionsEndpoint returns false when only URL match has populated non-shape body (Phase H refined)', async () => {
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     discovery.markDashboardClickAt(0);
-    // URL matches but body lacks any transaction record.
+    // URL matches the WK txn pattern but body is a populated object
+    // without a transactions array. Phase H' refined (2026-05-15):
+    // `urlOnlyMatch` only fires for 2xx-no-body responses (e.g. 204).
+    // A populated-but-non-shape body is a sibling URL (e.g. a totals
+    // summary) — picker rejects to let DASHBOARD.FINAL signal loud.
     await simulate({
       url: 'https://api.bank.co.il/lastTransactions/1',
       body: { notTxnsArray: true },
     });
     const hit = discovery.discoverTransactionsEndpoint();
-    // Phase 7e: urlFallback tier removed — returns false so DASHBOARD.FINAL halts.
     expect(hit).toBe(false);
   });
 

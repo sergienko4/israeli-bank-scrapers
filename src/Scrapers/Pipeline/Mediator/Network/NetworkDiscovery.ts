@@ -15,10 +15,12 @@ import type { Page, Response } from 'playwright-core';
 import {
   PIPELINE_WELL_KNOWN_API,
   PIPELINE_WELL_KNOWN_HEADERS,
+  PIPELINE_WELL_KNOWN_TXN_FIELDS,
 } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 import { getDebug } from '../../Types/Debug.js';
+import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
 import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
@@ -36,6 +38,7 @@ const LOG = getDebug(import.meta.url);
 
 /** WK header names — imported from registry. */
 const ORIGIN_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.origin;
+const REFERER_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.referer;
 const SITE_ID_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.siteId;
 const BROWSER_STANDARD_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.browserStandard;
 
@@ -80,19 +83,176 @@ function extractRequestMeta(response: Response): {
   return { url, method, postData, contentType, requestHeaders };
 }
 
+/** Parsed body wrapper — keeps the typed bag separate from raw `unknown`. */
+export interface IParsedBody {
+  readonly value: unknown;
+}
+
+/**
+ * Branded signal — true when the response should enter the captured
+ * pool. Named so Rule #15 (no primitive returns from exports) sees
+ * the intent at a glance.
+ */
+export type ShouldRecordResponseSignal = boolean & {
+  readonly __brand: 'ShouldRecordResponseSignal';
+};
+
+/**
+ * Parse a response-text payload, normalising empty / whitespace-only
+ * bodies to `null` so they survive the picker's `urlOnlyMatch` rescue
+ * tier. Throws on malformed JSON — callers must wrap in try/catch.
+ * Exported for unit testing.
+ * @param text - Raw response text.
+ * @returns Wrapper carrying the parsed value (`null` for empty payloads).
+ */
+export function parseTextOrNull(text: string): IParsedBody {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return { value: null };
+  return { value: JSON.parse(trimmed) as unknown };
+}
+
+/**
+ * Phase H'' (2026-05-15): decision predicate for `parseResponse`.
+ * 2xx-no-content responses (HTTP 204) carry no body and typically
+ * have no `content-type` header — they fail the `isJsonContentType`
+ * filter and would be dropped before `parseTextOrNull` ever runs,
+ * making the picker's `urlOnlyMatch` rescue tier (which keys off
+ * `responseBody === null`) unreachable for the exact captures it was
+ * added to handle.
+ *
+ * <p>Bank's real Hapoalim txn URL fires `POST /current-account/
+ * transactions?retrievalStartDate=X&retrievalEndDate=Y` and returns
+ * 204 when the captured 30-day window is empty — this is the case
+ * the rescue path was built for. Treat 204 as intrinsically
+ * recordable regardless of content-type so the picker sees the URL.
+ * Other non-JSON content types (HTML errors, redirects with body)
+ * keep their existing JSON-only filter.
+ *
+ * <p>Exported for unit testing. Pure function.
+ * @param status - HTTP status code.
+ * @param contentType - Response content-type header (or `'none'`).
+ * @returns True when the response should enter the captured pool.
+ */
+export function shouldRecordResponse(
+  status: number,
+  contentType: string,
+): ShouldRecordResponseSignal {
+  if (status === 204) return true as ShouldRecordResponseSignal;
+  return isJsonContentType(contentType) as ShouldRecordResponseSignal;
+}
+
+/** Branded boolean for the unsupported-URL gate. Rule #15 — exported
+ *  functions never return raw primitives. */
+export type IsUnsupportedUrlSignal = boolean & {
+  readonly __brand: 'IsUnsupportedUrlSignal';
+};
+
+/**
+ * Test if a URL is on the unsupported-URL block list. WK-driven via
+ * `PIPELINE_WELL_KNOWN_API.unsupported` — currently `.ashx` (Amex
+ * legacy ProxyRequestHandler). Excluded URLs never enter the captured
+ * pool, so no downstream picker / probe / extractor can ever see them.
+ * Per user direction 15-05-2026: `.ashx` removal was completed long
+ * ago — every bank goes through modern POST/GET. This is the
+ * enforcement gate.
+ *
+ * <p>Exported for unit testing. Pure function.
+ * @param url - Response URL.
+ * @returns True when the URL matches a WK unsupported pattern.
+ */
+export function isUnsupportedUrl(url: string): IsUnsupportedUrlSignal {
+  const isMatch = PIPELINE_WELL_KNOWN_API.unsupported.some((p): boolean => p.test(url));
+  return isMatch as IsUnsupportedUrlSignal;
+}
+
 /**
  * Try to parse a response as a discovered endpoint.
+ *
+ * <p>Exported for unit testing — the production handlers
+ * (`handleResponse` / `interceptPostResponses`) consume it internally
+ * but the live 204-drop debug procedure (per debugging-guidlines.md
+ * §1.2 "failing test before fixing") needs a direct entry point.
+ *
  * @param response - Playwright response object.
  * @returns Discovered endpoint or false if not a JSON API response.
  */
-async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | false> {
+export async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | false> {
   const meta = extractRequestMeta(response);
-  if (!isJsonContentType(meta.contentType)) return false;
+  const status = response.status();
+  // Permanent diagnostic trace — keep for future investigations of
+  // capture-pool drops. Logs every parseResponse entry with the
+  // sync-extracted status + contentType so any divergence between
+  // handleResponse's local capture and parseResponse's re-read is
+  // visible side-by-side in `pipeline.log`. Per debugging-
+  // guidlines.md §3 "Stage-Level Observability".
+  LOG.debug({
+    event: 'parseResponse.entry',
+    status,
+    contentType: meta.contentType,
+    method: meta.method,
+    url: redactUrlFull(meta.url),
+  });
+  // Unsupported-URL enforcement gate (Amex `.ashx` removal, 2026-05-15
+  // per user direction). Drop the response BEFORE any other logic so
+  // the URL never enters the captured pool and no downstream tier can
+  // pick it. WK-driven via `PIPELINE_WELL_KNOWN_API.unsupported`.
+  if (isUnsupportedUrl(meta.url)) {
+    LOG.debug({
+      event: 'parseResponse.drop',
+      reason: 'unsupportedUrl',
+      status,
+      url: redactUrlFull(meta.url),
+    });
+    return false;
+  }
+  if (!shouldRecordResponse(status, meta.contentType)) {
+    LOG.debug({
+      event: 'parseResponse.drop',
+      reason: 'shouldRecordResponse=false',
+      status,
+      contentType: meta.contentType,
+      url: redactUrlFull(meta.url),
+    });
+    return false;
+  }
+  // Phase H'' (2026-05-15): 204 No Content has no body. Calling
+  // `response.text()` on a no-body response can throw in some
+  // Playwright runtime / Camoufox builds, dropping the endpoint
+  // back at the catch below. Short-circuit BEFORE the read: we
+  // already know the body is null, so record the URL directly
+  // and bypass `response.text()` entirely.
+  if (status === 204) {
+    LOG.debug({ event: 'parseResponse.shortCircuit204', url: redactUrlFull(meta.url) });
+    const responseHeadersForNoContent = response.headers();
+    const captureIndexForNoContent = dumpResponseBody({
+      url: meta.url,
+      method: meta.method,
+      postData: meta.postData,
+      text: '',
+    });
+    return {
+      ...meta,
+      responseHeaders: responseHeadersForNoContent,
+      responseBody: null,
+      timestamp: Date.now(),
+      captureIndex: captureIndexForNoContent,
+      status,
+    };
+  }
   try {
     const text = await response.text();
-    const responseBody = JSON.parse(text) as unknown;
+    LOG.debug({
+      event: 'parseResponse.textRead',
+      status,
+      textLen: text.length,
+      url: redactUrlFull(meta.url),
+    });
+    // CodeRabbit 2026-05-15: a true 204 / empty-body response has
+    // `text === ''` — `JSON.parse('')` throws and the catch below
+    // would drop the endpoint. Normalise empty / whitespace-only
+    // payloads to `null` so the picker sees the URL.
+    const responseBody = parseTextOrNull(text).value;
     const responseHeaders = response.headers();
-    const status = response.status();
     const captureIndex = dumpResponseBody({
       url: meta.url,
       method: meta.method,
@@ -107,7 +267,17 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
       captureIndex,
       status,
     };
-  } catch {
+  } catch (error) {
+    // Permanent diagnostic — surface which captures get dropped by
+    // an internal throw (response.text() rejection, JSON parse
+    // failure, etc.) so we don't fly blind on future regressions.
+    LOG.debug({
+      event: 'parseResponse.catch',
+      status,
+      contentType: meta.contentType,
+      url: redactUrlFull(meta.url),
+      errorMessage: toErrorMessage(error as Error),
+    });
     return false;
   }
 }
@@ -255,7 +425,53 @@ type ShapeAwareTier =
   | 'postWithShape'
   | 'replayablePost'
   | 'shapePassing'
-  | 'preClickFallback';
+  | 'preClickFallback'
+  | 'urlOnlyMatch'
+  | 'windowParamsMatch';
+
+/**
+ * Phase H'' (2026-05-15): WK-aliased date-window param keys, joined
+ * from the WK txn-field registry. Used by the {@link hasWindowParams}
+ * picker probe so the `windowParamsMatch` tier can rescue Hapoalim
+ * dormant-account dashboards where the SPA fires only a populated
+ * `?type=totals&view=future` GET whose URL still exposes the canonical
+ * `fromDate` / `toDate` aliases.
+ */
+const WINDOW_FROM_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.fromDate);
+const WINDOW_TO_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.toDate);
+
+/**
+ * Safely parse a URL string. Returns false on any parse error so the
+ * caller can fall through without try/catch noise.
+ * @param input - Candidate URL.
+ * @returns Parsed URL or false.
+ */
+function safeParseWindowUrl(input: string): URL | false {
+  try {
+    return new URL(input);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when the URL's searchParams carry both a fromDate alias AND a
+ * toDate alias — signals that the captured endpoint is date-window
+ * aware even when its body fails the txn-shape gate. Pass-through on
+ * URL parse error.
+ * @param url - Captured URL.
+ * @returns True when both aliases are present in the query string.
+ */
+function hasWindowParams(url: string): boolean {
+  const parsed = safeParseWindowUrl(url);
+  if (parsed === false) return false;
+  const keyIter = parsed.searchParams.keys();
+  const keys = Array.from(keyIter);
+  const hasFrom = keys.some((key): boolean => WINDOW_FROM_KEYS.has(key));
+  if (!hasFrom) return false;
+  const hasTo = keys.some((key): boolean => WINDOW_TO_KEYS.has(key));
+  return hasTo;
+}
 
 /**
  * Emit one canonical structured event per `discoverShapeAware` call.
@@ -297,9 +513,23 @@ interface ITierPickOutcome {
 /**
  * Run the shape-aware tier preference over a single candidate pool
  * (post-click or pre-click). Returns the chosen endpoint with its
- * tier label, or `none` when the pool yields no usable URL.
+ * tier label, or `none` when the pool yields no URL match at all.
  * Rejects dashboard-widget URLs (M4.F2) via {@link isTxnWidgetUrl}
  * before scoring so widgets never reach SCRAPE.
+ *
+ * <p>Phase H' (2026-05-15, refined after live Hapoalim trace) —
+ * the `urlOnlyMatch` tier (last-resort pick) is restricted to
+ * <em>2xx-no-body</em> responses (e.g. 204 No Content for a dormant
+ * 30-day window). A captured response with a populated body that
+ * fails the txn-shape gate is NOT a transaction endpoint — it is a
+ * sibling URL like Hapoalim's `?type=totals&view=future` summary
+ * GET which matches the same WK pattern but carries no txn array.
+ * Picking such a URL via `urlOnlyMatch` would commit the wrong
+ * endpoint and silently produce zero-txn scrapes. The picker
+ * therefore falls through to `tier:'none'` on populated-but-
+ * non-matching bodies, letting DASHBOARD.FINAL fail loud per the
+ * user-locked principle "the dashboard ensures it has the values;
+ * if not, signal LOUD".
  *
  * @param pool - Candidate captured endpoints to consider.
  * @param patterns - WellKnown URL patterns to match.
@@ -323,6 +553,20 @@ function tierPick(
   }
   if (shapePassing.length > 0) {
     return { endpoint: shapePassing[0], tier: 'shapePassing', matches };
+  }
+  const emptyBodyMatch = urlMatches.find((ep): boolean => ep.responseBody === null);
+  if (emptyBodyMatch) {
+    return { endpoint: emptyBodyMatch, tier: 'urlOnlyMatch', matches };
+  }
+  // Phase H'' (2026-05-15): Hapoalim dormant-account rescue — pick a
+  // populated-body URL whose searchParams expose the canonical
+  // fromDate/toDate WK aliases. SCRAPE then writes the live window
+  // via `applyDateRangeToUrl`; the detector tuple supplied through
+  // `fc.dateWindowParams` covers the APPEND case when aliases are
+  // absent from the captured URL.
+  const windowParamsHit = urlMatches.find((ep): boolean => hasWindowParams(ep.url));
+  if (windowParamsHit) {
+    return { endpoint: windowParamsHit, tier: 'windowParamsMatch', matches };
   }
   return { endpoint: false, tier: 'none', matches };
 }
@@ -797,6 +1041,37 @@ function extractSpaHeaders(captured: readonly IDiscoveredEndpoint[]): Record<str
   const count = String(spaOnly.length);
   LOG.debug({ message: `spaHeaders: ${count} custom headers from txn endpoint` });
   return Object.fromEntries(spaOnly);
+}
+
+/**
+ * Case-insensitive presence check: does the SPA-extracted header set
+ * already carry ANY of the names in `headerNames`? Used to gate the
+ * bank-specific fallback layers (Referer / X-Site-Id from
+ * `discoverHeaderValue`) so they skip themselves when the captured
+ * pool already provides the header — avoiding duplicate-header
+ * rejection (VisaCal 401 regression, 15-05-2026 run `14093991`:
+ * SCRAPE sent both `x-site-id` and `X-Site-Id` → 401 Unauthorized;
+ * Hapoalim's 302 fix proved Referer needs the same guard).
+ *
+ * `headerNames` MUST come from WK (`REFERER_HEADERS` / `SITE_ID_HEADERS`)
+ * — never hardcode literals. Captures arrive lowercase (HTTP/2 wire
+ * shape); explicit overrides use mixed case; both must be observed.
+ *
+ * @param spaBase - SPA-extracted headers.
+ * @param headerNames - WK alias list to check against (any-of).
+ * @returns True when any case-variant of any listed name is present.
+ */
+function spaHasAny(
+  spaBase: Readonly<Record<string, string>>,
+  headerNames: readonly string[],
+): boolean {
+  const lowered = headerNames.map((n): string => n.toLowerCase());
+  const targets = new Set(lowered);
+  const spaKeys = Object.keys(spaBase);
+  return spaKeys.some((k): boolean => {
+    const keyLower = k.toLowerCase();
+    return targets.has(keyLower);
+  });
 }
 
 /** WellKnown transaction URL query params for full history. */
@@ -1329,14 +1604,21 @@ function createNetworkDiscovery(page: Page, opts: INetworkDiscoveryOpts = {}): I
      * @returns Fetch options with auth + origin + site-id.
      */
     buildDiscoveredHeaders: async (): Promise<IFetchOpts> => {
-      const extraHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      // Captured SPA headers are the SINGLE source of truth — no
+      // hardcoded Content-Type, no defaults. extractSpaHeaders now
+      // preserves the captured `content-type` and `referer` so the
+      // request shape replays exactly as the SPA sent it. The bank-
+      // specific Origin / Site-Id / authorization layers stack on
+      // top only when the SPA didn't capture an equivalent value.
+      const spaBase = extractSpaHeaders(captured);
+      const extraHeaders: Record<string, string> = { ...spaBase };
       const auth = await cachedDiscoverAuth();
       if (auth) extraHeaders.authorization = auth;
       const origin = originDiscover.discoverOrigin();
       if (origin) extraHeaders.Origin = origin;
-      if (origin) extraHeaders.Referer = origin;
+      if (origin && !spaHasAny(spaBase, REFERER_HEADERS)) extraHeaders.Referer = origin;
       const siteId = originDiscover.discoverSiteId();
-      if (siteId) extraHeaders['X-Site-Id'] = siteId;
+      if (siteId && !spaHasAny(spaBase, SITE_ID_HEADERS)) extraHeaders['X-Site-Id'] = siteId;
       return { extraHeaders };
     },
   };
@@ -1495,17 +1777,19 @@ function buildFrozenHeaders(
     cacheAuthToken: (): Promise<string | false> => Promise.resolve(cachedAuth),
     /** @inheritdoc */
     buildDiscoveredHeaders: (): Promise<IFetchOpts> => {
+      // Captured SPA headers are the SINGLE source of truth — see
+      // LIVE counterpart for rationale. No hardcoded Content-Type:
+      // the captured `content-type` (Hapoalim:
+      // `application/json;charset=UTF-8`) and `referer` (full SPA
+      // path) survive extractSpaHeaders and replay exactly.
       const spaBase = extractSpaHeaders(captured);
-      const extraHeaders: Record<string, string> = {
-        ...spaBase,
-        'Content-Type': 'application/json',
-      };
+      const extraHeaders: Record<string, string> = { ...spaBase };
       if (cachedAuth) extraHeaders.authorization = cachedAuth;
       const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
       if (origin) extraHeaders.Origin = origin;
-      if (origin) extraHeaders.Referer = origin;
+      if (origin && !spaHasAny(spaBase, REFERER_HEADERS)) extraHeaders.Referer = origin;
       const siteId = discoverHeaderValue(captured, SITE_ID_HEADERS);
-      if (siteId) extraHeaders['X-Site-Id'] = siteId;
+      if (siteId && !spaHasAny(spaBase, SITE_ID_HEADERS)) extraHeaders['X-Site-Id'] = siteId;
       return Promise.resolve({ extraHeaders });
     },
   };

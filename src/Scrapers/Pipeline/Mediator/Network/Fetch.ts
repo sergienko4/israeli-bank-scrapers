@@ -364,14 +364,19 @@ interface IPostEvaluateArgs {
  * @returns [responseText, statusCode].
  */
 async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, number]> {
+  // No hardcoded headers: `args.innerExtraHeaders` (built by
+  // `buildDiscoveredHeaders` from captured SPA traffic) is the
+  // single source of truth for Content-Type / Referer / X-XSRF-
+  // TOKEN / pageUuid / etc. Hapoalim rejects (302) any mismatch
+  // between the SPA's captured shape and the replayed POST —
+  // live evidence: run 15-05-2026 — hardcoded `Content-Type`
+  // value collided with captured `content-type`; only the
+  // captured value gets the API to 200.
   const response = await fetch(args.innerUrl, {
     method: 'POST',
     body: args.innerDataJson,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      ...args.innerExtraHeaders,
-    },
+    headers: { ...args.innerExtraHeaders },
   });
   if (response.status === 204) return ['', 204] as const;
   return [await response.text(), response.status] as const;
@@ -388,6 +393,18 @@ async function runPostEvaluate(
   context: Page | Frame,
   args: IPostEvaluateArgs,
 ): Promise<readonly [string, number]> {
+  // Temporary diagnostic — Phase H'' VisaCal 401 investigation
+  // 15-05-2026: print the EXACT header set we hand to the browser
+  // fetch so we can compare against the SPA's captured request.
+  const headerNames = Object.keys(args.innerExtraHeaders).sort((a, b): number =>
+    a.localeCompare(b),
+  );
+  LOG.debug({
+    event: 'doPostFetch.headers',
+    url: args.innerUrl,
+    headerNames,
+    bodyLen: args.innerDataJson.length,
+  });
   return context.evaluate(doPostFetch, args);
 }
 

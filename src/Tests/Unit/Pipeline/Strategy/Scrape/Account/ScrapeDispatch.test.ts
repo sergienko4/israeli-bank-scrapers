@@ -257,7 +257,16 @@ describe('ScrapeDispatch per-account timeout helpers', () => {
        */
       discoverTransactionsEndpoint: (): false => false,
     });
-    const fc: IAccountFetchCtx = { api, network, startDate: '20260101' };
+    // Phase H'' (2026-05-15): supply a non-empty `txnEndpoint.url` so the
+    // dormant short-circuit in `scrapeOneAccountViaUrl` doesn't fire —
+    // this test exercises the per-account timeout path on a real fetch,
+    // not the dormant rescue path (which returns success-empty without
+    // ever fetching, per spec.txt:162).
+    const txnEndpoint: ITxnEndpoint = {
+      ...EMPTY_TXN_ENDPOINT,
+      url: 'https://example.com/txn',
+    };
+    const fc: IAccountFetchCtx = { api, network, startDate: '20260101', txnEndpoint };
     const result = await __dispatchWithTimeout({
       fc,
       accountId: 'a1',

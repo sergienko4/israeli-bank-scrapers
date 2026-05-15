@@ -8,7 +8,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
+import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -16,6 +16,7 @@ import { fail, isOk } from '../../Types/Procedure.js';
 import {
   buildAccountResult,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   rateLimitPause,
 } from './ScrapeDataActions.js';
@@ -65,7 +66,11 @@ async function scrapeOneBillingChunk(
   const body = { cardUniqueId: ctx.accountId, month, year };
   const chunkStart = new Date(chunk.start);
   const chunkEnd = new Date(chunk.end);
-  const patchedUrl = applyDateRangeToUrl(ctx.billingUrl, chunkStart, chunkEnd);
+  const patchedUrl = applyDateRangeAndAppend(ctx.billingUrl, {
+    fromDate: chunkStart,
+    toDate: chunkEnd,
+    windowParams: ctx.fc.dateWindowParams ?? [],
+  });
   const maskedUrl = maskVisibleText(patchedUrl);
   LOG.debug({
     message: `billing chunk m=${month} y=${year} url=${maskedUrl}`,
@@ -137,7 +142,8 @@ async function buildBillingResult(
   allTxns: readonly ITransaction[],
 ): Promise<Procedure<ITransactionsAccount>> {
   const startMs = ctx.startDate.getTime();
-  const unique = deduplicateTxns(allTxns, startMs);
+  const keyFields = ctx.fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(allTxns, startMs, keyFields);
   const assembly: IAccountAssemblyCtx = {
     fc: ctx.fc,
     accountId: ctx.post.accountId,

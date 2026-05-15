@@ -16,6 +16,7 @@ import {
   buildAccountResult,
   buildFilterDataUrl,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   rateLimitPause,
 } from '../ScrapeDataActions.js';
@@ -119,7 +120,8 @@ async function scrapeViaFilterData(
   );
   await chain;
   const startMs = startDate.getTime();
-  const unique = deduplicateTxns(allTxns, startMs);
+  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(allTxns, startMs, keyFields);
   LOG.debug({ message: `${String(unique.length)} txns after dedup` });
   return buildAccountResult({ fc, accountId, displayId: accountId }, unique);
 }

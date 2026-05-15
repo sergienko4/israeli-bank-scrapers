@@ -1,0 +1,36 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "204-empty-window",
+    "captureRunId": "14-05-2026_22025803",
+    "rationale": "Live local reproduction 2026-05-14 22:02 IL — account 00-000-000000 had its only recent salary fall outside the bank-SPA-default 30-day window, so the canonical transactions endpoint returned 204 No Content. The picker currently rejects 2xx-no-body responses and DASHBOARD.FINAL fails loud (DASHBOARD_TXN_FIELDMAP_INCOMPLETE) even though URL + method + WK aliases are sufficient for SCRAPE to re-query with a wider window. This fixture is the RED row that drives the picker fix.",
+    "expected": {
+      "dashboardTxnUrl": "https://login.bankhapoalim.co.il/ServerServices/current-account/transactions?numItemsPerPage=150&sortCode=1&retrievalEndDate=20260515&retrievalStartDate=20260415&accountId=00-000-000000&lang=he",
+      "dashboardTxnMethod": "POST",
+      "dashboardPickerTier": "urlOnlyMatch"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://login.bankhapoalim.co.il/authorize/account/roles?refresh=false&lang=he",
+      "method": "POST",
+      "postData": "",
+      "status": 200,
+      "responseBody": { "roles": [] }
+    },
+    {
+      "url": "https://login.bankhapoalim.co.il/ServerServices/current-account/composite/balanceAndCreditLimit?partyCurrentAccount=00-000-000000&lang=he",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": { "balance": 150.0, "creditLimit": 0 }
+    },
+    {
+      "url": "https://login.bankhapoalim.co.il/ServerServices/current-account/transactions?numItemsPerPage=150&sortCode=1&retrievalEndDate=20260515&retrievalStartDate=20260415&accountId=00-000-000000&lang=he",
+      "method": "POST",
+      "postData": "",
+      "status": 204,
+      "responseBody": null
+    }
+  ]
+}

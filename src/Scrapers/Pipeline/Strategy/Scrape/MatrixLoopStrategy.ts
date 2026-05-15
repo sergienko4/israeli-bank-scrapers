@@ -13,7 +13,7 @@ import {
   generateMonthChunks,
   isMonthlyEndpoint,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { applyDateRangeToUrl } from '../../Mediator/Scrape/UrlDateRange.js';
+import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IBillingCycle } from '../../Types/PipelineContext.js';
@@ -22,6 +22,7 @@ import { isOk } from '../../Types/Procedure.js';
 import {
   buildAccountResult,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   rateLimitPause,
 } from './ScrapeDataActions.js';
@@ -89,7 +90,11 @@ async function fetchMatrixChunk(
     };
     const body = buildMonthBody(opts) as Record<string, string | object>;
     const monthEnd = new Date(yearNum, monthNum, 0);
-    const patchedUrl = applyDateRangeToUrl(ctx.txnUrl, chunkDate, monthEnd);
+    const patchedUrl = applyDateRangeAndAppend(ctx.txnUrl, {
+      fromDate: chunkDate,
+      toDate: monthEnd,
+      windowParams: ctx.args.fc.dateWindowParams ?? [],
+    });
     const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(patchedUrl, body);
     if (!isOk(raw)) return [];
     const fieldMap = (ctx.args.fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;
@@ -137,7 +142,8 @@ async function tryMatrixLoop(
   // this call the concatenated `allTxns` carried N copies of each
   // pending row — one per iterated chunk — into `account.txns[]`.
   const startMs = parseStartDate(args.fc.startDate).getTime();
-  const unique = deduplicateTxns(allTxns, startMs);
+  const keyFields = args.fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(allTxns, startMs, keyFields);
   LOG.debug({ accounts: 1, rawTxns: allTxns.length, uniqueTxns: unique.length });
   const assembly: IAccountAssemblyCtx = {
     fc: args.fc,

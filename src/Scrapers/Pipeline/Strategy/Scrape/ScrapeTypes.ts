@@ -94,6 +94,26 @@ interface IAccountFetchCtx {
    * strategies fall back to `EMPTY_TXN_HARVEST` when omitted.
    */
   readonly dashboardTxnHarvest?: IDashboardTxnHarvest;
+  /**
+   * Phase G: per-card dedup-key field tuple sourced from
+   * `harvest.dedupKeyFieldsByAccount`. SCRAPE.PRE plucks the
+   * applicable tuple for the current iteration before handing fc to
+   * strategies. Optional at type level so legacy tests stay terse —
+   * production always populates. Strategies use a one-line ergonomic
+   * default `['identifier']` when absent.
+   */
+  readonly dedupKeyFields?: readonly string[];
+  /**
+   * Phase H'' (2026-05-15): WK-aliased `[fromAlias, toAlias]` URL
+   * parameter tuple sourced from
+   * `harvest.dateWindowParamsByAccount`. SCRAPE.PRE plucks the tuple
+   * for the current iteration; strategies pass it into
+   * `applyDateRangeToUrl` so the per-cycle window query is built with
+   * the bank's actual WK alias names. Optional at type level — when
+   * absent, `applyDateRangeToUrl` keeps its replace-only semantics
+   * (no append) so non-Hapoalim banks are unaffected.
+   */
+  readonly dateWindowParams?: readonly string[];
 }
 
 /** Bundled options for fetching one account. */

@@ -110,23 +110,119 @@ function safeParseUrl(input: string): URL | false {
   }
 }
 
+/** Bundled date range shared by every patch context. */
+interface IDateRange {
+  readonly fromDate: Date;
+  readonly toDate: Date;
+}
+
+/**
+ * Phase H'' (2026-05-15) — bundled date range with the detector's
+ * WK-aliased `[fromAlias, toAlias]` tuple. Drives the rescue APPEND
+ * branch in {@link patchUrl} so dormant-account dashboards where the
+ * SPA omits the txn-range params still produce a date-window-aware
+ * URL on replay.
+ */
+interface IDateRangeWithWindow extends IDateRange {
+  readonly windowParams: readonly string[];
+}
+
+/**
+ * True when the URL's search params already carry both a WK fromDate
+ * alias AND a WK toDate alias (any names from {@link WK.fromDate} /
+ * {@link WK.toDate}). Used by {@link appendMissingAliases} to skip
+ * the append step when {@link applyDateRangeToUrl} already
+ * substituted the URL's existing aliases — otherwise appending the
+ * detector's tuple aliases produces conflicting param schemes that
+ * the bank may reject with 302 redirect.
+ *
+ * <p>Live regression evidence — Hapoalim run `15-05-2026_11414346`:
+ * URL had `retrievalStartDate`/`retrievalEndDate` (WK aliases). The
+ * detector emitted tuple `['startDate', 'endDate']` (from a sibling
+ * `?type=totals&view=future` body). Appending `startDate`/`endDate`
+ * on top of the substituted `retrievalStartDate`/`retrievalEndDate`
+ * produced both alias schemes simultaneously → bank 302'd → SCRAPE
+ * extracted 0 txns.
+ *
+ * @param params - URL search params to inspect.
+ * @returns True when both a WK fromDate alias and a WK toDate alias
+ *   are present (in any of their WK names).
+ */
+function urlAlreadyHasWkRange(params: URLSearchParams): boolean {
+  const keyIter = params.keys();
+  const keys = Array.from(keyIter);
+  const hasFrom = keys.some((key): boolean => FROM_KEYS.has(key));
+  if (!hasFrom) return false;
+  const hasTo = keys.some((key): boolean => TO_KEYS.has(key));
+  return hasTo;
+}
+
+/**
+ * Phase H'' (2026-05-15): when the detector emitted a non-empty
+ * WK-aliased tuple but neither alias is present in the captured URL,
+ * APPEND both with options-driven values. Pass-through when either
+ * alias is empty-string or already present in the URL, or when the
+ * URL already carries any WK fromDate + any WK toDate alias (which
+ * means {@link applyDateRangeToUrl} already substituted them — see
+ * {@link urlAlreadyHasWkRange}).
+ * @param params - URL search params (mutated in-place).
+ * @param tuple - Detector tuple `[fromAlias, toAlias]`.
+ * @param range - Bundled date range.
+ * @returns Count of newly appended params (0, 1, or 2).
+ */
+function appendMissingAliases(
+  params: URLSearchParams,
+  tuple: readonly string[],
+  range: IDateRange,
+): number {
+  if (tuple.length < 2) return 0;
+  const [fromAlias, toAlias] = tuple;
+  if (fromAlias === '' || toAlias === '') return 0;
+  if (urlAlreadyHasWkRange(params)) return 0;
+  let appended = 0;
+  if (!params.has(fromAlias)) {
+    const formattedFrom = moment(range.fromDate).format('YYYYMMDD');
+    params.set(fromAlias, formattedFrom);
+    appended += 1;
+  }
+  if (!params.has(toAlias)) {
+    const formattedTo = moment(range.toDate).format('YYYYMMDD');
+    params.set(toAlias, formattedTo);
+    appended += 1;
+  }
+  return appended;
+}
+
+/** Bundled context for {@link patchUrl}. */
+interface IPatchCtx extends IDateRangeWithWindow {
+  readonly input: string;
+}
+
 /**
  * Rewrite WK-known date params on a URL. Pass-through on parse error
- * or when no matching params present.
- * @param input - Captured URL (POST or GET).
- * @param fromDate - Start of range (options.startDate).
- * @param toDate - End of range (today).
+ * or when no matching params present. When `windowParams` carries a
+ * non-empty `[fromAlias, toAlias]` tuple emitted by the date-window
+ * detector, also APPEND those aliases if missing — covers Hapoalim
+ * dormant-account URLs where the SPA omits the txn-range params.
+ * @param ctx - Bundled patch context.
  * @returns Patch outcome with the (possibly mutated) URL + swap count.
  */
-function patchUrl(input: string, fromDate: Date, toDate: Date): IPatchOutcome {
-  const parsed = safeParseUrl(input);
-  if (parsed === false) return { url: input, swapped: 0 };
+function patchUrl(ctx: IPatchCtx): IPatchOutcome {
+  const parsed = safeParseUrl(ctx.input);
+  if (parsed === false) return { url: ctx.input, swapped: 0 };
   let total = 0;
   const keyIter = parsed.searchParams.keys();
   const keys = Array.from(keyIter);
   for (const key of keys) {
-    total += swapOneParam({ params: parsed.searchParams, key, fromDate, toDate });
+    total += swapOneParam({
+      params: parsed.searchParams,
+      key,
+      fromDate: ctx.fromDate,
+      toDate: ctx.toDate,
+    });
   }
+  const range: IDateRange = { fromDate: ctx.fromDate, toDate: ctx.toDate };
+  total += appendMissingAliases(parsed.searchParams, ctx.windowParams, range);
   return { url: parsed.toString(), swapped: total };
 }
 
@@ -144,7 +240,7 @@ export function applyDateRangeToUrl(
   fromDate: Date,
   toDate: Date,
 ): DateRangeAppliedUrl {
-  const outcome = patchUrl(input, fromDate, toDate);
+  const outcome = patchUrl({ input, fromDate, toDate, windowParams: [] });
   return outcome.url as DateRangeAppliedUrl;
 }
 
@@ -161,5 +257,37 @@ export function applyDateRangeToUrlWithCount(
   fromDate: Date,
   toDate: Date,
 ): IPatchOutcome {
-  return patchUrl(input, fromDate, toDate);
+  return patchUrl({ input, fromDate, toDate, windowParams: [] });
+}
+
+/**
+ * Phase H'' (2026-05-15) variant — apply the date range AND APPEND
+ * the detector's WK-aliased `[fromAlias, toAlias]` tuple when neither
+ * alias is present in the captured URL. Used by SCRAPE strategies
+ * after SCRAPE.PRE plucked the tuple from
+ * `harvest.dateWindowParamsByAccount`.
+ * @param input - Captured URL.
+ * @param range - Bundled range with `windowParams` tuple.
+ * @returns Rewritten URL string.
+ */
+export function applyDateRangeAndAppend(
+  input: string,
+  range: IDateRangeWithWindow,
+): DateRangeAppliedUrl {
+  const outcome = patchUrl({ ...range, input });
+  return outcome.url as DateRangeAppliedUrl;
+}
+
+/**
+ * Phase H'' (2026-05-15) variant returning swap count — see
+ * {@link applyDateRangeAndAppend} for semantics.
+ * @param input - Captured URL.
+ * @param range - Bundled range with `windowParams` tuple.
+ * @returns Bundled outcome.
+ */
+export function applyDateRangeAndAppendWithCount(
+  input: string,
+  range: IDateRangeWithWindow,
+): IPatchOutcome {
+  return patchUrl({ ...range, input });
 }

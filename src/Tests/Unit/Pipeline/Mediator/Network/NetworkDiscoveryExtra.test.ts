@@ -93,11 +93,17 @@ describe('NetworkDiscovery — content + auth + headers', () => {
     expect(token === false || typeof token === 'string').toBe(true);
   });
 
-  it('buildDiscoveredHeaders returns fetch opts with content-type', async () => {
+  it('buildDiscoveredHeaders returns fetch opts with extraHeaders object', async () => {
+    // Phase H'' contract: no hardcoded Content-Type. With no
+    // captures, extraHeaders is an empty object; the shape
+    // (extraHeaders is a Record<string,string>) is the only
+    // invariant.
     const page = makeMockPage();
     const discovery = createNetworkDiscovery(page);
     const opts = await discovery.buildDiscoveredHeaders();
-    expect(opts.extraHeaders['Content-Type']).toBe('application/json');
+    expect(typeof opts.extraHeaders).toBe('object');
+    expect(opts.extraHeaders['Content-Type']).toBeUndefined();
+    expect(opts.extraHeaders['content-type']).toBeUndefined();
   });
 
   it('cacheAuthToken returns false when nothing to cache', async () => {

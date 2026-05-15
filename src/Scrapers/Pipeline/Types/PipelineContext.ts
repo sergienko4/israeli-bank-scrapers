@@ -656,7 +656,14 @@ interface ITxnEndpointInternal {
  * tier order and emits one of these labels per `discover.shapeAware`
  * event so the chosen URL's provenance is traceable from logs.
  */
-type PickerTier = 'postWithShape' | 'replayablePost' | 'shapePassing' | 'preClickFallback' | 'none';
+type PickerTier =
+  | 'postWithShape'
+  | 'replayablePost'
+  | 'shapePassing'
+  | 'preClickFallback'
+  | 'urlOnlyMatch'
+  | 'windowParamsMatch'
+  | 'none';
 
 /**
  * DASHBOARD harvest committed by DASHBOARD.FINAL on a separate
@@ -686,6 +693,43 @@ interface IDashboardTxnHarvest {
   readonly records: readonly ITransaction[];
   readonly capturedAccountId: string | false;
   readonly multiAccountScope: boolean;
+  /**
+   * Per-account dedup-key field tuple. Maps an accountId (or `''`
+   * sentinel for unscoped captures) to the list of
+   * {@link ITransaction} field names SCRAPE must use to dedup that
+   * account's rows.
+   *
+   * <p>Typical contents are `['identifier']` when every row in
+   * the account's harvest carries a distinct per-txn identifier, or
+   * `['date', 'identifier', 'originalAmount']` when the
+   * identifier collides across rows (Beinleumi's `reference` field
+   * is a transaction-TYPE code shared across recurring monthly txns).
+   *
+   * <p>DASHBOARD picks the tuple by shape inspection on the
+   * normalized-records sample (see
+   * {@link ./../Mediator/Dashboard/DedupKeyFieldsDetector}); the
+   * detector skips empty harvests and multi-scope captures, so the
+   * map is empty in those cases. SCRAPE consumers fall back to
+   * `['identifier']` when the map is empty (legacy/test ergonomics).
+   */
+  readonly dedupKeyFieldsByAccount?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * Phase H'' (2026-05-15): per-account WK-aliased date-window URL
+   * parameter tuple. Maps an accountId (or `''` sentinel) to a
+   * two-element `[fromAlias, toAlias]` array of WK.fromDate /
+   * WK.toDate names the bank actually uses on its txn URL / response
+   * body. SCRAPE consumes this to drive `applyDateRangeToUrl` window
+   * injection — when SCRAPE has a captured txn URL that's missing the
+   * date-range params, it APPENDS them using the aliases from this
+   * tuple. Empty / absent → no append (no-op for banks whose
+   * captured URLs already carry WK-aliased date params explicitly).
+   *
+   * <p>DASHBOARD picks the tuple via shape inspection on the
+   * captured pool (see
+   * {@link ./../Mediator/Dashboard/DateWindowParamsDetector}). Zero
+   * bank-name knowledge — WK aliases drive the matching.
+   */
+  readonly dateWindowParamsByAccount?: ReadonlyMap<string, readonly [string, string]>;
 }
 
 /** Scrape phase discovery — qualification results from PRE step. */

@@ -1,0 +1,36 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "dormant-window-totals",
+    "captureRunId": "synthetic-2026-05-15",
+    "rationale": "Phase H'' — Hapoalim dormant-account dashboard where the SPA fires only the canonical transactions endpoint as GET with a populated 200 body that fails the txn-shape gate (server returns a summary stub instead of the expected `transactions` array because the bank-SPA-default 30-day window is empty). The captured URL still exposes the canonical WK fromDate/toDate aliases (retrievalStartDate, retrievalEndDate) so the `windowParamsMatch` picker tier rescues the pick and SCRAPE re-queries with a wider window via `applyDateRangeToUrl`. Account number redacted per project PII policy.",
+    "expected": {
+      "dashboardTxnUrl": "https://login.bankhapoalim.co.il/ServerServices/current-account/transactions?numItemsPerPage=150&sortCode=1&retrievalEndDate=20260515&retrievalStartDate=20260415&accountId=00-000-000000&lang=he",
+      "dashboardTxnMethod": "GET",
+      "dashboardPickerTier": "windowParamsMatch"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://login.bankhapoalim.co.il/authorize/account/roles?refresh=false&lang=he",
+      "method": "POST",
+      "postData": "",
+      "status": 200,
+      "responseBody": { "roles": [] }
+    },
+    {
+      "url": "https://login.bankhapoalim.co.il/ServerServices/current-account/composite/balanceAndCreditLimit?partyCurrentAccount=00-000-000000&lang=he",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": { "balance": 150.0, "creditLimit": 0 }
+    },
+    {
+      "url": "https://login.bankhapoalim.co.il/ServerServices/current-account/transactions?numItemsPerPage=150&sortCode=1&retrievalEndDate=20260515&retrievalStartDate=20260415&accountId=00-000-000000&lang=he",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": { "summary": { "balance": 150.0, "lastTransactionDate": "20260315" } }
+    }
+  ]
+}

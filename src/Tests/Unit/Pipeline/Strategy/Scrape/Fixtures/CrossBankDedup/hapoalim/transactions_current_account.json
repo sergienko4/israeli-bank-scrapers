@@ -1,0 +1,97 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "shape": "current-account/transactions POST (Hapoalim eventDate/referenceNumber/eventAmount/activityDescription)",
+    "expectedMethod": "POST",
+    "expectedRecords": 1,
+    "expectedDedupKeyFields": ["identifier"],
+    "expectedUniqueCount": 1,
+    "startDate": "20250101",
+    "rationale": "Hapoalim referenceNumber is unique per txn in this 30-day window; shape detector picks [identifier].",
+    "_traceSource": "PII-redacted clone of a real Hapoalim capture (30-day window). activityDescription masked. beneficiaryDetailsData party fields blanked. contra* account/bank/branch zeroed. Amounts, dates, referenceNumber kept RAW."
+  },
+  "captures": [
+    {
+      "url": "https://login.bankhapoalim.example/ServerServices/current-account/transactions?accountId=12-170-111111",
+      "method": "POST",
+      "captureIndex": 49,
+      "responseBody": {
+        "retrievalTransactionData": {
+          "bankNumber": 12,
+          "retrievalMinDate": 20240514,
+          "formattedRetrievalMinDate": "2024-05-14T00:00:00.000Z",
+          "retrievalMaxDate": 20260514,
+          "formattedRetrievalMaxDate": "2026-05-14T00:00:00.000Z",
+          "retrievalStartDate": 20260414,
+          "formattedRetrievalStartDate": "2026-04-14T00:00:00.000Z",
+          "retrievalEndDate": 20260514,
+          "formattedRetrievalEndDate": "2026-05-14T00:00:00.000Z",
+          "balanceAmountDisplayIndication": "Y",
+          "branchNumber": 170,
+          "accountNumber": 0,
+          "joinPfm": true,
+          "eventCounter": 1
+        },
+        "transactions": [
+          {
+            "eventDate": 20260414,
+            "formattedEventDate": "2026-04-14T00:00:00.000Z",
+            "serialNumber": 1,
+            "activityTypeCode": 159,
+            "activityDescription": "FAKE Merchant 1 (hapoalim)",
+            "activityDescriptionIncludeValueDate": null,
+            "textCode": 7,
+            "referenceNumber": 99031330,
+            "referenceCatenatedNumber": 99005,
+            "valueDate": 20260414,
+            "formattedValueDate": "2026-04-14T00:00:00.000Z",
+            "eventAmount": 150,
+            "formattedEventAmount": "150.00",
+            "eventActivityTypeCode": 1,
+            "currentBalance": 150,
+            "formattedCurrentBalance": "150.00",
+            "internalLinkCode": 0,
+            "originalEventCreateDate": 20260414,
+            "formattedOriginalEventCreateDate": null,
+            "transactionType": "REGULAR",
+            "dataGroupCode": 2,
+            "beneficiaryDetailsData": {
+              "partyName": "FAKE",
+              "messageHeadline": null,
+              "partyHeadline": "",
+              "messageDetail": null,
+              "beneficiaryDetails": "",
+              "tableNumber": 5,
+              "recordNumber": 1
+            },
+            "expandedEventDate": "2026041400001",
+            "executingBranchNumber": 0,
+            "eventId": 74141136,
+            "details": null,
+            "pfmDetails": "",
+            "differentDateIndication": "N",
+            "rejectedDataEventPertainingIndication": "N",
+            "tableNumber": 5,
+            "recordNumber": 1,
+            "contraBankNumber": 0,
+            "contraBranchNumber": 0,
+            "contraAccountNumber": 0,
+            "contraAccountTypeCode": 0,
+            "marketingOfferContext": 0,
+            "commentExistenceSwitch": 0,
+            "englishActionDesc": "",
+            "fieldDescDisplaySwitch": 0,
+            "offerActivityContext": "",
+            "comment": null,
+            "displayCreditAccountDetails": 0,
+            "displayRTGSIncomingTrsDetails": 0
+          }
+        ],
+        "comments": [],
+        "message": [],
+        "numItemsPerPage": 150,
+        "pdfUrl": "%2FServerServices%2Fgeneral%2Fpdf%2Fstream%3Fcid%3Dd5ed7478-a3ed-40df-8e71-7e875a934dbb%26isHtml%3Dfalse"
+      }
+    }
+  ]
+}

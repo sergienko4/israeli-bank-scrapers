@@ -268,6 +268,30 @@ describe('buildTxnHarvest', () => {
     expect(harvest.records).toBe(internal.normalizedRecords);
   });
 
+  it("emits dateWindowParamsByAccount tuple when pool exposes WK fromDate + toDate (Phase H'')", () => {
+    // Phase H'' (2026-05-15): when the captured pool carries a URL
+    // (or body) with WK fromDate / WK toDate aliases, the harvest
+    // emits a `[fromAlias, toAlias]` tuple keyed by capturedAccountId.
+    // The dormant Hapoalim case fired the txn URL with
+    // `retrievalStartDate=...&retrievalEndDate=...` as URL params; the
+    // detector picks them and the harvest map carries them so
+    // SCRAPE.PRE can plumb them onto `fc.dateWindowParams`.
+    const internal = makeInternal();
+    const pool: readonly { url: string; responseBody: unknown }[] = [
+      {
+        url: 'https://bank.fake.example/api/txns?retrievalStartDate=20260415&retrievalEndDate=20260515&accountId=FAKE-ACCT-1',
+        responseBody: null,
+      },
+    ];
+    const harvest = buildTxnHarvest(internal, 1, pool);
+    expect(harvest.dateWindowParamsByAccount).toBeDefined();
+    const map = harvest.dateWindowParamsByAccount;
+    if (map) {
+      const tuple = map.get('FAKE-ACCT-1');
+      expect(tuple).toEqual(['retrievalStartDate', 'retrievalEndDate']);
+    }
+  });
+
   it('forces multiAccountScope=true when capture is unscoped AND > 1 accounts present (Amex / Isracard regression guard)', () => {
     const internal = makeInternal({
       endpoint: { ...EMPTY_TXN_ENDPOINT, url: 'https://bank.fake.example/api/txns' },

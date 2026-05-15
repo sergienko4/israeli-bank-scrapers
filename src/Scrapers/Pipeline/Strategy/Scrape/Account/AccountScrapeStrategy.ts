@@ -12,7 +12,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
 import { isRangeIterable } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../../Mediator/Scrape/ScrapeReplayAction.js';
-import { applyDateRangeToUrlWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
+import { applyDateRangeAndAppendWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import { redactAccount } from '../../../Types/PiiRedactor.js';
@@ -25,6 +25,7 @@ import { tryMatrixLoop } from '../MatrixLoopStrategy.js';
 import {
   buildAccountResult,
   deduplicateTxns,
+  FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   resolveTxnUrl,
   scrapeWithMonthlyChunking,
@@ -68,7 +69,11 @@ function txnEpForParse(fc: IAccountFetchCtx): ITxnEndpoint['fieldMap'] {
 function patchUrlRange(url: string, fc: IAccountFetchCtx): PatchedUrlStr {
   const fromDate = parseStartDate(fc.startDate);
   const toDate = new Date();
-  const outcome = applyDateRangeToUrlWithCount(url, fromDate, toDate);
+  const outcome = applyDateRangeAndAppendWithCount(url, {
+    fromDate,
+    toDate,
+    windowParams: fc.dateWindowParams ?? [],
+  });
   if (outcome.swapped > 0) {
     LOG.debug({ message: `URL date-range patched (${String(outcome.swapped)} params)` });
   }
@@ -121,7 +126,8 @@ async function scrapePostDirect(
   // through the dedup factory so consumers always receive a canonical
   // unique-by-identifier list.
   const startMs = parseStartDate(fc.startDate).getTime();
-  const unique = deduplicateTxns(txns, startMs);
+  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(txns, startMs, keyFields);
   const assembly: IAccountAssemblyCtx = {
     fc,
     accountId: postCtx.accountId,
@@ -239,7 +245,8 @@ async function tryFirstWave(
   // pending row can appear across capture boundaries on the
   // card-family banks; dedup here mirrors the matrix-loop guarantee.
   const startMs = parseStartDate(fc.startDate).getTime();
-  const unique = deduplicateTxns(txns, startMs);
+  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(txns, startMs, keyFields);
   const assembly: IAccountAssemblyCtx = {
     fc,
     accountId: post.accountId,
@@ -300,7 +307,19 @@ async function scrapeOneAccountViaUrl(
   // SCRAPE never calls network.discoverTransactionsEndpoint() —
   // DASHBOARD owns discovery and the slim contract is the only source.
   const txnEp = fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT;
-  if (txnEp.url !== '' && isFilterDataUrl(txnEp.url)) {
+  // Phase H'' (2026-05-15): DASHBOARD.FINAL committed EMPTY_TXN_ENDPOINT
+  // when the captured pool carried dormant-account evidence — there is
+  // no real txn URL for this account. Short-circuit BEFORE the
+  // network-template fallback (`resolveTxnUrl`), which would otherwise
+  // pull a synthesised URL from a sibling capture and try to fetch
+  // against a non-txn endpoint — surfacing as "API Error" in the audit.
+  // Per spec.txt:162 / spec.txt:717 (A.fix-2.r4): individual dormant
+  // accounts succeed with txns:[]; only the ALL-empty case triggers
+  // the loud signal via `isAllAccountsEmpty` in SCRAPE.POST.
+  if (txnEp.url === '') {
+    return buildAccountResult({ fc, accountId, displayId: accountId }, []);
+  }
+  if (isFilterDataUrl(txnEp.url)) {
     return scrapeViaFilterData(fc, accountId, txnEp.url);
   }
   const urlCtx = { api: fc.api, network: fc.network, accountId, startDate: fc.startDate };
@@ -316,7 +335,8 @@ async function scrapeOneAccountViaUrl(
   // arrays still carry cross-page echoes when the bank paginates;
   // dedup at the assembly boundary collapses them.
   const startMs = parseStartDate(fc.startDate).getTime();
-  const unique = deduplicateTxns(txns, startMs);
+  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
+  const unique = deduplicateTxns(txns, startMs, keyFields);
   return buildAccountResult({ fc, accountId, displayId: accountId, rawRecord: raw.value }, unique);
 }
 

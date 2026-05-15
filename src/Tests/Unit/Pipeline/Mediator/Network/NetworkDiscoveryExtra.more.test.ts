@@ -189,8 +189,10 @@ describe('NetworkDiscovery — frozen network headers merge', () => {
     expect(opts.extraHeaders.authorization).toBe('Bearer tok');
     expect(opts.extraHeaders.Origin).toBe('https://spa.bank.co.il');
     expect(opts.extraHeaders['x-custom-hdr']).toBe('abc');
-    // user-agent is browser-standard → filtered out of SPA merge
-    expect(opts.extraHeaders['user-agent']).toBeUndefined();
+    // Phase H'' minimal-filter contract: user-agent is NOT in the
+    // browserStandard drop set anymore — some banks (VisaCal)
+    // validate User-Agent shape, so the captured value propagates.
+    expect(opts.extraHeaders['user-agent']).toBe('standard');
   });
 });
 

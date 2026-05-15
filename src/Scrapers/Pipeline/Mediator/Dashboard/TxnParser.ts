@@ -22,6 +22,8 @@ import type {
   ITxnFieldMap,
 } from '../../Types/PipelineContext.js';
 import { extractTransactions } from '../Scrape/ScrapeAutoMapper.js';
+import detectDateWindowParams, { type IDateWindowProbeInput } from './DateWindowParamsDetector.js';
+import detectDedupKeyFields from './DedupKeyFieldsDetector.js';
 
 /** Bundled date-range argument for {@link buildPerAccountBody}. */
 interface IPerAccountBodyRange {
@@ -252,45 +254,129 @@ function extractAccountIdFromUrl(url: string): string | false {
 }
 
 /**
- * Build the DASHBOARD-side TXN harvest from the internal resolver
- * payload. The harvest carries the pre-extracted records DASHBOARD
- * normalized during its capture, plus the scope metadata SCRAPE
- * needs to decide whether the records can be attributed to one
- * iteration's accountId.
+ * Sentinel key used in `dedupKeyFieldsByAccount` for harvests that
+ * captured an unscoped response (no per-account id in URL/body).
+ */
+const UNSCOPED_ACCOUNT_KEY = '';
+
+/**
+ * Resolves the lookup key for a harvest's dedup-key map entry —
+ * the captured accountId when set, or `UNSCOPED_ACCOUNT_KEY` for
+ * captures with no account in the URL/body.
  *
- * <p>Mirrors the way ACCOUNT-RESOLVE builds {@link IAccountDiscovery}
- * — the phase that captured the response also normalizes the records
- * and commits them as a clean value type. SCRAPE consumes
- * `readonly ITransaction[]` without seeing the captured body or any
- * `IDiscoveredEndpoint` shape.
+ * @param capturedAccountId - The account id from the URL/body, or
+ *   `false` when unscoped.
+ * @returns Map key (non-empty accountId or sentinel).
+ */
+function resolveDedupKeyMapKey(capturedAccountId: string | false): string {
+  if (capturedAccountId === false) return UNSCOPED_ACCOUNT_KEY;
+  return capturedAccountId;
+}
+
+/**
+ * Builds the per-account dedup-key map for a harvest. Returns an
+ * empty map when SCRAPE cannot reuse the harvest (multi-scope) or
+ * when the harvest is empty — both cases skip the detector because
+ * its output would be unused.
  *
- * <p>The `accountIdCount` argument feeds the context-aware scope
- * decision: when DASHBOARD captured an unscoped body (no per-account
- * id in the URL or postData) but ACCOUNT-RESOLVE found more than one
- * account, the harvest is multi-context unsafe — attributing the
- * captured records to any one iteration's accountId would mirror them
- * across siblings. The context-aware decision forces
- * `multiAccountScope=true` in that case so SCRAPE refuses reuse and
- * falls through to fresh per-account fetches.
+ * @param records - Normalized records for the harvest.
+ * @param capturedAccountId - The account id encoded in the captured
+ *   URL/body, or `false` when the capture is unscoped.
+ * @param shouldSkip - When true, the detector is not called
+ *   (multi-scope harvests or empty record sets).
+ * @returns Map keyed by capturedAccountId (or `UNSCOPED_ACCOUNT_KEY`
+ *   for unscoped harvests). Empty map when `shouldSkip` is true.
+ */
+function buildDedupKeyFieldsMap(
+  records: readonly ITransaction[],
+  capturedAccountId: string | false,
+  shouldSkip: boolean,
+): ReadonlyMap<string, readonly string[]> {
+  if (shouldSkip) return new Map();
+  const fields = detectDedupKeyFields(records);
+  const key = resolveDedupKeyMapKey(capturedAccountId);
+  return new Map([[key, fields]]);
+}
+
+/**
+ * Phase H'' — builds the per-account date-window URL-param map from
+ * the captured pool. Mirrors {@link buildDedupKeyFieldsMap} but
+ * sources data from the whole pool (URL search params + top-level
+ * body keys), not just the picked endpoint's records — the WK alias
+ * for a bank's window may live on a sibling capture (e.g. Hapoalim's
+ * `?type=totals&view=future` body carries top-level `startDate` /
+ * `endDate` even when the detail txn POST never fired).
+ *
+ * <p>Returns an empty map when SCRAPE cannot reuse the harvest
+ * (multi-scope) or when no WK alias pair is observed.
+ *
+ * @param pool - Captured pool from `INetworkDiscovery.getAllEndpoints`.
+ * @param capturedAccountId - The account id encoded in the picked
+ *   capture's URL/body, or `false` when unscoped.
+ * @param shouldSkip - When true, the detector is not called.
+ * @returns Map keyed by capturedAccountId; empty map when `shouldSkip`
+ *   is true or no WK alias pair is observed.
+ */
+function buildDateWindowParamsMap(
+  pool: readonly IDateWindowProbeInput[],
+  capturedAccountId: string | false,
+  shouldSkip: boolean,
+): ReadonlyMap<string, readonly [string, string]> {
+  if (shouldSkip) return new Map();
+  const params = detectDateWindowParams(pool);
+  if (params.length < 2) return new Map();
+  const key = resolveDedupKeyMapKey(capturedAccountId);
+  return new Map([[key, [params[0], params[1]]]]);
+}
+
+/**
+ * Builds the DASHBOARD-side TXN harvest from the internal resolver
+ * payload. Mirrors how ACCOUNT-RESOLVE builds {@link IAccountDiscovery}
+ * — the phase that captured the response normalizes the records and
+ * commits them as a clean value type. SCRAPE consumes the resulting
+ * `readonly ITransaction[]` without seeing captured raw bytes.
+ *
+ * <p>Phase G (2026-05-14): every harvest also carries a per-card
+ * `dedupKeyFieldsByAccount` map. The detector runs on the
+ * normalized-records sample (skipped on multi-scope harvests or
+ * empty results) and emits one entry keyed by capturedAccountId
+ * (or `''` sentinel for unscoped captures).
  *
  * @param internal - DASHBOARD-internal resolver result.
- * @param accountIdCount - Number of accounts ACCOUNT-RESOLVE
- *   committed onto `ctx.accountDiscovery.ids`.
- * @returns Harvest committed onto `ctx.dashboardTxnHarvest`.
+ * @param accountIdCount - Accounts ACCOUNT-RESOLVE committed.
+ * @param pool - Captured network pool — handed to the Phase H''
+ *   date-window detector. Defaults to `[]` so legacy tests that
+ *   exercise only the dedup-key detector stay terse.
+ * @returns Harvest payload for `ctx.dashboardTxnHarvest`.
  */
 function buildTxnHarvest(
   internal: ITxnEndpointInternal,
   accountIdCount: number,
+  pool: readonly IDateWindowProbeInput[] = [],
 ): IDashboardTxnHarvest {
   const capturedAccountId = extractAccountIdFromUrl(internal.endpoint.url);
   const isBodyShapeMulti = detectMultiAccountScope(internal.responseBodySample);
   // Context-aware multi-scope: an unscoped capture in a multi-account
   // run cannot be attributed to one iteration without mirroring.
   const isContextMulti = capturedAccountId === false && accountIdCount > 1;
+  const isMultiAccountScope = isBodyShapeMulti || isContextMulti;
+  const shouldSkipDetector = isMultiAccountScope || internal.normalizedRecords.length === 0;
+  const dedupKeyFieldsByAccount = buildDedupKeyFieldsMap(
+    internal.normalizedRecords,
+    capturedAccountId,
+    shouldSkipDetector,
+  );
+  const dateWindowParamsByAccount = buildDateWindowParamsMap(
+    pool,
+    capturedAccountId,
+    isMultiAccountScope,
+  );
   return {
     records: internal.normalizedRecords,
     capturedAccountId,
-    multiAccountScope: isBodyShapeMulti || isContextMulti,
+    multiAccountScope: isMultiAccountScope,
+    dedupKeyFieldsByAccount,
+    dateWindowParamsByAccount,
   };
 }
 

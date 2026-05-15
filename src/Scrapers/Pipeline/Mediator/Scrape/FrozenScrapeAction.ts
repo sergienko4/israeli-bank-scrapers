@@ -17,7 +17,11 @@ import moment from 'moment';
 import type { ITransactionsAccount } from '../../../../Transactions.js';
 import { fetchAndMergePending } from '../../Strategy/Scrape/Account/PendingStrategy.js';
 import { scrapeAllAccounts } from '../../Strategy/Scrape/Account/ScrapeDispatch.js';
-import { applyGlobalDateFilter, parseStartDate } from '../../Strategy/Scrape/ScrapeDataActions.js';
+import {
+  applyGlobalDateFilter,
+  FALLBACK_DEDUP_KEY_FIELDS,
+  parseStartDate,
+} from '../../Strategy/Scrape/ScrapeDataActions.js';
 import type { IAccountFetchCtx, IFetchAllAccountsCtx } from '../../Strategy/Scrape/ScrapeTypes.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
@@ -30,7 +34,12 @@ import {
 import { type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { createFrozenNetwork } from '../Network/NetworkDiscovery.js';
-import { readDashboardTxnHarvest, readPreDiscoveredTxn } from './ScrapePhaseActions.js';
+import {
+  readDashboardTxnHarvest,
+  readDateWindowParams,
+  readDedupKeyFields,
+  readPreDiscoveredTxn,
+} from './ScrapePhaseActions.js';
 
 const LOG = createLogger('frozen-scrape');
 
@@ -93,6 +102,8 @@ async function runFrozenScrape(
   // tryFirstWave can attribute records DASHBOARD already saw without
   // re-fetching (Hapoalim/Beinleumi 302 regression recovery).
   const dashboardTxnHarvest = readDashboardTxnHarvest(input);
+  const dedupKeyFields = readDedupKeyFields(dashboardTxnHarvest, FALLBACK_DEDUP_KEY_FIELDS);
+  const dateWindowParams = readDateWindowParams(dashboardTxnHarvest);
   const fc: IAccountFetchCtx = {
     api,
     network: frozen,
@@ -100,6 +111,8 @@ async function runFrozenScrape(
     futureMonths,
     txnEndpoint,
     dashboardTxnHarvest,
+    dedupKeyFields,
+    dateWindowParams,
   };
   const loadCtx = buildFrozenLoadCtx(disc, fc, txnEndpoint);
   const rawAccounts = await scrapeAllAccounts(loadCtx);

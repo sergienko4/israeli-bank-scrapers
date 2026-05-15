@@ -105,11 +105,18 @@ describe('resolveTxnEndpoint — defensive branches (Phase 7e)', () => {
     expect(result).toBe(false);
   });
 
-  it('returns false when responseBody is null (typeof object guard)', () => {
+  it('commits with empty normalizedRecords when responseBody is null (Phase H 2xx-no-body)', () => {
+    // Phase H' (2026-05-14): user-locked rule — any 2xx response is
+    // acceptable. A null body (e.g. 204 No Content for a dormant
+    // 30-day window) commits with empty normalizedRecords; SCRAPE
+    // re-queries with the user's startDate window and the auto-mapper
+    // resolves field aliases via WK on the populated response. The
+    // Phase 7e "typeof object guard" survives for primitives only.
     const ep = makeEndpoint({ responseBody: null });
     const network = makeNetwork(ep);
     const result = resolveTxnEndpoint(network);
-    expect(result).toBe(false);
+    expect(result).not.toBe(false);
+    if (result !== false) expect(result.normalizedRecords).toEqual([]);
   });
 
   it('returns false when responseBody is a string (typeof !== object)', () => {

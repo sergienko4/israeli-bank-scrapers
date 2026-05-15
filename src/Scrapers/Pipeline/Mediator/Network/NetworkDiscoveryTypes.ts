@@ -39,13 +39,20 @@ interface IDiscoveredEndpoint {
    * `replayablePost` (POST template, body may be empty) >
    * `shapePassing` (shape gate passed but tier indeterminate) >
    * `preClickFallback` (post-click pool yielded nothing; pre-click
-   * capture matched). Optional: undefined when synthesised in tests.
+   * capture matched) > `urlOnlyMatch` (Phase H' 2026-05-14 — URL
+   * matched a WK txn pattern but the response was 2xx with no body
+   * to inspect, e.g. 204 No Content for a dormant 30-day window;
+   * SCRAPE re-queries with the user's wider startDate window where
+   * the auto-mapper resolves the field aliases on the populated
+   * response). Optional: undefined when synthesised in tests.
    */
   readonly pickerTier?:
     | 'postWithShape'
     | 'replayablePost'
     | 'shapePassing'
     | 'preClickFallback'
+    | 'urlOnlyMatch'
+    | 'windowParamsMatch'
     | 'none';
   /**
    * Phase 7f — true when the picker fell back to the pre-click pool

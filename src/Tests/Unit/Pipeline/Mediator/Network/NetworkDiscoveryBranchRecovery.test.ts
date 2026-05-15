@@ -342,6 +342,9 @@ describe('NetworkDiscovery — assembleDiscoveredHeaders merge branches (L815-L8
     expect(opts.extraHeaders.authorization).toBeUndefined();
     expect(opts.extraHeaders.Origin).toBeUndefined();
     expect(opts.extraHeaders['X-Site-Id']).toBeUndefined();
-    expect(opts.extraHeaders['Content-Type']).toBe('application/json');
+    // Phase H'' captured-headers-as-truth: no hardcoded
+    // Content-Type when captured pool lacks a txn-pattern
+    // endpoint with `content-type` in its request headers.
+    expect(opts.extraHeaders['Content-Type']).toBeUndefined();
   });
 });
