@@ -4,12 +4,14 @@
  * <p>Drives every bank's PII-redacted captured cookie snapshot through
  * production {@link executeAuthDiscoveryPost} and asserts the slim
  * {@link IAuthDiscovery} contract commits when the captured session
- * carries >= 1 cookie. Mirrors the H.T3c.4 LOGIN.FINAL factory:
- * captured cookies live alongside the picker pool under
- * `<bank>/login/<scenario>.json` because the same captured run's
- * cookie set is the entry state for both LOGIN.FINAL and
- * AUTH-DISCOVERY POST (AUTH-DISCOVERY runs immediately after
- * LOGIN/OTP-FILL — no state changes the cookie jar in between).
+ * carries >= 1 cookie. Each row consumes a DEDICATED
+ * `<bank>/auth-discovery/<scenario>.json` fixture (locked plan
+ * H.T3c.7 requirement: "+ 7 AUTH-DISC fixtures"). The cookie set
+ * is sourced from the same captured run that produced the bank's
+ * LOGIN.FINAL state — at AUTH-DISCOVERY POST entry the jar is
+ * structurally identical (no inter-phase mutation) — but the
+ * fixture metadata, scenario id, and per-bank rationale are
+ * AUTH-DISCOVERY-specific.
  *
  * <p>Scope (locked 2026-05-16): AUTH-DISCOVERY POST cookie-driven
  * `AUTH_DISCOVERY_SESSION_INVALID` contract only. Per
@@ -31,7 +33,7 @@
 import { executeAuthDiscoveryPost } from '../../../../../Scrapers/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryActions.js';
 import {
   buildLoginPhaseContext,
-  loadLoginFixtureCookies,
+  loadAuthDiscoveryFixtureCookies,
 } from './Fixtures/_makeLoginPhaseContext.js';
 import { loadPhaseFixture, type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
 
@@ -42,12 +44,9 @@ interface IAuthDiscoveryScenarioRow {
 }
 
 /**
- * Scenarios exercised by the AUTH-DISCOVERY factory. Each row reuses
- * the H.T3c.4 LOGIN fixture (`<bank>/login/<scenarioId>.json`) because
- * the captured run's cookie set is identical at LOGIN.FINAL and
- * AUTH-DISCOVERY entry — no run-state mutation happens between the
- * two phases. Adding a new bank here requires only the existing
- * LOGIN fixture to be present.
+ * Scenarios exercised by the AUTH-DISCOVERY factory. Each row points
+ * to its DEDICATED `<bank>/auth-discovery/<scenarioId>.json` fixture
+ * (locked plan H.T3c.7: 7 AUTH-DISC fixtures).
  */
 const SCENARIOS: readonly IAuthDiscoveryScenarioRow[] = [
   { bank: 'hapoalim', scenarioId: 'last-good' },
@@ -63,8 +62,8 @@ describe('AUTH-DISCOVERY-PHASE-FACTORY — Phase H per-bank POST contract', () =
   it.each(SCENARIOS)(
     'authDiscoveryPost_$bank_$scenarioId_ShouldCommitWhenCookiesPresent',
     async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `login/${row.scenarioId}`);
-      const cookies = loadLoginFixtureCookies(row.bank, row.scenarioId);
+      const fixture = loadPhaseFixture(row.bank, `auth-discovery/${row.scenarioId}`);
+      const cookies = loadAuthDiscoveryFixtureCookies(row.bank, row.scenarioId);
       const context = buildLoginPhaseContext(fixture, cookies);
 
       const result = await executeAuthDiscoveryPost(context);

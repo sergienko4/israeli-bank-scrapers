@@ -1,0 +1,25 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "scenarioId": "auth-discovery/last-good",
+    "captureRunId": "15-05-2026_19273813",
+    "rationale": "Phase H.T3c.7 — isracard AUTH-DISCOVERY POST entry-state. Isracard is the upstream of the shared Isracard/Amex auth stack — dedicated fixture anchors the family-wide AUTH_DISCOVERY_SESSION_INVALID contract. Domains + values fully PII-redacted.",
+    "expected": {
+      "loginFinalOutcome": "success",
+      "loginFinalMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".isracard.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "X-AUTH-TOKEN",
+      "domain": ".isracard.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

@@ -100,16 +100,38 @@ function toCookieSnapshot(entry: IRawCookieEntry): ICookieSnapshot {
 }
 
 /**
- * Load the LOGIN-stage cookie sidecar for a bank scenario.
- *
- * <p>Fail-fast shape guard (matches {@link loadPhaseFixture}'s
- * discipline): throws a fixture-path-tagged error when the parsed
- * JSON lacks the expected `cookies` array. Catches malformed-fixture
- * bugs at load time rather than letting `undefined` propagate.
+ * Internal — load the cookie sidecar from any `<bank>/<phase>/<scenario>.json`
+ * fixture path. Fail-fast shape guard (matches {@link loadPhaseFixture}'s
+ * discipline): throws a fixture-path-tagged error when the parsed JSON
+ * lacks the expected `cookies` array.
  *
  * @param bank - Bank name from {@link PhaseHBank}.
- * @param scenarioId - Scenario identifier inside `<bank>/login/` (no
- *   leading `login/` prefix — supplied internally).
+ * @param phase - Phase folder name (`login`, `auth-discovery`, etc.).
+ * @param scenarioId - Scenario identifier inside `<bank>/<phase>/`.
+ * @returns Redacted cookie snapshot from the fixture.
+ * @throws {ScraperError} When the fixture JSON lacks `cookies`.
+ */
+function loadCookieSidecar(
+  bank: PhaseHBank,
+  phase: 'login' | 'auth-discovery',
+  scenarioId: string,
+): readonly ICookieSnapshot[] {
+  const filePath = join(FIXTURES_DIR, bank, phase, `${scenarioId}.json`);
+  const raw = readFileSync(filePath, 'utf8');
+  const parsed: unknown = JSON.parse(raw);
+  if (!hasCookieSidecar(parsed)) {
+    throw new ScraperError(
+      `PHASE_H_FIXTURE_COOKIES_MALFORMED: ${filePath} — expected top-level 'cookies' array`,
+    );
+  }
+  return parsed.cookies.map(toCookieSnapshot);
+}
+
+/**
+ * Load the LOGIN-stage cookie sidecar for a bank scenario.
+ *
+ * @param bank - Bank name from {@link PhaseHBank}.
+ * @param scenarioId - Scenario identifier inside `<bank>/login/`.
  * @returns Redacted cookie snapshot from the fixture.
  * @throws {ScraperError} When the fixture JSON lacks `cookies`.
  */
@@ -117,15 +139,27 @@ export function loadLoginFixtureCookies(
   bank: PhaseHBank,
   scenarioId: string,
 ): readonly ICookieSnapshot[] {
-  const filePath = join(FIXTURES_DIR, bank, 'login', `${scenarioId}.json`);
-  const raw = readFileSync(filePath, 'utf8');
-  const parsed: unknown = JSON.parse(raw);
-  if (!hasCookieSidecar(parsed)) {
-    throw new ScraperError(
-      `LOGIN_FIXTURE_COOKIES_MALFORMED: ${filePath} — expected top-level 'cookies' array`,
-    );
-  }
-  return parsed.cookies.map(toCookieSnapshot);
+  return loadCookieSidecar(bank, 'login', scenarioId);
+}
+
+/**
+ * Load the AUTH-DISCOVERY-stage cookie sidecar for a bank scenario.
+ *
+ * <p>At AUTH-DISCOVERY POST entry the cookie jar is structurally
+ * identical to LOGIN.FINAL exit (no inter-phase mutation), but the
+ * fixture file lives under `<bank>/auth-discovery/` per locked plan
+ * H.T3c.7 (7 AUTH-DISC fixtures requirement).
+ *
+ * @param bank - Bank name from {@link PhaseHBank}.
+ * @param scenarioId - Scenario identifier inside `<bank>/auth-discovery/`.
+ * @returns Redacted cookie snapshot from the fixture.
+ * @throws {ScraperError} When the fixture JSON lacks `cookies`.
+ */
+export function loadAuthDiscoveryFixtureCookies(
+  bank: PhaseHBank,
+  scenarioId: string,
+): readonly ICookieSnapshot[] {
+  return loadCookieSidecar(bank, 'auth-discovery', scenarioId);
 }
 
 /**
