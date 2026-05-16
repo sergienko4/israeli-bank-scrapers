@@ -63,10 +63,9 @@ const EMPTY_HEADERS: Readonly<Record<string, string>> = {};
  * @returns Endpoint shape consumed by {@link createFrozenNetwork}.
  */
 function captureToEndpoint(capture: IPhaseHCapture, index: number): IDiscoveredEndpoint {
-  const contentType = capture.responseBody === null ? '' : 'application/json';
   return {
     ...capture,
-    contentType,
+    contentType: capture.responseBody === null ? '' : 'application/json',
     requestHeaders: EMPTY_HEADERS,
     responseHeaders: EMPTY_HEADERS,
     timestamp: index,
@@ -185,21 +184,27 @@ const PHASE_G_BANK_ROWS: readonly (readonly [PhaseGBank])[] = PHASE_G_BANKS.map(
  */
 const RICH_PICKER_TIERS: readonly string[] = ['postWithShape', 'replayablePost', 'shapePassing'];
 
+/**
+ * Assert the Phase G regression guard for one bank fixture.
+ *
+ * @param bank - Phase G bank under test.
+ */
+function assertPhaseGRegressionForBank(bank: PhaseGBank): void {
+  const fixture = makeBankFixture(bank);
+  const pool = buildPool([phaseGToPhaseHCapture(fixture.capture)]);
+  const result = resolveTxnEndpoint(createFrozenNetwork(pool, false));
+  expect(result).not.toBe(false);
+  if (result === false) return;
+  expect(result.endpoint.url).toBe(fixture.capture.url);
+  expect(result.endpoint.method).toBe(fixture.meta.expectedMethod);
+  expect(RICH_PICKER_TIERS).toContain(result.pickerTier);
+}
+
 describe('DASHBOARD-PICKER-FACTORY — Phase G regression guard cross-bank', () => {
   it.each(PHASE_G_BANK_ROWS)(
     'dashboardPicker_%s_lastGoodCapture_ShouldCommitViaRichTier',
     (bank): void => {
-      const fixture = makeBankFixture(bank);
-      const pool = buildPool([phaseGToPhaseHCapture(fixture.capture)]);
-      const network = createFrozenNetwork(pool, false);
-      const result = resolveTxnEndpoint(network);
-
-      expect(result).not.toBe(false);
-      if (result !== false) {
-        expect(result.endpoint.url).toBe(fixture.capture.url);
-        expect(result.endpoint.method).toBe(fixture.meta.expectedMethod);
-        expect(RICH_PICKER_TIERS).toContain(result.pickerTier);
-      }
+      assertPhaseGRegressionForBank(bank);
     },
   );
 });

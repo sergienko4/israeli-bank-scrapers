@@ -40,24 +40,45 @@ const SCENARIOS: readonly ITerminateScenarioRow[] = [
   { bank: 'visacal', scenarioId: 'last-good' },
 ];
 
+/**
+ * Run TERMINATE PRE -> POST -> FINAL for one row, asserting the
+ * fixture-driven outcome at each sub-step.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns Resolved when all sub-step assertions complete.
+ */
+async function runTerminateChainForRow(row: ITerminateScenarioRow): Promise<void> {
+  const fixture = loadPhaseFixture(row.bank, `terminate/${row.scenarioId}`);
+  const subject = buildTerminatePhaseContext();
+  const shouldSucceed = fixture.meta.expected.terminateOutcome === 'success';
+  const preResult = await executeStartCleanup(subject.context);
+  expect(preResult.success).toBe(shouldSucceed);
+  if (!preResult.success) return;
+  await assertTerminatePostFinal(preResult.value, shouldSucceed);
+}
+
+/**
+ * Assert TERMINATE POST + FINAL succeed for the supplied PRE-output
+ * context.
+ *
+ * @param preCtx - Context emitted by TERMINATE.PRE.
+ * @param shouldSucceed - Expected success boolean per fixture.
+ * @returns Resolved when both assertions complete.
+ */
+async function assertTerminatePostFinal(
+  preCtx: Parameters<typeof executeLogResults>[0],
+  shouldSucceed: boolean,
+): Promise<void> {
+  const postResult = await executeLogResults(preCtx);
+  expect(postResult.success).toBe(shouldSucceed);
+  if (!postResult.success) return;
+  const finalResult = await executeSignalDone(postResult.value);
+  expect(finalResult.success).toBe(shouldSucceed);
+}
+
 describe('TERMINATE-PHASE-FACTORY — Phase H per-bank PRE+POST+FINAL', () => {
   it.each(SCENARIOS)(
     'terminate_$bank_$scenarioId_ShouldSucceedAtEverySubStep',
-    async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `terminate/${row.scenarioId}`);
-      const subject = buildTerminatePhaseContext();
-      const shouldSucceed = fixture.meta.expected.terminateOutcome === 'success';
-
-      const preResult = await executeStartCleanup(subject.context);
-      expect(preResult.success).toBe(shouldSucceed);
-      if (preResult.success) {
-        const postResult = await executeLogResults(preResult.value);
-        expect(postResult.success).toBe(shouldSucceed);
-        if (postResult.success) {
-          const finalResult = await executeSignalDone(postResult.value);
-          expect(finalResult.success).toBe(shouldSucceed);
-        }
-      }
-    },
+    runTerminateChainForRow,
   );
 });

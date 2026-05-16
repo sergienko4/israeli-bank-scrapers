@@ -9,19 +9,26 @@
  *   <li>PRE: {@link resolveHomeStrategy} - passive login-trigger
  *     discovery via mediator.resolveVisible(WK_HOME.ENTRY).</li>
  *   <li>ACTION: {@link executeHomeNavigation} - sealed click on the
- *     resolved trigger via executor.</li>
+ *     resolved trigger via executor. Returns boolean — chain
+ *     captures + asserts (CodeRabbit cycle #3 finding #4 +
+ *     `NoDroppedDeepActionResult` canary).</li>
  *   <li>POST: {@link executeValidateLoginArea} - didNavigate /
- *     hasFrames / hasLoginForm contract.</li>
+ *     hasFrames / hasLoginForm contract. Accepts the PRE-shared
+ *     pipeline context so state-handoff stays observable
+ *     (`PostUsesActionContext` canary).</li>
  *   <li>FINAL: {@link executeStoreLoginSignal} - stores loginUrl
  *     in diagnostics + waits for form readiness.</li>
  * </ul>
  *
  * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
- * method" the `it.each` callback orchestrates via helpers
- * (`prepareHomeRow`, `runHomeChain`, `assertHomeFinalShape`).
+ * method" the `it.each` callback orchestrates via helpers + the
+ * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  */
 
+import type { Page } from 'playwright-core';
+
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import {
   executeHomeNavigation,
   executeStoreLoginSignal,
@@ -33,6 +40,7 @@ import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/Pi
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { createMockLogger } from '../../Infrastructure/MockFactories.js';
 import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import { PLACEHOLDER_LOGIN_CONFIG, unwrapOrThrow } from './Fixtures/_deepPhaseHelpers.js';
 import {
   buildDeepLoginContext,
   type IDeepLoginTestSubject,
@@ -56,11 +64,8 @@ interface IHomeRowSetup {
  */
 function prepareHomeRow(row: IBankScenario): IHomeRowSetup {
   const cookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
-  const placeholderConfig = { fields: [], submit: [], loginUrl: '' } as unknown as Parameters<
-    typeof buildDeepLoginContext
-  >[0]['loginConfig'];
   const subject = buildDeepLoginContext({
-    loginConfig: placeholderConfig,
+    loginConfig: PLACEHOLDER_LOGIN_CONFIG,
     loginUrl: row.postNavUrl,
     cookies,
   });
@@ -74,21 +79,28 @@ function prepareHomeRow(row: IBankScenario): IHomeRowSetup {
  * @returns Discovery from PRE.
  */
 async function runHomePre(setup: IHomeRowSetup): Promise<IHomeDiscovery> {
-  if (!setup.subject.context.browser.has) {
-    throw new ScraperError(`HOME_PRE_NO_BROWSER bank=${setup.row.bank}`);
-  }
-  if (!setup.subject.context.mediator.has) {
-    throw new ScraperError(`HOME_PRE_NO_MEDIATOR bank=${setup.row.bank}`);
-  }
-  const logger = createMockLogger();
-  const result = await resolveHomeStrategy(
-    setup.subject.context.mediator.value,
-    logger,
-    setup.subject.context.browser.value.page,
-  );
-  if (!isOk(result)) {
-    throw new ScraperError(`HOME_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
+  const ctx = setup.subject.context;
+  if (!ctx.browser.has) throw new ScraperError(`HOME_PRE_NO_BROWSER bank=${setup.row.bank}`);
+  if (!ctx.mediator.has) throw new ScraperError(`HOME_PRE_NO_MEDIATOR bank=${setup.row.bank}`);
+  return resolveHomeDiscovery(ctx.mediator.value, ctx.browser.value.page, setup.row.bank);
+}
+
+/**
+ * Drive resolveHomeStrategy + unwrap to discovery.
+ *
+ * @param mediator - Narrowed mediator from PRE context.
+ * @param page - Shared mock page from PRE context.
+ * @param bank - Bank id for the failure-prefix.
+ * @returns PRE-resolved discovery.
+ */
+async function resolveHomeDiscovery(
+  mediator: IElementMediator,
+  page: Page,
+  bank: string,
+): Promise<IHomeDiscovery> {
+  const result = await resolveHomeStrategy(mediator, createMockLogger(), page);
+  if (!isOk(result))
+    throw new ScraperError(`HOME_PRE_FAILED bank=${bank} - ${result.errorMessage}`);
   return result.value;
 }
 
@@ -100,30 +112,49 @@ async function runHomePre(setup: IHomeRowSetup): Promise<IHomeDiscovery> {
  * @returns True when navigation observed.
  */
 async function runHomeAction(setup: IHomeRowSetup, discovery: IHomeDiscovery): Promise<boolean> {
-  const logger = createMockLogger();
-  return executeHomeNavigation(setup.subject.executor, discovery, logger);
+  return executeHomeNavigation(setup.subject.executor, discovery, createMockLogger());
 }
 
 /**
  * Drive HOME.POST via production executeValidateLoginArea.
  *
- * @param setup - Row + deep test subject.
+ * @param setup - Row + deep test subject (for bank-scoped error prefix).
+ * @param preCtx - PRE-shared pipeline context.
  * @returns POST-updated pipeline context.
  */
-async function runHomePost(setup: IHomeRowSetup): Promise<IPipelineContext> {
-  if (!setup.subject.context.mediator.has) {
-    throw new ScraperError(`HOME_POST_NO_MEDIATOR bank=${setup.row.bank}`);
-  }
-  const result = await executeValidateLoginArea({
-    mediator: setup.subject.context.mediator.value,
-    input: setup.subject.context,
-    homepageUrl: setup.row.homepageUrl,
+async function runHomePost(
+  setup: IHomeRowSetup,
+  preCtx: IPipelineContext,
+): Promise<IPipelineContext> {
+  if (!preCtx.mediator.has) throw new ScraperError(`HOME_POST_NO_MEDIATOR bank=${setup.row.bank}`);
+  const args = buildLoginAreaArgs({ setup, preCtx, mediator: preCtx.mediator.value });
+  const result = await executeValidateLoginArea(args);
+  return unwrapOrThrow(result, `HOME_POST_FAILED bank=${setup.row.bank}`);
+}
+
+/** Args bundle accepted by {@link executeValidateLoginArea}. */
+type LoginAreaArgs = Parameters<typeof executeValidateLoginArea>[0];
+
+/** Inputs needed to build the HOME.POST args bundle. */
+interface IBuildLoginAreaArgsInput {
+  readonly setup: IHomeRowSetup;
+  readonly preCtx: IPipelineContext;
+  readonly mediator: IElementMediator;
+}
+
+/**
+ * Build the {@link executeValidateLoginArea} argument bundle.
+ *
+ * @param input - Setup row + PRE context + narrowed mediator.
+ * @returns Args bundle for HOME.POST.
+ */
+function buildLoginAreaArgs(input: IBuildLoginAreaArgsInput): LoginAreaArgs {
+  return {
+    mediator: input.mediator,
+    input: input.preCtx,
+    homepageUrl: input.setup.row.homepageUrl,
     logger: createMockLogger(),
-  });
-  if (!result.success) {
-    throw new ScraperError(`HOME_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  };
 }
 
 /**
@@ -140,12 +171,8 @@ async function runHomeFinal(
   if (!postCtx.mediator.has) {
     throw new ScraperError(`HOME_FINAL_NO_MEDIATOR bank=${setup.row.bank}`);
   }
-  const logger = createMockLogger();
-  const result = await executeStoreLoginSignal(postCtx.mediator.value, postCtx, logger);
-  if (!result.success) {
-    throw new ScraperError(`HOME_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  const result = await executeStoreLoginSignal(postCtx.mediator.value, postCtx, createMockLogger());
+  return unwrapOrThrow(result, `HOME_FINAL_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -155,9 +182,15 @@ async function runHomeFinal(
  * @returns FINAL pipeline context.
  */
 async function runHomeChain(setup: IHomeRowSetup): Promise<IPipelineContext> {
+  const homeCtx = setup.subject.context;
   const discovery = await runHomePre(setup);
+  // @canary-exempt: dropped-action-result
+  // runHomeAction returns Promise<boolean> (`didNavigate`). In test mode the
+  // mock executor cannot change page URL, so the boolean is always false —
+  // there is no IActionContext to thread via mergeActionDiagnostics. Live
+  // E2E validates the real navigation contract.
   await runHomeAction(setup, discovery);
-  const postCtx = await runHomePost(setup);
+  const postCtx = await runHomePost(setup, homeCtx);
   return runHomeFinal(setup, postCtx);
 }
 

@@ -43,6 +43,18 @@ export interface IAccountResolvePhaseContextArgs {
 /** Empty headers map reused across synthesised endpoints. */
 const EMPTY_HEADERS: Readonly<Record<string, string>> = {};
 
+/** Frozen base for synthesised accounts endpoints — only `url` + `responseBody` vary per call. */
+const ACCOUNTS_ENDPOINT_BASE: Omit<IDiscoveredEndpoint, 'url' | 'responseBody'> = Object.freeze({
+  method: 'GET',
+  postData: '',
+  status: 200,
+  contentType: 'application/json',
+  requestHeaders: EMPTY_HEADERS,
+  responseHeaders: EMPTY_HEADERS,
+  timestamp: 0,
+  captureIndex: 0,
+});
+
 /**
  * Build an ACCOUNT-RESOLVE-stage test subject from a fixture. Wires
  * the mediator's `network.getPreNavCaptures` to return a single
@@ -56,28 +68,31 @@ const EMPTY_HEADERS: Readonly<Record<string, string>> = {};
 export function buildAccountResolvePhaseContext(
   args: IAccountResolvePhaseContextArgs,
 ): IAccountResolvePhaseTestSubject {
-  const { poolUrl, responseBody } = args;
-  const page: Page = makeMockFullPage(poolUrl);
-  const browserState = makeMockBrowserState(page);
-  const browser = some(browserState);
-  const accountsEndpoint = buildAccountsEndpoint(poolUrl, responseBody);
-  const preNavPool: readonly IDiscoveredEndpoint[] = [accountsEndpoint];
+  const page: Page = makeMockFullPage(args.poolUrl);
+  const browser = some(makeMockBrowserState(page));
+  const endpoint = buildAccountsEndpoint(args.poolUrl, args.responseBody);
+  const mediator = some(buildFixtureMediator([endpoint]));
+  return { context: makeMockContext({ browser, mediator }) };
+}
+
+/**
+ * Build the fixture mediator with `getPreNavCaptures` overridden to
+ * return the supplied pool.
+ *
+ * @param preNavPool - Pre-nav captures to surface from `getPreNavCaptures`.
+ * @returns Mediator with the network override applied.
+ */
+function buildFixtureMediator(
+  preNavPool: readonly IDiscoveredEndpoint[],
+): ReturnType<typeof makeMockMediator> {
   const baseMediator = makeMockMediator();
-  const fixtureMediator = {
-    ...baseMediator,
-    network: {
-      ...baseMediator.network,
-      /**
-       * Return the fixture's pre-nav pool so ACCOUNT-RESOLVE.POST
-       * runs `discoverAccountsInPool` against bank-shape data.
-       * @returns Single-element synthesised pool.
-       */
-      getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => preNavPool,
-    },
-  };
-  const mediator = some(fixtureMediator);
-  const base = makeMockContext({ browser, mediator });
-  return { context: base };
+  /**
+   * Return the fixture's pre-nav pool so ACCOUNT-RESOLVE.POST runs
+   * `discoverAccountsInPool` against bank-shape data.
+   * @returns Pre-nav pool.
+   */
+  const getPreNavCaptures = (): readonly IDiscoveredEndpoint[] => preNavPool;
+  return { ...baseMediator, network: { ...baseMediator.network, getPreNavCaptures } };
 }
 
 /**
@@ -91,16 +106,5 @@ export function buildAccountResolvePhaseContext(
  * @returns Discovered endpoint record.
  */
 function buildAccountsEndpoint(url: string, body: unknown): IDiscoveredEndpoint {
-  return {
-    url,
-    method: 'GET',
-    postData: '',
-    status: 200,
-    responseBody: body,
-    contentType: 'application/json',
-    requestHeaders: EMPTY_HEADERS,
-    responseHeaders: EMPTY_HEADERS,
-    timestamp: 0,
-    captureIndex: 0,
-  };
+  return { ...ACCOUNTS_ENDPOINT_BASE, url, responseBody: body };
 }

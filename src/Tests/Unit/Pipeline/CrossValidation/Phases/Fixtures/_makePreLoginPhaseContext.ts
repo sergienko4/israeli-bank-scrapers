@@ -58,27 +58,34 @@ export interface IPreLoginPhaseContextArgs {
 export function buildPreLoginPhaseContext(
   args: IPreLoginPhaseContextArgs,
 ): IPreLoginPhaseTestSubject {
-  const { isFormGateFound, loginUrl } = args;
-  const page: Page = makeMockFullPage(loginUrl);
-  const browserState = makeMockBrowserState(page);
-  const browser = some(browserState);
-  const foundResult = buildFormGateResult(isFormGateFound);
-  const fixtureMediator = makeMockMediator({
-    /**
-     * Return a fixture-driven race result so PRE-LOGIN.POST's
-     * form-gate probe drives off the bank's captured shape.
-     * @returns Found race result (per fixture) or NOT_FOUND.
-     */
-    resolveVisible: (): Promise<typeof NOT_FOUND_RESULT> => Promise.resolve(foundResult),
-    /**
-     * Return the fixture's login URL so debug logs match captured.
-     * @returns Fixture's login URL.
-     */
-    getCurrentUrl: (): string => loginUrl,
-  });
-  const mediator = some(fixtureMediator);
-  const base = makeMockContext({ browser, mediator });
-  return { context: base };
+  const page: Page = makeMockFullPage(args.loginUrl);
+  const browser = some(makeMockBrowserState(page));
+  const mediator = some(buildPreLoginMediator(args));
+  return { context: makeMockContext({ browser, mediator }) };
+}
+
+/**
+ * Build the mediator with a fixture-driven `resolveVisible` + the
+ * fixture's login URL surfaced via `getCurrentUrl`.
+ *
+ * @param args - Phase-context args carrying `isFormGateFound` + `loginUrl`.
+ * @returns Mediator stub wired for PRE-LOGIN.POST/FINAL.
+ */
+function buildPreLoginMediator(
+  args: IPreLoginPhaseContextArgs,
+): ReturnType<typeof makeMockMediator> {
+  const foundResult = buildFormGateResult(args.isFormGateFound);
+  /**
+   * Return a fixture-driven race result for the form-gate probe.
+   * @returns Found race result (per fixture).
+   */
+  const resolveVisible = (): Promise<typeof NOT_FOUND_RESULT> => Promise.resolve(foundResult);
+  /**
+   * Return the fixture's login URL so debug logs match captured.
+   * @returns Fixture's login URL.
+   */
+  const getCurrentUrl = (): string => args.loginUrl;
+  return makeMockMediator({ resolveVisible, getCurrentUrl });
 }
 
 /**

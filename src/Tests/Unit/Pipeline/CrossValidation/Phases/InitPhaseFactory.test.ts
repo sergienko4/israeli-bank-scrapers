@@ -74,17 +74,21 @@ const SCENARIOS: readonly IInitScenarioRow[] = [
   },
 ];
 
+/**
+ * Drive INIT.POST for one scenario row and assert the captured-shape
+ * outcome.
+ *
+ * @param row - Scenario row (bank + scenarioId + URL).
+ * @returns Resolved when assertions complete.
+ */
+async function runInitPostForRow(row: IInitScenarioRow): Promise<void> {
+  const fixture = loadPhaseFixture(row.bank, `init/${row.scenarioId}`);
+  const subject = buildInitPhaseContext({ initPostUrl: row.initPostUrl });
+  const result = await executeValidatePage(subject.context);
+  const shouldSucceed = fixture.meta.expected.initPostOutcome === 'success';
+  expect(result.success).toBe(shouldSucceed);
+}
+
 describe('INIT-PHASE-FACTORY — Phase H per-bank POST contract', () => {
-  it.each(SCENARIOS)(
-    'initPost_$bank_$scenarioId_ShouldAcceptLandingUrl',
-    async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `init/${row.scenarioId}`);
-      const subject = buildInitPhaseContext({ initPostUrl: row.initPostUrl });
-
-      const result = await executeValidatePage(subject.context);
-
-      const shouldSucceed = fixture.meta.expected.initPostOutcome === 'success';
-      expect(result.success).toBe(shouldSucceed);
-    },
-  );
+  it.each(SCENARIOS)('initPost_$bank_$scenarioId_ShouldAcceptLandingUrl', runInitPostForRow);
 });

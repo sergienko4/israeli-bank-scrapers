@@ -21,8 +21,10 @@
  *
  * <p>Each phase consumes its OWN fixture (the per-phase factories'
  * fixtures from H.T3c.1..10) — H.T4 is the topological chain, not a
- * new fixture format. A regression in any phase's wiring surfaces
- * as a failing full-flow row even if the per-phase factory passes.
+ * new fixture format. Per-phase POST helpers take both `row` (for
+ * bank routing) and the freshly-built per-phase preCtx so the
+ * factory mirrors production context handoff
+ * (`PostUsesActionContext` canary).
  *
  * <p>Production action imports route through
  * {@link _FullFlowActions} and per-phase builders through
@@ -31,18 +33,16 @@
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import {
-  type ITransaction,
-  type ITransactionsAccount,
-  TransactionStatuses,
-  TransactionTypes,
-} from '../../../../../Transactions.js';
+import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { type ITransaction, type ITransactionsAccount } from '../../../../../Transactions.js';
 import {
   BANK_SCENARIOS,
   FAKE_ACCOUNT_NUMBER,
   type IBankScenario,
   REDACTED_PHONE_HINT,
 } from './Fixtures/_BankScenarios.js';
+import { buildRedactedTxn as buildRedactedTxnBase } from './Fixtures/_deepPhaseHelpers.js';
 import {
   executeAccountResolveFinal,
   executeAccountResolvePost,
@@ -84,25 +84,44 @@ type IFullFlowRow = IBankScenario;
 const SCENARIOS: readonly IFullFlowRow[] = BANK_SCENARIOS;
 
 /**
+ * Type guard for the fixture-meta block carrying
+ * `accountsResponseBody`. Replaces the previous double-cast (rabbit
+ * cycle #3 finding #3 + `eslint.config.mjs §8a` A2 ban).
+ *
+ * @param meta - Fixture meta value (typed as `unknown`).
+ * @returns True when `meta` is an object carrying a defined
+ *   `accountsResponseBody` property.
+ */
+function hasAccountsResponseBody(
+  meta: unknown,
+): meta is { readonly accountsResponseBody: unknown } {
+  return (
+    typeof meta === 'object' &&
+    meta !== null &&
+    'accountsResponseBody' in meta &&
+    (meta as { accountsResponseBody?: unknown }).accountsResponseBody !== undefined
+  );
+}
+
+/**
  * Read the redacted accounts payload from an ACCOUNT-RESOLVE
  * fixture. Fails fast with a fixture-path-tagged
  * {@link ScraperError} when the payload is missing — bypass-casting
  * `as unknown as` silently allowed the test to run against an
  * empty pool and assert success against the wrong shape (CodeRabbit
- * 2026-05-16 finding #24).
+ * 2026-05-16 finding #24 + cycle #3 finding #3).
  *
  * @param fixture - Loaded ACCOUNT-RESOLVE fixture.
  * @returns Redacted accounts response body.
  * @throws {ScraperError} When the fixture lacks accountsResponseBody.
  */
 function readAccountsResponseBody(fixture: ReturnType<typeof loadPhaseFixture>): unknown {
-  const meta = fixture.meta as unknown as { readonly accountsResponseBody?: unknown };
-  if (meta.accountsResponseBody === undefined) {
+  if (!hasAccountsResponseBody(fixture.meta)) {
     throw new ScraperError(
       `FULL_FLOW_FIXTURE_MISSING_ACCOUNTS_BODY: bank=${fixture.meta.bank} scenario=${fixture.meta.scenarioId}`,
     );
   }
-  return meta.accountsResponseBody;
+  return fixture.meta.accountsResponseBody;
 }
 
 /**
@@ -112,51 +131,84 @@ function readAccountsResponseBody(fixture: ReturnType<typeof loadPhaseFixture>):
  * @returns Redacted transaction record.
  */
 function buildFlowTxn(ordinal: number): ITransaction {
-  return {
-    type: TransactionTypes.Normal,
-    identifier: `FAKE-FLOW-${String(ordinal)}`,
-    date: '2026-05-01T00:00:00.000Z',
-    processedDate: '2026-05-01T00:00:00.000Z',
-    originalAmount: -100,
-    originalCurrency: 'ILS',
-    chargedAmount: -100,
-    description: 'FAKE TEXT',
-    status: TransactionStatuses.Completed,
-  };
+  return buildRedactedTxnBase('FAKE-FLOW', ordinal);
 }
 
 /**
- * Run INIT.POST for one bank row.
+ * Build the INIT per-phase preCtx for one row.
  *
  * @param row - Per-bank scenario row.
+ * @returns Pre-built pipeline context for INIT.POST.
+ */
+function buildInitPreCtx(row: IFullFlowRow): IPipelineContext {
+  return buildInitPhaseContext({ initPostUrl: row.postNavUrl }).context;
+}
+
+/**
+ * Run INIT.POST for one bank row against the supplied preCtx.
+ *
+ * @param _row - Per-bank scenario row (kept for symmetry; unused).
+ * @param preCtx - INIT preCtx from {@link buildInitPreCtx}.
  * @returns True when INIT.POST succeeds.
  */
-async function runInitPost(row: IFullFlowRow): Promise<boolean> {
-  const initSubject = buildInitPhaseContext({ initPostUrl: row.postNavUrl });
-  const initResult = await executeValidatePage(initSubject.context);
+async function runInitPost(_row: IFullFlowRow, preCtx: IPipelineContext): Promise<boolean> {
+  const initResult = await executeValidatePage(preCtx);
   return initResult.success;
 }
 
 /**
- * Run HOME.POST for one bank row.
+ * Build the HOME per-phase preCtx + homepage URL for one row.
  *
  * @param row - Per-bank scenario row.
- * @returns True when HOME.POST succeeds.
+ * @returns Pre-built HOME phase subject (context + homepageUrl).
  */
-async function runHomePost(row: IFullFlowRow): Promise<boolean> {
-  const homeSubject = buildHomePhaseContext({
+function buildHomePreCtx(row: IFullFlowRow): ReturnType<typeof buildHomePhaseContext> {
+  return buildHomePhaseContext({
     homepageUrl: row.homepageUrl,
     postNavUrl: row.postNavUrl,
     frameCount: row.frameCount,
   });
-  if (!homeSubject.context.mediator.has) return false;
-  const homeResult = await executeValidateLoginArea({
-    mediator: homeSubject.context.mediator.value,
-    input: homeSubject.context,
-    homepageUrl: homeSubject.homepageUrl,
-    logger: homeSubject.context.logger,
-  });
-  return homeResult.success;
+}
+
+/**
+ * Run HOME.POST for one bank row against the supplied preCtx.
+ *
+ * @param _row - Per-bank scenario row (kept for symmetry; unused).
+ * @param preCtx - HOME phase subject from {@link buildHomePreCtx}.
+ * @returns True when HOME.POST succeeds.
+ */
+async function runHomePost(
+  _row: IFullFlowRow,
+  preCtx: ReturnType<typeof buildHomePhaseContext>,
+): Promise<boolean> {
+  if (!preCtx.context.mediator.has) return false;
+  const args = buildHomeArgs({ preCtx, mediator: preCtx.context.mediator.value });
+  return (await executeValidateLoginArea(args)).success;
+}
+
+/** Args bundle accepted by {@link executeValidateLoginArea}. */
+type LoginAreaArgs = Parameters<typeof executeValidateLoginArea>[0];
+
+/** Inputs needed to build the FullFlow HOME args bundle. */
+interface IBuildHomeArgsInput {
+  readonly preCtx: ReturnType<typeof buildHomePhaseContext>;
+  readonly mediator: IElementMediator;
+}
+
+/**
+ * Build the {@link executeValidateLoginArea} argument bundle from
+ * the HOME per-phase subject.
+ *
+ * @param input - HOME phase subject + narrowed mediator.
+ * @returns Args bundle for HOME.POST.
+ */
+function buildHomeArgs(input: IBuildHomeArgsInput): LoginAreaArgs {
+  return {
+    mediator: input.mediator,
+    input: input.preCtx.context,
+    homepageUrl: input.preCtx.homepageUrl,
+    logger: input.preCtx.context.logger,
+  };
 }
 
 /**
@@ -166,9 +218,9 @@ async function runHomePost(row: IFullFlowRow): Promise<boolean> {
  * @returns True when both phases succeed.
  */
 async function runInitHome(row: IFullFlowRow): Promise<boolean> {
-  const isInitOk = await runInitPost(row);
+  const isInitOk = await runInitPost(row, buildInitPreCtx(row));
   if (!isInitOk) return false;
-  return runHomePost(row);
+  return runHomePost(row, buildHomePreCtx(row));
 }
 
 /**
@@ -178,18 +230,11 @@ async function runInitHome(row: IFullFlowRow): Promise<boolean> {
  * @returns True when both PRE-LOGIN sub-steps succeed.
  */
 async function runPreLogin(row: IFullFlowRow): Promise<boolean> {
-  const preLoginSubject = buildPreLoginPhaseContext({
-    isFormGateFound: true,
-    loginUrl: row.loginUrl,
-  });
-  if (!preLoginSubject.context.mediator.has) return false;
-  const preLoginPost = await executeValidateForm(
-    preLoginSubject.context.mediator.value,
-    preLoginSubject.context,
-  );
-  if (!preLoginPost.success) return false;
-  const preLoginFinal = executeSignalToLogin(preLoginPost.value);
-  return preLoginFinal.success;
+  const subject = buildPreLoginPhaseContext({ isFormGateFound: true, loginUrl: row.loginUrl });
+  if (!subject.context.mediator.has) return false;
+  const post = await executeValidateForm(subject.context.mediator.value, subject.context);
+  if (!post.success) return false;
+  return executeSignalToLogin(post.value).success;
 }
 
 /**
@@ -225,14 +270,13 @@ async function runPreLoginAndLogin(row: IFullFlowRow): Promise<boolean> {
  * @returns True when both OTP-TRIGGER sub-steps succeed.
  */
 async function runOtpTrigger(row: IFullFlowRow): Promise<boolean> {
-  const otpTriggerSubject = buildOtpTriggerPhaseContext({
+  const subject = buildOtpTriggerPhaseContext({
     phoneHint: REDACTED_PHONE_HINT,
     otpUrl: `${row.loginUrl}/otp`,
   });
-  const otpTriggerPost = await executeTriggerPost(otpTriggerSubject.context);
-  if (!otpTriggerPost.success) return false;
-  const otpTriggerFinal = await executeTriggerFinal(otpTriggerPost.value);
-  return otpTriggerFinal.success;
+  const post = await executeTriggerPost(subject.context);
+  if (!post.success) return false;
+  return (await executeTriggerFinal(post.value)).success;
 }
 
 /**
@@ -242,14 +286,13 @@ async function runOtpTrigger(row: IFullFlowRow): Promise<boolean> {
  * @returns True when both OTP-FILL sub-steps succeed.
  */
 async function runOtpFill(row: IFullFlowRow): Promise<boolean> {
-  const otpFillSubject = buildOtpFillPhaseContext({
+  const subject = buildOtpFillPhaseContext({
     cookieCount: row.cookieCount,
     dashboardUrl: row.dashboardUrl,
   });
-  const otpFillPost = await executeFillPost(otpFillSubject.context);
-  if (!otpFillPost.success) return false;
-  const otpFillFinal = await executeFillFinal(otpFillPost.value);
-  return otpFillFinal.success;
+  const post = await executeFillPost(subject.context);
+  if (!post.success) return false;
+  return (await executeFillFinal(post.value)).success;
 }
 
 /**
@@ -265,16 +308,29 @@ async function runOtpLeg(row: IFullFlowRow): Promise<boolean> {
 }
 
 /**
- * Run AUTH-DISCOVERY.POST for one row.
+ * Build the AUTH-DISCOVERY per-phase preCtx for one row.
  *
  * @param row - Per-bank scenario row.
- * @returns True when AUTH-DISCOVERY.POST succeeds.
+ * @returns Pre-built pipeline context for AUTH-DISCOVERY.POST.
  */
-async function runAuthDiscoveryPost(row: IFullFlowRow): Promise<boolean> {
+function buildAuthDiscoveryPreCtx(row: IFullFlowRow): IPipelineContext {
   const authFixture = loadPhaseFixture(row.bank, 'auth-discovery/last-good');
   const authCookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
-  const authCtx = buildLoginPhaseContext(authFixture, authCookies);
-  const authResult = await executeAuthDiscoveryPost(authCtx);
+  return buildLoginPhaseContext(authFixture, authCookies);
+}
+
+/**
+ * Run AUTH-DISCOVERY.POST for one row against the supplied preCtx.
+ *
+ * @param _row - Per-bank scenario row (kept for symmetry; unused).
+ * @param preCtx - AUTH-DISCOVERY preCtx from {@link buildAuthDiscoveryPreCtx}.
+ * @returns True when AUTH-DISCOVERY.POST succeeds.
+ */
+async function runAuthDiscoveryPost(
+  _row: IFullFlowRow,
+  preCtx: IPipelineContext,
+): Promise<boolean> {
+  const authResult = await executeAuthDiscoveryPost(preCtx);
   return authResult.success;
 }
 
@@ -287,14 +343,10 @@ async function runAuthDiscoveryPost(row: IFullFlowRow): Promise<boolean> {
 async function runAccountResolve(row: IFullFlowRow): Promise<boolean> {
   const acctFixture = loadPhaseFixture(row.bank, 'account-resolve/last-good');
   const responseBody = readAccountsResponseBody(acctFixture);
-  const acctSubject = buildAccountResolvePhaseContext({
-    poolUrl: row.accountsUrl,
-    responseBody,
-  });
-  const acctPost = await executeAccountResolvePost(acctSubject.context);
-  if (!acctPost.success) return false;
-  const acctFinal = await executeAccountResolveFinal(acctPost.value);
-  return acctFinal.success;
+  const subject = buildAccountResolvePhaseContext({ poolUrl: row.accountsUrl, responseBody });
+  const post = await executeAccountResolvePost(subject.context);
+  if (!post.success) return false;
+  return (await executeAccountResolveFinal(post.value)).success;
 }
 
 /**
@@ -309,8 +361,7 @@ async function runScrape(): Promise<boolean> {
   const scrapeSubject = buildScrapePhaseContext({ accounts });
   const scrapePost = await executeValidateResults(scrapeSubject.context);
   if (!scrapePost.success) return false;
-  const scrapeFinal = await executeStampAccounts(scrapePost.value);
-  return scrapeFinal.success;
+  return (await executeStampAccounts(scrapePost.value)).success;
 }
 
 /**
@@ -319,13 +370,12 @@ async function runScrape(): Promise<boolean> {
  * @returns True when all three TERMINATE sub-steps succeed.
  */
 async function runTerminateTail(): Promise<boolean> {
-  const termSubject = buildTerminatePhaseContext();
-  const termPre = await executeStartCleanup(termSubject.context);
-  if (!termPre.success) return false;
-  const termPost = await executeLogResults(termPre.value);
-  if (!termPost.success) return false;
-  const termFinal = await executeSignalDone(termPost.value);
-  return termFinal.success;
+  const subject = buildTerminatePhaseContext();
+  const pre = await executeStartCleanup(subject.context);
+  if (!pre.success) return false;
+  const post = await executeLogResults(pre.value);
+  if (!post.success) return false;
+  return (await executeSignalDone(post.value)).success;
 }
 
 /**
@@ -336,7 +386,7 @@ async function runTerminateTail(): Promise<boolean> {
  * @returns True when every back-half phase succeeds.
  */
 async function runBackHalf(row: IFullFlowRow): Promise<boolean> {
-  const isAuthOk = await runAuthDiscoveryPost(row);
+  const isAuthOk = await runAuthDiscoveryPost(row, buildAuthDiscoveryPreCtx(row));
   if (!isAuthOk) return false;
   const isAcctOk = await runAccountResolve(row);
   if (!isAcctOk) return false;
@@ -345,20 +395,20 @@ async function runBackHalf(row: IFullFlowRow): Promise<boolean> {
   return runTerminateTail();
 }
 
+/**
+ * Run the full 10-phase chain for one bank row, asserting at each
+ * leg.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns Resolved when all leg assertions complete.
+ */
+async function runFullFlowForRow(row: IFullFlowRow): Promise<void> {
+  expect(await runInitHome(row)).toBe(true);
+  expect(await runPreLoginAndLogin(row)).toBe(true);
+  if (row.usesOtp) expect(await runOtpLeg(row)).toBe(true);
+  expect(await runBackHalf(row)).toBe(true);
+}
+
 describe('FULL-FLOW-FACTORY — Phase H per-bank 10-phase chain', () => {
-  it.each(SCENARIOS)(
-    'fullFlow_$bank_lastGood_ShouldCompleteEveryPhase',
-    async (row): Promise<void> => {
-      const didInitHomePass = await runInitHome(row);
-      expect(didInitHomePass).toBe(true);
-      const didPreLoginLoginPass = await runPreLoginAndLogin(row);
-      expect(didPreLoginLoginPass).toBe(true);
-      if (row.usesOtp) {
-        const didOtpPass = await runOtpLeg(row);
-        expect(didOtpPass).toBe(true);
-      }
-      const didBackPass = await runBackHalf(row);
-      expect(didBackPass).toBe(true);
-    },
-  );
+  it.each(SCENARIOS)('fullFlow_$bank_lastGood_ShouldCompleteEveryPhase', runFullFlowForRow);
 });

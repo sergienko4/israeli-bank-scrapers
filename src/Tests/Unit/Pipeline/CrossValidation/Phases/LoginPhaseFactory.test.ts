@@ -41,6 +41,7 @@ import type {
   IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
+import { unwrapOrThrow } from './Fixtures/_deepPhaseHelpers.js';
 import { buildDeepLoginContext } from './Fixtures/_makeDeepLoginPhaseContext.js';
 import { loadAuthDiscoveryFixtureCookies } from './Fixtures/_makeLoginPhaseContext.js';
 import { type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
@@ -124,11 +125,7 @@ function prepareLoginRow(row: ILoginScenarioRow): ILoginRowSubject {
  */
 async function runLoginPre(prepared: ILoginRowSubject): Promise<IPipelineContext> {
   const result = await executeDiscoverForm(prepared.row.loginConfig, prepared.subject.context);
-  if (!result.success) {
-    const detail = result.errorMessage;
-    throw new ScraperError(`LOGIN_PRE_FAILED bank=${prepared.row.bank} — ${detail}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `LOGIN_PRE_FAILED bank=${prepared.row.bank}`);
 }
 
 /**
@@ -146,11 +143,7 @@ async function runLoginAction(
 ): Promise<IActionContext> {
   const actionCtx = toActionCtx(preCtx, prepared.subject.executor);
   const result = await executeFillAndSubmitFromDiscovery(prepared.row.loginConfig, actionCtx);
-  if (!result.success) {
-    const detail = result.errorMessage;
-    throw new ScraperError(`LOGIN_ACTION_FAILED bank=${prepared.row.bank} — ${detail}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `LOGIN_ACTION_FAILED bank=${prepared.row.bank}`);
 }
 
 /**
@@ -168,15 +161,9 @@ async function runLoginPost(
   preCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const mediator = preCtx.mediator;
-  if (!mediator.has) {
-    throw new ScraperError(`LOGIN_POST_NO_MEDIATOR bank=${prepared.row.bank}`);
-  }
+  if (!mediator.has) throw new ScraperError(`LOGIN_POST_NO_MEDIATOR bank=${prepared.row.bank}`);
   const result = await executeValidateLogin(prepared.row.loginConfig, mediator.value, preCtx);
-  if (!result.success) {
-    const detail = result.errorMessage;
-    throw new ScraperError(`LOGIN_POST_FAILED bank=${prepared.row.bank} — ${detail}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `LOGIN_POST_FAILED bank=${prepared.row.bank}`);
 }
 
 /**
@@ -192,11 +179,7 @@ async function runLoginFinal(
   postCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const result = await executeLoginSignal(postCtx);
-  if (!result.success) {
-    const detail = result.errorMessage;
-    throw new ScraperError(`LOGIN_FINAL_FAILED bank=${prepared.row.bank} — ${detail}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `LOGIN_FINAL_FAILED bank=${prepared.row.bank}`);
 }
 
 /**

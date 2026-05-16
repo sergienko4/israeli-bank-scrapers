@@ -112,11 +112,21 @@ function seedOtpTriggerDiagnostics(
   base: IPipelineContext,
   args: IOtpTriggerPhaseContextArgs,
 ): IPipelineContext['diagnostics'] {
-  const seeded: IOtpTriggerSeededDiagnostics = {
+  return { ...base.diagnostics, ...buildSeededDiagnostics(args) };
+}
+
+/**
+ * Build the PRE-stage diagnostic stamps applied by
+ * {@link seedOtpTriggerDiagnostics}.
+ *
+ * @param args - Fixture-driven phoneHint + otpUrl.
+ * @returns Diagnostic keys committed by OTP-TRIGGER.PRE.
+ */
+function buildSeededDiagnostics(args: IOtpTriggerPhaseContextArgs): IOtpTriggerSeededDiagnostics {
+  return {
     otpTriggerTarget: SYNTHETIC_TRIGGER_TARGET,
     otpPhoneHint: args.phoneHint,
     triggerClickedAt: 0,
     otpTriggerPreUrl: args.otpUrl,
   };
-  return { ...base.diagnostics, ...seeded };
 }

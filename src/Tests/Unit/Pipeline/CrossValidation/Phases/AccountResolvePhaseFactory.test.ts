@@ -18,7 +18,8 @@
  * </ul>
  *
  * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
- * method" the `it.each` callback orchestrates via helpers.
+ * method" the `it.each` callback orchestrates via helpers + the
+ * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
@@ -34,22 +35,39 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { makeMockActionExecutor, toActionCtx } from '../../Infrastructure/TestHelpers.js';
 import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import { mergeActionDiagnostics, unwrapOrThrow } from './Fixtures/_deepPhaseHelpers.js';
 import {
   buildAccountResolvePhaseContext,
   type IAccountResolvePhaseTestSubject,
 } from './Fixtures/_makeAccountResolvePhaseContext.js';
 import { type IPhaseHFixture, loadPhaseFixture } from './Fixtures/_makePhaseFixture.js';
 
-/** Per-bank `accountsResponseBody` carried by the fixture meta block. */
-interface IAccountsFixtureMeta {
-  readonly accountsResponseBody?: unknown;
-}
-
 /** Bundle returned by {@link prepareAccountResolveRow}. */
 interface IAccountResolveRowSetup {
   readonly row: IBankScenario;
   readonly fixture: IPhaseHFixture;
   readonly subject: IAccountResolvePhaseTestSubject;
+}
+
+/**
+ * Type guard for the fixture-meta block carrying
+ * `accountsResponseBody`. Replaces the previous double-cast (rabbit
+ * cycle #2 finding kept open; double-cast also forbidden by
+ * `eslint.config.mjs §8a` A2 rule).
+ *
+ * @param meta - Fixture meta value (typed as `unknown`).
+ * @returns True when `meta` is an object carrying a defined
+ *   `accountsResponseBody` property.
+ */
+function hasAccountsResponseBody(
+  meta: unknown,
+): meta is { readonly accountsResponseBody: unknown } {
+  return (
+    typeof meta === 'object' &&
+    meta !== null &&
+    'accountsResponseBody' in meta &&
+    (meta as { accountsResponseBody?: unknown }).accountsResponseBody !== undefined
+  );
 }
 
 /**
@@ -60,11 +78,10 @@ interface IAccountResolveRowSetup {
  * @returns Redacted accounts response body.
  */
 function readAccountsResponseBody(fixture: IPhaseHFixture): unknown {
-  const meta = fixture.meta as unknown as IAccountsFixtureMeta;
-  if (meta.accountsResponseBody === undefined) {
+  if (!hasAccountsResponseBody(fixture.meta)) {
     throw new ScraperError(`ACCOUNT_RESOLVE_FIXTURE_MISSING_BODY bank=${fixture.meta.bank}`);
   }
-  return meta.accountsResponseBody;
+  return fixture.meta.accountsResponseBody;
 }
 
 /**
@@ -92,12 +109,7 @@ function prepareAccountResolveRow(row: IBankScenario): IAccountResolveRowSetup {
  */
 async function runAccountResolvePre(setup: IAccountResolveRowSetup): Promise<IPipelineContext> {
   const result = await executeAccountResolvePre(setup.subject.context);
-  if (!result.success) {
-    throw new ScraperError(
-      `ACCOUNT_RESOLVE_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
-    );
-  }
-  return result.value;
+  return unwrapOrThrow(result, `ACCOUNT_RESOLVE_PRE_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -111,15 +123,9 @@ async function runAccountResolveAction(
   setup: IAccountResolveRowSetup,
   preCtx: IPipelineContext,
 ): Promise<IActionContext> {
-  const executor = makeMockActionExecutor();
-  const actionCtx = toActionCtx(preCtx, executor);
+  const actionCtx = toActionCtx(preCtx, makeMockActionExecutor());
   const result = await executeAccountResolveAction(actionCtx);
-  if (!result.success) {
-    throw new ScraperError(
-      `ACCOUNT_RESOLVE_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
-    );
-  }
-  return result.value;
+  return unwrapOrThrow(result, `ACCOUNT_RESOLVE_ACTION_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -134,12 +140,7 @@ async function runAccountResolvePost(
   preCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const result = await executeAccountResolvePost(preCtx);
-  if (!result.success) {
-    throw new ScraperError(
-      `ACCOUNT_RESOLVE_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
-    );
-  }
-  return result.value;
+  return unwrapOrThrow(result, `ACCOUNT_RESOLVE_POST_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -155,12 +156,7 @@ async function runAccountResolveFinal(
   postCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const result = await executeAccountResolveFinal(postCtx);
-  if (!result.success) {
-    throw new ScraperError(
-      `ACCOUNT_RESOLVE_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
-    );
-  }
-  return result.value;
+  return unwrapOrThrow(result, `ACCOUNT_RESOLVE_FINAL_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -171,14 +167,14 @@ async function runAccountResolveFinal(
  */
 async function runAccountResolveChain(setup: IAccountResolveRowSetup): Promise<IPipelineContext> {
   const preCtx = await runAccountResolvePre(setup);
-  await runAccountResolveAction(setup, preCtx);
-  const postCtx = await runAccountResolvePost(setup, preCtx);
+  const actionCtx = await runAccountResolveAction(setup, preCtx);
+  const postInput = mergeActionDiagnostics(preCtx, actionCtx);
+  const postCtx = await runAccountResolvePost(setup, postInput);
   return runAccountResolveFinal(setup, postCtx);
 }
 
 /**
- * Assert ctx.accountDiscovery was committed with the expected id
- * count per fixture.
+ * Assert ctx.accountDiscovery committed with expected id count.
  *
  * @param setup - Row + subject + fixture bundle.
  * @param finalCtx - Context after the full chain.
@@ -189,10 +185,9 @@ function assertAccountResolveShape(
   finalCtx: IPipelineContext,
 ): boolean {
   expect(finalCtx.accountDiscovery.has).toBe(true);
-  if (finalCtx.accountDiscovery.has) {
-    const expectedCount = setup.fixture.meta.expected.accountResolveExpectedIdCount ?? 1;
-    expect(finalCtx.accountDiscovery.value.ids.length).toBe(expectedCount);
-  }
+  if (!finalCtx.accountDiscovery.has) return true;
+  const expectedCount = setup.fixture.meta.expected.accountResolveExpectedIdCount ?? 1;
+  expect(finalCtx.accountDiscovery.value.ids.length).toBe(expectedCount);
   return true;
 }
 

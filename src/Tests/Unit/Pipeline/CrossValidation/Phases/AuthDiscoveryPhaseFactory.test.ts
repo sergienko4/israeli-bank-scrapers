@@ -18,10 +18,10 @@
  * </ul>
  *
  * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
- * method" the `it.each` callback orchestrates via helpers.
+ * method" the `it.each` callback orchestrates via helpers + the
+ * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  */
 
-import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   executeAuthDiscoveryAction,
   executeAuthDiscoveryFinal,
@@ -34,6 +34,11 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
 import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import {
+  mergeActionDiagnostics,
+  PLACEHOLDER_LOGIN_CONFIG,
+  unwrapOrThrow,
+} from './Fixtures/_deepPhaseHelpers.js';
 import {
   buildDeepLoginContext,
   type IDeepLoginTestSubject,
@@ -57,11 +62,8 @@ interface IAuthRowSetup {
  */
 function prepareAuthRow(row: IBankScenario): IAuthRowSetup {
   const cookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
-  const placeholderConfig = { fields: [], submit: [], loginUrl: '' } as unknown as Parameters<
-    typeof buildDeepLoginContext
-  >[0]['loginConfig'];
   const subject = buildDeepLoginContext({
-    loginConfig: placeholderConfig,
+    loginConfig: PLACEHOLDER_LOGIN_CONFIG,
     loginUrl: row.dashboardUrl,
     cookies,
   });
@@ -76,10 +78,7 @@ function prepareAuthRow(row: IBankScenario): IAuthRowSetup {
  */
 async function runAuthPre(setup: IAuthRowSetup): Promise<IPipelineContext> {
   const result = await executeAuthDiscoveryPre(setup.subject.context);
-  if (!result.success) {
-    throw new ScraperError(`AUTH_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `AUTH_PRE_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -95,10 +94,7 @@ async function runAuthAction(
 ): Promise<IActionContext> {
   const actionCtx = toActionCtx(preCtx, setup.subject.executor);
   const result = await executeAuthDiscoveryAction(actionCtx);
-  if (!result.success) {
-    throw new ScraperError(`AUTH_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `AUTH_ACTION_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -113,10 +109,7 @@ async function runAuthPost(
   preCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const result = await executeAuthDiscoveryPost(preCtx);
-  if (!result.success) {
-    throw new ScraperError(`AUTH_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `AUTH_POST_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -131,10 +124,7 @@ async function runAuthFinal(
   postCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const result = await executeAuthDiscoveryFinal(postCtx);
-  if (!result.success) {
-    throw new ScraperError(`AUTH_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `AUTH_FINAL_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -145,8 +135,9 @@ async function runAuthFinal(
  */
 async function runAuthChain(setup: IAuthRowSetup): Promise<IPipelineContext> {
   const preCtx = await runAuthPre(setup);
-  await runAuthAction(setup, preCtx);
-  const postCtx = await runAuthPost(setup, preCtx);
+  const actionCtx = await runAuthAction(setup, preCtx);
+  const postInput = mergeActionDiagnostics(preCtx, actionCtx);
+  const postCtx = await runAuthPost(setup, postInput);
   return runAuthFinal(setup, postCtx);
 }
 

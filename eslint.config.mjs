@@ -795,6 +795,60 @@ export default tseslint.config(
       ],
     },
   },
+
+  // 8a. CROSS-BANK PHASE FACTORIES — STRICT QUALITY RULES
+  //
+  // Scoped to Phase H deep-factory work. Locks in the project's
+  // strictest discipline so PR #232 cannot regress to the prior state:
+  //
+  //   - **max-lines-per-function: 10** (CLAUDE.md + coding-principle-
+  //     guidlines.md "Max 10 lines per method"). Forces extraction.
+  //
+  //   - **max-statements: 10** (A3). Semantic counterpart to lines;
+  //     prevents long methods that pass the line count by stuffing
+  //     statements onto one line.
+  //
+  //   - **sonarjs/no-identical-functions** (A8). Catches the kind of
+  //     placeholderConfig + run*Pre/Action/Post/Final unwrap-or-throw
+  //     duplication CodeRabbit flagged in rabbit cycle #3 (findings
+  //     #1, #2, #7, #8).
+  //
+  //   - **sonarjs/no-duplicate-string** (A8). Threshold:5 catches
+  //     repeated literal magic strings (e.g. `'last-good'` paths,
+  //     error-prefix strings) that should be constants.
+  //
+  //   - **no-restricted-syntax — double-cast ban** (A2). Bans
+  //     `expr as unknown as T` outright. CodeRabbit's repeated
+  //     finding ("type-system bypass via double-cast") is now a
+  //     compile-time error inside the deep-factory zone.
+  //
+  // Pre-existing files outside this scope can adopt the same limits
+  // incrementally in follow-up PRs.
+  {
+    files: ['src/Tests/Unit/Pipeline/CrossValidation/Phases/**/*.ts'],
+    plugins: {
+      sonarjs,
+    },
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true },
+      ],
+      'max-statements': ['error', 10],
+      'sonarjs/no-identical-functions': 'error',
+      'sonarjs/no-duplicate-string': ['error', { threshold: 5 }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          // A2 — ban `expr as unknown as T` double-casts.
+          // Phase H rabbit cycle #3 finding #1, #3, #7.
+          selector: 'TSAsExpression > TSAsExpression',
+          message:
+            "🚫 TYPE BYPASS (Phase H rule): 'expr as unknown as T' double-casts are banned in deep-factory tests. Extract a properly typed factory/constant from `Fixtures/_deepPhaseHelpers.ts` instead.",
+        },
+      ],
+    },
+  },
   // 9. INDEX FILES EXCEPTION
   {
     files: ['**/index.ts'],

@@ -137,6 +137,17 @@ function loadCookieSidecar(
   scenarioId: string,
 ): readonly ICookieSnapshot[] {
   const filePath = join(FIXTURES_DIR, bank, phase, `${scenarioId}.json`);
+  return readCookiesFromFixture(filePath);
+}
+
+/**
+ * Parse a fixture file and return its cookie sidecar array.
+ *
+ * @param filePath - Absolute path to the fixture JSON.
+ * @returns Redacted cookie snapshot from the fixture.
+ * @throws {ScraperError} When the fixture JSON lacks `cookies`.
+ */
+function readCookiesFromFixture(filePath: string): readonly ICookieSnapshot[] {
   const parsed = parseFixtureJson(filePath);
   if (!hasCookieSidecar(parsed)) {
     throw new ScraperError(
@@ -222,14 +233,10 @@ export function buildLoginPhaseContext(
 ): IPipelineContext {
   const page: Page = makeMockFullPage(`https://${fixture.meta.bank}.example.com/login`);
   const baseContext = makeContextWithLogin(page);
-  const cookieMediator = makeMockMediator({
-    /**
-     * Return the fixture's redacted cookie snapshot so
-     * `executeLoginSignal`'s session-cookie audit drives off
-     * production shape instead of an empty stub.
-     * @returns Fixture cookies.
-     */
-    getCookies: (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookies),
-  });
-  return { ...baseContext, mediator: some(cookieMediator) };
+  /**
+   * Return the fixture-redacted cookie snapshot for FINAL audit.
+   * @returns Fixture cookies.
+   */
+  const getCookies = (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookies);
+  return { ...baseContext, mediator: some(makeMockMediator({ getCookies })) };
 }

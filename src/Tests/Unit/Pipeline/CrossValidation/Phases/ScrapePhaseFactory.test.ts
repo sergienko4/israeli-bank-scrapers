@@ -19,10 +19,10 @@
  * </ul>
  *
  * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
- * method" the `it.each` callback orchestrates via helpers.
+ * method" the `it.each` callback orchestrates via helpers + the
+ * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  */
 
-import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   executeForensicPre,
   executeMatrixLoop,
@@ -33,14 +33,14 @@ import type {
   IActionContext,
   IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import {
-  type ITransaction,
-  type ITransactionsAccount,
-  TransactionStatuses,
-  TransactionTypes,
-} from '../../../../../Transactions.js';
+import { type ITransaction, type ITransactionsAccount } from '../../../../../Transactions.js';
 import { makeMockActionExecutor, toActionCtx } from '../../Infrastructure/TestHelpers.js';
 import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import {
+  buildRedactedTxn as buildRedactedTxnBase,
+  mergeActionDiagnostics,
+  unwrapOrThrow,
+} from './Fixtures/_deepPhaseHelpers.js';
 import { type IPhaseHFixture, loadPhaseFixture } from './Fixtures/_makePhaseFixture.js';
 import { buildScrapePhaseContext } from './Fixtures/_makeScrapePhaseContext.js';
 
@@ -52,23 +52,14 @@ interface IScrapeRowSetup {
 }
 
 /**
- * Build a single redacted transaction record.
+ * Build a single redacted transaction record with the SCRAPE-leg
+ * identifier prefix.
  *
  * @param ordinal - Identifier suffix for uniqueness.
  * @returns Redacted transaction record.
  */
 function buildRedactedTxn(ordinal: number): ITransaction {
-  return {
-    type: TransactionTypes.Normal,
-    identifier: `FAKE-TXN-${String(ordinal)}`,
-    date: '2026-05-01T00:00:00.000Z',
-    processedDate: '2026-05-01T00:00:00.000Z',
-    originalAmount: -100,
-    originalCurrency: 'ILS',
-    chargedAmount: -100,
-    description: 'FAKE TEXT',
-    status: TransactionStatuses.Completed,
-  };
+  return buildRedactedTxnBase('FAKE-TXN', ordinal);
 }
 
 /**
@@ -82,11 +73,7 @@ function buildRedactedAccount(txnCount: number): ITransactionsAccount {
     { length: txnCount },
     (_unused, index): ITransaction => buildRedactedTxn(index),
   );
-  return {
-    accountNumber: 'FAKE-000000',
-    balance: 0,
-    txns,
-  };
+  return { accountNumber: 'FAKE-000000', balance: 0, txns };
 }
 
 /**
@@ -112,10 +99,7 @@ function prepareScrapeRow(row: IBankScenario): IScrapeRowSetup {
  */
 async function runScrapePre(setup: IScrapeRowSetup): Promise<IPipelineContext> {
   const result = await executeForensicPre(setup.context);
-  if (!result.success) {
-    throw new ScraperError(`SCRAPE_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `SCRAPE_PRE_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -129,13 +113,9 @@ async function runScrapeAction(
   setup: IScrapeRowSetup,
   preCtx: IPipelineContext,
 ): Promise<IActionContext> {
-  const executor = makeMockActionExecutor();
-  const actionCtx = toActionCtx(preCtx, executor);
+  const actionCtx = toActionCtx(preCtx, makeMockActionExecutor());
   const result = await executeMatrixLoop(actionCtx);
-  if (!result.success) {
-    throw new ScraperError(`SCRAPE_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `SCRAPE_ACTION_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -150,10 +130,7 @@ async function runScrapePost(
   preCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const result = await executeValidateResults(preCtx);
-  if (!result.success) {
-    throw new ScraperError(`SCRAPE_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `SCRAPE_POST_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -168,10 +145,7 @@ async function runScrapeFinal(
   postCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
   const result = await executeStampAccounts(postCtx);
-  if (!result.success) {
-    throw new ScraperError(`SCRAPE_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `SCRAPE_FINAL_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -182,8 +156,9 @@ async function runScrapeFinal(
  */
 async function runScrapeChain(setup: IScrapeRowSetup): Promise<IPipelineContext> {
   const preCtx = await runScrapePre(setup);
-  await runScrapeAction(setup, preCtx);
-  const postCtx = await runScrapePost(setup, preCtx);
+  const actionCtx = await runScrapeAction(setup, preCtx);
+  const postInput = mergeActionDiagnostics(preCtx, actionCtx);
+  const postCtx = await runScrapePost(setup, postInput);
   return runScrapeFinal(setup, postCtx);
 }
 

@@ -17,7 +17,8 @@
  * </ul>
  *
  * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
- * method" the `it.each` callback orchestrates via helpers.
+ * method" the `it.each` callback orchestrates via helpers + the
+ * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
@@ -33,6 +34,11 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
 import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import {
+  mergeActionDiagnostics,
+  PLACEHOLDER_LOGIN_CONFIG,
+  unwrapOrThrow,
+} from './Fixtures/_deepPhaseHelpers.js';
 import {
   buildDeepLoginContext,
   type IDeepLoginTestSubject,
@@ -54,11 +60,8 @@ interface IPreLoginRowSetup {
  */
 function preparePreLoginRow(row: IBankScenario): IPreLoginRowSetup {
   const cookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
-  const placeholderConfig = { fields: [], submit: [], loginUrl: '' } as unknown as Parameters<
-    typeof buildDeepLoginContext
-  >[0]['loginConfig'];
   const subject = buildDeepLoginContext({
-    loginConfig: placeholderConfig,
+    loginConfig: PLACEHOLDER_LOGIN_CONFIG,
     loginUrl: row.loginUrl,
     cookies,
   });
@@ -75,14 +78,9 @@ async function runPreLoginPre(setup: IPreLoginRowSetup): Promise<IPipelineContex
   if (!setup.subject.context.mediator.has) {
     throw new ScraperError(`PRELOGIN_PRE_NO_MEDIATOR bank=${setup.row.bank}`);
   }
-  const result = await executePreLocateReveal(
-    setup.subject.context.mediator.value,
-    setup.subject.context,
-  );
-  if (!result.success) {
-    throw new ScraperError(`PRELOGIN_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  const mediator = setup.subject.context.mediator.value;
+  const result = await executePreLocateReveal(mediator, setup.subject.context);
+  return unwrapOrThrow(result, `PRELOGIN_PRE_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -99,12 +97,7 @@ async function runPreLoginAction(
 ): Promise<IActionContext> {
   const actionCtx = toActionCtx(preCtx, setup.subject.executor);
   const result = await executeFireRevealClicksSealed(actionCtx);
-  if (!result.success) {
-    throw new ScraperError(
-      `PRELOGIN_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
-    );
-  }
-  return result.value;
+  return unwrapOrThrow(result, `PRELOGIN_ACTION_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -122,10 +115,7 @@ async function runPreLoginPost(
     throw new ScraperError(`PRELOGIN_POST_NO_MEDIATOR bank=${setup.row.bank}`);
   }
   const result = await executeValidateForm(preCtx.mediator.value, preCtx);
-  if (!result.success) {
-    throw new ScraperError(`PRELOGIN_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `PRELOGIN_POST_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -137,10 +127,7 @@ async function runPreLoginPost(
  */
 function runPreLoginFinal(setup: IPreLoginRowSetup, postCtx: IPipelineContext): IPipelineContext {
   const result = executeSignalToLogin(postCtx);
-  if (!result.success) {
-    throw new ScraperError(`PRELOGIN_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
-  }
-  return result.value;
+  return unwrapOrThrow(result, `PRELOGIN_FINAL_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -151,8 +138,9 @@ function runPreLoginFinal(setup: IPreLoginRowSetup, postCtx: IPipelineContext): 
  */
 async function runPreLoginChain(setup: IPreLoginRowSetup): Promise<IPipelineContext> {
   const preCtx = await runPreLoginPre(setup);
-  await runPreLoginAction(setup, preCtx);
-  const postCtx = await runPreLoginPost(setup, preCtx);
+  const actionCtx = await runPreLoginAction(setup, preCtx);
+  const postInput = mergeActionDiagnostics(preCtx, actionCtx);
+  const postCtx = await runPreLoginPost(setup, postInput);
   return runPreLoginFinal(setup, postCtx);
 }
 

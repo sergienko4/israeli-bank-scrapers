@@ -144,17 +144,17 @@ function buildHomeContext(
  */
 function makePageWithFrameCount(initialUrl: string, frameCount: number): Page {
   const base = makeMockFullPage(initialUrl);
-  const frames: readonly Page[] = Array.from(
-    { length: frameCount },
-    (): Page => makeMockFullPage(initialUrl),
-  );
-  return {
-    ...base,
-    /**
-     * Return the requested number of mock frames so HOME.POST's
-     * `hasFrames = frameCount > 1` branch is reachable.
-     * @returns Mock frame array.
-     */
-    frames: (): readonly Page[] => frames,
-  } as unknown as Page;
+  /**
+   * Build one mock frame element for the synthetic frame list.
+   * @returns Mock frame page.
+   */
+  const buildFrame = (): Page => makeMockFullPage(initialUrl);
+  const frames: readonly Page[] = Array.from({ length: frameCount }, buildFrame);
+  /**
+   * Return the requested number of mock frames so HOME.POST's
+   * `hasFrames = frameCount > 1` branch is reachable.
+   * @returns Mock frame array.
+   */
+  const framesFn = (): readonly Page[] => frames;
+  return Object.assign(base, { frames: framesFn });
 }

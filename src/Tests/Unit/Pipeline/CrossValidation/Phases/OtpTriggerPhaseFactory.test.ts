@@ -18,13 +18,13 @@
  * </ul>
  *
  * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
- * method" the `it.each` callback orchestrates via helpers.
+ * method" the `it.each` callback orchestrates via helpers + the
+ * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  *
  * <p>Scope: 4 OTP-using banks (hapoalim, beinleumi, max,
  * visacal). Discount/Amex/Isracard use password-only login.
  */
 
-import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   executeTriggerAction,
   executeTriggerFinal,
@@ -37,6 +37,7 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
 import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import { PLACEHOLDER_LOGIN_CONFIG, unwrapOrThrow } from './Fixtures/_deepPhaseHelpers.js';
 import {
   buildDeepLoginContext,
   type IDeepLoginTestSubject,
@@ -64,11 +65,8 @@ interface IOtpTriggerRowSetup {
  */
 function prepareOtpTriggerRow(row: IBankScenario): IOtpTriggerRowSetup {
   const cookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
-  const placeholderConfig = { fields: [], submit: [], loginUrl: '' } as unknown as Parameters<
-    typeof buildDeepLoginContext
-  >[0]['loginConfig'];
   const subject = buildDeepLoginContext({
-    loginConfig: placeholderConfig,
+    loginConfig: PLACEHOLDER_LOGIN_CONFIG,
     loginUrl: `${row.loginUrl}/otp`,
     cookies,
   });
@@ -83,12 +81,7 @@ function prepareOtpTriggerRow(row: IBankScenario): IOtpTriggerRowSetup {
  */
 async function runOtpTriggerPre(setup: IOtpTriggerRowSetup): Promise<IPipelineContext> {
   const result = await executeTriggerPre(setup.subject.context);
-  if (!result.success) {
-    throw new ScraperError(
-      `OTP_TRIGGER_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
-    );
-  }
-  return result.value;
+  return unwrapOrThrow(result, `OTP_TRIGGER_PRE_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -104,12 +97,7 @@ async function runOtpTriggerAction(
 ): Promise<IActionContext> {
   const actionCtx = toActionCtx(preCtx, setup.subject.executor);
   const result = await executeTriggerAction(actionCtx);
-  if (!result.success) {
-    throw new ScraperError(
-      `OTP_TRIGGER_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
-    );
-  }
-  return result.value;
+  return unwrapOrThrow(result, `OTP_TRIGGER_ACTION_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -124,29 +112,33 @@ function mergeForPost(preCtx: IPipelineContext, actionCtx: IActionContext): IPip
 }
 
 /**
- * Drive OTP-TRIGGER.POST + FINAL via production handlers.
+ * Drive OTP-TRIGGER.POST via production handler.
  *
  * @param setup - Row + deep test subject.
  * @param postInput - Merged pre+action context.
- * @returns FINAL-updated context.
+ * @returns POST-updated context.
  */
-async function runOtpTriggerPostFinal(
+async function runOtpTriggerPost(
   setup: IOtpTriggerRowSetup,
   postInput: IPipelineContext,
 ): Promise<IPipelineContext> {
-  const postResult = await executeTriggerPost(postInput);
-  if (!postResult.success) {
-    throw new ScraperError(
-      `OTP_TRIGGER_POST_FAILED bank=${setup.row.bank} - ${postResult.errorMessage}`,
-    );
-  }
-  const finalResult = await executeTriggerFinal(postResult.value);
-  if (!finalResult.success) {
-    throw new ScraperError(
-      `OTP_TRIGGER_FINAL_FAILED bank=${setup.row.bank} - ${finalResult.errorMessage}`,
-    );
-  }
-  return finalResult.value;
+  const result = await executeTriggerPost(postInput);
+  return unwrapOrThrow(result, `OTP_TRIGGER_POST_FAILED bank=${setup.row.bank}`);
+}
+
+/**
+ * Drive OTP-TRIGGER.FINAL via production handler.
+ *
+ * @param setup - Row + deep test subject.
+ * @param postCtx - POST-updated context.
+ * @returns FINAL-updated context.
+ */
+async function runOtpTriggerFinal(
+  setup: IOtpTriggerRowSetup,
+  postCtx: IPipelineContext,
+): Promise<IPipelineContext> {
+  const result = await executeTriggerFinal(postCtx);
+  return unwrapOrThrow(result, `OTP_TRIGGER_FINAL_FAILED bank=${setup.row.bank}`);
 }
 
 /**
@@ -159,17 +151,25 @@ async function runOtpTriggerChain(setup: IOtpTriggerRowSetup): Promise<IPipeline
   const preCtx = await runOtpTriggerPre(setup);
   const actionCtx = await runOtpTriggerAction(setup, preCtx);
   const postInput = mergeForPost(preCtx, actionCtx);
-  return runOtpTriggerPostFinal(setup, postInput);
+  const postCtx = await runOtpTriggerPost(setup, postInput);
+  return runOtpTriggerFinal(setup, postCtx);
 }
 
 /**
- * Assert ctx.otpTrigger committed with triggered=true.
+ * Assert ctx.otpTrigger committed AND `triggered === true`.
+ *
+ * <p>Asserts the documented FINAL contract — presence-only checks
+ * miss state where the snapshot is committed with `triggered=false`
+ * (CodeRabbit cycle #3 finding #6).
  *
  * @param finalCtx - Context after the chain.
  * @returns True after assertion.
  */
 function assertOtpTriggerShape(finalCtx: IPipelineContext): boolean {
   expect(finalCtx.otpTrigger.has).toBe(true);
+  if (finalCtx.otpTrigger.has) {
+    expect(finalCtx.otpTrigger.value.triggered).toBe(true);
+  }
   return true;
 }
 

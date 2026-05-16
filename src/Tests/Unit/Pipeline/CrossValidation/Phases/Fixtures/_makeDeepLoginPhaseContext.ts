@@ -70,19 +70,14 @@ export interface IDeepLoginTestSubject {
  * @returns Test subject containing the context + sealed executor.
  */
 export function buildDeepLoginContext(args: IDeepLoginContextArgs): IDeepLoginTestSubject {
-  const basePage = makeMockFullPage(args.loginUrl);
-  const page: Page = enrichDeepPage(basePage);
+  const page: Page = enrichDeepPage(makeMockFullPage(args.loginUrl));
   const browser = buildDeepLoginBrowser(page);
   const mediator = buildDeepLoginMediator(page, args.loginUrl, args.cookies);
-  const executor = buildDeepLoginExecutor();
   const credentials = synthesizeCredentials(args.loginConfig);
+  const config: IPipelineContext['config'] = { urls: { base: args.loginUrl } };
   const base = makeMockContext({ browser, mediator });
-  const context: IPipelineContext = {
-    ...base,
-    credentials,
-    config: { urls: { base: args.loginUrl } },
-  };
-  return { context, executor };
+  const context: IPipelineContext = { ...base, credentials, config };
+  return { context, executor: buildDeepLoginExecutor() };
 }
 
 /**
@@ -130,7 +125,7 @@ function synthesizeCredentials(loginConfig: ILoginConfig): IPipelineContext['cre
     field.credentialKey,
     'FAKE',
   ]);
-  return Object.fromEntries(entries) as unknown as IPipelineContext['credentials'];
+  return Object.fromEntries(entries) as IPipelineContext['credentials'];
 }
 
 /**
@@ -160,24 +155,74 @@ function buildDeepLoginMediator(
   loginUrl: string,
   cookies: readonly ICookieSnapshot[],
 ): Option<IElementMediator> {
-  const fixtureMediator = makeMockMediator({
+  return some(makeMockMediator(buildDeepLoginMediatorStubs(page, loginUrl, cookies)));
+}
+
+/**
+ * Bundle the mediator stub overrides used by the deep LOGIN test
+ * subject. Surfacing them as a single bundle keeps
+ * {@link buildDeepLoginMediator} under the project's line cap.
+ *
+ * @param page - Shared mock page reused as each stub's context.
+ * @param loginUrl - URL the mediator reports as current.
+ * @param cookies - Redacted cookie snapshot for FINAL audit.
+ * @returns Stub overrides ready for {@link makeMockMediator}.
+ */
+function buildDeepLoginMediatorStubs(
+  page: Page,
+  loginUrl: string,
+  cookies: readonly ICookieSnapshot[],
+): Parameters<typeof makeMockMediator>[0] {
+  const pageStubs = buildPageStubs(page);
+  return { ...pageStubs, ...buildDeepLoginSessionStubs(loginUrl, cookies) };
+}
+
+/** Page-scoped mediator stub bundle returned by {@link buildPageStubs}. */
+type PageStubsBundle = Pick<
+  NonNullable<Parameters<typeof makeMockMediator>[0]>,
+  'resolveField' | 'discoverForm' | 'resolveVisible'
+>;
+
+/**
+ * Bundle the three page-scoped mediator stubs (resolveField,
+ * discoverForm, resolveVisible) so {@link buildDeepLoginMediatorStubs}
+ * stays under the project's line cap.
+ *
+ * @param page - Shared mock page reused as each stub's context.
+ * @returns Page-scoped stub overrides.
+ */
+function buildPageStubs(page: Page): PageStubsBundle {
+  return {
     resolveField: buildResolveFieldStub(page),
     discoverForm: buildDiscoverFormStub(page),
     resolveVisible: buildResolveVisibleStub(page),
-    /**
-     * Return the fixture-redacted cookie snapshot for FINAL's
-     * session-cookie audit.
-     * @returns Fixture cookies.
-     */
-    getCookies: (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookies),
-    /**
-     * Return the bank's login URL so logging + URL comparisons
-     * reflect captured-shape state.
-     * @returns Login URL.
-     */
-    getCurrentUrl: (): string => loginUrl,
-  });
-  return some(fixtureMediator);
+  };
+}
+
+/**
+ * Build the session-side stubs (cookie snapshot + URL accessor) for
+ * the deep LOGIN mediator. Split out so the parent stub-builder
+ * fits the project's 10-line method cap.
+ *
+ * @param loginUrl - URL the mediator reports as current.
+ * @param cookies - Redacted cookie snapshot for FINAL audit.
+ * @returns Object carrying the `getCookies` + `getCurrentUrl` overrides.
+ */
+function buildDeepLoginSessionStubs(
+  loginUrl: string,
+  cookies: readonly ICookieSnapshot[],
+): Pick<NonNullable<Parameters<typeof makeMockMediator>[0]>, 'getCookies' | 'getCurrentUrl'> {
+  /**
+   * Return the fixture-redacted cookie snapshot for FINAL.
+   * @returns Fixture cookies.
+   */
+  const getCookies = (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookies);
+  /**
+   * Return the bank's login URL for logging + URL comparisons.
+   * @returns Login URL.
+   */
+  const getCurrentUrl = (): string => loginUrl;
+  return { getCookies, getCurrentUrl };
 }
 
 /**
@@ -205,17 +250,25 @@ type ResolveFieldResult = Awaited<ReturnType<IElementMediator['resolveField']>>;
  * @returns Stub function compatible with {@link IElementMediator.resolveField}.
  */
 function buildResolveFieldStub(page: Page): IElementMediator['resolveField'] {
-  return (key: string): Promise<ResolveFieldResult> => {
-    const fieldCtx: IFieldContext = {
-      isResolved: true,
-      selector: `[data-test-field="${key}"]`,
-      context: page,
-      resolvedVia: 'wellKnown',
-      round: 'mainPage',
-      resolvedKind: 'placeholder',
-    };
-    const okResult = succeed(fieldCtx);
-    return Promise.resolve(okResult);
+  return (key: string): Promise<ResolveFieldResult> =>
+    Promise.resolve(succeed(makeFieldCtx(page, key)));
+}
+
+/**
+ * Synthesise a resolved {@link IFieldContext} for one WK field key.
+ *
+ * @param page - Shared mock page reused as the field's context.
+ * @param key - WK field key requested by ACTION.
+ * @returns Field context anchored at the shared page.
+ */
+function makeFieldCtx(page: Page, key: string): IFieldContext {
+  return {
+    isResolved: true,
+    selector: `[data-test-field="${key}"]`,
+    context: page,
+    resolvedVia: 'wellKnown',
+    round: 'mainPage',
+    resolvedKind: 'placeholder',
   };
 }
 
@@ -248,15 +301,22 @@ function buildDiscoverFormStub(page: Page): IElementMediator['discoverForm'] {
  * @returns Stub function compatible with {@link IElementMediator.resolveVisible}.
  */
 function buildResolveVisibleStub(page: Page): IElementMediator['resolveVisible'] {
-  return (): Promise<IRaceResult> => {
-    const result: IRaceResult = {
-      ...NOT_FOUND_RESULT,
-      found: true,
-      candidate: { kind: 'textContent' as const, value: 'submit' },
-      context: page,
-      value: 'submit',
-      identity: false,
-    };
-    return Promise.resolve(result);
+  return (): Promise<IRaceResult> => Promise.resolve(makeFoundRaceResult(page));
+}
+
+/**
+ * Synthesise the found {@link IRaceResult} for submit-target lookups.
+ *
+ * @param page - Shared mock page reused as the race result's context.
+ * @returns Race result anchored at the shared page.
+ */
+function makeFoundRaceResult(page: Page): IRaceResult {
+  return {
+    ...NOT_FOUND_RESULT,
+    found: true,
+    candidate: { kind: 'textContent' as const, value: 'submit' },
+    context: page,
+    value: 'submit',
+    identity: false,
   };
 }
