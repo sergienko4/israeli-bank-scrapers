@@ -1,67 +1,60 @@
 /**
- * Phase H.T3c.9 — cross-bank SCRAPE per-phase factory.
+ * Phase H+ - cross-bank SCRAPE per-phase factory (DEEP).
  *
- * <p>Drives every bank's PII-redacted last-good scrape output
- * through production {@link executeValidateResults} (POST) +
- * {@link executeStampAccounts} (FINAL), asserting the all-accounts-
- * empty guard accepts non-empty scrape output and FINAL stamps the
- * account count. Each row consumes a dedicated
- * `<bank>/scrape/<scenarioId>.json` fixture (locked plan H.T3c.9:
- * "+ 7 fixtures").
+ * <p>Honors the locked plan factory-depth expectation: drives the
+ * full PRE -> ACTION -> POST -> FINAL chain per bank through real
+ * production code paths.
  *
- * <p>Contract (`ScrapePhaseActions.ts:375-500`):
  * <ul>
- *   <li>POST: succeeds when accounts.length >= 1 AND at least one
- *       account has >= 1 txn. Fails loud "scrape.post: all N
- *       accounts have 0 txns — scrape miss" when every account is
- *       empty.</li>
- *   <li>FINAL: always succeeds — stamps account count into
- *       diagnostics for the audit trail.</li>
+ *   <li>PRE: {@link executeForensicPre} - forensic priming +
+ *     DIRECT discovery; short-circuits when api absent (test
+ *     mode), preserving ctx.scrape for downstream POST.</li>
+ *   <li>ACTION: {@link executeMatrixLoop} - sealed
+ *     {@link executeFrozenDirectScrape}; short-circuits when
+ *     scrapeDiscovery absent (test mode).</li>
+ *   <li>POST: {@link executeValidateResults} - all-accounts-empty
+ *     guard; succeeds with at least one populated account.</li>
+ *   <li>FINAL: {@link executeStampAccounts} - stamps account count
+ *     into diagnostics for audit trail.</li>
  * </ul>
  *
- * <p>Complements existing Phase G cross-bank dedup factory
- * (CrossBankDedup) which covers the upstream txn-list extraction +
- * dedup chain. H.T3c.9 covers the SCRAPE-phase POST+FINAL guard
- * specifically.
+ * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
+ * method" the `it.each` callback orchestrates via helpers.
  */
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
+  executeForensicPre,
+  executeMatrixLoop,
   executeStampAccounts,
   executeValidateResults,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.js';
+import type {
+  IActionContext,
+  IPipelineContext,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import {
   type ITransaction,
   type ITransactionsAccount,
   TransactionStatuses,
   TransactionTypes,
 } from '../../../../../Transactions.js';
-import { loadPhaseFixture, type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
+import { makeMockActionExecutor, toActionCtx } from '../../Infrastructure/TestHelpers.js';
+import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import { type IPhaseHFixture, loadPhaseFixture } from './Fixtures/_makePhaseFixture.js';
 import { buildScrapePhaseContext } from './Fixtures/_makeScrapePhaseContext.js';
 
-/** Per-scenario row driven by the parameterised `it.each` below. */
-interface IScrapeScenarioRow {
-  readonly bank: PhaseHBank;
-  readonly scenarioId: string;
+/** Bundle returned by {@link prepareScrapeRow}. */
+interface IScrapeRowSetup {
+  readonly row: IBankScenario;
+  readonly fixture: IPhaseHFixture;
+  readonly context: IPipelineContext;
 }
 
-/** Scenarios exercised — one row per bank, all using last-good captures. */
-const SCENARIOS: readonly IScrapeScenarioRow[] = [
-  { bank: 'hapoalim', scenarioId: 'last-good' },
-  { bank: 'beinleumi', scenarioId: 'last-good' },
-  { bank: 'discount', scenarioId: 'last-good' },
-  { bank: 'amex', scenarioId: 'last-good' },
-  { bank: 'isracard', scenarioId: 'last-good' },
-  { bank: 'max', scenarioId: 'last-good' },
-  { bank: 'visacal', scenarioId: 'last-good' },
-];
-
 /**
- * Build a single redacted transaction record. Reused across banks to
- * keep the factory bank-agnostic (the bank-specific dimension lives
- * in `expected.scrapeExpectedTxnCount`).
+ * Build a single redacted transaction record.
  *
- * @param ordinal - Ordinal used to suffix the identifier so multi-
- *   txn fixtures retain distinct identifiers.
+ * @param ordinal - Identifier suffix for uniqueness.
  * @returns Redacted transaction record.
  */
 function buildRedactedTxn(ordinal: number): ITransaction {
@@ -79,12 +72,9 @@ function buildRedactedTxn(ordinal: number): ITransaction {
 }
 
 /**
- * Build a redacted account with the requested txn count. Single-
- * account-per-bank keeps the factory's contract focused on the
- * all-accounts-empty guard rather than multi-account aggregation
- * (the cross-bank dedup factory covers that).
+ * Build a redacted account with the requested txn count.
  *
- * @param txnCount - Number of txns to populate the account with.
+ * @param txnCount - Number of txns to populate.
  * @returns Redacted account record.
  */
 function buildRedactedAccount(txnCount: number): ITransactionsAccount {
@@ -99,24 +89,120 @@ function buildRedactedAccount(txnCount: number): ITransactionsAccount {
   };
 }
 
-describe('SCRAPE-PHASE-FACTORY — Phase H per-bank POST+FINAL', () => {
-  it.each(SCENARIOS)(
-    'scrape_$bank_$scenarioId_ShouldValidateResultsAndStamp',
-    async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `scrape/${row.scenarioId}`);
-      const expectedTxnCount = fixture.meta.expected.scrapeExpectedTxnCount ?? 1;
-      const accounts: readonly ITransactionsAccount[] = [buildRedactedAccount(expectedTxnCount)];
-      const subject = buildScrapePhaseContext({ accounts });
+/**
+ * Build the deep SCRAPE context. Stamps ctx.scrape with fixture-
+ * driven accounts so POST + FINAL can validate.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns Row + fixture + context bundle.
+ */
+function prepareScrapeRow(row: IBankScenario): IScrapeRowSetup {
+  const fixture = loadPhaseFixture(row.bank, 'scrape/last-good');
+  const expectedTxnCount = fixture.meta.expected.scrapeExpectedTxnCount ?? 1;
+  const accounts: readonly ITransactionsAccount[] = [buildRedactedAccount(expectedTxnCount)];
+  const subject = buildScrapePhaseContext({ accounts });
+  return { row, fixture, context: subject.context };
+}
 
-      const postResult = await executeValidateResults(subject.context);
-      const shouldPostSucceed = fixture.meta.expected.scrapePostOutcome === 'success';
-      expect(postResult.success).toBe(shouldPostSucceed);
+/**
+ * Drive SCRAPE.PRE via production executeForensicPre.
+ *
+ * @param setup - Row + context bundle.
+ * @returns PRE-updated pipeline context.
+ */
+async function runScrapePre(setup: IScrapeRowSetup): Promise<IPipelineContext> {
+  const result = await executeForensicPre(setup.context);
+  if (!result.success) {
+    throw new ScraperError(`SCRAPE_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
+  }
+  return result.value;
+}
 
-      if (postResult.success) {
-        const finalResult = await executeStampAccounts(postResult.value);
-        const shouldFinalSucceed = fixture.meta.expected.scrapeFinalOutcome === 'success';
-        expect(finalResult.success).toBe(shouldFinalSucceed);
-      }
-    },
-  );
+/**
+ * Drive SCRAPE.ACTION via production executeMatrixLoop.
+ *
+ * @param setup - Row + context bundle.
+ * @param preCtx - PRE-updated context.
+ * @returns Action context pass-through.
+ */
+async function runScrapeAction(
+  setup: IScrapeRowSetup,
+  preCtx: IPipelineContext,
+): Promise<IActionContext> {
+  const executor = makeMockActionExecutor();
+  const actionCtx = toActionCtx(preCtx, executor);
+  const result = await executeMatrixLoop(actionCtx);
+  if (!result.success) {
+    throw new ScraperError(`SCRAPE_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
+  }
+  return result.value;
+}
+
+/**
+ * Drive SCRAPE.POST via production executeValidateResults.
+ *
+ * @param setup - Row + context bundle.
+ * @param preCtx - PRE-updated context (preserves ctx.scrape).
+ * @returns POST-updated pipeline context.
+ */
+async function runScrapePost(
+  setup: IScrapeRowSetup,
+  preCtx: IPipelineContext,
+): Promise<IPipelineContext> {
+  const result = await executeValidateResults(preCtx);
+  if (!result.success) {
+    throw new ScraperError(`SCRAPE_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
+  }
+  return result.value;
+}
+
+/**
+ * Drive SCRAPE.FINAL via production executeStampAccounts.
+ *
+ * @param setup - Row + context bundle.
+ * @param postCtx - POST-updated context.
+ * @returns FINAL-updated pipeline context.
+ */
+async function runScrapeFinal(
+  setup: IScrapeRowSetup,
+  postCtx: IPipelineContext,
+): Promise<IPipelineContext> {
+  const result = await executeStampAccounts(postCtx);
+  if (!result.success) {
+    throw new ScraperError(`SCRAPE_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
+  }
+  return result.value;
+}
+
+/**
+ * Run the full SCRAPE PRE -> ACTION -> POST -> FINAL chain.
+ *
+ * @param setup - Row + context bundle.
+ * @returns FINAL pipeline context.
+ */
+async function runScrapeChain(setup: IScrapeRowSetup): Promise<IPipelineContext> {
+  const preCtx = await runScrapePre(setup);
+  await runScrapeAction(setup, preCtx);
+  const postCtx = await runScrapePost(setup, preCtx);
+  return runScrapeFinal(setup, postCtx);
+}
+
+/**
+ * Assert SCRAPE.FINAL stamped diagnostics.
+ *
+ * @param finalCtx - Context after the chain.
+ * @returns True after assertions.
+ */
+function assertScrapeShape(finalCtx: IPipelineContext): boolean {
+  expect(finalCtx.scrape.has).toBe(true);
+  expect(typeof finalCtx.diagnostics.lastAction).toBe('string');
+  return true;
+}
+
+describe('SCRAPE-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
+  it.each(BANK_SCENARIOS)('scrape_$bank_ShouldCompleteFullChain', async (row): Promise<void> => {
+    const setup = prepareScrapeRow(row);
+    const finalCtx = await runScrapeChain(setup);
+    assertScrapeShape(finalCtx);
+  });
 });

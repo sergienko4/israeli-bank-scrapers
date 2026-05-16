@@ -1,116 +1,208 @@
 /**
- * Phase H.T3c.8 — cross-bank ACCOUNT-RESOLVE per-phase factory.
+ * Phase H+ - cross-bank ACCOUNT-RESOLVE per-phase factory (DEEP).
  *
- * <p>Drives every bank's PII-redacted accounts payload through
- * production {@link executeAccountResolvePost} +
- * {@link executeAccountResolveFinal}, asserting the slim
- * {@link IAccountDiscovery} contract commits with the captured id
- * count. Each row consumes a dedicated
- * `<bank>/account-resolve/<scenarioId>.json` fixture (locked plan
- * H.T3c.8: "+ 7 fixtures + amex/beinleumi Phase E fixture gap fill").
+ * <p>Honors the locked plan factory-depth expectation: drives
+ * PRE -> ACTION -> POST -> FINAL chain per bank through real
+ * production code paths.
  *
- * <p>Contract (`AccountResolveActions.ts:249-278`):
  * <ul>
- *   <li>POST: succeeds when the pre-nav pool's accounts endpoint
- *       yields >= 1 id AND the id count matches the expected
- *       container max. Fails loud otherwise.</li>
- *   <li>FINAL: always succeeds — telemetry-only per design.</li>
+ *   <li>PRE: {@link executeAccountResolvePre} - awaits late-
+ *     arriving id captures via mediator.network.waitForFirstId.</li>
+ *   <li>ACTION: {@link executeAccountResolveAction} - sealed
+ *     pass-through (no mediator on action context).</li>
+ *   <li>POST: {@link executeAccountResolvePost} - reads pre-nav
+ *     pool, runs discoverAccountsInPool, commits
+ *     ctx.accountDiscovery.</li>
+ *   <li>FINAL: {@link executeAccountResolveFinal} - telemetry
+ *     stamping; always succeeds.</li>
  * </ul>
  *
- * <p>Per-bank `responseBody` shapes are the PII-redacted last-good
- * payload from each bank's captured run — Hapoalim's `cards`,
- * beinleumi's `bankAccountNumber` aliases, Discount's `accountIds`,
- * etc. — so `pickAccountEndpoint` + `extractAccountIds` exercise
- * the real production extraction path, not synthetic mocks.
+ * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
+ * method" the `it.each` callback orchestrates via helpers.
  */
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
+  executeAccountResolveAction,
   executeAccountResolveFinal,
   executeAccountResolvePost,
+  executeAccountResolvePre,
 } from '../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.js';
-import { buildAccountResolvePhaseContext } from './Fixtures/_makeAccountResolvePhaseContext.js';
-import { loadPhaseFixture, type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
+import type {
+  IActionContext,
+  IPipelineContext,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { makeMockActionExecutor, toActionCtx } from '../../Infrastructure/TestHelpers.js';
+import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import {
+  buildAccountResolvePhaseContext,
+  type IAccountResolvePhaseTestSubject,
+} from './Fixtures/_makeAccountResolvePhaseContext.js';
+import { type IPhaseHFixture, loadPhaseFixture } from './Fixtures/_makePhaseFixture.js';
 
-/** Per-scenario row driven by the parameterised `it.each` below. */
-interface IAccountResolveScenarioRow {
-  readonly bank: PhaseHBank;
-  readonly scenarioId: string;
-  readonly poolUrl: string;
-}
-
-/**
- * Bank-specific accounts response body shape. Each fixture stores
- * `accountsResponseBody` under `_fixture` as a free-form JSON value;
- * the factory reads it via the slim shape below.
- */
+/** Per-bank `accountsResponseBody` carried by the fixture meta block. */
 interface IAccountsFixtureMeta {
   readonly accountsResponseBody?: unknown;
 }
 
-/** Scenarios exercised — one row per bank, all using last-good captures. */
-const SCENARIOS: readonly IAccountResolveScenarioRow[] = [
-  {
-    bank: 'hapoalim',
-    scenarioId: 'last-good',
-    poolUrl: 'https://login.bankhapoalim.example/ServerServices/general/accounts',
-  },
-  {
-    bank: 'beinleumi',
-    scenarioId: 'last-good',
-    poolUrl: 'https://login.beinleumi.example/api/accounts',
-  },
-  {
-    bank: 'discount',
-    scenarioId: 'last-good',
-    poolUrl: 'https://start.telebank.example/api/accounts',
-  },
-  {
-    bank: 'amex',
-    scenarioId: 'last-good',
-    poolUrl: 'https://digital.amex.example/api/accounts',
-  },
-  {
-    bank: 'isracard',
-    scenarioId: 'last-good',
-    poolUrl: 'https://digital.isracard.example/api/accounts',
-  },
-  {
-    bank: 'max',
-    scenarioId: 'last-good',
-    poolUrl: 'https://www.max.example/api/accounts',
-  },
-  {
-    bank: 'visacal',
-    scenarioId: 'last-good',
-    poolUrl: 'https://login.cal-online.example/api/accounts',
-  },
-];
+/** Bundle returned by {@link prepareAccountResolveRow}. */
+interface IAccountResolveRowSetup {
+  readonly row: IBankScenario;
+  readonly fixture: IPhaseHFixture;
+  readonly subject: IAccountResolvePhaseTestSubject;
+}
 
-describe('ACCOUNT-RESOLVE-PHASE-FACTORY — Phase H per-bank POST+FINAL', () => {
-  it.each(SCENARIOS)(
-    'accountResolve_$bank_$scenarioId_ShouldCommitDiscoveryFromPool',
+/**
+ * Read the redacted accounts response body from the fixture meta,
+ * failing fast when absent (no silent bypass).
+ *
+ * @param fixture - Loaded ACCOUNT-RESOLVE fixture.
+ * @returns Redacted accounts response body.
+ */
+function readAccountsResponseBody(fixture: IPhaseHFixture): unknown {
+  const meta = fixture.meta as unknown as IAccountsFixtureMeta;
+  if (meta.accountsResponseBody === undefined) {
+    throw new ScraperError(`ACCOUNT_RESOLVE_FIXTURE_MISSING_BODY bank=${fixture.meta.bank}`);
+  }
+  return meta.accountsResponseBody;
+}
+
+/**
+ * Build the deep ACCOUNT-RESOLVE test subject from the shared bank
+ * scenario + fixture meta.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns Row + fixture + subject bundle.
+ */
+function prepareAccountResolveRow(row: IBankScenario): IAccountResolveRowSetup {
+  const fixture = loadPhaseFixture(row.bank, 'account-resolve/last-good');
+  const responseBody = readAccountsResponseBody(fixture);
+  const subject = buildAccountResolvePhaseContext({
+    poolUrl: row.accountsUrl,
+    responseBody,
+  });
+  return { row, fixture, subject };
+}
+
+/**
+ * Drive ACCOUNT-RESOLVE.PRE via production executeAccountResolvePre.
+ *
+ * @param setup - Row + subject bundle.
+ * @returns PRE-updated pipeline context.
+ */
+async function runAccountResolvePre(setup: IAccountResolveRowSetup): Promise<IPipelineContext> {
+  const result = await executeAccountResolvePre(setup.subject.context);
+  if (!result.success) {
+    throw new ScraperError(
+      `ACCOUNT_RESOLVE_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
+    );
+  }
+  return result.value;
+}
+
+/**
+ * Drive ACCOUNT-RESOLVE.ACTION (sealed pass-through).
+ *
+ * @param setup - Row + subject bundle.
+ * @param preCtx - PRE-updated context.
+ * @returns Action context pass-through.
+ */
+async function runAccountResolveAction(
+  setup: IAccountResolveRowSetup,
+  preCtx: IPipelineContext,
+): Promise<IActionContext> {
+  const executor = makeMockActionExecutor();
+  const actionCtx = toActionCtx(preCtx, executor);
+  const result = await executeAccountResolveAction(actionCtx);
+  if (!result.success) {
+    throw new ScraperError(
+      `ACCOUNT_RESOLVE_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
+    );
+  }
+  return result.value;
+}
+
+/**
+ * Drive ACCOUNT-RESOLVE.POST via production executeAccountResolvePost.
+ *
+ * @param setup - Row + subject bundle.
+ * @param preCtx - PRE-updated context.
+ * @returns POST-updated pipeline context.
+ */
+async function runAccountResolvePost(
+  setup: IAccountResolveRowSetup,
+  preCtx: IPipelineContext,
+): Promise<IPipelineContext> {
+  const result = await executeAccountResolvePost(preCtx);
+  if (!result.success) {
+    throw new ScraperError(
+      `ACCOUNT_RESOLVE_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
+    );
+  }
+  return result.value;
+}
+
+/**
+ * Drive ACCOUNT-RESOLVE.FINAL via production
+ * executeAccountResolveFinal.
+ *
+ * @param setup - Row + subject bundle.
+ * @param postCtx - POST-updated context.
+ * @returns FINAL-updated pipeline context.
+ */
+async function runAccountResolveFinal(
+  setup: IAccountResolveRowSetup,
+  postCtx: IPipelineContext,
+): Promise<IPipelineContext> {
+  const result = await executeAccountResolveFinal(postCtx);
+  if (!result.success) {
+    throw new ScraperError(
+      `ACCOUNT_RESOLVE_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
+    );
+  }
+  return result.value;
+}
+
+/**
+ * Run the full ACCOUNT-RESOLVE PRE -> ACTION -> POST -> FINAL chain.
+ *
+ * @param setup - Row + subject bundle.
+ * @returns FINAL pipeline context.
+ */
+async function runAccountResolveChain(setup: IAccountResolveRowSetup): Promise<IPipelineContext> {
+  const preCtx = await runAccountResolvePre(setup);
+  await runAccountResolveAction(setup, preCtx);
+  const postCtx = await runAccountResolvePost(setup, preCtx);
+  return runAccountResolveFinal(setup, postCtx);
+}
+
+/**
+ * Assert ctx.accountDiscovery was committed with the expected id
+ * count per fixture.
+ *
+ * @param setup - Row + subject + fixture bundle.
+ * @param finalCtx - Context after the full chain.
+ * @returns True after assertions.
+ */
+function assertAccountResolveShape(
+  setup: IAccountResolveRowSetup,
+  finalCtx: IPipelineContext,
+): boolean {
+  expect(finalCtx.accountDiscovery.has).toBe(true);
+  if (finalCtx.accountDiscovery.has) {
+    const expectedCount = setup.fixture.meta.expected.accountResolveExpectedIdCount ?? 1;
+    expect(finalCtx.accountDiscovery.value.ids.length).toBe(expectedCount);
+  }
+  return true;
+}
+
+describe('ACCOUNT-RESOLVE-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
+  it.each(BANK_SCENARIOS)(
+    'accountResolve_$bank_ShouldCompleteFullChain',
     async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `account-resolve/${row.scenarioId}`);
-      const meta = fixture.meta as unknown as IAccountsFixtureMeta & typeof fixture.meta;
-      const responseBody = meta.accountsResponseBody;
-      const subject = buildAccountResolvePhaseContext({
-        poolUrl: row.poolUrl,
-        responseBody,
-      });
-
-      const postResult = await executeAccountResolvePost(subject.context);
-      const shouldPostSucceed = fixture.meta.expected.accountResolvePostOutcome === 'success';
-      expect(postResult.success).toBe(shouldPostSucceed);
-
-      if (postResult.success) {
-        const finalResult = await executeAccountResolveFinal(postResult.value);
-        const shouldFinalSucceed = fixture.meta.expected.accountResolveFinalOutcome === 'success';
-        expect(finalResult.success).toBe(shouldFinalSucceed);
-        if (finalResult.success && finalResult.value.accountDiscovery.has) {
-          const expectedCount = fixture.meta.expected.accountResolveExpectedIdCount ?? 1;
-          expect(finalResult.value.accountDiscovery.value.ids.length).toBe(expectedCount);
-        }
-      }
+      const setup = prepareAccountResolveRow(row);
+      const finalCtx = await runAccountResolveChain(setup);
+      assertAccountResolveShape(setup, finalCtx);
     },
   );
 });
