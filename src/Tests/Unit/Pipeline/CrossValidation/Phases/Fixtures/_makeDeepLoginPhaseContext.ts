@@ -70,7 +70,8 @@ export interface IDeepLoginTestSubject {
  * @returns Test subject containing the context + sealed executor.
  */
 export function buildDeepLoginContext(args: IDeepLoginContextArgs): IDeepLoginTestSubject {
-  const page: Page = makeMockFullPage(args.loginUrl);
+  const basePage = makeMockFullPage(args.loginUrl);
+  const page: Page = enrichDeepPage(basePage);
   const browser = buildDeepLoginBrowser(page);
   const mediator = buildDeepLoginMediator(page, args.loginUrl, args.cookies);
   const executor = buildDeepLoginExecutor();
@@ -82,6 +83,37 @@ export function buildDeepLoginContext(args: IDeepLoginContextArgs): IDeepLoginTe
     config: { urls: { base: args.loginUrl } },
   };
   return { context, executor };
+}
+
+/**
+ * Augment the mock page with `evaluate` + `title` stubs that the
+ * production OTP-TRIGGER PRE (phone-hint extraction) and INIT
+ * POST (Firefox-neterror probe) read. Returns null / empty so
+ * the production guards treat the probe as "not present" and
+ * continue down the success path.
+ *
+ * @param base - Base page from {@link makeMockFullPage}.
+ * @returns Enriched page covering more production read surfaces.
+ */
+function enrichDeepPage(base: Page): Page {
+  const enriched = {
+    ...base,
+    /**
+     * No-op evaluate - production reads phone-hint string from DOM;
+     * returning empty string routes the phone-hint through the FAKE
+     * fallback.
+     * @returns Resolved empty string.
+     */
+    evaluate: (): Promise<string> => Promise.resolve(''),
+    /**
+     * Mock title - Firefox neterror probe checks for known error
+     * page titles; returning empty string treats the probe as
+     * "not a neterror page".
+     * @returns Empty title.
+     */
+    title: (): Promise<string> => Promise.resolve(''),
+  } as Page;
+  return enriched;
 }
 
 /**

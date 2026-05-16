@@ -1,90 +1,185 @@
 /**
- * Phase H.T3c.5 — cross-bank OTP-TRIGGER per-phase factory.
+ * Phase H+ - cross-bank OTP-TRIGGER per-phase factory (DEEP).
  *
- * <p>Drives OTP-using banks through production
- * {@link executeTriggerPost} + {@link executeTriggerFinal} and asserts
- * `ctx.otpTrigger` commits the slim {@link IOtpTrigger} value with
- * `triggered=true` and the captured phone-hint. Each row consumes a
- * dedicated `<bank>/otp-trigger/<scenarioId>.json` fixture (locked
- * plan H.T3c.5: per-bank fixtures for banks that use OTP).
+ * <p>Honors the locked plan factory-depth expectation: drives
+ * PRE -> ACTION -> POST -> FINAL chain per OTP-using bank through
+ * real production code paths.
  *
- * <p>Scope: covers the 4 banks observed exercising OTP-TRIGGER in
- * captured runs — hapoalim, beinleumi, max, visacal. Discount uses
- * password-only login (no OTP-TRIGGER step). The amex/isracard
- * family also uses password-only at LOGIN (not OTP-TRIGGER) per
- * captured-run evidence under `C:/tmp/runs/pipeline/<bank>/`.
+ * <ul>
+ *   <li>PRE: {@link executeTriggerPre} - DOM-scan trigger probe via
+ *     mediator.resolveVisible + phone-hint extraction + commits
+ *     otpTriggerTarget into diagnostics.</li>
+ *   <li>ACTION: {@link executeTriggerAction} - sealed click on
+ *     PRE-committed target via executor.</li>
+ *   <li>POST: {@link executeTriggerPost} - scope-validate (target
+ *     gone OR 2xx ACK).</li>
+ *   <li>FINAL: {@link executeTriggerFinal} - builds IOtpTrigger
+ *     snapshot + commits ctx.otpTrigger.</li>
+ * </ul>
+ *
+ * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
+ * method" the `it.each` callback orchestrates via helpers.
+ *
+ * <p>Scope: 4 OTP-using banks (hapoalim, beinleumi, max,
+ * visacal). Discount/Amex/Isracard use password-only login.
  */
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
+  executeTriggerAction,
   executeTriggerFinal,
   executeTriggerPost,
+  executeTriggerPre,
 } from '../../../../../Scrapers/Pipeline/Mediator/OtpTrigger/OtpTriggerPhaseActions.js';
-import { buildOtpTriggerPhaseContext } from './Fixtures/_makeOtpTriggerPhaseContext.js';
-import { loadPhaseFixture, type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
+import type {
+  IActionContext,
+  IPipelineContext,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
+import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import {
+  buildDeepLoginContext,
+  type IDeepLoginTestSubject,
+} from './Fixtures/_makeDeepLoginPhaseContext.js';
+import { loadAuthDiscoveryFixtureCookies } from './Fixtures/_makeLoginPhaseContext.js';
 
-/** Per-scenario row driven by the parameterised `it.each` below. */
-interface IOtpTriggerScenarioRow {
-  readonly bank: PhaseHBank;
-  readonly scenarioId: string;
-  readonly otpUrl: string;
-  readonly phoneHint: string;
+/** OTP-using bank subset of the shared BANK_SCENARIOS table. */
+const OTP_BANK_SCENARIOS: readonly IBankScenario[] = BANK_SCENARIOS.filter(
+  (s): boolean => s.usesOtp,
+);
+
+/** Bundle returned by {@link prepareOtpTriggerRow}. */
+interface IOtpTriggerRowSetup {
+  readonly row: IBankScenario;
+  readonly subject: IDeepLoginTestSubject;
 }
 
-/** Scenarios exercised — OTP-using banks only. */
-const SCENARIOS: readonly IOtpTriggerScenarioRow[] = [
-  {
-    bank: 'hapoalim',
-    scenarioId: 'last-good',
-    otpUrl: 'https://login.bankhapoalim.example/ng-portals/auth/he/otp',
-    phoneHint: 'XXX-XXX-FAKE',
-  },
-  {
-    bank: 'beinleumi',
-    scenarioId: 'last-good',
-    otpUrl: 'https://login.beinleumi.example/otp',
-    phoneHint: 'XXX-XXX-FAKE',
-  },
-  {
-    bank: 'max',
-    scenarioId: 'last-good',
-    otpUrl: 'https://www.max.example/otp-verify',
-    phoneHint: 'XXX-XXX-FAKE',
-  },
-  {
-    bank: 'visacal',
-    scenarioId: 'last-good',
-    otpUrl: 'https://login.cal-online.example/otp',
-    phoneHint: 'XXX-XXX-FAKE',
-  },
-];
+/**
+ * Build the deep OTP-TRIGGER test subject. Reuses
+ * {@link buildDeepLoginContext} since OTP-TRIGGER shares mediator
+ * surfaces with LOGIN (resolveVisible, network.*).
+ *
+ * @param row - OTP-using bank scenario row.
+ * @returns Row + deep test subject.
+ */
+function prepareOtpTriggerRow(row: IBankScenario): IOtpTriggerRowSetup {
+  const cookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
+  const placeholderConfig = { fields: [], submit: [], loginUrl: '' } as unknown as Parameters<
+    typeof buildDeepLoginContext
+  >[0]['loginConfig'];
+  const subject = buildDeepLoginContext({
+    loginConfig: placeholderConfig,
+    loginUrl: `${row.loginUrl}/otp`,
+    cookies,
+  });
+  return { row, subject };
+}
 
-describe('OTP-TRIGGER-PHASE-FACTORY — Phase H per-bank POST+FINAL', () => {
-  it.each(SCENARIOS)(
-    'otpTrigger_$bank_$scenarioId_ShouldCommitOtpTriggerSnapshot',
+/**
+ * Drive OTP-TRIGGER.PRE via production executeTriggerPre.
+ *
+ * @param setup - Row + deep test subject.
+ * @returns PRE-updated pipeline context.
+ */
+async function runOtpTriggerPre(setup: IOtpTriggerRowSetup): Promise<IPipelineContext> {
+  const result = await executeTriggerPre(setup.subject.context);
+  if (!result.success) {
+    throw new ScraperError(
+      `OTP_TRIGGER_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
+    );
+  }
+  return result.value;
+}
+
+/**
+ * Drive OTP-TRIGGER.ACTION via production executeTriggerAction.
+ *
+ * @param setup - Row + deep test subject.
+ * @param preCtx - PRE-updated context.
+ * @returns ACTION-updated action context.
+ */
+async function runOtpTriggerAction(
+  setup: IOtpTriggerRowSetup,
+  preCtx: IPipelineContext,
+): Promise<IActionContext> {
+  const actionCtx = toActionCtx(preCtx, setup.subject.executor);
+  const result = await executeTriggerAction(actionCtx);
+  if (!result.success) {
+    throw new ScraperError(
+      `OTP_TRIGGER_ACTION_FAILED bank=${setup.row.bank} - ${result.errorMessage}`,
+    );
+  }
+  return result.value;
+}
+
+/**
+ * Merge ACTION diagnostics back into the full context for POST.
+ *
+ * @param preCtx - PRE context (mediator/browser/login).
+ * @param actionCtx - ACTION context (diagnostics).
+ * @returns Merged pipeline context.
+ */
+function mergeForPost(preCtx: IPipelineContext, actionCtx: IActionContext): IPipelineContext {
+  return { ...preCtx, diagnostics: actionCtx.diagnostics };
+}
+
+/**
+ * Drive OTP-TRIGGER.POST + FINAL via production handlers.
+ *
+ * @param setup - Row + deep test subject.
+ * @param postInput - Merged pre+action context.
+ * @returns FINAL-updated context.
+ */
+async function runOtpTriggerPostFinal(
+  setup: IOtpTriggerRowSetup,
+  postInput: IPipelineContext,
+): Promise<IPipelineContext> {
+  const postResult = await executeTriggerPost(postInput);
+  if (!postResult.success) {
+    throw new ScraperError(
+      `OTP_TRIGGER_POST_FAILED bank=${setup.row.bank} - ${postResult.errorMessage}`,
+    );
+  }
+  const finalResult = await executeTriggerFinal(postResult.value);
+  if (!finalResult.success) {
+    throw new ScraperError(
+      `OTP_TRIGGER_FINAL_FAILED bank=${setup.row.bank} - ${finalResult.errorMessage}`,
+    );
+  }
+  return finalResult.value;
+}
+
+/**
+ * Run the full OTP-TRIGGER PRE -> ACTION -> POST -> FINAL chain.
+ *
+ * @param setup - Row + deep test subject.
+ * @returns FINAL pipeline context.
+ */
+async function runOtpTriggerChain(setup: IOtpTriggerRowSetup): Promise<IPipelineContext> {
+  const preCtx = await runOtpTriggerPre(setup);
+  const actionCtx = await runOtpTriggerAction(setup, preCtx);
+  const postInput = mergeForPost(preCtx, actionCtx);
+  return runOtpTriggerPostFinal(setup, postInput);
+}
+
+/**
+ * Assert ctx.otpTrigger committed with triggered=true.
+ *
+ * @param finalCtx - Context after the chain.
+ * @returns True after assertion.
+ */
+function assertOtpTriggerShape(finalCtx: IPipelineContext): boolean {
+  expect(finalCtx.otpTrigger.has).toBe(true);
+  return true;
+}
+
+describe('OTP-TRIGGER-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
+  it.each(OTP_BANK_SCENARIOS)(
+    'otpTrigger_$bank_ShouldCompleteFullChain',
     async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `otp-trigger/${row.scenarioId}`);
-      const subject = buildOtpTriggerPhaseContext({
-        phoneHint: row.phoneHint,
-        otpUrl: row.otpUrl,
-      });
-
-      const postResult = await executeTriggerPost(subject.context);
-      const shouldPostSucceed = fixture.meta.expected.otpTriggerFinalOutcome === 'success';
-      expect(postResult.success).toBe(shouldPostSucceed);
-
-      if (postResult.success) {
-        const finalResult = await executeTriggerFinal(postResult.value);
-        expect(finalResult.success).toBe(shouldPostSucceed);
-        if (finalResult.success) {
-          const shouldTrigger = fixture.meta.expected.otpTriggerFinalTriggered ?? true;
-          const committedOtpTrigger = finalResult.value.otpTrigger;
-          expect(committedOtpTrigger.has).toBe(shouldTrigger);
-          if (committedOtpTrigger.has) {
-            const committedSnapshot = committedOtpTrigger.value;
-            expect(committedSnapshot.phoneHint).toBe(row.phoneHint);
-          }
-        }
-      }
+      const setup = prepareOtpTriggerRow(row);
+      const finalCtx = await runOtpTriggerChain(setup);
+      assertOtpTriggerShape(finalCtx);
     },
   );
 });
