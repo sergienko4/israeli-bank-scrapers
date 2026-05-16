@@ -64,6 +64,13 @@ export interface IPhaseHCapture {
  * optional so a single scenario can drive multiple per-phase factories
  * without requiring every assertion bundle. Missing fields are skipped
  * by the consuming factory.
+ *
+ * <p>Phase H.T3c.4 (2026-05-16) — added LOGIN-stage assertion fields
+ * so the cross-bank LOGIN factory can pin the sub-step contract
+ * (PRE / ACTION / POST / FINAL) per bank without conflating with
+ * DASHBOARD expectations. The `*Outcome` fields carry the discriminated
+ * `Procedure` verdict that each sub-step returns; shape fields carry
+ * the strongest cross-bank-meaningful signal each step exposes.
  */
 export interface IPhaseHExpected {
   readonly dashboardTxnUrl?: string;
@@ -72,6 +79,33 @@ export interface IPhaseHExpected {
   readonly dashboardFieldMapAmount?: string;
   readonly dashboardPickerTier?: string;
   readonly extractedTxnCount?: number;
+  /** PRE sub-step Procedure verdict — discovery must succeed for any
+   *  ACTION attempt to be meaningful. */
+  readonly loginPreOutcome?: 'success' | 'fail';
+  /** ACTION sub-step Procedure verdict — fill-and-submit either
+   *  succeeded sealing the action or returned a typed fail. */
+  readonly loginActionOutcome?: 'success' | 'fail';
+  /** POST sub-step Procedure verdict — auth-failure watcher + form
+   *  scan + traffic wait + post callback + async checks together. */
+  readonly loginPostOutcome?: 'success' | 'fail';
+  /** FINAL sub-step Procedure verdict — cookie audit + API strategy
+   *  signal committed to context. */
+  readonly loginFinalOutcome?: 'success' | 'fail';
+  /** PRE shape: did the field discovery find a password field on any
+   *  active iframe? Pins the cross-bank password-field-required
+   *  contract independent of selectors. */
+  readonly loginPreFoundPassword?: boolean;
+  /** ACTION shape: submit method used (`form-submit` / `enter-key` /
+   *  `button-click`). Each bank historically uses one consistently;
+   *  pinning the value catches submit-strategy drift. */
+  readonly loginActionSubmitMethod?: 'form-submit' | 'enter-key' | 'button-click';
+  /** POST shape: was post-login dashboard traffic observed? Tracks the
+   *  WK auth-pattern match across banks without leaking URLs. */
+  readonly loginPostHasTraffic?: boolean;
+  /** FINAL shape: minimum session-cookie count expected after a
+   *  successful login. Banks vary; lower-bound check guards against
+   *  silent session-truncation regressions. */
+  readonly loginFinalMinCookieCount?: number;
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */
