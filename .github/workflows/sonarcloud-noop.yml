@@ -1,0 +1,59 @@
+# SonarCloud Scan — no-op shim for non-src PRs.
+#
+# The real SonarCloud workflow (`sonarcloud.yml`) only triggers on
+# `src/**`, `sonar-project.properties`, or itself — so PRs that
+# touch only `.github/`, root-level config (`.pr_agent.toml`,
+# `.coderabbit.yaml`, `tsconfig*.json`, etc.), or docs never
+# populate the `SonarCloud Scan` check context. Branch protection
+# on `main` REQUIRES that context to be present and successful —
+# resulting in `mergeStateStatus: BLOCKED` for any CI-only PR.
+#
+# This shim runs on the COMPLEMENT path set so every PR gets a
+# `SonarCloud Scan` context populated:
+#
+#   src-touching PR     → real `sonarcloud.yml` runs (full scan)
+#   non-src PR (here)   → shim runs, reports success (no src risk)
+#
+# Both workflows use `name: SonarCloud Scan` on their job so the
+# check context is identical. Only one fires per PR based on
+# disjoint `paths`/`paths-ignore` filters — no double-reporting.
+#
+# Phase I (PR #231): introduced when PR #231 (qodo failover config)
+# could not merge because the real SonarCloud workflow skipped the
+# PR for path reasons.
+
+name: SonarCloud-noop
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - 'src/**'
+      - 'sonar-project.properties'
+      - '.github/workflows/sonarcloud.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonarcloud-noop-pr-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  sonarcloud-noop:
+    # Same `SonarCloud Scan` context name as the real workflow's
+    # job so branch protection's required-check is satisfied
+    # without weakening the gate (a real src-touching PR still
+    # gets the full scan via `sonarcloud.yml`).
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report no-op success
+        run: |
+          set -euo pipefail
+          echo "PR does not touch any path the real SonarCloud workflow scans."
+          echo "Real-scan trigger paths: src/**, sonar-project.properties, .github/workflows/sonarcloud.yml"
+          echo "This shim reports the required 'SonarCloud Scan' context as success."
+          echo "If this PR DOES include src/** changes, recheck the path filter — the real scan should have run."
