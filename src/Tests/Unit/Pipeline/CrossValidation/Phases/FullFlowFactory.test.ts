@@ -30,6 +30,7 @@
  * project's `import-x/max-dependencies` ceiling.
  */
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   type ITransaction,
   type ITransactionsAccount,
@@ -81,6 +82,28 @@ type IFullFlowRow = IBankScenario;
 
 /** Scenarios — one row per PHASE_H_BANK from shared {@link BANK_SCENARIOS}. */
 const SCENARIOS: readonly IFullFlowRow[] = BANK_SCENARIOS;
+
+/**
+ * Read the redacted accounts payload from an ACCOUNT-RESOLVE
+ * fixture. Fails fast with a fixture-path-tagged
+ * {@link ScraperError} when the payload is missing — bypass-casting
+ * `as unknown as` silently allowed the test to run against an
+ * empty pool and assert success against the wrong shape (CodeRabbit
+ * 2026-05-16 finding #24).
+ *
+ * @param fixture - Loaded ACCOUNT-RESOLVE fixture.
+ * @returns Redacted accounts response body.
+ * @throws {ScraperError} When the fixture lacks accountsResponseBody.
+ */
+function readAccountsResponseBody(fixture: ReturnType<typeof loadPhaseFixture>): unknown {
+  const meta = fixture.meta as unknown as { readonly accountsResponseBody?: unknown };
+  if (meta.accountsResponseBody === undefined) {
+    throw new ScraperError(
+      `FULL_FLOW_FIXTURE_MISSING_ACCOUNTS_BODY: bank=${fixture.meta.bank} scenario=${fixture.meta.scenarioId}`,
+    );
+  }
+  return meta.accountsResponseBody;
+}
 
 /**
  * Build a single redacted txn for the SCRAPE leg of the full-flow.
@@ -263,10 +286,10 @@ async function runAuthDiscoveryPost(row: IFullFlowRow): Promise<boolean> {
  */
 async function runAccountResolve(row: IFullFlowRow): Promise<boolean> {
   const acctFixture = loadPhaseFixture(row.bank, 'account-resolve/last-good');
-  const acctMeta = acctFixture.meta as unknown as { readonly accountsResponseBody?: unknown };
+  const responseBody = readAccountsResponseBody(acctFixture);
   const acctSubject = buildAccountResolvePhaseContext({
     poolUrl: row.accountsUrl,
-    responseBody: acctMeta.accountsResponseBody,
+    responseBody,
   });
   const acctPost = await executeAccountResolvePost(acctSubject.context);
   if (!acctPost.success) return false;

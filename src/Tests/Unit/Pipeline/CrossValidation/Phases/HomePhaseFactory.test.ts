@@ -120,24 +120,36 @@ function prepareHomeRow(row: IHomeScenarioRow): IHomeRowSetup {
 }
 
 /**
- * Drive HOME.POST through production code and assert the success
- * outcome from the fixture's `expected.homePostOutcome`. Throws a
- * typed `ScraperError` (per project convention) when the mediator
- * option is unexpectedly absent.
+ * Drive HOME.POST through production code and return the typed
+ * Procedure result for assertion. Throws a typed `ScraperError`
+ * when the mediator option is unexpectedly absent.
  *
  * @param setup - Fixture + subject bundle.
- * @returns Resolved when the assertion completes.
+ * @returns Procedure result of executeValidateLoginArea.
  */
-async function assertHomeOutcome(setup: IHomeRowSetup): Promise<void> {
+async function runHomePostExecution(
+  setup: IHomeRowSetup,
+): ReturnType<typeof executeValidateLoginArea> {
   if (!setup.subject.context.mediator.has) {
     throw new ScraperError('HOME_FACTORY: mediator missing');
   }
-  const result = await executeValidateLoginArea({
+  return executeValidateLoginArea({
     mediator: setup.subject.context.mediator.value,
     input: setup.subject.context,
     homepageUrl: setup.subject.homepageUrl,
     logger: createMockLogger(),
   });
+}
+
+/**
+ * Assert the HOME.POST result matches the fixture's expected
+ * outcome contract.
+ *
+ * @param setup - Fixture + subject bundle.
+ * @returns Resolved when the assertion completes.
+ */
+async function assertHomeOutcome(setup: IHomeRowSetup): Promise<void> {
+  const result = await runHomePostExecution(setup);
   const shouldSucceed = setup.fixture.meta.expected.homePostOutcome === 'success';
   expect(result.success).toBe(shouldSucceed);
 }

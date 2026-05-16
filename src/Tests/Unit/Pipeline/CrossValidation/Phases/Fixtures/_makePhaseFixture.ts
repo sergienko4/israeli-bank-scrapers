@@ -72,6 +72,13 @@ export interface IPhaseHCapture {
  * `Procedure` verdict that each sub-step returns; shape fields carry
  * the strongest cross-bank-meaningful signal each step exposes.
  */
+/**
+ * Discriminated `Procedure<T>` verdict each phase sub-step returns.
+ * Single shared alias prevents drift across the 20+ `*Outcome`
+ * fields below (CodeRabbit 2026-05-16 finding #23).
+ */
+export type PhaseOutcome = 'success' | 'fail';
+
 export interface IPhaseHExpected {
   readonly dashboardTxnUrl?: string;
   readonly dashboardTxnMethod?: 'GET' | 'POST';
@@ -81,16 +88,16 @@ export interface IPhaseHExpected {
   readonly extractedTxnCount?: number;
   /** PRE sub-step Procedure verdict — discovery must succeed for any
    *  ACTION attempt to be meaningful. */
-  readonly loginPreOutcome?: 'success' | 'fail';
+  readonly loginPreOutcome?: PhaseOutcome;
   /** ACTION sub-step Procedure verdict — fill-and-submit either
    *  succeeded sealing the action or returned a typed fail. */
-  readonly loginActionOutcome?: 'success' | 'fail';
+  readonly loginActionOutcome?: PhaseOutcome;
   /** POST sub-step Procedure verdict — auth-failure watcher + form
    *  scan + traffic wait + post callback + async checks together. */
-  readonly loginPostOutcome?: 'success' | 'fail';
+  readonly loginPostOutcome?: PhaseOutcome;
   /** FINAL sub-step Procedure verdict — cookie audit + API strategy
    *  signal committed to context. */
-  readonly loginFinalOutcome?: 'success' | 'fail';
+  readonly loginFinalOutcome?: PhaseOutcome;
   /** PRE shape: did the field discovery find a password field on any
    *  active iframe? Pins the cross-bank password-field-required
    *  contract independent of selectors. */
@@ -119,16 +126,16 @@ export interface IPhaseHExpected {
   readonly homePostHasFrames?: boolean;
   /** HOME POST: Procedure verdict — should the POST succeed under the
    *  bank's last-good shape? */
-  readonly homePostOutcome?: 'success' | 'fail';
+  readonly homePostOutcome?: PhaseOutcome;
   /** PRE-LOGIN POST: was the password field visible after the reveal
    *  click on the bank's login page? Drives the form-gate contract. */
   readonly preLoginPostFormGateFound?: boolean;
   /** PRE-LOGIN POST: Procedure verdict — should the POST succeed under
    *  the bank's last-good shape? */
-  readonly preLoginPostOutcome?: 'success' | 'fail';
+  readonly preLoginPostOutcome?: PhaseOutcome;
   /** PRE-LOGIN FINAL: Procedure verdict — when POST succeeds POST
    *  sets `loginAreaReady=true` and FINAL signals to LOGIN. */
-  readonly preLoginFinalOutcome?: 'success' | 'fail';
+  readonly preLoginFinalOutcome?: PhaseOutcome;
   /** OTP-TRIGGER PRE: redacted phone-hint string the bank surfaces
    *  (e.g. masked phone number tail). Pinned per-bank because the
    *  hint-format is bank-specific (4-digit tail, last-2, etc.). */
@@ -141,45 +148,45 @@ export interface IPhaseHExpected {
   readonly otpTriggerFinalTriggered?: boolean;
   /** OTP-TRIGGER FINAL: Procedure verdict — FINAL never fails loud
    *  per design, so this is always `'success'` for last-good. */
-  readonly otpTriggerFinalOutcome?: 'success' | 'fail';
+  readonly otpTriggerFinalOutcome?: PhaseOutcome;
   /** OTP-FILL POST: Procedure verdict — succeeds when the bank's
    *  OTP form is gone AND no error banner is visible after submit. */
-  readonly otpFillPostOutcome?: 'success' | 'fail';
+  readonly otpFillPostOutcome?: PhaseOutcome;
   /** OTP-FILL FINAL: Procedure verdict — always succeed per design
    *  (observability-only). */
-  readonly otpFillFinalOutcome?: 'success' | 'fail';
+  readonly otpFillFinalOutcome?: PhaseOutcome;
   /** ACCOUNT-RESOLVE POST: Procedure verdict — succeeds when the
    *  captured pre-nav pool yields >= 1 id and the count matches the
    *  expected container max. */
-  readonly accountResolvePostOutcome?: 'success' | 'fail';
+  readonly accountResolvePostOutcome?: PhaseOutcome;
   /** ACCOUNT-RESOLVE POST: expected id count from the captured
    *  pre-nav pool's account-containing endpoint. */
   readonly accountResolveExpectedIdCount?: number;
   /** ACCOUNT-RESOLVE FINAL: Procedure verdict — always succeed per
    *  design (telemetry-only). */
-  readonly accountResolveFinalOutcome?: 'success' | 'fail';
+  readonly accountResolveFinalOutcome?: PhaseOutcome;
   /** SCRAPE POST: Procedure verdict — succeeds when ctx.scrape.accounts
    *  has >= 1 account AND at least one account has >= 1 txn. */
-  readonly scrapePostOutcome?: 'success' | 'fail';
+  readonly scrapePostOutcome?: PhaseOutcome;
   /** SCRAPE FINAL: Procedure verdict — always succeed per design. */
-  readonly scrapeFinalOutcome?: 'success' | 'fail';
+  readonly scrapeFinalOutcome?: PhaseOutcome;
   /** SCRAPE: expected txn count for the bank's last-good fixture. */
   readonly scrapeExpectedTxnCount?: number;
   /** INIT POST: Procedure verdict — succeeds when page.url() is
    *  not 'about:blank' and not the Firefox neterror page. */
-  readonly initPostOutcome?: 'success' | 'fail';
+  readonly initPostOutcome?: PhaseOutcome;
   /** INIT POST: post-goto URL captured at INIT.POST time. */
   readonly initPostUrl?: string;
   /** TERMINATE: Procedure verdict — TERMINATE runs the cleanup
    *  fns committed by INIT.PRE and always succeeds even when one
    *  cleanup throws (errors swallowed per design). */
-  readonly terminateOutcome?: 'success' | 'fail';
+  readonly terminateOutcome?: PhaseOutcome;
   /** AUTH-DISCOVERY POST: Procedure verdict — succeeds when the
    *  captured cookie jar carries >= 1 session cookie at AUTH-
    *  DISCOVERY entry. Mirrors the LOGIN.FINAL contract but lives on
    *  the AUTH-DISCOVERY fixture so the schema names match the phase
    *  the assertion verifies (CodeRabbit 2026-05-16 finding #7). */
-  readonly authDiscoveryPostOutcome?: 'success' | 'fail';
+  readonly authDiscoveryPostOutcome?: PhaseOutcome;
   /** AUTH-DISCOVERY POST: minimum session-cookie count expected at
    *  AUTH-DISCOVERY entry. */
   readonly authDiscoveryPostMinCookieCount?: number;

@@ -204,14 +204,38 @@ async function runLoginFinal(
  * bank. Each per-sub-step helper throws on failure so the test
  * surfaces the first regression without silent skipping.
  *
+ * <p>ACTION's diagnostics (notably `submitMethod`) propagate to
+ * POST via {@link mergeActionDiagnostics} so the chain mirrors
+ * production threading instead of skipping ACTION's commits
+ * (CodeRabbit 2026-05-16 finding #25).
+ *
  * @param prepared - Row + deep test subject.
  * @returns FINAL pipeline context (success path).
  */
 async function runLoginChain(prepared: ILoginRowSubject): Promise<IPipelineContext> {
   const preCtx = await runLoginPre(prepared);
-  await runLoginAction(prepared, preCtx);
-  const postCtx = await runLoginPost(prepared, preCtx);
+  const actionCtx = await runLoginAction(prepared, preCtx);
+  const postInput = mergeActionDiagnostics(preCtx, actionCtx);
+  const postCtx = await runLoginPost(prepared, postInput);
   return runLoginFinal(prepared, postCtx);
+}
+
+/**
+ * Merge ACTION's diagnostics commits back into the PRE-updated
+ * full pipeline context so POST reads the same state production
+ * sees. Production sealing strips `mediator`/`browser`/`login`
+ * from {@link IActionContext}; the test rehydrates them from
+ * preCtx while preserving ACTION's diagnostic stamps.
+ *
+ * @param preCtx - PRE-updated pipeline context (browser/mediator/login).
+ * @param actionCtx - ACTION-updated sealed context (diagnostics).
+ * @returns Merged pipeline context for POST input.
+ */
+function mergeActionDiagnostics(
+  preCtx: IPipelineContext,
+  actionCtx: IActionContext,
+): IPipelineContext {
+  return { ...preCtx, diagnostics: actionCtx.diagnostics };
 }
 
 /**

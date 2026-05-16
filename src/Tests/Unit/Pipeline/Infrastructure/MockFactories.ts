@@ -3,6 +3,7 @@
  * Follows project convention: typed factories, no inline `as never`.
  */
 
+import pino from 'pino';
 import type { Page } from 'playwright-core';
 
 import type { CompanyTypes } from '../../../../Definitions.js';
@@ -25,41 +26,14 @@ const TEST_COMPANY_ID = 'testBank';
 
 /**
  * Create a no-op {@link ScraperLogger} suitable for tests that do
- * not assert on logger output. Single source of truth so callers
- * stop sprinkling `as unknown as ScraperLogger` casts inline
- * (CodeRabbit 2026-05-16 finding #17). All level methods return
- * `true` for the deferred-child mock contract.
+ * not assert on logger output. Backed by a silent pino instance —
+ * no `as unknown as` cast required, every Logger method works at
+ * runtime (CodeRabbit 2026-05-16 findings #17 + #26).
  *
- * @returns No-op logger conforming to the {@link ScraperLogger} shape.
+ * @returns Silent pino Logger conforming to ScraperLogger.
  */
 export function createMockLogger(): ScraperLogger {
-  return {
-    /**
-     * No-op debug for test fixtures.
-     * @returns True (no-op).
-     */
-    debug: (): boolean => true,
-    /**
-     * No-op trace for test fixtures.
-     * @returns True (no-op).
-     */
-    trace: (): boolean => true,
-    /**
-     * No-op info for test fixtures.
-     * @returns True (no-op).
-     */
-    info: (): boolean => true,
-    /**
-     * No-op warn for test fixtures.
-     * @returns True (no-op).
-     */
-    warn: (): boolean => true,
-    /**
-     * No-op error for test fixtures.
-     * @returns True (no-op).
-     */
-    error: (): boolean => true,
-  } as unknown as ScraperLogger;
+  return pino({ enabled: false });
 }
 
 /**

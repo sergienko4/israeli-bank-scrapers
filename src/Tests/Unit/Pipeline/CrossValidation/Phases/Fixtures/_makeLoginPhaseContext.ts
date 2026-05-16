@@ -137,14 +137,33 @@ function loadCookieSidecar(
   scenarioId: string,
 ): readonly ICookieSnapshot[] {
   const filePath = join(FIXTURES_DIR, bank, phase, `${scenarioId}.json`);
-  const raw = readFileSync(filePath, 'utf8');
-  const parsed: unknown = JSON.parse(raw);
+  const parsed = parseFixtureJson(filePath);
   if (!hasCookieSidecar(parsed)) {
     throw new ScraperError(
       `PHASE_H_FIXTURE_COOKIES_MALFORMED: ${filePath} — expected top-level 'cookies' array`,
     );
   }
   return parsed.cookies.map(toCookieSnapshot);
+}
+
+/**
+ * Read + parse a fixture file, wrapping any `SyntaxError` from
+ * `JSON.parse` with a fixture-path-tagged {@link ScraperError} so
+ * malformed-JSON failures surface with actionable diagnostics
+ * (CodeRabbit 2026-05-16 finding #22).
+ *
+ * @param filePath - Absolute path to the fixture JSON.
+ * @returns Parsed JSON value (still untyped — caller validates shape).
+ * @throws {ScraperError} When the file cannot be parsed as JSON.
+ */
+function parseFixtureJson(filePath: string): unknown {
+  const raw = readFileSync(filePath, 'utf8');
+  try {
+    return JSON.parse(raw);
+  } catch (parseError) {
+    const detail = parseError instanceof Error ? parseError.message : 'unknown';
+    throw new ScraperError(`PHASE_H_FIXTURE_JSON_INVALID: ${filePath} — ${detail}`);
+  }
 }
 
 /**
