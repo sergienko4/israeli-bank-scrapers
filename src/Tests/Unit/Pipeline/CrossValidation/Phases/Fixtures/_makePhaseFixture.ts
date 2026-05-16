@@ -129,6 +129,19 @@ export interface IPhaseHExpected {
   /** PRE-LOGIN FINAL: Procedure verdict — when POST succeeds POST
    *  sets `loginAreaReady=true` and FINAL signals to LOGIN. */
   readonly preLoginFinalOutcome?: 'success' | 'fail';
+  /** OTP-TRIGGER PRE: redacted phone-hint string the bank surfaces
+   *  (e.g. masked phone number tail). Pinned per-bank because the
+   *  hint-format is bank-specific (4-digit tail, last-2, etc.). */
+  readonly otpTriggerPhoneHint?: string;
+  /** OTP-TRIGGER POST: did the scope-bound validation observe the
+   *  trigger panel disappearing OR a 2xx ACK on the auth domain? */
+  readonly otpTriggerPostScopeValidated?: boolean;
+  /** OTP-TRIGGER FINAL: should `ctx.otpTrigger` be populated with
+   *  `triggered=true` after the FINAL commit? */
+  readonly otpTriggerFinalTriggered?: boolean;
+  /** OTP-TRIGGER FINAL: Procedure verdict — FINAL never fails loud
+   *  per design, so this is always `'success'` for last-good. */
+  readonly otpTriggerFinalOutcome?: 'success' | 'fail';
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */
