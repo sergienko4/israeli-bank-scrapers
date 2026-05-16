@@ -31,15 +31,34 @@ on:
         required: true
         type: string
 
+# CodeRabbit-rabbit-1 Q1 (2026-05-16): drop `pull-requests: write`.
+# The workflow only POSTs to `repos/.../issues/{n}/comments` which
+# is the GitHub Issues API (PR comments are issue comments under the
+# REST contract) — `issues: write` covers it. Narrowing to least
+# privilege.
 permissions:
-  pull-requests: write
   issues: write
   contents: read
+
+# CodeRabbit-rabbit-1 Q3 (2026-05-16): serialise concurrent failover
+# runs keyed by PR number so the idempotency check + `/review` post
+# are atomic. `cancel-in-progress: false` queues the second run
+# instead of cancelling — both rate-limit comments still get their
+# trigger attempt processed, but the in-flight idempotency guard
+# now reflects the prior post by the time the second run reads it.
+concurrency:
+  group: qodo-failover-pr-${{ github.event.issue.number || inputs.pr_number }}
+  cancel-in-progress: false
 
 jobs:
   trigger-qodo:
     name: Trigger qodo review on CodeRabbit rate-limit
     runs-on: ubuntu-latest
+    # CodeRabbit-rabbit-1 Q2 (2026-05-16): cap the job so a stuck
+    # `gh api` call cannot consume a runner indefinitely. The work
+    # itself completes in <30 s under normal conditions; 10 minutes
+    # is a generous upper bound that still bounds runaway scenarios.
+    timeout-minutes: 10
     # Only run on PR comments (issue_comment fires for both issues
     # and PRs; we need `.issue.pull_request` to scope to PRs) AND
     # ((author is coderabbitai[bot] AND body matches rate-limit
