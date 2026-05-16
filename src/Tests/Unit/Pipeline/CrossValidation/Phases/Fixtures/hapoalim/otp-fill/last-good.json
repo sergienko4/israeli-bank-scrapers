@@ -1,0 +1,13 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "otp-fill/last-good",
+    "captureRunId": "15-05-2026_19215646",
+    "rationale": "Phase H.T3c.6 — hapoalim OTP-FILL POST+FINAL last-good. OTP accepted (form gone, no error banner), session cookies present after submit. Captured run completed through SCRAPE.",
+    "expected": {
+      "otpFillPostOutcome": "success",
+      "otpFillFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

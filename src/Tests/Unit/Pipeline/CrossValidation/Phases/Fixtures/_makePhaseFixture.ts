@@ -142,6 +142,12 @@ export interface IPhaseHExpected {
   /** OTP-TRIGGER FINAL: Procedure verdict — FINAL never fails loud
    *  per design, so this is always `'success'` for last-good. */
   readonly otpTriggerFinalOutcome?: 'success' | 'fail';
+  /** OTP-FILL POST: Procedure verdict — succeeds when the bank's
+   *  OTP form is gone AND no error banner is visible after submit. */
+  readonly otpFillPostOutcome?: 'success' | 'fail';
+  /** OTP-FILL FINAL: Procedure verdict — always succeed per design
+   *  (observability-only). */
+  readonly otpFillFinalOutcome?: 'success' | 'fail';
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */

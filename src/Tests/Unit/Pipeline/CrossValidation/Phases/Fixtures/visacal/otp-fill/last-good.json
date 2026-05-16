@@ -1,0 +1,13 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "scenarioId": "otp-fill/last-good",
+    "captureRunId": "15-05-2026_19215086",
+    "rationale": "Phase H.T3c.6 — visacal OTP-FILL POST+FINAL last-good. OTP accepted, session cookies present. Captured run completed through SCRAPE.",
+    "expected": {
+      "otpFillPostOutcome": "success",
+      "otpFillFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}
