@@ -158,6 +158,13 @@ export interface IPhaseHExpected {
   /** ACCOUNT-RESOLVE FINAL: Procedure verdict — always succeed per
    *  design (telemetry-only). */
   readonly accountResolveFinalOutcome?: 'success' | 'fail';
+  /** SCRAPE POST: Procedure verdict — succeeds when ctx.scrape.accounts
+   *  has >= 1 account AND at least one account has >= 1 txn. */
+  readonly scrapePostOutcome?: 'success' | 'fail';
+  /** SCRAPE FINAL: Procedure verdict — always succeed per design. */
+  readonly scrapeFinalOutcome?: 'success' | 'fail';
+  /** SCRAPE: expected txn count for the bank's last-good fixture. */
+  readonly scrapeExpectedTxnCount?: number;
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */

@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "scrape/last-good",
+    "captureRunId": "15-05-2026_19215646",
+    "rationale": "Phase H.T3c.9 — hapoalim SCRAPE POST+FINAL last-good. Hapoalim's last-good captured run produced >= 1 txn across the harvested accounts — passes the all-accounts-empty guard. Per-bank txn count is documented but the factory only asserts the cross-bank guard, not the count.",
+    "expected": {
+      "scrapePostOutcome": "success",
+      "scrapeFinalOutcome": "success",
+      "scrapeExpectedTxnCount": 3
+    }
+  },
+  "pool": []
+}
