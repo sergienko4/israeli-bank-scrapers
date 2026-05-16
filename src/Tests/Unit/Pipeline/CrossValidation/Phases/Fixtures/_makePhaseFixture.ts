@@ -253,11 +253,24 @@ function hasFixtureShape(parsed: unknown): parsed is IRawPhaseHFixture {
  */
 export function loadPhaseFixture(bank: PhaseHBank, scenarioId: string): IPhaseHFixture {
   const filePath = join(FIXTURES_DIR, bank, `${scenarioId}.json`);
-  const parsed: unknown = JSON.parse(readFileSync(filePath, 'utf8'));
+  const parsed = parsePhaseFixtureJson(filePath);
+  return { meta: parsed._fixture, pool: parsed.pool };
+}
+
+/**
+ * Read + JSON-parse a fixture file, validating the shape.
+ *
+ * @param filePath - Absolute path to the fixture JSON.
+ * @returns Parsed fixture matching {@link IRawPhaseHFixture}.
+ * @throws {ScraperError} When the JSON shape does not match.
+ */
+function parsePhaseFixtureJson(filePath: string): IRawPhaseHFixture {
+  const raw = readFileSync(filePath, 'utf8');
+  const parsed: unknown = JSON.parse(raw);
   if (!hasFixtureShape(parsed)) {
     throw new ScraperError(
       `PHASE_H_FIXTURE_MALFORMED: ${filePath} — expected '_fixture' object and 'pool' array`,
     );
   }
-  return { meta: parsed._fixture, pool: parsed.pool };
+  return parsed;
 }

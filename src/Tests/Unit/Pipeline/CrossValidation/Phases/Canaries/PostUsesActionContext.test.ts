@@ -13,19 +13,32 @@
  * include `preCtx`, `actionCtx`, or `postInput`. A `setup`-only
  * signature means POST/FINAL runs against a context detached from
  * PRE+ACTION.
+ *
+ * <p>Scans the FULL source with a multiline regex so multi-line
+ * function signatures (produced by prettier on >120-char declarations)
+ * are detected (CodeRabbit cycle #4 finding #2).
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+
 const HERE_URL = fileURLToPath(import.meta.url);
-const PHASES_ROOT = path.join(path.dirname(HERE_URL), '..');
+const HERE_DIR = path.dirname(HERE_URL);
+const PHASES_ROOT = path.join(HERE_DIR, '..');
 /** Names accepted as proof the post handler is threaded from ACTION. */
 const PROOF_PARAM_NAMES: readonly string[] = ['preCtx', 'actionCtx', 'postInput'];
-/** Pattern matching a function declaration named `run*Post`/`run*PostFinal`. */
+/**
+ * Multiline pattern matching a `function run<X>Post(…)` declaration whose
+ * parameter list may span multiple lines (after prettier reformatting).
+ * The `[\s\S]*?` parameter group matches across newlines; the `g` flag
+ * lets `matchAll` iterate the file. `PostFinal` is tried before `Post`
+ * so the regex captures the full suffix.
+ */
 const POST_FN_PATTERN =
-  /^\s*(?:async\s+)?function\s+(run[A-Z][A-Za-z0-9]*?(?:Post|PostFinal))\s*\(([^)]*)\)/;
+  /(?:^|\n)\s*(?:async\s+)?function\s+(run[A-Z][A-Za-z0-9]*?(?:PostFinal|Post))\s*\(([\s\S]*?)\)\s*[:{]/g;
 
 /** One canary hit. */
 interface IDetachedPostHit {
@@ -36,21 +49,18 @@ interface IDetachedPostHit {
 }
 
 /**
- * Walk one directory entry and feed any TS file(s) into `out`,
- * recursing into subdirectories (but skipping `Canaries/`).
+ * Inspect one directory entry and return any `.ts` files (recursing
+ * into subdirectories, skipping `Canaries/`).
  *
- * @param dir - Parent directory.
+ * @param dir - Parent directory of `entry`.
  * @param entry - Directory entry to inspect.
- * @param out - Accumulator collecting absolute paths.
+ * @returns Absolute paths discovered under `entry`.
  */
-function collectTsEntry(dir: string, entry: fs.Dirent, out: string[]): void {
-  if (entry.name === 'Canaries') return;
+function tsFilesFromEntry(dir: string, entry: fs.Dirent): readonly string[] {
+  if (entry.name === 'Canaries') return [];
   const abs = path.join(dir, entry.name);
-  if (entry.isDirectory()) {
-    out.push(...gatherTsFiles(abs));
-    return;
-  }
-  if (entry.name.endsWith('.ts')) out.push(abs);
+  if (entry.isDirectory()) return gatherTsFiles(abs);
+  return entry.name.endsWith('.ts') ? [abs] : [];
 }
 
 /**
@@ -58,64 +68,44 @@ function collectTsEntry(dir: string, entry: fs.Dirent, out: string[]): void {
  * Canaries/ subfolder so the canary doesn't analyse itself.
  *
  * @param dir - Folder to walk.
- * @returns Absolute paths of `.ts` files.
+ * @returns Absolute paths of `.ts` files under `dir`.
  */
 function gatherTsFiles(dir: string): readonly string[] {
-  const out: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    collectTsEntry(dir, entry, out);
-  }
-  return out;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  return entries.flatMap((entry): readonly string[] => tsFilesFromEntry(dir, entry));
 }
 
 /**
- * Test whether one source line declares a detached POST/FINAL helper.
+ * Build zero or one canary hit(s) from a multi-line regex match.
  *
- * @param raw - Raw source line.
- * @returns Tuple of [fnName, params] when the line matches, else null.
+ * @param file - Path of the file being analysed.
+ * @param source - File contents (used to compute line numbers).
+ * @param match - One RegExp match returned by `matchAll`.
+ * @returns Single-element hit array when the helper is detached, else empty.
  */
-function matchPostHelper(raw: string): readonly [string, string] | null {
-  const match = POST_FN_PATTERN.exec(raw);
-  if (!match) return null;
-  return [match[1], match[2]];
+function hitsForMatch(
+  file: string,
+  source: string,
+  match: RegExpMatchArray,
+): readonly IDetachedPostHit[] {
+  const [fullMatch, fnName, params] = match;
+  if (PROOF_PARAM_NAMES.some((p): boolean => params.includes(p))) return [];
+  const lineNumber = source.slice(0, match.index).split('\n').length;
+  return [{ file, lineNumber, fnName, signature: fullMatch.trim() }];
 }
 
 /**
- * Inspect one file for detached POST/FINAL helpers.
+ * Scan one file's full source for detached POST/FINAL helpers,
+ * including multi-line declarations.
  *
  * @param file - Path of the file being analysed.
  * @param source - File contents.
  * @returns All offending POST/FINAL helpers in this file.
  */
 function findDetachedPostHelpers(file: string, source: string): readonly IDetachedPostHit[] {
-  const hits: IDetachedPostHit[] = [];
-  source.split('\n').forEach((raw, lineIndex): void => {
-    const hit = inspectLineForDetachedPost({ file, lineIndex, raw });
-    if (hit !== null) hits.push(hit);
-  });
-  return hits;
-}
-
-/**
- * Inspect one source line and return a canary hit if it declares a
- * detached POST/FINAL helper, else null.
- *
- * @param args - File path, zero-based line index, raw line text.
- * @returns Canary hit when the helper is detached, else null.
- */
-function inspectLineForDetachedPost(args: IInspectArgs): IDetachedPostHit | null {
-  const matched = matchPostHelper(args.raw);
-  if (!matched) return null;
-  const [fnName, params] = matched;
-  if (PROOF_PARAM_NAMES.some((p): boolean => params.includes(p))) return null;
-  return { file: args.file, lineNumber: args.lineIndex + 1, fnName, signature: args.raw.trim() };
-}
-
-/** Bundle for {@link inspectLineForDetachedPost}. */
-interface IInspectArgs {
-  readonly file: string;
-  readonly lineIndex: number;
-  readonly raw: string;
+  const matchIterator = source.matchAll(POST_FN_PATTERN);
+  const matches = Array.from(matchIterator);
+  return matches.flatMap((match): readonly IDetachedPostHit[] => hitsForMatch(file, source, match));
 }
 
 /**
@@ -125,7 +115,8 @@ interface IInspectArgs {
  * @returns Pretty-printed hit line.
  */
 function formatHit(hit: IDetachedPostHit): string {
-  return `  ${path.relative(PHASES_ROOT, hit.file)}:${String(hit.lineNumber)}  ${hit.fnName}`;
+  const relPath = path.relative(PHASES_ROOT, hit.file);
+  return `  ${relPath}:${String(hit.lineNumber)}  ${hit.fnName}`;
 }
 
 /**
@@ -135,25 +126,31 @@ function formatHit(hit: IDetachedPostHit): string {
  * @returns Formatted multi-line message describing the failure.
  */
 function buildFailureMessage(hits: readonly IDetachedPostHit[]): string {
-  return (
-    `🚫 PHASE-H DEEP-FACTORY RULE: ${String(hits.length)} POST/FINAL helper(s) detached from ACTION.\n` +
-    'Accept one of: preCtx, actionCtx, postInput. Merge ACTION diagnostics into the post-input.\n\n' +
-    hits.map(formatHit).join('\n')
-  );
+  const header = `🚫 PHASE-H DEEP-FACTORY RULE: ${String(hits.length)} POST/FINAL helper(s) detached from ACTION.\n`;
+  const body =
+    'Accept one of: preCtx, actionCtx, postInput. Merge ACTION diagnostics into the post-input.\n\n';
+  return `${header}${body}${hits.map(formatHit).join('\n')}`;
 }
 
 /**
  * Walk Phases/* and assert no detached-POST helpers remain.
+ *
+ * @returns True after the assertion passes.
  */
-function runCanary(): void {
+function runCanary(): boolean {
   const files = gatherTsFiles(PHASES_ROOT);
-  const hits = files.flatMap((f): readonly IDetachedPostHit[] =>
-    findDetachedPostHelpers(f, fs.readFileSync(f, 'utf8')),
-  );
-  if (hits.length > 0) throw new Error(buildFailureMessage(hits));
+  const hits = files.flatMap((f): readonly IDetachedPostHit[] => {
+    const source = fs.readFileSync(f, 'utf8');
+    return findDetachedPostHelpers(f, source);
+  });
+  if (hits.length > 0) throw new ScraperError(buildFailureMessage(hits));
   expect(hits.length).toBe(0);
+  return true;
 }
 
 describe('PHASE-H-CANARY — POST/FINAL helpers must thread ACTION-produced context', () => {
-  it('every run*Post / run*PostFinal helper must accept preCtx / actionCtx / postInput', runCanary);
+  it('every run*Post / run*PostFinal helper must accept preCtx / actionCtx / postInput', () => {
+    const didPass = runCanary();
+    expect(didPass).toBe(true);
+  });
 });

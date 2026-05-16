@@ -830,15 +830,19 @@ export default tseslint.config(
       sonarjs,
     },
     rules: {
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true },
-      ],
+      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true }],
       'max-statements': ['error', 10],
       'sonarjs/no-identical-functions': 'error',
       'sonarjs/no-duplicate-string': ['error', { threshold: 5 }],
       'no-restricted-syntax': [
         'error',
+        // RABBIT-CYCLE-#4 FINDING #1: ESLint flat-config rule arrays REPLACE
+        // (not extend) earlier definitions for files matching the same scope.
+        // Spreading RESTRICTED_SYNTAX_RULES first preserves the global guards
+        // (coverage-bypass, forbidden-method, PII-leak, security-logging,
+        // anti-sleep, ...) that section 4 applies repo-wide; otherwise this
+        // §8a block would silently strip them for Phases/** files.
+        ...RESTRICTED_SYNTAX_RULES,
         {
           // A2 — ban `expr as unknown as T` double-casts.
           // Phase H rabbit cycle #3 finding #1, #3, #7.
@@ -912,7 +916,7 @@ export default tseslint.config(
     ],
     rules: {
       // SonarJS — Sonar's own rules
-      "sonarjs/no-alphabetical-sort": "error", // S2871
+      'sonarjs/no-alphabetical-sort': 'error', // S2871
       'sonarjs/redundant-type-aliases': 'error', // S6564
       'sonarjs/void-use': 'error', // S3735
       'sonarjs/no-invariant-returns': 'error', // S3516 BLOCKER

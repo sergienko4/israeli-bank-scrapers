@@ -19,12 +19,19 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** Absolute path of this test file. */
+import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+
 const HERE_URL = fileURLToPath(import.meta.url);
-/** Phases/ folder containing the deep-factory tests. */
-const PHASES_ROOT = path.join(path.dirname(HERE_URL), '..');
+const HERE_DIR = path.dirname(HERE_URL);
+const PHASES_ROOT = path.join(HERE_DIR, '..');
 /** Pattern matching a discarded-await call. */
 const DROPPED_AWAIT_PATTERN = /^\s*await\s+run[A-Z][A-Za-z0-9]+Action\s*\(/;
+/**
+ * Marker comment that authorises ONE immediately-following discarded
+ * await. Must explain why no IActionContext is available to thread
+ * (e.g. ACTION returns a primitive).
+ */
+const CANARY_EXEMPT_MARKER = '// @canary-exempt: dropped-action-result';
 
 /** One offending hit: file + line + offending source. */
 interface IDroppedAwaitHit {
@@ -34,95 +41,45 @@ interface IDroppedAwaitHit {
 }
 
 /**
- * Walk one directory entry and feed any TS file(s) into `out`,
- * recursing into subdirectories (but skipping `Canaries/`).
+ * Inspect one directory entry and return any `.ts` files (recursing
+ * into subdirectories, skipping `Canaries/`).
  *
- * @param dir - Parent directory.
+ * @param dir - Parent directory of `entry`.
  * @param entry - Directory entry to inspect.
- * @param out - Accumulator collecting absolute paths.
+ * @returns Absolute paths discovered under `entry`.
  */
-function collectTsEntry(dir: string, entry: fs.Dirent, out: string[]): void {
-  if (entry.name === 'Canaries') return;
+function tsFilesFromEntry(dir: string, entry: fs.Dirent): readonly string[] {
+  if (entry.name === 'Canaries') return [];
   const abs = path.join(dir, entry.name);
-  if (entry.isDirectory()) {
-    out.push(...gatherTsFiles(abs));
-    return;
-  }
-  if (entry.name.endsWith('.ts')) out.push(abs);
+  if (entry.isDirectory()) return gatherTsFiles(abs);
+  return entry.name.endsWith('.ts') ? [abs] : [];
 }
 
 /**
- * Recursively gather *.ts files under a folder, skipping the
- * Canaries/ subfolder so the canary doesn't analyse itself.
+ * Recursively gather *.ts files under a folder, skipping
+ * Canaries/ so the canary doesn't analyse itself.
  *
  * @param dir - Folder to walk.
- * @returns Absolute paths of `.ts` files.
+ * @returns Absolute paths of `.ts` files under `dir`.
  */
 function gatherTsFiles(dir: string): readonly string[] {
-  const out: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    collectTsEntry(dir, entry, out);
-  }
-  return out;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  return entries.flatMap((entry): readonly string[] => tsFilesFromEntry(dir, entry));
 }
 
 /**
- * Marker comment a deep-factory test file can place at line start
- * to opt out of {@link DROPPED_AWAIT_PATTERN}. Required when the
- * ACTION step returns a primitive (e.g. boolean) the chain
- * legitimately cannot thread through `mergeActionDiagnostics`.
- * Must include a documented reason.
- */
-const CANARY_EXEMPT_MARKER = '// @canary-exempt: dropped-action-result';
-
-/**
- * Detect the discarded-await pattern in a single source string.
- * Lines following a {@link CANARY_EXEMPT_MARKER} are skipped — the
- * marker authorises one immediately-following discarded await.
- *
- * @param file - Path of the file being analysed (for reporting).
- * @param source - File contents.
- * @returns All hits in this file.
- */
-/** Bundle for {@link inspectLine}. */
-interface IInspectArgs {
-  readonly file: string;
-  readonly lineIndex: number;
-  readonly raw: string;
-  readonly lines: readonly string[];
-}
-
-/**
- * Detect the discarded-await pattern across one source string.
- *
- * @param file - Path of the file being analysed.
- * @param source - File contents.
- * @returns All hits in this file (honouring CANARY_EXEMPT_MARKER).
- */
-function findDroppedAwaits(file: string, source: string): readonly IDroppedAwaitHit[] {
-  const hits: IDroppedAwaitHit[] = [];
-  const lines = source.split('\n');
-  lines.forEach((raw, lineIndex): void => {
-    const hit = inspectLine({ file, lineIndex, raw, lines });
-    if (hit !== null) hits.push(hit);
-  });
-  return hits;
-}
-
-/**
- * Walk back from `lineIndex - 1` past contiguous `//` comments and
- * return true when the first non-comment line above is exactly the
- * {@link CANARY_EXEMPT_MARKER}.
+ * Walk back past contiguous `//` comments above `fromIndex` and
+ * return true when the first non-comment line is the canary
+ * exemption marker.
  *
  * @param lines - All lines from the source.
- * @param fromIndex - Index of the line being inspected.
- * @returns True if the await is preceded by the exemption marker
- *   (possibly with intervening comment-only lines explaining the
- *   exemption).
+ * @param fromIndex - Zero-based index of the line being inspected.
+ * @returns True when the line above is the canary exemption marker.
  */
 function isExempted(lines: readonly string[], fromIndex: number): boolean {
   for (let cursor = fromIndex - 1; cursor >= 0; cursor -= 1) {
-    const trimmed = lines[cursor]?.trim() ?? '';
+    const cursorLine = lines[cursor] ?? '';
+    const trimmed = cursorLine.trim();
     if (trimmed === CANARY_EXEMPT_MARKER) return true;
     if (!trimmed.startsWith('//')) return false;
   }
@@ -130,17 +87,38 @@ function isExempted(lines: readonly string[], fromIndex: number): boolean {
 }
 
 /**
- * Inspect one source line for a discarded-await hit, honouring an
- * upstream {@link CANARY_EXEMPT_MARKER}.
+ * Produce a single-element hit array if `raw` is a discarded await
+ * AND no upstream {@link CANARY_EXEMPT_MARKER} authorises it, else
+ * an empty array.
  *
- * @param args - File path, zero-based line index, raw line text, and
- *   the full line array (used to detect the exemption marker).
- * @returns Canary hit or null.
+ * @param file - Path of the file being analysed.
+ * @param lines - All lines from the source.
+ * @param lineIndex - Zero-based index of `raw` in `lines`.
+ * @returns Zero- or one-element hit array.
  */
-function inspectLine(args: IInspectArgs): IDroppedAwaitHit | null {
-  if (!DROPPED_AWAIT_PATTERN.test(args.raw)) return null;
-  if (isExempted(args.lines, args.lineIndex)) return null;
-  return { file: args.file, lineNumber: args.lineIndex + 1, source: args.raw.trim() };
+function hitsForLine(
+  file: string,
+  lines: readonly string[],
+  lineIndex: number,
+): readonly IDroppedAwaitHit[] {
+  const raw = lines[lineIndex] ?? '';
+  if (!DROPPED_AWAIT_PATTERN.test(raw)) return [];
+  if (isExempted(lines, lineIndex)) return [];
+  return [{ file, lineNumber: lineIndex + 1, source: raw.trim() }];
+}
+
+/**
+ * Detect every discarded-await hit in one file source.
+ *
+ * @param file - Path of the file being analysed.
+ * @param source - File contents.
+ * @returns All hits in this file (honouring CANARY_EXEMPT_MARKER).
+ */
+function findDroppedAwaits(file: string, source: string): readonly IDroppedAwaitHit[] {
+  const lines = source.split('\n');
+  return lines.flatMap((_unused, lineIndex): readonly IDroppedAwaitHit[] =>
+    hitsForLine(file, lines, lineIndex),
+  );
 }
 
 /**
@@ -150,7 +128,8 @@ function inspectLine(args: IInspectArgs): IDroppedAwaitHit | null {
  * @returns Pretty-printed hit line.
  */
 function formatHit(hit: IDroppedAwaitHit): string {
-  return `  ${path.relative(PHASES_ROOT, hit.file)}:${String(hit.lineNumber)}  ${hit.source}`;
+  const relPath = path.relative(PHASES_ROOT, hit.file);
+  return `  ${relPath}:${String(hit.lineNumber)}  ${hit.source}`;
 }
 
 /**
@@ -161,25 +140,31 @@ function formatHit(hit: IDroppedAwaitHit): string {
  */
 function buildFailureMessage(hits: readonly IDroppedAwaitHit[]): string {
   const formatted = hits.map(formatHit).join('\n');
-  return (
-    `🚫 PHASE-H DEEP-FACTORY RULE: ${String(hits.length)} discarded \`await run*Action(...)\` call(s) found.\n` +
-    'Capture every Action result. Dropping it lets ACTION fail while POST/FINAL hides the failure.\n\n' +
-    formatted
-  );
+  const header = `🚫 PHASE-H DEEP-FACTORY RULE: ${String(hits.length)} discarded \`await run*Action(...)\` call(s) found.\n`;
+  const body =
+    'Capture every Action result. Dropping it lets ACTION fail while POST/FINAL hides the failure.\n\n';
+  return `${header}${body}${formatted}`;
 }
 
 /**
  * Walk Phases/* and assert no discarded-await hits remain.
+ *
+ * @returns True after the assertion passes.
  */
-function runCanary(): void {
-  const files = gatherTsFiles(PHASES_ROOT).filter((f): boolean => f.endsWith('.ts'));
-  const hits = files.flatMap((f): readonly IDroppedAwaitHit[] =>
-    findDroppedAwaits(f, fs.readFileSync(f, 'utf8')),
-  );
-  if (hits.length > 0) throw new Error(buildFailureMessage(hits));
+function runCanary(): boolean {
+  const files = gatherTsFiles(PHASES_ROOT);
+  const hits = files.flatMap((f): readonly IDroppedAwaitHit[] => {
+    const source = fs.readFileSync(f, 'utf8');
+    return findDroppedAwaits(f, source);
+  });
+  if (hits.length > 0) throw new ScraperError(buildFailureMessage(hits));
   expect(hits.length).toBe(0);
+  return true;
 }
 
 describe('PHASE-H-CANARY — no discarded `await runXxxAction(...)` in deep factories', () => {
-  it('every awaited Action call in Phases/* MUST capture its result', runCanary);
+  it('every awaited Action call in Phases/* MUST capture its result', () => {
+    const didPass = runCanary();
+    expect(didPass).toBe(true);
+  });
 });

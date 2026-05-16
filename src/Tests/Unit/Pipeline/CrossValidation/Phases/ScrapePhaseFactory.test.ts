@@ -113,7 +113,8 @@ async function runScrapeAction(
   setup: IScrapeRowSetup,
   preCtx: IPipelineContext,
 ): Promise<IActionContext> {
-  const actionCtx = toActionCtx(preCtx, makeMockActionExecutor());
+  const executor = makeMockActionExecutor();
+  const actionCtx = toActionCtx(preCtx, executor);
   const result = await executeMatrixLoop(actionCtx);
   return unwrapOrThrow(result, `SCRAPE_ACTION_FAILED bank=${setup.row.bank}`);
 }

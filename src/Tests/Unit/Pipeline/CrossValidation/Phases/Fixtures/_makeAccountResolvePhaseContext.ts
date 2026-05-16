@@ -40,8 +40,12 @@ export interface IAccountResolvePhaseContextArgs {
   readonly responseBody: unknown;
 }
 
-/** Empty headers map reused across synthesised endpoints. */
-const EMPTY_HEADERS: Readonly<Record<string, string>> = {};
+/**
+ * Empty headers map reused across synthesised endpoints. Frozen so a
+ * test mutation cannot propagate into other fixtures (CodeRabbit
+ * cycle #4 finding #3).
+ */
+const EMPTY_HEADERS: Readonly<Record<string, string>> = Object.freeze({});
 
 /** Frozen base for synthesised accounts endpoints — only `url` + `responseBody` vary per call. */
 const ACCOUNTS_ENDPOINT_BASE: Omit<IDiscoveredEndpoint, 'url' | 'responseBody'> = Object.freeze({
@@ -68,11 +72,26 @@ const ACCOUNTS_ENDPOINT_BASE: Omit<IDiscoveredEndpoint, 'url' | 'responseBody'> 
 export function buildAccountResolvePhaseContext(
   args: IAccountResolvePhaseContextArgs,
 ): IAccountResolvePhaseTestSubject {
+  const context = composeAccountResolveContext(args);
+  return { context };
+}
+
+/**
+ * Compose the {@link IPipelineContext} backing
+ * {@link buildAccountResolvePhaseContext}. Split out so the public
+ * builder stays under the 10-line cap.
+ *
+ * @param args - Bundled arguments (poolUrl, responseBody).
+ * @returns Fully-wired pipeline context.
+ */
+function composeAccountResolveContext(args: IAccountResolvePhaseContextArgs): IPipelineContext {
   const page: Page = makeMockFullPage(args.poolUrl);
-  const browser = some(makeMockBrowserState(page));
+  const browserState = makeMockBrowserState(page);
+  const browser = some(browserState);
   const endpoint = buildAccountsEndpoint(args.poolUrl, args.responseBody);
-  const mediator = some(buildFixtureMediator([endpoint]));
-  return { context: makeMockContext({ browser, mediator }) };
+  const fixtureMediator = buildFixtureMediator([endpoint]);
+  const mediator = some(fixtureMediator);
+  return makeMockContext({ browser, mediator });
 }
 
 /**

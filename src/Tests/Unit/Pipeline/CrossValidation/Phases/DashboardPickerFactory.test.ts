@@ -188,23 +188,52 @@ const RICH_PICKER_TIERS: readonly string[] = ['postWithShape', 'replayablePost',
  * Assert the Phase G regression guard for one bank fixture.
  *
  * @param bank - Phase G bank under test.
+ * @returns True after the assertions complete.
  */
-function assertPhaseGRegressionForBank(bank: PhaseGBank): void {
+function assertPhaseGRegressionForBank(bank: PhaseGBank): boolean {
   const fixture = makeBankFixture(bank);
-  const pool = buildPool([phaseGToPhaseHCapture(fixture.capture)]);
-  const result = resolveTxnEndpoint(createFrozenNetwork(pool, false));
+  const result = pickResultFromFixture(fixture);
   expect(result).not.toBe(false);
-  if (result === false) return;
+  if (result === false) return true;
+  assertResultMatchesFixture(result, fixture);
+  return true;
+}
+
+/**
+ * Run the Phase G capture through the production picker.
+ *
+ * @param fixture - Phase G bank fixture under test.
+ * @returns Picker output (or false when no endpoint resolves).
+ */
+function pickResultFromFixture(
+  fixture: ReturnType<typeof makeBankFixture>,
+): ReturnType<typeof resolveTxnEndpoint> {
+  const phaseHCapture = phaseGToPhaseHCapture(fixture.capture);
+  const pool = buildPool([phaseHCapture]);
+  const network = createFrozenNetwork(pool, false);
+  return resolveTxnEndpoint(network);
+}
+
+/**
+ * Assert the picker result matches the fixture's expected URL,
+ * method, and a rich picker tier.
+ *
+ * @param result - Picker output (must be non-false at call site).
+ * @param fixture - Phase G bank fixture (URL + expectedMethod source).
+ * @returns True after the assertions pass.
+ */
+function assertResultMatchesFixture(
+  result: Exclude<ReturnType<typeof resolveTxnEndpoint>, false>,
+  fixture: ReturnType<typeof makeBankFixture>,
+): boolean {
   expect(result.endpoint.url).toBe(fixture.capture.url);
   expect(result.endpoint.method).toBe(fixture.meta.expectedMethod);
   expect(RICH_PICKER_TIERS).toContain(result.pickerTier);
+  return true;
 }
 
 describe('DASHBOARD-PICKER-FACTORY — Phase G regression guard cross-bank', () => {
-  it.each(PHASE_G_BANK_ROWS)(
-    'dashboardPicker_%s_lastGoodCapture_ShouldCommitViaRichTier',
-    (bank): void => {
-      assertPhaseGRegressionForBank(bank);
-    },
-  );
+  it.each(PHASE_G_BANK_ROWS)('dashboardPicker_%s_lastGoodCapture_ShouldCommitViaRichTier', bank => {
+    assertPhaseGRegressionForBank(bank);
+  });
 });

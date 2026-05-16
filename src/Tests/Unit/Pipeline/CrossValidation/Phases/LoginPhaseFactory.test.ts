@@ -36,9 +36,10 @@ import {
   executeLoginSignal,
   executeValidateLogin,
 } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
-import type {
-  IActionContext,
-  IPipelineContext,
+import {
+  API_STRATEGY,
+  type IActionContext,
+  type IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
 import { unwrapOrThrow } from './Fixtures/_deepPhaseHelpers.js';
@@ -222,9 +223,14 @@ function mergeActionDiagnostics(
 }
 
 /**
- * Assert the FINAL-stage commits match the LOGIN contract — login
- * state present + loginFieldDiscovery populated + at least one
- * cookie observed.
+ * Assert the FINAL-stage commits match the LOGIN contract:
+ * <ul>
+ *   <li>login state present + loginFieldDiscovery populated</li>
+ *   <li>cookie-audit observed at least one cookie — `executeLoginSignal`
+ *     only stamps `diagnostics.apiStrategy = API_STRATEGY.DIRECT` after
+ *     proving `cookies.length > 0`, so this assertion is the strongest
+ *     proxy for "≥1 cookie" without reaching past the contract</li>
+ * </ul>
  *
  * @param finalCtx - Context after the full chain.
  * @returns Resolved when assertions complete.
@@ -232,6 +238,7 @@ function mergeActionDiagnostics(
 function assertLoginFinalShape(finalCtx: IPipelineContext): boolean {
   expect(finalCtx.login.has).toBe(true);
   expect(finalCtx.loginFieldDiscovery.has).toBe(true);
+  expect(finalCtx.diagnostics.apiStrategy).toBe(API_STRATEGY.DIRECT);
   return true;
 }
 

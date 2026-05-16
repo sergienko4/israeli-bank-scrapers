@@ -47,6 +47,27 @@ const HELPER_FILE_PATH = fileURLToPath(import.meta.url);
 const FIXTURES_DIR = dirname(HELPER_FILE_PATH);
 
 /**
+ * Reserved-TLD suffix used for every PII-redacted Phase-H fixture
+ * domain. Centralised so a future redaction-policy change touches one
+ * place (CodeRabbit cycle #4 finding #4).
+ */
+const PHASE_H_DOMAIN_SUFFIX = 'example.com';
+
+/** Path segment that LOGIN phase fixtures land on. */
+const LOGIN_PHASE_PATH = 'login';
+
+/**
+ * Compose the redacted LOGIN URL for a bank from {@link PHASE_H_DOMAIN_SUFFIX}
+ * + {@link LOGIN_PHASE_PATH}.
+ *
+ * @param bank - Bank id from the fixture metadata.
+ * @returns Redacted URL the LOGIN-stage mock page reports.
+ */
+function buildLoginPageUrl(bank: string): string {
+  return `https://${bank}.${PHASE_H_DOMAIN_SUFFIX}/${LOGIN_PHASE_PATH}`;
+}
+
+/**
  * LOGIN-stage fixture extras carried by every per-bank
  * `login/<scenario>.json` under {@link IPhaseHFixture}.
  *
@@ -231,12 +252,37 @@ export function buildLoginPhaseContext(
   fixture: IPhaseHFixture,
   cookies: readonly ICookieSnapshot[],
 ): IPipelineContext {
-  const page: Page = makeMockFullPage(`https://${fixture.meta.bank}.example.com/login`);
-  const baseContext = makeContextWithLogin(page);
+  const baseContext = buildBaseLoginContext(fixture.meta.bank);
+  const cookieMediator = buildCookieMediator(cookies);
+  const mediator = some(cookieMediator);
+  return { ...baseContext, mediator };
+}
+
+/**
+ * Build the base pipeline context backing the LOGIN-stage subject.
+ *
+ * @param bank - Bank id from the fixture metadata.
+ * @returns Base context with `browser` + `login` populated.
+ */
+function buildBaseLoginContext(bank: string): IPipelineContext {
+  const pageUrl = buildLoginPageUrl(bank);
+  const page: Page = makeMockFullPage(pageUrl);
+  return makeContextWithLogin(page);
+}
+
+/**
+ * Build a mediator whose `getCookies` returns the fixture cookies.
+ *
+ * @param cookies - Redacted cookie snapshot for FINAL.
+ * @returns Mediator override bundle.
+ */
+function buildCookieMediator(
+  cookies: readonly ICookieSnapshot[],
+): ReturnType<typeof makeMockMediator> {
   /**
    * Return the fixture-redacted cookie snapshot for FINAL audit.
    * @returns Fixture cookies.
    */
   const getCookies = (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookies);
-  return { ...baseContext, mediator: some(makeMockMediator({ getCookies })) };
+  return makeMockMediator({ getCookies });
 }

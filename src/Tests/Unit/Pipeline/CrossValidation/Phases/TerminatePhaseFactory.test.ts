@@ -15,6 +15,7 @@
  * builder accidentally drop TERMINATE from its phase sequence?).
  */
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   executeLogResults,
   executeSignalDone,
@@ -47,14 +48,33 @@ const SCENARIOS: readonly ITerminateScenarioRow[] = [
  * @param row - Per-bank scenario row.
  * @returns Resolved when all sub-step assertions complete.
  */
-async function runTerminateChainForRow(row: ITerminateScenarioRow): Promise<void> {
-  const fixture = loadPhaseFixture(row.bank, `terminate/${row.scenarioId}`);
+async function runTerminateChainForRow(row: ITerminateScenarioRow): Promise<boolean> {
+  const shouldSucceed = resolveExpectedOutcome(row);
   const subject = buildTerminatePhaseContext();
-  const shouldSucceed = fixture.meta.expected.terminateOutcome === 'success';
   const preResult = await executeStartCleanup(subject.context);
   expect(preResult.success).toBe(shouldSucceed);
-  if (!preResult.success) return;
-  await assertTerminatePostFinal(preResult.value, shouldSucceed);
+  if (preResult.success) await assertTerminatePostFinal(preResult.value, shouldSucceed);
+  return true;
+}
+
+/**
+ * Read the fixture's `terminateOutcome` field and convert to a
+ * boolean. Fails fast (rabbit cycle #4 finding #7) when the field is
+ * missing instead of treating undefined as falsy.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when fixture expects success, false for the failure path.
+ * @throws {ScraperError} When the fixture lacks `terminateOutcome`.
+ */
+function resolveExpectedOutcome(row: ITerminateScenarioRow): boolean {
+  const fixture = loadPhaseFixture(row.bank, `terminate/${row.scenarioId}`);
+  const expectedOutcome = fixture.meta.expected.terminateOutcome;
+  if (expectedOutcome === undefined) {
+    throw new ScraperError(
+      `TERMINATE_FIXTURE_MISSING_terminateOutcome: ${row.bank}/${row.scenarioId}`,
+    );
+  }
+  return expectedOutcome === 'success';
 }
 
 /**
@@ -63,22 +83,36 @@ async function runTerminateChainForRow(row: ITerminateScenarioRow): Promise<void
  *
  * @param preCtx - Context emitted by TERMINATE.PRE.
  * @param shouldSucceed - Expected success boolean per fixture.
- * @returns Resolved when both assertions complete.
+ * @returns True after both assertions pass.
  */
 async function assertTerminatePostFinal(
   preCtx: Parameters<typeof executeLogResults>[0],
   shouldSucceed: boolean,
-): Promise<void> {
+): Promise<boolean> {
   const postResult = await executeLogResults(preCtx);
   expect(postResult.success).toBe(shouldSucceed);
-  if (!postResult.success) return;
-  const finalResult = await executeSignalDone(postResult.value);
+  if (postResult.success) await assertTerminateFinal(postResult.value, shouldSucceed);
+  return true;
+}
+
+/**
+ * Assert TERMINATE.FINAL against the supplied POST-output context.
+ *
+ * @param postCtx - Context emitted by TERMINATE.POST.
+ * @param shouldSucceed - Expected success boolean per fixture.
+ * @returns True after the assertion passes.
+ */
+async function assertTerminateFinal(
+  postCtx: Parameters<typeof executeSignalDone>[0],
+  shouldSucceed: boolean,
+): Promise<boolean> {
+  const finalResult = await executeSignalDone(postCtx);
   expect(finalResult.success).toBe(shouldSucceed);
+  return true;
 }
 
 describe('TERMINATE-PHASE-FACTORY — Phase H per-bank PRE+POST+FINAL', () => {
-  it.each(SCENARIOS)(
-    'terminate_$bank_$scenarioId_ShouldSucceedAtEverySubStep',
-    runTerminateChainForRow,
-  );
+  it.each(SCENARIOS)('terminate_$bank_$scenarioId_ShouldSucceedAtEverySubStep', async row => {
+    await runTerminateChainForRow(row);
+  });
 });

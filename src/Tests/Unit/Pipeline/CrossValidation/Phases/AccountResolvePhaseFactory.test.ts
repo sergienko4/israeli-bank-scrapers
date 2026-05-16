@@ -123,7 +123,8 @@ async function runAccountResolveAction(
   setup: IAccountResolveRowSetup,
   preCtx: IPipelineContext,
 ): Promise<IActionContext> {
-  const actionCtx = toActionCtx(preCtx, makeMockActionExecutor());
+  const executor = makeMockActionExecutor();
+  const actionCtx = toActionCtx(preCtx, executor);
   const result = await executeAccountResolveAction(actionCtx);
   return unwrapOrThrow(result, `ACCOUNT_RESOLVE_ACTION_FAILED bank=${setup.row.bank}`);
 }

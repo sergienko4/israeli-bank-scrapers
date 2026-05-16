@@ -82,26 +82,32 @@ async function runHomePre(setup: IHomeRowSetup): Promise<IHomeDiscovery> {
   const ctx = setup.subject.context;
   if (!ctx.browser.has) throw new ScraperError(`HOME_PRE_NO_BROWSER bank=${setup.row.bank}`);
   if (!ctx.mediator.has) throw new ScraperError(`HOME_PRE_NO_MEDIATOR bank=${setup.row.bank}`);
-  return resolveHomeDiscovery(ctx.mediator.value, ctx.browser.value.page, setup.row.bank);
+  return resolveHomeDiscovery({
+    mediator: ctx.mediator.value,
+    page: ctx.browser.value.page,
+    bank: setup.row.bank,
+  });
 }
 
 /**
  * Drive resolveHomeStrategy + unwrap to discovery.
  *
- * @param mediator - Narrowed mediator from PRE context.
- * @param page - Shared mock page from PRE context.
- * @param bank - Bank id for the failure-prefix.
+ * @param args - Narrowed mediator + page from PRE context + bank id.
  * @returns PRE-resolved discovery.
  */
-async function resolveHomeDiscovery(
-  mediator: IElementMediator,
-  page: Page,
-  bank: string,
-): Promise<IHomeDiscovery> {
-  const result = await resolveHomeStrategy(mediator, createMockLogger(), page);
+async function resolveHomeDiscovery(args: IResolveHomeArgs): Promise<IHomeDiscovery> {
+  const logger = createMockLogger();
+  const result = await resolveHomeStrategy(args.mediator, logger, args.page);
   if (!isOk(result))
-    throw new ScraperError(`HOME_PRE_FAILED bank=${bank} - ${result.errorMessage}`);
+    throw new ScraperError(`HOME_PRE_FAILED bank=${args.bank} - ${result.errorMessage}`);
   return result.value;
+}
+
+/** Inputs to {@link resolveHomeDiscovery} — mediator + page + bank. */
+interface IResolveHomeArgs {
+  readonly mediator: IElementMediator;
+  readonly page: Page;
+  readonly bank: string;
 }
 
 /**
@@ -112,7 +118,8 @@ async function resolveHomeDiscovery(
  * @returns True when navigation observed.
  */
 async function runHomeAction(setup: IHomeRowSetup, discovery: IHomeDiscovery): Promise<boolean> {
-  return executeHomeNavigation(setup.subject.executor, discovery, createMockLogger());
+  const logger = createMockLogger();
+  return executeHomeNavigation(setup.subject.executor, discovery, logger);
 }
 
 /**
@@ -149,11 +156,12 @@ interface IBuildLoginAreaArgsInput {
  * @returns Args bundle for HOME.POST.
  */
 function buildLoginAreaArgs(input: IBuildLoginAreaArgsInput): LoginAreaArgs {
+  const logger = createMockLogger();
   return {
     mediator: input.mediator,
     input: input.preCtx,
     homepageUrl: input.setup.row.homepageUrl,
-    logger: createMockLogger(),
+    logger,
   };
 }
 
@@ -168,10 +176,10 @@ async function runHomeFinal(
   setup: IHomeRowSetup,
   postCtx: IPipelineContext,
 ): Promise<IPipelineContext> {
-  if (!postCtx.mediator.has) {
+  if (!postCtx.mediator.has)
     throw new ScraperError(`HOME_FINAL_NO_MEDIATOR bank=${setup.row.bank}`);
-  }
-  const result = await executeStoreLoginSignal(postCtx.mediator.value, postCtx, createMockLogger());
+  const logger = createMockLogger();
+  const result = await executeStoreLoginSignal(postCtx.mediator.value, postCtx, logger);
   return unwrapOrThrow(result, `HOME_FINAL_FAILED bank=${setup.row.bank}`);
 }
 

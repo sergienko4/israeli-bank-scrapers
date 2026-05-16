@@ -59,8 +59,10 @@ export function buildPreLoginPhaseContext(
   args: IPreLoginPhaseContextArgs,
 ): IPreLoginPhaseTestSubject {
   const page: Page = makeMockFullPage(args.loginUrl);
-  const browser = some(makeMockBrowserState(page));
-  const mediator = some(buildPreLoginMediator(args));
+  const browserState = makeMockBrowserState(page);
+  const browser = some(browserState);
+  const preLoginMediator = buildPreLoginMediator(args);
+  const mediator = some(preLoginMediator);
   return { context: makeMockContext({ browser, mediator }) };
 }
 

@@ -218,9 +218,11 @@ function buildHomeArgs(input: IBuildHomeArgsInput): LoginAreaArgs {
  * @returns True when both phases succeed.
  */
 async function runInitHome(row: IFullFlowRow): Promise<boolean> {
-  const isInitOk = await runInitPost(row, buildInitPreCtx(row));
+  const initPreCtx = buildInitPreCtx(row);
+  const isInitOk = await runInitPost(row, initPreCtx);
   if (!isInitOk) return false;
-  return runHomePost(row, buildHomePreCtx(row));
+  const homePreCtx = buildHomePreCtx(row);
+  return runHomePost(row, homePreCtx);
 }
 
 /**
@@ -386,7 +388,8 @@ async function runTerminateTail(): Promise<boolean> {
  * @returns True when every back-half phase succeeds.
  */
 async function runBackHalf(row: IFullFlowRow): Promise<boolean> {
-  const isAuthOk = await runAuthDiscoveryPost(row, buildAuthDiscoveryPreCtx(row));
+  const authPreCtx = buildAuthDiscoveryPreCtx(row);
+  const isAuthOk = await runAuthDiscoveryPost(row, authPreCtx);
   if (!isAuthOk) return false;
   const isAcctOk = await runAccountResolve(row);
   if (!isAcctOk) return false;

@@ -70,14 +70,27 @@ export interface IDeepLoginTestSubject {
  * @returns Test subject containing the context + sealed executor.
  */
 export function buildDeepLoginContext(args: IDeepLoginContextArgs): IDeepLoginTestSubject {
-  const page: Page = enrichDeepPage(makeMockFullPage(args.loginUrl));
+  const context = composeDeepLoginContext(args);
+  const executor = buildDeepLoginExecutor();
+  return { context, executor };
+}
+
+/**
+ * Compose the deep LOGIN {@link IPipelineContext}. Split out so the
+ * public builder stays under the 10-line cap.
+ *
+ * @param args - Bundled arguments (loginConfig, loginUrl, cookies).
+ * @returns Fully-wired pipeline context.
+ */
+function composeDeepLoginContext(args: IDeepLoginContextArgs): IPipelineContext {
+  const basePage = makeMockFullPage(args.loginUrl);
+  const page: Page = enrichDeepPage(basePage);
   const browser = buildDeepLoginBrowser(page);
   const mediator = buildDeepLoginMediator(page, args.loginUrl, args.cookies);
   const credentials = synthesizeCredentials(args.loginConfig);
   const config: IPipelineContext['config'] = { urls: { base: args.loginUrl } };
   const base = makeMockContext({ browser, mediator });
-  const context: IPipelineContext = { ...base, credentials, config };
-  return { context, executor: buildDeepLoginExecutor() };
+  return { ...base, credentials, config };
 }
 
 /**
@@ -155,7 +168,9 @@ function buildDeepLoginMediator(
   loginUrl: string,
   cookies: readonly ICookieSnapshot[],
 ): Option<IElementMediator> {
-  return some(makeMockMediator(buildDeepLoginMediatorStubs(page, loginUrl, cookies)));
+  const stubs = buildDeepLoginMediatorStubs(page, loginUrl, cookies);
+  const fixtureMediator = makeMockMediator(stubs);
+  return some(fixtureMediator);
 }
 
 /**
@@ -250,8 +265,11 @@ type ResolveFieldResult = Awaited<ReturnType<IElementMediator['resolveField']>>;
  * @returns Stub function compatible with {@link IElementMediator.resolveField}.
  */
 function buildResolveFieldStub(page: Page): IElementMediator['resolveField'] {
-  return (key: string): Promise<ResolveFieldResult> =>
-    Promise.resolve(succeed(makeFieldCtx(page, key)));
+  return (key: string): Promise<ResolveFieldResult> => {
+    const fieldCtx = makeFieldCtx(page, key);
+    const ok = succeed(fieldCtx);
+    return Promise.resolve(ok);
+  };
 }
 
 /**
@@ -301,7 +319,10 @@ function buildDiscoverFormStub(page: Page): IElementMediator['discoverForm'] {
  * @returns Stub function compatible with {@link IElementMediator.resolveVisible}.
  */
 function buildResolveVisibleStub(page: Page): IElementMediator['resolveVisible'] {
-  return (): Promise<IRaceResult> => Promise.resolve(makeFoundRaceResult(page));
+  return (): Promise<IRaceResult> => {
+    const result = makeFoundRaceResult(page);
+    return Promise.resolve(result);
+  };
 }
 
 /**
