@@ -1,0 +1,31 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "scenarioId": "login/last-good",
+    "captureRunId": "15-05-2026_14362341",
+    "rationale": "Phase H.T3c.4b — beinleumi LOGIN.FINAL last-good cookie-audit shape. Source run completed all phases through SCRAPE (login-FINAL stage present in capture tree), confirming a successful session. Cookie domains + values fully PII-redacted: domains → '.example' reserved TLD; values → 'FAKE_VALUE'. Cookie names use a generic session-cookie shape — bank-specific cookie naming is not part of this factory's asserted contract (only count ≥ 1).",
+    "expected": {
+      "loginPreOutcome": "success",
+      "loginActionOutcome": "success",
+      "loginPostOutcome": "success",
+      "loginFinalOutcome": "success",
+      "loginPreFoundPassword": true,
+      "loginActionSubmitMethod": "form-submit",
+      "loginPostHasTraffic": true,
+      "loginFinalMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".beinleumi.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "XSRF-TOKEN",
+      "domain": ".beinleumi.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

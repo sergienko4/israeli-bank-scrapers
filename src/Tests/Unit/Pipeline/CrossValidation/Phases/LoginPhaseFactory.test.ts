@@ -45,7 +45,10 @@ interface ILoginScenarioRow {
  * scenario id mirrors the captured run's outcome label (`last-good`
  * = a normal successful login).
  */
-const SCENARIOS: readonly ILoginScenarioRow[] = [{ bank: 'hapoalim', scenarioId: 'last-good' }];
+const SCENARIOS: readonly ILoginScenarioRow[] = [
+  { bank: 'hapoalim', scenarioId: 'last-good' },
+  { bank: 'beinleumi', scenarioId: 'last-good' },
+];
 
 describe('LOGIN-PHASE-FACTORY — Phase H per-bank LOGIN.FINAL contract', () => {
   it.each(SCENARIOS)(
