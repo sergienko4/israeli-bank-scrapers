@@ -89,9 +89,25 @@ function hitsForMatch(
   match: RegExpMatchArray,
 ): readonly IDetachedPostHit[] {
   const [fullMatch, fnName, params] = match;
-  if (PROOF_PARAM_NAMES.some((p): boolean => params.includes(p))) return [];
+  if (hasProofParamToken(params)) return [];
   const lineNumber = source.slice(0, match.index).split('\n').length;
   return [{ file, lineNumber, fnName, signature: fullMatch.trim() }];
+}
+
+/**
+ * Token-level (word-boundary) check that `params` carries one of the
+ * accepted proof-param names. Substring match would false-positive
+ * identifiers like `preCtxShadow` or annotation text containing
+ * `preCtx` (CodeRabbit cycle #5 finding #1).
+ *
+ * @param params - Raw parameter-list text from a function signature.
+ * @returns True iff a proof-param name appears as a standalone token.
+ */
+function hasProofParamToken(params: string): boolean {
+  return PROOF_PARAM_NAMES.some((name): boolean => {
+    const tokenPattern = new RegExp(String.raw`\b${name}\b`, 'u');
+    return tokenPattern.test(params);
+  });
 }
 
 /**

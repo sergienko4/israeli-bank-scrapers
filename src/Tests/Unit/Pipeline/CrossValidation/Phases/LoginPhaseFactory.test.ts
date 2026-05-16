@@ -23,13 +23,6 @@
 
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import { AMEX_LOGIN } from '../../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
-import { BEINLEUMI_LOGIN } from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
-import { DISCOUNT_LOGIN } from '../../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
-import { HAPOALIM_LOGIN } from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
-import { ISRACARD_LOGIN } from '../../../../../Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.js';
-import { MAX_LOGIN } from '../../../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
-import { VISACAL_LOGIN } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 import {
   executeDiscoverForm,
   executeFillAndSubmitFromDiscovery,
@@ -42,6 +35,8 @@ import {
   type IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
+import BANK_LOGIN_CONFIGS from './Fixtures/_bankLoginConfigs.js';
+import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
 import { unwrapOrThrow } from './Fixtures/_deepPhaseHelpers.js';
 import { buildDeepLoginContext } from './Fixtures/_makeDeepLoginPhaseContext.js';
 import { loadAuthDiscoveryFixtureCookies } from './Fixtures/_makeLoginPhaseContext.js';
@@ -54,44 +49,18 @@ interface ILoginScenarioRow {
   readonly loginUrl: string;
 }
 
-/** Cross-bank LOGIN scenarios — one row per PHASE_H_BANK. */
-const SCENARIOS: readonly ILoginScenarioRow[] = [
-  {
-    bank: 'hapoalim',
-    loginConfig: HAPOALIM_LOGIN,
-    loginUrl: 'https://login.bankhapoalim.example/ng-portals/auth/he/',
-  },
-  {
-    bank: 'beinleumi',
-    loginConfig: BEINLEUMI_LOGIN,
-    loginUrl: 'https://login.beinleumi.example/login',
-  },
-  {
-    bank: 'discount',
-    loginConfig: DISCOUNT_LOGIN,
-    loginUrl: 'https://start.telebank.example/auth',
-  },
-  {
-    bank: 'amex',
-    loginConfig: AMEX_LOGIN,
-    loginUrl: 'https://digital.amex.example/login',
-  },
-  {
-    bank: 'isracard',
-    loginConfig: ISRACARD_LOGIN,
-    loginUrl: 'https://digital.isracard.example/personalarea/login',
-  },
-  {
-    bank: 'max',
-    loginConfig: MAX_LOGIN,
-    loginUrl: 'https://www.max.example/login-page',
-  },
-  {
-    bank: 'visacal',
-    loginConfig: VISACAL_LOGIN,
-    loginUrl: 'https://login.cal-online.example/Login',
-  },
-];
+/** Derive LOGIN scenarios from the shared {@link BANK_SCENARIOS} source. */
+const SCENARIOS: readonly ILoginScenarioRow[] = BANK_SCENARIOS.map(toLoginRow);
+
+/**
+ * Map one {@link IBankScenario} to the local LOGIN row shape.
+ *
+ * @param row - Shared bank scenario row.
+ * @returns Local LOGIN row (bank + loginConfig + loginUrl).
+ */
+function toLoginRow(row: IBankScenario): ILoginScenarioRow {
+  return { bank: row.bank, loginConfig: BANK_LOGIN_CONFIGS[row.bank], loginUrl: row.loginUrl };
+}
 
 /** Result of {@link prepareLoginRow}. */
 interface ILoginRowSubject {

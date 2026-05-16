@@ -26,6 +26,7 @@
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { executeValidatePage } from '../../../../../Scrapers/Pipeline/Mediator/Init/InitActions.js';
+import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
 import { buildInitPhaseContext } from './Fixtures/_makeInitPhaseContext.js';
 import { loadPhaseFixture, type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
 
@@ -36,44 +37,23 @@ interface IInitScenarioRow {
   readonly initPostUrl: string;
 }
 
-/** Scenarios exercised — one row per bank, all last-good landing URLs. */
-const SCENARIOS: readonly IInitScenarioRow[] = [
-  {
-    bank: 'hapoalim',
-    scenarioId: 'last-good',
-    initPostUrl: 'https://www.bankhapoalim.example/',
-  },
-  {
-    bank: 'beinleumi',
-    scenarioId: 'last-good',
-    initPostUrl: 'https://www.beinleumi.example/',
-  },
-  {
-    bank: 'discount',
-    scenarioId: 'last-good',
-    initPostUrl: 'https://www.discount.example/',
-  },
-  {
-    bank: 'amex',
-    scenarioId: 'last-good',
-    initPostUrl: 'https://www.amex.example/',
-  },
-  {
-    bank: 'isracard',
-    scenarioId: 'last-good',
-    initPostUrl: 'https://www.isracard.example/',
-  },
-  {
-    bank: 'max',
-    scenarioId: 'last-good',
-    initPostUrl: 'https://www.max.example/',
-  },
-  {
-    bank: 'visacal',
-    scenarioId: 'last-good',
-    initPostUrl: 'https://www.cal-online.example/',
-  },
-];
+/** Default fixture scenario id — single-source for every Phase H bank table. */
+const DEFAULT_SCENARIO_ID = 'last-good';
+
+/** Derive INIT scenarios from the shared {@link BANK_SCENARIOS} source. */
+const SCENARIOS: readonly IInitScenarioRow[] = BANK_SCENARIOS.map(toInitRow);
+
+/**
+ * Map one {@link IBankScenario} to the local INIT row shape. INIT.POST
+ * validates the bank's landing page, so the homepage URL from the
+ * shared source IS the row's `initPostUrl`.
+ *
+ * @param row - Shared bank scenario row.
+ * @returns Local INIT row.
+ */
+function toInitRow(row: IBankScenario): IInitScenarioRow {
+  return { bank: row.bank, scenarioId: DEFAULT_SCENARIO_ID, initPostUrl: row.homepageUrl };
+}
 
 /**
  * Drive INIT.POST for one scenario row and assert the captured-shape

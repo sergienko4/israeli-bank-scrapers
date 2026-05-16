@@ -105,9 +105,21 @@ interface IRawCookieEntry {
 function isRawCookieEntry(value: unknown): value is IRawCookieEntry {
   if (value === null || typeof value !== 'object') return false;
   const candidate = value as { name?: unknown; domain?: unknown; value?: unknown };
-  if (typeof candidate.name !== 'string') return false;
-  if (typeof candidate.domain !== 'string') return false;
-  return typeof candidate.value === 'string';
+  // Enforce non-empty per the IRawCookieEntry contract — empty
+  // string would silently pass otherwise (CodeRabbit cycle #5 #2).
+  if (!isNonEmptyString(candidate.name)) return false;
+  if (!isNonEmptyString(candidate.domain)) return false;
+  return isNonEmptyString(candidate.value);
+}
+
+/**
+ * Predicate: value is a non-empty string (trimmed).
+ *
+ * @param value - Candidate value.
+ * @returns True iff value is a string with at least one non-whitespace char.
+ */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 /**

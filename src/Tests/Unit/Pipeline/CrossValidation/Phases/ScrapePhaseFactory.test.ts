@@ -23,6 +23,7 @@
  * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  */
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   executeForensicPre,
   executeMatrixLoop,
@@ -85,7 +86,10 @@ function buildRedactedAccount(txnCount: number): ITransactionsAccount {
  */
 function prepareScrapeRow(row: IBankScenario): IScrapeRowSetup {
   const fixture = loadPhaseFixture(row.bank, 'scrape/last-good');
-  const expectedTxnCount = fixture.meta.expected.scrapeExpectedTxnCount ?? 1;
+  const expectedTxnCount = fixture.meta.expected.scrapeExpectedTxnCount;
+  if (expectedTxnCount === undefined) {
+    throw new ScraperError(`SCRAPE_FIXTURE_MISSING_scrapeExpectedTxnCount: ${row.bank}/last-good`);
+  }
   const accounts: readonly ITransactionsAccount[] = [buildRedactedAccount(expectedTxnCount)];
   const subject = buildScrapePhaseContext({ accounts });
   return { row, fixture, context: subject.context };
