@@ -148,6 +148,16 @@ export interface IPhaseHExpected {
   /** OTP-FILL FINAL: Procedure verdict — always succeed per design
    *  (observability-only). */
   readonly otpFillFinalOutcome?: 'success' | 'fail';
+  /** ACCOUNT-RESOLVE POST: Procedure verdict — succeeds when the
+   *  captured pre-nav pool yields >= 1 id and the count matches the
+   *  expected container max. */
+  readonly accountResolvePostOutcome?: 'success' | 'fail';
+  /** ACCOUNT-RESOLVE POST: expected id count from the captured
+   *  pre-nav pool's account-containing endpoint. */
+  readonly accountResolveExpectedIdCount?: number;
+  /** ACCOUNT-RESOLVE FINAL: Procedure verdict — always succeed per
+   *  design (telemetry-only). */
+  readonly accountResolveFinalOutcome?: 'success' | 'fail';
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */
