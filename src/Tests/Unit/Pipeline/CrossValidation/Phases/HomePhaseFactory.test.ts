@@ -1,165 +1,181 @@
 /**
- * Phase H.T3c.2 — cross-bank HOME per-phase factory.
+ * Phase H+ - cross-bank HOME per-phase factory (DEEP).
  *
- * <p>Drives every bank's PII-redacted captured HOME shape through
- * production {@link executeValidateLoginArea} and asserts the POST
- * Procedure outcome matches the fixture's
- * `expected.homePostOutcome`. Each row consumes a dedicated
- * `<bank>/home/<scenarioId>.json` fixture (locked plan H.T3c.2: "+ 7
- * HOME fixtures").
+ * <p>Honors the locked plan factory-depth expectation: drives the
+ * full PRE -> ACTION -> POST -> FINAL chain per bank through real
+ * production code paths.
  *
- * <p>HOME.POST cross-bank contract (per `HomeActions.ts:54-75`):
- * succeeds when ANY of (didNavigate, hasFrames, hasLoginForm) is true.
- * The factory drives `didNavigate` (URL changed from homepage) +
- * `hasFrames` (iframe-hosted login on Hapoalim-group banks) — both
- * are captured-shape signals derived from the run's URL trace + DOM
- * snapshot metadata.
+ * <ul>
+ *   <li>PRE: {@link resolveHomeStrategy} - passive login-trigger
+ *     discovery via mediator.resolveVisible(WK_HOME.ENTRY).</li>
+ *   <li>ACTION: {@link executeHomeNavigation} - sealed click on the
+ *     resolved trigger via executor.</li>
+ *   <li>POST: {@link executeValidateLoginArea} - didNavigate /
+ *     hasFrames / hasLoginForm contract.</li>
+ *   <li>FINAL: {@link executeStoreLoginSignal} - stores loginUrl
+ *     in diagnostics + waits for form readiness.</li>
+ * </ul>
  *
  * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
- * method" the `it.each` callback delegates to two single-purpose
- * helpers (`prepareHomeRow`, `assertHomeOutcome`).
+ * method" the `it.each` callback orchestrates via helpers
+ * (`prepareHomeRow`, `runHomeChain`, `assertHomeFinalShape`).
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import { executeValidateLoginArea } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
-import { createMockLogger } from '../../Infrastructure/MockFactories.js';
-import { buildHomePhaseContext } from './Fixtures/_makeHomePhaseContext.js';
 import {
-  type IPhaseHFixture,
-  loadPhaseFixture,
-  type PhaseHBank,
-} from './Fixtures/_makePhaseFixture.js';
-
-/** Per-scenario row driven by the parameterised `it.each` below. */
-interface IHomeScenarioRow {
-  readonly bank: PhaseHBank;
-  readonly scenarioId: string;
-  readonly homepageUrl: string;
-  readonly postNavUrl: string;
-  readonly frameCount: number;
-}
-
-/**
- * Scenarios exercised by the HOME factory. Per-bank URLs use the
- * `.example` reserved TLD; the URL-comparison contract is shape-only
- * (different URL → didNavigate=true). Hapoalim-group banks declare
- * `frameCount=2` to exercise the iframe-hosted-login branch.
- */
-const SCENARIOS: readonly IHomeScenarioRow[] = [
-  {
-    bank: 'hapoalim',
-    scenarioId: 'last-good',
-    homepageUrl: 'https://bankhapoalim.example/',
-    postNavUrl: 'https://login.bankhapoalim.example/ng-portals/auth/he/',
-    frameCount: 2,
-  },
-  {
-    bank: 'beinleumi',
-    scenarioId: 'last-good',
-    homepageUrl: 'https://www.beinleumi.example/',
-    postNavUrl: 'https://login.beinleumi.example/login',
-    frameCount: 0,
-  },
-  {
-    bank: 'discount',
-    scenarioId: 'last-good',
-    homepageUrl: 'https://www.discount.example/',
-    postNavUrl: 'https://start.telebank.example/auth',
-    frameCount: 0,
-  },
-  {
-    bank: 'amex',
-    scenarioId: 'last-good',
-    homepageUrl: 'https://www.amex.example/',
-    postNavUrl: 'https://digital.amex.example/login',
-    frameCount: 0,
-  },
-  {
-    bank: 'isracard',
-    scenarioId: 'last-good',
-    homepageUrl: 'https://www.isracard.example/',
-    postNavUrl: 'https://digital.isracard.example/personalarea/login',
-    frameCount: 0,
-  },
-  {
-    bank: 'max',
-    scenarioId: 'last-good',
-    homepageUrl: 'https://www.max.example/',
-    postNavUrl: 'https://www.max.example/login-page',
-    frameCount: 0,
-  },
-  {
-    bank: 'visacal',
-    scenarioId: 'last-good',
-    homepageUrl: 'https://www.cal-online.example/',
-    postNavUrl: 'https://login.cal-online.example/Login',
-    frameCount: 0,
-  },
-];
+  executeHomeNavigation,
+  executeStoreLoginSignal,
+  executeValidateLoginArea,
+} from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
+import type { IHomeDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeResolver.js';
+import { resolveHomeStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeResolver.js';
+import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { createMockLogger } from '../../Infrastructure/MockFactories.js';
+import { BANK_SCENARIOS, type IBankScenario } from './Fixtures/_BankScenarios.js';
+import {
+  buildDeepLoginContext,
+  type IDeepLoginTestSubject,
+} from './Fixtures/_makeDeepLoginPhaseContext.js';
+import { loadAuthDiscoveryFixtureCookies } from './Fixtures/_makeLoginPhaseContext.js';
 
 /** Bundle returned by {@link prepareHomeRow} for one scenario. */
 interface IHomeRowSetup {
-  readonly fixture: IPhaseHFixture;
-  readonly subject: ReturnType<typeof buildHomePhaseContext>;
+  readonly row: IBankScenario;
+  readonly subject: IDeepLoginTestSubject;
 }
 
 /**
- * Load the bank's HOME fixture + build the test subject.
+ * Build the deep HOME test subject. Reuses
+ * {@link buildDeepLoginContext} for the mediator+executor wiring
+ * since HOME shares the same surfaces (resolveVisible, executor
+ * clickElement). LoginConfig field is a no-op placeholder for HOME.
  *
- * @param row - Scenario row identifying bank + URLs + frame count.
- * @returns Fixture + subject bundle.
+ * @param row - Per-bank scenario row.
+ * @returns Row + deep test subject.
  */
-function prepareHomeRow(row: IHomeScenarioRow): IHomeRowSetup {
-  const fixture = loadPhaseFixture(row.bank, `home/${row.scenarioId}`);
-  const subject = buildHomePhaseContext({
-    homepageUrl: row.homepageUrl,
-    postNavUrl: row.postNavUrl,
-    frameCount: row.frameCount,
+function prepareHomeRow(row: IBankScenario): IHomeRowSetup {
+  const cookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
+  const placeholderConfig = { fields: [], submit: [], loginUrl: '' } as unknown as Parameters<
+    typeof buildDeepLoginContext
+  >[0]['loginConfig'];
+  const subject = buildDeepLoginContext({
+    loginConfig: placeholderConfig,
+    loginUrl: row.postNavUrl,
+    cookies,
   });
-  return { fixture, subject };
+  return { row, subject };
 }
 
 /**
- * Drive HOME.POST through production code and return the typed
- * Procedure result for assertion. Throws a typed `ScraperError`
- * when the mediator option is unexpectedly absent.
+ * Drive HOME.PRE via production resolveHomeStrategy.
  *
- * @param setup - Fixture + subject bundle.
- * @returns Procedure result of executeValidateLoginArea.
+ * @param setup - Row + deep test subject.
+ * @returns Discovery from PRE.
  */
-async function runHomePostExecution(
-  setup: IHomeRowSetup,
-): ReturnType<typeof executeValidateLoginArea> {
-  if (!setup.subject.context.mediator.has) {
-    throw new ScraperError('HOME_FACTORY: mediator missing');
+async function runHomePre(setup: IHomeRowSetup): Promise<IHomeDiscovery> {
+  if (!setup.subject.context.browser.has) {
+    throw new ScraperError(`HOME_PRE_NO_BROWSER bank=${setup.row.bank}`);
   }
-  return executeValidateLoginArea({
+  if (!setup.subject.context.mediator.has) {
+    throw new ScraperError(`HOME_PRE_NO_MEDIATOR bank=${setup.row.bank}`);
+  }
+  const logger = createMockLogger();
+  const result = await resolveHomeStrategy(
+    setup.subject.context.mediator.value,
+    logger,
+    setup.subject.context.browser.value.page,
+  );
+  if (!isOk(result)) {
+    throw new ScraperError(`HOME_PRE_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
+  }
+  return result.value;
+}
+
+/**
+ * Drive HOME.ACTION via production executeHomeNavigation.
+ *
+ * @param setup - Row + deep test subject.
+ * @param discovery - PRE-resolved discovery.
+ * @returns True when navigation observed.
+ */
+async function runHomeAction(setup: IHomeRowSetup, discovery: IHomeDiscovery): Promise<boolean> {
+  const logger = createMockLogger();
+  return executeHomeNavigation(setup.subject.executor, discovery, logger);
+}
+
+/**
+ * Drive HOME.POST via production executeValidateLoginArea.
+ *
+ * @param setup - Row + deep test subject.
+ * @returns POST-updated pipeline context.
+ */
+async function runHomePost(setup: IHomeRowSetup): Promise<IPipelineContext> {
+  if (!setup.subject.context.mediator.has) {
+    throw new ScraperError(`HOME_POST_NO_MEDIATOR bank=${setup.row.bank}`);
+  }
+  const result = await executeValidateLoginArea({
     mediator: setup.subject.context.mediator.value,
     input: setup.subject.context,
-    homepageUrl: setup.subject.homepageUrl,
+    homepageUrl: setup.row.homepageUrl,
     logger: createMockLogger(),
   });
+  if (!result.success) {
+    throw new ScraperError(`HOME_POST_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
+  }
+  return result.value;
 }
 
 /**
- * Assert the HOME.POST result matches the fixture's expected
- * outcome contract.
+ * Drive HOME.FINAL via production executeStoreLoginSignal.
  *
- * @param setup - Fixture + subject bundle.
- * @returns Resolved when the assertion completes.
+ * @param setup - Row + deep test subject.
+ * @param postCtx - POST-updated context.
+ * @returns FINAL-updated pipeline context.
  */
-async function assertHomeOutcome(setup: IHomeRowSetup): Promise<void> {
-  const result = await runHomePostExecution(setup);
-  const shouldSucceed = setup.fixture.meta.expected.homePostOutcome === 'success';
-  expect(result.success).toBe(shouldSucceed);
+async function runHomeFinal(
+  setup: IHomeRowSetup,
+  postCtx: IPipelineContext,
+): Promise<IPipelineContext> {
+  if (!postCtx.mediator.has) {
+    throw new ScraperError(`HOME_FINAL_NO_MEDIATOR bank=${setup.row.bank}`);
+  }
+  const logger = createMockLogger();
+  const result = await executeStoreLoginSignal(postCtx.mediator.value, postCtx, logger);
+  if (!result.success) {
+    throw new ScraperError(`HOME_FINAL_FAILED bank=${setup.row.bank} - ${result.errorMessage}`);
+  }
+  return result.value;
 }
 
-describe('HOME-PHASE-FACTORY — Phase H per-bank HOME.POST contract', () => {
-  it.each(SCENARIOS)(
-    'homePost_$bank_$scenarioId_ShouldValidateLoginArea',
-    async (row): Promise<void> => {
-      const setup = prepareHomeRow(row);
-      await assertHomeOutcome(setup);
-    },
-  );
+/**
+ * Run the full HOME PRE -> ACTION -> POST -> FINAL chain.
+ *
+ * @param setup - Row + deep test subject.
+ * @returns FINAL pipeline context.
+ */
+async function runHomeChain(setup: IHomeRowSetup): Promise<IPipelineContext> {
+  const discovery = await runHomePre(setup);
+  await runHomeAction(setup, discovery);
+  const postCtx = await runHomePost(setup);
+  return runHomeFinal(setup, postCtx);
+}
+
+/**
+ * Assert FINAL stamped loginUrl into diagnostics.
+ *
+ * @param finalCtx - Context after the chain.
+ * @returns True after assertion.
+ */
+function assertHomeFinalShape(finalCtx: IPipelineContext): boolean {
+  expect(typeof finalCtx.diagnostics.loginUrl).toBe('string');
+  return true;
+}
+
+describe('HOME-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
+  it.each(BANK_SCENARIOS)('home_$bank_ShouldCompleteFullChain', async (row): Promise<void> => {
+    const setup = prepareHomeRow(row);
+    const finalCtx = await runHomeChain(setup);
+    assertHomeFinalShape(finalCtx);
+  });
 });
