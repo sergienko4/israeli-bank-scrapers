@@ -5,8 +5,8 @@
     "captureRunId": "15-05-2026_14362341",
     "rationale": "Phase H.T3c.7 — beinleumi AUTH-DISCOVERY POST entry-state. Same captured run as login/last-good.json; cookie jar at AUTH-DISCOVERY POST entry equals LOGIN.FINAL exit (no inter-phase mutation). Dedicated AUTH-DISCOVERY fixture per locked plan H.T3c.7. Domains + values fully PII-redacted.",
     "expected": {
-      "loginFinalOutcome": "success",
-      "loginFinalMinCookieCount": 1
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
     }
   },
   "pool": [],

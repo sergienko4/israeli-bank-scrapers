@@ -37,6 +37,12 @@ import {
   TransactionTypes,
 } from '../../../../../Transactions.js';
 import {
+  BANK_SCENARIOS,
+  FAKE_ACCOUNT_NUMBER,
+  type IBankScenario,
+  REDACTED_PHONE_HINT,
+} from './Fixtures/_BankScenarios.js';
+import {
   executeAccountResolveFinal,
   executeAccountResolvePost,
   executeAuthDiscoveryPost,
@@ -68,94 +74,13 @@ import {
   loadAuthDiscoveryFixtureCookies,
   loadLoginFixtureCookies,
   loadPhaseFixture,
-  type PhaseHBank,
 } from './Fixtures/_PhaseContextBuilders.js';
 
-/** Per-bank full-flow row. */
-interface IFullFlowRow {
-  readonly bank: PhaseHBank;
-  readonly homepageUrl: string;
-  readonly postNavUrl: string;
-  readonly loginUrl: string;
-  readonly dashboardUrl: string;
-  readonly accountsUrl: string;
-  readonly frameCount: number;
-  readonly usesOtp: boolean;
-}
+/** Per-bank full-flow row — aliased to the shared scenario type. */
+type IFullFlowRow = IBankScenario;
 
-/** Scenarios — one row per PHASE_H_BANK. */
-const SCENARIOS: readonly IFullFlowRow[] = [
-  {
-    bank: 'hapoalim',
-    homepageUrl: 'https://www.bankhapoalim.example/',
-    postNavUrl: 'https://login.bankhapoalim.example/ng-portals/auth/he/',
-    loginUrl: 'https://login.bankhapoalim.example/ng-portals/auth/he/',
-    dashboardUrl: 'https://login.bankhapoalim.example/ng-portals/dashboard',
-    accountsUrl: 'https://login.bankhapoalim.example/ServerServices/general/accounts',
-    frameCount: 2,
-    usesOtp: true,
-  },
-  {
-    bank: 'beinleumi',
-    homepageUrl: 'https://www.beinleumi.example/',
-    postNavUrl: 'https://login.beinleumi.example/login',
-    loginUrl: 'https://login.beinleumi.example/login',
-    dashboardUrl: 'https://login.beinleumi.example/dashboard',
-    accountsUrl: 'https://login.beinleumi.example/api/accounts',
-    frameCount: 0,
-    usesOtp: true,
-  },
-  {
-    bank: 'discount',
-    homepageUrl: 'https://www.discount.example/',
-    postNavUrl: 'https://start.telebank.example/auth',
-    loginUrl: 'https://start.telebank.example/auth',
-    dashboardUrl: 'https://start.telebank.example/dashboard',
-    accountsUrl: 'https://start.telebank.example/api/accounts',
-    frameCount: 0,
-    usesOtp: false,
-  },
-  {
-    bank: 'amex',
-    homepageUrl: 'https://www.amex.example/',
-    postNavUrl: 'https://digital.amex.example/login',
-    loginUrl: 'https://digital.amex.example/login',
-    dashboardUrl: 'https://digital.amex.example/account',
-    accountsUrl: 'https://digital.amex.example/api/accounts',
-    frameCount: 0,
-    usesOtp: false,
-  },
-  {
-    bank: 'isracard',
-    homepageUrl: 'https://www.isracard.example/',
-    postNavUrl: 'https://digital.isracard.example/personalarea/login',
-    loginUrl: 'https://digital.isracard.example/personalarea/login',
-    dashboardUrl: 'https://digital.isracard.example/personalarea',
-    accountsUrl: 'https://digital.isracard.example/api/accounts',
-    frameCount: 0,
-    usesOtp: false,
-  },
-  {
-    bank: 'max',
-    homepageUrl: 'https://www.max.example/',
-    postNavUrl: 'https://www.max.example/login-page',
-    loginUrl: 'https://www.max.example/login-page',
-    dashboardUrl: 'https://www.max.example/account',
-    accountsUrl: 'https://www.max.example/api/accounts',
-    frameCount: 0,
-    usesOtp: true,
-  },
-  {
-    bank: 'visacal',
-    homepageUrl: 'https://www.cal-online.example/',
-    postNavUrl: 'https://login.cal-online.example/Login',
-    loginUrl: 'https://login.cal-online.example/Login',
-    dashboardUrl: 'https://login.cal-online.example/MainPage',
-    accountsUrl: 'https://login.cal-online.example/api/accounts',
-    frameCount: 0,
-    usesOtp: true,
-  },
-];
+/** Scenarios — one row per PHASE_H_BANK from shared {@link BANK_SCENARIOS}. */
+const SCENARIOS: readonly IFullFlowRow[] = BANK_SCENARIOS;
 
 /**
  * Build a single redacted txn for the SCRAPE leg of the full-flow.
@@ -178,17 +103,25 @@ function buildFlowTxn(ordinal: number): ITransaction {
 }
 
 /**
- * Run INIT.POST + HOME.POST for one bank row.
+ * Run INIT.POST for one bank row.
  *
  * @param row - Per-bank scenario row.
- * @returns True when both phases succeed.
+ * @returns True when INIT.POST succeeds.
  */
-async function runInitHome(row: IFullFlowRow): Promise<boolean> {
+async function runInitPost(row: IFullFlowRow): Promise<boolean> {
   const initSubject = buildInitPhaseContext({ initPostUrl: row.postNavUrl });
   const initResult = await executeValidatePage(initSubject.context);
-  if (!initResult.success) return false;
+  return initResult.success;
+}
+
+/**
+ * Run HOME.POST for one bank row.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when HOME.POST succeeds.
+ */
+async function runHomePost(row: IFullFlowRow): Promise<boolean> {
   const homeSubject = buildHomePhaseContext({
-    fixture: loadPhaseFixture(row.bank, 'home/last-good'),
     homepageUrl: row.homepageUrl,
     postNavUrl: row.postNavUrl,
     frameCount: row.frameCount,
@@ -204,12 +137,24 @@ async function runInitHome(row: IFullFlowRow): Promise<boolean> {
 }
 
 /**
- * Run PRE-LOGIN.POST+FINAL + LOGIN.FINAL legs.
+ * Run INIT.POST followed by HOME.POST.
  *
  * @param row - Per-bank scenario row.
- * @returns True when all three sub-steps succeed.
+ * @returns True when both phases succeed.
  */
-async function runPreLoginAndLogin(row: IFullFlowRow): Promise<boolean> {
+async function runInitHome(row: IFullFlowRow): Promise<boolean> {
+  const isInitOk = await runInitPost(row);
+  if (!isInitOk) return false;
+  return runHomePost(row);
+}
+
+/**
+ * Run PRE-LOGIN.POST + PRE-LOGIN.FINAL for one row.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when both PRE-LOGIN sub-steps succeed.
+ */
+async function runPreLogin(row: IFullFlowRow): Promise<boolean> {
   const preLoginSubject = buildPreLoginPhaseContext({
     isFormGateFound: true,
     loginUrl: row.loginUrl,
@@ -221,12 +166,67 @@ async function runPreLoginAndLogin(row: IFullFlowRow): Promise<boolean> {
   );
   if (!preLoginPost.success) return false;
   const preLoginFinal = executeSignalToLogin(preLoginPost.value);
-  if (!preLoginFinal.success) return false;
+  return preLoginFinal.success;
+}
+
+/**
+ * Run LOGIN.FINAL cookie audit for one row.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when LOGIN.FINAL succeeds.
+ */
+async function runLoginFinal(row: IFullFlowRow): Promise<boolean> {
   const loginFixture = loadPhaseFixture(row.bank, 'login/last-good');
   const loginCookies = loadLoginFixtureCookies(row.bank, 'last-good');
   const loginCtx = buildLoginPhaseContext(loginFixture, loginCookies);
   const loginFinal = await executeLoginSignal(loginCtx);
   return loginFinal.success;
+}
+
+/**
+ * Run PRE-LOGIN POST+FINAL followed by LOGIN.FINAL.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when the full PRE-LOGIN → LOGIN.FINAL leg succeeds.
+ */
+async function runPreLoginAndLogin(row: IFullFlowRow): Promise<boolean> {
+  const isPreLoginOk = await runPreLogin(row);
+  if (!isPreLoginOk) return false;
+  return runLoginFinal(row);
+}
+
+/**
+ * Run OTP-TRIGGER POST+FINAL for one row.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when both OTP-TRIGGER sub-steps succeed.
+ */
+async function runOtpTrigger(row: IFullFlowRow): Promise<boolean> {
+  const otpTriggerSubject = buildOtpTriggerPhaseContext({
+    phoneHint: REDACTED_PHONE_HINT,
+    otpUrl: `${row.loginUrl}/otp`,
+  });
+  const otpTriggerPost = await executeTriggerPost(otpTriggerSubject.context);
+  if (!otpTriggerPost.success) return false;
+  const otpTriggerFinal = await executeTriggerFinal(otpTriggerPost.value);
+  return otpTriggerFinal.success;
+}
+
+/**
+ * Run OTP-FILL POST+FINAL for one row.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when both OTP-FILL sub-steps succeed.
+ */
+async function runOtpFill(row: IFullFlowRow): Promise<boolean> {
+  const otpFillSubject = buildOtpFillPhaseContext({
+    cookieCount: row.cookieCount,
+    dashboardUrl: row.dashboardUrl,
+  });
+  const otpFillPost = await executeFillPost(otpFillSubject.context);
+  if (!otpFillPost.success) return false;
+  const otpFillFinal = await executeFillFinal(otpFillPost.value);
+  return otpFillFinal.success;
 }
 
 /**
@@ -236,22 +236,73 @@ async function runPreLoginAndLogin(row: IFullFlowRow): Promise<boolean> {
  * @returns True when both OTP phases succeed end-to-end.
  */
 async function runOtpLeg(row: IFullFlowRow): Promise<boolean> {
-  const otpTriggerSubject = buildOtpTriggerPhaseContext({
-    phoneHint: 'XXX-XXX-FAKE',
-    otpUrl: `${row.loginUrl}/otp`,
+  const isTriggerOk = await runOtpTrigger(row);
+  if (!isTriggerOk) return false;
+  return runOtpFill(row);
+}
+
+/**
+ * Run AUTH-DISCOVERY.POST for one row.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when AUTH-DISCOVERY.POST succeeds.
+ */
+async function runAuthDiscoveryPost(row: IFullFlowRow): Promise<boolean> {
+  const authFixture = loadPhaseFixture(row.bank, 'auth-discovery/last-good');
+  const authCookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
+  const authCtx = buildLoginPhaseContext(authFixture, authCookies);
+  const authResult = await executeAuthDiscoveryPost(authCtx);
+  return authResult.success;
+}
+
+/**
+ * Run ACCOUNT-RESOLVE POST+FINAL for one row.
+ *
+ * @param row - Per-bank scenario row.
+ * @returns True when both ACCOUNT-RESOLVE sub-steps succeed.
+ */
+async function runAccountResolve(row: IFullFlowRow): Promise<boolean> {
+  const acctFixture = loadPhaseFixture(row.bank, 'account-resolve/last-good');
+  const acctMeta = acctFixture.meta as unknown as { readonly accountsResponseBody?: unknown };
+  const acctSubject = buildAccountResolvePhaseContext({
+    poolUrl: row.accountsUrl,
+    responseBody: acctMeta.accountsResponseBody,
   });
-  const otpTriggerPost = await executeTriggerPost(otpTriggerSubject.context);
-  if (!otpTriggerPost.success) return false;
-  const otpTriggerFinal = await executeTriggerFinal(otpTriggerPost.value);
-  if (!otpTriggerFinal.success) return false;
-  const otpFillSubject = buildOtpFillPhaseContext({
-    cookieCount: 3,
-    dashboardUrl: row.dashboardUrl,
-  });
-  const otpFillPost = await executeFillPost(otpFillSubject.context);
-  if (!otpFillPost.success) return false;
-  const otpFillFinal = await executeFillFinal(otpFillPost.value);
-  return otpFillFinal.success;
+  const acctPost = await executeAccountResolvePost(acctSubject.context);
+  if (!acctPost.success) return false;
+  const acctFinal = await executeAccountResolveFinal(acctPost.value);
+  return acctFinal.success;
+}
+
+/**
+ * Run SCRAPE POST+FINAL with a single redacted txn for one row.
+ *
+ * @returns True when both SCRAPE sub-steps succeed.
+ */
+async function runScrape(): Promise<boolean> {
+  const accounts: readonly ITransactionsAccount[] = [
+    { accountNumber: FAKE_ACCOUNT_NUMBER, balance: 0, txns: [buildFlowTxn(0)] },
+  ];
+  const scrapeSubject = buildScrapePhaseContext({ accounts });
+  const scrapePost = await executeValidateResults(scrapeSubject.context);
+  if (!scrapePost.success) return false;
+  const scrapeFinal = await executeStampAccounts(scrapePost.value);
+  return scrapeFinal.success;
+}
+
+/**
+ * Run TERMINATE PRE+POST+FINAL for one row.
+ *
+ * @returns True when all three TERMINATE sub-steps succeed.
+ */
+async function runTerminateTail(): Promise<boolean> {
+  const termSubject = buildTerminatePhaseContext();
+  const termPre = await executeStartCleanup(termSubject.context);
+  if (!termPre.success) return false;
+  const termPost = await executeLogResults(termPre.value);
+  if (!termPost.success) return false;
+  const termFinal = await executeSignalDone(termPost.value);
+  return termFinal.success;
 }
 
 /**
@@ -262,46 +313,13 @@ async function runOtpLeg(row: IFullFlowRow): Promise<boolean> {
  * @returns True when every back-half phase succeeds.
  */
 async function runBackHalf(row: IFullFlowRow): Promise<boolean> {
-  const authFixture = loadPhaseFixture(row.bank, 'auth-discovery/last-good');
-  const authCookies = loadAuthDiscoveryFixtureCookies(row.bank, 'last-good');
-  const authCtx = buildLoginPhaseContext(authFixture, authCookies);
-  const authResult = await executeAuthDiscoveryPost(authCtx);
-  if (!authResult.success) return false;
-  return runResolveScrapeTerminate(row);
-}
-
-/**
- * Run the ACCOUNT-RESOLVE → SCRAPE → TERMINATE tail of the chain.
- *
- * @param row - Per-bank scenario row.
- * @returns True when every tail phase succeeds.
- */
-async function runResolveScrapeTerminate(row: IFullFlowRow): Promise<boolean> {
-  const acctFixture = loadPhaseFixture(row.bank, 'account-resolve/last-good');
-  const acctMeta = acctFixture.meta as unknown as { readonly accountsResponseBody?: unknown };
-  const acctSubject = buildAccountResolvePhaseContext({
-    poolUrl: row.accountsUrl,
-    responseBody: acctMeta.accountsResponseBody,
-  });
-  const acctPost = await executeAccountResolvePost(acctSubject.context);
-  if (!acctPost.success) return false;
-  const acctFinal = await executeAccountResolveFinal(acctPost.value);
-  if (!acctFinal.success) return false;
-  const accounts: readonly ITransactionsAccount[] = [
-    { accountNumber: 'FAKE-000000', balance: 0, txns: [buildFlowTxn(0)] },
-  ];
-  const scrapeSubject = buildScrapePhaseContext({ accounts });
-  const scrapePost = await executeValidateResults(scrapeSubject.context);
-  if (!scrapePost.success) return false;
-  const scrapeFinal = await executeStampAccounts(scrapePost.value);
-  if (!scrapeFinal.success) return false;
-  const termSubject = buildTerminatePhaseContext();
-  const termPre = await executeStartCleanup(termSubject.context);
-  if (!termPre.success) return false;
-  const termPost = await executeLogResults(termPre.value);
-  if (!termPost.success) return false;
-  const termFinal = await executeSignalDone(termPost.value);
-  return termFinal.success;
+  const isAuthOk = await runAuthDiscoveryPost(row);
+  if (!isAuthOk) return false;
+  const isAcctOk = await runAccountResolve(row);
+  if (!isAcctOk) return false;
+  const isScrapeOk = await runScrape();
+  if (!isScrapeOk) return false;
+  return runTerminateTail();
 }
 
 describe('FULL-FLOW-FACTORY — Phase H per-bank 10-phase chain', () => {

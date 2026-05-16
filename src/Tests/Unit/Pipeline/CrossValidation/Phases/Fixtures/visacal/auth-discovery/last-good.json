@@ -5,8 +5,8 @@
     "captureRunId": "15-05-2026_19215086",
     "rationale": "Phase H.T3c.7 — visacal AUTH-DISCOVERY POST entry-state. Domains + values fully PII-redacted.",
     "expected": {
-      "loginFinalOutcome": "success",
-      "loginFinalMinCookieCount": 1
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
     }
   },
   "pool": [],

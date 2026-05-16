@@ -24,6 +24,45 @@ import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 const TEST_COMPANY_ID = 'testBank';
 
 /**
+ * Create a no-op {@link ScraperLogger} suitable for tests that do
+ * not assert on logger output. Single source of truth so callers
+ * stop sprinkling `as unknown as ScraperLogger` casts inline
+ * (CodeRabbit 2026-05-16 finding #17). All level methods return
+ * `true` for the deferred-child mock contract.
+ *
+ * @returns No-op logger conforming to the {@link ScraperLogger} shape.
+ */
+export function createMockLogger(): ScraperLogger {
+  return {
+    /**
+     * No-op debug for test fixtures.
+     * @returns True (no-op).
+     */
+    debug: (): boolean => true,
+    /**
+     * No-op trace for test fixtures.
+     * @returns True (no-op).
+     */
+    trace: (): boolean => true,
+    /**
+     * No-op info for test fixtures.
+     * @returns True (no-op).
+     */
+    info: (): boolean => true,
+    /**
+     * No-op warn for test fixtures.
+     * @returns True (no-op).
+     */
+    warn: (): boolean => true,
+    /**
+     * No-op error for test fixtures.
+     * @returns True (no-op).
+     */
+    error: (): boolean => true,
+  } as unknown as ScraperLogger;
+}
+
+/**
  * Create a minimal mock ScraperOptions.
  * @param overrides - Optional field overrides.
  * @returns A ScraperOptions object for testing.
@@ -94,33 +133,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     options: makeMockOptions(),
     credentials: makeMockCredentials(),
     companyId: TEST_COMPANY_ID as unknown as CompanyTypes,
-    logger: {
-      /**
-       * No-op debug.
-       * @returns True.
-       */
-      debug: (): boolean => true,
-      /**
-       * No-op trace.
-       * @returns True.
-       */
-      trace: (): boolean => true,
-      /**
-       * No-op info.
-       * @returns True.
-       */
-      info: (): boolean => true,
-      /**
-       * No-op warn.
-       * @returns True.
-       */
-      warn: (): boolean => true,
-      /**
-       * No-op error.
-       * @returns True.
-       */
-      error: (): boolean => true,
-    } as unknown as ScraperLogger,
+    logger: createMockLogger(),
     diagnostics: {
       loginUrl: '',
       finalUrl: none(),

@@ -26,12 +26,17 @@
  * ships with this commit as the proof-of-shape.
  */
 
+import type { ICookieSnapshot } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { executeLoginSignal } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
 import {
   buildLoginPhaseContext,
   loadLoginFixtureCookies,
 } from './Fixtures/_makeLoginPhaseContext.js';
-import { loadPhaseFixture, type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
+import {
+  type IPhaseHFixture,
+  loadPhaseFixture,
+  type PhaseHBank,
+} from './Fixtures/_makePhaseFixture.js';
 
 /** Per-scenario row driven by the parameterised `it.each` below. */
 interface ILoginScenarioRow {
@@ -39,11 +44,15 @@ interface ILoginScenarioRow {
   readonly scenarioId: string;
 }
 
+/** Setup result for a single LOGIN.FINAL test row. */
+interface ILoginTestSetup {
+  readonly fixture: IPhaseHFixture;
+  readonly cookies: readonly ICookieSnapshot[];
+}
+
 /**
- * Scenarios exercised by the LOGIN.FINAL factory. Banks land in
- * separate commits as their captured cookies are PII-redacted; the
- * scenario id mirrors the captured run's outcome label (`last-good`
- * = a normal successful login).
+ * Scenarios exercised by the LOGIN.FINAL factory. One row per
+ * PHASE_H_BANK; each row consumes its own captured-cookies fixture.
  */
 const SCENARIOS: readonly ILoginScenarioRow[] = [
   { bank: 'hapoalim', scenarioId: 'last-good' },
@@ -55,23 +64,42 @@ const SCENARIOS: readonly ILoginScenarioRow[] = [
   { bank: 'visacal', scenarioId: 'last-good' },
 ];
 
+/**
+ * Load a bank's LOGIN.FINAL fixture + its redacted cookie sidecar.
+ *
+ * @param row - Scenario row identifying bank + scenario id.
+ * @returns Bundle of fixture metadata + cookie snapshot.
+ */
+function prepareLoginSetup(row: ILoginScenarioRow): ILoginTestSetup {
+  const fixture = loadPhaseFixture(row.bank, `login/${row.scenarioId}`);
+  const cookies = loadLoginFixtureCookies(row.bank, row.scenarioId);
+  return { fixture, cookies };
+}
+
+/**
+ * Drive {@link executeLoginSignal} against the setup and assert
+ * the success outcome + cookie-count lower bound from the fixture.
+ *
+ * @param setup - Fixture + cookies bundle.
+ * @returns Resolved when assertions complete.
+ */
+async function assertLoginOutcome(setup: ILoginTestSetup): Promise<void> {
+  const context = buildLoginPhaseContext(setup.fixture, setup.cookies);
+  const result = await executeLoginSignal(context);
+  const shouldSucceed = setup.fixture.meta.expected.loginFinalOutcome === 'success';
+  expect(result.success).toBe(shouldSucceed);
+  const minCount = setup.fixture.meta.expected.loginFinalMinCookieCount;
+  if (minCount !== undefined) {
+    expect(setup.cookies.length).toBeGreaterThanOrEqual(minCount);
+  }
+}
+
 describe('LOGIN-PHASE-FACTORY — Phase H per-bank LOGIN.FINAL contract', () => {
   it.each(SCENARIOS)(
     'loginFinal_$bank_$scenarioId_ShouldMatchCookieAuditOutcome',
     async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `login/${row.scenarioId}`);
-      const cookies = loadLoginFixtureCookies(row.bank, row.scenarioId);
-      const context = buildLoginPhaseContext(fixture, cookies);
-
-      const result = await executeLoginSignal(context);
-
-      const shouldSucceed = fixture.meta.expected.loginFinalOutcome === 'success';
-      expect(result.success).toBe(shouldSucceed);
-
-      const minCount = fixture.meta.expected.loginFinalMinCookieCount;
-      if (minCount !== undefined) {
-        expect(cookies.length).toBeGreaterThanOrEqual(minCount);
-      }
+      const setup = prepareLoginSetup(row);
+      await assertLoginOutcome(setup);
     },
   );
 });

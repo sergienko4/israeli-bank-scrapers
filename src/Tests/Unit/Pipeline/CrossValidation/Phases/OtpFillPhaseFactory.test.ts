@@ -64,25 +64,52 @@ const SCENARIOS: readonly IOtpFillScenarioRow[] = [
   },
 ];
 
+/** Bundle returned by {@link prepareOtpFillRow} for one scenario. */
+interface IOtpFillRowSetup {
+  readonly fixture: ReturnType<typeof loadPhaseFixture>;
+  readonly subject: ReturnType<typeof buildOtpFillPhaseContext>;
+}
+
+/**
+ * Load the bank's OTP-FILL fixture + build the test subject.
+ *
+ * @param row - Scenario row identifying bank + URLs + cookie count.
+ * @returns Fixture + subject bundle.
+ */
+function prepareOtpFillRow(row: IOtpFillScenarioRow): IOtpFillRowSetup {
+  const fixture = loadPhaseFixture(row.bank, `otp-fill/${row.scenarioId}`);
+  const subject = buildOtpFillPhaseContext({
+    cookieCount: row.cookieCount,
+    dashboardUrl: row.dashboardUrl,
+  });
+  return { fixture, subject };
+}
+
+/**
+ * Drive POST then (when POST succeeds) FINAL through production
+ * code and assert each Procedure outcome against the fixture's
+ * expected values.
+ *
+ * @param setup - Fixture + subject bundle from {@link prepareOtpFillRow}.
+ * @returns Resolved when both assertions complete.
+ */
+async function assertOtpFillOutcomes(setup: IOtpFillRowSetup): Promise<void> {
+  const postResult = await executeFillPost(setup.subject.context);
+  const shouldPostSucceed = setup.fixture.meta.expected.otpFillPostOutcome === 'success';
+  expect(postResult.success).toBe(shouldPostSucceed);
+  if (postResult.success) {
+    const finalResult = await executeFillFinal(postResult.value);
+    const shouldFinalSucceed = setup.fixture.meta.expected.otpFillFinalOutcome === 'success';
+    expect(finalResult.success).toBe(shouldFinalSucceed);
+  }
+}
+
 describe('OTP-FILL-PHASE-FACTORY — Phase H per-bank POST+FINAL', () => {
   it.each(SCENARIOS)(
     'otpFill_$bank_$scenarioId_ShouldValidatePostAndCommitFinal',
     async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `otp-fill/${row.scenarioId}`);
-      const subject = buildOtpFillPhaseContext({
-        cookieCount: row.cookieCount,
-        dashboardUrl: row.dashboardUrl,
-      });
-
-      const postResult = await executeFillPost(subject.context);
-      const shouldPostSucceed = fixture.meta.expected.otpFillPostOutcome === 'success';
-      expect(postResult.success).toBe(shouldPostSucceed);
-
-      if (postResult.success) {
-        const finalResult = await executeFillFinal(postResult.value);
-        const shouldFinalSucceed = fixture.meta.expected.otpFillFinalOutcome === 'success';
-        expect(finalResult.success).toBe(shouldFinalSucceed);
-      }
+      const setup = prepareOtpFillRow(row);
+      await assertOtpFillOutcomes(setup);
     },
   );
 });

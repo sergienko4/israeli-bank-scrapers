@@ -5,8 +5,8 @@
     "captureRunId": "15-05-2026_19214652",
     "rationale": "Phase H.T3c.7 — max AUTH-DISCOVERY POST entry-state. Max diverges from the Isracard/Amex family — dedicated fixture pins its independent session-cookie contract. Domains + values fully PII-redacted.",
     "expected": {
-      "loginFinalOutcome": "success",
-      "loginFinalMinCookieCount": 1
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
     }
   },
   "pool": [],

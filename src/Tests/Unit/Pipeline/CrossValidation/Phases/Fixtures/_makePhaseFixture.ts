@@ -174,6 +174,15 @@ export interface IPhaseHExpected {
    *  fns committed by INIT.PRE and always succeeds even when one
    *  cleanup throws (errors swallowed per design). */
   readonly terminateOutcome?: 'success' | 'fail';
+  /** AUTH-DISCOVERY POST: Procedure verdict — succeeds when the
+   *  captured cookie jar carries >= 1 session cookie at AUTH-
+   *  DISCOVERY entry. Mirrors the LOGIN.FINAL contract but lives on
+   *  the AUTH-DISCOVERY fixture so the schema names match the phase
+   *  the assertion verifies (CodeRabbit 2026-05-16 finding #7). */
+  readonly authDiscoveryPostOutcome?: 'success' | 'fail';
+  /** AUTH-DISCOVERY POST: minimum session-cookie count expected at
+   *  AUTH-DISCOVERY entry. */
+  readonly authDiscoveryPostMinCookieCount?: number;
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */

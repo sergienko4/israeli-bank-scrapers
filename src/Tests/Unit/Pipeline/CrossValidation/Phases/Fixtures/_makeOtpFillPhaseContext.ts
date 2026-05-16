@@ -18,9 +18,16 @@
 
 import type { Page } from 'playwright-core';
 
-import type { ICookieSnapshot } from '../../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type {
+  ICookieSnapshot,
+  IElementMediator,
+} from '../../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type { Option } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import { some } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type {
+  IBrowserState,
+  IPipelineContext,
+} from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import {
   makeMockBrowserState,
   makeMockContext,
@@ -50,11 +57,39 @@ export interface IOtpFillPhaseContextArgs {
  * @returns Context ready for OTP-FILL.POST + FINAL replay.
  */
 export function buildOtpFillPhaseContext(args: IOtpFillPhaseContextArgs): IOtpFillPhaseTestSubject {
-  const { cookieCount, dashboardUrl } = args;
+  const cookies = buildCookieSnapshot(args.cookieCount);
+  const browser = buildOtpFillBrowser(args.dashboardUrl);
+  const mediator = buildOtpFillMediator(args.dashboardUrl, cookies);
+  const context = makeMockContext({ browser, mediator });
+  return { context };
+}
+
+/**
+ * Build the browser-state option for OTP-FILL replay. Wraps a
+ * mock page that reports the bank's post-OTP dashboard URL.
+ *
+ * @param dashboardUrl - URL the mock page reports.
+ * @returns Some-wrapped browser state.
+ */
+function buildOtpFillBrowser(dashboardUrl: string): Option<IBrowserState> {
   const page: Page = makeMockFullPage(dashboardUrl);
   const browserState = makeMockBrowserState(page);
-  const browser = some(browserState);
-  const cookies: readonly ICookieSnapshot[] = buildCookieSnapshot(cookieCount);
+  return some(browserState);
+}
+
+/**
+ * Build the mediator option for OTP-FILL replay. Stubs
+ * {@link getCookies} + {@link getCurrentUrl} so FINAL's cookie-
+ * count + URL diagnostics surface fixture-driven values.
+ *
+ * @param dashboardUrl - URL the mediator reports as current.
+ * @param cookies - Redacted cookie snapshot returned by getCookies.
+ * @returns Some-wrapped element mediator.
+ */
+function buildOtpFillMediator(
+  dashboardUrl: string,
+  cookies: readonly ICookieSnapshot[],
+): Option<IElementMediator> {
   const fixtureMediator = makeMockMediator({
     /**
      * Return the fixture's redacted cookie set so FINAL's
@@ -63,15 +98,13 @@ export function buildOtpFillPhaseContext(args: IOtpFillPhaseContextArgs): IOtpFi
      */
     getCookies: (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookies),
     /**
-     * Return the dashboard URL so FINAL's URL debug-trace reflects
-     * the bank's post-OTP landing page.
+     * Return the dashboard URL so FINAL's URL debug-trace
+     * reflects the bank's post-OTP landing page.
      * @returns Dashboard URL.
      */
     getCurrentUrl: (): string => dashboardUrl,
   });
-  const mediator = some(fixtureMediator);
-  const base = makeMockContext({ browser, mediator });
-  return { context: base };
+  return some(fixtureMediator);
 }
 
 /**

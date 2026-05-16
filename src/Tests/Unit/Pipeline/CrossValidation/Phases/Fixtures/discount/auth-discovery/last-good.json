@@ -5,8 +5,8 @@
     "captureRunId": "15-05-2026_19220364",
     "rationale": "Phase H.T3c.7 — discount AUTH-DISCOVERY POST entry-state. Same captured run as login/last-good.json. Dedicated AUTH-DISCOVERY fixture per locked plan H.T3c.7. Domains + values fully PII-redacted.",
     "expected": {
-      "loginFinalOutcome": "success",
-      "loginFinalMinCookieCount": 1
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
     }
   },
   "pool": [],

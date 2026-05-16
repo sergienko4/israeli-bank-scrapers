@@ -5,8 +5,8 @@
     "captureRunId": "15-05-2026_19273813",
     "rationale": "Phase H.T3c.7 — isracard AUTH-DISCOVERY POST entry-state. Isracard is the upstream of the shared Isracard/Amex auth stack — dedicated fixture anchors the family-wide AUTH_DISCOVERY_SESSION_INVALID contract. Domains + values fully PII-redacted.",
     "expected": {
-      "loginFinalOutcome": "success",
-      "loginFinalMinCookieCount": 1
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
     }
   },
   "pool": [],

@@ -18,6 +18,10 @@
  * `otpPhoneHint` from fixture-supplied values so the POST+FINAL
  * chain runs against captured-shape inputs without requiring a real
  * DOM-scan in PRE.
+ *
+ * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
+ * method" the public builder delegates to two single-purpose
+ * helpers (`assembleOtpTriggerBase`, `seedOtpTriggerDiagnostics`).
  */
 
 import type { Page } from 'playwright-core';
@@ -45,13 +49,13 @@ export interface IOtpTriggerPhaseContextArgs {
   readonly otpUrl: string;
 }
 
-/** PII-safe synthetic resolved target — selector + contextId only. */
-const SYNTHETIC_TRIGGER_TARGET = {
+/** PII-safe synthetic resolved target — properly typed, no cast. */
+const SYNTHETIC_TRIGGER_TARGET: IResolvedTarget = {
   selector: '[data-test-id="otp-send"]',
   contextId: 'fixture-otp-trigger-ctx',
   kind: 'css',
   candidateValue: '[data-test-id="otp-send"]',
-} as unknown as IResolvedTarget;
+};
 
 /**
  * Build an OTP-TRIGGER-stage test subject from a fixture. Seeds the
@@ -65,19 +69,54 @@ const SYNTHETIC_TRIGGER_TARGET = {
 export function buildOtpTriggerPhaseContext(
   args: IOtpTriggerPhaseContextArgs,
 ): IOtpTriggerPhaseTestSubject {
-  const { phoneHint, otpUrl } = args;
+  const base = assembleOtpTriggerBase(args.otpUrl);
+  const diagnostics = seedOtpTriggerDiagnostics(base, args);
+  return { context: { ...base, diagnostics } };
+}
+
+/**
+ * Build the base pipeline context (browser + mediator + defaults)
+ * for OTP-TRIGGER replay. Single-purpose so the public builder
+ * stays under the 10-line method ceiling.
+ *
+ * @param otpUrl - URL the mock page reports.
+ * @returns Pipeline context with mock browser + mediator wired in.
+ */
+function assembleOtpTriggerBase(otpUrl: string): IPipelineContext {
   const page: Page = makeMockFullPage(otpUrl);
   const browserState = makeMockBrowserState(page);
   const browser = some(browserState);
   const baseMediator = makeMockMediator();
   const mediator = some(baseMediator);
-  const base = makeMockContext({ browser, mediator });
-  const seededDiagnostics: typeof base.diagnostics = {
-    ...base.diagnostics,
+  return makeMockContext({ browser, mediator });
+}
+
+/** Diagnostics shape after OTP-TRIGGER.PRE has committed its keys. */
+interface IOtpTriggerSeededDiagnostics {
+  readonly otpTriggerTarget: IResolvedTarget;
+  readonly otpPhoneHint: string;
+  readonly triggerClickedAt: number;
+  readonly otpTriggerPreUrl: string;
+}
+
+/**
+ * Seed the diagnostics bag with the OTP-TRIGGER.PRE outputs
+ * (target + phoneHint + click epoch + entry URL) so POST+FINAL
+ * read fixture-driven values.
+ *
+ * @param base - Base context to extend.
+ * @param args - Fixture-driven phoneHint + otpUrl.
+ * @returns Diagnostics record with PRE keys stamped.
+ */
+function seedOtpTriggerDiagnostics(
+  base: IPipelineContext,
+  args: IOtpTriggerPhaseContextArgs,
+): IPipelineContext['diagnostics'] {
+  const seeded: IOtpTriggerSeededDiagnostics = {
     otpTriggerTarget: SYNTHETIC_TRIGGER_TARGET,
-    otpPhoneHint: phoneHint,
+    otpPhoneHint: args.phoneHint,
     triggerClickedAt: 0,
-    otpTriggerPreUrl: otpUrl,
-  } as unknown as typeof base.diagnostics;
-  return { context: { ...base, diagnostics: seededDiagnostics } };
+    otpTriggerPreUrl: args.otpUrl,
+  };
+  return { ...base.diagnostics, ...seeded };
 }

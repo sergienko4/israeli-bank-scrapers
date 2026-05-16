@@ -72,19 +72,39 @@ interface IRawCookieEntry {
 }
 
 /**
- * Reports whether the parsed JSON exposes a `cookies` array — the
- * LOGIN-stage sidecar that lives alongside the base
- * `_fixture` + `pool` block in every `login/<scenario>.json` file.
+ * Reports whether `value` carries the full {@link IRawCookieEntry}
+ * shape (object with non-empty `name`, `domain`, `value` strings).
+ * Catches malformed-fixture entries (primitives, missing fields)
+ * at load time rather than letting them propagate as silent test
+ * misses (CodeRabbit 2026-05-16 finding #2).
+ *
+ * @param value - Single array element from a fixture's cookies array.
+ * @returns True iff value matches the cookie-entry contract.
+ */
+function isRawCookieEntry(value: unknown): value is IRawCookieEntry {
+  if (value === null || typeof value !== 'object') return false;
+  const candidate = value as { name?: unknown; domain?: unknown; value?: unknown };
+  if (typeof candidate.name !== 'string') return false;
+  if (typeof candidate.domain !== 'string') return false;
+  return typeof candidate.value === 'string';
+}
+
+/**
+ * Reports whether the parsed JSON exposes a `cookies` array of
+ * {@link IRawCookieEntry} records. Validates every element shape
+ * so malformed entries are rejected up-front with an actionable
+ * load-time error rather than a cryptic downstream crash.
  *
  * @param parsed - Raw `JSON.parse` result.
- * @returns True when the cookies array is present.
+ * @returns True when the cookies array is present and well-shaped.
  */
 function hasCookieSidecar(
   parsed: unknown,
 ): parsed is { readonly cookies: readonly IRawCookieEntry[] } {
   if (parsed === null || typeof parsed !== 'object') return false;
   const candidate = parsed as { cookies?: unknown };
-  return Array.isArray(candidate.cookies);
+  if (!Array.isArray(candidate.cookies)) return false;
+  return candidate.cookies.every(isRawCookieEntry);
 }
 
 /**

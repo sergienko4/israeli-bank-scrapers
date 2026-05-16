@@ -5,8 +5,8 @@
     "captureRunId": "15-05-2026_19213979",
     "rationale": "Phase H.T3c.7 — amex AUTH-DISCOVERY POST entry-state. Dedicated AUTH-DISCOVERY fixture per locked plan H.T3c.7. Domains + values fully PII-redacted.",
     "expected": {
-      "loginFinalOutcome": "success",
-      "loginFinalMinCookieCount": 1
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
     }
   },
   "pool": [],

@@ -5,7 +5,7 @@
     "captureRunId": "15-05-2026_19213979",
     "rationale": "Phase H.T3c.2 — amex HOME.POST last-good. Amex navigates from www.americanexpress.co.il to digital.americanexpress.co.il login subdomain. Captured run completed through SCRAPE — HOME.POST validated successfully via didNavigate=true. URLs are .example redactions.",
     "expected": {
-      "homePreTriggerText": "כניסה לחשבונך",
+      "homePreTriggerText": "FAKE TEXT",
       "homePostDidNavigate": true,
       "homePostHasFrames": false,
       "homePostOutcome": "success"

@@ -5,8 +5,8 @@
     "captureRunId": "15-05-2026_19215646",
     "rationale": "Phase H.T3c.7 — hapoalim AUTH-DISCOVERY POST entry-state. Same captured run as login/last-good.json; the cookie jar at AUTH-DISCOVERY POST entry equals the cookie jar at LOGIN.FINAL exit (no state mutation between phases). Dedicated AUTH-DISCOVERY fixture per locked plan H.T3c.7 (7 AUTH-DISC fixtures requirement). Cookie names preserved; domains → '.bankhapoalim.example' reserved TLD; values → FAKE_VALUE.",
     "expected": {
-      "loginFinalOutcome": "success",
-      "loginFinalMinCookieCount": 1
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
     }
   },
   "pool": [],

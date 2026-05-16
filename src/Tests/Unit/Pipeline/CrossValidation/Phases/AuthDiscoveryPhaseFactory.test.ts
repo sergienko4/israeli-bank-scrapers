@@ -68,7 +68,7 @@ describe('AUTH-DISCOVERY-PHASE-FACTORY — Phase H per-bank POST contract', () =
 
       const result = await executeAuthDiscoveryPost(context);
 
-      const shouldSucceed = fixture.meta.expected.loginFinalOutcome === 'success';
+      const shouldSucceed = fixture.meta.expected.authDiscoveryPostOutcome === 'success';
       expect(result.success).toBe(shouldSucceed);
       if (result.success) {
         expect(result.value.authDiscovery.has).toBe(true);

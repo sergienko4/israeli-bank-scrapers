@@ -15,16 +15,20 @@
  * are captured-shape signals derived from the run's URL trace + DOM
  * snapshot metadata.
  *
- * <p>Complements isolation-tier HOME coverage (Mediator/Home/*.test.ts
- * unit tests) per `testing-organization-guidlines.md` "integration
- * tests over unit tests".
+ * <p>Per `coding-principle-guidlines.md` "Maximum 10 lines per
+ * method" the `it.each` callback delegates to two single-purpose
+ * helpers (`prepareHomeRow`, `assertHomeOutcome`).
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { executeValidateLoginArea } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
+import { createMockLogger } from '../../Infrastructure/MockFactories.js';
 import { buildHomePhaseContext } from './Fixtures/_makeHomePhaseContext.js';
-import { loadPhaseFixture, type PhaseHBank } from './Fixtures/_makePhaseFixture.js';
+import {
+  type IPhaseHFixture,
+  loadPhaseFixture,
+  type PhaseHBank,
+} from './Fixtures/_makePhaseFixture.js';
 
 /** Per-scenario row driven by the parameterised `it.each` below. */
 interface IHomeScenarioRow {
@@ -39,8 +43,7 @@ interface IHomeScenarioRow {
  * Scenarios exercised by the HOME factory. Per-bank URLs use the
  * `.example` reserved TLD; the URL-comparison contract is shape-only
  * (different URL → didNavigate=true). Hapoalim-group banks declare
- * `frameCount=2` to exercise the iframe-hosted-login branch even
- * when URLs happened to match.
+ * `frameCount=2` to exercise the iframe-hosted-login branch.
  */
 const SCENARIOS: readonly IHomeScenarioRow[] = [
   {
@@ -94,57 +97,57 @@ const SCENARIOS: readonly IHomeScenarioRow[] = [
   },
 ];
 
-/** Silent logger — HOME.POST emits a debug line we don't assert. */
-const NO_OP_LOGGER: ScraperLogger = {
-  /**
-   * No-op debug.
-   * @returns True.
-   */
-  debug: (): boolean => true,
-  /**
-   * No-op trace.
-   * @returns True.
-   */
-  trace: (): boolean => true,
-  /**
-   * No-op info.
-   * @returns True.
-   */
-  info: (): boolean => true,
-  /**
-   * No-op warn.
-   * @returns True.
-   */
-  warn: (): boolean => true,
-  /**
-   * No-op error.
-   * @returns True.
-   */
-  error: (): boolean => true,
-} as unknown as ScraperLogger;
+/** Bundle returned by {@link prepareHomeRow} for one scenario. */
+interface IHomeRowSetup {
+  readonly fixture: IPhaseHFixture;
+  readonly subject: ReturnType<typeof buildHomePhaseContext>;
+}
+
+/**
+ * Load the bank's HOME fixture + build the test subject.
+ *
+ * @param row - Scenario row identifying bank + URLs + frame count.
+ * @returns Fixture + subject bundle.
+ */
+function prepareHomeRow(row: IHomeScenarioRow): IHomeRowSetup {
+  const fixture = loadPhaseFixture(row.bank, `home/${row.scenarioId}`);
+  const subject = buildHomePhaseContext({
+    homepageUrl: row.homepageUrl,
+    postNavUrl: row.postNavUrl,
+    frameCount: row.frameCount,
+  });
+  return { fixture, subject };
+}
+
+/**
+ * Drive HOME.POST through production code and assert the success
+ * outcome from the fixture's `expected.homePostOutcome`. Throws a
+ * typed `ScraperError` (per project convention) when the mediator
+ * option is unexpectedly absent.
+ *
+ * @param setup - Fixture + subject bundle.
+ * @returns Resolved when the assertion completes.
+ */
+async function assertHomeOutcome(setup: IHomeRowSetup): Promise<void> {
+  if (!setup.subject.context.mediator.has) {
+    throw new ScraperError('HOME_FACTORY: mediator missing');
+  }
+  const result = await executeValidateLoginArea({
+    mediator: setup.subject.context.mediator.value,
+    input: setup.subject.context,
+    homepageUrl: setup.subject.homepageUrl,
+    logger: createMockLogger(),
+  });
+  const shouldSucceed = setup.fixture.meta.expected.homePostOutcome === 'success';
+  expect(result.success).toBe(shouldSucceed);
+}
 
 describe('HOME-PHASE-FACTORY — Phase H per-bank HOME.POST contract', () => {
   it.each(SCENARIOS)(
     'homePost_$bank_$scenarioId_ShouldValidateLoginArea',
     async (row): Promise<void> => {
-      const fixture = loadPhaseFixture(row.bank, `home/${row.scenarioId}`);
-      const subject = buildHomePhaseContext({
-        fixture,
-        homepageUrl: row.homepageUrl,
-        postNavUrl: row.postNavUrl,
-        frameCount: row.frameCount,
-      });
-      if (!subject.context.mediator.has) throw new ScraperError('HOME_FACTORY: mediator missing');
-
-      const result = await executeValidateLoginArea({
-        mediator: subject.context.mediator.value,
-        input: subject.context,
-        homepageUrl: subject.homepageUrl,
-        logger: NO_OP_LOGGER,
-      });
-
-      const shouldSucceed = fixture.meta.expected.homePostOutcome === 'success';
-      expect(result.success).toBe(shouldSucceed);
+      const setup = prepareHomeRow(row);
+      await assertHomeOutcome(setup);
     },
   );
 });
