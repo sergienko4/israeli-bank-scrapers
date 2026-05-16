@@ -1,0 +1,31 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "scenarioId": "login/last-good",
+    "captureRunId": "15-05-2026_19213979",
+    "rationale": "Phase H.T3c.4d — amex LOGIN.FINAL last-good cookie-audit shape. Source run completed through SCRAPE (login-FINAL + scrape-ACTION stages present), confirming a successful session. Amex shares the Isracard auth stack but maintains a distinct session/cookie domain — the redacted shape pins the cross-bank ≥1 cookie contract independently. Domains + values fully PII-redacted (domains → '.example'; values → 'FAKE_VALUE').",
+    "expected": {
+      "loginPreOutcome": "success",
+      "loginActionOutcome": "success",
+      "loginPostOutcome": "success",
+      "loginFinalOutcome": "success",
+      "loginPreFoundPassword": true,
+      "loginActionSubmitMethod": "form-submit",
+      "loginPostHasTraffic": true,
+      "loginFinalMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".amex.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "X-AUTH-TOKEN",
+      "domain": ".amex.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}
