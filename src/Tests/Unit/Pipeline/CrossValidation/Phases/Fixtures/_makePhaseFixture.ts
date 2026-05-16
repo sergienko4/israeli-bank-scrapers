@@ -120,6 +120,15 @@ export interface IPhaseHExpected {
   /** HOME POST: Procedure verdict — should the POST succeed under the
    *  bank's last-good shape? */
   readonly homePostOutcome?: 'success' | 'fail';
+  /** PRE-LOGIN POST: was the password field visible after the reveal
+   *  click on the bank's login page? Drives the form-gate contract. */
+  readonly preLoginPostFormGateFound?: boolean;
+  /** PRE-LOGIN POST: Procedure verdict — should the POST succeed under
+   *  the bank's last-good shape? */
+  readonly preLoginPostOutcome?: 'success' | 'fail';
+  /** PRE-LOGIN FINAL: Procedure verdict — when POST succeeds POST
+   *  sets `loginAreaReady=true` and FINAL signals to LOGIN. */
+  readonly preLoginFinalOutcome?: 'success' | 'fail';
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */
