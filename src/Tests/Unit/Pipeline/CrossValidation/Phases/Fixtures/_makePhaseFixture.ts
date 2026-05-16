@@ -165,6 +165,15 @@ export interface IPhaseHExpected {
   readonly scrapeFinalOutcome?: 'success' | 'fail';
   /** SCRAPE: expected txn count for the bank's last-good fixture. */
   readonly scrapeExpectedTxnCount?: number;
+  /** INIT POST: Procedure verdict — succeeds when page.url() is
+   *  not 'about:blank' and not the Firefox neterror page. */
+  readonly initPostOutcome?: 'success' | 'fail';
+  /** INIT POST: post-goto URL captured at INIT.POST time. */
+  readonly initPostUrl?: string;
+  /** TERMINATE: Procedure verdict — TERMINATE runs the cleanup
+   *  fns committed by INIT.PRE and always succeeds even when one
+   *  cleanup throws (errors swallowed per design). */
+  readonly terminateOutcome?: 'success' | 'fail';
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */
