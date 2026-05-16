@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "home/last-good",
+    "captureRunId": "15-05-2026_19214652",
+    "rationale": "Phase H.T3c.2 — max HOME.POST last-good. Max navigates from www.max.co.il/home to www.max.co.il/login-page (same-origin path change). Captured run completed through SCRAPE — HOME.POST validated successfully via didNavigate=true (URL path differs from homepage). URLs are .example redactions.",
+    "expected": {
+      "homePreTriggerText": "כניסה לחשבון",
+      "homePostDidNavigate": true,
+      "homePostHasFrames": false,
+      "homePostOutcome": "success"
+    }
+  },
+  "pool": []
+}

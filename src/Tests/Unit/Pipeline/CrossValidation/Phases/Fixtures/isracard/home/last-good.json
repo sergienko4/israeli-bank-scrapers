@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "scenarioId": "home/last-good",
+    "captureRunId": "15-05-2026_19273813",
+    "rationale": "Phase H.T3c.2 — isracard HOME.POST last-good. Isracard navigates from www.isracard.co.il to digital.isracard.co.il login subdomain. Captured run completed through SCRAPE — HOME.POST validated successfully via didNavigate=true. URLs are .example redactions.",
+    "expected": {
+      "homePreTriggerText": "החשבון שלי",
+      "homePostDidNavigate": true,
+      "homePostHasFrames": false,
+      "homePostOutcome": "success"
+    }
+  },
+  "pool": []
+}

@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "home/last-good",
+    "captureRunId": "15-05-2026_19215646",
+    "rationale": "Phase H.T3c.2 — hapoalim HOME.POST last-good. Hapoalim-group banks navigate from www.bankhapoalim.co.il to login.bankhapoalim.co.il AND host the login form inside an iframe — the captured run completed through SCRAPE, so HOME.POST validated successfully via didNavigate=true AND hasFrames=true. URLs are .example reserved TLD redactions of the real captured navigation.",
+    "expected": {
+      "homePreTriggerText": "התחברות",
+      "homePostDidNavigate": true,
+      "homePostHasFrames": true,
+      "homePostOutcome": "success"
+    }
+  },
+  "pool": []
+}

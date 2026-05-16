@@ -106,6 +106,20 @@ export interface IPhaseHExpected {
    *  successful login. Banks vary; lower-bound check guards against
    *  silent session-truncation regressions. */
   readonly loginFinalMinCookieCount?: number;
+  /** HOME PRE: visible trigger text the WK_HOME.ENTRY race expects to
+   *  surface on this bank's homepage (e.g. 'התחברות', 'כניסה').
+   *  Documentation-only — not asserted dynamically here. */
+  readonly homePreTriggerText?: string;
+  /** HOME POST: did the URL change from homepageUrl after the ACTION
+   *  click? Drives the cross-bank `executeValidateLoginArea` contract
+   *  through the `didNavigate` branch. */
+  readonly homePostDidNavigate?: boolean;
+  /** HOME POST: were post-nav iframes present (Hapoalim-group banks
+   *  host login in an iframe)? Drives the `hasFrames` branch. */
+  readonly homePostHasFrames?: boolean;
+  /** HOME POST: Procedure verdict — should the POST succeed under the
+   *  bank's last-good shape? */
+  readonly homePostOutcome?: 'success' | 'fail';
 }
 
 /** Fixture metadata block embedded at `_fixture` in every JSON. */
