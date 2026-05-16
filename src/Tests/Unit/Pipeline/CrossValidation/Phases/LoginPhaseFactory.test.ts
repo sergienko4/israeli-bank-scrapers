@@ -52,6 +52,7 @@ const SCENARIOS: readonly ILoginScenarioRow[] = [
   { bank: 'amex', scenarioId: 'last-good' },
   { bank: 'isracard', scenarioId: 'last-good' },
   { bank: 'max', scenarioId: 'last-good' },
+  { bank: 'visacal', scenarioId: 'last-good' },
 ];
 
 describe('LOGIN-PHASE-FACTORY — Phase H per-bank LOGIN.FINAL contract', () => {
