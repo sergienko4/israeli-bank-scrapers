@@ -1,0 +1,31 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "scenarioId": "login/last-good",
+    "captureRunId": "15-05-2026_19273813",
+    "rationale": "Phase H.T3c.4e — isracard LOGIN.FINAL last-good cookie-audit shape. Source run completed all phases through SCRAPE (login-FINAL + auth-discovery-POST + scrape-ACTION stages present), confirming a successful session. Isracard is the upstream of the shared Isracard/Amex auth stack — pinning isracard's cookie contract anchors the family-wide ≥1 cookie regression guard. Domains + values fully PII-redacted.",
+    "expected": {
+      "loginPreOutcome": "success",
+      "loginActionOutcome": "success",
+      "loginPostOutcome": "success",
+      "loginFinalOutcome": "success",
+      "loginPreFoundPassword": true,
+      "loginActionSubmitMethod": "form-submit",
+      "loginPostHasTraffic": true,
+      "loginFinalMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".isracard.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "X-AUTH-TOKEN",
+      "domain": ".isracard.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}
