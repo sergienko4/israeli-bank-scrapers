@@ -305,6 +305,42 @@ jobs:
           # Play Integrity work lands.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # Force reliable DNS resolution for Israeli bank hostnames.
+      # GitHub-hosted Azure runners in west-US regions (westus3, westcentralus,
+      # eastus2) have intermittent DNS resolution to Israeli ISP authoritative
+      # servers — observed as `page.goto: NS_ERROR_UNKNOWN_HOST` on Beinleumi
+      # across PRs #233/#234. eastus passes consistently; west-US regions fail.
+      # Cloudflare 1.1.1.1 has Tel-Aviv POPs and resolves IL bank domains
+      # in <50ms regardless of runner region. The warmup loop pre-caches
+      # entries so subsequent page.goto() inside Camoufox uses the resolver
+      # we just installed.
+      - name: Force reliable DNS for Israeli bank resolution
+        run: |
+          set -euo pipefail
+          sudo bash -c 'cat > /etc/resolv.conf <<EOF
+          nameserver 1.1.1.1
+          nameserver 8.8.8.8
+          nameserver 9.9.9.9
+          options timeout:2 attempts:3
+          EOF'
+          if ! command -v dig >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq dnsutils
+          fi
+          echo "===Active resolver==="
+          cat /etc/resolv.conf
+          echo "===Warming up bank hosts==="
+          for h in www.fibi.co.il www.bankhapoalim.co.il www.discountbank.co.il \
+                   he.americanexpress.co.il www.isracard.co.il online.max.co.il \
+                   www.cal-online.co.il accounts.onezerobank.com; do
+            for i in 1 2 3; do
+              if result=$(dig +short +time=3 "$h" 2>/dev/null) && echo "$result" | grep -qE '^[0-9]'; then
+                echo "[OK]    $h -> $(echo "$result" | awk '{print $1}')"
+                break
+              fi
+              echo "[retry] $h (attempt $i)"
+              sleep 2
+            done
+          done
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
@@ -403,6 +439,33 @@ jobs:
           - Amex
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # Same DNS-warmup rationale as Group A above (Amex sits behind
+      # Cloudflare so resolver speed matters even more here).
+      - name: Force reliable DNS for Israeli bank resolution
+        run: |
+          set -euo pipefail
+          sudo bash -c 'cat > /etc/resolv.conf <<EOF
+          nameserver 1.1.1.1
+          nameserver 8.8.8.8
+          nameserver 9.9.9.9
+          options timeout:2 attempts:3
+          EOF'
+          if ! command -v dig >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq dnsutils
+          fi
+          echo "===Active resolver==="
+          cat /etc/resolv.conf
+          echo "===Warming up bank hosts==="
+          for h in he.americanexpress.co.il global.americanexpress.com; do
+            for i in 1 2 3; do
+              if result=$(dig +short +time=3 "$h" 2>/dev/null) && echo "$result" | grep -qE '^[0-9]'; then
+                echo "[OK]    $h -> $(echo "$result" | awk '{print $1}')"
+                break
+              fi
+              echo "[retry] $h (attempt $i)"
+              sleep 2
+            done
+          done
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
