@@ -10,6 +10,7 @@ import {
   redactAmount,
   redactCard,
   redactCookie,
+  redactErrorMessage,
   redactHtml,
   redactIsraeliId,
   redactJsonBody,
@@ -136,6 +137,28 @@ describe('PiiRedactor — redactAmount', () => {
   it('returns [REDACTED] for non-numeric string', () => {
     const result = redactAmount('abc');
     expect(result).toBe('[REDACTED]');
+  });
+});
+
+describe('PiiRedactor — redactErrorMessage (CodeQL #28)', () => {
+  it('returns <msg:N> for a Latin error message', () => {
+    const result = redactErrorMessage('Login failed: bad credentials');
+    expect(result).toBe('<msg:29>');
+  });
+  it('returns <msg:N> for a Hebrew error message (Unicode-aware)', () => {
+    const result = redactErrorMessage('שגיאה בהתחברות');
+    expect(result).toBe('<msg:14>');
+  });
+  it('returns <msg:0> for empty input (preserves "there was no message" signal)', () => {
+    const result = redactErrorMessage('');
+    expect(result).toBe('<msg:0>');
+  });
+  it('does not echo any character of the raw message', () => {
+    const raw = 'Wrong password ABC123XYZ';
+    const result = redactErrorMessage(raw);
+    expect(result).not.toContain('ABC123XYZ');
+    expect(result).not.toContain('password');
+    expect(result).toMatch(/^<msg:\d+>$/);
   });
 });
 

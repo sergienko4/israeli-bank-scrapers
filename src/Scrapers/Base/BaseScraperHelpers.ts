@@ -4,6 +4,7 @@ import { getDebug } from '../../Common/Debug.js';
 import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';
 import { runSerial } from '../../Common/Waiting.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import { redactUrl } from '../Pipeline/Types/PiiRedactor.js';
 import { createChangePasswordError, ScraperErrorTypes } from './Errors.js';
 import { type IScraperScrapingResult } from './Interface.js';
 import type { OptionalFramePromise } from './Interfaces/CallbackTypes.js';
@@ -233,7 +234,13 @@ export function buildLoginResult(
   loginResult: LoginResults,
 ): IScraperScrapingResult {
   ctx.diagState.lastAction = `login result: ${loginResult}`;
-  LOG.debug('login result=%s url=%s', loginResult, ctx.diagState.finalUrl ?? '?');
+  // CodeQL #29 bonus: finalUrl could carry session tokens in query params
+  // (bank-dependent). Run through redactUrl which strips PII query keys
+  // (token/authorization/cardId/etc.) while keeping host + path visible
+  // for diagnostics.
+  const finalUrl = ctx.diagState.finalUrl ?? '?';
+  const safeUrl = finalUrl === '?' ? '?' : redactUrl(finalUrl);
+  LOG.debug('login result=%s url=%s', loginResult, safeUrl);
   if (loginResult === LOGIN_RESULTS.Success) {
     ctx.emitProgress(ScraperProgressTypes.LoginSuccess);
     return { success: true };

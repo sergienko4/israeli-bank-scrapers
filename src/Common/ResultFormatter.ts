@@ -2,6 +2,7 @@ import type { IScraperScrapingResult } from '../Scrapers/Base/Interface.js';
 import {
   redactAccount,
   redactAmount,
+  redactErrorMessage,
   redactMerchant,
 } from '../Scrapers/Pipeline/Types/PiiRedactor.js';
 import type { ITransaction, ITransactionsAccount } from '../Transactions.js';
@@ -127,8 +128,16 @@ function formatSuccess(result: IScraperScrapingResult): string[] {
  */
 function formatFailure(result: IScraperScrapingResult): string[] {
   const errorType = result.errorType ?? 'unknown';
-  const msg = result.errorMessage ?? 'no error message';
-  return [`Result: success=false | errorType=${errorType} | ${msg}`];
+  // CodeQL #28 + `logging-pii-guidlines.md §1`: bank-side errorMessage
+  // can echo credentials. Redact to a length-tag `<msg:N>` so the log
+  // line preserves "yes there was a message, ~N chars long" signal
+  // without exposing raw content. The central PiiRedactor censor only
+  // operates on Pino's structured object payload — it can't intercept
+  // values interpolated into the `msg` argument, so the redaction must
+  // happen here, at the source.
+  const rawMsg = result.errorMessage ?? '';
+  const safeMsg = rawMsg.length === 0 ? 'no error message' : redactErrorMessage(rawMsg);
+  return [`Result: success=false | errorType=${errorType} | msg=${safeMsg}`];
 }
 
 /**

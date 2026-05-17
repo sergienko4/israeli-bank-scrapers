@@ -251,21 +251,53 @@ describe('ResultFormatter — PII masking', () => {
       expect(output).toContain('success=false');
       expect(output).toContain('INVALID_PASSWORD');
     });
-    it('includes errorMessage in failure output, falls back when missing', () => {
+    it('redacts errorMessage to a length-tag (no raw content), falls back when missing', () => {
+      // CodeQL alert #28 — bank-side errorMessage can echo credentials.
+      // Contract: errorType (closed enum, public) stays visible; errorMessage
+      // (free text from the bank) is replaced with a length-tag `<msg:N>` so
+      // engineers retain "yes there was a message, ~N chars long" signal
+      // without exposing raw content. Per `logging-pii-guidlines.md §1`.
+      const rawMsg = 'page.goto: Timeout 30000ms exceeded';
+      const expectedLen = 35; // grapheme count of rawMsg
       const withMsg: IScraperScrapingResult = {
         success: false,
         errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
-        errorMessage: 'page.goto: Timeout 30000ms exceeded',
+        errorMessage: rawMsg,
       };
       const out1 = formatResultSummary('TestBank', withMsg).join('\n');
+      // errorType stays visible (closed enum, not sensitive)
       expect(out1).toContain('GENERIC');
-      expect(out1).toContain('page.goto: Timeout 30000ms exceeded');
+      // Raw message MUST NOT leak
+      expect(out1).not.toContain('page.goto');
+      expect(out1).not.toContain('30000ms');
+      expect(out1).not.toContain(rawMsg);
+      // Length-tag IS present (length-class signal preserved)
+      expect(out1).toContain(`<msg:${String(expectedLen)}>`);
+      // No-message path keeps the human-readable fallback
       const noMsg: IScraperScrapingResult = {
         success: false,
         errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
       };
       const out2 = formatResultSummary('TestBank', noMsg).join('\n');
       expect(out2).toContain('no error message');
+    });
+
+    it('redacts a credentials-leaking errorMessage (the CodeQL #28 contract)', () => {
+      // Worst-case: bank echoes the user's password in errorMessage. The
+      // length-tag MUST hide every credential-revealing substring.
+      const rawMsg = 'Login failed: Wrong password ABC123XYZ';
+      const expectedLen = 38;
+      const result: IScraperScrapingResult = {
+        success: false,
+        errorType: 'INVALID_PASSWORD' as IScraperScrapingResult['errorType'],
+        errorMessage: rawMsg,
+      };
+      const output = formatResultSummary('TestBank', result).join('\n');
+      expect(output).toContain('INVALID_PASSWORD');
+      expect(output).not.toContain('ABC123XYZ');
+      expect(output).not.toContain('Wrong password');
+      expect(output).not.toContain(rawMsg);
+      expect(output).toContain(`<msg:${String(expectedLen)}>`);
     });
   });
 

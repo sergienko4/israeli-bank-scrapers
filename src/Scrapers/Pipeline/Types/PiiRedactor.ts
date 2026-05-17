@@ -395,6 +395,32 @@ function redactToken(value: string): PiiHintString {
 }
 
 /**
+ * Bank-error-message strategy. Bank APIs occasionally echo the user's
+ * credentials back in the `errorMessage` field of a failed-login
+ * response (CWE-532). Free-text strings can't be safely interpolated
+ * into a logger message; the central censor only operates on Pino's
+ * structured object payload, not on the `msg` argument.
+ *
+ * <p>Returns a length-tag `<msg:N>` where N is the grapheme count of
+ * the raw value (Unicode-correct for Hebrew bank responses). Engineers
+ * keep the "yes there was a message, ~N chars long" signal while the
+ * raw content stays out of logs / persisted artefacts. Closes CodeQL
+ * `js/clear-text-logging` alert #28.
+ *
+ * <p>In LOCAL DEV MODE (`PII_REDACTION=off`) the raw value passes
+ * through so engineers can debug login flows on a local machine.
+ *
+ * @param value - Raw error message from a bank API or production code.
+ * @returns Length-tagged hint `<msg:N>` or `<msg:0>` for empty input.
+ */
+function redactErrorMessage(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
+  if (value.length === 0) return '<msg:0>' as PiiHintString;
+  const length = graphemeCount(value);
+  return `<msg:${String(length)}>` as PiiHintString;
+}
+
+/**
  * OTP strategy. Returns '[OTP]' for 4..8 digit inputs; default-deny
  * otherwise. In LOCAL DEV MODE, raw value passes through.
  * @param value - Raw OTP.
@@ -892,6 +918,7 @@ export {
   redactAmount,
   redactCard,
   redactCookie,
+  redactErrorMessage,
   redactHtml,
   redactIsraeliId,
   redactJsonBody,
