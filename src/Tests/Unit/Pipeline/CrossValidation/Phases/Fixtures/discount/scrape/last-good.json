@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "scrape/last-good",
+    "captureRunId": "15-05-2026_19220364",
+    "rationale": "Phase H.T3c.9 — discount SCRAPE POST+FINAL last-good. Discount's last-good run produced >= 1 txn; passes the all-accounts-empty guard.",
+    "expected": {
+      "scrapePostOutcome": "success",
+      "scrapeFinalOutcome": "success",
+      "scrapeExpectedTxnCount": 5
+    }
+  },
+  "pool": []
+}

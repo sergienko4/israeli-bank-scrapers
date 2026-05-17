@@ -130,6 +130,14 @@ bg_gate "eslint"       "yes" npx eslint src/Scrapers/Pipeline --max-warnings=0
 bg_gate "biome"        "yes" npx biome lint src --max-diagnostics=50
 bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
 
+# Phase H deep-factory strict-lint — D1 in the rule-roadmap. Locks
+# the eslint.config.mjs §8a quality bundle (max-lines-per-function: 10,
+# max-statements: 10, sonarjs/no-identical-functions,
+# sonarjs/no-duplicate-string, double-cast ban) so PR #232 cannot
+# regress. Fast lint-only invocation — independent gate so a regression
+# fails loud + quickly rather than hiding behind the slower test gates.
+bg_gate "lint:phases:strict" "yes" npm run lint:phases:strict
+
 # Architectural Guardrails (Rules #10, #14, #15) — only fire on
 # Pipeline / Phases files. Pre-filter so we don't waste work iterating
 # test files, and so we don't blow Windows CreateProcess 32 KB

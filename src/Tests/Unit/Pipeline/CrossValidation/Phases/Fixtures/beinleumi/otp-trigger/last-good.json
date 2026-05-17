@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "scenarioId": "otp-trigger/last-good",
+    "captureRunId": "15-05-2026_14362341",
+    "rationale": "Phase H.T3c.5 — beinleumi OTP-TRIGGER POST+FINAL last-good. Beinleumi uses SMS-OTP step after password submit. Phone hint redacted; FINAL commits triggered=true.",
+    "expected": {
+      "otpTriggerPhoneHint": "XXX-XXX-FAKE",
+      "otpTriggerPostScopeValidated": false,
+      "otpTriggerFinalTriggered": true,
+      "otpTriggerFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

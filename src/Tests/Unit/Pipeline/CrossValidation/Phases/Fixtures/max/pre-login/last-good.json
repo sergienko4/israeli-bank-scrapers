@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "pre-login/last-good",
+    "captureRunId": "15-05-2026_19214652",
+    "rationale": "Phase H.T3c.3 — max PRE-LOGIN POST+FINAL last-good. Max login form visible at scan time; no reveal click needed. Captured run completed through SCRAPE.",
+    "expected": {
+      "preLoginPostFormGateFound": true,
+      "preLoginPostOutcome": "success",
+      "preLoginFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

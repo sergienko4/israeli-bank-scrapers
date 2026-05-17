@@ -1,0 +1,13 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "init/last-good",
+    "captureRunId": "15-05-2026_19220364",
+    "rationale": "Phase H.T3c.1 — discount INIT POST last-good. Browser landed on the bank's homepage URL (.example redacted); page.url() != 'about:blank' AND no Firefox neterror — POST accepts.",
+    "expected": {
+      "initPostOutcome": "success",
+      "initPostUrl": "https://www.discount.example/"
+    }
+  },
+  "pool": []
+}

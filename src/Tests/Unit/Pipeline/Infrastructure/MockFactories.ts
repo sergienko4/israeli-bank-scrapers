@@ -3,6 +3,7 @@
  * Follows project convention: typed factories, no inline `as never`.
  */
 
+import pino from 'pino';
 import type { Page } from 'playwright-core';
 
 import type { CompanyTypes } from '../../../../Definitions.js';
@@ -22,6 +23,18 @@ import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Default company ID for test mocks. */
 const TEST_COMPANY_ID = 'testBank';
+
+/**
+ * Create a no-op {@link ScraperLogger} suitable for tests that do
+ * not assert on logger output. Backed by a silent pino instance —
+ * no `as unknown as` cast required, every Logger method works at
+ * runtime (CodeRabbit 2026-05-16 findings #17 + #26).
+ *
+ * @returns Silent pino Logger conforming to ScraperLogger.
+ */
+export function createMockLogger(): ScraperLogger {
+  return pino({ enabled: false });
+}
 
 /**
  * Create a minimal mock ScraperOptions.
@@ -94,33 +107,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     options: makeMockOptions(),
     credentials: makeMockCredentials(),
     companyId: TEST_COMPANY_ID as unknown as CompanyTypes,
-    logger: {
-      /**
-       * No-op debug.
-       * @returns True.
-       */
-      debug: (): boolean => true,
-      /**
-       * No-op trace.
-       * @returns True.
-       */
-      trace: (): boolean => true,
-      /**
-       * No-op info.
-       * @returns True.
-       */
-      info: (): boolean => true,
-      /**
-       * No-op warn.
-       * @returns True.
-       */
-      warn: (): boolean => true,
-      /**
-       * No-op error.
-       * @returns True.
-       */
-      error: (): boolean => true,
-    } as unknown as ScraperLogger,
+    logger: createMockLogger(),
     diagnostics: {
       loginUrl: '',
       finalUrl: none(),

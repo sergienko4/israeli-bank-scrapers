@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "scrape/last-good",
+    "captureRunId": "15-05-2026_19214652",
+    "rationale": "Phase H.T3c.9 — max SCRAPE POST+FINAL last-good. Max's last-good run produced >= 1 txn; passes the all-accounts-empty guard. Phase E added max billing-cycle support so the SCRAPE phase produces non-empty txn arrays for max's card-family accounts.",
+    "expected": {
+      "scrapePostOutcome": "success",
+      "scrapeFinalOutcome": "success",
+      "scrapeExpectedTxnCount": 25
+    }
+  },
+  "pool": []
+}

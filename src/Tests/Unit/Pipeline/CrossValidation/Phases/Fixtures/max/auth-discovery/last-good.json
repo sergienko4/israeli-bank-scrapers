@@ -1,0 +1,25 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "auth-discovery/last-good",
+    "captureRunId": "15-05-2026_19214652",
+    "rationale": "Phase H.T3c.7 — max AUTH-DISCOVERY POST entry-state. Max diverges from the Isracard/Amex family — dedicated fixture pins its independent session-cookie contract. Domains + values fully PII-redacted.",
+    "expected": {
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".max.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "JSESSIONID",
+      "domain": ".max.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

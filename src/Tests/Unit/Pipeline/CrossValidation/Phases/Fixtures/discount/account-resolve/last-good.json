@@ -1,0 +1,23 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "account-resolve/last-good",
+    "captureRunId": "15-05-2026_19220364",
+    "rationale": "Phase H.T3c.8 — discount ACCOUNT-RESOLVE POST+FINAL last-good. Discount's redacted accounts payload uses the WK `accounts` container alias with `accountNumber` id field (DISPLAY_ID_FIELDS). Account numbers fully PII-redacted.",
+    "accountsResponseBody": {
+      "accounts": [
+        {
+          "accountNumber": "FAKE-000000",
+          "branchNumber": "000",
+          "bankNumber": "11"
+        }
+      ]
+    },
+    "expected": {
+      "accountResolvePostOutcome": "success",
+      "accountResolveExpectedIdCount": 1,
+      "accountResolveFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

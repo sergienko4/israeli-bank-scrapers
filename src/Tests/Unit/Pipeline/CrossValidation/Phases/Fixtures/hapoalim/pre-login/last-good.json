@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "pre-login/last-good",
+    "captureRunId": "15-05-2026_19215646",
+    "rationale": "Phase H.T3c.3 — hapoalim PRE-LOGIN POST+FINAL last-good. Hapoalim's login form is hosted inside an iframe on login.bankhapoalim.co.il; the password field IS visible by the time PRE-LOGIN.POST scans (no reveal click needed). Captured run completed through SCRAPE — POST validated form-gate=found, FINAL signaled loginAreaReady=true.",
+    "expected": {
+      "preLoginPostFormGateFound": true,
+      "preLoginPostOutcome": "success",
+      "preLoginFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

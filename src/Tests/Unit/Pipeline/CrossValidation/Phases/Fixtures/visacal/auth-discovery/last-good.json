@@ -1,0 +1,25 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "scenarioId": "auth-discovery/last-good",
+    "captureRunId": "15-05-2026_19215086",
+    "rationale": "Phase H.T3c.7 — visacal AUTH-DISCOVERY POST entry-state. Domains + values fully PII-redacted.",
+    "expected": {
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".cal-online.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "JSESSIONID",
+      "domain": ".cal-online.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

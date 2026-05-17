@@ -1,0 +1,22 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "account-resolve/last-good",
+    "captureRunId": "15-05-2026_19214652",
+    "rationale": "Phase H.T3c.8 — max ACCOUNT-RESOLVE POST+FINAL last-good. Max's redacted accounts payload uses the WK `cards` container alias with `shortCardNumber` + `cardUniqueId` aliases (DISPLAY_ID_FIELDS + QUERY_ID_FIELDS). Card numbers fully PII-redacted.",
+    "accountsResponseBody": {
+      "cards": [
+        {
+          "shortCardNumber": "0000",
+          "cardUniqueId": "FAKE-UUID"
+        }
+      ]
+    },
+    "expected": {
+      "accountResolvePostOutcome": "success",
+      "accountResolveExpectedIdCount": 1,
+      "accountResolveFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

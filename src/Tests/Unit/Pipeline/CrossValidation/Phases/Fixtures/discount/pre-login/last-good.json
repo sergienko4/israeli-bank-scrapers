@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "pre-login/last-good",
+    "captureRunId": "15-05-2026_19220364",
+    "rationale": "Phase H.T3c.3 — discount PRE-LOGIN POST+FINAL last-good. Discount's login form on start.telebank.co.il is visible directly; no reveal click needed. Captured run completed through SCRAPE.",
+    "expected": {
+      "preLoginPostFormGateFound": true,
+      "preLoginPostOutcome": "success",
+      "preLoginFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

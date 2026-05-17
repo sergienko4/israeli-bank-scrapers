@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "scenarioId": "scrape/last-good",
+    "captureRunId": "15-05-2026_19273813",
+    "rationale": "Phase H.T3c.9 — isracard SCRAPE POST+FINAL last-good. Isracard's last-good run produced >= 1 txn; passes the all-accounts-empty guard.",
+    "expected": {
+      "scrapePostOutcome": "success",
+      "scrapeFinalOutcome": "success",
+      "scrapeExpectedTxnCount": 8
+    }
+  },
+  "pool": []
+}
