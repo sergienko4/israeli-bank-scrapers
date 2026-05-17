@@ -417,8 +417,7 @@ jobs:
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*-init-*.png
-            /tmp/runs/pipeline/**/screenshots/*-home-*.png
+            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
 
@@ -481,8 +480,7 @@ jobs:
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*-init-*.png
-            /tmp/runs/pipeline/**/screenshots/*-home-*.png
+            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
 
