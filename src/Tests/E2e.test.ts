@@ -23,15 +23,21 @@ describe('E2E: IScraper Factory', () => {
   });
 });
 
-// Real-bank smoke against Hapoalim. Wall-clock dominated by three
-// home-phase resolveVisible probes (15s ceiling each) that wait for
-// Hapoalim's homepage to settle — the page has continuous marketing
-// widgets + analytics that delay stability detection. Observed range
-// across CI + local: 42s (fast) → 92s (slow) depending on bank-side
-// load. 180s gives 2x headroom against the slow extreme so genuine
-// regressions still fail fast (a real break exits well before 180s)
-// while bank-side latency variance stops flaking the gate.
-const INVALID_CREDS_TEST_TIMEOUT_MS = 180_000;
+// Real-bank smoke against Hapoalim. Wall-clock dominated by:
+//  (a) home-phase resolveVisible probes (15s ceiling each, retries up to 2x)
+//      waiting for Hapoalim's homepage to settle — marketing widgets +
+//      analytics delay stability detection;
+//  (b) the central PHASE_SETTLE_MS pause fired at every phase.PRE AND
+//      every phase.FINAL (commit a46c0635, 2026-05-17). The invalid-
+//      creds run traverses INIT → HOME → LOGIN → OTP-TRIGGER → OTP-FILL
+//      before the bank rejects with "OTP input missing", which means
+//      ~5 phases × 8 s settles = ~40 s of pure settle time.
+// Observed range before split-settle: 42 s (fast) → 92 s (slow). With
+// settles: ~80 s (fast) → ~140 s (slow). 300 s gives 2x headroom against
+// the slow extreme so genuine regressions still fail fast (a real break
+// exits well before 300 s) while bank-side latency variance + settle
+// budgets stop flaking the gate.
+const INVALID_CREDS_TEST_TIMEOUT_MS = 300_000;
 
 describe('E2E: IScraper error handling', () => {
   test(
