@@ -62,6 +62,8 @@ const {
   detectGenericInvalidPassword: DETECT_INVALID_PW,
   buildLoginResult: BUILD_LOGIN_RESULT,
   resolveAndBuildLoginResult: RESOLVE_AND_BUILD,
+  formatDiagUrl: FORMAT_DIAG_URL,
+  getKeyByValue: GET_KEY_BY_VALUE,
   LOGIN_RESULTS,
 } = await import('../../Scrapers/Base/BaseScraperHelpers.js');
 
@@ -155,6 +157,49 @@ describe('detectGenericInvalidPassword', () => {
   });
 });
 
+describe('formatDiagUrl (CodeQL #28-class diagnostic URL sanitization)', () => {
+  it('returns "?" for undefined input', () => {
+    const out = FORMAT_DIAG_URL(undefined);
+    expect(out).toBe('?');
+  });
+  it('returns "?" for empty string', () => {
+    const out = FORMAT_DIAG_URL('');
+    expect(out).toBe('?');
+  });
+  it('returns "?" verbatim when caller already passed the sentinel', () => {
+    const out = FORMAT_DIAG_URL('?');
+    expect(out).toBe('?');
+  });
+  it('strips PII query keys but keeps host and path', () => {
+    const out = FORMAT_DIAG_URL(
+      'https://x.example/api/login?accountId=12-170-536347&token=eyJsecret&v=1',
+    );
+    expect(out).toContain('x.example');
+    expect(out).toContain('/api/login');
+    expect(out).toContain('accountId=***6347');
+    expect(out).not.toContain('12-170-536347');
+    expect(out).not.toContain('eyJsecret');
+    expect(out).toContain('v=1');
+  });
+  it('passes through non-URL strings unchanged (redactUrl no-op fallback)', () => {
+    const out = FORMAT_DIAG_URL('not-a-url');
+    expect(out).toBe('not-a-url');
+  });
+});
+
+describe('getKeyByValue no-match path (CodeQL leak fix at line 161)', () => {
+  it('returns UnknownError when no condition matches (exercises sanitized log line)', async () => {
+    const page = makeMockPage('https://x.example/login?token=secret');
+    const possibleResults = { [LOGIN_RESULTS.Success]: ['https://x.example/dashboard'] };
+    const out = await GET_KEY_BY_VALUE(
+      possibleResults,
+      'https://x.example/?accountId=12-170-536347',
+      page,
+    );
+    expect(out).toBe(LOGIN_RESULTS.UnknownError);
+  });
+});
+
 describe('buildLoginResult', () => {
   /**
    * Creates a login result context for testing.
@@ -198,6 +243,18 @@ describe('buildLoginResult', () => {
     const ctx = makeResultCtx(page);
     const out = BUILD_LOGIN_RESULT(ctx, LOGIN_RESULTS.UnknownError);
     expect(out.errorType).toBe(ERROR_TYPES.Generic);
+  });
+
+  it('exercises the finalUrl redaction path with a PII-bearing URL', () => {
+    // CodeQL #29: finalUrl could carry session tokens in query params.
+    // Setting it here forces the LOG.debug call to route through
+    // formatDiagUrl → redactUrl, exercising the redaction branch.
+    const page = makeMockPage();
+    const ctx = makeResultCtx(page);
+    ctx.diagState.finalUrl = 'https://x.example/dashboard?accountId=12-170-536347&token=abc';
+    const out = BUILD_LOGIN_RESULT(ctx, LOGIN_RESULTS.Success);
+    expect(out.success).toBe(true);
+    expect(ctx.diagState.lastAction).toContain('login result: SUCCESS');
   });
 });
 
