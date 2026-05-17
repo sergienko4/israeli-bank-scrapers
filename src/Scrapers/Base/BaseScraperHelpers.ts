@@ -4,6 +4,7 @@ import { getDebug } from '../../Common/Debug.js';
 import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';
 import { runSerial } from '../../Common/Waiting.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import { redactUrl } from '../Pipeline/Types/PiiRedactor.js';
 import { createChangePasswordError, ScraperErrorTypes } from './Errors.js';
 import { type IScraperScrapingResult } from './Interface.js';
 import type { OptionalFramePromise } from './Interfaces/CallbackTypes.js';
@@ -101,6 +102,24 @@ export async function matchesAnyCondition(
 }
 
 /**
+ * Sanitize a URL for diagnostic log lines. Undefined / empty / the
+ * already-sentinel `?` are normalised to `'?'`; otherwise the URL
+ * passes through `redactUrl` which strips PII query keys
+ * (token / authorization / cardId / ...) while keeping host + path
+ * visible for debugging. Single source of truth for URL diagnostics
+ * across this module — closes CodeQL #28-class leaks at every
+ * login-related log sink (buildLoginResult + getKeyByValue no-match).
+ * @param url - Raw URL string, or `undefined`.
+ * @returns Sanitized URL string suitable for log interpolation.
+ */
+export function formatDiagUrl(url?: string): string {
+  if (url === undefined) return '?';
+  if (url.length === 0) return '?';
+  if (url === '?') return '?';
+  return redactUrl(url);
+}
+
+/**
  * Run a cleanup function, swallowing errors to avoid masking earlier failures.
  * @param cleanup - The cleanup function to execute.
  * @returns True after the cleanup attempt completes.
@@ -156,9 +175,27 @@ export async function getKeyByValue(
   const results = await runSerial(actions);
   const matched = results.find(r => r !== LOGIN_RESULTS.UnknownError);
   if (matched) return matched;
-  const currentUrl = page.url();
-  LOG.debug('no login result matched — url: %s, value: %s', currentUrl, value);
+  logNoLoginMatch(page, value);
   return LOGIN_RESULTS.UnknownError;
+}
+
+/**
+ * Emit the sanitized "no login result matched" diagnostic. Both
+ * `page.url()` (Playwright's current location) and the caller-supplied
+ * `value` can carry session tokens; route both through
+ * `formatDiagUrl` so PII query-key values are stripped before the
+ * line reaches Pino's `msg` argument (the central censor only sees
+ * STRUCTURED payload, not interpolated msg values).
+ * @param page - Active Playwright page.
+ * @param value - Caller-supplied URL or value string.
+ * @returns True after the diagnostic line has been emitted.
+ */
+function logNoLoginMatch(page: Page, value: string): true {
+  const currentUrl = page.url();
+  const safeUrl = formatDiagUrl(currentUrl);
+  const safeValue = formatDiagUrl(value);
+  LOG.debug('no login result matched — url=%s value=%s', safeUrl, safeValue);
+  return true as const;
 }
 
 /**
@@ -233,7 +270,15 @@ export function buildLoginResult(
   loginResult: LoginResults,
 ): IScraperScrapingResult {
   ctx.diagState.lastAction = `login result: ${loginResult}`;
-  LOG.debug('login result=%s url=%s', loginResult, ctx.diagState.finalUrl ?? '?');
+  // CodeQL #29: route finalUrl through `formatDiagUrl` (strips PII query
+  // keys, keeps host + path). `loginResult` itself is a closed public
+  // enum (`SUCCESS`/`INVALID_PASSWORD`/`CHANGE_PASSWORD`/...) — values
+  // are public error codes returned to consumers, not secrets. CodeQL's
+  // `js/clear-text-logging` flagged it on the variable-name heuristic
+  // alone (false positive); diagState.lastAction above retains the
+  // resolved-result diagnostic in-memory for the consumer.
+  const safeUrl = formatDiagUrl(ctx.diagState.finalUrl);
+  LOG.debug('login resolved — url=%s', safeUrl);
   if (loginResult === LOGIN_RESULTS.Success) {
     ctx.emitProgress(ScraperProgressTypes.LoginSuccess);
     return { success: true };

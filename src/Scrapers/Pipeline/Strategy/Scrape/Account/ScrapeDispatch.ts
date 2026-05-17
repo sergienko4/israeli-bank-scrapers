@@ -9,6 +9,7 @@ import type { ITransactionsAccount } from '../../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug } from '../../../Types/Debug.js';
+import { redactErrorMessage } from '../../../Types/PiiRedactor.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';
 import type {
@@ -161,9 +162,14 @@ async function processOneAccount(
     out.push(result.value);
     return true as const;
   }
+  // CodeQL #28-class leak: errorMessage is bank/Playwright free text and
+  // could echo credentials. Redact to a length-tag before interpolating
+  // (the Pino censor only operates on STRUCTURED payload — values in
+  // the `msg` argument bypass redaction). 2026-05-17.
+  const safeErrorMessage = redactErrorMessage(result.errorMessage);
   LOG.warn({
     accountIndex: String(index),
-    message: `scrape skipped — ${result.errorMessage}`,
+    message: `scrape skipped — ${safeErrorMessage}`,
   });
   return true as const;
 }

@@ -32,6 +32,13 @@ module.exports = {
   ],
   collectCoverageFrom: [
     '**/Scrapers/Pipeline/**/*.ts',
+    // BaseScraperHelpers.ts hosts shared login-result + URL-diagnostic
+    // helpers consumed by the Pipeline (`formatDiagUrl`, `buildLoginResult`,
+    // `getKeyByValue`). Coverage of its new CodeQL #28-fix lines must reach
+    // SonarCloud — adding it here keeps SonarCloud `new_coverage` accurate
+    // without pulling in the rest of `src/Scrapers/Base/` (legacy base
+    // classes with deliberately lower coverage thresholds).
+    '**/Scrapers/Base/BaseScraperHelpers.ts',
     '!**/*.test.ts',
     '!**/Tests/**',
   ],
