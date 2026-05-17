@@ -1,6 +1,9 @@
 /** Pipeline phase reducer — split from PipelineExecutor to keep files under 150 lines. */
 
+import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
+
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { INTER_PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -65,18 +68,48 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
 }
 
 /**
- * Trace success and continue to next phase.
+ * Inter-phase settle — give the bank's SPA a fixed window to finish
+ * post-action work (analytics, deferred hydration, cross-origin pixels)
+ * before the next phase's prelude begins. Skipped when this was the
+ * last phase (no successor) so terminal completion is not delayed.
+ *
+ * @param ctx - Active pipeline context (used for structured trace).
+ * @param step - The phase step that just succeeded.
+ * @param hasNext - True when a successor phase exists.
+ * @returns True after the settle resolves.
+ */
+async function interPhaseSettle(
+  ctx: IPipelineContext,
+  step: IPhaseStep,
+  hasNext: boolean,
+): Promise<true> {
+  if (!hasNext) return true as const;
+  ctx.logger.debug({
+    phase: step.name,
+    event: 'inter-phase-settle',
+    elapsedMs: String(INTER_PHASE_SETTLE_MS),
+  });
+  await setTimeoutPromise(INTER_PHASE_SETTLE_MS, undefined, { ref: false });
+  return true as const;
+}
+
+/**
+ * Trace success and continue to next phase. Fires `INTER_PHASE_SETTLE_MS`
+ * before the successor phase begins so the bank's SPA settles before
+ * the next phase's prelude runs.
  * @param tracker - Context tracker.
  * @param ctx - Successful context.
  * @param step - Phase step metadata.
  * @returns Next phase reduction.
  */
-function traceAndContinue(
+async function traceAndContinue(
   tracker: IContextTracker,
   ctx: IPipelineContext,
   step: IPhaseStep,
 ): Promise<Procedure<IPipelineContext>> {
   traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: true });
+  const hasNext = step.index + 1 < tracker.phases.length;
+  await interPhaseSettle(ctx, step, hasNext);
   return reducePhases(tracker, ctx, step.index + 1);
 }
 

@@ -30,6 +30,26 @@ export const HUMAN_DELAY_MIN_MS = 300;
 /** Maximum human-like delay for general interactions (ms). */
 export const HUMAN_DELAY_MAX_MS = 1200;
 
+/**
+ * Inter-phase settle — fixed delay between every successful phase
+ * transition (INIT.FINAL → HOME.PRE, HOME.FINAL → LOGIN.PRE, etc.).
+ *
+ * <p>Phase boundaries previously transitioned in 0–1 ms, which meant
+ * the next phase's prelude began before the bank's SPA had finished
+ * post-action settle (analytics scripts, deferred React hydration,
+ * cross-origin tracking pixels). Under throttled GitHub-runner
+ * bandwidth this surfaced as flaky HOME.PRE failures ("no login nav
+ * link found" — Hapoalim) and DASHBOARD.FINAL failures
+ * (DASHBOARD_TXN_ENDPOINT_MISSING — Beinleumi) on PR #233 E2E Real A.
+ *
+ * <p>Applied at the SINGLE central chokepoint in
+ * {@link "../../Core/Executor/PipelineReducer.js"} `traceAndContinue`
+ * — no per-phase configuration, no per-bank override. Fires only
+ * between successful phase transitions; failure paths skip it so
+ * sanitization-pulse retries are not delayed.
+ */
+export const INTER_PHASE_SETTLE_MS = 4000;
+
 // ── Auth-discovery thresholds (non-time) ──────────────────────────
 
 /**
