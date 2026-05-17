@@ -256,6 +256,80 @@ jobs:
   # gate-job concentrates the environment requirement in ONE non-matrix
   # job; the matrix below `needs:` it, so a SINGLE approval click
   # releases all banks in Group A at once.
+  # ──────────────────────────────────────────────────────────────
+  # DNS Preflight — Israeli bank resolution sanity check.
+  #
+  # Runs automatically on every PR push (NO approval gate) so the
+  # reviewer can see whether the runner can reach Israeli bank
+  # authoritative DNS BEFORE clicking the expensive E2E Real A
+  # approval. Mirrors the resolv.conf override + fail-loud warmup
+  # baked into the Real A and Real B jobs themselves; if this job
+  # is RED, those jobs will also fail at their DNS step.
+  #
+  # Decoupled from the gate (no `needs:`) on purpose: occasionally
+  # the reviewer may want to approve E2E Real even when this
+  # preflight flaked (e.g. transient registry hiccup) — the gate
+  # stays unblocked. Treat the preflight as informational.
+  # ──────────────────────────────────────────────────────────────
+  dns-preflight:
+    name: DNS Preflight (IL bank resolution)
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Force reliable DNS for Israeli bank resolution
+        run: |
+          set -euo pipefail
+          sudo bash -c 'cat > /etc/resolv.conf <<EOF
+          nameserver 1.1.1.1
+          nameserver 8.8.8.8
+          nameserver 9.9.9.9
+          options timeout:2 attempts:3
+          EOF'
+          if ! command -v dig >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq dnsutils
+          fi
+          echo "===Active resolver==="
+          cat /etc/resolv.conf
+          echo "===Warming up bank hosts==="
+          failed=0
+          for h in www.fibi.co.il www.bankhapoalim.co.il www.discountbank.co.il \
+                   he.americanexpress.co.il www.isracard.co.il online.max.co.il \
+                   www.cal-online.co.il accounts.onezerobank.com \
+                   global.americanexpress.com; do
+            ok=false
+            for i in 1 2 3; do
+              if result=$(dig +short +time=3 "$h" 2>/dev/null) && echo "$result" | grep -qE '^[0-9]'; then
+                echo "[OK]    $h -> $(echo "$result" | awk '{print $1}')"
+                ok=true
+                break
+              fi
+              echo "[retry] $h (attempt $i)"
+              sleep 2
+            done
+            if [ "$ok" = "false" ]; then
+              echo "[FAIL]  $h — did not resolve after 3 attempts"
+              failed=$((failed + 1))
+            fi
+          done
+          echo ""
+          echo "===Azure runner region==="
+          curl -s -m 3 -H Metadata:true \
+            "http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text" \
+            || echo "(metadata endpoint unreachable — non-Azure or restricted)"
+          echo ""
+          if [ "$failed" -gt 0 ]; then
+            echo "❌ DNS preflight FAILED for $failed host(s). Do NOT approve"
+            echo "   E2E Real on this commit — the Real jobs will also fail"
+            echo "   at their DNS step. Rerun this job once or check that"
+            echo "   1.1.1.1 / 8.8.8.8 / 9.9.9.9 outbound 53/UDP isn't blocked."
+            exit 1
+          fi
+          echo "✅ All Israeli bank hosts resolved successfully. Safe to approve E2E Real."
+
   e2e-real-group-a-gate:
     name: E2E Real A — approval gate
     needs: validate
@@ -329,18 +403,35 @@ jobs:
           echo "===Active resolver==="
           cat /etc/resolv.conf
           echo "===Warming up bank hosts==="
+          failed=0
           for h in www.fibi.co.il www.bankhapoalim.co.il www.discountbank.co.il \
                    he.americanexpress.co.il www.isracard.co.il online.max.co.il \
                    www.cal-online.co.il accounts.onezerobank.com; do
+            ok=false
             for i in 1 2 3; do
               if result=$(dig +short +time=3 "$h" 2>/dev/null) && echo "$result" | grep -qE '^[0-9]'; then
                 echo "[OK]    $h -> $(echo "$result" | awk '{print $1}')"
+                ok=true
                 break
               fi
               echo "[retry] $h (attempt $i)"
               sleep 2
             done
+            if [ "$ok" = "false" ]; then
+              echo "[FAIL]  $h — did not resolve after 3 attempts"
+              failed=$((failed + 1))
+            fi
           done
+          if [ "$failed" -gt 0 ]; then
+            echo ""
+            echo "❌ DNS warmup FAILED for $failed host(s). Aborting job so the"
+            echo "   failure is attributable to DNS, not to bank-scrape logic."
+            echo "   Subsequent page.goto() inside Camoufox would also fail"
+            echo "   with NS_ERROR_UNKNOWN_HOST."
+            exit 1
+          fi
+          echo ""
+          echo "✅ All Israeli bank hosts resolved successfully."
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
@@ -456,16 +547,31 @@ jobs:
           echo "===Active resolver==="
           cat /etc/resolv.conf
           echo "===Warming up bank hosts==="
+          failed=0
           for h in he.americanexpress.co.il global.americanexpress.com; do
+            ok=false
             for i in 1 2 3; do
               if result=$(dig +short +time=3 "$h" 2>/dev/null) && echo "$result" | grep -qE '^[0-9]'; then
                 echo "[OK]    $h -> $(echo "$result" | awk '{print $1}')"
+                ok=true
                 break
               fi
               echo "[retry] $h (attempt $i)"
               sleep 2
             done
+            if [ "$ok" = "false" ]; then
+              echo "[FAIL]  $h — did not resolve after 3 attempts"
+              failed=$((failed + 1))
+            fi
           done
+          if [ "$failed" -gt 0 ]; then
+            echo ""
+            echo "❌ DNS warmup FAILED for $failed host(s). Aborting job so the"
+            echo "   failure is attributable to DNS, not to bank-scrape logic."
+            exit 1
+          fi
+          echo ""
+          echo "✅ Amex hosts resolved successfully."
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
