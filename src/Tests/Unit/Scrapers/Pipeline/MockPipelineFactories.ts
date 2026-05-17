@@ -460,6 +460,21 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      */
     waitForNetworkIdle: (): Promise<Procedure<void>> => SUCCEED_VOID,
     /**
+     * Race mock — awaits the custom wait so caller-supplied stubs
+     * (e.g. `waitForTransactionsTraffic`) still execute side effects
+     * like pool mutation before the consumer's pool scan runs.
+     * @param customWait - Custom wait promise from the caller.
+     * @returns True as const after the custom wait settles.
+     */
+    raceWithNetworkIdle: async (customWait: Promise<unknown>): Promise<true> => {
+      try {
+        await customWait;
+      } catch {
+        // Observed state below decides outcome.
+      }
+      return true as const;
+    },
+    /**
      * Count by text mock — returns 0 (no elements).
      * @returns Zero.
      */

@@ -77,9 +77,22 @@ function findFirstIdInPool(pool: readonly IDiscoveredEndpoint[]): IDiscoveredEnd
 }
 
 /**
- * Block on `network.waitForFirstId` and emit telemetry for the
- * outcome. Pulled out of `executeAccountResolvePre` so that handler
- * stays inside the per-function line budget.
+ * Race the id-bearing capture watcher against the page's natural
+ * `networkidle` signal — whichever resolves first wins, then a single
+ * final pool scan decides the outcome.
+ *
+ * <p>Background (2026-05-17, PR #234): the previous busy-poll loop
+ * burned the full 20 s budget every time the bank's account API
+ * response landed with a non-conforming shape (no parsable ids).
+ * VisaCal showed this — `/account/info` was captured (URL match) but
+ * the response body had no ids, so the predicate kept returning
+ * `false` for 20 s × 2 retries. Racing against `waitForNetworkIdle`
+ * lets us fail fast once every in-flight request has responded.
+ *
+ * <p>SOLID / OCP: reuses both existing primitives
+ * ({@link INetworkDiscovery.waitForFirstId} for fast-success +
+ * {@link IElementMediator.waitForNetworkIdle} for event-driven
+ * settle detection). No new wait logic; just composition.
  *
  * @param mediator - Element mediator (network surface owner).
  * @param log - Pipeline logger.
@@ -89,11 +102,20 @@ async function awaitAndLog(
   mediator: IElementMediator,
   log: IPipelineContext['logger'],
 ): Promise<true> {
-  const waitPromise = mediator.network.waitForFirstId(ACCOUNT_RESOLVE_BUDGET_MS, findFirstIdInPool);
-  const matched = await waitPromise.catch((): false => false);
-  const matchedKey = String(matched !== false) as 'true' | 'false';
-  const outcome = WAIT_OUTCOME[matchedKey];
-  log.debug({ message: `account-resolve.pre wait → ${outcome}` });
+  const start = Date.now();
+  const idMatchPromise = mediator.network.waitForFirstId(
+    ACCOUNT_RESOLVE_BUDGET_MS,
+    findFirstIdInPool,
+  );
+  await mediator.raceWithNetworkIdle(idMatchPromise, ACCOUNT_RESOLVE_BUDGET_MS);
+  const pool = mediator.network.getPreNavCaptures();
+  const final = findFirstIdInPool(pool);
+  const matchedKey = String(final !== false) as 'true' | 'false';
+  log.debug({
+    message: `account-resolve.pre wait → ${WAIT_OUTCOME[matchedKey]}`,
+    elapsedMs: String(Date.now() - start),
+    poolSize: String(pool.length),
+  });
   return true;
 }
 

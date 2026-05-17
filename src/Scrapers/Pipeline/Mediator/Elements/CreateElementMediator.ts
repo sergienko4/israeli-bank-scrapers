@@ -1501,6 +1501,29 @@ function buildWaitForNetworkIdle(page: Page): IElementMediator['waitForNetworkId
 }
 
 /**
+ * Build raceWithNetworkIdle method. Composes the caller's custom
+ * wait promise with the mediator's own `waitForNetworkIdle` — single
+ * source of truth for "wait until either side settles, then let the
+ * caller decide outcome from observed state". Used by ACCOUNT-RESOLVE
+ * and DASHBOARD (PR #234).
+ * @param waitForNetworkIdle - The mediator's networkidle method.
+ * @returns Mediator raceWithNetworkIdle function.
+ */
+function buildRaceWithNetworkIdle(
+  waitForNetworkIdle: IElementMediator['waitForNetworkIdle'],
+): IElementMediator['raceWithNetworkIdle'] {
+  return async (customWait, budgetMs): Promise<true> => {
+    try {
+      await Promise.race([customWait, waitForNetworkIdle(budgetMs)]);
+    } catch {
+      // Observed state below decides outcome — both racers are
+      // best-effort signals, neither rejection invalidates the pool.
+    }
+    return true as const;
+  };
+}
+
+/**
  * Build countByText method bound to a page.
  * Returns 0 on any error (element not found = valid 0-count).
  * @param page - The Playwright page.
@@ -1638,6 +1661,9 @@ function createElementMediator(page: Page): IElementMediator {
   // ON (post-AUTH phase). Keeps the HOME / WAF-check window
   // listener-free — see I-3 deferred-listener experiment 2026-05-13.
   const network = createNetworkDiscovery(page, { isDeferAttach: true });
+  // Build networkidle once and reuse it in `raceWithNetworkIdle` —
+  // single source of truth for the networkidle primitive.
+  const waitForNetworkIdleFn = buildWaitForNetworkIdle(page);
   const mediator: IElementMediator = {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
@@ -1669,7 +1695,8 @@ function createElementMediator(page: Page): IElementMediator {
     network,
     navigateTo: buildNavigateTo(page),
     getCurrentUrl: buildGetCurrentUrl(page),
-    waitForNetworkIdle: buildWaitForNetworkIdle(page),
+    waitForNetworkIdle: waitForNetworkIdleFn,
+    raceWithNetworkIdle: buildRaceWithNetworkIdle(waitForNetworkIdleFn),
     checkAttribute: buildCheckAttribute(),
     getAttributeValue: buildGetAttributeValue(),
 

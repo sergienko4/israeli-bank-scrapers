@@ -8,7 +8,15 @@
 # each via `dig +short`. Fails loud (exit 1) if any host doesn't resolve.
 #
 # Usage:
-#   bash .github/scripts/ci/dns-warmup.sh
+#   bash .github/scripts/ci/dns-warmup.sh            # warm ALL banks (preflight)
+#   bash .github/scripts/ci/dns-warmup.sh Hapoalim   # warm ONLY Hapoalim (matrix)
+#
+# When a bank name argument is provided (matches the `CompanyTypes`
+# enum key exactly — Hapoalim / VisaCal / Amex / etc.), only that
+# bank's hostname is extracted from the config and warmed. Used by
+# the per-bank matrix jobs so they don't waste cycles resolving the
+# other 12 banks they aren't testing. Without an argument, the
+# preflight job warms every entry in PipelineBankConfig.ts.
 #
 # Runs BEFORE `npm install` in CI so the npm package fetch itself
 # benefits from the reliable resolver. No Node or TS toolchain
@@ -45,18 +53,37 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
-# shellcheck disable=SC2207
-HOSTS=($(grep -oE "base:[[:space:]]*'https?://[^/'[:space:]]+" "$CONFIG_FILE" \
-         | sed -E "s|.*://||" \
-         | sort -u))
+BANK_FILTER="${1:-}"
 
-if [ "${#HOSTS[@]}" -eq 0 ]; then
-  echo "❌ No bank hostnames extracted from $CONFIG_FILE — config format may have changed."
-  echo "   Inspect the file and adjust the grep pattern in this script."
-  exit 1
+if [ -n "$BANK_FILTER" ]; then
+  # Per-bank matrix mode — extract only the hostname for the named
+  # CompanyTypes key. Grep the line with `[CompanyTypes.<Bank>]:`
+  # plus the next 2 lines so we catch the `base:` inside the
+  # `urls: { base: '...' }` block on the following line.
+  # shellcheck disable=SC2207
+  HOSTS=($(grep -A 2 "\[CompanyTypes\.${BANK_FILTER}\]" "$CONFIG_FILE" \
+           | grep -oE "base:[[:space:]]*'https?://[^/'[:space:]]+" \
+           | sed -E "s|.*://||"))
+  if [ "${#HOSTS[@]}" -eq 0 ]; then
+    echo "❌ No hostname found for CompanyTypes.${BANK_FILTER} in $CONFIG_FILE."
+    echo "   Either the bank name is misspelled or the config no longer"
+    echo "   uses the [CompanyTypes.<Name>]: { urls: { base: ... } } shape."
+    exit 1
+  fi
+  echo "===Warming up 1 bank host (CompanyTypes.${BANK_FILTER})==="
+else
+  # Preflight mode — warm every bank in the config.
+  # shellcheck disable=SC2207
+  HOSTS=($(grep -oE "base:[[:space:]]*'https?://[^/'[:space:]]+" "$CONFIG_FILE" \
+           | sed -E "s|.*://||" \
+           | sort -u))
+  if [ "${#HOSTS[@]}" -eq 0 ]; then
+    echo "❌ No bank hostnames extracted from $CONFIG_FILE — config format may have changed."
+    echo "   Inspect the file and adjust the grep pattern in this script."
+    exit 1
+  fi
+  echo "===Warming up ${#HOSTS[@]} bank hosts (all from PipelineBankConfig.ts)==="
 fi
-
-echo "===Warming up ${#HOSTS[@]} bank hosts (from PipelineBankConfig.ts)==="
 failed=0
 for h in "${HOSTS[@]}"; do
   ok=false

@@ -956,6 +956,18 @@ function hasPostNavTxnMatch(ctx: IPipelineContext): boolean {
  * the live network's traffic stream up to the budget. Returns `true` on
  * any successful match within budget; `false` on timeout (FINAL escalates
  * to F-DASH-1).
+ *
+ * <p>Intentionally NOT using the `raceWithNetworkIdle` smart-wait
+ * (added for ACCOUNT-RESOLVE.PRE in the same PR). DASHBOARD.FINAL runs
+ * AFTER ~80 s of pipeline traversal — by this point the page is
+ * typically already in `networkidle` state, so a race would resolve
+ * the networkidle side immediately and skip the actual txn-traffic
+ * wait. ACCOUNT-RESOLVE.PRE runs right after AUTH-DISCOVERY when the
+ * page is still mid-load, so the race works there but is the WRONG
+ * signal here. VisaCal pre-commit live-E2E run on 2026-05-17 verified
+ * this: with the race here, DASHBOARD.FINAL failed in 2 ms because
+ * networkidle had already been reached.
+ *
  * @param input - Pipeline context.
  * @returns True when a match landed (or was already present); false on timeout.
  */

@@ -119,6 +119,21 @@ function makeMockMediator(): IElementMediator {
       return Promise.resolve(done);
     },
     /**
+     * Smart-wait race mock — awaits the custom wait so caller-supplied
+     * stubs run their side effects, then returns true. Mirrors the
+     * production semantics (single-source-of-truth in CreateElementMediator).
+     * @param customWait - Caller-supplied custom wait promise.
+     * @returns True after the custom wait settles.
+     */
+    raceWithNetworkIdle: async (customWait: Promise<unknown>): Promise<true> => {
+      try {
+        await customWait;
+      } catch {
+        // swallow — observed state is authoritative.
+      }
+      return true as const;
+    },
+    /**
      * Count by text mock — returns 0.
      * @returns Zero.
      */

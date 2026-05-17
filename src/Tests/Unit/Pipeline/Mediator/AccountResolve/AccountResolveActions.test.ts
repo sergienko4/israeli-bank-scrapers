@@ -55,6 +55,24 @@ function makePoolMediator(args: IPoolMediatorArgs): IElementMediator {
         return Promise.resolve(args.waitMatch ?? false);
       },
     },
+    /**
+     * Stub for the smart-wait race added in PR #234 — the production
+     * `awaitAndLog` races `waitForFirstId` against `waitForNetworkIdle`.
+     * Stub returns a never-resolving promise so `waitForFirstId` always
+     * wins the race; pool-mutation semantics stay the same as before.
+     * @returns Promise that never resolves.
+     */
+    /** Smart-wait mock — awaits the custom wait so test stubs run.
+     * @param cw - Caller-supplied custom wait promise.
+     * @returns True after the custom wait settles. */
+    raceWithNetworkIdle: async (cw: Promise<unknown>): Promise<true> => {
+      try {
+        await cw;
+      } catch {
+        /* swallow */
+      }
+      return true as const;
+    },
   } as unknown as IElementMediator;
 }
 
@@ -131,6 +149,22 @@ describe('executeAccountResolvePre', () => {
          * @returns Empty array.
          */
         getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => [],
+      },
+      /**
+       * Never resolves so the race in `awaitAndLog` is decided by
+       * `waitForFirstId` — keeps the call-count assertion intact.
+       * @returns Promise that never resolves.
+       */
+      /** Smart-wait mock — awaits the custom wait so test stubs run.
+       * @param cw - Caller-supplied custom wait promise.
+       * @returns True after the custom wait settles. */
+      raceWithNetworkIdle: async (cw: Promise<unknown>): Promise<true> => {
+        try {
+          await cw;
+        } catch {
+          /* swallow */
+        }
+        return true as const;
       },
     } as unknown as IElementMediator;
     const baseCtx = makeMockContext();
@@ -435,6 +469,22 @@ describe('executeAccountResolvePre — wait outcome telemetry', () => {
          * @returns Empty array.
          */
         getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => [],
+      },
+      /**
+       * Never resolves so the race outcome is decided by the rejected
+       * `waitForFirstId` branch.
+       * @returns Promise that never resolves.
+       */
+      /** Smart-wait mock — awaits the custom wait so test stubs run.
+       * @param cw - Caller-supplied custom wait promise.
+       * @returns True after the custom wait settles. */
+      raceWithNetworkIdle: async (cw: Promise<unknown>): Promise<true> => {
+        try {
+          await cw;
+        } catch {
+          /* swallow */
+        }
+        return true as const;
       },
     } as unknown as IElementMediator;
     const baseCtx = makeMockContext();

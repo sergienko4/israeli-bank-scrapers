@@ -340,13 +340,11 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       # DNS override + warmup (single source of truth lives in
-      # `.github/scripts/ci/dns-warmup.sh` — extracts hostnames
-      # dynamically from `PipelineBankConfig.ts` so adding a new
-      # bank requires zero CI edits). Fail-loud — exits 1 if any
-      # bank host doesn't resolve, so failures attributable to DNS
-      # surface here instead of 7 min later at `page.goto`.
-      - name: Force reliable DNS for Israeli bank resolution
-        run: bash .github/scripts/ci/dns-warmup.sh
+      # `.github/scripts/ci/dns-warmup.sh` — extracts the hostname
+      # for THIS matrix bank only from `PipelineBankConfig.ts`).
+      # Fail-loud — exits 1 if the host doesn't resolve.
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
@@ -446,9 +444,9 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       # Same DNS-warmup script as preflight and Group A — extracts
-      # hostnames dynamically from `PipelineBankConfig.ts`, fails loud.
-      - name: Force reliable DNS for Israeli bank resolution
-        run: bash .github/scripts/ci/dns-warmup.sh
+      # the hostname for THIS matrix bank only.
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
