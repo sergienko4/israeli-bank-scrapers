@@ -26,7 +26,7 @@
 
 import type { Page } from 'playwright-core';
 
-import type { ContextId } from '../../../../../../Scrapers/Pipeline/Types/Brand.js';
+import { mintContextId } from '../../../../../../Scrapers/Pipeline/Types/Brand.js';
 import { some } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IPipelineContext,
@@ -50,10 +50,10 @@ export interface IOtpTriggerPhaseContextArgs {
   readonly otpUrl: string;
 }
 
-/** PII-safe synthetic resolved target — properly typed, no cast. */
+/** PII-safe synthetic resolved target — properly typed via mint helper, no inline cast. */
 const SYNTHETIC_TRIGGER_TARGET: IResolvedTarget = {
   selector: '[data-test-id="otp-send"]',
-  contextId: 'fixture-otp-trigger-ctx' as ContextId,
+  contextId: mintContextId('fixture-otp-trigger-ctx'),
   kind: 'css',
   candidateValue: '[data-test-id="otp-send"]',
 };

@@ -14,7 +14,6 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
-import type { ContextId } from '../../Types/Brand.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type {
@@ -24,7 +23,7 @@ import type {
   IPipelineContext,
   IResolvedTarget,
 } from '../../Types/PipelineContext.js';
-import { EMPTY_TXN_HARVEST } from '../../Types/PipelineContext.js';
+import { EMPTY_TXN_HARVEST, MAIN_CONTEXT_ID } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
@@ -189,8 +188,10 @@ async function resolveDashboardTargets(
   };
 }
 
-/** Main-frame context identifier — matches FrameRegistry.MAIN_CONTEXT_ID. */
-const MAIN_CONTEXT_ID = 'main' as ContextId;
+// `MAIN_CONTEXT_ID` is imported from `../../Types/PipelineContext.js`
+// (which re-exports from `../../Types/Brand.js`) — the canonical
+// source. Inline `'main' as ContextId` previously duplicated this
+// value and risked drift; CodeRabbit follow-up 2026-05-18.
 /**
  * Angular `dropdowntoggle` directive — the deterministic structural signal
  * for a real dropdown-toggle. Always present when the directive is bound,

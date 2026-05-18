@@ -8,10 +8,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../Base/ScraperError.js';
-import { type ContextId, mintContextId } from '../../Types/Brand.js';
-
-/** Main page context identifier constant. */
-const MAIN_CONTEXT_ID: ContextId = mintContextId('main');
+import { type ContextId, MAIN_CONTEXT_ID, mintContextId } from '../../Types/Brand.js';
 
 /** Iframe context identifier prefix. */
 const IFRAME_PREFIX = 'iframe:';
@@ -105,4 +102,5 @@ function resolveFrame(registry: FrameRegistryMap, contextId: ContextId): Page | 
 }
 
 export type { FrameRegistryMap };
-export { buildFrameRegistry, computeContextId, MAIN_CONTEXT_ID, resolveFrame };
+export { buildFrameRegistry, computeContextId, resolveFrame };
+export { MAIN_CONTEXT_ID } from '../../Types/Brand.js';

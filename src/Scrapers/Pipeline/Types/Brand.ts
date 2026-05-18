@@ -173,3 +173,12 @@ export type ContextId = Brand<string, 'ContextId'>;
 export function mintContextId(raw: string): ContextId {
   return raw as ContextId;
 }
+
+/**
+ * Canonical main-frame identifier. Exported as a const so callers
+ * (FrameRegistry, DashboardPhaseActions, and any future Mediator that
+ * needs to address the main frame) share a single source of truth
+ * instead of repeating `mintContextId('main')` or `'main' as ContextId`
+ * inline (CodeRabbit follow-up 2026-05-18).
+ */
+export const MAIN_CONTEXT_ID: ContextId = mintContextId('main');

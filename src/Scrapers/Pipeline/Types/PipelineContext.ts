@@ -819,4 +819,4 @@ export type {
 };
 export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_OTP_FILL, EMPTY_OTP_TRIGGER, EMPTY_TXN_HARVEST };
 
-export { type ContextId } from './Brand.js';
+export { type ContextId, MAIN_CONTEXT_ID } from './Brand.js';
