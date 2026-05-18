@@ -120,12 +120,21 @@ run_one_bank() {
     # saw all 8 parallel banks fail with `Server Not Found` on the
     # bank URL — Docker Desktop's DNS was saturated. Google + Cloudflare
     # public resolvers are intentionally redundant.
+    # NOTE: We deliberately do NOT pass `--env-file` here. Docker's
+    # env-file parser is bug-compatible with shell `source` — it does
+    # NOT strip `"..."` wrapping quotes. dotenv DOES strip them. So
+    # values like `MAX_PASSWORD="..."` (wrapped to escape the `#`
+    # comment char in dotenv) leak the literal quotes into the
+    # container env, which then get typed into bank login fields
+    # with `maxlength` limits, truncating the trailing quote and
+    # submitting an off-by-one password. Instead we rely on each
+    # test's `dotenv.config()` to load + correctly strip quotes
+    # from the mounted `/work/.env`.
     MSYS_NO_PATHCONV=1 docker run --rm \
     --name "isbs-ci-${bank,,}" \
     --dns=8.8.8.8 --dns=1.1.1.1 \
     -v "${REPO_ROOT_DOCKER}:/work" \
     -w /work \
-    --env-file "$ENV_FILE_DOCKER" \
     -e CI=true \
     -e LOG_LEVEL=trace \
     -e RUNS_ROOT=/tmp/runs \
