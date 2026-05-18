@@ -24,6 +24,18 @@
     "inlineSourceMap": true,
     "inlineSources": true,
     "ignoreDeprecations": "6.0",
+    /*
+     * `ignoreDeprecations` (added 2026-05-17 with the TS 5.9 -> 6.0 bump)
+     * silences `TS5101: Option 'baseUrl' is deprecated and will stop
+     * functioning in TypeScript 7.0`. `tsup` / `rollup-plugin-dts`
+     * auto-injects `baseUrl` during DTS bundling — we don't set it
+     * explicitly anywhere in this codebase, so it lands via the tool
+     * chain. To unblock the TS 7.0 upgrade later, remove this setting
+     * once the upstream `rollup-plugin-dts` build no longer relies on
+     * `baseUrl` (track at https://github.com/Swatinem/rollup-plugin-dts).
+     * No other deprecations apply: this repo uses `moduleResolution: NodeNext`,
+     * `module: NodeNext`, `target: es2022` — none of which are deprecated.
+     */
     "types": ["jest", "lodash", "node", "source-map-support"]
   },
   "include": ["src/**/*"],
