@@ -138,14 +138,14 @@ jobs:
 
       # ── Upload Artifacts ──
       - name: Upload build artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-output
           path: lib/
           retention-days: 7
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: src/coverage/
@@ -403,7 +403,7 @@ jobs:
             --forceExit
       - name: Upload diagnostics on failure (${{ matrix.bank }})
         if: failure()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
           # pipeline.log + network/*.json — both PII-redacted at write
@@ -471,7 +471,7 @@ jobs:
             --forceExit
       - name: Upload diagnostics on failure (${{ matrix.bank }})
         if: failure()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
           # Same pre-auth screenshot policy as Group A — init + home only
@@ -498,7 +498,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       # Pinned to main HEAD pending v4.10.0 release: v4.9.0 still
       # targets `node20` (deprecated 2025-09-19); main has `node24`.
-      - uses: actions/dependency-review-action@9ae8e67b9f0be9e9903db0d81c2580dbc9570216 # main 2026-05-08
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # main 2026-05-08
         with:
           fail-on-severity: moderate
           allow-licenses: >-
