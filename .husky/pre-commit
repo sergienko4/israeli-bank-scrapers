@@ -242,10 +242,13 @@ run-sonar-scan() {
         return 0
     fi
     if [ -z "${SONAR_TOKEN:-}" ] && [ -f .env ]; then
-        set -a
-        # shellcheck disable=SC1091
-        . ./.env
-        set +a
+        # Extract only the SONAR_TOKEN= line and never execute the rest
+        # of .env (avoids the `. ./.env` arbitrary-code-execution path
+        # that prints `command not found` on any non-KEY=VALUE line).
+        # Tolerates surrounding double or single quotes on the value.
+        SONAR_TOKEN=$(grep -E '^[[:space:]]*SONAR_TOKEN=' .env | head -1 \
+            | sed -E "s/^[[:space:]]*SONAR_TOKEN=//; s/^['\"]//; s/['\"]$//")
+        [ -n "$SONAR_TOKEN" ] && export SONAR_TOKEN
     fi
     if [ -z "${SONAR_TOKEN:-}" ]; then
         log ""
