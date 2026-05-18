@@ -61,7 +61,7 @@
     "reset": "git reset --hard && npm ci",
     "docs": "typedoc",
     "lint:architecture": "npx tsx src/Tests/Tools/lint-and-validate.ts",
-    "sonar:scan": "sonar-scanner -Dsonar.token=${SONAR_TOKEN}"
+    "sonar:scan": "node .github/scripts/sonar-scan.mjs"
   },
   "repository": {
     "type": "git",

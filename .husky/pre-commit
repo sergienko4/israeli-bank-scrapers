@@ -246,7 +246,12 @@ run-sonar-scan() {
         # of .env (avoids the `. ./.env` arbitrary-code-execution path
         # that prints `command not found` on any non-KEY=VALUE line).
         # Tolerates surrounding double or single quotes on the value.
+        # `tr -d '\r'` strips the trailing CR that Windows-style line
+        # endings introduce so `s/['"]$//` actually matches the quote
+        # (CodeRabbit finding on PR #235 — without this, SONAR_TOKEN
+        # ends with a stray `"` and auth fails).
         SONAR_TOKEN=$(grep -E '^[[:space:]]*SONAR_TOKEN=' .env | head -1 \
+            | tr -d '\r' \
             | sed -E "s/^[[:space:]]*SONAR_TOKEN=//; s/^['\"]//; s/['\"]$//")
         [ -n "$SONAR_TOKEN" ] && export SONAR_TOKEN
     fi
@@ -262,8 +267,20 @@ run-sonar-scan() {
         return 0
     fi
     log ""
-    log "🟦 Phase 6: SonarCloud scan (180s timeout, fire-and-forget)"
-    timeout 180 sonar-scanner -Dsonar.token="$SONAR_TOKEN" 2>&1 | tee -a "$LOG_FILE"
+    log "🟦 Phase 6: SonarCloud scan (fire-and-forget)"
+    # `timeout` is GNU coreutils — not guaranteed on macOS without
+    # `brew install coreutils`. CodeRabbit finding on PR #235: without
+    # this guard, the missing binary returns exit 127, which the
+    # PIPESTATUS check then misreports as "sonar-scanner exited
+    # non-zero". When `timeout` is absent we run the scanner with no
+    # hard cap and log a notice so the dev knows to expect a longer
+    # run.
+    if command -v timeout > /dev/null 2>&1; then
+        timeout 180 sonar-scanner -Dsonar.token="$SONAR_TOKEN" 2>&1 | tee -a "$LOG_FILE"
+    else
+        log "   (note: 'timeout' binary not on PATH; running without 180s cap)"
+        sonar-scanner -Dsonar.token="$SONAR_TOKEN" 2>&1 | tee -a "$LOG_FILE"
+    fi
     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         log "⚠️  sonar-scanner exited non-zero — analysis upload may have failed"
         log "   CI's SonarCloud Scan job remains authoritative; commit proceeds."
