@@ -96,11 +96,14 @@ describe('stripProfileCache', () => {
   let isTmpProfile: string;
 
   beforeEach(() => {
+    // `fs.mkdtempSync` creates an atomically-unique directory with
+    // crypto-random suffix (race-free; restrictive default perms) so
+    // CodeQL's "insecure temporary file" rule stays satisfied. Plain
+    // `path.join(os.tmpdir(), 'fixed-name')` is flagged because two
+    // concurrent test runs can race on the same path.
     const baseDir = os.tmpdir();
-    const nowMs = Date.now();
-    const stamp = String(nowMs);
-    isTmpProfile = path.join(baseDir, `isbs-strip-test-${stamp}`);
-    fs.mkdirSync(isTmpProfile, { recursive: true });
+    const prefix = path.join(baseDir, 'isbs-strip-test-');
+    isTmpProfile = fs.mkdtempSync(prefix);
   });
 
   afterEach(() => {
