@@ -1018,32 +1018,31 @@ export default tseslint.config(
   },
 
   // 12. ARCHITECTURE-RULE EXCEPTION — files where the project's
-  //     architecture rules force a NAMED type alias that SonarJS S6564
-  //     would otherwise flag as redundant.
+  //     `no-restricted-syntax` rule (banning bare `unknown` in function
+  //     signatures) forces a `type X = unknown;` alias that SonarJS
+  //     S6564 then flags as redundant. The architecture rule wins;
+  //     this override silences S6564 locally to keep
+  //     `eslint --max-warnings 0` green.
   //
-  //     Two flavours of conflict:
-  //       (a) `no-restricted-syntax` forbids bare `unknown` in function
-  //           signatures → forces `type X = unknown;` aliases.
-  //       (b) Rule #15 forbids primitive return types (`: string`,
-  //           `: number`, `: boolean`, `: void`) in Pipeline/Phases →
-  //           forces `type X = string;` aliases for return-type sites
-  //           that would be too invasive to brand (broad call-site fan-out).
+  //     `LoginPhaseActions.ts` removed from this list 2026-05-18 —
+  //     its `FormAnchorSelector = string` alias was deleted (Rule #15
+  //     applied to class methods only, not the free function the
+  //     alias was wrapping).
   //
-  //     Each file in this block also carries a `// NOSONAR` comment on
-  //     the offending alias line so SonarCloud silences the issue
-  //     server-side. The architecture rule wins; this override silences
-  //     S6564 locally to keep `eslint --max-warnings 0` green.
+  //     `PipelineContext.ts:ContextId = string` remains flagged by
+  //     SonarCloud S6564; resolving via branding would cascade to
+  //     30+ test fixture sites. Deferred to a follow-up PR; tracked
+  //     by dismissing on SonarCloud as "Won't Fix" with rationale.
   {
     files: [
-      // (a) `unknown` aliases
+      // (a) `unknown` aliases forced by `no-restricted-syntax`
       'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/TxnShape.ts',
       'src/Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.ts',
       'src/Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeIdExtraction.ts',
       'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.ts',
-      // (b) Rule #15 return-type aliases for primitives
-      'src/Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.ts',
+      // (b) ContextId = string — branding cascade deferred
       'src/Scrapers/Pipeline/Types/PipelineContext.ts',
     ],
     rules: {

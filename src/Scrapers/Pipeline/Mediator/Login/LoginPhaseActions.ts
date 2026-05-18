@@ -230,10 +230,6 @@ function normalizeSubmitConfig(submit: ILoginConfig['submit']): readonly Selecto
   return WK_LOGIN_FORM.submit;
 }
 
-/** Trustworthy form-anchor selector (id/name/class) or empty string sentinel. */
-// NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
-type FormAnchorSelector = string;
-
 /**
  * Extract form-anchor selector ONLY when the anchor is trustworthy:
  *   - `#id`             (e.g. Amex/Isracard `#otpLobbyFormPassword`)
@@ -246,7 +242,7 @@ type FormAnchorSelector = string;
  * @param formAnchor - Optional form anchor option.
  * @returns Trustworthy CSS selector or empty string.
  */
-function extractFormAnchorSelector(formAnchor: Option<IFormAnchor>): FormAnchorSelector {
+function extractFormAnchorSelector(formAnchor: Option<IFormAnchor>): string {
   if (!formAnchor.has) return '';
   const selector = formAnchor.value.selector;
   if (selector.length === 0) return '';
