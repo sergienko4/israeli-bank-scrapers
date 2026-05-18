@@ -225,7 +225,52 @@ fi
 #     fi
 # fi
 
-# # ── Phase 5: Live E2E (real banks, FINAL gate) ──
+# ── Phase 5: SonarCloud scan (fire-and-forget upload) ────────────────────
+# Runs sonar-scanner when both conditions hold:
+#   1. SONAR_TOKEN is in env (CI provides it; locally we source .env).
+#   2. The `sonar-scanner` CLI binary is on PATH.
+# Otherwise skips silently. Intentionally fire-and-forget — quality-gate
+# enforcement is owned by the CI's SonarCloud Scan job (which has
+# `sonar.qualitygate.wait=true` in sonar-project.properties). This local
+# gate's value is the early-warning scanner output during commit; not a
+# hard blocker for commit. Override with SKIP_SONAR_GATE=1 to bypass even
+# when the prerequisites are met.
+run-sonar-scan() {
+    if [ -n "${SKIP_SONAR_GATE:-}" ]; then
+        log ""
+        log "⏭️  Phase 6: sonar-scanner — bypassed via SKIP_SONAR_GATE=1"
+        return 0
+    fi
+    if [ -z "${SONAR_TOKEN:-}" ] && [ -f .env ]; then
+        set -a
+        # shellcheck disable=SC1091
+        . ./.env
+        set +a
+    fi
+    if [ -z "${SONAR_TOKEN:-}" ]; then
+        log ""
+        log "⏭️  Phase 6: sonar-scanner — SONAR_TOKEN not set, skipping"
+        return 0
+    fi
+    if ! command -v sonar-scanner > /dev/null 2>&1; then
+        log ""
+        log "⏭️  Phase 6: sonar-scanner — binary not on PATH, skipping"
+        log "   (install via https://docs.sonarsource.com/sonarqube-cloud/instance-administration/analysis-functions/scanners/sonarscanner/ or 'scoop install sonar-scanner')"
+        return 0
+    fi
+    log ""
+    log "🟦 Phase 6: SonarCloud scan (180s timeout, fire-and-forget)"
+    timeout 180 sonar-scanner -Dsonar.token="$SONAR_TOKEN" 2>&1 | tee -a "$LOG_FILE"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "⚠️  sonar-scanner exited non-zero — analysis upload may have failed"
+        log "   CI's SonarCloud Scan job remains authoritative; commit proceeds."
+    else
+        log "✅ Phase 6: SonarCloud analysis uploaded — check sonarcloud.io for the gate result"
+    fi
+}
+run-sonar-scan
+
+# # ── Phase 6: Live E2E (real banks, FINAL gate) ──
 # # This is the last gate — if it passes, the commit proceeds.
 # # Routes through `scripts/run-real-suite.ts` (gitignored, operator-
 # # controlled bank list — typically OneZero + Beinleumi for local

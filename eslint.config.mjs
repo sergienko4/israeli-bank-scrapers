@@ -11,6 +11,7 @@ import jsdoc from 'eslint-plugin-jsdoc';
 import regexpPlugin from 'eslint-plugin-regexp';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
+import jestPlugin from 'eslint-plugin-jest';
 
 /**
  * GLOBAL ARCHITECTURAL GUARDRAILS
@@ -692,6 +693,9 @@ export default tseslint.config(
       '**/mocks/**/*.ts',
       'eslint.config.mjs',
     ],
+    plugins: {
+      jest: jestPlugin,
+    },
     rules: {
       'no-console': 'off', // Allow logging in tests
       'max-lines-per-function': 'off', // Tests are naturally long
@@ -703,6 +707,34 @@ export default tseslint.config(
       // tag from Jest, not a custom invention — whitelist it for tests so
       // jsdoc/check-tag-names does not reject it.
       'jsdoc/check-tag-names': ['error', { definedTags: ['jest-environment'] }],
+
+      // SonarCloud-parity jest rules — catch S2699-class issues
+      // ("test with no assertion") at lint time, before Sonar sees them.
+      // Two explicit rules cover the SonarCloud surface (S2699 +
+      // malformed-expect detection). `jest/no-conditional-expect` is
+      // intentionally omitted because the codebase relies on
+      // conditional `expect(...)` in variant-detection tests
+      // (~680 sites in 2026-05); enabling it requires a separate
+      // architectural refactor and is not part of this PR's scope.
+      //
+      // `assertFunctionNames` whitelists the project's helper-assertion
+      // pattern. Cross-bank factory tests delegate assertions to small
+      // helpers that internally call `expect(...)` — `jest/expect-expect`
+      // cannot trace across function boundaries so it would false-positive
+      // on every factory test (~60 sites) without this whitelist. Patterns
+      // track the actual helper-naming conventions used under
+      // `src/Tests/Unit/`:
+      //   - `assert*Shape` / `assert*Run`   — direct assertion helpers.
+      //   - `**.assert*`                    — namespaced (e.g. INTEGRATION.assertFailure).
+      //   - `run*ForRow`                    — Phase H per-row factory drivers.
+      //   - `runSkipScenario`               — OtpPollerTelegram one-off.
+      'jest/expect-expect': [
+        'error',
+        {
+          assertFunctionNames: ['expect', 'assert*', '**.assert*', 'run*ForRow', 'runSkipScenario'],
+        },
+      ],
+      'jest/valid-expect': 'error',
 
       //🚨 Prevent the 'as never' / 'as any' bypass in mocks
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
@@ -965,8 +997,11 @@ export default tseslint.config(
       'sonarjs/no-misleading-array-reverse': 'error', // S4043
       'sonarjs/use-type-alias': 'error', // S4323
       'sonarjs/no-skipped-tests': 'error', // S1607
+      // typescript-eslint — type-aware Sonar parity
+      '@typescript-eslint/prefer-readonly': 'error', // S2933
       // Unicorn — modern-JS rules SonarCloud wraps
-      'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: true }], // S7763
+      'unicorn/prefer-export-from': 'error', // S7763 (strict — `ignoreUsedVariables` dropped 2026-05-18)
+      'unicorn/prefer-node-protocol': 'error', // S7772
       'unicorn/prefer-string-replace-all': 'error', // S7781
       'unicorn/prefer-string-raw': 'error', // S7780
       'unicorn/prefer-at': 'error', // S7755
