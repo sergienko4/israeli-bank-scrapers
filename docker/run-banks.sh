@@ -120,24 +120,39 @@ run_one_bank() {
     # saw all 8 parallel banks fail with `Server Not Found` on the
     # bank URL — Docker Desktop's DNS was saturated. Google + Cloudflare
     # public resolvers are intentionally redundant.
+    # Host-side artifact dir — pipeline.log + screenshots + network
+    # captures from the in-container run land at `C:/tmp/runs/docker/`
+    # so the host can inspect them after the container exits.
+    local RUNS_HOST_POSIX="/c/tmp/runs/docker"
+    mkdir -p "$RUNS_HOST_POSIX"
+    local RUNS_HOST_DOCKER
+    if command -v cygpath >/dev/null 2>&1; then
+        RUNS_HOST_DOCKER=$(cygpath -w "$RUNS_HOST_POSIX")
+    else
+        RUNS_HOST_DOCKER="$RUNS_HOST_POSIX"
+    fi
     # NOTE: We deliberately do NOT pass `--env-file` here. Docker's
     # env-file parser is bug-compatible with shell `source` — it does
     # NOT strip `"..."` wrapping quotes. dotenv DOES strip them. So
-    # values like `MAX_PASSWORD="..."` (wrapped to escape the `#`
-    # comment char in dotenv) leak the literal quotes into the
-    # container env, which then get typed into bank login fields
-    # with `maxlength` limits, truncating the trailing quote and
-    # submitting an off-by-one password. Instead we rely on each
-    # test's `dotenv.config()` to load + correctly strip quotes
-    # from the mounted `/work/.env`.
+    # values like `MAX_PASSWORD="8d@$wm2#*^9X!"` (wrapped to escape
+    # the `#` comment char in dotenv) would leak the literal quotes
+    # into the container env, which then get typed into bank login
+    # fields with `maxlength` limits, truncating the trailing quote
+    # and submitting an off-by-one password. Instead we mount the
+    # repo (which already includes `.env`) and rely on each test's
+    # `dotenv.config()` to load + correctly strip quotes from `.env`.
     MSYS_NO_PATHCONV=1 docker run --rm \
     --name "isbs-ci-${bank,,}" \
     --dns=8.8.8.8 --dns=1.1.1.1 \
     -v "${REPO_ROOT_DOCKER}:/work" \
+    -v "${RUNS_HOST_DOCKER}:/tmp/runs" \
     -w /work \
     -e CI=true \
     -e LOG_LEVEL=trace \
     -e RUNS_ROOT=/tmp/runs \
+    -e CAMOUFOX_HUMANIZE="${CAMOUFOX_HUMANIZE:-true}" \
+    -e CAMOUFOX_DISABLE_COOP="${CAMOUFOX_DISABLE_COOP:-true}" \
+    -e CAMOUFOX_VIRTUAL_HEADLESS="${CAMOUFOX_VIRTUAL_HEADLESS:-true}" \
     "$IMAGE" \
     node --experimental-vm-modules node_modules/jest/bin/jest.js \
     --ci \

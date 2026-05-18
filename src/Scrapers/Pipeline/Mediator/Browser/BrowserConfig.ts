@@ -1,11 +1,13 @@
-/** Default timezone for Israeli bank portals. */
-export const ISRAEL_TIMEZONE = 'Asia/Jerusalem';
-
-/** Default locale for Israeli bank portals and date formatting. */
-export const ISRAEL_LOCALE = 'he-IL';
-
-/** Desktop viewport width — Israeli banks hide login forms at smaller sizes. */
-export const DESKTOP_VIEWPORT_WIDTH = 1920;
-
-/** Desktop viewport height — standard 1080p layout for bank portals. */
-export const DESKTOP_VIEWPORT_HEIGHT = 1080;
+/**
+ * Re-exports the canonical browser-fingerprint constants from Common.
+ * Single source of truth lives at src/Common/Config/BrowserConfig.ts —
+ * this file exists only so existing pipeline-local imports
+ * (`./BrowserConfig.js`) keep resolving without churning ~20 import
+ * sites across the codebase.
+ */
+export {
+  DESKTOP_VIEWPORT_HEIGHT,
+  DESKTOP_VIEWPORT_WIDTH,
+  ISRAEL_LOCALE,
+  ISRAEL_TIMEZONE,
+} from '../../../../Common/Config/BrowserConfig.js';

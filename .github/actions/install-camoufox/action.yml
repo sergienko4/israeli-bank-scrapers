@@ -9,6 +9,15 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: 'Install Xvfb (backs Camoufox virtual headless mode)'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v Xvfb >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+        fi
+        Xvfb -version 2>&1 | head -n 1 || true
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
