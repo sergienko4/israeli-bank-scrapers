@@ -6,7 +6,6 @@
  */
 
 import type {
-  FlowKind,
   IApiDirectCallConfig,
   ICanonicalStringConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
@@ -93,13 +92,11 @@ describe('IApiDirectCallConfig shape', () => {
   });
 });
 
-describe('FlowKind enum', () => {
-  it('covers the three declared flow kinds', () => {
-    const smsOtp: FlowKind = 'sms-otp';
-    const storedJwt: FlowKind = 'stored-jwt';
-    const bearerStatic: FlowKind = 'bearer-static';
-    expect(smsOtp).toBe('sms-otp');
-    expect(storedJwt).toBe('stored-jwt');
-    expect(bearerStatic).toBe('bearer-static');
-  });
-});
+// The `describe('FlowKind enum')` block was removed 2026-05-18 to close
+// SonarCloud S5914 (three runtime `expect(x).toBe(x)` tautologies on
+// typed string consts). The FlowKind union members ('sms-otp',
+// 'stored-jwt', 'bearer-static') are pinned at compile time by usage
+// in production code (ApiDirectCallActions.ts, IApiDirectCallConfig.ts,
+// Jwt/GenericJwtClaims.ts) and by the FULL_CONFIG/MINIMAL_CONFIG literals
+// above — renaming any member is a tsc failure across 8 files, not a
+// runtime test miss.
