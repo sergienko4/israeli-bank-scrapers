@@ -50,7 +50,9 @@ describe('PipelineScraper/onProgress', () => {
   it('registers a progress listener without throwing', () => {
     const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
     const callback = jest.fn() as unknown as Parameters<typeof scraper.onProgress>[0];
-    scraper.onProgress(callback);
+    expect(() => {
+      scraper.onProgress(callback);
+    }).not.toThrow();
   });
 });
 

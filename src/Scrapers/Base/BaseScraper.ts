@@ -1,4 +1,5 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
+
 import moment from 'moment-timezone';
 
 import { getDebug, runWithBankContext, type ScraperLogger } from '../../Common/Debug.js';
@@ -84,7 +85,7 @@ export default class BaseScraper<
   /** Bank-scoped logger — includes `bank` field in every log line. */
   protected readonly bankLog: ScraperLogger;
 
-  private _eventEmitter = new EventEmitter();
+  private readonly _eventEmitter = new EventEmitter();
 
   /**
    * Create a new BaseScraper with the given options.

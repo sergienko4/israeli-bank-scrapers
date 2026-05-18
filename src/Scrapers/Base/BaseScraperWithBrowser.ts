@@ -12,9 +12,6 @@ import BaseScraper from './BaseScraper.js';
 import {
   type ILoginOptions,
   type ILoginResultContext,
-  LOGIN_RESULTS,
-  type LoginResults,
-  type PossibleLoginResults,
   resolveAndBuildLoginResult,
 } from './BaseScraperHelpers.js';
 import type { SelectorCandidate } from './Config/LoginConfig.js';
@@ -30,7 +27,12 @@ import { fillOneInput } from './LoginSteps.js';
 import { handleNavigationFailure } from './NavigationRetry.js';
 import ScraperError from './ScraperError.js';
 
-export { type ILoginOptions, LOGIN_RESULTS, type LoginResults, type PossibleLoginResults };
+export {
+  type ILoginOptions,
+  LOGIN_RESULTS,
+  type LoginResults,
+  type PossibleLoginResults,
+} from './BaseScraperHelpers.js';
 
 const LOG = getDebug('base-scraper-with-browser');
 
@@ -117,7 +119,7 @@ class BaseScraperWithBrowser<
 
   private _cleanups: (() => Promise<boolean>)[] = [];
 
-  private _otpPhoneHint = '';
+  private readonly _otpPhoneHint = '';
 
   /**
    * Initialize the browser page and prepare the scraper for login.
