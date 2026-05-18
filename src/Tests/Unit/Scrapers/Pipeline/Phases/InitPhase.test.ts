@@ -7,14 +7,13 @@ import { jest } from '@jest/globals';
 
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 // Static imports of non-mocked factories — safe with jest.unstable_mockModule.
+import { createCamoufoxMock } from '../../../../MockModuleFactories.js';
 import { makeMockOptions } from '../../../Pipeline/Infrastructure/MockFactories.js';
 import { makeMockContext as MAKE_MOCK_CONTEXT } from '../MockPipelineFactories.js';
 
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js',
-  () => ({
-    launchCamoufox: jest.fn(),
-  }),
+  createCamoufoxMock,
 );
 
 jest.unstable_mockModule(

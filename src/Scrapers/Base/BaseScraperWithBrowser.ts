@@ -1,7 +1,7 @@
 import type { Browser, Frame, Page } from 'playwright-core';
 
 import { buildContextOptions } from '../../Common/Browser.js';
-import { launchCamoufox } from '../../Common/CamoufoxLauncher.js';
+import { buildCloseAndStripCleanup, launchCamoufoxForBank } from '../../Common/CamoufoxLauncher.js';
 import { runLoggedChain } from '../../Common/ChainLogger.js';
 import { getDebug } from '../../Common/Debug.js';
 import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddleware.js';
@@ -384,22 +384,23 @@ class BaseScraperWithBrowser<
   }
 
   /**
-   * Launch a new Camoufox browser instance and return a page.
-   * @returns A new Playwright page from the launched browser.
+   * Launch Camoufox honouring USE_PERSISTENT_PROFILES opt-in.
+   * @returns A new Playwright page from the launched session.
    */
   private async launchNewBrowser(): Promise<Page> {
     const opts = this.options as IDefaultBrowserOptions;
-    const { shouldShowBrowser } = opts;
-    this.bankLog.debug('launch Camoufox headless=%s', !shouldShowBrowser);
-    const browser = await launchCamoufox(!shouldShowBrowser);
-    const bankLogger = this.bankLog;
-    this._cleanups.push(async () => {
-      bankLogger.debug('closing the browser');
-      await browser.close();
-      return true;
-    });
-    if (opts.prepareBrowser) await opts.prepareBrowser(browser);
-    return this.createContextAndPage(browser, false);
+    const bank = this.options.companyId;
+    this.bankLog.debug('launch Camoufox headless=%s', !opts.shouldShowBrowser);
+    const result = await launchCamoufoxForBank(!opts.shouldShowBrowser, bank);
+    const cleanup = buildCloseAndStripCleanup(result, bank);
+    this._cleanups.push(cleanup);
+    if ('newContext' in result) {
+      if (opts.prepareBrowser) await opts.prepareBrowser(result);
+      return this.createContextAndPage(result, false);
+    }
+    const existing = result.pages();
+    if (existing.length > 0) return existing[0];
+    return result.newPage();
   }
 
   /**

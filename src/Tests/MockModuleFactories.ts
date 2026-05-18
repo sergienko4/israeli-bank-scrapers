@@ -124,13 +124,54 @@ export function createBrowserMock(): {
 }
 
 /**
- * CamoufoxLauncher module mock.
- * @returns CamoufoxLauncher mock module
+ * CamoufoxLauncher module mock — provides every export the real module
+ * ships so ESM imports in production code (e.g. `buildCloseAndStripCleanup`
+ * imported by `BaseScraperWithBrowser.ts`) resolve cleanly even when the
+ * test file only cares about `launchCamoufox`.
+ *
+ * Important shape: `launchCamoufoxForBank` delegates to `launchCamoufox`
+ * so existing tests that drive `launchCamoufox.mockResolvedValue(...)`
+ * keep working after the production path switched to the bank-scoped
+ * entrypoint. The delegation also keeps the call-count assertions on
+ * `launchCamoufox` valid.
+ * @returns CamoufoxLauncher mock module with stubs for every export.
  */
 export function createCamoufoxMock(): {
+  ISRAEL_LOCALE: string;
+  buildCloseAndStripCleanup: jest.Mock;
+  getProfileDir: jest.Mock;
+  isPersistentProfilesEnabled: jest.Mock;
   launchCamoufox: jest.Mock;
+  launchCamoufoxForBank: jest.Mock;
+  stripProfileCache: jest.Mock;
 } {
-  return { launchCamoufox: jest.fn() };
+  const launchFn = jest.fn();
+  // `launchCamoufoxForBank` delegates to `launchCamoufox` here so
+  // existing tests that drive `launchFn.mockResolvedValue(...)` keep
+  // working. The second `bank` param is intentionally ignored at the
+  // mock layer — only the `headless` boolean affects which mock value
+  // gets returned. Using `unknown` as the impl return type avoids the
+  // unsafe-any flag because `jest.fn()` would otherwise infer `any`.
+  const forBankFn = jest.fn((headless: boolean): unknown => launchFn(headless) as unknown);
+  // The composite-cleanup mock MUST actually call `result.close()` so
+  // existing tests that assert `mockBrowser.close` was invoked after
+  // running the cleanup keep working. The strip-cache branch is a
+  // no-op here (mock doesn't simulate Firefox profile filesystem).
+  const closeAndStripFn = jest.fn(
+    (result: { close: () => Promise<unknown> }) => async (): Promise<true> => {
+      await result.close();
+      return true;
+    },
+  );
+  return {
+    ISRAEL_LOCALE: 'he-IL',
+    buildCloseAndStripCleanup: closeAndStripFn,
+    getProfileDir: jest.fn().mockReturnValue('mock-profile-path'),
+    isPersistentProfilesEnabled: jest.fn().mockReturnValue(false),
+    launchCamoufox: launchFn,
+    launchCamoufoxForBank: forBankFn,
+    stripProfileCache: jest.fn().mockReturnValue(true),
+  };
 }
 
 /**

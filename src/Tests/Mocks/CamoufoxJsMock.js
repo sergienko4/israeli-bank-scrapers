@@ -58,13 +58,35 @@ function resolveLaunchArgs(headlessOpt) {
   return { headless: false, env: { ...process.env, DISPLAY: vd.display } };
 }
 
+/**
+ * Whitelist of Camoufox launch-option keys that map cleanly to
+ * Playwright's launch / launchPersistentContext options. Camoufox-
+ * specific knobs (`humanize`, `disable_coop`, `os`, `screen`, `window`,
+ * `user_data_dir`, etc.) are intentionally NOT forwarded — the mock
+ * is a lightweight shim, not a stealth replica.
+ */
+const FORWARDED_LAUNCH_KEYS = new Set(['timezoneId', 'locale', 'viewport', 'javaScriptEnabled']);
+
+function pickForwardedOptions(opts) {
+  const out = {};
+  for (const key of Object.keys(opts)) {
+    if (FORWARDED_LAUNCH_KEYS.has(key)) out[key] = opts[key];
+  }
+  return out;
+}
+
 export async function Camoufox(opts = {}) {
   const executablePath = findCamoufoxBinary();
   if (!executablePath) {
     throw new Error('Camoufox binary not found — run: npx camoufox fetch');
   }
   const { headless, env } = resolveLaunchArgs(opts.headless);
-  return firefox.launch({ executablePath, headless, env });
+  const launchBase = { executablePath, headless, env };
+  if (typeof opts.user_data_dir === 'string') {
+    const contextOpts = { ...launchBase, ...pickForwardedOptions(opts) };
+    return firefox.launchPersistentContext(opts.user_data_dir, contextOpts);
+  }
+  return firefox.launch(launchBase);
 }
 
 export default { Camoufox };

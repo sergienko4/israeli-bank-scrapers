@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+import { createCamoufoxMock } from '../MockModuleFactories.js';
+
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),

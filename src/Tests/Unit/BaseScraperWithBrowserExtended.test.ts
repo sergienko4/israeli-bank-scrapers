@@ -7,15 +7,9 @@ import {
   type ScraperCredentials,
   type ScraperOptions,
 } from '../../Scrapers/Base/Interface.js';
+import { createCamoufoxMock } from '../MockModuleFactories.js';
 
-jest.unstable_mockModule(
-  '../../Common/CamoufoxLauncher.js',
-  /**
-   * Mock CamoufoxLauncher.
-   * @returns Mocked module.
-   */
-  () => ({ launchCamoufox: jest.fn() }),
-);
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 
 jest.unstable_mockModule(
   '../../Common/ElementsInteractions.js',

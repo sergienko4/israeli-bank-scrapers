@@ -5,4 +5,12 @@
  * (`./Mediator/Browser/CamoufoxLauncher.js`) keep resolving without
  * churning ~20 import sites across the codebase.
  */
-export { ISRAEL_LOCALE, launchCamoufox } from '../../../../Common/CamoufoxLauncher.js';
+export {
+  buildCloseAndStripCleanup,
+  getProfileDir,
+  isPersistentProfilesEnabled,
+  ISRAEL_LOCALE,
+  launchCamoufox,
+  launchCamoufoxForBank,
+  stripProfileCache,
+} from '../../../../Common/CamoufoxLauncher.js';

@@ -2,9 +2,9 @@ import { jest } from '@jest/globals';
 
 import type { ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import { mockToXpathLiteral } from '../MockModuleFactories.js';
+import { createCamoufoxMock, mockToXpathLiteral } from '../MockModuleFactories.js';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 
 jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),

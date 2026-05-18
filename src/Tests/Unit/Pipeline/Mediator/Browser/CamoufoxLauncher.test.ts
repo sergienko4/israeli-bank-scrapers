@@ -7,9 +7,18 @@
  * deterministic and instantaneous.
  */
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import {
+  buildCloseAndStripCleanup,
+  getProfileDir,
+  isPersistentProfilesEnabled,
   ISRAEL_LOCALE,
   launchCamoufox,
+  launchCamoufoxForBank,
+  stripProfileCache,
 } from '../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 
 describe('CamoufoxLauncher module', () => {
@@ -24,5 +33,187 @@ describe('CamoufoxLauncher module', () => {
 
   it('launchCamoufox references exist with arity 1', () => {
     expect(launchCamoufox.length).toBe(1);
+  });
+});
+
+describe('getProfileDir', () => {
+  it('returns ~/.cache/isbs/profiles/<bank> for a lowercase bank', () => {
+    const homeDir = os.homedir();
+    const isResolved = getProfileDir('amex');
+    const expectedPath = path.join(homeDir, '.cache', 'isbs', 'profiles', 'amex');
+    expect(isResolved).toBe(expectedPath);
+  });
+
+  it('normalises mixed-case bank identifiers to lowercase', () => {
+    const isLowerDir = getProfileDir('amex');
+    const isUpperDir = getProfileDir('AMEX');
+    expect(isLowerDir).toBe(isUpperDir);
+  });
+
+  it('produces distinct paths for distinct banks', () => {
+    const isAmexDir = getProfileDir('amex');
+    const isMaxDir = getProfileDir('max');
+    expect(isAmexDir).not.toBe(isMaxDir);
+  });
+});
+
+describe('isPersistentProfilesEnabled', () => {
+  const wasPreviousValue = process.env.USE_PERSISTENT_PROFILES;
+  afterEach(() => {
+    if (wasPreviousValue === undefined) {
+      delete process.env.USE_PERSISTENT_PROFILES;
+    } else {
+      process.env.USE_PERSISTENT_PROFILES = wasPreviousValue;
+    }
+  });
+
+  it('defaults to false when env var is unset', () => {
+    delete process.env.USE_PERSISTENT_PROFILES;
+    const didEnable = isPersistentProfilesEnabled();
+    expect(didEnable).toBe(false);
+  });
+
+  it('returns true for "true"', () => {
+    process.env.USE_PERSISTENT_PROFILES = 'true';
+    const didEnable = isPersistentProfilesEnabled();
+    expect(didEnable).toBe(true);
+  });
+
+  it('returns true for "1" (truthy alias)', () => {
+    process.env.USE_PERSISTENT_PROFILES = '1';
+    const didEnable = isPersistentProfilesEnabled();
+    expect(didEnable).toBe(true);
+  });
+
+  it('returns false for the literal string "false"', () => {
+    process.env.USE_PERSISTENT_PROFILES = 'false';
+    const didEnable = isPersistentProfilesEnabled();
+    expect(didEnable).toBe(false);
+  });
+});
+
+describe('stripProfileCache', () => {
+  let isTmpProfile: string;
+
+  beforeEach(() => {
+    const baseDir = os.tmpdir();
+    const nowMs = Date.now();
+    const stamp = String(nowMs);
+    isTmpProfile = path.join(baseDir, `isbs-strip-test-${stamp}`);
+    fs.mkdirSync(isTmpProfile, { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(isTmpProfile, { recursive: true, force: true });
+  });
+
+  it('removes Cache/, OfflineCache/, cache2/, crashes/ when present', () => {
+    const cacheDir = path.join(isTmpProfile, 'Cache');
+    const offlineDir = path.join(isTmpProfile, 'OfflineCache');
+    const cache2Dir = path.join(isTmpProfile, 'cache2');
+    const crashesDir = path.join(isTmpProfile, 'crashes');
+    fs.mkdirSync(cacheDir);
+    fs.mkdirSync(offlineDir);
+    fs.mkdirSync(cache2Dir);
+    fs.mkdirSync(crashesDir);
+    const didStrip = stripProfileCache(isTmpProfile);
+    expect(didStrip).toBe(true);
+    const hasCache = fs.existsSync(cacheDir);
+    const hasOffline = fs.existsSync(offlineDir);
+    const hasCache2 = fs.existsSync(cache2Dir);
+    const hasCrashes = fs.existsSync(crashesDir);
+    expect(hasCache).toBe(false);
+    expect(hasOffline).toBe(false);
+    expect(hasCache2).toBe(false);
+    expect(hasCrashes).toBe(false);
+  });
+
+  it('preserves cookies.sqlite and other non-cache files', () => {
+    const cookiesFile = path.join(isTmpProfile, 'cookies.sqlite');
+    const prefsFile = path.join(isTmpProfile, 'prefs.js');
+    fs.writeFileSync(cookiesFile, 'fake-cookie-db');
+    fs.writeFileSync(prefsFile, 'user_pref("x", true);');
+    stripProfileCache(isTmpProfile);
+    const hasCookies = fs.existsSync(cookiesFile);
+    const hasPrefs = fs.existsSync(prefsFile);
+    expect(hasCookies).toBe(true);
+    expect(hasPrefs).toBe(true);
+  });
+
+  it('is a no-op (no throw) when the cache subdirs do not exist', () => {
+    const didStrip = stripProfileCache(isTmpProfile);
+    expect(didStrip).toBe(true);
+  });
+});
+
+describe('launchCamoufoxForBank gating', () => {
+  it('is an async function with arity 2 (headless, bank)', () => {
+    expect(typeof launchCamoufoxForBank).toBe('function');
+    expect(launchCamoufoxForBank.constructor.name).toBe('AsyncFunction');
+    expect(launchCamoufoxForBank.length).toBe(2);
+  });
+});
+
+/** Mutable record threaded into the fake launcher result. */
+interface IClosedFlag {
+  didClose: boolean;
+}
+
+/**
+ * Build a fake launcher result that records whether `close()` was invoked.
+ * Avoids `async` on the close fn because the lint rule requires `await`
+ * inside async functions; we return a resolved Promise directly instead.
+ * @param state - Mutable record that receives didClose=true on close.
+ * @returns Fake Browser/BrowserContext stand-in.
+ */
+function buildFakeLaunchResult(state: IClosedFlag): unknown {
+  return {
+    /**
+     * Mark the result as closed.
+     * @returns Resolved promise.
+     */
+    close(): Promise<void> {
+      state.didClose = true;
+      return Promise.resolve();
+    },
+  };
+}
+
+describe('buildCloseAndStripCleanup', () => {
+  const wasPreviousValue = process.env.USE_PERSISTENT_PROFILES;
+  afterEach(() => {
+    if (wasPreviousValue === undefined) {
+      delete process.env.USE_PERSISTENT_PROFILES;
+    } else {
+      process.env.USE_PERSISTENT_PROFILES = wasPreviousValue;
+    }
+  });
+
+  it('closes the launch result and resolves to true (ephemeral mode)', async () => {
+    delete process.env.USE_PERSISTENT_PROFILES;
+    const state = { didClose: false };
+    const fakeResult = buildFakeLaunchResult(state) as Parameters<
+      typeof buildCloseAndStripCleanup
+    >[0];
+    const cleanup = buildCloseAndStripCleanup(fakeResult, 'amex');
+    const didFinish = await cleanup();
+    expect(state.didClose).toBe(true);
+    expect(didFinish).toBe(true);
+  });
+
+  it('strips the per-bank profile cache when persistent mode is enabled', async () => {
+    process.env.USE_PERSISTENT_PROFILES = 'true';
+    const profileDir = getProfileDir('isbs-strip-cleanup-test');
+    const cache2Dir = path.join(profileDir, 'cache2');
+    fs.mkdirSync(cache2Dir, { recursive: true });
+    const state = { didClose: false };
+    const fakeResult = buildFakeLaunchResult(state) as Parameters<
+      typeof buildCloseAndStripCleanup
+    >[0];
+    const cleanup = buildCloseAndStripCleanup(fakeResult, 'isbs-strip-cleanup-test');
+    await cleanup();
+    const wasStripped = !fs.existsSync(cache2Dir);
+    expect(wasStripped).toBe(true);
+    fs.rmSync(profileDir, { recursive: true, force: true });
   });
 });

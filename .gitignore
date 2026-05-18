@@ -5,6 +5,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Persistent Camoufox profiles — defensive guard in case a misconfigured
+# `getProfileDir` ever resolves to a repo-relative path. The canonical
+# location is `~/.cache/isbs/profiles/<bank>/` (outside the repo);
+# nothing in production code writes inside the working tree.
+.profiles/
+**/.profiles/
+
 
 # Runtime data
 pids

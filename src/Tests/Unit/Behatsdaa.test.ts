@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+import { createCamoufoxMock } from '../MockModuleFactories.js';
+
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 
 jest.unstable_mockModule('../../Common/Fetch.js', () => ({ fetchPostWithinPage: jest.fn() }));
 

@@ -1,8 +1,9 @@
 import { jest } from '@jest/globals';
 
 import { buildMockLocator, mockFrameLocator } from '../MizrahiFixtures.js';
+import { createCamoufoxMock } from '../MockModuleFactories.js';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', createCamoufoxMock);
 jest.unstable_mockModule('../../Common/Fetch.js', () => ({ fetchPostWithinPage: jest.fn() }));
 const FRAME_LOC = mockFrameLocator();
 const MOCK_IFRAME = { locator: jest.fn().mockReturnValue(FRAME_LOC) };

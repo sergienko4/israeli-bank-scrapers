@@ -51,17 +51,22 @@ async function coldStartIfDumping(context: BrowserContext): Promise<boolean> {
  * @returns Updated context with browser state, or failure.
  */
 async function executeLaunchBrowser(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  let browser: Browser | false = false;
+  let launchResult: Browser | BrowserContext | false = false;
   try {
-    browser = await launchBrowser(input.options);
-    const launched = await createContextAndPage(browser);
+    launchResult = await launchBrowser(input.options);
+    const launched = await createContextAndPage(launchResult);
     await coldStartIfDumping(launched.context);
     await installMockContextRoute(launched.context, input.companyId);
     await setupPage(launched.page, input.options);
-    const state = buildBrowserState(launched.page, launched.context, browser);
+    const state = buildBrowserState({
+      page: launched.page,
+      context: launched.context,
+      launchResult,
+      bank: input.companyId,
+    });
     return succeed({ ...input, browser: some(state) });
   } catch (error) {
-    await closeBrowserSafe(browser);
+    await closeBrowserSafe(launchResult);
     const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `INIT PRE: browser launch failed — ${msg}`);
   }

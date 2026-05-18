@@ -7,7 +7,10 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../../Base/Interface.js';
 import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
-import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
+import {
+  buildCloseAndStripCleanup,
+  launchCamoufoxForBank,
+} from '../../Mediator/Browser/CamoufoxLauncher.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IBrowserState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -17,24 +20,39 @@ import { succeed } from '../../Types/Procedure.js';
 type DidLifecycleStep = Brand<boolean, 'DidLifecycleStep'>;
 
 /**
- * Launch a new Camoufox browser.
- * @param options - Scraper options with browser config.
- * @returns Launched browser instance.
+ * Launch result discriminator — the persistent-profile path returns
+ * a {@link BrowserContext}, the ephemeral path returns a {@link Browser}.
+ * Callers must narrow before treating the result.
  */
-async function launchBrowser(options: ScraperOptions): Promise<Browser> {
+type LaunchResult = Browser | BrowserContext;
+
+/**
+ * Launch a Camoufox session for the bank identified by `companyId`.
+ *
+ * When `USE_PERSISTENT_PROFILES=true`, the resulting session is backed
+ * by a per-bank profile dir; otherwise a fresh ephemeral browser is
+ * launched (legacy behaviour). Either way the optional
+ * `prepareBrowser` hook still runs on the Browser-typed handle when
+ * present — the persistent-context path skips it since there is no
+ * Browser handle to pass.
+ * @param options - Scraper options with browser config and `companyId`.
+ * @returns Launched browser (ephemeral) or browser context (persistent).
+ */
+async function launchBrowser(options: ScraperOptions): Promise<LaunchResult> {
   const opts = options as IDefaultBrowserOptions;
   const isHeadless = !opts.shouldShowBrowser;
-  const browser = await launchCamoufox(isHeadless);
-  if (opts.prepareBrowser) await opts.prepareBrowser(browser);
-  return browser;
+  const result = await launchCamoufoxForBank(isHeadless, options.companyId);
+  if (opts.prepareBrowser && 'newContext' in result) await opts.prepareBrowser(result);
+  return result;
 }
 
 /**
- * Create browser context and page from a browser.
- * @param browser - The browser to create context from.
- * @returns Object with context and page.
+ * Open a page on a freshly-created ephemeral context, closing the
+ * context if `newPage` throws so the caller doesn't leak.
+ * @param browser - Browser handle from the ephemeral launcher path.
+ * @returns Resolved context + page pair.
  */
-async function createContextAndPage(
+async function ephemeralContextAndPage(
   browser: Browser,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const contextOpts = buildContextOptions();
@@ -43,9 +61,43 @@ async function createContextAndPage(
     const page = await context.newPage();
     return { context, page };
   } catch (error) {
-    await context.close().catch((): DidLifecycleStep => false as DidLifecycleStep);
+    const closed = context.close();
+    await closed.catch((): DidLifecycleStep => false as DidLifecycleStep);
     throw error;
   }
+}
+
+/**
+ * Reuse the first page of a persistent context, opening a new one when
+ * the restored profile has none yet.
+ * @param context - Persistent context from the bank-scoped launcher.
+ * @returns Resolved context + page pair.
+ */
+async function persistentContextAndPage(
+  context: BrowserContext,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const existing = context.pages();
+  if (existing.length > 0) return { context, page: existing[0] };
+  const page = await context.newPage();
+  return { context, page };
+}
+
+/**
+ * Materialise a browser context + first page from the launcher result.
+ *
+ * Ephemeral path (Browser): creates a fresh context via `newContext`
+ * with {@link buildContextOptions}. Persistent path (BrowserContext):
+ * the context already exists with context-level options baked in at
+ * launch time; we reuse its first page, opening a new one only if
+ * none exists yet.
+ * @param result - Launcher output (Browser or BrowserContext).
+ * @returns Resolved context + page pair.
+ */
+async function createContextAndPage(
+  result: LaunchResult,
+): Promise<{ context: BrowserContext; page: Page }> {
+  if ('newContext' in result) return ephemeralContextAndPage(result);
+  return persistentContextAndPage(result);
 }
 
 /**
@@ -80,40 +132,75 @@ function closeHandler(closeable: ICloseable): () => Promise<Procedure<void>> {
 }
 
 /**
+ * Bundled descriptor of everything `buildBrowserState` / `buildCleanups`
+ * need. Bundled because the project's per-function parameter cap is 3.
+ */
+interface IBuiltBrowserComponents {
+  readonly page: Page;
+  readonly context: BrowserContext;
+  readonly launchResult: LaunchResult;
+  readonly bank: string;
+}
+
+/**
+ * Wrap the launcher's composite close+strip cleanup so it conforms to
+ * the `IBrowserState['cleanups']` element shape, which expects
+ * `() => Promise<Procedure<void>>` (the pipeline's Procedure-typed
+ * status), not the raw `() => Promise<true>` the launcher returns.
+ * @param launchResult - Launch result (Browser or BrowserContext).
+ * @param bank - Bank identifier driving the strip-cache branch.
+ * @returns Pipeline-shaped cleanup callable.
+ */
+function launchCloseHandler(
+  launchResult: LaunchResult,
+  bank: string,
+): () => Promise<Procedure<void>> {
+  const inner = buildCloseAndStripCleanup(launchResult, bank);
+  return (): Promise<Procedure<void>> => inner().then((): Procedure<void> => succeed(undefined));
+}
+
+/**
  * Build cleanup handlers for browser lifecycle.
- * @param thePage - The page to close.
- * @param theContext - The browser context to close.
- * @param theBrowser - The browser to close.
+ *
+ * Ordering — ephemeral path follows the legacy Browser → Context →
+ * Page convention. Persistent path skips the duplicate close because
+ * `launchResult === context`. The launcher's composite cleanup folds
+ * strip-cache inside its own close so the ordered list only carries
+ * the resource-close entries.
+ * @param components - Page/context/launchResult/bank bundle.
  * @returns Ordered cleanup array.
  */
-function buildCleanups(
-  thePage: Page,
-  theContext: BrowserContext,
-  theBrowser: Browser,
-): IBrowserState['cleanups'] {
-  return [closeHandler(theBrowser), closeHandler(theContext), closeHandler(thePage)];
+function buildCleanups(components: IBuiltBrowserComponents): IBrowserState['cleanups'] {
+  const { page, context, launchResult, bank } = components;
+  const launchCleanup = launchCloseHandler(launchResult, bank);
+  if (launchResult === context) {
+    return [launchCleanup];
+  }
+  return [launchCleanup, closeHandler(context), closeHandler(page)];
 }
 
 /**
  * Build the browser state from launched components.
- * @param page - The Playwright page.
- * @param context - The browser context.
- * @param browser - The browser instance.
+ * @param components - Page/context/launchResult/bank bundle.
  * @returns IBrowserState with page, context, and cleanups.
  */
-function buildBrowserState(page: Page, context: BrowserContext, browser: Browser): IBrowserState {
-  const cleanups = buildCleanups(page, context, browser);
-  return { page, context, cleanups };
+function buildBrowserState(components: IBuiltBrowserComponents): IBrowserState {
+  const cleanups = buildCleanups(components);
+  return { page: components.page, context: components.context, cleanups };
 }
 
 /**
- * Close a browser handle if it was successfully launched.
- * @param browser - Browser handle or false if not yet launched.
- * @returns True if closed, false if no browser or close failed.
+ * Close a launcher result if one was successfully launched.
+ *
+ * Used by the InitPhase rollback path when a downstream step throws
+ * after the browser/context was acquired but before the full
+ * IBrowserState was assembled. Tolerant of either union arm.
+ * @param launchResult - Launch result or false if not yet launched.
+ * @returns True if closed, false if no launch or close failed.
  */
-async function closeBrowserSafe(browser: Browser | false): Promise<DidLifecycleStep> {
-  if (!browser) return false as DidLifecycleStep;
-  return browser
+async function closeBrowserSafe(launchResult: LaunchResult | false): Promise<DidLifecycleStep> {
+  if (!launchResult) return false as DidLifecycleStep;
+  return launchResult
     .close()
     .then((): DidLifecycleStep => true as DidLifecycleStep)
     .catch((): DidLifecycleStep => false as DidLifecycleStep);

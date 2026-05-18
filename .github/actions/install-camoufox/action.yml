@@ -5,6 +5,17 @@ inputs:
   gh-token:
     description: GitHub token for authenticated release download fallback
     required: true
+  bank:
+    description: >-
+      Bank identifier (e.g. `amex`, `max`). When set AND the workflow
+      enables `USE_PERSISTENT_PROFILES=true` for the test step, the
+      per-bank Camoufox profile directory is restored from / saved to
+      the GH Actions cache so cookies + LocalStorage + IndexedDB carry
+      across runs (improves Cloudflare scoring + bank-side device
+      recognition). Empty input → no profile cache step runs and the
+      legacy fresh-profile-per-launch flow is preserved.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -25,6 +36,14 @@ runs:
         key: camoufox-v135.0.1-beta.24
         restore-keys: |
           camoufox-
+    - name: Cache per-bank persistent profile
+      if: ${{ inputs.bank != '' }}
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      with:
+        path: ~/.cache/isbs/profiles/${{ inputs.bank }}
+        key: profile-${{ inputs.bank }}-${{ runner.os }}-v1
+        restore-keys: |
+          profile-${{ inputs.bank }}-${{ runner.os }}-
     - name: Install Camoufox browser
       shell: bash
       env:
