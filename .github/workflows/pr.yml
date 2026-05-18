@@ -256,9 +256,43 @@ jobs:
   # gate-job concentrates the environment requirement in ONE non-matrix
   # job; the matrix below `needs:` it, so a SINGLE approval click
   # releases all banks in Group A at once.
+  # ──────────────────────────────────────────────────────────────
+  # DNS Preflight — Israeli bank resolution sanity check.
+  #
+  # Runs automatically on every PR push (NO approval gate) so the
+  # reviewer can see whether the runner can reach Israeli bank
+  # authoritative DNS BEFORE clicking the expensive E2E Real A
+  # approval. Mirrors the resolv.conf override + fail-loud warmup
+  # baked into the Real A and Real B jobs themselves; if this job
+  # is RED, those jobs will also fail at their DNS step.
+  #
+  # Decoupled from the gate (no `needs:`) on purpose: occasionally
+  # the reviewer may want to approve E2E Real even when this
+  # preflight flaked (e.g. transient registry hiccup) — the gate
+  # stays unblocked. Treat the preflight as informational.
+  # ──────────────────────────────────────────────────────────────
+  dns-preflight:
+    name: DNS Preflight (IL bank resolution)
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Force reliable DNS for Israeli bank resolution
+        run: bash .github/scripts/ci/dns-warmup.sh
+
   e2e-real-group-a-gate:
     name: E2E Real A — approval gate
-    needs: validate
+    # HARD dependency on `dns-preflight` (2026-05-17): gate is only
+    # available for manual approval when ALL 12 Israeli bank hosts
+    # resolve through the runner's Cloudflare/Google/Quad9 chain.
+    # If preflight is RED, this gate sits unclickable so we don't
+    # burn the E2E Real matrix on guaranteed-DNS failures. Order:
+    # validate → dns-preflight → approval gate → Group A → Group B.
+    needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: e2e-real-otp
@@ -305,6 +339,12 @@ jobs:
           # Play Integrity work lands.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # DNS override + warmup (single source of truth lives in
+      # `.github/scripts/ci/dns-warmup.sh` — extracts the hostname
+      # for THIS matrix bank only from `PipelineBankConfig.ts`).
+      # Fail-loud — exits 1 if the host doesn't resolve.
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
@@ -377,8 +417,7 @@ jobs:
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*-init-*.png
-            /tmp/runs/pipeline/**/screenshots/*-home-*.png
+            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
 
@@ -403,6 +442,10 @@ jobs:
           - Amex
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # Same DNS-warmup script as preflight and Group A — extracts
+      # the hostname for THIS matrix bank only.
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
@@ -437,8 +480,7 @@ jobs:
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*-init-*.png
-            /tmp/runs/pipeline/**/screenshots/*-home-*.png
+            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
 

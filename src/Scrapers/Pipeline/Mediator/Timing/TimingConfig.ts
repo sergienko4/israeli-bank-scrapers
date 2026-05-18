@@ -31,24 +31,30 @@ export const HUMAN_DELAY_MIN_MS = 300;
 export const HUMAN_DELAY_MAX_MS = 1200;
 
 /**
- * Inter-phase settle — fixed delay between every successful phase
- * transition (INIT.FINAL → HOME.PRE, HOME.FINAL → LOGIN.PRE, etc.).
+ * Phase settle — fixed delay applied TWICE per phase:
+ * once before phase.PRE work begins, once after phase.FINAL completes.
+ * So each phase's wall-clock is bookended by a wait window in which
+ * the bank's SPA can finish settling and the page's anti-bot JS can
+ * observe a "human-paused-on-the-page" interval before our next
+ * interaction.
  *
- * <p>Phase boundaries previously transitioned in 0–1 ms, which meant
- * the next phase's prelude began before the bank's SPA had finished
- * post-action settle (analytics scripts, deferred React hydration,
- * cross-origin tracking pixels). Under throttled GitHub-runner
- * bandwidth this surfaced as flaky HOME.PRE failures ("no login nav
- * link found" — Hapoalim) and DASHBOARD.FINAL failures
- * (DASHBOARD_TXN_ENDPOINT_MISSING — Beinleumi) on PR #233 E2E Real A.
+ * <p>Was previously a single "between phases" settle (PR #233 fix
+ * for Hapoalim "no login nav link found"). Split into PRE + FINAL on
+ * 2026-05-17 after Hapoalim hCaptcha on PR #234 — the silent single
+ * window was profiled as bot by Incapsula. Splitting gives the page
+ * more contact-window time to settle naturally, and the next step
+ * (planned) is to humanize each window with small mouse / scroll
+ * events so Incapsula sees user-activity signals.
  *
  * <p>Applied at the SINGLE central chokepoint in
- * {@link "../../Core/Executor/PipelineReducer.js"} `traceAndContinue`
- * — no per-phase configuration, no per-bank override. Fires only
- * between successful phase transitions; failure paths skip it so
- * sanitization-pulse retries are not delayed.
+ * {@link "../../Core/Executor/PipelineReducer.js"} `reducePhases`
+ * — no per-phase configuration, no per-bank override. PRE settle
+ * fires on every phase (incl. terminal). FINAL settle is skipped for
+ * the terminal phase so pipeline completion is not delayed. Failure
+ * paths skip the FINAL settle so sanitization-pulse retries are not
+ * penalized.
  */
-export const INTER_PHASE_SETTLE_MS = 4000;
+export const PHASE_SETTLE_MS = 4000;
 
 // ── Auth-discovery thresholds (non-time) ──────────────────────────
 

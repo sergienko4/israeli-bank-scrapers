@@ -3,7 +3,7 @@
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { INTER_PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
+import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -68,48 +68,49 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
 }
 
 /**
- * Inter-phase settle — give the bank's SPA a fixed window to finish
- * post-action work (analytics, deferred hydration, cross-origin pixels)
- * before the next phase's prelude begins. Skipped when this was the
- * last phase (no successor) so terminal completion is not delayed.
+ * Phase settle — give the bank's SPA a fixed window to settle
+ * (analytics, deferred hydration, cross-origin pixels) and to give
+ * the page's anti-bot JS time to observe a "human-paused-on-page"
+ * interval before our next interaction. Fired TWICE per phase: once
+ * before phase.PRE work begins (`when='pre'`), once after phase.FINAL
+ * completes (`when='final'`). FINAL settle is skipped for the
+ * terminal phase so pipeline completion is not delayed.
  *
  * @param ctx - Active pipeline context (used for structured trace).
- * @param step - The phase step that just succeeded.
- * @param hasNext - True when a successor phase exists.
+ * @param step - The phase step entering or just-finished.
+ * @param when - 'pre' (before phase work) or 'final' (after phase work).
  * @returns True after the settle resolves.
  */
-async function interPhaseSettle(
+async function phaseSettle(
   ctx: IPipelineContext,
   step: IPhaseStep,
-  hasNext: boolean,
+  when: 'pre' | 'final',
 ): Promise<true> {
-  if (!hasNext) return true as const;
   ctx.logger.debug({
     phase: step.name,
-    event: 'inter-phase-settle',
-    elapsedMs: String(INTER_PHASE_SETTLE_MS),
+    event: 'phase-settle',
+    when,
+    elapsedMs: String(PHASE_SETTLE_MS),
   });
-  await setTimeoutPromise(INTER_PHASE_SETTLE_MS, undefined, { ref: false });
+  await setTimeoutPromise(PHASE_SETTLE_MS, undefined, { ref: false });
   return true as const;
 }
 
 /**
- * Trace success and continue to next phase. Fires `INTER_PHASE_SETTLE_MS`
- * before the successor phase begins so the bank's SPA settles before
- * the next phase's prelude runs.
+ * Trace success and continue to next phase. The FINAL-side phase
+ * settle is invoked from reducePhases (one call site) so the wait
+ * does NOT run on sanitization-pulse retry paths.
  * @param tracker - Context tracker.
  * @param ctx - Successful context.
  * @param step - Phase step metadata.
  * @returns Next phase reduction.
  */
-async function traceAndContinue(
+function traceAndContinue(
   tracker: IContextTracker,
   ctx: IPipelineContext,
   step: IPhaseStep,
 ): Promise<Procedure<IPipelineContext>> {
   traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: true });
-  const hasNext = step.index + 1 < tracker.phases.length;
-  await interPhaseSettle(ctx, step, hasNext);
   return reducePhases(tracker, ctx, step.index + 1);
 }
 
@@ -139,7 +140,33 @@ async function handlePhaseFailure(args: IFailureArgs): Promise<Procedure<IPipeli
 }
 
 /**
+ * Apply the FINAL-side phase settle (skipped on terminal phase) then
+ * continue to the next phase via traceAndContinue. Extracted from
+ * reducePhases to respect the 15-line ceiling + 1-level nesting rule.
+ * @param tracker - Context tracker.
+ * @param ctx - Recovered/successful context.
+ * @param step - Phase step metadata (carries phase index + total).
+ * @returns Next phase reduction.
+ */
+async function settleAndContinue(
+  tracker: IContextTracker,
+  ctx: IPipelineContext,
+  step: IPhaseStep,
+): Promise<Procedure<IPipelineContext>> {
+  const hasNext = step.index + 1 < tracker.phases.length;
+  if (hasNext) await phaseSettle(ctx, step, 'final');
+  return traceAndContinue(tracker, ctx, step);
+}
+
+/**
  * Reduce phases sequentially with trace + sanitization pulse on failure.
+ * Bracketed by `phaseSettle` at PRE and FINAL: 4 s settle BEFORE
+ * each phase's PRE work begins (so the bank's anti-bot JS sees a
+ * "human paused on the page" interval before we touch anything) and
+ * 4 s AFTER each phase's FINAL work succeeds (so the page can
+ * complete post-action settle before the next phase's PRE settle).
+ * Terminal-phase FINAL settle is skipped to avoid delaying exit;
+ * sanitization-pulse retries skip BOTH settles to avoid double-penalty.
  * @param tracker - Context tracker.
  * @param ctx - Current context.
  * @param index - Current phase index.
@@ -153,8 +180,9 @@ async function reducePhases(
   if (index >= tracker.phases.length) return succeed(ctx);
   const step = buildStep(tracker, index);
   primePhaseState(step.name, step.tag, ctx.logger);
+  await phaseSettle(ctx, step, 'pre');
   const result = await runPhase(tracker, ctx, index);
-  if (isOk(result)) return traceAndContinue(tracker, result.value, step);
+  if (isOk(result)) return settleAndContinue(tracker, result.value, step);
   return handlePhaseFailure({ tracker, ctx, step, result });
 }
 

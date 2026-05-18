@@ -255,6 +255,28 @@ interface IElementMediator {
   waitForNetworkIdle(timeoutMs?: number): Promise<Procedure<void>>;
 
   /**
+   * Race a custom wait promise against `waitForNetworkIdle`. Resolves
+   * as soon as either side settles (resolve OR reject); the caller
+   * decides the outcome by inspecting observed state after this
+   * returns.
+   *
+   * <p>Single source of truth for "wait until either a phase-specific
+   * primitive resolves OR the page reports networkidle". Consumed by
+   * ACCOUNT-RESOLVE.PRE and DASHBOARD.FINAL (PR #234) — both phases
+   * pair `waitForFirstId` / `waitForTransactionsTraffic` with the
+   * networkidle fallback so they fail fast once the page is done
+   * loading instead of busy-polling the full budget.
+   *
+   * <p>Rejections from either racer are swallowed — observed state
+   * (pool contents, captured URLs) is the source of truth.
+   *
+   * @param customWait - Phase-specific wait promise.
+   * @param budgetMs - Shared budget for the networkidle side.
+   * @returns True after the race settles.
+   */
+  raceWithNetworkIdle(customWait: Promise<unknown>, budgetMs: number): Promise<true>;
+
+  /**
    * Wait for URL to match a glob pattern (SPA navigation wait).
    * Non-fatal: returns succeed(false) on timeout.
    * @param pattern - Glob pattern (e.g. '**\/login**').

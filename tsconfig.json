@@ -23,6 +23,7 @@
     "isolatedModules": true,
     "inlineSourceMap": true,
     "inlineSources": true,
+    "ignoreDeprecations": "6.0",
     "types": ["jest", "lodash", "node", "source-map-support"]
   },
   "include": ["src/**/*"],

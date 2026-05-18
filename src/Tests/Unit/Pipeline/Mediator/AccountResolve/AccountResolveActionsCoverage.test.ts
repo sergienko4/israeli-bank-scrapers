@@ -65,6 +65,22 @@ function makeMediatorStub(
       getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => captures,
       waitForFirstId: stubWaitForFirstId,
     },
+    /**
+     * Smart-wait race stub (added PR #234) — never resolves so the
+     * outcome is decided by `waitForFirstId`'s synchronous resolution.
+     * @returns Promise that never resolves.
+     */
+    /** Smart-wait mock — awaits the custom wait so test stubs run.
+     * @param cw - Caller-supplied custom wait promise.
+     * @returns True after the custom wait settles. */
+    raceWithNetworkIdle: async (cw: Promise<unknown>): Promise<true> => {
+      try {
+        await cw;
+      } catch {
+        /* swallow */
+      }
+      return true as const;
+    },
   } as unknown as IElementMediator;
 }
 
