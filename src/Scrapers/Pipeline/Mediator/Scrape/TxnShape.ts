@@ -16,6 +16,7 @@
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_FIELDS } from '../../Registry/WK/ScrapeFieldMappings.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
+import type { JsonValue, MaybeJsonValue } from '../../Types/Json.js';
 
 /** Whether a response body carries a non-empty txn array. */
 type HasTxnArray = Brand<boolean, 'HasTxnArray'>;
@@ -23,16 +24,8 @@ type HasTxnArray = Brand<boolean, 'HasTxnArray'>;
 /** Whether a URL matches a known dashboard-PREVIEW / widget pattern. */
 type IsTxnWidgetUrl = Brand<boolean, 'IsTxnWidgetUrl'>;
 
-/** Record alias — avoids literal Record<string, unknown> in annotations. */
-type JsonObject = Record<string, unknown>;
-
-/**
- * Untyped JSON value crossing module boundaries. The named alias is
- * required because the architecture ESLint rule (`no-restricted-syntax`)
- * forbids the literal `unknown` keyword in function signatures.
- */
-// NOSONAR: typescript:S6564 — alias is required by `no-restricted-syntax`.
-type JsonValue = unknown;
+/** Record alias — narrow JSON-typed record so type guards from JsonValue work. */
+type JsonObject = Record<string, JsonValue>;
 
 /** Max BFS depth when scanning a captured body for a txn array.
  *  Banks nest: body.result.bankAccounts[].debitDates[].transactions[]
@@ -78,14 +71,14 @@ function recordCarriesTxnArray(record: JsonObject): boolean {
 function recordCarriesShapedArray(record: JsonObject): boolean {
   return Object.values(record).some((value): boolean => {
     if (!Array.isArray(value) || value.length === 0) return false;
-    const first: JsonValue = value[0];
+    const first = value[0] as JsonValue;
     if (!isPlainRecord(first)) return false;
     const head = first;
-    const hasDate = WK_FIELDS.date.some((key): boolean => head[key] !== undefined);
+    const hasDate = WK_FIELDS.date.some((key): boolean => key in head);
     const hasAmount =
-      WK_FIELDS.amount.some((key): boolean => head[key] !== undefined) ||
-      WK_FIELDS.creditAmount.some((key): boolean => head[key] !== undefined) ||
-      WK_FIELDS.debitAmount.some((key): boolean => head[key] !== undefined);
+      WK_FIELDS.amount.some((key): boolean => key in head) ||
+      WK_FIELDS.creditAmount.some((key): boolean => key in head) ||
+      WK_FIELDS.debitAmount.some((key): boolean => key in head);
     return hasDate && hasAmount;
   });
 }
@@ -96,8 +89,13 @@ function recordCarriesShapedArray(record: JsonObject): boolean {
  * @returns Flattened children to enqueue at the next BFS depth.
  */
 function expandForBfs(v: JsonValue): readonly JsonValue[] {
-  if (Array.isArray(v)) return v;
-  if (isPlainRecord(v)) return Object.values(v);
+  // `Array.isArray` is typed as `v is any[]` in lib.d.ts, so the narrow
+  // path needs an explicit re-cast back to the value type.
+  if (Array.isArray(v)) return v as readonly JsonValue[];
+  if (isPlainRecord(v)) {
+    const record: Record<string, JsonValue> = v;
+    return Object.values(record);
+  }
   return [];
 }
 
@@ -129,9 +127,9 @@ function bfsStep(state: IBfsFrontier): IBfsFrontier {
  * @param body - Captured JSON response body (any shape).
  * @returns True when a non-empty txn array is reachable within the depth budget.
  */
-export function hasTxnArray(body: JsonValue): HasTxnArray {
+export function hasTxnArray(body: MaybeJsonValue): HasTxnArray {
   const depths = Array.from({ length: TXN_SCAN_MAX_DEPTH }, (_, i): number => i);
-  const initial: IBfsFrontier = { level: [body], found: false };
+  const initial: IBfsFrontier = { level: [body as JsonValue], found: false };
   const final = depths.reduce((acc): IBfsFrontier => bfsStep(acc), initial);
   return final.found as HasTxnArray;
 }

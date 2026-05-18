@@ -18,6 +18,7 @@ import {
 } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import type { IFieldMatch } from '../../Types/FieldMatch.js';
+import type { JsonValue } from '../../Types/Json.js';
 import type {
   ITxnEndpoint,
   ITxnEndpointInternal,
@@ -40,23 +41,6 @@ const LOG = getDebug(import.meta.url);
 
 /** API response record — wraps Record to hide `unknown` from function signatures. */
 type ApiRecord = Record<string, unknown>;
-
-/**
- * Untyped value crossing module boundaries. The named alias is
- * required because the architecture ESLint rule
- * (`no-restricted-syntax` selectors blocking `unknown` in function
- * signatures, lines 373-380 of `eslint.config.mjs`) forces an alias.
- * Sonar S6564 + `sonarjs/redundant-type-aliases` flagging the alias
- * is an acknowledged tradeoff; the `eslint.config.mjs` Section 12
- * file-scoped allowlist suppresses the redundant-alias rule on the
- * sibling parser at `Mediator/Scrape/ScrapeAutoMapper.ts`. Phase 7e
- * relocated the parser without expanding that allowlist (per the
- * "do not modify eslint config" directive); the alias stays here
- * because eliminating it would either fire the bare-`unknown` rule
- * or require a 14-site closed-union refactor with type-narrowing
- * casts at every boundary — out-of-scope for this commit.
- */
-type UntypedValue = unknown;
 
 /**
  * Result of probing a record for a scalar field — the raw scalar
@@ -146,7 +130,7 @@ interface ISearchItem {
  * @param val - Value to check.
  * @returns True if val is a non-null, non-array object.
  */
-function isSearchableObject(val: UntypedValue): boolean {
+function isSearchableObject(val: JsonValue): boolean {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
 }
 
@@ -222,7 +206,7 @@ function enqueueChildren(
 ): boolean {
   if (depth >= MAX_SEARCH_DEPTH) return false;
   const nextDepth = depth + 1;
-  const recordValues = Object.values(record) as readonly UntypedValue[];
+  const recordValues = Object.values(record) as readonly JsonValue[];
   const children = recordValues.filter(isSearchableObject).map(
     (child): ISearchItem => ({
       value: child as Record<string, unknown>,
@@ -319,7 +303,7 @@ const TXN_SIGNATURE_FIELDS = new Set(
  * @param item - Object to score.
  * @returns Number of matching WK transaction fields.
  */
-function scoreTxnSignature(item: UntypedValue): number {
+function scoreTxnSignature(item: JsonValue): number {
   if (!isSearchableObject(item)) return 0;
   const keys = Object.keys(item as object).map((k): string => k.toLowerCase());
   return keys.filter((k): boolean => TXN_SIGNATURE_FIELDS.has(k)).length;
@@ -348,7 +332,7 @@ interface IArrayNodeCtx {
  */
 function pushArrayChildren(
   stack: IStackEntry[],
-  items: readonly UntypedValue[],
+  items: readonly JsonValue[],
   depth: number,
 ): number {
   const objects = items.filter((item): boolean => typeof item === 'object' && item !== null);
@@ -384,10 +368,10 @@ function pushObjectChildren(
  */
 function handleArrayNode(ctx: IArrayNodeCtx): boolean {
   if (ctx.node.length === 0) return false;
-  const firstNode = ctx.node[0];
+  const firstNode = ctx.node[0] as JsonValue;
   const score = scoreTxnSignature(firstNode);
   if (score < MIN_TXN_SCORE) {
-    pushArrayChildren(ctx.stack, ctx.node, ctx.depth);
+    pushArrayChildren(ctx.stack, ctx.node as readonly JsonValue[], ctx.depth);
     return false;
   }
   for (const item of ctx.node) ctx.collected.push(item);
@@ -403,7 +387,7 @@ function handleArrayNode(ctx: IArrayNodeCtx): boolean {
  */
 function processStackEntry(
   entry: IStackEntry,
-  collected: UntypedValue[],
+  collected: JsonValue[],
   stack: IStackEntry[],
 ): boolean {
   if (entry.depth > MAX_ARRAY_DEPTH) return false;
@@ -434,7 +418,7 @@ function processStackEntry(
  * @param collected - Mutable accumulator.
  * @returns True if stack is now empty.
  */
-function processOneLifo(stack: IStackEntry[], collected: UntypedValue[]): boolean {
+function processOneLifo(stack: IStackEntry[], collected: JsonValue[]): boolean {
   // `Array.pop` returns `undefined` on an empty stack, consolidating the
   // "stack is drained" signal into a single check.
   const entry = stack.pop();
@@ -456,7 +440,7 @@ const MAX_DRAIN_ITERATIONS = 1_000_000;
  * @param collected - Mutable accumulator.
  * @returns Collected items.
  */
-function drainLifoStack(stack: IStackEntry[], collected: UntypedValue[]): readonly UntypedValue[] {
+function drainLifoStack(stack: IStackEntry[], collected: JsonValue[]): readonly JsonValue[] {
   // `every` short-circuits when the predicate returns false. Each
   // step calls `processOneLifo`; when it returns true (stack drained)
   // the negation short-circuits `every` and the loop ends.
@@ -473,10 +457,10 @@ function drainLifoStack(stack: IStackEntry[], collected: UntypedValue[]): readon
  * @param obj - Root API record to search.
  * @returns First array of searchable items found.
  */
-function findFirstArray(obj: ApiRecord): readonly UntypedValue[] {
+function findFirstArray(obj: ApiRecord): readonly JsonValue[] {
   const initial: IStackEntry = { node: obj, depth: 0 };
   const stack: IStackEntry[] = [initial];
-  const collected: UntypedValue[] = [];
+  const collected: JsonValue[] = [];
   drainLifoStack(stack, collected);
   if (collected.length > 0) {
     LOG.debug({ message: `findFirstArray: collected ${String(collected.length)} items` });
@@ -486,12 +470,12 @@ function findFirstArray(obj: ApiRecord): readonly UntypedValue[] {
     message: 'findFirstArray: falling back to BFS',
   });
   const allObjects = flattenObjectTree(obj);
-  const arrays = allObjects.map((o): readonly UntypedValue[] | false => {
+  const arrays = allObjects.map((o): readonly JsonValue[] | false => {
     const arr = Object.values(o).find(Array.isArray);
-    if (arr) return arr as readonly UntypedValue[];
+    if (arr) return arr as readonly JsonValue[];
     return false;
   });
-  const hit = arrays.find((a): a is readonly UntypedValue[] => a !== false);
+  const hit = arrays.find((a): a is readonly JsonValue[] => a !== false);
   return hit ?? [];
 }
 
@@ -647,7 +631,7 @@ function autoMapTransaction(raw: ApiRecord): ITransaction | false {
  * @param items - Raw items to filter and cast.
  * @returns Typed record array.
  */
-function castSearchable(items: readonly UntypedValue[]): readonly ApiRecord[] {
+function castSearchable(items: readonly JsonValue[]): readonly ApiRecord[] {
   return items.filter((i): boolean => isSearchableObject(i)).map((i): ApiRecord => i as ApiRecord);
 }
 
@@ -704,7 +688,7 @@ function traceRawShape(responseBody: ApiRecord): true {
  * @param v - Candidate value.
  * @returns True when v looks like an account record.
  */
-function looksLikeAccountRecord(v: UntypedValue): boolean {
+function looksLikeAccountRecord(v: JsonValue): boolean {
   if (!isSearchableObject(v)) return false;
   const hit = findFieldValue(v as ApiRecord, WK_ACCT.id);
   return hit !== false;
@@ -720,7 +704,7 @@ function looksLikeAccountRecord(v: UntypedValue): boolean {
  */
 function rootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
   if (!Array.isArray(responseBody)) return [];
-  const arr = responseBody as readonly unknown[];
+  const arr = responseBody as readonly JsonValue[];
   if (arr.length === 0) return [];
   if (!looksLikeAccountRecord(arr[0])) return [];
   return arr.filter(looksLikeAccountRecord).map((v): ApiRecord => v as ApiRecord);
@@ -1092,7 +1076,7 @@ function processHuntArray(args: IHuntArrayArgs): boolean {
   const { objects, depth, collected, stack } = args;
   if (objects.length === 0) return false;
   const firstObj = objects[0] as ApiRecord;
-  const score = scoreTxnSignature(firstObj);
+  const score = scoreTxnSignature(firstObj as JsonValue);
   if (score >= MIN_TXN_SCORE) {
     collected.push(...(objects as ApiRecord[]));
     return true;
@@ -1196,7 +1180,7 @@ function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
 function findIndexedSubtree(body: ApiRecord, cardId: string): ApiRecord | false {
   const indexKey = `Index${cardId}`;
   const values = Object.values(body);
-  const nested = values.filter((v): boolean => isSearchableObject(v));
+  const nested = values.filter((v): boolean => isSearchableObject(v as JsonValue));
   const records = nested.map((v): ApiRecord => v as ApiRecord);
   const match = records.find((rec): boolean => indexKey in rec);
   if (match) return match[indexKey] as ApiRecord;

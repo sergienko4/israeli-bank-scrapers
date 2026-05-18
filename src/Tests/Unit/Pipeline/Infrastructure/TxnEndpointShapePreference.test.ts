@@ -16,8 +16,7 @@ import type {
   INetworkDiscovery,
 } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import { hasTxnArray } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnShape.js';
-
-type JsonValue = unknown;
+import type { JsonValue } from '../../../../Scrapers/Pipeline/Types/Json.js';
 
 /**
  * Build a minimal IDiscoveredEndpoint for simulation.
@@ -98,7 +97,7 @@ function pickPreferred(captured: readonly IDiscoveredEndpoint[]): IDiscoveredEnd
   const txnPattern = /\/current-account\/transactions/i;
   const matches = captured.filter((ep): boolean => txnPattern.test(ep.url));
   if (matches.length === 0) return false;
-  const shapePass = matches.find((ep): boolean => hasTxnArray(ep.responseBody));
+  const shapePass = matches.find((ep): boolean => hasTxnArray(ep.responseBody as JsonValue));
   if (shapePass) return shapePass;
   return matches[0] ?? false;
 }

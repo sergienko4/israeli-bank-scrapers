@@ -9,6 +9,7 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
+import type { JsonValue } from '../../Types/Json.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Network/NetworkDiscovery.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';
@@ -50,7 +51,7 @@ function countTxnTraffic(network: INetworkDiscovery, sinceMs: number): number {
   const withBody = matched.filter(
     (ep): boolean => ep.responseBody !== undefined && ep.responseBody !== null,
   );
-  return withBody.filter((ep): boolean => hasTxnArray(ep.responseBody)).length;
+  return withBody.filter((ep): boolean => hasTxnArray(ep.responseBody as JsonValue)).length;
 }
 
 /** Lowercased URL schemes rejected by `resolveAbsoluteHref` —

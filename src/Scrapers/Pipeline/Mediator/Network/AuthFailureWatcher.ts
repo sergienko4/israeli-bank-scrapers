@@ -22,6 +22,7 @@ import type { Page, Response } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
+import type { JsonValue, MaybeJsonValue } from '../../Types/Json.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 
 const LOG = getDebug(import.meta.url);
@@ -34,13 +35,6 @@ const FAIL_STATUS_MAX = 499;
 
 /** Classifier label distinguishing which detector layer fired. */
 type AuthFailureClassifier = 'http-4xx' | 'body-error';
-/**
- * Parsed-JSON sentinel passed to body classifiers. Aliased so the
- * function signature does not include the bare `unknown` keyword
- * (forbidden by the architecture lint rule).
- */
-// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
-type JsonValue = unknown;
 
 /**
  * Pattern row matching a body field whose value indicates an auth failure.
@@ -84,7 +78,7 @@ function isErrorCodeFailure(v: JsonValue): boolean {
  * @returns True when v indicates a populated error.
  */
 function isErrorObjectFailure(v: JsonValue): boolean {
-  if (v === null || v === undefined) return false;
+  if (v === null) return false;
   if (typeof v === 'string') return v.length > 0;
   if (typeof v === 'object') return Object.keys(v).length > 0;
   return false;
@@ -207,7 +201,7 @@ function matchInRecord(record: Record<string, JsonValue>): string | false {
  * @param body - Parsed JSON response body.
  * @returns Matching pattern note when failure detected, false otherwise.
  */
-function classifyBodyAsFailure(body: JsonValue): string | false {
+function classifyBodyAsFailure(body: MaybeJsonValue): string | false {
   if (body === null || typeof body !== 'object') return false;
   const topRecord = body as Record<string, JsonValue>;
   const topHit = matchInRecord(topRecord);

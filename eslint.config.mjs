@@ -1017,34 +1017,20 @@ export default tseslint.config(
     },
   },
 
-  // 12. ARCHITECTURE-RULE EXCEPTION — files where the project's
-  //     `no-restricted-syntax` rule (banning bare `unknown` in function
-  //     signatures) forces a `type X = unknown;` alias that SonarJS
-  //     S6564 then flags as redundant. The architecture rule wins;
-  //     this override silences S6564 locally to keep
-  //     `eslint --max-warnings 0` green.
+  // 12. ARCHITECTURE-RULE EXCEPTION — single remaining `type X = string;`
+  //     alias deferred to a follow-up commit (ContextId branding).
+  //     Once C.5.T3 lands the brand + 37 test-fixture casts, this whole
+  //     block CAN AND MUST be deleted — the `sonarjs/redundant-type-aliases`
+  //     rule must be active for the entire codebase so any future
+  //     `type X = unknown;` workaround pattern fails lint at edit time.
   //
-  //     `LoginPhaseActions.ts` removed from this list 2026-05-18 —
-  //     its `FormAnchorSelector = string` alias was deleted (Rule #15
-  //     applied to class methods only, not the free function the
-  //     alias was wrapping).
-  //
-  //     `PipelineContext.ts:ContextId = string` remains flagged by
-  //     SonarCloud S6564; resolving via branding would cascade to
-  //     30+ test fixture sites. Deferred to a follow-up PR; tracked
-  //     by dismissing on SonarCloud as "Won't Fix" with rationale.
+  //     The 6 historical `= unknown` aliases (JsonValue×4, UntypedValue,
+  //     ApiValue) were removed 2026-05-18 in C.5.T2 by introducing the
+  //     shared `JsonValue` recursive-union type at
+  //     `src/Scrapers/Pipeline/Types/Json.ts`. Their entries are gone
+  //     from this allowlist permanently.
   {
-    files: [
-      // (a) `unknown` aliases forced by `no-restricted-syntax`
-      'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/TxnShape.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeIdExtraction.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.ts',
-      // (b) ContextId = string — branding cascade deferred
-      'src/Scrapers/Pipeline/Types/PipelineContext.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/Types/PipelineContext.ts'],
     rules: {
       'sonarjs/redundant-type-aliases': 'off',
     },

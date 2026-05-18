@@ -18,6 +18,7 @@ import {
 } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
+import type { JsonObject, JsonValue } from '../../Types/Json.js';
 import { redactAccount } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -465,7 +466,7 @@ async function buildAccountResult(
 }
 
 /** Captured record list — concrete type avoids null/undefined in signatures. */
-type CapturedRecords = readonly Record<string, unknown>[];
+type CapturedRecords = readonly JsonObject[];
 
 /**
  * Project one captured endpoint to a 0- or 1-element record array.
@@ -474,8 +475,8 @@ type CapturedRecords = readonly Record<string, unknown>[];
  * @returns Single-element array if responseBody is a plain record, else empty.
  */
 function projectEndpointBody(ep: IDiscoveredEndpoint): CapturedRecords {
-  if (!isRecord(ep.responseBody)) return [];
-  return [ep.responseBody];
+  if (!isRecord(ep.responseBody as JsonValue)) return [];
+  return [ep.responseBody as JsonObject];
 }
 
 /**
@@ -548,7 +549,7 @@ function resolveBalanceFromCapturedEndpoints(
  */
 async function resolveBalance(ctx: IAccountAssemblyCtx): Promise<number> {
   const aliases = balanceAliasesFor(ctx);
-  const fromRecord = resolveRecordBalance(ctx.rawRecord, aliases);
+  const fromRecord = resolveRecordBalance(ctx.rawRecord as JsonObject | undefined, aliases);
   if (typeof fromRecord === 'number') return fromRecord;
   const fromStore = resolveBalanceFromCapturedEndpoints(ctx.fc.network, aliases);
   if (isOk(fromStore)) return fromStore.value;

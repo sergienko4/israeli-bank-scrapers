@@ -4,6 +4,7 @@
  */
 
 import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.js';
+import type { JsonValue } from '../../Types/Json.js';
 import type {
   IApiFetchContext,
   IBillingCycleCatalog,
@@ -40,15 +41,8 @@ const EMPTY_TXN_ENDPOINT: ITxnEndpoint = {
 
 /** API response payload — wraps Record to hide `unknown` from function signatures. */
 type ApiPayload = Record<string, unknown>;
-/**
- * Untyped API value — named alias kept to satisfy the architecture
- * `no-restricted-syntax` rule that forbids bare `unknown` in function
- * signatures. NOSONAR rationale below.
- */
-// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
-type ApiValue = unknown;
-/** Untyped API array — wraps `unknown[]` to satisfy no-unknown-in-signatures ESLint rule. */
-type ApiValueArray = ApiValue[];
+/** Untyped JSON array — composes the shared JsonValue. */
+type JsonValueArray = JsonValue[];
 
 /**
  * Bundled context for fetching one account's data. Phase 7f: TXN
@@ -170,10 +164,9 @@ interface IFetchAllAccountsCtx {
 }
 
 export { EMPTY_FIELD_MAP, EMPTY_TXN_ENDPOINT };
+export type { JsonValue } from '../../Types/Json.js';
 export type {
   ApiPayload,
-  ApiValue,
-  ApiValueArray,
   IAccountAssemblyCtx,
   IAccountFetchCtx,
   IAccountFetchOpts,
@@ -181,4 +174,5 @@ export type {
   IChunkingCtx,
   IFetchAllAccountsCtx,
   IPostFetchCtx,
+  JsonValueArray,
 };

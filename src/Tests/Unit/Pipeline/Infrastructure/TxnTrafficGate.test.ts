@@ -13,8 +13,7 @@ import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
-
-type JsonValue = unknown;
+import type { MaybeJsonValue } from '../../../../Scrapers/Pipeline/Types/Json.js';
 
 /** Common URL matching PIPELINE_WELL_KNOWN_API.transactions regex. */
 const TXN_URL = 'https://bank.example.com/current-account/transactions?view=totals';
@@ -25,7 +24,7 @@ const TXN_URL = 'https://bank.example.com/current-account/transactions?view=tota
  * @param body - Parsed response body.
  * @returns Endpoint stub.
  */
-function makeEndpoint(url: string, body: JsonValue): IDiscoveredEndpoint {
+function makeEndpoint(url: string, body: MaybeJsonValue): IDiscoveredEndpoint {
   return {
     url,
     method: 'GET',
@@ -64,7 +63,7 @@ function makeNetworkStub(endpoints: readonly IDiscoveredEndpoint[]): INetworkDis
  * @param body - Response body to probe.
  * @returns Count reported by countTxnTraffic.
  */
-function countFor(body: JsonValue): number {
+function countFor(body: MaybeJsonValue): number {
   const endpoint = makeEndpoint(TXN_URL, body);
   const network = makeNetworkStub([endpoint]);
   return countTxnTraffic(network, 0);

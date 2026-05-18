@@ -21,6 +21,7 @@ import {
   resolveBalanceFromRecords,
   resolveRecordBalance,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.js';
+import type { JsonObject } from '../../../../../Scrapers/Pipeline/Types/Json.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Closed enum — pipeline browser banks that expose a balance field. */
@@ -35,7 +36,7 @@ interface IBankBalanceFixture {
    * FAKE response body. Records mirror real-bank captures' shapes with
    * PII-redacted FAKE values (account numbers, amounts, descriptions).
    */
-  readonly fakeBody: Readonly<Record<string, unknown>>;
+  readonly fakeBody: JsonObject;
   /**
    * The single alias DASHBOARD.FINAL would resolve onto
    * `ctx.txnEndpoint.fieldMap.balance` for this bank's TXN body.

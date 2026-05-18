@@ -21,6 +21,7 @@ import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import type { JsonValue } from '../../Types/Json.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../Types/PiiRedactor.js';
 import { getSubStepNetworkDumpDir } from '../../Types/TraceConfig.js';
@@ -544,7 +545,9 @@ function tierPick(
   );
   if (urlMatches.length === 0) return { endpoint: false, tier: 'none', matches: 0 };
   const matches = urlMatches.length;
-  const shapePassing = urlMatches.filter((ep): boolean => hasTxnArray(ep.responseBody));
+  const shapePassing = urlMatches.filter((ep): boolean =>
+    hasTxnArray(ep.responseBody as JsonValue),
+  );
   const postWithShape = shapePassing.find(isReplayablePost);
   if (postWithShape) return { endpoint: postWithShape, tier: 'postWithShape', matches };
   const anyReplayablePost = urlMatches.find(isReplayablePost);

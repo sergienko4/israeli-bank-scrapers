@@ -18,11 +18,10 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { findFieldValue } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
+import type { JsonValue, MaybeJsonValue } from '../../../Types/Json.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 
-// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
-type JsonValue = unknown;
 type JsonObject = Record<string, JsonValue>;
 type MaybeRecord = JsonObject | null | undefined;
 
@@ -31,7 +30,7 @@ type MaybeRecord = JsonObject | null | undefined;
  * @param v - Value to test.
  * @returns True if v is a record.
  */
-export function isRecord(v: JsonValue): v is JsonObject {
+export function isRecord(v: MaybeJsonValue): v is JsonObject {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 

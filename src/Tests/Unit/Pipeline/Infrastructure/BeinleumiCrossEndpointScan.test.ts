@@ -21,9 +21,9 @@ import type {
 } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import { resolveBalanceFromRecords } from '../../../../Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.js';
 import { resolveDisplayIdFromCapturedEndpoints } from '../../../../Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeIdExtraction.js';
+import type { JsonValue } from '../../../../Scrapers/Pipeline/Types/Json.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
-type JsonValue = unknown;
 type JsonObject = Record<string, JsonValue>;
 
 /** Loaded response captured from a real E2E dump file. */

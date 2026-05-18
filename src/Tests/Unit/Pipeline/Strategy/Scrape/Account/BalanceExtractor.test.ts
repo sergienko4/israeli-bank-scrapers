@@ -7,6 +7,7 @@ import {
   resolveBalanceFromRecords,
   resolveRecordBalance,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.js';
+import type { JsonObject } from '../../../../../../Scrapers/Pipeline/Types/Json.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 describe('isRecord', () => {
@@ -52,7 +53,7 @@ describe('resolveRecordBalance', () => {
   });
 
   it('descends into top-level arrays for balance', () => {
-    const record = { items: [{ other: 'x' }, { balance: 500 }] };
+    const record = { items: [{ other: 'x' }, { balance: 500 }] } as JsonObject;
     const resolveRecordBalanceResult10 = resolveRecordBalance(record, ['balance']);
     expect(resolveRecordBalanceResult10).toBe(500);
   });
@@ -72,7 +73,7 @@ describe('resolveRecordBalance', () => {
 
 describe('resolveBalanceFromRecords', () => {
   it('finds balance in first matching record', () => {
-    const records = [{ other: 'x' }, { balance: 10 }];
+    const records = [{ other: 'x' }, { balance: 10 }] as JsonObject[];
     const result = resolveBalanceFromRecords(records, ['balance']);
     const isOkResult13 = isOk(result);
     expect(isOkResult13).toBe(true);
@@ -80,7 +81,7 @@ describe('resolveBalanceFromRecords', () => {
   });
 
   it('returns failure when no record has balance', () => {
-    const records = [{ a: 1 }, { b: 2 }];
+    const records = [{ a: 1 }, { b: 2 }] as JsonObject[];
     const result = resolveBalanceFromRecords(records, ['balance']);
     const isOkResult14 = isOk(result);
     expect(isOkResult14).toBe(false);
