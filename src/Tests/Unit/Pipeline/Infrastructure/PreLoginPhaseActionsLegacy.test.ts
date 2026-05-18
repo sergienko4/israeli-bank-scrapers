@@ -7,6 +7,7 @@ import {
   executeFireRevealClicksSealed,
   executePreLocateReveal,
 } from '../../../../Scrapers/Pipeline/Mediator/PreLogin/PreLoginPhaseActions.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import type { ISome, Option } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -49,7 +50,7 @@ function assertSomeBrowser(browser: Option<IBrowserState>): ISome<IBrowserState>
 /** Mock reveal target. */
 const MOCK_TARGET: IResolvedTarget = {
   selector: 'button',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Enter',
 };

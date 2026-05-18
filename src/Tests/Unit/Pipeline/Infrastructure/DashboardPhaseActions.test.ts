@@ -8,6 +8,7 @@ import {
   executePreLocateNav,
   executeValidateTraffic,
 } from '../../../../Scrapers/Pipeline/Mediator/Dashboard/DashboardPhaseActions.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IDashboardState,
@@ -24,7 +25,7 @@ import { makeMockActionExecutor, makeScreenshotPage, toActionCtx } from './TestH
 /** Pre-resolved target. */
 const MOCK_TARGET: IResolvedTarget = {
   selector: 'a',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Transactions',
 };

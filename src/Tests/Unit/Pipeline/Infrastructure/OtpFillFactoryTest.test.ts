@@ -44,6 +44,7 @@ import {
   OTP_FILL_STEP,
   OtpFillPhase,
 } from '../../../../Scrapers/Pipeline/Phases/OtpFill/OtpFillPhase.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -147,7 +148,7 @@ describe.each(BANK_OTP_FILL_FIXTURES)(
 /** Mock OTP input target — the input the user types the code into. */
 const MOCK_INPUT: IResolvedTarget = {
   selector: '#otp',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'placeholder',
   candidateValue: 'code',
 };
@@ -155,7 +156,7 @@ const MOCK_INPUT: IResolvedTarget = {
 /** Mock OTP submit target — the "Send" / "Continue" button. */
 const MOCK_SUBMIT: IResolvedTarget = {
   selector: '#submit',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Send',
 };

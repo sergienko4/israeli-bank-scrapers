@@ -10,6 +10,7 @@ import {
   executeDashboardNavigationSealed,
   executePreLocateNav,
 } from '../../../../Scrapers/Pipeline/Mediator/Dashboard/DashboardPhaseActions.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IApiFetchContext,
@@ -47,7 +48,7 @@ class TestError extends Error {
 /** Pre-resolved target used across branches. */
 const MOCK_TARGET: IResolvedTarget = {
   selector: 'a',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Transactions',
 };

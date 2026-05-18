@@ -1017,25 +1017,20 @@ export default tseslint.config(
     },
   },
 
-  // 12. ARCHITECTURE-RULE EXCEPTION — single remaining `type X = string;`
-  //     alias deferred to a follow-up commit (ContextId branding).
-  //     Once C.5.T3 lands the brand + 37 test-fixture casts, this whole
-  //     block CAN AND MUST be deleted — the `sonarjs/redundant-type-aliases`
-  //     rule must be active for the entire codebase so any future
-  //     `type X = unknown;` workaround pattern fails lint at edit time.
+  // 12. ARCHITECTURE-RULE EXCEPTION — DELETED 2026-05-18.
   //
-  //     The 6 historical `= unknown` aliases (JsonValue×4, UntypedValue,
-  //     ApiValue) were removed 2026-05-18 in C.5.T2 by introducing the
-  //     shared `JsonValue` recursive-union type at
-  //     `src/Scrapers/Pipeline/Types/Json.ts`. Their entries are gone
-  //     from this allowlist permanently.
-  {
-    files: ['src/Scrapers/Pipeline/Types/PipelineContext.ts'],
-    rules: {
-      'sonarjs/redundant-type-aliases': 'off',
-    },
-  },
-
+  //     This block previously suppressed `sonarjs/redundant-type-aliases`
+  //     on 8 production files containing `type X = unknown;` and
+  //     `type ContextId = string;` aliases that dodged other
+  //     architecture rules (`no-restricted-syntax` bare-unknown ban +
+  //     legacy Rule #15 no-primitive-returns). Phase C closed all 8
+  //     in code: 6 `= unknown` aliases were replaced with the shared
+  //     `JsonValue` recursive-union type (C.5.T2); `ContextId` was
+  //     branded via `Brand<string, 'ContextId'>` + `mintContextId`
+  //     helper (C.5.T3, this commit). The architectural canary
+  //     `EslintCanaries/redundant-type-alias.canary.ts` locks the
+  //     rule in place so this anti-pattern cannot regress.
+  //
   // 12b. TEST STUB EXCEPTION — `require-await` flags `async` methods
   //      that don't actually await. Production code MUST await; test
   //      stubs (e.g., `async fetchData() { return ScraperResult.ok }`)

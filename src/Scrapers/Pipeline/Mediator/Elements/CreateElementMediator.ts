@@ -10,6 +10,7 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { WK_LOGIN_FORM } from '../../Registry/WK/LoginWK.js';
+import type { ContextId } from '../../Types/Brand.js';
 import { capTimeout, getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
@@ -1744,7 +1745,7 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
   const registry = buildFrameRegistry(page);
   return {
     /** @inheritdoc */
-    fillInput: (ctxId: string, sel: string, val: string): Promise<true> => {
+    fillInput: (ctxId: ContextId, sel: string, val: string): Promise<true> => {
       const frame = resolveFrame(registry, ctxId);
       return fillInputImpl(frame, sel, val);
     },
@@ -1759,7 +1760,7 @@ function extractActionMediator(full: IElementMediator, page: Page): IActionMedia
       });
     },
     /** @inheritdoc */
-    pressEnter: (ctxId: string): Promise<true> => {
+    pressEnter: (ctxId: ContextId): Promise<true> => {
       const frame = resolveFrame(registry, ctxId);
       return pressEnterImpl(frame);
     },

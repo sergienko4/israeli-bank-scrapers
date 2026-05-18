@@ -10,6 +10,7 @@ import {
 } from '../../../../Scrapers/Pipeline/Mediator/Dashboard/DashboardPhaseActions.js';
 import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IFetchStrategy } from '../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import type { Option } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IResolvedTarget } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -31,7 +32,7 @@ import {
 /** Pre-resolved target used across branches. */
 const MOCK_TARGET: IResolvedTarget = {
   selector: 'a',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Transactions',
 };

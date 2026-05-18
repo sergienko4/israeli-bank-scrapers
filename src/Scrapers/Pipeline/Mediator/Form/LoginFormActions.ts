@@ -11,6 +11,7 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../../Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
+import type { ContextId } from '../../Types/Brand.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { type MaskedText, maskVisibleText } from '../../Types/LogEvent.js';
 import type { ILoginFieldDiscovery, IResolvedTarget } from '../../Types/PipelineContext.js';
@@ -282,7 +283,7 @@ async function tryEnterFromDiscovery(
   logger: ScraperLogger,
 ): Promise<boolean> {
   logger.debug({ method: 'enter', url: maskVisibleText(activeFrameId) });
-  await executor.pressEnter(activeFrameId).catch((): false => false);
+  await executor.pressEnter(activeFrameId as ContextId).catch((): false => false);
   return true;
 }
 

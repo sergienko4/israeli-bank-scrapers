@@ -9,6 +9,7 @@ import {
   executeFireRevealClicksSealed,
   executePreLocateReveal,
 } from '../../../../Scrapers/Pipeline/Mediator/PreLogin/PreLoginPhaseActions.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IPreLoginDiscovery,
@@ -24,7 +25,7 @@ import { makeMockActionExecutor, makeScreenshotPage, toActionCtx } from './TestH
 
 const MOCK_TARGET: IResolvedTarget = {
   selector: 'button',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Enter',
 };

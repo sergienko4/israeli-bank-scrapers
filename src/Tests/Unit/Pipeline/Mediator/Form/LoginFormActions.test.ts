@@ -13,6 +13,7 @@ import {
   fillAndSubmit,
   fillFromDiscovery,
 } from '../../../../../Scrapers/Pipeline/Mediator/Form/LoginFormActions.js';
+import type { ContextId } from '../../../../../Scrapers/Pipeline/Types/Brand.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type {
   ILoginFieldDiscovery,
@@ -140,7 +141,7 @@ describe('fillFromDiscovery', () => {
   it('fails validation when credential key missing', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '#u',
     };
@@ -184,7 +185,7 @@ describe('fillFromDiscovery', () => {
   it('returns success when creds valid and no submit target', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '#u',
     };
@@ -228,13 +229,13 @@ describe('fillFromDiscovery', () => {
   it('clicks submit when discovery.submitTarget is present', async () => {
     const field: IResolvedTarget = {
       selector: '#u',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '#u',
     };
     const submit: IResolvedTarget = {
       selector: 'button[type=submit]',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: 'Submit',
     };
@@ -283,7 +284,7 @@ describe('fillFromDiscovery', () => {
   it('fails validation when multiple credentials missing', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '#u',
     };
@@ -335,7 +336,7 @@ describe('fillFromDiscovery', () => {
   it('tryEnterFromDiscovery swallows pressEnter rejection (.catch line 286)', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '#u',
     };
@@ -383,7 +384,7 @@ describe('fillFromDiscovery', () => {
   it('tryClickSubmitFromDiscovery swallows clickElement rejection (.catch line 306)', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '#u',
     };

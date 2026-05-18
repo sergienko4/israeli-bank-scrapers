@@ -152,3 +152,24 @@ export type PhaseStepLabel = Brand<string, 'PhaseStepLabel'>;
 export function mintPhaseStepLabel(raw: string): PhaseStepLabel {
   return raw as PhaseStepLabel;
 }
+
+/**
+ * Opaque frame identifier — 'main' or 'iframe:<stable-url>'. Used by
+ * the FrameRegistry to look up a Playwright `Frame` from a string
+ * that crosses Mediator boundaries. Mint at the FrameRegistry
+ * boundary; consumers receive the brand and round-trip it.
+ *
+ * Re-exported from `PipelineContext.ts` to preserve existing import
+ * paths — the canonical declaration lives here to avoid a cyclic
+ * import between `Brand` and `PipelineContext`.
+ */
+export type ContextId = Brand<string, 'ContextId'>;
+
+/**
+ * Mints a ContextId from a raw string.
+ * @param raw - Raw identifier built from frame URL or name.
+ * @returns The same string typed as ContextId.
+ */
+export function mintContextId(raw: string): ContextId {
+  return raw as ContextId;
+}

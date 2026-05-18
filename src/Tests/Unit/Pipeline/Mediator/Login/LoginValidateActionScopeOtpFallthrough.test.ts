@@ -22,6 +22,7 @@ import type {
   IRaceResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { validateActionScopeIntact } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
+import type { ContextId } from '../../../../../Scrapers/Pipeline/Types/Brand.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   ILoginFieldDiscovery,
@@ -134,14 +135,14 @@ function makeMediator(config: IMediatorConfig): IElementMediator {
 function makeContext(loginUrl: string, passwordSelector: string): IPipelineContext {
   const passwordTarget: IResolvedTarget = {
     selector: passwordSelector,
-    contextId: 'frame-0',
+    contextId: 'frame-0' as ContextId,
     kind: 'css',
     candidateValue: 'password',
   };
   const discovery: ILoginFieldDiscovery = {
     targets: new Map([[LOGIN_FIELDS.PASSWORD, passwordTarget]]),
     formAnchor: none(),
-    activeFrameId: 'frame-0',
+    activeFrameId: 'frame-0' as ContextId,
     submitTarget: none(),
   };
   return {

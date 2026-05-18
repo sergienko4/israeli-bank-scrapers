@@ -10,6 +10,7 @@ import {
   MAIN_CONTEXT_ID,
   resolveFrame,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/FrameRegistry.js';
+import type { ContextId } from '../../../../../Scrapers/Pipeline/Types/Brand.js';
 
 /**
  * Build a minimal mock Frame.
@@ -100,14 +101,14 @@ describe('buildFrameRegistry + resolveFrame', () => {
     const registry = buildFrameRegistry(page);
     const getResult5 = registry.get(MAIN_CONTEXT_ID);
     expect(getResult5).toBe(page);
-    const resolveFrameResult6 = resolveFrame(registry, 'iframe:https://child.co.il/');
+    const resolveFrameResult6 = resolveFrame(registry, 'iframe:https://child.co.il/' as ContextId);
     expect(resolveFrameResult6).toBe(child);
   });
 
   it('resolveFrame throws ScraperError for unknown contextId', () => {
     const page = makePage([]);
     const registry = buildFrameRegistry(page);
-    expect(() => resolveFrame(registry, 'iframe:does-not-exist')).toThrow();
+    expect(() => resolveFrame(registry, 'iframe:does-not-exist' as ContextId)).toThrow();
   });
 
   it('main page always resolvable after build', () => {

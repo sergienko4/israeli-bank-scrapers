@@ -26,6 +26,7 @@
 
 import type { Page } from 'playwright-core';
 
+import type { ContextId } from '../../../../../../Scrapers/Pipeline/Types/Brand.js';
 import { some } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IPipelineContext,
@@ -52,7 +53,7 @@ export interface IOtpTriggerPhaseContextArgs {
 /** PII-safe synthetic resolved target — properly typed, no cast. */
 const SYNTHETIC_TRIGGER_TARGET: IResolvedTarget = {
   selector: '[data-test-id="otp-send"]',
-  contextId: 'fixture-otp-trigger-ctx',
+  contextId: 'fixture-otp-trigger-ctx' as ContextId,
   kind: 'css',
   candidateValue: '[data-test-id="otp-send"]',
 };

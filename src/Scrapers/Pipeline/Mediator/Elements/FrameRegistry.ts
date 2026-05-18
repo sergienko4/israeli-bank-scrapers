@@ -8,13 +8,13 @@
 import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../Base/ScraperError.js';
-import type { ContextId } from '../../Types/PipelineContext.js';
+import { type ContextId, mintContextId } from '../../Types/Brand.js';
 
 /** Main page context identifier constant. */
-const MAIN_CONTEXT_ID: ContextId = 'main';
+const MAIN_CONTEXT_ID: ContextId = mintContextId('main');
 
 /** Iframe context identifier prefix. */
-const IFRAME_PREFIX: ContextId = 'iframe:';
+const IFRAME_PREFIX = 'iframe:';
 
 /**
  * Compute a stable opaque contextId for a Page or Frame.
@@ -30,12 +30,12 @@ const IFRAME_PREFIX: ContextId = 'iframe:';
  * @param rawUrl - Full URL with potential query params.
  * @returns Origin + pathname only.
  */
-function stableUrl(rawUrl: ContextId): ContextId {
+function stableUrl(rawUrl: string): ContextId {
   try {
     const parsed = new URL(rawUrl);
-    return `${parsed.origin}${parsed.pathname}`;
+    return mintContextId(`${parsed.origin}${parsed.pathname}`);
   } catch {
-    return rawUrl;
+    return mintContextId(rawUrl);
   }
 }
 
@@ -54,9 +54,12 @@ function computeContextId(context: Page | Frame, page: Page): ContextId {
   const url = frame.url();
   const name = frame.name();
   const hasRealUrl = url !== 'about:blank' && url.length > 0;
-  const stableIdMap: Record<string, ContextId> = { true: stableUrl(url), false: name };
+  const stableIdMap: Record<string, ContextId> = {
+    true: stableUrl(url),
+    false: mintContextId(name),
+  };
   const stableId = stableIdMap[String(hasRealUrl)];
-  return `${IFRAME_PREFIX}${stableId}`;
+  return mintContextId(`${IFRAME_PREFIX}${stableId}`);
 }
 
 /** Immutable frame registry — maps contextId → actual Frame. */

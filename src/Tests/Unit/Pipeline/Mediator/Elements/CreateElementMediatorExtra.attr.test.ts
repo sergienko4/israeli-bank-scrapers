@@ -7,6 +7,7 @@ import type { Locator, Page } from 'playwright-core';
 import createElementMediator, {
   extractActionMediator,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
+import type { ContextId } from '../../../../../Scrapers/Pipeline/Types/Brand.js';
 import { makeRichLocator, makeRichPage } from './CreateElementMediatorExtraHelpers.js';
 
 describe('CreateElementMediator — resolveAndClick direct visible success path', () => {
@@ -235,7 +236,7 @@ describe('CreateElementMediator — extractActionMediator fillInput/clickElement
     // Fire fillInput — any contextId that routes through resolveFrame→fillInputImpl.
     // ActionExecutors may throw internally on our mock, which is fine —
     // we only need the code path to EXECUTE to pick up the branch.
-    await action.fillInput('main', '#user', 'alice').catch((): true => true);
+    await action.fillInput('main' as ContextId, '#user', 'alice').catch((): true => true);
     expect(action).toBeDefined();
   }, 5000);
 
@@ -245,7 +246,7 @@ describe('CreateElementMediator — extractActionMediator fillInput/clickElement
     const full = createElementMediator(page);
     const action = extractActionMediator(full, page);
     await action
-      .clickElement({ contextId: 'main', selector: 'button', isForce: true })
+      .clickElement({ contextId: 'main' as ContextId, selector: 'button', isForce: true })
       .catch((): true => true);
     expect(action).toBeDefined();
   }, 5000);
@@ -273,7 +274,7 @@ describe('CreateElementMediator — extractActionMediator fillInput/clickElement
     } as unknown as Page;
     const full = createElementMediator(page);
     const action = extractActionMediator(full, page);
-    await action.pressEnter('main').catch((): true => true);
+    await action.pressEnter('main' as ContextId).catch((): true => true);
     expect(action).toBeDefined();
   }, 5000);
 
@@ -284,7 +285,7 @@ describe('CreateElementMediator — extractActionMediator fillInput/clickElement
     const action = extractActionMediator(full, page);
     let caught: unknown = null;
     try {
-      await action.pressEnter('no-such-context');
+      await action.pressEnter('no-such-context' as ContextId);
     } catch (error) {
       caught = error;
     }

@@ -14,6 +14,7 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
+import type { ContextId } from '../../Types/Brand.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type {
@@ -189,7 +190,7 @@ async function resolveDashboardTargets(
 }
 
 /** Main-frame context identifier — matches FrameRegistry.MAIN_CONTEXT_ID. */
-const MAIN_CONTEXT_ID = 'main';
+const MAIN_CONTEXT_ID = 'main' as ContextId;
 /**
  * Angular `dropdowntoggle` directive — the deterministic structural signal
  * for a real dropdown-toggle. Always present when the directive is bound,

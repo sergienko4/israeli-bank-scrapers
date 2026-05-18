@@ -11,6 +11,7 @@ import {
   executeTriggerPost,
   executeTriggerPre,
 } from '../../../../Scrapers/Pipeline/Mediator/OtpTrigger/OtpTriggerPhaseActions.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IPipelineContext,
@@ -26,7 +27,7 @@ import { makeMockActionExecutor, makeScreenshotPage, toActionCtx } from './TestH
 /** Mock target for OTP trigger. */
 const MOCK_TARGET: IResolvedTarget = {
   selector: 'button',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Send SMS',
 };

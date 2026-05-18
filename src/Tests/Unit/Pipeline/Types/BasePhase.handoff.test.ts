@@ -5,6 +5,7 @@
  */
 
 import { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {
@@ -105,7 +106,7 @@ describe('BasePhase HANDOFF log (phase-scoped)', () => {
         ...base.diagnostics,
         dashboardTarget: {
           selector: '#t',
-          contextId: 'main',
+          contextId: 'main' as ContextId,
           kind: 'css',
           candidateValue: '#t',
         },
@@ -138,7 +139,10 @@ describe('BasePhase HANDOFF log (phase-scoped)', () => {
     const phase = new LoginLikePhase();
     const disc = {
       targets: new Map([
-        ['password', { selector: '#p', contextId: 'main', kind: 'css', candidateValue: 'pwd' }],
+        [
+          'password',
+          { selector: '#p', contextId: 'main' as ContextId, kind: 'css', candidateValue: 'pwd' },
+        ],
       ]),
       formAnchor: none(),
       activeFrameId: 'main',

@@ -23,6 +23,7 @@
 import { executeHomeNavigation } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
 import type { IHomeDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeResolver.js';
 import { NAV_STRATEGY } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeResolver.js';
+import type { ContextId } from '../../../../../Scrapers/Pipeline/Types/Brand.js';
 import type { IResolvedTarget } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { SILENT_LOG as LOG } from './HomeActionsExtraHelpers.js';
 import { makeRecordingExecutor } from './HomeActionSrpRecorder.js';
@@ -33,7 +34,7 @@ import { makeRecordingExecutor } from './HomeActionSrpRecorder.js';
  */
 function makeDirectDiscovery(): IHomeDiscovery {
   const triggerTarget: IResolvedTarget = {
-    contextId: 'main',
+    contextId: 'main' as ContextId,
     selector: '[id="personal-entrance"]',
     kind: 'attribute',
     candidateValue: 'personal-entrance',
@@ -52,7 +53,7 @@ function makeDirectDiscovery(): IHomeDiscovery {
  */
 function makeSequentialDiscovery(): IHomeDiscovery {
   const triggerTarget: IResolvedTarget = {
-    contextId: 'main',
+    contextId: 'main' as ContextId,
     selector: '[id="personal-entrance"]',
     kind: 'attribute',
     candidateValue: 'personal-entrance',
@@ -154,7 +155,7 @@ async function runDirectFor(
   selector: string,
 ): Promise<readonly { selector: string; contextId: string }[]> {
   const triggerTarget: IResolvedTarget = {
-    contextId: 'main',
+    contextId: 'main' as ContextId,
     selector,
     kind: 'attribute',
     candidateValue: 'fixture',

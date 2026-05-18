@@ -15,6 +15,7 @@ import type { IFormAnchor } from '../Mediator/Form/FormAnchor.js';
 import type { IDiscoveredEndpoint } from '../Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IPipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import type { IFetchStrategy } from '../Strategy/Fetch/FetchStrategy.js';
+import type { ContextId } from './Brand.js';
 import type { ScraperLogger } from './Debug.js';
 import type { Option } from './Option.js';
 import type { Procedure } from './Procedure.js';
@@ -167,9 +168,13 @@ export interface IPreLoginDiscovery {
 
 // ── Phase-Specific Discovery Types (PRE → ACTION handoff) ───────────
 
-/** Opaque frame identifier — 'main' or 'iframe:<url>' — never a raw Playwright object. */
-// NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
-export type ContextId = string;
+/**
+ * Re-export of {@link ContextId} (canonical declaration in `./Brand.js`)
+ * so existing import paths from `../../Types/PipelineContext.js` keep
+ * working. The brand satisfies S6564 (intersection type, not a single
+ * primitive) AND adds nominal safety — random strings cannot be
+ * passed where `ContextId` is expected; construct via `mintContextId`.
+ */
 
 /** Resolved element target — PRE discovered, ACTION executes via contextId. */
 export interface IResolvedTarget {
@@ -813,3 +818,5 @@ export type {
   PickerTier,
 };
 export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_OTP_FILL, EMPTY_OTP_TRIGGER, EMPTY_TXN_HARVEST };
+
+export { type ContextId } from './Brand.js';

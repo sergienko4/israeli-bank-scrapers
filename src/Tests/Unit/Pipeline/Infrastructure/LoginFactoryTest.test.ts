@@ -39,6 +39,7 @@ import type {
   IAuthFailureWatcher,
 } from '../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js';
 import type { INetworkDiscovery } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   ILoginFieldDiscovery,
@@ -232,7 +233,7 @@ describe('executeFillAndSubmitFromDiscovery — pre-condition guards', () => {
     const disc: ILoginFieldDiscovery = {
       targets: new Map(),
       formAnchor: none(),
-      activeFrameId: 'main',
+      activeFrameId: 'main' as ContextId,
       submitTarget: none(),
     };
     const base = makeMockContext({ loginAreaReady: true, loginFieldDiscovery: some(disc) });
@@ -336,14 +337,14 @@ function makeDiscoveryWithPassword(passwordSelector: string): ILoginFieldDiscove
         'password',
         {
           selector: passwordSelector,
-          contextId: 'main',
+          contextId: 'main' as ContextId,
           kind: 'placeholder',
           candidateValue: 'pwd',
         },
       ],
     ]),
     formAnchor: none(),
-    activeFrameId: 'main',
+    activeFrameId: 'main' as ContextId,
     submitTarget: none(),
   };
 }
@@ -355,7 +356,12 @@ function makeDiscoveryWithPassword(passwordSelector: string): ILoginFieldDiscove
  * @returns Discovery without a password target.
  */
 function makeDiscoveryNoPassword(): ILoginFieldDiscovery {
-  return { targets: new Map(), formAnchor: none(), activeFrameId: 'main', submitTarget: none() };
+  return {
+    targets: new Map(),
+    formAnchor: none(),
+    activeFrameId: 'main' as ContextId,
+    submitTarget: none(),
+  };
 }
 
 /** Args for {@link buildScopeCtx}. */

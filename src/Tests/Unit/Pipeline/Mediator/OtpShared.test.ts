@@ -10,6 +10,7 @@ import {
   readDiagTarget,
   unwrapProbe,
 } from '../../../../Scrapers/Pipeline/Mediator/Otp/OtpShared.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import type {
   IActionContext,
   IResolvedTarget,
@@ -50,7 +51,7 @@ describe('unwrapProbe', () => {
 
 describe('readDiagTarget / readDiagString', () => {
   const target: IResolvedTarget = {
-    contextId: 'main',
+    contextId: 'main' as ContextId,
     selector: '#t',
     kind: 'css',
     candidateValue: 't',

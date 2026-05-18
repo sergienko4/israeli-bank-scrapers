@@ -26,6 +26,7 @@ import {
   executeValidateLogin,
 } from '../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
 import type { IFieldContext } from '../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import type { Option } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 
@@ -282,7 +283,7 @@ describe('executeFillAndSubmitFromDiscovery — fillFromDiscovery propagation', 
   it('succeeds when discovery + executor present + valid fields', async () => {
     const target: IResolvedTarget = {
       selector: '#pwd',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'placeholder',
       candidateValue: 'password',
     };
@@ -291,7 +292,7 @@ describe('executeFillAndSubmitFromDiscovery — fillFromDiscovery propagation', 
     const disc: ILoginFieldDiscovery = {
       targets: targets as unknown as ILoginFieldDiscovery['targets'],
       formAnchor: none(),
-      activeFrameId: 'main',
+      activeFrameId: 'main' as ContextId,
       submitTarget: none(),
     };
     const base = makeMockContext({

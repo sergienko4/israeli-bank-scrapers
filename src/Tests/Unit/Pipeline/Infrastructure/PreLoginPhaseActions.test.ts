@@ -9,6 +9,7 @@ import {
   executeSignalToLogin,
   executeValidateForm,
 } from '../../../../Scrapers/Pipeline/Mediator/PreLogin/PreLoginPhaseActions.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IPreLoginDiscovery,
@@ -35,7 +36,7 @@ const FOUND: IRaceResult = {
 /** Mock reveal target. */
 const MOCK_TARGET: IResolvedTarget = {
   selector: 'button',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'textContent',
   candidateValue: 'Enter',
 };

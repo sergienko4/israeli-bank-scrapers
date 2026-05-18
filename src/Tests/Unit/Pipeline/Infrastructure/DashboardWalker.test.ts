@@ -23,6 +23,7 @@ import type {
   IActionMediator,
   IRaceResult,
 } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type { ContextId } from '../../../../Scrapers/Pipeline/Types/Brand.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -44,7 +45,7 @@ import {
 /** Identity-style target the walker consumes from PRE. */
 const TARGET: IResolvedTarget = {
   selector: '[id="winner"]',
-  contextId: 'main',
+  contextId: 'main' as ContextId,
   kind: 'css',
   candidateValue: '[id="winner"]',
 };
@@ -484,7 +485,7 @@ describe('DASHBOARD ACTION — href + menu click failure branches', () => {
     });
     const menuTargetForTest: IResolvedTarget = {
       selector: '[id="menu-toggle"]',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '[id="menu-toggle"]',
     };
@@ -538,7 +539,7 @@ describe('DASHBOARD ACTION — href + menu click failure branches', () => {
     });
     const menuTargetForTest: IResolvedTarget = {
       selector: '[id="menu-toggle"]',
-      contextId: 'main',
+      contextId: 'main' as ContextId,
       kind: 'css',
       candidateValue: '[id="menu-toggle"]',
     };
