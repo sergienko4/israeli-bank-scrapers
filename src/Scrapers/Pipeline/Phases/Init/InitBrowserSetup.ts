@@ -195,15 +195,44 @@ function buildBrowserState(components: IBuiltBrowserComponents): IBrowserState {
  * Used by the InitPhase rollback path when a downstream step throws
  * after the browser/context was acquired but before the full
  * IBrowserState was assembled. Tolerant of either union arm.
+ *
+ * When `bank` is supplied AND the launch succeeded, the strip-aware
+ * composite cleanup runs so a persistent-profile `Cache/` /
+ * `cache2/` / `OfflineCache/` directory left behind by the partially
+ * initialised launch doesn't survive into the next run. Without the
+ * bank, falls back to the legacy bare `.close()` so existing
+ * unit-test fixtures still drive the no-strip branch.
  * @param launchResult - Launch result or false if not yet launched.
+ * @param bank - Optional bank id; enables strip-aware cleanup.
  * @returns True if closed, false if no launch or close failed.
  */
-async function closeBrowserSafe(launchResult: LaunchResult | false): Promise<DidLifecycleStep> {
+async function closeBrowserSafe(
+  launchResult: LaunchResult | false,
+  bank?: string,
+): Promise<DidLifecycleStep> {
   if (!launchResult) return false as DidLifecycleStep;
-  return launchResult
-    .close()
+  const cleanup = pickRollbackCleanup(launchResult, bank);
+  return cleanup()
     .then((): DidLifecycleStep => true as DidLifecycleStep)
     .catch((): DidLifecycleStep => false as DidLifecycleStep);
+}
+
+/**
+ * Pick the rollback cleanup for `closeBrowserSafe` — the strip-aware
+ * composite when a bank is supplied (so persistent-profile launches
+ * scrub `Cache/` etc.) or a bare close that resolves true on success.
+ * @param launchResult - Live Browser or BrowserContext to close.
+ * @param bank - Optional bank id; presence enables strip-cache.
+ * @returns Cleanup callable resolving true after close.
+ */
+function pickRollbackCleanup(launchResult: LaunchResult, bank?: string): () => Promise<true> {
+  if (bank === undefined) {
+    return async (): Promise<true> => {
+      await launchResult.close();
+      return true;
+    };
+  }
+  return buildCloseAndStripCleanup(launchResult, bank);
 }
 
 export { buildBrowserState, closeBrowserSafe, createContextAndPage, launchBrowser, setupPage };

@@ -66,7 +66,7 @@ async function executeLaunchBrowser(input: IPipelineContext): Promise<Procedure<
     });
     return succeed({ ...input, browser: some(state) });
   } catch (error) {
-    await closeBrowserSafe(launchResult);
+    await closeBrowserSafe(launchResult, input.companyId);
     const msg = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `INIT PRE: browser launch failed — ${msg}`);
   }

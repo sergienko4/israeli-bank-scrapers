@@ -159,4 +159,12 @@ describe('closeBrowserSafe', () => {
     const didClose = await closeBrowserSafe(browser);
     expect(didClose).toBe(false);
   });
+
+  it('routes through the strip-aware composite cleanup when bank is supplied', async () => {
+    const closeFn = jest.fn().mockResolvedValue(undefined);
+    const browser = { close: closeFn } as unknown as Browser;
+    const didClose = await closeBrowserSafe(browser, 'amex');
+    expect(didClose).toBe(true);
+    expect(closeFn).toHaveBeenCalledTimes(1);
+  });
 });
