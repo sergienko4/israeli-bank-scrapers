@@ -37,6 +37,7 @@ function makeState(overrides: Partial<IBuilderState> = {}): IBuilderState {
     hasOtpFill: false,
     otpFillRequired: true,
     hasOtpTrigger: false,
+    skipHome: false,
     loginMode: 'declarative',
     loginConfig: false,
     loginFn: false,

@@ -54,6 +54,18 @@ function ifBrowser(state: IBuilderState): boolean {
 }
 
 /**
+ * Predicate: HOME — browser path AND no opt-out via `withSkipHome()`.
+ * Hapoalim sets `skipHome` because its bank URL is the login page
+ * directly (no marketing homepage to discover the login link on).
+ *
+ * @param state - Builder state.
+ * @returns True when HOME should run.
+ */
+function ifBrowserAndNotSkipHome(state: IBuilderState): boolean {
+  return state.hasBrowser && !state.skipHome;
+}
+
+/**
  * Predicate: PRE-LOGIN — opt-in flag plus browser path.
  *
  * @param state - Builder state.
@@ -224,7 +236,7 @@ function makeTerminate(): BasePhase {
  */
 const PHASE_CHAIN: readonly IPhaseSlot[] = [
   { factory: makeInit, enabled: ifBrowser },
-  { factory: makeHome, enabled: ifBrowser },
+  { factory: makeHome, enabled: ifBrowserAndNotSkipHome },
   { factory: makePreLogin, enabled: ifBrowserAndPreLogin },
   { factory: makeLogin, enabled: ifLoginAlways },
   { factory: makeOtpTrigger, enabled: ifOtpFillAndTrigger },

@@ -24,7 +24,12 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     urls: { base: 'https://www.discountbank.co.il' },
   },
   [CompanyTypes.Hapoalim]: {
-    urls: { base: 'https://www.bankhapoalim.co.il' },
+    // Hapoalim: navigate directly to the login page so the pipeline
+    // can skip HOME entirely (see `.withSkipHome()` in HapoalimPipeline.ts).
+    // The marketing homepage at `www.bankhapoalim.co.il` exposes the silent
+    // DOM-scan window that triggers the chronic hCaptcha challenge in CI;
+    // going straight to the login-page subdomain bypasses that surface.
+    urls: { base: 'https://login.bankhapoalim.co.il/ng-portals/auth/he/' },
   },
   [CompanyTypes.Massad]: {
     urls: { base: 'https://www.bankmassad.co.il' },

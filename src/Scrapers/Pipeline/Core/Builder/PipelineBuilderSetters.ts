@@ -28,6 +28,7 @@ interface IBuilderState {
   hasOtpFill: boolean;
   otpFillRequired: boolean;
   hasOtpTrigger: boolean;
+  skipHome: boolean;
   scrapeFn: ScrapeFn | false;
   apiDirectConfig: IApiDirectCallConfig | false;
 }
@@ -42,6 +43,7 @@ const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error
   hasOtpFill: false,
   otpFillRequired: true,
   hasOtpTrigger: false,
+  skipHome: false,
   scrapeFn: false,
   apiDirectConfig: false,
 };

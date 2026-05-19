@@ -78,6 +78,20 @@ class PipelineBuilder {
   }
 
   /**
+   * Skip the HOME phase. Used by banks whose `urls.base` is already
+   * the login page (no marketing homepage to traverse). When set, the
+   * assembler omits HOME from the phase chain so the pipeline goes
+   * INIT → PRE-LOGIN/LOGIN directly. Diagnostics `loginUrl` is
+   * normally populated by HOME.FINAL; downstream consumers
+   * (LOGIN bounce detection) already tolerate an empty `loginUrl`.
+   * @returns This builder.
+   */
+  public withSkipHome(): this {
+    this._s.skipHome = true;
+    return this;
+  }
+
+  /**
    * Enable OTP trigger phase (clicks "Send SMS").
    * @returns This builder.
    */

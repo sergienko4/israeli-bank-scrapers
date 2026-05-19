@@ -98,10 +98,17 @@ const PRE_LOGIN_PHASES: readonly string[] = [
   'terminate',
 ];
 
-/** Nine phases — base + `otp-fill` only (Hapoalim soft-OTP). */
-const OTP_FILL_PHASES: readonly string[] = [
+/**
+ * Eight phases — base + `otp-fill`, HOME skipped. Used by Hapoalim
+ * after `.withSkipHome()` was introduced: the bank's `urls.base` is
+ * the login page directly, so HOME has nothing to discover and is
+ * elided from the chain. (Previously this fixture also exported a
+ * 9-phase `OTP_FILL_PHASES` with HOME included for Hapoalim, but
+ * Hapoalim is currently the only soft-OTP bank so the with-HOME
+ * shape has no callers.)
+ */
+const OTP_FILL_PHASES_NO_HOME: readonly string[] = [
   'init',
-  'home',
   'login',
   'otp-fill',
   'auth-discovery',
@@ -191,8 +198,8 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: HAPOALIM_LOGIN,
     buildPipeline: buildHapoalimPipeline,
     expectedFieldKeys: ['userCode', 'password'],
-    expectedPhaseCount: 9,
-    expectedPhaseNames: OTP_FILL_PHASES,
+    expectedPhaseCount: 8,
+    expectedPhaseNames: OTP_FILL_PHASES_NO_HOME,
   },
   {
     bank: 'beinleumi',

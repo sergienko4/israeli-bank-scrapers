@@ -32,6 +32,7 @@ interface IBuilderFields {
   readonly hasOtpFill: boolean;
   readonly otpFillRequired: boolean;
   readonly hasOtpTrigger: boolean;
+  readonly skipHome: boolean;
   readonly scrapeFn: ScrapeFn | false;
   readonly apiDirectConfig: IApiDirectCallConfig | false;
 }

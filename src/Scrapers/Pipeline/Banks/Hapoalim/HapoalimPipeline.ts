@@ -29,6 +29,7 @@ function buildHapoalimPipeline(options: ScraperOptions): Procedure<IPipelineDesc
   return createPipelineBuilder()
     .withOptions(options)
     .withBrowser()
+    .withSkipHome()
     .withDeclarativeLogin(HAPOALIM_LOGIN)
     .withOtpFill(false)
     .build();

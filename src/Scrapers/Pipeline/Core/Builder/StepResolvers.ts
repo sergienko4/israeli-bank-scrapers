@@ -75,6 +75,7 @@ interface IBuilderState {
   readonly hasOtpFill: boolean;
   readonly otpFillRequired: boolean;
   readonly hasOtpTrigger: boolean;
+  readonly skipHome: boolean;
   readonly loginMode: string;
   readonly loginConfig: ILoginConfig | false;
   readonly loginFn: LoginFn | false;
