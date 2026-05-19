@@ -8,6 +8,15 @@
 # across worktrees and forks without duplicating it into every repo.
 set -o pipefail
 
+# Global bypass: SKIP_PR_REVIEWER=1 short-circuits the entire hook.
+# Reserved for emergencies (broken upstream tools, first-push
+# bootstrap on a fresh machine, force-fix landings). Use sparingly —
+# CI still runs the deterministic gates.
+if [ "${SKIP_PR_REVIEWER:-0}" = "1" ]; then
+    echo "⏭️  pr-reviewer: bypassed via SKIP_PR_REVIEWER=1"
+    exit 0
+fi
+
 AGENT_HOME="${PR_REVIEWER_HOME:-/c/tmp/agents/pr-reviewer}"
 OBSERVE="${AGENT_HOME}/lib/observe.sh"
 ORIENT="${AGENT_HOME}/lib/orient.sh"
@@ -21,7 +30,6 @@ Install:
 Or override the location via PR_REVIEWER_HOME=/path/to/pr-reviewer.
 Push aborted — bypass with: SKIP_PR_REVIEWER=1 git push (DISCOURAGED).
 EOF
-    [ "${SKIP_PR_REVIEWER:-0}" = "1" ] && exit 0
     exit 1
 fi
 
