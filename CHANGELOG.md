@@ -1,5 +1,36 @@
 # Changelog
 
+## [8.3.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.2.1...v8.3.0) (2026-05-19)
+
+
+### Features
+
+* pipeline architecture — Strategy, Builder, Mediator, Result Patterns ([#175](https://github.com/sergienko4/israeli-bank-scrapers/issues/175)) ([4d1addd](https://github.com/sergienko4/israeli-bank-scrapers/commit/4d1addd23a5f7dec8dd7672bb7e711c7b7f4e553))
+* **pipeline:** architecture v2 — real-bank E2E green + PII redaction ([#206](https://github.com/sergienko4/israeli-bank-scrapers/issues/206)) ([60b4913](https://github.com/sergienko4/israeli-bank-scrapers/commit/60b49133adeaf085f4a0aef59509e04c2f5ae427))
+* **pipeline:** cross-bank factory + OTP-FILL seal + HOME fix ([#218](https://github.com/sergienko4/israeli-bank-scrapers/issues/218)) ([9a62261](https://github.com/sergienko4/israeli-bank-scrapers/commit/9a622619909c82077259f6c1061ba87fc25f89f5))
+* **pipeline:** introduce AUTH-DISCOVERY phase + 100% phase isolation ([#216](https://github.com/sergienko4/israeli-bank-scrapers/issues/216)) ([915b130](https://github.com/sergienko4/israeli-bank-scrapers/commit/915b1306a3b06080a2668c645b699e327b41fde6))
+* **pipeline:** M2 — phase isolation + scope-bound LOGIN.POST + cross-bank factory ([#217](https://github.com/sergienko4/israeli-bank-scrapers/issues/217)) ([e0d32f4](https://github.com/sergienko4/israeli-bank-scrapers/commit/e0d32f4c60896ff25c93fbe12effe3e740c6cb93))
+* **pipeline:** M4 OTP-TRIGGER seal + dom-ready-everywhere architecture (8 PRs) ([#221](https://github.com/sergienko4/israeli-bank-scrapers/issues/221)) ([8791375](https://github.com/sergienko4/israeli-bank-scrapers/commit/8791375175d6e90287c29211408b72b6ff100ecb))
+* **pipeline:** seal per-phase ownership — ACCOUNT-RESOLVE / DASHBOARD / TXN ([#211](https://github.com/sergienko4/israeli-bank-scrapers/issues/211)) ([5d62681](https://github.com/sergienko4/israeli-bank-scrapers/commit/5d62681e9172e670181c62b413a68218b59e7822))
+* qodo failover review (fires when CodeRabbit rate-limits) ([#231](https://github.com/sergienko4/israeli-bank-scrapers/issues/231)) ([109953e](https://github.com/sergienko4/israeli-bank-scrapers/commit/109953e71ea27db7c907fecd5af35f3719bee431))
+* **test:** Phase H — complete cross-bank test architecture ([#232](https://github.com/sergienko4/israeli-bank-scrapers/issues/232)) ([6062de7](https://github.com/sergienko4/israeli-bank-scrapers/commit/6062de7a1c2a3ee714d4d42dabdf46fadd1b31fe))
+* **test:** Telegram OTP delivery + scorecard fix + pre-commit hook parallel/cache ([#215](https://github.com/sergienko4/israeli-bank-scrapers/issues/215)) ([bb0f447](https://github.com/sergienko4/israeli-bank-scrapers/commit/bb0f4475b925b5ba34237018464e1756513ef038))
+* unified Pipeline architecture (Step 1-2 — types, executor, builder) ([#171](https://github.com/sergienko4/israeli-bank-scrapers/issues/171)) ([01a05d9](https://github.com/sergienko4/israeli-bank-scrapers/commit/01a05d9e3190860e8e6e9e7b6e42542638dc9229))
+
+
+### Bug Fixes
+
+* M4.F4 audit label + Docker CI-mirror scaffold ([#225](https://github.com/sergienko4/israeli-bank-scrapers/issues/225)) ([052118a](https://github.com/sergienko4/israeli-bank-scrapers/commit/052118a8c0e659eb130b19891967a2243b12699f))
+* **scrape+ci:** cross-bank billing-cycle + dedup + CI hardening ([#227](https://github.com/sergienko4/israeli-bank-scrapers/issues/227)) ([cbd588d](https://github.com/sergienko4/israeli-bank-scrapers/commit/cbd588d313492dbaf737092b21907817cfd4a500))
+* **scrape+ci:** release-blocker data-integrity ([cbd588d](https://github.com/sergienko4/israeli-bank-scrapers/commit/cbd588d313492dbaf737092b21907817cfd4a500))
+* **security:** redact bank errorMessage in logs + ESLint guard (CodeQL [#28](https://github.com/sergienko4/israeli-bank-scrapers/issues/28)) ([#233](https://github.com/sergienko4/israeli-bank-scrapers/issues/233)) ([3bdd6ac](https://github.com/sergienko4/israeli-bank-scrapers/commit/3bdd6ac74856b6530f3d354cf7011aa98ef3cb0f))
+* **telegram:** non-destructive getUpdates offset=0 ([#226](https://github.com/sergienko4/israeli-bank-scrapers/issues/226)) ([915773c](https://github.com/sergienko4/israeli-bank-scrapers/commit/915773c4e76d2fb20b958774fa3586ceaacac6af))
+
+
+### Performance Improvements
+
+* **pipeline:** TIMING mission - cut wait ceilings + fail-loud refinements ([#220](https://github.com/sergienko4/israeli-bank-scrapers/issues/220)) ([991ad98](https://github.com/sergienko4/israeli-bank-scrapers/commit/991ad9873abd9536fb638b521ff6249ce210628f))
+
 ## [8.2.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.2.0...v8.2.1) (2026-03-17)
 
 
