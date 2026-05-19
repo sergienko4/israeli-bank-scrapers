@@ -24,6 +24,15 @@ ARG CAMOUFOX_VERSION=v135.0.1-beta.24
 # Mirror the apt set that the GitHub `ubuntu-24.04` runner image carries
 # that Camoufox / Firefox needs at runtime. Source list cross-checked
 # against `actions/runner-images` Ubuntu2404-Readme.md.
+#
+# Package roles (kept as Dockerfile comments rather than inline shell
+# comments — `\<newline>` joins continuation lines BEFORE bash comment
+# processing, so an inline `#` silently consumes everything after it
+# on the joined logical line):
+#   * xvfb — backs Camoufox's `headless: "virtual"` mode so the
+#     browser exposes a real display instead of true-headless
+#     detection signals (Cloudflare scoring relies on this).
+#   * wget — required by the gh CLI fallback download path below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git unzip xz-utils gnupg \
         libgtk-3-0t64 libgbm1 libxt6 libdbus-glib-1-2 \
@@ -31,11 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpangocairo-1.0-0 libatk1.0-0t64 libatk-bridge2.0-0t64 \
         libcups2t64 libxcomposite1 libxdamage1 libxkbcommon0 \
         fonts-liberation libdrm2 libxshmfence1 \
-        # xvfb: backs Camoufox's `headless: "virtual"` mode so the
-        # browser exposes a real display instead of true-headless
-        # detection signals (Cloudflare scoring relies on this).
         xvfb \
-        # gh CLI for Camoufox fallback download path
         wget \
     && rm -rf /var/lib/apt/lists/*
 

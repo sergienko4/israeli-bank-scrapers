@@ -51,6 +51,12 @@ function spawnVirtualDisplay() {
   const display = `:${randomInt(99, 199)}`;
   const args = [display, '-screen', '0', '1920x1080x24', '-ac', '-nolisten', 'tcp'];
   const proc = spawn(xvfb, args, { stdio: 'ignore', detached: true });
+  // Detach the parent's reference to the child's event loop handle so
+  // the Jest test process can exit even if Xvfb is still running.
+  // Without `.unref()` the parent waits for the child to exit and
+  // Jest hangs at the end of the run — `--forceExit` would hide this
+  // but the right fix is to release the handle (CodeRabbit F9).
+  proc.unref();
   return { display, proc };
 }
 

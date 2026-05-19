@@ -21,6 +21,16 @@ import {
   stripProfileCache,
 } from '../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 
+/**
+ * Test-isolated home directory — passed to `getProfileDir` as the
+ * explicit `homeDir` arg so assertions don't depend on the runner's
+ * real `$HOME` / `%USERPROFILE%`. CodeRabbit F11 (hermetic test) +
+ * `os.homedir()` is read-only ESM + Windows-cached so DI is the
+ * right hermetic path.
+ */
+const TMP_ROOT = os.tmpdir();
+const FAKE_HOME_DIR = path.join(TMP_ROOT, 'isbs-fake-home');
+
 describe('CamoufoxLauncher module', () => {
   it('re-exports ISRAEL_LOCALE constant', () => {
     expect(ISRAEL_LOCALE).toBe('he-IL');
@@ -37,23 +47,47 @@ describe('CamoufoxLauncher module', () => {
 });
 
 describe('getProfileDir', () => {
-  it('returns ~/.cache/isbs/profiles/<bank> for a lowercase bank', () => {
-    const homeDir = os.homedir();
-    const isResolved = getProfileDir('amex');
-    const expectedPath = path.join(homeDir, '.cache', 'isbs', 'profiles', 'amex');
+  it('returns <home>/.cache/isbs/profiles/<bank> for a lowercase bank', () => {
+    const isResolved = getProfileDir('amex', FAKE_HOME_DIR);
+    const expectedPath = path.join(FAKE_HOME_DIR, '.cache', 'isbs', 'profiles', 'amex');
     expect(isResolved).toBe(expectedPath);
   });
 
   it('normalises mixed-case bank identifiers to lowercase', () => {
-    const isLowerDir = getProfileDir('amex');
-    const isUpperDir = getProfileDir('AMEX');
+    const isLowerDir = getProfileDir('amex', FAKE_HOME_DIR);
+    const isUpperDir = getProfileDir('AMEX', FAKE_HOME_DIR);
     expect(isLowerDir).toBe(isUpperDir);
   });
 
   it('produces distinct paths for distinct banks', () => {
-    const isAmexDir = getProfileDir('amex');
-    const isMaxDir = getProfileDir('max');
+    const isAmexDir = getProfileDir('amex', FAKE_HOME_DIR);
+    const isMaxDir = getProfileDir('max', FAKE_HOME_DIR);
     expect(isAmexDir).not.toBe(isMaxDir);
+  });
+
+  it('strips path-traversal characters via path.basename', () => {
+    const isResolved = getProfileDir('../etc/passwd', FAKE_HOME_DIR);
+    const expectedPath = path.join(FAKE_HOME_DIR, '.cache', 'isbs', 'profiles', 'passwd');
+    expect(isResolved).toBe(expectedPath);
+  });
+
+  it('rejects empty bank identifier', () => {
+    expect(() => getProfileDir('', FAKE_HOME_DIR)).toThrow(/Invalid bank identifier/);
+  });
+
+  it('rejects bank identifier that collapses to "."', () => {
+    expect(() => getProfileDir('.', FAKE_HOME_DIR)).toThrow(/Invalid bank identifier/);
+  });
+
+  it('rejects bank identifier that collapses to ".."', () => {
+    expect(() => getProfileDir('..', FAKE_HOME_DIR)).toThrow(/Invalid bank identifier/);
+  });
+
+  it('defaults to os.homedir() when no homeDir override is passed', () => {
+    const isResolved = getProfileDir('amex');
+    const realHome = os.homedir();
+    const expectedPath = path.join(realHome, '.cache', 'isbs', 'profiles', 'amex');
+    expect(isResolved).toBe(expectedPath);
   });
 });
 

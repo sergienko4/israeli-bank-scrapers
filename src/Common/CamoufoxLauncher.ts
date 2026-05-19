@@ -4,6 +4,7 @@ import * as path from 'node:path';
 
 import type { Browser, BrowserContext } from 'playwright-core';
 
+import ScraperError from '../Scrapers/Base/ScraperError.js';
 import {
   DESKTOP_VIEWPORT_HEIGHT,
   DESKTOP_VIEWPORT_WIDTH,
@@ -140,20 +141,41 @@ export function isPersistentProfilesEnabled(): boolean {
   return envFlag('USE_PERSISTENT_PROFILES', false);
 }
 
+/** Banned bank identifiers after normalisation — empty, dot, dot-dot. */
+const FORBIDDEN_BANK_TOKENS: ReadonlySet<string> = new Set(['', '.', '..']);
+
 /**
  * Canonical per-bank profile directory on the host.
  *
- * Layout: `~/.cache/isbs/profiles/<bank>/`. Local dev keeps the dir
- * forever (manual `RESET_PROFILES=1`-style cleanup at user discretion);
- * CI restores + saves it via `actions/cache` so a bank-specific cache
- * key carries the profile across runs (7-day natural eviction).
+ * Layout: `<home>/.cache/isbs/profiles/<bank>/`. Local dev keeps the
+ * dir forever (manual `RESET_PROFILES=1`-style cleanup at user
+ * discretion); CI restores + saves it via `actions/cache` so a
+ * bank-specific cache key carries the profile across runs (7-day
+ * natural eviction).
+ *
+ * Defense-in-depth: `companyId` is a closed `CompanyTypes` enum today
+ * so all live callers are safe, but `path.basename` strips any
+ * separator / traversal characters and the `FORBIDDEN_BANK_TOKENS`
+ * check rejects `''`, `.` and `..` so a future widening of the input
+ * (or a typo) can never resolve the profile dir outside the profiles
+ * root. CodeRabbit F8.
+ *
+ * `homeDir` is parameterised (default `os.homedir()`) so unit tests
+ * can pass a fake without mocking `node:os` — ESM bindings are
+ * read-only and `os.homedir()` on Windows caches its result, so DI
+ * is the hermetic-test path. CodeRabbit F11.
  * @param bank - Bank identifier (case-insensitive; coerced to lowercase).
+ * @param homeDir - Home-directory root; defaults to `os.homedir()`.
  * @returns Absolute path to the profile directory.
+ * @throws ScraperError when `bank` collapses to an empty or traversal token.
  */
-export function getProfileDir(bank: string): string {
-  const home = os.homedir();
-  const normalisedBank = bank.toLowerCase();
-  return path.join(home, '.cache', 'isbs', 'profiles', normalisedBank);
+export function getProfileDir(bank: string, homeDir: string = os.homedir()): string {
+  const safeBase = path.basename(bank);
+  const normalisedBank = safeBase.toLowerCase();
+  if (FORBIDDEN_BANK_TOKENS.has(normalisedBank)) {
+    throw new ScraperError(`Invalid bank identifier for profile dir: "${bank}"`);
+  }
+  return path.join(homeDir, '.cache', 'isbs', 'profiles', normalisedBank);
 }
 
 /**

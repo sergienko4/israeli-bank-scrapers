@@ -121,9 +121,15 @@ run_one_bank() {
     # bank URL — Docker Desktop's DNS was saturated. Google + Cloudflare
     # public resolvers are intentionally redundant.
     # Host-side artifact dir — pipeline.log + screenshots + network
-    # captures from the in-container run land at `C:/tmp/runs/docker/`
-    # so the host can inspect them after the container exits.
-    local RUNS_HOST_POSIX="/c/tmp/runs/docker"
+    # captures from the in-container run land here so the host can
+    # inspect them after the container exits. Resolution priority:
+    #   1. `$ISBS_DOCKER_RUNS_DIR` env override (developer choice).
+    #   2. `${TMPDIR}/isbs-runs/docker` on Linux / macOS.
+    #   3. `${TEMP}/isbs-runs/docker` on git-bash on Windows (Windows
+    #      sets `TEMP`, not `TMPDIR`).
+    #   4. `/tmp/isbs-runs/docker` last-resort POSIX default.
+    local DEFAULT_RUNS_HOST="${TMPDIR:-${TEMP:-/tmp}}/isbs-runs/docker"
+    local RUNS_HOST_POSIX="${ISBS_DOCKER_RUNS_DIR:-$DEFAULT_RUNS_HOST}"
     mkdir -p "$RUNS_HOST_POSIX"
     local RUNS_HOST_DOCKER
     if command -v cygpath >/dev/null 2>&1; then
