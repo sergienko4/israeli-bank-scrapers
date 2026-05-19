@@ -21,6 +21,7 @@ runs:
   using: composite
   steps:
     - name: 'Install Xvfb (backs Camoufox virtual headless mode)'
+      if: ${{ runner.os == 'Linux' }}
       shell: bash
       run: |
         set -euo pipefail
