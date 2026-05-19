@@ -1,11 +1,14 @@
 <a id="readme-top"></a>
 
 <!-- ALL-CONTRIBUTORS-BADGE:START -->
+
 [![All Contributors](https://img.shields.io/badge/all_contributors-15-orange.svg?style=flat-square)](#contributors-)
+
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
+
 [![npm version](https://img.shields.io/npm/v/@sergienko4/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
-[![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/nodeCI.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/pr.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![License](https://img.shields.io/github/license/sergienko4/israeli-bank-scrapers?style=for-the-badge)](./LICENSE)
 [![API Docs](https://img.shields.io/badge/API_Docs-TypeDoc-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://sergienko4.github.io/israeli-bank-scrapers/)
 [![npm downloads](https://img.shields.io/npm/dm/@sergienko4/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
@@ -15,9 +18,9 @@
 
 # Israeli Bank Scrapers
 
-Scrape transactions from **17 Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass**.
+Scrape transactions from **Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass**.
 
-Maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers), completely rewritten with [Camoufox](https://github.com/niceboyatcomputers/camoufox) (Firefox anti-detect), Playwright, and TypeScript 5.9 strict mode.
+Maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers), completely rewritten with [Camoufox](https://github.com/niceboyatcomputers/camoufox) (Firefox anti-detect), Playwright, and TypeScript 6.0 strict mode.
 
 ```sh
 npm install @sergienko4/israeli-bank-scrapers
@@ -25,11 +28,12 @@ npm install @sergienko4/israeli-bank-scrapers
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 **Table of Contents**
 
 - [What's Different](#whats-different)
 - [Usage](#usage)
-- [Supported Institutions (17)](#supported-institutions-17)
+- [Supported Institutions](#supported-institutions)
 - [OTP (Two-Factor Authentication)](#otp-two-factor-authentication)
 - [Error Types](#error-types)
 - [Logging & Bug Reports](#logging--bug-reports)
@@ -43,13 +47,12 @@ npm install @sergienko4/israeli-bank-scrapers
 
 ## What's Different
 
-| | Upstream | This Fork |
-|---|---|---|
-| WAF bypass | No (Puppeteer blocked) | Yes (Camoufox, first attempt) |
-| Login detection | Hardcoded CSS | 7-strategy auto-resolver |
-| OTP | Manual | Auto-detect + fill |
-| Module format | CJS only | Dual ESM + CJS |
-| Tests | ~600 | 972 (95 suites) |
+|                 | Upstream               | This Fork                     |
+| --------------- | ---------------------- | ----------------------------- |
+| WAF bypass      | No (Puppeteer blocked) | Yes (Camoufox, first attempt) |
+| Login detection | Hardcoded CSS          | 7-strategy auto-resolver      |
+| OTP             | Manual                 | Auto-detect + fill            |
+| Module format   | CJS only               | Dual ESM + CJS                |
 
 ## Usage
 
@@ -57,7 +60,7 @@ npm install @sergienko4/israeli-bank-scrapers
 import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const scraper = createScraper({
-  companyId: CompanyTypes.amex,
+  companyId: CompanyTypes.Amex,
   startDate: new Date('2024-01-01'),
 });
 
@@ -79,28 +82,31 @@ if (result.success) {
 }
 ```
 
-<details>
-<summary><strong>Supported Institutions (17)</strong></summary>
+## Supported Institutions
 
-| Institution | Type | Credentials |
-|---|---|---|
-| Bank Hapoalim | Bank | `userCode`, `password` |
-| Bank Leumi | Bank | `username`, `password` |
-| Discount Bank | Bank | `id`, `password`, `num` |
-| Mercantile Bank | Bank | `id`, `password`, `num` |
-| Mizrahi Tefahot | Bank | `username`, `password` |
-| Otsar Hahayal | Bank | `username`, `password` |
-| Beinleumi | Bank | `username`, `password`, OTP |
-| Massad | Bank | `username`, `password` |
-| Yahav | Bank | `username`, `nationalID`, `password` |
-| Pagi | Bank | `username`, `password` |
-| OneZero | Bank | `email`, `password`, OTP |
-| Beyahad Bishvilha | Bank | `id`, `password` |
-| Behatsdaa | Bank | `id`, `password` |
-| Amex | Credit Card | `id`, `card6Digits`, `password` |
-| Isracard | Credit Card | `id`, `card6Digits`, `password` |
-| Visa Cal | Credit Card | `username`, `password` |
-| Max | Credit Card | `username`, `password`, `id` (conditional) |
+<details>
+<summary><strong>Full list</strong></summary>
+
+| Institution       | Type        | Credentials                                 |
+| ----------------- | ----------- | ------------------------------------------- |
+| Bank Hapoalim     | Bank        | `userCode`, `password`, OTP (when prompted) |
+| Bank Leumi        | Bank        | `username`, `password`                      |
+| Discount Bank     | Bank        | `id`, `password`, `num`                     |
+| Mercantile Bank   | Bank        | `id`, `password`, `num`                     |
+| Mizrahi Tefahot   | Bank        | `username`, `password`                      |
+| Otsar Hahayal     | Bank        | `username`, `password`                      |
+| Beinleumi         | Bank        | `username`, `password`, OTP                 |
+| Massad            | Bank        | `username`, `password`                      |
+| Yahav             | Bank        | `username`, `nationalID`, `password`        |
+| Pagi              | Bank        | `username`, `password`                      |
+| OneZero           | Bank        | `email`, `password`, OTP                    |
+| Beyahad Bishvilha | Bank        | `id`, `password`                            |
+| Behatsdaa         | Bank        | `id`, `password`                            |
+| Amex              | Credit Card | `id`, `card6Digits`, `password`             |
+| Isracard          | Credit Card | `id`, `card6Digits`, `password`             |
+| Visa Cal          | Credit Card | `username`, `password`                      |
+| Max               | Credit Card | `username`, `password`, `id` (conditional)  |
+| Pepper            | Bank        | not supported yet — see note below          |
 
 </details>
 
@@ -117,20 +123,28 @@ if (result.success) {
 
 ## OTP (Two-Factor Authentication)
 
-**Browser banks** (Beinleumi, Discount) — pass callback in options:
+**Browser banks** (Beinleumi group, Hapoalim) — pass callback in options:
 
 ```typescript
 createScraper({
-  companyId: CompanyTypes.beinleumi, startDate,
-  otpCodeRetriever: async (phoneHint) => await getCodeFromUser(phoneHint),
+  companyId: CompanyTypes.Beinleumi,
+  startDate,
+  otpCodeRetriever: async phoneHint => await getCodeFromUser(phoneHint),
 });
 ```
+
+> **Hapoalim:** OTP is conditional — when the bank prompts for an SMS code
+> (e.g. login from an unrecognised device), the same `otpCodeRetriever`
+> callback is invoked. On device-remembered sessions no OTP is asked
+> and the callback is never called.
 
 **API banks** (OneZero) — pass callback in credentials:
 
 ```typescript
 await scraper.scrape({
-  email, password, phoneNumber: '+972...',
+  email,
+  password,
+  phoneNumber: '+972...',
   otpCodeRetriever: async () => '123456',
 });
 // result.persistentOtpToken — save to skip SMS next run
@@ -138,25 +152,25 @@ await scraper.scrape({
 
 ## Error Types
 
-| Error | Meaning |
-|---|---|
-| `INVALID_PASSWORD` | Wrong credentials |
-| `INVALID_OTP` | Wrong/expired OTP code |
-| `WAF_BLOCKED` | Cloudflare block — check `errorDetails.suggestions` |
-| `TIMEOUT` | Page load timeout — increase `defaultTimeout` |
-| `TWO_FACTOR_RETRIEVER_MISSING` | OTP needed but no callback set |
+| Error                          | Meaning                                             |
+| ------------------------------ | --------------------------------------------------- |
+| `INVALID_PASSWORD`             | Wrong credentials                                   |
+| `INVALID_OTP`                  | Wrong/expired OTP code                              |
+| `WAF_BLOCKED`                  | Cloudflare block — check `errorDetails.suggestions` |
+| `TIMEOUT`                      | Page load timeout — increase `defaultTimeout`       |
+| `TWO_FACTOR_RETRIEVER_MISSING` | OTP needed but no callback set                      |
 
 <details>
 <summary><strong>WAF Troubleshooting</strong></summary>
 
 Camoufox passes most challenges automatically. If you still get `WAF_BLOCKED`:
 
-| Scenario | Fix |
-|---|---|
-| 403 after login | Wait 1-2 hours, reduce frequency |
-| Datacenter IP blocked | Use residential proxy |
-| Turnstile CAPTCHA | Run once headed to pass initial challenge |
-| Parallel failures | Share browser, add 2-5s delay |
+| Scenario              | Fix                                       |
+| --------------------- | ----------------------------------------- |
+| 403 after login       | Wait 1-2 hours, reduce frequency          |
+| Datacenter IP blocked | Use residential proxy                     |
+| Turnstile CAPTCHA     | Run once headed to pass initial challenge |
+| Parallel failures     | Share browser, add 2-5s delay             |
 
 </details>
 
@@ -169,16 +183,16 @@ publicly without exposing your customers' data.
 
 ### What gets redacted, and what survives
 
-| Category | Example before → after |
-|---|---|
-| Account / card / Israeli ID / phone | `12-170-456789` → `***6789` |
-| Cardholder / customer name | `דני משהו` → `<name:8>` (length tag) |
-| Merchant description | `סופר-פארם רמת גן` → `<merchant:14>` |
-| Transaction amount | `-247.50` → `-***` (sign only) |
-| Auth tokens / cookies / OTP codes | `eyJhbGc...`, `123456` → `[REDACTED]`, `[OTP]` |
-| URLs | host + path preserved; PII query keys redacted |
-| HTML snapshots | text nodes + `value` attributes scrubbed in place |
-| Anything unrecognised | `[REDACTED]` (default-deny) |
+| Category                            | Example before → after                            |
+| ----------------------------------- | ------------------------------------------------- |
+| Account / card / Israeli ID / phone | `12-170-456789` → `***6789`                       |
+| Cardholder / customer name          | `דני משהו` → `<name:8>` (length tag)              |
+| Merchant description                | `סופר-פארם רמת גן` → `<merchant:14>`              |
+| Transaction amount                  | `-247.50` → `-***` (sign only)                    |
+| Auth tokens / cookies / OTP codes   | `eyJhbGc...`, `123456` → `[REDACTED]`, `[OTP]`    |
+| URLs                                | host + path preserved; PII query keys redacted    |
+| HTML snapshots                      | text nodes + `value` attributes scrubbed in place |
+| Anything unrecognised               | `[REDACTED]` (default-deny)                       |
 
 The "stable hints" (`***NNNN`, `<merchant:N>`, `+***`/`-***`,
 array-size markers) are deliberate — they preserve enough for us to
@@ -203,7 +217,7 @@ surface even as the codebase evolves:
 
 - **Runtime layer** — `PiiRedactor.ts` is the single source of truth.
   Pino runs it as the `redact.censor` callback so every record is
-  redacted *before* any transport. `NetworkDiscovery` and
+  redacted _before_ any transport. `NetworkDiscovery` and
   `FixtureCapture` route their byte streams through the same
   redactor before persisting.
 - **Commit-time layer** — ESLint AST selectors (T09 / T16) and an
@@ -243,7 +257,8 @@ await browser.close();
 
 ```typescript
 createScraper({
-  companyId: CompanyTypes.leumi, startDate,
+  companyId: CompanyTypes.Leumi,
+  startDate,
   defaultTimeout: 60000,
   navigationRetryCount: 2,
 });
@@ -266,28 +281,41 @@ Same API. Both `import` and `require()` work. Types now use `I` prefix (`IScrape
 <details>
 <summary><strong>Architecture</strong></summary>
 
-Login flow uses an 8-step middleware chain:
+Pipeline of typed phases. Each phase owns its mediator zone, its own well-known-selectors dictionary, and its own retry policy. Phases never reach into one another's state — communication happens via slim `Option<T>` fields on the pipeline context.
 
 ```
-navigate > parse-page > fill > wait > check-result > [otp-confirm > otp-code] > post-action
+INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL] → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → TERMINATE
 ```
 
-Fields resolved by 7-strategy `SelectorResolver` (label text, textContent walk-up, placeholder, aria, name, CSS, xpath). After first field resolves, `FormAnchor` scopes subsequent fields to the discovered `<form>`.
+- `[PRE-LOGIN]` is opt-in — card banks with a separate "show login" toggle: Amex, Isracard, Max, VisaCal.
+- `[OTP-TRIGGER → OTP-FILL]` is opt-in. Beinleumi group banks have both. Hapoalim uses OTP-FILL only, conditionally (see the OTP section above).
+- `AUTH-DISCOVERY` separates the credential exchange from the dashboard handoff so post-auth signal capture (cookies, ids, tokens) is observable, redactable, and testable in isolation.
 
-All 18 institutions configured via declarative `LoginConfig` objects. Adding a new bank requires one config object.
+**Cross-cutting interceptors** run between phases — they don't own data, they observe and dismiss:
+
+- **PopupInterceptor** — before HOME, ACCOUNT-RESOLVE, and DASHBOARD, the interceptor scans for modal overlays (privacy banners, new-feature promos, "you have a message" dialogs) and dismisses them by visible-text. If nothing matches, the next phase proceeds untouched. Necessary because bank SPAs commonly stack one promo on top of the login flow, and any unhandled click-target above the page blocks the phase mediator.
+- **NetworkDiscovery + trace lifecycle** — every HTTP request and response the page issues is observed and indexed. The discovery layer learns each bank's per-account / per-card / per-statement endpoints at runtime (no hand-maintained URL list) and feeds them into the SCRAPE phase. Bodies are captured to disk only inside the configured boundary (post-auth onward) so pre-auth secrets never hit the trace; bodies + URLs flow through the central `PiiRedactor` before any write, so the on-disk artifacts are safe to share.
+
+Inside the LOGIN phase, fields resolve through a 7-strategy `SelectorResolver` (visible Hebrew text → `textContent` walk-up → `placeholder` → `aria-label` → `name` → CSS → xpath). Once the first field matches, `FormAnchor` scopes the remaining fields to the discovered `<form>` so multi-form pages don't cross-pollute.
+
+All institutions are configured via declarative `LoginConfig` objects. Adding a new bank means writing one config object — no bank-specific imperative code.
 
 </details>
 
 <details>
 <summary><strong>Version history</strong></summary>
 
-| Version | Milestone |
-|---|---|
-| v6.7.2 | Initial fork from upstream |
-| v7.0.0 | Puppeteer to Playwright |
-| v7.9.0 | Camoufox anti-detect browser |
-| v7.10.0 | Full ESM migration |
-| v8.0.0 | Strict ESLint + JSDoc, I-prefix interfaces, form-anchor |
+| Version | Milestone                                                                                                                                                                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| v6.7.2  | Initial fork from upstream                                                                                                                                                                                                                     |
+| v7.0.0  | Puppeteer to Playwright                                                                                                                                                                                                                        |
+| v7.9.0  | Camoufox anti-detect browser                                                                                                                                                                                                                   |
+| v7.10.0 | Full ESM migration                                                                                                                                                                                                                             |
+| v8.0.0  | Strict ESLint + JSDoc, I-prefix interfaces, form-anchor                                                                                                                                                                                        |
+| v8.1.0  | Integration test framework — 18 tests across 6 scrapers                                                                                                                                                                                        |
+| v8.2.0  | SonarCloud static-analysis workflow + Max selectors via Hebrew text                                                                                                                                                                            |
+| v8.2.1  | All bank logins migrated from CSS/ID selectors to visible Hebrew text                                                                                                                                                                          |
+| v8.3.0  | Pipeline architecture v2 — Strategy / Builder / Mediator / Result patterns, AUTH-DISCOVERY phase + 100% phase isolation, cross-bank test factory (Phase H), TIMING ceilings, Telegram OTP delivery, PII redaction across log/network/snapshots |
 
 </details>
 

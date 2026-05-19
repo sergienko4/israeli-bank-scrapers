@@ -1,0 +1,37 @@
+name: PR Validation (non-src)
+
+# Passthrough workflow for PRs that touch only files outside src/.
+#
+# pr.yml is now scoped to `paths: ['src/**']` — it fires only on
+# real-code changes. Branch protection still requires a `Validate`
+# status check, so PRs that touch only docs, package metadata,
+# configs, or workflows would otherwise sit forever in "Waiting
+# for status to be reported".
+#
+# This file fires on every PR whose changed-file set is fully
+# outside src/, runs a single `Validate` job that just echoes
+# success, and reports the required status check at zero CI cost.
+#
+# Boundary with pr.yml:
+#   - src-only PR  → pr.yml fires, this skips (paths-ignore drops it).
+#   - non-src PR   → pr.yml skips, this fires, Validate reports green.
+#   - mixed PR     → both fire. The real Validate from pr.yml still
+#                    has to pass; this passthrough does NOT bypass it.
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'src/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Non-src PR — passthrough Validate
+        run: echo "No src/ changes in this PR. Code/test/build gates skipped. Validate reports green."
