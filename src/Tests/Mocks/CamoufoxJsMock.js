@@ -61,11 +61,28 @@ function spawnVirtualDisplay() {
 }
 
 function resolveLaunchArgs(headlessOpt) {
-  if (headlessOpt !== 'virtual') return { headless: headlessOpt ?? true, env: undefined };
-  if (process.platform !== 'linux') return { headless: true, env: undefined };
+  if (headlessOpt !== 'virtual') return { headless: headlessOpt ?? true, env: undefined, vd: null };
+  if (process.platform !== 'linux') return { headless: true, env: undefined, vd: null };
   const vd = spawnVirtualDisplay();
-  if (!vd) return { headless: true, env: undefined };
-  return { headless: false, env: { ...process.env, DISPLAY: vd.display } };
+  if (!vd) return { headless: true, env: undefined, vd: null };
+  return { headless: false, env: { ...process.env, DISPLAY: vd.display }, vd };
+}
+
+// Wrap Browser/BrowserContext.close() so it also terminates the spawned
+// Xvfb process. Without this `vd.proc` would survive every launch even
+// after the browser closes, since we already `.unref()`-ed the handle —
+// nothing else has a reference to kill it. CodeRabbit C3.
+function wrapCloseWithProcKill(target, proc) {
+  const originalClose = target.close.bind(target);
+  target.close = async () => {
+    try {
+      proc.kill('SIGTERM');
+    } catch {
+      // Already dead — nothing to do.
+    }
+    return originalClose();
+  };
+  return target;
 }
 
 /**
@@ -90,13 +107,17 @@ export async function Camoufox(opts = {}) {
   if (!executablePath) {
     throw new Error('Camoufox binary not found — run: npx camoufox fetch');
   }
-  const { headless, env } = resolveLaunchArgs(opts.headless);
+  const { headless, env, vd } = resolveLaunchArgs(opts.headless);
   const launchBase = { executablePath, headless, env };
-  if (typeof opts.user_data_dir === 'string') {
-    const contextOpts = { ...launchBase, ...pickForwardedOptions(opts) };
-    return firefox.launchPersistentContext(opts.user_data_dir, contextOpts);
-  }
-  return firefox.launch(launchBase);
+  const target =
+    typeof opts.user_data_dir === 'string'
+      ? await firefox.launchPersistentContext(opts.user_data_dir, {
+          ...launchBase,
+          ...pickForwardedOptions(opts),
+        })
+      : await firefox.launch(launchBase);
+  if (vd) return wrapCloseWithProcKill(target, vd.proc);
+  return target;
 }
 
 export default { Camoufox };
