@@ -73,7 +73,26 @@ export const PHASE_SETTLE_MS = 4000;
  * downstream `resolveVisible` runs against a deterministic mouse
  * position.
  */
-export const HUMANIZE_JITTER_PHASES: ReadonlySet<string> = new Set(['init', 'home', 'login']);
+const HUMANIZE_JITTER_PHASE_LIST = ['init', 'home', 'login'] as const;
+
+/** Phase-name literal union — phases that opt into the humanized settle. */
+export type HumanizeJitterPhase = (typeof HUMANIZE_JITTER_PHASE_LIST)[number];
+
+const HUMANIZE_JITTER_PHASES_SET: ReadonlySet<HumanizeJitterPhase> = new Set(
+  HUMANIZE_JITTER_PHASE_LIST,
+);
+
+/**
+ * Type-narrowing predicate — returns true if `name` is one of the
+ * phases that humanizes its phase-settle window. Use instead of a
+ * bare `Set.has(...)` so callers get a `name is HumanizeJitterPhase`
+ * narrowing, not just a boolean.
+ * @param name - Phase name to check against the whitelist.
+ * @returns Whether the phase opts into humanized settle.
+ */
+export function isHumanizeJitterPhase(name: string): name is HumanizeJitterPhase {
+  return (HUMANIZE_JITTER_PHASES_SET as ReadonlySet<string>).has(name);
+}
 
 /**
  * Interval between humanized mouse-move ticks (ms). At 400 ms over a

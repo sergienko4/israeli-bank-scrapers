@@ -4,7 +4,7 @@ import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
-import { HUMANIZE_JITTER_PHASES, PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
+import { isHumanizeJitterPhase, PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Option } from '../../Types/Option.js';
@@ -115,7 +115,7 @@ async function phaseSettle(
   step: IPhaseStep,
   when: 'pre' | 'final',
 ): Promise<true> {
-  const isHumanized = HUMANIZE_JITTER_PHASES.has(step.name) && ctx.mediator.has;
+  const isHumanized = isHumanizeJitterPhase(step.name) && ctx.mediator.has;
   ctx.logger.debug({
     phase: step.name,
     event: 'phase-settle',
