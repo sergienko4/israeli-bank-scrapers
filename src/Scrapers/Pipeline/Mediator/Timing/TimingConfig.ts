@@ -56,6 +56,52 @@ export const HUMAN_DELAY_MAX_MS = 1200;
  */
 export const PHASE_SETTLE_MS = 4000;
 
+/**
+ * Phases that consume a HUMANIZED settle window — small mouse-move
+ * events emitted at fixed ticks across {@link PHASE_SETTLE_MS} so the
+ * page sees user-input signals instead of a silent 4 s pause. Limited
+ * to the pre-auth phases where bank-side bot detection runs:
+ * INIT (initial navigation), HOME (login-link discovery), LOGIN (form
+ * fill). Post-auth phases keep the cheap `setTimeoutPromise` settle
+ * because the session is already authenticated and bot detection is
+ * not re-applied per call.
+ *
+ * <p>Mission: closes the silent-settle window that Hapoalim's hCaptcha
+ * and Isracard's temp-fault page surface (HOME-PRE-FAIL screenshots
+ * from PR #235 cycle 2, 2026-05-18). The cursor is parked at
+ * {@link HUMANIZE_END_X}, {@link HUMANIZE_END_Y} after the final tick so
+ * downstream `resolveVisible` runs against a deterministic mouse
+ * position.
+ */
+export const HUMANIZE_JITTER_PHASES: ReadonlySet<string> = new Set(['init', 'home', 'login']);
+
+/**
+ * Interval between humanized mouse-move ticks (ms). At 400 ms over a
+ * 4 s settle window the mediator emits ~10 small moves before the
+ * final park. Sized so the per-tick wall is well above the
+ * sub-100 ms scheduler jitter floor and well below the 1 s window in
+ * which a bot-detection heuristic would notice "no input ever".
+ */
+export const HUMANIZE_TICK_MS = 400;
+
+/**
+ * Maximum jitter pixel offset per tick (X and Y). Camoufox window
+ * is pinned at 1920x1080; the cursor walks inside a small region
+ * around the previous position so the trajectory looks like idle
+ * micro-motion rather than a teleport.
+ */
+export const HUMANIZE_JITTER_RADIUS_PX = 40;
+
+/**
+ * Park-position X after the last jitter tick. Origin (top-left)
+ * keeps the cursor out of the way of any clickable element the next
+ * phase will resolve via `resolveVisible`.
+ */
+export const HUMANIZE_END_X = 0;
+
+/** Park-position Y after the last jitter tick. See {@link HUMANIZE_END_X}. */
+export const HUMANIZE_END_Y = 0;
+
 // ── Auth-discovery thresholds (non-time) ──────────────────────────
 
 /**

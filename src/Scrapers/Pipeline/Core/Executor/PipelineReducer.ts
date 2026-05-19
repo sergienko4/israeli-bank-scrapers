@@ -3,9 +3,11 @@
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
+import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
+import { HUMANIZE_JITTER_PHASES, PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import type { Option } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
@@ -68,6 +70,27 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
 }
 
 /**
+ * Inner settle wait — either humanized mouse-jitter (pre-auth phases
+ * with a live mediator) or silent setTimeout fallback. Extracted from
+ * `phaseSettle` to keep that function inside the 15-line per-function
+ * cap while still concentrating the wait-mode branch on one site.
+ *
+ * @param mediator - Mediator option from the current context.
+ * @param isHumanized - True when the current phase is in
+ *   {@link HUMANIZE_JITTER_PHASES} AND the mediator option carries a
+ *   live mediator value.
+ * @returns True after the wait resolves.
+ */
+async function settleWait(mediator: Option<IElementMediator>, isHumanized: boolean): Promise<true> {
+  if (isHumanized && mediator.has) {
+    await mediator.value.humanizeWait(PHASE_SETTLE_MS);
+    return true as const;
+  }
+  await setTimeoutPromise(PHASE_SETTLE_MS, undefined, { ref: false });
+  return true as const;
+}
+
+/**
  * Phase settle — give the bank's SPA a fixed window to settle
  * (analytics, deferred hydration, cross-origin pixels) and to give
  * the page's anti-bot JS time to observe a "human-paused-on-page"
@@ -75,6 +98,12 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
  * before phase.PRE work begins (`when='pre'`), once after phase.FINAL
  * completes (`when='final'`). FINAL settle is skipped for the
  * terminal phase so pipeline completion is not delayed.
+ *
+ * <p>For phases in {@link HUMANIZE_JITTER_PHASES} (init / home /
+ * login) the wait is humanized — small mouse-move ticks across the
+ * window so the page sees user-input signals during what would
+ * otherwise be a silent 4 s pause. Other phases get the cheap
+ * `setTimeoutPromise` settle. Branch lives in {@link settleWait}.
  *
  * @param ctx - Active pipeline context (used for structured trace).
  * @param step - The phase step entering or just-finished.
@@ -86,14 +115,15 @@ async function phaseSettle(
   step: IPhaseStep,
   when: 'pre' | 'final',
 ): Promise<true> {
+  const isHumanized = HUMANIZE_JITTER_PHASES.has(step.name) && ctx.mediator.has;
   ctx.logger.debug({
     phase: step.name,
     event: 'phase-settle',
     when,
     elapsedMs: String(PHASE_SETTLE_MS),
+    humanized: String(isHumanized),
   });
-  await setTimeoutPromise(PHASE_SETTLE_MS, undefined, { ref: false });
-  return true as const;
+  return settleWait(ctx.mediator, isHumanized);
 }
 
 /**

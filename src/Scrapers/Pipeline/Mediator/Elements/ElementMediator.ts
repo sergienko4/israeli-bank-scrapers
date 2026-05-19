@@ -277,6 +277,35 @@ interface IElementMediator {
   raceWithNetworkIdle(customWait: Promise<unknown>, budgetMs: number): Promise<true>;
 
   /**
+   * Humanized settle — wait approximately `budgetMs` while emitting
+   * small mouse-move events at fixed ticks so the page sees
+   * user-input signals during what would otherwise be a silent pause.
+   *
+   * <p>Mission: bank-side bot detection (Hapoalim hCaptcha, Isracard
+   * temp-fault page) profiles the pre-auth window for "human input
+   * present?" — a silent 4 s settle reads as bot and the bank
+   * responds with a challenge / error page. The mediator emits
+   * roughly one mouse-move every `HUMANIZE_TICK_MS` across the
+   * window, each within a small jitter radius of the previous
+   * position, then parks the cursor at the top-left so the next
+   * phase's element-discovery runs against a deterministic mouse
+   * position.
+   *
+   * <p>Used by the central `phaseSettle` in
+   * `Core/Executor/PipelineReducer.ts` for the phase whitelist in
+   * {@link "../Timing/TimingConfig.js"} `HUMANIZE_JITTER_PHASES`
+   * (`init` / `home` / `login`). Other phases get the cheap
+   * `setTimeoutPromise` settle.
+   *
+   * <p>Best-effort: any mouse-move failure (e.g. page closed mid-wait
+   * during retry) is swallowed so the settle still resolves.
+   *
+   * @param budgetMs - Total wall-clock budget for the humanized wait.
+   * @returns True after the budget elapses and the cursor is parked.
+   */
+  humanizeWait(budgetMs: number): Promise<true>;
+
+  /**
    * Wait for URL to match a glob pattern (SPA navigation wait).
    * Non-fatal: returns succeed(false) on timeout.
    * @param pattern - Glob pattern (e.g. '**\/login**').

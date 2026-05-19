@@ -134,6 +134,13 @@ function makeMockMediator(): IElementMediator {
       return true as const;
     },
     /**
+     * No-op mock for the humanizeWait mediator method. Tests do not
+     * exercise the mouse-jitter side-effect — they only need the
+     * method to satisfy the IElementMediator interface contract.
+     * @returns Promise resolving to true.
+     */
+    humanizeWait: (): Promise<true> => Promise.resolve(true as const),
+    /**
      * Count by text mock — returns 0.
      * @returns Zero.
      */

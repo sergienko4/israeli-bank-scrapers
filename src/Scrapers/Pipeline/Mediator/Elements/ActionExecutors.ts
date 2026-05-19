@@ -15,6 +15,7 @@ import {
 } from '../Timing/TimingConfig.js';
 import { humanDelay } from '../Timing/Waiting.js';
 
+export { default as buildHumanizeWait } from '../Timing/HumanizeWait.js';
 export { ELEMENTS_LOADING_DELAY_MS } from '../Timing/TimingConfig.js';
 
 const LOG = getDebug(import.meta.url);

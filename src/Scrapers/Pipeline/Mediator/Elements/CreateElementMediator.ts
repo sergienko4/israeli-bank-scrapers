@@ -27,6 +27,7 @@ import { resolveFieldPipeline } from '../Selector/PipelineFieldResolver.js';
 import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
 import {
   buildFrameRegistry,
+  buildHumanizeWait,
   clickElementImpl,
   ELEMENTS_LOADING_DELAY_MS,
   fillInputImpl,
@@ -1698,6 +1699,7 @@ function createElementMediator(page: Page): IElementMediator {
     getCurrentUrl: buildGetCurrentUrl(page),
     waitForNetworkIdle: waitForNetworkIdleFn,
     raceWithNetworkIdle: buildRaceWithNetworkIdle(waitForNetworkIdleFn),
+    humanizeWait: buildHumanizeWait(page),
     checkAttribute: buildCheckAttribute(),
     getAttributeValue: buildGetAttributeValue(),
 

@@ -475,6 +475,14 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
       return true as const;
     },
     /**
+     * No-op mock for humanizeWait. The Pipeline factory tests do
+     * not exercise the mouse-jitter side-effect; this stub satisfies
+     * the IElementMediator interface so the mediator can be passed
+     * through `phaseSettle` in tests that don't have a real Page.
+     * @returns Promise resolving to true.
+     */
+    humanizeWait: (): Promise<true> => Promise.resolve(true as const),
+    /**
      * Count by text mock — returns 0 (no elements).
      * @returns Zero.
      */
