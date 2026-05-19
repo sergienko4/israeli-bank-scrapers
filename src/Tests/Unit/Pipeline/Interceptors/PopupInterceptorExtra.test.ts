@@ -54,7 +54,7 @@ function makeMediator(clickFinds: boolean): IElementMediator {
 }
 
 describe('PopupInterceptor — dismissal paths', () => {
-  it('attempts dismiss on home phase with mediator present', async () => {
+  it('attempts dismiss on account-resolve phase with mediator present', async () => {
     const interceptor = createPopupInterceptor();
     const base = makeMockContext();
     const makeMediatorResult1 = makeMediator(true);
@@ -62,7 +62,7 @@ describe('PopupInterceptor — dismissal paths', () => {
       ...base,
       mediator: some(makeMediatorResult1),
     };
-    const result = await interceptor.beforePhase(ctx, 'home');
+    const result = await interceptor.beforePhase(ctx, 'account-resolve');
     expect(result).toBeDefined();
     const isOkResult2 = isOk(result);
     expect(isOkResult2).toBe(true);
@@ -90,8 +90,8 @@ describe('PopupInterceptor — dismissal paths', () => {
       ...base,
       mediator: some(makeMediatorResult5),
     };
-    const r1 = await interceptor.beforePhase(ctx, 'home');
-    const r2 = await interceptor.beforePhase(ctx, 'home');
+    const r1 = await interceptor.beforePhase(ctx, 'account-resolve');
+    const r2 = await interceptor.beforePhase(ctx, 'account-resolve');
     expect(r1).toBeDefined();
     expect(r2).toBeDefined();
   });
@@ -149,7 +149,7 @@ describe('PopupInterceptor — dismissal paths', () => {
       ...base,
       mediator: some(mediator),
     };
-    const result = await interceptor.beforePhase(ctx, 'home');
+    const result = await interceptor.beforePhase(ctx, 'account-resolve');
     expect(result).toBeDefined();
     const isOkResult9 = isOk(result);
     expect(isOkResult9).toBe(true);
@@ -196,7 +196,7 @@ describe('PopupInterceptor — dismissal paths', () => {
       ...base,
       mediator: some(mediator),
     };
-    const result = await interceptor.beforePhase(ctx, 'home');
+    const result = await interceptor.beforePhase(ctx, 'account-resolve');
     expect(result).toBeDefined();
     const isOkResult12 = isOk(result);
     expect(isOkResult12).toBe(true);
@@ -231,7 +231,7 @@ describe('PopupInterceptor — dismissal paths', () => {
       ...base,
       mediator: some(mediator),
     };
-    const result = await interceptor.beforePhase(ctx, 'home');
+    const result = await interceptor.beforePhase(ctx, 'account-resolve');
     expect(result).toBeDefined();
     const isOkResult13 = isOk(result);
     expect(isOkResult13).toBe(true);

@@ -49,17 +49,13 @@ function traceNetworkDelta(
 }
 
 /**
- * Only run before these phases — the 3 transitions where the bank
- * may render a modal that blocks the next discovery / extraction.
- *
- * <p>`account-resolve` added 2026-05-07 (Phase 7d): VisaCal
- * fires the new-card promo popup on the post-login render, exactly
- * the wait window where ACCOUNT-RESOLVE.PRE blocks for the first
- * id-bearing capture. Without dismissal the popup overlay can hold
- * the SPA from firing the `account/init` request and ACCOUNT-RESOLVE
- * times out empty.
+ * Phases that bind the popup probe. `home` removed 2026-05-19 —
+ * the probe's silent locator chain stacked back-to-back with the
+ * 20 s HOME `resolveVisible` was the bot-signal Hapoalim's hCaptcha
+ * latched onto. `account-resolve` keeps VisaCal new-card popup
+ * coverage; `dashboard` keeps post-login overlay coverage.
  */
-const POPUP_PHASES: ReadonlySet<string> = new Set(['home', 'account-resolve', 'dashboard']);
+const POPUP_PHASES: ReadonlySet<string> = new Set(['account-resolve', 'dashboard']);
 
 /**
  * Attempt to dismiss one popup via WK_CLOSE_POPUP.

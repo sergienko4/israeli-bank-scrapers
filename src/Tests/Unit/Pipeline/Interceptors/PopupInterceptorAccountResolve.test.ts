@@ -83,14 +83,14 @@ describe('PopupInterceptor — Phase 7d account-resolve binding', () => {
     expect(calls.count).toBeGreaterThanOrEqual(1);
   });
 
-  it('beforePhase("home") still triggers (existing whitelist entry preserved)', async () => {
+  it('beforePhase("home") no longer triggers (removed 2026-05-19 to break the silent-window asymmetry that triggered Hapoalim hCaptcha)', async () => {
     const { mediator, calls } = makeRecordingMediator(false);
     const baseCtx = makeMockContext();
     const ctx = { ...baseCtx, mediator: { has: true, value: mediator } };
     const interceptor = createPopupInterceptor();
     const handler = interceptor.beforePhase.bind(interceptor);
     await handler(ctx, 'home');
-    expect(calls.count).toBeGreaterThanOrEqual(1);
+    expect(calls.count).toBe(0);
   });
 
   it('beforePhase("dashboard") still triggers (existing whitelist entry preserved)', async () => {
