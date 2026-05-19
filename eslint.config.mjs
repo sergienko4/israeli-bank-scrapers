@@ -185,6 +185,18 @@ const RESTRICTED_SYNTAX_RULES = [
     message:
       '🚫 PII LEAK (T16): Identifier with payload-shape name passed as LOG value. Pre-redact via PiiRedactor or pass scalar.',
   },
+
+  // T17: Pseudorandom number generator safety (SonarCloud S2245 /
+  // typescript:S2245). `Math.random()` is a PRNG, not a CSPRNG —
+  // attackers can predict its output. The project blocks all uses
+  // and only allows `node:crypto.randomBytes()`, `randomInt()`,
+  // `randomUUID()`. Reference:
+  // https://docs.sonarsource.com/sonarcloud/javascript/rules/S2245
+  {
+    selector: "CallExpression[callee.object.name='Math'][callee.property.name='random']",
+    message:
+      "🚫 SECURITY (S2245): Math.random() is forbidden. Use node:crypto's randomBytes(), randomInt(), or randomUUID() — see SECURITY.md / cycle-3 humanize commit.",
+  },
 ];
 
 const RESTRICTED_SYNTAX_RULES_NEW = [
@@ -456,6 +468,13 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
       "CallExpression[callee.object.name='LOG'][callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] ObjectExpression > Property[value.type='Identifier'][value.name=/^(scrapeOutput|rawTxn|rawAccount|rawAccounts|rawTxns|fullAccounts|allTxns|accountsArr|txnsArr)$/]",
     message:
       '🚫 PII LEAK (T16): Identifier with payload-shape name passed as LOG value. Pre-redact via PiiRedactor or pass scalar.',
+  },
+  // Mirror of the legacy-rules T17 — Math.random() forbidden everywhere
+  // in the Pipeline scope too. See RESTRICTED_SYNTAX_RULES.T17 comment.
+  {
+    selector: "CallExpression[callee.object.name='Math'][callee.property.name='random']",
+    message:
+      "🚫 SECURITY (S2245): Math.random() is forbidden. Use node:crypto's randomBytes(), randomInt(), or randomUUID().",
   },
 ];
 

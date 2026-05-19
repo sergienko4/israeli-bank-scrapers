@@ -16,6 +16,7 @@
  * `resolveVisible` runs against a deterministic position.
  */
 
+import { randomInt } from 'node:crypto';
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import type { Page } from 'playwright-core';
@@ -45,8 +46,15 @@ interface IJitterCursor {
  * @returns Next position tuple.
  */
 function nextJitterPosition(prevX: number, prevY: number): readonly [number, number] {
-  const dx = Math.round((Math.random() - 0.5) * 2 * HUMANIZE_JITTER_RADIUS_PX);
-  const dy = Math.round((Math.random() - 0.5) * 2 * HUMANIZE_JITTER_RADIUS_PX);
+  // `node:crypto.randomInt(min, max)` returns an int in [min, max).
+  // Using ±(radius+1) gives a symmetric offset and satisfies the
+  // project's "no Math.random()" rule (SC S2245 / typescript:S2245).
+  // Mouse jitter doesn't need crypto-grade entropy per se, but the
+  // architecture rule centralises pseudo-random calls on the secure
+  // generator so security-sensitive code can never accidentally adopt
+  // Math.random() in the future.
+  const dx = randomInt(-HUMANIZE_JITTER_RADIUS_PX, HUMANIZE_JITTER_RADIUS_PX + 1);
+  const dy = randomInt(-HUMANIZE_JITTER_RADIUS_PX, HUMANIZE_JITTER_RADIUS_PX + 1);
   const nextX = Math.max(0, prevX + dx);
   const nextY = Math.max(0, prevY + dy);
   return [nextX, nextY] as const;

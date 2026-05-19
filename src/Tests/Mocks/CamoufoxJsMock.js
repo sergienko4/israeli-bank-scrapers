@@ -8,6 +8,7 @@
 // without xvfb apt package). Production CI gets the real virtual-display
 // anti-detect benefit; non-Linux test hosts silently use raw boolean.
 import { execFileSync, spawn } from 'node:child_process';
+import { randomInt } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -44,7 +45,10 @@ function findXvfbBinary() {
 function spawnVirtualDisplay() {
   const xvfb = findXvfbBinary();
   if (!xvfb) return null;
-  const display = `:${Math.floor(Math.random() * 100) + 99}`;
+  // `randomInt(min, max)` is [min, max); 99..199 inclusive matches the
+  // prior `Math.floor(Math.random() * 100) + 99` range and satisfies
+  // the project's no-Math.random architecture rule.
+  const display = `:${randomInt(99, 199)}`;
   const args = [display, '-screen', '0', '1920x1080x24', '-ac', '-nolisten', 'tcp'];
   const proc = spawn(xvfb, args, { stdio: 'ignore', detached: true });
   return { display, proc };
