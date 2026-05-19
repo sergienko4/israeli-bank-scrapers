@@ -28,7 +28,11 @@ runs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
         fi
-        Xvfb -version 2>&1 | head -n 1 || true
+        # `Xvfb -version` does not exist (X.Org never adopted GNU
+        # --version); report the installed package version via dpkg
+        # so the CI log shows a clean line instead of the misleading
+        # "Unrecognized option: -version" stderr from the binary.
+        dpkg-query -W -f='${Package} ${Version}\n' xvfb || true
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
