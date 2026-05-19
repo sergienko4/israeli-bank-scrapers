@@ -476,6 +476,26 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
     message:
       "🚫 SECURITY (S2245): Math.random() is forbidden. Use node:crypto's randomBytes(), randomInt(), or randomUUID().",
   },
+
+  // T18: Detached `child_process.spawn(..., { detached: true })` MUST
+  // be followed by `.unref()` so the parent process can exit without
+  // waiting on the detached child's stdio handle. Without `.unref()`,
+  // Jest hangs at the end of the test run and only `--forceExit` masks
+  // it. Locks CodeRabbit F9 on PR #235 (CamoufoxJsMock virtual-display
+  // spawn). Pipeline-only — production code outside the Pipeline does
+  // not spawn detached children.
+  {
+    selector:
+      "CallExpression[callee.name='spawn'][arguments.2.type='ObjectExpression'] > ObjectExpression > Property[key.name='detached'][value.value=true]",
+    message:
+      "🚫 RESOURCE LEAK (T18): spawn({ detached: true }) without proc.unref() blocks parent exit. Add `proc.unref()` immediately after the spawn call. See CodeRabbit F9.",
+  },
+
+  // T19 (path-traversal heuristic) was attempted as a global ESLint
+  // rule but was dropped — see RESTRICTED_SYNTAX_RULES head-comment.
+  // The F8 path-traversal guard lives in CamoufoxLauncher.getProfileDir
+  // (`path.basename` wrap + closed-enum bank check) and is verified by
+  // unit tests asserting `''` / `.` / `..` rejection.
 ];
 
 export default tseslint.config(

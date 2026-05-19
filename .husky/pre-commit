@@ -160,6 +160,34 @@ fi
 bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
 bg_gate "canaries"          "yes" npm run lint:canaries
 
+# ── Dockerfile + shell-script gates ───────────────────────────────────
+# Locks the CodeRabbit F6 (Dockerfile inline-comment trap) and F7
+# (hardcoded /c/tmp path in shell script) regression class. Soft-skip
+# with install instructions when the tool is missing (mirrors the
+# sonar-scanner pattern) — fail-loud enforcement lives in the
+# pr-reviewer agent's observe.sh, which the pre-push hook calls.
+STAGED_DOCKERFILES=$(echo "$STAGED_FILES" | grep -E '(^|/)Dockerfile($|\.[^/]+$)' || true)
+# Match .sh files AND husky hook scripts (which are bash but have no
+# extension — pre-commit, pre-push, commit-msg, etc.). Exclude the
+# husky-managed `_/` shim directory.
+STAGED_SHELLSCRIPTS=$(echo "$STAGED_FILES" | grep -E '\.sh$|^\.husky/[^_/][^/]*$' || true)
+
+if [ -n "$STAGED_DOCKERFILES" ]; then
+    if command -v hadolint >/dev/null 2>&1; then
+        bg_gate "hadolint" "yes" bash -c "echo \"$STAGED_DOCKERFILES\" | xargs -r hadolint"
+    else
+        log "⏭️  hadolint not on PATH — skipping Dockerfile lint. Install: scoop install hadolint / brew install hadolint"
+    fi
+fi
+
+if [ -n "$STAGED_SHELLSCRIPTS" ]; then
+    if command -v shellcheck >/dev/null 2>&1; then
+        bg_gate "shellcheck" "yes" bash -c "echo \"$STAGED_SHELLSCRIPTS\" | xargs -r shellcheck"
+    else
+        log "⏭️  shellcheck not on PATH — skipping shell-script lint. Install: scoop install shellcheck / brew install shellcheck / apt install shellcheck"
+    fi
+fi
+
 # Heavy gates — each runs Jest with its own worker pool. Capping each
 # pool to 2 workers keeps total concurrency on an 8-core box manageable
 # (≈ 5 gates × 2 workers + 7 light static gates ≈ within budget).

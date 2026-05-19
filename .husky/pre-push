@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# pre-push: invoke the out-of-repo pr-reviewer agent (Phase O: Observe +
+# Orient) before allowing a push. Fails loud if shellcheck / hadolint are
+# missing or if any new deterministic-gate finding is detected on the
+# diff since origin/<base-branch>.
+#
+# The agent code lives at C:/tmp/agents/pr-reviewer/ so it can be reused
+# across worktrees and forks without duplicating it into every repo.
+set -o pipefail
+
+AGENT_HOME="${PR_REVIEWER_HOME:-/c/tmp/agents/pr-reviewer}"
+OBSERVE="${AGENT_HOME}/lib/observe.sh"
+ORIENT="${AGENT_HOME}/lib/orient.sh"
+
+if [ ! -x "$OBSERVE" ] || [ ! -x "$ORIENT" ]; then
+    cat <<EOF >&2
+ERROR: pr-reviewer agent not found at ${AGENT_HOME}.
+Install:
+  git clone <internal-mirror> ${AGENT_HOME}
+  chmod +x ${AGENT_HOME}/lib/*.sh
+Or override the location via PR_REVIEWER_HOME=/path/to/pr-reviewer.
+Push aborted — bypass with: SKIP_PR_REVIEWER=1 git push (DISCOURAGED).
+EOF
+    [ "${SKIP_PR_REVIEWER:-0}" = "1" ] && exit 0
+    exit 1
+fi
+
+# Resolve the PR id from the current branch (open PR head ref). When the
+# branch has no open PR yet (first push), use the branch name as the
+# scratch dir key so artifacts don't collide with later runs.
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+PRID=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+if [ -z "$PRID" ] || [ "$PRID" = "null" ]; then
+    PRID="prebranch-${BRANCH//\//_}"
+fi
+
+echo "🔍 pr-reviewer: Observe + Orient against PR $PRID..."
+if ! bash "$OBSERVE" "$PRID"; then
+    echo "❌ pr-reviewer Observe failed — push aborted." >&2
+    exit 1
+fi
+if ! bash "$ORIENT" "$PRID"; then
+    echo "❌ pr-reviewer Orient flagged blocking findings — push aborted." >&2
+    echo "   See: /c/tmp/pr/${PRID}/orient-*.md for details." >&2
+    echo "   Re-run interactively via: /pr-review" >&2
+    exit 1
+fi
+echo "✅ pr-reviewer: no blocking findings."
