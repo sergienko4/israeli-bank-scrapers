@@ -10,7 +10,14 @@
  *   - POST <identityBase>.../getIdToken
  *   - POST <identityBase>.../sessions/token
  *   - POST <graphqlUrl>  (operation-name dispatch)
+ *
+ * Since fix/onezero-camoufox-identity-tls, identity calls route through the
+ * Camoufox-backed strategy. The CamoufoxJsMock fake-page-eval mode is toggled
+ * on so page.evaluate(fn, args) runs fn(args) in Node against this file's
+ * globalThis.fetch override.
  */
+
+import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
 export interface IMockCallCounts {
@@ -54,6 +61,25 @@ interface IResponseLike {
   readonly ok: boolean;
   readonly status: number;
   readonly text: () => Promise<string>;
+  readonly headers: { readonly getSetCookie: () => readonly string[] };
+}
+
+/** Empty Set-Cookie list reused across all synthetic responses. */
+const NO_SET_COOKIES: readonly string[] = Object.freeze([]);
+
+/**
+ * Build the synthetic Headers slice consumed by the in-page fetch wrapper.
+ * Returns an empty Set-Cookie list — the OneZero mock flow does not exercise
+ * cookie warming.
+ * @returns {object} Headers stub with a getSetCookie method returning [].
+ */
+function emptyHeaders(): IResponseLike['headers'] {
+  /**
+   * Returns the empty Set-Cookie list captured in NO_SET_COOKIES.
+   * @returns Frozen empty Set-Cookie array.
+   */
+  const getSetCookie = (): readonly string[] => NO_SET_COOKIES;
+  return { getSetCookie };
 }
 
 /** Accumulates call counts so tests can assert wiring. */
@@ -76,7 +102,7 @@ function buildResponse(status: number, bodyText: string): IResponseLike {
    * @returns Promise of body text.
    */
   const textFn = (): Promise<string> => Promise.resolve(bodyText);
-  return { ok: isOkStatus, status, text: textFn };
+  return { ok: isOkStatus, status, text: textFn, headers: emptyHeaders() };
 }
 
 /**
@@ -427,12 +453,14 @@ export function installOneZeroFetchMock(): IMockHandle {
   const tally: ICallTally = { identity: 0, graphql: 0 };
   const mockFetch = makeMockFetch(tally);
   (globalThis as unknown as { fetch: typeof mockFetch }).fetch = mockFetch;
+  setFakePageEvalMode(true);
   /**
-   * Restore the original fetch implementation.
+   * Restore the original fetch implementation and reset the Camoufox mock.
    * @returns True once restoration completes.
    */
   const dispose = (): boolean => {
     globalThis.fetch = previousFetch;
+    setFakePageEvalMode(false);
     return true;
   };
   /**

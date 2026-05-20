@@ -1,6 +1,7 @@
 /** Pipeline executor — reduces over phases; short-circuits on failure. */
 
 import type { IScraperScrapingResult, ScraperCredentials } from '../../../Base/Interface.js';
+import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -15,6 +16,32 @@ import {
   type IContextTracker,
 } from './PipelineMiddleware.js';
 import { reducePhases, wrapError } from './PipelineReducer.js';
+
+/**
+ * Awaits an optional dispose() callback, swallowing any thrown error so the
+ * already-failing scrape outcome is never masked.
+ * @param disposeFn - Optional dispose hook (undefined for mediators with no
+ * owned resources).
+ * @returns Resolves once dispose has been attempted (success or swallowed).
+ */
+async function tryDispose(disposeFn?: () => Promise<void>): LifecyclePromise {
+  try {
+    await disposeFn?.();
+  } catch {
+    /* silent: dispose must never mask the original scrape outcome */
+  }
+}
+
+/**
+ * Disposes an apiMediator that owns external resources (e.g. a Camoufox
+ * browser). Mediators without an own resource (dispose === undefined) are
+ * a no-op.
+ * @param ctx - The last-known pipeline context carrying the mediator slot.
+ * @returns Resolves once dispose has been attempted (success or swallowed).
+ */
+async function disposeApiMediatorSafe(ctx: IPipelineContext): LifecyclePromise {
+  if (ctx.apiMediator.has) await tryDispose(ctx.apiMediator.value.dispose);
+}
 
 /**
  * Run phase reduction with cleanup guarantee.
@@ -33,6 +60,7 @@ async function runWithCleanup(
   } finally {
     await runAfterPipeline(tracker.interceptors, tracker.lastCtx);
     await ensureBrowserCleanup(tracker, initialCtx.logger);
+    await disposeApiMediatorSafe(tracker.lastCtx);
   }
 }
 

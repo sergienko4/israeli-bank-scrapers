@@ -23,6 +23,12 @@ export interface IHeadlessUrlsConfig {
   readonly paths: Readonly<Partial<Record<AuthPathKey, string>>>;
   /** Static Authorization header installed before login (e.g. Transmit TSToken). */
   readonly staticAuth?: string;
+  /**
+   * When true, identity API calls (NOT graphql) are routed through a Camoufox
+   * browser session to bypass Cloudflare's Node-TLS bot rule. Default: undefined
+   * (treated as false). Only set for banks whose identity host gates Node TLS.
+   */
+  readonly requiresBrowserTls?: boolean;
 }
 
 /** Pipeline bank config — HOME phase URL + optional headless URLs. */
