@@ -22,6 +22,7 @@ import type { Page, Response } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
+import type { JsonValue } from '../../Types/JsonValue.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 
 const LOG = getDebug(import.meta.url);
@@ -34,13 +35,6 @@ const FAIL_STATUS_MAX = 499;
 
 /** Classifier label distinguishing which detector layer fired. */
 type AuthFailureClassifier = 'http-4xx' | 'body-error';
-/**
- * Parsed-JSON sentinel passed to body classifiers. Aliased so the
- * function signature does not include the bare `unknown` keyword
- * (forbidden by the architecture lint rule).
- */
-// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
-type JsonValue = unknown;
 
 /**
  * Pattern row matching a body field whose value indicates an auth failure.
