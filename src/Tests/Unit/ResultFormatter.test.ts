@@ -1,6 +1,7 @@
+import { Writable } from 'node:stream';
+
 import { jest } from '@jest/globals';
 import pino from 'pino';
-import { Writable } from 'stream';
 
 import {
   formatResultSummary,
@@ -243,13 +244,17 @@ describe('ResultFormatter — PII masking', () => {
       expect(output).toContain('Result: success=true');
     });
     it('shows error type on failure without sensitive details', () => {
+      // CodeQL #28 contract — closed-enum errorTypes (including
+      // InvalidPassword) are routed through redactSensitiveEnum and
+      // replaced with the constant `<REDACTED_ENUM>` placeholder.
       const result: IScraperScrapingResult = {
         success: false,
         errorType: 'INVALID_PASSWORD' as IScraperScrapingResult['errorType'],
       };
       const output = formatResultSummary('TestBank', result).join('\n');
       expect(output).toContain('success=false');
-      expect(output).toContain('INVALID_PASSWORD');
+      expect(output).toContain('<REDACTED_ENUM>');
+      expect(output).not.toContain('INVALID_PASSWORD');
     });
     it('redacts errorMessage to a length-tag (no raw content), falls back when missing', () => {
       // CodeQL alert #28 — bank-side errorMessage can echo credentials.
@@ -284,7 +289,9 @@ describe('ResultFormatter — PII masking', () => {
 
     it('redacts a credentials-leaking errorMessage (the CodeQL #28 contract)', () => {
       // Worst-case: bank echoes the user's password in errorMessage. The
-      // length-tag MUST hide every credential-revealing substring.
+      // length-tag MUST hide every credential-revealing substring AND
+      // the closed-enum errorType is itself routed through
+      // redactSensitiveEnum (replaced with `<REDACTED_ENUM>`).
       const rawMsg = 'Login failed: Wrong password ABC123XYZ';
       const expectedLen = 38;
       const result: IScraperScrapingResult = {
@@ -293,7 +300,8 @@ describe('ResultFormatter — PII masking', () => {
         errorMessage: rawMsg,
       };
       const output = formatResultSummary('TestBank', result).join('\n');
-      expect(output).toContain('INVALID_PASSWORD');
+      expect(output).toContain('<REDACTED_ENUM>');
+      expect(output).not.toContain('INVALID_PASSWORD');
       expect(output).not.toContain('ABC123XYZ');
       expect(output).not.toContain('Wrong password');
       expect(output).not.toContain(rawMsg);

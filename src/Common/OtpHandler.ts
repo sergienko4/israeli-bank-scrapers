@@ -1,4 +1,5 @@
-import path from 'path';
+import path from 'node:path';
+
 import { type Frame, type Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
