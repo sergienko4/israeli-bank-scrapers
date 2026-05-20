@@ -1,4 +1,5 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
+
 import moment from 'moment-timezone';
 
 import { getDebug, runWithBankContext, type ScraperLogger } from '../../Common/Debug.js';
@@ -84,7 +85,7 @@ export default class BaseScraper<
   /** Bank-scoped logger — includes `bank` field in every log line. */
   protected readonly bankLog: ScraperLogger;
 
-  private _eventEmitter = new EventEmitter();
+  private readonly _eventEmitter = new EventEmitter();
 
   /**
    * Create a new BaseScraper with the given options.
@@ -285,6 +286,17 @@ export default class BaseScraper<
 
   /**
    * Log a formatted summary of the scraping result.
+   *
+   * <p>CodeQL alert #28 (`js/clear-text-logging`) anchors this
+   * call site because every line passed to `bankLog.info` flows
+   * to the persisted log channel. Redaction of sensitive fields
+   * (`errorType` enum tag + `errorMessage` free text)
+   * happens UPSTREAM in `ResultFormatter.formatFailure` via
+   * `redactSensitiveEnum` and `redactErrorMessage`. Do
+   * NOT reintroduce raw `errorType` / `errorMessage`
+   * interpolation here — the indirect protection at the formatter
+   * is the single source of truth and must not be undone.
+   *
    * @param result - The scraping result to summarize.
    * @returns True after the summary is logged.
    */

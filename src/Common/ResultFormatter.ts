@@ -4,6 +4,7 @@ import {
   redactAmount,
   redactErrorMessage,
   redactMerchant,
+  redactSensitiveEnum,
 } from '../Scrapers/Pipeline/Types/PiiRedactor.js';
 import type { ITransaction, ITransactionsAccount } from '../Transactions.js';
 import { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
@@ -123,21 +124,30 @@ function formatSuccess(result: IScraperScrapingResult): string[] {
 
 /**
  * Format a failed scraping result for the summary log.
+ *
+ * <p>Closes CodeQL alert #28 (`js/clear-text-logging`) for the
+ * `errorType` discriminated-union tag. Spec.txt §1 RC-1 + the
+ * project's `logging-pii-guidlines.md` §1 require preventive
+ * masking BEFORE the line is composed: bank-side `errorMessage`
+ * can echo credentials (already redacted via
+ * {@link redactErrorMessage}) AND sensitive enum tags like
+ * `InvalidPassword` / `ChangePassword` can be pivoted on
+ * by an attacker scraping logs. The central PiiRedactor Pino censor
+ * only operates on structured payloads — values interpolated into the
+ * `msg` argument bypass redaction, so both fields are masked
+ * here at the source.
+ *
  * @param result - The failed scraping result.
- * @returns An array of formatted log lines.
+ * @returns An array of formatted log lines with both
+ *   `errorType` and `errorMessage` redacted at composition
+ *   time.
  */
 function formatFailure(result: IScraperScrapingResult): string[] {
-  const errorType = result.errorType ?? 'unknown';
-  // CodeQL #28 + `logging-pii-guidlines.md §1`: bank-side errorMessage
-  // can echo credentials. Redact to a length-tag `<msg:N>` so the log
-  // line preserves "yes there was a message, ~N chars long" signal
-  // without exposing raw content. The central PiiRedactor censor only
-  // operates on Pino's structured object payload — it can't intercept
-  // values interpolated into the `msg` argument, so the redaction must
-  // happen here, at the source.
+  const rawErrorType = result.errorType ?? 'unknown';
+  const safeErrorType = redactSensitiveEnum(rawErrorType);
   const rawMsg = result.errorMessage ?? '';
   const safeMsg = rawMsg.length === 0 ? 'no error message' : redactErrorMessage(rawMsg);
-  return [`Result: success=false | errorType=${errorType} | msg=${safeMsg}`];
+  return [`Result: success=false | errorType=${safeErrorType} | msg=${safeMsg}`];
 }
 
 /**
