@@ -10,6 +10,7 @@ import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import { resolveWkQuery } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import { resolveWkUrl } from '../../Registry/WK/UrlsWK.js';
+import { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';
 import type { IFetchStrategy, PostData } from '../../Strategy/Fetch/FetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
@@ -65,6 +66,13 @@ export interface IApiMediator {
     variables: Record<string, unknown>,
     opts?: IApiQueryOpts,
   ) => Promise<Procedure<T>>;
+  /**
+   * Optional cleanup hook for mediators that own resources (e.g. a Camoufox
+   * browser). Idempotent. Called by PipelineExecutor at scrape finalize
+   * regardless of success/failure. Undefined for mediators with no owned
+   * resources (e.g. NativeFetchStrategy-backed banks).
+   */
+  readonly dispose?: () => Promise<void>;
 }
 
 /** Empty header map — shared singleton for callers with no extras. */
@@ -459,3 +467,43 @@ export function createHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMedi
   if (args.staticAuth) mediator.setRawAuth(args.staticAuth);
   return mediator;
 }
+
+/** Args bundle for the browser-backed headless-mediator factory. */
+interface IBrowserBackedHeadlessMediatorArgs {
+  readonly bankHint: CompanyTypes;
+  readonly identityBaseUrl: string;
+  /** Same-origin URL used for the Camoufox page navigation (e.g. 'https://identity.tfd-bank.com'). */
+  readonly identityOriginUrl: string;
+  readonly graphqlUrl: string;
+  readonly staticAuth?: string;
+}
+
+/**
+ * Builds an ApiMediator whose identity REST transport runs through a Camoufox
+ * browser session (TLS-bypass) while GraphQL keeps the native transport.
+ * The mediator exposes a dispose() hook that closes the Camoufox process.
+ * @param args - Bank hint + identity base URL + same-origin nav URL + graphql URL + optional staticAuth.
+ * @returns IApiMediator with dispose() plumbed through to the Camoufox strategy.
+ */
+export function createBrowserBackedHeadlessApiMediator(
+  args: IBrowserBackedHeadlessMediatorArgs,
+): IApiMediator {
+  const fetchStrategy: CamoufoxIdentityFetchStrategy = Reflect.construct(
+    CamoufoxIdentityFetchStrategy,
+    [args.identityOriginUrl],
+  );
+  const graphqlStrategy: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [
+    args.graphqlUrl,
+  ]);
+  const mediator = createApiMediator(args.bankHint, fetchStrategy, graphqlStrategy);
+  if (args.staticAuth) mediator.setRawAuth(args.staticAuth);
+  /**
+   * Dispose hook delegating to the strategy's close. Idempotent via the
+   * strategy's own _disposed flag.
+   * @returns Resolves once the underlying Camoufox process is closed.
+   */
+  const dispose = (): Promise<void> => fetchStrategy.dispose();
+  return Object.assign(mediator, { dispose });
+}
+
+export type { IBrowserBackedHeadlessMediatorArgs };

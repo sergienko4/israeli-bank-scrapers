@@ -62,6 +62,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
         'identity.getIdToken': 'https://identity.tfd-bank.com/v1/getIdToken',
         'identity.sessionToken': 'https://identity.tfd-bank.com/v1/sessions/token',
       },
+      requiresBrowserTls: true,
     },
   },
   [CompanyTypes.Pepper]: {

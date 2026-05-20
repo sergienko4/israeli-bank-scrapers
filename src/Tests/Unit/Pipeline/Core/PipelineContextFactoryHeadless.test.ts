@@ -73,4 +73,37 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     expect(ctx.apiMediator.has).toBe(false);
     expect(ctx.loginAreaReady).toBe(false);
   });
+
+  it('OZ-PCF-01 — OneZero (requiresBrowserTls=true): mediator exposes dispose hook', () => {
+    const descriptor = makeDescriptor(true, CompanyTypes.OneZero);
+    const ctx = buildInitialContext(
+      descriptor,
+      {} as unknown as Parameters<typeof buildInitialContext>[1],
+    );
+    expect(ctx.apiMediator.has).toBe(true);
+    if (ctx.apiMediator.has) {
+      expect(typeof ctx.apiMediator.value.dispose).toBe('function');
+    }
+  });
+
+  it('OZ-PCF-02 — Pepper (no requiresBrowserTls): mediator dispose stays undefined', () => {
+    const descriptor = makeDescriptor(true, CompanyTypes.Pepper);
+    const ctx = buildInitialContext(
+      descriptor,
+      {} as unknown as Parameters<typeof buildInitialContext>[1],
+    );
+    expect(ctx.apiMediator.has).toBe(true);
+    if (ctx.apiMediator.has) {
+      expect(ctx.apiMediator.value.dispose).toBeUndefined();
+    }
+  });
+
+  it('OZ-PCF-03 — Hapoalim (non-headless): apiMediator slot stays none', () => {
+    const descriptor = makeDescriptor(false, CompanyTypes.Hapoalim);
+    const ctx = buildInitialContext(
+      descriptor,
+      {} as unknown as Parameters<typeof buildInitialContext>[1],
+    );
+    expect(ctx.apiMediator.has).toBe(false);
+  });
 });
