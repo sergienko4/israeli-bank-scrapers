@@ -12,7 +12,14 @@ on:
         type: choice
         options: ['false', 'true']
 
-permissions: {}
+# Top-level least-privilege baseline — closes CodeQL alert #32
+# (TokenPermissionsID). The release-please job overrides locally to
+# `contents: write` + `pull-requests: write` because it needs to push
+# release commits and PRs; the publish job overrides locally to
+# `contents: read` + `id-token: write` for the npm OIDC trust chain.
+# Other jobs in this workflow inherit the read-only default.
+permissions:
+  contents: read
 
 # ──────────────────────────────────────────────────────────────
 # Job DAG:
