@@ -25,6 +25,15 @@ concurrency:
   group: pr-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+# Top-level (file-scope) least-privilege baseline — closes CodeQL alert
+# #33 (TokenPermissionsID). Per the GitHub StepSecurity hardening
+# pattern, every workflow MUST declare permissions at the file scope so
+# the default `GITHUB_TOKEN` carries the minimum needed for the cheapest
+# job. Jobs that need elevated permissions override locally and ONLY for
+# the keys they need (see release.yml release-please job).
+permissions:
+  contents: read
+
 # ──────────────────────────────────────────────────────────────
 # Job DAG (cheap-gates-first, fail-fast):
 #
