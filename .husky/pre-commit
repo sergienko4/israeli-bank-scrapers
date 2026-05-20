@@ -165,9 +165,9 @@ bg_gate "canaries"          "yes" npm run lint:canaries
 # (≈ 5 gates × 2 workers + 7 light static gates ≈ within budget).
 JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 
-bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=2"
-bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=2"
-bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=4"
+bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=8"
+bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=8"
+bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=8"
 
 wait_all
 
