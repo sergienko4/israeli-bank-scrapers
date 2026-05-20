@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.3.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.3.0...v8.3.1) (2026-05-20)
+
+
+### Bug Fixes
+
+* **onezero:** Camoufox-backed identity transport + version flow ([#243](https://github.com/sergienko4/israeli-bank-scrapers/issues/243)) ([c033572](https://github.com/sergienko4/israeli-bank-scrapers/commit/c03357296c6b582e267893b8dca2411c87fed6a1))
+
 ## [8.3.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.2.1...v8.3.0) (2026-05-19)
 
 
