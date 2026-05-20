@@ -1,4 +1,4 @@
-# CI mirror — Ubuntu 24.04 + Node 22.14.0 + Camoufox v135.0.1-beta.24.
+# CI mirror — Ubuntu 24.04 + Node 22.14.0 + Camoufox v150.0.2-beta.25.
 # Built to match GitHub's `ubuntu-latest` (= 24.04) runner image so local
 # repro of the E2E Real A jobs matches the CI environment byte-for-byte
 # above the OS level. Used for two purposes:
@@ -19,7 +19,7 @@ FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_VERSION=22.14.0
-ARG CAMOUFOX_VERSION=v135.0.1-beta.24
+ARG CAMOUFOX_VERSION=v150.0.2-beta.25
 
 # Mirror the apt set that the GitHub `ubuntu-24.04` runner image carries
 # that Camoufox / Firefox needs at runtime. Source list cross-checked

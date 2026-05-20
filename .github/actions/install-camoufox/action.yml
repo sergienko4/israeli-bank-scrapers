@@ -13,9 +13,7 @@ runs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        key: camoufox-v135.0.1-beta.24
-        restore-keys: |
-          camoufox-
+        key: camoufox-v150.0.2-beta.25
     - name: Install Camoufox browser
       shell: bash
       env:
@@ -31,7 +29,7 @@ runs:
           else
             echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
             ASSET_DIR=$(mktemp -d)
-            gh release download v135.0.1-beta.24 --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+            gh release download v150.0.2-beta.25 --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
             mkdir -p ~/.cache/camoufox
             unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
             rm -rf "$ASSET_DIR"
