@@ -24,9 +24,11 @@ if [[ ! -f "$FILE" ]]; then
   exit 2
 fi
 
-# Every non-comment FROM line must carry `@sha256:<64-hex>`. Filter
-# comments first, then check each remaining FROM line.
-FROM_LINES="$(grep -E '^FROM ' "$FILE" || true)"
+# Every non-comment FROM line must carry `@sha256:<64-hex>`. Match
+# case-insensitively because Dockerfile keywords are not case-sensitive
+# per the spec (`from`, `From`, `FROM` are all valid); the canary must
+# catch unpinned bases regardless of how the directive is written.
+FROM_LINES="$(grep -iE '^FROM ' "$FILE" || true)"
 if [[ -z "$FROM_LINES" ]]; then
   # No FROM line at all — accept (nothing to pin).
   exit 0
