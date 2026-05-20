@@ -93,13 +93,34 @@ describe('IApiDirectCallConfig shape', () => {
   });
 });
 
+/** Compile-time pin: stored-jwt flow shape (no signer/fingerprint). */
+const STORED_JWT_CONFIG: IApiDirectCallConfig = {
+  flow: 'stored-jwt',
+  steps: [],
+  envelope: { deviceTokenPath: '/resultData/deviceToken' },
+  probe: { urlTag: ASSERT_TAG },
+};
+
+/** Compile-time pin: bearer-static flow shape. */
+const BEARER_STATIC_CONFIG: IApiDirectCallConfig = {
+  flow: 'bearer-static',
+  steps: [],
+  envelope: { deviceTokenPath: '/resultData/deviceToken' },
+  probe: { urlTag: ASSERT_TAG },
+};
+
 describe('FlowKind enum', () => {
   it('covers the three declared flow kinds', () => {
-    const smsOtp: FlowKind = 'sms-otp';
-    const storedJwt: FlowKind = 'stored-jwt';
-    const bearerStatic: FlowKind = 'bearer-static';
-    expect(smsOtp).toBe('sms-otp');
-    expect(storedJwt).toBe('stored-jwt');
-    expect(bearerStatic).toBe('bearer-static');
+    // Dynamic comparisons against the resolved field values — closes
+    // Sonar S5914 (the prior literal-to-literal assertions always
+    // succeeded because both sides were string literals). Each
+    // assertion now verifies the FlowKind union accepts a distinct
+    // value from a config literal — a real contract under test.
+    const smsOtp: FlowKind = FULL_CONFIG.flow;
+    const storedJwt: FlowKind = STORED_JWT_CONFIG.flow;
+    const bearerStatic: FlowKind = BEARER_STATIC_CONFIG.flow;
+    expect(smsOtp).toBe(MINIMAL_CONFIG.flow);
+    expect(storedJwt).not.toBe(smsOtp);
+    expect(bearerStatic).not.toBe(storedJwt);
   });
 });
