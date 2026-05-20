@@ -12,6 +12,7 @@ import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { IAccountIdentity, IFieldMatch } from '../../../Types/FieldMatch.js';
 import { buildFallbackMatch } from '../../../Types/FieldMatch.js';
+import type { JsonValue } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 
@@ -128,8 +129,6 @@ function extractCardId(record: Record<string, unknown>): string | false {
 /** Error message when no captured endpoint carries a displayId. */
 const NO_DISPLAY_ID_IN_STORE = 'no displayId field in any captured endpoint';
 
-// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
-type JsonValue = unknown;
 /** Plain-record alias — composes JsonValue to keep function sigs clean. */
 type JsonObject = Record<string, JsonValue>;
 
