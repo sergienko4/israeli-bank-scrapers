@@ -1,6 +1,7 @@
+import * as readline from 'node:readline';
+
 import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
-import * as readline from 'readline';
 
 import { CompanyTypes, createScraper } from '../../index.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';

@@ -218,12 +218,10 @@ function assertOtpFillShape(finalCtx: IPipelineContext): boolean {
 }
 
 describe('OTP-FILL-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
-  it.each(OTP_BANK_SCENARIOS)(
-    'otpFill_$bank_ShouldCompleteFullChain',
-    async (row): Promise<void> => {
-      const setup = prepareOtpFillRow(row);
-      const finalCtx = await runOtpFillChain(setup);
-      assertOtpFillShape(finalCtx);
-    },
-  );
+  it.each(OTP_BANK_SCENARIOS)('otpFill_$bank_ShouldCompleteFullChain', async row => {
+    const setup = prepareOtpFillRow(row);
+    const finalCtx = await runOtpFillChain(setup);
+    expect(typeof finalCtx.diagnostics.lastAction).toBe('string');
+    assertOtpFillShape(finalCtx);
+  });
 });

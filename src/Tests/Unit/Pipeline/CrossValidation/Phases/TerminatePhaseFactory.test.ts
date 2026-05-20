@@ -113,6 +113,7 @@ async function assertTerminateFinal(
 
 describe('TERMINATE-PHASE-FACTORY — Phase H per-bank PRE+POST+FINAL', () => {
   it.each(SCENARIOS)('terminate_$bank_$scenarioId_ShouldSucceedAtEverySubStep', async row => {
+    expect(row.scenarioId).toBeDefined();
     await runTerminateChainForRow(row);
   });
 });

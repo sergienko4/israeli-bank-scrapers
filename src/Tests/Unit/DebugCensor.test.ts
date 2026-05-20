@@ -1,5 +1,6 @@
+import { PassThrough } from 'node:stream';
+
 import pino from 'pino';
-import { PassThrough } from 'stream';
 
 import { getDebug } from '../../Common/Debug.js';
 

@@ -413,5 +413,8 @@ async function runFullFlowForRow(row: IFullFlowRow): Promise<void> {
 }
 
 describe('FULL-FLOW-FACTORY — Phase H per-bank 10-phase chain', () => {
-  it.each(SCENARIOS)('fullFlow_$bank_lastGood_ShouldCompleteEveryPhase', runFullFlowForRow);
+  it.each(SCENARIOS)('fullFlow_$bank_lastGood_ShouldCompleteEveryPhase', async row => {
+    expect(row.bank).toBeDefined();
+    await runFullFlowForRow(row);
+  });
 });

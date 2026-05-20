@@ -183,6 +183,7 @@ describe('SCRAPE-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
   it.each(BANK_SCENARIOS)('scrape_$bank_ShouldCompleteFullChain', async (row): Promise<void> => {
     const setup = prepareScrapeRow(row);
     const finalCtx = await runScrapeChain(setup);
+    expect(finalCtx.scrape.has).toBe(true);
     assertScrapeShape(finalCtx);
   });
 });

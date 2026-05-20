@@ -89,6 +89,7 @@ function resolveExpectedInitOutcome(row: IInitScenarioRow): boolean {
 
 describe('INIT-PHASE-FACTORY — Phase H per-bank POST contract', () => {
   it.each(SCENARIOS)('initPost_$bank_$scenarioId_ShouldAcceptLandingUrl', async row => {
+    expect(row.scenarioId).toBeDefined();
     await runInitPostForRow(row);
   });
 });

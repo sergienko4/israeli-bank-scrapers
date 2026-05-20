@@ -215,6 +215,7 @@ describe('LOGIN-PHASE-FACTORY — DEEP cross-bank PRE→ACTION→POST→FINAL', 
   it.each(SCENARIOS)('login_$bank_ShouldCompleteFullChain', async (row): Promise<void> => {
     const prepared = prepareLoginRow(row);
     const finalCtx = await runLoginChain(prepared);
+    expect(finalCtx.login.has).toBe(true);
     assertLoginFinalShape(finalCtx);
   });
 });

@@ -234,6 +234,8 @@ function assertResultMatchesFixture(
 
 describe('DASHBOARD-PICKER-FACTORY — Phase G regression guard cross-bank', () => {
   it.each(PHASE_G_BANK_ROWS)('dashboardPicker_%s_lastGoodCapture_ShouldCommitViaRichTier', bank => {
+    const fixture = makeBankFixture(bank);
+    expect(fixture).toBeDefined();
     assertPhaseGRegressionForBank(bank);
   });
 });

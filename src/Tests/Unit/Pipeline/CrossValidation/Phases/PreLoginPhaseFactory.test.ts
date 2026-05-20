@@ -159,6 +159,7 @@ describe('PRE-LOGIN-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () =
   it.each(BANK_SCENARIOS)('preLogin_$bank_ShouldCompleteFullChain', async (row): Promise<void> => {
     const setup = preparePreLoginRow(row);
     const finalCtx = await runPreLoginChain(setup);
+    expect(finalCtx.loginAreaReady).toBe(true);
     assertPreLoginFinalShape(finalCtx);
   });
 });

@@ -217,6 +217,7 @@ describe('HOME-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
   it.each(BANK_SCENARIOS)('home_$bank_ShouldCompleteFullChain', async (row): Promise<void> => {
     const setup = prepareHomeRow(row);
     const finalCtx = await runHomeChain(setup);
+    expect(typeof finalCtx.diagnostics.loginUrl).toBe('string');
     assertHomeFinalShape(finalCtx);
   });
 });
