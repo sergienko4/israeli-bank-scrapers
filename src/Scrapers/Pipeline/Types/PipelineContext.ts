@@ -167,7 +167,18 @@ export interface IPreLoginDiscovery {
 
 // ── Phase-Specific Discovery Types (PRE → ACTION handoff) ───────────
 
-/** Opaque frame identifier — 'main' or 'iframe:<url>' — never a raw Playwright object. */
+/**
+ * Opaque frame identifier — `'main'` or `'iframe:<url>'`;
+ * never a raw Playwright object.
+ *
+ * <p>Deferred from the Security Hardening 2026-05 RC-5 brand
+ * migration per Decide §6 NEW-R10 (5-file consumer-cascade ceiling):
+ * the brand pattern caused tsc errors in 15+ consumer sites across
+ * production + test code. Recorded as a Decide-time deviation; will
+ * be migrated in a follow-up PR scoped to the cascade cleanup.
+ * Sonar S6564 silence is retained via the `eslint.config.mjs`
+ * §12 override entry. NOSONAR.
+ */
 // NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
 export type ContextId = string;
 
