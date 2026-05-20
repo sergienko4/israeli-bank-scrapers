@@ -18,11 +18,10 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { findFieldValue } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
+import type { JsonValue } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 
-// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
-type JsonValue = unknown;
 type JsonObject = Record<string, JsonValue>;
 type MaybeRecord = JsonObject | null | undefined;
 
