@@ -3,7 +3,10 @@
  */
 
 import type { ScraperCredentials } from '../../Base/Interface.js';
-import { createHeadlessApiMediator } from '../Mediator/Api/ApiMediator.js';
+import {
+  createBrowserBackedHeadlessApiMediator,
+  createHeadlessApiMediator,
+} from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import { getDebug as createLogger } from '../Types/Debug.js';
 import { none, some } from '../Types/Option.js';
@@ -164,6 +167,7 @@ interface IHeadlessWiring {
   readonly identity: string;
   readonly graphql: string;
   readonly staticAuth?: string;
+  readonly requiresBrowserTls: boolean;
 }
 
 /**
@@ -180,7 +184,30 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
     identity: headless.identityBase,
     graphql: headless.graphql,
     staticAuth: headless.staticAuth,
+    requiresBrowserTls: headless.requiresBrowserTls === true,
   };
+}
+
+/**
+ * Selects the mediator factory based on wiring.requiresBrowserTls and wires
+ * identityOriginUrl when the browser-backed branch is taken.
+ * @param companyId - Target bank company type.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns Wired IApiMediator instance (with dispose when browser-backed).
+ */
+function buildApiMediatorForWiring(
+  companyId: IPipelineContext['companyId'],
+  wiring: IHeadlessWiring,
+): ReturnType<typeof createHeadlessApiMediator> {
+  const base = {
+    bankHint: companyId,
+    identityBaseUrl: wiring.identity,
+    graphqlUrl: wiring.graphql,
+    staticAuth: wiring.staticAuth,
+  };
+  if (!wiring.requiresBrowserTls) return createHeadlessApiMediator(base);
+  const identityOriginUrl = new URL(wiring.identity).origin;
+  return createBrowserBackedHeadlessApiMediator({ ...base, identityOriginUrl });
 }
 
 /**
@@ -193,12 +220,7 @@ function wireHeadlessMediator(descriptor: IPipelineDescriptor, slots: IPhaseSlot
   if (descriptor.isHeadless !== true) return slots;
   const wiring = resolveHeadlessWiring(descriptor.options.companyId);
   if (wiring === false) return slots;
-  const apiMediator = createHeadlessApiMediator({
-    bankHint: descriptor.options.companyId,
-    identityBaseUrl: wiring.identity,
-    graphqlUrl: wiring.graphql,
-    staticAuth: wiring.staticAuth,
-  });
+  const apiMediator = buildApiMediatorForWiring(descriptor.options.companyId, wiring);
   return { ...slots, apiMediator: some(apiMediator) };
 }
 

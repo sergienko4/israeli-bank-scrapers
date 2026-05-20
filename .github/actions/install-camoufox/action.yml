@@ -9,11 +9,17 @@ inputs:
 runs:
   using: composite
   steps:
+    # Cache key is version-less: the Camoufox browser binary version is
+    # NOT pinned here. The single source of truth for the npm package
+    # version is `@hieutran094/camoufox-js` in package.json; the upstream
+    # daijro/camoufox release is resolved dynamically by that package
+    # (pkgman.js CamoufoxFetcher walks releases newest-first). The cache
+    # persists across runs until manually busted by changing this key.
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        key: camoufox-v150.0.2-beta.25
+        key: camoufox-bin
     - name: Install Camoufox browser
       shell: bash
       env:
@@ -29,7 +35,12 @@ runs:
           else
             echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
             ASSET_DIR=$(mktemp -d)
-            gh release download v150.0.2-beta.25 --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+            # Resolve latest daijro/camoufox release tag dynamically — no
+            # static version pinned in CI; matches what camoufox-js itself
+            # picks at fetch time.
+            LATEST_TAG=$(gh release view --repo daijro/camoufox --json tagName -q .tagName)
+            echo "Falling back to daijro/camoufox release: ${LATEST_TAG}"
+            gh release download "${LATEST_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
             mkdir -p ~/.cache/camoufox
             unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
             rm -rf "$ASSET_DIR"

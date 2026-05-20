@@ -11,15 +11,30 @@ updates:
     labels:
       - dependencies
     groups:
+      # Camoufox is a critical anti-detect dependency; every upstream
+      # release (patch / minor / major) must flow through CI as its own
+      # PR. Single source of truth for the version lives in
+      # package.json — Dependabot keeps it current.
+      camoufox:
+        patterns:
+          - '@hieutran094/camoufox-js'
+        update-types:
+          - patch
+          - minor
+          - major
       dev-dependencies:
         dependency-type: development
         update-types:
           - minor
           - patch
+        exclude-patterns:
+          - '@hieutran094/camoufox-js'
       production-dependencies:
         dependency-type: production
         update-types:
           - patch
+        exclude-patterns:
+          - '@hieutran094/camoufox-js'
 
   - package-ecosystem: github-actions
     directory: /
