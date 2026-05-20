@@ -49,3 +49,17 @@ updates:
       actions:
         patterns:
           - '*'
+
+  # CI mirror Dockerfile — Dependabot auto-bumps the @sha256: digest on
+  # `FROM ubuntu:24.04@sha256:<digest>` whenever upstream re-tags 24.04.
+  # Pairs with the RC-3 pin in `docker/Dockerfile.ci-mirror` so the
+  # supply-chain integrity guarantee survives upstream image rebuilds.
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    labels:
+      - ci
+      - dependencies

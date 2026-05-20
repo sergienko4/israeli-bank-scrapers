@@ -18,7 +18,13 @@
 # Single:  bash docker/run-banks.sh Beinleumi
 # Parallel: bash docker/run-banks.sh   (no args = all 6)
 
-FROM ubuntu:24.04
+# Pinned by SHA-256 digest — closes CodeQL alert #34
+# (PinnedDependenciesID). The tag is kept for readability; the digest
+# pins reproducibility by content hash so a re-tag of `ubuntu:24.04`
+# upstream cannot silently change what this image carries. Dependabot
+# (`.github/dependabot.yml` `package-ecosystem: docker`) auto-bumps
+# the digest on upstream releases.
+FROM ubuntu:24.04@sha256:3afff29dffbc200d202546dc6c4f614edc3b109691e7ab4aa23d02b42ba86790
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_VERSION=22.14.0
