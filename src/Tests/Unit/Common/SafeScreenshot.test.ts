@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
-import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
+import { describeError, safeScreenshot, scrubPaths } from '../../../Common/SafeScreenshot.js';
 
 const ORIGINAL_CI = process.env.CI;
 
@@ -89,5 +89,42 @@ describe('safeScreenshot — CI gating contract', () => {
       expect(didCapture).toBe(false);
       expect(screenshotMock).toHaveBeenCalledTimes(0);
     });
+  });
+});
+
+describe('scrubPaths', () => {
+  it('replaces POSIX absolute paths with <path>', () => {
+    const scrubbed = scrubPaths('EACCES open /tmp/runs/pipeline/leumi/shot.png');
+    expect(scrubbed).toBe('EACCES open <path>');
+  });
+
+  it('replaces Windows absolute paths with <path>', () => {
+    const input = String.raw`cannot write C:\Users\eve\screenshot.png`;
+    const scrubbed = scrubPaths(input);
+    expect(scrubbed).toBe('cannot write <path>');
+  });
+
+  it('truncates long inputs at the cap', () => {
+    const long = 'x'.repeat(500);
+    const scrubbed = scrubPaths(long);
+    expect(scrubbed.length).toBeLessThanOrEqual(160);
+  });
+});
+
+describe('describeError', () => {
+  it('preserves Error name and scrubs paths from message', () => {
+    const err = new TypeError('cannot open /tmp/runs/pipeline/leumi/shot.png');
+    const description = describeError(err);
+    expect(description).toBe('TypeError: cannot open <path>');
+  });
+
+  it('returns sanitized string for non-Error string throws', () => {
+    const description = describeError('failed at /home/runner/work/shot.png');
+    expect(description).toBe('failed at <path>');
+  });
+
+  it('falls back to JSON.stringify for unknown shapes', () => {
+    const description = describeError({ code: 42 });
+    expect(description).toBe('{"code":42}');
   });
 });

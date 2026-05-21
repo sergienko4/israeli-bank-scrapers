@@ -14,16 +14,36 @@ export interface ISafeScreenshotOptions {
   readonly fullPage?: boolean;
 }
 
+const PATH_PATTERN = /(?:[a-z]:)?[\\/][\w.\-+/\\]+/gi;
+const MAX_REASON_LENGTH = 160;
+
+/**
+ * Strip filesystem path tokens (Windows + POSIX, absolute or relative)
+ * from a free-form string so they cannot reach the structured log.
+ * @param input - Untrusted text that may contain caller-supplied paths.
+ * @returns The input with path runs replaced by the literal `<path>`,
+ *   truncated to {@link MAX_REASON_LENGTH} characters.
+ */
+export function scrubPaths(input: string): string {
+  return input.replace(PATH_PATTERN, '<path>').slice(0, MAX_REASON_LENGTH);
+}
+
 /**
  * Extract a printable error reason without leaking caller-supplied paths.
+ * Error class name is preserved verbatim (bounded enum-like surface);
+ * the message is path-scrubbed and length-capped.
  * @param err - Unknown thrown value.
  * @returns A short string suitable for debug logging.
  */
-function describeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
+export function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const scrubbed = scrubPaths(err.message);
+    return `${err.name}: ${scrubbed}`;
+  }
+  if (typeof err === 'string') return scrubPaths(err);
   try {
-    return JSON.stringify(err);
+    const json = JSON.stringify(err);
+    return scrubPaths(json);
   } catch {
     return 'unknown error';
   }
