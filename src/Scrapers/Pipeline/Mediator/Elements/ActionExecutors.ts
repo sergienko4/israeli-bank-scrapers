@@ -7,7 +7,7 @@ import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { getDebug } from '../../Types/Debug.js';
-import type { ContextId, IResolvedTarget } from '../../Types/PipelineContext.js';
+import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import {
   ELEMENTS_CLICK_TIMEOUT_MS,
   ELEMENTS_EVALUATE_TIMEOUT_MS,
@@ -485,7 +485,7 @@ function raceResultToTarget(result: IRaceResult, page: Page): IResolvedTarget | 
   if (!result.found) return false;
   if (!result.context) return false;
   if (!result.candidate) return false;
-  const contextId: ContextId = computeContextId(result.context, page);
+  const contextId: string = computeContextId(result.context, page);
   const fromIdentity = result.identity && buildIdentitySelector(result.identity);
   const selector = fromIdentity || candidateToSelector(result.candidate);
   return {

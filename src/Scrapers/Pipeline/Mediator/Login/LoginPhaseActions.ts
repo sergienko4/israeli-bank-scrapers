@@ -231,20 +231,6 @@ function normalizeSubmitConfig(submit: ILoginConfig['submit']): readonly Selecto
 }
 
 /**
- * Trustworthy form-anchor selector (id/name/class) or empty string
- * sentinel.
- *
- * <p>Deferred from the Security Hardening 2026-05 RC-5 brand
- * migration per Decide §6 NEW-R10: branding cascaded into the
- * LoginPhaseActionsHelpers test file, which is outside the
- * Act-stage allow-list. Recorded as a Decide-time deviation; will
- * be migrated in a follow-up PR. Sonar S6564 silence retained via
- * the `eslint.config.mjs` §12 override entry.
- */
-// NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
-type FormAnchorSelector = string;
-
-/**
  * Extract form-anchor selector ONLY when the anchor is trustworthy:
  *   - `#id`             (e.g. Amex/Isracard `#otpLobbyFormPassword`)
  *   - `tag[name="X"]`   (form name attribute when id is empty)
@@ -256,7 +242,7 @@ type FormAnchorSelector = string;
  * @param formAnchor - Optional form anchor option.
  * @returns Trustworthy CSS selector or empty string.
  */
-function extractFormAnchorSelector(formAnchor: Option<IFormAnchor>): FormAnchorSelector {
+function extractFormAnchorSelector(formAnchor: Option<IFormAnchor>): string {
   if (!formAnchor.has) return '';
   const selector = formAnchor.value.selector;
   if (selector.length === 0) return '';
