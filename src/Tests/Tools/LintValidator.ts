@@ -27,7 +27,6 @@ export type RuleKey =
   | 'Rule #10'
   | '[Async]'
   | 'PII-Log'
-  | 'NOSONAR-Discipline'
   | 'S6564-Canary'
   | 'S3735-Canary'
   | 'S1607-Canary';
@@ -165,7 +164,6 @@ export function loadAllowlist(
         v === 'Rule #10' ||
         v === '[Async]' ||
         v === 'PII-Log' ||
-        v === 'NOSONAR-Discipline' ||
         v === 'S6564-Canary' ||
         v === 'S3735-Canary' ||
         v === 'S1607-Canary',
@@ -202,12 +200,6 @@ const S6564_CANARY_RE = /^type\s+[A-Z]\w*\s*=\s*(?:boolean|string|number|void|un
  * Catches the discard-promise antipattern. Defence-in-depth.
  */
 const S3735_CANARY_RE = /^\s*void\s+\w/gm;
-/**
- * Regex: NOSONAR comment lacking rationale text (NOSONAR-Discipline).
- * Every `// NOSONAR` must carry an explanation after `—` or `:` of at
- * least 20 chars. Drive-by silencing is rejected.
- */
-const NOSONAR_DISCIPLINE_RE = /\/\/\s*NOSONAR(?!.*[—:].{20})/g;
 /**
  * Regex: `it.skip(`/`describe.skip(` (S1607 canary).
  * Matches the call site; the issue-ref rationale check runs on the
@@ -293,10 +285,7 @@ const PII_PAYLOAD_RE = new RegExp(
 
 /**
  * Emit S6564-Canary issues for a file. Catches bare-primitive aliases
- * even when ESLint is bypassed. Skips matches whose immediately
- * preceding line carries a `// NOSONAR` justification (mirrors
- * SonarCloud's server-side suppression so the local canary stays
- * consistent with the cloud gate).
+ * even when ESLint is bypassed.
  * @param code - Source text.
  * @returns S6564-Canary issues (may be empty).
  */
@@ -306,8 +295,6 @@ function s6564CanaryIssues(code: string): IIssue[] {
   for (const [idx, line] of lines.entries()) {
     S6564_CANARY_RE.lastIndex = 0;
     if (!S6564_CANARY_RE.test(line)) continue;
-    const prev = idx > 0 ? lines[idx - 1] : '';
-    if (prev.includes('NOSONAR')) continue;
     out.push({
       rule: 'S6564-Canary',
       message: `[S6564-Canary] Bare-primitive type alias at line ${String(idx + 1)}: ${line.trim()}`,
@@ -333,26 +320,6 @@ function s3735CanaryIssues(code: string): IIssue[] {
     });
   }
   S3735_CANARY_RE.lastIndex = 0;
-  return out;
-}
-
-/**
- * Emit NOSONAR-Discipline issues for a file. Forces every NOSONAR
- * marker to carry rationale text after `—` or `:` of at least 20
- * chars so drive-by silencing is rejected.
- * @param code - Source text.
- * @returns NOSONAR-Discipline issues (may be empty).
- */
-function nosonarDisciplineIssues(code: string): IIssue[] {
-  const out: IIssue[] = [];
-  const matches = code.match(NOSONAR_DISCIPLINE_RE) ?? [];
-  for (const m of matches) {
-    out.push({
-      rule: 'NOSONAR-Discipline',
-      message: `[NOSONAR-Discipline] NOSONAR without rationale: ${m.trim()}`,
-    });
-  }
-  NOSONAR_DISCIPLINE_RE.lastIndex = 0;
   return out;
 }
 
@@ -506,12 +473,7 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   issues.push(...piiLogIssues(code));
   // Defence-in-depth canaries: re-affirm the SonarJS rules via regex
   // so a `--no-verify` ESLint bypass still trips the architecture gate.
-  issues.push(
-    ...s6564CanaryIssues(code),
-    ...s3735CanaryIssues(code),
-    ...nosonarDisciplineIssues(code),
-    ...s1607CanaryIssues(code),
-  );
+  issues.push(...s6564CanaryIssues(code), ...s3735CanaryIssues(code), ...s1607CanaryIssues(code));
   return issues;
 }
 

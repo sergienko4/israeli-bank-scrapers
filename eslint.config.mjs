@@ -1017,31 +1017,6 @@ export default tseslint.config(
     },
   },
 
-  // 12. ARCHITECTURE-RULE EXCEPTION — narrowed by Security Hardening
-  //     2026-05 (RC-5).
-  //
-  //     Previously this block disabled `sonarjs/redundant-type-aliases`
-  //     for 8 files. The 6 `type X = unknown` aliases (S3..S8) were
-  //     migrated to the shared {@link JsonValue} structural union;
-  //     their entries were removed.
-  //
-  //     The 2 string-typed aliases (S2 `FormAnchorSelector`, S9
-  //     `ContextId`) remain as bare `type X = string` because the
-  //     brand-pattern migration cascaded into >15 consumer sites
-  //     across production + test code (Decide §6 NEW-R10 5-file
-  //     ceiling). Tracked as a Decide-time deviation; the migration
-  //     is deferred to a follow-up PR scoped to the consumer-site
-  //     cleanup. NOSONAR comments stay on the alias lines.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.ts',
-      'src/Scrapers/Pipeline/Types/PipelineContext.ts',
-    ],
-    rules: {
-      'sonarjs/redundant-type-aliases': 'off',
-    },
-  },
-
   // 12c. QUALITY RULES (Security Hardening 2026-05) — `readonly`
   //      private fields, `node:` protocol prefix for built-in imports.
   //      Both rules close Sonar findings (S2933 + S7772) AND prevent
