@@ -24,7 +24,7 @@
 # upstream cannot silently change what this image carries. Dependabot
 # (`.github/dependabot.yml` `package-ecosystem: docker`) auto-bumps
 # the digest on upstream releases.
-FROM ubuntu:24.04@sha256:3afff29dffbc200d202546dc6c4f614edc3b109691e7ab4aa23d02b42ba86790
+FROM ubuntu:26.04@sha256:f3d28607ddd78734bb7f71f117f3c6706c666b8b76cbff7c9ff6e5718d46ff64
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_VERSION=22.14.0
