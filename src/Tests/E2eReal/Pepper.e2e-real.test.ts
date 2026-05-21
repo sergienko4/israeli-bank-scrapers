@@ -21,16 +21,16 @@ const LOG = getDebug(import.meta.url);
 const hasCoreCreds = !!(process.env.PEPPER_PHONE_NUMBER && process.env.PEPPER_PASSWORD);
 
 /**
- * Pepper is opt-in only. The Transmit Security flow currently soft-fails:
- * the bank returns HTTP 200 + envelope `errorCode: "0"` for both BIND and
- * ASSERT_PASSWORD steps but never dispatches the SMS challenge. Bisected
- * to commit c23a0669 — the breakage pre-dates this branch and is
- * suspected to be Play Integrity attestation gating + APK fingerprint
- * drift (live Play Store version 11.6.0 vs hardcoded 11.5.5). A correct
- * fix requires extracting the new fingerprint constants from the live
- * APK and possibly proxying through a real Android device for
- * attestation. Out of scope for E2E suites until that work lands; set
- * `PEPPER_E2E_OPT_IN=1` if you want to run it manually anyway.
+ * Pepper is opt-in and routes its Transmit-Security auth calls
+ * through Camoufox identity transport (Firefox JA3/JA4) via
+ * `requiresBrowserTls: true` in PipelineBankConfig — Pepper's
+ * edge anti-bot silently withholds the SMS challenge on
+ * Node-fetch TLS fingerprints even when the bind/assertPassword
+ * envelopes return `error_code: "0"`. Verification path: cold
+ * E2E with phone in hand; SMS must arrive within 30s of the
+ * assertPassword fetch FIRE log line. Set `PEPPER_E2E_OPT_IN=1`
+ * to run; see plan dir `pepper-camoufox-transport-2026-05` for
+ * the locked context.
  */
 const isOptedIn = process.env.PEPPER_E2E_OPT_IN === '1';
 const DESCRIBE_IF = hasCoreCreds && isOptedIn ? describe : describe.skip;
