@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.3.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.3.1...v8.3.2) (2026-05-21)
+
+
+### Bug Fixes
+
+* **ci:** grant contents:write to auto-merge job ([#255](https://github.com/sergienko4/israeli-bank-scrapers/issues/255)) ([2a079c0](https://github.com/sergienko4/israeli-bank-scrapers/commit/2a079c061d6f3fedc5dbb1698a0552e692e36ce4))
+* resolve 21 security & quality findings + recurrence guards ([#248](https://github.com/sergienko4/israeli-bank-scrapers/issues/248)) ([bf53b90](https://github.com/sergienko4/israeli-bank-scrapers/commit/bf53b906e94e0e9ff43fbc1fe811b255d16ce3c5))
+
 ## [8.3.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.3.0...v8.3.1) (2026-05-20)
 
 
