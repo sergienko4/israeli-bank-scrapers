@@ -25,8 +25,12 @@ if [[ ! -f "$FILE" ]]; then
   exit 2
 fi
 
-# Every `npm install -g npm@...` line must include `--audit-signatures`.
-NPM_LINES="$(grep -E 'npm install +-g +npm@' "$FILE" || true)"
+# Every global npm install of npm itself must carry
+# `--audit-signatures`. Match the alias forms (`install`, `i`) and
+# both global flag variants (`-g`, `--global`) in any order so the
+# canary catches the variants the strict prior regex missed.
+# Pattern: `npm (install|i) ... (-g|--global) ... npm@`
+NPM_LINES="$(grep -E 'npm[[:space:]]+(install|i)[[:space:]]+([^[:space:]]+[[:space:]]+)*(-g|--global)([[:space:]]+[^[:space:]]+)*[[:space:]]+npm@' "$FILE" || true)"
 if [[ -z "$NPM_LINES" ]]; then
   # No npm install line — nothing to pin.
   exit 0
