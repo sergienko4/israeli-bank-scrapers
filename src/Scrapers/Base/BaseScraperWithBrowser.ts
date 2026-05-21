@@ -6,6 +6,7 @@ import { runLoggedChain } from '../../Common/ChainLogger.js';
 import { getDebug } from '../../Common/Debug.js';
 import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddleware.js';
 import type { WaitUntilState } from '../../Common/Navigation.js';
+import { safeScreenshot } from '../../Common/SafeScreenshot.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import BaseScraper from './BaseScraper.js';
@@ -466,16 +467,10 @@ class BaseScraperWithBrowser<
   private async captureFailureScreenshot(isSuccess: boolean): Promise<boolean> {
     if (isSuccess || !this.options.storeFailureScreenShotPath) return false;
     this.bankLog.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
-    let didCapture = true;
-    const bankLogger = this.bankLog;
-    await this.page
-      .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
-      .catch((error: unknown) => {
-        const errMsg = (error as Error).message.slice(0, 80);
-        bankLogger.debug('screenshot failed: %s', errMsg);
-        didCapture = false;
-      });
-    return didCapture;
+    return safeScreenshot(this.page, {
+      path: this.options.storeFailureScreenShotPath,
+      fullPage: true,
+    });
   }
 }
 

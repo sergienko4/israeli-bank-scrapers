@@ -7,6 +7,7 @@
  * TypeScript compiler refuses resolveField/resolveVisible in action().
  */
 
+import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { extractActionMediator } from '../Mediator/Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Mediator/Elements/PagePrelude.js';
@@ -430,7 +431,7 @@ abstract class BasePhase {
     const target = screenshotPath(ctx.companyId, label);
     if (!target) return false;
     const page = ctx.browser.value.page;
-    await page.screenshot({ path: target, fullPage: false }).catch((): false => false);
+    await safeScreenshot(page, { path: target, fullPage: false });
     ctx.logger.debug({ message: `screenshot: ${target}` });
     await dumpFixtureHtml(ctx, label);
     return true;

@@ -5,6 +5,7 @@ import { type Frame, type Page } from 'playwright-core';
 import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Scrapers/Base/Interface.js';
+import ScraperError from '../Scrapers/Base/ScraperError.js';
 import {
   OTP_ANIMATION_DELAY_MS,
   OTP_CHAR_INPUT_DELAY_MS,
@@ -22,6 +23,7 @@ import {
   extractPhoneHint,
   OTP_SUBMIT_CANDIDATES,
 } from './OtpDetector.js';
+import { safeScreenshot } from './SafeScreenshot.js';
 import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-handler');
@@ -36,7 +38,8 @@ async function saveScreenshot(page: Page, screenshotDir: string): Promise<string
   const nowMs = Date.now();
   const timestamp = String(nowMs);
   const screenshotPath = path.join(screenshotDir, `otp-required-${timestamp}.png`);
-  await page.screenshot({ path: screenshotPath, fullPage: true });
+  const didCapture = await safeScreenshot(page, { path: screenshotPath, fullPage: true });
+  if (!didCapture) throw new ScraperError('screenshot capture failed');
   return screenshotPath;
 }
 

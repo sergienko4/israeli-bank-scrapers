@@ -147,7 +147,17 @@ describe('handleOtpConfirm', () => {
 });
 
 describe('handleOtpCode', () => {
-  beforeEach(() => jest.clearAllMocks());
+  const originalCi = process.env.CI;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete process.env.CI;
+  });
+
+  afterEach(() => {
+    if (originalCi === undefined) delete process.env.CI;
+    else process.env.CI = originalCi;
+  });
 
   it('returns TwoFactorRetrieverMissing when no otpCodeRetriever', async () => {
     const page = makeMockPage();
