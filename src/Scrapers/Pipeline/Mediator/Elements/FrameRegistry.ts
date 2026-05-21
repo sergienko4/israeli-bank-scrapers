@@ -8,13 +8,12 @@
 import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../Base/ScraperError.js';
-import type { ContextId } from '../../Types/PipelineContext.js';
 
 /** Main page context identifier constant. */
-const MAIN_CONTEXT_ID: ContextId = 'main';
+const MAIN_CONTEXT_ID = 'main';
 
 /** Iframe context identifier prefix. */
-const IFRAME_PREFIX: ContextId = 'iframe:';
+const IFRAME_PREFIX = 'iframe:';
 
 /**
  * Compute a stable opaque contextId for a Page or Frame.
@@ -30,7 +29,7 @@ const IFRAME_PREFIX: ContextId = 'iframe:';
  * @param rawUrl - Full URL with potential query params.
  * @returns Origin + pathname only.
  */
-function stableUrl(rawUrl: ContextId): ContextId {
+function stableUrl(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
     return `${parsed.origin}${parsed.pathname}`;
@@ -45,7 +44,7 @@ function stableUrl(rawUrl: ContextId): ContextId {
  * @param page - The main page (for main-frame detection).
  * @returns Stable opaque contextId string.
  */
-function computeContextId(context: Page | Frame, page: Page): ContextId {
+function computeContextId(context: Page | Frame, page: Page): string {
   const isMain: boolean = context === page;
   if (isMain) return MAIN_CONTEXT_ID;
   const isMainFrame: boolean = 'mainFrame' in page && context === page.mainFrame();
@@ -54,13 +53,13 @@ function computeContextId(context: Page | Frame, page: Page): ContextId {
   const url = frame.url();
   const name = frame.name();
   const hasRealUrl = url !== 'about:blank' && url.length > 0;
-  const stableIdMap: Record<string, ContextId> = { true: stableUrl(url), false: name };
+  const stableIdMap: Record<string, string> = { true: stableUrl(url), false: name };
   const stableId = stableIdMap[String(hasRealUrl)];
   return `${IFRAME_PREFIX}${stableId}`;
 }
 
 /** Immutable frame registry — maps contextId → actual Frame. */
-type FrameRegistryMap = ReadonlyMap<ContextId, Page | Frame>;
+type FrameRegistryMap = ReadonlyMap<string, Page | Frame>;
 
 /**
  * Check if a frame is the main frame — used to filter in registry build.
@@ -79,7 +78,7 @@ function isMainFrame(frame: Frame, page: Page): boolean {
  * @returns Immutable map of contextId → Frame.
  */
 function buildFrameRegistry(page: Page): FrameRegistryMap {
-  const registry = new Map<ContextId, Page | Frame>();
+  const registry = new Map<string, Page | Frame>();
   registry.set(MAIN_CONTEXT_ID, page);
   const childFrames = page.frames().filter((f): boolean => !isMainFrame(f, page));
   for (const frame of childFrames) {
@@ -95,7 +94,7 @@ function buildFrameRegistry(page: Page): FrameRegistryMap {
  * @param contextId - The opaque contextId.
  * @returns The actual Page or Frame.
  */
-function resolveFrame(registry: FrameRegistryMap, contextId: ContextId): Page | Frame {
+function resolveFrame(registry: FrameRegistryMap, contextId: string): Page | Frame {
   const frame = registry.get(contextId);
   if (!frame) throw new ScraperError(`Unknown contextId: ${contextId}`);
   return frame;

@@ -167,27 +167,12 @@ export interface IPreLoginDiscovery {
 
 // ── Phase-Specific Discovery Types (PRE → ACTION handoff) ───────────
 
-/**
- * Opaque frame identifier — `'main'` or `'iframe:<url>'`;
- * never a raw Playwright object.
- *
- * <p>Deferred from the Security Hardening 2026-05 RC-5 brand
- * migration per Decide §6 NEW-R10 (5-file consumer-cascade ceiling):
- * the brand pattern caused tsc errors in 15+ consumer sites across
- * production + test code. Recorded as a Decide-time deviation; will
- * be migrated in a follow-up PR scoped to the cascade cleanup.
- * Sonar S6564 silence is retained via the `eslint.config.mjs`
- * §12 override entry. NOSONAR.
- */
-// NOSONAR — Rule #15 (no-primitive-returns) requires a named alias here.
-export type ContextId = string;
-
 /** Resolved element target — PRE discovered, ACTION executes via contextId. */
 export interface IResolvedTarget {
   /** CSS/XPath selector for the element. */
   readonly selector: string;
-  /** Opaque frame identifier — resolved by private registry inside executor. */
-  readonly contextId: ContextId;
+  /** Opaque frame identifier — `'main'` or `'iframe:<url>'`. */
+  readonly contextId: string;
   /** Strategy that matched (xpath, placeholder, labelText, etc.). */
   readonly kind: string;
   /** Candidate value that was searched for. */
@@ -213,7 +198,7 @@ export interface ILoginFieldDiscovery {
   /** Form anchor discovered from password field. */
   readonly formAnchor: Option<IFormAnchor>;
   /** Opaque identifier of the frame where fields were found. */
-  readonly activeFrameId: ContextId;
+  readonly activeFrameId: string;
   /** Pre-resolved submit button target (contextId + selector). */
   readonly submitTarget: Option<IResolvedTarget>;
 }
