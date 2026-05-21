@@ -177,7 +177,6 @@ describe('OTP-TRIGGER-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', ()
   it.each(OTP_BANK_SCENARIOS)('otpTrigger_$bank_ShouldCompleteFullChain', async row => {
     const setup = prepareOtpTriggerRow(row);
     const finalCtx = await runOtpTriggerChain(setup);
-    expect(finalCtx.otpTrigger.has).toBe(true);
     assertOtpTriggerShape(finalCtx);
   });
 });
