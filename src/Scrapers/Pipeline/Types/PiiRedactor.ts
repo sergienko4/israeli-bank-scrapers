@@ -23,6 +23,7 @@
  * '[REDACTION_ERROR]' and the pipeline continues.
  */
 
+import ScraperErrorTypes from '../../Base/ErrorTypes.js';
 import type { Brand } from './Brand.js';
 
 /**
@@ -434,11 +435,9 @@ function redactErrorMessage(value: string): PiiHintString {
  * value. Add a new enum value here only when CodeQL or Sonar flags
  * it as sensitive.
  */
-const SENSITIVE_SCRAPER_ENUMS: ReadonlySet<string> = new Set([
-  'InvalidPassword',
-  'ChangePassword',
-  'INVALID_PASSWORD',
-  'CHANGE_PASSWORD',
+const SENSITIVE_SCRAPER_ENUMS: ReadonlySet<string> = new Set<string>([
+  ScraperErrorTypes.InvalidPassword,
+  ScraperErrorTypes.ChangePassword,
 ]);
 
 /**
