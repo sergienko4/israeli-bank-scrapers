@@ -153,12 +153,10 @@ function assertAuthFinalShape(finalCtx: IPipelineContext): boolean {
 }
 
 describe('AUTH-DISCOVERY-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
-  it.each(BANK_SCENARIOS)(
-    'authDiscovery_$bank_ShouldCompleteFullChain',
-    async (row): Promise<void> => {
-      const setup = prepareAuthRow(row);
-      const finalCtx = await runAuthChain(setup);
-      assertAuthFinalShape(finalCtx);
-    },
-  );
+  it.each(BANK_SCENARIOS)('authDiscovery_$bank_ShouldCompleteFullChain', async row => {
+    const setup = prepareAuthRow(row);
+    const finalCtx = await runAuthChain(setup);
+    expect(finalCtx.authDiscovery.has).toBe(true);
+    assertAuthFinalShape(finalCtx);
+  });
 });

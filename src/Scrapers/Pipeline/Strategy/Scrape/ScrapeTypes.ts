@@ -4,6 +4,7 @@
  */
 
 import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.js';
+import type { JsonValue } from '../../Types/JsonValue.js';
 import type {
   IApiFetchContext,
   IBillingCycleCatalog,
@@ -41,12 +42,13 @@ const EMPTY_TXN_ENDPOINT: ITxnEndpoint = {
 /** API response payload — wraps Record to hide `unknown` from function signatures. */
 type ApiPayload = Record<string, unknown>;
 /**
- * Untyped API value — named alias kept to satisfy the architecture
- * `no-restricted-syntax` rule that forbids bare `unknown` in function
- * signatures. NOSONAR rationale below.
+ * Untyped API value — alias of the shared structural {@link JsonValue}
+ * union. Closes Sonar S6564 (`typescript:S6564`): the prior
+ * `type ApiValue = unknown` alias was redundant; the union RHS
+ * is accepted as non-redundant. Domain name preserved to avoid a
+ * cascade across the strategy callers.
  */
-// NOSONAR — architecture rule no-restricted-syntax requires named alias for 'unknown'
-type ApiValue = unknown;
+type ApiValue = JsonValue;
 /** Untyped API array — wraps `unknown[]` to satisfy no-unknown-in-signatures ESLint rule. */
 type ApiValueArray = ApiValue[];
 

@@ -80,6 +80,7 @@ describe('PipelineBuilder — withHeadlessMediator', () => {
   it('returns success Procedure for a headless native-login build', () => {
     const opts = makeMockOptions();
     const result = buildHeadlessDescriptor(opts);
+    expect(result.success).toBe(true);
     assertOk(result);
   });
 
@@ -132,6 +133,7 @@ describe('PipelineBuilder — back-compat (no withHeadlessMediator)', () => {
   it('browser-driven build still produces success Procedure', () => {
     const opts = makeMockOptions();
     const result = buildBrowserDescriptor(opts);
+    expect(result.success).toBe(true);
     assertOk(result);
   });
 

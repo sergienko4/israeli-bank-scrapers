@@ -310,8 +310,10 @@ describe('BasePhase phase-level screenshot bookend', () => {
     const nowMs = Date.now();
     const stamp = String(nowMs);
     const tempRoot = path.join(tmpDir, `bp-screenshot-${stamp}`);
+    const originalCi = process.env.CI;
     process.env.LOG_LEVEL = 'trace';
     process.env.RUNS_ROOT = tempRoot;
+    delete process.env.CI;
     resetTraceConfigCache();
     setActiveBank('amex');
     let screenshotCalls = 0;
@@ -336,6 +338,8 @@ describe('BasePhase phase-level screenshot bookend', () => {
     expect(screenshotCalls).toBeGreaterThan(0);
     delete process.env.LOG_LEVEL;
     delete process.env.RUNS_ROOT;
+    if (originalCi === undefined) delete process.env.CI;
+    else process.env.CI = originalCi;
     resetTraceConfigCache();
   });
 });

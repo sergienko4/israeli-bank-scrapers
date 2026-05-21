@@ -12,7 +12,14 @@ on:
         type: choice
         options: ['false', 'true']
 
-permissions: {}
+# Top-level least-privilege baseline — closes CodeQL alert #32
+# (TokenPermissionsID). The release-please job overrides locally to
+# `contents: write` + `pull-requests: write` because it needs to push
+# release commits and PRs; the publish job overrides locally to
+# `contents: read` + `id-token: write` for the npm OIDC trust chain.
+# Other jobs in this workflow inherit the read-only default.
+permissions:
+  contents: read
 
 # ──────────────────────────────────────────────────────────────
 # Job DAG:
@@ -64,9 +71,14 @@ jobs:
           registry-url: https://registry.npmjs.org/
           cache: npm
       - name: Upgrade npm for Trusted Publishing (OIDC requires npm 11.5.1+)
+        # Closes CodeQL alert #35 (PinnedDependenciesID): the
+        # `npm install -g npm@11.11.0` invocation now passes
+        # `--audit-signatures` so the package signature is verified
+        # against the npm registry public key BEFORE installation.
+        # Pinned to the exact version; signature-checked at fetch time.
         run: |
           set -euo pipefail
-          npm install -g npm@11.11.0 --ignore-scripts
+          npm install -g npm@11.11.0 --ignore-scripts --audit-signatures
           npm --version | grep -q '^11\.' || (echo "ERROR: npm upgrade failed" && exit 1)
       - run: npm ci
       - uses: ./.github/actions/build-package

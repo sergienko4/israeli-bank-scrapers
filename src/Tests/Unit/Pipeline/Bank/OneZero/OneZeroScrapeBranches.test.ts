@@ -93,6 +93,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
     });
     const ctx = makeCtx(bus);
     const result = await oneZeroApiScrape(ctx);
+    expect(result.success).toBe(true);
     assertOk(result);
   });
 
@@ -112,6 +113,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
     });
     const ctx = makeCtx(bus);
     const result = await oneZeroApiScrape(ctx);
+    expect(result.success).toBe(true);
     assertOk(result);
   });
 

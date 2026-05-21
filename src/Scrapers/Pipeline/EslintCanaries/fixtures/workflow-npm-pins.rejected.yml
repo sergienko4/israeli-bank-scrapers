@@ -1,0 +1,13 @@
+name: Rejected npm-pin workflow fixture
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install npm without signature check
+        run: |
+          npm install -g npm@11.11.0 --ignore-scripts

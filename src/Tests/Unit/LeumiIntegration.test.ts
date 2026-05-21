@@ -238,6 +238,7 @@ describe('integration: full scrape flow', () => {
     const scraper = new LEUMI_SCRAPER(CREATE_MOCK_SCRAPER_OPTIONS());
     const result = await scraper.scrape(CREDS);
 
+    expect(result.success).toBe(false);
     INTEGRATION.assertFailure(result, SCRAPER_ERROR_TYPES.InvalidPassword);
   });
 

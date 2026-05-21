@@ -12,6 +12,7 @@ describe('buildOneZeroPipeline', () => {
   it('returns success Procedure for valid options', () => {
     const opts = makeMockOptions();
     const result = buildOneZeroPipeline(opts);
+    expect(result.success).toBe(true);
     assertOk(result);
   });
 

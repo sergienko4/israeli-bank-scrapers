@@ -7,6 +7,7 @@ import checkFile from 'eslint-plugin-check-file';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
+import jest from 'eslint-plugin-jest';
 import jsdoc from 'eslint-plugin-jsdoc';
 import regexpPlugin from 'eslint-plugin-regexp';
 import sonarjs from 'eslint-plugin-sonarjs';
@@ -170,6 +171,22 @@ const RESTRICTED_SYNTAX_RULES = [
     message:
       '🚫 PII LEAK (T09c): Credential-class identifier embedded in a logger template literal. The Pino censor cannot intercept values in the `msg` string. Route through PiiRedactor.',
   },
+  //     T09d: sensitive scraper-error-enum members interpolated into a
+  //     logger template literal. Closes CodeQL #28 in depth — the
+  //     `errorType` discriminated-union tag (e.g. `ScraperErrorTypes
+  //     .InvalidPassword`, `LOGIN_RESULTS.ChangePassword`) is
+  //     password-class metadata; an attacker scraping logs can pivot
+  //     on its presence. Spec.txt §1 RC-1: extends the T09 family
+  //     instead of introducing a parallel custom-rule plugin per
+  //     `general-rules-guidlines.md` "Prefer extending existing
+  //     systems over creating parallel systems." Route through
+  //     `redactSensitiveEnum` from PiiRedactor.
+  {
+    selector:
+      'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] TemplateLiteral MemberExpression[object.name=/^(ScraperErrorTypes|LOGIN_RESULTS|LoginResults)$/][property.name=/^(InvalidPassword|ChangePassword|INVALID_PASSWORD|CHANGE_PASSWORD)$/]',
+    message:
+      '🚫 PII LEAK (T09d): Sensitive scraper-error-enum value (InvalidPassword/ChangePassword) interpolated into a logger template literal. Route through `redactSensitiveEnum` from PiiRedactor — closes CodeQL #28.',
+  },
   //     T16a: forbidden payload key with object/array/spread RHS in LOG.*.
   {
     selector:
@@ -185,6 +202,18 @@ const RESTRICTED_SYNTAX_RULES = [
       '🚫 PII LEAK (T16): Identifier with payload-shape name passed as LOG value. Pre-redact via PiiRedactor or pass scalar.',
   },
 ];
+
+// PII Screenshot Bypass Prevention — added 2026-05-21 after CI artifact
+// 7128234088 leaked 18+ post-auth PNGs (PR #248, run 26207506594).
+// Bans direct `page.screenshot(...)` outside the central SafeScreenshot
+// helper, which short-circuits in CI. Applied via a dedicated files
+// block below so the helper itself + tests remain allow-listed.
+const NO_DIRECT_SCREENSHOT_RULE = {
+  selector:
+    'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
+  message:
+    'page.screenshot(...) — use safeScreenshot() from src/Common/SafeScreenshot.ts (PII-safe CI gate).',
+};
 
 const RESTRICTED_SYNTAX_RULES_NEW = [
   // 1. Coverage Bypasses
@@ -443,6 +472,12 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
       'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] TemplateLiteral Identifier[name=/^(accountId|cardNumber|phoneNumber|israeliId|otpCode|password|pinCode|nationalId|MisparZihuy|otpLongTermToken|otpToken|idToken|cookie|setCookie|errorMessage)$/]',
     message:
       '🚫 PII LEAK (T09c): Credential-class identifier embedded in a logger template literal (any callee — bankLog/logger/LOG/this.bankLog/...). The Pino censor cannot intercept values in the `msg` string. Route through PiiRedactor.',
+  },
+  {
+    selector:
+      'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] TemplateLiteral MemberExpression[object.name=/^(ScraperErrorTypes|LOGIN_RESULTS|LoginResults)$/][property.name=/^(InvalidPassword|ChangePassword|INVALID_PASSWORD|CHANGE_PASSWORD)$/]',
+    message:
+      '🚫 PII LEAK (T09d): Sensitive scraper-error-enum value interpolated into a logger template literal. Route through `redactSensitiveEnum` from PiiRedactor — closes CodeQL #28.',
   },
   {
     selector:
@@ -982,37 +1017,93 @@ export default tseslint.config(
     },
   },
 
-  // 12. ARCHITECTURE-RULE EXCEPTION — files where the project's
-  //     architecture rules force a NAMED type alias that SonarJS S6564
-  //     would otherwise flag as redundant.
+  // 12. ARCHITECTURE-RULE EXCEPTION — narrowed by Security Hardening
+  //     2026-05 (RC-5).
   //
-  //     Two flavours of conflict:
-  //       (a) `no-restricted-syntax` forbids bare `unknown` in function
-  //           signatures → forces `type X = unknown;` aliases.
-  //       (b) Rule #15 forbids primitive return types (`: string`,
-  //           `: number`, `: boolean`, `: void`) in Pipeline/Phases →
-  //           forces `type X = string;` aliases for return-type sites
-  //           that would be too invasive to brand (broad call-site fan-out).
+  //     Previously this block disabled `sonarjs/redundant-type-aliases`
+  //     for 8 files. The 6 `type X = unknown` aliases (S3..S8) were
+  //     migrated to the shared {@link JsonValue} structural union;
+  //     their entries were removed.
   //
-  //     Each file in this block also carries a `// NOSONAR` comment on
-  //     the offending alias line so SonarCloud silences the issue
-  //     server-side. The architecture rule wins; this override silences
-  //     S6564 locally to keep `eslint --max-warnings 0` green.
+  //     The 2 string-typed aliases (S2 `FormAnchorSelector`, S9
+  //     `ContextId`) remain as bare `type X = string` because the
+  //     brand-pattern migration cascaded into >15 consumer sites
+  //     across production + test code (Decide §6 NEW-R10 5-file
+  //     ceiling). Tracked as a Decide-time deviation; the migration
+  //     is deferred to a follow-up PR scoped to the consumer-site
+  //     cleanup. NOSONAR comments stay on the alias lines.
   {
     files: [
-      // (a) `unknown` aliases
-      'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/TxnShape.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeIdExtraction.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.ts',
-      // (b) Rule #15 return-type aliases for primitives
       'src/Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.ts',
       'src/Scrapers/Pipeline/Types/PipelineContext.ts',
     ],
     rules: {
       'sonarjs/redundant-type-aliases': 'off',
+    },
+  },
+
+  // 12c. QUALITY RULES (Security Hardening 2026-05) — `readonly`
+  //      private fields, `node:` protocol prefix for built-in imports.
+  //      Both rules close Sonar findings (S2933 + S7772) AND prevent
+  //      the same patterns from being reintroduced by future PRs.
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      // S2933 — fields that are never reassigned must be `readonly`.
+      // Decision: enable globally because zero collateral hits were
+      // observed in the Observe dry-run; the rule guards immutability
+      // across every class in the codebase.
+      '@typescript-eslint/prefer-readonly': 'error',
+      // S7772 — Node built-in imports must use the `node:` prefix so
+      // the built-in is distinguished from any third-party npm
+      // package that could shadow it (the `events` package exists
+      // separately on npm). Decision (Decide §4 RC-9): enable globally
+      // at `error`; the 11 collateral hits surfaced by Observe are
+      // fixed inline in the same commit so the rule lands with zero
+      // outstanding violations.
+      'unicorn/prefer-node-protocol': 'error',
+    },
+  },
+
+  // 12d. JEST ASSERTION RULES (Security Hardening 2026-05) — scoped
+  //      to unit tests under `src/Tests/Unit/**` per Decide §4 Q4
+  //      (the collateral budget for `jest/expect-expect` on
+  //      `src/Tests/E2e*` is 61 hits — out of scope; E2E flow tests
+  //      use a throw-based assertion idiom in shared helpers and are
+  //      excluded by this override).
+  {
+    files: ['src/Tests/Unit/**/*.test.ts'],
+    plugins: { jest },
+    rules: {
+      // `assertFunctionNames` teaches `jest/expect-expect` about the
+      // project's shape-helper conventions. CrossValidation phase
+      // tests already validate `expect(...)` inside helpers named
+      // either `assert<Phase>Shape(finalCtx)` (six factories) or
+      // `run<Phase>ForRow(row)` (FullFlow + InitPhase factories);
+      // the rule's default name list (just `expect`) misses both
+      // and forces redundant inline assertions. Per CodeRabbit
+      // feedback on PR #248, recognising the `assert*` and `run*`
+      // names lets each helper be the single source of truth and
+      // removes the duplicate-assertion noise.
+      'jest/expect-expect': [
+        'error',
+        { assertFunctionNames: ['expect', 'assert*', 'run*'] },
+      ],
+      'jest/no-standalone-expect': 'error',
+    },
+  },
+
+  // 12e. RE-EXPORT SHORTHAND (Security Hardening 2026-05) — scoped
+  //      flip of `unicorn/prefer-export-from` `ignoreUsedVariables`
+  //      under `src/Scrapers/Base/**` only. Decide §4 RC-8 OPTION-B:
+  //      keeps the global default at `true` to avoid surfacing the
+  //      10 collateral hits as in-scope; flips locally so the rule
+  //      fires on `BaseScraperWithBrowser.ts` after the manual rewrite.
+  {
+    files: ['src/Scrapers/Base/**/*.ts'],
+    plugins: { unicorn },
+    rules: {
+      'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: false }],
     },
   },
 
@@ -1060,6 +1151,19 @@ export default tseslint.config(
             "🚫 LEGACY BANK LOOKUP: Use resolveLegacyBank(companyId) instead of bare SCRAPER_CONFIGURATION.banks[...]. Pipeline-only banks aren't in this map; direct access can crash with 'cannot destructure undefined'.",
         },
       ],
+    },
+  },
+
+  // 14. NO DIRECT page.screenshot() — added 2026-05-21 after PR #248 CI
+  //     artifact 7128234088 leaked 18+ post-auth PNGs (run 26207506594).
+  //     The SafeScreenshot helper (src/Common/SafeScreenshot.ts) is the
+  //     only sanctioned call site — it short-circuits in CI to keep
+  //     rendered bank pixels out of public-readable artifacts.
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/Common/SafeScreenshot.ts', 'src/Tests/**'],
+    rules: {
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
     },
   },
 );

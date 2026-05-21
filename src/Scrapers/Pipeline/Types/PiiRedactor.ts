@@ -23,6 +23,7 @@
  * '[REDACTION_ERROR]' and the pipeline continues.
  */
 
+import ScraperErrorTypes from '../../Base/ErrorTypes.js';
 import type { Brand } from './Brand.js';
 
 /**
@@ -418,6 +419,59 @@ function redactErrorMessage(value: string): PiiHintString {
   if (value.length === 0) return '<msg:0>' as PiiHintString;
   const length = graphemeCount(value);
   return `<msg:${String(length)}>` as PiiHintString;
+}
+
+/**
+ * Sensitive scraper-error-enum values that MUST NOT appear in
+ * cleartext log lines. CodeQL alert #28 (`js/clear-text-logging`)
+ * flags `ChangePassword` / `InvalidPassword` as
+ * password-class metadata: an attacker scraping logs can use the
+ * presence of either value to pivot on the same credentials at a
+ * different bank.
+ *
+ * <p>Default-deny: enum strings NOT in this set survive the redactor
+ * unchanged so non-sensitive outcomes (`Success`,
+ * `Timeout`, `Generic`, etc.) keep their diagnostic
+ * value. Add a new enum value here only when CodeQL or Sonar flags
+ * it as sensitive.
+ */
+const SENSITIVE_SCRAPER_ENUMS: ReadonlySet<string> = new Set<string>([
+  ScraperErrorTypes.InvalidPassword,
+  ScraperErrorTypes.ChangePassword,
+]);
+
+/**
+ * Sensitive-enum strategy. Replaces a sensitive scraper-error-type
+ * enum value with the stable token `<REDACTED_ENUM>`; non-
+ * sensitive values pass through unchanged.
+ *
+ * <p>Closes CodeQL alert #28 (`js/clear-text-logging`) at the
+ * source — {@link redactErrorMessage} handles free-text
+ * `errorMessage`, this helper handles the discriminated-union
+ * tag `errorType`. Both routes are required because the
+ * central Pino censor cannot intercept values interpolated into the
+ * `msg` string argument; redaction must happen at the
+ * line-composition site.
+ *
+ * <p>Applicable guidelines (per spec.txt §1 RC-1):
+ * <ul>
+ *   <li>`logging-pii-guidlines.md` §1 PII Safety — "Apply
+ *       preventive masking BEFORE logging."</li>
+ *   <li>`coding-principle-guidlines.md` §6 — "NEVER store
+ *       secrets in code" (password-class enums are secret-adjacent).</li>
+ * </ul>
+ *
+ * @param value - Raw scraper-error-type enum value (may be the
+ *   discriminated-union tag, an empty string, or unknown text).
+ * @returns The literal `<REDACTED_ENUM>` token when the value
+ *   is in {@link SENSITIVE_SCRAPER_ENUMS}, otherwise the input value
+ *   unchanged.
+ */
+function redactSensitiveEnum(value: string): PiiHintString {
+  if (isPiiRedactionDisabled) return value as PiiHintString;
+  if (value.length === 0) return value as PiiHintString;
+  if (SENSITIVE_SCRAPER_ENUMS.has(value)) return '<REDACTED_ENUM>' as PiiHintString;
+  return value as PiiHintString;
 }
 
 /**
@@ -926,6 +980,7 @@ export {
   redactName,
   redactOtp,
   redactPhone,
+  redactSensitiveEnum,
   redactToken,
   redactUrl,
   redactUrlFull,

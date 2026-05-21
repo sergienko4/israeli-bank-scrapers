@@ -174,12 +174,9 @@ function assertOtpTriggerShape(finalCtx: IPipelineContext): boolean {
 }
 
 describe('OTP-TRIGGER-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
-  it.each(OTP_BANK_SCENARIOS)(
-    'otpTrigger_$bank_ShouldCompleteFullChain',
-    async (row): Promise<void> => {
-      const setup = prepareOtpTriggerRow(row);
-      const finalCtx = await runOtpTriggerChain(setup);
-      assertOtpTriggerShape(finalCtx);
-    },
-  );
+  it.each(OTP_BANK_SCENARIOS)('otpTrigger_$bank_ShouldCompleteFullChain', async row => {
+    const setup = prepareOtpTriggerRow(row);
+    const finalCtx = await runOtpTriggerChain(setup);
+    assertOtpTriggerShape(finalCtx);
+  });
 });

@@ -160,14 +160,21 @@ fi
 bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
 bg_gate "canaries"          "yes" npm run lint:canaries
 
-# Heavy gates — each runs Jest with its own worker pool. Capping each
-# pool to 2 workers keeps total concurrency on an 8-core box manageable
-# (≈ 5 gates × 2 workers + 7 light static gates ≈ within budget).
+# Heavy gates — each runs Jest with its own worker pool. Three gates
+# run concurrently here, so each pool gets ~1/3 of the available cores
+# (floor-divide, min 2) instead of a fixed `8`. On a 4-core laptop the
+# split is 2/2/2 = 6 workers total; on a 16-core dev box it's 5/5/5 = 15;
+# on a 24-core build VM it's 8/8/8 = 24. Prevents the resource-exhaustion
+# observed when three gates each grabbed 8 workers on smaller machines.
+TOTAL_CORES="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+JEST_WORKERS="$(( (TOTAL_CORES + 2) / 3 ))"
+[ "$JEST_WORKERS" -lt 2 ] && JEST_WORKERS=2
+
 JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 
-bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=2"
-bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=2"
-bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=4"
+bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=$JEST_WORKERS"
+bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=$JEST_WORKERS"
+bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=$JEST_WORKERS"
 
 wait_all
 

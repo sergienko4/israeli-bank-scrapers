@@ -12,6 +12,7 @@ describe('buildPepperPipeline', () => {
   it('returns success Procedure for valid options', () => {
     const opts = makeMockOptions();
     const result = buildPepperPipeline(opts);
+    expect(result.success).toBe(true);
     assertOk(result);
   });
 

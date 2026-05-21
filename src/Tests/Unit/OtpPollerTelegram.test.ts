@@ -236,6 +236,7 @@ describe('createOtpPoller — Telegram tier', () => {
       sc.envSetup();
       const args = sc.argsBuilder();
       await runSkipScenario(args);
+      expect(MOCK_TELEGRAM).not.toHaveBeenCalled();
     });
   }
 

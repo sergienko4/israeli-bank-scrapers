@@ -7,6 +7,7 @@
  * TypeScript compiler refuses resolveField/resolveVisible in action().
  */
 
+import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { extractActionMediator } from '../Mediator/Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Mediator/Elements/PagePrelude.js';
@@ -410,7 +411,7 @@ abstract class BasePhase {
    * @param ctx - Pipeline context at the bookend.
    * @param suffix - Stage-output marker: 'pre-done' / 'action-done' /
    *   'post-done' / 'final-done'.
-   * @returns True when a screenshot was captured, false on no-op skip
+   * @returns True when a screenshot was didCapture, false on no-op skip
    * (no browser attached, or off-trace path resolution returned empty).
    */
   private async takePhaseScreenshot(
@@ -430,10 +431,10 @@ abstract class BasePhase {
     const target = screenshotPath(ctx.companyId, label);
     if (!target) return false;
     const page = ctx.browser.value.page;
-    await page.screenshot({ path: target, fullPage: false }).catch((): false => false);
-    ctx.logger.debug({ message: `screenshot: ${target}` });
+    const didCapture = await safeScreenshot(page, { path: target, fullPage: false });
+    if (didCapture) ctx.logger.debug({ message: `screenshot: ${target}` });
     await dumpFixtureHtml(ctx, label);
-    return true;
+    return didCapture;
   }
 
   /**

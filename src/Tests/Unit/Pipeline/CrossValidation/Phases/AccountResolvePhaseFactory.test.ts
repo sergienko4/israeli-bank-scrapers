@@ -193,12 +193,10 @@ function assertAccountResolveShape(
 }
 
 describe('ACCOUNT-RESOLVE-PHASE-FACTORY - DEEP cross-bank PRE-ACTION-POST-FINAL', () => {
-  it.each(BANK_SCENARIOS)(
-    'accountResolve_$bank_ShouldCompleteFullChain',
-    async (row): Promise<void> => {
-      const setup = prepareAccountResolveRow(row);
-      const finalCtx = await runAccountResolveChain(setup);
-      assertAccountResolveShape(setup, finalCtx);
-    },
-  );
+  it.each(BANK_SCENARIOS)('accountResolve_$bank_ShouldCompleteFullChain', async row => {
+    const setup = prepareAccountResolveRow(row);
+    const finalCtx = await runAccountResolveChain(setup);
+    expect(finalCtx.accountDiscovery.has).toBe(true);
+    assertAccountResolveShape(setup, finalCtx);
+  });
 });

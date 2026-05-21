@@ -6,15 +6,13 @@ import { runLoggedChain } from '../../Common/ChainLogger.js';
 import { getDebug } from '../../Common/Debug.js';
 import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddleware.js';
 import type { WaitUntilState } from '../../Common/Navigation.js';
+import { safeScreenshot } from '../../Common/SafeScreenshot.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import BaseScraper from './BaseScraper.js';
 import {
   type ILoginOptions,
   type ILoginResultContext,
-  LOGIN_RESULTS,
-  type LoginResults,
-  type PossibleLoginResults,
   resolveAndBuildLoginResult,
 } from './BaseScraperHelpers.js';
 import type { SelectorCandidate } from './Config/LoginConfig.js';
@@ -30,7 +28,33 @@ import { fillOneInput } from './LoginSteps.js';
 import { handleNavigationFailure } from './NavigationRetry.js';
 import ScraperError from './ScraperError.js';
 
-export { type ILoginOptions, LOGIN_RESULTS, type LoginResults, type PossibleLoginResults };
+/**
+ * Re-exports the bank-scraper login-options interface so downstream
+ * scrapers can type their `getLoginOptions` overrides from the base
+ * entrypoint without importing the helper file directly. The local
+ * import above is required because `getLoginOptions` (line 187)
+ * references `ILoginOptions` as its return type.
+ */
+export type { ILoginOptions } from './BaseScraperHelpers.js';
+/**
+ * Re-exports the login-result constant map from the helper module so
+ * downstream scrapers can consume it from the base entrypoint without
+ * importing the helper file directly. Closes Sonar S7763 — the
+ * shorthand re-export is the idiomatic form.
+ */
+export { LOGIN_RESULTS } from './BaseScraperHelpers.js';
+/**
+ * Re-exports the `LoginResults` discriminated union type so
+ * downstream scrapers can type their login outcomes from the base
+ * entrypoint. Closes Sonar S7763.
+ */
+export type { LoginResults } from './BaseScraperHelpers.js';
+/**
+ * Re-exports the `PossibleLoginResults` union of login-result
+ * keys so downstream tests can iterate over the discriminator set
+ * from the base entrypoint. Closes Sonar S7763.
+ */
+export type { PossibleLoginResults } from './BaseScraperHelpers.js';
 
 const LOG = getDebug('base-scraper-with-browser');
 
@@ -117,7 +141,7 @@ class BaseScraperWithBrowser<
 
   private _cleanups: (() => Promise<boolean>)[] = [];
 
-  private _otpPhoneHint = '';
+  private readonly _otpPhoneHint = '';
 
   /**
    * Initialize the browser page and prepare the scraper for login.
@@ -443,16 +467,10 @@ class BaseScraperWithBrowser<
   private async captureFailureScreenshot(isSuccess: boolean): Promise<boolean> {
     if (isSuccess || !this.options.storeFailureScreenShotPath) return false;
     this.bankLog.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
-    let didCapture = true;
-    const bankLogger = this.bankLog;
-    await this.page
-      .screenshot({ path: this.options.storeFailureScreenShotPath, fullPage: true })
-      .catch((error: unknown) => {
-        const errMsg = (error as Error).message.slice(0, 80);
-        bankLogger.debug('screenshot failed: %s', errMsg);
-        didCapture = false;
-      });
-    return didCapture;
+    return safeScreenshot(this.page, {
+      path: this.options.storeFailureScreenShotPath,
+      fullPage: true,
+    });
   }
 }
 

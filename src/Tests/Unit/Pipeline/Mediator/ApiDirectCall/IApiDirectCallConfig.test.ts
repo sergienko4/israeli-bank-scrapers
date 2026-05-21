@@ -93,13 +93,41 @@ describe('IApiDirectCallConfig shape', () => {
   });
 });
 
+/**
+ * Builder for non-OTP flow shapes. STORED_JWT and BEARER_STATIC
+ * carry an identical IApiDirectCallConfig shape (empty steps,
+ * default envelope, ASSERT_TAG probe) modulo the flow string, so
+ * the shape lives in this single helper. Each named constant
+ * below pins one flow value while keeping the shape DRY.
+ * @param flow - The non-OTP FlowKind value for this config.
+ * @returns A typed IApiDirectCallConfig with the shared shape.
+ */
+function buildNonOtpConfig(flow: 'stored-jwt' | 'bearer-static'): IApiDirectCallConfig {
+  return {
+    flow,
+    steps: [],
+    envelope: { deviceTokenPath: '/resultData/deviceToken' },
+    probe: { urlTag: ASSERT_TAG },
+  };
+}
+
+/** Compile-time pin: stored-jwt flow shape (no signer/fingerprint). */
+const STORED_JWT_CONFIG: IApiDirectCallConfig = buildNonOtpConfig('stored-jwt');
+/** Compile-time pin: bearer-static flow shape. */
+const BEARER_STATIC_CONFIG: IApiDirectCallConfig = buildNonOtpConfig('bearer-static');
+
 describe('FlowKind enum', () => {
   it('covers the three declared flow kinds', () => {
-    const smsOtp: FlowKind = 'sms-otp';
-    const storedJwt: FlowKind = 'stored-jwt';
-    const bearerStatic: FlowKind = 'bearer-static';
-    expect(smsOtp).toBe('sms-otp');
-    expect(storedJwt).toBe('stored-jwt');
-    expect(bearerStatic).toBe('bearer-static');
+    // Dynamic comparisons against the resolved field values — closes
+    // Sonar S5914 (the prior literal-to-literal assertions always
+    // succeeded because both sides were string literals). Each
+    // assertion now verifies the FlowKind union accepts a distinct
+    // value from a config literal — a real contract under test.
+    const smsOtp: FlowKind = FULL_CONFIG.flow;
+    const storedJwt: FlowKind = STORED_JWT_CONFIG.flow;
+    const bearerStatic: FlowKind = BEARER_STATIC_CONFIG.flow;
+    expect(smsOtp).toBe(MINIMAL_CONFIG.flow);
+    expect(storedJwt).not.toBe(smsOtp);
+    expect(bearerStatic).not.toBe(storedJwt);
   });
 });

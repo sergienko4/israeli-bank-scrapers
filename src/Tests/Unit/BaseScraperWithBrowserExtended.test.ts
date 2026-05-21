@@ -254,6 +254,17 @@ describe('login extended', () => {
 });
 
 describe('screenshot on failure', () => {
+  const originalCi = process.env.CI;
+
+  beforeEach(() => {
+    delete process.env.CI;
+  });
+
+  afterEach(() => {
+    if (originalCi === undefined) delete process.env.CI;
+    else process.env.CI = originalCi;
+  });
+
   it('captures screenshot on failure when path configured', async () => {
     const page = CREATE_MOCK_PAGE();
     page.goto.mockResolvedValue({

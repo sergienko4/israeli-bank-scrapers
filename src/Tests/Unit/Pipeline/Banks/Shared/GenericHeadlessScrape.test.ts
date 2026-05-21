@@ -216,6 +216,7 @@ describe('buildGenericHeadlessScrape', () => {
     const scrape = buildGenericHeadlessScrape(shape);
     const ctx = ctxOf(bus);
     const result = await scrape(ctx);
+    expect(result.success).toBe(true);
     assertOk(result);
   });
 

@@ -18,6 +18,7 @@ import {
 } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import type { IFieldMatch } from '../../Types/FieldMatch.js';
+import type { JsonValue } from '../../Types/JsonValue.js';
 import type {
   ITxnEndpoint,
   ITxnEndpointInternal,
@@ -42,21 +43,16 @@ const LOG = getDebug(import.meta.url);
 type ApiRecord = Record<string, unknown>;
 
 /**
- * Untyped value crossing module boundaries. The named alias is
- * required because the architecture ESLint rule
- * (`no-restricted-syntax` selectors blocking `unknown` in function
- * signatures, lines 373-380 of `eslint.config.mjs`) forces an alias.
- * Sonar S6564 + `sonarjs/redundant-type-aliases` flagging the alias
- * is an acknowledged tradeoff; the `eslint.config.mjs` Section 12
- * file-scoped allowlist suppresses the redundant-alias rule on the
- * sibling parser at `Mediator/Scrape/ScrapeAutoMapper.ts`. Phase 7e
- * relocated the parser without expanding that allowlist (per the
- * "do not modify eslint config" directive); the alias stays here
- * because eliminating it would either fire the bare-`unknown` rule
- * or require a 14-site closed-union refactor with type-narrowing
- * casts at every boundary — out-of-scope for this commit.
+ * Untyped value crossing module boundaries — alias of the shared
+ * {@link JsonValue} structural union from
+ * `Pipeline/Types/JsonValue.ts`. Closes Sonar S6564 (the prior
+ * `type UntypedValue = unknown` alias was redundant); the
+ * structural union RHS is accepted as non-redundant because it is a
+ * `TSUnionType`, not a bare `TSUnknownKeyword`. Domain
+ * name retained (`UntypedValue`) so the 14 call-sites do not
+ * need renaming.
  */
-type UntypedValue = unknown;
+type UntypedValue = JsonValue;
 
 /**
  * Result of probing a record for a scalar field — the raw scalar
