@@ -1017,31 +1017,6 @@ export default tseslint.config(
     },
   },
 
-  // 12. ARCHITECTURE-RULE EXCEPTION — narrowed by Security Hardening
-  //     2026-05 (RC-5).
-  //
-  //     Previously this block disabled `sonarjs/redundant-type-aliases`
-  //     for 8 files. The 6 `type X = unknown` aliases (S3..S8) were
-  //     migrated to the shared {@link JsonValue} structural union;
-  //     their entries were removed.
-  //
-  //     The 2 string-typed aliases (S2 `FormAnchorSelector`, S9
-  //     `ContextId`) remain as bare `type X = string` because the
-  //     brand-pattern migration cascaded into >15 consumer sites
-  //     across production + test code (Decide §6 NEW-R10 5-file
-  //     ceiling). Tracked as a Decide-time deviation; the migration
-  //     is deferred to a follow-up PR scoped to the consumer-site
-  //     cleanup. NOSONAR comments stay on the alias lines.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.ts',
-      'src/Scrapers/Pipeline/Types/PipelineContext.ts',
-    ],
-    rules: {
-      'sonarjs/redundant-type-aliases': 'off',
-    },
-  },
-
   // 12c. QUALITY RULES (Security Hardening 2026-05) — `readonly`
   //      private fields, `node:` protocol prefix for built-in imports.
   //      Both rules close Sonar findings (S2933 + S7772) AND prevent
@@ -1164,6 +1139,41 @@ export default tseslint.config(
     ignores: ['src/Common/SafeScreenshot.ts', 'src/Tests/**'],
     rules: {
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
+    },
+  },
+
+  // 15. NO SUPPRESSION COMMENTS — Phase 2 of Security Hardening 2026-05.
+  //     Bans every suppression-comment family on src/** so future
+  //     contributors cannot silence a Sonar / TypeScript / Biome /
+  //     ESLint / coverage rule instead of fixing the underlying
+  //     issue. Routed through ESLint's built-in `no-warning-comments`
+  //     rule (terms-array form) because Line/Block AST selectors
+  //     (`Line:matches([value*='...'])`) are non-functional in
+  //     ESLint 9 + typescript-eslint flat-config — verified
+  //     empirically. The terms-array form fires on both Line and
+  //     Block comments. Canary fixtures in EslintCanaries/ are
+  //     intentionally malformed; excluded via `ignores`.
+  {
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
+    ignores: ['src/Scrapers/Pipeline/EslintCanaries/**'],
+    rules: {
+      'no-warning-comments': [
+        'error',
+        {
+          terms: [
+            'NOSONAR',
+            '@ts-ignore',
+            '@ts-expect-error',
+            '@ts-nocheck',
+            'biome-ignore',
+            'eslint-disable',
+            'istanbul ignore',
+            'c8 ignore',
+            'v8 ignore',
+          ],
+          location: 'anywhere',
+        },
+      ],
     },
   },
 );

@@ -90,34 +90,39 @@ async function evaluateFormWalk(ctx: Page | Frame, resolvedSelector: string): Pr
 
 /**
  * Self-contained browser-context form walk. ALL logic inline — no external refs.
+ * Must be self-contained: Playwright evaluate() serializes only this function;
+ * inner helpers are defined inside the body to stay within the serialised source.
  * Uses only anonymous function expressions to avoid __name injection by build tools.
  * @param input - DOM input element (injected by Playwright).
  * @param skipTypes - Non-fillable input types (passed as arg).
  * @returns CSS selector for the nearest form-like ancestor.
  */
-/**
- * Self-contained browser-context form walk. ALL logic inline — no external refs.
- * Must be self-contained: Playwright evaluate() serializes only this function.
- * @param input - DOM input element (injected by Playwright).
- * @param skipTypes - Non-fillable input types (passed as arg).
- * @returns CSS selector for the nearest form-like ancestor.
- */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: browser evaluate() requires self-contained function
 function formWalkBrowserFn(input: Element, skipTypes: string[]): string {
   const skip = new Set(skipTypes);
+  /**
+   * Decide whether `el` qualifies as a form-anchor ancestor.
+   * @param el - candidate ancestor.
+   * @returns true when `el` is a FORM or holds 2+ fillable inputs.
+   */
+  const isFormAnchor = (el: Element): boolean =>
+    el.tagName === 'FORM' ||
+    [...el.querySelectorAll('input')].filter(i => !skip.has(i.type)).length >= 2;
+  /**
+   * Build a stable CSS selector for the matched ancestor.
+   * @param el - matched ancestor.
+   * @returns CSS selector targeting `el` uniquely within its parent.
+   */
+  const buildSelectorForElement = (el: Element): string => {
+    if (el.id) return '#' + el.id;
+    const tag = el.tagName.toLowerCase();
+    const p = el.parentElement;
+    if (!p) return tag;
+    const sib = [...p.children].filter(c => c.tagName === el.tagName);
+    return sib.length <= 1 ? tag : tag + ':nth-of-type(' + String(sib.indexOf(el) + 1) + ')';
+  };
   let el = input.parentElement;
   while (el && el !== document.body) {
-    const isForm = el.tagName === 'FORM';
-    const fills = isForm ? [] : [...el.querySelectorAll('input')].filter(i => !skip.has(i.type));
-    if (isForm || fills.length >= 2) {
-      if (el.id) return '#' + el.id;
-      const tag = el.tagName.toLowerCase();
-      const p = el.parentElement;
-      if (!p) return tag;
-      const target = el;
-      const sib = [...p.children].filter(c => c.tagName === target.tagName);
-      return sib.length <= 1 ? tag : tag + ':nth-of-type(' + String(sib.indexOf(target) + 1) + ')';
-    }
+    if (isFormAnchor(el)) return buildSelectorForElement(el);
     el = el.parentElement;
   }
   return '';

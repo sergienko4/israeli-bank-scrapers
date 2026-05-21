@@ -17,7 +17,6 @@ import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import type { Option } from '../../Types/Option.js';
-import type { ContextId } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
 import type { IFormErrorScanResult } from '../Form/FormErrorDiscovery.js';
@@ -361,7 +360,7 @@ interface ICookieInjection {
 /** Bundled args for `IActionMediator.clickElement` — fits the 3-param ceiling. */
 interface IClickElementArgs {
   /** Opaque frame identifier. */
-  readonly contextId: ContextId;
+  readonly contextId: string;
   /** CSS/XPath selector. */
   readonly selector: string;
   /** Force click bypassing actionability checks (for hidden toggles). */
@@ -390,7 +389,7 @@ interface IActionMediator {
    * @param value - Value to fill.
    * @returns True after filling.
    */
-  fillInput(contextId: ContextId, selector: string, value: string): Promise<true>;
+  fillInput(contextId: string, selector: string, value: string): Promise<true>;
 
   /**
    * Click an element by contextId + selector.
@@ -404,7 +403,7 @@ interface IActionMediator {
    * @param contextId - Opaque frame identifier.
    * @returns True after pressing.
    */
-  pressEnter(contextId: ContextId): Promise<true>;
+  pressEnter(contextId: string): Promise<true>;
 
   // ── Navigation (no raw Frame needed) ──
 
