@@ -1063,7 +1063,20 @@ export default tseslint.config(
     files: ['src/Tests/Unit/**/*.test.ts'],
     plugins: { jest },
     rules: {
-      'jest/expect-expect': 'error',
+      // `assertFunctionNames` teaches `jest/expect-expect` about the
+      // project's shape-helper conventions. CrossValidation phase
+      // tests already validate `expect(...)` inside helpers named
+      // either `assert<Phase>Shape(finalCtx)` (six factories) or
+      // `run<Phase>ForRow(row)` (FullFlow + InitPhase factories);
+      // the rule's default name list (just `expect`) misses both
+      // and forces redundant inline assertions. Per CodeRabbit
+      // feedback on PR #248, recognising the `assert*` and `run*`
+      // names lets each helper be the single source of truth and
+      // removes the duplicate-assertion noise.
+      'jest/expect-expect': [
+        'error',
+        { assertFunctionNames: ['expect', 'assert*', 'run*'] },
+      ],
       'jest/no-standalone-expect': 'error',
     },
   },
