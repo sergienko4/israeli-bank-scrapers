@@ -86,7 +86,7 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     }
   });
 
-  it('OZ-PCF-02 — Pepper (no requiresBrowserTls): mediator dispose stays undefined', () => {
+  it('PP-PCF-02 — Pepper (requiresBrowserTls=true): mediator exposes dispose hook', () => {
     const descriptor = makeDescriptor(true, CompanyTypes.Pepper);
     const ctx = buildInitialContext(
       descriptor,
@@ -94,7 +94,7 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     );
     expect(ctx.apiMediator.has).toBe(true);
     if (ctx.apiMediator.has) {
-      expect(ctx.apiMediator.value.dispose).toBeUndefined();
+      expect(typeof ctx.apiMediator.value.dispose).toBe('function');
     }
   });
 

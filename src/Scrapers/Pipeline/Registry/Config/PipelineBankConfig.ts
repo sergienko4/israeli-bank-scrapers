@@ -79,6 +79,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       // Extracted from com.pepper.ldb APK index.android.bundle and identical
       // across every Play Store install — not a user secret.
       staticAuth: 'TSToken 7cf2d7a7-681d-450a-ab23-06e48d2b8fd6; tid=digital_client_token_token',
+      requiresBrowserTls: true,
     },
   },
 };
