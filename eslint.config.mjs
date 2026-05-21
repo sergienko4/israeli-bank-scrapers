@@ -203,6 +203,18 @@ const RESTRICTED_SYNTAX_RULES = [
   },
 ];
 
+// PII Screenshot Bypass Prevention — added 2026-05-21 after CI artifact
+// 7128234088 leaked 18+ post-auth PNGs (PR #248, run 26207506594).
+// Bans direct `page.screenshot(...)` outside the central SafeScreenshot
+// helper, which short-circuits in CI. Applied via a dedicated files
+// block below so the helper itself + tests remain allow-listed.
+const NO_DIRECT_SCREENSHOT_RULE = {
+  selector:
+    'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
+  message:
+    'page.screenshot(...) — use safeScreenshot() from src/Common/SafeScreenshot.ts (PII-safe CI gate).',
+};
+
 const RESTRICTED_SYNTAX_RULES_NEW = [
   // 1. Coverage Bypasses
   {
@@ -1139,6 +1151,19 @@ export default tseslint.config(
             "🚫 LEGACY BANK LOOKUP: Use resolveLegacyBank(companyId) instead of bare SCRAPER_CONFIGURATION.banks[...]. Pipeline-only banks aren't in this map; direct access can crash with 'cannot destructure undefined'.",
         },
       ],
+    },
+  },
+
+  // 14. NO DIRECT page.screenshot() — added 2026-05-21 after PR #248 CI
+  //     artifact 7128234088 leaked 18+ post-auth PNGs (run 26207506594).
+  //     The SafeScreenshot helper (src/Common/SafeScreenshot.ts) is the
+  //     only sanctioned call site — it short-circuits in CI to keep
+  //     rendered bank pixels out of public-readable artifacts.
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/Common/SafeScreenshot.ts', 'src/Tests/**'],
+    rules: {
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
     },
   },
 );
