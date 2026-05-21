@@ -1141,4 +1141,39 @@ export default tseslint.config(
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
     },
   },
+
+  // 15. NO SUPPRESSION COMMENTS — Phase 2 of Security Hardening 2026-05.
+  //     Bans every suppression-comment family on src/** so future
+  //     contributors cannot silence a Sonar / TypeScript / Biome /
+  //     ESLint / coverage rule instead of fixing the underlying
+  //     issue. Routed through ESLint's built-in `no-warning-comments`
+  //     rule (terms-array form) because Line/Block AST selectors
+  //     (`Line:matches([value*='...'])`) are non-functional in
+  //     ESLint 9 + typescript-eslint flat-config — verified
+  //     empirically. The terms-array form fires on both Line and
+  //     Block comments. Canary fixtures in EslintCanaries/ are
+  //     intentionally malformed; excluded via `ignores`.
+  {
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
+    ignores: ['src/Scrapers/Pipeline/EslintCanaries/**'],
+    rules: {
+      'no-warning-comments': [
+        'error',
+        {
+          terms: [
+            'NOSONAR',
+            '@ts-ignore',
+            '@ts-expect-error',
+            '@ts-nocheck',
+            'biome-ignore',
+            'eslint-disable',
+            'istanbul ignore',
+            'c8 ignore',
+            'v8 ignore',
+          ],
+          location: 'anywhere',
+        },
+      ],
+    },
+  },
 );

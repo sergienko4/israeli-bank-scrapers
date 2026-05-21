@@ -3,7 +3,7 @@
  * JSON tree" across the pipeline.
  *
  * <p>Spec.txt §1 RC-5: replaces the per-file `type JsonValue = unknown`
- * pattern (and its `NOSONAR` companion) that previously dodged
+ * pattern (and its Sonar-suppression companion) that previously dodged
  * SonarJS rule `typescript:S6564` (redundant type alias) while
  * still honouring the project's architecture-rule ban on bare
  * `unknown` in function parameter/return positions
@@ -57,7 +57,7 @@ type JsonArray = readonly JsonValue[];
  * narrower contract via type guards.
  *
  * <p>Spec.txt §1 RC-5: replaces per-file `type X = unknown`
- * aliases (eight files, each with a `NOSONAR` comment) with
+ * aliases (eight files, each with a Sonar-suppression comment) with
  * one shared definition. Honours the project's
  * `no-restricted-syntax` ban on bare `unknown` in
  * function signatures while closing S6564 at the same time.
