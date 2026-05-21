@@ -94,21 +94,27 @@ describe('IApiDirectCallConfig shape', () => {
 });
 
 /**
- * Compile-time pins for the non-OTP flow shapes. STORED_JWT and
- * BEARER_STATIC carry an identical IApiDirectCallConfig shape
- * (empty steps, default envelope, ASSERT_TAG probe) modulo the
- * flow string, so the literals are derived from a single FLOWS
- * tuple to avoid duplication.
+ * Builder for non-OTP flow shapes. STORED_JWT and BEARER_STATIC
+ * carry an identical IApiDirectCallConfig shape (empty steps,
+ * default envelope, ASSERT_TAG probe) modulo the flow string, so
+ * the shape lives in this single helper. Each named constant
+ * below pins one flow value while keeping the shape DRY.
+ * @param flow - The non-OTP FlowKind value for this config.
+ * @returns A typed IApiDirectCallConfig with the shared shape.
  */
-const NON_OTP_FLOWS = ['stored-jwt', 'bearer-static'] as const;
-const NON_OTP_CONFIGS: readonly IApiDirectCallConfig[] = NON_OTP_FLOWS.map(
-  (flow): IApiDirectCallConfig => ({
+function buildNonOtpConfig(flow: 'stored-jwt' | 'bearer-static'): IApiDirectCallConfig {
+  return {
     flow,
     steps: [],
     envelope: { deviceTokenPath: '/resultData/deviceToken' },
     probe: { urlTag: ASSERT_TAG },
-  }),
-);
+  };
+}
+
+/** Compile-time pin: stored-jwt flow shape (no signer/fingerprint). */
+const STORED_JWT_CONFIG: IApiDirectCallConfig = buildNonOtpConfig('stored-jwt');
+/** Compile-time pin: bearer-static flow shape. */
+const BEARER_STATIC_CONFIG: IApiDirectCallConfig = buildNonOtpConfig('bearer-static');
 
 describe('FlowKind enum', () => {
   it('covers the three declared flow kinds', () => {
@@ -118,8 +124,8 @@ describe('FlowKind enum', () => {
     // assertion now verifies the FlowKind union accepts a distinct
     // value from a config literal — a real contract under test.
     const smsOtp: FlowKind = FULL_CONFIG.flow;
-    const storedJwt: FlowKind = NON_OTP_CONFIGS[0].flow;
-    const bearerStatic: FlowKind = NON_OTP_CONFIGS[1].flow;
+    const storedJwt: FlowKind = STORED_JWT_CONFIG.flow;
+    const bearerStatic: FlowKind = BEARER_STATIC_CONFIG.flow;
     expect(smsOtp).toBe(MINIMAL_CONFIG.flow);
     expect(storedJwt).not.toBe(smsOtp);
     expect(bearerStatic).not.toBe(storedJwt);
