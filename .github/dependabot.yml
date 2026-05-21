@@ -22,6 +22,19 @@ updates:
           - patch
           - minor
           - major
+      # Playwright is the other critical browser-automation surface.
+      # Auto-bump on patch + minor so upstream regression fixes flow
+      # in as their own PR; CI (E2e.test.ts invalid-creds regression
+      # guard) gates whether the bump lands. The ~range in
+      # package.json is the install-time safety gate; this group
+      # is the discovery gate.
+      playwright:
+        patterns:
+          - 'playwright-core'
+          - 'playwright'
+        update-types:
+          - patch
+          - minor
       dev-dependencies:
         dependency-type: development
         update-types:
@@ -29,12 +42,16 @@ updates:
           - patch
         exclude-patterns:
           - '@hieutran094/camoufox-js'
+          - 'playwright-core'
+          - 'playwright'
       production-dependencies:
         dependency-type: production
         update-types:
           - patch
         exclude-patterns:
           - '@hieutran094/camoufox-js'
+          - 'playwright-core'
+          - 'playwright'
 
   - package-ecosystem: github-actions
     directory: /
