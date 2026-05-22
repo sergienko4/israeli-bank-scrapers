@@ -123,11 +123,16 @@ class PipelineBuilder {
    * the SHAPE literal carries customer/balance/transactions step
    * declarations, the ApiDirectScrape phase orchestrates them.
    *
+   * Generic in `<TAcct, TCursor>` so bank-specific literals (e.g.
+   * `IApiDirectScrapeShape<IPepperAcct, number>`) flow through
+   * without contravariance errors at the builder boundary. The
+   * variance is erased once stored on builder state.
+   *
    * @param shape - Bank-supplied IApiDirectScrapeShape literal.
    * @returns This builder.
    */
-  public withApiDirectScrape(shape: IApiDirectScrapeShape<unknown, unknown>): this {
-    setApiDirectScrape(this._s, shape);
+  public withApiDirectScrape<TAcct, TCursor>(shape: IApiDirectScrapeShape<TAcct, TCursor>): this {
+    setApiDirectScrape(this._s, shape as unknown as IApiDirectScrapeShape<unknown, unknown>);
     return this;
   }
 

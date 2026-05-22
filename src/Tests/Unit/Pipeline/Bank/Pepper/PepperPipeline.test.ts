@@ -30,7 +30,7 @@ describe('buildPepperPipeline', () => {
     expect(result.value.isHeadless).toBe(true);
   });
 
-  it('phase list excludes browser phases and includes api-direct-call + scrape', () => {
+  it('phase list excludes browser phases and includes api-direct-call + api-direct-scrape', () => {
     const opts = makeMockOptions();
     const result = buildPepperPipeline(opts);
     assertOk(result);
@@ -41,7 +41,8 @@ describe('buildPepperPipeline', () => {
     expect(names).not.toContain('login');
     expect(names).not.toContain('otp-trigger');
     expect(names).not.toContain('otp-fill');
+    expect(names).not.toContain('scrape');
     expect(names).toContain('api-direct-call');
-    expect(names).toContain('scrape');
+    expect(names).toContain('api-direct-scrape');
   });
 });

@@ -14,7 +14,7 @@ import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilder.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { PEPPER_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigPepper.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { pepperApiScrape } from './scrape/PepperScrape.js';
+import { PEPPER_SHAPE } from './scrape/PepperShape.js';
 
 /**
  * Build the Pepper pipeline descriptor.
@@ -26,7 +26,7 @@ function buildPepperPipeline(options: ScraperOptions): Procedure<IPipelineDescri
     .withOptions(options)
     .withHeadlessMediator()
     .withApiDirect(PEPPER_API_DIRECT_CALL)
-    .withScraper(pepperApiScrape)
+    .withApiDirectScrape(PEPPER_SHAPE)
     .build();
 }
 
