@@ -9,10 +9,10 @@ import {
   type CursorWireValue,
   FIRST_PAGE_CURSOR_WIRE,
 } from '../../../Mediator/Scrape/CursorPagination.js';
+import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 import type { IOneZeroAcct } from './OneZeroShapeHelpers.js';
 
 /** Pagination stop signal — branded so Rule #15 accepts the boolean return. */

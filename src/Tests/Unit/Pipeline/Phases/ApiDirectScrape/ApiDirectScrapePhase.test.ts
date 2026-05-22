@@ -10,9 +10,9 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import type { IHeadlessScrapeShape } from '../../../../../Scrapers/Pipeline/Banks/_Shared/HeadlessScrapeShape.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Pagination.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -96,7 +96,7 @@ function extractPageSyn(body: Record<string, unknown>): IPage<object, string> {
  * Build a synthetic shape with string cursor (matches OneZero semantics).
  * @returns Synthetic scrape shape.
  */
-function makeShape(): IHeadlessScrapeShape<ISynAcct, string> {
+function makeShape(): IApiDirectScrapeShape<ISynAcct, string> {
   return {
     stepName: 'AdsTestShape',
     accountNumberOf: accountNumberOfSyn,
@@ -205,7 +205,7 @@ describe('createApiDirectScrapePhase (Commit B — driver port)', () => {
       transactions: [succeed({ items: [{ k: 1 }], nextCursor: 'c2' })],
     });
     const base = makeShape();
-    const shape: IHeadlessScrapeShape<ISynAcct, string> = {
+    const shape: IApiDirectScrapeShape<ISynAcct, string> = {
       ...base,
       customer: { ...base.customer, extraHeaders: { queryname: 'QC' } },
       balance: { ...base.balance, extraHeaders: { queryname: 'QB' } },
@@ -242,7 +242,7 @@ describe('createApiDirectScrapePhase (Commit B — driver port)', () => {
       transactions: [succeed({ items: [], nextCursor: false })],
     });
     const base = makeShape();
-    const shape: IHeadlessScrapeShape<ISynAcct, string> = {
+    const shape: IApiDirectScrapeShape<ISynAcct, string> = {
       ...base,
       balance: { ...base.balance, fallbackOnFail: 0 },
     };

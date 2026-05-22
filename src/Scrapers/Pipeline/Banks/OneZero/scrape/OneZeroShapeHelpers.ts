@@ -4,8 +4,8 @@
  * the 150-LOC per-file ceiling.
  */
 
+import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
-import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 
 /** Account display number (portfolioNum) — branded so Rule #15 accepts it. */
 type AccountNumberDisplay = Brand<string, 'OneZeroAccountNumberDisplay'>;

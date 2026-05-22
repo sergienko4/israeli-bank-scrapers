@@ -1,6 +1,6 @@
 /**
  * ApiDirectScrape phase actions — Zero-Logic Bank Folder pattern.
- * Banks supply an IHeadlessScrapeShape (data only); this file walks
+ * Banks supply an IApiDirectScrapeShape (data only); this file walks
  * customer → per-account (balance + paginated transactions), maps
  * rows via autoMapTransaction, and returns the scrape procedure.
  * Per-step helpers live in ApiDirectScrapeSteps.ts to keep this
@@ -9,13 +9,12 @@
  * Ported verbatim in Commit B from
  * src/Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrape.ts.
  * Commit C relocated the steps import to the new sibling file.
- * The shape interface import still points at the legacy `_Shared/`
- * location — Commit D relocates it; Commit H deletes the legacy
- * originals once all consumers have migrated.
+ * Commit D relocated the shape interface import + renamed the type
+ * to IApiDirectScrapeShape. Commit H deletes the legacy originals
+ * once all consumers have migrated.
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
-import type { IHeadlessScrapeShape } from '../../Banks/_Shared/HeadlessScrapeShape.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
@@ -31,6 +30,7 @@ import {
   type IAcctCtx,
   type IDriverCtx,
 } from './ApiDirectScrapeSteps.js';
+import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
 /** Accumulator for per-account scrape results. */
 type AcctsAcc = Procedure<readonly ITransactionsAccount[]>;
@@ -109,7 +109,7 @@ async function runScrape<TAcct, TCursor>(
  * @returns Scrape function consumed by the Pipeline descriptor.
  */
 export function buildGenericHeadlessScrape<TAcct, TCursor>(
-  shape: IHeadlessScrapeShape<TAcct, TCursor>,
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): (ctx: IActionContext) => Promise<Procedure<IPipelineContext>> {
   return async (ctx): Promise<Procedure<IPipelineContext>> => {
     const busProc = resolveApiMediator(ctx, shape.stepName);

@@ -6,7 +6,7 @@
  * OneZeroShapeHelpers.ts (customer/balance) + OneZeroShapeTxns.ts.
  */
 
-import type { IHeadlessScrapeShape } from '../../_Shared/HeadlessScrapeShape.js';
+import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import {
   accountNumberOf,
   balanceExtract,
@@ -18,7 +18,7 @@ import {
 import { stopPredicate, txnsExtractPage, txnsVars } from './OneZeroShapeTxns.js';
 
 /** OneZero shape declaration — passed to buildGenericHeadlessScrape. */
-const ONE_ZERO_SHAPE: IHeadlessScrapeShape<IOneZeroAcct, string> = {
+const ONE_ZERO_SHAPE: IApiDirectScrapeShape<IOneZeroAcct, string> = {
   stepName: 'OneZeroScrape',
   accountNumberOf,
   customer: { buildVars: customerVars, extractAccounts },

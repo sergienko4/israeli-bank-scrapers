@@ -11,10 +11,10 @@
  * lands in Commit E.
  */
 
-import type { IHeadlessScrapeShape } from '../../Banks/_Shared/HeadlessScrapeShape.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { buildGenericHeadlessScrape } from './ApiDirectScrapeActions.js';
+import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
 /** Bound phase signature consumed by the pipeline executor. */
 export type ApiDirectScrapeFn = (ctx: IActionContext) => Promise<Procedure<IPipelineContext>>;
@@ -28,7 +28,7 @@ export type ApiDirectScrapeFn = (ctx: IActionContext) => Promise<Procedure<IPipe
  *   supplied shape and emits the structured trace events.
  */
 function createApiDirectScrapePhase<TAcct, TCursor>(
-  shape: IHeadlessScrapeShape<TAcct, TCursor>,
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): ApiDirectScrapeFn {
   return buildGenericHeadlessScrape(shape);
 }

@@ -1,29 +1,62 @@
 /**
- * IApiDirectScrapeShape — per-bank config for the ApiDirectScrape
- * phase. Pure data: WK query labels, variable builders, response
- * unwrappers, pagination cursor shape. Zero bank-name coupling.
+ * ApiDirectScrape shape — generic per-bank contract consumed by the
+ * createApiDirectScrapePhase factory. Pure data: WK query labels,
+ * variable builders, response unwrappers, pagination cursor shape.
+ * Zero bank-name coupling here.
  *
- * Commit A: STUB interface (empty fields). Commit D moves the
- * full body in from Banks/_Shared/HeadlessScrapeShape.ts with
- * renamed types.
+ * Ported in Commit D from Banks/_Shared/HeadlessScrapeShape.ts with
+ * the legacy `IHeadless*` type names renamed to `IApiDirectScrape*`
+ * (parity with `ApiDirectCall`). The legacy file stays in place
+ * until Commit H to keep the legacy `GenericHeadlessScrape.ts`
+ * driver compiling during the migration window.
  */
 
+import type { IPage } from '../../Strategy/Fetch/Pagination.js';
+import type { IActionContext } from '../../Types/PipelineContext.js';
+
+/** Opaque headers map (shape step may declare per-call extraHeaders). */
+export type HeaderMap = Record<string, string>;
+
 /**
- * Scaffold marker — holds the generic parameters so the type
- * parameters do not collapse to `unknown` in Commit A.
+ * extraHeaders may be a static map (OneZero) or a function producing
+ * a map on every call (Pepper — per-request UUIDs). The driver calls
+ * the function at call time, never caches its result.
  */
-export interface IApiDirectScrapeShapeScaffoldMarker<TAcct, TCursor> {
-  readonly tAcct?: TAcct;
-  readonly tCursor?: TCursor;
+export type ApiDirectScrapeHeadersLike = HeaderMap | ((ctx: IActionContext) => HeaderMap);
+/** Opaque GraphQL variables map. */
+export type VarsMap = Record<string, unknown>;
+/** Generic API response body — shape's extractor narrows as needed. */
+export type ApiBody = Record<string, unknown>;
+
+/** Customer-step shape — fetches the account list once per scrape. */
+export interface IApiDirectScrapeCustomerStep<TAcct> {
+  readonly buildVars: (ctx: IActionContext) => VarsMap;
+  readonly extractAccounts: (body: ApiBody) => readonly TAcct[];
+  readonly extraHeaders?: ApiDirectScrapeHeadersLike;
 }
 
-/**
- * Bank-specific config consumed by the ApiDirectScrape phase.
- * The interface body lands in Commit D — this stub keeps the
- * type-only file present so its tests + import path exist from
- * Commit A onward.
- */
+/** Balance-step shape — fetches one account's current balance. */
+export interface IApiDirectScrapeBalanceStep<TAcct> {
+  readonly buildVars: (acct: TAcct) => VarsMap;
+  readonly extract: (body: ApiBody) => number;
+  readonly extraHeaders?: ApiDirectScrapeHeadersLike;
+  /** Value to return on failure; undefined → propagate. */
+  readonly fallbackOnFail?: number;
+}
+
+/** Transactions-step shape — paginated per-account fetch. */
+export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
+  readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => VarsMap;
+  readonly extractPage: (body: ApiBody, cursor: TCursor | false) => IPage<object, TCursor>;
+  readonly stop?: (acc: readonly object[], ctx: IActionContext) => boolean;
+  readonly extraHeaders?: ApiDirectScrapeHeadersLike;
+}
+
+/** Shape a bank plugs into createApiDirectScrapePhase. */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
-  readonly __scaffold: IApiDirectScrapeShapeScaffoldMarker<TAcct, TCursor>;
+  readonly accountNumberOf: (acct: TAcct) => string;
+  readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
+  readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
+  readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;
 }

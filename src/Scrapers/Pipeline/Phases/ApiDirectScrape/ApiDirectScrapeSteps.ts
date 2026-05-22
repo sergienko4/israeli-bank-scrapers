@@ -5,23 +5,23 @@
  *
  * Ported verbatim in Commit C from
  * src/Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrapeSteps.ts.
- * The shape import still points to the legacy `_Shared/` location —
- * Commit D relocates the shape interface; Commit H deletes the
+ * Commit D relocated the shape interface import + renamed the
+ * types to the IApiDirectScrape* family. Commit H deletes the
  * legacy originals once all consumers have migrated.
  */
 
-import type {
-  ApiBody,
-  HeaderMap,
-  HeadlessHeadersLike,
-  IHeadlessScrapeShape,
-} from '../../Banks/_Shared/HeadlessScrapeShape.js';
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import type {
+  ApiBody,
+  ApiDirectScrapeHeadersLike,
+  HeaderMap,
+  IApiDirectScrapeShape,
+} from './IApiDirectScrapeShape.js';
 
 /** Stop signal — branded so Rule #15 accepts the boolean return. */
 type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
@@ -31,7 +31,7 @@ const FROZEN_EMPTY_OPTS: IApiQueryOpts = Object.freeze({ extraHeaders: FROZEN_EM
 
 /** Driver context — shape + bus + action context. */
 export interface IDriverCtx<TAcct, TCursor> {
-  readonly shape: IHeadlessScrapeShape<TAcct, TCursor>;
+  readonly shape: IApiDirectScrapeShape<TAcct, TCursor>;
   readonly bus: IApiMediator;
   readonly ctx: IActionContext;
 }
@@ -42,13 +42,13 @@ export interface IAcctCtx<TAcct, TCursor> extends IDriverCtx<TAcct, TCursor> {
 }
 
 /**
- * Resolve a HeadlessHeadersLike to a concrete HeaderMap — calls the
+ * Resolve a ApiDirectScrapeHeadersLike to a concrete HeaderMap — calls the
  * function at call time when the shape declared a dynamic producer.
  * @param ctx - Action context passed into dynamic producers.
  * @param extra - Static map, function, or absent.
  * @returns Concrete header map (frozen empty when absent).
  */
-function resolveHeaders(ctx: IActionContext, extra?: HeadlessHeadersLike): HeaderMap {
+function resolveHeaders(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): HeaderMap {
   if (!extra) return FROZEN_EMPTY_HEADERS;
   if (typeof extra === 'function') return extra(ctx);
   return extra;
@@ -60,7 +60,7 @@ function resolveHeaders(ctx: IActionContext, extra?: HeadlessHeadersLike): Heade
  * @param extra - Static map, function, or absent.
  * @returns Opts value consumed by apiQuery.
  */
-function toOpts(ctx: IActionContext, extra?: HeadlessHeadersLike): IApiQueryOpts {
+function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQueryOpts {
   const headers = resolveHeaders(ctx, extra);
   if (Object.keys(headers).length === 0) return FROZEN_EMPTY_OPTS;
   return { extraHeaders: headers };
