@@ -20,10 +20,36 @@ const AID = 'DIGITAL_BLL';
 const LOCALE = 'en-US';
 /** APK version — lands in data.params.Version_App (not X-TS-Client-Version). */
 const APK_VERSION = '11.5.5';
-/** SDK/tarsus version — both the X-TS-Client-Version header AND canonical. */
+/**
+ * SDK/tarsus version — both the X-TS-Client-Version header AND
+ * canonical-string substitution. Shape:
+ * `<sdk-ver> (<build>);[<feature-flag-mask>]`. The feature-flag
+ * mask after `;` is Transmit-internal; the SDK version + build
+ * substring before `;` is what lands in
+ * `fingerprint.metadata.version` via {@link SDK_VERSION_METADATA}.
+ */
 const TS_CLIENT_VERSION = '8.2.3 (10870);[1,2,3,6,7,8,10,11,12,14,28,19,27]';
-/** SDK version string that lives in fingerprint.metadata.version. */
-const SDK_VERSION_METADATA = '8.2.3 (10870)';
+
+/**
+ * Extract the SDK-version-and-build substring (everything before the
+ * first `;`) from a Transmit `X-TS-Client-Version` value.
+ *
+ * @param clientVersion - Full `X-TS-Client-Version` literal.
+ * @returns The leading `<sdk-ver> (<build>)` substring, whitespace-trimmed.
+ */
+function extractSdkVersionMetadata(clientVersion: string): string {
+  const parts = clientVersion.split(';');
+  return parts[0].trim();
+}
+
+/**
+ * SDK version string that lives in `fingerprint.metadata.version`.
+ * Derived from {@link TS_CLIENT_VERSION} so a future SDK bump (e.g.
+ * 8.2.3 -> 8.2.4) updates ONE constant and the metadata field
+ * follows automatically — eliminating the "I bumped X-TS-Client-
+ * Version but forgot SDK_VERSION_METADATA" class of bugs.
+ */
+const SDK_VERSION_METADATA = extractSdkVersionMetadata(TS_CLIENT_VERSION);
 
 /** Fingerprint shape — hydrated with $ref: now / nowMs at bind-time. */
 const PEPPER_FINGERPRINT: IFingerprintConfig = {
