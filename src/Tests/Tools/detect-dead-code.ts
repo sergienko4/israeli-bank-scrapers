@@ -32,21 +32,11 @@ const PIPELINE_ROOT = path.join(SRC_ROOT, 'Scrapers', 'Pipeline');
 /**
  * Files exempted from the "must have ≥1 importer" rule.
  *
- * Two kinds live here:
- *   1. Legitimate entry points — public surfaces consumed externally.
- *   2. Tech-debt parking — cascade-orphans surfaced after the first
- *      prune pass. They are only reachable from tests and should be
- *      deleted in a follow-up commit; the allowlist keeps the canary
- *      green until that follow-up. Remove entries as files go.
+ * Legitimate entry points — public surfaces consumed externally.
  */
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
-  // (1) Public barrel export — consumed via the npm package's entry.
+  // Public barrel export — consumed via the npm package's entry.
   path.join(PIPELINE_ROOT, 'index.ts'),
-  // (2) tech-debt: cascade-orphans surfaced after the prune pass.
-  path.join(PIPELINE_ROOT, 'Mediator', 'Login', 'LoginSteps.ts'),
-  path.join(PIPELINE_ROOT, 'Strategy', 'Scrape', 'Monthly', 'MonthGeneration.ts'),
-  path.join(PIPELINE_ROOT, 'Strategy', 'Scrape', 'Monthly', 'MonthlyFetchLoop.ts'),
-  path.join(PIPELINE_ROOT, 'Strategy', 'Scrape', 'Monthly', 'MonthlyMerge.ts'),
 ]);
 
 /** Sentinel returned by {@link resolveImport} for unresolved specifiers. */
