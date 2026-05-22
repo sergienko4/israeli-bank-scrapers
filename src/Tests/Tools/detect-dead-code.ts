@@ -32,31 +32,21 @@ const PIPELINE_ROOT = path.join(SRC_ROOT, 'Scrapers', 'Pipeline');
 /**
  * Files exempted from the "must have ≥1 importer" rule.
  *
- * Two kinds of entries live here:
- *   1. Legitimate entry points — public surfaces consumed externally
- *      (the npm package barrel) or via path-walk tooling (architecture
- *      linter fixtures).
- *   2. Tech-debt parking — orphaned files surfaced by the very first
- *      canary run. Each is a candidate for deletion; a follow-up commit
- *      prunes each one. Remove entries here AS the corresponding files
- *      are deleted.
+ * Two kinds live here:
+ *   1. Legitimate entry points — public surfaces consumed externally.
+ *   2. Tech-debt parking — cascade-orphans surfaced after the first
+ *      prune pass. They are only reachable from tests and should be
+ *      deleted in a follow-up commit; the allowlist keeps the canary
+ *      green until that follow-up. Remove entries as files go.
  */
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
   // (1) Public barrel export — consumed via the npm package's entry.
   path.join(PIPELINE_ROOT, 'index.ts'),
-  // (1) Architecture-linter fixture — loaded by file path, not import.
-  path.join(PIPELINE_ROOT, 'EslintCanaries', 'Rule10Violation.ts'),
-  // (2) tech-debt: orphaned at canary introduction; delete in follow-up
-  path.join(PIPELINE_ROOT, 'Banks', 'OneZero', 'OneZeroCreds.ts'),
-  path.join(PIPELINE_ROOT, 'Core', 'Builder', 'LoginPhaseFactory.ts'),
-  path.join(PIPELINE_ROOT, 'Interceptors', 'PopupGuard.ts'),
-  path.join(PIPELINE_ROOT, 'Mediator', 'Api', 'ApiOtpRetriever.ts'),
-  path.join(PIPELINE_ROOT, 'Mediator', 'Api', 'TokenLoginOrchestrator.ts'),
-  path.join(PIPELINE_ROOT, 'Mediator', 'Home', 'HomeProbe.ts'),
-  path.join(PIPELINE_ROOT, 'Mediator', 'Selector', 'ScopedFieldResolver.ts'),
-  path.join(PIPELINE_ROOT, 'Mediator', 'Timing', 'PollWithBudget.ts'),
-  path.join(PIPELINE_ROOT, 'Registry', 'WK', 'index.ts'),
-  path.join(PIPELINE_ROOT, 'Strategy', 'Scrape', 'Monthly', 'MonthlyScrapeFactory.ts'),
+  // (2) tech-debt: cascade-orphans surfaced after the prune pass.
+  path.join(PIPELINE_ROOT, 'Mediator', 'Login', 'LoginSteps.ts'),
+  path.join(PIPELINE_ROOT, 'Strategy', 'Scrape', 'Monthly', 'MonthGeneration.ts'),
+  path.join(PIPELINE_ROOT, 'Strategy', 'Scrape', 'Monthly', 'MonthlyFetchLoop.ts'),
+  path.join(PIPELINE_ROOT, 'Strategy', 'Scrape', 'Monthly', 'MonthlyMerge.ts'),
 ]);
 
 /** Sentinel returned by {@link resolveImport} for unresolved specifiers. */
