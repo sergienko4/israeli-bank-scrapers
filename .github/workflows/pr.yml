@@ -321,11 +321,13 @@ jobs:
           - Hapoalim
           - Beinleumi
           - OneZero
-          # Pepper deliberately omitted — its test file is opt-in via
-          # `PEPPER_E2E_OPT_IN=1` due to Play Integrity attestation
-          # gating (see comment in Pepper.e2e-real.test.ts). Bank-regex
-          # is wired in code; adding to matrix is one-line when the
-          # Play Integrity work lands.
+          - Pepper
+          # Pepper joined the matrix on 2026-05-22 after the Camoufox
+          # identity-transport adoption (commit 2b903a94) + Telegram
+          # OTP fetcher short-poll fix (commit 024c18e4) verified the
+          # full flow end-to-end. The Pepper test is still gated by
+          # `PEPPER_E2E_OPT_IN=1` (set in the env block below) so the
+          # opt-in surface stays explicit for ad-hoc / debug runs.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       # DNS override + warmup (single source of truth lives in
@@ -374,6 +376,14 @@ jobs:
           ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
           ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
           ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
+          PEPPER_PHONE_NUMBER: ${{ secrets.PEPPER_PHONE_NUMBER }}
+          PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
+          PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
+          # Pepper test is opt-in via this flag (set unconditionally in
+          # CI — the test still no-ops gracefully if PEPPER_PHONE_NUMBER
+          # / PEPPER_PASSWORD are missing, which prevents fork PRs from
+          # red-failing for lack of bank secrets).
+          PEPPER_E2E_OPT_IN: '1'
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
