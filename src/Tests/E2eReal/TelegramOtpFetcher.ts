@@ -118,17 +118,7 @@ type TelegramSkipReason =
   | 'invalid-timeout'
   | 'invalid-regex';
 
-/**
- * Per-cycle long-poll budget (seconds). Capped well below Telegram's
- * 50 s ceiling. With positive-offset polling Telegram early-returns
- * on new data, so the cycle wall is the worst-case detection latency
- * when no new updates arrive. 10 s keeps polling pressure at ~6 RPS
- * over the 180 s budget — within rate ceilings — and gives the user
- * a sub-second ack as soon as the reply lands (the call wakes
- * immediately on new updates).
- */
-const TELEGRAM_LONG_POLL_S = 10;
-/** HTTP client timeout — Telegram's long-poll + 5 s headroom. */
+/** HTTP client timeout for the short-poll getUpdates call. */
 const HTTP_TIMEOUT_MS = 15_000;
 
 /**
@@ -432,33 +422,29 @@ interface IPollState {
 }
 
 /**
- * Compute a long-poll budget bounded by the remaining deadline.
- * @param deadline - Wall-clock deadline ms.
- * @returns Long-poll seconds in [1, TELEGRAM_LONG_POLL_S].
- */
-function computeLongPollSeconds(deadline: number): number {
-  const remaining = deadline - Date.now();
-  const remainingSec = Math.floor(remaining / 1000);
-  const flooredAtOne = Math.max(1, remainingSec);
-  return Math.min(TELEGRAM_LONG_POLL_S, flooredAtOne);
-}
-
-/**
- * Single Telegram long-poll iteration. Uses non-destructive
- * `offset=0` — Telegram returns the earliest unconfirmed update
- * WITHOUT advancing the bot's confirmed cursor. Each fetcher
+ * Single Telegram short-poll iteration. Uses non-destructive
+ * `offset=0` with `timeout=0` (short poll) — Telegram returns ALL
+ * unconfirmed updates in one batch (up to `limit`). Each fetcher
  * filters the returned batch by `reply_to_message.message_id` to
  * pick ONLY its own reply; other fetchers' replies stay in the
  * queue untouched. Cross-fetcher purges are impossible by
  * construction. Telegram's 24h retention drops stale updates
  * automatically.
  *
+ * <p>Why short-poll (`timeout=0`), not long-poll: empirically (2026-
+ * 05-22) Telegram's `getUpdates?offset=0&timeout=N>0` returns only
+ * the SINGLE earliest unconfirmed update per call — even with
+ * `limit=100`. If that earliest update is a stale reply from a
+ * prior session whose prompt no longer matches the active fetcher's
+ * `promptMessageId`, the poll loop spins forever on the same stale
+ * update until the 180 s budget exhausts. Short-poll returns the
+ * full pending batch in one call so the matching reply is reachable.
+ *
  * @param state - Poll state.
  * @returns Match payload or `false`.
  */
 async function pollOnce(state: IPollState): Promise<MatchResult> {
-  const longPoll = computeLongPollSeconds(state.deadline);
-  const otherParams = `limit=${String(RECENT_WINDOW_LIMIT)}&timeout=${String(longPoll)}`;
+  const otherParams = `limit=${String(RECENT_WINDOW_LIMIT)}&timeout=0`;
   const url = buildUpdatesUrl(state.args.botToken, `offset=0&${otherParams}`);
   const res = await safeFetchUpdates(url);
   if (res === false) {
@@ -477,9 +463,12 @@ async function pollOnce(state: IPollState): Promise<MatchResult> {
 }
 
 /**
- * Drive the long-poll loop until match or deadline. Recursive form
+ * Drive the short-poll loop until match or deadline. Recursive form
  * (no `while + await`) to satisfy the project's no-await-in-loop
- * rule and keep parity with `OtpPoller.pollUntil`.
+ * rule and keep parity with `OtpPoller.pollUntil`. Each `pollOnce`
+ * issues a Telegram HTTPS round-trip whose natural ~100-300 ms RTT
+ * keeps the call rate well below Telegram's 30 req/s ceiling — no
+ * artificial sleep needed.
  *
  * @param state - Poll state.
  * @returns Match payload or `false` on timeout.
