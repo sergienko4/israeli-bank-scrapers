@@ -3,26 +3,18 @@
  * Banks supply an IHeadlessScrapeShape (data only); this file walks
  * customer → per-account (balance + paginated transactions), maps
  * rows via autoMapTransaction, and returns the scrape procedure.
- * Per-step helpers live in GenericHeadlessScrapeSteps.ts to keep
- * this file under the per-file LOC ceiling. Zero bank-name coupling.
+ * Per-step helpers live in ApiDirectScrapeSteps.ts to keep this
+ * file under the per-file LOC ceiling. Zero bank-name coupling.
  *
  * Ported verbatim in Commit B from
  * src/Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrape.ts.
- * The steps + shape imports still point to the legacy `_Shared/`
- * location — Commit C relocates the steps file, Commit D relocates
- * the shape interface. Commit H deletes the legacy originals once
- * all consumers have migrated.
+ * Commit C relocated the steps import to the new sibling file.
+ * The shape interface import still points at the legacy `_Shared/`
+ * location — Commit D relocates it; Commit H deletes the legacy
+ * originals once all consumers have migrated.
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
-import {
-  buildPageFetcher,
-  buildStop,
-  fetchAccounts,
-  fetchBalance,
-  type IAcctCtx,
-  type IDriverCtx,
-} from '../../Banks/_Shared/GenericHeadlessScrapeSteps.js';
 import type { IHeadlessScrapeShape } from '../../Banks/_Shared/HeadlessScrapeShape.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
@@ -31,6 +23,14 @@ import { some } from '../../Types/Option.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import {
+  buildPageFetcher,
+  buildStop,
+  fetchAccounts,
+  fetchBalance,
+  type IAcctCtx,
+  type IDriverCtx,
+} from './ApiDirectScrapeSteps.js';
 
 /** Accumulator for per-account scrape results. */
 type AcctsAcc = Procedure<readonly ITransactionsAccount[]>;
