@@ -5,8 +5,8 @@
  * Shares fixtures with OneZeroScrape.test.ts via OneZeroScrapeTestHelpers.ts.
  */
 
-import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrape.js';
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import {

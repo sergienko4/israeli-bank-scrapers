@@ -2,12 +2,6 @@
  * Per-step helpers for the ApiDirectScrape phase driver.
  * Split from ApiDirectScrapeActions.ts to respect the 150-LOC ceiling.
  * Zero bank-name coupling.
- *
- * Ported verbatim in Commit C from
- * src/Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrapeSteps.ts.
- * Commit D relocated the shape interface import + renamed the
- * types to the IApiDirectScrape* family. Commit H deletes the
- * legacy originals once all consumers have migrated.
  */
 
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';

@@ -5,8 +5,8 @@
  * OneZeroScrapeBranches.test.ts (shared helpers in OneZeroScrapeTestHelpers.ts).
  */
 
-import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrape.js';
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import { none } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

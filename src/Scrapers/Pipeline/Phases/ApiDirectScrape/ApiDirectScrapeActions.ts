@@ -5,13 +5,6 @@
  * rows via autoMapTransaction, and returns the scrape procedure.
  * Per-step helpers live in ApiDirectScrapeSteps.ts to keep this
  * file under the per-file LOC ceiling. Zero bank-name coupling.
- *
- * Ported verbatim in Commit B from
- * src/Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrape.ts.
- * Commit C relocated the steps import to the new sibling file.
- * Commit D relocated the shape interface import + renamed the type
- * to IApiDirectScrapeShape. Commit H deletes the legacy originals
- * once all consumers have migrated.
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';

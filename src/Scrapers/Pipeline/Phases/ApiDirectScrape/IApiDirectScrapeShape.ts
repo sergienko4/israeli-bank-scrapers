@@ -3,12 +3,6 @@
  * createApiDirectScrapePhase factory. Pure data: WK query labels,
  * variable builders, response unwrappers, pagination cursor shape.
  * Zero bank-name coupling here.
- *
- * Ported in Commit D from Banks/_Shared/HeadlessScrapeShape.ts with
- * the legacy `IHeadless*` type names renamed to `IApiDirectScrape*`
- * (parity with `ApiDirectCall`). The legacy file stays in place
- * until Commit H to keep the legacy `GenericHeadlessScrape.ts`
- * driver compiling during the migration window.
  */
 
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
