@@ -12,6 +12,7 @@ import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Ba
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectScrapeShape } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
@@ -205,6 +206,9 @@ const MOCK_OTP_CONFIG: OtpConfig = { kind: 'api' };
 /** Minimal IApiDirectCallConfig for builder tests. */
 const MOCK_API_DIRECT = {} as unknown as IApiDirectCallConfig;
 
+/** Minimal IApiDirectScrapeShape for builder tests (paired with MOCK_API_DIRECT). */
+const MOCK_API_DIRECT_SHAPE = {} as unknown as IApiDirectScrapeShape<unknown, unknown>;
+
 export {
   makeMockContext,
   makeMockCredentials,
@@ -212,6 +216,7 @@ export {
   makeMockOptions,
   makeMockPage,
   MOCK_API_DIRECT,
+  MOCK_API_DIRECT_SHAPE,
   MOCK_DIRECT_LOGIN,
   MOCK_LOGIN_CONFIG,
   MOCK_NATIVE_LOGIN,

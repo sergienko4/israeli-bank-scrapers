@@ -6,7 +6,7 @@
  * the per-file LOC ceiling is respected.
  *
  * Zero bank-name coupling per Rule #11. The bank's SHAPE config
- * is supplied by the PipelineBuilder via withApiDirectScrape(SHAPE)
+ * is supplied by the PipelineBuilder via withApiDirect(CALL, SHAPE)
  * which wires this phase into the chain in place of the legacy
  * SCRAPE phase + custom action exec. The phase name
  * `api-direct-scrape` is registered in NO_RETRY_PHASES so the
@@ -62,7 +62,7 @@ function createApiDirectScrapePhase<TAcct, TCursor>(
 
 /**
  * Build an ApiDirectScrape BasePhase bound to a shape literal.
- * Used by PipelineBuilder.withApiDirectScrape() to wire the phase
+ * Used by PipelineBuilder.withApiDirect(call, shape) to wire the phase
  * into the chain. The resulting phase carries name
  * `api-direct-scrape` so NO_RETRY_PHASES suppresses sanitization
  * pulse retries.

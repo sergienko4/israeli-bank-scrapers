@@ -18,6 +18,7 @@ import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,
   MOCK_API_DIRECT,
+  MOCK_API_DIRECT_SHAPE,
   MOCK_LOGIN_CONFIG,
 } from '../../Infrastructure/MockFactories.js';
 
@@ -41,7 +42,7 @@ function buildHeadlessDescriptor(opts: ScraperOptions): Procedure<IPipelineDescr
   const builder = createPipelineBuilder();
   const seeded = builder.withOptions(opts);
   const headless = seeded.withHeadlessMediator();
-  const withLogin = headless.withApiDirect(MOCK_API_DIRECT);
+  const withLogin = headless.withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE);
   const withScrape = withLogin.withScraper(stubScrape);
   return withScrape.build();
 }
@@ -55,7 +56,7 @@ function buildHeadlessOtpDescriptor(opts: ScraperOptions): Procedure<IPipelineDe
   const builder = createPipelineBuilder();
   const seeded = builder.withOptions(opts);
   const headless = seeded.withHeadlessMediator();
-  const withLogin = headless.withApiDirect(MOCK_API_DIRECT);
+  const withLogin = headless.withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE);
   const withTrigger = withLogin.withOtpTrigger();
   const withFill = withTrigger.withOtpFill();
   const withScrape = withFill.withScraper(stubScrape);
@@ -103,13 +104,14 @@ describe('PipelineBuilder — withHeadlessMediator', () => {
     expect(names).not.toContain('terminate');
   });
 
-  it('phase list INCLUDES api-direct-call + scrape (apiDirect + scraper wired)', () => {
+  it('phase list INCLUDES api-direct-call + api-direct-scrape (unified apiDirect wired)', () => {
     const opts = makeMockOptions();
     const result = buildHeadlessDescriptor(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
     expect(names).toContain('api-direct-call');
-    expect(names).toContain('scrape');
+    expect(names).toContain('api-direct-scrape');
+    expect(names).not.toContain('scrape');
   });
 
   it('phase list INCLUDES otp-trigger + otp-fill when OTP chain is added', () => {

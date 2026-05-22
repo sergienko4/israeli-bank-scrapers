@@ -5,7 +5,8 @@
  * Shares fixtures with OneZeroScrape.test.ts via OneZeroScrapeTestHelpers.ts.
  */
 
-import { oneZeroApiScrape } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroScrape.js';
+import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Banks/_Shared/GenericHeadlessScrape.js';
+import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import {
@@ -20,12 +21,14 @@ import {
   synMovement,
 } from './OneZeroScrapeTestHelpers.js';
 
-describe('oneZeroApiScrape — failure + edge branches', () => {
+const ONE_ZERO_API_SCRAPE = buildGenericHeadlessScrape(ONE_ZERO_SHAPE);
+
+describe('ONE_ZERO_API_SCRAPE — failure + edge branches', () => {
   it('customer query fails → propagates fail without fetching movements', async () => {
     const customerFail = failGeneric('customer bad');
     const bus = makeMediator({ customer: [customerFail] });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     expect(result.success).toBe(false);
   });
 
@@ -34,7 +37,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
     const customerPayload = customerEnvelope([emptyPortfolio]);
     const bus = makeMediator({ customer: [succeed(customerPayload)] });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);
@@ -49,7 +52,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
       transactions: [txnFail],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     expect(result.success).toBe(false);
   });
 
@@ -57,7 +60,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
     const customerPayload = { customer: [{}] };
     const bus = makeMediator({ customer: [succeed(customerPayload)] });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);
@@ -76,7 +79,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
       balance: [succeed(balP1)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     expect(result.success).toBe(false);
   });
 
@@ -92,7 +95,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
       balance: [succeed(balPayload)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     expect(result.success).toBe(true);
     assertOk(result);
   });
@@ -112,7 +115,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
       balance: [succeed(balPayload)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     expect(result.success).toBe(true);
     assertOk(result);
   });
@@ -131,7 +134,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
       balance: [succeed(balPayload)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);
@@ -150,7 +153,7 @@ describe('oneZeroApiScrape — failure + edge branches', () => {
       balance: [succeed(balPayload)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);

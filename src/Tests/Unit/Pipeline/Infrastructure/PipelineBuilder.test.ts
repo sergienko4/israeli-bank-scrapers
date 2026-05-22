@@ -3,6 +3,7 @@ import { assertOk } from '../../../Helpers/AssertProcedure.js';
 import {
   makeMockOptions,
   MOCK_API_DIRECT,
+  MOCK_API_DIRECT_SHAPE,
   MOCK_LOGIN_CONFIG,
   MOCK_SCRAPE,
 } from './MockFactories.js';
@@ -67,7 +68,7 @@ describe('PipelineBuilder/mutual-exclusion', () => {
     const result = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withApiDirect(MOCK_API_DIRECT)
+      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
       .build();
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('login mode already set');
@@ -113,7 +114,7 @@ describe('PipelineBuilder/full-config', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withHeadlessMediator()
-      .withApiDirect(MOCK_API_DIRECT)
+      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
       .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
