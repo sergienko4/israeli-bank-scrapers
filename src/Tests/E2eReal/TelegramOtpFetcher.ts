@@ -2,9 +2,10 @@
  * Telegram-side OTP delivery for CI E2E Real jobs.
  *
  * <p>The fetcher polls the Telegram Bot API's `getUpdates` endpoint
- * with `offset=0` — Telegram's documented non-destructive read that
- * returns the earliest unconfirmed update WITHOUT advancing the bot's
- * confirmed cursor. Per-prompt isolation comes from the
+ * with `offset=0` and `timeout=0` (short-poll) — Telegram's
+ * documented non-destructive read that returns ALL unconfirmed
+ * updates (up to `limit`) WITHOUT advancing the bot's confirmed
+ * cursor. Per-prompt isolation comes from the
  * `reply_to_message.message_id === promptMessageId` filter alone.
  *
  * <p>Post-resolution queue cleanup happens via two complementary
@@ -118,7 +119,14 @@ type TelegramSkipReason =
   | 'invalid-timeout'
   | 'invalid-regex';
 
-/** HTTP client timeout for the short-poll getUpdates call. */
+/**
+ * HTTP client timeout for one short-poll `getUpdates` call. Generous
+ * upper bound: short-poll typically returns in 100-500 ms (Telegram
+ * answers immediately with whatever is in the queue), so the 15 s cap
+ * only kicks in on a stuck TCP connection / DNS hang / Cloudflare
+ * 522 — i.e. transport failures the surrounding poll loop already
+ * retries by recursing.
+ */
 const HTTP_TIMEOUT_MS = 15_000;
 
 /**
