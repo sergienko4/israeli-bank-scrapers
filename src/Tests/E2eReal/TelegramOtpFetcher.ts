@@ -54,6 +54,7 @@
  * tiers.
  */
 
+import { humanDelay } from '../../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
 
 /** Bundled args — preserves the project's 3-param ceiling. */
@@ -430,6 +431,13 @@ interface IPollState {
 }
 
 /**
+ * Outcome of one poll iteration. `transport-error` is distinguished
+ * from `false` (no-match) so {@link runPollLoop} can apply
+ * exponential backoff only on consecutive transport failures.
+ */
+type PollOutcome = MatchResult | 'transport-error';
+
+/**
  * Single Telegram short-poll iteration. Uses non-destructive
  * `offset=0` with `timeout=0` (short poll) — Telegram returns ALL
  * unconfirmed updates in one batch (up to `limit`). Each fetcher
@@ -449,9 +457,9 @@ interface IPollState {
  * full pending batch in one call so the matching reply is reachable.
  *
  * @param state - Poll state.
- * @returns Match payload or `false`.
+ * @returns Match payload, `false` (no match), or `transport-error`.
  */
-async function pollOnce(state: IPollState): Promise<MatchResult> {
+async function pollOnce(state: IPollState): Promise<PollOutcome> {
   const otherParams = `limit=${String(RECENT_WINDOW_LIMIT)}&timeout=0`;
   const url = buildUpdatesUrl(state.args.botToken, `offset=0&${otherParams}`);
   const res = await safeFetchUpdates(url);
@@ -460,7 +468,7 @@ async function pollOnce(state: IPollState): Promise<MatchResult> {
       { event: 'telegram.otp.fetch.error', chatIdSuffix: tailMask(state.args.chatId) },
       'Telegram getUpdates failed; continuing to poll',
     );
-    return false;
+    return 'transport-error';
   }
   return findOtpMatch({
     updates: res.result,
@@ -470,22 +478,59 @@ async function pollOnce(state: IPollState): Promise<MatchResult> {
   });
 }
 
+/** Backoff base — first failure waits this long. */
+const BACKOFF_BASE_MS = 500;
+/** Backoff ceiling — wait never exceeds this regardless of failure count. */
+const BACKOFF_MAX_MS = 8_000;
+/** Cap on the exponent (2^N) so the doubling never overflows. */
+const BACKOFF_MAX_EXPONENT = 4;
+
+/**
+ * Exponential backoff schedule for consecutive transport failures.
+ * 1st failure: 500 ms, 2nd: 1 s, 3rd: 2 s, 4th: 4 s, 5th+: 8 s.
+ * @param consecutiveFailures - Number of back-to-back transport failures.
+ * @returns Backoff in milliseconds; 0 when there have been no failures.
+ */
+function computeBackoffMs(consecutiveFailures: number): number {
+  if (consecutiveFailures <= 0) return 0;
+  const exponent = Math.min(BACKOFF_MAX_EXPONENT, consecutiveFailures - 1);
+  const raw = BACKOFF_BASE_MS * 2 ** exponent;
+  return Math.min(BACKOFF_MAX_MS, raw);
+}
+
 /**
  * Drive the short-poll loop until match or deadline. Recursive form
  * (no `while + await`) to satisfy the project's no-await-in-loop
  * rule and keep parity with `OtpPoller.pollUntil`. Each `pollOnce`
  * issues a Telegram HTTPS round-trip whose natural ~100-300 ms RTT
- * keeps the call rate well below Telegram's 30 req/s ceiling — no
- * artificial sleep needed.
+ * keeps the call rate well below Telegram's 30 req/s ceiling on the
+ * happy path.
+ *
+ * <p>On consecutive transport failures (e.g. Cloudflare 522, DNS
+ * hang) the loop applies exponential backoff via {@link humanDelay}
+ * so a Telegram outage does not produce a tight retry storm. The
+ * backoff resets to zero the moment any call succeeds — including
+ * one that returns no match — so a single transient flake does not
+ * extend the wait into the next normal poll cycle.
  *
  * @param state - Poll state.
+ * @param consecutiveFailures - Internal: rolling failure counter
+ *   threaded by recursion. Default 0 — public callers omit it.
  * @returns Match payload or `false` on timeout.
  */
-async function runPollLoop(state: IPollState): Promise<MatchResult> {
+async function runPollLoop(state: IPollState, consecutiveFailures = 0): Promise<MatchResult> {
   if (Date.now() >= state.deadline) return false;
-  const match = await pollOnce(state);
-  if (match !== false) return match;
-  return runPollLoop(state);
+  const outcome = await pollOnce(state);
+  if (outcome !== 'transport-error' && outcome !== false) return outcome;
+  const nextFailures = outcome === 'transport-error' ? consecutiveFailures + 1 : 0;
+  const backoff = computeBackoffMs(nextFailures);
+  const remaining = state.deadline - Date.now();
+  const positiveRemaining = Math.max(0, remaining);
+  const cappedBackoff = Math.min(backoff, positiveRemaining);
+  if (cappedBackoff > 0) {
+    await humanDelay(cappedBackoff, cappedBackoff);
+  }
+  return runPollLoop(state, nextFailures);
 }
 
 /**
