@@ -20,6 +20,7 @@ type PhaseName =
   | 'account-resolve'
   | 'dashboard'
   | 'scrape'
+  | 'api-direct-scrape'
   | 'terminate';
 
 /** A single executable step within a phase. */

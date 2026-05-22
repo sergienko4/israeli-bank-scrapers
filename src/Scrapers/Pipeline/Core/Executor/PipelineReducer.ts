@@ -19,7 +19,7 @@ import { type IPhaseStep, sanitizationPulse } from './PipelineSanitizationPulse.
  * fires a fresh SMS OTP on every retry). Browser phases can be safely
  * retried; API-only phases cannot.
  */
-const NO_RETRY_PHASES: ReadonlySet<string> = new Set(['api-direct-call']);
+const NO_RETRY_PHASES: ReadonlySet<string> = new Set(['api-direct-call', 'api-direct-scrape']);
 
 /**
  * Run one phase with interceptors.

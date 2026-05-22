@@ -7,6 +7,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -33,6 +34,7 @@ interface IBuilderFields {
   readonly otpFillRequired: boolean;
   readonly hasOtpTrigger: boolean;
   readonly scrapeFn: ScrapeFn | false;
+  readonly apiDirectScrape: IApiDirectScrapeShape<unknown, unknown> | false;
   readonly apiDirectConfig: IApiDirectCallConfig | false;
 }
 

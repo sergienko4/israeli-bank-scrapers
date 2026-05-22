@@ -3,6 +3,7 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import type { LoginFn } from './PipelineAssembly.js';
@@ -12,6 +13,7 @@ import {
   createEmptyState,
   type IBuilderState,
   setApiDirectConfig,
+  setApiDirectScrape,
   setDeclarativeLogin,
   snapshotFields,
 } from './PipelineBuilderSetters.js';
@@ -100,11 +102,32 @@ class PipelineBuilder {
 
   /**
    * Set transaction scraping function.
+   *
+   * Legacy custom-function path — used by browser-mode banks and
+   * (until Commits F/G) by API-direct banks too. API-direct banks
+   * should call {@link PipelineBuilder.withApiDirectScrape} with a
+   * SHAPE literal instead. The custom-function entry remains for
+   * browser-mode banks; the API-direct callers are migrated off it
+   * later in this PR.
    * @param fn - Scrape function.
    * @returns This builder.
    */
   public withScraper(fn: ScrapeFn): this {
     this._s.scrapeFn = fn;
+    return this;
+  }
+
+  /**
+   * Wire an API-direct scrape SHAPE into the pipeline. Replaces the
+   * per-bank `withScraper(fn)` wrapper with a config-driven path —
+   * the SHAPE literal carries customer/balance/transactions step
+   * declarations, the ApiDirectScrape phase orchestrates them.
+   *
+   * @param shape - Bank-supplied IApiDirectScrapeShape literal.
+   * @returns This builder.
+   */
+  public withApiDirectScrape(shape: IApiDirectScrapeShape<unknown, unknown>): this {
+    setApiDirectScrape(this._s, shape);
     return this;
   }
 

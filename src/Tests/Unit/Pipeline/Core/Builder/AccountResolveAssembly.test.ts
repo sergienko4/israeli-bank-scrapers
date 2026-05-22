@@ -29,6 +29,7 @@ function makeState(overrides: Partial<IBuilderState> = {}): IBuilderState {
     loginConfig: false,
     loginFn: false,
     scrapeFn: false,
+    apiDirectScrape: false,
     apiDirectConfig: false,
   };
   return { ...defaults, ...overrides };

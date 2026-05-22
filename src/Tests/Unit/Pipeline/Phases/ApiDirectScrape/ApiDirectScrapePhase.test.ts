@@ -11,7 +11,10 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import {
+  buildApiDirectScrapePhase,
+  createApiDirectScrapePhase,
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Pagination.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -286,6 +289,23 @@ describe('createApiDirectScrapePhase (Commit B — driver port)', () => {
     const ctx = ctxOf(bus);
     const result = await phase(ctx);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('buildApiDirectScrapePhase (Commit E — BasePhase wrapper)', () => {
+  it('ADS-WR-1 — wrapper carries name "api-direct-scrape"', () => {
+    const shape = makeShape();
+    const phase = buildApiDirectScrapePhase(shape);
+    expect(phase.name).toBe('api-direct-scrape');
+  });
+
+  it('ADS-WR-2 — action() delegates to the bound scrape fn', async () => {
+    const bus = makeRouterBus({ customer: [succeed({ accts: [] })] });
+    const shape = makeShape();
+    const phase = buildApiDirectScrapePhase(shape);
+    const ctx = ctxOf(bus);
+    const result = await phase.action(ctx, ctx);
+    expect(result.success).toBe(true);
   });
 });
 

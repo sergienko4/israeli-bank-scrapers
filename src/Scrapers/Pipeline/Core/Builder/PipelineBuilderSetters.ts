@@ -6,9 +6,13 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { LoginFn } from './PipelineAssembly.js';
 import type { IBuilderFields, ScrapeFn } from './PipelineBuilderValidation.js';
+
+/** Bank-supplied shape literal — variance erased at the builder boundary. */
+type AnyApiDirectScrapeShape = IApiDirectScrapeShape<unknown, unknown>;
 
 /** Setter outcome — true after applying state mutation. */
 type DidSet = Brand<boolean, 'BuilderDidSet'>;
@@ -29,6 +33,7 @@ interface IBuilderState {
   otpFillRequired: boolean;
   hasOtpTrigger: boolean;
   scrapeFn: ScrapeFn | false;
+  apiDirectScrape: AnyApiDirectScrapeShape | false;
   apiDirectConfig: IApiDirectCallConfig | false;
 }
 
@@ -43,6 +48,7 @@ const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error
   otpFillRequired: true,
   hasOtpTrigger: false,
   scrapeFn: false,
+  apiDirectScrape: false,
   apiDirectConfig: false,
 };
 
@@ -101,6 +107,20 @@ function setApiDirectConfig(state: IBuilderState, config: IApiDirectCallConfig):
 }
 
 /**
+ * Set the API-DIRECT-SCRAPE shape literal on builder state. Banks
+ * supply pure data (customer + balance + transactions step shapes);
+ * the new ApiDirectScrape phase consumes the literal at runtime.
+ * Replaces the legacy `withScraper(fn)` path for API-direct banks.
+ * @param state - Mutable builder state.
+ * @param shape - Bank IApiDirectScrapeShape literal.
+ * @returns True after setting.
+ */
+function setApiDirectScrape(state: IBuilderState, shape: AnyApiDirectScrapeShape): DidSet {
+  state.apiDirectScrape = shape;
+  return true as DidSet;
+}
+
+/**
  * Snapshot mutable state to IBuilderFields.
  * @param state - Mutable builder state.
  * @returns Immutable fields snapshot.
@@ -109,5 +129,11 @@ function snapshotFields(state: IBuilderState): IBuilderFields {
   return { ...state };
 }
 
-export type { IBuilderState };
-export { createEmptyState, setApiDirectConfig, setDeclarativeLogin, snapshotFields };
+export type { AnyApiDirectScrapeShape, IBuilderState };
+export {
+  createEmptyState,
+  setApiDirectConfig,
+  setApiDirectScrape,
+  setDeclarativeLogin,
+  snapshotFields,
+};
