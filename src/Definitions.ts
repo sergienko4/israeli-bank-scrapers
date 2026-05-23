@@ -92,6 +92,10 @@ export const SCRAPERS = {
     name: 'Pagi',
     loginFields: ['username', PASSWORD_FIELD],
   },
+  [CompanyTypes.Pepper]: {
+    name: 'Pepper (Bank Leumi digital)',
+    loginFields: ['phoneNumber', PASSWORD_FIELD],
+  },
 };
 
 export enum ScraperProgressTypes {
