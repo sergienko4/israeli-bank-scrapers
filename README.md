@@ -33,10 +33,16 @@ npm install @sergienko4/israeli-bank-scrapers
 
 - [What's Different](#whats-different)
 - [Usage](#usage)
+  - [Sample Output](#sample-output)
+- [Quick Start](#quick-start)
+- [Contributing](#contributing)
 - [Supported Institutions](#supported-institutions)
 - [OTP (Two-Factor Authentication)](#otp-two-factor-authentication)
 - [Error Types](#error-types)
 - [Logging & Bug Reports](#logging--bug-reports)
+  - [What gets redacted, and what survives](#what-gets-redacted-and-what-survives)
+  - [Filing a bug report](#filing-a-bug-report)
+  - [How redaction stays correct over time](#how-redaction-stays-correct-over-time)
 - [Advanced Usage](#advanced-usage)
 - [Contributors](#contributors)
 - [Links](#links)
@@ -82,39 +88,92 @@ if (result.success) {
 }
 ```
 
+### Sample Output
+
+```json
+{
+  "success": true,
+  "accounts": [
+    {
+      "accountNumber": "****1234",
+      "txns": [
+        {
+          "date": "2024-01-15",
+          "description": "<merchant:12>",
+          "originalAmount": -***,
+          "chargedAmount": -***
+        }
+      ]
+    }
+  ]
+}
+```
+
+This snippet shows the redacted shape produced by the
+[redaction layer](#logging--bug-reports). Real balances, amounts,
+and merchant strings are masked; account numbers are tail-only.
+
+## Quick Start
+
+Three steps to get transactions from Bank Hapoalim:
+
+```typescript
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
+
+const scraper = createScraper({
+  companyId: CompanyTypes.Hapoalim,
+  startDate: new Date('2024-01-01'),
+});
+
+const result = await scraper.scrape({
+  userCode: '1234567',
+  password: 'mypassword',
+});
+
+if (result.success) {
+  result.accounts?.forEach(acc => {
+    console.log(`${acc.accountNumber}: ${acc.txns.length} txns`);
+  });
+}
+```
+
+Replace `userCode` and `password` with real credentials. See the
+[Supported Institutions](#supported-institutions) table for other
+banks and their credential fields, and the OTP section for banks
+that require an `otpCodeRetriever` callback.
+
+## Contributing
+
+Found a bug? Have an improvement? See [CONTRIBUTING.md](./CONTRIBUTING.md)
+for the contribution workflow, branch strategy, and testing requirements.
+
 ## Supported Institutions
 
 <details>
 <summary><strong>Full list</strong></summary>
 
-| Institution       | Type        | Credentials                                 |
-| ----------------- | ----------- | ------------------------------------------- |
-| Bank Hapoalim     | Bank        | `userCode`, `password`, OTP (when prompted) |
-| Bank Leumi        | Bank        | `username`, `password`                      |
-| Discount Bank     | Bank        | `id`, `password`, `num`                     |
-| Mercantile Bank   | Bank        | `id`, `password`, `num`                     |
-| Mizrahi Tefahot   | Bank        | `username`, `password`                      |
-| Otsar Hahayal     | Bank        | `username`, `password`                      |
-| Beinleumi         | Bank        | `username`, `password`, OTP                 |
-| Massad            | Bank        | `username`, `password`                      |
-| Yahav             | Bank        | `username`, `nationalID`, `password`        |
-| Pagi              | Bank        | `username`, `password`                      |
-| OneZero           | Bank        | `email`, `password`, OTP                    |
-| Beyahad Bishvilha | Bank        | `id`, `password`                            |
-| Behatsdaa         | Bank        | `id`, `password`                            |
-| Amex              | Credit Card | `id`, `card6Digits`, `password`             |
-| Isracard          | Credit Card | `id`, `card6Digits`, `password`             |
-| Visa Cal          | Credit Card | `username`, `password`                      |
-| Max               | Credit Card | `username`, `password`, `id` (conditional)  |
-| Pepper            | Bank        | `phoneNumber`, `password`, OTP              |
+| Institution                 | Type        | Credentials                          |
+| --------------------------- | ----------- | ------------------------------------ |
+| Amex                        | Credit Card | `id`, `card6Digits`, `password`      |
+| Bank Hapoalim               | Bank        | `userCode`, `password`, OTP          |
+| Bank Leumi                  | Bank        | `username`, `password`               |
+| Bank Otsar Hahayal          | Bank        | `username`, `password`               |
+| Bank Yahav                  | Bank        | `username`, `nationalID`, `password` |
+| Behatsdaa                   | Bank        | `id`, `password`                     |
+| Beinleumi                   | Bank        | `username`, `password`, OTP          |
+| Beyahad Bishvilha           | Bank        | `id`, `password`                     |
+| Discount Bank               | Bank        | `id`, `password`, `num`              |
+| Isracard                    | Credit Card | `id`, `card6Digits`, `password`      |
+| Massad                      | Bank        | `username`, `password`               |
+| Max                         | Credit Card | `username`, `password`               |
+| Mercantile Bank             | Bank        | `id`, `password`, `num`              |
+| Mizrahi Bank                | Bank        | `username`, `password`               |
+| One Zero                    | Bank        | `email`, `password`, OTP             |
+| Pagi                        | Bank        | `username`, `password`               |
+| Pepper (Bank Leumi digital) | Bank        | `phoneNumber`, `password`, OTP       |
+| Visa Cal                    | Credit Card | `username`, `password`               |
 
 </details>
-
-> **Pepper (Bank Leumi digital):** Camoufox transport routes the
-> Transmit Security api-direct identity binding and SMS OTP
-> delivery. Credentials: `phoneNumber` + `password`. OTP is
-> delivered to the registered phone — pass an `otpCodeRetriever`
-> callback at scraper creation time.
 
 ## OTP (Two-Factor Authentication)
 
@@ -128,10 +187,10 @@ createScraper({
 });
 ```
 
-> **Hapoalim:** OTP is conditional — when the bank prompts for an SMS code
-> (e.g. login from an unrecognised device), the same `otpCodeRetriever`
-> callback is invoked. On device-remembered sessions no OTP is asked
-> and the callback is never called.
+> **Hapoalim:** OTP is conditional. When the bank detects a login
+> from an unrecognized device, it prompts for an SMS code, invoking
+> the `otpCodeRetriever` callback. On remembered devices, no OTP
+> is requested.
 
 **API banks** (OneZero) — pass callback in credentials:
 
@@ -187,7 +246,7 @@ publicly without exposing your customers' data.
 | Auth tokens / cookies / OTP codes   | `eyJhbGc...`, `123456` → `[REDACTED]`, `[OTP]`    |
 | URLs                                | host + path preserved; PII query keys redacted    |
 | HTML snapshots                      | text nodes + `value` attributes scrubbed in place |
-| Anything unrecognised               | `[REDACTED]` (default-deny)                       |
+| Anything unrecognized               | `[REDACTED]` (default-deny)                       |
 
 The "stable hints" (`***NNNN`, `<merchant:N>`, `+***`/`-***`,
 array-size markers) are deliberate — they preserve enough for us to
