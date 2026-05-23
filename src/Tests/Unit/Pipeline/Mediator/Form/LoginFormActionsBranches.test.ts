@@ -291,6 +291,19 @@ function makeExecutor(spec: IExecutorSpec): IActionMediator {
   } as unknown as IActionMediator;
 }
 
+/**
+ * Convenience preset — executor whose pressEnter and clickElement both
+ * resolve cleanly. Models the happy-path Hapoalim discovery flow where
+ * Enter dispatches and the submit-target click lands. Centralises the
+ * duplicated `makeExecutor({ press: 'resolve', click: 'resolve' })`
+ * call sites per CLAUDE.md "factory functions for test mocks".
+ *
+ * @returns IActionMediator with both submit paths wired to succeed.
+ */
+function makeDefaultExecutor(): IActionMediator {
+  return makeExecutor({ press: 'resolve', click: 'resolve' });
+}
+
 describe('LoginFormActions.tryEnterSubmit — frameCtx + press branch coverage', () => {
   it('presses Enter when frameCtx is a Page-shaped object with press()', async (): Promise<void> => {
     // Source line in tryEnterSubmit:
@@ -582,7 +595,7 @@ describe('LoginFormActions.fillFromDiscovery — submitTarget tri-state', () => 
     // MUST be 'both', distinguishing the happy-path POST validation
     // from the single-fire fallbacks.
     const discovery = makeDiscovery(true);
-    const executor = makeExecutor({ press: 'resolve', click: 'resolve' });
+    const executor = makeDefaultExecutor();
     const logger = makeSilentLogger();
     const result = await fillFromDiscovery({
       discovery,
@@ -602,7 +615,7 @@ describe('LoginFormActions.fillFromDiscovery — submitTarget tri-state', () => 
     // the fallback. Distinguishes Enter-only banks (Hapoalim password
     // flow) from click-driven banks (Max Angular submit button).
     const discovery = makeDiscovery(false);
-    const executor = makeExecutor({ press: 'resolve', click: 'resolve' });
+    const executor = makeDefaultExecutor();
     const logger = makeSilentLogger();
     const result = await fillFromDiscovery({
       discovery,

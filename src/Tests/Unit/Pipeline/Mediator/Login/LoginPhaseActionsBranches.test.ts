@@ -167,91 +167,64 @@ afterAll((): void => {
 // ─── extractFormAnchorSelector — accept / reject matrix ──────────
 
 describe('LoginPhaseActions.extractFormAnchorSelector — accept / reject matrix', () => {
-  it('returns empty string when anchor option is none', (): void => {
-    // Source line:
-    //   `if (!formAnchor.has) return '';`
-    // The early-return guards against callers that forgot to pass a
-    // resolved anchor — the function must never throw when handed
-    // `none()`.
-    const emptyAnchor = none();
-    const result = extractFormAnchorSelector(emptyAnchor);
-    expect(result).toBe('');
-  });
+  /**
+   * Anchor-selector decision matrix — one entry per source-line guard
+   * in extractFormAnchorSelector. The helper either returns the
+   * selector verbatim (id / `[name="X"]` / `tag.class-name`) or drops
+   * it to `''` (none, empty, lone '#', bare tag, positional). Driven
+   * via a single config array iterated through `forEach` per CLAUDE.md's
+   * "config arrays — no duplication" rule (biome's
+   * useIterableCallbackReturn forbids `.map()` for side-effectful
+   * callbacks, so `forEach` is the semantically equivalent fit here).
+   */
+  const anchorMatrixCases = [
+    {
+      label: 'returns empty string when anchor option is none',
+      anchor: none(),
+      expected: '',
+    },
+    {
+      label: 'returns empty string when the anchor selector is empty',
+      anchor: some({ selector: '' } as unknown as IFormAnchor),
+      expected: '',
+    },
+    {
+      label: 'accepts id-based anchors verbatim (#otpLobbyFormPassword)',
+      anchor: some({ selector: '#otpLobbyFormPassword' } as unknown as IFormAnchor),
+      expected: '#otpLobbyFormPassword',
+    },
+    {
+      label: 'accepts attribute-based anchors (tag[name="X"])',
+      anchor: some({ selector: 'form[name="loginForm"]' } as unknown as IFormAnchor),
+      expected: 'form[name="loginForm"]',
+    },
+    {
+      label: 'accepts class-based anchors (form.user-login-form — Max fixture)',
+      anchor: some({ selector: 'form.user-login-form' } as unknown as IFormAnchor),
+      expected: 'form.user-login-form',
+    },
+    {
+      label: 'rejects fragile positional :nth-of-type anchors',
+      anchor: some({ selector: 'div:nth-of-type(0)' } as unknown as IFormAnchor),
+      expected: '',
+    },
+    {
+      label: 'rejects bare-tag anchors (form, div) with no id/class/attr',
+      anchor: some({ selector: 'form' } as unknown as IFormAnchor),
+      expected: '',
+    },
+    {
+      label: 'rejects # alone (length === 1 guard)',
+      anchor: some({ selector: '#' } as unknown as IFormAnchor),
+      expected: '',
+    },
+  ] as const;
 
-  it('returns empty string when the anchor selector is empty', (): void => {
-    // Source line:
-    //   `if (selector.length === 0) return '';`
-    // An anchor with an empty selector cannot scope downstream click
-    // resolution, so the helper drops it to the page-wide fallback.
-    const emptyAnchorShape = { selector: '' } as unknown as IFormAnchor;
-    const anchor = some(emptyAnchorShape);
-    const result = extractFormAnchorSelector(anchor);
-    expect(result).toBe('');
-  });
-
-  it('accepts id-based anchors verbatim (#otpLobbyFormPassword)', (): void => {
-    // Source line:
-    //   `if (selector.startsWith('#') && selector.length > 1) return selector;`
-    // Production Amex/Isracard fixture — the Hashed form id is the
-    // trustworthy form-membership anchor.
-    const idAnchorShape = { selector: '#otpLobbyFormPassword' } as unknown as IFormAnchor;
-    const anchor = some(idAnchorShape);
-    const result = extractFormAnchorSelector(anchor);
-    expect(result).toBe('#otpLobbyFormPassword');
-  });
-
-  it('accepts attribute-based anchors (tag[name="X"])', (): void => {
-    // Source line:
-    //   `if (selector.includes('[name="')) return selector;`
-    // Production fallback for forms that have an empty id but carry a
-    // stable `name` attribute.
-    const attrAnchorShape = { selector: 'form[name="loginForm"]' } as unknown as IFormAnchor;
-    const anchor = some(attrAnchorShape);
-    const result = extractFormAnchorSelector(anchor);
-    expect(result).toBe('form[name="loginForm"]');
-  });
-
-  it('accepts class-based anchors (form.user-login-form — Max fixture)', (): void => {
-    // Source line:
-    //   `if (/^[a-z]+\.[a-zA-Z][\w-]*$/.test(selector)) return selector;`
-    // Production Max fixture — `form.user-login-form` is the only
-    // trustworthy anchor when both id and name are empty.
-    const classAnchorShape = { selector: 'form.user-login-form' } as unknown as IFormAnchor;
-    const anchor = some(classAnchorShape);
-    const result = extractFormAnchorSelector(anchor);
-    expect(result).toBe('form.user-login-form');
-  });
-
-  it('rejects fragile positional :nth-of-type anchors', (): void => {
-    // Source line:
-    //   `// Reject everything else (positional :nth-of-type, bare form, etc.)`
-    // The Discount fixture lands here — its form anchor surfaces as
-    // `div:nth-of-type(0)`, which would silently scope clicks to the
-    // wrong DOM subtree. The helper drops back to page-wide search.
-    const nthAnchorShape = { selector: 'div:nth-of-type(0)' } as unknown as IFormAnchor;
-    const anchor = some(nthAnchorShape);
-    const result = extractFormAnchorSelector(anchor);
-    expect(result).toBe('');
-  });
-
-  it('rejects bare-tag anchors (form, div) with no id/class/attr', (): void => {
-    // Reject path — bare `form` matches every form on the page so it
-    // is treated as fragile, same as positional selectors.
-    const bareAnchorShape = { selector: 'form' } as unknown as IFormAnchor;
-    const anchor = some(bareAnchorShape);
-    const result = extractFormAnchorSelector(anchor);
-    expect(result).toBe('');
-  });
-
-  it('rejects # alone (length === 1 guard)', (): void => {
-    // Source line:
-    //   `if (selector.startsWith('#') && selector.length > 1) return selector;`
-    // A lone '#' carries no id payload — the second clause keeps the
-    // helper from emitting an invalid scope.
-    const hashOnlyAnchorShape = { selector: '#' } as unknown as IFormAnchor;
-    const anchor = some(hashOnlyAnchorShape);
-    const result = extractFormAnchorSelector(anchor);
-    expect(result).toBe('');
+  anchorMatrixCases.forEach(({ label, anchor, expected }) => {
+    it(label, (): void => {
+      const result = extractFormAnchorSelector(anchor);
+      expect(result).toBe(expected);
+    });
   });
 });
 
