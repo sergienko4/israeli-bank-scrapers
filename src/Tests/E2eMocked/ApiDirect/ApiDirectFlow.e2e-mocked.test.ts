@@ -1,6 +1,6 @@
 /**
  * Unified API-DIRECT E2E mock — exercises the offline pipeline flow shared
- * by every API-DIRECT bank (Pepper, OneZero, ...) through one parameterised
+ * by every API-DIRECT bank (Pepper, OneZero, ...) through one parameterized
  * spec backed by the per-bank synthetic fetch mocks.
  *
  * Rule #17: mock suite parity stays intact — every bank case in this file
@@ -28,7 +28,7 @@ const PEPPER_FAKE_OTP = 'fixt-otp-pep-7c1a';
 /** Shared mock-handle shape — both per-bank mocks expose this contract. */
 type MockHandle = IPepperMockHandle | IOneZeroMockHandle;
 
-/** Minimal account shape consumed by the parameterised assertions. */
+/** Minimal account shape consumed by the parameterized assertions. */
 interface IAccountSlice {
   readonly accountNumber: string;
   readonly balance?: number;
@@ -36,7 +36,7 @@ interface IAccountSlice {
 }
 
 /**
- * One parameterised flow case — maps a bank onto the inputs and thresholds
+ * One parameterized flow case — maps a bank onto the inputs and thresholds
  * that drive the shared API-DIRECT scrape assertions.
  */
 interface IApiDirectFlowCase {
@@ -71,6 +71,11 @@ const PEPPER_CASE: IApiDirectFlowCase = {
   otpCodeRetriever: fakeOtpRetriever,
   startDate: PEPPER_START_DATE,
   expectedAccounts: 1,
+  // FINDING-9 (8b RabbitAI review) — restore txn-shape assertion the
+  // unified spec dropped relative to the original Pepper E2eMocked test.
+  // PepperFetchMock returns 1 posted + 1 pending row per page, so the
+  // canonical scrape result must surface at least one txn per account.
+  minTxns: 1,
   minGraphqlCalls: 3,
 };
 
@@ -91,7 +96,7 @@ const ONEZERO_CASE: IApiDirectFlowCase = {
 
 const CASES: readonly IApiDirectFlowCase[] = [PEPPER_CASE, ONEZERO_CASE];
 
-/** Minimal scraper-options shape exercised by this parameterised spec. */
+/** Minimal scraper-options shape exercised by this parameterized spec. */
 interface IApiDirectScraperOptions {
   readonly companyId: CompanyTypes;
   readonly startDate: Date;
@@ -101,7 +106,7 @@ interface IApiDirectScraperOptions {
 /**
  * Builds the scraper-options shape, omitting the OTP retriever when the
  * bank's flow does not require one. Kept tiny so the test body stays flat.
- * @param testCase parameterised bank case being executed.
+ * @param testCase parameterized bank case being executed.
  * @returns Options literal accepted by {@link createScraper}.
  */
 function buildScraperOptions(testCase: IApiDirectFlowCase): IApiDirectScraperOptions {
@@ -118,7 +123,7 @@ function buildScraperOptions(testCase: IApiDirectFlowCase): IApiDirectScraperOpt
  * Asserts the per-bank account-shape thresholds carried by the case.
  * Skipping a threshold is encoded as `undefined` on the case object.
  * @param account first scraped account under assertion.
- * @param testCase parameterised bank case providing the thresholds.
+ * @param testCase parameterized bank case providing the thresholds.
  * @returns `true` once every encoded threshold has been verified.
  */
 function assertAccountShape(account: IAccountSlice, testCase: IApiDirectFlowCase): boolean {
@@ -137,7 +142,7 @@ function assertAccountShape(account: IAccountSlice, testCase: IApiDirectFlowCase
 /**
  * Asserts the per-bank API-call lower bounds captured by the fetch mock.
  * @param handle mock handle exposing the call counters.
- * @param testCase parameterised bank case providing the minimums.
+ * @param testCase parameterized bank case providing the minimums.
  * @returns `true` once every counter threshold has been verified.
  */
 function assertCallCounts(handle: MockHandle, testCase: IApiDirectFlowCase): boolean {

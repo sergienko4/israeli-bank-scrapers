@@ -1,7 +1,7 @@
 /**
  * Cross-bank shape registry consumed by ApiDirectScrapePhase.test.ts.
  *
- * The ApiDirectScrape phase is bank-agnostic by design — its parameterised
+ * The ApiDirectScrape phase is bank-agnostic by design — its parameterized
  * tests must therefore exercise the real {@link PEPPER_SHAPE} and
  * {@link ONE_ZERO_SHAPE} extractor chains, not just a synthetic stand-in.
  * Each case carries router fixtures shaped to satisfy the real extractor
@@ -25,7 +25,7 @@ import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/Pipe
 type HeadersLike = HeaderMap | ((ctx: IActionContext) => HeaderMap);
 
 /**
- * Per-bank fixtures consumed by the parameterised phase tests.
+ * Per-bank fixtures consumed by the parameterized phase tests.
  *
  * Fixtures must round-trip through the real shape's extractors. Pepper
  * pages are 1-based with a `totalCount` terminator; OneZero pages

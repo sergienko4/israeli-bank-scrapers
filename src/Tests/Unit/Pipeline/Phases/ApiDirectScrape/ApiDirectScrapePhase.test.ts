@@ -1,7 +1,7 @@
 /**
  * Unit tests for the ApiDirectScrape phase wrapper + ported actions.
  *
- * Restructured into cross-bank parameterised cases via
+ * Restructured into cross-bank parameterized cases via
  * {@link ./ApiDirectScrapeBankShapes!ALL_BANK_CASES}: every scenario that
  * touches a shape's extractor surface runs against the real
  * `PEPPER_SHAPE` and `ONE_ZERO_SHAPE` alongside a synthetic
@@ -89,7 +89,7 @@ function ctxOf(bus: IApiMediator, caseName: string): IActionContext {
 }
 
 /**
- * Build a router pre-loaded for the happy path of a parameterised case.
+ * Build a router pre-loaded for the happy path of a parameterized case.
  * @param bankCase - Parameterised bank shape case.
  * @returns Mediator pre-loaded for customer + balance + transactions.
  */
@@ -181,7 +181,7 @@ describe.each([SYN_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
         transactions: [succeed(bankCase.fixtures.transactions)],
       });
       // Synthetic case has no fallback in its real shape — override here so
-      // the SYN parameterisation still exercises the driver's fallback path
+      // the SYN parameterization still exercises the driver's fallback path
       // without polluting the shared synthetic registry entry.
       const shapeWithFallback: IApiDirectScrapeShape<unknown, unknown> = {
         ...bankCase.shape,
