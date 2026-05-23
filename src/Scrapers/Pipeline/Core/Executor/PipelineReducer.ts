@@ -6,6 +6,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import type { PhaseName } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
@@ -19,7 +20,10 @@ import { type IPhaseStep, sanitizationPulse } from './PipelineSanitizationPulse.
  * fires a fresh SMS OTP on every retry). Browser phases can be safely
  * retried; API-only phases cannot.
  */
-const NO_RETRY_PHASES: ReadonlySet<string> = new Set(['api-direct-call', 'api-direct-scrape']);
+const NO_RETRY_PHASES: ReadonlySet<PhaseName> = new Set([
+  'api-direct-call',
+  'api-direct-scrape',
+] as const);
 
 /**
  * Run one phase with interceptors.
