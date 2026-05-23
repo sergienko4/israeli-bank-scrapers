@@ -12,9 +12,10 @@ import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import { some } from '../../Types/Option.js';
-import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
+import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import type { ApiDirectScrapeResult } from './ApiDirectScrapePhase.js';
 import {
   buildPageFetcher,
   buildStop,
@@ -82,17 +83,19 @@ async function iterateAccounts<TAcct, TCursor>(
 /**
  * Run the scrape flow under a bound driver context.
  * @param d - Driver context.
- * @returns Updated pipeline context procedure.
+ * @returns Action context augmented with the populated scrape slot.
  */
 async function runScrape<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
-): Promise<Procedure<IPipelineContext>> {
+): Promise<Procedure<ApiDirectScrapeResult>> {
   const accts = await fetchAccounts(d);
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);
   if (!isOk(scraped)) return scraped;
-  const full = d.ctx as unknown as IPipelineContext;
-  const withScrape = { ...full, scrape: some({ accounts: scraped.value }) };
+  const withScrape: ApiDirectScrapeResult = {
+    ...d.ctx,
+    scrape: some({ accounts: scraped.value }),
+  };
   return succeed(withScrape);
 }
 
@@ -103,8 +106,8 @@ async function runScrape<TAcct, TCursor>(
  */
 export function buildGenericHeadlessScrape<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
-): (ctx: IActionContext) => Promise<Procedure<IPipelineContext>> {
-  return async (ctx): Promise<Procedure<IPipelineContext>> => {
+): (ctx: IActionContext) => Promise<Procedure<ApiDirectScrapeResult>> {
+  return async (ctx): Promise<Procedure<ApiDirectScrapeResult>> => {
     const busProc = resolveApiMediator(ctx, shape.stepName);
     if (!isOk(busProc)) return busProc;
     return runScrape({ shape, bus: busProc.value, ctx });

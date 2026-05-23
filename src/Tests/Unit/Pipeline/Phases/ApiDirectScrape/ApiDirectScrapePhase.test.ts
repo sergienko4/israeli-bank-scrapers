@@ -15,6 +15,7 @@ import { jest } from '@jest/globals';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
+  type ApiDirectScrapeResult,
   buildApiDirectScrapePhase,
   createApiDirectScrapePhase,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
@@ -110,7 +111,7 @@ function busForHappyPath(bankCase: AnyBankCase): IApiMediator {
 async function runPhase(
   bankCase: AnyBankCase,
   bus: IApiMediator,
-): Promise<Procedure<IPipelineContext>> {
+): Promise<Procedure<ApiDirectScrapeResult>> {
   const phase = createApiDirectScrapePhase(bankCase.shape);
   const ctx = ctxOf(bus, bankCase.name);
   return phase(ctx);
