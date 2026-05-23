@@ -106,20 +106,15 @@ if (result.success) {
 | Isracard          | Credit Card | `id`, `card6Digits`, `password`             |
 | Visa Cal          | Credit Card | `username`, `password`                      |
 | Max               | Credit Card | `username`, `password`, `id` (conditional)  |
-| Pepper            | Bank        | not supported yet — see note below          |
+| Pepper            | Bank        | `phoneNumber`, `password`, OTP              |
 
 </details>
 
-> **Note — Pepper (Bank Leumi digital):** the `CompanyTypes.Pepper` enum entry
-> exists but is currently **unsupported**. The login flow uses Transmit
-> Security and depends on a fingerprint payload bound to a specific
-> Android APK build (and likely Play Integrity attestation from a real
-> device). The pipeline’s API-direct call reaches the bank, password is
-> accepted (HTTP 200, `errorCode: "0"`), but the SMS challenge is silently
-> dropped — bisected to pre-existing breakage (commit `c23a0669`). The E2E
-> happy-path test is opt-in via `PEPPER_E2E_OPT_IN=1`. A re-enabling fix
-> needs a fresh APK fingerprint capture and possibly a real-device
-> attestation proxy.
+> **Pepper (Bank Leumi digital):** Camoufox transport routes the
+> Transmit Security api-direct identity binding and SMS OTP
+> delivery. Credentials: `phoneNumber` + `password`. OTP is
+> delivered to the registered phone — pass an `otpCodeRetriever`
+> callback at scraper creation time.
 
 ## OTP (Two-Factor Authentication)
 
