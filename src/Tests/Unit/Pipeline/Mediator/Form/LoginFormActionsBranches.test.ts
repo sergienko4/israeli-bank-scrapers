@@ -426,55 +426,38 @@ describe('LoginFormActions.fillAndSubmit — resolveAndClick failure propagation
 });
 
 describe('LoginFormActions.fillAndSubmit — SUBMIT_METHOD_MAP branch coverage', () => {
-  it("resolveSubmitMethod returns 'click' when Enter fails and click hits", async (): Promise<void> => {
-    // Exercises: SUBMIT_METHOD_MAP `'false-true': 'click'`.
-    // fillAllFields runs with `fields: []`, so the reduce loop is a
-    // no-op and `frameContext` stays undefined → `tryEnterSubmit`'s
-    // guard `if (!frameCtx || !('press' in frameCtx)) return false;`
-    // fires → `didEnter=false`. `tryClickSubmit` is fed a found click
-    // winner (`makeFoundClickResult`), so the inner branch
-    // `if (!result.value.found) return succeed(false);` is skipped
-    // and `didClick=true`. The submit-method lookup
-    //   `SUBMIT_METHOD_MAP[`${didEnter}-${didClick}`]`
-    // must resolve to `'click'` for this combination.
-    const foundClick = makeFoundClickResult();
-    const mediator = makeMediator(foundClick);
-    const logger = makeSilentLogger();
-    const result = await fillAndSubmit({
-      mediator,
-      config: HAPOALIM_CONFIG_NO_FIELDS,
-      creds: {},
-      logger,
-    });
-    if (!result.success) throw new ScraperError(ASSERT_SUCCESS_FAILED);
-    expect(result.value.method).toBe('click');
-  });
+  /**
+   * SUBMIT_METHOD_MAP entries that fall through to `'click'`. Both
+   * tests share the same `fillAllFields → fields=[]` short-circuit
+   * that drops `didEnter` to false; the click resolver toggles
+   * `didClick` (`makeFoundClickResult` → true → `'false-true'`,
+   * `NOT_FOUND_RESULT` → false → `'false-false'` fallback). Per
+   * CLAUDE.md's "config arrays mapped with .map()" rule.
+   */
+  const submitMethodCases = [
+    {
+      label: "returns 'click' when Enter fails and click hits",
+      clickResult: makeFoundClickResult(),
+    },
+    {
+      label: "returns 'click' fallback when both Enter and click miss",
+      clickResult: NOT_FOUND_RESULT,
+    },
+  ] as const;
 
-  it("resolveSubmitMethod returns 'click' fallback when both Enter and click miss", async (): Promise<void> => {
-    // Exercises: SUBMIT_METHOD_MAP `'false-false': 'click'` fallback.
-    // Same `fields: []` short-circuit drops `didEnter` to false; the
-    // mediator wires `resolveAndClick` with the {@link NOT_FOUND_RESULT}
-    // sentinel so `tryClickSubmit`'s `if (!result.value.found) return
-    // succeed(false);` branch returns `false`, dropping `didClick`.
-    //
-    // <p>The fillAndSubmit short-circuit
-    //   `if (!clickResult.success && !didEnter) return clickResult;`
-    // does NOT fire because clickResult.success is true (only the
-    // inner found flag is false). Execution reaches resolveSubmitMethod
-    // with both flags false. The fallback map entry
-    //   `'false-false': 'click'`
-    // is the only safe default — fillAndSubmit MUST return success
-    // with method='click' instead of a discriminated-union violation.
-    const mediator = makeMediator(NOT_FOUND_RESULT);
-    const logger = makeSilentLogger();
-    const result = await fillAndSubmit({
-      mediator,
-      config: HAPOALIM_CONFIG_NO_FIELDS,
-      creds: {},
-      logger,
+  submitMethodCases.forEach(({ label, clickResult }) => {
+    it(`resolveSubmitMethod ${label}`, async (): Promise<void> => {
+      const mediator = makeMediator(clickResult);
+      const logger = makeSilentLogger();
+      const result = await fillAndSubmit({
+        mediator,
+        config: HAPOALIM_CONFIG_NO_FIELDS,
+        creds: {},
+        logger,
+      });
+      if (!result.success) throw new ScraperError(ASSERT_SUCCESS_FAILED);
+      expect(result.value.method).toBe('click');
     });
-    if (!result.success) throw new ScraperError(ASSERT_SUCCESS_FAILED);
-    expect(result.value.method).toBe('click');
   });
 });
 
