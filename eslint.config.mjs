@@ -837,8 +837,29 @@ export default tseslint.config(
       ],
 
       // --- B. THE GLOBAL ARCHITECTURAL FORCE ---
-      // This applies to ALL files in Pipeline, including Mediator and Strategy
-      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES_NEW],
+      // This applies to ALL files in Pipeline, including Mediator and Strategy.
+      // CodeRabbit-class selectors (PR #257) appended here so the same
+      // patterns are caught at pre-commit time instead of in review.
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES_NEW,
+        {
+          // CR-P1 — ban `ReadonlySet<string>` for literal-string sets.
+          // Use `ReadonlySet<PhaseName>` (or similar literal union) + `as const`
+          // so typos in entries fail at compile time.
+          selector:
+            'TSTypeReference[typeName.name="ReadonlySet"] > TSTypeParameterInstantiation > TSStringKeyword',
+          message:
+            "🚫 PIPELINE TYPE: Type literal sets via a string-literal union (e.g. ReadonlySet<PhaseName>) + `as const`, not ReadonlySet<string>. Catches typos at compile time.",
+        },
+        {
+          // CR-P2 — ban `expr as unknown as T` double-casts at API boundaries
+          // (extended from Phase H tests to Pipeline production code).
+          selector: 'TSAsExpression > TSAsExpression',
+          message:
+            "🚫 TYPE BYPASS (Pipeline rule): 'expr as unknown as T' double-casts are banned. Express the type via a proper intersection / projector instead.",
+        },
+      ],
 
       // --- C. DEFAULT COMPLEXITY (STRICT) ---
       'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
@@ -869,6 +890,21 @@ export default tseslint.config(
             '🚫 ARCHITECTURE: Phase files must reside in a Domain subfolder (e.g., Phases/Login/LoginStep.ts).',
         },
       ],
+    },
+  },
+
+  // 8b. CANARY — TEST-DUPLICATION SONARJS S4144 (single-file scope)
+  //
+  // Applies sonarjs/no-identical-functions to the dedicated canary
+  // fixture so verify.sh can confirm S4144 fires. The rule is already
+  // enabled globally at §11 (Pipeline scope; `src/Tests/**` ignored);
+  // this single-file override extends it to the EslintCanaries dir for
+  // the duplication canary specifically. No production impact.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/test-suite-duplication.canary.ts'],
+    plugins: { sonarjs },
+    rules: {
+      'sonarjs/no-identical-functions': 'error',
     },
   },
 

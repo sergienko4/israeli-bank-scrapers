@@ -2,7 +2,15 @@
  * Pepper synthetic fetch mock — intercepts globalThis.fetch for the
  * Pepper Transmit + GraphQL API so the pipeline can be exercised without
  * network. Rule #18: every value is SYNTHETIC (no real PII).
+ *
+ * Since Pepper adopted `requiresBrowserTls: true` (Camoufox identity
+ * transport), the auth steps route through `page.evaluate(fn, args)`.
+ * The CamoufoxJsMock fake-page-eval mode is toggled on so the evaluate
+ * call runs the function in Node against this file's globalThis.fetch
+ * override — same pattern as OneZeroFetchMock.
  */
+
+import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
 
 /** Tally values for wiring assertions. */
 export interface IMockCallCounts {
@@ -313,12 +321,14 @@ export function installPepperFetchMock(): IMockHandle {
   const tally: ICallTally = { identity: 0, graphql: 0 };
   const mockFetch = makeMockFetch(tally);
   (globalThis as unknown as { fetch: typeof globalThis.fetch }).fetch = mockFetch;
+  setFakePageEvalMode(true);
   /**
-   * Restore the original fetch.
+   * Restore the original fetch + reset the Camoufox fake-page-eval mode.
    * @returns True once restored.
    */
   const dispose = (): boolean => {
     globalThis.fetch = previousFetch;
+    setFakePageEvalMode(false);
     return true;
   };
   /**

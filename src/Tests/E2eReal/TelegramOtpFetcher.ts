@@ -2,9 +2,10 @@
  * Telegram-side OTP delivery for CI E2E Real jobs.
  *
  * <p>The fetcher polls the Telegram Bot API's `getUpdates` endpoint
- * with `offset=0` — Telegram's documented non-destructive read that
- * returns the earliest unconfirmed update WITHOUT advancing the bot's
- * confirmed cursor. Per-prompt isolation comes from the
+ * with `offset=0` and `timeout=0` (short-poll) — Telegram's
+ * documented non-destructive read that returns ALL unconfirmed
+ * updates (up to `limit`) WITHOUT advancing the bot's confirmed
+ * cursor. Per-prompt isolation comes from the
  * `reply_to_message.message_id === promptMessageId` filter alone.
  *
  * <p>Post-resolution queue cleanup happens via two complementary
@@ -53,6 +54,7 @@
  * tiers.
  */
 
+import { humanDelay } from '../../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
 
 /** Bundled args — preserves the project's 3-param ceiling. */
@@ -119,16 +121,13 @@ type TelegramSkipReason =
   | 'invalid-regex';
 
 /**
- * Per-cycle long-poll budget (seconds). Capped well below Telegram's
- * 50 s ceiling. With positive-offset polling Telegram early-returns
- * on new data, so the cycle wall is the worst-case detection latency
- * when no new updates arrive. 10 s keeps polling pressure at ~6 RPS
- * over the 180 s budget — within rate ceilings — and gives the user
- * a sub-second ack as soon as the reply lands (the call wakes
- * immediately on new updates).
+ * HTTP client timeout for one short-poll `getUpdates` call. Generous
+ * upper bound: short-poll typically returns in 100-500 ms (Telegram
+ * answers immediately with whatever is in the queue), so the 15 s cap
+ * only kicks in on a stuck TCP connection / DNS hang / Cloudflare
+ * 522 — i.e. transport failures the surrounding poll loop already
+ * retries by recursing.
  */
-const TELEGRAM_LONG_POLL_S = 10;
-/** HTTP client timeout — Telegram's long-poll + 5 s headroom. */
 const HTTP_TIMEOUT_MS = 15_000;
 
 /**
@@ -432,33 +431,36 @@ interface IPollState {
 }
 
 /**
- * Compute a long-poll budget bounded by the remaining deadline.
- * @param deadline - Wall-clock deadline ms.
- * @returns Long-poll seconds in [1, TELEGRAM_LONG_POLL_S].
+ * Outcome of one poll iteration. `transport-error` is distinguished
+ * from `false` (no-match) so {@link runPollLoop} can apply
+ * exponential backoff only on consecutive transport failures.
  */
-function computeLongPollSeconds(deadline: number): number {
-  const remaining = deadline - Date.now();
-  const remainingSec = Math.floor(remaining / 1000);
-  const flooredAtOne = Math.max(1, remainingSec);
-  return Math.min(TELEGRAM_LONG_POLL_S, flooredAtOne);
-}
+type PollOutcome = MatchResult | 'transport-error';
 
 /**
- * Single Telegram long-poll iteration. Uses non-destructive
- * `offset=0` — Telegram returns the earliest unconfirmed update
- * WITHOUT advancing the bot's confirmed cursor. Each fetcher
+ * Single Telegram short-poll iteration. Uses non-destructive
+ * `offset=0` with `timeout=0` (short poll) — Telegram returns ALL
+ * unconfirmed updates in one batch (up to `limit`). Each fetcher
  * filters the returned batch by `reply_to_message.message_id` to
  * pick ONLY its own reply; other fetchers' replies stay in the
  * queue untouched. Cross-fetcher purges are impossible by
  * construction. Telegram's 24h retention drops stale updates
  * automatically.
  *
+ * <p>Why short-poll (`timeout=0`), not long-poll: empirically (2026-
+ * 05-22) Telegram's `getUpdates?offset=0&timeout=N>0` returns only
+ * the SINGLE earliest unconfirmed update per call — even with
+ * `limit=100`. If that earliest update is a stale reply from a
+ * prior session whose prompt no longer matches the active fetcher's
+ * `promptMessageId`, the poll loop spins forever on the same stale
+ * update until the 180 s budget exhausts. Short-poll returns the
+ * full pending batch in one call so the matching reply is reachable.
+ *
  * @param state - Poll state.
- * @returns Match payload or `false`.
+ * @returns Match payload, `false` (no match), or `transport-error`.
  */
-async function pollOnce(state: IPollState): Promise<MatchResult> {
-  const longPoll = computeLongPollSeconds(state.deadline);
-  const otherParams = `limit=${String(RECENT_WINDOW_LIMIT)}&timeout=${String(longPoll)}`;
+async function pollOnce(state: IPollState): Promise<PollOutcome> {
+  const otherParams = `limit=${String(RECENT_WINDOW_LIMIT)}&timeout=0`;
   const url = buildUpdatesUrl(state.args.botToken, `offset=0&${otherParams}`);
   const res = await safeFetchUpdates(url);
   if (res === false) {
@@ -466,7 +468,7 @@ async function pollOnce(state: IPollState): Promise<MatchResult> {
       { event: 'telegram.otp.fetch.error', chatIdSuffix: tailMask(state.args.chatId) },
       'Telegram getUpdates failed; continuing to poll',
     );
-    return false;
+    return 'transport-error';
   }
   return findOtpMatch({
     updates: res.result,
@@ -476,19 +478,70 @@ async function pollOnce(state: IPollState): Promise<MatchResult> {
   });
 }
 
+/** Backoff base — first failure waits this long. */
+const BACKOFF_BASE_MS = 500;
+/** Backoff ceiling — wait never exceeds this regardless of failure count. */
+const BACKOFF_MAX_MS = 8_000;
+/** Cap on the exponent (2^N) so the doubling never overflows. */
+const BACKOFF_MAX_EXPONENT = 4;
 /**
- * Drive the long-poll loop until match or deadline. Recursive form
+ * Minimum debounce between consecutive no-match short-poll iterations
+ * to stay under Telegram's 30 req/s ceiling. The short-poll itself
+ * still uses `offset=0&timeout=0` (see {@link pollOnce}) — this delay
+ * is a deliberate idle pause BETWEEN iterations, not a return to
+ * long-poll semantics.
+ */
+const IDLE_POLL_DELAY_MS = 250;
+
+/**
+ * Exponential backoff schedule for consecutive transport failures.
+ * 1st failure: 500 ms, 2nd: 1 s, 3rd: 2 s, 4th: 4 s, 5th+: 8 s.
+ * @param consecutiveFailures - Number of back-to-back transport failures.
+ * @returns Backoff in milliseconds; 0 when there have been no failures.
+ */
+function computeBackoffMs(consecutiveFailures: number): number {
+  if (consecutiveFailures <= 0) return 0;
+  const exponent = Math.min(BACKOFF_MAX_EXPONENT, consecutiveFailures - 1);
+  const raw = BACKOFF_BASE_MS * 2 ** exponent;
+  return Math.min(BACKOFF_MAX_MS, raw);
+}
+
+/**
+ * Drive the short-poll loop until match or deadline. Recursive form
  * (no `while + await`) to satisfy the project's no-await-in-loop
- * rule and keep parity with `OtpPoller.pollUntil`.
+ * rule and keep parity with `OtpPoller.pollUntil`. Each `pollOnce`
+ * issues a Telegram HTTPS round-trip whose natural ~100-300 ms RTT
+ * keeps the call rate well below Telegram's 30 req/s ceiling on the
+ * happy path.
+ *
+ * <p>On consecutive transport failures (e.g. Cloudflare 522, DNS
+ * hang) the loop applies exponential backoff via {@link humanDelay}
+ * so a Telegram outage does not produce a tight retry storm. The
+ * backoff resets to zero the moment any call succeeds — including
+ * one that returns no match — so a single transient flake does not
+ * extend the wait into the next normal poll cycle. A successful
+ * call that returns no match still inserts {@link IDLE_POLL_DELAY_MS}
+ * before the next iteration so the loop never breaches Telegram's
+ * 30 req/s ceiling.
  *
  * @param state - Poll state.
+ * @param consecutiveFailures - Internal: rolling failure counter
+ *   threaded by recursion. Default 0 — public callers omit it.
  * @returns Match payload or `false` on timeout.
  */
-async function runPollLoop(state: IPollState): Promise<MatchResult> {
+async function runPollLoop(state: IPollState, consecutiveFailures = 0): Promise<MatchResult> {
   if (Date.now() >= state.deadline) return false;
-  const match = await pollOnce(state);
-  if (match !== false) return match;
-  return runPollLoop(state);
+  const outcome = await pollOnce(state);
+  if (outcome !== 'transport-error' && outcome !== false) return outcome;
+  const nextFailures = outcome === 'transport-error' ? consecutiveFailures + 1 : 0;
+  const backoff = outcome === false ? IDLE_POLL_DELAY_MS : computeBackoffMs(nextFailures);
+  const remaining = state.deadline - Date.now();
+  const positiveRemaining = Math.max(0, remaining);
+  const cappedBackoff = Math.min(backoff, positiveRemaining);
+  if (cappedBackoff > 0) {
+    await humanDelay(cappedBackoff, cappedBackoff);
+  }
+  return runPollLoop(state, nextFailures);
 }
 
 /**

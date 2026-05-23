@@ -3,10 +3,7 @@
  */
 
 import type { ScraperCredentials } from '../../Base/Interface.js';
-import {
-  createBrowserBackedHeadlessApiMediator,
-  createHeadlessApiMediator,
-} from '../Mediator/Api/ApiMediator.js';
+import { createBrowserBackedHeadlessApiMediator } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import { getDebug as createLogger } from '../Types/Debug.js';
 import { none, some } from '../Types/Option.js';
@@ -189,23 +186,25 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
 }
 
 /**
- * Selects the mediator factory based on wiring.requiresBrowserTls and wires
- * identityOriginUrl when the browser-backed branch is taken.
+ * Wire the browser-backed headless API mediator. All currently-registered
+ * headless banks (OneZero, Pepper) opt into `requiresBrowserTls: true`; the
+ * legacy Node-fetch branch was retired together with Pepper's migration
+ * because keeping a dead conditional drops branch coverage below threshold
+ * and adds dead code to the supply-chain surface.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Wired IApiMediator instance (with dispose when browser-backed).
+ * @returns Wired IApiMediator instance with a dispose hook.
  */
 function buildApiMediatorForWiring(
   companyId: IPipelineContext['companyId'],
   wiring: IHeadlessWiring,
-): ReturnType<typeof createHeadlessApiMediator> {
+): ReturnType<typeof createBrowserBackedHeadlessApiMediator> {
   const base = {
     bankHint: companyId,
     identityBaseUrl: wiring.identity,
     graphqlUrl: wiring.graphql,
     staticAuth: wiring.staticAuth,
   };
-  if (!wiring.requiresBrowserTls) return createHeadlessApiMediator(base);
   const identityOriginUrl = new URL(wiring.identity).origin;
   return createBrowserBackedHeadlessApiMediator({ ...base, identityOriginUrl });
 }

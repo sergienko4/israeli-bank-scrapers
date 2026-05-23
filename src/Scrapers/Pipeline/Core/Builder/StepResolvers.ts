@@ -7,8 +7,10 @@ import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.j
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import { executeMatrixLoop } from '../../Mediator/Scrape/ScrapePhaseActions.js';
 import { createApiDirectCallPhase } from '../../Phases/ApiDirectCall/ApiDirectCallPhase.js';
+import { buildApiDirectScrapePhase } from '../../Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { createLoginPhaseFromConfig } from '../../Phases/Login/LoginPhase.js';
-import { createCustomScrapeStep } from '../../Phases/Scrape/ScrapePhase.js';
+import { createCustomScrapeStep, createScrapePhase } from '../../Phases/Scrape/ScrapePhase.js';
 import type { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -79,6 +81,7 @@ interface IBuilderState {
   readonly loginConfig: ILoginConfig | false;
   readonly loginFn: LoginFn | false;
   readonly scrapeFn: ((ctx: Ctx) => StepResult) | false;
+  readonly apiDirectScrape: IApiDirectScrapeShape<unknown, unknown> | false;
   readonly apiDirectConfig: IApiDirectCallConfig | false;
 }
 
@@ -131,5 +134,22 @@ function buildLoginPhase(state: IBuilderState): BasePhase {
   return Reflect.construct(SimplePhase, ['login', exec]);
 }
 
+/**
+ * Build the SCRAPE phase — branches on the configured scrape mode.
+ * When `apiDirectScrape` is set the phase is the dedicated
+ * ApiDirectScrape BasePhase (name `api-direct-scrape`,
+ * NO_RETRY_PHASES gated). Otherwise the legacy scrape phase (name
+ * `scrape`) is created with either the custom `scrapeFn` exec or
+ * the default matrix-loop exec.
+ *
+ * @param state - Builder state.
+ * @returns Scrape BasePhase.
+ */
+function buildScrapePhase(state: IBuilderState): BasePhase {
+  if (state.apiDirectScrape) return buildApiDirectScrapePhase(state.apiDirectScrape);
+  const exec = resolveScrapeExec(state);
+  return createScrapePhase(exec);
+}
+
 export type { IBuilderState, LoginFn, StepExecFn };
-export { buildLoginPhase, resolveScrapeExec };
+export { buildLoginPhase, buildScrapePhase, resolveScrapeExec };

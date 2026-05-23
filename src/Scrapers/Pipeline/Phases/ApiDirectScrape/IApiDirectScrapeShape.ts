@@ -1,6 +1,6 @@
 /**
- * Headless-scrape shape — generic per-bank contract consumed by the
- * buildGenericHeadlessScrape factory. Pure data: WK query labels,
+ * ApiDirectScrape shape — generic per-bank contract consumed by the
+ * createApiDirectScrapePhase factory. Pure data: WK query labels,
  * variable builders, response unwrappers, pagination cursor shape.
  * Zero bank-name coupling here.
  */
@@ -16,41 +16,41 @@ export type HeaderMap = Record<string, string>;
  * a map on every call (Pepper — per-request UUIDs). The driver calls
  * the function at call time, never caches its result.
  */
-export type HeadlessHeadersLike = HeaderMap | ((ctx: IActionContext) => HeaderMap);
+export type ApiDirectScrapeHeadersLike = HeaderMap | ((ctx: IActionContext) => HeaderMap);
 /** Opaque GraphQL variables map. */
 export type VarsMap = Record<string, unknown>;
 /** Generic API response body — shape's extractor narrows as needed. */
 export type ApiBody = Record<string, unknown>;
 
 /** Customer-step shape — fetches the account list once per scrape. */
-export interface IHeadlessCustomerStep<TAcct> {
+export interface IApiDirectScrapeCustomerStep<TAcct> {
   readonly buildVars: (ctx: IActionContext) => VarsMap;
   readonly extractAccounts: (body: ApiBody) => readonly TAcct[];
-  readonly extraHeaders?: HeadlessHeadersLike;
+  readonly extraHeaders?: ApiDirectScrapeHeadersLike;
 }
 
 /** Balance-step shape — fetches one account's current balance. */
-export interface IHeadlessBalanceStep<TAcct> {
+export interface IApiDirectScrapeBalanceStep<TAcct> {
   readonly buildVars: (acct: TAcct) => VarsMap;
   readonly extract: (body: ApiBody) => number;
-  readonly extraHeaders?: HeadlessHeadersLike;
+  readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** Value to return on failure; undefined → propagate. */
   readonly fallbackOnFail?: number;
 }
 
 /** Transactions-step shape — paginated per-account fetch. */
-export interface IHeadlessTxnsStep<TAcct, TCursor> {
+export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => VarsMap;
   readonly extractPage: (body: ApiBody, cursor: TCursor | false) => IPage<object, TCursor>;
   readonly stop?: (acc: readonly object[], ctx: IActionContext) => boolean;
-  readonly extraHeaders?: HeadlessHeadersLike;
+  readonly extraHeaders?: ApiDirectScrapeHeadersLike;
 }
 
-/** Shape a bank plugs into buildGenericHeadlessScrape. */
-export interface IHeadlessScrapeShape<TAcct, TCursor> {
+/** Shape a bank plugs into createApiDirectScrapePhase. */
+export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
   readonly accountNumberOf: (acct: TAcct) => string;
-  readonly customer: IHeadlessCustomerStep<TAcct>;
-  readonly balance: IHeadlessBalanceStep<TAcct>;
-  readonly transactions: IHeadlessTxnsStep<TAcct, TCursor>;
+  readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
+  readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
+  readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;
 }

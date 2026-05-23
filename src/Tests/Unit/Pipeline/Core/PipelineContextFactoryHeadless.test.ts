@@ -74,28 +74,30 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     expect(ctx.loginAreaReady).toBe(false);
   });
 
-  it('OZ-PCF-01 — OneZero (requiresBrowserTls=true): mediator exposes dispose hook', () => {
-    const descriptor = makeDescriptor(true, CompanyTypes.OneZero);
-    const ctx = buildInitialContext(
-      descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
-    );
-    expect(ctx.apiMediator.has).toBe(true);
-    if (ctx.apiMediator.has) {
-      expect(typeof ctx.apiMediator.value.dispose).toBe('function');
-    }
-  });
+  /**
+   * Cross-bank TLS-dispose matrix: every `requiresBrowserTls=true`
+   * bank must expose a `dispose` hook on its headless ApiMediator so
+   * the pipeline can tear down the browser-backed TLS context. Driven
+   * via a single config array per CLAUDE.md's "config arrays mapped
+   * with .map() — no duplication" rule.
+   */
+  const tlsDisposeCases = [
+    { testId: 'OZ-PCF-01', bankName: 'OneZero', companyId: CompanyTypes.OneZero },
+    { testId: 'PP-PCF-02', bankName: 'Pepper', companyId: CompanyTypes.Pepper },
+  ] as const;
 
-  it('OZ-PCF-02 — Pepper (no requiresBrowserTls): mediator dispose stays undefined', () => {
-    const descriptor = makeDescriptor(true, CompanyTypes.Pepper);
-    const ctx = buildInitialContext(
-      descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
-    );
-    expect(ctx.apiMediator.has).toBe(true);
-    if (ctx.apiMediator.has) {
-      expect(ctx.apiMediator.value.dispose).toBeUndefined();
-    }
+  tlsDisposeCases.forEach(({ testId, bankName, companyId }) => {
+    it(`${testId} — ${bankName} (requiresBrowserTls=true): mediator exposes dispose hook`, () => {
+      const descriptor = makeDescriptor(true, companyId);
+      const ctx = buildInitialContext(
+        descriptor,
+        {} as unknown as Parameters<typeof buildInitialContext>[1],
+      );
+      expect(ctx.apiMediator.has).toBe(true);
+      if (ctx.apiMediator.has) {
+        expect(typeof ctx.apiMediator.value.dispose).toBe('function');
+      }
+    });
   });
 
   it('OZ-PCF-03 — Hapoalim (non-headless): apiMediator slot stays none', () => {

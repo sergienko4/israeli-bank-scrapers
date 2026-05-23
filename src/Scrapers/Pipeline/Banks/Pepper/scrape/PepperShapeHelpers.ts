@@ -3,8 +3,8 @@
  * Transactions helpers live in PepperShapeTxns.ts.
  */
 
+import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
-import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 
 /** Account display number — branded for Rule #15. */
 type AccountNumberDisplay = Brand<string, 'PepperAccountNumberDisplay'>;

@@ -5,10 +5,10 @@
 
 import moment from 'moment';
 
+import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { ApiBody, VarsMap } from '../../_Shared/HeadlessScrapeShape.js';
 import type { IPepperAcct } from './PepperShapeHelpers.js';
 
 /** 1-based pagination page number — branded for Rule #15. */

@@ -1,10 +1,10 @@
 /**
- * Generic headless scrape driver — Zero-Logic Bank Folder pattern.
- * Banks supply an IHeadlessScrapeShape (data only); this file walks
+ * ApiDirectScrape phase actions — Zero-Logic Bank Folder pattern.
+ * Banks supply an IApiDirectScrapeShape (data only); this file walks
  * customer → per-account (balance + paginated transactions), maps
  * rows via autoMapTransaction, and returns the scrape procedure.
- * Per-step helpers live in GenericHeadlessScrapeSteps.ts to keep
- * this file under the per-file LOC ceiling. Zero bank-name coupling.
+ * Per-step helpers live in ApiDirectScrapeSteps.ts to keep this
+ * file under the per-file LOC ceiling. Zero bank-name coupling.
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
@@ -12,9 +12,10 @@ import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import { some } from '../../Types/Option.js';
-import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
+import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import type { ApiDirectScrapeResult } from './ApiDirectScrapePhase.js';
 import {
   buildPageFetcher,
   buildStop,
@@ -22,8 +23,8 @@ import {
   fetchBalance,
   type IAcctCtx,
   type IDriverCtx,
-} from './GenericHeadlessScrapeSteps.js';
-import type { IHeadlessScrapeShape } from './HeadlessScrapeShape.js';
+} from './ApiDirectScrapeSteps.js';
+import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
 /** Accumulator for per-account scrape results. */
 type AcctsAcc = Procedure<readonly ITransactionsAccount[]>;
@@ -82,17 +83,19 @@ async function iterateAccounts<TAcct, TCursor>(
 /**
  * Run the scrape flow under a bound driver context.
  * @param d - Driver context.
- * @returns Updated pipeline context procedure.
+ * @returns Action context augmented with the populated scrape slot.
  */
 async function runScrape<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
-): Promise<Procedure<IPipelineContext>> {
+): Promise<Procedure<ApiDirectScrapeResult>> {
   const accts = await fetchAccounts(d);
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);
   if (!isOk(scraped)) return scraped;
-  const full = d.ctx as unknown as IPipelineContext;
-  const withScrape = { ...full, scrape: some({ accounts: scraped.value }) };
+  const withScrape: ApiDirectScrapeResult = {
+    ...d.ctx,
+    scrape: some({ accounts: scraped.value }),
+  };
   return succeed(withScrape);
 }
 
@@ -102,9 +105,9 @@ async function runScrape<TAcct, TCursor>(
  * @returns Scrape function consumed by the Pipeline descriptor.
  */
 export function buildGenericHeadlessScrape<TAcct, TCursor>(
-  shape: IHeadlessScrapeShape<TAcct, TCursor>,
-): (ctx: IActionContext) => Promise<Procedure<IPipelineContext>> {
-  return async (ctx): Promise<Procedure<IPipelineContext>> => {
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
+): (ctx: IActionContext) => Promise<Procedure<ApiDirectScrapeResult>> {
+  return async (ctx): Promise<Procedure<ApiDirectScrapeResult>> => {
     const busProc = resolveApiMediator(ctx, shape.stepName);
     if (!isOk(busProc)) return busProc;
     return runScrape({ shape, bus: busProc.value, ctx });

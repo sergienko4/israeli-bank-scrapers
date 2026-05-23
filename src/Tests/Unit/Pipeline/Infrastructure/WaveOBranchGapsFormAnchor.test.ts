@@ -57,15 +57,6 @@ describe('ElementWaitAction', () => {
   });
 });
 
-// ── PostLoginSteps — branch ──────────────────────────────
-
-describe('PostLoginSteps', () => {
-  it('exports steps', async () => {
-    const mod = await import('../../../../Scrapers/Pipeline/Mediator/Login/PostLoginSteps.js');
-    expect(mod).toBeDefined();
-  });
-});
-
 // ── PipelineMiddleware — branch ──────────────────────────
 
 describe('PipelineMiddleware', () => {

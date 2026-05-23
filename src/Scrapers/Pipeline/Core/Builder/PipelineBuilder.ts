@@ -3,6 +3,7 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import type { LoginFn } from './PipelineAssembly.js';
@@ -12,6 +13,7 @@ import {
   createEmptyState,
   type IBuilderState,
   setApiDirectConfig,
+  setApiDirectScrape,
   setDeclarativeLogin,
   snapshotFields,
 } from './PipelineBuilderSetters.js';
@@ -59,12 +61,28 @@ class PipelineBuilder {
   }
 
   /**
-   * Replace LOGIN+OTP with a config-driven API-DIRECT-CALL phase.
-   * @param config - Bank IApiDirectCallConfig literal.
+   * Wire the full API-direct bank flow in one call — replaces
+   * LOGIN+OTP with a config-driven API-DIRECT-CALL phase AND binds
+   * the post-login SHAPE to the API-DIRECT-SCRAPE phase. The two
+   * are coupled (one cannot run without the other for an API-direct
+   * bank), so they share a single builder entry — one source of
+   * truth, no risk of forgetting to wire the scrape after wiring
+   * the login.
+   *
+   * Generic in `<TAcct, TCursor>` so bank-specific shape literals
+   * (e.g. `IApiDirectScrapeShape<IPepperAcct, number>`) flow
+   * through without contravariance errors at the builder boundary.
+   *
+   * @param config - Bank IApiDirectCallConfig literal (login path).
+   * @param shape - Bank IApiDirectScrapeShape literal (scrape path).
    * @returns This builder.
    */
-  public withApiDirect(config: IApiDirectCallConfig): this {
+  public withApiDirect<TAcct, TCursor>(
+    config: IApiDirectCallConfig,
+    shape: IApiDirectScrapeShape<TAcct, TCursor>,
+  ): this {
     setApiDirectConfig(this._s, config);
+    setApiDirectScrape(this._s, shape as unknown as IApiDirectScrapeShape<unknown, unknown>);
     return this;
   }
 
@@ -99,7 +117,9 @@ class PipelineBuilder {
   }
 
   /**
-   * Set transaction scraping function.
+   * Set transaction scraping function — browser-mode banks only.
+   * API-direct banks use {@link PipelineBuilder.withApiDirect}
+   * which wires call + scrape together.
    * @param fn - Scrape function.
    * @returns This builder.
    */

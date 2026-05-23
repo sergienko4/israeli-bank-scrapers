@@ -5,7 +5,8 @@
  * OneZeroScrapeBranches.test.ts (shared helpers in OneZeroScrapeTestHelpers.ts).
  */
 
-import { oneZeroApiScrape } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroScrape.js';
+import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import { none } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -23,18 +24,20 @@ import {
   synMovement,
 } from './OneZeroScrapeTestHelpers.js';
 
-describe('oneZeroApiScrape — guards', () => {
+const ONE_ZERO_API_SCRAPE = buildGenericHeadlessScrape(ONE_ZERO_SHAPE);
+
+describe('ONE_ZERO_API_SCRAPE — guards', () => {
   it('missing mediator → fail with "ApiMediator missing"', async () => {
     const opts = makeMockOptions();
     const ctx = makeMockContext({ options: opts });
     const action = { ...ctx, mediator: none() } as unknown as IActionContext;
-    const result = await oneZeroApiScrape(action);
+    const result = await ONE_ZERO_API_SCRAPE(action);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('ApiMediator missing');
   });
 });
 
-describe('oneZeroApiScrape — single portfolio', () => {
+describe('ONE_ZERO_API_SCRAPE — single portfolio', () => {
   it('single-page movements → one account with balance + txns', async () => {
     const movements = [synMovement('m1', 10, '2026-04-10T00:00:00')];
     const customerPayload = customerEnvelope([SYN_PORTFOLIO_1]);
@@ -46,7 +49,7 @@ describe('oneZeroApiScrape — single portfolio', () => {
       balance: [succeed(balPayload)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);
@@ -70,7 +73,7 @@ describe('oneZeroApiScrape — single portfolio', () => {
       balance: [succeed(balPayload)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);
@@ -89,7 +92,7 @@ describe('oneZeroApiScrape — single portfolio', () => {
       balance: [balFail],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);
@@ -98,7 +101,7 @@ describe('oneZeroApiScrape — single portfolio', () => {
   });
 });
 
-describe('oneZeroApiScrape — multi portfolio', () => {
+describe('ONE_ZERO_API_SCRAPE — multi portfolio', () => {
   it('iterates portfolios in order → 2 accounts in response', async () => {
     const customerPayload = customerEnvelope([SYN_PORTFOLIO_1, SYN_PORTFOLIO_2]);
     const p1Movement = [synMovement('a', 1, '2026-04-10T00:00:00')];
@@ -113,7 +116,7 @@ describe('oneZeroApiScrape — multi portfolio', () => {
       balance: [succeed(b1Payload), succeed(b2Payload)],
     });
     const ctx = makeCtx(bus);
-    const result = await oneZeroApiScrape(ctx);
+    const result = await ONE_ZERO_API_SCRAPE(ctx);
     assertOk(result);
     const scrape = result.value.scrape;
     assertHas(scrape);

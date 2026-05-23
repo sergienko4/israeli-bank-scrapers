@@ -1,6 +1,6 @@
 /**
  * Unit tests for {@link fetchOtpFromTelegram} — verify the
- * 4-tier validation, the non-destructive `offset=0` long-poll
+ * 4-tier validation, the non-destructive `offset=0` short-poll
  * loop, the regex match semantics, and the
  * `reply_to_message.message_id`-scoped attribution (A.fix-2).
  *

@@ -33,10 +33,16 @@ npm install @sergienko4/israeli-bank-scrapers
 
 - [What's Different](#whats-different)
 - [Usage](#usage)
+  - [Sample Output](#sample-output)
+- [Quick Start](#quick-start)
+- [Contributing](#contributing)
 - [Supported Institutions](#supported-institutions)
 - [OTP (Two-Factor Authentication)](#otp-two-factor-authentication)
 - [Error Types](#error-types)
 - [Logging & Bug Reports](#logging--bug-reports)
+  - [What gets redacted, and what survives](#what-gets-redacted-and-what-survives)
+  - [Filing a bug report](#filing-a-bug-report)
+  - [How redaction stays correct over time](#how-redaction-stays-correct-over-time)
 - [Advanced Usage](#advanced-usage)
 - [Contributors](#contributors)
 - [Links](#links)
@@ -82,44 +88,92 @@ if (result.success) {
 }
 ```
 
+### Sample Output
+
+```json
+{
+  "success": true,
+  "accounts": [
+    {
+      "accountNumber": "****1234",
+      "txns": [
+        {
+          "date": "2024-01-15",
+          "description": "<merchant:12>",
+          "originalAmount": -***,
+          "chargedAmount": -***
+        }
+      ]
+    }
+  ]
+}
+```
+
+This snippet shows the redacted shape produced by the
+[redaction layer](#logging--bug-reports). Real balances, amounts,
+and merchant strings are masked; account numbers are tail-only.
+
+## Quick Start
+
+Three steps to get transactions from Bank Hapoalim:
+
+```typescript
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
+
+const scraper = createScraper({
+  companyId: CompanyTypes.Hapoalim,
+  startDate: new Date('2024-01-01'),
+});
+
+const result = await scraper.scrape({
+  userCode: '1234567',
+  password: 'mypassword',
+});
+
+if (result.success) {
+  result.accounts?.forEach(acc => {
+    console.log(`${acc.accountNumber}: ${acc.txns.length} txns`);
+  });
+}
+```
+
+Replace `userCode` and `password` with real credentials. See the
+[Supported Institutions](#supported-institutions) table for other
+banks and their credential fields, and the OTP section for banks
+that require an `otpCodeRetriever` callback.
+
+## Contributing
+
+Found a bug? Have an improvement? See [CONTRIBUTING.md](./CONTRIBUTING.md)
+for the contribution workflow, branch strategy, and testing requirements.
+
 ## Supported Institutions
 
 <details>
 <summary><strong>Full list</strong></summary>
 
-| Institution       | Type        | Credentials                                 |
-| ----------------- | ----------- | ------------------------------------------- |
-| Bank Hapoalim     | Bank        | `userCode`, `password`, OTP (when prompted) |
-| Bank Leumi        | Bank        | `username`, `password`                      |
-| Discount Bank     | Bank        | `id`, `password`, `num`                     |
-| Mercantile Bank   | Bank        | `id`, `password`, `num`                     |
-| Mizrahi Tefahot   | Bank        | `username`, `password`                      |
-| Otsar Hahayal     | Bank        | `username`, `password`                      |
-| Beinleumi         | Bank        | `username`, `password`, OTP                 |
-| Massad            | Bank        | `username`, `password`                      |
-| Yahav             | Bank        | `username`, `nationalID`, `password`        |
-| Pagi              | Bank        | `username`, `password`                      |
-| OneZero           | Bank        | `email`, `password`, OTP                    |
-| Beyahad Bishvilha | Bank        | `id`, `password`                            |
-| Behatsdaa         | Bank        | `id`, `password`                            |
-| Amex              | Credit Card | `id`, `card6Digits`, `password`             |
-| Isracard          | Credit Card | `id`, `card6Digits`, `password`             |
-| Visa Cal          | Credit Card | `username`, `password`                      |
-| Max               | Credit Card | `username`, `password`, `id` (conditional)  |
-| Pepper            | Bank        | not supported yet — see note below          |
+| Institution                 | Type        | Credentials                          |
+| --------------------------- | ----------- | ------------------------------------ |
+| Amex                        | Credit Card | `id`, `card6Digits`, `password`      |
+| Bank Hapoalim               | Bank        | `userCode`, `password`, OTP          |
+| Bank Leumi                  | Bank        | `username`, `password`               |
+| Bank Otsar Hahayal          | Bank        | `username`, `password`               |
+| Bank Yahav                  | Bank        | `username`, `nationalID`, `password` |
+| Behatsdaa                   | Bank        | `id`, `password`                     |
+| Beinleumi                   | Bank        | `username`, `password`, OTP          |
+| Beyahad Bishvilha           | Bank        | `id`, `password`                     |
+| Discount Bank               | Bank        | `id`, `password`, `num`              |
+| Isracard                    | Credit Card | `id`, `card6Digits`, `password`      |
+| Massad                      | Bank        | `username`, `password`               |
+| Max                         | Credit Card | `username`, `password`               |
+| Mercantile Bank             | Bank        | `id`, `password`, `num`              |
+| Mizrahi Bank                | Bank        | `username`, `password`               |
+| One Zero                    | Bank        | `email`, `password`, OTP             |
+| Pagi                        | Bank        | `username`, `password`               |
+| Pepper (by Bank Leumi)      | Bank        | `phoneNumber`, `password`, OTP       |
+| Visa Cal                    | Credit Card | `username`, `password`               |
 
 </details>
-
-> **Note — Pepper (Bank Leumi digital):** the `CompanyTypes.Pepper` enum entry
-> exists but is currently **unsupported**. The login flow uses Transmit
-> Security and depends on a fingerprint payload bound to a specific
-> Android APK build (and likely Play Integrity attestation from a real
-> device). The pipeline’s API-direct call reaches the bank, password is
-> accepted (HTTP 200, `errorCode: "0"`), but the SMS challenge is silently
-> dropped — bisected to pre-existing breakage (commit `c23a0669`). The E2E
-> happy-path test is opt-in via `PEPPER_E2E_OPT_IN=1`. A re-enabling fix
-> needs a fresh APK fingerprint capture and possibly a real-device
-> attestation proxy.
 
 ## OTP (Two-Factor Authentication)
 
@@ -133,10 +187,10 @@ createScraper({
 });
 ```
 
-> **Hapoalim:** OTP is conditional — when the bank prompts for an SMS code
-> (e.g. login from an unrecognised device), the same `otpCodeRetriever`
-> callback is invoked. On device-remembered sessions no OTP is asked
-> and the callback is never called.
+> **Hapoalim:** OTP is conditional. When the bank detects a login
+> from an unrecognized device, it prompts for an SMS code, invoking
+> the `otpCodeRetriever` callback. On remembered devices, no OTP
+> is requested.
 
 **API banks** (OneZero) — pass callback in credentials:
 
@@ -192,7 +246,7 @@ publicly without exposing your customers' data.
 | Auth tokens / cookies / OTP codes   | `eyJhbGc...`, `123456` → `[REDACTED]`, `[OTP]`    |
 | URLs                                | host + path preserved; PII query keys redacted    |
 | HTML snapshots                      | text nodes + `value` attributes scrubbed in place |
-| Anything unrecognised               | `[REDACTED]` (default-deny)                       |
+| Anything unrecognized               | `[REDACTED]` (default-deny)                       |
 
 The "stable hints" (`***NNNN`, `<merchant:N>`, `+***`/`-***`,
 array-size markers) are deliberate — they preserve enough for us to
@@ -284,12 +338,19 @@ Same API. Both `import` and `require()` work. Types now use `I` prefix (`IScrape
 Pipeline of typed phases. Each phase owns its mediator zone, its own well-known-selectors dictionary, and its own retry policy. Phases never reach into one another's state — communication happens via slim `Option<T>` fields on the pipeline context.
 
 ```
-INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL] → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → TERMINATE
+Browser banks:
+  INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL]
+       → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → TERMINATE
+
+API-direct banks (One Zero, Pepper):
+  API-DIRECT-CALL → API-DIRECT-SCRAPE
 ```
 
 - `[PRE-LOGIN]` is opt-in — card banks with a separate "show login" toggle: Amex, Isracard, Max, VisaCal.
 - `[OTP-TRIGGER → OTP-FILL]` is opt-in. Beinleumi group banks have both. Hapoalim uses OTP-FILL only, conditionally (see the OTP section above).
 - `AUTH-DISCOVERY` separates the credential exchange from the dashboard handoff so post-auth signal capture (cookies, ids, tokens) is observable, redactable, and testable in isolation.
+- `API-DIRECT-CALL` replaces `LOGIN [+ OTP-TRIGGER + OTP-FILL]` for banks with a programmatic auth endpoint (no browser form). OTP, when required, is fetched via the same `otpCodeRetriever` callback during this phase.
+- `API-DIRECT-SCRAPE` replaces `SCRAPE` for those banks — same `PRE → ACTION → POST → FINAL` lifecycle, but the action is a shape-driven GraphQL/REST walk instead of a DOM walk.
 
 **Cross-cutting interceptors** run between phases — they don't own data, they observe and dismiss:
 

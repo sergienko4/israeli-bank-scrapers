@@ -42,13 +42,14 @@ describe('buildOneZeroPipeline', () => {
     expect(names).not.toContain('terminate');
   });
 
-  it('phase list INCLUDES api-direct-call + scrape (otp phases folded into api-direct-call)', () => {
+  it('phase list INCLUDES api-direct-call + api-direct-scrape (otp phases folded into api-direct-call)', () => {
     const opts = makeMockOptions();
     const result = buildOneZeroPipeline(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
     expect(names).toContain('api-direct-call');
-    expect(names).toContain('scrape');
+    expect(names).toContain('api-direct-scrape');
+    expect(names).not.toContain('scrape');
     expect(names).not.toContain('login');
     expect(names).not.toContain('otp-trigger');
     expect(names).not.toContain('otp-fill');

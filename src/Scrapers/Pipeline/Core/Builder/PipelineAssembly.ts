@@ -29,10 +29,9 @@ import { createInitPhase } from '../../Phases/Init/InitPhase.js';
 import { createOtpFillPhase } from '../../Phases/OtpFill/OtpFillPhase.js';
 import { createOtpTriggerPhase } from '../../Phases/OtpTrigger/OtpTriggerPhase.js';
 import { createPreLoginPhase } from '../../Phases/PreLogin/FindLoginAreaPhase.js';
-import { createScrapePhase } from '../../Phases/Scrape/ScrapePhase.js';
 import { createTerminatePhase } from '../../Phases/Terminate/TerminatePhase.js';
 import type { BasePhase } from '../../Types/BasePhase.js';
-import { buildLoginPhase, type IBuilderState, resolveScrapeExec } from './StepResolvers.js';
+import { buildLoginPhase, buildScrapePhase, type IBuilderState } from './StepResolvers.js';
 
 /** Factory + predicate pair for a single phase slot in the chain. */
 interface IPhaseSlot {
@@ -97,13 +96,13 @@ function ifOtpFill(state: IBuilderState): boolean {
 
 /**
  * Predicate: SCRAPE — any configured scraper (browser-mode OR
- * declarative scrapeFn).
+ * declarative scrapeFn OR api-direct-scrape shape).
  *
  * @param state - Builder state.
  * @returns True when any scraper is configured.
  */
 function ifAnyScraper(state: IBuilderState): boolean {
-  return state.hasBrowser || Boolean(state.scrapeFn);
+  return state.hasBrowser || Boolean(state.scrapeFn) || Boolean(state.apiDirectScrape);
 }
 
 // ── Factories ────────────────────────────────────────────────────
@@ -194,15 +193,15 @@ function makeDashboard(): BasePhase {
 }
 
 /**
- * Build the SCRAPE phase instance with the executor resolved from
- * builder state.
+ * Build the SCRAPE phase instance — variant selected by builder
+ * state (api-direct-scrape shape vs legacy scraperFn vs default
+ * matrix-loop exec). Delegates to {@link buildScrapePhase}.
  *
  * @param state - Builder state.
  * @returns SCRAPE phase.
  */
 function makeScrape(state: IBuilderState): BasePhase {
-  const scrapeExec = resolveScrapeExec(state);
-  return createScrapePhase(scrapeExec);
+  return buildScrapePhase(state);
 }
 
 /**

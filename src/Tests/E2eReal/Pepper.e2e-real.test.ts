@@ -21,19 +21,17 @@ const LOG = getDebug(import.meta.url);
 const hasCoreCreds = !!(process.env.PEPPER_PHONE_NUMBER && process.env.PEPPER_PASSWORD);
 
 /**
- * Pepper is opt-in only. The Transmit Security flow currently soft-fails:
- * the bank returns HTTP 200 + envelope `errorCode: "0"` for both BIND and
- * ASSERT_PASSWORD steps but never dispatches the SMS challenge. Bisected
- * to commit c23a0669 — the breakage pre-dates this branch and is
- * suspected to be Play Integrity attestation gating + APK fingerprint
- * drift (live Play Store version 11.6.0 vs hardcoded 11.5.5). A correct
- * fix requires extracting the new fingerprint constants from the live
- * APK and possibly proxying through a real Android device for
- * attestation. Out of scope for E2E suites until that work lands; set
- * `PEPPER_E2E_OPT_IN=1` if you want to run it manually anyway.
+ * Pepper routes its Transmit-Security auth calls through Camoufox
+ * identity transport (Firefox JA3/JA4) via `requiresBrowserTls: true`
+ * in PipelineBankConfig — Pepper's edge anti-bot silently withheld
+ * the SMS challenge on Node-fetch TLS fingerprints before the
+ * Camoufox adoption (commit 2b903a94). The Telegram OTP fetcher
+ * (commits 41aba838 + 024c18e4) feeds the SMS code back without a
+ * human in the loop, so the test runs on the same gate as every
+ * other bank: skipped if PEPPER_PHONE_NUMBER + PEPPER_PASSWORD are
+ * absent, runs otherwise.
  */
-const isOptedIn = process.env.PEPPER_E2E_OPT_IN === '1';
-const DESCRIBE_IF = hasCoreCreds && isOptedIn ? describe : describe.skip;
+const DESCRIBE_IF = hasCoreCreds ? describe : describe.skip;
 
 DESCRIBE_IF('E2E: Pepper (real credentials, config-driven)', () => {
   beforeAll(() => {

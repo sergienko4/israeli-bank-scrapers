@@ -8,9 +8,12 @@
 
 import { randomUUID } from 'node:crypto';
 
+import type {
+  HeaderMap,
+  IApiDirectScrapeShape,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { HeaderMap, IHeadlessScrapeShape } from '../../_Shared/HeadlessScrapeShape.js';
 import type { IPepperCreds } from '../PepperCreds.js';
 
 /** Pepper user id (phone without country code) — branded for Rule #15. */
@@ -61,7 +64,7 @@ function dynamicHeaders(queryname: string): (ctx: IActionContext) => HeaderMap {
 }
 
 /** Pepper shape declaration — passed to buildGenericHeadlessScrape. */
-const PEPPER_SHAPE: IHeadlessScrapeShape<IPepperAcct, number> = {
+const PEPPER_SHAPE: IApiDirectScrapeShape<IPepperAcct, number> = {
   stepName: 'PepperScrape',
   accountNumberOf,
   customer: {

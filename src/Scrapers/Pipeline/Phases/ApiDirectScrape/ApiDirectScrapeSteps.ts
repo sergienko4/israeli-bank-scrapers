@@ -1,6 +1,6 @@
 /**
- * Per-step helpers for the generic headless scrape driver.
- * Split from GenericHeadlessScrape.ts to respect the 150-LOC ceiling.
+ * Per-step helpers for the ApiDirectScrape phase driver.
+ * Split from ApiDirectScrapeActions.ts to respect the 150-LOC ceiling.
  * Zero bank-name coupling.
  */
 
@@ -10,22 +10,22 @@ import type { Brand } from '../../Types/Brand.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import type {
+  ApiBody,
+  ApiDirectScrapeHeadersLike,
+  HeaderMap,
+  IApiDirectScrapeShape,
+} from './IApiDirectScrapeShape.js';
 
 /** Stop signal — branded so Rule #15 accepts the boolean return. */
 type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
-import type {
-  ApiBody,
-  HeaderMap,
-  HeadlessHeadersLike,
-  IHeadlessScrapeShape,
-} from './HeadlessScrapeShape.js';
 
 const FROZEN_EMPTY_HEADERS: HeaderMap = Object.freeze({});
 const FROZEN_EMPTY_OPTS: IApiQueryOpts = Object.freeze({ extraHeaders: FROZEN_EMPTY_HEADERS });
 
 /** Driver context — shape + bus + action context. */
 export interface IDriverCtx<TAcct, TCursor> {
-  readonly shape: IHeadlessScrapeShape<TAcct, TCursor>;
+  readonly shape: IApiDirectScrapeShape<TAcct, TCursor>;
   readonly bus: IApiMediator;
   readonly ctx: IActionContext;
 }
@@ -36,13 +36,13 @@ export interface IAcctCtx<TAcct, TCursor> extends IDriverCtx<TAcct, TCursor> {
 }
 
 /**
- * Resolve a HeadlessHeadersLike to a concrete HeaderMap — calls the
+ * Resolve a ApiDirectScrapeHeadersLike to a concrete HeaderMap — calls the
  * function at call time when the shape declared a dynamic producer.
  * @param ctx - Action context passed into dynamic producers.
  * @param extra - Static map, function, or absent.
  * @returns Concrete header map (frozen empty when absent).
  */
-function resolveHeaders(ctx: IActionContext, extra?: HeadlessHeadersLike): HeaderMap {
+function resolveHeaders(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): HeaderMap {
   if (!extra) return FROZEN_EMPTY_HEADERS;
   if (typeof extra === 'function') return extra(ctx);
   return extra;
@@ -54,7 +54,7 @@ function resolveHeaders(ctx: IActionContext, extra?: HeadlessHeadersLike): Heade
  * @param extra - Static map, function, or absent.
  * @returns Opts value consumed by apiQuery.
  */
-function toOpts(ctx: IActionContext, extra?: HeadlessHeadersLike): IApiQueryOpts {
+function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQueryOpts {
   const headers = resolveHeaders(ctx, extra);
   if (Object.keys(headers).length === 0) return FROZEN_EMPTY_OPTS;
   return { extraHeaders: headers };

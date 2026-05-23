@@ -48,6 +48,7 @@
     "lint": "eslint src --max-warnings 0 && npm run lint:architecture src/Scrapers/Pipeline && bash src/Scrapers/Pipeline/EslintCanaries/verify.sh && npm run format:check",
     "lint:biome": "biome lint src --max-diagnostics=50",
     "lint:canaries": "bash src/Scrapers/Pipeline/EslintCanaries/verify.sh",
+    "lint:dead-code": "npx tsx src/Tests/Tools/detect-dead-code.ts",
     "lint:phases:strict": "eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0",
     "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
