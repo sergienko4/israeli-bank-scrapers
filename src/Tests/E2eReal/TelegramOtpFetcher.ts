@@ -484,6 +484,14 @@ const BACKOFF_BASE_MS = 500;
 const BACKOFF_MAX_MS = 8_000;
 /** Cap on the exponent (2^N) so the doubling never overflows. */
 const BACKOFF_MAX_EXPONENT = 4;
+/**
+ * Minimum debounce between consecutive no-match short-poll iterations
+ * to stay under Telegram's 30 req/s ceiling. The short-poll itself
+ * still uses `offset=0&timeout=0` (see {@link pollOnce}) — this delay
+ * is a deliberate idle pause BETWEEN iterations, not a return to
+ * long-poll semantics.
+ */
+const IDLE_POLL_DELAY_MS = 250;
 
 /**
  * Exponential backoff schedule for consecutive transport failures.
@@ -511,7 +519,10 @@ function computeBackoffMs(consecutiveFailures: number): number {
  * so a Telegram outage does not produce a tight retry storm. The
  * backoff resets to zero the moment any call succeeds — including
  * one that returns no match — so a single transient flake does not
- * extend the wait into the next normal poll cycle.
+ * extend the wait into the next normal poll cycle. A successful
+ * call that returns no match still inserts {@link IDLE_POLL_DELAY_MS}
+ * before the next iteration so the loop never breaches Telegram's
+ * 30 req/s ceiling.
  *
  * @param state - Poll state.
  * @param consecutiveFailures - Internal: rolling failure counter
@@ -523,7 +534,7 @@ async function runPollLoop(state: IPollState, consecutiveFailures = 0): Promise<
   const outcome = await pollOnce(state);
   if (outcome !== 'transport-error' && outcome !== false) return outcome;
   const nextFailures = outcome === 'transport-error' ? consecutiveFailures + 1 : 0;
-  const backoff = computeBackoffMs(nextFailures);
+  const backoff = outcome === false ? IDLE_POLL_DELAY_MS : computeBackoffMs(nextFailures);
   const remaining = state.deadline - Date.now();
   const positiveRemaining = Math.max(0, remaining);
   const cappedBackoff = Math.min(backoff, positiveRemaining);
