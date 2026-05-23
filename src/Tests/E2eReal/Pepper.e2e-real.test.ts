@@ -21,19 +21,17 @@ const LOG = getDebug(import.meta.url);
 const hasCoreCreds = !!(process.env.PEPPER_PHONE_NUMBER && process.env.PEPPER_PASSWORD);
 
 /**
- * Pepper is opt-in and routes its Transmit-Security auth calls
- * through Camoufox identity transport (Firefox JA3/JA4) via
- * `requiresBrowserTls: true` in PipelineBankConfig — Pepper's
- * edge anti-bot silently withholds the SMS challenge on
- * Node-fetch TLS fingerprints even when the bind/assertPassword
- * envelopes return `error_code: "0"`. Verification path: cold
- * E2E with phone in hand; SMS must arrive within 30s of the
- * assertPassword fetch FIRE log line. Set `PEPPER_E2E_OPT_IN=1`
- * to run; see plan dir `pepper-camoufox-transport-2026-05` for
- * the locked context.
+ * Pepper routes its Transmit-Security auth calls through Camoufox
+ * identity transport (Firefox JA3/JA4) via `requiresBrowserTls: true`
+ * in PipelineBankConfig — Pepper's edge anti-bot silently withheld
+ * the SMS challenge on Node-fetch TLS fingerprints before the
+ * Camoufox adoption (commit 2b903a94). The Telegram OTP fetcher
+ * (commits 41aba838 + 024c18e4) feeds the SMS code back without a
+ * human in the loop, so the test runs on the same gate as every
+ * other bank: skipped if PEPPER_PHONE_NUMBER + PEPPER_PASSWORD are
+ * absent, runs otherwise.
  */
-const isOptedIn = process.env.PEPPER_E2E_OPT_IN === '1';
-const DESCRIBE_IF = hasCoreCreds && isOptedIn ? describe : describe.skip;
+const DESCRIBE_IF = hasCoreCreds ? describe : describe.skip;
 
 DESCRIBE_IF('E2E: Pepper (real credentials, config-driven)', () => {
   beforeAll(() => {
