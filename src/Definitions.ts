@@ -93,7 +93,7 @@ export const SCRAPERS = {
     loginFields: ['username', PASSWORD_FIELD],
   },
   [CompanyTypes.Pepper]: {
-    name: 'Pepper (Bank Leumi digital)',
+    name: 'Pepper (by Bank Leumi)',
     loginFields: ['phoneNumber', PASSWORD_FIELD],
   },
 };

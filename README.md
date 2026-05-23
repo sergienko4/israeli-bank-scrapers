@@ -170,7 +170,7 @@ for the contribution workflow, branch strategy, and testing requirements.
 | Mizrahi Bank                | Bank        | `username`, `password`               |
 | One Zero                    | Bank        | `email`, `password`, OTP             |
 | Pagi                        | Bank        | `username`, `password`               |
-| Pepper (Bank Leumi digital) | Bank        | `phoneNumber`, `password`, OTP       |
+| Pepper (by Bank Leumi)      | Bank        | `phoneNumber`, `password`, OTP       |
 | Visa Cal                    | Credit Card | `username`, `password`               |
 
 </details>
@@ -338,12 +338,19 @@ Same API. Both `import` and `require()` work. Types now use `I` prefix (`IScrape
 Pipeline of typed phases. Each phase owns its mediator zone, its own well-known-selectors dictionary, and its own retry policy. Phases never reach into one another's state — communication happens via slim `Option<T>` fields on the pipeline context.
 
 ```
-INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL] → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → TERMINATE
+Browser banks:
+  INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL]
+       → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → TERMINATE
+
+API-direct banks (One Zero, Pepper):
+  API-DIRECT-CALL → API-DIRECT-SCRAPE
 ```
 
 - `[PRE-LOGIN]` is opt-in — card banks with a separate "show login" toggle: Amex, Isracard, Max, VisaCal.
 - `[OTP-TRIGGER → OTP-FILL]` is opt-in. Beinleumi group banks have both. Hapoalim uses OTP-FILL only, conditionally (see the OTP section above).
 - `AUTH-DISCOVERY` separates the credential exchange from the dashboard handoff so post-auth signal capture (cookies, ids, tokens) is observable, redactable, and testable in isolation.
+- `API-DIRECT-CALL` replaces `LOGIN [+ OTP-TRIGGER + OTP-FILL]` for banks with a programmatic auth endpoint (no browser form). OTP, when required, is fetched via the same `otpCodeRetriever` callback during this phase.
+- `API-DIRECT-SCRAPE` replaces `SCRAPE` for those banks — same `PRE → ACTION → POST → FINAL` lifecycle, but the action is a shape-driven GraphQL/REST walk instead of a DOM walk.
 
 **Cross-cutting interceptors** run between phases — they don't own data, they observe and dismiss:
 
