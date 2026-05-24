@@ -2,13 +2,13 @@
  * AesSymmetricSigner — AES-256-CBC + PKCS7 padding sign primitive.
  *
  * Used by banks whose request-body signature is symmetric and
- * attached at a JSON pointer (e.g. PayBox). The primitive is generic:
- * key bytes + iv bytes + plaintext string + optional postfix in,
- * base64 ciphertext + optional postfix out. Zero bank knowledge.
+ * attached at a JSON pointer. The primitive is generic: key bytes
+ * + iv bytes + plaintext string + optional postfix in, base64
+ * ciphertext + optional postfix out. Zero bank knowledge.
  *
- * Rule #11: this file carries no bank-specific symbols. The PayBox
- * SIGN_KEY literal lives in the bank's Registry/Config and is read
- * via the signer config's `keyRef` resolution.
+ * Rule #11: this file carries no bank-specific symbols. The
+ * symmetric signing key literal lives in the bank's Registry/Config
+ * and is read via the signer config's `keyRef` resolution.
  */
 
 import { createCipheriv } from 'node:crypto';
@@ -75,7 +75,7 @@ function encryptBytes(plaintext: string, keyBytes: Buffer, ivBytes: Buffer): Buf
 /**
  * Sign a UTF-8 plaintext canonical string with AES-256-CBC + PKCS7,
  * returning base64-encoded ciphertext optionally followed by a
- * caller-configured postfix string (e.g. "\n" for PayBox).
+ * caller-configured postfix string (e.g. "\n" when the server expects one).
  *
  * Failure modes:
  *   - key buffer is not 32 bytes long (Procedure.fail).

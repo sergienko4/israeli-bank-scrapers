@@ -79,8 +79,9 @@ interface IAsymmetricSignerConfig {
  * Symmetric AES-CBC-PKCS7 signer variant — body-pointer-attached
  * signature. The signature is written into the outgoing JSON body at
  * a configured RFC-6901 pointer (e.g. `/signature` or
- * `/auth/signature`). The optional postfix lets banks like PayBox
- * append a trailing newline expected by the server.
+ * `/auth/signature`). The optional postfix lets banks whose servers
+ * expect a trailing newline append one without coupling to the
+ * bank's name.
  */
 interface IAesSignerConfig {
   readonly algorithm: 'AES-CBC-PKCS7';
@@ -129,6 +130,31 @@ interface IWarmStartConfig {
 }
 
 /**
+ * Optional crypto-field config — after a preHook deposits a creds
+ * value into carry, encrypt it via the bank's AES primitive and
+ * write the ciphertext into the outgoing body at a JSON pointer,
+ * then scrub the plaintext from carry. Used by PIN/OTP-encrypting
+ * banks whose login flow encrypts a PIN/OTP into a body pointer
+ * separately from the request-body signature.
+ */
+interface ICryptoFieldConfig {
+  /**
+   * Key reference — resolved against `config.<dotted.path>` or
+   * `carry.<slot>`. The resolver lives in SmsOtpFlow.applyPreHook
+   * because the resulting key bytes are a step-time artifact.
+   */
+  readonly keyRef: `config.${string}` | `carry.${string}`;
+  /** IV reference — typically a 32-hex carry slot like 'carry.pinIv1Hex'. */
+  readonly ivRef: `carry.${string}`;
+  /** Optional trailing-postfix string (e.g. '\n' when the server demands it). */
+  readonly outputPostfix?: string;
+  /** RFC-6901 pointer into the outbound body (e.g. '/pin'). */
+  readonly writeTo: string;
+  /** Name of the carry slot to redact post-encryption. */
+  readonly scrubFromCarry: string;
+}
+
+/**
  * Per-step pre-hook — before the step fires, await a function on
  * creds and deposit the result into scope.carry[intoCarryField].
  * Used for OTP retriever callbacks (carry.otpCode).
@@ -136,6 +162,13 @@ interface IWarmStartConfig {
 interface IPreStepHook {
   readonly awaitCredsField: string;
   readonly intoCarryField: string;
+  /**
+   * Optional encryption step — when set, the deposited carry value
+   * is AES-encrypted into the body at the configured pointer and
+   * the plaintext is replaced with `[REDACTED:<intoCarryField>]`
+   * so it cannot leak via debug traces or replay artifacts.
+   */
+  readonly cryptoField?: ICryptoFieldConfig;
 }
 
 /** Post-auth probe configuration — EXACTLY ONE of queryTag / urlTag. */
@@ -203,6 +236,7 @@ export type {
   IAsymmetricSignerConfig,
   IBodyTemplate,
   ICanonicalStringConfig,
+  ICryptoFieldConfig,
   IEnvelopeSelectors,
   IFingerprintConfig,
   IJwtClaimsConfig,

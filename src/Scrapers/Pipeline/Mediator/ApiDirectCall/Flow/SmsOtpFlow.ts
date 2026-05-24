@@ -19,6 +19,7 @@ import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiMediator } from '../../Api/ApiMediator.js';
+import { signAesCbcPkcs7 } from '../Crypto/AesSymmetricSigner.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import { generateKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
@@ -27,7 +28,7 @@ import { buildCollectionResult } from '../Fingerprint/GenericFingerprintBuilder.
 import type { IApiDirectCallConfig, IPreStepHook } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import type { IStepCookieJar } from './RunStep.js';
-import { createSimpleCookieJar, runStep } from './RunStep.js';
+import { attachBodySignature, createSimpleCookieJar, runStep } from './RunStep.js';
 
 /** Args bundle for runSmsOtpFlow — respects the 3-param ceiling. */
 interface IRunSmsOtpArgs {
@@ -55,7 +56,7 @@ interface IKeypairBundle {
  * Banks whose fingerprint/body reference only one can ignore the
  * other; generation is cheap and keeps bank surfaces data-only.
  *
- * The symmetric AES variant (banks like PayBox) needs no asymmetric
+ * The symmetric AES variant needs no asymmetric
  * keypair — the signature is computed with a static config-side key.
  * Skipping generation when algorithm = 'AES-CBC-PKCS7' saves the
  * ~200 ms RSA-2048 generation cost on every cold-start.
@@ -374,5 +375,61 @@ async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResul
   return succeed({ bearer: bearerProc.value, longTermToken });
 }
 
-export type { IFlowResult, IRunSmsOtpArgs };
-export { runSmsOtpFlow };
+/** Args bundle for the unit-test-visible cryptoField hook. */
+interface ICryptoFieldArgs {
+  readonly carry: Readonly<Record<string, unknown>>;
+  readonly body: Record<string, unknown>;
+  readonly cryptoField: {
+    readonly keyBytes: Buffer;
+    readonly ivBytes: Buffer;
+    readonly outputPostfix?: string;
+    readonly writeTo: string;
+    readonly scrubFromCarry: string;
+  };
+}
+
+/** Result of {@link applyCryptoField} — updated carry + body. */
+interface ICryptoFieldResult {
+  readonly carry: Readonly<Record<string, unknown>>;
+  readonly body: Record<string, unknown>;
+}
+
+/**
+ * Encrypt the carry-side plaintext at scrubFromCarry into the body
+ * at writeTo, then redact the plaintext from the returned carry.
+ * Unit-test-visible variant: the caller supplies already-resolved
+ * key + iv bytes (key/iv resolution happens upstream in the step
+ * runner where the carry-aware resolver lives).
+ * @param args - carry + body + cryptoField bundle.
+ * @returns Procedure with updated carry + body.
+ */
+function applyCryptoField(args: ICryptoFieldArgs): Procedure<ICryptoFieldResult> {
+  const plaintext = args.carry[args.cryptoField.scrubFromCarry];
+  if (typeof plaintext !== 'string') {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `cryptoField: carry.${args.cryptoField.scrubFromCarry} is missing or non-string`,
+    );
+  }
+  const signed = signAesCbcPkcs7({
+    plaintext,
+    keyBytes: args.cryptoField.keyBytes,
+    ivBytes: args.cryptoField.ivBytes,
+    outputPostfix: args.cryptoField.outputPostfix,
+  });
+  if (!isOk(signed)) return signed;
+  const attached = attachBodySignature({
+    body: args.body,
+    pointer: args.cryptoField.writeTo,
+    value: signed.value,
+  });
+  if (!isOk(attached)) return attached;
+  const redactedCarry = {
+    ...args.carry,
+    [args.cryptoField.scrubFromCarry]: `[REDACTED:${args.cryptoField.scrubFromCarry}]`,
+  };
+  return succeed({ carry: redactedCarry, body: attached.value });
+}
+
+export type { ICryptoFieldArgs, ICryptoFieldResult, IFlowResult, IRunSmsOtpArgs };
+export { applyCryptoField, runSmsOtpFlow };
