@@ -201,4 +201,27 @@ describe('GenericCryptoSigner.signCanonicalDispatch — AES routing', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('AES dispatch requires');
   });
+
+  it('UC-AES-6: AES dispatch with no postfix emits raw base64', async () => {
+    const canonical = '1700000000000|fixt-deviceid-pb-0001';
+    const canonicalBytes = Buffer.from(canonical, 'utf8');
+    const keyBytes = Buffer.from(FIXT_KEY_ASCII, 'utf8');
+    const ivBytes = Buffer.from(FIXT_IV_HEX, 'hex');
+    const configNoPostfix: IAesSignerConfig = { ...AES_CONFIG, outputPostfix: undefined };
+    const result = signCanonicalDispatch({
+      canonical,
+      canonicalBytes,
+      config: configNoPostfix,
+      keyBytes,
+      ivBytes,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new ScraperError('AES dispatch must succeed');
+    const expectedB64 = await expectedCipherBase64({
+      plaintext: canonical,
+      keyUtf8: FIXT_KEY_ASCII,
+      ivHex: FIXT_IV_HEX,
+    });
+    expect(result.value).toBe(expectedB64);
+  });
 });

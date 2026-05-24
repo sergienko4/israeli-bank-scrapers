@@ -209,11 +209,12 @@ interface ISignerInput {
  */
 function computeSignerHeader(args: IRunStepArgs, input: ISignerInput): Procedure<string> {
   const signer = args.scope.config.signer;
-  if (signer === undefined) {
-    return fail(ScraperErrorTypes.Generic, 'computeSignerHeader called without signer');
-  }
-  if (signer.algorithm === 'AES-CBC-PKCS7') {
-    return fail(ScraperErrorTypes.Generic, 'AES signer must use body-pointer attach, not header');
+  // Caller (buildStepHeaders) guarantees signer is defined and is the
+  // asymmetric variant before invoking this helper; the union narrow
+  // happens here via the algorithm discriminator. Keep this assertion
+  // explicit so the TS compiler can prove the asymmetric type.
+  if (signer === undefined || signer.algorithm === 'AES-CBC-PKCS7') {
+    return fail(ScraperErrorTypes.Generic, 'computeSignerHeader requires asymmetric signer');
   }
   const canonicalProc = buildCanonical({
     canonical: signer.canonical,
@@ -458,7 +459,17 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
 async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
-  const bodyProc = hydrate(args.step.body.shape, args.scope);
+  // Step-instant primer: sample Date.now once per step entry into
+  // carry.tsMsSlot so body hydrate ($ref:'nowMs') + canonical-string
+  // build (parts: 'tsMs') + downstream signers observe the same
+  // millisecond. Idempotent — preserves any pre-populated slot.
+  const primedCarryProc = primeStepInstant({ carry: args.scope.carry });
+  if (!isOk(primedCarryProc)) return primedCarryProc;
+  const primedScope: ITemplateScope = {
+    ...args.scope,
+    carry: primedCarryProc.value as Readonly<Record<string, JsonValue>>,
+  };
+  const bodyProc = hydrate(args.step.body.shape, primedScope);
   if (!isOk(bodyProc)) {
     LOG.debug({ stepName: args.step.name, message: 'hydrate body FAIL' });
     return bodyProc;
@@ -467,7 +478,7 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   const bodyJson = JSON.stringify(bodyValue);
   const baseCtx = buildStepContext(args.step, bodyValue);
   LOG.debug({ ...baseCtx, message: '[runStep] START' });
-  const queryProc = buildQueryRecord(args.step, args.scope);
+  const queryProc = buildQueryRecord(args.step, primedScope);
   if (!isOk(queryProc)) {
     LOG.debug({ ...baseCtx, message: 'queryRecord FAIL' });
     return queryProc;
@@ -512,8 +523,32 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   }
   const carryKeys = Object.keys(carryProc.value);
   LOG.debug({ ...baseCtx, carryKeys, message: '[runStep] OK' });
-  const nextScope = mergeScopeCarry(args.scope, carryProc.value);
+  const nextScope = mergeScopeCarry(primedScope, carryProc.value);
   return succeed(nextScope);
+}
+
+/** Args bundle for {@link primeStepInstant} — respects 3-param ceiling. */
+interface IPrimerArgs {
+  readonly carry: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Sample Date.now() once per step entry and deposit it into
+ * carry.tsMsSlot as a decimal string. Idempotent within a step:
+ * when the slot is already populated (e.g. by an earlier hook or
+ * by a warm-start payload), the existing value is preserved so the
+ * canonical-string + body hydrate + signer all observe the same
+ * millisecond.
+ * @param args - Current carry bundle.
+ * @returns Procedure with a NEW carry record containing tsMsSlot.
+ */
+function primeStepInstant(args: IPrimerArgs): Procedure<Readonly<Record<string, unknown>>> {
+  if (typeof args.carry.tsMsSlot === 'string' && args.carry.tsMsSlot.length > 0) {
+    return succeed(args.carry);
+  }
+  const nowMs = Date.now();
+  const nextCarry = { ...args.carry, tsMsSlot: String(nowMs) };
+  return succeed(nextCarry);
 }
 
 /** Args bundle for {@link attachBodySignature} — respects 3-param ceiling. */
@@ -611,5 +646,5 @@ function attachBodySignature(args: IAttachBodySignatureArgs): Procedure<Record<s
   return succeed(cloned);
 }
 
-export type { CarryMap, IAttachBodySignatureArgs, IRunStepArgs, IStepCookieJar };
-export { attachBodySignature, createSimpleCookieJar, runStep };
+export type { CarryMap, IAttachBodySignatureArgs, IPrimerArgs, IRunStepArgs, IStepCookieJar };
+export { attachBodySignature, createSimpleCookieJar, primeStepInstant, runStep };

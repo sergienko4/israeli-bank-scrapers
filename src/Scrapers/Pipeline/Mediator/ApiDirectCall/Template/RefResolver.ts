@@ -91,10 +91,34 @@ function handleNow(): Procedure<JsonValue> {
 }
 
 /**
- * Handle the 'nowMs' token — current Unix time in milliseconds.
+ * Try to parse a carry slot value as a positive millisecond timestamp.
+ * @param carry - Carry object (read by slot name).
+ * @param slot - Slot name (e.g. 'tsMsSlot').
+ * @returns Parsed millisecond number, or false when the slot is
+ *   absent / non-string / unparseable.
+ */
+function tryParseSlotMs(carry: Readonly<Record<string, JsonValue>>, slot: string): number | false {
+  if (!Object.hasOwn(carry, slot)) return false;
+  const raw = carry[slot];
+  if (typeof raw !== 'string' || raw.length === 0) return false;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return false;
+  return parsed;
+}
+
+/**
+ * Handle the 'nowMs' token — slot-aware. When scope.carry.tsMsSlot
+ * is populated (e.g. by RunStep's step-instant primer), returns it
+ * as a number so every consumer in the same step observes the same
+ * millisecond. Falls back to a fresh Date.now() when the slot is
+ * absent (existing-bank backwards compatibility).
+ * @param _token - Unused — always 'nowMs'.
+ * @param scope - Template scope (read scope.carry.tsMsSlot).
  * @returns Procedure with the ms number.
  */
-function handleNowMs(): Procedure<JsonValue> {
+function handleNowMs(_token: RefToken, scope: ITemplateScope): Procedure<JsonValue> {
+  const parsed = tryParseSlotMs(scope.carry, 'tsMsSlot');
+  if (parsed !== false) return succeed(parsed);
   const nowMs = Date.now();
   return succeed(nowMs);
 }
@@ -220,7 +244,7 @@ function resolveRef(token: RefToken, scope: ITemplateScope): Procedure<JsonValue
   if (token === 'fingerprint') return handleFingerprint(token, scope);
   if (token === 'uuid') return handleUuid();
   if (token === 'now') return handleNow();
-  if (token === 'nowMs') return handleNowMs();
+  if (token === 'nowMs') return handleNowMs(token, scope);
   const handler = pickPrefixHandler(token);
   if (handler === false) {
     return fail(ScraperErrorTypes.Generic, `unknown ref token: ${token}`);

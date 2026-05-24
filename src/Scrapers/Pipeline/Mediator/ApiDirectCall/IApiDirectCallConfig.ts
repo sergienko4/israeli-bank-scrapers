@@ -30,7 +30,7 @@ type AsymmetricSignerAlgorithm = 'ECDSA-P256' | 'RSA-2048';
 type SignerEncoding = 'DER' | 'JOSE';
 
 /** Canonical-string parts — ordered by ICanonicalStringConfig.parts. */
-type CanonicalPart = 'pathAndQuery' | 'clientVersion' | 'bodyJson';
+type CanonicalPart = 'pathAndQuery' | 'clientVersion' | 'bodyJson' | 'tsMs' | 'deviceId';
 
 /** Step identifiers in the sms-otp flow. */
 type StepName = 'bind' | 'assertPassword' | 'assertOtp' | 'getIdToken' | 'sessionToken';

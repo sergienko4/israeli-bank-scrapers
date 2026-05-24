@@ -199,6 +199,42 @@ describe('api-direct-call SmsOtpFlow AES signer keypair-skip', () => {
     expect(headers['Content-Signature']).toBeUndefined();
     expect(headers['X-Sig']).toBeUndefined();
   });
+
+  it('preserves nowMs slot consistency across canonical + body hydrate', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const config: IApiDirectCallConfig = {
+      flow: 'sms-otp',
+      envelope: {},
+      probe: {},
+      steps: [
+        {
+          name: 'getIdToken',
+          urlTag: BIND_TAG,
+          body: {
+            shape: {
+              ts1: { $ref: 'nowMs' },
+              ts2: { $ref: 'nowMs' },
+            },
+          },
+          extractsToCarry: { token: '/access_token' },
+        },
+      ],
+    };
+    const responses = [succeed({ access_token: 'tok-x' })];
+    const bus = makeStubMediator({ responses, captures });
+    const result = await runSmsOtpFlow({
+      config,
+      bus,
+      creds: {},
+      companyId: HINT,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new ScraperError('flow should succeed');
+    const body = captures[0].body as { ts1: number; ts2: number };
+    // Step-instant primer guarantees both $ref:'nowMs' resolutions
+    // sample the SAME millisecond within a single step.
+    expect(body.ts1).toBe(body.ts2);
+  });
 });
 
 describe('api-direct-call SmsOtpFlow no signer + no fingerprint', () => {

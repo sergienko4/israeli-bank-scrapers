@@ -17,6 +17,13 @@ interface IBuildCanonicalArgs {
   readonly canonical: ICanonicalStringConfig;
   readonly pathAndQuery: string;
   readonly bodyJson: string;
+  /**
+   * Optional carry slots — populated by callers (e.g. RunStep) when
+   * the configured parts read step-instant values (tsMsSlot,
+   * deviceId16Hex). Unused parts (pathAndQuery, clientVersion,
+   * bodyJson) ignore this map.
+   */
+  readonly carry?: Readonly<Record<string, unknown>>;
 }
 
 /** Canonical part resolver — returns the raw (pre-escape) string. */
@@ -87,11 +94,51 @@ function bodyJsonResolver(args: IBuildCanonicalArgs): string {
   return args.bodyJson;
 }
 
+/**
+ * Read a string-valued slot from args.carry; empty string when absent
+ * or non-string. This is the safe coercion used by the carry-backed
+ * parts (tsMs, deviceId) so a misconfigured config surfaces an empty
+ * canonical segment rather than `undefined` text.
+ * @param args - Build args (uses args.carry).
+ * @param slot - Carry slot name.
+ * @returns String value or '' when slot is missing / non-string.
+ */
+function carrySlotString(args: IBuildCanonicalArgs, slot: string): string {
+  const carry = args.carry;
+  if (carry === undefined) return '';
+  const value = carry[slot];
+  if (typeof value !== 'string') return '';
+  return value;
+}
+
+/**
+ * Resolver for the 'tsMs' canonical part — reads carry.tsMsSlot
+ * (populated by the step-instant primer in RunStep).
+ * @param args - Build args.
+ * @returns Carry tsMsSlot value as string.
+ */
+function tsMsResolver(args: IBuildCanonicalArgs): string {
+  return carrySlotString(args, 'tsMsSlot');
+}
+
+/**
+ * Resolver for the 'deviceId' canonical part — reads
+ * carry.deviceId16Hex (populated by the bank's cold-flow bootstrap
+ * helper before any RunStep fires).
+ * @param args - Build args.
+ * @returns Carry deviceId16Hex value as string.
+ */
+function deviceIdResolver(args: IBuildCanonicalArgs): string {
+  return carrySlotString(args, 'deviceId16Hex');
+}
+
 /** Dispatch table for CanonicalPart → resolver. Partial for runtime safety. */
 const PART_RESOLVERS: Readonly<Partial<Record<CanonicalPart, PartResolver>>> = {
   pathAndQuery: pathAndQueryResolver,
   clientVersion: clientVersionResolver,
   bodyJson: bodyJsonResolver,
+  tsMs: tsMsResolver,
+  deviceId: deviceIdResolver,
 };
 
 /**

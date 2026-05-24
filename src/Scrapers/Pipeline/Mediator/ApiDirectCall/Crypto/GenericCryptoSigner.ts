@@ -11,6 +11,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type {
+  IAesSignerConfig,
   IAsymmetricSignerConfig,
   ISignerConfig,
   SignerEncoding,
@@ -109,16 +110,16 @@ interface ISignDispatchArgs {
 
 /**
  * Dispatch the AES branch: validate keyBytes + ivBytes are present,
- * then hand off to AesSymmetricSigner.
- * @param args - Full dispatch args bundle.
+ * then hand off to AesSymmetricSigner. Caller (signCanonicalDispatch)
+ * has already narrowed args.config.algorithm to 'AES-CBC-PKCS7'.
+ * @param args - Full dispatch args bundle (config narrowed to AES).
  * @returns Procedure with base64 ciphertext + optional postfix.
  */
-function dispatchAesBranch(args: ISignDispatchArgs): Procedure<string> {
+function dispatchAesBranch(
+  args: ISignDispatchArgs & { readonly config: IAesSignerConfig },
+): Procedure<string> {
   if (args.keyBytes === undefined || args.ivBytes === undefined) {
     return fail(ScraperErrorTypes.Generic, 'AES dispatch requires keyBytes and ivBytes');
-  }
-  if (args.config.algorithm !== 'AES-CBC-PKCS7') {
-    return fail(ScraperErrorTypes.Generic, 'dispatchAesBranch called for non-AES algorithm');
   }
   return signAesCbcPkcs7({
     plaintext: args.canonical,
@@ -130,16 +131,16 @@ function dispatchAesBranch(args: ISignDispatchArgs): Procedure<string> {
 
 /**
  * Dispatch the asymmetric (ECDSA/RSA) branch: validate keypair is
- * present, then hand off to {@link signCanonical}.
- * @param args - Full dispatch args bundle.
+ * present, then hand off to {@link signCanonical}. Caller has already
+ * narrowed args.config to the asymmetric variant.
+ * @param args - Full dispatch args bundle (config narrowed to asymmetric).
  * @returns Procedure with the assembled header value.
  */
-function dispatchAsymmetricBranch(args: ISignDispatchArgs): Procedure<string> {
+function dispatchAsymmetricBranch(
+  args: ISignDispatchArgs & { readonly config: IAsymmetricSignerConfig },
+): Procedure<string> {
   if (args.keypair === undefined) {
     return fail(ScraperErrorTypes.Generic, 'asymmetric dispatch requires keypair');
-  }
-  if (args.config.algorithm === 'AES-CBC-PKCS7') {
-    return fail(ScraperErrorTypes.Generic, 'dispatchAsymmetricBranch called for AES algorithm');
   }
   return signCanonical(args.canonicalBytes, args.keypair, args.config);
 }
@@ -156,8 +157,12 @@ function dispatchAsymmetricBranch(args: ISignDispatchArgs): Procedure<string> {
  *   asymmetric, base64+postfix for AES).
  */
 function signCanonicalDispatch(args: ISignDispatchArgs): Procedure<string> {
-  if (args.config.algorithm === 'AES-CBC-PKCS7') return dispatchAesBranch(args);
-  return dispatchAsymmetricBranch(args);
+  if (args.config.algorithm === 'AES-CBC-PKCS7') {
+    const aesArgs = args as ISignDispatchArgs & { readonly config: IAesSignerConfig };
+    return dispatchAesBranch(aesArgs);
+  }
+  const asymArgs = args as ISignDispatchArgs & { readonly config: IAsymmetricSignerConfig };
+  return dispatchAsymmetricBranch(asymArgs);
 }
 
 export type { ISignDispatchArgs };
