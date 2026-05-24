@@ -458,8 +458,8 @@ describe('LoginFormActions.fillAndSubmit — SUBMIT_METHOD_MAP branch coverage',
     },
   ] as const;
 
-  submitMethodCases.forEach(({ label, clickResult }) => {
-    it(`resolveSubmitMethod ${label}`, async (): Promise<void> => {
+  submitMethodCases.map(({ label, clickResult }) => {
+    it(`resolveSubmitMethod ${label}`, async (): Promise<boolean> => {
       const mediator = makeMediator(clickResult);
       const logger = makeSilentLogger();
       const result = await fillAndSubmit({
@@ -470,9 +470,60 @@ describe('LoginFormActions.fillAndSubmit — SUBMIT_METHOD_MAP branch coverage',
       });
       if (!result.success) throw new ScraperError(ASSERT_SUCCESS_FAILED);
       expect(result.value.method).toBe('click');
+      return true;
     });
+    return true;
   });
 });
+
+/** Optional probe invoked by the factory's clickElement stub. */
+type ClickProbe = () => true;
+
+/** Stable URL returned by the stub's getCurrentUrl — kept inline to avoid lint nags. */
+const STUB_DASHBOARD_URL = 'https://login.bankhapoalim.co.il/dashboard';
+
+/**
+ * Resolved-true Promise reused by every stub callback. Centralised so
+ * the inline arrow functions stay one-liners that don't need their own
+ * JSDoc.
+ * @returns Promise resolving to literal `true`.
+ */
+function resolveTrue(): Promise<true> {
+  return Promise.resolve(true);
+}
+
+/**
+ * Build a minimal {@link IActionMediator} stub for the submit-target
+ * branch tests — fillInput / pressEnter resolve, clickElement runs the
+ * optional probe (so callers can observe whether the click path fired)
+ * and getCurrentUrl returns a stable URL. Extracted per CR 32 to remove
+ * two near-identical inline duplicates.
+ * @param onClick - Optional probe invoked by clickElement.
+ * @returns IActionMediator-shaped stub.
+ */
+function makeExecutorMock(onClick?: ClickProbe): IActionMediator {
+  /**
+   * clickElement closure — fires the probe then resolves with true.
+   * @returns Promise resolving to true.
+   */
+  function clickElement(): Promise<true> {
+    onClick?.();
+    return resolveTrue();
+  }
+  /**
+   * getCurrentUrl closure — stable URL for the dashboard.
+   * @returns Dashboard URL string.
+   */
+  function getCurrentUrl(): string {
+    return STUB_DASHBOARD_URL;
+  }
+  return {
+    fillInput: resolveTrue,
+    pressEnter: resolveTrue,
+    clickElement,
+    getCurrentUrl,
+  } as unknown as IActionMediator;
+}
 
 describe('LoginFormActions.fillFromDiscovery — submitTarget tri-state', () => {
   it('clicks pre-resolved submit target when discovery.submitTarget.has is true', async (): Promise<void> => {
@@ -484,32 +535,10 @@ describe('LoginFormActions.fillFromDiscovery — submitTarget tri-state', () => 
     // boolean proves the truthy branch runs (rather than the early-return).
     const discovery = makeDiscovery(true);
     let wasClicked = false;
-    const executor = {
-      /**
-       * fillInput no-op.
-       * @returns Resolved true.
-       */
-      fillInput: (): Promise<true> => Promise.resolve(true),
-      /**
-       * pressEnter no-op.
-       * @returns Resolved true.
-       */
-      pressEnter: (): Promise<true> => Promise.resolve(true),
-      /**
-       * clickElement records the invocation so the assertion can verify
-       * the submit-target branch ran end-to-end.
-       * @returns Resolved true.
-       */
-      clickElement: (): Promise<true> => {
-        wasClicked = true;
-        return Promise.resolve(true);
-      },
-      /**
-       * getCurrentUrl no-op.
-       * @returns URL.
-       */
-      getCurrentUrl: (): string => 'https://login.bankhapoalim.co.il/dashboard',
-    } as unknown as IActionMediator;
+    const executor = makeExecutorMock((): true => {
+      wasClicked = true;
+      return true;
+    });
     const logger = makeSilentLogger();
     const result = await fillFromDiscovery({
       discovery,
@@ -530,31 +559,10 @@ describe('LoginFormActions.fillFromDiscovery — submitTarget tri-state', () => 
     // with the 'enter' method.
     const discovery = makeDiscovery(false);
     let wasClicked = false;
-    const executor = {
-      /**
-       * fillInput no-op.
-       * @returns Resolved true.
-       */
-      fillInput: (): Promise<true> => Promise.resolve(true),
-      /**
-       * pressEnter resolves so `didEnter=true`.
-       * @returns Resolved true.
-       */
-      pressEnter: (): Promise<true> => Promise.resolve(true),
-      /**
-       * clickElement records the invocation — must remain false.
-       * @returns Resolved true.
-       */
-      clickElement: (): Promise<true> => {
-        wasClicked = true;
-        return Promise.resolve(true);
-      },
-      /**
-       * getCurrentUrl no-op.
-       * @returns URL.
-       */
-      getCurrentUrl: (): string => 'https://login.bankhapoalim.co.il/dashboard',
-    } as unknown as IActionMediator;
+    const executor = makeExecutorMock((): true => {
+      wasClicked = true;
+      return true;
+    });
     const logger = makeSilentLogger();
     const result = await fillFromDiscovery({
       discovery,

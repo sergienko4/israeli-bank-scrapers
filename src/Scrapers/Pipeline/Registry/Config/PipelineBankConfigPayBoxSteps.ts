@@ -26,6 +26,28 @@ const DEVICE_INFO_BLOCK = {
   uuid: { $ref: 'carry.deviceId16Hex' as const },
 };
 
+/**
+ * Build the OTP cryptoField preHook shared by `/pinValidation` and
+ * `/loginBySms`. Both steps await the same OTP retriever, write the
+ * AES-encrypted digits to the same body pointer, and scrub the carry
+ * slot afterwards — only the per-step IV reference differs.
+ * @param ivRef - Carry-ref expression for the per-step pin IV.
+ * @returns Complete preHook block.
+ */
+function makeOtpPreHook(ivRef: 'carry.pinIv1Hex' | 'carry.pinIv2Hex'): IStepConfig['preHook'] {
+  return {
+    awaitCredsField: 'otpCodeRetriever',
+    intoCarryField: 'otpDigitsPlain',
+    cryptoField: {
+      keyRef: 'carry.otpKey',
+      ivRef,
+      outputPostfix: '\n',
+      writeTo: '/pin',
+      scrubFromCarry: 'otpDigitsPlain',
+    },
+  };
+}
+
 /** Step 1: /phoneValidate — submit phone, receive intermediate JWT. */
 const PHONE_VALIDATE_STEP: IStepConfig = {
   name: 'bind',
@@ -59,17 +81,7 @@ const PIN_VALIDATION_STEP: IStepConfig = {
       pin: { $literal: '' },
     },
   },
-  preHook: {
-    awaitCredsField: 'otpCodeRetriever',
-    intoCarryField: 'otpDigitsPlain',
-    cryptoField: {
-      keyRef: 'carry.otpKey',
-      ivRef: 'carry.pinIv1Hex',
-      outputPostfix: '\n',
-      writeTo: '/pin',
-      scrubFromCarry: 'otpDigitsPlain',
-    },
-  },
+  preHook: makeOtpPreHook('carry.pinIv1Hex'),
   extractsToCarry: {
     accessToken2: '/content/access_token',
     validationResult: '/content/validationResult',
@@ -92,17 +104,7 @@ const LOGIN_BY_SMS_STEP: IStepConfig = {
       pin: { $literal: '' },
     },
   },
-  preHook: {
-    awaitCredsField: 'otpCodeRetriever',
-    intoCarryField: 'otpDigitsPlain',
-    cryptoField: {
-      keyRef: 'carry.otpKey',
-      ivRef: 'carry.pinIv2Hex',
-      outputPostfix: '\n',
-      writeTo: '/pin',
-      scrubFromCarry: 'otpDigitsPlain',
-    },
-  },
+  preHook: makeOtpPreHook('carry.pinIv2Hex'),
   extractsToCarry: {
     token: '/content/access_token',
     uId: '/content/uId',

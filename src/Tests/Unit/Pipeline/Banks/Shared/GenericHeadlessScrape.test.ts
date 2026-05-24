@@ -96,11 +96,12 @@ function txnVarsSyn(a: ISynAcct): Record<string, unknown> {
 
 /**
  * Extract a synthetic page (body is already shaped as IPage).
- * @param body - Page payload.
+ * @param args - Bundle whose body is already shaped as IPage.
+ * @param args.body - Page payload pre-shaped as IPage.
  * @returns Generic page.
  */
-function extractPageSyn(body: Record<string, unknown>): IPage<object, string> {
-  return body as unknown as IPage<object, string>;
+function extractPageSyn(args: { readonly body: Record<string, unknown> }): IPage<object, string> {
+  return args.body as unknown as IPage<object, string>;
 }
 
 /**

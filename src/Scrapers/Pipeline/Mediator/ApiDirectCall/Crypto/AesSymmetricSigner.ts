@@ -32,29 +32,42 @@ interface ISignAesArgs {
 }
 
 /**
+ * Validate that an AES-256 key buffer is the expected 32-byte length.
+ * @param keyBytes - Symmetric key buffer.
+ * @returns Procedure.succeed when length matches; fail otherwise.
+ */
+function validateAes256Key(keyBytes: Buffer): Procedure<true> {
+  if (keyBytes.length === AES_256_KEY_BYTES) return succeed(true);
+  const expected = String(AES_256_KEY_BYTES);
+  const got = String(keyBytes.length);
+  return fail(
+    ScraperErrorTypes.Generic,
+    `AES-256-CBC key length must be ${expected} bytes; got ${got}`,
+  );
+}
+
+/**
+ * Validate that an AES-CBC IV buffer is the expected 16-byte length.
+ * @param ivBytes - IV buffer.
+ * @returns Procedure.succeed when length matches; fail otherwise.
+ */
+function validateAesCbcIv(ivBytes: Buffer): Procedure<true> {
+  if (ivBytes.length === AES_CBC_IV_BYTES) return succeed(true);
+  const expected = String(AES_CBC_IV_BYTES);
+  const got = String(ivBytes.length);
+  return fail(ScraperErrorTypes.Generic, `AES-CBC iv length must be ${expected} bytes; got ${got}`);
+}
+
+/**
  * Validate key and iv lengths before invoking createCipheriv.
  * @param keyBytes - Symmetric key buffer.
  * @param ivBytes - IV buffer.
  * @returns Procedure.succeed when both pass; fail otherwise.
  */
 function validateKeyAndIv(keyBytes: Buffer, ivBytes: Buffer): Procedure<true> {
-  if (keyBytes.length !== AES_256_KEY_BYTES) {
-    const expected = String(AES_256_KEY_BYTES);
-    const got = String(keyBytes.length);
-    return fail(
-      ScraperErrorTypes.Generic,
-      `AES-256-CBC key length must be ${expected} bytes; got ${got}`,
-    );
-  }
-  if (ivBytes.length !== AES_CBC_IV_BYTES) {
-    const expected = String(AES_CBC_IV_BYTES);
-    const got = String(ivBytes.length);
-    return fail(
-      ScraperErrorTypes.Generic,
-      `AES-CBC iv length must be ${expected} bytes; got ${got}`,
-    );
-  }
-  return succeed(true);
+  const keyOutcome = validateAes256Key(keyBytes);
+  if (!keyOutcome.success) return keyOutcome;
+  return validateAesCbcIv(ivBytes);
 }
 
 /**

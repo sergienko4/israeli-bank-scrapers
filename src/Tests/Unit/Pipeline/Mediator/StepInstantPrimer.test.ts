@@ -108,10 +108,12 @@ describe('RefResolver.handleNowMs — fallback fresh Date.now', () => {
       { $ref: 'nowMs' as const },
       { carry: { tsMsSlot: 'not-a-number' }, creds: {}, config },
     );
+    const after = Date.now();
     expect(out.success).toBe(true);
     if (!out.success) throw new ScraperError('hydrate must succeed');
     const ts = out.value as number;
     expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(after);
   });
 });
 

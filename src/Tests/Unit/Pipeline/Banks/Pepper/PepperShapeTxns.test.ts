@@ -4,11 +4,24 @@
  * (missing `oshTransactionsNew`, missing `transactions`, etc.).
  */
 
+import type { IPepperAcct } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeHelpers.js';
 import {
   isLastPage,
   pageNumberOf,
   txnsExtractPage,
 } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeTxns.js';
+import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { makeMockContext, makeMockOptions } from '../../Infrastructure/MockFactories.js';
+
+const PEPPER_ACCT: IPepperAcct = { accountId: 'a1', accountNumber: 'n1' };
+
+/**
+ * Default IActionContext stub used by every txnsExtractPage call below.
+ * @returns Cached IActionContext.
+ */
+function pepperCtx(): IActionContext {
+  return makeMockContext({ options: makeMockOptions() }) as unknown as IActionContext;
+}
 
 describe('PepperShapeTxns.pageNumberOf', () => {
   it('returns FIRST_PAGE when cursor is false (initial call)', () => {
@@ -50,7 +63,7 @@ describe('PepperShapeTxns.isLastPage', () => {
 describe('PepperShapeTxns.txnsExtractPage', () => {
   it('returns empty rows + cursor=false when oshTransactionsNew is missing', () => {
     const body = { accounts: {} };
-    const page = txnsExtractPage(body, false);
+    const page = txnsExtractPage({ body, cursor: false, acct: PEPPER_ACCT, ctx: pepperCtx() });
     expect(page.items).toEqual([]);
     expect(page.nextCursor).toBe(false);
   });
@@ -59,7 +72,7 @@ describe('PepperShapeTxns.txnsExtractPage', () => {
     const body = {
       accounts: { oshTransactionsNew: { pendingTransactions: [{ id: 'p1' }], totalCount: 1 } },
     };
-    const page = txnsExtractPage(body, false);
+    const page = txnsExtractPage({ body, cursor: false, acct: PEPPER_ACCT, ctx: pepperCtx() });
     expect(page.items.length).toBe(1);
   });
 
@@ -67,13 +80,13 @@ describe('PepperShapeTxns.txnsExtractPage', () => {
     const body = {
       accounts: { oshTransactionsNew: { transactions: [{ id: 't1' }], totalCount: 1 } },
     };
-    const page = txnsExtractPage(body, false);
+    const page = txnsExtractPage({ body, cursor: false, acct: PEPPER_ACCT, ctx: pepperCtx() });
     expect(page.items.length).toBe(1);
   });
 
   it('falls back to totalCount=0 when missing on the response', () => {
     const body = { accounts: { oshTransactionsNew: { transactions: [] } } };
-    const page = txnsExtractPage(body, false);
+    const page = txnsExtractPage({ body, cursor: false, acct: PEPPER_ACCT, ctx: pepperCtx() });
     expect(page.items).toEqual([]);
     // Empty rows → isLastPage true → nextCursor false.
     expect(page.nextCursor).toBe(false);
@@ -87,7 +100,7 @@ describe('PepperShapeTxns.txnsExtractPage', () => {
     const body = {
       accounts: { oshTransactionsNew: { transactions, totalCount: 9999 } },
     };
-    const page = txnsExtractPage(body, false);
+    const page = txnsExtractPage({ body, cursor: false, acct: PEPPER_ACCT, ctx: pepperCtx() });
     expect(page.items.length).toBe(100);
     // First page processed → nextCursor = 2.
     expect(page.nextCursor).toBe(2);

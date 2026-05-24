@@ -185,6 +185,34 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
   };
 }
 
+/** Mediator base config — URLs + auth shared by every wired bank. */
+interface IMediatorBase {
+  readonly bankHint: IPipelineContext['companyId'];
+  readonly identityBaseUrl: string;
+  readonly graphqlUrl: string;
+  readonly staticAuth: IHeadlessWiring['staticAuth'];
+}
+
+/**
+ * Build the base mediator config (URLs + auth) shared by every wired
+ * bank. Split out of {@link buildApiMediatorForWiring} so each helper
+ * stays inside the project line-count ceilings.
+ * @param companyId - Target bank company type.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns Mediator config without the derived `identityOriginUrl`.
+ */
+function buildMediatorBase(
+  companyId: IPipelineContext['companyId'],
+  wiring: IHeadlessWiring,
+): IMediatorBase {
+  return {
+    bankHint: companyId,
+    identityBaseUrl: wiring.identity,
+    graphqlUrl: wiring.graphql,
+    staticAuth: wiring.staticAuth,
+  };
+}
+
 /**
  * Wire the browser-backed headless API mediator. All currently-registered
  * headless banks (OneZero, Pepper) opt into `requiresBrowserTls: true`; the
@@ -199,12 +227,7 @@ function buildApiMediatorForWiring(
   companyId: IPipelineContext['companyId'],
   wiring: IHeadlessWiring,
 ): ReturnType<typeof createBrowserBackedHeadlessApiMediator> {
-  const base = {
-    bankHint: companyId,
-    identityBaseUrl: wiring.identity,
-    graphqlUrl: wiring.graphql,
-    staticAuth: wiring.staticAuth,
-  };
+  const base = buildMediatorBase(companyId, wiring);
   const identityOriginUrl = new URL(wiring.identity).origin;
   return createBrowserBackedHeadlessApiMediator({ ...base, identityOriginUrl });
 }

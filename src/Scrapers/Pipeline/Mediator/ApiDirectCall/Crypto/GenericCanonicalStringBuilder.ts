@@ -27,7 +27,7 @@ interface IBuildCanonicalArgs {
 }
 
 /** Canonical part resolver — returns the raw (pre-escape) string. */
-type PartResolver = (args: IBuildCanonicalArgs) => string;
+type PartResolver = (args: IBuildCanonicalArgs) => Procedure<string>;
 
 /** Three-way comparison sentinel returned by {@link compareLocale}. */
 type CompareSign = -1 | 0 | 1;
@@ -71,9 +71,12 @@ function sortQuery(pathAndQuery: string): string {
  * @param args - Build args (uses args.canonical.sortQueryParams).
  * @returns Raw path+query (sorted if configured).
  */
-function pathAndQueryResolver(args: IBuildCanonicalArgs): string {
-  if (args.canonical.sortQueryParams) return sortQuery(args.pathAndQuery);
-  return args.pathAndQuery;
+function pathAndQueryResolver(args: IBuildCanonicalArgs): Procedure<string> {
+  if (args.canonical.sortQueryParams) {
+    const sorted = sortQuery(args.pathAndQuery);
+    return succeed(sorted);
+  }
+  return succeed(args.pathAndQuery);
 }
 
 /**
@@ -81,8 +84,8 @@ function pathAndQueryResolver(args: IBuildCanonicalArgs): string {
  * @param args - Build args (uses args.canonical.clientVersion).
  * @returns Raw client-version string.
  */
-function clientVersionResolver(args: IBuildCanonicalArgs): string {
-  return args.canonical.clientVersion;
+function clientVersionResolver(args: IBuildCanonicalArgs): Procedure<string> {
+  return succeed(args.canonical.clientVersion);
 }
 
 /**
@@ -90,25 +93,36 @@ function clientVersionResolver(args: IBuildCanonicalArgs): string {
  * @param args - Build args (uses args.bodyJson).
  * @returns Raw body-JSON string.
  */
-function bodyJsonResolver(args: IBuildCanonicalArgs): string {
-  return args.bodyJson;
+function bodyJsonResolver(args: IBuildCanonicalArgs): Procedure<string> {
+  return succeed(args.bodyJson);
 }
 
 /**
- * Read a string-valued slot from args.carry; empty string when absent
- * or non-string. This is the safe coercion used by the carry-backed
- * parts (tsMs, deviceId) so a misconfigured config surfaces an empty
- * canonical segment rather than `undefined` text.
+ * Read a string-valued slot from args.carry — fails fast when the slot
+ * is missing or non-string. Carry-backed canonical parts (tsMs,
+ * deviceId) feed the signature input, so a silent empty fallback would
+ * turn local config errors into remote signature mismatches that are
+ * far harder to diagnose.
  * @param args - Build args (uses args.carry).
  * @param slot - Carry slot name.
- * @returns String value or '' when slot is missing / non-string.
+ * @returns Procedure with the string value, or a fail describing the slot.
  */
-function carrySlotString(args: IBuildCanonicalArgs, slot: string): string {
+function carrySlotString(args: IBuildCanonicalArgs, slot: string): Procedure<string> {
   const carry = args.carry;
-  if (carry === undefined) return '';
+  if (carry === undefined) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `canonical part needs carry but none provided (slot: ${slot})`,
+    );
+  }
   const value = carry[slot];
-  if (typeof value !== 'string') return '';
-  return value;
+  if (typeof value !== 'string') {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `canonical part missing or non-string carry slot: ${slot}`,
+    );
+  }
+  return succeed(value);
 }
 
 /**
@@ -117,7 +131,7 @@ function carrySlotString(args: IBuildCanonicalArgs, slot: string): string {
  * @param args - Build args.
  * @returns Carry tsMsSlot value as string.
  */
-function tsMsResolver(args: IBuildCanonicalArgs): string {
+function tsMsResolver(args: IBuildCanonicalArgs): Procedure<string> {
   return carrySlotString(args, 'tsMsSlot');
 }
 
@@ -128,7 +142,7 @@ function tsMsResolver(args: IBuildCanonicalArgs): string {
  * @param args - Build args.
  * @returns Carry deviceId16Hex value as string.
  */
-function deviceIdResolver(args: IBuildCanonicalArgs): string {
+function deviceIdResolver(args: IBuildCanonicalArgs): Procedure<string> {
   return carrySlotString(args, 'deviceId16Hex');
 }
 
@@ -163,7 +177,8 @@ function resolvePart(part: CanonicalPart, args: IBuildCanonicalArgs): Procedure<
     return fail(ScraperErrorTypes.Generic, `unknown canonical part: ${part as string}`);
   }
   const raw = resolver(args);
-  const escaped = escapePart(raw, args.canonical);
+  if (!raw.success) return raw;
+  const escaped = escapePart(raw.value, args.canonical);
   return succeed(escaped);
 }
 

@@ -230,6 +230,7 @@ function computeSignerHeader(args: IRunStepArgs, input: ISignerInput): Procedure
     canonical: signer.canonical,
     pathAndQuery: input.pathAndQuery,
     bodyJson: input.bodyJson,
+    carry: args.scope.carry,
   });
   if (!isOk(canonicalProc)) return canonicalProc;
   const bytes = Buffer.from(canonicalProc.value, 'utf8');
@@ -653,6 +654,66 @@ interface IRunBodySignatureArgs {
   readonly pathAndQuery: string;
 }
 
+/** Resolved key + IV pair fed to the AES signer. */
+interface IResolvedAesMaterial {
+  readonly keyBytes: Buffer;
+  readonly ivBytes: Buffer;
+}
+
+/**
+ * Resolve the AES key + iv pair from the signer config + scope. Splits
+ * the lookups out of {@link runBodySignatureHook} so each helper stays
+ * inside the 10-line ceiling.
+ * @param signer - AES signer config (keyRef + ivCarrySlot).
+ * @param scope - Template scope (carry + config).
+ * @returns Procedure with the resolved key/iv pair.
+ */
+function resolveAesMaterial(
+  signer: IAesSignerConfig,
+  scope: ITemplateScope,
+): Procedure<IResolvedAesMaterial> {
+  const keyBytesProc = resolveKeyBytes(signer.keyRef, scope);
+  if (!isOk(keyBytesProc)) return keyBytesProc;
+  const ivBytesProc = resolveIvBytes(signer.ivCarrySlot, scope);
+  if (!isOk(ivBytesProc)) return ivBytesProc;
+  return succeed({ keyBytes: keyBytesProc.value, ivBytes: ivBytesProc.value });
+}
+
+/**
+ * Build the canonical string for an AES signer step.
+ * @param args - signer + scope + body + pathAndQuery bundle.
+ * @returns Procedure with the canonical string.
+ */
+function buildAesCanonical(args: IRunBodySignatureArgs): Procedure<string> {
+  return buildCanonical({
+    canonical: args.signer.canonical,
+    pathAndQuery: args.pathAndQuery,
+    bodyJson: JSON.stringify(args.body),
+    carry: args.scope.carry,
+  });
+}
+
+/** Plaintext + key/iv bundle consumed by {@link signAesCbcPkcs7}. */
+interface IAesSignInputs {
+  readonly plaintext: string;
+  readonly material: IResolvedAesMaterial;
+  readonly outputPostfix: IAesSignerConfig['outputPostfix'];
+}
+
+/**
+ * Run the AES-CBC-PKCS7 sign primitive over the canonical plaintext.
+ * @param inputs - Plaintext + key/iv + postfix bundle.
+ * @returns Procedure with the base64 ciphertext (postfix-appended).
+ */
+function performAesSign(inputs: IAesSignInputs): Procedure<string> {
+  return signAesCbcPkcs7({
+    plaintext: inputs.plaintext,
+    keyBytes: inputs.material.keyBytes,
+    ivBytes: inputs.material.ivBytes,
+    outputPostfix: inputs.outputPostfix,
+  });
+}
+
 /**
  * Build the canonical string for the AES signer, encrypt it with the
  * resolved key + iv, and inject the ciphertext into the body at
@@ -662,22 +723,13 @@ interface IRunBodySignatureArgs {
  * @returns Procedure with the body containing the attached signature.
  */
 function runBodySignatureHook(args: IRunBodySignatureArgs): Procedure<Record<string, unknown>> {
-  const keyBytesProc = resolveKeyBytes(args.signer.keyRef, args.scope);
-  if (!isOk(keyBytesProc)) return keyBytesProc;
-  const ivBytesProc = resolveIvBytes(args.signer.ivCarrySlot, args.scope);
-  if (!isOk(ivBytesProc)) return ivBytesProc;
-  const bodyJson = JSON.stringify(args.body);
-  const canonicalProc = buildCanonical({
-    canonical: args.signer.canonical,
-    pathAndQuery: args.pathAndQuery,
-    bodyJson,
-    carry: args.scope.carry,
-  });
-  if (!isOk(canonicalProc)) return canonicalProc;
-  const signed = signAesCbcPkcs7({
-    plaintext: canonicalProc.value,
-    keyBytes: keyBytesProc.value,
-    ivBytes: ivBytesProc.value,
+  const material = resolveAesMaterial(args.signer, args.scope);
+  if (!isOk(material)) return material;
+  const canonical = buildAesCanonical(args);
+  if (!isOk(canonical)) return canonical;
+  const signed = performAesSign({
+    plaintext: canonical.value,
+    material: material.value,
     outputPostfix: args.signer.outputPostfix,
   });
   if (!isOk(signed)) return signed;
@@ -907,6 +959,17 @@ interface IAttachBodySignatureArgs {
 }
 
 /**
+ * Decode RFC-6901 pointer escapes — `~1` → `/`, `~0` → `~`. Order matters:
+ * `~1` must resolve before `~0` so that an encoded `~` (`~0`) doesn't
+ * spuriously recombine with a literal `1` after decoding.
+ * @param segment - Raw segment after splitting on `/`.
+ * @returns Decoded segment ready for traversal.
+ */
+function decodePointerSegment(segment: string): string {
+  return segment.replaceAll('~1', '/').replaceAll('~0', '~');
+}
+
+/**
  * Split an RFC-6901 pointer into its parent path + leaf segment.
  * @param pointer - e.g. `/auth/signature`.
  * @returns Procedure with [parentSegments, leaf] or failure on bad pointer.
@@ -918,7 +981,7 @@ function splitBodyPointer(pointer: string): Procedure<{
   if (pointer.length === 0 || !pointer.startsWith('/')) {
     return fail(ScraperErrorTypes.Generic, `attachBodySignature: invalid pointer ${pointer}`);
   }
-  const segments = pointer.slice(1).split('/');
+  const segments = pointer.slice(1).split('/').map(decodePointerSegment);
   const leaf = segments.at(-1);
   if (leaf === undefined || leaf.length === 0) {
     return fail(ScraperErrorTypes.Generic, `attachBodySignature: invalid pointer ${pointer}`);

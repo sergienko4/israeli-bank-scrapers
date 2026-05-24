@@ -255,6 +255,44 @@ function routeMovements(body: IGraphqlRequestBody): IResponseLike {
   return jsonOk(envelope);
 }
 
+/** Operation handler signature — keyed off the operation tag. */
+type GraphqlHandler = (body: IGraphqlRequestBody) => IResponseLike;
+
+/**
+ * Handler for GetCustomer — returns the canonical customer envelope.
+ * @returns Customer Response-like envelope.
+ */
+function handleCustomer(): IResponseLike {
+  const envelope = customerEnvelope();
+  return jsonOk(envelope);
+}
+
+/**
+ * Handler for GetAccountBalance — returns the canonical balance envelope.
+ * @returns Balance Response-like envelope.
+ */
+function handleBalance(): IResponseLike {
+  const envelope = balanceEnvelope();
+  return jsonOk(envelope);
+}
+
+/**
+ * Handler for unrecognised GraphQL operations — emits the same generic
+ * `errors[]` payload the real server would return on a malformed query.
+ * @returns Response-like envelope carrying the error payload.
+ */
+function handleUnknownOperation(): IResponseLike {
+  return jsonOk({ errors: [{ message: 'unknown mock graphql operation' }] });
+}
+
+/** Per-operation handlers — keyed by the operation tag. */
+const GRAPHQL_HANDLERS: Readonly<Record<Operation, GraphqlHandler>> = {
+  customer: handleCustomer,
+  balance: handleBalance,
+  movements: routeMovements,
+  unknown: handleUnknownOperation,
+};
+
 /**
  * Route a GraphQL request to the matching synthetic envelope.
  * @param body - Parsed request body.
@@ -262,16 +300,7 @@ function routeMovements(body: IGraphqlRequestBody): IResponseLike {
  */
 function routeGraphql(body: IGraphqlRequestBody): IResponseLike {
   const operation = detectOperation(body.query ?? '');
-  if (operation === 'customer') {
-    const envelope = customerEnvelope();
-    return jsonOk(envelope);
-  }
-  if (operation === 'balance') {
-    const envelope = balanceEnvelope();
-    return jsonOk(envelope);
-  }
-  if (operation === 'movements') return routeMovements(body);
-  return jsonOk({ errors: [{ message: 'unknown mock graphql operation' }] });
+  return GRAPHQL_HANDLERS[operation](body);
 }
 
 /**

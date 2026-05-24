@@ -102,7 +102,10 @@ function tryParseSlotMs(carry: Readonly<Record<string, JsonValue>>, slot: string
   const raw = carry[slot];
   if (typeof raw !== 'string' || raw.length === 0) return false;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) return false;
+  // ms timestamps must be positive integers — reject `-1`, `1.5`, etc.
+  // so a malformed carry slot falls back to a fresh `Date.now()` sample
+  // instead of poisoning the canonical/signature timestamp.
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) return false;
   return parsed;
 }
 

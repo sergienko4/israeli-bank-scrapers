@@ -121,14 +121,15 @@ function synTxnVars(a: ISynAcct): Record<string, unknown> {
 
 /**
  * Synthetic extractPage — body is already shaped as the generic page.
- * @param body - Page payload.
+ * @param args - Args bundle.
+ * @param args.body - Page payload.
  * @returns Generic page.
  */
-function synExtractPage(body: Record<string, unknown>): {
+function synExtractPage(args: { readonly body: Record<string, unknown> }): {
   readonly items: readonly object[];
   readonly nextCursor: string | false;
 } {
-  return body as unknown as {
+  return args.body as unknown as {
     readonly items: readonly object[];
     readonly nextCursor: string | false;
   };

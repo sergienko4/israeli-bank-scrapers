@@ -52,7 +52,12 @@ describe('PEPPER_SHAPE transactions extractor', () => {
         },
       },
     };
-    const page = PEPPER_SHAPE.transactions.extractPage(body, false);
+    const page = PEPPER_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: { accountId: 'a1', accountNumber: 'n1' },
+      ctx: makeMockContext({ options: makeMockOptions() }) as unknown as IActionContext,
+    });
     expect(page.items).toHaveLength(2);
     expect(page.nextCursor).toBe(false);
   });
@@ -77,7 +82,12 @@ describe('PEPPER_SHAPE transactions extractor', () => {
         },
       },
     };
-    const page = PEPPER_SHAPE.transactions.extractPage(body, false);
+    const page = PEPPER_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: { accountId: 'a1', accountNumber: 'n1' },
+      ctx: makeMockContext({ options: makeMockOptions() }) as unknown as IActionContext,
+    });
     expect(page.nextCursor).toBe(2);
   });
 });

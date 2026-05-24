@@ -65,6 +65,17 @@ const DEBIT_STATUS_MAP: Readonly<Record<string, TransactionStatuses>> = {
 };
 
 /**
+ * Normalise a raw status string for map lookup — trim + lower-case
+ * so server-side variants like `"Pending"` or `" pending "` hit the
+ * canonical map instead of falling through to the default.
+ * @param raw - Status string as received from the server.
+ * @returns Normalised key.
+ */
+function normaliseStatusKey(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+/**
  * Map a wallet-notification status string to canonical
  * TransactionStatuses. Unknown / absent values default to
  * Completed (server-side enum is open-ended; historical rows are
@@ -75,7 +86,7 @@ const DEBIT_STATUS_MAP: Readonly<Record<string, TransactionStatuses>> = {
  */
 export function mapPbStat(raw?: string): TransactionStatuses {
   if (!raw) return TransactionStatuses.Completed;
-  return WALLET_STATUS_MAP[raw] ?? TransactionStatuses.Completed;
+  return WALLET_STATUS_MAP[normaliseStatusKey(raw)] ?? TransactionStatuses.Completed;
 }
 
 /**
@@ -88,7 +99,7 @@ export function mapPbStat(raw?: string): TransactionStatuses {
  */
 export function mapDebitStatus(raw?: string): TransactionStatuses {
   if (!raw) return TransactionStatuses.Completed;
-  return DEBIT_STATUS_MAP[raw] ?? TransactionStatuses.Completed;
+  return DEBIT_STATUS_MAP[normaliseStatusKey(raw)] ?? TransactionStatuses.Completed;
 }
 
 /**

@@ -16,6 +16,7 @@
 import type {
   ApiBody,
   IApiDirectScrapeShape,
+  IExtractPageArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
@@ -40,6 +41,9 @@ export type IPayBoxAcct = IPayBoxWalletAcct | IPayBoxDebitAcct;
 /** Discriminated PayBox txn cursor. */
 export type IPayBoxCursor = IPayBoxWalletCursor | IPayBoxDebitCursor;
 
+/** Debit account display-number suffix — appended to uId per spec.txt §6.6. */
+const DEBIT_ACCOUNT_SUFFIX = '-d';
+
 /** Body shape expected by extractAccounts — uId echoed from login carry. */
 interface IPayBoxCustomerBody {
   readonly uId?: string;
@@ -57,7 +61,10 @@ function extractAccounts(body: ApiBody): readonly IPayBoxAcct[] {
   const resp = body as unknown as IPayBoxCustomerBody;
   const uId = resp.uId ?? '';
   const wallet: IPayBoxWalletAcct = { kind: 'wallet', accountNumber: uId };
-  const debit: IPayBoxDebitAcct = { kind: 'debit', accountNumber: `${uId}-d` };
+  const debit: IPayBoxDebitAcct = {
+    kind: 'debit',
+    accountNumber: `${uId}${DEBIT_ACCOUNT_SUFFIX}`,
+  };
   return [wallet, debit];
 }
 
@@ -103,6 +110,27 @@ function balanceExtract(): number {
 }
 
 /**
+ * Wallet branch of transactionsBuildVars — casts the union cursor
+ * to the wallet-shape variant the driver guarantees here.
+ * @param cursor - Cursor matching the wallet account.
+ * @returns Variables for the wallet API call.
+ */
+function transactionsWalletVars(cursor: IPayBoxCursor | false): VarsMap {
+  return walletBuildVars(cursor as IPayBoxWalletCursor | false);
+}
+
+/**
+ * Debit branch of transactionsBuildVars — casts the union cursor
+ * to the debit-shape variant the driver guarantees here.
+ * @param cursor - Cursor matching the debit account.
+ * @param ctx - Action context (carries the user-supplied startDate).
+ * @returns Variables for the debit API call.
+ */
+function transactionsDebitVars(cursor: IPayBoxCursor | false, ctx: IActionContext): VarsMap {
+  return debitBuildVars(cursor as IPayBoxDebitCursor | false, ctx);
+}
+
+/**
  * Dispatch transaction-page build by account kind. The driver
  * pairs cursor.kind with acct.kind, so the cast inside each
  * branch is safe and avoids defensive guards that produce
@@ -118,32 +146,26 @@ function transactionsBuildVars(
   cursor: IPayBoxCursor | false,
   ctx: IActionContext,
 ): VarsMap {
-  if (acct.kind === 'wallet') {
-    const walletCursor = cursor as IPayBoxWalletCursor | false;
-    return walletBuildVars(walletCursor);
-  }
-  const debitCursor = cursor as IPayBoxDebitCursor | false;
-  return debitBuildVars(debitCursor, ctx);
+  if (acct.kind === 'wallet') return transactionsWalletVars(cursor);
+  return transactionsDebitVars(cursor, ctx);
 }
 
 /**
- * Dispatch transaction-page extraction by account kind. The
- * driver pairs cursor.kind with acct.kind; false on the first
- * call routes to the wallet branch since wallet is the leading
- * account in the synthesised pair.
+ * Dispatch transaction-page extraction by account kind. Routing uses
+ * `acct.kind` directly (cursor is `false` on first call so cannot
+ * carry the discriminator) — wallet and debit accounts each get
+ * their own pagination loop.
  *
- * @param body - Unwrapped response body.
- * @param cursor - Cursor used for this request.
+ * @param args - Bundle carrying body, cursor, acct, ctx.
  * @returns Page rows + nextCursor.
  */
 function transactionsExtractPage(
-  body: ApiBody,
-  cursor: IPayBoxCursor | false,
+  args: IExtractPageArgs<IPayBoxAcct, IPayBoxCursor>,
 ): IPage<object, IPayBoxCursor> {
-  if (cursor !== false && cursor.kind === 'debit') {
-    return debitExtractPage(body, cursor);
+  if (args.acct.kind === 'debit') {
+    return debitExtractPage(args.body, args.cursor as IPayBoxDebitCursor | false, args.ctx);
   }
-  return walletExtractPage(body, cursor);
+  return walletExtractPage(args.body, args.cursor as IPayBoxWalletCursor | false);
 }
 
 /**

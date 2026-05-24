@@ -171,6 +171,21 @@ function graphqlByName(queryname: string): JsonObject {
 }
 
 /**
+ * Pick the assertion response variant from a Transmit auth body —
+ * password requests use the pwd envelope, everything else gets OTP.
+ * @param body - Request body as a string.
+ * @returns Response-like envelope for the assertion.
+ */
+function routeAuthByBody(body: string): IResponseLike {
+  if (body.includes('"password"')) {
+    const envelope = assertPwdResponse();
+    return jsonOk(envelope);
+  }
+  const envelope = assertOtpResponse();
+  return jsonOk(envelope);
+}
+
+/**
  * Dispatch a Transmit auth request (bind / assert password / assert OTP).
  * @param url - Request URL.
  * @param init - Request init (body carries the assertion type).
@@ -182,11 +197,28 @@ function handleAuth(url: string, init?: RequestInit): IResponseLike {
     return jsonOk(envelope);
   }
   const body = typeof init?.body === 'string' ? init.body : '';
-  if (body.includes('"password"')) {
-    const envelope = assertPwdResponse();
-    return jsonOk(envelope);
-  }
-  const envelope = assertOtpResponse();
+  return routeAuthByBody(body);
+}
+
+/**
+ * Identity-route handler — bumps the tally and delegates to handleAuth.
+ * @param args - Dispatch args.
+ * @returns Response-like envelope.
+ */
+function handleAuthRoute(args: IDispatchArgs): IResponseLike {
+  args.tally.identity += 1;
+  return handleAuth(args.url, args.init);
+}
+
+/**
+ * GraphQL-route handler — bumps the tally and dispatches by queryname.
+ * @param args - Dispatch args.
+ * @returns Response-like envelope.
+ */
+function handleGraphqlRoute(args: IDispatchArgs): IResponseLike {
+  args.tally.graphql += 1;
+  const queryname = pickQueryname(args.init);
+  const envelope = graphqlByName(queryname);
   return jsonOk(envelope);
 }
 
@@ -196,18 +228,8 @@ function handleAuth(url: string, init?: RequestInit): IResponseLike {
  * @returns Response-like.
  */
 function dispatchPepper(args: IDispatchArgs): IResponseLike {
-  const isAuthUrl = args.url.includes('/auth/');
-  if (isAuthUrl) {
-    args.tally.identity += 1;
-    return handleAuth(args.url, args.init);
-  }
-  const isGraphqlUrl = args.url.includes('/graphql');
-  if (isGraphqlUrl) {
-    args.tally.graphql += 1;
-    const queryname = pickQueryname(args.init);
-    const envelope = graphqlByName(queryname);
-    return jsonOk(envelope);
-  }
+  if (args.url.includes('/auth/')) return handleAuthRoute(args);
+  if (args.url.includes('/graphql')) return handleGraphqlRoute(args);
   return notFound(`unmocked: ${args.url}`);
 }
 

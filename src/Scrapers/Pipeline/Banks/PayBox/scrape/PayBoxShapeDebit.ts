@@ -88,22 +88,63 @@ function debitNextCursor(cursor: IPayBoxDebitCursor): IPayBoxDebitCursor | false
 }
 
 /**
+ * Resolve the cursor actually used for this fetch — when the driver
+ * passes `false` (first call), the effective window is the one that
+ * `debitBuildVars` synthesised from ctx.options.startDate. Recreate it
+ * here so the next-cursor decision can step past the first chunk.
+ *
+ * @param baseStart - User-supplied start date (ctx.options.startDate).
+ * @param cursor - Cursor passed to debitExtractPage.
+ * @returns Concrete cursor representing the window we just fetched.
+ */
+function effectiveDebitCursor(
+  baseStart: Date,
+  cursor: IPayBoxDebitCursor | false,
+): IPayBoxDebitCursor {
+  return cursor === false ? initialDebitCursor(baseStart) : cursor;
+}
+
+/**
  * Extract one debit chunk — return rows with normalised
- * transaction fields plus the cursor for the next chunk.
+ * transaction fields plus the cursor for the next chunk. The
+ * 180-day loop terminates naturally when the next window would
+ * start at or after today (debitNextCursor returns false).
  *
  * @param body - Unwrapped /virtualCardTranRequest response.
  * @param cursor - Cursor used for this request.
+ * @param ctx - Action context (carries the user-supplied startDate).
  * @returns Page rows + nextCursor signal.
  */
 export function debitExtractPage(
   body: ApiBody,
   cursor: IPayBoxDebitCursor | false,
+  ctx: IActionContext,
 ): IPage<object, IPayBoxDebitCursor> {
   const resp = body as unknown as IDebitResp;
   const rows = resp.content?.filteredTransactions ?? [];
   const mapped = rows.map(toDebitTransaction);
-  if (cursor === false) return { items: mapped, nextCursor: false };
-  return { items: mapped, nextCursor: debitNextCursor(cursor) };
+  const effective = effectiveDebitCursor(ctx.options.startDate, cursor);
+  return { items: mapped, nextCursor: debitNextCursor(effective) };
+}
+
+/**
+ * Sentinel ISO date returned when an upstream `date` value cannot be
+ * parsed — guards `toISOString()` against the `RangeError` it throws
+ * for invalid Date objects.
+ */
+const EPOCH_ISO = new Date(0).toISOString();
+
+/**
+ * Parse a row's `date` field, falling back to {@link EPOCH_ISO} when
+ * the upstream value is unparseable.
+ * @param raw - Raw `date` string from the row.
+ * @returns ISO-8601 string.
+ */
+function safeIsoDate(raw: string): string {
+  const parsed = new Date(raw);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return EPOCH_ISO;
+  return parsed.toISOString();
 }
 
 /**
@@ -113,7 +154,7 @@ export function debitExtractPage(
  * @returns Plain transaction object.
  */
 function toDebitTransaction(row: IDebitTxn): object {
-  const date = new Date(row.date).toISOString();
+  const date = safeIsoDate(row.date);
   return {
     identifier: String(row.id),
     date,

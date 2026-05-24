@@ -66,11 +66,12 @@ function makeAdsShape(): IApiDirectScrapeShape<ISynAcct, string> {
   /**
    * Cursor-typed page extractor stub — body is returned as-is.
    *
-   * @param body - Raw response body payload.
+   * @param args - Args bundle.
+   * @param args.body - Raw response body payload.
    * @returns Body coerced to the expected IPage envelope.
    */
-  const extractPage = (body: Record<string, unknown>): IPage<object, string> =>
-    body as unknown as IPage<object, string>;
+  const extractPage = (args: { readonly body: Record<string, unknown> }): IPage<object, string> =>
+    args.body as unknown as IPage<object, string>;
   /**
    * Account-number selector for the synthetic account ref.
    *

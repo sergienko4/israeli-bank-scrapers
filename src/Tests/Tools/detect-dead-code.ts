@@ -61,6 +61,22 @@ function isProdFile(file: string): boolean {
 }
 
 /**
+ * Process one directory entry — recurse into subdirs, push prod files.
+ * Extracted from {@link walk} to keep each function inside the 10-line
+ * project ceiling.
+ * @param parent - Directory the entry lives in.
+ * @param entry - One {@link fs.Dirent} from `readdirSync`.
+ * @param out - Accumulator (mutated).
+ * @returns Sentinel `true` (parity with {@link walk}).
+ */
+function processDirEntry(parent: string, entry: fs.Dirent, out: string[]): WalkDone {
+  const full = path.join(parent, entry.name);
+  if (entry.isDirectory()) walk(full, out);
+  else if (isProdFile(full)) out.push(full);
+  return true;
+}
+
+/**
  * Recursively collect all production `.ts` files under `dir`.
  * @param dir - Directory to walk.
  * @param out - Accumulator (mutated).
@@ -68,12 +84,7 @@ function isProdFile(file: string): boolean {
  */
 function walk(dir: string, out: string[]): WalkDone {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walk(full, out);
-    } else if (isProdFile(full)) {
-      out.push(full);
-    }
+    processDirEntry(dir, entry, out);
   }
   return true;
 }
@@ -141,6 +152,28 @@ function resolveImport(fromFile: string, spec: string): string {
   return UNRESOLVED;
 }
 
+/** Args bundle for {@link recordImport} — keeps the helper at ≤3 params. */
+interface IRecordImportArgs {
+  readonly importer: string;
+  readonly spec: string;
+  readonly prodSet: ReadonlySet<string>;
+  readonly counts: Map<string, number>;
+}
+
+/**
+ * Bump the importer count for one resolved import, when the target is
+ * itself a tracked production file.
+ * @param args - Importer + spec + prodSet + counts bundle.
+ * @returns Sentinel `true` (parity with {@link walk}).
+ */
+function recordImport(args: IRecordImportArgs): true {
+  const resolved = resolveImport(args.importer, args.spec);
+  if (resolved === UNRESOLVED || resolved === args.importer) return true;
+  if (!args.prodSet.has(resolved)) return true;
+  args.counts.set(resolved, (args.counts.get(resolved) ?? 0) + 1);
+  return true;
+}
+
 /**
  * Builds the importer-count map for every production file.
  * @param prodFiles - All discovered production source paths.
@@ -155,12 +188,24 @@ function countImporters(
   for (const f of prodFiles) counts.set(f, 0);
   for (const file of prodFiles) {
     for (const spec of parseImports(file)) {
-      const resolved = resolveImport(file, spec);
-      if (resolved === UNRESOLVED || resolved === file || !prodSet.has(resolved)) continue;
-      counts.set(resolved, (counts.get(resolved) ?? 0) + 1);
+      recordImport({ importer: file, spec, prodSet, counts });
     }
   }
   return counts;
+}
+
+/**
+ * True when a tracked file should be reported as dead — i.e. lives
+ * inside the Pipeline tree, is not a declared entry point, and has
+ * zero recorded importers.
+ * @param file - Absolute path of the candidate.
+ * @param count - Recorded importer count.
+ * @returns True when the file is dead.
+ */
+function isDeadFile(file: string, count: number): boolean {
+  if (!file.startsWith(PIPELINE_ROOT)) return false;
+  if (ENTRY_POINTS.has(file)) return false;
+  return count === 0;
 }
 
 /**
@@ -171,11 +216,10 @@ function countImporters(
 function collectDeadFiles(counts: ReadonlyMap<string, number>): readonly string[] {
   const dead: string[] = [];
   for (const [file, count] of counts) {
-    if (!file.startsWith(PIPELINE_ROOT)) continue;
-    if (ENTRY_POINTS.has(file)) continue;
-    if (count > 0) continue;
-    const relative = path.relative(REPO_ROOT, file);
-    dead.push(relative);
+    if (isDeadFile(file, count)) {
+      const relative = path.relative(REPO_ROOT, file);
+      dead.push(relative);
+    }
   }
   return dead;
 }
@@ -184,12 +228,14 @@ function collectDeadFiles(counts: ReadonlyMap<string, number>): readonly string[
 type Done = true;
 
 /**
- * Reports the dead-file set and exits non-zero. Extracted so the main
- * driver stays under the cognitive-complexity ceiling.
+ * Emit the dead-code body — the list of offenders + the resolution
+ * guidance footer. Split from {@link reportDeadAndExit} so the caller
+ * stays inside the 10-line ceiling and the exit point remains a single
+ * compact helper.
  * @param dead - Repo-relative paths flagged as dead.
- * @returns Sentinel that is never reached because the helper exits.
+ * @returns Sentinel `true` (parity with {@link walk}).
  */
-function reportDeadAndExit(dead: readonly string[]): Done {
+function emitDeadReport(dead: readonly string[]): true {
   console.error('❌ DEAD CODE — files with zero production importers:');
   const sorted = [...dead].sort((a, b): number => a.localeCompare(b));
   for (const file of sorted) console.error(`   ${file}`);
@@ -198,6 +244,17 @@ function reportDeadAndExit(dead: readonly string[]): Done {
   console.error('   nothing). Delete it, or add it to ENTRY_POINTS in');
   console.error('   src/Tests/Tools/detect-dead-code.ts with a justifying');
   console.error('   comment if it is a public surface.');
+  return true;
+}
+
+/**
+ * Reports the dead-file set and exits non-zero. Extracted so the main
+ * driver stays under the cognitive-complexity ceiling.
+ * @param dead - Repo-relative paths flagged as dead.
+ * @returns Sentinel that is never reached because the helper exits.
+ */
+function reportDeadAndExit(dead: readonly string[]): Done {
+  emitDeadReport(dead);
   process.exit(1);
 }
 

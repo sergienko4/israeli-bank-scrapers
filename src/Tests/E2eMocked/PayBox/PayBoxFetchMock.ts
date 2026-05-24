@@ -246,46 +246,57 @@ function trackPinScrub(tally: IMockTally, init?: RequestInit): boolean {
   return true;
 }
 
+/** Counter slot the route increments on the kit's tally. */
+type TallySlot = 'identity' | 'graphql';
+
+/** One PayBox endpoint route — path fragment, tally slot, handler. */
+interface IPayBoxRoute {
+  readonly path: string;
+  readonly slot: TallySlot;
+  readonly handler: (args: IDispatchArgs) => JsonObject;
+}
+
+/**
+ * Handler for /pinValidation — tracks scrubbed digits + returns envelope.
+ * @param args - Dispatch args (tally + init read here).
+ * @returns pinValidation envelope.
+ */
+function handlePinValidation(args: IDispatchArgs): JsonObject {
+  trackPinScrub(args.tally, args.init);
+  return pinValidationResponse();
+}
+
+/**
+ * Handler for /loginBySms — tracks scrubbed digits + returns envelope.
+ * @param args - Dispatch args (tally + init read here).
+ * @returns loginBySms envelope.
+ */
+function handleLoginBySms(args: IDispatchArgs): JsonObject {
+  trackPinScrub(args.tally, args.init);
+  return loginBySmsResponse();
+}
+
+/** Static routing map — preserves the original PayBox dispatch order. */
+const PAYBOX_ROUTES: readonly IPayBoxRoute[] = [
+  { path: '/phoneValidate', slot: 'identity', handler: phoneValidateResponse },
+  { path: '/pinValidation', slot: 'identity', handler: handlePinValidation },
+  { path: '/loginBySms', slot: 'identity', handler: handleLoginBySms },
+  { path: '/getUserHistory', slot: 'graphql', handler: getUserHistoryResponse },
+  { path: '/virtualCardTranRequest', slot: 'graphql', handler: virtualCardTranRequestResponse },
+  { path: '/sync', slot: 'graphql', handler: syncResponse },
+];
+
 /**
  * PayBox dispatch — bank-specific URL → synthetic response routing.
  * @param args - URL + init + tally bundle.
  * @returns Response-like.
  */
 function dispatchPayBox(args: IDispatchArgs): IResponseLike {
-  const { url, init, tally } = args;
-  if (url.includes('/phoneValidate')) {
-    tally.identity += 1;
-    const envelope = phoneValidateResponse();
-    return jsonOk(envelope);
-  }
-  if (url.includes('/pinValidation')) {
-    tally.identity += 1;
-    trackPinScrub(tally, init);
-    const envelope = pinValidationResponse();
-    return jsonOk(envelope);
-  }
-  if (url.includes('/loginBySms')) {
-    tally.identity += 1;
-    trackPinScrub(tally, init);
-    const envelope = loginBySmsResponse();
-    return jsonOk(envelope);
-  }
-  if (url.includes('/getUserHistory')) {
-    tally.graphql += 1;
-    const envelope = getUserHistoryResponse();
-    return jsonOk(envelope);
-  }
-  if (url.includes('/virtualCardTranRequest')) {
-    tally.graphql += 1;
-    const envelope = virtualCardTranRequestResponse();
-    return jsonOk(envelope);
-  }
-  if (url.includes('/sync')) {
-    tally.graphql += 1;
-    const envelope = syncResponse();
-    return jsonOk(envelope);
-  }
-  return notFound(`unmocked: ${url}`);
+  const route = PAYBOX_ROUTES.find(r => args.url.includes(r.path));
+  if (route === undefined) return notFound(`unmocked: ${args.url}`);
+  args.tally[route.slot] += 1;
+  const envelope = route.handler(args);
+  return jsonOk(envelope);
 }
 
 /**

@@ -108,7 +108,7 @@ const PAYBOX_CASE: IApiDirectFlowCase = {
   displayName: 'PayBox',
   companyId: CompanyTypes.PayBox,
   installFetchMock: installPayBoxFetchMock,
-  mockCreds: { ...PAYBOX_MOCK_COLD_CREDS } as unknown as ScraperCredentials,
+  mockCreds: { ...PAYBOX_MOCK_COLD_CREDS },
   startDate: PAYBOX_START_DATE,
   // Two synthetic accounts: wallet (kind='wallet') + debit (kind='debit').
   expectedAccounts: 2,
@@ -156,6 +156,43 @@ function buildScraperOptions(testCase: IApiDirectFlowCase): IApiDirectScraperOpt
 }
 
 /**
+ * Asserts the account-number threshold when the case declares one.
+ * @param account First scraped account.
+ * @param testCase Parameterized bank case.
+ * @returns Always `true` so callers can chain without violating the
+ *   project's "no `void` returns" rule.
+ */
+function assertAccountNumber(account: IAccountSlice, testCase: IApiDirectFlowCase): boolean {
+  if (testCase.expectedAccountNumber === undefined) return true;
+  expect(account.accountNumber).toBe(testCase.expectedAccountNumber);
+  return true;
+}
+
+/**
+ * Asserts the balance threshold when the case declares one.
+ * @param account First scraped account.
+ * @param testCase Parameterized bank case.
+ * @returns Always `true`.
+ */
+function assertAccountBalance(account: IAccountSlice, testCase: IApiDirectFlowCase): boolean {
+  if (testCase.expectedBalance === undefined) return true;
+  expect(account.balance).toBe(testCase.expectedBalance);
+  return true;
+}
+
+/**
+ * Asserts the minimum-txn-count threshold when the case declares one.
+ * @param account First scraped account.
+ * @param testCase Parameterized bank case.
+ * @returns Always `true`.
+ */
+function assertAccountTxns(account: IAccountSlice, testCase: IApiDirectFlowCase): boolean {
+  if (testCase.minTxns === undefined) return true;
+  expect(account.txns.length).toBeGreaterThanOrEqual(testCase.minTxns);
+  return true;
+}
+
+/**
  * Asserts the per-bank account-shape thresholds carried by the case.
  * Skipping a threshold is encoded as `undefined` on the case object.
  * @param account first scraped account under assertion.
@@ -163,15 +200,9 @@ function buildScraperOptions(testCase: IApiDirectFlowCase): IApiDirectScraperOpt
  * @returns `true` once every encoded threshold has been verified.
  */
 function assertAccountShape(account: IAccountSlice, testCase: IApiDirectFlowCase): boolean {
-  if (testCase.expectedAccountNumber !== undefined) {
-    expect(account.accountNumber).toBe(testCase.expectedAccountNumber);
-  }
-  if (testCase.expectedBalance !== undefined) {
-    expect(account.balance).toBe(testCase.expectedBalance);
-  }
-  if (testCase.minTxns !== undefined) {
-    expect(account.txns.length).toBeGreaterThanOrEqual(testCase.minTxns);
-  }
+  assertAccountNumber(account, testCase);
+  assertAccountBalance(account, testCase);
+  assertAccountTxns(account, testCase);
   return true;
 }
 
@@ -187,31 +218,73 @@ function assertCallCounts(handle: MockHandle, testCase: IApiDirectFlowCase): boo
   if (testCase.minIdentityCalls !== undefined) {
     expect(counts.identity).toBeGreaterThanOrEqual(testCase.minIdentityCalls);
   }
-  if (testCase.expectScrubbedPin === true) {
-    expect(counts.pinDigitsObserved).toBe(0);
-  }
+  if (testCase.expectScrubbedPin === true) expect(counts.pinDigitsObserved).toBe(0);
   return true;
+}
+
+/** Outcome from {@link runScrape} — successful or failing scrape. */
+type ScrapeOutcome = Awaited<ReturnType<ReturnType<typeof createScraper>['scrape']>>;
+
+/**
+ * Run the configured scrape against the synthetic creds.
+ * @param testCase Parameterized bank case.
+ * @returns Scrape outcome.
+ */
+async function runScrape(testCase: IApiDirectFlowCase): Promise<ScrapeOutcome> {
+  const scraperOptions = buildScraperOptions(testCase);
+  const scraper = createScraper(scraperOptions);
+  return scraper.scrape({ ...testCase.mockCreds });
+}
+
+/**
+ * Verify the scrape result against the case's account-shape +
+ * call-count thresholds. No-op when the scrape failed (the caller
+ * still asserts `result.success === true` so a failing scrape surfaces
+ * as a Jest expectation failure).
+ * @param result Scrape outcome.
+ * @param handle Mock handle for the dispatched calls.
+ * @param testCase Parameterized bank case.
+ * @returns `true` once every assertion has run.
+ */
+function verifyScrapeResult(
+  result: ScrapeOutcome,
+  handle: MockHandle,
+  testCase: IApiDirectFlowCase,
+): boolean {
+  if (!result.success) return true;
+  const accounts = (result.accounts ?? []) as IAccountSlice[];
+  expect(accounts).toHaveLength(testCase.expectedAccounts);
+  assertAccountShape(accounts[0], testCase);
+  assertCallCounts(handle, testCase);
+  return true;
+}
+
+/**
+ * Execute one parameterized API-direct case — installs the bank-specific
+ * fetch mock, runs the scraper end-to-end, and verifies the resulting
+ * accounts shape + call-counter thresholds. Extracted from the
+ * `describe.each` body so the test callback stays inside the 10-line
+ * project ceiling.
+ * @param testCase Parameterized bank case under exercise.
+ * @returns Promise resolving to `true` once all assertions have run.
+ */
+async function runApiDirectCase(testCase: IApiDirectFlowCase): Promise<boolean> {
+  const handle = testCase.installFetchMock();
+  try {
+    const result = await runScrape(testCase);
+    expect(result.success).toBe(true);
+    verifyScrapeResult(result, handle, testCase);
+    return true;
+  } finally {
+    handle.dispose();
+  }
 }
 
 describe.each(CASES)('API-DIRECT mocked E2E — $displayName', testCase => {
   it(
     'completes login + scrape and returns synthetic accounts',
     async () => {
-      const handle = testCase.installFetchMock();
-      try {
-        const scraperOptions = buildScraperOptions(testCase);
-        const scraper = createScraper(scraperOptions);
-        const result = await scraper.scrape({ ...testCase.mockCreds });
-        expect(result.success).toBe(true);
-        if (result.success) {
-          const accounts = (result.accounts ?? []) as IAccountSlice[];
-          expect(accounts).toHaveLength(testCase.expectedAccounts);
-          assertAccountShape(accounts[0], testCase);
-          assertCallCounts(handle, testCase);
-        }
-      } finally {
-        handle.dispose();
-      }
+      await runApiDirectCase(testCase);
     },
     testCase.timeoutMs,
   );

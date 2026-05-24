@@ -127,6 +127,14 @@ describe('applyCryptoField — omits postfix when not configured', () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('applyCryptoField must succeed');
     const pinValue = result.value.body.pin as string;
+    const expected = signAesCbcPkcs7({
+      plaintext: '9255',
+      keyBytes: Buffer.from(FIXT_OTP_KEY, 'utf8'),
+      ivBytes: Buffer.from(FIXT_PIN_IV_HEX, 'hex'),
+    });
+    expect(expected.success).toBe(true);
+    if (!expected.success) throw new ScraperError('expected sign must succeed');
+    expect(pinValue).toBe(expected.value);
     const hasNewlineSuffix = pinValue.endsWith('\n');
     expect(hasNewlineSuffix).toBe(false);
   });

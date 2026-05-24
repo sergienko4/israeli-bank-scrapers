@@ -452,10 +452,49 @@ function applySeedCarryFromCreds(
  * @param maxBytes - Maximum UTF-8 byte length.
  * @returns Truncated string.
  */
+/** Reducer accumulator for {@link truncateUtf8}'s character walk. */
+interface ITruncateState {
+  readonly out: string;
+  readonly used: number;
+  readonly done: boolean;
+}
+
+/**
+ * Reducer step — append one character when it fits inside `maxBytes`,
+ * otherwise lock the accumulator with `done: true` so subsequent
+ * characters are skipped without nesting a `break` inside the loop
+ * (the project caps block depth at 1).
+ * @param state - Current accumulator.
+ * @param ch - Next code-point.
+ * @param maxBytes - Total UTF-8 byte budget.
+ * @returns Updated accumulator.
+ */
+function appendIfFits(state: ITruncateState, ch: string, maxBytes: number): ITruncateState {
+  if (state.done) return state;
+  const size = Buffer.byteLength(ch, 'utf8');
+  if (state.used + size > maxBytes) return { ...state, done: true };
+  return { out: state.out + ch, used: state.used + size, done: false };
+}
+
+/**
+ * Truncate `input` to at most `maxBytes` UTF-8 bytes, slicing at a
+ * character boundary so multi-byte codepoints never produce the
+ * Node.js `U+FFFD` replacement character.
+ * @param input - Source string.
+ * @param maxBytes - Maximum UTF-8 byte budget.
+ * @returns Truncated string (≤ maxBytes UTF-8 bytes).
+ */
 function truncateUtf8(input: string, maxBytes: number): string {
+  if (maxBytes <= 0) return '';
   const buf = Buffer.from(input, 'utf8');
   if (buf.length <= maxBytes) return input;
-  return buf.subarray(0, maxBytes).toString('utf8');
+  const seed: ITruncateState = { out: '', used: 0, done: false };
+  // Intl.Segmenter walks user-perceived grapheme clusters which is the
+  // correct boundary for "do not split a codepoint mid-sequence".
+  const segmenter = new Intl.Segmenter();
+  const segments = [...segmenter.segment(input)].map(s => s.segment);
+  const final = segments.reduce((state, ch) => appendIfFits(state, ch, maxBytes), seed);
+  return final.out;
 }
 
 /** Ctx for {@link resolveOnePart}. */

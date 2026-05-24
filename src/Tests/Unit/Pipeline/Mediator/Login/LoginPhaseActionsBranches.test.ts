@@ -220,11 +220,12 @@ describe('LoginPhaseActions.extractFormAnchorSelector — accept / reject matrix
     },
   ] as const;
 
-  anchorMatrixCases.forEach(({ label, anchor, expected }) => {
+  anchorMatrixCases.map(({ label, anchor, expected }) => {
     it(label, (): void => {
       const result = extractFormAnchorSelector(anchor);
       expect(result).toBe(expected);
     });
+    return true;
   });
 });
 

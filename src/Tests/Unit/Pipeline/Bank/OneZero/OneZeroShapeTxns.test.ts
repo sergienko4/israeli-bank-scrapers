@@ -36,22 +36,22 @@ describe('OneZeroShapeTxns.txnsVars', () => {
 describe('OneZeroShapeTxns.txnsExtractPage', () => {
   it('emits nextCursor=false when hasMore is false', () => {
     const body = { movements: { movements: [], pagination: { cursor: 'c', hasMore: false } } };
-    const page = txnsExtractPage(body);
+    const page = txnsExtractPage({ body, cursor: false, acct: ACCT, ctx: ctxFor(new Date()) });
     expect(page.nextCursor).toBe(false);
   });
   it('emits nextCursor=false when cursor is null (coerced)', () => {
     const body = { movements: { movements: [], pagination: { cursor: null, hasMore: true } } };
-    const page = txnsExtractPage(body);
+    const page = txnsExtractPage({ body, cursor: false, acct: ACCT, ctx: ctxFor(new Date()) });
     expect(page.nextCursor).toBe(false);
   });
   it('emits nextCursor=false when cursor is empty string', () => {
     const body = { movements: { movements: [], pagination: { cursor: '', hasMore: true } } };
-    const page = txnsExtractPage(body);
+    const page = txnsExtractPage({ body, cursor: false, acct: ACCT, ctx: ctxFor(new Date()) });
     expect(page.nextCursor).toBe(false);
   });
   it('returns the cursor string when hasMore=true + non-empty cursor', () => {
     const body = { movements: { movements: [], pagination: { cursor: 'next', hasMore: true } } };
-    const page = txnsExtractPage(body);
+    const page = txnsExtractPage({ body, cursor: false, acct: ACCT, ctx: ctxFor(new Date()) });
     expect(page.nextCursor).toBe('next');
   });
 });

@@ -9,7 +9,10 @@ import {
   type CursorWireValue,
   FIRST_PAGE_CURSOR_WIRE,
 } from '../../../Mediator/Scrape/CursorPagination.js';
-import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type {
+  IExtractPageArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
@@ -66,12 +69,16 @@ export function txnsVars(acct: IOneZeroAcct, cursor: string | false): VarsMap {
 }
 
 /**
- * Unwrap one movements page into the generic IPage contract.
- * @param body - Unwrapped movements response.
+ * Unwrap one movements page into the generic IPage contract. The
+ * cursor/acct/ctx fields on the args bundle are unused by OneZero;
+ * pagination state is read straight off the response.
+ * @param args - Bundle carrying body (other fields unused).
  * @returns Page rows + nextCursor.
  */
-export function txnsExtractPage(body: ApiBody): IPage<object, string> {
-  const resp = body as unknown as IMovResp;
+export function txnsExtractPage(
+  args: IExtractPageArgs<IOneZeroAcct, string>,
+): IPage<object, string> {
+  const resp = args.body as unknown as IMovResp;
   const { movements, pagination } = resp.movements;
   const cursorIn: string | false = pagination.cursor ?? false;
   const nextCursor = pickNextCursor(pagination.hasMore, cursorIn);

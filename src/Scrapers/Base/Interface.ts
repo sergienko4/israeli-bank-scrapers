@@ -54,6 +54,17 @@ export type ScraperCredentials =
       | {
           otpLongTermToken: string;
         }
+    ))
+  // PayBox-style: phoneNumber + OTP only. `deviceId16Hex` is internal
+  // state the scraper bootstraps on cold run, so it is intentionally
+  // absent from the user-facing credential surface.
+  | ({ phoneNumber: string } & (
+      | {
+          otpCodeRetriever: () => Promise<string>;
+        }
+      | {
+          otpLongTermToken: string;
+        }
     ));
 
 export type OptInFeatures =

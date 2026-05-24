@@ -187,6 +187,28 @@ function resolveTxnsUrlTag<TAcct, TCursor>(
 }
 
 /**
+ * Run one paginated fetch + extract round for a given cursor — the
+ * page-fetcher body extracted so {@link buildPageFetcher} stays inside
+ * the 15-line project ceiling.
+ * @param a - Per-account context.
+ * @param cursor - Cursor for the round, or false on the first call.
+ * @returns Procedure with the extracted page.
+ */
+async function runPageFetch<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  cursor: TCursor | false,
+): Promise<Procedure<IPage<object, TCursor>>> {
+  const vars = a.shape.transactions.buildVars(a.acct, cursor, a.ctx);
+  const opts = toOpts(a.ctx, a.shape.transactions.extraHeaders);
+  const urlTag = resolveTxnsUrlTag(a, cursor);
+  const resp = await dispatchScrape({ bus: a.bus, queryTag: 'transactions', urlTag, vars, opts });
+  if (!isOk(resp)) return resp;
+  const args = { body: resp.value, cursor, acct: a.acct, ctx: a.ctx };
+  const page = a.shape.transactions.extractPage(args);
+  return succeed(page);
+}
+
+/**
  * Build the page fetcher closure for one account.
  * @param a - Per-account context.
  * @returns Bound page fetcher consumed by fetchPaginated.
@@ -194,15 +216,7 @@ function resolveTxnsUrlTag<TAcct, TCursor>(
 export function buildPageFetcher<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): PageFetcher<TCursor> {
-  return async (cursor): Promise<Procedure<IPage<object, TCursor>>> => {
-    const vars = a.shape.transactions.buildVars(a.acct, cursor, a.ctx);
-    const opts = toOpts(a.ctx, a.shape.transactions.extraHeaders);
-    const urlTag = resolveTxnsUrlTag(a, cursor);
-    const resp = await dispatchScrape({ bus: a.bus, queryTag: 'transactions', urlTag, vars, opts });
-    if (!isOk(resp)) return resp;
-    const page = a.shape.transactions.extractPage(resp.value, cursor);
-    return succeed(page);
-  };
+  return (cursor): Promise<Procedure<IPage<object, TCursor>>> => runPageFetch(a, cursor);
 }
 
 /** Stop predicate signature consumed by fetchPaginated. */

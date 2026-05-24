@@ -81,15 +81,13 @@ function noopCookies(): readonly string[] {
  */
 export function buildResponse(status: number, bodyText: string): IResponseLike {
   const isOkStatus = status >= MIN_OK_STATUS && status < MAX_OK_STATUS;
-  /**
-   * Closure returning the captured body text.
-   * @returns Promise of body text.
-   */
-  function textFn(): Promise<string> {
-    return Promise.resolve(bodyText);
-  }
   const headers: IHeadersLike = { getSetCookie: noopCookies };
-  return { ok: isOkStatus, status, text: textFn, headers };
+  /**
+   * Closure that resolves with the captured body text.
+   * @returns Promise of the body text.
+   */
+  const text = (): Promise<string> => Promise.resolve(bodyText);
+  return { ok: isOkStatus, status, text, headers };
 }
 
 /**
@@ -139,23 +137,18 @@ interface IMockFetchDeps {
 
 /**
  * Build the synthetic fetch closure bound to a tally + dispatch fn.
+ * Yields control once via `await Promise.resolve()` so callers can't
+ * observe synchronous resolution semantics that would diverge from a
+ * real network fetch.
  * @param deps - Tally + dispatch bundle.
  * @returns Function with the globalThis.fetch signature.
  */
 function makeMockFetch(deps: IMockFetchDeps): typeof globalThis.fetch {
-  /**
-   * Mock fetch — synchronous dispatch wrapped in a resolved Promise.
-   * @param input - URL or Request.
-   * @param init - Request init.
-   * @returns Response-like Promise.
-   */
-  async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     await Promise.resolve();
-    const url = toUrlString(input);
-    const resp = deps.dispatch({ url, init, tally: deps.tally });
+    const resp = deps.dispatch({ url: toUrlString(input), init, tally: deps.tally });
     return resp as unknown as Response;
-  }
-  return mockFetch;
+  };
 }
 
 /**

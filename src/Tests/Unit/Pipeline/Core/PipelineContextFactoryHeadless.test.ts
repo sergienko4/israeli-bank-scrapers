@@ -86,7 +86,7 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     { testId: 'PP-PCF-02', bankName: 'Pepper', companyId: CompanyTypes.Pepper },
   ] as const;
 
-  tlsDisposeCases.forEach(({ testId, bankName, companyId }) => {
+  tlsDisposeCases.map(({ testId, bankName, companyId }) => {
     it(`${testId} — ${bankName} (requiresBrowserTls=true): mediator exposes dispose hook`, () => {
       const descriptor = makeDescriptor(true, companyId);
       const ctx = buildInitialContext(
@@ -98,6 +98,7 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
         expect(typeof ctx.apiMediator.value.dispose).toBe('function');
       }
     });
+    return true;
   });
 
   it('OZ-PCF-03 — Hapoalim (non-headless): apiMediator slot stays none', () => {

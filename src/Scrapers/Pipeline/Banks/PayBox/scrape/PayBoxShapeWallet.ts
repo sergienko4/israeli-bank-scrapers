@@ -153,6 +153,28 @@ function rowDescription(row: IPbNotification): string {
 }
 
 /**
+ * Sentinel ISO date returned when an upstream `ts` value cannot be
+ * parsed — guards `toISOString()` against the `RangeError` it throws
+ * for invalid Date objects.
+ */
+const EPOCH_ISO = new Date(0).toISOString();
+
+/**
+ * Parse a wallet row's `ts` (epoch-ms string) defensively. Malformed
+ * upstream values fall back to {@link EPOCH_ISO} so `toISOString()`
+ * cannot throw `RangeError` and abort the whole scrape.
+ * @param raw - Raw `ts` string from the row.
+ * @returns ISO-8601 string.
+ */
+function safeWalletIso(raw: string): string {
+  const millis = Number.parseInt(raw, 10);
+  const parsed = new Date(millis);
+  const ts = parsed.getTime();
+  if (Number.isNaN(ts)) return EPOCH_ISO;
+  return parsed.toISOString();
+}
+
+/**
  * Map one PbNotification to a transaction record consumed by the
  * generic scrape driver. The driver expects a plain object with
  * the standard ITransaction shape — sign convention applied via
@@ -162,7 +184,7 @@ function rowDescription(row: IPbNotification): string {
  * @returns Plain transaction object.
  */
 function toWalletTransaction(row: IPbNotification): object {
-  const date = new Date(Number.parseInt(row.ts, 10)).toISOString();
+  const date = safeWalletIso(row.ts);
   return {
     identifier: rowIdentifier(row),
     date,

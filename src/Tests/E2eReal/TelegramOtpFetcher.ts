@@ -529,18 +529,40 @@ function computeBackoffMs(consecutiveFailures: number): number {
  *   threaded by recursion. Default 0 — public callers omit it.
  * @returns Match payload or `false` on timeout.
  */
+
+/**
+ * Compute the next-poll delay (ms) capped to the remaining deadline.
+ * Idle polls (no new updates) wait the fixed debounce; transport
+ * errors back off exponentially.
+ * @param outcome Outcome of the last poll (false → idle).
+ * @param nextFailures Updated consecutive transport-failure count.
+ * @param deadline Absolute deadline (epoch ms).
+ * @returns Delay in milliseconds (clamped to remaining time).
+ */
+function computeNextPollDelay(
+  outcome: PollOutcome,
+  nextFailures: number,
+  deadline: number,
+): number {
+  const backoff = outcome === false ? IDLE_POLL_DELAY_MS : computeBackoffMs(nextFailures);
+  const remaining = Math.max(0, deadline - Date.now());
+  return Math.min(backoff, remaining);
+}
+
+/**
+ * Recursive short-poll driver — see the surrounding doc-block for the
+ * rate-limiting + backoff contract.
+ * @param state Poll state shared across iterations.
+ * @param consecutiveFailures Rolling transport-failure counter.
+ * @returns Match payload or `false` on deadline timeout.
+ */
 async function runPollLoop(state: IPollState, consecutiveFailures = 0): Promise<MatchResult> {
   if (Date.now() >= state.deadline) return false;
   const outcome = await pollOnce(state);
   if (outcome !== 'transport-error' && outcome !== false) return outcome;
   const nextFailures = outcome === 'transport-error' ? consecutiveFailures + 1 : 0;
-  const backoff = outcome === false ? IDLE_POLL_DELAY_MS : computeBackoffMs(nextFailures);
-  const remaining = state.deadline - Date.now();
-  const positiveRemaining = Math.max(0, remaining);
-  const cappedBackoff = Math.min(backoff, positiveRemaining);
-  if (cappedBackoff > 0) {
-    await humanDelay(cappedBackoff, cappedBackoff);
-  }
+  const cappedBackoff = computeNextPollDelay(outcome, nextFailures, state.deadline);
+  if (cappedBackoff > 0) await humanDelay(cappedBackoff, cappedBackoff);
   return runPollLoop(state, nextFailures);
 }
 

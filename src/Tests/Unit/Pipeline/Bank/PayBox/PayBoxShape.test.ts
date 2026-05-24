@@ -9,6 +9,18 @@ import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/Pipe
 import { TransactionStatuses } from '../../../../../Transactions.js';
 import { makeMockContext, makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
+const WALLET_ACCT: IPayBoxAcct = { kind: 'wallet', accountNumber: 'wallet-1' };
+const DEBIT_ACCT: IPayBoxAcct = { kind: 'debit', accountNumber: 'debit-1' };
+
+/**
+ * Build a default IActionContext for unit-level extractPage assertions.
+ * @returns Mock context with the project's default options.
+ */
+function defaultCtx(): IActionContext {
+  const opts = makeMockOptions();
+  return makeMockContext({ options: opts }) as unknown as IActionContext;
+}
+
 describe('PAYBOX_SHAPE.customer.extractAccounts (UC-PBS-1)', () => {
   it('returns exactly 2 discriminated accts', () => {
     const body = { uId: 'abcd1234ef567890abcd1234' };
@@ -41,32 +53,50 @@ describe('PAYBOX_SHAPE.customer.extractAccounts (UC-PBS-1)', () => {
 });
 
 describe('PAYBOX_SHAPE wallet transactions pagination (UC-PBS-2..4)', () => {
-  const walletAcct: IPayBoxAcct = { kind: 'wallet', accountNumber: 'wallet-1' };
-
   it('stops on empty page (UC-PBS-2)', () => {
     const body = { code: 200, content: { nc: [] } };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, false);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
     expect(page.nextCursor).toBe(false);
   });
 
   it('stops on stall — oldest ts unchanged from prior page (UC-PBS-3)', () => {
     const body = { code: 200, content: { nc: [{ ts: '100', amount: 1 }] } };
     const cursor = { kind: 'wallet' as const, ts: '100', page: 1 };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, cursor);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
     expect(page.nextCursor).toBe(false);
   });
 
   it('stops on cap-24 — page cap reached (UC-PBS-4)', () => {
     const body = { code: 200, content: { nc: [{ ts: '50', amount: 1 }] } };
     const cursor = { kind: 'wallet' as const, ts: '100', page: 23 };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, cursor);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
     expect(page.nextCursor).toBe(false);
   });
 
   it('advances cursor mid-stream when ts strictly decreases', () => {
     const body = { code: 200, content: { nc: [{ ts: '50', amount: 1 }] } };
     const cursor = { kind: 'wallet' as const, ts: '100', page: 0 };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, cursor);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
     expect(page.nextCursor).not.toBe(false);
     if (page.nextCursor !== false) {
       expect(page.nextCursor.kind).toBe('wallet');
@@ -74,48 +104,54 @@ describe('PAYBOX_SHAPE wallet transactions pagination (UC-PBS-2..4)', () => {
   });
 
   it('builds vars with ts="0" on first call', () => {
-    const opts = makeMockOptions();
-    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
-    const vars = PAYBOX_SHAPE.transactions.buildVars(walletAcct, false, ctx);
+    const ctx = defaultCtx();
+    const vars = PAYBOX_SHAPE.transactions.buildVars(WALLET_ACCT, false, ctx);
     expect(vars.ts).toBe('0');
   });
 
   it('builds vars with cursor.ts on subsequent calls', () => {
-    const opts = makeMockOptions();
-    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
     const cursor = { kind: 'wallet' as const, ts: '5050', page: 2 };
-    const vars = PAYBOX_SHAPE.transactions.buildVars(walletAcct, cursor, ctx);
+    const ctx = defaultCtx();
+    const vars = PAYBOX_SHAPE.transactions.buildVars(WALLET_ACCT, cursor, ctx);
     expect(vars.ts).toBe('5050');
   });
 });
 
 describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
-  const debitAcct: IPayBoxAcct = { kind: 'debit', accountNumber: 'debit-1' };
-
   it('debit chunking covers date range — first call uses ctx.startDate', () => {
     const startDate = new Date('2025-01-01T00:00:00Z');
     const opts = makeMockOptions({ startDate });
     const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
-    const vars = PAYBOX_SHAPE.transactions.buildVars(debitAcct, false, ctx);
+    const vars = PAYBOX_SHAPE.transactions.buildVars(DEBIT_ACCT, false, ctx);
     expect(typeof vars.startDate).toBe('string');
     expect(typeof vars.endDate).toBe('string');
   });
 
-  it('debit extractPage returns nextCursor=false on first call', () => {
+  it('debit extractPage advances cursor after the first chunk (CR 4 fix)', () => {
     const body = { code: 200, content: { filteredTransactions: [] } };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, false);
-    expect(page.nextCursor).toBe(false);
+    const longAgoStart = new Date('2020-01-01T00:00:00Z');
+    const opts = makeMockOptions({ startDate: longAgoStart });
+    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: DEBIT_ACCT,
+      ctx,
+    });
+    expect(page.nextCursor).not.toBe(false);
+    if (page.nextCursor !== false) {
+      expect(page.nextCursor.kind).toBe('debit');
+    }
   });
 
   it('debit buildVars with an explicit cursor reuses cursor dates', () => {
-    const opts = makeMockOptions();
-    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
     const cursor = {
       kind: 'debit' as const,
       startDate: new Date('2025-03-01T00:00:00Z'),
       endDate: new Date('2025-08-28T00:00:00Z'),
     };
-    const vars = PAYBOX_SHAPE.transactions.buildVars(debitAcct, cursor, ctx);
+    const ctx = defaultCtx();
+    const vars = PAYBOX_SHAPE.transactions.buildVars(DEBIT_ACCT, cursor, ctx);
     expect(vars.startDate).toBe('2025-03-01');
     expect(vars.endDate).toBe('2025-08-28');
   });
@@ -125,7 +161,12 @@ describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
     const longAgoStart = new Date('2020-01-01T00:00:00Z');
     const longAgoEnd = new Date('2020-06-29T00:00:00Z');
     const cursor = { kind: 'debit' as const, startDate: longAgoStart, endDate: longAgoEnd };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, cursor);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor,
+      acct: DEBIT_ACCT,
+      ctx: defaultCtx(),
+    });
     expect(page.nextCursor).not.toBe(false);
     if (page.nextCursor !== false) {
       expect(page.nextCursor.kind).toBe('debit');
@@ -136,14 +177,23 @@ describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
     const body = { code: 200, content: { filteredTransactions: [] } };
     const future = new Date(Date.now() + 86_400_000);
     const cursor = { kind: 'debit' as const, startDate: new Date(), endDate: future };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, cursor);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor,
+      acct: DEBIT_ACCT,
+      ctx: defaultCtx(),
+    });
     expect(page.nextCursor).toBe(false);
   });
 
   it('debit extractPage handles missing content gracefully', () => {
-    const page = PAYBOX_SHAPE.transactions.extractPage({}, false);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body: {},
+      cursor: false,
+      acct: DEBIT_ACCT,
+      ctx: defaultCtx(),
+    });
     expect(page.items).toHaveLength(0);
-    expect(page.nextCursor).toBe(false);
   });
 
   it('debit row mapping falls back to "ILS" + empty fields on missing optionals', () => {
@@ -158,7 +208,12 @@ describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
       startDate: new Date('2025-01-01'),
       endDate: new Date('2025-06-30'),
     };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, cursor);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor,
+      acct: DEBIT_ACCT,
+      ctx: defaultCtx(),
+    });
     const rows = page.items as {
       identifier: string;
       originalCurrency: string;
@@ -170,6 +225,29 @@ describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
     expect(rows[0].description).toBe('');
     expect(rows[0].memo).toBe('');
   });
+
+  it('debit row mapping survives malformed date upstream (CR 5 guard)', () => {
+    const body = {
+      code: 200,
+      content: {
+        filteredTransactions: [{ id: 99, date: 'not-a-real-date', amount: 1 }],
+      },
+    };
+    const cursor = {
+      kind: 'debit' as const,
+      startDate: new Date('2025-01-01'),
+      endDate: new Date('2025-06-30'),
+    };
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor,
+      acct: DEBIT_ACCT,
+      ctx: defaultCtx(),
+    });
+    const rows = page.items as { date: string }[];
+    const epochIso = new Date(0).toISOString();
+    expect(rows[0].date).toBe(epochIso);
+  });
 });
 
 describe('PAYBOX_SHAPE wallet row mapping fallbacks', () => {
@@ -180,7 +258,12 @@ describe('PAYBOX_SHAPE wallet row mapping fallbacks', () => {
         nc: [{ ts: '99', amount: 7, type: 'unknown', _id: 'fallback-id', text: 'fallback-text' }],
       },
     };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, false);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
     const rows = page.items as {
       identifier: string;
       description: string;
@@ -197,10 +280,28 @@ describe('PAYBOX_SHAPE wallet row mapping fallbacks', () => {
 
   it('falls back to empty identifier and description when both candidates absent', () => {
     const body = { code: 200, content: { nc: [{ ts: '88', amount: 5, type: 'credit' }] } };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, false);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
     const rows = page.items as { identifier: string; description: string }[];
     expect(rows[0].identifier).toBe('');
     expect(rows[0].description).toBe('');
+  });
+
+  it('survives malformed wallet ts upstream (CR 7 guard)', () => {
+    const body = { code: 200, content: { nc: [{ ts: 'not-numeric', amount: 5, type: 'credit' }] } };
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
+    const rows = page.items as { date: string }[];
+    const epochIso = new Date(0).toISOString();
+    expect(rows[0].date).toBe(epochIso);
   });
 });
 
@@ -218,11 +319,29 @@ describe('PAYBOX_SHAPE_HELPERS status maps coverage', () => {
     expect(absentStatus).toBe(TransactionStatuses.Completed);
   });
 
+  it('mapDebitStatus normalises case + whitespace (CR 6 fix)', async () => {
+    const helpers =
+      await import('../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js');
+    const pendingStatus = helpers.mapDebitStatus('Pending');
+    const completedStatus = helpers.mapDebitStatus('  COMPLETED  ');
+    expect(pendingStatus).toBe(TransactionStatuses.Pending);
+    expect(completedStatus).toBe(TransactionStatuses.Completed);
+  });
+
   it('mapPbStat falls back to Completed on unknown strings', async () => {
     const helpers =
       await import('../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js');
     const garbageStatus = helpers.mapPbStat('garbage-string');
     expect(garbageStatus).toBe(TransactionStatuses.Completed);
+  });
+
+  it('mapPbStat normalises case + whitespace (CR 6 fix)', async () => {
+    const helpers =
+      await import('../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js');
+    const titleStatus = helpers.mapPbStat('Pending');
+    const paddedStatus = helpers.mapPbStat('  PENDING  ');
+    expect(titleStatus).toBe(TransactionStatuses.Pending);
+    expect(paddedStatus).toBe(TransactionStatuses.Pending);
   });
 });
 
@@ -239,8 +358,7 @@ describe('PAYBOX_SHAPE accessors', () => {
   });
 
   it('customer.buildVars + balance.buildVars return empty maps', () => {
-    const opts = makeMockOptions();
-    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
+    const ctx = defaultCtx();
     const customerVars = PAYBOX_SHAPE.customer.buildVars(ctx);
     const acct: IPayBoxAcct = { kind: 'wallet', accountNumber: 'a' };
     const balanceVars = PAYBOX_SHAPE.balance.buildVars(acct);
@@ -263,7 +381,12 @@ describe('PAYBOX_SHAPE wallet row mapping (UC-PBS-6)', () => {
         ],
       },
     };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, false);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct: WALLET_ACCT,
+      ctx: defaultCtx(),
+    });
     const rows = page.items as { status: TransactionStatuses; chargedAmount: number }[];
     expect(rows).toHaveLength(3);
     expect(rows[0].status).toBe(TransactionStatuses.Completed);
@@ -294,7 +417,12 @@ describe('PAYBOX_SHAPE wallet row mapping (UC-PBS-6)', () => {
       startDate: new Date('2025-01-01'),
       endDate: new Date('2025-06-30'),
     };
-    const page = PAYBOX_SHAPE.transactions.extractPage(body, debitCursor);
+    const page = PAYBOX_SHAPE.transactions.extractPage({
+      body,
+      cursor: debitCursor,
+      acct: DEBIT_ACCT,
+      ctx: defaultCtx(),
+    });
     const rows = page.items as {
       identifier: string;
       chargedAmount: number;

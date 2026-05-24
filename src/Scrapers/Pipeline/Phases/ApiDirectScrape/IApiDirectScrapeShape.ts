@@ -56,10 +56,22 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   readonly urlTag?: BalanceUrlTag<TAcct>;
 }
 
+/**
+ * Bundle of arguments passed to {@link IApiDirectScrapeTxnsStep.extractPage}.
+ * Carries the per-account context so dispatching shapes (e.g. PayBox)
+ * can pick the right branch on the first call where `cursor === false`.
+ */
+export interface IExtractPageArgs<TAcct, TCursor> {
+  readonly body: ApiBody;
+  readonly cursor: TCursor | false;
+  readonly acct: TAcct;
+  readonly ctx: IActionContext;
+}
+
 /** Transactions-step shape — paginated per-account fetch. */
 export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => VarsMap;
-  readonly extractPage: (body: ApiBody, cursor: TCursor | false) => IPage<object, TCursor>;
+  readonly extractPage: (args: IExtractPageArgs<TAcct, TCursor>) => IPage<object, TCursor>;
   readonly stop?: (acc: readonly object[], ctx: IActionContext) => boolean;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('transactions'). */
