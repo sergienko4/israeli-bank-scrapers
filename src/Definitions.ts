@@ -20,6 +20,7 @@ export enum CompanyTypes {
   BeyahadBishvilha = 'beyahadBishvilha',
   OneZero = 'oneZero',
   Pagi = 'pagi',
+  PayBox = 'payBox',
   Pepper = 'pepper',
 }
 
@@ -91,6 +92,10 @@ export const SCRAPERS = {
   [CompanyTypes.Pagi]: {
     name: 'Pagi',
     loginFields: ['username', PASSWORD_FIELD],
+  },
+  [CompanyTypes.PayBox]: {
+    name: 'PayBox',
+    loginFields: ['phoneNumber', 'otpLongTermToken', 'deviceId16Hex'],
   },
   [CompanyTypes.Pepper]: {
     name: 'Pepper (by Bank Leumi)',

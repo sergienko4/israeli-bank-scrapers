@@ -65,6 +65,23 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       requiresBrowserTls: true,
     },
   },
+  [CompanyTypes.PayBox]: {
+    urls: { base: 'https://apipin.payboxapp.com/api/2.0/' },
+    headless: {
+      identityBase: 'https://apipin.payboxapp.com/api/2.0/',
+      graphql: 'https://apipin.payboxapp.com/api/2.0/',
+      paths: {
+        'identity.phoneValidate': 'https://apipin.payboxapp.com/api/2.0/phoneValidate',
+        'identity.pinValidation': 'https://apipin.payboxapp.com/api/2.0/pinValidation',
+        'identity.loginBySms': 'https://apipin.payboxapp.com/api/2.0/loginBySms',
+        'data.getUserHistory': 'https://apipin.payboxapp.com/api/2.0/getUserHistory',
+        'data.virtualCardTranRequest':
+          'https://apipin.payboxapp.com/api/2.0/virtualCardTranRequest',
+        'data.sync': 'https://apipin.payboxapp.com/api/2.0/sync',
+      },
+      requiresBrowserTls: false,
+    },
+  },
   [CompanyTypes.Pepper]: {
     urls: { base: 'https://www.pepper.co.il' },
     headless: {

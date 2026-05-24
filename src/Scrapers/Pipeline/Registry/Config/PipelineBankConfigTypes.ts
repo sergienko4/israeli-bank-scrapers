@@ -11,6 +11,12 @@ export type AuthPathKey =
   | 'identity.otpVerify'
   | 'identity.getIdToken'
   | 'identity.sessionToken'
+  | 'identity.phoneValidate'
+  | 'identity.pinValidation'
+  | 'identity.loginBySms'
+  | 'data.getUserHistory'
+  | 'data.virtualCardTranRequest'
+  | 'data.sync'
   | 'auth.bind'
   | 'auth.assert'
   | 'auth.logout';
