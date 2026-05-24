@@ -3,8 +3,9 @@
  * Pepper Transmit + GraphQL API so the pipeline can be exercised
  * without network. Rule #18: every value is SYNTHETIC (no real PII).
  * Shared machinery (Response shaping, tally tracking, globalThis.fetch
- * swap) lives in SyntheticFetchMockKit; this file declares only the
- * bank-specific dispatch + response payloads.
+ * swap, Camoufox setFakePageEvalMode toggle) lives in
+ * SyntheticFetchMockKit; this file declares only the bank-specific
+ * dispatch + response payloads.
  */
 
 import type {

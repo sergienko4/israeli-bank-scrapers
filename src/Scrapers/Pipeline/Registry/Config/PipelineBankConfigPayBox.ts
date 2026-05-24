@@ -49,7 +49,7 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
     signKey: SIGN_KEY,
     pinSuffix: PIN_SUFFIX,
   },
-  seedCarryFromCreds: ['deviceId16Hex'],
+  seedCarryFromCreds: [{ field: 'deviceId16Hex', bootstrap: 'random-hex-16' }],
   derivedCarry: [
     {
       into: 'otpKey',

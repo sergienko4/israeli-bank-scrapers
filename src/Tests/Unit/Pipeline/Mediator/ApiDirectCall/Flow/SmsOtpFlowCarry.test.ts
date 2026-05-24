@@ -251,6 +251,58 @@ describe('api-direct-call SmsOtpFlow — seedCarryFromCreds + derivedCarry', () 
     if (!result.success) expect(result.errorMessage).toContain('missing');
   });
 
+  it('UC-INI-10: bootstrap-equipped seed spec auto-generates value when creds missing', async () => {
+    const captures: IApiPostCapture[] = [];
+    const config: IApiDirectCallConfig = {
+      flow: 'sms-otp',
+      envelope: {},
+      probe: {},
+      seedCarryFromCreds: [{ field: 'deviceId16Hex', bootstrap: 'random-hex-16' }],
+      steps: [
+        {
+          name: 'getIdToken',
+          urlTag: BIND_TAG,
+          body: { shape: { d: { $ref: 'carry.deviceId16Hex' } } },
+          extractsToCarry: { token: '/access_token' },
+        },
+      ],
+    };
+    const responses = [succeed({ access_token: 'tok' })];
+    const bus = makeStubMediator({ responses, captures });
+    const result = await runSmsOtpFlow({ config, bus, creds: {}, companyId: HINT });
+    expect(result.success).toBe(true);
+    const seeded = captures[0].body.d as string;
+    expect(seeded).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it('UC-INI-11: bootstrap-equipped seed spec uses creds value when present', async () => {
+    const captures: IApiPostCapture[] = [];
+    const config: IApiDirectCallConfig = {
+      flow: 'sms-otp',
+      envelope: {},
+      probe: {},
+      seedCarryFromCreds: [{ field: 'deviceId16Hex', bootstrap: 'random-hex-16' }],
+      steps: [
+        {
+          name: 'getIdToken',
+          urlTag: BIND_TAG,
+          body: { shape: { d: { $ref: 'carry.deviceId16Hex' } } },
+          extractsToCarry: { token: '/access_token' },
+        },
+      ],
+    };
+    const responses = [succeed({ access_token: 'tok' })];
+    const bus = makeStubMediator({ responses, captures });
+    const result = await runSmsOtpFlow({
+      config,
+      bus,
+      creds: { deviceId16Hex: 'feedfacecafebabe' },
+      companyId: HINT,
+    });
+    expect(result.success).toBe(true);
+    expect(captures[0].body.d).toBe('feedfacecafebabe');
+  });
+
   it('UC-INI-9: derivedCarry short-circuits when first of many derivations fails', async () => {
     const config: IApiDirectCallConfig = {
       flow: 'sms-otp',

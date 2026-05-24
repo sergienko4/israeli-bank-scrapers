@@ -217,6 +217,26 @@ interface IStepConfig {
 }
 
 /**
+ * Bootstrap-kind enum — closed set of generators the mediator runs
+ * when a `seedCarryFromCreds` entry's creds value is absent. Stays
+ * data-only by keeping the producer logic inside the mediator rather
+ * than letting banks pass callbacks.
+ */
+export type SeedCarryBootstrapKind = 'random-hex-16';
+
+/**
+ * Seed-carry source spec — names the creds field to mirror into
+ * carry and (optionally) a bootstrap generator to run when the
+ * creds field is absent or empty. Banks whose first-cold-run state
+ * the user shouldn't have to supply (e.g. `deviceId16Hex`-style
+ * per-install identifiers) opt into the bootstrap variant.
+ */
+export interface ISeedCarrySource {
+  readonly field: string;
+  readonly bootstrap?: SeedCarryBootstrapKind;
+}
+
+/**
  * One-time carry-slot derivation, applied at flow init.
  *
  * Resolves each part against the partial scope (creds + secrets +
@@ -254,10 +274,14 @@ interface IApiDirectCallConfig {
    */
   readonly secrets?: Readonly<Record<string, string>>;
   /**
-   * Creds fields mirrored into `scope.carry` at flow init. Each named
-   * field must be a string on `creds` or the flow fails fast.
+   * Creds fields mirrored into `scope.carry` at flow init. Each entry
+   * is either a plain field name (string) — value must be present on
+   * `creds` or the flow fails fast — or a bootstrap spec
+   * {@link ISeedCarrySource} that names a generator the mediator runs
+   * when the creds value is absent (e.g. random hex for first-cold-run
+   * device identifiers that the user shouldn't be required to supply).
    */
-  readonly seedCarryFromCreds?: readonly string[];
+  readonly seedCarryFromCreds?: readonly (string | ISeedCarrySource)[];
   /**
    * One-time carry-slot derivations evaluated after `seedCarryFromCreds`
    * at flow init. Order matters when derivations depend on earlier ones.

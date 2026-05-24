@@ -54,10 +54,14 @@ function syntheticOtpRetriever(): Promise<string> {
   return Promise.resolve(PAYBOX_MOCK_OTP_CODE);
 }
 
-/** Cold-path credentials — OTP retriever supplied; no long-term token. */
+/**
+ * Cold-path credentials — phoneNumber + OTP retriever ONLY. The
+ * scraper bootstraps `carry.deviceId16Hex` internally via the
+ * mediator's `seedCarryFromCreds.bootstrap` hook, mirroring the
+ * real-user surface where no deviceId is ever typed in.
+ */
 export const PAYBOX_MOCK_COLD_CREDS = Object.freeze({
   phoneNumber: '972-fixt-phone-pb-0001',
-  deviceId16Hex: FIXT_DEVICE_ID,
   otpCodeRetriever: syntheticOtpRetriever,
 });
 

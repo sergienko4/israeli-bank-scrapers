@@ -25,7 +25,7 @@ const ONEZERO_START_DATE = new Date('2026-01-01');
 /** Synthetic OTP code returned by the Pepper fake retriever. */
 const PEPPER_FAKE_OTP = 'fixt-otp-pep-7c1a';
 
-/** Shared mock-handle shape — both per-bank mocks expose this contract. */
+/** Shared mock-handle shape — all per-bank mocks now share the kit's IMockHandle. */
 type MockHandle = IPepperMockHandle;
 
 /** Minimal account shape consumed by the parameterized assertions. */
@@ -117,15 +117,14 @@ const PAYBOX_CASE: IApiDirectFlowCase = {
   // smaller threshold so it passes for both kinds.
   minTxns: 7,
   // Three identity hops (phoneValidate + pinValidation + loginBySms)
-  // confirm the AES + cryptoField chain wired in 71106adc fires
-  // exactly as expected on the cold path.
+  // confirm the AES + cryptoField chain fires on the cold path.
   minIdentityCalls: 3,
   // Three scrape calls minimum: /getUserHistory (customer + wallet
   // txns) + /virtualCardTranRequest (debit txns) + /sync (balance).
   // The kit tally counts all non-identity hits under `graphql`.
   minGraphqlCalls: 2,
-  // Cross-bank OTP-scrub assertion (T41) — cryptoField must encrypt
-  // the plaintext OTP before runStep fires; the mock confirms zero
+  // Cross-bank OTP-scrub assertion — cryptoField must encrypt the
+  // plaintext OTP before runStep fires; the mock confirms zero
   // dispatched bodies contained the raw digits.
   expectScrubbedPin: true,
   timeoutMs: 60000,
