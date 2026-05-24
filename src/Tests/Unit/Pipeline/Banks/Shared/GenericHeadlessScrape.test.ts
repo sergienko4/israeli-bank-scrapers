@@ -220,6 +220,49 @@ describe('buildGenericHeadlessScrape', () => {
     assertOk(result);
   });
 
+  it('UC-RD-1: customer.urlTag literal routes through apiPost (REST)', async () => {
+    const bus = makeRestBus({
+      'data.getUserHistory': [succeed({ accts: [{ id: 'a1', num: 'num-1' }] })],
+      'data.sync': [succeed({ balance: 5 })],
+      'data.virtualCardTranRequest': [succeed({ items: [], nextCursor: false })],
+    });
+    const base = makeShape();
+    const shape: IApiDirectScrapeShape<ISynAcct, string> = {
+      ...base,
+      customer: { ...base.customer, urlTag: 'data.getUserHistory' },
+      balance: { ...base.balance, urlTag: 'data.sync' },
+      transactions: { ...base.transactions, urlTag: 'data.virtualCardTranRequest' },
+    };
+    const scrape = buildGenericHeadlessScrape(shape);
+    const ctx = ctxOf(bus);
+    const result = await scrape(ctx);
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    expect(scr.value.accounts).toHaveLength(1);
+  });
+
+  it('UC-RD-2: transactions.urlTag function variant routes through apiPost', async () => {
+    const bus = makeRestBus({
+      'data.getUserHistory': [
+        succeed({ accts: [{ id: 'a1', num: 'num-1' }] }),
+        succeed({ items: [], nextCursor: false }),
+      ],
+      'data.sync': [succeed({ balance: 5 })],
+    });
+    const base = makeShape();
+    const shape: IApiDirectScrapeShape<ISynAcct, string> = {
+      ...base,
+      customer: { ...base.customer, urlTag: 'data.getUserHistory' },
+      balance: { ...base.balance, urlTag: 'data.sync' },
+      transactions: { ...base.transactions, urlTag: txnsUrlTagSyn },
+    };
+    const scrape = buildGenericHeadlessScrape(shape);
+    const ctx = ctxOf(bus);
+    const result = await scrape(ctx);
+    assertOk(result);
+  });
+
   it('balance fail without fallback propagates; with fallback returns fallback', async () => {
     const bus = makeRouterBus({
       customer: [succeed({ accts: [{ id: 'a1', num: 'num-1' }] })],
@@ -255,4 +298,45 @@ describe('buildGenericHeadlessScrape', () => {
  */
 function stopAfterOne(acc: readonly object[]): boolean {
   return acc.length >= 1;
+}
+
+/**
+ * Build a REST-flavoured mediator stub whose apiPost dequeues
+ * scripted responses keyed by WK URL tag. Used by the REST-dispatch
+ * UC-RD cases above.
+ * @param router - Per-tag ordered response queue.
+ * @returns Mock mediator wired through apiPost only.
+ */
+function makeRestBus(router: Record<string, readonly Procedure<unknown>[]>): IApiMediator {
+  const queues: Record<string, Procedure<unknown>[]> = {};
+  for (const key of Object.keys(router)) queues[key] = [...router[key]];
+  /**
+   * Dequeue the next response for a URL tag.
+   * @param urlTag - WK URL tag.
+   * @returns Next queued procedure or a structured fail.
+   */
+  async function route(urlTag: string): Promise<Procedure<unknown>> {
+    await Promise.resolve();
+    const q = queues[urlTag] ?? [];
+    const head = q.shift();
+    if (head) return head;
+    return fail(ScraperErrorTypes.Generic, `no stub for urlTag=${urlTag}`);
+  }
+  const apiPost = jest.fn(route);
+  return {
+    apiPost,
+    apiGet: jest.fn(),
+    apiQuery: jest.fn(),
+    setBearer: jest.fn(),
+    setRawAuth: jest.fn(),
+  } as unknown as IApiMediator;
+}
+
+/**
+ * Synthetic transactions urlTag producer — always returns the wallet
+ * tag so the function-variant branch in resolveUrlTagSpec executes.
+ * @returns The synthetic transactions URL tag.
+ */
+function txnsUrlTagSyn(): 'data.getUserHistory' {
+  return 'data.getUserHistory';
 }

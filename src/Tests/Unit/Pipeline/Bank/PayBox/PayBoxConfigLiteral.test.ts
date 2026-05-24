@@ -161,8 +161,8 @@ describe('PayBox login steps (UC-PCL-3)', () => {
     const steps = await loadStepsModule();
     const step = steps.LOGIN_BY_SMS_STEP;
     expect(step.preHook?.cryptoField?.writeTo).toBe('/pin');
-    expect(step.extractsToCarry.token).toBe('/access_token');
-    expect(step.extractsToCarry.uId).toBe('/uId');
+    expect(step.extractsToCarry.token).toBe('/content/access_token');
+    expect(step.extractsToCarry.uId).toBe('/content/uId');
   });
 
   it('all three steps target the expected WK url tags', async () => {

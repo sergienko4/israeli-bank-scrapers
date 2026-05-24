@@ -18,6 +18,7 @@ import type {
   IApiDirectScrapeShape,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import {
@@ -145,13 +146,39 @@ function transactionsExtractPage(
   return walletExtractPage(body, cursor);
 }
 
+/**
+ * Pick the REST URL for the transactions step based on account kind:
+ * wallet rows come from /getUserHistory; debit rows from
+ * /virtualCardTranRequest. Both are POST endpoints routed through the
+ * mediator's `apiPost` via the shape's urlTag dispatch.
+ * @param acct - Discriminated account ref.
+ * @returns WK URL group for the matching endpoint.
+ */
+function transactionsUrlTag(acct: IPayBoxAcct): WKUrlGroup {
+  if (acct.kind === 'wallet') return 'data.getUserHistory';
+  return 'data.virtualCardTranRequest';
+}
+
 /** PayBox shape declaration — consumed by buildGenericHeadlessScrape. */
 const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
   stepName: 'PayBoxScrape',
   accountNumberOf,
-  customer: { buildVars: customerVars, extractAccounts },
-  balance: { buildVars: balanceVars, extract: balanceExtract, fallbackOnFail: 0 },
-  transactions: { buildVars: transactionsBuildVars, extractPage: transactionsExtractPage },
+  customer: {
+    buildVars: customerVars,
+    extractAccounts,
+    urlTag: 'data.getUserHistory',
+  },
+  balance: {
+    buildVars: balanceVars,
+    extract: balanceExtract,
+    fallbackOnFail: 0,
+    urlTag: 'data.sync',
+  },
+  transactions: {
+    buildVars: transactionsBuildVars,
+    extractPage: transactionsExtractPage,
+    urlTag: transactionsUrlTag,
+  },
 };
 
 export default PAYBOX_SHAPE;

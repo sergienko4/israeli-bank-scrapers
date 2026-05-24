@@ -12,6 +12,7 @@ import { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import { installOneZeroFetchMock, ONEZERO_MOCK_CREDS } from '../OneZero/OneZeroFetchMock.js';
+import { installPayBoxFetchMock, PAYBOX_MOCK_COLD_CREDS } from '../PayBox/PayBoxFetchMock.js';
 import type { IMockHandle as IPepperMockHandle } from '../Pepper/PepperFetchMock.js';
 import { installPepperFetchMock, PEPPER_MOCK_CREDS } from '../Pepper/PepperFetchMock.js';
 
@@ -52,6 +53,13 @@ interface IApiDirectFlowCase {
   readonly minGraphqlCalls: number;
   readonly minIdentityCalls?: number;
   readonly timeoutMs?: number;
+  /**
+   * When true, the cross-bank OTP-scrub assertion runs: the mock's
+   * `pinDigitsObserved` counter MUST be 0 after the flow completes —
+   * i.e. cryptoField encrypted the plaintext OTP before any request
+   * left the runStep. Banks without a `cryptoField` hook omit this.
+   */
+  readonly expectScrubbedPin?: boolean;
 }
 
 /**
@@ -93,7 +101,37 @@ const ONEZERO_CASE: IApiDirectFlowCase = {
   timeoutMs: 60000,
 };
 
-const CASES: readonly IApiDirectFlowCase[] = [PEPPER_CASE, ONEZERO_CASE];
+/** Lookback window matching the PayBox e2e spec (90 days). */
+const PAYBOX_START_DATE = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+const PAYBOX_CASE: IApiDirectFlowCase = {
+  displayName: 'PayBox',
+  companyId: CompanyTypes.PayBox,
+  installFetchMock: installPayBoxFetchMock,
+  mockCreds: { ...PAYBOX_MOCK_COLD_CREDS } as unknown as ScraperCredentials,
+  startDate: PAYBOX_START_DATE,
+  // Two synthetic accounts: wallet (kind='wallet') + debit (kind='debit').
+  expectedAccounts: 2,
+  // Wallet returns 12 rows from /getUserHistory; debit returns 7 from
+  // /virtualCardTranRequest. The first-account assertion uses the
+  // smaller threshold so it passes for both kinds.
+  minTxns: 7,
+  // Three identity hops (phoneValidate + pinValidation + loginBySms)
+  // confirm the AES + cryptoField chain wired in 71106adc fires
+  // exactly as expected on the cold path.
+  minIdentityCalls: 3,
+  // Three scrape calls minimum: /getUserHistory (customer + wallet
+  // txns) + /virtualCardTranRequest (debit txns) + /sync (balance).
+  // The kit tally counts all non-identity hits under `graphql`.
+  minGraphqlCalls: 2,
+  // Cross-bank OTP-scrub assertion (T41) — cryptoField must encrypt
+  // the plaintext OTP before runStep fires; the mock confirms zero
+  // dispatched bodies contained the raw digits.
+  expectScrubbedPin: true,
+  timeoutMs: 60000,
+};
+
+const CASES: readonly IApiDirectFlowCase[] = [PEPPER_CASE, ONEZERO_CASE, PAYBOX_CASE];
 
 /** Minimal scraper-options shape exercised by this parameterized spec. */
 interface IApiDirectScraperOptions {
@@ -149,6 +187,9 @@ function assertCallCounts(handle: MockHandle, testCase: IApiDirectFlowCase): boo
   expect(counts.graphql).toBeGreaterThanOrEqual(testCase.minGraphqlCalls);
   if (testCase.minIdentityCalls !== undefined) {
     expect(counts.identity).toBeGreaterThanOrEqual(testCase.minIdentityCalls);
+  }
+  if (testCase.expectScrubbedPin === true) {
+    expect(counts.pinDigitsObserved).toBe(0);
   }
   return true;
 }

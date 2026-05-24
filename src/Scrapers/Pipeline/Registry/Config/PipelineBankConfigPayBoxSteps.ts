@@ -40,7 +40,7 @@ const PHONE_VALIDATE_STEP: IStepConfig = {
     },
   },
   extractsToCarry: {
-    accessToken1: '/access_token',
+    accessToken1: '/content/access_token',
   },
 };
 
@@ -71,8 +71,8 @@ const PIN_VALIDATION_STEP: IStepConfig = {
     },
   },
   extractsToCarry: {
-    accessToken2: '/access_token',
-    validationResult: '/validationResult',
+    accessToken2: '/content/access_token',
+    validationResult: '/content/validationResult',
   },
 };
 
@@ -104,9 +104,9 @@ const LOGIN_BY_SMS_STEP: IStepConfig = {
     },
   },
   extractsToCarry: {
-    token: '/access_token',
-    uId: '/uId',
-    userObjectKeys: '/userObject/keys',
+    token: '/content/access_token',
+    uId: '/content/uId',
+    userObjectKeys: '/content/userObject/keys',
   },
 };
 
