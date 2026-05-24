@@ -11,7 +11,6 @@
 import { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import type { IMockHandle as IOneZeroMockHandle } from '../OneZero/OneZeroFetchMock.js';
 import { installOneZeroFetchMock, ONEZERO_MOCK_CREDS } from '../OneZero/OneZeroFetchMock.js';
 import type { IMockHandle as IPepperMockHandle } from '../Pepper/PepperFetchMock.js';
 import { installPepperFetchMock, PEPPER_MOCK_CREDS } from '../Pepper/PepperFetchMock.js';
@@ -26,7 +25,7 @@ const ONEZERO_START_DATE = new Date('2026-01-01');
 const PEPPER_FAKE_OTP = 'fixt-otp-pep-7c1a';
 
 /** Shared mock-handle shape — both per-bank mocks expose this contract. */
-type MockHandle = IPepperMockHandle | IOneZeroMockHandle;
+type MockHandle = IPepperMockHandle;
 
 /** Minimal account shape consumed by the parameterized assertions. */
 interface IAccountSlice {
