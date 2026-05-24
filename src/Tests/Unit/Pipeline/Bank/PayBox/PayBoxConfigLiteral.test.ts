@@ -101,7 +101,7 @@ describe('PAYBOX_API_DIRECT_CALL (UC-PCL-1)', () => {
     if (signer?.algorithm === 'AES-CBC-PKCS7') {
       expect(signer.outputPostfix).toBe('\n');
       expect(signer.bodySignatureField).toBe('/signature');
-      expect(signer.keyRef).toBe('config.signKey');
+      expect(signer.keyRef).toBe('config.secrets.signKey');
     }
   });
 });

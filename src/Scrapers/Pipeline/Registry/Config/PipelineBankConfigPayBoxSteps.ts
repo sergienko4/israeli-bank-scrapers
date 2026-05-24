@@ -63,7 +63,7 @@ const PIN_VALIDATION_STEP: IStepConfig = {
     awaitCredsField: 'otpCodeRetriever',
     intoCarryField: 'otpDigitsPlain',
     cryptoField: {
-      keyRef: 'config.otpKey',
+      keyRef: 'carry.otpKey',
       ivRef: 'carry.pinIv1Hex',
       outputPostfix: '\n',
       writeTo: '/pin',
@@ -96,7 +96,7 @@ const LOGIN_BY_SMS_STEP: IStepConfig = {
     awaitCredsField: 'otpCodeRetriever',
     intoCarryField: 'otpDigitsPlain',
     cryptoField: {
-      keyRef: 'config.otpKey',
+      keyRef: 'carry.otpKey',
       ivRef: 'carry.pinIv2Hex',
       outputPostfix: '\n',
       writeTo: '/pin',

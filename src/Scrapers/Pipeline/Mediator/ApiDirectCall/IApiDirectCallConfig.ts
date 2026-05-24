@@ -82,11 +82,17 @@ interface IAsymmetricSignerConfig {
  * `/auth/signature`). The optional postfix lets banks whose servers
  * expect a trailing newline append one without coupling to the
  * bank's name.
+ *
+ * `ivCarrySlot` names the carry slot the runner overwrites with a
+ * fresh 16-byte random hex string at each step entry; the body
+ * template references the same slot via `$ref: 'carry.<slot>'` so the
+ * hydrated body and the signer observe the same IV bytes.
  */
 interface IAesSignerConfig {
   readonly algorithm: 'AES-CBC-PKCS7';
   readonly keyRef: `config.${string}`;
   readonly ivStrategy: 'random-16';
+  readonly ivCarrySlot: string;
   readonly canonical: ICanonicalStringConfig;
   readonly bodySignatureField: string;
   readonly bodyIvField?: string;
@@ -210,6 +216,23 @@ interface IStepConfig {
   readonly cookieJar?: boolean;
 }
 
+/**
+ * One-time carry-slot derivation, applied at flow init.
+ *
+ * Resolves each part against the partial scope (creds + secrets +
+ * carry seeded so far), coerces to UTF-8 string, joins with optional
+ * separator, truncates to `truncateBytes`, deposits as a string into
+ * `carry[into]`. Banks declare derivations like the OTP-encryption
+ * key (deviceId + '|' + pinSuffix, truncated to 32 bytes) without
+ * any bank-specific code in the mediator.
+ */
+interface IDerivedCarry {
+  readonly into: string;
+  readonly parts: readonly RefToken[];
+  readonly separator?: string;
+  readonly truncateBytes?: number;
+}
+
 /** Top-level config literal — placed into PIPELINE_BANK_CONFIG[bank].apiDirectCall. */
 interface IApiDirectCallConfig {
   readonly flow: FlowKind;
@@ -224,6 +247,22 @@ interface IApiDirectCallConfig {
   readonly authScheme?: AuthScheme;
   /** Optional warm-start shortcut — see IWarmStartConfig for semantics. */
   readonly warmStart?: IWarmStartConfig;
+  /**
+   * Static cryptographic literals accessible via `config.secrets.<name>`
+   * RefTokens. Public-extractable constants (signing keys lifted from
+   * APKs, fixed suffixes) live here; per-user secrets do not.
+   */
+  readonly secrets?: Readonly<Record<string, string>>;
+  /**
+   * Creds fields mirrored into `scope.carry` at flow init. Each named
+   * field must be a string on `creds` or the flow fails fast.
+   */
+  readonly seedCarryFromCreds?: readonly string[];
+  /**
+   * One-time carry-slot derivations evaluated after `seedCarryFromCreds`
+   * at flow init. Order matters when derivations depend on earlier ones.
+   */
+  readonly derivedCarry?: readonly IDerivedCarry[];
 }
 
 export type {
@@ -237,6 +276,7 @@ export type {
   IBodyTemplate,
   ICanonicalStringConfig,
   ICryptoFieldConfig,
+  IDerivedCarry,
   IEnvelopeSelectors,
   IFingerprintConfig,
   IJwtClaimsConfig,

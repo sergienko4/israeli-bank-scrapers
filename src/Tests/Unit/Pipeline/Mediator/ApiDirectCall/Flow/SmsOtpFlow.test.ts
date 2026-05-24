@@ -159,10 +159,12 @@ describe('api-direct-call SmsOtpFlow AES signer keypair-skip', () => {
       flow: 'sms-otp',
       envelope: {},
       probe: {},
+      secrets: { signKey: 'a'.repeat(32) },
       signer: {
         algorithm: 'AES-CBC-PKCS7',
-        keyRef: 'config.signKey',
+        keyRef: 'config.secrets.signKey',
         ivStrategy: 'random-16',
+        ivCarrySlot: 'ivHex',
         bodySignatureField: '/signature',
         outputPostfix: '\n',
         canonical: {
@@ -194,10 +196,11 @@ describe('api-direct-call SmsOtpFlow AES signer keypair-skip', () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new ScraperError('flow should succeed');
     expect(result.value.bearer).toBe('aes-tok');
-    // No asymmetric signer header attached.
+    // No asymmetric signer header attached; signature lives in body.
     const headers = captures[0].extraHeaders ?? {};
     expect(headers['Content-Signature']).toBeUndefined();
     expect(headers['X-Sig']).toBeUndefined();
+    expect(typeof captures[0].body.signature).toBe('string');
   });
 
   it('preserves nowMs slot consistency across canonical + body hydrate', async (): Promise<void> => {

@@ -19,16 +19,16 @@ import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiMediator } from '../../Api/ApiMediator.js';
-import { signAesCbcPkcs7 } from '../Crypto/AesSymmetricSigner.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import { generateKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
 import { buildCollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
-import type { IApiDirectCallConfig, IPreStepHook } from '../IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig, IDerivedCarry, IPreStepHook } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { resolveRef } from '../Template/RefResolver.js';
 import type { IStepCookieJar } from './RunStep.js';
-import { attachBodySignature, createSimpleCookieJar, runStep } from './RunStep.js';
+import { createSimpleCookieJar, runStep } from './RunStep.js';
 
 /** Args bundle for runSmsOtpFlow — respects the 3-param ceiling. */
 interface IRunSmsOtpArgs {
@@ -336,6 +336,251 @@ function mergeInitialCarry(
 }
 
 /**
+ * Read one creds field as a string or fail with a clear diagnostic.
+ * @param creds - Caller credentials.
+ * @param field - Field name to read.
+ * @returns Procedure with the string value.
+ */
+function readCredsStringStrict(
+  creds: Readonly<Record<string, unknown>>,
+  field: string,
+): Procedure<string> {
+  const value = creds[field];
+  if (typeof value !== 'string') {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `seedCarryFromCreds: creds.${field} missing or non-string`,
+    );
+  }
+  return succeed(value);
+}
+
+/** Reducer ctx for {@link reduceSeedField}. */
+interface IReduceSeedFieldCtx {
+  readonly field: string;
+  readonly creds: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Reducer step for {@link applySeedCarryFromCreds}.
+ * @param acc - Accumulated carry procedure.
+ * @param ctx - Field name + creds bundle.
+ * @returns Updated carry procedure.
+ */
+function reduceSeedField(
+  acc: Procedure<Record<string, JsonValue>>,
+  ctx: IReduceSeedFieldCtx,
+): Procedure<Record<string, JsonValue>> {
+  if (!isOk(acc)) return acc;
+  const valProc = readCredsStringStrict(ctx.creds, ctx.field);
+  if (!isOk(valProc)) return valProc;
+  return succeed({ ...acc.value, [ctx.field]: valProc.value });
+}
+
+/**
+ * Mirror each named creds field into carry as a string. Fails fast when
+ * a declared field is missing or non-string so misconfigured banks
+ * surface immediately.
+ * @param carry - Current carry record.
+ * @param fields - Creds field names to mirror.
+ * @param creds - Caller credentials.
+ * @returns Procedure with the seeded carry.
+ */
+function applySeedCarryFromCreds(
+  carry: Record<string, JsonValue>,
+  fields: readonly string[],
+  creds: Readonly<Record<string, unknown>>,
+): Procedure<Record<string, JsonValue>> {
+  const seed: Procedure<Record<string, JsonValue>> = succeed({ ...carry });
+  return fields.reduce<Procedure<Record<string, JsonValue>>>(
+    (acc, field) => reduceSeedField(acc, { field, creds }),
+    seed,
+  );
+}
+
+/**
+ * Truncate a UTF-8 string to at most `maxBytes` bytes. Multi-byte
+ * characters that fall on the boundary are dropped (Buffer.subarray
+ * cuts cleanly; toString decodes the resulting prefix). For ASCII
+ * inputs the result has exactly `maxBytes` characters.
+ * @param input - Source string.
+ * @param maxBytes - Maximum UTF-8 byte length.
+ * @returns Truncated string.
+ */
+function truncateUtf8(input: string, maxBytes: number): string {
+  const buf = Buffer.from(input, 'utf8');
+  if (buf.length <= maxBytes) return input;
+  return buf.subarray(0, maxBytes).toString('utf8');
+}
+
+/** Ctx for {@link resolveOnePart}. */
+interface IResolveOnePartCtx {
+  readonly scope: ITemplateScope;
+  readonly into: string;
+}
+
+/**
+ * Resolve one RefToken part to a string under the partial scope.
+ * @param ref - RefToken to resolve.
+ * @param ctx - Scope + diagnostic label.
+ * @returns Procedure with the resolved string.
+ */
+function resolveOnePart(
+  ref: IDerivedCarry['parts'][number],
+  ctx: IResolveOnePartCtx,
+): Procedure<string> {
+  const refProc = resolveRef(ref, ctx.scope);
+  if (!isOk(refProc)) return refProc;
+  if (typeof refProc.value !== 'string') {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `derivedCarry[${ctx.into}]: part ${ref} did not resolve to a string`,
+    );
+  }
+  return succeed(refProc.value);
+}
+
+/** Ctx for {@link reduceDerivationPart}. */
+interface IReduceDerivationPartCtx {
+  readonly ref: IDerivedCarry['parts'][number];
+  readonly scope: ITemplateScope;
+  readonly into: string;
+}
+
+/**
+ * Reducer step for collecting derivation parts.
+ * @param acc - Accumulated parts procedure.
+ * @param ctx - RefToken + scope + label.
+ * @returns Updated parts procedure.
+ */
+function reduceDerivationPart(
+  acc: Procedure<readonly string[]>,
+  ctx: IReduceDerivationPartCtx,
+): Procedure<readonly string[]> {
+  if (!isOk(acc)) return acc;
+  const partProc = resolveOnePart(ctx.ref, { scope: ctx.scope, into: ctx.into });
+  if (!isOk(partProc)) return partProc;
+  return succeed([...acc.value, partProc.value]);
+}
+
+/**
+ * Apply truncation if the derivation declares a byte cap.
+ * @param joined - Concatenated parts.
+ * @param maxBytes - Optional max UTF-8 byte length.
+ * @returns Possibly-truncated string.
+ */
+function maybeTruncate(joined: string, maxBytes?: number): string {
+  if (maxBytes === undefined) return joined;
+  return truncateUtf8(joined, maxBytes);
+}
+
+/**
+ * Resolve a single derivation's parts and write the joined+truncated
+ * string into `carry[derivation.into]`.
+ * @param carry - Current carry record.
+ * @param derivation - Derivation declaration.
+ * @param scope - Partial template scope for ref resolution.
+ * @returns Procedure with the carry containing the derived slot.
+ */
+function applyOneDerivation(
+  carry: Record<string, JsonValue>,
+  derivation: IDerivedCarry,
+  scope: ITemplateScope,
+): Procedure<Record<string, JsonValue>> {
+  const seed: Procedure<readonly string[]> = succeed([]);
+  const partsProc = derivation.parts.reduce<Procedure<readonly string[]>>(
+    (acc, ref) => reduceDerivationPart(acc, { ref, scope, into: derivation.into }),
+    seed,
+  );
+  if (!isOk(partsProc)) return partsProc;
+  const separator = derivation.separator ?? '';
+  const joined = partsProc.value.join(separator);
+  const truncated = maybeTruncate(joined, derivation.truncateBytes);
+  return succeed({ ...carry, [derivation.into]: truncated });
+}
+
+/** Args bundle for {@link applyDerivedCarry} — keeps params ≤3. */
+interface IApplyDerivedCarryArgs {
+  readonly carry: Record<string, JsonValue>;
+  readonly derivations: readonly IDerivedCarry[];
+  readonly creds: Readonly<Record<string, unknown>>;
+  readonly config: IApiDirectCallConfig;
+}
+
+/** Ctx for {@link reduceDerivation}. */
+interface IReduceDerivationCtx {
+  readonly derivation: IDerivedCarry;
+  readonly creds: Readonly<Record<string, unknown>>;
+  readonly config: IApiDirectCallConfig;
+}
+
+/**
+ * Reducer step that runs one derivation against the accumulated carry.
+ * @param acc - Accumulated carry procedure.
+ * @param ctx - Derivation + creds + config bundle.
+ * @returns Updated carry procedure.
+ */
+function reduceDerivation(
+  acc: Procedure<Record<string, JsonValue>>,
+  ctx: IReduceDerivationCtx,
+): Procedure<Record<string, JsonValue>> {
+  if (!isOk(acc)) return acc;
+  const scope: ITemplateScope = { carry: acc.value, creds: ctx.creds, config: ctx.config };
+  return applyOneDerivation(acc.value, ctx.derivation, scope);
+}
+
+/**
+ * Apply every declared `derivedCarry` derivation in order. Each
+ * derivation observes the carry produced by earlier ones.
+ * @param args - carry + derivations + creds + config bundle.
+ * @returns Procedure with the final initial carry.
+ */
+function applyDerivedCarry(args: IApplyDerivedCarryArgs): Procedure<Record<string, JsonValue>> {
+  const seed: Procedure<Record<string, JsonValue>> = succeed(args.carry);
+  return args.derivations.reduce<Procedure<Record<string, JsonValue>>>(
+    (acc, derivation) =>
+      reduceDerivation(acc, { derivation, creds: args.creds, config: args.config }),
+    seed,
+  );
+}
+
+/**
+ * Apply the optional creds-mirror seed when the config declares one.
+ * @param merged - Carry after warm-start merge.
+ * @param args - Run-sms-otp args.
+ * @returns Procedure with the post-seed carry.
+ */
+function maybeApplySeedCarryFromCreds(
+  merged: Record<string, JsonValue>,
+  args: IRunSmsOtpArgs,
+): Procedure<Record<string, JsonValue>> {
+  const seedFields = args.config.seedCarryFromCreds;
+  if (seedFields === undefined) return succeed(merged);
+  return applySeedCarryFromCreds(merged, seedFields, args.creds);
+}
+
+/**
+ * Build the final initial carry by chaining warm-start merge,
+ * `seedCarryFromCreds` mirror, and `derivedCarry` derivations.
+ * @param args - Run-sms-otp args.
+ * @returns Procedure with the initial carry record.
+ */
+function buildInitialCarry(args: IRunSmsOtpArgs): Procedure<Record<string, JsonValue>> {
+  const baseSeed: Record<string, JsonValue> = { flowId: randomUUID() };
+  const merged: Record<string, JsonValue> = { ...mergeInitialCarry(baseSeed, args) };
+  const afterSeedProc = maybeApplySeedCarryFromCreds(merged, args);
+  if (!isOk(afterSeedProc)) return afterSeedProc;
+  const derivations = args.config.derivedCarry;
+  if (derivations === undefined) return afterSeedProc;
+  return applyDerivedCarry({
+    carry: afterSeedProc.value,
+    derivations,
+    creds: args.creds,
+    config: args.config,
+  });
+}
+
+/**
  * Run the sms-otp flow end-to-end.
  * @param args - Run args.
  * @returns Procedure with { bearer, longTermToken }.
@@ -345,14 +590,14 @@ async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResul
   if (!isOk(keypairsProc)) return keypairsProc;
   const fpProc = prepareFingerprint(args.config);
   if (!isOk(fpProc)) return fpProc;
-  const baseSeed: Record<string, JsonValue> = { flowId: randomUUID() };
-  const mergedInitialCarry = mergeInitialCarry(baseSeed, args);
+  const initialCarryProc = buildInitialCarry(args);
+  if (!isOk(initialCarryProc)) return initialCarryProc;
   const initial = seedScope({
     config: args.config,
     creds: args.creds,
     keypairs: keypairsProc.value,
     fingerprint: fpProc.value,
-    initialCarry: mergedInitialCarry,
+    initialCarry: initialCarryProc.value,
   });
   const reduceArgs: IStepReduceArgs = {
     bus: args.bus,
@@ -375,61 +620,5 @@ async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResul
   return succeed({ bearer: bearerProc.value, longTermToken });
 }
 
-/** Args bundle for the unit-test-visible cryptoField hook. */
-interface ICryptoFieldArgs {
-  readonly carry: Readonly<Record<string, unknown>>;
-  readonly body: Record<string, unknown>;
-  readonly cryptoField: {
-    readonly keyBytes: Buffer;
-    readonly ivBytes: Buffer;
-    readonly outputPostfix?: string;
-    readonly writeTo: string;
-    readonly scrubFromCarry: string;
-  };
-}
-
-/** Result of {@link applyCryptoField} — updated carry + body. */
-interface ICryptoFieldResult {
-  readonly carry: Readonly<Record<string, unknown>>;
-  readonly body: Record<string, unknown>;
-}
-
-/**
- * Encrypt the carry-side plaintext at scrubFromCarry into the body
- * at writeTo, then redact the plaintext from the returned carry.
- * Unit-test-visible variant: the caller supplies already-resolved
- * key + iv bytes (key/iv resolution happens upstream in the step
- * runner where the carry-aware resolver lives).
- * @param args - carry + body + cryptoField bundle.
- * @returns Procedure with updated carry + body.
- */
-function applyCryptoField(args: ICryptoFieldArgs): Procedure<ICryptoFieldResult> {
-  const plaintext = args.carry[args.cryptoField.scrubFromCarry];
-  if (typeof plaintext !== 'string') {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `cryptoField: carry.${args.cryptoField.scrubFromCarry} is missing or non-string`,
-    );
-  }
-  const signed = signAesCbcPkcs7({
-    plaintext,
-    keyBytes: args.cryptoField.keyBytes,
-    ivBytes: args.cryptoField.ivBytes,
-    outputPostfix: args.cryptoField.outputPostfix,
-  });
-  if (!isOk(signed)) return signed;
-  const attached = attachBodySignature({
-    body: args.body,
-    pointer: args.cryptoField.writeTo,
-    value: signed.value,
-  });
-  if (!isOk(attached)) return attached;
-  const redactedCarry = {
-    ...args.carry,
-    [args.cryptoField.scrubFromCarry]: `[REDACTED:${args.cryptoField.scrubFromCarry}]`,
-  };
-  return succeed({ carry: redactedCarry, body: attached.value });
-}
-
-export type { ICryptoFieldArgs, ICryptoFieldResult, IFlowResult, IRunSmsOtpArgs };
-export { applyCryptoField, runSmsOtpFlow };
+export type { IFlowResult, IRunSmsOtpArgs };
+export { runSmsOtpFlow };

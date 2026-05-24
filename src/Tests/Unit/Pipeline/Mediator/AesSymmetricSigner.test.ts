@@ -148,6 +148,7 @@ const AES_CONFIG: IAesSignerConfig = {
   algorithm: 'AES-CBC-PKCS7',
   keyRef: 'config.signKey',
   ivStrategy: 'random-16',
+  ivCarrySlot: 'ivHex',
   canonical: CANONICAL_STUB,
   bodySignatureField: '/signature',
   outputPostfix: '\n',

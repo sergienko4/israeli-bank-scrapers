@@ -41,7 +41,7 @@ interface ICryptoFieldModule {
 }
 
 /** Module specifier — lazy load for red-test-first. */
-const MODULE_SPECIFIER = '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
+const MODULE_SPECIFIER = '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 
 /** Synthetic 32-byte AES-256 key (exactly 32 chars). */
 const FIXT_OTP_KEY = 'fixt-otp-key-pb-0001fixt-otp-key';

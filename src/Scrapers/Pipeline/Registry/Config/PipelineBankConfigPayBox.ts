@@ -18,6 +18,7 @@
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import { PIN_SUFFIX, SIGN_KEY } from './PipelineBankConfigPayBoxCrypto.js';
 import {
   LOGIN_BY_SMS_STEP,
   PHONE_VALIDATE_STEP,
@@ -44,10 +45,24 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
     carryField: 'token',
     fromStepIndex: 3,
   },
+  secrets: {
+    signKey: SIGN_KEY,
+    pinSuffix: PIN_SUFFIX,
+  },
+  seedCarryFromCreds: ['deviceId16Hex'],
+  derivedCarry: [
+    {
+      into: 'otpKey',
+      parts: ['carry.deviceId16Hex', 'config.secrets.pinSuffix'],
+      separator: '|',
+      truncateBytes: 32,
+    },
+  ],
   signer: {
     algorithm: 'AES-CBC-PKCS7',
-    keyRef: 'config.signKey',
+    keyRef: 'config.secrets.signKey',
     ivStrategy: 'random-16',
+    ivCarrySlot: 'ivHex',
     bodySignatureField: '/signature',
     outputPostfix: '\n',
     canonical: {
@@ -63,6 +78,5 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: [PHONE_VALIDATE_STEP, PIN_VALIDATION_STEP, LOGIN_BY_SMS_STEP],
 };
 
-export { PAYBOX_API_DIRECT_CALL, STATIC_HEADERS };
-export { SIGN_KEY } from './PipelineBankConfigPayBoxCrypto.js';
+export { PAYBOX_API_DIRECT_CALL, SIGN_KEY, STATIC_HEADERS };
 export default PAYBOX_API_DIRECT_CALL;

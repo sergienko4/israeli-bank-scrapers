@@ -8,20 +8,30 @@
  * Zero bank knowledge. Rule #11 compliant.
  */
 
+import { randomBytes } from 'node:crypto';
+
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import { getDebug } from '../../../Types/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiMediator } from '../../Api/ApiMediator.js';
+import { signAesCbcPkcs7 } from '../Crypto/AesSymmetricSigner.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import { buildCanonical } from '../Crypto/GenericCanonicalStringBuilder.js';
 import { signCanonical } from '../Crypto/GenericCryptoSigner.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IStepConfig } from '../IApiDirectCallConfig.js';
+import type {
+  IAesSignerConfig,
+  ICryptoFieldConfig,
+  ISignerConfig,
+  IStepConfig,
+  RefToken,
+} from '../IApiDirectCallConfig.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { resolveRef } from '../Template/RefResolver.js';
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
@@ -448,6 +458,341 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
   };
 }
 
+/** AES-CBC IV length — 16 bytes, bound by the AES block size. */
+const AES_IV_BYTES = 16;
+
+/**
+ * Generate a fresh 32-char lowercase-hex string from 16 random bytes.
+ * @returns Hex-encoded random IV.
+ */
+function randomHex16(): string {
+  return randomBytes(AES_IV_BYTES).toString('hex');
+}
+
+/**
+ * Extract the carry slot name from a `carry.<slot>` RefToken. The
+ * caller's TypeScript contract guarantees the `carry.` prefix on
+ * every consumer of this helper, so no runtime check is required.
+ * @param ref - RefToken expected to begin with `carry.`.
+ * @returns Slot name.
+ */
+function extractCarrySlot(ref: `carry.${string}`): string {
+  return ref.slice('carry.'.length);
+}
+
+/**
+ * Resolve a RefToken to a UTF-8 Buffer. Used by the AES hooks to turn
+ * `keyRef` strings (config.<path> | carry.<slot>) into key bytes.
+ * @param keyRef - The ref token.
+ * @param scope - Template scope.
+ * @returns Procedure with the resolved bytes.
+ */
+function resolveKeyBytes(keyRef: RefToken, scope: ITemplateScope): Procedure<Buffer> {
+  const refProc = resolveRef(keyRef, scope);
+  if (!isOk(refProc)) return refProc;
+  if (typeof refProc.value !== 'string') {
+    return fail(ScraperErrorTypes.Generic, `keyRef ${keyRef} did not resolve to a string`);
+  }
+  const bytes = Buffer.from(refProc.value, 'utf8');
+  return succeed(bytes);
+}
+
+/**
+ * Read a hex-encoded IV from a named carry slot, returning a Buffer.
+ * @param slot - Carry slot name.
+ * @param scope - Template scope.
+ * @returns Procedure with the decoded IV buffer.
+ */
+function resolveIvBytes(slot: string, scope: ITemplateScope): Procedure<Buffer> {
+  const raw = scope.carry[slot];
+  if (typeof raw !== 'string') {
+    return fail(ScraperErrorTypes.Generic, `iv carry slot ${slot} missing or non-string`);
+  }
+  const bytes = Buffer.from(raw, 'hex');
+  return succeed(bytes);
+}
+
+/** Args bundle for {@link primeStepIvs}. */
+interface IPrimeStepIvsArgs {
+  readonly carry: Readonly<Record<string, JsonValue>>;
+  readonly signer: ISignerConfig | undefined;
+  readonly cryptoField: ICryptoFieldConfig | undefined;
+}
+
+/**
+ * Generate fresh 16-byte hex IVs into the named carry slots. Always
+ * overwrites — every step entry deposits new randomness so AES never
+ * reuses an IV with the same key+plaintext pair.
+ * @param args - Carry + signer + optional cryptoField config.
+ * @returns Procedure with the IV-primed carry.
+ */
+/**
+ * Apply the cryptoField IV deposit when a cryptoField is declared.
+ * @param next - Mutable carry record being primed.
+ * @param cryptoField - Optional cryptoField config.
+ * @returns Procedure marking success (or fail when ivRef is malformed).
+ */
+function primeCryptoFieldIv(
+  next: Record<string, JsonValue>,
+  cryptoField?: ICryptoFieldConfig,
+): boolean {
+  if (cryptoField === undefined) return false;
+  const slot = extractCarrySlot(cryptoField.ivRef);
+  next[slot] = randomHex16();
+  return true;
+}
+
+/**
+ * Generate fresh IVs into the carry slots referenced by the signer +
+ * step.preHook.cryptoField configs.
+ * @param args - Carry + signer + optional cryptoField config.
+ * @returns Procedure with the IV-primed carry.
+ */
+function primeStepIvs(args: IPrimeStepIvsArgs): Readonly<Record<string, JsonValue>> {
+  const next: Record<string, JsonValue> = { ...args.carry };
+  if (args.signer?.algorithm === 'AES-CBC-PKCS7') {
+    next[args.signer.ivCarrySlot] = randomHex16();
+  }
+  primeCryptoFieldIv(next, args.cryptoField);
+  return next;
+}
+
+/** Args bundle for {@link applyCryptoField}. */
+interface ICryptoFieldArgs {
+  readonly carry: Readonly<Record<string, JsonValue>>;
+  readonly body: Record<string, unknown>;
+  readonly cryptoField: {
+    readonly keyBytes: Buffer;
+    readonly ivBytes: Buffer;
+    readonly outputPostfix?: string;
+    readonly writeTo: string;
+    readonly scrubFromCarry: string;
+  };
+}
+
+/** Result of {@link applyCryptoField} — updated carry + body. */
+interface ICryptoFieldResult {
+  readonly carry: Readonly<Record<string, JsonValue>>;
+  readonly body: Record<string, unknown>;
+}
+
+/**
+ * Encrypt the carry-side plaintext at scrubFromCarry into the body at
+ * writeTo, then redact the plaintext from the returned carry. The
+ * caller supplies already-resolved key + iv bytes (key/iv resolution
+ * happens upstream in {@link runCryptoFieldHook}).
+ * @param args - carry + body + cryptoField bundle.
+ * @returns Procedure with updated carry + body.
+ */
+function applyCryptoField(args: ICryptoFieldArgs): Procedure<ICryptoFieldResult> {
+  const plaintext = args.carry[args.cryptoField.scrubFromCarry];
+  if (typeof plaintext !== 'string') {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `cryptoField: carry.${args.cryptoField.scrubFromCarry} is missing or non-string`,
+    );
+  }
+  const signed = signAesCbcPkcs7({
+    plaintext,
+    keyBytes: args.cryptoField.keyBytes,
+    ivBytes: args.cryptoField.ivBytes,
+    outputPostfix: args.cryptoField.outputPostfix,
+  });
+  if (!isOk(signed)) return signed;
+  const attached = attachBodySignature({
+    body: args.body,
+    pointer: args.cryptoField.writeTo,
+    value: signed.value,
+  });
+  if (!isOk(attached)) return attached;
+  const redactedCarry: Record<string, JsonValue> = {
+    ...args.carry,
+    [args.cryptoField.scrubFromCarry]: `[REDACTED:${args.cryptoField.scrubFromCarry}]`,
+  };
+  return succeed({ carry: redactedCarry, body: attached.value });
+}
+
+/** Args bundle for {@link runCryptoFieldHook}. */
+interface IRunCryptoFieldArgs {
+  readonly cryptoField: ICryptoFieldConfig;
+  readonly scope: ITemplateScope;
+  readonly body: Record<string, unknown>;
+}
+
+/**
+ * Resolve the cryptoField config's keyRef + ivRef, then invoke
+ * {@link applyCryptoField} to encrypt the awaited plaintext into the
+ * body and redact the carry slot.
+ * @param args - cryptoField + scope + body bundle.
+ * @returns Procedure with the updated carry + body.
+ */
+function runCryptoFieldHook(args: IRunCryptoFieldArgs): Procedure<ICryptoFieldResult> {
+  const keyBytesProc = resolveKeyBytes(args.cryptoField.keyRef, args.scope);
+  if (!isOk(keyBytesProc)) return keyBytesProc;
+  const slot = extractCarrySlot(args.cryptoField.ivRef);
+  const ivBytesProc = resolveIvBytes(slot, args.scope);
+  if (!isOk(ivBytesProc)) return ivBytesProc;
+  return applyCryptoField({
+    carry: args.scope.carry,
+    body: args.body,
+    cryptoField: {
+      keyBytes: keyBytesProc.value,
+      ivBytes: ivBytesProc.value,
+      outputPostfix: args.cryptoField.outputPostfix,
+      writeTo: args.cryptoField.writeTo,
+      scrubFromCarry: args.cryptoField.scrubFromCarry,
+    },
+  });
+}
+
+/** Args bundle for {@link runBodySignatureHook}. */
+interface IRunBodySignatureArgs {
+  readonly signer: IAesSignerConfig;
+  readonly scope: ITemplateScope;
+  readonly body: Record<string, unknown>;
+  readonly pathAndQuery: string;
+}
+
+/**
+ * Build the canonical string for the AES signer, encrypt it with the
+ * resolved key + iv, and inject the ciphertext into the body at
+ * `signer.bodySignatureField`. Bank-agnostic — every detail (canonical
+ * parts, signing key, iv slot, output pointer) comes from data.
+ * @param args - signer + scope + body + pathAndQuery bundle.
+ * @returns Procedure with the body containing the attached signature.
+ */
+function runBodySignatureHook(args: IRunBodySignatureArgs): Procedure<Record<string, unknown>> {
+  const keyBytesProc = resolveKeyBytes(args.signer.keyRef, args.scope);
+  if (!isOk(keyBytesProc)) return keyBytesProc;
+  const ivBytesProc = resolveIvBytes(args.signer.ivCarrySlot, args.scope);
+  if (!isOk(ivBytesProc)) return ivBytesProc;
+  const bodyJson = JSON.stringify(args.body);
+  const canonicalProc = buildCanonical({
+    canonical: args.signer.canonical,
+    pathAndQuery: args.pathAndQuery,
+    bodyJson,
+    carry: args.scope.carry,
+  });
+  if (!isOk(canonicalProc)) return canonicalProc;
+  const signed = signAesCbcPkcs7({
+    plaintext: canonicalProc.value,
+    keyBytes: keyBytesProc.value,
+    ivBytes: ivBytesProc.value,
+    outputPostfix: args.signer.outputPostfix,
+  });
+  if (!isOk(signed)) return signed;
+  return attachBodySignature({
+    body: args.body,
+    pointer: args.signer.bodySignatureField,
+    value: signed.value,
+  });
+}
+
+/** Args bundle for {@link primeCarry} — shrinks runStep's prologue. */
+interface IPrimeCarryArgs {
+  readonly scope: ITemplateScope;
+  readonly step: IStepConfig;
+}
+
+/**
+ * Run the per-step carry primers (time + IVs) in order.
+ * @param args - Current scope + step.
+ * @returns Procedure with the primed scope.
+ */
+function primeCarry(args: IPrimeCarryArgs): ITemplateScope {
+  // primeStepInstant is total — the Procedure wrapper exists only for
+  // the exported unit-test surface, so `.value` is always present.
+  const timed = primeStepInstant({ carry: args.scope.carry }) as {
+    readonly value: Readonly<Record<string, JsonValue>>;
+  };
+  const ived = primeStepIvs({
+    carry: timed.value,
+    signer: args.scope.config.signer,
+    cryptoField: args.step.preHook?.cryptoField,
+  });
+  return { ...args.scope, carry: ived };
+}
+
+/** Args bundle for {@link applyAesHooks}. */
+interface IApplyAesHooksArgs {
+  readonly scope: ITemplateScope;
+  readonly step: IStepConfig;
+  readonly body: Record<string, unknown>;
+  readonly pathAndQuery: string;
+}
+
+/** Output bundle for {@link applyAesHooks} — updated scope + body. */
+interface IAesHookResult {
+  readonly scope: ITemplateScope;
+  readonly body: Record<string, unknown>;
+}
+
+/**
+ * Run the cryptoField hook (if declared) then the body-signature hook
+ * (if AES signer). Returns the post-hook scope + body so the caller
+ * uses the redacted carry on response merge and fires the signed body.
+ * @param args - scope + step + body + pathAndQuery.
+ * @returns Procedure with the updated scope + body.
+ */
+/**
+ * Apply the cryptoField hook when the step declares one.
+ * @param state - Current scope + body.
+ * @param step - Step config (read step.preHook?.cryptoField).
+ * @returns Procedure with the (possibly updated) state.
+ */
+function maybeApplyCryptoField(
+  state: IAesHookResult,
+  step: IStepConfig,
+): Procedure<IAesHookResult> {
+  const cryptoField = step.preHook?.cryptoField;
+  if (cryptoField === undefined) return succeed(state);
+  const cfProc = runCryptoFieldHook({ cryptoField, scope: state.scope, body: state.body });
+  if (!isOk(cfProc)) return cfProc;
+  const nextScope: ITemplateScope = { ...state.scope, carry: cfProc.value.carry };
+  return succeed({ scope: nextScope, body: cfProc.value.body });
+}
+
+/** Args bundle for {@link maybeApplyBodySignature} — keeps params ≤3. */
+interface IMaybeBodySignatureArgs {
+  readonly state: IAesHookResult;
+  readonly pathAndQuery: string;
+}
+
+/**
+ * Apply the body-signature hook when the signer is AES-CBC-PKCS7.
+ * @param args - state + pathAndQuery bundle.
+ * @returns Procedure with the (possibly updated) state.
+ */
+function maybeApplyBodySignature(args: IMaybeBodySignatureArgs): Procedure<IAesHookResult> {
+  const signer = args.state.scope.config.signer;
+  if (signer?.algorithm !== 'AES-CBC-PKCS7') return succeed(args.state);
+  const sigProc = runBodySignatureHook({
+    signer,
+    scope: args.state.scope,
+    body: args.state.body,
+    pathAndQuery: args.pathAndQuery,
+  });
+  if (!isOk(sigProc)) return sigProc;
+  return succeed({ scope: args.state.scope, body: sigProc.value });
+}
+
+/**
+ * Run the cryptoField hook (when declared) then the body-signature hook
+ * (when AES signer). Returns the post-hook scope + body so the caller
+ * uses the redacted carry on response merge and fires the signed body.
+ * @param args - scope + step + body + pathAndQuery.
+ * @returns Procedure with the updated scope + body.
+ */
+function applyAesHooks(args: IApplyAesHooksArgs): Procedure<IAesHookResult> {
+  const initial: IAesHookResult = { scope: args.scope, body: args.body };
+  const afterCryptoProc = maybeApplyCryptoField(initial, args.step);
+  if (!isOk(afterCryptoProc)) return afterCryptoProc;
+  return maybeApplyBodySignature({
+    state: afterCryptoProc.value,
+    pathAndQuery: args.pathAndQuery,
+  });
+}
+
 /**
  * Run a single IStepConfig end-to-end. Emits PII-safe DEBUG traces at
  * every transition (start, after-fire, after-extract, fail-fast) so a
@@ -459,24 +804,14 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
 async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
-  // Step-instant primer: sample Date.now once per step entry into
-  // carry.tsMsSlot so body hydrate ($ref:'nowMs') + canonical-string
-  // build (parts: 'tsMs') + downstream signers observe the same
-  // millisecond. Idempotent — preserves any pre-populated slot.
-  const primedCarryProc = primeStepInstant({ carry: args.scope.carry });
-  if (!isOk(primedCarryProc)) return primedCarryProc;
-  const primedScope: ITemplateScope = {
-    ...args.scope,
-    carry: primedCarryProc.value as Readonly<Record<string, JsonValue>>,
-  };
+  const primedScope = primeCarry({ scope: args.scope, step: args.step });
   const bodyProc = hydrate(args.step.body.shape, primedScope);
   if (!isOk(bodyProc)) {
     LOG.debug({ stepName: args.step.name, message: 'hydrate body FAIL' });
     return bodyProc;
   }
-  const bodyValue = bodyProc.value;
-  const bodyJson = JSON.stringify(bodyValue);
-  const baseCtx = buildStepContext(args.step, bodyValue);
+  const hydratedBody = bodyProc.value;
+  const baseCtx = buildStepContext(args.step, hydratedBody);
   LOG.debug({ ...baseCtx, message: '[runStep] START' });
   const queryProc = buildQueryRecord(args.step, primedScope);
   if (!isOk(queryProc)) {
@@ -489,14 +824,27 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
     return urlProc;
   }
   const pathAndQuery = buildPathAndQuery(urlProc.value, queryProc.value);
-  const headersProc = buildStepHeaders(args, { bodyJson, pathAndQuery });
+  const aesProc = applyAesHooks({
+    scope: primedScope,
+    step: args.step,
+    body: hydratedBody as Record<string, unknown>,
+    pathAndQuery,
+  });
+  if (!isOk(aesProc)) {
+    LOG.debug({ ...baseCtx, message: 'applyAesHooks FAIL' });
+    return aesProc;
+  }
+  const hookedScope = aesProc.value.scope;
+  const finalBody = aesProc.value.body;
+  const bodyJson = JSON.stringify(finalBody);
+  const headersProc = buildStepHeaders({ ...args, scope: hookedScope }, { bodyJson, pathAndQuery });
   if (!isOk(headersProc)) {
     LOG.debug({ ...baseCtx, message: 'buildStepHeaders FAIL' });
     return headersProc;
   }
   const onSetCookieMaybe = buildOnSetCookie(args);
   const fireBase: IFireArgs = {
-    body: bodyValue as Record<string, unknown>,
+    body: finalBody,
     query: queryProc.value,
     extraHeaders: headersProc.value,
   };
@@ -523,7 +871,7 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   }
   const carryKeys = Object.keys(carryProc.value);
   LOG.debug({ ...baseCtx, carryKeys, message: '[runStep] OK' });
-  const nextScope = mergeScopeCarry(primedScope, carryProc.value);
+  const nextScope = mergeScopeCarry(hookedScope, carryProc.value);
   return succeed(nextScope);
 }
 
@@ -646,5 +994,20 @@ function attachBodySignature(args: IAttachBodySignatureArgs): Procedure<Record<s
   return succeed(cloned);
 }
 
-export type { CarryMap, IAttachBodySignatureArgs, IPrimerArgs, IRunStepArgs, IStepCookieJar };
-export { attachBodySignature, createSimpleCookieJar, primeStepInstant, runStep };
+export type {
+  CarryMap,
+  IAttachBodySignatureArgs,
+  ICryptoFieldArgs,
+  ICryptoFieldResult,
+  IPrimerArgs,
+  IRunStepArgs,
+  IStepCookieJar,
+};
+export {
+  applyCryptoField,
+  attachBodySignature,
+  createSimpleCookieJar,
+  primeStepInstant,
+  primeStepIvs,
+  runStep,
+};
