@@ -21,7 +21,10 @@ import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
 
 /** Supported crypto algorithm tags consumed by GenericCryptoSigner. */
-type SignerAlgorithm = 'ECDSA-P256' | 'RSA-2048';
+type SignerAlgorithm = 'ECDSA-P256' | 'RSA-2048' | 'AES-CBC-PKCS7';
+
+/** Asymmetric algorithm sub-set — discriminator value for IAsymmetricSignerConfig. */
+type AsymmetricSignerAlgorithm = 'ECDSA-P256' | 'RSA-2048';
 
 /** Supported signature-encoding tags (DER for legacy, JOSE for modern). */
 type SignerEncoding = 'DER' | 'JOSE';
@@ -57,14 +60,40 @@ interface ICanonicalStringConfig {
   readonly clientVersion: string;
 }
 
-/** Bank crypto configuration — optional per flow. */
-interface ISignerConfig {
-  readonly algorithm: SignerAlgorithm;
+/**
+ * Asymmetric (ECDSA / RSA) signer variant — header-attached signature.
+ *
+ * Existing banks (Pepper, OneZero) use this shape: the signature is
+ * computed over a canonical string + attached as a header value
+ * `data:<b64>;key-id:<hex>;scheme:<n>`.
+ */
+interface IAsymmetricSignerConfig {
+  readonly algorithm: AsymmetricSignerAlgorithm;
   readonly encoding: SignerEncoding;
   readonly headerName: string;
   readonly schemeTag: number;
   readonly canonical: ICanonicalStringConfig;
 }
+
+/**
+ * Symmetric AES-CBC-PKCS7 signer variant — body-pointer-attached
+ * signature. The signature is written into the outgoing JSON body at
+ * a configured RFC-6901 pointer (e.g. `/signature` or
+ * `/auth/signature`). The optional postfix lets banks like PayBox
+ * append a trailing newline expected by the server.
+ */
+interface IAesSignerConfig {
+  readonly algorithm: 'AES-CBC-PKCS7';
+  readonly keyRef: `config.${string}`;
+  readonly ivStrategy: 'random-16';
+  readonly canonical: ICanonicalStringConfig;
+  readonly bodySignatureField: string;
+  readonly bodyIvField?: string;
+  readonly outputPostfix?: string;
+}
+
+/** Bank crypto configuration — discriminated by `algorithm`. */
+type ISignerConfig = IAsymmetricSignerConfig | IAesSignerConfig;
 
 /**
  * Fingerprint shape consumed by GenericFingerprintBuilder. The shape
@@ -165,10 +194,13 @@ interface IApiDirectCallConfig {
 }
 
 export type {
+  AsymmetricSignerAlgorithm,
   AuthScheme,
   CanonicalPart,
   FlowKind,
+  IAesSignerConfig,
   IApiDirectCallConfig,
+  IAsymmetricSignerConfig,
   IBodyTemplate,
   ICanonicalStringConfig,
   IEnvelopeSelectors,

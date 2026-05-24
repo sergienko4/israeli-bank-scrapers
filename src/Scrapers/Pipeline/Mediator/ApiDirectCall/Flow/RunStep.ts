@@ -212,6 +212,9 @@ function computeSignerHeader(args: IRunStepArgs, input: ISignerInput): Procedure
   if (signer === undefined) {
     return fail(ScraperErrorTypes.Generic, 'computeSignerHeader called without signer');
   }
+  if (signer.algorithm === 'AES-CBC-PKCS7') {
+    return fail(ScraperErrorTypes.Generic, 'AES signer must use body-pointer attach, not header');
+  }
   const canonicalProc = buildCanonical({
     canonical: signer.canonical,
     pathAndQuery: input.pathAndQuery,
@@ -267,6 +270,10 @@ function buildStepHeaders(args: IRunStepArgs, assembly: IHeaderAssembly): Proced
   const seeded = seedHeaders(staticHeaders);
   const out = applyCookieHeader(seeded, args);
   if (config.signer === undefined) return succeed(out);
+  // AES signers attach to the body via a JSON pointer in a later
+  // RunStep hook; they emit no header. Skipping here keeps the
+  // outbound header map untouched for the AES variant.
+  if (config.signer.algorithm === 'AES-CBC-PKCS7') return succeed(out);
   if (args.signingKeypair === undefined) {
     return fail(ScraperErrorTypes.Generic, 'signer configured but no signing keypair in scope');
   }

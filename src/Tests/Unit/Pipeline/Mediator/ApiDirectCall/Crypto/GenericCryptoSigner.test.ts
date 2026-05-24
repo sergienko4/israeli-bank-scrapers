@@ -76,6 +76,39 @@ describe('GenericCryptoSigner.signCanonical — RSA-2048 + JOSE', () => {
   });
 });
 
+describe('GenericCryptoSigner.signCanonicalDispatch — asymmetric routing', () => {
+  it('routes ECDSA-P256 through the asymmetric branch with a keypair', async () => {
+    const { signCanonicalDispatch } =
+      await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCryptoSigner.js');
+    const keypair = generateKeypair('ECDSA-P256');
+    if (!keypair.success) throw new ScraperError('keypair generation should succeed');
+    const canonical = 'asymmetric-canonical';
+    const canonicalBytes = Buffer.from(canonical, 'utf8');
+    const result = signCanonicalDispatch({
+      canonical,
+      canonicalBytes,
+      config: ECDSA_DER_CONFIG,
+      keypair: keypair.value,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toContain('data:');
+  });
+
+  it('fails the asymmetric branch when keypair is absent', async () => {
+    const { signCanonicalDispatch } =
+      await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCryptoSigner.js');
+    const canonical = 'asymmetric-canonical';
+    const canonicalBytes = Buffer.from(canonical, 'utf8');
+    const result = signCanonicalDispatch({
+      canonical,
+      canonicalBytes,
+      config: ECDSA_DER_CONFIG,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('asymmetric dispatch');
+  });
+});
+
 describe('GenericCryptoSigner.signCanonical — unsupported encoding', () => {
   it('returns Procedure.fail when encoding is unknown', () => {
     const keypair = generateKeypair('ECDSA-P256');
