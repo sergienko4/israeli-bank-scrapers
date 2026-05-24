@@ -37,6 +37,11 @@ const PIPELINE_ROOT = path.join(SRC_ROOT, 'Scrapers', 'Pipeline');
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
   // Public barrel export — consumed via the npm package's entry.
   path.join(PIPELINE_ROOT, 'index.ts'),
+  // PayBox pipeline factory — Phase B (feat/paybox-onboarding) lands
+  // the bank wiring without yet registering it in PIPELINE_REGISTRY.
+  // That registration is the explicit Phase C deliverable (T36), at
+  // which point this entry must be removed.
+  path.join(PIPELINE_ROOT, 'Banks', 'PayBox', 'PayBoxPipeline.ts'),
 ]);
 
 /** Sentinel returned by {@link resolveImport} for unresolved specifiers. */
