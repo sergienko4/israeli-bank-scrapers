@@ -54,11 +54,17 @@ interface IKeypairBundle {
  * Generate both EC and RSA keypairs when config.signer is present.
  * Banks whose fingerprint/body reference only one can ignore the
  * other; generation is cheap and keeps bank surfaces data-only.
+ *
+ * The symmetric AES variant (banks like PayBox) needs no asymmetric
+ * keypair — the signature is computed with a static config-side key.
+ * Skipping generation when algorithm = 'AES-CBC-PKCS7' saves the
+ * ~200 ms RSA-2048 generation cost on every cold-start.
  * @param config - API-direct-call config.
- * @returns Procedure with keypair bundle (empty when no signer).
+ * @returns Procedure with keypair bundle (empty when no signer or AES).
  */
 function prepareKeypairs(config: IApiDirectCallConfig): Procedure<IKeypairBundle> {
   if (config.signer === undefined) return succeed({});
+  if (config.signer.algorithm === 'AES-CBC-PKCS7') return succeed({});
   const ecProc = generateKeypair('ECDSA-P256');
   if (!isOk(ecProc)) return ecProc;
   const rsaProc = generateKeypair('RSA-2048');

@@ -516,5 +516,100 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   return succeed(nextScope);
 }
 
-export type { CarryMap, IRunStepArgs, IStepCookieJar };
-export { createSimpleCookieJar, runStep };
+/** Args bundle for {@link attachBodySignature} — respects 3-param ceiling. */
+interface IAttachBodySignatureArgs {
+  readonly body: Record<string, unknown>;
+  readonly pointer: string;
+  readonly value: string;
+}
+
+/**
+ * Split an RFC-6901 pointer into its parent path + leaf segment.
+ * @param pointer - e.g. `/auth/signature`.
+ * @returns Procedure with [parentSegments, leaf] or failure on bad pointer.
+ */
+function splitBodyPointer(pointer: string): Procedure<{
+  readonly parents: readonly string[];
+  readonly leaf: string;
+}> {
+  if (pointer.length === 0 || !pointer.startsWith('/')) {
+    return fail(ScraperErrorTypes.Generic, `attachBodySignature: invalid pointer ${pointer}`);
+  }
+  const segments = pointer.slice(1).split('/');
+  const leaf = segments.at(-1);
+  if (leaf === undefined || leaf.length === 0) {
+    return fail(ScraperErrorTypes.Generic, `attachBodySignature: invalid pointer ${pointer}`);
+  }
+  const parents = segments.slice(0, -1);
+  return succeed({ parents, leaf });
+}
+
+/**
+ * Step one parent segment: clone the child record onto the cursor
+ * and return the cloned child as the new cursor. Fails when the
+ * intermediate node is missing or non-object (e.g. array, scalar,
+ * null) so callers see a precise pointer-miss diagnostic.
+ * @param cursor - Current cursor object.
+ * @param segment - Parent segment to descend through.
+ * @returns Procedure with the cloned child cursor.
+ */
+function stepCloneOnce(
+  cursor: Record<string, unknown>,
+  segment: string,
+): Procedure<Record<string, unknown>> {
+  const next = cursor[segment];
+  if (next === undefined || typeof next !== 'object' || next === null || Array.isArray(next)) {
+    return fail(ScraperErrorTypes.Generic, `attachBodySignature: pointer parent ${segment} miss`);
+  }
+  const clonedChild = { ...(next as Record<string, unknown>) };
+  cursor[segment] = clonedChild;
+  return succeed(clonedChild);
+}
+
+/**
+ * Clone the body shallowly along the pointer path and write the
+ * signature value at the leaf. Existing siblings at every level are
+ * preserved by reference; only the path nodes are cloned so the
+ * caller's input body remains untouched (immutable middleware
+ * contract, design-patterns-guidlines.md P2).
+ * @param args - body + pointer + value bundle.
+ * @returns Procedure with a NEW body object containing the leaf write.
+ */
+/**
+ * Reducer: advance the cursor procedure through one parent segment,
+ * short-circuiting on failure. Used by {@link attachBodySignature}
+ * to flatten the descent loop and satisfy max-depth-1.
+ * @param acc - Accumulated cursor procedure.
+ * @param segment - Next parent segment.
+ * @returns Updated cursor procedure.
+ */
+function reduceCursor(
+  acc: Procedure<Record<string, unknown>>,
+  segment: string,
+): Procedure<Record<string, unknown>> {
+  if (!acc.success) return acc;
+  return stepCloneOnce(acc.value, segment);
+}
+
+/**
+ * Clone the body shallowly along the pointer path and write the
+ * signature value at the leaf. Existing siblings at every level are
+ * preserved by reference; only the path nodes are cloned so the
+ * caller's input body remains untouched (immutable middleware
+ * contract, design-patterns-guidlines.md P2).
+ * @param args - body + pointer + value bundle.
+ * @returns Procedure with a NEW body object containing the leaf write.
+ */
+function attachBodySignature(args: IAttachBodySignatureArgs): Procedure<Record<string, unknown>> {
+  const split = splitBodyPointer(args.pointer);
+  if (!split.success) return split;
+  const cloned: Record<string, unknown> = { ...args.body };
+  const seed: Procedure<Record<string, unknown>> = succeed(cloned);
+  const cursorProc = split.value.parents.reduce(reduceCursor, seed);
+  if (!cursorProc.success) return cursorProc;
+  cursorProc.value[split.value.leaf] = args.value;
+  return succeed(cloned);
+}
+
+export type { CarryMap, IAttachBodySignatureArgs, IRunStepArgs, IStepCookieJar };
+export { attachBodySignature, createSimpleCookieJar, runStep };

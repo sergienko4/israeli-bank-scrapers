@@ -152,6 +152,55 @@ describe('api-direct-call SmsOtpFlow missing carry.token', () => {
   });
 });
 
+describe('api-direct-call SmsOtpFlow AES signer keypair-skip', () => {
+  it('runs without scope.keypair when signer.algorithm is AES-CBC-PKCS7', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const config: IApiDirectCallConfig = {
+      flow: 'sms-otp',
+      envelope: {},
+      probe: {},
+      signer: {
+        algorithm: 'AES-CBC-PKCS7',
+        keyRef: 'config.signKey',
+        ivStrategy: 'random-16',
+        bodySignatureField: '/signature',
+        outputPostfix: '\n',
+        canonical: {
+          parts: ['bodyJson'],
+          separator: '|',
+          escapeFrom: '|',
+          escapeTo: String.raw`\|`,
+          sortQueryParams: false,
+          clientVersion: '1.0.0',
+        },
+      },
+      steps: [
+        {
+          name: 'getIdToken',
+          urlTag: BIND_TAG,
+          body: { shape: { x: { $literal: 1 } } },
+          extractsToCarry: { token: '/access_token' },
+        },
+      ],
+    };
+    const responses = [succeed({ access_token: 'aes-tok' })];
+    const bus = makeStubMediator({ responses, captures });
+    const result = await runSmsOtpFlow({
+      config,
+      bus,
+      creds: {},
+      companyId: HINT,
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new ScraperError('flow should succeed');
+    expect(result.value.bearer).toBe('aes-tok');
+    // No asymmetric signer header attached.
+    const headers = captures[0].extraHeaders ?? {};
+    expect(headers['Content-Signature']).toBeUndefined();
+    expect(headers['X-Sig']).toBeUndefined();
+  });
+});
+
 describe('api-direct-call SmsOtpFlow no signer + no fingerprint', () => {
   it('runs a single plain step that only reads carry seed', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
