@@ -38,14 +38,21 @@ const SIGN_KEY_REAL_DEVICE = '^492wkd#x12jk4%^SewAk56zx3@xdcf5';
 const SIGN_KEY_EMULATOR_OR_FLAG = 'Z4B4&45la23kz23)-432aa1@#^4hjdss';
 
 /**
- * Toggle controlling which SIGN_KEY ships at compile time. Defaults
- * to true per D-9 (real-device first, with a one-line flip
- * available if the real server rejects the literal). The naming-
- * convention rule requires boolean variables to begin with `is*`;
- * this is the spec-documented `USE_REAL_DEVICE_KEY` flag under that
- * prefix.
+ * Toggle controlling which SIGN_KEY ships at compile time. D-9
+ * locked the orientation that the real-device literal would be the
+ * default with a one-line flip available if the live server
+ * rejected it. The pre-Phase-C real-server smoke (2026-05-24, see
+ * status.txt §"## Phase B-to-C real-server smoke") flipped this
+ * literal: SIGN_KEY_REAL_DEVICE returned HTTP 200 with body
+ * `{code:617,name:"WRONG_SIGNATURE"}`; SIGN_KEY_EMULATOR_OR_FLAG
+ * returned `{code:200,content:{access_token:"eyJ..."}}` with a
+ * valid 15-minute JWT. Toggle now defaults to false (i.e.
+ * SIGN_KEY_EMULATOR_OR_FLAG is the live-server-accepted key). The
+ * naming-convention rule requires boolean variables to begin with
+ * `is*`; this is the spec-documented `USE_REAL_DEVICE_KEY` flag
+ * under that prefix.
  */
-const isUseRealDeviceKey = true as boolean;
+const isUseRealDeviceKey = false as boolean;
 
 /** PIN suffix used to derive the OTP-encryption key per spec.txt §4.3. */
 const PIN_SUFFIX = '|<>?xdo34^mnbjh(54hnaGqaOgndsYTa';

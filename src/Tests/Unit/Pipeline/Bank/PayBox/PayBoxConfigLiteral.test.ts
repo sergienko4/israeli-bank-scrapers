@@ -107,10 +107,10 @@ describe('PAYBOX_API_DIRECT_CALL (UC-PCL-1)', () => {
 });
 
 describe('SIGN_KEY toggle (UC-PCL-2)', () => {
-  it('defaults to real-device key per D-9', async () => {
+  it('defaults to emulator-or-flag key per D-9 mitigation (live-server-verified)', async () => {
     const crypto = await loadCryptoModule();
-    expect(crypto.isUseRealDeviceKey).toBe(true);
-    expect(crypto.SIGN_KEY).toBe(crypto.SIGN_KEY_REAL_DEVICE);
+    expect(crypto.isUseRealDeviceKey).toBe(false);
+    expect(crypto.SIGN_KEY).toBe(crypto.SIGN_KEY_EMULATOR_OR_FLAG);
   });
 
   it('exposes both literal candidates exactly 32 chars long', async () => {
