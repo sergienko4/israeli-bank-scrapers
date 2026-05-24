@@ -170,6 +170,7 @@ for the contribution workflow, branch strategy, and testing requirements.
 | Mizrahi Bank                | Bank        | `username`, `password`               |
 | One Zero                    | Bank        | `email`, `password`, OTP             |
 | Pagi                        | Bank        | `username`, `password`               |
+| PayBox                      | Wallet      | `phoneNumber`, OTP                   |
 | Pepper (by Bank Leumi)      | Bank        | `phoneNumber`, `password`, OTP       |
 | Visa Cal                    | Credit Card | `username`, `password`               |
 
@@ -342,7 +343,7 @@ Browser banks:
   INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL]
        → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → TERMINATE
 
-API-direct banks (One Zero, Pepper):
+API-direct banks (One Zero, Pepper, PayBox):
   API-DIRECT-CALL → API-DIRECT-SCRAPE
 ```
 

@@ -322,11 +322,17 @@ jobs:
           - Beinleumi
           - OneZero
           - Pepper
+          - PayBox
           # Pepper joined the matrix on 2026-05-22 after the Camoufox
           # identity-transport adoption (commit 2b903a94) + Telegram
           # OTP fetcher short-poll fix (commit 024c18e4) verified the
           # full flow end-to-end. Stable bank now — uses the same
           # credentials-based skip gate as every other bank.
+          # PayBox joined 2026-05-24 (Phase D/E of feat/paybox-onboarding).
+          # API-direct REST flow (AES-CBC-PKCS7 signature + cryptoField
+          # OTP encrypt) — no browser. Skipped when PAYBOX_PHONE_NUMBER
+          # is absent. Warm path activates when PAYBOX_OTP_LONG_TERM +
+          # PAYBOX_DEVICE_ID16HEX are also set.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       # DNS override + warmup (single source of truth lives in
@@ -378,6 +384,9 @@ jobs:
           PEPPER_PHONE_NUMBER: ${{ secrets.PEPPER_PHONE_NUMBER }}
           PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
           PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
+          PAYBOX_PHONE_NUMBER: ${{ secrets.PAYBOX_PHONE_NUMBER }}
+          PAYBOX_DEVICE_ID16HEX: ${{ secrets.PAYBOX_DEVICE_ID16HEX }}
+          PAYBOX_OTP_LONG_TERM: ${{ secrets.PAYBOX_OTP_LONG_TERM }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 

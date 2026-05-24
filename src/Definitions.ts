@@ -95,7 +95,7 @@ export const SCRAPERS = {
   },
   [CompanyTypes.PayBox]: {
     name: 'PayBox',
-    loginFields: ['phoneNumber', 'otpLongTermToken', 'deviceId16Hex'],
+    loginFields: ['phoneNumber'],
   },
   [CompanyTypes.Pepper]: {
     name: 'Pepper (by Bank Leumi)',

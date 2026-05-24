@@ -26,7 +26,7 @@ import type { IAuthFlowInfo } from '../../Scrapers/Base/Interface.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
 
 /** Supported bank keys — matches the BankPlugin taxonomy. */
-type BankKey = 'onezero' | 'pepper';
+type BankKey = 'onezero' | 'paybox' | 'pepper';
 
 /** Args bundle for createTokenCache — respects the 3-param ceiling. */
 interface ITokenCacheArgs {
