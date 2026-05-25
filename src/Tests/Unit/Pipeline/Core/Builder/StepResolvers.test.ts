@@ -64,13 +64,14 @@ interface ISynAcct {
  */
 function makeAdsShape(): IApiDirectScrapeShape<ISynAcct, string> {
   /**
-   * Cursor-typed page extractor stub — body is returned as-is.
+   * Cursor-typed page extractor stub — unified scrape-shape signature.
    *
-   * @param body - Raw response body payload.
+   * @param args - Extract-args bundle (uses `args.body` only).
+   * @param args.body - Hydrated response body.
    * @returns Body coerced to the expected IPage envelope.
    */
-  const extractPage = (body: Record<string, unknown>): IPage<object, string> =>
-    body as unknown as IPage<object, string>;
+  const extractPage = (args: { readonly body: Record<string, unknown> }): IPage<object, string> =>
+    args.body as unknown as IPage<object, string>;
   /**
    * Account-number selector for the synthetic account ref.
    *

@@ -297,33 +297,67 @@ function createOtpPoller(args: ICreateOtpPollerArgs): (hint?: string) => Promise
   const envVar = args.envVar;
   const log = args.log;
   const timeoutMs = args.timeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
+  // Per-scrape memoisation — multi-step OTP login flows (PayBox sends
+  // the encrypted OTP in both `/pinValidation` AND `/loginBySms`)
+  // would otherwise fire a fresh Telegram prompt per step. The user
+  // types the code ONCE; the retriever returns the cached value on
+  // every subsequent call within the same scrape.
+  let cachedCode = '';
   return async (hint?: string): Promise<string> => {
-    const phoneHint = hint ?? '';
-    // Tier 1: env var (CI preset / local override).
-    const fromEnv = process.env[envVar];
-    if (fromEnv && fromEnv.length > 0) {
-      log.info({ phoneHint: phoneHint || 'unknown', envVar }, `Using ${envVar} env var`);
-      return fromEnv;
+    if (cachedCode.length > 0) {
+      log.info({ phoneHint: hint ?? '' }, 'OTP cache hit — reusing prior retriever value');
+      return cachedCode;
     }
-    // Tier 2: Telegram bot (CI default; opt-in via bankRegex + env
-    // vars). When engaged, Telegram consumes the FULL `timeoutMs`
-    // budget — file/readline tiers are dead-weight in CI and a
-    // fall-through would only waste another `timeoutMs` on a poll
-    // that no one is going to satisfy.
-    const tg = await tryTelegramTier(args, timeoutMs);
-    if (tg.code.length > 0) return tg.code;
-    if (tg.engaged) {
-      throw new ScraperError(
-        `Telegram OTP tier exhausted ${String(timeoutMs)}ms — no reply received (or transport failure). File/readline tiers skipped because Telegram was the configured channel.`,
-      );
-    }
-    // Tier 3: poll file (interactive local).
-    if (!process.stdin.isTTY) {
-      return pollForCode({ filePath, log, phoneHint, timeoutMs });
-    }
-    // Tier 4: readline TTY.
-    return promptViaReadline(phoneHint);
+    const code = await resolveOtpCode({ args, filePath, envVar, log, timeoutMs, hint });
+    cachedCode = code;
+    return code;
   };
+}
+
+/** Args bundle for {@link resolveOtpCode} — respects the 3-param ceiling. */
+interface IResolveOtpArgs {
+  readonly args: ICreateOtpPollerArgs;
+  readonly filePath: string;
+  readonly envVar: string;
+  readonly log: ScraperLogger;
+  readonly timeoutMs: number;
+  readonly hint: string | undefined;
+}
+
+/**
+ * Walk the 4-tier OTP source ladder (env / Telegram / file / TTY) on
+ * the first retriever invocation. Extracted from {@link createOtpPoller}
+ * so the outer closure stays inside the per-function LOC budget once
+ * the memoisation cache is added.
+ * @param args - Bundled poller config + call-time hint.
+ * @returns The OTP digit string.
+ */
+async function resolveOtpCode(args: IResolveOtpArgs): Promise<string> {
+  const phoneHint = args.hint ?? '';
+  const fromEnv = process.env[args.envVar];
+  if (fromEnv && fromEnv.length > 0) {
+    args.log.info(
+      { phoneHint: phoneHint || 'unknown', envVar: args.envVar },
+      `Using ${args.envVar} env var`,
+    );
+    return fromEnv;
+  }
+  const tg = await tryTelegramTier(args.args, args.timeoutMs);
+  if (tg.code.length > 0) return tg.code;
+  if (tg.engaged) {
+    throw new ScraperError(
+      `Telegram OTP tier exhausted ${String(args.timeoutMs)}ms — no reply received (or transport failure). File/readline tiers skipped because Telegram was the configured channel.`,
+    );
+  }
+  if (!process.stdin.isTTY) {
+    return pollForCode({
+      filePath: args.filePath,
+      log: args.log,
+      phoneHint,
+      timeoutMs: args.timeoutMs,
+    });
+  }
+  return promptViaReadline(phoneHint);
 }
 
 /** Digits-only regex used by every bank — attribution comes from the

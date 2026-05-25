@@ -84,12 +84,13 @@ function synEmptyVars(): Record<string, unknown> {
 }
 
 /**
- * Synthetic extractAccounts — body is already shaped as `{ accts }`.
- * @param body - Customer response body.
+ * Synthetic extractAccounts — unified scrape-shape signature.
+ * @param args - Extract-args bundle (uses `args.body` only).
+ * @param args.body - Hydrated response body.
  * @returns Account list.
  */
-function synExtractAccounts(body: Record<string, unknown>): readonly ISynAcct[] {
-  return (body as { accts: readonly ISynAcct[] }).accts;
+function synExtractAccounts(args: { readonly body: Record<string, unknown> }): readonly ISynAcct[] {
+  return (args.body as { accts: readonly ISynAcct[] }).accts;
 }
 
 /**
@@ -120,15 +121,16 @@ function synTxnVars(a: ISynAcct): Record<string, unknown> {
 }
 
 /**
- * Synthetic extractPage — body is already shaped as the generic page.
- * @param body - Page payload.
+ * Synthetic extractPage — unified scrape-shape signature.
+ * @param args - Extract-args bundle (uses `args.body` only).
+ * @param args.body - Hydrated response body.
  * @returns Generic page.
  */
-function synExtractPage(body: Record<string, unknown>): {
+function synExtractPage(args: { readonly body: Record<string, unknown> }): {
   readonly items: readonly object[];
   readonly nextCursor: string | false;
 } {
-  return body as unknown as {
+  return args.body as unknown as {
     readonly items: readonly object[];
     readonly nextCursor: string | false;
   };

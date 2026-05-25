@@ -5,7 +5,10 @@
 
 import moment from 'moment';
 
-import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type {
+  IExtractPageArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
@@ -110,15 +113,21 @@ function mergeRows(osh?: IOshBlock): readonly PepperTxn[] {
 
 /**
  * Extract one page from the unwrapped Transactions response.
- * @param body - Unwrapped Transactions response.
- * @param cursor - Cursor used for this request.
+ *
+ * Signature matches the unified scrape-shape contract: takes a full
+ * {@link IExtractPageArgs} bundle. Pepper uses `args.body` +
+ * `args.cursor`; banks that need the per-account context (PayBox)
+ * read `args.acct` / `args.ctx`.
+ * @param args - Bundle carrying body + cursor + acct + ctx.
  * @returns Page rows + nextCursor.
  */
-export function txnsExtractPage(body: ApiBody, cursor: number | false): IPage<object, number> {
-  const resp = body as unknown as ITxnsResp;
+export function txnsExtractPage(
+  args: IExtractPageArgs<IPepperAcct, number>,
+): IPage<object, number> {
+  const resp = args.body as unknown as ITxnsResp;
   const osh = resp.accounts?.oshTransactionsNew;
   const rows = mergeRows(osh);
-  const page = pageNumberOf(cursor);
+  const page = pageNumberOf(args.cursor);
   const total = osh?.totalCount ?? 0;
   const isDone = isLastPage(rows.length, page, total);
   return { items: rows, nextCursor: nextCursorOf(isDone, page) };

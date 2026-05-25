@@ -250,3 +250,17 @@ describe('ApiDirectCallActions primeSession outcomes', () => {
     if (!result.success) expect(result.errorMessage).toBe('upstream boom');
   });
 });
+
+describe('ApiDirectCallActions POST probe-absent branch', () => {
+  it('short-circuits with success when probe is undefined (vs empty object)', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [], captures });
+    const ctx = makeActionsCtx({ bus });
+    // `probe: undefined` (omit-the-field branch); the "probe: {}" path
+    // is covered separately by `fails with a diagnostic when probe config is empty`.
+    const config: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: [] };
+    const result = await runApiDirectCallPost(config, ctx);
+    expect(result.success).toBe(true);
+    expect(captures).toHaveLength(0);
+  });
+});

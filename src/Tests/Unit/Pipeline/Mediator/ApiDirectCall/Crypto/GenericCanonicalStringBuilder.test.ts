@@ -120,3 +120,51 @@ describe('GenericCanonicalStringBuilder.buildCanonical — edges', () => {
     }
   });
 });
+
+/** Two-part canonical config that pulls tsMs from carry. */
+const TS_MS_SHAPE: ICanonicalStringConfig = {
+  parts: ['bodyJson', 'tsMs'],
+  separator: '|',
+  escapeFrom: '|',
+  escapeTo: String.raw`\|`,
+  sortQueryParams: false,
+  clientVersion: '1.0',
+};
+
+describe('GenericCanonicalStringBuilder.buildCanonical — carry-backed parts', () => {
+  it('coerces a numeric tsMs slot through String(...)', () => {
+    // Hits readCarryString's `typeof raw === 'number'` branch.
+    const result = buildCanonical({
+      canonical: TS_MS_SHAPE,
+      pathAndQuery: '/p',
+      bodyJson: '{}',
+      carry: { tsMs: 1700000000000 },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe('{}|1700000000000');
+  });
+
+  it('emits empty string when the tsMs slot is missing or non-stringy', () => {
+    // Hits readCarryString's final `return ''` (raw is undefined / boolean).
+    const result = buildCanonical({
+      canonical: TS_MS_SHAPE,
+      pathAndQuery: '/p',
+      bodyJson: '{}',
+      carry: { tsMs: true },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe('{}|');
+  });
+
+  it('reads deviceId16Hex from carry for the deviceId canonical part', () => {
+    const config: ICanonicalStringConfig = { ...TS_MS_SHAPE, parts: ['bodyJson', 'deviceId'] };
+    const result = buildCanonical({
+      canonical: config,
+      pathAndQuery: '/p',
+      bodyJson: '{}',
+      carry: { deviceId16Hex: 'abc123-device-hex' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe('{}|abc123-device-hex');
+  });
+});

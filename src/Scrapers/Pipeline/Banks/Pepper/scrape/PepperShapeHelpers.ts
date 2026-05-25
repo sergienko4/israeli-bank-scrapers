@@ -3,7 +3,11 @@
  * Transactions helpers live in PepperShapeTxns.ts.
  */
 
-import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type {
+  ApiBody,
+  IExtractAccountsArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Account display number — branded for Rule #15. */
@@ -33,11 +37,16 @@ interface IBalanceResp {
 
 /**
  * Flatten userDataV2 → customers → accounts.
- * @param body - Unwrapped UserDataV2 response.
+ *
+ * Pepper's customer endpoint carries the full account tree in the
+ * response body, so this extractor ignores the post-login
+ * session-context bundle field. Signature matches the unified
+ * scrape-shape contract.
+ * @param args - Extract-args bundle (uses `args.body` only).
  * @returns Flat account list.
  */
-export function extractAccounts(body: ApiBody): readonly IPepperAcct[] {
-  const resp = body as unknown as ICustomerResp;
+export function extractAccounts(args: IExtractAccountsArgs): readonly IPepperAcct[] {
+  const resp = args.body as unknown as ICustomerResp;
   const customers = resp.userDataV2?.getUserDataV2?.customerAndAccounts ?? [];
   return customers.flatMap((c): readonly IPepperAcct[] => c.accounts ?? []);
 }

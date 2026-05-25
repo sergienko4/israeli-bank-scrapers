@@ -17,13 +17,13 @@ describe('PEPPER_SHAPE customer extractor', () => {
         },
       },
     };
-    const accts = PEPPER_SHAPE.customer.extractAccounts(body);
+    const accts = PEPPER_SHAPE.customer.extractAccounts({ body, sessionContext: {} });
     expect(accts).toHaveLength(1);
     expect(accts[0].accountId).toBe('a');
   });
 
   it('returns empty list when userDataV2 branch is absent', () => {
-    const accts = PEPPER_SHAPE.customer.extractAccounts({});
+    const accts = PEPPER_SHAPE.customer.extractAccounts({ body: {}, sessionContext: {} });
     expect(accts).toHaveLength(0);
   });
 });
@@ -41,6 +41,15 @@ describe('PEPPER_SHAPE balance extractor', () => {
   });
 });
 
+/**
+ * Build a default action context for extractPage args bundles.
+ * @returns IActionContext suitable for the unified signature.
+ */
+function defaultExtractCtx(): IActionContext {
+  const opts = makeMockOptions();
+  return makeMockContext({ options: opts }) as unknown as IActionContext;
+}
+
 describe('PEPPER_SHAPE transactions extractor', () => {
   it('merges posted + pending rows; nextCursor=false when under-page', () => {
     const body = {
@@ -52,7 +61,13 @@ describe('PEPPER_SHAPE transactions extractor', () => {
         },
       },
     };
-    const page = PEPPER_SHAPE.transactions.extractPage(body, false);
+    const acct = { accountId: 'a' };
+    const page = PEPPER_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct,
+      ctx: defaultExtractCtx(),
+    });
     expect(page.items).toHaveLength(2);
     expect(page.nextCursor).toBe(false);
   });
@@ -77,7 +92,13 @@ describe('PEPPER_SHAPE transactions extractor', () => {
         },
       },
     };
-    const page = PEPPER_SHAPE.transactions.extractPage(body, false);
+    const acct = { accountId: 'a' };
+    const page = PEPPER_SHAPE.transactions.extractPage({
+      body,
+      cursor: false,
+      acct,
+      ctx: defaultExtractCtx(),
+    });
     expect(page.nextCursor).toBe(2);
   });
 });

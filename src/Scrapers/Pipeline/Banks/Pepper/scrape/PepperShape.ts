@@ -36,15 +36,21 @@ const PEPPER_CLIENT_ID = randomUUID();
 
 /**
  * Resolve the x-user-id header — Pepper uses the phone without the
- * country-code prefix (first 3 digits "972" dropped).
+ * country-code prefix (local-only form).
+ *
+ * Pepper's `phoneNumberFormat` is `'international-flat'` so the body
+ * templates receive `972XXXXXXXXX`. The x-user-id header, however,
+ * is a SEPARATE concern (header vs body) and expects the local form,
+ * so this helper strips the `972` prefix when present. Robust to
+ * either form so it can absorb a future config change.
  * @param ctx - Action context carrying credentials.
  * @returns x-user-id string (empty when phone absent).
  */
 function userIdOf(ctx: IActionContext): PepperUserId {
   const creds = ctx.credentials as unknown as IPepperCreds;
-  const digits = creds.phoneNumber.replaceAll(/\D/g, '');
-  if (digits.startsWith('972')) return digits.slice(3) as PepperUserId;
-  return digits as PepperUserId;
+  const raw = creds.phoneNumber as unknown as string;
+  if (raw.startsWith('972')) return raw.slice(3) as unknown as PepperUserId;
+  return raw as unknown as PepperUserId;
 }
 
 /**

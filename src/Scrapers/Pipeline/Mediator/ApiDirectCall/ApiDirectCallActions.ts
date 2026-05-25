@@ -17,12 +17,13 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from '../Api/ApiMediator.js';
 import { resolveApiMediator } from '../Api/ApiMediatorAccessor.js';
+import { formatPhoneNumber } from '../Credentials/PhoneFormatter.js';
 import {
   createTokenStrategyFromConfig,
   type GenericCreds,
   type IConfigTokenStrategy,
 } from './Flow/TokenStrategyFromConfig.js';
-import type { IApiDirectCallConfig } from './IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig, IProbeConfig } from './IApiDirectCallConfig.js';
 import { isJwtFresh } from './Jwt/GenericJwtClaims.js';
 
 /** ScraperOptions callback signature — surfaced at the bank surface. */
@@ -97,15 +98,93 @@ function mergeOptionsIntoCreds(ctx: IPipelineContext): GenericCreds {
 }
 
 /**
- * ACTION stage — build strategy from config, register, prime, install.
- * @param config - API-direct-call config.
+ * Rewrite `ctx.credentials.phoneNumber` into the bank's wire format
+ * declared in `PipelineBankConfig.headless.phoneNumberFormat`.
+ *
+ * Phone normalisation runs HERE rather than in the Core context
+ * factory so Core stays free of credential transforms (Rule P7:
+ * mediator owns external-side prep). Downstream phases (scrape) see
+ * the rewritten phoneNumber via the returned ctx.
+ *
+ * Format failures are logged but do NOT throw — the pipeline keeps
+ * the caller's raw input so downstream validation surfaces the error
+ * in its own Procedure failure.
  * @param ctx - Pipeline context.
+ * @returns Ctx with credentials.phoneNumber in wire format (or ctx
+ *   verbatim when the bank doesn't declare a format / no phoneNumber).
+ */
+/**
+ * PII-safe shape descriptor for a phone string. Captures structural
+ * attributes (length, leading digit, separator presence) without
+ * logging the digits themselves.
+ * @param raw - Raw phone string.
+ * @returns Structure descriptor object.
+ */
+function phoneShape(raw: string): Readonly<Record<string, unknown>> {
+  return {
+    len: raw.length,
+    startsWith972: raw.startsWith('972'),
+    hasDash: raw.includes('-'),
+    hasPlus: raw.includes('+'),
+    hasSpace: raw.includes(' '),
+    leadingZero: raw.startsWith('0'),
+  };
+}
+
+/**
+ * Rewrite `ctx.credentials.phoneNumber` into the bank's wire format
+ * declared by `PipelineBankConfig.headless.phoneNumberFormat`.
+ *
+ * Phone normalisation runs in the ACTION-stage mediator (Rule P7 —
+ * mediator owns external-side prep), so Core stays free of
+ * credential transforms. Downstream phases (scrape) see the
+ * rewritten phoneNumber via the returned ctx.
+ *
+ * Format failures are LOGGED (PII-safe shape descriptor — no digits)
+ * but do NOT throw; the pipeline keeps the caller's raw input so
+ * downstream validation surfaces a clearer Procedure failure.
+ * @param ctx - Pipeline context.
+ * @returns Ctx with credentials.phoneNumber in wire format (or ctx
+ *   verbatim when the bank doesn't declare a format / no phoneNumber).
+ */
+function withNormalisedCreds(ctx: IPipelineContext): IPipelineContext {
+  const config = ctx.config;
+  const format =
+    'headless' in config && config.headless ? config.headless.phoneNumberFormat : undefined;
+  if (format === undefined) return ctx;
+  const creds = ctx.credentials as unknown as Record<string, unknown>;
+  const raw = creds.phoneNumber;
+  if (typeof raw !== 'string') return ctx;
+  const rawShape = phoneShape(raw);
+  const wire = formatPhoneNumber(raw, format);
+  if (!wire.success) {
+    ctx.logger.warn(
+      { module: 'api-direct-call', reason: wire.errorMessage, format, rawShape },
+      'phoneNumber normalisation failed — keeping raw input for downstream validation',
+    );
+    return ctx;
+  }
+  const wireShape = phoneShape(wire.value);
+  ctx.logger.info(
+    { module: 'api-direct-call', format, rawShape, wireShape },
+    'phoneNumber normalised (PII-safe shape only)',
+  );
+  const normalisedCreds = { ...creds, phoneNumber: wire.value };
+  return { ...ctx, credentials: normalisedCreds as unknown as IPipelineContext['credentials'] };
+}
+
+/**
+ * ACTION stage — normalise credentials, build strategy from config,
+ * register, prime, install.
+ * @param config - API-direct-call config.
+ * @param rawCtx - Pipeline context (pre-normalisation).
  * @returns Updated context, or fail when prime fails.
  */
 async function runApiDirectCallAction(
   config: IApiDirectCallConfig,
-  ctx: IPipelineContext,
+  rawCtx: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
+  const ctx = withNormalisedCreds(rawCtx);
   const busProc = resolveApiMediator(ctx, PHASE_LABEL);
   if (!isOk(busProc)) return busProc;
   const bus = busProc.value;
@@ -120,6 +199,11 @@ async function runApiDirectCallAction(
     return fail(ScraperErrorTypes.Generic, `${PHASE_LABEL} ACTION empty header`);
   }
   bus.setRawAuth(primed.value);
+  // Propagate the flow's final-carry snapshot to the bus so the
+  // scrape phase can read post-login slots (uId, deviceId16Hex, …)
+  // when hydrating class-y body envelopes via `$ref: carry.<slot>`.
+  const sessionContext = strategy.getLatestCarrySnapshot();
+  bus.setSessionContext(sessionContext);
   await invokeAuthFlowComplete(ctx, strategy, primed.value);
   return succeed(ctx);
 }
@@ -166,10 +250,11 @@ async function runApiDirectCallPost(
   config: IApiDirectCallConfig,
   ctx: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
+  if (config.probe === undefined) return succeed(ctx);
   const busProc = resolveApiMediator(ctx, PHASE_LABEL);
   if (!isOk(busProc)) return busProc;
   const bus = busProc.value;
-  const probeProc = await runProbe(config, bus);
+  const probeProc = await runProbe(config.probe, bus);
   if (!isOk(probeProc)) return probeProc;
   return succeed(ctx);
 }
@@ -179,15 +264,12 @@ type ProbeResponse = Record<string, unknown>;
 
 /**
  * Fire the configured probe — queryTag preferred over urlTag.
- * @param config - API-direct-call config.
+ * @param probe - Probe block from the API-direct-call config.
  * @param bus - ApiMediator instance.
  * @returns Probe procedure.
  */
-async function runProbe(
-  config: IApiDirectCallConfig,
-  bus: IApiMediator,
-): Promise<Procedure<ProbeResponse>> {
-  const { queryTag, urlTag } = config.probe;
+async function runProbe(probe: IProbeConfig, bus: IApiMediator): Promise<Procedure<ProbeResponse>> {
+  const { queryTag, urlTag } = probe;
   if (queryTag !== undefined) {
     return safeInvoke('POST probe query', () => bus.apiQuery<ProbeResponse>(queryTag, {}));
   }

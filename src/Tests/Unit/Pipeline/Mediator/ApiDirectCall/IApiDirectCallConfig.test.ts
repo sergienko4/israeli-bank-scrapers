@@ -81,7 +81,7 @@ describe('IApiDirectCallConfig shape', () => {
     expect(FULL_CONFIG.flow).toBe('sms-otp');
     expect(FULL_CONFIG.signer?.algorithm).toBe('ECDSA-P256');
     expect(FULL_CONFIG.fingerprint).toBeDefined();
-    expect(FULL_CONFIG.probe.queryTag).toBe(PROBE_QUERY);
+    expect(FULL_CONFIG.probe?.queryTag).toBe(PROBE_QUERY);
     expect(FULL_CONFIG.steps).toHaveLength(1);
   });
 
@@ -89,7 +89,7 @@ describe('IApiDirectCallConfig shape', () => {
     expect(MINIMAL_CONFIG.flow).toBe('sms-otp');
     expect(MINIMAL_CONFIG.signer).toBeUndefined();
     expect(MINIMAL_CONFIG.fingerprint).toBeUndefined();
-    expect(MINIMAL_CONFIG.probe.urlTag).toBe(ASSERT_TAG);
+    expect(MINIMAL_CONFIG.probe?.urlTag).toBe(ASSERT_TAG);
   });
 });
 

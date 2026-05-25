@@ -44,10 +44,33 @@ export interface IApiQueryOpts {
   readonly onSetCookie?: (setCookies: readonly string[]) => number;
 }
 
+/**
+ * Bus-level session-context snapshot — populated by the login action
+ * (`ApiDirectCallActions.runApiDirectCallAction`) from the SmsOtpFlow's
+ * final carry, read by the scrape phase to resolve `$ref: carry.<slot>`
+ * tokens in scrape-step body templates without re-running the login flow.
+ *
+ * Stays JsonValue-shaped so the same JSON pointer + ref-resolver
+ * machinery the login flow uses works against it verbatim.
+ */
+export type SessionContext = Readonly<Record<string, unknown>>;
+
 /** Public ApiMediator surface — the only API phases/handlers see. */
 export interface IApiMediator {
   setBearer: (token: string) => boolean;
   setRawAuth: (headerValue: string) => boolean;
+  /**
+   * Install a frozen snapshot of the post-login carry on the bus.
+   * The login action calls this once after `primeSession` succeeds;
+   * the scrape phase reads via {@link getSessionContext} when
+   * hydrating class-y body envelopes.
+   */
+  setSessionContext: (ctx: SessionContext) => boolean;
+  /**
+   * Return the frozen post-login carry snapshot. Empty object before
+   * the login action has populated it.
+   */
+  getSessionContext: () => SessionContext;
   withTokenResolver: (r: ITokenResolver) => WasResolverSet;
   withTokenStrategy: <TCreds>(
     strategy: ITokenStrategy<TCreds>,
@@ -243,9 +266,14 @@ export function createApiMediator(
   const deps: IApiMediatorDeps = { bankHint, fetchStrategy, graphqlStrategy };
   /** Mutable shell populated via Object.assign below — captured by withTokenStrategy. */
   const self = {} as IApiMediator;
-  const state: { rawAuth: string; resolver: ITokenResolver } = {
+  const state: {
+    rawAuth: string;
+    resolver: ITokenResolver;
+    sessionContext: SessionContext;
+  } = {
     rawAuth: '',
     resolver: NULL_RESOLVER,
+    sessionContext: Object.freeze({}),
   };
 
   /**
@@ -257,6 +285,25 @@ export function createApiMediator(
     state.rawAuth = headerValue;
     return true;
   };
+
+  /**
+   * Install the post-login session-context snapshot. The login
+   * action calls this once after `primeSession`; subsequent calls
+   * replace the prior snapshot wholesale (no merge).
+   * @param ctx - Frozen snapshot from the flow's final carry.
+   * @returns True once stored.
+   */
+  const setSessionContext = (ctx: SessionContext): boolean => {
+    state.sessionContext = ctx;
+    return true;
+  };
+
+  /**
+   * Return the stored session-context snapshot (empty frozen object
+   * before any login completes).
+   * @returns Snapshot reference (callers must not mutate).
+   */
+  const getSessionContext = (): SessionContext => state.sessionContext;
 
   /**
    * Convenience wrapper — prefixes "Bearer " for JWT flows.
@@ -430,6 +477,8 @@ export function createApiMediator(
   Object.assign(self, {
     setBearer,
     setRawAuth,
+    setSessionContext,
+    getSessionContext,
     withTokenResolver,
     withTokenStrategy,
     primeSession,

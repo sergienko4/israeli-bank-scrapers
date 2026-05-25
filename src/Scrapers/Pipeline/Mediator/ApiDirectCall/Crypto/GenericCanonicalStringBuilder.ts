@@ -8,15 +8,30 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import type { JsonValue } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { CanonicalPart, ICanonicalStringConfig } from '../IApiDirectCallConfig.js';
+
+/**
+ * Carry slot names read by the symmetric-canonical resolvers. The
+ * mediator picks fixed slot names so banks declare canonical parts
+ * abstractly (`tsMs`, `deviceId`) without binding to slot literals.
+ */
+const TS_MS_SLOT = 'tsMs';
+const DEVICE_ID_SLOT = 'deviceId16Hex';
 
 /** Args bundle — respects the 3-param ceiling. */
 interface IBuildCanonicalArgs {
   readonly canonical: ICanonicalStringConfig;
   readonly pathAndQuery: string;
   readonly bodyJson: string;
+  /**
+   * Carry snapshot — required when `canonical.parts` includes any
+   * symmetric tag (`tsMs`, `deviceId`). Optional otherwise so existing
+   * asymmetric callers (Pepper / OneZero) don't change.
+   */
+  readonly carry?: Readonly<Record<string, JsonValue>>;
 }
 
 /** Canonical part resolver — returns the raw (pre-escape) string. */
@@ -87,11 +102,52 @@ function bodyJsonResolver(args: IBuildCanonicalArgs): string {
   return args.bodyJson;
 }
 
+/**
+ * Read a string slot from the optional carry snapshot. Returns the
+ * empty string when carry is absent or the slot is missing — callers
+ * surface that as an upstream config error via the empty canonical
+ * substring (which the server will reject), keeping this resolver
+ * pure-data.
+ * @param args - Build args (uses args.carry).
+ * @param slot - Carry slot name.
+ * @returns Slot value as string (empty when missing).
+ */
+function readCarryString(args: IBuildCanonicalArgs, slot: string): string {
+  const carry = args.carry;
+  if (carry === undefined) return '';
+  const raw = carry[slot];
+  if (typeof raw === 'string') return raw;
+  if (typeof raw === 'number') return String(raw);
+  return '';
+}
+
+/**
+ * Resolver for the 'tsMs' canonical part — reads carry.tsMs (set by
+ * the step-instant primer just before body hydration + signing).
+ * @param args - Build args (uses args.carry).
+ * @returns Raw tsMs string.
+ */
+function tsMsResolver(args: IBuildCanonicalArgs): string {
+  return readCarryString(args, TS_MS_SLOT);
+}
+
+/**
+ * Resolver for the 'deviceId' canonical part — reads
+ * carry.deviceId16Hex (seeded by the bank's seedCarryFromCreds).
+ * @param args - Build args (uses args.carry).
+ * @returns Raw deviceId hex string.
+ */
+function deviceIdResolver(args: IBuildCanonicalArgs): string {
+  return readCarryString(args, DEVICE_ID_SLOT);
+}
+
 /** Dispatch table for CanonicalPart → resolver. Partial for runtime safety. */
 const PART_RESOLVERS: Readonly<Partial<Record<CanonicalPart, PartResolver>>> = {
   pathAndQuery: pathAndQueryResolver,
   clientVersion: clientVersionResolver,
   bodyJson: bodyJsonResolver,
+  tsMs: tsMsResolver,
+  deviceId: deviceIdResolver,
 };
 
 /**

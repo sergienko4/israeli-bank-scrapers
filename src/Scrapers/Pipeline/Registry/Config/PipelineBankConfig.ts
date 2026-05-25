@@ -63,6 +63,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
         'identity.sessionToken': 'https://identity.tfd-bank.com/v1/sessions/token',
       },
       requiresBrowserTls: true,
+      phoneNumberFormat: 'international-plus',
     },
   },
   [CompanyTypes.Pepper]: {
@@ -80,6 +81,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       // across every Play Store install — not a user secret.
       staticAuth: 'TSToken 7cf2d7a7-681d-450a-ab23-06e48d2b8fd6; tid=digital_client_token_token',
       requiresBrowserTls: true,
+      phoneNumberFormat: 'international-flat',
     },
   },
 };

@@ -26,6 +26,7 @@ import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder
 import { buildCollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
 import type { IApiDirectCallConfig, IPreStepHook } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { buildInitialCarry } from './FlowInitCarry.js';
 import type { IStepCookieJar } from './RunStep.js';
 import { createSimpleCookieJar, runStep } from './RunStep.js';
 
@@ -51,14 +52,17 @@ interface IKeypairBundle {
 }
 
 /**
- * Generate both EC and RSA keypairs when config.signer is present.
- * Banks whose fingerprint/body reference only one can ignore the
- * other; generation is cheap and keeps bank surfaces data-only.
+ * Generate both EC and RSA keypairs when config.signer is present
+ * and asymmetric. AES (symmetric) signers don't need a keypair —
+ * the signing key bytes come from `config.secrets.<name>` via
+ * `keyRef`. Banks whose fingerprint/body reference only one
+ * asymmetric algorithm can ignore the other; generation is cheap.
  * @param config - API-direct-call config.
- * @returns Procedure with keypair bundle (empty when no signer).
+ * @returns Procedure with keypair bundle (empty when no signer or AES).
  */
 function prepareKeypairs(config: IApiDirectCallConfig): Procedure<IKeypairBundle> {
   if (config.signer === undefined) return succeed({});
+  if (config.signer.algorithm === 'AES-CBC-PKCS7') return succeed({});
   const ecProc = generateKeypair('ECDSA-P256');
   if (!isOk(ecProc)) return ecProc;
   const rsaProc = generateKeypair('RSA-2048');
@@ -280,6 +284,14 @@ interface IFlowResult {
    * empty string when config.warmStart is not configured.
    */
   readonly longTermToken: string;
+  /**
+   * Frozen snapshot of the flow's final `scope.carry`. Lets the
+   * calling action handler propagate bank-specific identifiers
+   * (e.g. `uId`, `deviceId16Hex`) into the {@link IApiMediator}
+   * session context so the scrape phase can read them back via
+   * `getSessionContext()`.
+   */
+  readonly carrySnapshot: Readonly<Record<string, JsonValue>>;
 }
 
 /**
@@ -340,12 +352,14 @@ async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResul
   if (!isOk(fpProc)) return fpProc;
   const baseSeed: Record<string, JsonValue> = { flowId: randomUUID() };
   const mergedInitialCarry = mergeInitialCarry(baseSeed, args);
+  const initialCarryProc = buildInitialCarry(args.config, args.creds, mergedInitialCarry);
+  if (!isOk(initialCarryProc)) return initialCarryProc;
   const initial = seedScope({
     config: args.config,
     creds: args.creds,
     keypairs: keypairsProc.value,
     fingerprint: fpProc.value,
-    initialCarry: mergedInitialCarry,
+    initialCarry: initialCarryProc.value,
   });
   const reduceArgs: IStepReduceArgs = {
     bus: args.bus,
@@ -365,7 +379,8 @@ async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResul
   const bearerProc = extractTokenFromCarry(finalProc.value);
   if (!isOk(bearerProc)) return bearerProc;
   const longTermToken = extractLongTermTokenFromCarry(args.config, finalProc.value);
-  return succeed({ bearer: bearerProc.value, longTermToken });
+  const carrySnapshot = Object.freeze({ ...finalProc.value.carry });
+  return succeed({ bearer: bearerProc.value, longTermToken, carrySnapshot });
 }
 
 export type { IFlowResult, IRunSmsOtpArgs };
