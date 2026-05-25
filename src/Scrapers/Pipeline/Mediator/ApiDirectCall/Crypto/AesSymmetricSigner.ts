@@ -72,12 +72,23 @@ function validateKeyAndIv(keyBytes: Buffer, ivBytes: Buffer): Procedure<true> {
 
 /**
  * Compute the AES-256-CBC ciphertext over UTF-8 plaintext bytes.
+ *
+ * Mode + padding rationale (Sonar S5542 suppression below):
+ * The CBC + PKCS7 pair is dictated by the upstream bank server — it
+ * decrypts the request body with `AES/CBC/PKCS5Padding` (verified
+ * against the bank's published mobile-app contract) and rejects any
+ * other mode. We cannot switch to AEAD (GCM/CCM) without breaking
+ * authentication. Replay protection is provided by the per-step
+ * random IV + the request `tsMs` window enforced server-side.
  * @param plaintext - UTF-8 plaintext string.
  * @param keyBytes - 32-byte AES-256 key.
  * @param ivBytes - 16-byte IV.
  * @returns Ciphertext buffer (no postfix).
  */
 function encryptBytes(plaintext: string, keyBytes: Buffer, ivBytes: Buffer): Buffer {
+  // Sonar S5542 is suppressed for this file via sonar-project.properties.
+  // The CBC + PKCS7 pair is dictated by the upstream bank server; the
+  // JSDoc above carries the full rationale.
   const cipher = createCipheriv('aes-256-cbc', keyBytes, ivBytes);
   const plaintextBuf = Buffer.from(plaintext, 'utf8');
   const part1 = cipher.update(plaintextBuf);

@@ -1051,7 +1051,12 @@ function attachBodySignature(args: IAttachBodySignatureArgs): Procedure<Record<s
   if (!split.success) return split;
   const cloned: Record<string, unknown> = { ...args.body };
   const seed: Procedure<Record<string, unknown>> = succeed(cloned);
-  const cursorProc = split.value.parents.reduce(reduceCursor, seed);
+  // Wrap reduceCursor in an arrow so Array#reduce can't pass extra
+  // positional args (index / array) that would shift our binding.
+  const cursorProc = split.value.parents.reduce<Procedure<Record<string, unknown>>>(
+    (acc, segment) => reduceCursor(acc, segment),
+    seed,
+  );
   if (!cursorProc.success) return cursorProc;
   cursorProc.value[split.value.leaf] = args.value;
   return succeed(cloned);

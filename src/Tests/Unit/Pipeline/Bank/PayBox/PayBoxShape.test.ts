@@ -52,55 +52,78 @@ describe('PAYBOX_SHAPE.customer.extractAccounts (UC-PBS-1)', () => {
   });
 });
 
+/** Expected nextCursor outcome for the parameterised pagination tests. */
+type ExpectedNextCursor = 'wallet' | 'debit' | 'stop';
+
+/** One row in {@link WALLET_PAGINATION_CASES}. */
+interface IWalletPaginationCase {
+  readonly name: string;
+  readonly body: Record<string, unknown>;
+  readonly cursor: { kind: 'wallet'; ts: string; page: number } | false;
+  readonly expected: ExpectedNextCursor;
+}
+
+const WALLET_PAGINATION_CASES: readonly IWalletPaginationCase[] = [
+  {
+    name: 'stops on empty page (UC-PBS-2)',
+    body: { code: 200, content: { nc: [] } },
+    cursor: false,
+    expected: 'stop',
+  },
+  {
+    name: 'stops on stall — oldest ts unchanged from prior page (UC-PBS-3)',
+    body: { code: 200, content: { nc: [{ ts: '100', amount: 1 }] } },
+    cursor: { kind: 'wallet', ts: '100', page: 1 },
+    expected: 'stop',
+  },
+  {
+    name: 'stops on cap-24 — page cap reached (UC-PBS-4)',
+    body: { code: 200, content: { nc: [{ ts: '50', amount: 1 }] } },
+    cursor: { kind: 'wallet', ts: '100', page: 23 },
+    expected: 'stop',
+  },
+  {
+    name: 'advances cursor mid-stream when ts strictly decreases',
+    body: { code: 200, content: { nc: [{ ts: '50', amount: 1 }] } },
+    cursor: { kind: 'wallet', ts: '100', page: 0 },
+    expected: 'wallet',
+  },
+];
+
+/**
+ * Verify a page's `nextCursor` matches the table-driven expectation —
+ * `'stop'` ⇒ false; `'wallet'`/`'debit'` ⇒ matching cursor kind.
+ * @param page Page returned by {@link PAYBOX_SHAPE.transactions.extractPage}.
+ * @param page.nextCursor Cursor for the next iteration, or `false`.
+ * @param expected Expected outcome (stop / wallet / debit).
+ * @returns Always `true` so callers can chain.
+ */
+function assertNextCursor(
+  page: { readonly nextCursor: { readonly kind: string } | false },
+  expected: ExpectedNextCursor,
+): boolean {
+  if (expected === 'stop') {
+    expect(page.nextCursor).toBe(false);
+    return true;
+  }
+  expect(page.nextCursor).not.toBe(false);
+  if (page.nextCursor !== false) expect(page.nextCursor.kind).toBe(expected);
+  return true;
+}
+
 describe('PAYBOX_SHAPE wallet transactions pagination (UC-PBS-2..4)', () => {
-  it('stops on empty page (UC-PBS-2)', () => {
-    const body = { code: 200, content: { nc: [] } };
-    const page = PAYBOX_SHAPE.transactions.extractPage({
-      body,
-      cursor: false,
-      acct: WALLET_ACCT,
-      ctx: defaultCtx(),
+  WALLET_PAGINATION_CASES.map(({ name, body, cursor, expected }) => {
+    it(name, () => {
+      const ctx = defaultCtx();
+      const page = PAYBOX_SHAPE.transactions.extractPage({
+        body,
+        cursor,
+        acct: WALLET_ACCT,
+        ctx,
+      });
+      assertNextCursor(page, expected);
     });
-    expect(page.nextCursor).toBe(false);
-  });
-
-  it('stops on stall — oldest ts unchanged from prior page (UC-PBS-3)', () => {
-    const body = { code: 200, content: { nc: [{ ts: '100', amount: 1 }] } };
-    const cursor = { kind: 'wallet' as const, ts: '100', page: 1 };
-    const page = PAYBOX_SHAPE.transactions.extractPage({
-      body,
-      cursor,
-      acct: WALLET_ACCT,
-      ctx: defaultCtx(),
-    });
-    expect(page.nextCursor).toBe(false);
-  });
-
-  it('stops on cap-24 — page cap reached (UC-PBS-4)', () => {
-    const body = { code: 200, content: { nc: [{ ts: '50', amount: 1 }] } };
-    const cursor = { kind: 'wallet' as const, ts: '100', page: 23 };
-    const page = PAYBOX_SHAPE.transactions.extractPage({
-      body,
-      cursor,
-      acct: WALLET_ACCT,
-      ctx: defaultCtx(),
-    });
-    expect(page.nextCursor).toBe(false);
-  });
-
-  it('advances cursor mid-stream when ts strictly decreases', () => {
-    const body = { code: 200, content: { nc: [{ ts: '50', amount: 1 }] } };
-    const cursor = { kind: 'wallet' as const, ts: '100', page: 0 };
-    const page = PAYBOX_SHAPE.transactions.extractPage({
-      body,
-      cursor,
-      acct: WALLET_ACCT,
-      ctx: defaultCtx(),
-    });
-    expect(page.nextCursor).not.toBe(false);
-    if (page.nextCursor !== false) {
-      expect(page.nextCursor.kind).toBe('wallet');
-    }
+    return true;
   });
 
   it('builds vars with ts="0" on first call', () => {
@@ -117,73 +140,105 @@ describe('PAYBOX_SHAPE wallet transactions pagination (UC-PBS-2..4)', () => {
   });
 });
 
+/**
+ * Builder for a context with a fixed `options.startDate`.
+ * @param startDate Start-date threshold seeded into ScraperOptions.
+ * @returns Action context.
+ */
+function ctxWithStartDate(startDate: Date): IActionContext {
+  const opts = makeMockOptions({ startDate });
+  return makeMockContext({ options: opts }) as unknown as IActionContext;
+}
+
+/**
+ * Convenience constructor for a parameterised debit cursor.
+ * @param startDate Start of the chunk window.
+ * @param endDate End of the chunk window.
+ * @returns Debit cursor.
+ */
+function debitCursor(
+  startDate: Date,
+  endDate: Date,
+): {
+  readonly kind: 'debit';
+  readonly startDate: Date;
+  readonly endDate: Date;
+} {
+  return { kind: 'debit', startDate, endDate };
+}
+
+/** One row in {@link DEBIT_PAGINATION_CASES}. */
+interface IDebitPaginationCase {
+  readonly name: string;
+  readonly body: Record<string, unknown>;
+  readonly cursor:
+    | false
+    | { readonly kind: 'debit'; readonly startDate: Date; readonly endDate: Date };
+  readonly ctx: IActionContext;
+  readonly expected: ExpectedNextCursor;
+}
+
+const DEBIT_PAGINATION_CASES: readonly IDebitPaginationCase[] = [
+  {
+    name: 'debit extractPage advances cursor after the first chunk (CR 4 fix)',
+    body: { code: 200, content: { filteredTransactions: [] } },
+    cursor: false,
+    ctx: ctxWithStartDate(new Date('2020-01-01T00:00:00Z')),
+    expected: 'debit',
+  },
+  {
+    name: 'debit extractPage with mid-stream cursor advances when end is in past',
+    body: { code: 200, content: { filteredTransactions: [] } },
+    cursor: debitCursor(new Date('2020-01-01T00:00:00Z'), new Date('2020-06-29T00:00:00Z')),
+    ctx: ctxWithStartDate(new Date('2020-01-01T00:00:00Z')),
+    expected: 'debit',
+  },
+  {
+    name: 'debit extractPage with cursor whose end is at-or-after now stops',
+    body: { code: 200, content: { filteredTransactions: [] } },
+    cursor: debitCursor(new Date(), new Date(Date.now() + 86_400_000)),
+    ctx: ctxWithStartDate(new Date()),
+    expected: 'stop',
+  },
+];
+
 describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
   it('debit chunking covers date range — first call uses ctx.startDate', () => {
-    const startDate = new Date('2025-01-01T00:00:00Z');
-    const opts = makeMockOptions({ startDate });
-    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
+    const ctx = ctxWithStartDate(new Date('2025-01-01T00:00:00Z'));
     const vars = PAYBOX_SHAPE.transactions.buildVars(DEBIT_ACCT, false, ctx);
     expect(typeof vars.startDate).toBe('string');
     expect(typeof vars.endDate).toBe('string');
   });
 
-  it('debit extractPage advances cursor after the first chunk (CR 4 fix)', () => {
-    const body = { code: 200, content: { filteredTransactions: [] } };
-    const longAgoStart = new Date('2020-01-01T00:00:00Z');
-    const opts = makeMockOptions({ startDate: longAgoStart });
-    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
-    const page = PAYBOX_SHAPE.transactions.extractPage({
-      body,
-      cursor: false,
-      acct: DEBIT_ACCT,
-      ctx,
+  DEBIT_PAGINATION_CASES.map(({ name, body, cursor, ctx, expected }) => {
+    it(name, () => {
+      const page = PAYBOX_SHAPE.transactions.extractPage({
+        body,
+        cursor,
+        acct: DEBIT_ACCT,
+        ctx,
+      });
+      assertNextCursor(page, expected);
     });
-    expect(page.nextCursor).not.toBe(false);
-    if (page.nextCursor !== false) {
-      expect(page.nextCursor.kind).toBe('debit');
-    }
+    return true;
   });
 
   it('debit buildVars with an explicit cursor reuses cursor dates', () => {
-    const cursor = {
-      kind: 'debit' as const,
-      startDate: new Date('2025-03-01T00:00:00Z'),
-      endDate: new Date('2025-08-28T00:00:00Z'),
-    };
+    const cursor = debitCursor(new Date('2025-03-01T00:00:00Z'), new Date('2025-08-28T00:00:00Z'));
     const ctx = defaultCtx();
     const vars = PAYBOX_SHAPE.transactions.buildVars(DEBIT_ACCT, cursor, ctx);
     expect(vars.startDate).toBe('2025-03-01');
     expect(vars.endDate).toBe('2025-08-28');
   });
 
-  it('debit extractPage with mid-stream cursor advances when end is in past', () => {
-    const body = { code: 200, content: { filteredTransactions: [] } };
-    const longAgoStart = new Date('2020-01-01T00:00:00Z');
-    const longAgoEnd = new Date('2020-06-29T00:00:00Z');
-    const cursor = { kind: 'debit' as const, startDate: longAgoStart, endDate: longAgoEnd };
+  it('debit extractPage handles missing content gracefully', () => {
     const page = PAYBOX_SHAPE.transactions.extractPage({
-      body,
-      cursor,
+      body: {},
+      cursor: false,
       acct: DEBIT_ACCT,
       ctx: defaultCtx(),
     });
-    expect(page.nextCursor).not.toBe(false);
-    if (page.nextCursor !== false) {
-      expect(page.nextCursor.kind).toBe('debit');
-    }
-  });
-
-  it('debit extractPage with cursor whose end is at-or-after now stops', () => {
-    const body = { code: 200, content: { filteredTransactions: [] } };
-    const future = new Date(Date.now() + 86_400_000);
-    const cursor = { kind: 'debit' as const, startDate: new Date(), endDate: future };
-    const page = PAYBOX_SHAPE.transactions.extractPage({
-      body,
-      cursor,
-      acct: DEBIT_ACCT,
-      ctx: defaultCtx(),
-    });
-    expect(page.nextCursor).toBe(false);
+    expect(page.items).toHaveLength(0);
   });
 
   it('debit extractPage handles missing content gracefully', () => {

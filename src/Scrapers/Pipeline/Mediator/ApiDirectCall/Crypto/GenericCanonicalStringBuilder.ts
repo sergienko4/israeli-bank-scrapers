@@ -98,6 +98,30 @@ function bodyJsonResolver(args: IBuildCanonicalArgs): Procedure<string> {
 }
 
 /**
+ * Fail constructor for the "no carry map provided" diagnostic.
+ * @param slot - Carry slot name (echoed into the error message).
+ * @returns Procedure.fail with a descriptive message.
+ */
+function failMissingCarry(slot: string): Procedure<string> {
+  return fail(
+    ScraperErrorTypes.Generic,
+    `canonical part needs carry but none provided (slot: ${slot})`,
+  );
+}
+
+/**
+ * Fail constructor for the "carry slot missing or non-string" diagnostic.
+ * @param slot - Carry slot name (echoed into the error message).
+ * @returns Procedure.fail with a descriptive message.
+ */
+function failNonStringSlot(slot: string): Procedure<string> {
+  return fail(
+    ScraperErrorTypes.Generic,
+    `canonical part missing or non-string carry slot: ${slot}`,
+  );
+}
+
+/**
  * Read a string-valued slot from args.carry — fails fast when the slot
  * is missing or non-string. Carry-backed canonical parts (tsMs,
  * deviceId) feed the signature input, so a silent empty fallback would
@@ -108,20 +132,9 @@ function bodyJsonResolver(args: IBuildCanonicalArgs): Procedure<string> {
  * @returns Procedure with the string value, or a fail describing the slot.
  */
 function carrySlotString(args: IBuildCanonicalArgs, slot: string): Procedure<string> {
-  const carry = args.carry;
-  if (carry === undefined) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `canonical part needs carry but none provided (slot: ${slot})`,
-    );
-  }
-  const value = carry[slot];
-  if (typeof value !== 'string') {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `canonical part missing or non-string carry slot: ${slot}`,
-    );
-  }
+  if (args.carry === undefined) return failMissingCarry(slot);
+  const value = args.carry[slot];
+  if (typeof value !== 'string') return failNonStringSlot(slot);
   return succeed(value);
 }
 
