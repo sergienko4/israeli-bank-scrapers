@@ -231,7 +231,8 @@ describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
     expect(vars.endDate).toBe('2025-08-28');
   });
 
-  it('debit extractPage handles missing content gracefully', () => {
+  it('debit extractPage handles missing body content gracefully', () => {
+    // Body-level fallback: `content` itself is absent.
     const page = PAYBOX_SHAPE.transactions.extractPage({
       body: {},
       cursor: false,
@@ -241,9 +242,11 @@ describe('PAYBOX_SHAPE debit transactions chunking (UC-PBS-5)', () => {
     expect(page.items).toHaveLength(0);
   });
 
-  it('debit extractPage handles missing content gracefully', () => {
+  it('debit extractPage handles missing filteredTransactions gracefully (CR R3)', () => {
+    // Per CR Round-3 finding: cover the `content` present but
+    // `filteredTransactions` missing branch — distinct from `body: {}`.
     const page = PAYBOX_SHAPE.transactions.extractPage({
-      body: {},
+      body: { content: {} },
       cursor: false,
       acct: DEBIT_ACCT,
       ctx: defaultCtx(),

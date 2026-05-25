@@ -273,14 +273,37 @@ jobs:
       - name: Force reliable DNS for Israeli bank resolution
         run: bash .github/scripts/ci/dns-warmup.sh
 
+  # ────────────────────────────────────────────────────────────────
+  # E2E REAL matrix — split into 3 category groups (T44, 2026-05-25).
+  #
+  #   Group A — non-OTP browser-form banks
+  #     Isracard, VisaCal, Discount, Max
+  #
+  #   Group B — OTP browser-form banks + Amex
+  #     Hapoalim, Beinleumi, Amex
+  #     needs:[e2e-real-group-a] → Rule #16 (Amex strictly after
+  #     Isracard) holds: Group A finishes before B starts.
+  #
+  #   Group C — api-direct banks (no browser, OTP via Telegram bot)
+  #     OneZero, Pepper, PayBox
+  #     Runs parallel to Group A — independent gate.
+  #
+  # Three approval-gate jobs share the `e2e-real-otp` environment so
+  # the same approver list applies; reviewers get one approval click
+  # per group. The shared env avoids the admin overhead of cloning
+  # `e2e-real-otp` into per-group environments in repo settings.
+  # ────────────────────────────────────────────────────────────────
+
   e2e-real-group-a-gate:
     name: E2E Real A — approval gate
     # HARD dependency on `dns-preflight` (2026-05-17): gate is only
     # available for manual approval when ALL 12 Israeli bank hosts
     # resolve through the runner's Cloudflare/Google/Quad9 chain.
     # If preflight is RED, this gate sits unclickable so we don't
-    # burn the E2E Real matrix on guaranteed-DNS failures. Order:
-    # validate → dns-preflight → approval gate → Group A → Group B.
+    # burn the E2E Real matrix on guaranteed-DNS failures.
+    # Chain: validate → dns-preflight → gate-A → Group A
+    #                                  → gate-C → Group C  (parallel)
+    #                                  → Group A → gate-B → Group B
     needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -290,21 +313,17 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Gate released
-        run: echo "Group A approved; matrix jobs may proceed."
+        run: echo "Group A approved; non-OTP banks may proceed."
 
   e2e-real-group-a:
     name: E2E Real A (${{ matrix.bank }})
     needs: e2e-real-group-a-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    # Single approval gate (2026-05-13) — the previously-separate
-    # `e2e-real-otp` job was merged here. ALL non-Amex banks run in
-    # parallel after ONE manual approval at this environment. Trade-off:
-    # non-OTP banks (Isracard/VisaCal/Discount/Max) also wait for the
-    # approval click, in exchange for: (a) maximum matrix parallelism,
-    # (b) elimination of the sequential `max-parallel: 1` slot that
-    # correlated with Hapoalim's CI failures (commit bb0f4475), and
-    # (c) one approval click per PR instead of two-stage gating.
+    # Group A — non-OTP browser-form banks. No OTP secrets in env.
+    # Runs first; Group B (OTP browser + Amex) depends on completion
+    # via `needs: e2e-real-group-a` to preserve Rule #16 (Amex never
+    # co-runs with Isracard).
     timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -318,21 +337,6 @@ jobs:
           - VisaCal
           - Discount
           - Max
-          - Hapoalim
-          - Beinleumi
-          - OneZero
-          - Pepper
-          - PayBox
-          # Pepper joined the matrix on 2026-05-22 after the Camoufox
-          # identity-transport adoption (commit 2b903a94) + Telegram
-          # OTP fetcher short-poll fix (commit 024c18e4) verified the
-          # full flow end-to-end. Stable bank now — uses the same
-          # credentials-based skip gate as every other bank.
-          # PayBox joined 2026-05-24 (Phase E of feat/paybox-onboarding).
-          # API-direct REST flow (AES-CBC-PKCS7 signature + cryptoField
-          # OTP encrypt) — no browser. Skipped when PAYBOX_PHONE_NUMBER
-          # is absent. Scraper bootstraps deviceId internally on cold
-          # run; OTP code arrives via Telegram bot (existing fetcher).
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       # DNS override + warmup (single source of truth lives in
@@ -351,15 +355,7 @@ jobs:
           # LOG_LEVEL=trace makes the pipeline write per-run artefacts
           # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
           # Both pipeline.log AND network/*.json are PII-redacted at
-          # write-time by the runtime layer (commit 3f1b966d: PiiRedactor
-          # is wired into Pino's redact.censor + NetworkDiscovery's
-          # dumpResponseBody routes through redactJsonBody/redactUrl).
-          # Both file types are safe to upload; the failure-only artifact
-          # below uploads them so we can debug auto-discovery + endpoint
-          # selection (e.g. Max's "scrape skipped — No txn URL" case
-          # needs the 71 captured network URLs to triage).
-          # Screenshots are still excluded — PNGs cannot be reliably
-          # redacted and may capture rendered PII text.
+          # write-time by the runtime layer (commit 3f1b966d).
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
@@ -372,21 +368,6 @@ jobs:
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
           MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
           MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
-          # OTP banks merged into Group A — single approval gate above.
-          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
-          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
-          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
-          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
-          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
-          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
-          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
-          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
-          PEPPER_PHONE_NUMBER: ${{ secrets.PEPPER_PHONE_NUMBER }}
-          PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
-          PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
-          PAYBOX_PHONE_NUMBER: ${{ secrets.PAYBOX_PHONE_NUMBER }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
         # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
         # has two it() blocks: 'scrapes transactions successfully' (happy)
@@ -407,13 +388,10 @@ jobs:
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
           # pipeline.log + network/*.json — both PII-redacted at write
-          # time by the runtime layer (commit 3f1b966d). Network dumps
-          # are required to triage auto-discovery failures (which URL
-          # got picked out of the captured set, what response shape).
-          # Pre-auth screenshots (init/home only) included since the
-          # bank page carries no user data before LOGIN — needed to
-          # triage WAF / challenge-wall hypotheses without speculation.
-          # LOGIN / OTP / DASHBOARD / SCRAPE screenshots remain excluded.
+          # time by the runtime layer (commit 3f1b966d). Pre-auth
+          # screenshots (init/home only) included since the bank page
+          # carries no user data before LOGIN — needed to triage WAF /
+          # challenge-wall hypotheses without speculation.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
@@ -421,16 +399,33 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-  # `e2e-real-otp` job removed 2026-05-13 — OTP banks (Beinleumi /
-  # OneZero) merged into `e2e-real-group-a` above with a single
-  # approval gate covering the whole matrix. See Group A comment.
+  e2e-real-group-b-gate:
+    name: E2E Real B — approval gate
+    # Rule #16 wiring (Amex strictly after Isracard): Group B contains
+    # Amex AND the OTP-browser banks (Hapoalim, Beinleumi). The gate
+    # `needs:` Group A's matrix completion so Amex cannot co-run with
+    # Isracard. Same DNS-preflight pre-condition as gate-A.
+    needs: [validate, dns-preflight, e2e-real-group-a]
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: e2e-real-otp
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group B approved; OTP-browser + Amex may proceed."
 
   e2e-real-group-b:
     name: E2E Real B (${{ matrix.bank }})
-    needs: e2e-real-group-a
+    needs: e2e-real-group-b-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Group B — OTP browser-form banks + Amex. Amex sits here because
+    # Rule #16 forbids it from co-running with Isracard (Group A);
+    # the `needs:` chain via gate-B ensures Group A is fully drained
+    # before any Group B matrix cell starts.
+    timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
@@ -439,11 +434,11 @@ jobs:
       fail-fast: false
       matrix:
         bank:
+          - Hapoalim
+          - Beinleumi
           - Amex
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      # Same DNS-warmup script as preflight and Group A — extracts
-      # the hostname for THIS matrix bank only.
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: ./.github/actions/setup-node-deps
@@ -453,14 +448,16 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
-          # Same trace + RUNS_ROOT setup as Group A — failure artifact
-          # below relies on /tmp/runs being populated when LOG_LEVEL=trace.
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
           AMEX_ID: ${{ secrets.AMEX_ID }}
           AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
-        # Happy-path filter — see Group A note above; same rationale.
+        # Happy-path filter — same rationale as Group A.
         run: |
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
             --ci \
@@ -474,9 +471,93 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # Same pre-auth screenshot policy as Group A — init + home only
-          # so we can triage homepage WAF / challenge-wall failures
-          # (Hapoalim CI race investigated 2026-05-13) with visual proof.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+  e2e-real-group-c-gate:
+    name: E2E Real C — approval gate
+    # Group C runs in parallel with Group A. No Rule #16 dependency:
+    # api-direct banks (OneZero, Pepper, PayBox) never touch the
+    # Isracard host, so they cannot interfere with the Isracard run.
+    # Same DNS-preflight pre-condition as the other two gates.
+    needs: [validate, dns-preflight]
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: e2e-real-otp
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group C approved; api-direct banks may proceed."
+
+  e2e-real-group-c:
+    name: E2E Real C (${{ matrix.bank }})
+    needs: e2e-real-group-c-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Group C — api-direct banks. No browser, OTP code arrives via
+    # the Telegram bot (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID).
+    # Pepper joined the matrix on 2026-05-22 after the Camoufox
+    # identity-transport adoption (commit 2b903a94) + Telegram OTP
+    # fetcher short-poll fix (commit 024c18e4) verified the full
+    # flow end-to-end. PayBox joined 2026-05-24 (Phase E of
+    # feat/paybox-onboarding) — API-direct REST flow with AES-CBC-
+    # PKCS7 signature + cryptoField OTP encrypt; scraper bootstraps
+    # deviceId internally on cold run.
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - OneZero
+          - Pepper
+          - PayBox
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
+          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
+          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
+          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
+          PEPPER_PHONE_NUMBER: ${{ secrets.PEPPER_PHONE_NUMBER }}
+          PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
+          PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
+          PAYBOX_PHONE_NUMBER: ${{ secrets.PAYBOX_PHONE_NUMBER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        # Happy-path filter — same rationale as Group A.
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
