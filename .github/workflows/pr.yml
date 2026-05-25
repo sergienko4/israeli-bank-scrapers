@@ -375,6 +375,12 @@ jobs:
         # matrix). Running both here re-tests invalid-creds against the
         # same bank twice per PR — testNamePattern eliminates the duplicate.
         run: |
+          # Strict mode: fail-loud on any unset env var, non-zero exit
+          # in a pipe, or unmasked error. Without this, the `node ... |`
+          # invocation could lose a real Jest failure if the runner ever
+          # piped stdout (e.g. into tee for diagnostics) — and a missing
+          # secret would silently expand to empty rather than aborting.
+          set -euo pipefail
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
             --ci \
             --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
@@ -459,6 +465,12 @@ jobs:
           AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
         # Happy-path filter — same rationale as Group A.
         run: |
+          # Strict mode: fail-loud on any unset env var, non-zero exit
+          # in a pipe, or unmasked error. Without this, the `node ... |`
+          # invocation could lose a real Jest failure if the runner ever
+          # piped stdout (e.g. into tee for diagnostics) — and a missing
+          # secret would silently expand to empty rather than aborting.
+          set -euo pipefail
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
             --ci \
             --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
@@ -546,6 +558,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         # Happy-path filter — same rationale as Group A.
         run: |
+          # Strict mode: fail-loud on any unset env var, non-zero exit
+          # in a pipe, or unmasked error. Without this, the `node ... |`
+          # invocation could lose a real Jest failure if the runner ever
+          # piped stdout (e.g. into tee for diagnostics) — and a missing
+          # secret would silently expand to empty rather than aborting.
+          set -euo pipefail
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
             --ci \
             --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
