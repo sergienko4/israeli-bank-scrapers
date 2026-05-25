@@ -75,4 +75,51 @@ describe('FlowInitCarry.buildInitialCarry', () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.value.flowId).toBe('fid-1');
   });
+
+  it('derives deterministic 16-hex via sha256-prefix-16 bootstrap from another creds field', () => {
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'deviceId16Hex', bootstrap: { kind: 'sha256-prefix-16', from: 'phoneNumber' } },
+      ],
+    });
+    const phone = '972-542155100';
+    const first = buildInitialCarry(config, { phoneNumber: phone }, {});
+    const second = buildInitialCarry(config, { phoneNumber: phone }, {});
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    if (first.success && second.success) {
+      expect(first.value.deviceId16Hex).toMatch(/^[0-9a-f]{16}$/);
+      // Determinism is the load-bearing property: same phone in → same
+      // deviceId out, so a cached long-term token bound to the
+      // deviceId on the server stays valid across warm-start runs.
+      expect(first.value.deviceId16Hex).toBe(second.value.deviceId16Hex);
+    }
+  });
+
+  it('produces a different sha256-prefix-16 value for a different source creds value', () => {
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'deviceId16Hex', bootstrap: { kind: 'sha256-prefix-16', from: 'phoneNumber' } },
+      ],
+    });
+    const left = buildInitialCarry(config, { phoneNumber: '972-542155100' }, {});
+    const right = buildInitialCarry(config, { phoneNumber: '972-541234567' }, {});
+    expect(left.success).toBe(true);
+    expect(right.success).toBe(true);
+    if (left.success && right.success) {
+      expect(left.value.deviceId16Hex).not.toBe(right.value.deviceId16Hex);
+    }
+  });
+
+  it('fails when sha256-prefix-16 source creds field is absent', () => {
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'deviceId16Hex', bootstrap: { kind: 'sha256-prefix-16', from: 'phoneNumber' } },
+      ],
+    });
+    const result = buildInitialCarry(config, {}, {});
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.errorMessage).toContain('creds.phoneNumber missing or empty');
+  });
 });

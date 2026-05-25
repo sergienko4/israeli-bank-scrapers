@@ -215,12 +215,32 @@ interface IStepConfig {
 }
 
 /**
- * Bootstrap-kind enum — closed set of generators the mediator runs
+ * Random 16-byte hex bootstrap — non-deterministic, fresh per process.
+ * Used when the carry slot just needs a unique opaque token.
+ */
+type IRandomHex16Bootstrap = 'random-hex-16';
+
+/**
+ * Deterministic 16-hex bootstrap derived from another creds field via
+ * `sha256(creds[from]).slice(0, 16)`. Used when the carry slot must
+ * stay stable across warm-start runs (e.g. a device identifier that
+ * the bank's server has bound a long-term token to). Same input
+ * always yields the same output, so the caller does not have to
+ * persist the slot separately alongside the long-term token.
+ */
+interface ISha256Prefix16Bootstrap {
+  readonly kind: 'sha256-prefix-16';
+  /** Creds field whose UTF-8 bytes are fed into the SHA-256 digest. */
+  readonly from: string;
+}
+
+/**
+ * Bootstrap-kind union — closed set of generators the mediator runs
  * when a `seedCarryFromCreds` entry's creds value is absent. Stays
  * data-only by keeping the producer logic inside the mediator rather
  * than letting banks pass callbacks.
  */
-type SeedCarryBootstrapKind = 'random-hex-16';
+type SeedCarryBootstrapKind = IRandomHex16Bootstrap | ISha256Prefix16Bootstrap;
 
 /**
  * Seed-carry source spec — names the creds field to mirror into

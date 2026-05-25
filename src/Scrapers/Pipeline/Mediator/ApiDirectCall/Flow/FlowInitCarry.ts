@@ -7,7 +7,7 @@
  * Zero bank knowledge. Rule #11 compliant.
  */
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
@@ -18,10 +18,14 @@ import type {
   IDerivedCarry,
   ISeedCarrySource,
   RefToken,
+  SeedCarryBootstrapKind,
 } from '../IApiDirectCallConfig.js';
 
 /** Random-hex generator size used by the `'random-hex-16'` bootstrap. */
 const RANDOM_HEX_16_BYTES = 16;
+
+/** Hex prefix length produced by the `'sha256-prefix-16'` bootstrap. */
+const SHA256_PREFIX_LENGTH = 16;
 
 /** Mutable carry accumulator used while flow-init runs. */
 type CarryMut = Record<string, JsonValue>;
@@ -35,6 +39,49 @@ type CarryMut = Record<string, JsonValue>;
 function bootstrapRandomHex16(): Procedure<string> {
   const hex = randomBytes(RANDOM_HEX_16_BYTES).toString('hex');
   return succeed(hex);
+}
+
+/**
+ * Deterministically derive a 16-character hex prefix from another
+ * creds field. Used for warm-start-stable per-user identifiers
+ * (e.g. `deviceId16Hex` derived from `phoneNumber`) so banks whose
+ * server has bound a long-term token to such an identifier do not
+ * need the caller to persist the identifier separately.
+ * @param from - Creds field name whose UTF-8 bytes are hashed.
+ * @param creds - Caller credentials.
+ * @returns Procedure with the 16-hex prefix (lowercase).
+ */
+function bootstrapSha256Prefix16(
+  from: string,
+  creds: Readonly<Record<string, unknown>>,
+): Procedure<string> {
+  const raw = creds[from];
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `sha256-prefix-16 bootstrap: creds.${from} missing or empty`,
+    );
+  }
+  const digest = createHash('sha256').update(raw, 'utf8').digest('hex');
+  const prefix = digest.slice(0, SHA256_PREFIX_LENGTH);
+  return succeed(prefix);
+}
+
+/**
+ * Dispatch a bootstrap kind to its generator. Extracted so the
+ * outer {@link evalSeedSource} stays inside the per-function depth
+ * budget when a new kind is added.
+ * @param bootstrap - Bootstrap kind (string for parameterless,
+ *   object for parameterised generators).
+ * @param creds - Caller credentials (consulted by parameterised kinds).
+ * @returns Procedure with the bootstrap-produced value.
+ */
+function evalBootstrap(
+  bootstrap: SeedCarryBootstrapKind,
+  creds: Readonly<Record<string, unknown>>,
+): Procedure<string> {
+  if (bootstrap === 'random-hex-16') return bootstrapRandomHex16();
+  return bootstrapSha256Prefix16(bootstrap.from, creds);
 }
 
 /**
@@ -66,11 +113,13 @@ function evalSeedSource(
   const raw = creds[entry.field];
   const coerced = coerceCredsValue(raw);
   if (isOk(coerced) && coerced.value !== '') return coerced;
-  if (entry.bootstrap === 'random-hex-16') return bootstrapRandomHex16();
-  return fail(
-    ScraperErrorTypes.Generic,
-    `seedCarryFromCreds: creds.${entry.field} absent and no bootstrap configured`,
-  );
+  if (entry.bootstrap === undefined) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `seedCarryFromCreds: creds.${entry.field} absent and no bootstrap configured`,
+    );
+  }
+  return evalBootstrap(entry.bootstrap, creds);
 }
 
 /** One seed-source entry can be a bare field name or a full source spec. */
