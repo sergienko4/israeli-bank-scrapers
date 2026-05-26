@@ -256,9 +256,9 @@ abstract class BasePhase {
    * @param ctx - Pipeline context at phase entry.
    * @returns Final context after all 4 stages, or first failure.
    */
-  public async run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  public run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
     setActivePhase(this.name);
-    return await this.runStages(ctx, ctx.logger);
+    return this.runStages(ctx, ctx.logger);
   }
 
   /**

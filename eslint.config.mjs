@@ -891,6 +891,15 @@ export default tseslint.config(
       // scope in PayBoxShapeTxns; the rule keeps that class of "magic
       // string trio" out at pre-commit.
       'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
+      // V4 — surface dead `await` keywords (CodeRabbit CR9's `await
+      // Promise.resolve()` in ApiDirectScrapePhase.post) AND the
+      // dual-form bug where `return await` inside try/catch is fine
+      // but outside it is wasted work. Both rules complement each
+      // other: `no-return-await` covers the syntactic case,
+      // `await-thenable` rejects awaits on plain values that can't be
+      // a Promise.
+      'no-return-await': 'error',
+      '@typescript-eslint/await-thenable': 'error',
     },
   },
   // 7. INFRASTRUCTURE EXCEPTIONS (COMPLEXITY ONLY)

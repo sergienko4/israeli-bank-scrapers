@@ -133,7 +133,7 @@ async function reduceField(
 ): Promise<IFillAccum> {
   const acc = await prev;
   if (!acc.procedure.success) return acc;
-  return await fillFieldStep(ctx, field, acc.scope);
+  return fillFieldStep(ctx, field, acc.scope);
 }
 
 export { reduceField, validateCredentials };
