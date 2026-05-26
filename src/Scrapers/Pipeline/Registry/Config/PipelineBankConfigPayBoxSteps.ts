@@ -72,6 +72,13 @@ function buildOtpCryptoField<TIvSlot extends 'pinIv1' | 'pinIv2'>(
   };
 }
 
+/** Shared `$ref` token strings — symmetric across all 3 login steps. */
+const IV_HEX_REF = 'carry.ivHex' as const;
+const PHONE_NUMBER_REF = 'creds.phoneNumber' as const;
+/** PayBox wraps every response in `{ code, content: {…} }`; the token
+ *  always lives at this JSON pointer. */
+const ACCESS_TOKEN_POINTER = '/content/access_token' as const;
+
 /**
  * Step 1: POST /phoneValidate — triggers SMS, returns access_token1.
  * Class-z body (flat iv+signature at root).
@@ -81,8 +88,8 @@ const PHONE_VALIDATE_STEP: IStepConfig = {
   urlTag: 'identity.phoneValidate',
   body: {
     shape: {
-      iv: { $ref: 'carry.ivHex' },
-      phoneNum: { $ref: 'creds.phoneNumber' },
+      iv: { $ref: IV_HEX_REF },
+      phoneNum: { $ref: PHONE_NUMBER_REF },
       isVoiceCall: { $literal: false },
       deviceInfo: DEVICE_INFO,
     },
@@ -92,7 +99,7 @@ const PHONE_VALIDATE_STEP: IStepConfig = {
     // extractor walks into `/content/…` to reach the payload. Validated
     // against `c:/tmp/paybox-capture-2026-05-23/paybox-history.mitmflow`
     // flow [04].
-    accessToken1: '/content/access_token',
+    accessToken1: ACCESS_TOKEN_POINTER,
   },
 };
 
@@ -105,15 +112,15 @@ const PIN_VALIDATION_STEP: IStepConfig = {
   urlTag: 'identity.pinValidation',
   body: {
     shape: {
-      iv: { $ref: 'carry.ivHex' },
-      phoneNum: { $ref: 'creds.phoneNumber' },
+      iv: { $ref: IV_HEX_REF },
+      phoneNum: { $ref: PHONE_NUMBER_REF },
       access_token: { $ref: 'carry.accessToken1' },
       deviceInfo: DEVICE_INFO,
       pinIv: { $ref: 'carry.pinIv1' },
     },
   },
   extractsToCarry: {
-    accessToken2: '/content/access_token',
+    accessToken2: ACCESS_TOKEN_POINTER,
   },
   preHook: {
     awaitCredsField: 'otpCodeRetriever',
@@ -131,8 +138,8 @@ const LOGIN_BY_SMS_STEP: IStepConfig = {
   urlTag: 'identity.loginBySms',
   body: {
     shape: {
-      iv: { $ref: 'carry.ivHex' },
-      phoneNum: { $ref: 'creds.phoneNumber' },
+      iv: { $ref: IV_HEX_REF },
+      phoneNum: { $ref: PHONE_NUMBER_REF },
       access_token: { $ref: 'carry.accessToken2' },
       lang: { $literal: 'heb' },
       deviceInfo: DEVICE_INFO,
@@ -140,7 +147,7 @@ const LOGIN_BY_SMS_STEP: IStepConfig = {
     },
   },
   extractsToCarry: {
-    token: '/content/access_token',
+    token: ACCESS_TOKEN_POINTER,
     uId: '/content/uId',
   },
   preHook: {

@@ -18,13 +18,21 @@
  * collections) but cannot be re-identified.
  *
  * Default deny: any value that does NOT classify into a known
- * PiiCategory is replaced by the literal '[REDACTED]'. Errors thrown
+ * PiiCategory is replaced by the literal REDACTED_HINT. Errors thrown
  * inside a strategy never crash the pipeline — they translate to
  * '[REDACTION_ERROR]' and the pipeline continues.
  */
 
 import ScraperErrorTypes from '../../Base/ErrorTypes.js';
 import type { Brand } from './Brand.js';
+
+/**
+ * Default-deny replacement string — used whenever a value fails to
+ * classify into a known {@link PiiCategory}. Exposed as a single
+ * constant so callers can grep for "where do we write [REDACTED]?"
+ * by symbol name.
+ */
+const REDACTED_HINT = '[REDACTED]' as const;
 
 /**
  * Default-on PII redaction. Set `PII_REDACTION=off` in `.env` to pass
@@ -167,14 +175,14 @@ const PII_QUERY_KEYS: ReadonlySet<string> = new Set([
 const FALLBACK_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[] = [
   { re: /\b(\d{2}-\d{3}-)\d+(\d{4})\b/g, to: '$1***$2' },
   { re: /(?<!\d)\d{5}(\d{4})(?!\d)/g, to: '***$1' },
-  { re: /eyJ[\w-]{20,}/g, to: '[REDACTED]' },
+  { re: /eyJ[\w-]{20,}/g, to: REDACTED_HINT },
 ];
 
 /** HTML scrubbing patterns applied to text content. */
 const HTML_TEXT_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[] = [
   { re: /\b(\d{2}-\d{3}-)\d+(\d{4})\b/g, to: '$1***$2' },
   { re: /(?<!\d)\d{5}(\d{4})(?!\d)/g, to: '***$1' },
-  { re: /eyJ[\w-]{20,}/g, to: '[REDACTED]' },
+  { re: /eyJ[\w-]{20,}/g, to: REDACTED_HINT },
 ];
 
 /**
@@ -279,7 +287,7 @@ function redactAccount(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const tail = terminalSegment(value);
-  if (tail.length <= MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
+  if (tail.length <= MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;
   return `***${tail.slice(-4)}` as PiiHintString;
 }
 
@@ -291,7 +299,7 @@ function redactAccount(value: string): PiiHintString {
 function redactCard(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
-  if (value.length < MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
+  if (value.length < MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;
   return `****${value.slice(-4)}` as PiiHintString;
 }
 
@@ -304,7 +312,7 @@ function redactIsraeliId(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const digits = value.replaceAll(/\D/g, '');
-  if (digits.length !== ISRAELI_ID_LEN) return '[REDACTED]' as PiiHintString;
+  if (digits.length !== ISRAELI_ID_LEN) return REDACTED_HINT as PiiHintString;
   return `***${digits.slice(-4)}` as PiiHintString;
 }
 
@@ -317,7 +325,7 @@ function redactPhone(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   const digits = value.replaceAll(/\D/g, '');
-  if (digits.length < MIN_HINT_LEN) return '[REDACTED]' as PiiHintString;
+  if (digits.length < MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;
   return `***${digits.slice(-4)}` as PiiHintString;
 }
 
@@ -353,7 +361,7 @@ function redactMerchant(value: string): PiiHintString {
 function redactAmount(value: number | string): PiiHintString {
   if (isPiiRedactionDisabled) return String(value) as PiiHintString;
   const num = coerceToNumber(value);
-  if (Number.isNaN(num)) return '[REDACTED]' as PiiHintString;
+  if (Number.isNaN(num)) return REDACTED_HINT as PiiHintString;
   if (num < 0) return '-***' as PiiHintString;
   return '+***' as PiiHintString;
 }
@@ -379,7 +387,7 @@ function coerceToNumber(value: number | string): PiiCountInt {
 function redactOpaqueSecret(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
-  return '[REDACTED]' as PiiHintString;
+  return REDACTED_HINT as PiiHintString;
 }
 
 /**
@@ -483,8 +491,8 @@ function redactSensitiveEnum(value: string): PiiHintString {
 function redactOtp(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
-  if (value.length < OTP_MIN_LEN) return '[REDACTED]' as PiiHintString;
-  if (value.length > OTP_MAX_LEN) return '[REDACTED]' as PiiHintString;
+  if (value.length < OTP_MIN_LEN) return REDACTED_HINT as PiiHintString;
+  if (value.length > OTP_MAX_LEN) return REDACTED_HINT as PiiHintString;
   return '[OTP]' as PiiHintString;
 }
 
@@ -549,7 +557,7 @@ function dispatchStrategy(args: IDispatchArgs): PiiHintString {
     return redactAmount(amountInput);
   }
   const strategy = STRING_STRATEGIES[args.category];
-  if (strategy === undefined) return '[REDACTED]' as PiiHintString;
+  if (strategy === undefined) return REDACTED_HINT as PiiHintString;
   const stringInput = toStringValue(args.value);
   return strategy(stringInput) as PiiHintString;
 }
@@ -568,9 +576,9 @@ function dispatchStrategy(args: IDispatchArgs): PiiHintString {
  */
 function createCensorFn(): CensorFn {
   return (value, path): PiiHintString => {
-    if (path.length === 0) return '[REDACTED]' as PiiHintString;
+    if (path.length === 0) return REDACTED_HINT as PiiHintString;
     const tail = path.at(-1);
-    if (tail === undefined || tail.length === 0) return '[REDACTED]' as PiiHintString;
+    if (tail === undefined || tail.length === 0) return REDACTED_HINT as PiiHintString;
     try {
       const category = classifyKey(tail);
       return dispatchStrategy({ value, category });

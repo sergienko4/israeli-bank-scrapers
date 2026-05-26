@@ -815,6 +815,7 @@ export default tseslint.config(
     plugins: {
       'check-file': checkFile,
       'import-x': importPlugin,
+      sonarjs,
     },
     rules: {
       // --- A. THE "NESTED OR DEATH" GATE ---
@@ -884,6 +885,12 @@ export default tseslint.config(
       // `(creds.phoneNumber as unknown as string) ?? ''` pattern this
       // way; the rule keeps future double-cast-then-null-coalesce out.
       '@typescript-eslint/no-unnecessary-condition': 'error',
+      // V2 — flag any string literal that repeats 3+ times in one file
+      // without being lifted to a named constant. CodeRabbit's CR2 was
+      // a hardcoded `'5.6.6'` / `'android-13'` / `'pb'` set at module
+      // scope in PayBoxShapeTxns; the rule keeps that class of "magic
+      // string trio" out at pre-commit.
+      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
     },
   },
   // 7. INFRASTRUCTURE EXCEPTIONS (COMPLEXITY ONLY)

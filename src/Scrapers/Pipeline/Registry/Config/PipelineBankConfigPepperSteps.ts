@@ -6,6 +6,19 @@
 
 import { AID, APK_VERSION, LOCALE } from './PipelineBankConfigPepperFingerprint.js';
 
+/**
+ * Header `type` discriminator strings — Pepper's `/auth/bind`,
+ * `/auth/assert/password` and `/auth/assert/otp` envelopes all carry
+ * the same `flow_id` + `uid` header pair. Lifted to module-scope
+ * constants per the sonarjs/no-duplicate-string rule.
+ */
+const HEADER_TYPE_FLOW_ID = 'flow_id' as const;
+const HEADER_TYPE_UID = 'uid' as const;
+
+/** Shared `$ref` token strings — symmetric across all 3 Pepper steps. */
+const FLOW_ID_REF = 'carry.flowId' as const;
+const PHONE_NUMBER_REF = 'creds.phoneNumber' as const;
+
 /** Step 1: /auth/bind — device-key registration + fingerprint upload. */
 const BIND_STEP = {
   name: 'bind' as const,
@@ -19,12 +32,12 @@ const BIND_STEP = {
     shape: {
       headers: [
         {
-          type: { $literal: 'flow_id' },
-          flow_id: { $ref: 'carry.flowId' as const },
+          type: { $literal: HEADER_TYPE_FLOW_ID },
+          flow_id: { $ref: FLOW_ID_REF },
         },
         {
-          type: { $literal: 'uid' },
-          uid: { $ref: 'creds.phoneNumber' as const },
+          type: { $literal: HEADER_TYPE_UID },
+          uid: { $ref: PHONE_NUMBER_REF },
         },
       ],
       data: {
@@ -69,12 +82,12 @@ const ASSERT_PWD_STEP = {
     shape: {
       headers: [
         {
-          type: { $literal: 'flow_id' },
-          flow_id: { $ref: 'carry.flowId' as const },
+          type: { $literal: HEADER_TYPE_FLOW_ID },
+          flow_id: { $ref: FLOW_ID_REF },
         },
         {
-          type: { $literal: 'uid' },
-          uid: { $ref: 'creds.phoneNumber' as const },
+          type: { $literal: HEADER_TYPE_UID },
+          uid: { $ref: PHONE_NUMBER_REF },
         },
       ],
       data: {
@@ -108,12 +121,12 @@ const ASSERT_OTP_STEP = {
     shape: {
       headers: [
         {
-          type: { $literal: 'flow_id' },
-          flow_id: { $ref: 'carry.flowId' as const },
+          type: { $literal: HEADER_TYPE_FLOW_ID },
+          flow_id: { $ref: FLOW_ID_REF },
         },
         {
-          type: { $literal: 'uid' },
-          uid: { $ref: 'creds.phoneNumber' as const },
+          type: { $literal: HEADER_TYPE_UID },
+          uid: { $ref: PHONE_NUMBER_REF },
         },
       ],
       data: {

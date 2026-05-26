@@ -185,7 +185,7 @@ function collectNormaliseBundle(ctx: IPipelineContext): INormaliseBundle | false
 function logFormatFailure(bundle: INormaliseBundle, reason: string): IPipelineContext {
   const { ctx, format, rawShape } = bundle;
   ctx.logger.warn(
-    { module: 'api-direct-call', reason, format, rawShape },
+    { module: PHASE_LABEL, reason, format, rawShape },
     'phoneNumber normalisation failed — keeping raw input for downstream validation',
   );
   return ctx;
@@ -201,7 +201,7 @@ function applyWireFormat(bundle: INormaliseBundle, wireValue: string): IPipeline
   const { ctx, format, rawShape } = bundle;
   const wireShape = phoneShape(wireValue);
   ctx.logger.info(
-    { module: 'api-direct-call', format, rawShape, wireShape },
+    { module: PHASE_LABEL, format, rawShape, wireShape },
     'phoneNumber normalised (PII-safe shape only)',
   );
   const creds = ctx.credentials as unknown as Record<string, unknown>;
