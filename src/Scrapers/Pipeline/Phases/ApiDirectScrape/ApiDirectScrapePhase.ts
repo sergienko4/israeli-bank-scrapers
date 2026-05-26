@@ -75,14 +75,14 @@ class ApiDirectScrapePhase extends BasePhase {
    * @param input - Pipeline context after the scrape action.
    * @returns Input context unchanged, wrapped in a successful Procedure.
    */
-  public async post(
+  public post(
     _ctx: IPipelineContext,
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
-    await Promise.resolve();
     input.logger.debug({ phase: this.name, message: 'api-direct-scrape.post' });
     if (input.scrape.has) logForensicAudit(input);
-    return succeed(input);
+    const outcome = succeed(input);
+    return Promise.resolve(outcome);
   }
 }
 

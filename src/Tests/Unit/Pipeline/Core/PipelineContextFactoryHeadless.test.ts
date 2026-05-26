@@ -84,6 +84,11 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
   const tlsDisposeCases = [
     { testId: 'OZ-PCF-01', bankName: 'OneZero', companyId: CompanyTypes.OneZero },
     { testId: 'PP-PCF-02', bankName: 'Pepper', companyId: CompanyTypes.Pepper },
+    // PayBox lives in the same matrix because its dispose contract is
+    // identical to OneZero/Pepper — the `bypassOriginChallenge`
+    // route-intercept detail is exercised at the strategy-level tests,
+    // not here.
+    { testId: 'PB-PCF-04', bankName: 'PayBox', companyId: CompanyTypes.PayBox },
   ] as const;
 
   tlsDisposeCases.forEach(({ testId, bankName, companyId }) => {
@@ -107,26 +112,5 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
       {} as unknown as Parameters<typeof buildInitialContext>[1],
     );
     expect(ctx.apiMediator.has).toBe(false);
-  });
-
-  /**
-   * PayBox (Cloudflare-gated identity host): the mediator routes through
-   * Camoufox the same way OneZero/Pepper do (so the request inherits
-   * Firefox-profile HTTP/2 + TLS), AND opts into the route-intercept
-   * bypass on the initial origin navigation. The Camoufox mediator
-   * exposes a `dispose` hook — that presence is the load-bearing signal
-   * that proves the Camoufox branch fired (the bypass-origin-challenge
-   * detail is exercised by the strategy-level tests).
-   */
-  it('PB-PCF-04 — PayBox (requiresBrowserTls + bypassOriginChallenge): mediator exposes dispose hook', () => {
-    const descriptor = makeDescriptor(true, CompanyTypes.PayBox);
-    const ctx = buildInitialContext(
-      descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
-    );
-    expect(ctx.apiMediator.has).toBe(true);
-    if (ctx.apiMediator.has) {
-      expect(typeof ctx.apiMediator.value.dispose).toBe('function');
-    }
   });
 });

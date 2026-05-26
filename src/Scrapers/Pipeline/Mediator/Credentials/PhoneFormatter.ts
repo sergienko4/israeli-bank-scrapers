@@ -15,7 +15,7 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 
 /**
  * Closed set of bank-specific wire formats.
@@ -94,7 +94,7 @@ function applyPhoneFormat(args: IApplyFormatArgs): string {
  */
 export function formatPhoneNumber(raw: string, format: PhoneNumberFormat): Procedure<string> {
   const validated = validateInternationalDigits(raw);
-  if (!validated.success) return validated;
+  if (!isOk(validated)) return validated;
   const cc = validated.value.slice(0, IL_COUNTRY_CODE.length);
   const local = validated.value.slice(IL_COUNTRY_CODE.length);
   const formatted = applyPhoneFormat({ cc, local, format });

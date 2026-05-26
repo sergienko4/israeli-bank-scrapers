@@ -11,6 +11,7 @@ import type {
   TxnsUrlTag,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { PAYBOX_AUTH_ENVELOPE_DEFAULTS } from '../../../Registry/Config/PipelineBankConfigPayBox.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import { isSome } from '../../../Types/Option.js';
@@ -29,10 +30,10 @@ const WALLET_PAGE_CAP = 24;
  * other value returns an empty `nc` page.
  */
 const WALLET_TS_FIRST = 'null';
-/** Auth envelope literal — populated per-call from session-context + carry. */
-const APP_VER = '5.6.6';
-const OS = 'android-13';
-const TYPE = 'pb';
+// Auth envelope defaults (appVer / os / type) are read from
+// `PAYBOX_AUTH_ENVELOPE_DEFAULTS` in `PipelineBankConfigPayBox.ts`
+// per the project's "constants from configuration" rule — bumping
+// the captured app version is a config-only change.
 
 /** Wallet ts cursor — opaque cursor string + zero-based page index. */
 export interface IPayBoxCursor {
@@ -94,9 +95,9 @@ function buildAuthEnvelope(ctx: IActionContext): Record<string, string> {
     uuid: deviceId,
     uId,
     access_token: resolveToken(ctx),
-    appVer: APP_VER,
-    type: TYPE,
-    os: OS,
+    appVer: PAYBOX_AUTH_ENVELOPE_DEFAULTS.appVer,
+    type: PAYBOX_AUTH_ENVELOPE_DEFAULTS.type,
+    os: PAYBOX_AUTH_ENVELOPE_DEFAULTS.os,
     signature: '',
   };
 }

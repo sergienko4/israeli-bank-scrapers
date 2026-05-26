@@ -106,14 +106,27 @@ describe('ApiDirectScrapeDispatch.dispatchStep — REST signer branch', () => {
     // calls attachBodySignature. The signing helper reads
     // `scope.config.signer` from the SCRAPE_CONFIG_SENTINEL (no signer
     // on the sentinel), so the no-op short-circuit fires and the body
-    // is POSTed unchanged. This test pins the pipeline traversal so
-    // the maybeSignBody → buildPrimedScrapeScope code path is exercised.
+    // is POSTed unchanged. Beyond the success flag this test pins:
+    //   1. apiPost was invoked exactly once.
+    //   2. The hydrated `bodyTemplate` survives to the dispatched body
+    //      (no template token leak).
+    //   3. The original signer config is preserved (no in-place mutation).
+    const okOutcome = succeed({});
+    const okResp = Promise.resolve(okOutcome);
+    const apiPost = jest.fn((): Promise<Procedure<unknown>> => okResp);
+    const baseBus = makeOneShotBus(okOutcome);
+    const bus = { ...baseBus, apiPost } as unknown as IApiMediator;
     const args = makeDispatchArgs({
+      bus,
       bodyTemplate: { hello: { $literal: 'world' } },
       signer: SCRAPE_SIGNER,
     });
     const result = await dispatchStep(args);
     expect(result.success).toBe(true);
+    expect(apiPost).toHaveBeenCalledTimes(1);
+    const [, dispatchedBody] = apiPost.mock.calls[0] as unknown as [unknown, unknown];
+    expect(dispatchedBody).toEqual({ hello: 'world' });
+    expect(args.signer).toBe(SCRAPE_SIGNER);
   });
 
   it('fails when the bodyTemplate hydrates to a non-object value', async () => {

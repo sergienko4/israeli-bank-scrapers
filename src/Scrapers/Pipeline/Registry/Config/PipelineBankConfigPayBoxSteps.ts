@@ -43,16 +43,29 @@ const DEVICE_INFO = {
  * @param ivSlot - Carry slot name for the per-step pin IV.
  * @returns ICryptoFieldConfig literal.
  */
-function buildOtpCryptoField(ivSlot: 'pinIv1' | 'pinIv2'): {
+/** Bound cryptoField config for a single OTP-encryption step. */
+interface IOtpCryptoFieldConfig<TIvSlot extends 'pinIv1' | 'pinIv2'> {
   readonly keyRef: 'carry.otpKey';
-  readonly ivRef: `carry.${typeof ivSlot}`;
+  readonly ivRef: `carry.${TIvSlot}`;
   readonly outputPostfix: string;
   readonly writeTo: string;
   readonly scrubFromCarry: string;
-} {
+}
+
+/**
+ * Build a cryptoField bound to the supplied IV carry slot. Generic
+ * over `TIvSlot` so the literal-typed `ivRef` survives in the result
+ * — the caller can `as const` the slot name and downstream code keeps
+ * the narrowed `'carry.pinIv1'` / `'carry.pinIv2'` literal type.
+ * @param ivSlot - Carry slot name for the per-step pin IV.
+ * @returns Bound cryptoField config for the supplied IV slot.
+ */
+function buildOtpCryptoField<TIvSlot extends 'pinIv1' | 'pinIv2'>(
+  ivSlot: TIvSlot,
+): IOtpCryptoFieldConfig<TIvSlot> {
   return {
-    keyRef: 'carry.otpKey' as const,
-    ivRef: `carry.${ivSlot}` as const,
+    keyRef: 'carry.otpKey',
+    ivRef: `carry.${ivSlot}`,
     outputPostfix: '\n',
     writeTo: '/pin',
     scrubFromCarry: 'otpDigitsPlain',

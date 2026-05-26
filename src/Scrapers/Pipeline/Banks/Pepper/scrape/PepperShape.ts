@@ -48,7 +48,8 @@ const PEPPER_CLIENT_ID = randomUUID();
  */
 function userIdOf(ctx: IActionContext): PepperUserId {
   const creds = ctx.credentials as unknown as IPepperCreds;
-  const raw = creds.phoneNumber as unknown as string;
+  const candidate = creds.phoneNumber as unknown;
+  const raw = typeof candidate === 'string' ? candidate : '';
   if (raw.startsWith('972')) return raw.slice(3) as unknown as PepperUserId;
   return raw as unknown as PepperUserId;
 }

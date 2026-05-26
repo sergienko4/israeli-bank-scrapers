@@ -199,7 +199,7 @@ createScraper({
 await scraper.scrape({
   email,
   password,
-  phoneNumber: '+972...',
+  phoneNumber: '972...',
   otpCodeRetriever: async () => '123456',
 });
 // result.persistentOtpToken — save to skip SMS next run

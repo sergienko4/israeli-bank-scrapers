@@ -441,6 +441,31 @@ function reduceDerivedPart(
  * @param args - Evaluation bundle.
  * @returns Procedure with the derived string.
  */
+/**
+ * Truncate `value` to at most `maxBytes` UTF-8 bytes, never splitting
+ * a multi-byte codepoint. ASCII inputs (the only current consumer
+ * shape — hex IDs, JWTs, phone digits) hit the fast path; non-ASCII
+ * inputs decode back from the byte-truncated buffer with the
+ * `fatal: false` policy that drops a trailing incomplete codepoint.
+ * @param value - Joined source string.
+ * @param maxBytes - Upper bound in UTF-8 bytes.
+ * @returns Truncated string whose UTF-8 byte length is ≤ maxBytes.
+ */
+function truncateUtf8(value: string, maxBytes: number): string {
+  const encoded = Buffer.from(value, 'utf8');
+  if (encoded.length <= maxBytes) return value;
+  const slice = encoded.subarray(0, maxBytes);
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+  return decoder.decode(slice);
+}
+
+/**
+ * Evaluate a single derivedCarry spec end-to-end — collect its
+ * `parts`, join via the configured separator, optionally truncate
+ * to a UTF-8 byte cap, and surface the result as a Procedure.
+ * @param args - Derived-carry evaluation bundle.
+ * @returns Procedure with the assembled string, or fail.
+ */
 function evalDerivedCarry(args: IEvalDerivedArgs): Procedure<string> {
   const seed: Procedure<readonly string[]> = succeed([]);
   const collected = args.derived.parts.reduce<Procedure<readonly string[]>>(
@@ -450,7 +475,7 @@ function evalDerivedCarry(args: IEvalDerivedArgs): Procedure<string> {
   if (!isOk(collected)) return collected;
   const joined = collected.value.join(args.derived.separator ?? '');
   if (args.derived.truncateBytes === undefined) return succeed(joined);
-  const truncated = joined.slice(0, args.derived.truncateBytes);
+  const truncated = truncateUtf8(joined, args.derived.truncateBytes);
   return succeed(truncated);
 }
 

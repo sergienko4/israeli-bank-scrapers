@@ -34,6 +34,17 @@ concurrency:
 permissions:
   contents: read
 
+# Strict shell mode for every `run:` step.
+#   -e          — exit on first non-zero command
+#   -u          — error on unset variables (catches missing-env-var typos)
+#   -o pipefail — propagate failures through pipelines (e.g. `cmd | tee`)
+# Without `pipefail`, `node ... | tee` would mask a Jest failure behind
+# tee's 0 exit. Adding this once at workflow scope avoids forgetting
+# `set -euo pipefail` at the top of every multi-line `run: |` block.
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
 # ──────────────────────────────────────────────────────────────
 # Job DAG (cheap-gates-first, fail-fast):
 #

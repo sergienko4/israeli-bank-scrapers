@@ -202,19 +202,43 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns Wired IApiMediator instance with a dispose hook.
  */
-function buildApiMediatorForWiring(
+/**
+ * Build the `createBrowserBackedHeadlessApiMediator` arg literal from
+ * the resolved wiring + companyId. Extracted so the call site below
+ * stays inside the project's max-lines-per-function cap.
+ * @param companyId - Target bank company type.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns Args bundle ready to pass into the browser-backed mediator factory.
+ */
+function buildMediatorArgsForWiring(
   companyId: IPipelineContext['companyId'],
   wiring: IHeadlessWiring,
-): ReturnType<typeof createBrowserBackedHeadlessApiMediator> {
+): Parameters<typeof createBrowserBackedHeadlessApiMediator>[0] {
   const identityOriginUrl = new URL(wiring.identity).origin;
-  return createBrowserBackedHeadlessApiMediator({
+  return {
     bankHint: companyId,
     identityBaseUrl: wiring.identity,
     identityOriginUrl,
     graphqlUrl: wiring.graphql,
     staticAuth: wiring.staticAuth,
     bypassOriginChallenge: wiring.bypassOriginChallenge,
-  });
+  };
+}
+
+/**
+ * Build the browser-backed headless ApiMediator for the supplied wiring.
+ * The args literal is assembled by {@link buildMediatorArgsForWiring}
+ * so this site stays under the project's max-lines-per-function cap.
+ * @param companyId - Target bank company type.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns Wired ApiMediator instance with a dispose hook.
+ */
+function buildApiMediatorForWiring(
+  companyId: IPipelineContext['companyId'],
+  wiring: IHeadlessWiring,
+): ReturnType<typeof createBrowserBackedHeadlessApiMediator> {
+  const args = buildMediatorArgsForWiring(companyId, wiring);
+  return createBrowserBackedHeadlessApiMediator(args);
 }
 
 /**

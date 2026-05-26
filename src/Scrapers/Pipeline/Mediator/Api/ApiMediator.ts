@@ -294,14 +294,16 @@ export function createApiMediator(
    * @returns True once stored.
    */
   const setSessionContext = (ctx: SessionContext): boolean => {
-    state.sessionContext = ctx;
+    state.sessionContext = Object.freeze({ ...ctx });
     return true;
   };
 
   /**
    * Return the stored session-context snapshot (empty frozen object
-   * before any login completes).
-   * @returns Snapshot reference (callers must not mutate).
+   * before any login completes). The stored object is frozen at
+   * `setSessionContext` time so callers cannot mutate the bus
+   * payload even if the doc comment is ignored.
+   * @returns Frozen snapshot reference.
    */
   const getSessionContext = (): SessionContext => state.sessionContext;
 

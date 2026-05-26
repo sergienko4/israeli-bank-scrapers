@@ -486,6 +486,81 @@ function prepareStepBody(
   return succeed({ body: signedProc.value, scope: afterCrypto.value.scope });
 }
 
+/** Bundle of values that prepareDispatch hands off to fireAndMergeScope. */
+interface IDispatchBundle {
+  readonly fireArgs: IFireArgs;
+  readonly fireScope: IRunStepArgs;
+  readonly baseCtx: ReturnType<typeof buildStepContext>;
+  readonly preparedScope: ITemplateScope;
+}
+
+/** Pair of resolved path-and-query and the raw query record. */
+interface IPathAndQuery {
+  readonly pathAndQuery: string;
+  readonly query: Record<string, string>;
+}
+
+/**
+ * Resolve the URL + query string for the step's WK url tag.
+ * @param args - Run-step args (step + scope + companyId).
+ * @returns Procedure with the path-and-query bundle, or fail.
+ */
+function resolvePathAndQuery(args: IRunStepArgs): Procedure<IPathAndQuery> {
+  const queryProc = buildQueryRecord(args.step, args.scope);
+  if (!isOk(queryProc)) return queryProc;
+  const urlProc = resolveWkUrl(args.step.urlTag, args.companyId);
+  if (!isOk(urlProc)) return urlProc;
+  const pathAndQuery = buildPathAndQuery(urlProc.value, queryProc.value);
+  return succeed({ pathAndQuery, query: queryProc.value });
+}
+
+/**
+ * Hydrate the request body and build the dispatch bundle.
+ * @param args - Run-step args.
+ * @param pathAndQuery - Resolved path-and-query string.
+ * @param query - Raw query record.
+ * @returns Procedure with the dispatch bundle, or fail.
+ */
+function buildDispatchBundle(
+  args: IRunStepArgs,
+  pathAndQuery: string,
+  query: Record<string, string>,
+): Procedure<IDispatchBundle> {
+  const prepProc = prepareStepBody(args, pathAndQuery);
+  if (!isOk(prepProc)) return prepProc;
+  const fireScope = { ...args, scope: prepProc.value.scope };
+  const bodyValue = prepProc.value.body;
+  const baseCtx = buildStepContext(args.step, bodyValue as JsonValue);
+  LOG.debug({ ...baseCtx, message: '[runStep] START' });
+  const bodyJson = JSON.stringify(bodyValue);
+  const headersProc = buildStepHeaders(fireScope, { bodyJson, pathAndQuery });
+  if (!isOk(headersProc)) return headersProc;
+  const fireBase: IFireArgs = { body: bodyValue, query, extraHeaders: headersProc.value };
+  const onSetCookie = buildOnSetCookie(args);
+  const fireArgs = attachSink(fireBase, onSetCookie);
+  return succeed({ fireArgs, fireScope, baseCtx, preparedScope: prepProc.value.scope });
+}
+
+/**
+ * Dispatch the prepared call and fold the extracted carry into scope.
+ * @param bundle - Dispatch bundle from {@link buildDispatchBundle}.
+ * @returns Procedure with the merged scope, or fail.
+ */
+async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITemplateScope>> {
+  const respProc = await firePost(bundle.fireScope, bundle.fireArgs);
+  if (!isOk(respProc)) {
+    const errCtx = { ...bundle.baseCtx, errorMessage: respProc.errorMessage };
+    LOG.debug({ ...errCtx, message: 'firePost FAIL' });
+    return respProc;
+  }
+  const okCtx = { ...bundle.baseCtx, ...describeResponse(respProc.value) };
+  LOG.debug({ ...okCtx, message: '[runStep] firePost OK' });
+  const carryProc = extractFields(respProc.value, bundle.fireScope.step.extractsToCarry);
+  if (!isOk(carryProc)) return carryProc;
+  const merged = mergeScopeCarry(bundle.preparedScope, carryProc.value);
+  return succeed(merged);
+}
+
 /**
  * Run a single IStepConfig end-to-end — body hydration + optional
  * AES body-pointer signing + optional cryptoField encryption +
@@ -495,37 +570,12 @@ function prepareStepBody(
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
 async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
-  const queryProc = buildQueryRecord(args.step, args.scope);
-  if (!isOk(queryProc)) return queryProc;
-  const urlProc = resolveWkUrl(args.step.urlTag, args.companyId);
-  if (!isOk(urlProc)) return urlProc;
-  const pathAndQuery = buildPathAndQuery(urlProc.value, queryProc.value);
-  const prepProc = prepareStepBody(args, pathAndQuery);
-  if (!isOk(prepProc)) return prepProc;
-  const fireScope = { ...args, scope: prepProc.value.scope };
-  const bodyValue = prepProc.value.body;
-  const bodyJson = JSON.stringify(bodyValue);
-  const baseCtx = buildStepContext(args.step, bodyValue as JsonValue);
-  LOG.debug({ ...baseCtx, message: '[runStep] START' });
-  const headersProc = buildStepHeaders(fireScope, { bodyJson, pathAndQuery });
-  if (!isOk(headersProc)) return headersProc;
-  const onSetCookieMaybe = buildOnSetCookie(args);
-  const fireBase: IFireArgs = {
-    body: bodyValue,
-    query: queryProc.value,
-    extraHeaders: headersProc.value,
-  };
-  const fireWithSink = attachSink(fireBase, onSetCookieMaybe);
-  const respProc = await firePost(args, fireWithSink);
-  if (!isOk(respProc)) {
-    LOG.debug({ ...baseCtx, errorMessage: respProc.errorMessage, message: 'firePost FAIL' });
-    return respProc;
-  }
-  LOG.debug({ ...baseCtx, ...describeResponse(respProc.value), message: '[runStep] firePost OK' });
-  const carryProc = extractFields(respProc.value, args.step.extractsToCarry);
-  if (!isOk(carryProc)) return carryProc;
-  const merged = mergeScopeCarry(prepProc.value.scope, carryProc.value);
-  return succeed(merged);
+  const resolved = resolvePathAndQuery(args);
+  if (!isOk(resolved)) return resolved;
+  const { pathAndQuery, query } = resolved.value;
+  const bundleProc = buildDispatchBundle(args, pathAndQuery, query);
+  if (!isOk(bundleProc)) return bundleProc;
+  return fireAndMergeScope(bundleProc.value);
 }
 
 export type { CarryMap, IRunStepArgs, IStepCookieJar };

@@ -85,6 +85,38 @@ const PAYBOX_STATIC_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   'x-dynatrace': 'MT_3_1_1330423967_1-0_e342ec24-101d-44ae-a530-a6f38c018350_14_163_41',
 });
 
+/**
+ * Default values for the class-y `auth: { … }` body envelope every
+ * post-login PayBox call carries. Lifted from the real-Android-app
+ * mitm capture (flow [05]). Centralised here so the scrape shape
+ * reads them via a single import — bumping the captured app version
+ * is a config-only change.
+ *
+ * - `appVer` mirrors the `versionName` from the APK manifest at
+ *   capture time. PayBox does not currently reject older app
+ *   versions, but the value is part of the signed envelope.
+ * - `os` is the captured device's Android version string.
+ * - `type` is the PayBox-internal product code (`pb` = PayBox app
+ *   itself, as opposed to web/SDK clients).
+ */
+const PAYBOX_AUTH_ENVELOPE_DEFAULTS: Readonly<{
+  readonly appVer: string;
+  readonly os: string;
+  readonly type: string;
+}> = Object.freeze({
+  appVer: '5.6.6',
+  os: 'android-13',
+  type: 'pb',
+});
+
+/**
+ * Login steps in execution order. Declared as a `const` so
+ * `warmStart.fromStepIndex` can be derived from `.length`, avoiding
+ * a hardcoded `3` that drifts out of sync when steps are added or
+ * removed.
+ */
+const PAYBOX_LOGIN_STEPS = [PHONE_VALIDATE_STEP, PIN_VALIDATION_STEP, LOGIN_BY_SMS_STEP] as const;
+
 /** PayBox call-config literal — seeded into PIPELINE_BANK_CONFIG[PayBox]. */
 const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
   flow: 'sms-otp',
@@ -96,7 +128,10 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
   warmStart: {
     credsField: 'otpLongTermToken',
     carryField: 'token',
-    fromStepIndex: 3,
+    // Skip every login step on the warm path — the cached JWT IS
+    // the final token. Derived from steps.length so adding or
+    // removing a step keeps the warm-skip range aligned.
+    fromStepIndex: PAYBOX_LOGIN_STEPS.length,
   },
   signer: PAYBOX_LOGIN_SIGNER,
   seedCarryFromCreds: [
@@ -115,8 +150,8 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
       truncateBytes: 32,
     },
   ],
-  steps: [PHONE_VALIDATE_STEP, PIN_VALIDATION_STEP, LOGIN_BY_SMS_STEP],
+  steps: [...PAYBOX_LOGIN_STEPS],
 };
 
 export default PAYBOX_API_DIRECT_CALL;
-export { PAYBOX_API_DIRECT_CALL };
+export { PAYBOX_API_DIRECT_CALL, PAYBOX_AUTH_ENVELOPE_DEFAULTS };

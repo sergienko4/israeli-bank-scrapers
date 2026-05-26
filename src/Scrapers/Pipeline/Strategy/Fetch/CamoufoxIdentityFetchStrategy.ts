@@ -452,6 +452,32 @@ interface IStubServedSlot {
  * @param safeOrigin - Log-safe origin string.
  * @returns Resolves once the route is fulfilled or continued.
  */
+/**
+ * Reply with the blank-HTML stub for one navigation. Extracted from
+ * the dispatcher below so the gating logic stays at depth-1.
+ * @param route - Playwright route handle for the in-flight request.
+ * @param safeOrigin - Log-safe origin string.
+ * @returns Resolves once the route is fulfilled.
+ */
+async function fulfillStub(
+  route: Parameters<Parameters<Awaited<ReturnType<Browser['newContext']>>['route']>[1]>[0],
+  safeOrigin: SafeUrlForLog,
+): Promise<void> {
+  LOG.debug({ origin: safeOrigin, message: '[camoufox-identity] bypass-origin-challenge SERVE' });
+  return route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: ORIGIN_CHALLENGE_STUB_HTML,
+  });
+}
+
+/**
+ * Dispatcher — serve the stub on the first hit, pass through after.
+ * @param route - Playwright route handle.
+ * @param slot - Once-flag mutated on the first serve.
+ * @param safeOrigin - Log-safe origin string.
+ * @returns Resolves once the route is fulfilled or continued.
+ */
 async function serveStubOrContinue(
   route: Parameters<Parameters<Awaited<ReturnType<Browser['newContext']>>['route']>[1]>[0],
   slot: IStubServedSlot,
@@ -459,12 +485,7 @@ async function serveStubOrContinue(
 ): Promise<void> {
   if (slot.wasStubServed) return route.continue();
   slot.wasStubServed = true;
-  LOG.debug({ origin: safeOrigin, message: '[camoufox-identity] bypass-origin-challenge SERVE' });
-  return route.fulfill({
-    status: 200,
-    contentType: 'text/html',
-    body: ORIGIN_CHALLENGE_STUB_HTML,
-  });
+  return fulfillStub(route, safeOrigin);
 }
 
 export default CamoufoxIdentityFetchStrategy;

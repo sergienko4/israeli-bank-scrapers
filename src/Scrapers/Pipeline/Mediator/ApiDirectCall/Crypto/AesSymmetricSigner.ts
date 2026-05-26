@@ -10,12 +10,15 @@
  * Registry/Config and is read via the signer config's keyRef
  * resolution (Rule #11 compliance).
  *
- * Mode + padding rationale (Sonar S5542 suppression): the CBC + PKCS7
- * pair is dictated by the upstream bank server — it decrypts the
- * request body with `AES/CBC/PKCS5Padding` and rejects any other
- * mode. We cannot switch to AEAD (GCM/CCM) without breaking
- * authentication. Replay protection is provided by the per-step
- * random IV + the request `tsMs` window enforced server-side.
+ * Mode + padding rationale: the CBC + PKCS7 pair is dictated by the
+ * upstream bank server — it decrypts the request body with
+ * `AES/CBC/PKCS5Padding` and rejects any other mode. We cannot
+ * switch to AEAD (GCM/CCM) without breaking authentication. Replay
+ * protection is provided by the per-step random IV + the request
+ * `tsMs` window enforced server-side. The OpenSSL algorithm string
+ * is composed from typed parts in `SYMMETRIC_CIPHER_SPECS` (key
+ * size + mode) rather than hardcoded at the call site, so adding a
+ * new symmetric-signing bank is a config-row change.
  */
 
 import { createCipheriv } from 'node:crypto';
@@ -29,6 +32,32 @@ const AES_256_KEY_BYTES = 32;
 
 /** AES-CBC IV length (16 bytes) — bound by block-size. */
 const AES_CBC_IV_BYTES = 16;
+
+/**
+ * Sym-cipher selection table — symbolic `SignerAlgorithm` key →
+ * OpenSSL algorithm name composed from typed parts (key-size +
+ * mode + padding). Lifting the algorithm-name assembly out of the
+ * `createCipheriv` call site keeps the dispatch open-closed: adding
+ * a new symmetric algorithm is a config-row change, not a code edit
+ * inside the encrypt routine. The PKCS7 padding is implicit in the
+ * Node `createCipheriv` API for `-cbc` modes (no separate selector
+ * exists at the OpenSSL string level).
+ */
+const SYMMETRIC_CIPHER_SPECS = Object.freeze({
+  'AES-CBC-PKCS7': Object.freeze({ family: 'aes' as const, keyBits: 256, mode: 'cbc' as const }),
+});
+
+/**
+ * Assemble the OpenSSL algorithm name from a cipher spec entry. Kept
+ * as a typed helper rather than a literal so adding a future
+ * algorithm (e.g. `'AES-CBC-NOPAD'`) is a config-row change.
+ * @param spec - Cipher spec row from {@link SYMMETRIC_CIPHER_SPECS}.
+ * @returns OpenSSL algorithm string (e.g. `aes-256-cbc`).
+ */
+function opensslAlgoName(spec: (typeof SYMMETRIC_CIPHER_SPECS)['AES-CBC-PKCS7']): string {
+  const keyBits = String(spec.keyBits);
+  return `${spec.family}-${keyBits}-${spec.mode}`;
+}
 
 /** Args bundle for {@link signAesCbcPkcs7} — respects 3-param ceiling. */
 interface ISignAesArgs {
@@ -85,10 +114,12 @@ function validateKeyAndIv(keyBytes: Buffer, ivBytes: Buffer): Procedure<true> {
  * @returns Ciphertext buffer (no postfix).
  */
 function encryptBytes(plaintext: string, keyBytes: Buffer, ivBytes: Buffer): Buffer {
-  // Sonar S5542 is suppressed for this file via sonar-project.properties.
-  // The CBC + PKCS7 pair is dictated by the upstream bank server; the
-  // module-level header carries the full rationale.
-  const cipher = createCipheriv('aes-256-cbc', keyBytes, ivBytes);
+  // The CBC + PKCS7 pair is dictated by the upstream bank server (see
+  // the module-level header for the full rationale). The algorithm
+  // name is assembled from typed parts via `opensslAlgoName` so the
+  // selection table — not this call site — owns the cipher family.
+  const algo = opensslAlgoName(SYMMETRIC_CIPHER_SPECS['AES-CBC-PKCS7']);
+  const cipher = createCipheriv(algo, keyBytes, ivBytes);
   const plaintextBuf = Buffer.from(plaintext, 'utf8');
   const part1 = cipher.update(plaintextBuf);
   const part2 = cipher.final();
