@@ -74,6 +74,13 @@ defaults:
 # real-bank matrices. Three approval clicks per PR (gate-A, gate-B,
 # gate-C) — intentional revert of the 2026-05-13 single-gate
 # consolidation so each category can be approved independently.
+#
+# Gates are mutually INDEPENDENT — all three become approvable as
+# soon as `validate` + `dns-preflight` are green. The reviewer can
+# release any group without waiting for another to finish; in
+# practice that means Groups A, B and C can run in parallel once
+# each has been clicked. The only ordering constraint is Rule #16
+# inside Group A (Amex strictly after group-a's main matrix).
 # ──────────────────────────────────────────────────────────────
 
 jobs:
@@ -232,33 +239,39 @@ jobs:
   # rate-limit budget when something is broken upstream.
   #
   #   Stage 0 — validate (lint/tsc/unit/e2e-mocked/build) MUST pass
-  #   Stage 1 — Group A, gate-A approval (parallel runners):
-  #             non-OTP browser-form banks
-  #             — Isracard, VisaCal, Discount, Max
-  #             + Amex follow-on (needs: group-a, Rule #16:
-  #               Amex never co-runs with Isracard).
-  #   Stage 2 — Group B, gate-B approval (parallel runners):
-  #             OTP browser-form banks
-  #             — Hapoalim, Beinleumi
-  #             (TELEGRAM_* secrets exposed for OTP delivery).
-  #   Stage 3 — Group C, gate-C approval (parallel runners):
-  #             api-direct banks (no browser)
-  #             — OneZero, Pepper, PayBox
-  #             (TELEGRAM_* secrets exposed for OTP delivery).
+  #   Stage 1 — dns-preflight (Israeli-bank hostname resolution).
   #
-  # Three approval clicks per PR — one per category. Reverted on
-  # 2026-05-26 from the 2026-05-13 single-gate consolidation: the
-  # earlier design merged all banks into one gate at the cost of
-  # mixing OTP/non-OTP/api-direct secrets in the same env block.
-  # The 3-gate design lets each category be approved independently
-  # (e.g. skip api-direct review when a PR only touches Isracard)
-  # and keeps secrets scoped to the runners that need them.
+  # After Stage 1, all three category gates become approvable in
+  # parallel. There is NO Stage 2/3/4 ordering — releasing one gate
+  # does not require any other group to have run or finished.
   #
-  # Wall time:
-  #   validate (Stage 0)               ≈ 10–12 min
-  #   Group A (Stage 1, 4 + Amex)      ≈ 9–11 min
-  #   Group B (Stage 2, 2 banks)       ≈ 7–9 min
-  #   Group C (Stage 3, 3 banks)       ≈ 7–9 min
+  #   Group A, gate-A (parallel runners):
+  #     non-OTP browser-form banks
+  #     — Isracard, VisaCal, Discount, Max
+  #     + Amex follow-on (`needs: e2e-real-group-a`, Rule #16:
+  #       Amex never co-runs with Isracard).
+  #   Group B, gate-B (parallel runners):
+  #     OTP browser-form banks
+  #     — Hapoalim, Beinleumi
+  #     (TELEGRAM_* secrets exposed for OTP delivery).
+  #   Group C, gate-C (parallel runners):
+  #     api-direct banks (no browser)
+  #     — OneZero, Pepper, PayBox
+  #     (TELEGRAM_* secrets exposed for OTP delivery).
+  #
+  # Three approval clicks per PR — one per category. The 3-gate
+  # design lets each category be approved independently (e.g. skip
+  # api-direct review when a PR only touches Isracard) and keeps
+  # secrets scoped to the runners that need them. Updated 2026-05-26
+  # to drop inter-group `needs:` so groups can also run concurrently
+  # once each gate is released — the reviewer's click order does
+  # not impose a serial pipeline.
+  #
+  # Wall time (gates approved in parallel ⇒ longest group dominates):
+  #   validate                         ≈ 10–12 min
+  #   dns-preflight                    ≈ 1–2 min
+  #   max(Group A, Group B, Group C)   ≈ 9–11 min (Group A's
+  #                                      Isracard+Amex chain wins)
   #
   # Same-repo PRs and manual dispatch only — secrets are not exposed
   # to forks (mirrors the prior gating of the now-removed E2eFull
@@ -486,7 +499,12 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   e2e-real-group-b-gate:
     name: E2E Real B — approval gate
-    needs: e2e-real-group-a-amex
+    # Independent of Group A — once validate + dns-preflight are
+    # green, all three category gates become approvable in parallel.
+    # The reviewer can release Group B without waiting for Group A
+    # to finish (and vice-versa); within each group, banks still
+    # run in parallel under one approval.
+    needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: e2e-real-otp
@@ -562,7 +580,9 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   e2e-real-group-c-gate:
     name: E2E Real C — approval gate
-    needs: e2e-real-group-b
+    # Independent of Groups A + B — see the gate-B comment for the
+    # rationale (per-group approval, no inter-group ordering).
+    needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: e2e-real-otp
