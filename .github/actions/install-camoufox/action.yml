@@ -9,43 +9,44 @@ inputs:
 runs:
   using: composite
   steps:
-    # Cache key is version-less: the Camoufox browser binary version is
-    # NOT pinned here. The single source of truth for the npm package
-    # version is `@hieutran094/camoufox-js` in package.json; the upstream
-    # daijro/camoufox release is resolved dynamically by that package
-    # (pkgman.js CamoufoxFetcher walks releases newest-first). The cache
-    # persists across runs until manually busted by changing this key.
+    # Camoufox browser version is now PINNED. The previous design used
+    # a version-less cache key + dynamic `npx camoufox-js fetch` (which
+    # walks daijro releases newest-first), so the cached binary version
+    # was unobservable AND drifted whenever a CI runner happened to miss
+    # the cache. With Playwright bumped 1.59.1 → 1.60.0 (dependabot #259)
+    # the implicit Camoufox version mismatched the Playwright client
+    # internals — Hapoalim home/PRE saw a different DOM (212 candidates
+    # 0 matched) and Discount tripped a `_Page.addPageError` TypeError
+    # in `coreBundle.js:19951` on teardown. Pinning to the latest
+    # daijro release that explicitly tracks the Playwright line in use
+    # restores parity. Bump this version + the cache-key suffix together
+    # whenever Playwright is bumped.
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        key: camoufox-bin
+        key: camoufox-bin-v150.0.2-beta.25
     - name: Install Camoufox browser
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.gh-token }}
+        CAMOUFOX_TAG: v150.0.2-beta.25
       run: |
         set -euo pipefail
         if [ -f ~/.cache/camoufox/camoufox-bin ]; then
-          echo "Camoufox already cached, skipping fetch"
+          echo "Camoufox already cached at pinned tag ${CAMOUFOX_TAG}, skipping fetch"
         else
-          echo "Cache miss — attempting camoufox-js fetch..."
-          if npx @hieutran094/camoufox-js fetch; then
-            echo "Camoufox installed via camoufox-js"
-          else
-            echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
-            ASSET_DIR=$(mktemp -d)
-            # Resolve latest daijro/camoufox release tag dynamically — no
-            # static version pinned in CI; matches what camoufox-js itself
-            # picks at fetch time.
-            LATEST_TAG=$(gh release view --repo daijro/camoufox --json tagName -q .tagName)
-            echo "Falling back to daijro/camoufox release: ${LATEST_TAG}"
-            gh release download "${LATEST_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
-            mkdir -p ~/.cache/camoufox
-            unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
-            rm -rf "$ASSET_DIR"
-            chmod -R 755 ~/.cache/camoufox
-            test -f ~/.cache/camoufox/camoufox-bin || (echo "ERROR: camoufox-bin not found after fallback" && exit 1)
-            echo "Camoufox installed via authenticated gh fallback"
-          fi
+          echo "Cache miss — downloading daijro/camoufox release ${CAMOUFOX_TAG}"
+          ASSET_DIR=$(mktemp -d)
+          # Explicit tag download — no implicit version drift. Mirrors the
+          # release surface camoufox-js itself uses but locks the version
+          # at the workflow level so a runner cache miss can't silently
+          # pull a newer / older binary.
+          gh release download "${CAMOUFOX_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+          mkdir -p ~/.cache/camoufox
+          unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
+          rm -rf "$ASSET_DIR"
+          chmod -R 755 ~/.cache/camoufox
+          test -f ~/.cache/camoufox/camoufox-bin || (echo "ERROR: camoufox-bin not found after download" && exit 1)
+          echo "Camoufox ${CAMOUFOX_TAG} installed"
         fi

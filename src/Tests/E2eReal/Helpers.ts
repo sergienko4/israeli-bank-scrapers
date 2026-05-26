@@ -5,6 +5,67 @@ import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
 import { CI_BROWSER_ARGS, SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';
 
+/**
+ * Playwright internal teardown error: `_Page.addPageError` (in
+ * `playwright-core@1.60.0/lib/coreBundle.js:19951`) reads `.url` off
+ * an undefined error object when the browser emits an uncaught error
+ * with a malformed payload. Reproduced in CI on Discount runs AFTER
+ * the scrape completed successfully (94 txns retrieved) — the test
+ * still failed because Jest treats the asynchronous uncaughtException
+ * as a test failure. The error is upstream library code; we cannot
+ * pre-empt the internal handler from user space, but we CAN filter it
+ * at the process boundary so the test's actual assertions decide
+ * pass/fail.
+ *
+ * <p>Marker pattern is the exact frame footprint — we match both the
+ * `addPageError` site and the message text so unrelated TypeErrors
+ * still surface. Idempotent install (no duplicate handlers across
+ * test files that all import this module).
+ */
+const PLAYWRIGHT_ADD_PAGE_ERROR_MARKER = 'addPageError' as const;
+const PLAYWRIGHT_ADD_PAGE_ERROR_MESSAGE =
+  "Cannot read properties of undefined (reading 'url')" as const;
+
+/** Once-flag so multiple imports don't register the filter twice. */
+let isPlaywrightFilterInstalled = false;
+
+/**
+ * Decide whether an `uncaughtException` is the Playwright
+ * `addPageError` teardown TypeError we deliberately want to ignore.
+ * Pure predicate — extracted from the handler so the install site
+ * stays inside the project's max-lines-per-function cap.
+ * @param err - Uncaught exception object.
+ * @returns True when the error is the known Playwright teardown TypeError.
+ */
+function isPlaywrightAddPageErrorFalsePositive(err: Error): boolean {
+  const stack = err.stack ?? '';
+  const msg = err.message;
+  if (!msg.includes(PLAYWRIGHT_ADD_PAGE_ERROR_MESSAGE)) return false;
+  return stack.includes(PLAYWRIGHT_ADD_PAGE_ERROR_MARKER);
+}
+
+/**
+ * Install the Playwright `addPageError` uncaughtException filter.
+ * Idempotent — safe to call from every test file's import surface.
+ * @returns True once installed (or already installed).
+ */
+function installPlaywrightAddPageErrorFilter(): boolean {
+  if (isPlaywrightFilterInstalled) return true;
+  isPlaywrightFilterInstalled = true;
+  process.on('uncaughtException', (err: Error): boolean => {
+    if (isPlaywrightAddPageErrorFalsePositive(err)) {
+      // Known Playwright-internal teardown TypeError — scrape already
+      // completed; let the test's assertions decide pass/fail.
+      return true;
+    }
+    // Any other uncaught error — re-emit so jest still fails the run.
+    throw err;
+  });
+  return true;
+}
+
+installPlaywrightAddPageErrorFilter();
+
 export { SCRAPE_TIMEOUT };
 export const isCiEnvironment = !!process.env.CI;
 export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
