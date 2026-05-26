@@ -69,11 +69,8 @@ export const WK_LOGIN_FORM = {
   cardDigits: [
     { kind: 'labelText', value: 'ספרות' },
     { kind: KIND_ARIA_LABEL, value: LABEL_CARD_DIGITS },
-
     { kind: 'placeholder', value: LABEL_CARD_DIGITS },
     { kind: 'placeholder', value: '6 ספרות' },
-    { kind: 'placeholder', value: LABEL_CARD_DIGITS },
-
     { kind: KIND_TEXT_CONTENT, value: LABEL_CARD_DIGITS },
     { kind: KIND_TEXT_CONTENT, value: '6 ספרות' },
   ],

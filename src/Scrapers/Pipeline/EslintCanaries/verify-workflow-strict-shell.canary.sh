@@ -26,15 +26,27 @@ if [[ ! -f "$FILE" ]]; then
   exit 2
 fi
 
-# Check the three required tokens individually so we stay portable
-# across grep flavours (GNU on Linux, BSD on macOS, Git Bash on Win):
-#   1. Workflow-scope `defaults:` block (must be at column 0).
-#   2. A `shell:` line whose value contains `bash`.
-#   3. The strict-mode flag bundle `-euo pipefail` on a `shell:` line.
-# Allows future tightening (e.g. `--noprofile`) without churn.
-if grep -qE '^defaults:' "$FILE" \
-  && grep -qE '^\s+shell:[[:space:]]+bash' "$FILE" \
-  && grep -qE '^\s+shell:[[:space:]].*-euo[[:space:]]+pipefail' "$FILE"; then
+# Parse the YAML with Node's `yaml` package (dev-dep) so we check the
+# REAL nesting `defaults.run.shell`, not three independent regex
+# matches that a malformed file with stray `shell:` lines could spoof.
+# Falls back to exit 1 if the package can't load — keeps the canary
+# fail-loud on every other class of error.
+if node --input-type=module -e "
+  import yaml from 'yaml';
+  import { readFileSync } from 'node:fs';
+  const doc = yaml.parse(readFileSync('${FILE}', 'utf8'));
+  const shell = doc?.defaults?.run?.shell ?? '';
+  const tokens = String(shell);
+  // Require bash + the bundled strict-mode flag pattern that
+  // `bash -euo pipefail` produces. Matching the literal '-euo' is
+  // safer than checking '-e' / '-u' independently — '-u' is NOT a
+  // substring of '-euo' (the 'u' is preceded by 'e', not '-'), which
+  // was a real bug in the first version of this canary.
+  const ok = /\\bbash\\b/.test(tokens)
+    && /-euo\\b/.test(tokens)
+    && tokens.includes('pipefail');
+  process.exit(ok ? 0 : 1);
+" >/dev/null 2>&1; then
   exit 0
 fi
 exit 1
