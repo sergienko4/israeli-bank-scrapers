@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import moment from 'moment-timezone';
 
+import { ISRAEL_TIMEZONE } from '../../Common/Config/BrowserConfig.js';
 import { getDebug, runWithBankContext, type ScraperLogger } from '../../Common/Debug.js';
 import { formatResultSummary } from '../../Common/ResultFormatter.js';
 import { TimeoutError } from '../../Common/Waiting.js';
@@ -101,7 +102,7 @@ export default class BaseScraper<
    */
   public initialize(): Promise<boolean> {
     this.emitProgress(ScraperProgressTypes.Initializing);
-    moment.tz.setDefault('Asia/Jerusalem');
+    moment.tz.setDefault(ISRAEL_TIMEZONE);
     return Promise.resolve(true);
   }
 

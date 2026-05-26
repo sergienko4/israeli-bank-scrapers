@@ -2,13 +2,15 @@ import { buildContextOptions } from '../../Common/Browser.js';
 import {
   DESKTOP_VIEWPORT_HEIGHT,
   DESKTOP_VIEWPORT_WIDTH,
+  ISRAEL_LOCALE,
+  ISRAEL_TIMEZONE,
 } from '../../Common/Config/BrowserConfig.js';
 
 describe('buildContextOptions', () => {
   it('returns Hebrew locale and Israel timezone', () => {
     const options = buildContextOptions();
-    expect(options.locale).toBe('he-IL');
-    expect(options.timezoneId).toBe('Asia/Jerusalem');
+    expect(options.locale).toBe(ISRAEL_LOCALE);
+    expect(options.timezoneId).toBe(ISRAEL_TIMEZONE);
   });
 
   it('enables JavaScript', () => {

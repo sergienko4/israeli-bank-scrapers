@@ -3,17 +3,21 @@
  * with Israeli locale, timezone, and desktop viewport defaults.
  */
 
+import {
+  ISRAEL_LOCALE,
+  ISRAEL_TIMEZONE,
+} from '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserConfig.js';
 import { buildContextOptions } from '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserContextBuilder.js';
 
 describe('buildContextOptions', () => {
   it('returns an options object with Israeli locale', () => {
     const opts = buildContextOptions();
-    expect(opts.locale).toBe('he-IL');
+    expect(opts.locale).toBe(ISRAEL_LOCALE);
   });
 
   it('sets timezone to Asia/Jerusalem', () => {
     const opts = buildContextOptions();
-    expect(opts.timezoneId).toBe('Asia/Jerusalem');
+    expect(opts.timezoneId).toBe(ISRAEL_TIMEZONE);
   });
 
   it('has JavaScript enabled by default', () => {
