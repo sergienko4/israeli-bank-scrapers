@@ -734,6 +734,98 @@ describe('fetchOtpFromTelegram', () => {
     expect(hasInspectCall).toBe(true);
   });
 
+  it('TF-13 telegram-throttle — poll interval must clear the API throttle window', async () => {
+    // Live evidence (PR #261 run 26446324489 — OneZero+Pepper+PayBox
+    // ALL timed out even though the user replied within seconds):
+    // Telegram's `getUpdates` has an undocumented per-bot throttle.
+    // When two `offset=0&timeout=0` calls land within ~1.5 s of each
+    // other, the second response carries ONLY the earliest pending
+    // update — regardless of `limit=100`. Reproduced locally via
+    // `c:/tmp/telegram-stability-probe.mjs` against the live bot:
+    //   #1 (fresh)         → 7 updates
+    //   #2 (250 ms wait)   → 1 update (earliest only)
+    //   #3 (1000 ms wait)  → 1 update (still throttled)
+    //   #4 (~1100 ms wait) → 7 updates (throttle reset)
+    //
+    // This test reproduces the bug: queue gains the matching reply
+    // AFTER the first poll. With the prior 250 ms poll interval, the
+    // throttle hides the new reply on every subsequent poll and the
+    // fetcher times out. With the fix (≥2 s interval) the throttle
+    // resets between polls and the fetcher matches.
+    const startMs = Date.now();
+    const replyArrivalDelayMs = 800;
+    // Threshold matches the empirical Telegram throttle window from
+    // the live probe. Keep this strictly below the fix's
+    // IDLE_POLL_DELAY_MS (currently 2000 ms) so a regression that
+    // drops the interval back under 1.5 s fails this test.
+    const throttleWindowMs = 1500;
+    const stalePrompt = 9_999;
+    const stale = makeReplyUpdate(50, '111111', stalePrompt);
+    const realReply = makeReplyUpdate(100, '222222', DEFAULT_PROMPT_ID);
+    const callState = { lastGetUpdatesMs: 0 };
+    /**
+     * Compute the queue contents at the moment of the current call —
+     * stale-only until `replyArrivalDelayMs` has elapsed, then the
+     * stale entry plus the matching reply.
+     * @returns Queue snapshot.
+     */
+    const queueAt = (): readonly Record<string, unknown>[] => {
+      const elapsedFromStart = Date.now() - startMs;
+      if (elapsedFromStart >= replyArrivalDelayMs) return [stale, realReply];
+      return [stale];
+    };
+    /**
+     * Apply the throttle filter to the snapshot — if the call lands
+     * within `throttleWindowMs` of the previous one AND the queue has
+     * more than one entry, return only the earliest (matching the
+     * real Telegram behaviour observed via the live probe).
+     * @param queue - Snapshot from {@link queueAt}.
+     * @returns Visible-to-caller slice.
+     */
+    const applyThrottle = (
+      queue: readonly Record<string, unknown>[],
+    ): readonly Record<string, unknown>[] => {
+      const now = Date.now();
+      const sinceLast =
+        callState.lastGetUpdatesMs === 0
+          ? Number.POSITIVE_INFINITY
+          : now - callState.lastGetUpdatesMs;
+      callState.lastGetUpdatesMs = now;
+      if (sinceLast < throttleWindowMs && queue.length > 1) return [queue[0]];
+      return queue;
+    };
+    /**
+     * Throttle-simulating fetch mock — sendMessage replies with the
+     * default prompt envelope; getUpdates routes through queueAt +
+     * applyThrottle so the fetcher observes Telegram's per-bot
+     * throttle behaviour.
+     * @param url - Telegram API URL.
+     * @returns Response stub.
+     */
+    const throttledImpl = (url: unknown): Promise<Response> => {
+      const u = typeof url === 'string' ? url : '';
+      if (u.includes('/sendMessage')) {
+        const sendBody = defaultPromptResponse();
+        const sendResponse = makeFetchResponse(sendBody);
+        return Promise.resolve(sendResponse);
+      }
+      const queue = queueAt();
+      const visible = applyThrottle(queue);
+      const body = { ok: true, result: visible };
+      const updatesResponse = makeFetchResponse(body);
+      return Promise.resolve(updatesResponse);
+    };
+    fetchSpy = jest.fn(throttledImpl);
+    originalFetch = globalThis.fetch;
+    (globalThis as { fetch: typeof fetch }).fetch = fetchSpy;
+    // 6 s budget gives 2-3 polls at the fixed 2 s interval — enough
+    // for the throttle to reset between consecutive polls so the
+    // fetcher sees the queue refresh AFTER the reply arrives.
+    const args = makeArgs({ timeoutMs: 6_000 });
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe('222222');
+  });
+
   it('TF-12 prune-all-stale — confirms past last update_id when entire queue is stale', async () => {
     // CodeRabbit PR #226 R2 review: TF-11 covered the "recent
     // boundary mid-queue" path of computePruneOffset, but the
