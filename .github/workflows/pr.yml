@@ -277,12 +277,23 @@ jobs:
   # to forks (mirrors the prior gating of the now-removed E2eFull
   # step).
   # ──────────────────────────────────────────────────────────────
-  # Each gate concentrates the `environment: e2e-real-otp` approval
-  # requirement in ONE non-matrix job; the matrix below `needs:` the
-  # gate, so a SINGLE approval click releases ALL banks in that
-  # category. Without this indirection, putting `environment:` on a
-  # matrix job would spawn one approval per matrix cell — N clicks
-  # per gate instead of 1.
+  # Each gate concentrates an `environment:` approval requirement on
+  # ONE non-matrix job; the matrix below `needs:` the gate, so a
+  # SINGLE approval click releases ALL banks in that category.
+  # Without this indirection, putting `environment:` on a matrix
+  # job would spawn one approval per matrix cell — N clicks per
+  # gate instead of 1.
+  #
+  # The three gates reference DISTINCT environments
+  # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`).
+  # Sharing one environment across all three would let GitHub
+  # batch them into a single approval prompt — fine for an
+  # "approve everything" workflow but defeats per-category review.
+  # Required repo setup: Settings → Environments → create each of
+  # the three names above and attach reviewers; first runs against
+  # missing environments auto-create them WITHOUT reviewers (the
+  # workflow then passes through unapproved), so add reviewers
+  # right after the first run if not pre-created.
   # ──────────────────────────────────────────────────────────────
   # DNS Preflight — Israeli bank resolution sanity check.
   #
@@ -317,12 +328,23 @@ jobs:
     # available for manual approval when ALL 12 Israeli bank hosts
     # resolve through the runner's Cloudflare/Google/Quad9 chain.
     # If preflight is RED, this gate sits unclickable so we don't
-    # burn the E2E Real matrix on guaranteed-DNS failures. Order:
-    # validate → dns-preflight → approval gate → Group A → Group B.
+    # burn the E2E Real matrix on guaranteed-DNS failures.
     needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    environment: e2e-real-otp
+    # Per-group environment (2026-05-26): each gate references a
+    # DISTINCT GitHub environment so the reviewer must click
+    # "Approve" once per group. Sharing one environment across all
+    # three gates would let GitHub batch them into a single approval
+    # prompt — fine for "approve all" workflows but defeats the
+    # purpose of per-category review. Required setup: repo
+    # Settings → Environments → create `e2e-real-group-a` with the
+    # desired reviewers; same for `e2e-real-group-b` /
+    # `e2e-real-group-c`. Until the environments exist, GitHub
+    # auto-creates them on first run WITHOUT reviewers (the workflow
+    # passes through unapproved); flip-on protection by adding
+    # reviewers to each environment afterwards.
+    environment: e2e-real-group-a
     permissions:
       contents: read
     timeout-minutes: 5
@@ -507,7 +529,9 @@ jobs:
     needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    environment: e2e-real-otp
+    # Distinct environment per the gate-A comment above — each
+    # group's approval click is independent.
+    environment: e2e-real-group-b
     permissions:
       contents: read
     timeout-minutes: 5
@@ -585,7 +609,9 @@ jobs:
     needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    environment: e2e-real-otp
+    # Distinct environment per the gate-A comment above — each
+    # group's approval click is independent.
+    environment: e2e-real-group-c
     permissions:
       contents: read
     timeout-minutes: 5
