@@ -129,18 +129,41 @@ function decodeJwtPayload(jwt: string): Procedure<unknown> {
  * @param creds - Caller credentials.
  * @returns Procedure with the extracted claim value.
  */
-function bootstrapJwtClaim(
-  from: string,
-  claim: string,
-  creds: Readonly<Record<string, unknown>>,
-): Procedure<string> {
-  const raw = creds[from];
-  if (typeof raw !== 'string' || raw.length === 0) {
-    return fail(ScraperErrorTypes.Generic, `jwt-claim bootstrap: creds.${from} missing or empty`);
-  }
+/** Args bundle for {@link bootstrapJwtClaim} — preserves the 3-param ceiling. */
+interface IJwtClaimArgs {
+  readonly from: string;
+  readonly claim: string;
+  readonly optional: boolean;
+  readonly creds: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Surface a missing/empty source — strict mode fails fast, optional
+ * mode returns an empty seed so the carry slot stays available for a
+ * later step's `extractsToCarry` to fill (cold-path JWT bootstrap).
+ * @param args - Args bundle.
+ * @returns Procedure with empty string (optional) or fail (strict).
+ */
+function emptySourceOutcome(args: IJwtClaimArgs): Procedure<string> {
+  if (args.optional) return succeed('');
+  const reason = `jwt-claim bootstrap: creds.${args.from} missing or empty`;
+  return fail(ScraperErrorTypes.Generic, reason);
+}
+
+/**
+ * Decode the JWT in `creds[args.from]` and walk to `args.claim`.
+ * Returns an empty string when the source is missing/empty AND the
+ * config marked the bootstrap `optional: true` — see
+ * {@link emptySourceOutcome} for the rationale.
+ * @param args - Bootstrap args bundle.
+ * @returns Procedure with the leaf string.
+ */
+function bootstrapJwtClaim(args: IJwtClaimArgs): Procedure<string> {
+  const raw = args.creds[args.from];
+  if (typeof raw !== 'string' || raw.length === 0) return emptySourceOutcome(args);
   const decoded = decodeJwtPayload(raw);
   if (!isOk(decoded)) return decoded;
-  return walkJsonPath(decoded.value, claim);
+  return walkJsonPath(decoded.value, args.claim);
 }
 
 /**
@@ -158,7 +181,13 @@ function evalBootstrap(
 ): Procedure<string> {
   if (bootstrap === 'random-hex-16') return bootstrapRandomHex16();
   if (bootstrap.kind === 'sha256-prefix-16') return bootstrapSha256Prefix16(bootstrap.from, creds);
-  return bootstrapJwtClaim(bootstrap.from, bootstrap.claim, creds);
+  const isOptional = bootstrap.optional === true;
+  return bootstrapJwtClaim({
+    from: bootstrap.from,
+    claim: bootstrap.claim,
+    optional: isOptional,
+    creds,
+  });
 }
 
 /**

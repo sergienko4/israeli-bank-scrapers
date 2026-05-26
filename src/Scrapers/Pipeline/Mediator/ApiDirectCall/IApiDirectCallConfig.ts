@@ -247,6 +247,15 @@ interface IJwtClaimBootstrap {
   readonly from: string;
   /** Dotted path into the decoded payload (e.g. `pl.uId`). */
   readonly claim: string;
+  /**
+   * When true, a missing/empty source field returns `succeed('')`
+   * instead of failing the bootstrap. Use this when the same carry
+   * slot is also filled by a later login step's `extractsToCarry`
+   * — the cold path leaves the slot empty until the login response
+   * fills it, while the warm path (skipping the login steps via
+   * `warmStart.fromStepIndex`) extracts the claim up-front.
+   */
+  readonly optional?: boolean;
 }
 
 /**

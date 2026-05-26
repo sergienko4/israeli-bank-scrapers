@@ -191,6 +191,52 @@ describe('buildInitialCarry — jwt-claim bootstrap branches', () => {
     if (!result.success) expect(result.errorMessage).toContain('creds.tokenField missing or empty');
   });
 
+  it('returns empty string when source is absent AND optional flag is set', () => {
+    // Optional jwt-claim is for warm/cold-aware seeds: when the
+    // creds field carrying the JWT is absent the bootstrap stays
+    // silent and the carry slot is left empty for a later login
+    // step's extractsToCarry to fill (cold path).
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        {
+          field: 'uId',
+          bootstrap: {
+            kind: 'jwt-claim',
+            from: 'tokenField',
+            claim: 'pl.uId',
+            optional: true,
+          },
+        },
+      ],
+    });
+    const result = buildInitialCarry(config, {}, {});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.uId).toBe('');
+  });
+
+  it('still extracts the claim when optional is set AND source is present', () => {
+    // Optional should NOT change the warm-path behaviour — when the
+    // JWT is present the claim is extracted exactly as the strict
+    // branch would.
+    const jwt = makeJwt({ pl: { uId: 'fixt-uid-warm' } });
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        {
+          field: 'uId',
+          bootstrap: {
+            kind: 'jwt-claim',
+            from: 'tokenField',
+            claim: 'pl.uId',
+            optional: true,
+          },
+        },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: jwt }, {});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.uId).toBe('fixt-uid-warm');
+  });
+
   it('fails when the source creds value is not a 3-segment JWT', () => {
     const config = makeConfig({
       seedCarryFromCreds: [

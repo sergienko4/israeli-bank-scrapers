@@ -139,8 +139,20 @@ const PAYBOX_API_DIRECT_CALL: IApiDirectCallConfig = {
     // Warm-start seeds: extract `uId` from the cached JWT's `pl.uId`
     // claim so the class-y scrape bodies can reference `$ref: carry.uId`
     // even when the login steps that would otherwise extract it are
-    // skipped via `warmStart.fromStepIndex`.
-    { field: 'uId', bootstrap: { kind: 'jwt-claim', from: 'otpLongTermToken', claim: 'pl.uId' } },
+    // skipped via `warmStart.fromStepIndex`. Marked `optional: true`
+    // so the cold path (no cached `otpLongTermToken` in creds) doesn't
+    // fail at carry init — the SMS-OTP flow's third step
+    // (`LOGIN_BY_SMS_STEP.extractsToCarry.uId`) fills the same slot
+    // from the live login response.
+    {
+      field: 'uId',
+      bootstrap: {
+        kind: 'jwt-claim',
+        from: 'otpLongTermToken',
+        claim: 'pl.uId',
+        optional: true,
+      },
+    },
   ],
   derivedCarry: [
     {

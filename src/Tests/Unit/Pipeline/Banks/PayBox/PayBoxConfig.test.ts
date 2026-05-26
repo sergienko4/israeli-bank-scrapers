@@ -113,7 +113,15 @@ describe('PAYBOX_API_DIRECT_CALL — flow shape', () => {
     });
     expect((seed ?? [])[1]).toEqual({
       field: 'uId',
-      bootstrap: { kind: 'jwt-claim', from: 'otpLongTermToken', claim: 'pl.uId' },
+      // `optional: true` lets the cold path proceed when
+      // `creds.otpLongTermToken` is absent — the SMS-OTP flow's third
+      // step fills the `uId` carry slot from the live login response.
+      bootstrap: {
+        kind: 'jwt-claim',
+        from: 'otpLongTermToken',
+        claim: 'pl.uId',
+        optional: true,
+      },
     });
   });
 
