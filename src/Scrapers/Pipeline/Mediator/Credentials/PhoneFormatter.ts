@@ -3,7 +3,7 @@
  * wire-format transform.
  *
  * Caller contract (documented in README): the user supplies
- * `phoneNumber` in digits-only international form, e.g. `972546218739`
+ * `phoneNumber` in digits-only international form, e.g. `972000000000`
  * (Israeli example: country code `972` + local number `546218739`).
  * No `+`, no dash, no spaces. Length ≥ 10 digits.
  *

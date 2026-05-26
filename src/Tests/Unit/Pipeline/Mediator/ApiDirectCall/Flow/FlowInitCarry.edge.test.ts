@@ -151,3 +151,119 @@ describe('buildInitialCarry — derivedCarry validation branches', () => {
     if (result.success) expect(result.value.k).toBe('a-string-that-is-not-truncated');
   });
 });
+
+/**
+ * Build a JWT-shaped string (3 base64url segments) carrying the
+ * supplied payload object. The header + signature segments are
+ * deliberately opaque — server-side verification is out of scope here
+ * and the decoder only reads the middle segment.
+ * @param payload - JWT payload object to encode.
+ * @returns Three-segment JWT string.
+ */
+function makeJwt(payload: Record<string, unknown>): string {
+  const header = Buffer.from('{"alg":"HS256","typ":"JWT"}', 'utf8').toString('base64url');
+  const payloadJson = JSON.stringify(payload);
+  const body = Buffer.from(payloadJson, 'utf8').toString('base64url');
+  return `${header}.${body}.opaque-signature`;
+}
+
+describe('buildInitialCarry — jwt-claim bootstrap branches', () => {
+  it('extracts a nested string claim via dotted path', () => {
+    const jwt = makeJwt({ pl: { uId: 'fixt-uid-12345' } });
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'uId', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.uId' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: jwt }, {});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.uId).toBe('fixt-uid-12345');
+  });
+
+  it('fails when the source creds field is absent', () => {
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'uId', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.uId' } },
+      ],
+    });
+    const result = buildInitialCarry(config, {}, {});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('creds.tokenField missing or empty');
+  });
+
+  it('fails when the source creds value is not a 3-segment JWT', () => {
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'uId', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.uId' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: 'not.a.valid.jwt' }, {});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('JWT must have 3 segments');
+  });
+
+  it('fails when the JWT payload is not valid JSON', () => {
+    const malformed = `${Buffer.from('hdr', 'utf8').toString('base64url')}.${Buffer.from('not-json', 'utf8').toString('base64url')}.sig`;
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'uId', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.uId' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: malformed }, {});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('payload decode failed');
+  });
+
+  it('fails when the claim path misses (intermediate segment absent)', () => {
+    const jwt = makeJwt({ pl: { other: 'value' } });
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        {
+          field: 'uId',
+          bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.absent.deep' },
+        },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: jwt }, {});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain("path 'pl.absent.deep' miss");
+  });
+
+  it('fails on deep claim paths where the failure short-circuits the reducer', () => {
+    // Four-segment path where pl.a is undefined; the reducer hits its
+    // own `if (!isOk(acc)) return acc` short-circuit on segment c.
+    const jwt = makeJwt({ pl: { x: 'val' } });
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'k', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.a.b.c' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: jwt }, {});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('miss at');
+  });
+
+  it('fails when the claim leaf is non-string', () => {
+    const jwt = makeJwt({ pl: { count: 42 } });
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'count', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.count' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: jwt }, {});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain("path 'pl.count' non-string");
+  });
+
+  it('mirrors the creds field directly when present (skips the bootstrap)', () => {
+    // Mirror branch beats the bootstrap when creds.uId is already a non-empty string.
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'uId', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.uId' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { uId: 'already-set', tokenField: 'unused' }, {});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.uId).toBe('already-set');
+  });
+});

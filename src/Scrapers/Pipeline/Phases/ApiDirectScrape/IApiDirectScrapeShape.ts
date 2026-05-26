@@ -144,6 +144,14 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * signing (Pepper/OneZero pattern).
    */
   readonly signer?: IAesSignerConfig;
+  /**
+   * Optional crypto secrets exposed to the shape-level signer's
+   * `keyRef: 'config.secrets.<name>'` lookup. Banks that body-sign
+   * scrape calls (PayBox) plug the same `secrets` block their login
+   * config carries — the dispatcher merges it into the synthetic
+   * scope-config that backs `$ref` resolution.
+   */
+  readonly secrets?: Readonly<Record<string, string>>;
   readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
   readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
   readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;

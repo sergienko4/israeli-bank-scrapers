@@ -235,12 +235,27 @@ interface ISha256Prefix16Bootstrap {
 }
 
 /**
+ * JWT-claim bootstrap — decodes the JWT in another creds field and
+ * extracts a string-valued claim via a dotted path inside the payload.
+ * Required by banks whose post-login API calls embed a user-identifier
+ * claim (e.g. PayBox's `pl.uId`) in the body, since warm-start skips
+ * the login step that would otherwise extract that claim into carry.
+ */
+interface IJwtClaimBootstrap {
+  readonly kind: 'jwt-claim';
+  /** Creds field carrying the JWT (three base64url segments). */
+  readonly from: string;
+  /** Dotted path into the decoded payload (e.g. `pl.uId`). */
+  readonly claim: string;
+}
+
+/**
  * Bootstrap-kind union — closed set of generators the mediator runs
  * when a `seedCarryFromCreds` entry's creds value is absent. Stays
  * data-only by keeping the producer logic inside the mediator rather
  * than letting banks pass callbacks.
  */
-type SeedCarryBootstrapKind = IRandomHex16Bootstrap | ISha256Prefix16Bootstrap;
+type SeedCarryBootstrapKind = IRandomHex16Bootstrap | ISha256Prefix16Bootstrap | IJwtClaimBootstrap;
 
 /**
  * Seed-carry source spec — names the creds field to mirror into

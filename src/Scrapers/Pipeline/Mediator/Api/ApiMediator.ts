@@ -525,6 +525,10 @@ interface IBrowserBackedHeadlessMediatorArgs {
   readonly identityOriginUrl: string;
   readonly graphqlUrl: string;
   readonly staticAuth?: string;
+  /** When true, the initial navigation to `identityOriginUrl` is route-intercepted
+   * with a blank HTML stub so subsequent same-origin fetches bypass the bank's
+   * Cloudflare interstitial CSP. See PipelineBankConfigTypes for details. */
+  readonly bypassOriginChallenge?: boolean;
 }
 
 /**
@@ -539,7 +543,7 @@ export function createBrowserBackedHeadlessApiMediator(
 ): IApiMediator {
   const fetchStrategy: CamoufoxIdentityFetchStrategy = Reflect.construct(
     CamoufoxIdentityFetchStrategy,
-    [args.identityOriginUrl],
+    [args.identityOriginUrl, args.bypassOriginChallenge === true],
   );
   const graphqlStrategy: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [
     args.graphqlUrl,

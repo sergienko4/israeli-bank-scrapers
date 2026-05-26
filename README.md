@@ -170,6 +170,7 @@ for the contribution workflow, branch strategy, and testing requirements.
 | Mizrahi Bank                | Bank        | `username`, `password`               |
 | One Zero                    | Bank        | `email`, `password`, OTP             |
 | Pagi                        | Bank        | `username`, `password`               |
+| PayBox (by Discount Bank)   | Wallet      | `phoneNumber`, OTP                   |
 | Pepper (by Bank Leumi)      | Bank        | `phoneNumber`, `password`, OTP       |
 | Visa Cal                    | Credit Card | `username`, `password`               |
 
@@ -192,7 +193,7 @@ createScraper({
 > the `otpCodeRetriever` callback. On remembered devices, no OTP
 > is requested.
 
-**API banks** (OneZero) — pass callback in credentials:
+**API banks** (OneZero, Pepper, PayBox) — pass callback in credentials:
 
 ```typescript
 await scraper.scrape({
@@ -203,6 +204,22 @@ await scraper.scrape({
 });
 // result.persistentOtpToken — save to skip SMS next run
 ```
+
+### Phone input contract
+
+Every API bank that accepts a `phoneNumber` credential reads
+digits-only international form (no `+`, no dashes). For example:
+`'972000000000'`. The pipeline edge rewrites this into each bank's
+wire format on the fly:
+
+| Bank    | Wire format         | Example         |
+| ------- | ------------------- | --------------- |
+| OneZero | international-plus  | `+972000000000` |
+| Pepper  | international-flat  | `972000000000`  |
+| PayBox  | international-dash  | `972-000000000` |
+
+You don't have to know which format each bank wants — pass the
+international digits and the mediator normalises before login.
 
 ## Error Types
 
@@ -342,7 +359,7 @@ Browser banks:
   INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL]
        → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → TERMINATE
 
-API-direct banks (One Zero, Pepper):
+API-direct banks (One Zero, Pepper, PayBox):
   API-DIRECT-CALL → API-DIRECT-SCRAPE
 ```
 
@@ -351,6 +368,16 @@ API-direct banks (One Zero, Pepper):
 - `AUTH-DISCOVERY` separates the credential exchange from the dashboard handoff so post-auth signal capture (cookies, ids, tokens) is observable, redactable, and testable in isolation.
 - `API-DIRECT-CALL` replaces `LOGIN [+ OTP-TRIGGER + OTP-FILL]` for banks with a programmatic auth endpoint (no browser form). OTP, when required, is fetched via the same `otpCodeRetriever` callback during this phase.
 - `API-DIRECT-SCRAPE` replaces `SCRAPE` for those banks — same `PRE → ACTION → POST → FINAL` lifecycle, but the action is a shape-driven GraphQL/REST walk instead of a DOM walk.
+
+**Unified api-direct primitives** — every api-direct bank reuses the same set of building blocks below the two phases, so adding a new device-bound or symmetric-signing bank is a config-only change (no mediator code):
+
+- **Signer config** is a discriminated union: asymmetric (ECDSA-P256 / RSA-2048, header-attached signature — Pepper) or symmetric (AES-CBC-PKCS7, signature written into the request body at an RFC-6901 pointer — PayBox). Banks declare the algorithm + canonical-string parts + key-ref in their config literal; the mediator dispatches without bank knowledge.
+- **Body templates** are declarative `JsonValueTemplate` literals with `$literal` / `$ref: creds.<field>` / `$ref: carry.<slot>` / `$ref: config.<dotted.path>` tokens. The same hydration engine serves login (`API-DIRECT-CALL`) and scrape (`API-DIRECT-SCRAPE`) step bodies. No bank-specific imperative body assembly.
+- **Carry derivation at flow init** — `seedCarryFromCreds` mirrors creds into the scope's carry slots; entries can declare a deterministic bootstrap (`sha256-prefix-16` derives a stable identifier from another creds field — PayBox uses this to bind its long-term JWT to a phone-derived `deviceId16Hex` without asking the caller to persist it). `derivedCarry` runs after seeding, joining parts with separators + truncation for OTP-encryption keys and similar derived material.
+- **Session-context bus** — after login produces the final carry snapshot, the mediator publishes it via `setSessionContext` so the scrape phase reads post-login slots (`uId`, `deviceId16Hex`, …) through the same `$ref: carry.<slot>` syntax — no parallel "post-login envelope" type.
+- **Phone normaliser** — every api-direct bank declares its wire format in `PipelineBankConfig.headless.phoneNumberFormat` (`international-plus` / `international-flat` / `international-dash` / `local-only`). Callers supply digits-only international form; the ACTION-stage mediator rewrites once before the login flow runs. PII-safe logging — structural shape only, never digits.
+- **CryptoField pre-hook** — per-step optional encryption hook that takes a value from carry (e.g. the SMS OTP), AES-encrypts it with a key resolved from `config.secrets.*` or `carry.<slot>`, writes the ciphertext into the outbound body at an RFC-6901 pointer, and scrubs the plaintext from carry. PayBox uses this to encrypt the OTP into `/pin` with a fresh IV at `/pinIv`.
+- **Forensic-audit observability** — both `SCRAPE.post` (browser banks) and `API-DIRECT-SCRAPE.post` (api-direct banks) call `logForensicAudit`, so every scrape path emits the per-account `--- Account <masked> | <N> txns ---` line into `pipeline.log` regardless of the underlying transport.
 
 **Cross-cutting interceptors** run between phases — they don't own data, they observe and dismiss:
 
@@ -377,6 +404,7 @@ All institutions are configured via declarative `LoginConfig` objects. Adding a 
 | v8.2.0  | SonarCloud static-analysis workflow + Max selectors via Hebrew text                                                                                                                                                                            |
 | v8.2.1  | All bank logins migrated from CSS/ID selectors to visible Hebrew text                                                                                                                                                                          |
 | v8.3.0  | Pipeline architecture v2 — Strategy / Builder / Mediator / Result patterns, AUTH-DISCOVERY phase + 100% phase isolation, cross-bank test factory (Phase H), TIMING ceilings, Telegram OTP delivery, PII redaction across log/network/snapshots |
+| v8.4.0  | Unified api-direct primitives across OneZero / Pepper / PayBox — AES-CBC-PKCS7 body-pointer signer alongside the existing asymmetric header-attached one, declarative `JsonValueTemplate` bodies served by one hydration engine, `seedCarryFromCreds` + `derivedCarry` carry derivations (incl. deterministic `sha256-prefix-16` bootstrap for warm-start-stable device identifiers), session-context bus method-pair, in-body `cryptoField` pre-hook for symmetric OTP encryption, per-bank `phoneNumberFormat` normaliser, forensic-audit observability hook on the api-direct scrape POST; PayBox onboarding lands as a pure consumer of these primitives |
 
 </details>
 

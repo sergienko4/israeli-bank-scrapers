@@ -66,6 +66,34 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       phoneNumberFormat: 'international-plus',
     },
   },
+  [CompanyTypes.PayBox]: {
+    urls: { base: 'https://www.payboxapp.com/' },
+    headless: {
+      identityBase: 'https://apipin.payboxapp.com/api/2.0/',
+      // PayBox has no GraphQL — set graphql to identityBase to satisfy the
+      // type contract (scrape goes through REST via urlTag, not apiQuery).
+      graphql: 'https://apipin.payboxapp.com/api/2.0/',
+      paths: {
+        'identity.phoneValidate': 'https://apipin.payboxapp.com/api/2.0/phoneValidate',
+        'identity.pinValidation': 'https://apipin.payboxapp.com/api/2.0/pinValidation',
+        'identity.loginBySms': 'https://apipin.payboxapp.com/api/2.0/loginBySms',
+        'data.sync': 'https://apipin.payboxapp.com/api/2.0/sync',
+        'data.getUserHistory': 'https://apipin.payboxapp.com/api/2.0/getUserHistory',
+        'data.virtualCardTranRequest':
+          'https://apipin.payboxapp.com/api/2.0/virtualCardTranRequest',
+      },
+      phoneNumberFormat: 'international-dash',
+      // PayBox's `apipin.payboxapp.com` sits behind Cloudflare which
+      // returns a challenge page on root navigation. Camoufox (Firefox
+      // TLS + HTTP/2) is required to match the WAF's accepted profile;
+      // the route-intercept bypass on the initial origin nav avoids the
+      // interstitial CSP that would otherwise block subsequent same-
+      // origin fetches. Validated by
+      // `c:/tmp/paybox-camoufox-probe3.mjs`.
+      requiresBrowserTls: true,
+      bypassOriginChallenge: true,
+    },
+  },
   [CompanyTypes.Pepper]: {
     urls: { base: 'https://www.pepper.co.il' },
     headless: {

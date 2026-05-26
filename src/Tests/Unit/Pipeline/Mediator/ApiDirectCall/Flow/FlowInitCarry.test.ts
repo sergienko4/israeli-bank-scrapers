@@ -23,9 +23,9 @@ function makeConfig(overrides: Partial<IApiDirectCallConfig>): IApiDirectCallCon
 describe('FlowInitCarry.buildInitialCarry', () => {
   it('mirrors a creds field into carry under the same name', () => {
     const config = makeConfig({ seedCarryFromCreds: ['phoneNumber'] });
-    const result = buildInitialCarry(config, { phoneNumber: '972-546218739' }, {});
+    const result = buildInitialCarry(config, { phoneNumber: '972-000000000' }, {});
     expect(result.success).toBe(true);
-    if (result.success) expect(result.value.phoneNumber).toBe('972-546218739');
+    if (result.success) expect(result.value.phoneNumber).toBe('972-000000000');
   });
 
   it('runs the random-hex-16 bootstrap when creds value is absent', () => {
@@ -82,7 +82,7 @@ describe('FlowInitCarry.buildInitialCarry', () => {
         { field: 'deviceId16Hex', bootstrap: { kind: 'sha256-prefix-16', from: 'phoneNumber' } },
       ],
     });
-    const phone = '972-542155100';
+    const phone = '972-000000000';
     const first = buildInitialCarry(config, { phoneNumber: phone }, {});
     const second = buildInitialCarry(config, { phoneNumber: phone }, {});
     expect(first.success).toBe(true);
@@ -102,8 +102,8 @@ describe('FlowInitCarry.buildInitialCarry', () => {
         { field: 'deviceId16Hex', bootstrap: { kind: 'sha256-prefix-16', from: 'phoneNumber' } },
       ],
     });
-    const left = buildInitialCarry(config, { phoneNumber: '972-542155100' }, {});
-    const right = buildInitialCarry(config, { phoneNumber: '972-541234567' }, {});
+    const left = buildInitialCarry(config, { phoneNumber: '972-000000000' }, {});
+    const right = buildInitialCarry(config, { phoneNumber: '972-000000001' }, {});
     expect(left.success).toBe(true);
     expect(right.success).toBe(true);
     if (left.success && right.success) {

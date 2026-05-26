@@ -41,7 +41,7 @@ import {
 const PEPPER_TEST_CREDENTIALS = {
   username: 'pepper-test-user',
   password: 'pepper-test-pass',
-  phoneNumber: '972541234567',
+  phoneNumber: '972000000001',
 } as unknown as IPipelineContext['credentials'];
 
 /**

@@ -24,15 +24,15 @@ function makeCtxWithPhone(phone: string): IActionContext {
 
 describe('PepperShape.userIdOf', () => {
   it('strips the 972 country-code prefix from the international-flat form', () => {
-    const ctx = makeCtxWithPhone('972541234567');
+    const ctx = makeCtxWithPhone('972000000001');
     const result = userIdOf(ctx);
-    expect(result).toBe('541234567');
+    expect(result).toBe('000000001');
   });
 
   it('propagates a phone that already lacks the 972 prefix', () => {
-    const ctx = makeCtxWithPhone('541234567');
+    const ctx = makeCtxWithPhone('000000001');
     const result = userIdOf(ctx);
-    expect(result).toBe('541234567');
+    expect(result).toBe('000000001');
   });
 
   it('returns empty string when credentials.phoneNumber is empty', () => {

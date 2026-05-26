@@ -25,7 +25,7 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { makeStubMediator } from '../ApiDirectCall/Flow/StubMediator.js';
 
 /** Caller-supplied phone (digits-only international, per README contract). */
-const RAW_PHONE = '972542155100';
+const RAW_PHONE = '972000000000';
 
 /**
  * Local mirror of the registry's `PhoneNumberFormatTag` union — the
@@ -66,12 +66,12 @@ const BANK_CASES: readonly IBankWireCase[] = [
   {
     bank: CompanyTypes.OneZero,
     phoneNumberFormat: 'international-plus',
-    expectedWirePhone: '+972542155100',
+    expectedWirePhone: '+972000000000',
   },
   {
     bank: CompanyTypes.Pepper,
     phoneNumberFormat: 'international-flat',
-    expectedWirePhone: '972542155100',
+    expectedWirePhone: '972000000000',
   },
 ];
 
@@ -221,7 +221,7 @@ describe('Phone normalisation — pipeline integration', () => {
     const capture: ICredsCapture = { capturedPhone: '' };
     const bus = makeCapturingBus(capture);
     const bank = CompanyTypes.OneZero;
-    const malformedPhone = '+972-542-155-100';
+    const malformedPhone = '+972-000-000-000';
     const bankConfig = makeBankConfig('international-plus');
     const baseCtx = makeBankCtx(bank, bankConfig, bus);
     const ctx: IPipelineContext = {

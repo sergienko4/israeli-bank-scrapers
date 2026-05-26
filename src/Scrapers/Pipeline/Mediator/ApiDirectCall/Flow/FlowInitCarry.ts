@@ -67,6 +67,82 @@ function bootstrapSha256Prefix16(
   return succeed(prefix);
 }
 
+/** Index of the JWT payload segment (between header and signature). */
+const JWT_PAYLOAD_SEGMENT_INDEX = 1;
+
+/**
+ * Walk a dotted path through a record-of-records, returning the leaf
+ * string value when found. Used by `bootstrapJwtClaim` to navigate
+ * the decoded JWT payload.
+ * @param root - Decoded JWT payload (untyped JSON).
+ * @param path - Dotted path (e.g. `pl.uId`).
+ * @returns Procedure with the leaf string.
+ */
+function walkJsonPath(root: unknown, path: string): Procedure<string> {
+  const segments = path.split('.');
+  const seed: Procedure<unknown> = succeed(root);
+  const walked = segments.reduce<Procedure<unknown>>((acc, segment): Procedure<unknown> => {
+    if (!isOk(acc)) return acc;
+    const cursor = acc.value;
+    if (cursor === null || typeof cursor !== 'object') {
+      return fail(ScraperErrorTypes.Generic, `jwt-claim: path '${path}' miss at '${segment}'`);
+    }
+    return succeed((cursor as Record<string, unknown>)[segment]);
+  }, seed);
+  if (!isOk(walked)) return walked;
+  if (typeof walked.value !== 'string') {
+    return fail(ScraperErrorTypes.Generic, `jwt-claim: path '${path}' non-string`);
+  }
+  return succeed(walked.value);
+}
+
+/**
+ * Decode a JWT payload from base64url and parse it as JSON. Returns a
+ * structured failure when the input does not have three segments or
+ * the payload is not valid JSON.
+ * @param jwt - JWT string (three base64url-encoded segments).
+ * @returns Procedure with the parsed payload.
+ */
+function decodeJwtPayload(jwt: string): Procedure<unknown> {
+  const segments = jwt.split('.');
+  if (segments.length !== 3) {
+    return fail(ScraperErrorTypes.Generic, 'jwt-claim: JWT must have 3 segments');
+  }
+  const payloadB64 = segments[JWT_PAYLOAD_SEGMENT_INDEX];
+  try {
+    const decoded = Buffer.from(payloadB64, 'base64url').toString('utf8');
+    const parsed = JSON.parse(decoded) as unknown;
+    return succeed(parsed);
+  } catch (error) {
+    const reason = (error as Error).message;
+    return fail(ScraperErrorTypes.Generic, `jwt-claim: payload decode failed: ${reason}`);
+  }
+}
+
+/**
+ * Extract a string-valued claim from the JWT carried in another creds
+ * field. Used for warm-start carry seeding when the bank's post-login
+ * API embeds a user-identifier claim (e.g. PayBox's `pl.uId`) that
+ * would otherwise only reach carry via the skipped login extraction.
+ * @param from - Creds field carrying the JWT.
+ * @param claim - Dotted path into the decoded payload.
+ * @param creds - Caller credentials.
+ * @returns Procedure with the extracted claim value.
+ */
+function bootstrapJwtClaim(
+  from: string,
+  claim: string,
+  creds: Readonly<Record<string, unknown>>,
+): Procedure<string> {
+  const raw = creds[from];
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return fail(ScraperErrorTypes.Generic, `jwt-claim bootstrap: creds.${from} missing or empty`);
+  }
+  const decoded = decodeJwtPayload(raw);
+  if (!isOk(decoded)) return decoded;
+  return walkJsonPath(decoded.value, claim);
+}
+
 /**
  * Dispatch a bootstrap kind to its generator. Extracted so the
  * outer {@link evalSeedSource} stays inside the per-function depth
@@ -81,7 +157,8 @@ function evalBootstrap(
   creds: Readonly<Record<string, unknown>>,
 ): Procedure<string> {
   if (bootstrap === 'random-hex-16') return bootstrapRandomHex16();
-  return bootstrapSha256Prefix16(bootstrap.from, creds);
+  if (bootstrap.kind === 'sha256-prefix-16') return bootstrapSha256Prefix16(bootstrap.from, creds);
+  return bootstrapJwtClaim(bootstrap.from, bootstrap.claim, creds);
 }
 
 /**

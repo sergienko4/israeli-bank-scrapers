@@ -15,8 +15,8 @@ import {
   type PhoneNumberFormat,
 } from '../../../../../Scrapers/Pipeline/Mediator/Credentials/PhoneFormatter.js';
 
-/** Realistic Israeli mobile digits in international form. */
-const VALID_DIGITS = '972542155100';
+/** Placeholder-digit international-form phone for fixtures (Rule #18 PII-free). */
+const VALID_DIGITS = '972000000000';
 
 describe('formatPhoneNumber — strict validation branches', () => {
   it('rejects strings shorter than the minimum 10 digits', () => {
@@ -26,7 +26,7 @@ describe('formatPhoneNumber — strict validation branches', () => {
   });
 
   it('rejects strings carrying non-digit characters', () => {
-    const result = formatPhoneNumber('+972-542-15-5100', 'international-plus');
+    const result = formatPhoneNumber('+972-000-00-0000', 'international-plus');
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('digits-only');
   });
@@ -41,13 +41,13 @@ describe('formatPhoneNumber — strict validation branches', () => {
     const format: PhoneNumberFormat = 'local-only';
     const result = formatPhoneNumber(VALID_DIGITS, format);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.value).toBe('542155100');
+    if (result.success) expect(result.value).toBe('000000000');
   });
 
   it('produces the dash-separated wire form for PayBox-style banks', () => {
     const format: PhoneNumberFormat = 'international-dash';
     const result = formatPhoneNumber(VALID_DIGITS, format);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.value).toBe('972-542155100');
+    if (result.success) expect(result.value).toBe('972-000000000');
   });
 });

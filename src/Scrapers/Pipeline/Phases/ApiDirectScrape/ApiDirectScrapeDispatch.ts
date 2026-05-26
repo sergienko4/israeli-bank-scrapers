@@ -32,25 +32,49 @@ const SCRAPE_CONFIG_SENTINEL: IApiDirectCallConfig = Object.freeze({
   envelope: {},
 });
 
+/** Args bundle for {@link buildScrapeScope} — keeps params ≤3. */
+export interface IBuildScrapeScopeArgs {
+  readonly bus: IApiMediator;
+  readonly ctx: IActionContext;
+  readonly vars: VarsMap;
+  /**
+   * Optional shape-level secrets — merged into the synthetic scope
+   * config so `config.secrets.<name>` $ref lookups resolve during
+   * body-pointer signing.
+   */
+  readonly secrets?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Build the scope's synthetic IApiDirectCallConfig — adds the
+ * shape-level secrets when present. Empty `secrets` object means the
+ * shape did not declare any (callers pass `args.secrets`, which is
+ * already typed as `Readonly<Record<string, string>>` to avoid a
+ * nullable return shape).
+ * @param secrets - Secrets map (empty object when shape declares none).
+ * @returns Frozen synthetic config.
+ */
+function buildScopeConfig(secrets: Readonly<Record<string, string>>): IApiDirectCallConfig {
+  if (Object.keys(secrets).length === 0) return SCRAPE_CONFIG_SENTINEL;
+  return Object.freeze({ ...SCRAPE_CONFIG_SENTINEL, secrets });
+}
+
+/** Empty secrets sentinel used when the shape declares none. */
+const EMPTY_SECRETS: Readonly<Record<string, string>> = Object.freeze({});
+
 /**
  * Build the post-login scope the scrape-phase dispatcher passes into
  * the template hydrator + body signer.
- * @param bus - ApiMediator (for session-context lookup).
- * @param ctx - Action context (for credentials).
- * @param vars - Step `buildVars` output, merged under carry.
+ * @param args - Scope-build bundle (bus + ctx + vars + optional secrets).
  * @returns Template scope.
  */
-export function buildScrapeScope(
-  bus: IApiMediator,
-  ctx: IActionContext,
-  vars: VarsMap,
-): ITemplateScope {
-  const session = bus.getSessionContext() as Record<string, JsonValue>;
-  const varsJson = vars as Record<string, JsonValue>;
+export function buildScrapeScope(args: IBuildScrapeScopeArgs): ITemplateScope {
+  const session = args.bus.getSessionContext() as Record<string, JsonValue>;
+  const varsJson = args.vars as Record<string, JsonValue>;
   return {
     carry: { ...session, ...varsJson },
-    creds: ctx.credentials,
-    config: SCRAPE_CONFIG_SENTINEL,
+    creds: args.ctx.credentials,
+    config: buildScopeConfig(args.secrets ?? EMPTY_SECRETS),
   };
 }
 
@@ -64,6 +88,8 @@ export interface IDispatchArgs {
   readonly bodyTemplate: JsonValueTemplate | false;
   readonly signer: IAesSignerConfig | false;
   readonly opts: IApiQueryOpts;
+  /** Shape-level secrets — threaded into scope.config.secrets for signing. */
+  readonly secrets?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -86,7 +112,12 @@ function asPlainObject(value: JsonValue): Procedure<Record<string, unknown>> {
  */
 function resolveStepBody(args: IDispatchArgs): Procedure<Record<string, unknown>> {
   if (args.bodyTemplate === false) return succeed(args.vars);
-  const scope = buildScrapeScope(args.bus, args.ctx, args.vars);
+  const scope = buildScrapeScope({
+    bus: args.bus,
+    ctx: args.ctx,
+    vars: args.vars,
+    secrets: args.secrets,
+  });
   const hydrated = hydrate(args.bodyTemplate, scope);
   if (!isOk(hydrated)) return hydrated;
   return asPlainObject(hydrated.value);
@@ -108,7 +139,12 @@ function freshIvHex(): string {
  * @returns Primed template scope.
  */
 function buildPrimedScrapeScope(signer: IAesSignerConfig, args: IDispatchArgs): ITemplateScope {
-  const scope = buildScrapeScope(args.bus, args.ctx, args.vars);
+  const scope = buildScrapeScope({
+    bus: args.bus,
+    ctx: args.ctx,
+    vars: args.vars,
+    secrets: args.secrets,
+  });
   const ivHex = freshIvHex();
   const nowMs = Date.now();
   const tsMs = String(nowMs);

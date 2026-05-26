@@ -133,6 +133,7 @@ const KNOWN_BANK_SLUGS: readonly string[] = [
   'onezero',
   'otsarhahayal',
   'pagi',
+  'paybox',
   'pepper',
   'visacal',
 ];

@@ -49,7 +49,9 @@ function resolveHeaders(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike)
 }
 
 /**
- * Build IApiQueryOpts from optional extraHeaders.
+ * Build IApiQueryOpts from optional extraHeaders. Returns the frozen
+ * empty sentinel when no headers are supplied so consumers can pin
+ * `===` checks against it.
  * @param ctx - Action context for dynamic producers.
  * @param extra - Static map, function, or absent.
  * @returns Opts value.
@@ -58,6 +60,17 @@ function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQu
   const headers = resolveHeaders(ctx, extra);
   if (Object.keys(headers).length === 0) return FROZEN_EMPTY_OPTS;
   return { extraHeaders: headers };
+}
+
+/**
+ * Pull shape-level signer + secrets onto a dispatch-args slice.
+ * @param shape - Bank shape literal.
+ * @returns Slice with signer + secrets fields.
+ */
+function pickShapeSigning<TAcct, TCursor>(
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
+): Pick<IDispatchArgs, 'signer' | 'secrets'> {
+  return { signer: shape.signer ?? false, secrets: shape.secrets };
 }
 
 /**
@@ -85,7 +98,7 @@ function buildCustomerDispatchArgs<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>
     urlTag: resolveCustomerUrlTag(d),
     vars: d.shape.customer.buildVars(d.ctx),
     bodyTemplate: d.shape.customer.bodyTemplate ?? false,
-    signer: d.shape.signer ?? false,
+    ...pickShapeSigning(d.shape),
     opts: toOpts(d.ctx, d.shape.customer.extraHeaders),
   };
 }
@@ -140,7 +153,7 @@ function buildBalanceDispatchArgs<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): 
     urlTag: resolveBalanceUrlTag(a),
     vars: a.shape.balance.buildVars(a.acct),
     bodyTemplate: a.shape.balance.bodyTemplate ?? false,
-    signer: a.shape.signer ?? false,
+    ...pickShapeSigning(a.shape),
     opts: toOpts(a.ctx, a.shape.balance.extraHeaders),
   };
 }
@@ -193,16 +206,13 @@ function buildTxnsDispatchArgs<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   cursor: TCursor | false,
 ): IDispatchArgs {
-  return {
-    bus: a.bus,
-    ctx: a.ctx,
-    queryTag: 'transactions',
-    urlTag: resolveTxnsUrlTag(a, cursor),
-    vars: a.shape.transactions.buildVars(a.acct, cursor, a.ctx),
-    bodyTemplate: a.shape.transactions.bodyTemplate ?? false,
-    signer: a.shape.signer ?? false,
-    opts: toOpts(a.ctx, a.shape.transactions.extraHeaders),
-  };
+  const t = a.shape.transactions;
+  const vars = t.buildVars(a.acct, cursor, a.ctx);
+  const head = { bus: a.bus, ctx: a.ctx, queryTag: 'transactions' as const, vars };
+  const urlTag = resolveTxnsUrlTag(a, cursor);
+  const bodyTemplate = t.bodyTemplate ?? false;
+  const opts = toOpts(a.ctx, t.extraHeaders);
+  return { ...head, urlTag, bodyTemplate, ...pickShapeSigning(a.shape), opts };
 }
 
 /**
