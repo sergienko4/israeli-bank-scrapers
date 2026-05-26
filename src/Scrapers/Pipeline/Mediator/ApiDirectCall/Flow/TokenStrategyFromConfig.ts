@@ -24,11 +24,13 @@ type GenericCreds = Readonly<Record<string, unknown>>;
 
 /**
  * Extended ITokenStrategy exposing the most recent long-term token
- * captured during a fresh flow. Returns '' until the first successful
- * flow completes.
+ * + the post-login carry snapshot captured during a fresh flow.
+ * The token getter returns '' until the first successful flow; the
+ * snapshot getter returns an empty frozen object until then.
  */
 interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
   getLatestLongTermToken(): string;
+  getLatestCarrySnapshot(): Readonly<Record<string, JsonValue>>;
 }
 
 /** Default strategy display name. */
@@ -89,6 +91,7 @@ interface IRunFlowArgs {
 /** Mutable capture slot updated on every successful flow. */
 interface ILongTermTokenSlot {
   latest: string;
+  latestCarrySnapshot: Readonly<Record<string, JsonValue>>;
 }
 
 /**
@@ -114,6 +117,7 @@ async function runConfiguredFlow(
   if (flowProc.value.longTermToken.length > 0) {
     slot.latest = flowProc.value.longTermToken;
   }
+  slot.latestCarrySnapshot = flowProc.value.carrySnapshot;
   const authValue = formatAuthValue(args.config, flowProc.value.bearer);
   return succeed(authValue);
 }
@@ -222,7 +226,7 @@ function createTokenStrategyFromConfig(
   if (!isOk(gate)) return gate;
   const config = args.config;
   const name = args.name ?? STRATEGY_NAME_DEFAULT;
-  const slot: ILongTermTokenSlot = { latest: '' };
+  const slot: ILongTermTokenSlot = { latest: '', latestCarrySnapshot: Object.freeze({}) };
   /**
    * primeInitial binding — routes to primeInitialImpl with captured deps.
    * @param bus - ApiMediator.
@@ -262,12 +266,20 @@ function createTokenStrategyFromConfig(
    * @returns Latest captured long-term token string.
    */
   const getLatestLongTermToken = (): string => slot.latest;
+  /**
+   * getLatestCarrySnapshot binding — exposes the post-login carry
+   * for the bus to install via setSessionContext.
+   * @returns Frozen carry snapshot.
+   */
+  const getLatestCarrySnapshot = (): Readonly<Record<string, JsonValue>> =>
+    slot.latestCarrySnapshot;
   const strategy: IConfigTokenStrategy = {
     name,
     primeInitial,
     primeFresh,
     hasWarmState,
     getLatestLongTermToken,
+    getLatestCarrySnapshot,
   };
   return succeed(strategy);
 }

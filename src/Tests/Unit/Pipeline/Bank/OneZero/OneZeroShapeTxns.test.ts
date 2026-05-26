@@ -33,25 +33,44 @@ describe('OneZeroShapeTxns.txnsVars', () => {
   });
 });
 
+/**
+ * Build an extractPage bundle for the unified scrape-shape signature.
+ * Wraps the body + cursor in the IExtractPageArgs shape consumed by
+ * the extractor.
+ * @param body - Raw response body fragment.
+ * @param cursor - Cursor passed into the call.
+ * @returns Fully-typed args bundle.
+ */
+function extractPageArgs(
+  body: Record<string, unknown>,
+  cursor: string | false,
+): Parameters<typeof txnsExtractPage>[0] {
+  return { body, cursor, acct: ACCT, ctx: ctxFor(new Date('2025-01-01')) };
+}
+
 describe('OneZeroShapeTxns.txnsExtractPage', () => {
   it('emits nextCursor=false when hasMore is false', () => {
     const body = { movements: { movements: [], pagination: { cursor: 'c', hasMore: false } } };
-    const page = txnsExtractPage(body);
+    const args = extractPageArgs(body, false);
+    const page = txnsExtractPage(args);
     expect(page.nextCursor).toBe(false);
   });
   it('emits nextCursor=false when cursor is null (coerced)', () => {
     const body = { movements: { movements: [], pagination: { cursor: null, hasMore: true } } };
-    const page = txnsExtractPage(body);
+    const args = extractPageArgs(body, false);
+    const page = txnsExtractPage(args);
     expect(page.nextCursor).toBe(false);
   });
   it('emits nextCursor=false when cursor is empty string', () => {
     const body = { movements: { movements: [], pagination: { cursor: '', hasMore: true } } };
-    const page = txnsExtractPage(body);
+    const args = extractPageArgs(body, false);
+    const page = txnsExtractPage(args);
     expect(page.nextCursor).toBe(false);
   });
   it('returns the cursor string when hasMore=true + non-empty cursor', () => {
     const body = { movements: { movements: [], pagination: { cursor: 'next', hasMore: true } } };
-    const page = txnsExtractPage(body);
+    const args = extractPageArgs(body, false);
+    const page = txnsExtractPage(args);
     expect(page.nextCursor).toBe('next');
   });
 });

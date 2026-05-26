@@ -22,6 +22,7 @@ import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IStepConfig } from '../IApiDirectCallConfig.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { applyCryptoField, attachBodySignature, primeStepCarry } from './RunStepBodySigning.js';
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
@@ -212,6 +213,9 @@ function computeSignerHeader(args: IRunStepArgs, input: ISignerInput): Procedure
   if (signer === undefined) {
     return fail(ScraperErrorTypes.Generic, 'computeSignerHeader called without signer');
   }
+  if (signer.algorithm === 'AES-CBC-PKCS7') {
+    return fail(ScraperErrorTypes.Generic, 'computeSignerHeader called with AES signer');
+  }
   const canonicalProc = buildCanonical({
     canonical: signer.canonical,
     pathAndQuery: input.pathAndQuery,
@@ -267,6 +271,9 @@ function buildStepHeaders(args: IRunStepArgs, assembly: IHeaderAssembly): Proced
   const seeded = seedHeaders(staticHeaders);
   const out = applyCookieHeader(seeded, args);
   if (config.signer === undefined) return succeed(out);
+  // AES variant signs into the body (not a header) — handled by a
+  // separate body-pointer hook before firePost. Skip header attachment.
+  if (config.signer.algorithm === 'AES-CBC-PKCS7') return succeed(out);
   if (args.signingKeypair === undefined) {
     return fail(ScraperErrorTypes.Generic, 'signer configured but no signing keypair in scope');
   }
@@ -450,63 +457,125 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
  * @param args - Run-step args.
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
-async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
-  const bodyProc = hydrate(args.step.body.shape, args.scope);
-  if (!isOk(bodyProc)) {
-    LOG.debug({ stepName: args.step.name, message: 'hydrate body FAIL' });
-    return bodyProc;
-  }
-  const bodyValue = bodyProc.value;
-  const bodyJson = JSON.stringify(bodyValue);
-  const baseCtx = buildStepContext(args.step, bodyValue);
-  LOG.debug({ ...baseCtx, message: '[runStep] START' });
+/**
+ * Resolve the step's body — hydrate template, prime carry (tsMs +
+ * AES-signer IV), apply cryptoField encryption when present, and
+ * attach the AES body-pointer signature when configured. Extracted
+ * from {@link runStep} so the body-prep pipeline is testable in
+ * isolation and runStep stays inside the per-function LOC budget.
+ * @param args - Run-step args.
+ * @param pathAndQuery - Canonical-string path+query (for AES signing).
+ * @returns Procedure with the ready-to-POST body + the post-prep scope.
+ */
+function prepareStepBody(
+  args: IRunStepArgs,
+  pathAndQuery: string,
+): Procedure<{ readonly body: Record<string, unknown>; readonly scope: ITemplateScope }> {
+  const primedScope = primeStepCarry(args.scope, args.step);
+  const bodyProc = hydrate(args.step.body.shape, primedScope);
+  if (!isOk(bodyProc)) return bodyProc;
+  const hydratedBody = bodyProc.value as Record<string, unknown>;
+  const afterCrypto = applyCryptoField({ step: args.step, scope: primedScope, body: hydratedBody });
+  if (!isOk(afterCrypto)) return afterCrypto;
+  const signedProc = attachBodySignature({
+    scope: afterCrypto.value.scope,
+    body: afterCrypto.value.body,
+    pathAndQuery,
+  });
+  if (!isOk(signedProc)) return signedProc;
+  return succeed({ body: signedProc.value, scope: afterCrypto.value.scope });
+}
+
+/** Bundle of values that prepareDispatch hands off to fireAndMergeScope. */
+interface IDispatchBundle {
+  readonly fireArgs: IFireArgs;
+  readonly fireScope: IRunStepArgs;
+  readonly baseCtx: ReturnType<typeof buildStepContext>;
+  readonly preparedScope: ITemplateScope;
+}
+
+/** Pair of resolved path-and-query and the raw query record. */
+interface IPathAndQuery {
+  readonly pathAndQuery: string;
+  readonly query: Record<string, string>;
+}
+
+/**
+ * Resolve the URL + query string for the step's WK url tag.
+ * @param args - Run-step args (step + scope + companyId).
+ * @returns Procedure with the path-and-query bundle, or fail.
+ */
+function resolvePathAndQuery(args: IRunStepArgs): Procedure<IPathAndQuery> {
   const queryProc = buildQueryRecord(args.step, args.scope);
-  if (!isOk(queryProc)) {
-    LOG.debug({ ...baseCtx, message: 'queryRecord FAIL' });
-    return queryProc;
-  }
+  if (!isOk(queryProc)) return queryProc;
   const urlProc = resolveWkUrl(args.step.urlTag, args.companyId);
-  if (!isOk(urlProc)) {
-    LOG.debug({ ...baseCtx, message: 'resolveWkUrl FAIL' });
-    return urlProc;
-  }
+  if (!isOk(urlProc)) return urlProc;
   const pathAndQuery = buildPathAndQuery(urlProc.value, queryProc.value);
-  const headersProc = buildStepHeaders(args, { bodyJson, pathAndQuery });
-  if (!isOk(headersProc)) {
-    LOG.debug({ ...baseCtx, message: 'buildStepHeaders FAIL' });
-    return headersProc;
-  }
-  const onSetCookieMaybe = buildOnSetCookie(args);
-  const fireBase: IFireArgs = {
-    body: bodyValue as Record<string, unknown>,
-    query: queryProc.value,
-    extraHeaders: headersProc.value,
-  };
-  const fireWithSink = attachSink(fireBase, onSetCookieMaybe);
-  const respProc = await firePost(args, fireWithSink);
+  return succeed({ pathAndQuery, query: queryProc.value });
+}
+
+/**
+ * Hydrate the request body and build the dispatch bundle.
+ * @param args - Run-step args.
+ * @param pathAndQuery - Resolved path-and-query string.
+ * @param query - Raw query record.
+ * @returns Procedure with the dispatch bundle, or fail.
+ */
+function buildDispatchBundle(
+  args: IRunStepArgs,
+  pathAndQuery: string,
+  query: Record<string, string>,
+): Procedure<IDispatchBundle> {
+  const prepProc = prepareStepBody(args, pathAndQuery);
+  if (!isOk(prepProc)) return prepProc;
+  const fireScope = { ...args, scope: prepProc.value.scope };
+  const bodyValue = prepProc.value.body;
+  const baseCtx = buildStepContext(args.step, bodyValue as JsonValue);
+  LOG.debug({ ...baseCtx, message: '[runStep] START' });
+  const bodyJson = JSON.stringify(bodyValue);
+  const headersProc = buildStepHeaders(fireScope, { bodyJson, pathAndQuery });
+  if (!isOk(headersProc)) return headersProc;
+  const fireBase: IFireArgs = { body: bodyValue, query, extraHeaders: headersProc.value };
+  const onSetCookie = buildOnSetCookie(args);
+  const fireArgs = attachSink(fireBase, onSetCookie);
+  return succeed({ fireArgs, fireScope, baseCtx, preparedScope: prepProc.value.scope });
+}
+
+/**
+ * Dispatch the prepared call and fold the extracted carry into scope.
+ * @param bundle - Dispatch bundle from {@link buildDispatchBundle}.
+ * @returns Procedure with the merged scope, or fail.
+ */
+async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITemplateScope>> {
+  const respProc = await firePost(bundle.fireScope, bundle.fireArgs);
   if (!isOk(respProc)) {
-    LOG.debug({
-      ...baseCtx,
-      errorType: respProc.errorType,
-      errorMessage: respProc.errorMessage,
-      message: '[runStep] firePost FAIL',
-    });
+    const errCtx = { ...bundle.baseCtx, errorMessage: respProc.errorMessage };
+    LOG.debug({ ...errCtx, message: 'firePost FAIL' });
     return respProc;
   }
-  LOG.debug({ ...baseCtx, ...describeResponse(respProc.value), message: '[runStep] firePost OK' });
-  const carryProc = extractFields(respProc.value, args.step.extractsToCarry);
-  if (!isOk(carryProc)) {
-    LOG.debug({
-      ...baseCtx,
-      errorMessage: carryProc.errorMessage,
-      message: '[runStep] extractFields FAIL',
-    });
-    return carryProc;
-  }
-  const carryKeys = Object.keys(carryProc.value);
-  LOG.debug({ ...baseCtx, carryKeys, message: '[runStep] OK' });
-  const nextScope = mergeScopeCarry(args.scope, carryProc.value);
-  return succeed(nextScope);
+  const okCtx = { ...bundle.baseCtx, ...describeResponse(respProc.value) };
+  LOG.debug({ ...okCtx, message: '[runStep] firePost OK' });
+  const carryProc = extractFields(respProc.value, bundle.fireScope.step.extractsToCarry);
+  if (!isOk(carryProc)) return carryProc;
+  const merged = mergeScopeCarry(bundle.preparedScope, carryProc.value);
+  return succeed(merged);
+}
+
+/**
+ * Run a single IStepConfig end-to-end — body hydration + optional
+ * AES body-pointer signing + optional cryptoField encryption +
+ * dispatch + response extraction. Emits PII-safe debug traces at
+ * START / firePost-OK / firePost-FAIL.
+ * @param args - Run-step args (step config + bus + scope + companyId).
+ * @returns Procedure with the extended scope (carry merged), or fail.
+ */
+async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
+  const resolved = resolvePathAndQuery(args);
+  if (!isOk(resolved)) return resolved;
+  const { pathAndQuery, query } = resolved.value;
+  const bundleProc = buildDispatchBundle(args, pathAndQuery, query);
+  if (!isOk(bundleProc)) return bundleProc;
+  return fireAndMergeScope(bundleProc.value);
 }
 
 export type { CarryMap, IRunStepArgs, IStepCookieJar };

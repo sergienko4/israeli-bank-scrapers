@@ -61,7 +61,7 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
       const legacy = toLegacy(buildResult);
       return legacy;
     }
-    return await executePipeline(buildResult.value, credentials);
+    return executePipeline(buildResult.value, credentials);
   }
 
   /**

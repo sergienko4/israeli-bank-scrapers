@@ -60,11 +60,13 @@ function emptyVars(): Record<string, unknown> {
 
 /**
  * Extract synthetic accounts from a router-backed customer response.
- * @param body - Customer response body.
+ * Unified scrape-shape signature — only `args.body` is used here.
+ * @param args - Extract-args bundle.
+ * @param args.body - Hydrated response body.
  * @returns Synthetic account list.
  */
-function extractAccountsSyn(body: Record<string, unknown>): readonly ISynAcct[] {
-  return (body as { accts: readonly ISynAcct[] }).accts;
+function extractAccountsSyn(args: { readonly body: Record<string, unknown> }): readonly ISynAcct[] {
+  return (args.body as { accts: readonly ISynAcct[] }).accts;
 }
 
 /**
@@ -96,11 +98,13 @@ function txnVarsSyn(a: ISynAcct): Record<string, unknown> {
 
 /**
  * Extract a synthetic page (body is already shaped as IPage).
- * @param body - Page payload.
+ * Unified scrape-shape signature — only `args.body` is used here.
+ * @param args - Extract-args bundle.
+ * @param args.body - Hydrated response body.
  * @returns Generic page.
  */
-function extractPageSyn(body: Record<string, unknown>): IPage<object, string> {
-  return body as unknown as IPage<object, string>;
+function extractPageSyn(args: { readonly body: Record<string, unknown> }): IPage<object, string> {
+  return args.body as unknown as IPage<object, string>;
 }
 
 /**
@@ -130,6 +134,8 @@ function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): I
     apiQuery,
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
+    setSessionContext: jest.fn(),
+    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
   } as unknown as IApiMediator;
 }
 

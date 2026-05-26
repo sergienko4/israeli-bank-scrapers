@@ -175,7 +175,7 @@ beforeEach(() => {
 describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
   it('OZ-CIT-01 — first call launches Camoufox and navigates to origin', async () => {
     STATE.envelope = ENV_OK;
-    const r = await new STRATEGY(ORIGIN).fetchPost(URL_OK, { id: 'x' }, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, { id: 'x' }, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(true);
     expect(STATE.launchCalls).toBe(1);
@@ -184,7 +184,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 
   it('OZ-CIT-02 — second call reuses the existing page (no re-launch)', async () => {
     STATE.envelope = ENV_OK;
-    const s = new STRATEGY(ORIGIN);
+    const s = new STRATEGY(ORIGIN, false);
     await s.fetchPost(URL_OK, {}, OPTS);
     await s.fetchPost(URL_OK, {}, OPTS);
     expect(STATE.launchCalls).toBe(1);
@@ -193,7 +193,11 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 
   it('OZ-CIT-03 — 2xx JSON body parses to succeed(parsedJson)', async () => {
     STATE.envelope = ENV_OK;
-    const r = await new STRATEGY(ORIGIN).fetchPost<{ deviceToken: string }>(URL_OK, {}, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost<{ deviceToken: string }>(
+      URL_OK,
+      {},
+      OPTS,
+    );
     const wasOk = isOk(r);
     expect(wasOk).toBe(true);
     if (isOk(r)) expect(r.value.deviceToken).toBe('jwt');
@@ -230,7 +234,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 
   it.each(classifyCases)('$id — non-2xx classified', async (row: IClassifyCase) => {
     STATE.envelope = row.envelope;
-    const r = await new STRATEGY(ORIGIN).fetchPost(URL_OK, {}, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
     if (!isOk(r)) {
@@ -242,7 +246,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 
   it('OZ-CIT-06 — page.evaluate throwing surfaces as network-error failure', async () => {
     STATE.evaluateThrows = true;
-    const r = await new STRATEGY(ORIGIN).fetchPost(URL_OK, {}, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
     if (!isOk(r)) expect(r.errorMessage).toContain('network error');
@@ -250,7 +254,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 
   it('OZ-CIT-07 — malformed JSON 2xx returns parse-error failure', async () => {
     STATE.envelope = { ok: true, status: 200, bodyText: 'not-json{', setCookies: [] };
-    const r = await new STRATEGY(ORIGIN).fetchPost(URL_OK, {}, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
     if (!isOk(r)) expect(r.errorMessage).toContain('parse error');
@@ -258,14 +262,14 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 
   it('OZ-CIT-08 — launch failure surfaces as Generic launch failure', async () => {
     STATE.launchThrows = true;
-    const r = await new STRATEGY(ORIGIN).fetchPost(URL_OK, {}, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
     if (!isOk(r)) expect(r.errorMessage).toContain('camoufox launch failed');
   });
 
   it('OZ-CIT-11 — disposed strategy returns deterministic Generic failure', async () => {
-    const s = new STRATEGY(ORIGIN);
+    const s = new STRATEGY(ORIGIN, false);
     await s.dispose();
     const r = await s.fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
@@ -276,7 +280,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 
   it('OZ-CIT-12 — nav failure after launch returns Generic nav failure', async () => {
     STATE.navThrows = true;
-    const r = await new STRATEGY(ORIGIN).fetchPost(URL_OK, {}, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
     if (!isOk(r)) expect(r.errorMessage).toContain('camoufox nav failed');
@@ -291,7 +295,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
      * @returns The new captured length.
      */
     const hook = (lines: readonly string[]): number => captured.push(lines);
-    const s = new STRATEGY(ORIGIN);
+    const s = new STRATEGY(ORIGIN, false);
     await s.fetchPost(URL_OK, {}, { extraHeaders: {}, onSetCookie: hook });
     STATE.envelope = { ok: true, status: 200, bodyText: '{}', setCookies: [] };
     await s.fetchPost(URL_OK, {}, { extraHeaders: {}, onSetCookie: hook });
@@ -302,14 +306,14 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
 describe('CamoufoxIdentityFetchStrategy/fetchGet', () => {
   it('OZ-CIT-13 — GET 2xx succeeds via page.evaluate', async () => {
     STATE.envelope = ENV_OK;
-    const r = await new STRATEGY(ORIGIN).fetchGet(URL_OK, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchGet(URL_OK, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(true);
   });
 
   it('OZ-CIT-14 — GET non-2xx with app body returns Generic failure', async () => {
     STATE.envelope = ENV_APP_400;
-    const r = await new STRATEGY(ORIGIN).fetchGet(URL_OK, OPTS);
+    const r = await new STRATEGY(ORIGIN, false).fetchGet(URL_OK, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
     if (!isOk(r)) {
@@ -322,7 +326,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchGet', () => {
 describe('CamoufoxIdentityFetchStrategy/dispose', () => {
   it('OZ-CIT-09 — dispose closes the browser', async () => {
     STATE.envelope = ENV_OK;
-    const s = new STRATEGY(ORIGIN);
+    const s = new STRATEGY(ORIGIN, false);
     await s.fetchPost(URL_OK, {}, OPTS);
     await s.dispose();
     expect(STATE.closeCalls).toBe(1);
@@ -330,7 +334,7 @@ describe('CamoufoxIdentityFetchStrategy/dispose', () => {
 
   it('OZ-CIT-10 — dispose is idempotent (second call is no-op)', async () => {
     STATE.envelope = ENV_OK;
-    const s = new STRATEGY(ORIGIN);
+    const s = new STRATEGY(ORIGIN, false);
     await s.fetchPost(URL_OK, {}, OPTS);
     await s.dispose();
     await s.dispose();
@@ -338,7 +342,7 @@ describe('CamoufoxIdentityFetchStrategy/dispose', () => {
   });
 
   it('OZ-CIT-09b — dispose on never-launched strategy is a no-op', async () => {
-    await new STRATEGY(ORIGIN).dispose();
+    await new STRATEGY(ORIGIN, false).dispose();
     expect(STATE.closeCalls).toBe(0);
     expect(STATE.launchCalls).toBe(0);
   });
@@ -346,7 +350,7 @@ describe('CamoufoxIdentityFetchStrategy/dispose', () => {
   it('OZ-CIT-09c — dispose swallows browser.close() rejection', async () => {
     STATE.envelope = ENV_OK;
     STATE.closeThrows = true;
-    const s = new STRATEGY(ORIGIN);
+    const s = new STRATEGY(ORIGIN, false);
     await s.fetchPost(URL_OK, {}, OPTS);
     const disposePromise = s.dispose();
     await expect(disposePromise).resolves.toBeUndefined();
@@ -385,7 +389,7 @@ function resolveStubResponse(): Promise<IStubResponse> {
 describe('CamoufoxIdentityFetchStrategy/coverage edges', () => {
   it('OZ-CIT-16 — unparseable origin URL falls through safeUrlForLog catch', async () => {
     STATE.envelope = ENV_OK;
-    const r = await new STRATEGY('not a url').fetchPost(URL_OK, {}, OPTS);
+    const r = await new STRATEGY('not a url', false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(true);
   });
@@ -396,7 +400,7 @@ describe('CamoufoxIdentityFetchStrategy/coverage edges', () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = stubFetch;
     try {
-      const s = new STRATEGY(ORIGIN);
+      const s = new STRATEGY(ORIGIN, false);
       const postProc = await s.fetchPost(URL_OK, {}, OPTS);
       const getProc = await s.fetchGet(URL_OK, OPTS);
       const wasPostOk = isOk(postProc);

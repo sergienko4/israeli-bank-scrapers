@@ -9,7 +9,10 @@ import {
   type CursorWireValue,
   FIRST_PAGE_CURSOR_WIRE,
 } from '../../../Mediator/Scrape/CursorPagination.js';
-import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type {
+  IExtractPageArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
@@ -67,11 +70,18 @@ export function txnsVars(acct: IOneZeroAcct, cursor: string | false): VarsMap {
 
 /**
  * Unwrap one movements page into the generic IPage contract.
- * @param body - Unwrapped movements response.
+ *
+ * Signature matches the unified scrape-shape contract: takes a full
+ * {@link IExtractPageArgs} bundle. OneZero only needs `args.body`
+ * (its server returns the cursor inside the body itself); banks that
+ * need acct/ctx/cursor (PayBox) read those bundle fields.
+ * @param args - Bundle carrying body + cursor + acct + ctx.
  * @returns Page rows + nextCursor.
  */
-export function txnsExtractPage(body: ApiBody): IPage<object, string> {
-  const resp = body as unknown as IMovResp;
+export function txnsExtractPage(
+  args: IExtractPageArgs<IOneZeroAcct, string>,
+): IPage<object, string> {
+  const resp = args.body as unknown as IMovResp;
   const { movements, pagination } = resp.movements;
   const cursorIn: string | false = pagination.cursor ?? false;
   const nextCursor = pickNextCursor(pagination.hasMore, cursorIn);

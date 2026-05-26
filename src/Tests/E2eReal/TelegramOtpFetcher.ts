@@ -485,13 +485,37 @@ const BACKOFF_MAX_MS = 8_000;
 /** Cap on the exponent (2^N) so the doubling never overflows. */
 const BACKOFF_MAX_EXPONENT = 4;
 /**
- * Minimum debounce between consecutive no-match short-poll iterations
- * to stay under Telegram's 30 req/s ceiling. The short-poll itself
- * still uses `offset=0&timeout=0` (see {@link pollOnce}) — this delay
- * is a deliberate idle pause BETWEEN iterations, not a return to
- * long-poll semantics.
+ * Minimum debounce between consecutive no-match short-poll iterations.
+ *
+ * <p>The original 250 ms value was chosen to stay under Telegram's 30
+ * req/s ceiling. PR #261 run 26446324489 (and the local
+ * `telegram-stability-probe.mjs` against the live bot) surfaced an
+ * UNDOCUMENTED Telegram behaviour on top of the 30 req/s ceiling:
+ * when two `getUpdates?offset=0&timeout=0` calls land within ~1.5 s
+ * of each other, the second response carries ONLY the EARLIEST
+ * pending update — regardless of `limit=100`. Reproduced 100% of
+ * runs:
+ *   #1 (fresh)         → 7 updates
+ *   #2 (250 ms wait)   → 1 update (earliest only)
+ *   #3 (1000 ms wait)  → 1 update (still throttled)
+ *   #4 (~1100 ms wait) → 7 updates (throttle reset)
+ *
+ * <p>At 250 ms the fetcher's polls were trapped permanently in the
+ * throttled state: the earliest pending update was a stale reply to
+ * a previous prompt, so the fetcher's filter rejected it on every
+ * iteration and the actual user reply (sitting just past it in the
+ * queue) was invisible. Setting the delay to 2 s places every poll
+ * comfortably past the ~1.5 s throttle threshold while keeping us at
+ * ~0.5 req/s — three orders of magnitude under the 30 req/s ceiling
+ * and safe for parallel CI groups (3 fetchers × 0.5 req/s = 1.5 req/s
+ * total).
+ *
+ * <p>OTP detection latency goes from ≤500 ms to ≤2.5 s. Acceptable
+ * for a flow whose dominant wait is the human typing the SMS code.
+ * Regression coverage: {@link
+ * src/Tests/Unit/TelegramOtpFetcher.test.ts TF-13}.
  */
-const IDLE_POLL_DELAY_MS = 250;
+const IDLE_POLL_DELAY_MS = 2_000;
 
 /**
  * Exponential backoff schedule for consecutive transport failures.

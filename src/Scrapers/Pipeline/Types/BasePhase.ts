@@ -33,6 +33,9 @@ type DidEmitHandoff = Brand<boolean, 'DidEmitHandoff'>;
 export type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
 
 /** Lookup for success/fail trace tags. */
+/** Pino log-event discriminator emitted by every phase-stage debug line. */
+const PHASE_STAGE_EVENT = 'phase-stage' as const;
+
 const RESULT_TAG: Record<string, PipelineLogEvent['event'] extends string ? string : never> = {
   true: 'OK',
   false: 'FAIL',
@@ -253,9 +256,9 @@ abstract class BasePhase {
    * @param ctx - Pipeline context at phase entry.
    * @returns Final context after all 4 stages, or first failure.
    */
-  public async run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  public run(ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> {
     setActivePhase(this.name);
-    return await this.runStages(ctx, ctx.logger);
+    return this.runStages(ctx, ctx.logger);
   }
 
   /**
@@ -483,13 +486,18 @@ abstract class BasePhase {
     setActiveStage('PRE');
     if (isMockTimingActive() && mockPolicyFor(this.name).pre) {
       const mocked = succeed(ctx);
-      log.debug({ event: 'phase-stage', phase: this.name, stage: 'PRE', result: 'OK' });
+      log.debug({ event: PHASE_STAGE_EVENT, phase: this.name, stage: 'PRE', result: 'OK' });
       return mocked;
     }
     const preSpec = this.prelude('PRE');
     await awaitPagePrelude(ctx, preSpec);
     const result = await this.pre(ctx, ctx);
-    log.debug({ event: 'phase-stage', phase: this.name, stage: 'PRE', result: traceTag(result) });
+    log.debug({
+      event: PHASE_STAGE_EVENT,
+      phase: this.name,
+      stage: 'PRE',
+      result: traceTag(result),
+    });
     return result;
   }
 
@@ -517,7 +525,7 @@ abstract class BasePhase {
     logHandoffSummary(this.name, preVal, log);
     setActiveStage('ACTION');
     if (isMockTimingActive() && mockPolicyFor(this.name).action) {
-      log.debug({ event: 'phase-stage', phase: this.name, stage: 'ACTION', result: 'OK' });
+      log.debug({ event: PHASE_STAGE_EVENT, phase: this.name, stage: 'ACTION', result: 'OK' });
       return succeed(preVal);
     }
     const actionSpec = this.prelude('ACTION');
@@ -525,7 +533,7 @@ abstract class BasePhase {
     const actionCtx = buildActionContext(preVal);
     const result = await this.action(actionCtx, actionCtx);
     log.debug({
-      event: 'phase-stage',
+      event: PHASE_STAGE_EVENT,
       phase: this.name,
       stage: 'ACTION',
       result: RESULT_TAG[String(result.success)],
@@ -549,13 +557,18 @@ abstract class BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     setActiveStage('POST');
     if (isMockTimingActive() && mockPolicyFor(this.name).post) {
-      log.debug({ event: 'phase-stage', phase: this.name, stage: 'POST', result: 'OK' });
+      log.debug({ event: PHASE_STAGE_EVENT, phase: this.name, stage: 'POST', result: 'OK' });
       return succeed(restored);
     }
     const postSpec = this.prelude('POST');
     await awaitPagePrelude(restored, postSpec);
     const result = await this.post(restored, restored);
-    log.debug({ event: 'phase-stage', phase: this.name, stage: 'POST', result: traceTag(result) });
+    log.debug({
+      event: PHASE_STAGE_EVENT,
+      phase: this.name,
+      stage: 'POST',
+      result: traceTag(result),
+    });
     return result;
   }
 
@@ -573,13 +586,18 @@ abstract class BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     setActiveStage('FINAL');
     if (isMockTimingActive() && mockPolicyFor(this.name).final) {
-      log.debug({ event: 'phase-stage', phase: this.name, stage: 'FINAL', result: 'OK' });
+      log.debug({ event: PHASE_STAGE_EVENT, phase: this.name, stage: 'FINAL', result: 'OK' });
       return succeed(postVal);
     }
     const finalSpec = this.prelude('FINAL');
     await awaitPagePrelude(postVal, finalSpec);
     const result = await this.final(postVal, postVal);
-    log.debug({ event: 'phase-stage', phase: this.name, stage: 'FINAL', result: traceTag(result) });
+    log.debug({
+      event: PHASE_STAGE_EVENT,
+      phase: this.name,
+      stage: 'FINAL',
+      result: traceTag(result),
+    });
     return result;
   }
 }

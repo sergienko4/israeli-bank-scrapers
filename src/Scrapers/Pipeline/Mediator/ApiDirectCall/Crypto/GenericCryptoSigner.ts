@@ -10,7 +10,7 @@ import { createSign } from 'node:crypto';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import type { ISignerConfig, SignerEncoding } from '../IApiDirectCallConfig.js';
+import type { IAsymmetricSignerConfig, SignerEncoding } from '../IApiDirectCallConfig.js';
 import type { IGenericKeypair } from './CryptoKeyFactory.js';
 
 /** Lookup table — Partial wrapper makes lookups safely undefined-able at runtime. */
@@ -56,17 +56,21 @@ function signBytes(
 }
 
 /**
- * Sign canonical bytes and assemble the full header value.
+ * Sign canonical bytes and assemble the full header value. Asymmetric
+ * algorithms only — the AES symmetric variant is dispatched separately
+ * in {@link RunStep} because its signature lands in the body, not a
+ * header.
  * @param bytes - Canonical bytes the caller already built (sortQuery,
  *   escape, etc. handled upstream).
  * @param keypair - IGenericKeypair carrying private key + key-id.
- * @param config - ISignerConfig (algorithm/encoding/headerName/schemeTag).
+ * @param config - {@link IAsymmetricSignerConfig} (algorithm/encoding/
+ *   headerName/schemeTag).
  * @returns Procedure with the assembled header value.
  */
 function signCanonical(
   bytes: Buffer,
   keypair: IGenericKeypair,
-  config: ISignerConfig,
+  config: IAsymmetricSignerConfig,
 ): Procedure<string> {
   const sigB64 = signBytes(bytes, keypair, config.encoding);
   if (!sigB64.success) return sigB64;

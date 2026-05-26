@@ -165,6 +165,10 @@ interface IHeadlessWiring {
   readonly graphql: string;
   readonly staticAuth?: string;
   readonly requiresBrowserTls: boolean;
+  /** When true, the Camoufox strategy route-intercepts the initial origin nav
+   * with a blank HTML stub so subsequent same-origin fetches are not blocked
+   * by the bank's Cloudflare interstitial CSP. */
+  readonly bypassOriginChallenge: boolean;
 }
 
 /**
@@ -182,31 +186,59 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
     graphql: headless.graphql,
     staticAuth: headless.staticAuth,
     requiresBrowserTls: headless.requiresBrowserTls === true,
+    bypassOriginChallenge: headless.bypassOriginChallenge === true,
   };
 }
 
 /**
  * Wire the browser-backed headless API mediator. All currently-registered
- * headless banks (OneZero, Pepper) opt into `requiresBrowserTls: true`; the
- * legacy Node-fetch branch was retired together with Pepper's migration
- * because keeping a dead conditional drops branch coverage below threshold
- * and adds dead code to the supply-chain surface.
+ * headless banks (OneZero, Pepper, PayBox) opt into `requiresBrowserTls:
+ * true` — each bank's identity host either gates Node TLS directly or
+ * sits behind a Cloudflare edge whose challenge JS is bypassed via the
+ * Camoufox strategy's optional origin-challenge route-intercept (see
+ * `CamoufoxIdentityFetchStrategy` constructor `bypassOriginChallenge`
+ * flag).
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns Wired IApiMediator instance with a dispose hook.
+ */
+/**
+ * Build the `createBrowserBackedHeadlessApiMediator` arg literal from
+ * the resolved wiring + companyId. Extracted so the call site below
+ * stays inside the project's max-lines-per-function cap.
+ * @param companyId - Target bank company type.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns Args bundle ready to pass into the browser-backed mediator factory.
+ */
+function buildMediatorArgsForWiring(
+  companyId: IPipelineContext['companyId'],
+  wiring: IHeadlessWiring,
+): Parameters<typeof createBrowserBackedHeadlessApiMediator>[0] {
+  const identityOriginUrl = new URL(wiring.identity).origin;
+  return {
+    bankHint: companyId,
+    identityBaseUrl: wiring.identity,
+    identityOriginUrl,
+    graphqlUrl: wiring.graphql,
+    staticAuth: wiring.staticAuth,
+    bypassOriginChallenge: wiring.bypassOriginChallenge,
+  };
+}
+
+/**
+ * Build the browser-backed headless ApiMediator for the supplied wiring.
+ * The args literal is assembled by {@link buildMediatorArgsForWiring}
+ * so this site stays under the project's max-lines-per-function cap.
+ * @param companyId - Target bank company type.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns Wired ApiMediator instance with a dispose hook.
  */
 function buildApiMediatorForWiring(
   companyId: IPipelineContext['companyId'],
   wiring: IHeadlessWiring,
 ): ReturnType<typeof createBrowserBackedHeadlessApiMediator> {
-  const base = {
-    bankHint: companyId,
-    identityBaseUrl: wiring.identity,
-    graphqlUrl: wiring.graphql,
-    staticAuth: wiring.staticAuth,
-  };
-  const identityOriginUrl = new URL(wiring.identity).origin;
-  return createBrowserBackedHeadlessApiMediator({ ...base, identityOriginUrl });
+  const args = buildMediatorArgsForWiring(companyId, wiring);
+  return createBrowserBackedHeadlessApiMediator(args);
 }
 
 /**

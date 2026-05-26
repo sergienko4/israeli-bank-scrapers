@@ -135,6 +135,8 @@ export function makeMediator(router: OpRouter): IApiMediator {
     apiGet: jest.fn(),
     apiQuery,
     setBearer: jest.fn(),
+    setSessionContext: jest.fn(),
+    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
   } as unknown as IApiMediator;
 }
 

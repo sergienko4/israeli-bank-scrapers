@@ -9,17 +9,22 @@ inputs:
 runs:
   using: composite
   steps:
-    # Cache key is version-less: the Camoufox browser binary version is
-    # NOT pinned here. The single source of truth for the npm package
-    # version is `@hieutran094/camoufox-js` in package.json; the upstream
-    # daijro/camoufox release is resolved dynamically by that package
-    # (pkgman.js CamoufoxFetcher walks releases newest-first). The cache
-    # persists across runs until manually busted by changing this key.
+    # Camoufox is pinned to the v135 stable line (matches the
+    # Playwright 1.59.x bytes pinned in package.json — see the
+    # fallback path recorded in commit 6305e576's body). Tried
+    # v150.0.2-beta.25 alongside Playwright 1.60.0; v150's locale
+    # handling regressed `navigator.language` (returned `en-US` even
+    # when the context option declared `he-IL`, breaking
+    # `AntiDetection.e2e-mocked.test.ts`). Reverted to dynamic-latest
+    # fetch via camoufox-js (which resolves to v135.0.1-beta.24 with
+    # the current `@hieutran094/camoufox-js: ^0.6.8` package), and
+    # Playwright is held at ~1.59.1 in package.json so the cached
+    # binary + client stay on the last green combination.
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        key: camoufox-bin
+        key: camoufox-bin-v135-stable
     - name: Install Camoufox browser
       shell: bash
       env:

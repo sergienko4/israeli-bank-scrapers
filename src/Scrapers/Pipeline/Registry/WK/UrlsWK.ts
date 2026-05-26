@@ -22,9 +22,15 @@ export type WKUrlGroup =
   | 'identity.otpVerify'
   | 'identity.getIdToken'
   | 'identity.sessionToken'
+  | 'identity.phoneValidate'
+  | 'identity.pinValidation'
+  | 'identity.loginBySms'
   | 'auth.bind'
   | 'auth.assert'
-  | 'auth.logout';
+  | 'auth.logout'
+  | 'data.sync'
+  | 'data.getUserHistory'
+  | 'data.virtualCardTranRequest';
 
 /** Internal registry: group -> bankHint -> url string. */
 const WK_URLS = new Map<WKUrlGroup, Map<CompanyTypes, string>>();

@@ -18,6 +18,7 @@ import { buildMercantilePipeline } from '../Banks/Mercantile/MercantilePipeline.
 import { buildOneZeroPipeline } from '../Banks/OneZero/OneZeroPipeline.js';
 import { buildOtsarHahayalPipeline } from '../Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import { buildPagiPipeline } from '../Banks/Pagi/PagiPipeline.js';
+import { buildPayBoxPipeline } from '../Banks/PayBox/PayBoxPipeline.js';
 import { buildPepperPipeline } from '../Banks/Pepper/PepperPipeline.js';
 import { buildVisaCalPipeline } from '../Banks/VisaCal/VisaCalPipeline.js';
 import type { Procedure } from '../Types/Procedure.js';
@@ -39,6 +40,7 @@ const PIPELINE_REGISTRY: Partial<Record<CompanyTypes, PipelineFactory>> = {
   [CT.OneZero]: buildOneZeroPipeline,
   [CT.OtsarHahayal]: buildOtsarHahayalPipeline,
   [CT.Pagi]: buildPagiPipeline,
+  [CT.PayBox]: buildPayBoxPipeline,
   [CT.Pepper]: buildPepperPipeline,
   [CT.VisaCal]: buildVisaCalPipeline,
 };

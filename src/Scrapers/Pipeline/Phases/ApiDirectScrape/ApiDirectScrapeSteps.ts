@@ -1,17 +1,18 @@
 /**
  * Per-step helpers for the ApiDirectScrape phase driver.
- * Split from ApiDirectScrapeActions.ts to respect the 150-LOC ceiling.
+ * Consumes dispatchStep + scope helpers from ApiDirectScrapeDispatch.
  * Zero bank-name coupling.
  */
 
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
+import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import { dispatchStep, type IDispatchArgs } from './ApiDirectScrapeDispatch.js';
 import type {
-  ApiBody,
   ApiDirectScrapeHeadersLike,
   HeaderMap,
   IApiDirectScrapeShape,
@@ -36,8 +37,7 @@ export interface IAcctCtx<TAcct, TCursor> extends IDriverCtx<TAcct, TCursor> {
 }
 
 /**
- * Resolve a ApiDirectScrapeHeadersLike to a concrete HeaderMap — calls the
- * function at call time when the shape declared a dynamic producer.
+ * Resolve a ApiDirectScrapeHeadersLike to a concrete HeaderMap.
  * @param ctx - Action context passed into dynamic producers.
  * @param extra - Static map, function, or absent.
  * @returns Concrete header map (frozen empty when absent).
@@ -49,10 +49,12 @@ function resolveHeaders(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike)
 }
 
 /**
- * Build IApiQueryOpts from optional extraHeaders (frozen singleton default).
+ * Build IApiQueryOpts from optional extraHeaders. Returns the frozen
+ * empty sentinel when no headers are supplied so consumers can pin
+ * `===` checks against it.
  * @param ctx - Action context for dynamic producers.
  * @param extra - Static map, function, or absent.
- * @returns Opts value consumed by apiQuery.
+ * @returns Opts value.
  */
 function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQueryOpts {
   const headers = resolveHeaders(ctx, extra);
@@ -61,19 +63,99 @@ function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQu
 }
 
 /**
- * Fetch customer tree and extract the flat account list.
+ * Pull shape-level signer + secrets onto a dispatch-args slice.
+ * @param shape - Bank shape literal.
+ * @returns Slice with signer + secrets fields.
+ */
+function pickShapeSigning<TAcct, TCursor>(
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
+): Pick<IDispatchArgs, 'signer' | 'secrets'> {
+  return { signer: shape.signer ?? false, secrets: shape.secrets };
+}
+
+/**
+ * Resolve a customer-step urlTag (literal or producer).
+ * @param d - Driver context.
+ * @returns WK URL tag or `false` when GraphQL.
+ */
+function resolveCustomerUrlTag<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): WKUrlGroup | false {
+  const spec = d.shape.customer.urlTag;
+  if (spec === undefined) return false;
+  if (typeof spec === 'function') return spec(d.ctx);
+  return spec;
+}
+
+/**
+ * Build the customer-step dispatch args bundle.
+ * @param d - Driver context.
+ * @returns Dispatch args ready for {@link dispatchStep}.
+ */
+function buildCustomerDispatchArgs<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): IDispatchArgs {
+  return {
+    bus: d.bus,
+    ctx: d.ctx,
+    queryTag: 'customer',
+    urlTag: resolveCustomerUrlTag(d),
+    vars: d.shape.customer.buildVars(d.ctx),
+    bodyTemplate: d.shape.customer.bodyTemplate ?? false,
+    ...pickShapeSigning(d.shape),
+    opts: toOpts(d.ctx, d.shape.customer.extraHeaders),
+  };
+}
+
+/** Empty body passed to `extractAccounts` when customer skips the fetch. */
+const EMPTY_CUSTOMER_BODY = Object.freeze({});
+
+/**
+ * Fetch customer tree and extract the flat account list. Honours
+ * `customer.skipFetch === true` by bypassing the network call —
+ * `extractAccounts` runs against an empty body + session-context.
  * @param d - Driver context.
  * @returns Account refs procedure.
  */
 export async function fetchAccounts<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<readonly TAcct[]>> {
-  const vars = d.shape.customer.buildVars(d.ctx);
-  const opts = toOpts(d.ctx, d.shape.customer.extraHeaders);
-  const resp = await d.bus.apiQuery<ApiBody>('customer', vars, opts);
+  const sessionContext = d.bus.getSessionContext();
+  if (d.shape.customer.skipFetch === true) {
+    const accts = d.shape.customer.extractAccounts({ body: EMPTY_CUSTOMER_BODY, sessionContext });
+    return succeed(accts);
+  }
+  const dispatchArgs = buildCustomerDispatchArgs(d);
+  const resp = await dispatchStep(dispatchArgs);
   if (!isOk(resp)) return resp;
-  const accts = d.shape.customer.extractAccounts(resp.value);
+  const accts = d.shape.customer.extractAccounts({ body: resp.value, sessionContext });
   return succeed(accts);
+}
+
+/**
+ * Resolve a balance-step urlTag (literal or producer).
+ * @param a - Per-account context.
+ * @returns WK URL tag or `false` when GraphQL.
+ */
+function resolveBalanceUrlTag<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): WKUrlGroup | false {
+  const spec = a.shape.balance.urlTag;
+  if (spec === undefined) return false;
+  if (typeof spec === 'function') return spec(a.acct);
+  return spec;
+}
+
+/**
+ * Build the balance-step dispatch args bundle.
+ * @param a - Per-account context.
+ * @returns Dispatch args ready for {@link dispatchStep}.
+ */
+function buildBalanceDispatchArgs<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): IDispatchArgs {
+  return {
+    bus: a.bus,
+    ctx: a.ctx,
+    queryTag: 'balance',
+    urlTag: resolveBalanceUrlTag(a),
+    vars: a.shape.balance.buildVars(a.acct),
+    bodyTemplate: a.shape.balance.bodyTemplate ?? false,
+    ...pickShapeSigning(a.shape),
+    opts: toOpts(a.ctx, a.shape.balance.extraHeaders),
+  };
 }
 
 /**
@@ -84,9 +166,8 @@ export async function fetchAccounts<TAcct, TCursor>(
 export async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<number>> {
-  const vars = a.shape.balance.buildVars(a.acct);
-  const opts = toOpts(a.ctx, a.shape.balance.extraHeaders);
-  const resp = await a.bus.apiQuery<ApiBody>('balance', vars, opts);
+  const dispatchArgs = buildBalanceDispatchArgs(a);
+  const resp = await dispatchStep(dispatchArgs);
   if (isOk(resp)) {
     const value = a.shape.balance.extract(resp.value);
     return succeed(value);
@@ -100,6 +181,59 @@ export async function fetchBalance<TAcct, TCursor>(
 type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage<object, TCursor>>>;
 
 /**
+ * Resolve a transactions-step urlTag (literal or producer).
+ * @param a - Per-account context.
+ * @param cursor - Cursor passed into the producer (when dynamic).
+ * @returns WK URL tag or `false` when GraphQL.
+ */
+function resolveTxnsUrlTag<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  cursor: TCursor | false,
+): WKUrlGroup | false {
+  const spec = a.shape.transactions.urlTag;
+  if (spec === undefined) return false;
+  if (typeof spec === 'function') return spec(a.acct, cursor, a.ctx);
+  return spec;
+}
+
+/**
+ * Build the transactions-step dispatch args bundle.
+ * @param a - Per-account context.
+ * @param cursor - Cursor for this round (or false on first call).
+ * @returns Dispatch args ready for {@link dispatchStep}.
+ */
+function buildTxnsDispatchArgs<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  cursor: TCursor | false,
+): IDispatchArgs {
+  const t = a.shape.transactions;
+  const vars = t.buildVars(a.acct, cursor, a.ctx);
+  const head = { bus: a.bus, ctx: a.ctx, queryTag: 'transactions' as const, vars };
+  const urlTag = resolveTxnsUrlTag(a, cursor);
+  const bodyTemplate = t.bodyTemplate ?? false;
+  const opts = toOpts(a.ctx, t.extraHeaders);
+  return { ...head, urlTag, bodyTemplate, ...pickShapeSigning(a.shape), opts };
+}
+
+/**
+ * Run one paginated fetch + extract round for a given cursor.
+ * @param a - Per-account context.
+ * @param cursor - Cursor for the round, or false on the first call.
+ * @returns Procedure with the extracted page.
+ */
+async function runPageFetch<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  cursor: TCursor | false,
+): Promise<Procedure<IPage<object, TCursor>>> {
+  const dispatchArgs = buildTxnsDispatchArgs(a, cursor);
+  const resp = await dispatchStep(dispatchArgs);
+  if (!isOk(resp)) return resp;
+  const args = { body: resp.value, cursor, acct: a.acct, ctx: a.ctx };
+  const page = a.shape.transactions.extractPage(args);
+  return succeed(page);
+}
+
+/**
  * Build the page fetcher closure for one account.
  * @param a - Per-account context.
  * @returns Bound page fetcher consumed by fetchPaginated.
@@ -107,14 +241,7 @@ type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage
 export function buildPageFetcher<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): PageFetcher<TCursor> {
-  return async (cursor): Promise<Procedure<IPage<object, TCursor>>> => {
-    const vars = a.shape.transactions.buildVars(a.acct, cursor, a.ctx);
-    const opts = toOpts(a.ctx, a.shape.transactions.extraHeaders);
-    const resp = await a.bus.apiQuery<ApiBody>('transactions', vars, opts);
-    if (!isOk(resp)) return resp;
-    const page = a.shape.transactions.extractPage(resp.value, cursor);
-    return succeed(page);
-  };
+  return (cursor): Promise<Procedure<IPage<object, TCursor>>> => runPageFetch(a, cursor);
 }
 
 /** Stop predicate signature consumed by fetchPaginated. */

@@ -13,10 +13,16 @@
  * sanitization pulse will not re-invoke real API calls on failure.
  */
 
+import { logForensicAudit } from '../../Mediator/Scrape/ForensicAuditAction.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { Option } from '../../Types/Option.js';
-import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
+import type {
+  IActionContext,
+  IPipelineContext,
+  IScrapeState,
+} from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import { succeed } from '../../Types/Procedure.js';
 import { buildGenericHeadlessScrape } from './ApiDirectScrapeActions.js';
 import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
@@ -55,6 +61,28 @@ class ApiDirectScrapePhase extends BasePhase {
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
     return this._scrapeFn(input);
+  }
+
+  /**
+   * POST stage — emit the forensic-audit summary so the per-account
+   * txn-count line lands in `pipeline.log` for every api-direct
+   * scrape, mirroring the legacy {@link ScrapePhase.post} hook.
+   * Observability-only: no state mutation, no failure on empty.
+   * Required because `pipeline.log` is the primary post-run debug
+   * surface; without this line, root-causing bank issues forces a
+   * re-run of the live E2E (SMS OTP, minutes of wall time).
+   * @param _ctx - Unused incoming context.
+   * @param input - Pipeline context after the scrape action.
+   * @returns Input context unchanged, wrapped in a successful Procedure.
+   */
+  public post(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    input.logger.debug({ phase: this.name, message: 'api-direct-scrape.post' });
+    if (input.scrape.has) logForensicAudit(input);
+    const outcome = succeed(input);
+    return Promise.resolve(outcome);
   }
 }
 

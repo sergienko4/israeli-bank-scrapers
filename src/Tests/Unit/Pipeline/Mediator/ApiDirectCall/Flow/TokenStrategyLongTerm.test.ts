@@ -91,9 +91,28 @@ function makeBus(args: IStubArgs): IApiMediator {
     await Promise.resolve();
     return fail(ScraperErrorTypes.Generic, 'unused');
   };
+  const sessionContext: Record<string, unknown> = {};
+  /**
+   * Fold the supplied context into the shared slot.
+   * @param ctx - Partial context to merge.
+   * @returns true (ack).
+   */
+  function setSessionContext(ctx: Readonly<Record<string, unknown>>): boolean {
+    Object.assign(sessionContext, ctx);
+    return true;
+  }
+  /**
+   * Read the shared sessionContext slot back.
+   * @returns Read-only view of the slot.
+   */
+  function getSessionContext(): Readonly<Record<string, unknown>> {
+    return sessionContext;
+  }
   return {
     setBearer: okSet,
     setRawAuth: okSet,
+    setSessionContext,
+    getSessionContext,
     withTokenResolver: okSet,
     withTokenStrategy: okSet,
     primeSession: okPrime,

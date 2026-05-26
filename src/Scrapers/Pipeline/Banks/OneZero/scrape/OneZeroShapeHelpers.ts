@@ -4,7 +4,11 @@
  * the 150-LOC per-file ceiling.
  */
 
-import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type {
+  ApiBody,
+  IExtractAccountsArgs,
+  VarsMap,
+} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Account display number (portfolioNum) — branded so Rule #15 accepts it. */
@@ -66,11 +70,17 @@ function customerEntryAccounts(c: ICustEntry): readonly IOneZeroAcct[] {
 
 /**
  * Flatten customer → portfolios → first-account refs.
- * @param body - Unwrapped customer response.
+ *
+ * OneZero's customer endpoint carries the full account tree in the
+ * response body, so this extractor ignores the post-login
+ * session-context bundle field. The signature matches the unified
+ * scrape-shape contract; banks that DO need session state (PayBox)
+ * read it via `args.sessionContext`.
+ * @param args - Extract-args bundle (uses `args.body` only).
  * @returns Flat account ref list.
  */
-export function extractAccounts(body: ApiBody): readonly IOneZeroAcct[] {
-  const resp = body as unknown as ICustResp;
+export function extractAccounts(args: IExtractAccountsArgs): readonly IOneZeroAcct[] {
+  const resp = args.body as unknown as ICustResp;
   return resp.customer.flatMap(customerEntryAccounts);
 }
 

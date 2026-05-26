@@ -13,6 +13,9 @@
 
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import type { IOneZeroAcct } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeHelpers.js';
+import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
+import type { IPayBoxAcct } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeHelpers.js';
+import type { IPayBoxCursor } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.js';
 import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 import type { IPepperAcct } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeHelpers.js';
 import type {
@@ -84,12 +87,13 @@ function synEmptyVars(): Record<string, unknown> {
 }
 
 /**
- * Synthetic extractAccounts — body is already shaped as `{ accts }`.
- * @param body - Customer response body.
+ * Synthetic extractAccounts — unified scrape-shape signature.
+ * @param args - Extract-args bundle (uses `args.body` only).
+ * @param args.body - Hydrated response body.
  * @returns Account list.
  */
-function synExtractAccounts(body: Record<string, unknown>): readonly ISynAcct[] {
-  return (body as { accts: readonly ISynAcct[] }).accts;
+function synExtractAccounts(args: { readonly body: Record<string, unknown> }): readonly ISynAcct[] {
+  return (args.body as { accts: readonly ISynAcct[] }).accts;
 }
 
 /**
@@ -120,15 +124,16 @@ function synTxnVars(a: ISynAcct): Record<string, unknown> {
 }
 
 /**
- * Synthetic extractPage — body is already shaped as the generic page.
- * @param body - Page payload.
+ * Synthetic extractPage — unified scrape-shape signature.
+ * @param args - Extract-args bundle (uses `args.body` only).
+ * @param args.body - Hydrated response body.
  * @returns Generic page.
  */
-function synExtractPage(body: Record<string, unknown>): {
+function synExtractPage(args: { readonly body: Record<string, unknown> }): {
   readonly items: readonly object[];
   readonly nextCursor: string | false;
 } {
-  return body as unknown as {
+  return args.body as unknown as {
     readonly items: readonly object[];
     readonly nextCursor: string | false;
   };
@@ -235,8 +240,42 @@ const ONEZERO_CASE: IApiDirectScrapeBankShapeCase<IOneZeroAcct, string> = {
   },
 };
 
+/**
+ * PayBox fixtures — extractor source citations:
+ *   PayBoxShapeHelpers.ts:extractAccountsFromSessionContext — reads
+ *     sessionContext.uId to synthesise two accounts (wallet + debit).
+ *     The customer step has `skipFetch: true`, so the body fixture is
+ *     consulted only to satisfy the type contract.
+ *   PayBoxShapeHelpers.ts:balanceExtract — reads
+ *     `content.userFunds.balance` from /sync.
+ *   PayBoxShapeTxns.ts:txnsExtractPage — wallet branch unwraps
+ *     `content.nc[]` from /getUserHistory.
+ *
+ * The parameterized phase test exercises one account at a time; here
+ * we pin the wallet path (first emitted account) so the txn extractor
+ * runs through the wallet branch.
+ */
+const PAYBOX_UID_FIXTURE = 'pb-uid-1';
+const PAYBOX_CASE: IApiDirectScrapeBankShapeCase<IPayBoxAcct, IPayBoxCursor> = {
+  name: 'paybox',
+  shape: PAYBOX_SHAPE,
+  fixtures: {
+    customer: {},
+    balance: { content: { userFunds: { balance: 4242 } } },
+    transactions: { content: { nc: [{ ts: 'pb-txn-1' }] } },
+    transactionsPaged: { content: { nc: [] } },
+    expectedAccountNumber: PAYBOX_UID_FIXTURE,
+    expectedBalance: 4242,
+    fallbackBalance: 0,
+  },
+};
+
 /** Tagged-union parameter array consumed by `describe.each`. */
 type AnyBankCase = IApiDirectScrapeBankShapeCase<unknown, unknown>;
+// PayBox is NOT included in ALL_BANK_CASES because its shape synthesises
+// TWO accounts (wallet + debit) from session-context — the shared
+// per-bank assertions assume one account. PayBox gets its own
+// integration test (PayBoxShape.test.ts) covering both accounts.
 const ALL_BANK_CASES: readonly AnyBankCase[] = [
   SYN_CASE as unknown as AnyBankCase,
   PEPPER_CASE as unknown as AnyBankCase,
@@ -244,4 +283,4 @@ const ALL_BANK_CASES: readonly AnyBankCase[] = [
 ];
 
 export type { AnyBankCase, IApiDirectScrapeBankShapeCase, IApiDirectScrapeFixtures };
-export { ALL_BANK_CASES, ONEZERO_CASE, PEPPER_CASE, SYN_CASE };
+export { ALL_BANK_CASES, ONEZERO_CASE, PAYBOX_CASE, PAYBOX_UID_FIXTURE, PEPPER_CASE, SYN_CASE };

@@ -63,6 +63,35 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
         'identity.sessionToken': 'https://identity.tfd-bank.com/v1/sessions/token',
       },
       requiresBrowserTls: true,
+      phoneNumberFormat: 'international-plus',
+    },
+  },
+  [CompanyTypes.PayBox]: {
+    urls: { base: 'https://www.payboxapp.com/' },
+    headless: {
+      identityBase: 'https://apipin.payboxapp.com/api/2.0/',
+      // PayBox has no GraphQL — set graphql to identityBase to satisfy the
+      // type contract (scrape goes through REST via urlTag, not apiQuery).
+      graphql: 'https://apipin.payboxapp.com/api/2.0/',
+      paths: {
+        'identity.phoneValidate': 'https://apipin.payboxapp.com/api/2.0/phoneValidate',
+        'identity.pinValidation': 'https://apipin.payboxapp.com/api/2.0/pinValidation',
+        'identity.loginBySms': 'https://apipin.payboxapp.com/api/2.0/loginBySms',
+        'data.sync': 'https://apipin.payboxapp.com/api/2.0/sync',
+        'data.getUserHistory': 'https://apipin.payboxapp.com/api/2.0/getUserHistory',
+        'data.virtualCardTranRequest':
+          'https://apipin.payboxapp.com/api/2.0/virtualCardTranRequest',
+      },
+      phoneNumberFormat: 'international-dash',
+      // PayBox's `apipin.payboxapp.com` sits behind Cloudflare which
+      // returns a challenge page on root navigation. Camoufox (Firefox
+      // TLS + HTTP/2) is required to match the WAF's accepted profile;
+      // the route-intercept bypass on the initial origin nav avoids the
+      // interstitial CSP that would otherwise block subsequent same-
+      // origin fetches. Validated by
+      // `c:/tmp/paybox-camoufox-probe3.mjs`.
+      requiresBrowserTls: true,
+      bypassOriginChallenge: true,
     },
   },
   [CompanyTypes.Pepper]: {
@@ -80,6 +109,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       // across every Play Store install — not a user secret.
       staticAuth: 'TSToken 7cf2d7a7-681d-450a-ab23-06e48d2b8fd6; tid=digital_client_token_token',
       requiresBrowserTls: true,
+      phoneNumberFormat: 'international-flat',
     },
   },
 };

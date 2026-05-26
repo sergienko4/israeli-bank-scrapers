@@ -42,7 +42,7 @@ export async function ensureBrowserCleanup(
 ): Promise<number> {
   const cleanups = extractCleanups(tracker.lastCtx);
   if (cleanups.length === 0) return 0;
-  return await runAllCleanups(cleanups, logger);
+  return runAllCleanups(cleanups, logger);
 }
 
 /**
@@ -74,7 +74,7 @@ async function runInterceptors(
   if (index >= args.interceptors.length) return succeed(ctx);
   const result = await args.interceptors[index].beforePhase(ctx, args.nextPhase);
   if (!isOk(result)) return result;
-  return await runInterceptors(args, result.value, index + 1);
+  return runInterceptors(args, result.value, index + 1);
 }
 
 /**
@@ -108,5 +108,5 @@ export async function applyInterceptors(
   if (!ctx.browser.has) return succeed(ctx);
   if (tracker.interceptors.length === 0) return succeed(ctx);
   const args: IInterceptorArgs = { interceptors: tracker.interceptors, nextPhase };
-  return await runInterceptors(args, ctx, 0);
+  return runInterceptors(args, ctx, 0);
 }

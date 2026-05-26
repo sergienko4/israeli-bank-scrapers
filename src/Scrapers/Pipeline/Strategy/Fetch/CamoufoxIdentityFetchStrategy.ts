@@ -272,19 +272,37 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
   return parseJsonEnvelope<T>(env, args.verb, args.url);
 }
 
+/**
+ * Blank HTML stub served to the initial origin navigation when the bank
+ * opts into `bypassOriginChallenge`. Gives the page a clean on-origin
+ * context (matching the API origin) without entering the Cloudflare
+ * interstitial / CSP state, so the subsequent `page.evaluate(fetch …)`
+ * calls reach the real API. Validated by
+ * `c:\tmp\paybox-camoufox-probe3.mjs`.
+ */
+const ORIGIN_CHALLENGE_STUB_HTML = '<!doctype html><html><head></head><body></body></html>';
+
 /** Camoufox-backed fetch strategy — lazy-launches a Firefox session for TLS. */
 class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
   private _browser: Browser | null = null;
   private _page: Page | null = null;
   private _disposed = false;
   private readonly _originUrl: string;
+  private readonly _bypassOriginChallenge: boolean;
 
   /**
    * Constructs a strategy bound to a same-origin page.
    * @param originUrl - URL navigated to before fetching (origin used as-is).
+   * @param bypassOriginChallenge - When true, the initial origin navigation
+   *   is route-intercepted with a blank HTML stub so subsequent same-origin
+   *   fetches bypass the bank's Cloudflare interstitial CSP. Required by
+   *   banks whose identity host returns a Cloudflare challenge page on
+   *   root navigation; the bank declares the flag in
+   *   `PipelineBankConfig.headless.bypassOriginChallenge`.
    */
-  constructor(originUrl: string) {
+  constructor(originUrl: string, bypassOriginChallenge: boolean) {
     this._originUrl = originUrl;
+    this._bypassOriginChallenge = bypassOriginChallenge;
   }
 
   /**
@@ -363,14 +381,15 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
 
   /**
    * Opens a context + page in the launched browser and navigates to origin.
+   * When `bypassOriginChallenge` is set, the initial origin navigation is
+   * route-intercepted with a blank HTML stub so subsequent same-origin
+   * fetches bypass the bank's Cloudflare interstitial CSP.
    * @param browser - Launched Camoufox browser.
    * @returns Procedure carrying the active Page, or Generic nav failure.
    */
   private async openPage(browser: Browser): Promise<Procedure<Page>> {
     try {
-      const context = await browser.newContext();
-      const page = await context.newPage();
-      await page.goto(this._originUrl);
+      const page = await this.navigateToOrigin(browser);
       this._page = page;
       return succeed(page);
     } catch (error) {
@@ -378,6 +397,95 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
       return fail(ScraperErrorTypes.Generic, `camoufox nav failed: ${reason}`);
     }
   }
+
+  /**
+   * Prepare a context (with optional route bypass armed), navigate to the
+   * origin, then unarm the bypass so subsequent same-origin requests flow
+   * to the real server.
+   * @param browser - Launched Camoufox browser.
+   * @returns Active Page on success; throws on failure (caller wraps).
+   */
+  private async navigateToOrigin(browser: Browser): Promise<Page> {
+    const context = await browser.newContext();
+    const hasBypass = this._bypassOriginChallenge;
+    if (hasBypass) await this.installOriginChallengeBypass(context);
+    const page = await context.newPage();
+    await page.goto(this._originUrl);
+    if (hasBypass) await context.unroute(this._originUrl);
+    return page;
+  }
+
+  /**
+   * Install a route-intercept that fulfills the FIRST navigation to
+   * `_originUrl` with a blank HTML stub. Subsequent requests to the same
+   * URL (or any other URL on origin) continue to the real server.
+   * Logged for observability; safe to be unrouted by the caller after
+   * navigation completes.
+   * @param context - Fresh browser context.
+   * @returns Resolves once the route is registered.
+   */
+  private async installOriginChallengeBypass(
+    context: Awaited<ReturnType<Browser['newContext']>>,
+  ): Promise<void> {
+    const safeOrigin = safeUrlForLog(this._originUrl);
+    const slot: IStubServedSlot = { wasStubServed: false };
+    LOG.debug({ origin: safeOrigin, message: '[camoufox-identity] bypass-origin-challenge ARM' });
+    await context.route(this._originUrl, (route): Promise<void> => {
+      return serveStubOrContinue(route, slot, safeOrigin);
+    });
+  }
+}
+
+/** Single-slot once-flag passed to {@link serveStubOrContinue}. */
+interface IStubServedSlot {
+  wasStubServed: boolean;
+}
+
+/**
+ * Per-route dispatch helper for the origin-challenge bypass. Serves the
+ * stub HTML on the first hit; defers to the real server on subsequent
+ * hits. Extracted as a module-level helper so the inline route callback
+ * stays at depth-1 and dodges max-depth + forbidden-return-value rules.
+ * @param route - Playwright Route handle.
+ * @param slot - Once-flag mutated on the first serve (carries the
+ *   `wasStubServed` boolean across invocations).
+ * @param safeOrigin - Log-safe origin string.
+ * @returns Resolves once the route is fulfilled or continued.
+ */
+/**
+ * Reply with the blank-HTML stub for one navigation. Extracted from
+ * the dispatcher below so the gating logic stays at depth-1.
+ * @param route - Playwright route handle for the in-flight request.
+ * @param safeOrigin - Log-safe origin string.
+ * @returns Resolves once the route is fulfilled.
+ */
+async function fulfillStub(
+  route: Parameters<Parameters<Awaited<ReturnType<Browser['newContext']>>['route']>[1]>[0],
+  safeOrigin: SafeUrlForLog,
+): Promise<void> {
+  LOG.debug({ origin: safeOrigin, message: '[camoufox-identity] bypass-origin-challenge SERVE' });
+  return route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: ORIGIN_CHALLENGE_STUB_HTML,
+  });
+}
+
+/**
+ * Dispatcher — serve the stub on the first hit, pass through after.
+ * @param route - Playwright route handle.
+ * @param slot - Once-flag mutated on the first serve.
+ * @param safeOrigin - Log-safe origin string.
+ * @returns Resolves once the route is fulfilled or continued.
+ */
+async function serveStubOrContinue(
+  route: Parameters<Parameters<Awaited<ReturnType<Browser['newContext']>>['route']>[1]>[0],
+  slot: IStubServedSlot,
+  safeOrigin: SafeUrlForLog,
+): Promise<void> {
+  if (slot.wasStubServed) return route.continue();
+  slot.wasStubServed = true;
+  return fulfillStub(route, safeOrigin);
 }
 
 export default CamoufoxIdentityFetchStrategy;

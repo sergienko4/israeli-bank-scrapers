@@ -815,6 +815,7 @@ export default tseslint.config(
     plugins: {
       'check-file': checkFile,
       'import-x': importPlugin,
+      sonarjs,
     },
     rules: {
       // --- A. THE "NESTED OR DEATH" GATE ---
@@ -859,12 +860,46 @@ export default tseslint.config(
           message:
             "🚫 TYPE BYPASS (Pipeline rule): 'expr as unknown as T' double-casts are banned. Express the type via a proper intersection / projector instead.",
         },
+        {
+          // CR-P3 (V5 — from PR #261 review) — ban `.success === true`
+          // / `.success === false` / `.success !== true` / `.success !== false`
+          // checks on Procedure values. Use the {@link isOk} helper for
+          // consistency with the rest of the call-sites (CodeRabbit found
+          // one of these on PhoneFormatter and the canary keeps new
+          // occurrences out at pre-commit time).
+          selector:
+            'BinaryExpression[operator=/^[!=]==$/][left.type="MemberExpression"][left.property.name="success"][right.type="Literal"][right.value=/^(true|false)$/]',
+          message:
+            "🚫 PROCEDURE: Use `isOk(result)` instead of `result.success === true/false`. Keeps narrowing + call-site consistency aligned across the codebase.",
+        },
       ],
 
       // --- C. DEFAULT COMPLEXITY (STRICT) ---
       'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
       'max-lines-per-function': ['error', { max: 15 }],
       'max-depth': ['error', 1],
+
+      // --- D. PR #261 REVIEW VALIDATORS ---
+      // V3 — surface unguarded conditionals that ESLint can statically
+      // prove are always-truthy or always-falsy. CodeRabbit caught the
+      // `(creds.phoneNumber as unknown as string) ?? ''` pattern this
+      // way; the rule keeps future double-cast-then-null-coalesce out.
+      '@typescript-eslint/no-unnecessary-condition': 'error',
+      // V2 — flag any string literal that repeats 3+ times in one file
+      // without being lifted to a named constant. CodeRabbit's CR2 was
+      // a hardcoded `'5.6.6'` / `'android-13'` / `'pb'` set at module
+      // scope in PayBoxShapeTxns; the rule keeps that class of "magic
+      // string trio" out at pre-commit.
+      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
+      // V4 — surface dead `await` keywords (CodeRabbit CR9's `await
+      // Promise.resolve()` in ApiDirectScrapePhase.post) AND the
+      // dual-form bug where `return await` inside try/catch is fine
+      // but outside it is wasted work. Both rules complement each
+      // other: `no-return-await` covers the syntactic case,
+      // `await-thenable` rejects awaits on plain values that can't be
+      // a Promise.
+      'no-return-await': 'error',
+      '@typescript-eslint/await-thenable': 'error',
     },
   },
   // 7. INFRASTRUCTURE EXCEPTIONS (COMPLEXITY ONLY)

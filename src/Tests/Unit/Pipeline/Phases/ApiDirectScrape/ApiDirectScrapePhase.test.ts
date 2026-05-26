@@ -41,7 +41,7 @@ import {
 const PEPPER_TEST_CREDENTIALS = {
   username: 'pepper-test-user',
   password: 'pepper-test-pass',
-  phoneNumber: '972541234567',
+  phoneNumber: '972000000001',
 } as unknown as IPipelineContext['credentials'];
 
 /**
@@ -71,6 +71,8 @@ function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): I
     apiQuery,
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
+    setSessionContext: jest.fn(),
+    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
   } as unknown as IApiMediator;
 }
 

@@ -64,10 +64,12 @@ for sh_canary in "$CANARY_DIR"/verify-*.canary.sh; do
   slug="$(basename "$sh_canary" .canary.sh)"
   slug="${slug#verify-}"
 
-  # Find the rejected + accepted fixtures. Either .yml or .dockerfile.
+  # Find the rejected + accepted fixtures. Discovered extensions:
+  # .yml (workflow canaries), .dockerfile (Dockerfile pin canaries),
+  # .md (README / markdown canaries — added PR #261 / V7).
   rejected=""
   accepted=""
-  for ext in yml dockerfile; do
+  for ext in yml dockerfile md; do
     if [[ -f "$FIXTURE_DIR/$slug.rejected.$ext" ]]; then
       rejected="$FIXTURE_DIR/$slug.rejected.$ext"
     fi

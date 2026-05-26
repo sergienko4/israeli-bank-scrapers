@@ -103,9 +103,29 @@ function makeApiPost(args: IStubMediatorArgs): IApiMediator['apiPost'] {
  * @returns IApiMediator suitable for unit testing.
  */
 function makeStubMediator(args: IStubMediatorArgs): IApiMediator {
+  const sessionContext: Record<string, unknown> = {};
+  /**
+   * Mock setSessionContext — folds the supplied context into the
+   * shared slot so {@link getSessionContext} can read it back.
+   * @param ctx - Partial context to merge.
+   * @returns true to satisfy the IApiMediator ack contract.
+   */
+  function setSessionContext(ctx: Readonly<Record<string, unknown>>): boolean {
+    Object.assign(sessionContext, ctx);
+    return true;
+  }
+  /**
+   * Mock getSessionContext — returns the shared sessionContext slot.
+   * @returns Read-only view of the slot.
+   */
+  function getSessionContext(): Readonly<Record<string, unknown>> {
+    return sessionContext;
+  }
   return {
     setBearer: ackTrue,
     setRawAuth: ackTrue,
+    setSessionContext,
+    getSessionContext,
     withTokenResolver: ackTrue,
     withTokenStrategy: ackTrue,
     primeSession: makePrimeSession(args),

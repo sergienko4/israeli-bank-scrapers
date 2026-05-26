@@ -20,8 +20,7 @@ function createConfigScrapeStep<TA, TT>(
   return {
     name: 'scrape',
     /** @inheritdoc */
-    execute: async (_ctx, input): Promise<Procedure<IPipelineContext>> =>
-      await executeScrape(input, config),
+    execute: (_ctx, input): Promise<Procedure<IPipelineContext>> => executeScrape(input, config),
   };
 }
 

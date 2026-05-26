@@ -84,6 +84,11 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
   const tlsDisposeCases = [
     { testId: 'OZ-PCF-01', bankName: 'OneZero', companyId: CompanyTypes.OneZero },
     { testId: 'PP-PCF-02', bankName: 'Pepper', companyId: CompanyTypes.Pepper },
+    // PayBox lives in the same matrix because its dispose contract is
+    // identical to OneZero/Pepper — the `bypassOriginChallenge`
+    // route-intercept detail is exercised at the strategy-level tests,
+    // not here.
+    { testId: 'PB-PCF-04', bankName: 'PayBox', companyId: CompanyTypes.PayBox },
   ] as const;
 
   tlsDisposeCases.forEach(({ testId, bankName, companyId }) => {

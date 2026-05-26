@@ -14,6 +14,7 @@ import { buildMercantilePipeline } from '../../../../Scrapers/Pipeline/Banks/Mer
 import { buildOneZeroPipeline } from '../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
 import { buildOtsarHahayalPipeline } from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import { buildPagiPipeline } from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
+import { buildPayBoxPipeline } from '../../../../Scrapers/Pipeline/Banks/PayBox/PayBoxPipeline.js';
 import { buildVisaCalPipeline } from '../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -36,6 +37,7 @@ const BANK_BUILDERS: readonly (readonly [string, BankBuilder])[] = [
   ['oneZero', buildOneZeroPipeline],
   ['otsarHahayal', buildOtsarHahayalPipeline],
   ['pagi', buildPagiPipeline],
+  ['payBox', buildPayBoxPipeline],
   ['visaCal', buildVisaCalPipeline],
 ];
 

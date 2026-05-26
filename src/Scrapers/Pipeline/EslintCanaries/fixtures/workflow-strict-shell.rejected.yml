@@ -1,0 +1,17 @@
+name: Rejected fixture (no workflow-scope strict shell defaults)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          # Without `defaults.run.shell` set to `bash -euo pipefail`, the
+          # next two commands would silently mask a failure mid-pipeline.
+          undefined_command_here || true
+          echo "fallthrough"

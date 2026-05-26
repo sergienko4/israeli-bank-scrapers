@@ -1,6 +1,7 @@
 import { type Browser } from 'playwright-core';
 
 import { buildContextOptions } from '../../Common/Browser.js';
+import { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from '../../Common/Config/BrowserConfig.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 
 let browser: Browser;
@@ -16,8 +17,8 @@ afterAll(async () => {
 describe('Browser context options (Camoufox)', () => {
   it('sets Hebrew locale and Israel timezone', () => {
     const opts = buildContextOptions();
-    expect(opts.locale).toBe('he-IL');
-    expect(opts.timezoneId).toBe('Asia/Jerusalem');
+    expect(opts.locale).toBe(ISRAEL_LOCALE);
+    expect(opts.timezoneId).toBe(ISRAEL_TIMEZONE);
   });
 
   it('applies locale to browser context', async () => {
@@ -27,7 +28,7 @@ describe('Browser context options (Camoufox)', () => {
     try {
       await page.goto('about:blank');
       const lang = await page.evaluate(() => navigator.language);
-      expect(lang).toBe('he-IL');
+      expect(lang).toBe(ISRAEL_LOCALE);
     } finally {
       await context.close();
     }

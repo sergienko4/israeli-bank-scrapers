@@ -34,26 +34,53 @@ concurrency:
 permissions:
   contents: read
 
+# Strict shell mode for every `run:` step.
+#   -e          — exit on first non-zero command
+#   -u          — error on unset variables (catches missing-env-var typos)
+#   -o pipefail — propagate failures through pipelines (e.g. `cmd | tee`)
+# Without `pipefail`, `node ... | tee` would mask a Jest failure behind
+# tee's 0 exit. Adding this once at workflow scope avoids forgetting
+# `set -euo pipefail` at the top of every multi-line `run: |` block.
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
 # ──────────────────────────────────────────────────────────────
 # Job DAG (cheap-gates-first, fail-fast):
 #
-#   validate           — lint → tsc → audit → unit tests →
-#                        e2e factory + e2e mocked → build →
-#                        upload artifacts.
-#                        MOCKED tests live here so failures are
-#                        caught BEFORE we burn real-bank capacity.
-#   e2e-smoke          — 17-bank matrix (invalid-creds, parallel).
-#   e2e-real-group-a   — `needs: validate`. Stage 1 of real-bank
-#                        scrapes; banks within run in parallel.
-#   e2e-real-group-b   — `needs: e2e-real-group-a`. Stage 2 (parallel
-#                        within); enforces Rule #16 (Amex never
-#                        co-runs with Isracard) by running strictly
-#                        after Group A completes.
-#   dependency-review  — PR-only, independent.
+#   validate              — lint → tsc → audit → unit tests →
+#                           e2e factory + e2e mocked → build →
+#                           upload artifacts.
+#                           MOCKED tests live here so failures are
+#                           caught BEFORE we burn real-bank capacity.
+#   e2e-smoke             — 17-bank matrix (invalid-creds, parallel).
+#   dns-preflight         — Israeli bank DNS resolution sanity.
+#   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
+#                           non-OTP browser-form banks
+#                           (Isracard, VisaCal, Discount, Max).
+#   e2e-real-group-a-amex — Amex follow-on under gate-A approval;
+#                           `needs: e2e-real-group-a` enforces
+#                           Rule #16 (Amex never co-runs with
+#                           Isracard).
+#   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
+#                           OTP browser-form banks
+#                           (Hapoalim, Beinleumi).
+#   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
+#                           api-direct banks
+#                           (OneZero, Pepper, PayBox).
+#   dependency-review     — PR-only, independent.
 #
 # Each gate runs ONCE per PR — no overlap between validate and the
-# real-bank matrices (the legacy E2eFull validate-step that
-# duplicated the matrix has been removed).
+# real-bank matrices. Three approval clicks per PR (gate-A, gate-B,
+# gate-C) — intentional revert of the 2026-05-13 single-gate
+# consolidation so each category can be approved independently.
+#
+# Gates are mutually INDEPENDENT — all three become approvable as
+# soon as `validate` + `dns-preflight` are green. The reviewer can
+# release any group without waiting for another to finish; in
+# practice that means Groups A, B and C can run in parallel once
+# each has been clicked. The only ordering constraint is Rule #16
+# inside Group A (Amex strictly after group-a's main matrix).
 # ──────────────────────────────────────────────────────────────
 
 jobs:
@@ -212,39 +239,61 @@ jobs:
   # rate-limit budget when something is broken upstream.
   #
   #   Stage 0 — validate (lint/tsc/unit/e2e-mocked/build) MUST pass
-  #   Stage 1 — Group A (parallel runners, single approval gate):
-  #             Isracard, VisaCal, Discount, Max, Hapoalim,
-  #             Beinleumi, OneZero
-  #   Stage 2 — Group B (parallel runners): Amex   (needs: group-a)
+  #   Stage 1 — dns-preflight (Israeli-bank hostname resolution).
   #
-  # Consolidated 2026-05-13: the separate `e2e-real-otp` job
-  # (sequential `max-parallel: 1`, OneZero → Beinleumi → Hapoalim)
-  # was removed. Its banks now run in parallel inside Group A
-  # under a single `environment: e2e-real-otp` approval gate. The
-  # non-OTP banks also wait for that single approval click — the
-  # trade-off is one manual gate per PR instead of two-stage gating,
-  # plus elimination of the sequential slot that correlated with
-  # Hapoalim's CI failures (commit bb0f4475 → 2026-05-12).
+  # After Stage 1, all three category gates become approvable in
+  # parallel. There is NO Stage 2/3/4 ordering — releasing one gate
+  # does not require any other group to have run or finished.
   #
-  # Why Amex stays alone in Group B (`needs: e2e-real-group-a`):
-  # project Rule #16 forbids Amex and Isracard from running
-  # concurrently. Group B runs after Group A has finished.
+  #   Group A, gate-A (parallel runners):
+  #     non-OTP browser-form banks
+  #     — Isracard, VisaCal, Discount, Max
+  #     + Amex follow-on (`needs: e2e-real-group-a`, Rule #16:
+  #       Amex never co-runs with Isracard).
+  #   Group B, gate-B (parallel runners):
+  #     OTP browser-form banks
+  #     — Hapoalim, Beinleumi
+  #     (TELEGRAM_* secrets exposed for OTP delivery).
+  #   Group C, gate-C (parallel runners):
+  #     api-direct banks (no browser)
+  #     — OneZero, Pepper, PayBox
+  #     (TELEGRAM_* secrets exposed for OTP delivery).
   #
-  # Wall time:
-  #   validate (Stage 0)      ≈ 10–12 min
-  #   Group A (Stage 1)       ≈ 7–9 min  (7 banks parallel, longest is Isracard)
-  #   Group B (Stage 2)       ≈ 7 min
+  # Three approval clicks per PR — one per category. The 3-gate
+  # design lets each category be approved independently (e.g. skip
+  # api-direct review when a PR only touches Isracard) and keeps
+  # secrets scoped to the runners that need them. Updated 2026-05-26
+  # to drop inter-group `needs:` so groups can also run concurrently
+  # once each gate is released — the reviewer's click order does
+  # not impose a serial pipeline.
   #
-  # Same-repo PRs and manual dispatch only — secrets are not exposed to
-  # forks (mirrors the prior gating of the now-removed E2eFull step).
+  # Wall time (gates approved in parallel ⇒ longest group dominates):
+  #   validate                         ≈ 10–12 min
+  #   dns-preflight                    ≈ 1–2 min
+  #   max(Group A, Group B, Group C)   ≈ 9–11 min (Group A's
+  #                                      Isracard+Amex chain wins)
+  #
+  # Same-repo PRs and manual dispatch only — secrets are not exposed
+  # to forks (mirrors the prior gating of the now-removed E2eFull
+  # step).
   # ──────────────────────────────────────────────────────────────
-  # Single approval gate for the whole Group A matrix (2026-05-13).
-  # Holding `environment: e2e-real-otp` on the matrix job itself would
-  # spawn ONE approval gate per matrix cell (one click per bank) — the
-  # reviewer would have to click N times to release N banks. This
-  # gate-job concentrates the environment requirement in ONE non-matrix
-  # job; the matrix below `needs:` it, so a SINGLE approval click
-  # releases all banks in Group A at once.
+  # Each gate concentrates an `environment:` approval requirement on
+  # ONE non-matrix job; the matrix below `needs:` the gate, so a
+  # SINGLE approval click releases ALL banks in that category.
+  # Without this indirection, putting `environment:` on a matrix
+  # job would spawn one approval per matrix cell — N clicks per
+  # gate instead of 1.
+  #
+  # The three gates reference DISTINCT environments
+  # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`).
+  # Sharing one environment across all three would let GitHub
+  # batch them into a single approval prompt — fine for an
+  # "approve everything" workflow but defeats per-category review.
+  # Required repo setup: Settings → Environments → create each of
+  # the three names above and attach reviewers; first runs against
+  # missing environments auto-create them WITHOUT reviewers (the
+  # workflow then passes through unapproved), so add reviewers
+  # right after the first run if not pre-created.
   # ──────────────────────────────────────────────────────────────
   # DNS Preflight — Israeli bank resolution sanity check.
   #
@@ -279,12 +328,23 @@ jobs:
     # available for manual approval when ALL 12 Israeli bank hosts
     # resolve through the runner's Cloudflare/Google/Quad9 chain.
     # If preflight is RED, this gate sits unclickable so we don't
-    # burn the E2E Real matrix on guaranteed-DNS failures. Order:
-    # validate → dns-preflight → approval gate → Group A → Group B.
+    # burn the E2E Real matrix on guaranteed-DNS failures.
     needs: [validate, dns-preflight]
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    environment: e2e-real-otp
+    # Per-group environment (2026-05-26): each gate references a
+    # DISTINCT GitHub environment so the reviewer must click
+    # "Approve" once per group. Sharing one environment across all
+    # three gates would let GitHub batch them into a single approval
+    # prompt — fine for "approve all" workflows but defeats the
+    # purpose of per-category review. Required setup: repo
+    # Settings → Environments → create `e2e-real-group-a` with the
+    # desired reviewers; same for `e2e-real-group-b` /
+    # `e2e-real-group-c`. Until the environments exist, GitHub
+    # auto-creates them on first run WITHOUT reviewers (the workflow
+    # passes through unapproved); flip-on protection by adding
+    # reviewers to each environment afterwards.
+    environment: e2e-real-group-a
     permissions:
       contents: read
     timeout-minutes: 5
@@ -297,14 +357,10 @@ jobs:
     needs: e2e-real-group-a-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    # Single approval gate (2026-05-13) — the previously-separate
-    # `e2e-real-otp` job was merged here. ALL non-Amex banks run in
-    # parallel after ONE manual approval at this environment. Trade-off:
-    # non-OTP banks (Isracard/VisaCal/Discount/Max) also wait for the
-    # approval click, in exchange for: (a) maximum matrix parallelism,
-    # (b) elimination of the sequential `max-parallel: 1` slot that
-    # correlated with Hapoalim's CI failures (commit bb0f4475), and
-    # (c) one approval click per PR instead of two-stage gating.
+    # Non-OTP browser-form banks. Amex runs separately
+    # (`e2e-real-group-a-amex` below) under the SAME gate-A approval
+    # but with `needs: e2e-real-group-a` so Rule #16 is enforced:
+    # Amex never co-runs with Isracard.
     timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -318,15 +374,6 @@ jobs:
           - VisaCal
           - Discount
           - Max
-          - Hapoalim
-          - Beinleumi
-          - OneZero
-          - Pepper
-          # Pepper joined the matrix on 2026-05-22 after the Camoufox
-          # identity-transport adoption (commit 2b903a94) + Telegram
-          # OTP fetcher short-poll fix (commit 024c18e4) verified the
-          # full flow end-to-end. Stable bank now — uses the same
-          # credentials-based skip gate as every other bank.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       # DNS override + warmup (single source of truth lives in
@@ -356,6 +403,9 @@ jobs:
           # redacted and may capture rendered PII text.
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
+          # Non-OTP browser-form banks only — no OTP / TELEGRAM
+          # secrets exposed to this runner. OTP banks live in Group B;
+          # api-direct banks in Group C.
           ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
           ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
           ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
@@ -366,20 +416,6 @@ jobs:
           DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
           MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
           MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
-          # OTP banks merged into Group A — single approval gate above.
-          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
-          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
-          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
-          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
-          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
-          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
-          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
-          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
-          PEPPER_PHONE_NUMBER: ${{ secrets.PEPPER_PHONE_NUMBER }}
-          PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
-          PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
         # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
         # has two it() blocks: 'scrapes transactions successfully' (happy)
@@ -414,12 +450,13 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-  # `e2e-real-otp` job removed 2026-05-13 — OTP banks (Beinleumi /
-  # OneZero) merged into `e2e-real-group-a` above with a single
-  # approval gate covering the whole matrix. See Group A comment.
+  # Amex follow-on under gate-A approval. Rule #16: Amex never
+  # co-runs with Isracard, so we `needs: e2e-real-group-a` to make
+  # Amex run STRICTLY after the Group A matrix finishes. No
+  # additional approval click — gate-A's release applies.
 
-  e2e-real-group-b:
-    name: E2E Real B (${{ matrix.bank }})
+  e2e-real-group-a-amex:
+    name: E2E Real A (${{ matrix.bank }})
     needs: e2e-real-group-a
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -470,6 +507,176 @@ jobs:
           # Same pre-auth screenshot policy as Group A — init + home only
           # so we can triage homepage WAF / challenge-wall failures
           # (Hapoalim CI race investigated 2026-05-13) with visual proof.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ──────────────────────────────────────────────────────────────
+  # Group B — OTP browser-form banks (Hapoalim, Beinleumi).
+  # Requires gate-B approval AFTER Group A + Amex have completed.
+  # Telegram OTP secrets exposed here for the SMS OTP dance.
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-b-gate:
+    name: E2E Real B — approval gate
+    # Independent of Group A — once validate + dns-preflight are
+    # green, all three category gates become approvable in parallel.
+    # The reviewer can release Group B without waiting for Group A
+    # to finish (and vice-versa); within each group, banks still
+    # run in parallel under one approval.
+    needs: [validate, dns-preflight]
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Distinct environment per the gate-A comment above — each
+    # group's approval click is independent.
+    environment: e2e-real-group-b
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group B approved; OTP browser-form matrix may proceed."
+
+  e2e-real-group-b:
+    name: E2E Real B (${{ matrix.bank }})
+    needs: e2e-real-group-b-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Hapoalim
+          - Beinleumi
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          # OTP browser-form banks. Telegram secrets deliver the SMS
+          # OTP to the Jest poller during the login flow.
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ──────────────────────────────────────────────────────────────
+  # Group C — api-direct banks (OneZero, Pepper, PayBox). No
+  # browser; HTTP-only flows. Requires gate-C approval AFTER
+  # Group B has completed. Telegram OTP secrets exposed for the
+  # SMS OTP dance on cold-start runs (warm runs use long-term JWTs).
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-c-gate:
+    name: E2E Real C — approval gate
+    # Independent of Groups A + B — see the gate-B comment for the
+    # rationale (per-group approval, no inter-group ordering).
+    needs: [validate, dns-preflight]
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Distinct environment per the gate-A comment above — each
+    # group's approval click is independent.
+    environment: e2e-real-group-c
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group C approved; api-direct matrix may proceed."
+
+  e2e-real-group-c:
+    name: E2E Real C (${{ matrix.bank }})
+    needs: e2e-real-group-c-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - OneZero
+          - Pepper
+          - PayBox
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          # api-direct banks. PayBox derives deviceId16Hex from
+          # PAYBOX_PHONE_NUMBER via the sha256-prefix-16 bootstrap
+          # (see PayBoxCreds.ts JSDoc) — no PAYBOX_DEVICE_ID16HEX
+          # secret needed.
+          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
+          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
+          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
+          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
+          PEPPER_PHONE_NUMBER: ${{ secrets.PEPPER_PHONE_NUMBER }}
+          PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
+          PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
+          PAYBOX_PHONE_NUMBER: ${{ secrets.PAYBOX_PHONE_NUMBER }}
+          PAYBOX_OTP_LONG_TERM: ${{ secrets.PAYBOX_OTP_LONG_TERM }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json

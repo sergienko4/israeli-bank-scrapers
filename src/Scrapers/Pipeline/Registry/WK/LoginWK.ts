@@ -5,6 +5,21 @@
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 
+/** Selector-kind discriminator strings, lifted out of every literal entry. */
+const KIND_TEXT_CONTENT = 'textContent' as const;
+const KIND_ARIA_LABEL = 'ariaLabel' as const;
+
+/**
+ * Hebrew form-label values repeated across multiple selector kinds
+ * for the same field (labelText / placeholder / textContent variants).
+ * Lifted to module-scope constants per the sonarjs/no-duplicate-string
+ * rule — adding a new variant in a different kind is now a one-line
+ * change.
+ */
+const LABEL_OTP_ONETIME = 'קוד חד פעמי' as const;
+const LABEL_CARD_DIGITS = 'ספרות הכרטיס' as const;
+const LABEL_ACCOUNT_NUMBER = 'מספר חשבון' as const;
+
 /** The valid slot names in WK.LOGIN.ACTION.FORM. */
 type FormSlot =
   | 'nationalId'
@@ -30,8 +45,8 @@ export const WK_LOGIN_FORM = {
     { kind: 'placeholder', value: 'תעודת זהות' },
     { kind: 'placeholder', value: 'מספר תעודת זהות' },
     { kind: 'placeholder', value: 'מספר זהות' },
-    { kind: 'textContent', value: 'מספר תעודת זהות' },
-    { kind: 'textContent', value: 'מספר זהות' },
+    { kind: KIND_TEXT_CONTENT, value: 'מספר תעודת זהות' },
+    { kind: KIND_TEXT_CONTENT, value: 'מספר זהות' },
   ],
   password: [
     { kind: 'xpath', value: '//input[@type="password"]' },
@@ -41,36 +56,33 @@ export const WK_LOGIN_FORM = {
     { kind: 'labelText', value: 'סיסמה' },
     { kind: 'labelText', value: 'סיסמא' },
     { kind: 'labelText', value: 'קוד סודי' },
-    { kind: 'ariaLabel', value: 'סיסמה' },
+    { kind: KIND_ARIA_LABEL, value: 'סיסמה' },
   ],
   mfa: [
-    { kind: 'labelText', value: 'קוד חד פעמי' },
+    { kind: 'labelText', value: LABEL_OTP_ONETIME },
     { kind: 'labelText', value: 'קוד אימות' },
-    { kind: 'placeholder', value: 'קוד חד פעמי' },
+    { kind: 'placeholder', value: LABEL_OTP_ONETIME },
     { kind: 'placeholder', value: 'קוד SMS' },
     { kind: 'placeholder', value: 'קוד אימות' },
     { kind: 'placeholder', value: 'הזן קוד' },
   ],
   cardDigits: [
     { kind: 'labelText', value: 'ספרות' },
-    { kind: 'ariaLabel', value: 'ספרות הכרטיס' },
-
-    { kind: 'placeholder', value: 'ספרות הכרטיס' },
+    { kind: KIND_ARIA_LABEL, value: LABEL_CARD_DIGITS },
+    { kind: 'placeholder', value: LABEL_CARD_DIGITS },
     { kind: 'placeholder', value: '6 ספרות' },
-    { kind: 'placeholder', value: 'ספרות הכרטיס' },
-
-    { kind: 'textContent', value: 'ספרות הכרטיס' },
-    { kind: 'textContent', value: '6 ספרות' },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_CARD_DIGITS },
+    { kind: KIND_TEXT_CONTENT, value: '6 ספרות' },
   ],
   accountNum: [
     { kind: 'labelText', value: 'קוד מזהה' },
-    { kind: 'labelText', value: 'מספר חשבון' },
+    { kind: 'labelText', value: LABEL_ACCOUNT_NUMBER },
     { kind: 'labelText', value: 'קוד משתמש' },
 
-    { kind: 'ariaLabel', value: 'מספר חשבון' },
+    { kind: KIND_ARIA_LABEL, value: LABEL_ACCOUNT_NUMBER },
 
-    { kind: 'textContent', value: 'קוד מזהה' },
-    { kind: 'placeholder', value: 'מספר חשבון' },
+    { kind: KIND_TEXT_CONTENT, value: 'קוד מזהה' },
+    { kind: 'placeholder', value: LABEL_ACCOUNT_NUMBER },
     { kind: 'placeholder', value: 'מספר לקוח' },
     { kind: 'placeholder', value: 'קוד משתמש' },
   ],
@@ -81,38 +93,38 @@ export const WK_LOGIN_FORM = {
   ],
   /** Text-based submit fallback — tried only if structural not found in same frame. */
   submit: [
-    { kind: 'ariaLabel', value: 'כניסה' },
-    { kind: 'ariaLabel', value: 'התחברות' },
-    { kind: 'ariaLabel', value: 'התחבר' },
+    { kind: KIND_ARIA_LABEL, value: 'כניסה' },
+    { kind: KIND_ARIA_LABEL, value: 'התחברות' },
+    { kind: KIND_ARIA_LABEL, value: 'התחבר' },
     { kind: 'xpath', value: '//button[contains(., "כניסה")]' },
     { kind: 'xpath', value: '//button[contains(., "התחברות")]' },
     { kind: 'xpath', value: '//button[contains(., "התחבר")]' },
-    { kind: 'textContent', value: 'כניסה' },
-    { kind: 'textContent', value: 'התחברות' },
-    { kind: 'textContent', value: 'שלח' },
-    { kind: 'textContent', value: 'המשך' },
-    { kind: 'textContent', value: 'אישור' },
+    { kind: KIND_TEXT_CONTENT, value: 'כניסה' },
+    { kind: KIND_TEXT_CONTENT, value: 'התחברות' },
+    { kind: KIND_TEXT_CONTENT, value: 'שלח' },
+    { kind: KIND_TEXT_CONTENT, value: 'המשך' },
+    { kind: KIND_TEXT_CONTENT, value: 'אישור' },
   ],
   otpArea: [
-    { kind: 'textContent', value: 'כניסה באמצעות SMS' },
-    { kind: 'textContent', value: 'קוד חד פעמי' },
-    { kind: 'textContent', value: 'שלח קוד לנייד' },
+    { kind: KIND_TEXT_CONTENT, value: 'כניסה באמצעות SMS' },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_OTP_ONETIME },
+    { kind: KIND_TEXT_CONTENT, value: 'שלח קוד לנייד' },
   ],
 } satisfies Record<string, readonly SelectorCandidate[]>;
 
 /** Login error texts — detected by LOGIN.POST after form submission. */
 export const WK_LOGIN_ERROR = [
-  { kind: 'textContent', value: 'פרטים שגויים' },
-  { kind: 'textContent', value: 'שכחת את הפרטים?' },
-  { kind: 'textContent', value: 'שגיאה' },
-  { kind: 'textContent', value: 'או לשחזר בקלות' },
-  { kind: 'textContent', value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
-  { kind: 'textContent', value: 'אחד או יותר מהפרטים שהזנת שגויים' },
-  { kind: 'textContent', value: 'תהליך הזיהוי נכשל' },
-  { kind: 'textContent', value: 'פרטי ההתחברות שגויים' },
-  { kind: 'textContent', value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
-  { kind: 'textContent', value: 'תקינה' },
-  { kind: 'textContent', value: 'אינם תואמים' },
+  { kind: KIND_TEXT_CONTENT, value: 'פרטים שגויים' },
+  { kind: KIND_TEXT_CONTENT, value: 'שכחת את הפרטים?' },
+  { kind: KIND_TEXT_CONTENT, value: 'שגיאה' },
+  { kind: KIND_TEXT_CONTENT, value: 'או לשחזר בקלות' },
+  { kind: KIND_TEXT_CONTENT, value: 'אחד או יותר מפרטי ההזדהות שמסרת שגויים' },
+  { kind: KIND_TEXT_CONTENT, value: 'אחד או יותר מהפרטים שהזנת שגויים' },
+  { kind: KIND_TEXT_CONTENT, value: 'תהליך הזיהוי נכשל' },
+  { kind: KIND_TEXT_CONTENT, value: 'פרטי ההתחברות שגויים' },
+  { kind: KIND_TEXT_CONTENT, value: 'שם המשתמש או הסיסמה שהוזנו שגויים' },
+  { kind: KIND_TEXT_CONTENT, value: 'תקינה' },
+  { kind: KIND_TEXT_CONTENT, value: 'אינם תואמים' },
 ] as const;
 
 /** Credential key → FORM slot mapping. */
