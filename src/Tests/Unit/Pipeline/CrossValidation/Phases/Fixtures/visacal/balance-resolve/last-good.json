@@ -1,0 +1,34 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "scenarioId": "balance-resolve/last-good",
+    "captureRunId": "redacted-from-26-05-2026",
+    "rationale": "VisaCal balance lives 3-level deep inside getBigNumberAndDetails (result.bigNumbers[].totalDebits[].totalDebit). v5 SCRAPE.final attributes capture via POST body bankAccountUniqueId match; BALANCE-RESOLVE applies F2 BFS-depth-4 + F5 ILS-first (currencyCode 3 or currencySymbol '₪'). Real Hebrew strings + correlationID + cards omitted as out-of-scope-for-balance. Real values redacted: balance 250.00 (round synthetic, real captured was 0 in the run).",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 250 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://api.cal-online.example/Transactions/api/financeDashboard/getBigNumberAndDetails",
+      "method": "POST",
+      "postData": "{\"bankAccountUniqueId\":\"FAKE-000000\"}",
+      "status": 200,
+      "responseBody": {
+        "result": {
+          "bigNumbers": [
+            {
+              "debitDate": "2026-06-15T00:00:00",
+              "totalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 250 }],
+              "prevTotalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 0 }]
+            }
+          ],
+          "debitCards": []
+        },
+        "statusCode": 1
+      }
+    }
+  ]
+}

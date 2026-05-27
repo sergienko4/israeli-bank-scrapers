@@ -6,7 +6,6 @@ import {
   buildAccountResult,
   buildFilterDataUrl,
   deduplicateTxns,
-  lookupBalance,
   parseStartDate,
   rateLimitPause,
   resolveTxnUrl,
@@ -17,14 +16,7 @@ import type { IAccountAssemblyCtx } from '../../../../../Scrapers/Pipeline/Strat
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../Transactions.js';
-import {
-  makeApi,
-  makeEndpoint,
-  makeFc,
-  makeNetwork,
-  stubFetchGetFail,
-  stubFetchGetOk,
-} from '../StrategyTestHelpers.js';
+import { makeApi, makeEndpoint, makeFc, makeNetwork } from '../StrategyTestHelpers.js';
 
 /**
  * Build a minimal transaction with the required fields.
@@ -401,64 +393,6 @@ describe('rateLimitPause', () => {
   });
 });
 
-describe('lookupBalance', () => {
-  it('returns 0 when no balance URL buildable', async () => {
-    const api = makeApi();
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      buildBalanceUrl: () => false,
-    });
-    const result = await lookupBalance(api, network, 'a');
-    expect(result).toBe(0);
-  });
-
-  it('returns 0 when fetchGet fails', async () => {
-    const api = makeApi({ fetchGet: stubFetchGetFail() });
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      buildBalanceUrl: () => 'https://bank.example/bal',
-    });
-    const result = await lookupBalance(api, network, 'a');
-    expect(result).toBe(0);
-  });
-
-  it('returns 0 when balance field missing in response', async () => {
-    const api = makeApi({ fetchGet: stubFetchGetOk({ foo: 'bar' }) });
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      buildBalanceUrl: () => 'https://bank.example/bal',
-    });
-    const result = await lookupBalance(api, network, 'a');
-    expect(result).toBe(0);
-  });
-
-  it('returns the number when balance field is numeric', async () => {
-    const api = makeApi({ fetchGet: stubFetchGetOk({ balance: 123.45 }) });
-    const network = makeNetwork({
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      buildBalanceUrl: () => 'https://bank.example/bal',
-    });
-    const result = await lookupBalance(api, network, 'a');
-    expect(result).toBe(123.45);
-  });
-});
-
 describe('resolveTxnUrl', () => {
   it('returns configTransactionsUrl when set', () => {
     const api = makeApi({ configTransactionsUrl: 'https://config.example/txn' });
@@ -511,63 +445,33 @@ describe('resolveTxnUrl', () => {
 });
 
 describe('buildAccountResult', () => {
-  it('builds account with balance from raw record', async () => {
-    const api = makeApi();
-    const network = makeNetwork();
-    // Phase 7f follow-up: the SCRAPE-side balance scan consumes
-    // `fc.txnEndpoint.fieldMap.balance` (the alias DASHBOARD.FINAL
-    // resolved). The test supplies a slim ITxnEndpoint with the
-    // matching alias so the balance value lands in the result.
-    const fc = makeFc(api, network, {
-      txnEndpoint: {
-        url: '',
-        method: 'GET',
-        templatePostData: false,
-        fieldMap: {
-          date: '',
-          amount: '',
-          description: '',
-          currency: '',
-          identifier: '',
-          originalAmount: false,
-          processedDate: false,
-          balance: 'balance',
-        },
-        pendingUrl: false,
-        billingUrl: false,
-      },
-    });
-    const ctx: IAccountAssemblyCtx = {
-      fc,
-      accountId: 'a',
-      displayId: '1234',
-      rawRecord: { balance: 500 },
-    };
-    const result = await buildAccountResult(ctx, []);
-    const isOkResult6 = isOk(result);
-    expect(isOkResult6).toBe(true);
-    if (isOk(result)) {
-      expect(result.value.accountNumber).toBe('1234');
-      expect(result.value.balance).toBe(500);
-    }
-  });
-
-  it('falls back to accountId when displayId missing', async () => {
+  it('uses displayId for accountNumber when present', () => {
     const api = makeApi();
     const network = makeNetwork();
     const fc = makeFc(api, network);
-    const ctx: IAccountAssemblyCtx = {
-      fc,
-      accountId: 'acc-only',
-      displayId: '',
-    };
-    const result = await buildAccountResult(ctx, []);
-    const isOkResult7 = isOk(result);
-    expect(isOkResult7).toBe(true);
+    const ctx: IAccountAssemblyCtx = { fc, accountId: 'a', displayId: '1234' };
+    const result = buildAccountResult(ctx, []);
+    const isOkResultDisplayId = isOk(result);
+    expect(isOkResultDisplayId).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.accountNumber).toBe('1234');
+      // v4 (2026-05-27): balance is owned by BALANCE-RESOLVE phase, not SCRAPE.
+      expect(result.value.balance).toBeUndefined();
+    }
+  });
+
+  it('falls back to accountId when displayId missing', () => {
+    const api = makeApi();
+    const network = makeNetwork();
+    const fc = makeFc(api, network);
+    const ctx: IAccountAssemblyCtx = { fc, accountId: 'acc-only', displayId: '' };
+    const result = buildAccountResult(ctx, []);
+    const isOkResultAccOnly = isOk(result);
+    expect(isOkResultAccOnly).toBe(true);
     if (isOk(result)) expect(result.value.accountNumber).toBe('acc-only');
   });
 
-  it('uses "default" when ids empty and no stored record yields them', async () => {
+  it('uses "default" when ids empty and no stored record yields them', () => {
     const api = makeApi();
     const network = makeNetwork({
       /**
@@ -579,13 +483,13 @@ describe('buildAccountResult', () => {
     });
     const fc = makeFc(api, network);
     const ctx: IAccountAssemblyCtx = { fc, accountId: '', displayId: '' };
-    const result = await buildAccountResult(ctx, []);
-    const isOkResult8 = isOk(result);
-    expect(isOkResult8).toBe(true);
+    const result = buildAccountResult(ctx, []);
+    const isOkResultDefault = isOk(result);
+    expect(isOkResultDefault).toBe(true);
     if (isOk(result)) expect(result.value.accountNumber).toBe('default');
   });
 
-  it('scans captured endpoints for display id when ids are empty', async () => {
+  it('scans captured endpoints for display id when ids are empty', () => {
     const api = makeApi();
     const network = makeNetwork({
       /**
@@ -597,12 +501,12 @@ describe('buildAccountResult', () => {
     });
     const fc = makeFc(api, network);
     const ctx: IAccountAssemblyCtx = { fc, accountId: '', displayId: '' };
-    const result = await buildAccountResult(ctx, []);
-    const isOkResult9 = isOk(result);
-    expect(isOkResult9).toBe(true);
+    const result = buildAccountResult(ctx, []);
+    const isOkResultScanned = isOk(result);
+    expect(isOkResultScanned).toBe(true);
   });
 
-  it('treats displayId="default" as a placeholder and prefers a captured account number', async () => {
+  it('treats displayId="default" as a placeholder and prefers a captured account number', () => {
     const api = makeApi();
     const network = makeNetwork({
       /**
@@ -613,9 +517,9 @@ describe('buildAccountResult', () => {
     });
     const fc = makeFc(api, network);
     const ctx: IAccountAssemblyCtx = { fc, accountId: '', displayId: 'default' };
-    const result = await buildAccountResult(ctx, []);
-    const isOkResult10 = isOk(result);
-    expect(isOkResult10).toBe(true);
+    const result = buildAccountResult(ctx, []);
+    const isOkResultPlaceholder = isOk(result);
+    expect(isOkResultPlaceholder).toBe(true);
     if (isOk(result)) expect(result.value.accountNumber).toBe('7777');
   });
 });

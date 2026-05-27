@@ -73,7 +73,7 @@ interface IBankLoginFixture {
   readonly expectedPhaseNames: readonly string[];
 }
 
-/** Eight base phases shared by every browser bank. */
+/** Nine base phases shared by every browser bank (incl. v4 balance-resolve). */
 const BASE_PHASES: readonly string[] = [
   'init',
   'home',
@@ -82,10 +82,11 @@ const BASE_PHASES: readonly string[] = [
   'account-resolve',
   'dashboard',
   'scrape',
+  'balance-resolve',
   'terminate',
 ];
 
-/** Nine phases — base + `pre-login` (Amex / Isracard / Max / VisaCal). */
+/** Ten phases — base + `pre-login` (Amex / Isracard / Max / VisaCal). */
 const PRE_LOGIN_PHASES: readonly string[] = [
   'init',
   'home',
@@ -95,10 +96,11 @@ const PRE_LOGIN_PHASES: readonly string[] = [
   'account-resolve',
   'dashboard',
   'scrape',
+  'balance-resolve',
   'terminate',
 ];
 
-/** Nine phases — base + `otp-fill` only (Hapoalim soft-OTP). */
+/** Ten phases — base + `otp-fill` only (Hapoalim soft-OTP). */
 const OTP_FILL_PHASES: readonly string[] = [
   'init',
   'home',
@@ -108,10 +110,11 @@ const OTP_FILL_PHASES: readonly string[] = [
   'account-resolve',
   'dashboard',
   'scrape',
+  'balance-resolve',
   'terminate',
 ];
 
-/** Ten phases — base + `otp-trigger` + `otp-fill` (mandatory OTP banks). */
+/** Eleven phases — base + `otp-trigger` + `otp-fill` (mandatory OTP banks). */
 const OTP_FULL_PHASES: readonly string[] = [
   'init',
   'home',
@@ -122,6 +125,7 @@ const OTP_FULL_PHASES: readonly string[] = [
   'account-resolve',
   'dashboard',
   'scrape',
+  'balance-resolve',
   'terminate',
 ];
 
@@ -137,7 +141,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: DISCOUNT_LOGIN,
     buildPipeline: buildDiscountPipeline,
     expectedFieldKeys: ['id', 'password', 'num'],
-    expectedPhaseCount: 8,
+    expectedPhaseCount: 9,
     expectedPhaseNames: BASE_PHASES,
   },
   {
@@ -146,7 +150,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: MERCANTILE_LOGIN,
     buildPipeline: buildMercantilePipeline,
     expectedFieldKeys: ['id', 'password', 'num'],
-    expectedPhaseCount: 8,
+    expectedPhaseCount: 9,
     expectedPhaseNames: BASE_PHASES,
   },
   {
@@ -155,7 +159,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: AMEX_LOGIN,
     buildPipeline: buildAmexPipeline,
     expectedFieldKeys: ['id', 'password', 'card6Digits'],
-    expectedPhaseCount: 9,
+    expectedPhaseCount: 10,
     expectedPhaseNames: PRE_LOGIN_PHASES,
   },
   {
@@ -164,7 +168,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: ISRACARD_LOGIN,
     buildPipeline: buildIsracardPipeline,
     expectedFieldKeys: ['id', 'password', 'card6Digits'],
-    expectedPhaseCount: 9,
+    expectedPhaseCount: 10,
     expectedPhaseNames: PRE_LOGIN_PHASES,
   },
   {
@@ -173,7 +177,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: MAX_LOGIN,
     buildPipeline: buildMaxPipeline,
     expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: 9,
+    expectedPhaseCount: 10,
     expectedPhaseNames: PRE_LOGIN_PHASES,
   },
   {
@@ -182,7 +186,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: VISACAL_LOGIN,
     buildPipeline: buildVisaCalPipeline,
     expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: 9,
+    expectedPhaseCount: 10,
     expectedPhaseNames: PRE_LOGIN_PHASES,
   },
   {
@@ -191,7 +195,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: HAPOALIM_LOGIN,
     buildPipeline: buildHapoalimPipeline,
     expectedFieldKeys: ['userCode', 'password'],
-    expectedPhaseCount: 9,
+    expectedPhaseCount: 10,
     expectedPhaseNames: OTP_FILL_PHASES,
   },
   {
@@ -200,7 +204,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: BEINLEUMI_LOGIN,
     buildPipeline: buildBeinleumiPipeline,
     expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: 10,
+    expectedPhaseCount: 11,
     expectedPhaseNames: OTP_FULL_PHASES,
   },
   {
@@ -209,7 +213,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: MASSAD_LOGIN,
     buildPipeline: buildMassadPipeline,
     expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: 10,
+    expectedPhaseCount: 11,
     expectedPhaseNames: OTP_FULL_PHASES,
   },
   {
@@ -218,7 +222,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: OTSAR_HAHAYAL_LOGIN,
     buildPipeline: buildOtsarHahayalPipeline,
     expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: 10,
+    expectedPhaseCount: 11,
     expectedPhaseNames: OTP_FULL_PHASES,
   },
   {
@@ -227,7 +231,7 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: PAGI_LOGIN,
     buildPipeline: buildPagiPipeline,
     expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: 10,
+    expectedPhaseCount: 11,
     expectedPhaseNames: OTP_FULL_PHASES,
   },
 ];

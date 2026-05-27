@@ -98,6 +98,11 @@ function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
     otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
+    balanceFetchPlan: ctx.balanceFetchPlan,
+    balanceResponsesByBankAccount: ctx.balanceResponsesByBankAccount,
+    balanceExtracted: ctx.balanceExtracted,
+    balanceValidation: ctx.balanceValidation,
+    balanceResolution: ctx.balanceResolution,
     browser: ctx.browser,
   };
 }
@@ -133,6 +138,11 @@ function buildActionContext(ctx: IPipelineContext): IActionContext {
     otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
+    balanceFetchPlan: ctx.balanceFetchPlan,
+    balanceResponsesByBankAccount: ctx.balanceResponsesByBankAccount,
+    balanceExtracted: ctx.balanceExtracted,
+    balanceValidation: ctx.balanceValidation,
+    balanceResolution: ctx.balanceResolution,
   };
 }
 

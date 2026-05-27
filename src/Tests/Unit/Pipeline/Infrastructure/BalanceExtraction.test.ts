@@ -1,4 +1,4 @@
-import { resolveRecordBalance } from '../../../../Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.js';
+import { resolveRecordBalance } from '../../../../Scrapers/Pipeline/Mediator/BalanceResolve/BalanceExtractor.js';
 
 describe('resolveRecordBalance — Phase 7f follow-up: alias-list contract', () => {
   it('extracts the supplied alias when it matches a top-level field', () => {

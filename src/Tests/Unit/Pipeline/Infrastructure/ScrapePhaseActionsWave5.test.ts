@@ -8,6 +8,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
+import type { IDiscoveredEndpoint } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import {
   executeForensicPre,
   executeStampAccounts,
@@ -15,7 +16,9 @@ import {
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
+  IAccountDiscovery,
   IApiFetchContext,
+  IScrapeDiscovery,
   IScrapeState,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -247,5 +250,343 @@ describe('ScrapePhaseActions — Wave 5 branches', () => {
     const result = await executeStampAccounts(base);
     const isOkResult11 = isOk(result);
     expect(isOkResult11).toBe(true);
+  });
+});
+
+/** Empty-txn list shared across the v4 Issue 2 suite. */
+const SHARED_EMPTY_TXNS: readonly ITransaction[] = [];
+
+/** Single all-empty account fixture shared across the v4 Issue 2 suite. */
+const ONE_EMPTY_ACCT_FIXTURE = [{ accountNumber: 'A1', balance: 0, txns: [...SHARED_EMPTY_TXNS] }];
+
+/** Synthetic IDiscoveredEndpoint capture for empty-gate fixtures. */
+const STUB_CAPTURE: IDiscoveredEndpoint = {
+  url: 'https://x.example/y',
+  method: 'GET',
+  postData: '',
+  responseBody: {},
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 1,
+};
+
+/**
+ * Build a minimal IScrapeDiscovery with the supplied frozenEndpoints.
+ *
+ * @param frozenEndpoints - Pool entries to expose.
+ * @returns Test-only IScrapeDiscovery instance.
+ */
+function buildEmptyGateDisc(frozenEndpoints: readonly IDiscoveredEndpoint[]): IScrapeDiscovery {
+  return {
+    qualifiedCards: [],
+    prunedCards: [],
+    txnTemplateUrl: '',
+    txnTemplateBody: {},
+    billingMonths: [],
+    frozenEndpoints,
+  };
+}
+
+/** v4 Issue 2 — empty-gate heuristic helpers (decideEmptyGate +
+ *  isLikelyScrapeMiss + describePoolSize + describeSuccessCount +
+ *  emitRealEmptyAccepted) are exercised here. */
+describe('ScrapePhaseActions — v4 Issue 2 empty-gate heuristic', () => {
+  it('isLikelyScrapeMiss: all-empty + scrapeDiscovery absent → fail', async () => {
+    const ctx = makeMockContext({ scrape: some({ accounts: ONE_EMPTY_ACCT_FIXTURE }) });
+    const result = await executeValidateResults(ctx);
+    expect(result.success).toBe(false);
+  });
+
+  it('isLikelyScrapeMiss: all-empty + frozenEndpoints=0 → fail', async () => {
+    const disc = buildEmptyGateDisc([]);
+    const mediator = makeMockMediator();
+    const ctx = makeMockContext({
+      scrape: some({ accounts: ONE_EMPTY_ACCT_FIXTURE }),
+      scrapeDiscovery: some(disc),
+      mediator: some(mediator),
+    });
+    const result = await executeValidateResults(ctx);
+    expect(result.success).toBe(false);
+  });
+
+  it('isLikelyScrapeMiss: all-empty + mediator absent → fail', async () => {
+    const disc = buildEmptyGateDisc([STUB_CAPTURE]);
+    const ctx = makeMockContext({
+      scrape: some({ accounts: ONE_EMPTY_ACCT_FIXTURE }),
+      scrapeDiscovery: some(disc),
+    });
+    const result = await executeValidateResults(ctx);
+    expect(result.success).toBe(false);
+  });
+
+  it('isLikelyScrapeMiss: all-empty + 0 successful responses → fail', async () => {
+    const disc = buildEmptyGateDisc([STUB_CAPTURE]);
+    const mediator = makeMockMediator();
+    const ctx = makeMockContext({
+      scrape: some({ accounts: ONE_EMPTY_ACCT_FIXTURE }),
+      scrapeDiscovery: some(disc),
+      mediator: some(mediator),
+    });
+    const result = await executeValidateResults(ctx);
+    expect(result.success).toBe(false);
+  });
+
+  it('decideEmptyGate: populated pool + 2xx responses → real-empty accepted', async () => {
+    const baseMediator = makeMockMediator();
+    const mediator = {
+      ...baseMediator,
+      network: {
+        ...baseMediator.network,
+        /**
+         * Single-entry pool.
+         * @returns Pool with STUB_CAPTURE.
+         */
+        getAllEndpoints: (): readonly IDiscoveredEndpoint[] => [STUB_CAPTURE],
+        /**
+         * Server responded with 200.
+         * @returns 1.
+         */
+        countSuccessfulResponses: (): number => 1,
+      },
+    };
+    const disc = buildEmptyGateDisc([STUB_CAPTURE]);
+    const ctx = makeMockContext({
+      scrape: some({ accounts: ONE_EMPTY_ACCT_FIXTURE }),
+      scrapeDiscovery: some(disc),
+      mediator: some(mediator),
+    });
+    const result = await executeValidateResults(ctx);
+    expect(result.success).toBe(true);
+  });
+});
+
+/**
+ * Build a mediator whose `network.getAllEndpoints` returns the
+ * supplied pool. Shared between the perAccountResponses + coverage-gap
+ * tests.
+ *
+ * @param pool - Pool to expose via the mediator stub.
+ * @returns Mediator with patched network.
+ */
+function makeMediatorWithPool(
+  pool: readonly IDiscoveredEndpoint[],
+): ReturnType<typeof makeMockMediator> {
+  const base = makeMockMediator();
+  return {
+    ...base,
+    network: {
+      ...base.network,
+      /**
+       * Returns the seeded pool.
+       *
+       * @returns Pool.
+       */
+      getAllEndpoints: (): readonly IDiscoveredEndpoint[] => pool,
+    },
+  };
+}
+
+/**
+ * Build an accountDiscovery option with a single id + record pair.
+ * Used by v6 emit tests that exercise buildAccountIdentities.
+ *
+ * @param id - iter accountId.
+ * @param record - matching record.
+ * @returns accountDiscovery Some.
+ */
+function makeSingleAccountDiscovery(
+  id: string,
+  record: Record<string, unknown>,
+): ReturnType<typeof some<IAccountDiscovery>> {
+  const discovery: IAccountDiscovery = {
+    ids: [id],
+    records: [record],
+    containers: {},
+    endpointCaptureIndex: 0,
+  };
+  return some(discovery);
+}
+
+/** v6 — SCRAPE.post accountIdentities + balanceFetchTemplate emission. */
+describe('ScrapePhaseActions — v6 SCRAPE.post emission', () => {
+  it('emits accountIdentities from accountDiscovery records', async () => {
+    const mediator = makeMediatorWithPool([]);
+    const accountDiscovery = makeSingleAccountDiscovery('ACC-001', {
+      cardUniqueId: 'UID-001',
+      bankAccountUniqueId: 'BA-001',
+      last4Digits: 'ACC-001',
+    });
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'ACC-001', balance: 0, txns: [] }] }),
+      mediator: some(mediator),
+      accountDiscovery,
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const identities = result.value.scrape.value.accountIdentities;
+      expect(identities?.size).toBe(1);
+      const id = identities?.get('ACC-001');
+      expect(id?.cardUniqueId).toBe('UID-001');
+      expect(id?.bankAccountUniqueId).toBe('BA-001');
+    }
+  });
+
+  it('discovers a POST balanceFetchTemplate from pool capture', async () => {
+    const postEp: IDiscoveredEndpoint = {
+      url: 'https://api.bank.example/getBalance',
+      method: 'POST',
+      postData: '{"bankAccountUniqueId":"BA-001"}',
+      responseBody: null,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 1,
+    };
+    const mediator = makeMediatorWithPool([postEp]);
+    const accountDiscovery = makeSingleAccountDiscovery('ACC-001', {});
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'ACC-001', balance: 0, txns: [] }] }),
+      mediator: some(mediator),
+      accountDiscovery,
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const tmpl = result.value.scrape.value.balanceFetchTemplate;
+      expect(tmpl?.method).toBe('POST');
+      expect(tmpl?.postBodyKey).toBe('bankAccountUniqueId');
+    }
+  });
+
+  it('leaves identities + template undefined when accountDiscovery + mediator absent', async () => {
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'ACC-001', balance: 0, txns: [] }] }),
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      expect(result.value.scrape.value.accountIdentities).toBeUndefined();
+      expect(result.value.scrape.value.balanceFetchTemplate).toBeUndefined();
+    }
+  });
+
+  it('discovers a GET query template when only GET captures present', async () => {
+    const getEp: IDiscoveredEndpoint = {
+      url: 'https://bank.example/balance?accountId=ACC-001&lang=he',
+      method: 'GET',
+      postData: '',
+      responseBody: null,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 1,
+    };
+    const mediator = makeMediatorWithPool([getEp]);
+    const accountDiscovery = makeSingleAccountDiscovery('ACC-001', {});
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'ACC-001', balance: 0, txns: [] }] }),
+      mediator: some(mediator),
+      accountDiscovery,
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const tmpl = result.value.scrape.value.balanceFetchTemplate;
+      expect(tmpl?.method).toBe('GET');
+      expect(tmpl?.urlQueryKey).toBe('accountId');
+    }
+  });
+
+  it('falls back to bulk template when no per-id signal is present', async () => {
+    const postEp: IDiscoveredEndpoint = {
+      url: 'https://bank.example/listAll',
+      method: 'POST',
+      postData: '{"foo":"bar"}',
+      responseBody: null,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 1,
+    };
+    const mediator = makeMediatorWithPool([postEp]);
+    const accountDiscovery = makeSingleAccountDiscovery('UNKNOWN', {});
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'UNKNOWN', balance: 0, txns: [] }] }),
+      mediator: some(mediator),
+      accountDiscovery,
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const tmpl = result.value.scrape.value.balanceFetchTemplate;
+      expect(tmpl?.method).toBe('POST');
+      expect(tmpl?.postBodyKey).toBeUndefined();
+    }
+  });
+
+  it('discovers a GET path-interpolation template when URL path ends in iter id', async () => {
+    const getEp: IDiscoveredEndpoint = {
+      url: 'https://bank.example/account/info/ACC-001',
+      method: 'GET',
+      postData: '',
+      responseBody: null,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 1,
+    };
+    const mediator = makeMediatorWithPool([getEp]);
+    const accountDiscovery = makeSingleAccountDiscovery('ACC-001', {});
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'ACC-001', balance: 0, txns: [] }] }),
+      mediator: some(mediator),
+      accountDiscovery,
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const tmpl = result.value.scrape.value.balanceFetchTemplate;
+      expect(tmpl?.urlPathInterpolation).toBe(true);
+      expect(tmpl?.url).toContain('/<ID>');
+    }
+  });
+
+  it('emits identities with cardUniqueId + bankAccountUniqueId from record', async () => {
+    const mediator = makeMediatorWithPool([]);
+    const accountDiscovery = makeSingleAccountDiscovery('CARD-1', {
+      cardUniqueId: 'UID-CARD',
+      bankAccountUniqueId: 'BAUI-001',
+    });
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'CARD-1', balance: 0, txns: [] }] }),
+      mediator: some(mediator),
+      accountDiscovery,
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const id = result.value.scrape.value.accountIdentities?.get('CARD-1');
+      expect(id?.cardUniqueId).toBe('UID-CARD');
+      expect(id?.bankAccountUniqueId).toBe('BAUI-001');
+    }
+  });
+
+  it('falls back to displayId when record carries no internal ids', async () => {
+    const mediator = makeMediatorWithPool([]);
+    const accountDiscovery = makeSingleAccountDiscovery('PLAIN-ID', {});
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'PLAIN-ID', balance: 0, txns: [] }] }),
+      mediator: some(mediator),
+      accountDiscovery,
+    });
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const id = result.value.scrape.value.accountIdentities?.get('PLAIN-ID');
+      expect(id?.cardUniqueId).toBe('PLAIN-ID');
+      expect(id?.bankAccountUniqueId).toBe('PLAIN-ID');
+    }
   });
 });

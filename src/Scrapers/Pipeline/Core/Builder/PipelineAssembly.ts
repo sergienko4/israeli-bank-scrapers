@@ -23,6 +23,7 @@
 
 import { createAccountResolvePhase } from '../../Phases/AccountResolve/AccountResolvePhase.js';
 import { createAuthDiscoveryPhase } from '../../Phases/AuthDiscovery/AuthDiscoveryPhase.js';
+import { createBalanceResolvePhase } from '../../Phases/BalanceResolve/BalanceResolvePhase.js';
 import { createDashboardPhase } from '../../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../Phases/Home/HomePhase.js';
 import { createInitPhase } from '../../Phases/Init/InitPhase.js';
@@ -205,6 +206,17 @@ function makeScrape(state: IBuilderState): BasePhase {
 }
 
 /**
+ * Build the BALANCE-RESOLVE phase instance. Runs after SCRAPE for
+ * browser-mode banks; api-direct banks emit `balanceResolution`
+ * from their own scrape phase and bypass this slot.
+ *
+ * @returns BALANCE-RESOLVE phase.
+ */
+function makeBalanceResolve(): BasePhase {
+  return createBalanceResolvePhase();
+}
+
+/**
  * Build the TERMINATE phase instance.
  *
  * @returns TERMINATE phase.
@@ -232,6 +244,7 @@ const PHASE_CHAIN: readonly IPhaseSlot[] = [
   { factory: makeAccountResolve, enabled: ifBrowser },
   { factory: makeDashboard, enabled: ifBrowser },
   { factory: makeScrape, enabled: ifAnyScraper },
+  { factory: makeBalanceResolve, enabled: ifBrowser },
   { factory: makeTerminate, enabled: ifBrowser },
 ];
 

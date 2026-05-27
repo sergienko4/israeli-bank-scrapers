@@ -1,0 +1,30 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "balance-resolve/last-good",
+    "captureRunId": "redacted-from-26-05-2026",
+    "rationale": "Discount balance lives at AccountInfoAndBalance.AccountBalance (already-resolving baseline). v5 SCRAPE.final attributes via URL-mention; BALANCE-RESOLVE hits via WK alias AccountBalance (in alias list pre-fix). Real Hebrew strings (account name, branch name) omitted as out-of-scope-for-balance. Real value redacted: 16615.16 → 500.00 (round synthetic).",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 500 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://start.telebank.example/Titan/gatewayAPI/accountDetails/infoAndBalance/FAKE-000000",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": {
+        "AccountInfoAndBalance": {
+          "AccountBalance": 500,
+          "AccountWithheldBalance": 0,
+          "AccountAvailableBalance": 500,
+          "AccountStatusCode": "A",
+          "AccountCurrencyCode": "ILS"
+        }
+      }
+    }
+  ]
+}

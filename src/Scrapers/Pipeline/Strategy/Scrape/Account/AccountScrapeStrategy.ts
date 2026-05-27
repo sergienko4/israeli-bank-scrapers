@@ -102,15 +102,20 @@ async function scrapePostWithRange(
 
 /**
  * POST without date range: direct single request.
+ *
+ * <p>v4 (2026-05-27): `rawRecord` parameter dropped. SCRAPE's account
+ * assembly no longer resolves balance — that moved to the
+ * BALANCE-RESOLVE phase. The captured response body is still
+ * attributed to this accountId via SCRAPE.final's URL/postData
+ * mention walk over `mediator.network.getAllEndpoints()`.
+ *
  * @param fc - Fetch context.
  * @param postCtx - POST fetch params.
- * @param rawRecord - Captured account record, passed through to balance resolution.
  * @returns Account with transactions.
  */
 async function scrapePostDirect(
   fc: IAccountFetchCtx,
   postCtx: IPostFetchCtx,
-  rawRecord?: Record<string, unknown>,
 ): Promise<Procedure<ITransactionsAccount>> {
   const patchedUrl = patchUrlRange(postCtx.url, fc);
   const raw = await fc.api.fetchPost<Record<string, unknown>>(
@@ -132,7 +137,6 @@ async function scrapePostDirect(
     fc,
     accountId: postCtx.accountId,
     displayId: postCtx.displayId,
-    rawRecord: rawRecord ?? raw.value,
   };
   return buildAccountResult(assembly, unique);
 }
@@ -221,15 +225,18 @@ function harvestApplies(harvest: IDashboardTxnHarvest, iterationAccountId: strin
  * success, `false` on miss so the caller can fall through to billing
  * / range / direct strategies.
  *
+ * <p>v4 (2026-05-27): the `accountRecord` parameter is no longer
+ * threaded into the assembly context — balance resolution moved out
+ * of SCRAPE to the BALANCE-RESOLVE phase, which consumes
+ * `scrape.perAccountResponses` instead.
+ *
  * @param fc - Fetch context (carries the harvest from SCRAPE.PRE).
  * @param post - POST fetch params for the iteration's account.
- * @param accountRecord - Captured account record (passed to balance helpers).
  * @returns Procedure on hit, false on miss.
  */
 async function tryFirstWave(
   fc: IAccountFetchCtx,
   post: IPostFetchCtx,
-  accountRecord: Record<string, unknown>,
 ): Promise<Procedure<ITransactionsAccount> | false> {
   await Promise.resolve();
   const harvest = fc.dashboardTxnHarvest ?? EMPTY_TXN_HARVEST;
@@ -251,7 +258,6 @@ async function tryFirstWave(
     fc,
     accountId: post.accountId,
     displayId: post.displayId,
-    rawRecord: accountRecord,
   };
   return buildAccountResult(assembly, unique);
 }
@@ -283,12 +289,12 @@ async function scrapeOneAccountPost(
     accountRecord,
   });
   if (matrix !== false) return matrix;
-  const firstWave = await tryFirstWave(fc, post, accountRecord);
+  const firstWave = await tryFirstWave(fc, post);
   if (firstWave !== false) return firstWave;
   const billing = await tryBillingFallback(fc, post);
   if (isOk(billing) && billing.value.txns.length > 0) return billing;
   if (isRangeIterable(capturedBody as JsonRecord)) return scrapePostWithRange(fc, post);
-  return scrapePostDirect(fc, post, accountRecord);
+  return scrapePostDirect(fc, post);
 }
 
 /**
@@ -337,7 +343,7 @@ async function scrapeOneAccountViaUrl(
   const startMs = parseStartDate(fc.startDate).getTime();
   const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
   const unique = deduplicateTxns(txns, startMs, keyFields);
-  return buildAccountResult({ fc, accountId, displayId: accountId, rawRecord: raw.value }, unique);
+  return buildAccountResult({ fc, accountId, displayId: accountId }, unique);
 }
 
 export { scrapeOneAccountPost, scrapeOneAccountViaUrl };

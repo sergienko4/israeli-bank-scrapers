@@ -582,6 +582,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
        */
       getAllEndpoints: (): readonly [] => [],
       /**
+       * No successful 2xx responses recorded in mock.
+       * @returns 0.
+       */
+      countSuccessfulResponses: (): number => 0,
+      /**
        * No patterns discovered in mock.
        * @returns False.
        */

@@ -148,6 +148,19 @@ interface INetworkDiscovery {
   getAllEndpoints(): readonly IDiscoveredEndpoint[];
 
   /**
+   * Count captured responses with HTTP status 200-299. Used by
+   * SCRAPE.POST's prod-safe empty-gate heuristic to distinguish a
+   * real empty result (some 200s came back, all txn endpoints
+   * returned 0 rows) from a scrape miss (no 2xx responses, pool
+   * empty, or mediator absent). v4 Issue 2 fix.
+   *
+   * Idempotent; reading does not modify internal state. Frozen
+   * networks return the cached count from their seed pool.
+   * @returns Count of 2xx responses observed since pipeline start.
+   */
+  countSuccessfulResponses(): number;
+
+  /**
    * Discover the SPA URL from captured API traffic.
    * Finds the referer of the first API-domain endpoint (the SPA that made the call).
    * @returns SPA URL or false if no cross-domain API calls captured.

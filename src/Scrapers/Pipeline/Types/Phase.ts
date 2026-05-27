@@ -21,6 +21,7 @@ type PhaseName =
   | 'dashboard'
   | 'scrape'
   | 'api-direct-scrape'
+  | 'balance-resolve'
   | 'terminate';
 
 /** A single executable step within a phase. */

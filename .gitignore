@@ -88,3 +88,6 @@ scripts/**
 # src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),
 # so this in-repo path must never appear again.
 .canary-verify-tmp.json
+
+#Understand Anything local data (local research — not part of current PR)
+.understand-anything

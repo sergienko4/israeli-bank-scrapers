@@ -67,6 +67,30 @@ describe('PipelineResult branch gap', () => {
     const result = toResult(failResult3);
     expect(result.success).toBe(false);
   });
+
+  it('overrides SCRAPE-time balance from balanceResolution map when accountNumber matches', () => {
+    const ctx = makeMockContext();
+    const map = new Map<string, number>([['A1', 555.55]]);
+    const withResolution: IPipelineContext = {
+      ...ctx,
+      scrape: some({
+        accounts: [
+          { accountNumber: 'A1', balance: 0, txns: [] },
+          { accountNumber: 'A2', balance: 99, txns: [] },
+        ],
+      }),
+      balanceResolution: some(map),
+    };
+    const succeedWithResolution = succeed(withResolution);
+    const result = toResult(succeedWithResolution);
+    expect(result.success).toBe(true);
+    if (result.success && result.accounts !== undefined) {
+      const a1 = result.accounts.find((a): boolean => a.accountNumber === 'A1');
+      const a2 = result.accounts.find((a): boolean => a.accountNumber === 'A2');
+      expect(a1?.balance).toBe(555.55);
+      expect(a2?.balance).toBe(99);
+    }
+  });
 });
 
 // ── UrlDateRange — uncovered branches ────────────────────

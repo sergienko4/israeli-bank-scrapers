@@ -137,10 +137,10 @@ interface IBillingResultCtx {
  * @param allTxns - Raw billing transactions.
  * @returns Account Procedure.
  */
-async function buildBillingResult(
+function buildBillingResult(
   ctx: IBillingResultCtx,
   allTxns: readonly ITransaction[],
-): Promise<Procedure<ITransactionsAccount>> {
+): Procedure<ITransactionsAccount> {
   const startMs = ctx.startDate.getTime();
   const keyFields = ctx.fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
   const unique = deduplicateTxns(allTxns, startMs, keyFields);

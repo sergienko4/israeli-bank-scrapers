@@ -1,0 +1,26 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "balance-resolve/universal-miss",
+    "captureRunId": "redacted-synthetic-shape",
+    "rationale": "Universal-miss scenario — captured pool contains a response that mentions the accountId in the URL but carries no balance-aliased field anywhere in the body. Exercises the BALANCE-RESOLVE.post universal-miss hard-fail path (all accounts unresolved → fail loud).",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 0 },
+      "balanceResolvePostOutcome": "fail",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://login.bankhapoalim.example/ServerServices/general/accounts?partyCurrentAccount=FAKE-000000",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": {
+        "metadata": { "messages": [], "links": {} },
+        "accountStatusCode": "A",
+        "unrelatedField": "no-balance-here"
+      }
+    }
+  ]
+}

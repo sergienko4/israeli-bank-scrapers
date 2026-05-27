@@ -3,37 +3,9 @@
  * Extracted from ScrapeWK.ts — SOLID single-responsibility for field dictionaries.
  */
 
-/**
- * Display-id field ordering matters: card-suffix-like fields (4-digit
- * card identifiers used as POST body params on the card-family banks)
- * come BEFORE bank-account-number fields. Otherwise findFieldValue
- * matches `accountNumber` (e.g. "228812") on a card record that ALSO
- * carries `cardSuffix` ("8912"), and per-card POST replays would build
- * `card4Number=228812` — too long for the card-family API. Generic
- * ordering rule: short, 4-digit card identifiers first; long bank
- * account identifiers second.
- */
-const DISPLAY_ID_FIELDS = [
-  'last4Digits',
-  'cardSuffix',
-  'cardLast4',
-  'shortCardNumber',
-  'AccountID',
-  'accountNumber',
-  'cardNumber',
-  'bankAccountNum',
-  'displayId',
-  'account',
-] as const;
-
-const QUERY_ID_FIELDS = [
-  'cardUniqueId',
-  'cardUniqueID',
-  'bankAccountUniqueID',
-  'accountId',
-  'CardId',
-  'cardIndex',
-] as const;
+// ID-field tuples are split into {@link ./ScrapeIdFields.js} to keep
+// this module under the 150-line max-lines ceiling.
+import { DISPLAY_ID_FIELDS, QUERY_ID_FIELDS } from './ScrapeIdFields.js';
 
 /** WellKnown response status field names. */
 export const PIPELINE_WELL_KNOWN_RESPONSE_FIELDS = {

@@ -15,7 +15,7 @@
 
 import { logForensicAudit } from '../../Mediator/Scrape/ForensicAuditAction.js';
 import { BasePhase } from '../../Types/BasePhase.js';
-import type { Option } from '../../Types/Option.js';
+import { type Option, some } from '../../Types/Option.js';
 import type {
   IActionContext,
   IPipelineContext,
@@ -84,6 +84,59 @@ class ApiDirectScrapePhase extends BasePhase {
     const outcome = succeed(input);
     return Promise.resolve(outcome);
   }
+
+  /**
+   * FINAL stage — emit `ctx.balanceResolution` directly from the
+   * per-account balances the bank's IApiDirectScrapeShape already
+   * populated on `scrape.accounts[i].balance`. PipelineResult then
+   * reads a single source (balanceResolution) regardless of which
+   * scrape path ran (BALANCE-RESOLVE vs api-direct).
+   *
+   * <p>v6 single-source contract: every browser bank's
+   * BALANCE-RESOLVE.final emits balanceResolution; every api-direct
+   * bank's api-direct-scrape.final does the same here, so the
+   * result-builder reads one field unconditionally (no legacy
+   * fallback needed once both paths are wired).
+   *
+   * @param _ctx - Unused incoming context.
+   * @param input - Pipeline context after .post.
+   * @returns Input + balanceResolution committed.
+   */
+  public final(
+    _ctx: IPipelineContext,
+    input: IPipelineContext,
+  ): Promise<Procedure<IPipelineContext>> {
+    input.logger.debug({ phase: this.name, message: 'api-direct-scrape.final' });
+    const next = emitBalanceResolutionFromScrape(input);
+    return Promise.resolve(next);
+  }
+}
+
+/**
+ * Build the balanceResolution map (if scrape state is present) and
+ * commit it to the context. Hoisted out of the class so `this` is
+ * not implicated (class-methods-use-this).
+ *
+ * @param input - Pipeline context after .post.
+ * @returns Procedure wrapping input + balanceResolution committed.
+ */
+function emitBalanceResolutionFromScrape(input: IPipelineContext): Procedure<IPipelineContext> {
+  if (!input.scrape.has) return succeed(input);
+  const balanceResolution = buildBalanceMapFromScrape(input.scrape.value);
+  const next = { ...input, balanceResolution: some(balanceResolution) };
+  return succeed(next);
+}
+
+/**
+ * Build the per-account balance map from the api-direct shape's own
+ * per-account balance fields. One entry per `accounts[i].accountNumber`.
+ * @param scrape - Scrape state populated by the api-direct action.
+ * @returns Per-account balance map.
+ */
+function buildBalanceMapFromScrape(scrape: IScrapeState): ReadonlyMap<string, number> {
+  const out = new Map<string, number>();
+  for (const acc of scrape.accounts) out.set(acc.accountNumber, acc.balance ?? 0);
+  return out;
 }
 
 /**

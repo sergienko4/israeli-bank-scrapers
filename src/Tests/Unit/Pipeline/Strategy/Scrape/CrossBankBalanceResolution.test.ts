@@ -20,7 +20,7 @@
 import {
   resolveBalanceFromRecords,
   resolveRecordBalance,
-} from '../../../../../Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/BalanceResolve/BalanceExtractor.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Closed enum — pipeline browser banks that expose a balance field. */

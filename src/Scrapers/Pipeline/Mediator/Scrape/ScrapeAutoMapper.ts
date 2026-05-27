@@ -292,6 +292,79 @@ function findFieldValue(
   return hit ?? false;
 }
 
+/**
+ * Recursive collector that visits every plain-object node reachable
+ * through nested objects AND arrays, accumulating
+ * {@link matchFieldInRecord} hits as it goes. Counterpart of
+ * {@link flattenObjectTree}'s arrays-not-descended limitation: id
+ * discovery shapes nest objects inside arrays (e.g. VisaCal
+ * `result.bigNumbers[].cards[]`), so the array-skipping flattener
+ * silently shadows the children.
+ *
+ * @param value - Current JSON value (any nesting depth).
+ * @param fieldNames - WellKnown field names to try at each record.
+ * @returns Array of hits collected at this node and below.
+ */
+function collectFieldValuesDeep(
+  value: unknown,
+  fieldNames: readonly string[],
+): readonly ScalarFieldHit[] {
+  if (Array.isArray(value)) {
+    const arr = value as readonly unknown[];
+    return arr.flatMap((item): readonly ScalarFieldHit[] =>
+      collectFieldValuesDeep(item, fieldNames),
+    );
+  }
+  if (value === null || typeof value !== 'object') return [];
+  return collectFieldValuesFromRecord(value as Record<string, unknown>, fieldNames);
+}
+
+/**
+ * Match a record at this level + recurse into every child value.
+ * Hoisted so {@link collectFieldValuesDeep} stays at depth 1.
+ *
+ * @param record - Record at the current node.
+ * @param fieldNames - WellKnown field names to try at each record.
+ * @returns Hits collected at this record + descendants.
+ */
+function collectFieldValuesFromRecord(
+  record: Record<string, unknown>,
+  fieldNames: readonly string[],
+): readonly ScalarFieldHit[] {
+  const direct = matchFieldInRecord(record, fieldNames);
+  const hereHits: readonly ScalarFieldHit[] = direct === false ? [] : [direct];
+  const children = Object.values(record);
+  const childHits = children.flatMap((child): readonly ScalarFieldHit[] =>
+    collectFieldValuesDeep(child, fieldNames),
+  );
+  return [...hereHits, ...childHits];
+}
+
+/**
+ * Collect every matching field value at any nesting depth — walks
+ * both objects and arrays.
+ *
+ * <p>Counterpart to {@link findFieldValue} that returns ALL hits, not
+ * just the first. Required by SCRAPE.final attribution when one
+ * captured endpoint exposes multiple WK ids at different depths — for
+ * example, VisaCal's `getBigNumberAndDetails` POST body carries a
+ * parent `bankAccountUniqueId` on the request side AND a child
+ * `cardUniqueId` inside `result.bigNumbers[].cards[]` on the response
+ * side. The first-hit variant silently shadows one with the other;
+ * the all-hits variant lets the caller match either.
+ *
+ * @param obj - Root object to search.
+ * @param fieldNames - WellKnown field names to try at each level.
+ * @returns All scalar hits collected via deep walk (may be empty).
+ */
+function findAllFieldValues(
+  obj: Record<string, unknown>,
+  fieldNames: readonly string[],
+): readonly ScalarFieldHit[] {
+  const hits = collectFieldValuesDeep(obj, fieldNames);
+  return hits.filter((h): h is string | number => h !== false);
+}
+
 /** Minimum WK field matches for a txn array. */
 const MIN_TXN_SCORE = 2;
 
@@ -1578,6 +1651,7 @@ export {
   extractAllContainers,
   extractTransactions,
   extractTransactionsForCard,
+  findAllFieldValues,
   findFieldValue,
   findFirstArray,
   isUsableIdentifier,

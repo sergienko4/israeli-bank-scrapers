@@ -11,6 +11,7 @@
 import moment from 'moment';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../Registry/WK/ScrapeWK.js';
 import {
   buildLoadCtxFromPreDiscovered,
   pivotToSpaIfNeeded,
@@ -21,7 +22,9 @@ import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
 import {
   EMPTY_TXN_HARVEST,
+  type IAccountIdentity,
   type IActionContext,
+  type IBalanceFetchTemplate,
   type IBillingCycleCatalog,
   type IDashboardTxnHarvest,
   type IPipelineContext,
@@ -29,8 +32,10 @@ import {
 } from '../../Types/PipelineContext.js';
 import { fail, type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
+import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { logForensicAudit } from './ForensicAuditAction.js';
 import { executeFrozenDirectScrape } from './FrozenScrapeAction.js';
+import { findFieldValue } from './ScrapeAutoMapper.js';
 import { triggerDashboardUi } from './ScrapeUiTrigger.js';
 
 const LOG = createLogger('scrape-phase');
@@ -369,6 +374,16 @@ async function executeMatrixLoop(input: IActionContext): Promise<Procedure<IActi
 
 /**
  * POST: Audit diagnostics — forensic audit table for qualified/pruned cards.
+ *
+ * <p>v4 Issue 2 fix: distinguishes a true scrape miss (no capture
+ * pool, no 2xx responses) from a legitimate empty result (some
+ * 2xx responses landed but every account returned 0 txns — happens
+ * for fresh-issue cards or accounts with no activity in the window).
+ * The npm package now accepts the legitimate-empty case via the
+ * capture-pool heuristic; CI/E2E suites with real banks always
+ * produce a populated pool + 2xx responses so they continue to
+ * fail-fast on true misses.
+ *
  * @param input - Pipeline context after scraping.
  * @returns Updated context with post diagnostics.
  */
@@ -377,17 +392,97 @@ function executeValidateResults(input: IPipelineContext): Promise<Procedure<IPip
   const countStr = String(accountCount);
   if (input.scrape.has) logForensicAudit(input);
   warnZeroAmounts(input);
-  if (isAllAccountsEmpty(input)) {
-    // Detail in JSDoc on isAllAccountsEmpty — error message kept tight
-    // so a downstream `result.errorMessage.includes(...)` test stays
-    // readable, and the prettier 100-col reformat stays stable.
-    const errMsg = `scrape.post: all ${countStr} accounts have 0 txns — scrape miss`;
-    const failResult = fail(ScraperErrorTypes.Generic, errMsg);
-    return Promise.resolve(failResult);
-  }
+  const emptyDecision = decideEmptyGate(input, countStr, accountCount);
+  if (emptyDecision !== false) return Promise.resolve(emptyDecision);
   const diag = { ...input.diagnostics, lastAction: `scrape-post (${countStr} accounts)` };
   const result = succeed({ ...input, diagnostics: diag });
   return Promise.resolve(result);
+}
+
+/**
+ * Decide whether SCRAPE.POST should hard-fail because every account
+ * landed with 0 txns. Returns:
+ *   - false  : not the empty-everywhere state; caller continues.
+ *   - fail   : every account empty AND heuristic flags a scrape miss.
+ * Real-empty accepted path emits a structured info log and returns
+ * `false` so the caller continues into the normal success path.
+ * @param input - Pipeline context.
+ * @param countStr - String form of account count for the message.
+ * @param accountCount - Account count integer for telemetry.
+ * @returns Decision: false to continue, or a terminal Procedure.
+ */
+function decideEmptyGate(
+  input: IPipelineContext,
+  countStr: string,
+  accountCount: number,
+): Procedure<IPipelineContext> | false {
+  if (!isAllAccountsEmpty(input)) return false;
+  const verdict = checkScrapeMissHeuristic(input);
+  if (verdict.isMiss) {
+    const errMsg =
+      `scrape.post: all ${countStr} accounts have 0 txns AND ` +
+      'scrape miss heuristic flagged — fail';
+    return fail(ScraperErrorTypes.Generic, errMsg);
+  }
+  emitRealEmptyAccepted(input, { accountCount, ...verdict });
+  return false;
+}
+
+/** Heuristic verdict returned by {@link checkScrapeMissHeuristic}. */
+interface IScrapeMissVerdict {
+  readonly isMiss: boolean;
+  readonly poolSize: number;
+  readonly successCount: number;
+}
+
+/**
+ * v4 Issue 2 — capture-pool heuristic. Inspects scrapeDiscovery +
+ * mediator state to decide whether the empty-result state is more
+ * likely a scrape miss than a legitimate "no activity in window".
+ * Returns `isMiss: true` when ANY of:
+ *   - scrapeDiscovery option is absent (PRE did not run)
+ *   - frozenEndpoints.length === 0 (no endpoints captured)
+ *   - mediator absent (no surface to verify response counts)
+ *   - countSuccessfulResponses() === 0 (no 2xx responses observed)
+ * Returns `isMiss: false` + counters when both surfaces are present.
+ * @param input - Pipeline context after scraping.
+ * @returns Verdict + counters.
+ */
+function checkScrapeMissHeuristic(input: IPipelineContext): IScrapeMissVerdict {
+  if (!input.scrapeDiscovery.has || !input.mediator.has) {
+    return { isMiss: true, poolSize: 0, successCount: 0 };
+  }
+  const poolSize = input.scrapeDiscovery.value.frozenEndpoints?.length ?? 0;
+  if (poolSize === 0) return { isMiss: true, poolSize: 0, successCount: 0 };
+  const successCount = input.mediator.value.network.countSuccessfulResponses();
+  return { isMiss: successCount === 0, poolSize, successCount };
+}
+
+/** Telemetry counters bundle accepted by {@link emitRealEmptyAccepted}. */
+interface IRealEmptyCounters {
+  readonly accountCount: number;
+  readonly poolSize: number;
+  readonly successCount: number;
+  readonly isMiss?: boolean;
+}
+
+/**
+ * Emit the structured info log when SCRAPE.POST accepts an empty
+ * result as legitimate (prod consumers with no activity in window).
+ * Counters only — zero PII surface.
+ * @param input - Pipeline context.
+ * @param counters - Account / pool / success counters bundle.
+ * @returns True after the log is emitted.
+ */
+function emitRealEmptyAccepted(input: IPipelineContext, counters: IRealEmptyCounters): true {
+  input.logger.info({
+    event: 'scrape.empty-result-accepted',
+    accountCount: String(counters.accountCount),
+    poolSize: String(counters.poolSize),
+    successCount: String(counters.successCount),
+    message: 'all accounts returned 0 txns; pool + responses OK — real empty state',
+  });
+  return true;
 }
 
 /** Transaction amount fields for zero-check. */
@@ -476,16 +571,416 @@ function isAllAccountsEmpty(input: IPipelineContext): boolean {
 }
 
 /**
- * FINAL: Stamp account count for audit trail.
+ * Empty identities map sentinel — used by {@link buildAccountIdentities}
+ * for the no-discovery branch.
+ */
+const EMPTY_IDENTITIES: ReadonlyMap<string, IAccountIdentity> = new Map();
+
+/**
+ * Build the per-card identity map SCRAPE.post emits to BALANCE-RESOLVE.
+ * Pairs each iter accountId with its accountDiscovery record and
+ * extracts the (cardDisplayId, cardUniqueId, bankAccountUniqueId)
+ * triple. Pure data — no balance work.
+ *
+ * @param ids - Iter accountId list (cardDisplayId form).
+ * @param records - accountDiscovery records, same order as ids.
+ * @returns Per-card identity map keyed by cardDisplayId.
+ */
+function buildAccountIdentities(
+  ids: readonly string[],
+  records: readonly Record<string, unknown>[],
+): ReadonlyMap<string, IAccountIdentity> {
+  const out = new Map<string, IAccountIdentity>();
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    const rec = records[i] ?? {};
+    const identity = recordToIdentity(id, rec);
+    out.set(id, identity);
+  }
+  return out;
+}
+
+/**
+ * Build one identity triple from a single accountDiscovery record.
+ * cardUniqueId is picked from queryId fields, bankAccountUniqueId
+ * from the bankAccountUniqueId family; both fall back to the display
+ * id when the record carries no internal id.
+ *
+ * @param displayId - Iter accountId (display form).
+ * @param rec - accountDiscovery record.
+ * @returns Identity triple.
+ */
+function recordToIdentity(displayId: string, rec: Record<string, unknown>): IAccountIdentity {
+  const cardHit = findFieldValue(rec, [...WK_ACCT.queryId]);
+  const cardUid = coerceStringFieldValue(cardHit);
+  const bankHit = findFieldValue(rec, BANK_ACCOUNT_ID_FIELDS);
+  const bankUid = coerceStringFieldValue(bankHit);
+  return {
+    cardDisplayId: displayId,
+    cardUniqueId: cardUid !== '' ? cardUid : displayId,
+    bankAccountUniqueId: bankUid !== '' ? bankUid : displayId,
+  };
+}
+
+/** WK aliases for the parent bank-account id (a subset of queryId). */
+const BANK_ACCOUNT_ID_FIELDS: readonly string[] = [
+  'bankAccountUniqueId',
+  'bankAccountUniqueID',
+  'partyCurrentAccount',
+];
+
+/**
+ * Coerce a findFieldValue scalar return to a non-empty string.
+ * @param hit - Scalar or false.
+ * @returns String form, or empty.
+ */
+function coerceStringFieldValue(hit: string | number | boolean): string {
+  if (hit === false) return '';
+  return String(hit);
+}
+
+/**
+ * Discover the balance fetch template from the captured pool.
+ * Inspects the request shapes SCRAPE / DASHBOARD already used and
+ * picks the SMALLEST-arity per-bank-account call pattern.
+ *
+ * <p>Detection order:
+ *   1. POST whose JSON body carries a {@link WK_ACCT.queryId} field
+ *      → POST template with that field as `postBodyKey`.
+ *   2. GET whose URL query carries a {@link WK_ACCT.queryId} key
+ *      → GET template with `urlQueryKey`.
+ *   3. GET whose URL path ends in `/<id>` where id matches any
+ *      account discovery id → GET template with `urlPathInterpolation`.
+ *   4. Falls back to the first POST or GET capture as a bulk
+ *      template (no key).
+ *
+ * @param pool - All captured endpoints.
+ * @param ids - accountDiscovery iter ids (used by detection 3).
+ * @returns Template, or undefined when the pool is empty.
+ */
+function discoverBalanceFetchTemplate(
+  pool: readonly IDiscoveredEndpoint[],
+  ids: readonly string[],
+): IBalanceFetchTemplate {
+  if (pool.length === 0) return EMPTY_BALANCE_TEMPLATE;
+  const postMatch = findPostTemplate(pool);
+  if (postMatch.url !== '') return postMatch;
+  const getQueryMatch = findGetQueryTemplate(pool);
+  if (getQueryMatch.url !== '') return getQueryMatch;
+  const getPathMatch = findGetPathTemplate(pool, ids);
+  if (getPathMatch.url !== '') return getPathMatch;
+  return findBulkTemplate(pool);
+}
+
+/** Empty template sentinel — `url === ''` means "no template found". */
+const EMPTY_BALANCE_TEMPLATE: IBalanceFetchTemplate = Object.freeze({ url: '', method: 'GET' });
+
+/**
+ * Locate a POST capture whose JSON body carries a WK_ACCT.queryId
+ * field and return a POST template with that field as postBodyKey.
+ *
+ * @param pool - Captured endpoints.
+ * @returns POST template or undefined.
+ */
+function findPostTemplate(pool: readonly IDiscoveredEndpoint[]): IBalanceFetchTemplate {
+  const templates = pool.map(tryBuildPostTemplate);
+  return templates.find((t): boolean => t.url !== '') ?? EMPTY_BALANCE_TEMPLATE;
+}
+
+/**
+ * Inspect one endpoint and return a POST template when its JSON body
+ * carries a WK_ACCT.queryId field, else EMPTY_BALANCE_TEMPLATE.
+ *
+ * @param ep - One captured endpoint.
+ * @returns POST template or {@link EMPTY_BALANCE_TEMPLATE}.
+ */
+function tryBuildPostTemplate(ep: IDiscoveredEndpoint): IBalanceFetchTemplate {
+  if (ep.method !== 'POST' || ep.postData.length === 0) return EMPTY_BALANCE_TEMPLATE;
+  const parsed = tryParseJsonObject(ep.postData);
+  if (parsed.size === 0) return EMPTY_BALANCE_TEMPLATE;
+  const key = pickQueryIdKey(parsed.record);
+  if (!key) return EMPTY_BALANCE_TEMPLATE;
+  return { url: urlWithoutQuery(ep.url), method: 'POST', postBodyKey: key };
+}
+
+/**
+ * Locate a GET capture whose URL query carries a WK_ACCT.queryId
+ * key and return a GET template with `urlQueryKey`.
+ *
+ * @param pool - Captured endpoints.
+ * @returns GET template or undefined.
+ */
+function findGetQueryTemplate(pool: readonly IDiscoveredEndpoint[]): IBalanceFetchTemplate {
+  const templates = pool.map(tryBuildGetQueryTemplate);
+  return templates.find((t): boolean => t.url !== '') ?? EMPTY_BALANCE_TEMPLATE;
+}
+
+/**
+ * Inspect one endpoint and return a GET-query template when its URL
+ * query carries a WK_ACCT.queryId key, else EMPTY_BALANCE_TEMPLATE.
+ *
+ * @param ep - One captured endpoint.
+ * @returns GET template or {@link EMPTY_BALANCE_TEMPLATE}.
+ */
+function tryBuildGetQueryTemplate(ep: IDiscoveredEndpoint): IBalanceFetchTemplate {
+  if (ep.method !== 'GET') return EMPTY_BALANCE_TEMPLATE;
+  const query = parseQueryRecord(ep.url);
+  const key = pickQueryIdKey(query);
+  if (!key) return EMPTY_BALANCE_TEMPLATE;
+  return { url: ep.url, method: 'GET', urlQueryKey: key };
+}
+
+/**
+ * Locate a GET capture whose URL path ends in `/<id>` where id is one
+ * of the accountDiscovery ids.
+ *
+ * @param pool - Captured endpoints.
+ * @param ids - Account discovery iter ids.
+ * @returns GET template or undefined.
+ */
+function findGetPathTemplate(
+  pool: readonly IDiscoveredEndpoint[],
+  ids: readonly string[],
+): IBalanceFetchTemplate {
+  const templates = pool.map((ep): IBalanceFetchTemplate => tryBuildGetPathTemplate(ep, ids));
+  return templates.find((t): boolean => t.url !== '') ?? EMPTY_BALANCE_TEMPLATE;
+}
+
+/**
+ * Inspect one endpoint and return a GET-path template when its URL
+ * path ends in `/<id>` where id is one of the iter accountIds.
+ *
+ * @param ep - One captured endpoint.
+ * @param ids - Iter accountIds.
+ * @returns GET template or {@link EMPTY_BALANCE_TEMPLATE}.
+ */
+function tryBuildGetPathTemplate(
+  ep: IDiscoveredEndpoint,
+  ids: readonly string[],
+): IBalanceFetchTemplate {
+  if (ep.method !== 'GET') return EMPTY_BALANCE_TEMPLATE;
+  const pathTail = pathTailSegment(ep.url);
+  if (!ids.includes(pathTail)) return EMPTY_BALANCE_TEMPLATE;
+  const templateUrl = ep.url.replace(`/${pathTail}`, '/<ID>');
+  return { url: templateUrl, method: 'GET', urlPathInterpolation: true };
+}
+
+/**
+ * Final fallback: emit a bulk template using the first POST or GET
+ * in the pool (no per-account key).
+ *
+ * @param pool - Captured endpoints.
+ * @returns Bulk template, or {@link EMPTY_BALANCE_TEMPLATE} for empty pool.
+ */
+function findBulkTemplate(pool: readonly IDiscoveredEndpoint[]): IBalanceFetchTemplate {
+  if (pool.length === 0) return EMPTY_BALANCE_TEMPLATE;
+  const ep = pool[0];
+  const method = ep.method === 'POST' ? 'POST' : 'GET';
+  const url = urlWithoutQuery(ep.url);
+  return { url, method };
+}
+
+/**
+ * Find the first key in `rec` whose name matches any WK_ACCT.queryId
+ * alias (case-insensitive).
+ *
+ * @param rec - Plain record.
+ * @returns Matching key or empty.
+ */
+function pickQueryIdKey(rec: Readonly<Record<string, unknown>>): string {
+  const lowerToKey = buildLowerKeyMap(rec);
+  const lookups = WK_ACCT.queryId.map((alias): string => resolveOriginalKey(lowerToKey, alias));
+  const match = lookups.find((k): boolean => k.length > 0);
+  return match ?? '';
+}
+
+/**
+ * Resolve the original-case key for a lowercase WK alias, returning
+ * empty when not present. Hoisted so {@link pickQueryIdKey} stays
+ * inside its `.map()` callback at depth 1.
+ *
+ * @param lowerToKey - Lowercase → original key lookup.
+ * @param alias - WK_ACCT.queryId alias to resolve.
+ * @returns Original-case key, or empty string.
+ */
+function resolveOriginalKey(lowerToKey: Map<string, string>, alias: string): string {
+  const lowerAlias = alias.toLowerCase();
+  return lowerToKey.get(lowerAlias) ?? '';
+}
+
+/**
+ * Build a lowercase-key → original-key lookup so {@link pickQueryIdKey}
+ * stays at depth 1 (max-depth rule).
+ *
+ * @param rec - Plain record.
+ * @returns Lookup map.
+ */
+function buildLowerKeyMap(rec: Readonly<Record<string, unknown>>): Map<string, string> {
+  const out = new Map<string, string>();
+  /**
+   * Add a single lowercase→original entry to the lookup.
+   * @param k - Original key.
+   * @returns Updated lookup map.
+   */
+  const setEntry = (k: string): Map<string, string> => {
+    const lowerK = k.toLowerCase();
+    return out.set(lowerK, k);
+  };
+  Object.keys(rec).forEach(setEntry);
+  return out;
+}
+
+/** Result wrapper for {@link tryParseJsonObject}. */
+interface IJsonParseResult {
+  readonly size: number;
+  readonly record: Readonly<Record<string, unknown>>;
+}
+
+const EMPTY_JSON_PARSE: IJsonParseResult = Object.freeze({ size: 0, record: Object.freeze({}) });
+
+/**
+ * Narrow a JSON.parse result to a record. Arrays / nulls / primitives
+ * collapse to the empty sentinel so {@link tryParseJsonObject} stays
+ * flat (max-depth ≤ 1).
+ *
+ * @param parsed - JSON.parse result.
+ * @returns Wrapped record (size=0 ⇒ non-object).
+ */
+function narrowParsedToResult(parsed: unknown): IJsonParseResult {
+  if (parsed === null) return EMPTY_JSON_PARSE;
+  if (typeof parsed !== 'object') return EMPTY_JSON_PARSE;
+  if (Array.isArray(parsed)) return EMPTY_JSON_PARSE;
+  const record = parsed as Record<string, unknown>;
+  return { size: Object.keys(record).length || 1, record };
+}
+
+/**
+ * Try to parse a JSON string and narrow to a plain object record.
+ * @param raw - JSON string.
+ * @returns Wrapped record + size (size=0 ⇒ parse failed or non-object).
+ */
+function tryParseJsonObject(raw: string): IJsonParseResult {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return narrowParsedToResult(parsed);
+  } catch {
+    return EMPTY_JSON_PARSE;
+  }
+}
+
+/**
+ * Parse the URL query string into a flat record.
+ * @param url - URL.
+ * @returns Query record.
+ */
+function parseQueryRecord(url: string): Record<string, string> {
+  try {
+    return populateQueryRecord(new URL(url));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Populate a flat record from a parsed URL's searchParams.
+ *
+ * @param u - Parsed URL.
+ * @returns Flat record of query params.
+ */
+function populateQueryRecord(u: URL): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of u.searchParams.entries()) out[k] = v;
+  return out;
+}
+
+/**
+ * Extract the last URL path segment (the bit after the final `/` and
+ * before any query string). Used by GET-path template detection.
+ *
+ * @param url - URL.
+ * @returns Last path segment (after final `/`, before `?`).
+ */
+function pathTailSegment(url: string): string {
+  const qIdx = url.indexOf('?');
+  const noQuery = qIdx < 0 ? url : url.slice(0, qIdx);
+  const slashIdx = noQuery.lastIndexOf('/');
+  return slashIdx < 0 ? noQuery : noQuery.slice(slashIdx + 1);
+}
+
+/**
+ * Strip the query string off a URL, returning the path-only prefix.
+ *
+ * @param url - URL.
+ * @returns URL without the query string.
+ */
+function urlWithoutQuery(url: string): string {
+  const i = url.indexOf('?');
+  return i < 0 ? url : url.slice(0, i);
+}
+
+/**
+ * SCRAPE.post (v6) — stamp account count + emit BALANCE-RESOLVE
+ * inputs onto scrape state.
+ *
+ * <p>Emits {@link IAccountIdentity} triples per iter accountId
+ * (from accountDiscovery) and the {@link IBalanceFetchTemplate}
+ * derived from the captured pool. BALANCE-RESOLVE.pre will
+ * consume both and plan per-bank-account fetches.
+ *
+ * <p>No balance work in this phase — single-phase ownership rule
+ * (general-phases-view-guidlines.md). When accountDiscovery or
+ * mediator is absent (test paths), the v6 fields stay undefined.
+ *
  * @param input - Pipeline context with scrape state.
- * @returns Updated context with lastAction diagnostic.
+ * @returns Updated context with diagnostics + identities + template.
  */
 function executeStampAccounts(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const count = (input.scrape.has && input.scrape.value.accounts.length) || 0;
   const label = `scrape-final (${String(count)} accounts)`;
   const diag = { ...input.diagnostics, lastAction: label };
-  const result = succeed({ ...input, diagnostics: diag });
-  return Promise.resolve(result);
+  if (!input.scrape.has) {
+    const noScrapeNext = succeed({ ...input, diagnostics: diag });
+    return Promise.resolve(noScrapeNext);
+  }
+  const identities = buildIdentitiesForScrape(input);
+  const template = buildTemplateForScrape(input);
+  const hasIdentities = identities.size > 0;
+  const hasTemplate = template.url !== '';
+  const scrapeWithEmit = some({
+    ...input.scrape.value,
+    accountIdentities: hasIdentities ? identities : undefined,
+    balanceFetchTemplate: hasTemplate ? template : undefined,
+  });
+  const next = succeed({ ...input, diagnostics: diag, scrape: scrapeWithEmit });
+  return Promise.resolve(next);
+}
+
+/**
+ * Read accountDiscovery and build the identity map. Returns the
+ * empty sentinel when accountDiscovery is absent.
+ *
+ * @param input - Pipeline context.
+ * @returns Identity map.
+ */
+function buildIdentitiesForScrape(input: IPipelineContext): ReadonlyMap<string, IAccountIdentity> {
+  if (!input.accountDiscovery.has) return EMPTY_IDENTITIES;
+  const { ids, records } = input.accountDiscovery.value;
+  return buildAccountIdentities(ids, records);
+}
+
+/**
+ * Read network captures and discover the balance fetch template.
+ * Returns undefined when mediator absent or no template candidate
+ * found.
+ *
+ * @param input - Pipeline context.
+ * @returns Template or undefined.
+ */
+function buildTemplateForScrape(input: IPipelineContext): IBalanceFetchTemplate {
+  if (!input.mediator.has) return EMPTY_BALANCE_TEMPLATE;
+  const pool = input.mediator.value.network.getAllEndpoints();
+  const ids = input.accountDiscovery.has ? input.accountDiscovery.value.ids : [];
+  return discoverBalanceFetchTemplate(pool, ids);
 }
 
 export { executeForensicPre, executeMatrixLoop, executeStampAccounts, executeValidateResults };
