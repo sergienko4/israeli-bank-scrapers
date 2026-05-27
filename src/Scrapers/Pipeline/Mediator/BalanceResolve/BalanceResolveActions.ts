@@ -130,14 +130,16 @@ function maskTail4(id: string): string {
  *
  * @param api - API fetch context.
  * @param entry - Plan entry to execute.
+ * @param logger - Pipeline logger (for body-parse-failure warns).
  * @returns Procedure<unknown> wrapping the response body.
  */
 async function issueOneFetch(
   api: IApiFetchContext,
   entry: IBalanceFetchPlanEntry,
+  logger: IActionContext['logger'],
 ): Promise<Procedure<unknown>> {
   if (entry.request.method === 'POST') {
-    const parsedBody = safeParseJson(entry.request.body);
+    const parsedBody = safeParseJson(entry.request.body, logger);
     return api.fetchPost<unknown>(entry.request.url, parsedBody);
   }
   return api.fetchGet<unknown>(entry.request.url);
@@ -163,15 +165,28 @@ function narrowParsed(parsed: unknown): Record<string, string | object> {
 
 /**
  * Parse a JSON string to a record without throwing across module boundaries.
+ * Malformed JSON is logged as `balance-resolve.body-parse-failure` (warn) —
+ * body length only, never the body itself — so silent MISSes from a planner
+ * bug or hand-crafted fixture are auditable in `pipeline.log`.
+ *
  * @param raw - JSON string (may be empty).
- * @returns Record (empty when raw is empty / non-object).
+ * @param logger - Pipeline logger for the body-parse-failure warn.
+ * @returns Record (empty when raw is empty / non-object / malformed).
  */
-function safeParseJson(raw: string): Record<string, string | object> {
+function safeParseJson(
+  raw: string,
+  logger: IActionContext['logger'],
+): Record<string, string | object> {
   if (raw.length === 0) return EMPTY_PARSED_BODY;
   try {
     const parsed: unknown = JSON.parse(raw);
     return narrowParsed(parsed);
   } catch {
+    logger.warn({
+      event: 'balance-resolve.body-parse-failure',
+      bodyLen: String(raw.length),
+      message: 'malformed request body — sending empty payload; downstream MISS likely',
+    });
     return EMPTY_PARSED_BODY;
   }
 }
@@ -268,7 +283,7 @@ async function dispatchEntry(
     method: entry.request.method,
   });
   const startMs = Date.now();
-  const result = await issueOneFetch(ctx.api, entry);
+  const result = await issueOneFetch(ctx.api, entry, ctx.logger);
   const elapsedMs = String(Date.now() - startMs);
   if (!isOk(result)) {
     ctx.logger.warn({

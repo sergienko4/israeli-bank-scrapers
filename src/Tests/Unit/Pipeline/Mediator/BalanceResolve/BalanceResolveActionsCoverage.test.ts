@@ -336,6 +336,44 @@ describe('BALANCE-RESOLVE coverage — safeParseJson narrowParsed branches', () 
     const result = await executeBalanceResolveAction(ctx);
     assertOk(result);
   });
+
+  it('ACTION: malformed JSON body emits balance-resolve.body-parse-failure warn', async () => {
+    const malformedBody = '{ not valid json';
+    const captured: { event: string; bodyLen: string }[] = [];
+    const baseLogger = makeMockContext({}).logger;
+    const captureLogger = {
+      ...baseLogger,
+      /**
+       * Capture warn payloads for assertion.
+       * @param payload - Pino-style record.
+       * @param payload.event - Event name (e.g. balance-resolve.body-parse-failure).
+       * @param payload.bodyLen - String-encoded raw body length.
+       */
+      warn: (payload: { event: string; bodyLen: string }): void => {
+        captured.push(payload);
+      },
+    };
+    const entry: IBalanceFetchPlanEntry = {
+      bankAccountUniqueId: 'BA-1',
+      request: { url: 'http://x', method: 'POST', body: malformedBody, headers: {} },
+    };
+    const fixedApi = makeFixedApi({});
+    const ctx = makeMockContext({
+      balanceFetchPlan: some([entry]),
+      api: some(fixedApi),
+      logger: captureLogger,
+    });
+    const actionCtx = ctx as unknown as Parameters<typeof executeBalanceResolveAction>[0];
+    const result = await executeBalanceResolveAction(actionCtx);
+    assertOk(result);
+
+    const parseFailures = captured.filter(
+      (p): boolean => p.event === 'balance-resolve.body-parse-failure',
+    );
+    expect(parseFailures.length).toBe(1);
+    const expectedLen = String(malformedBody.length);
+    expect(parseFailures[0].bodyLen).toBe(expectedLen);
+  });
 });
 
 describe('BALANCE-RESOLVE coverage — extractor-false fall-through', () => {
