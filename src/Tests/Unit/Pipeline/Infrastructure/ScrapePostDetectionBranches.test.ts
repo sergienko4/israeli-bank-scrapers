@@ -155,6 +155,26 @@ describe('ScrapePhaseActions — SCRAPE.post detection branch coverage (v6)', ()
     }
   });
 
+  it('pool with only non-GET/POST endpoints (PUT/PATCH) → no balanceFetchTemplate emitted', async () => {
+    const putEp: IDiscoveredEndpoint = {
+      url: 'https://bank.example/api/something',
+      method: 'PUT',
+      postData: '',
+      responseBody: null,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 1,
+    };
+    const ctx = makeStampCtx(putEp);
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const tmpl = result.value.scrape.value.balanceFetchTemplate;
+      expect(tmpl).toBeUndefined();
+    }
+  });
+
   it('records.length < ids.length → buildAccountIdentities records[i] ?? {} fallback', async () => {
     const mediator = makeMediatorWithPool([]);
     const discovery: IAccountDiscovery = {

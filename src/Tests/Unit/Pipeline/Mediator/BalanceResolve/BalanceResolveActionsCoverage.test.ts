@@ -39,6 +39,44 @@ const TMPL_POST: IBalanceFetchTemplate = {
 };
 
 /**
+ * Build a fake api whose every fetch THROWS an exception (rather than
+ * returning a `Procedure` fail). Lets coverage tests exercise the
+ * safeIssueOneFetch try/catch path that preserves the Promise.all
+ * quarantine.
+ *
+ * @returns Fake api context.
+ */
+function makeThrowingApi(): IApiFetchContext {
+  /**
+   * Throws synchronously.
+   *
+   * @param url - URL (touched to satisfy unused-args).
+   * @returns Never returns.
+   */
+  const fetchPost = (url: string): Promise<Procedure<unknown>> => {
+    const key = `${url}#post`;
+    throw new ScraperError(`upstream blew up dispatching POST ${key}`);
+  };
+  /**
+   * Throws synchronously.
+   *
+   * @param url - URL.
+   * @returns Never returns.
+   */
+  const fetchGet = (url: string): Promise<Procedure<unknown>> => {
+    const key = `${url}#get`;
+    throw new ScraperError(`upstream blew up dispatching GET ${key}`);
+  };
+  return {
+    fetchPost,
+    fetchGet,
+    transactionsUrl: false,
+    balanceUrl: false,
+    pendingUrl: false,
+  } as IApiFetchContext;
+}
+
+/**
  * Build a fake api that always succeeds with the supplied body. URL is
  * interpolated into an internal key so the `url` parameter is consumed
  * (satisfies the no-unused-vars rule without `_` prefixes).
@@ -335,6 +373,18 @@ describe('BALANCE-RESOLVE coverage — safeParseJson narrowParsed branches', () 
     const ctx = makeActionCtxWithBody('{ not valid json');
     const result = await executeBalanceResolveAction(ctx);
     assertOk(result);
+  });
+
+  it('ACTION: api.fetchPost THROWS → safeIssueOneFetch catch → all cards MISS, no Promise.all abort', async () => {
+    const scrape = makeOneCardScrape('C1', 'C1', 'BA-1');
+    const throwingApi = makeThrowingApi();
+    const apiSome = some(throwingApi);
+    const result = await runPreThenAction(scrape, apiSome);
+    assertOk(result);
+    if (result.value.balanceExtracted.has) {
+      const got = result.value.balanceExtracted.value.get('C1');
+      expect(got).toBe('MISS');
+    }
   });
 
   it('ACTION: malformed JSON body emits balance-resolve.body-parse-failure warn', async () => {

@@ -50,7 +50,7 @@ describe('ApiDirectScrapePhase — v6 .final balanceResolution emission', () => 
     }
   });
 
-  it('FINAL: balance ?? 0 collapses undefined to zero', async () => {
+  it('FINAL: missing balance is OMITTED from the resolution map (default-deny)', async () => {
     const phase = Reflect.construct(ApiDirectScrapePhase, [
       (): Promise<never> => Promise.reject(new Error('action not used')),
     ]);
@@ -64,8 +64,8 @@ describe('ApiDirectScrapePhase — v6 .final balanceResolution emission', () => 
     expect(isSuccess).toBe(true);
     if (isSuccess && result.value.balanceResolution.has) {
       const map = result.value.balanceResolution.value;
-      const acc = map.get('ACC-NULL');
-      expect(acc).toBe(0);
+      const hasEntry = map.has('ACC-NULL');
+      expect(hasEntry).toBe(false);
     }
   });
 });

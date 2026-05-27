@@ -617,8 +617,8 @@ function recordToIdentity(displayId: string, rec: Record<string, unknown>): IAcc
   const bankUid = coerceStringFieldValue(bankHit);
   return {
     cardDisplayId: displayId,
-    cardUniqueId: cardUid !== '' ? cardUid : displayId,
-    bankAccountUniqueId: bankUid !== '' ? bankUid : displayId,
+    cardUniqueId: cardUid === '' ? displayId : cardUid,
+    bankAccountUniqueId: bankUid === '' ? displayId : bankUid,
   };
 }
 
@@ -773,8 +773,8 @@ function tryBuildGetPathTemplate(
  * @returns Bulk template, or {@link EMPTY_BALANCE_TEMPLATE} for empty pool.
  */
 function findBulkTemplate(pool: readonly IDiscoveredEndpoint[]): IBalanceFetchTemplate {
-  if (pool.length === 0) return EMPTY_BALANCE_TEMPLATE;
-  const ep = pool[0];
+  const ep = pool.find((e): boolean => e.method === 'POST' || e.method === 'GET');
+  if (ep === undefined) return EMPTY_BALANCE_TEMPLATE;
   const method = ep.method === 'POST' ? 'POST' : 'GET';
   const url = urlWithoutQuery(ep.url);
   return { url, method };

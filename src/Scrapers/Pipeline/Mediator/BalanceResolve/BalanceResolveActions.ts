@@ -38,7 +38,7 @@ import type {
 } from '../../Types/PipelineContext.js';
 import { fail, isOk, type Procedure, succeed } from '../../Types/Procedure.js';
 import { runBalanceExtractor } from './BalanceExtractor.js';
-import { buildBalanceFetchPlan, EMPTY_PLAN } from './BalanceFetchPlanner.js';
+import { buildBalanceFetchPlan, BULK_KEY, EMPTY_PLAN } from './BalanceFetchPlanner.js';
 
 const LOG = createLogger('balance-resolve');
 
@@ -143,6 +143,32 @@ async function issueOneFetch(
     return api.fetchPost<unknown>(entry.request.url, parsedBody);
   }
   return api.fetchGet<unknown>(entry.request.url);
+}
+
+/**
+ * Wraps {@link issueOneFetch} so a *thrown* exception from
+ * `api.fetchPost` / `api.fetchGet` is converted to a `Procedure` fail
+ * instead of propagating up through `Promise.all` and aborting every
+ * sibling fetch. Without this guard one bank account's network error
+ * cancels the whole BALANCE-RESOLVE.action run — breaking the
+ * quarantine contract (debugging-guidlines §5).
+ *
+ * @param ctx - Fetch execution context.
+ * @param entry - Plan entry being dispatched.
+ * @returns Procedure wrapping success or a typed failure.
+ */
+async function safeIssueOneFetch(
+  ctx: IFetchExecCtx,
+  entry: IBalanceFetchPlanEntry,
+): Promise<Procedure<unknown>> {
+  try {
+    return await issueOneFetch(ctx.api, entry, ctx.logger);
+  } catch {
+    return fail(
+      ScraperErrorTypes.Generic,
+      'balance-resolve.action: api.fetch threw — quarantined per Promise.all contract',
+    );
+  }
 }
 
 /** Empty parsed-body sentinel. */
@@ -283,7 +309,7 @@ async function dispatchEntry(
     method: entry.request.method,
   });
   const startMs = Date.now();
-  const result = await issueOneFetch(ctx.api, entry, ctx.logger);
+  const result = await safeIssueOneFetch(ctx, entry);
   const elapsedMs = String(Date.now() - startMs);
   if (!isOk(result)) {
     ctx.logger.warn({
@@ -450,7 +476,7 @@ function extractOneCard(
   identity: IAccountIdentity,
   responses: ReadonlyMap<string, unknown>,
 ): BalanceExtractionOutcome {
-  const body = responses.get(identity.bankAccountUniqueId) ?? responses.get('__BULK__');
+  const body = responses.get(identity.bankAccountUniqueId) ?? responses.get(BULK_KEY);
   if (body === undefined) return 'MISS';
   const got = extractPerCardBalance(body, identity);
   if (got === false) return 'MISS';
