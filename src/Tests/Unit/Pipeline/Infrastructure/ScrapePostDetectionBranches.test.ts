@@ -14,54 +14,8 @@ import { executeStampAccounts } from '../../../../Scrapers/Pipeline/Mediator/Scr
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IAccountDiscovery } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeMockContext } from './MockFactories.js';
-
-/**
- * Build a mediator whose `network.getAllEndpoints` returns the
- * supplied pool. Copied from Wave5 helpers because exporting that
- * file's local helpers would re-tangle the split.
- *
- * @param pool - Pool to expose via the mediator stub.
- * @returns Mediator with patched network.
- */
-function makeMediatorWithPool(
-  pool: readonly IDiscoveredEndpoint[],
-): ReturnType<typeof makeMockMediator> {
-  const base = makeMockMediator();
-  return {
-    ...base,
-    network: {
-      ...base.network,
-      /**
-       * Returns the seeded pool.
-       *
-       * @returns Pool.
-       */
-      getAllEndpoints: (): readonly IDiscoveredEndpoint[] => pool,
-    },
-  };
-}
-
-/**
- * Build an accountDiscovery option with a single id + record pair.
- *
- * @param id - iter accountId.
- * @param record - matching record.
- * @returns accountDiscovery Some.
- */
-function makeSingleAccountDiscovery(
-  id: string,
-  record: Record<string, unknown>,
-): ReturnType<typeof some<IAccountDiscovery>> {
-  const discovery: IAccountDiscovery = {
-    ids: [id],
-    records: [record],
-    containers: {},
-    endpointCaptureIndex: 0,
-  };
-  return some(discovery);
-}
+import { makeMediatorWithPool, makeSingleAccountDiscovery } from './ScrapeMockHelpers.js';
 
 /**
  * Build a POST endpoint with the supplied request body. Used by the

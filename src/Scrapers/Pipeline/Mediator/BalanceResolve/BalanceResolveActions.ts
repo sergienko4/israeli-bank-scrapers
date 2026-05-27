@@ -22,6 +22,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { PIPELINE_DISPLAY_ID_FIELDS } from '../../Registry/WK/BalanceResolveWK.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { some } from '../../Types/Option.js';
 import { redactAccount } from '../../Types/PiiRedactor.js';
@@ -392,15 +393,6 @@ function findCardRecordInChildren(
   return candidates.find((c): boolean => !isNoCardRecord(c)) ?? NO_CARD_RECORD;
 }
 
-/** Display-id field names checked when matching a card record. */
-const DISPLAY_ID_FIELDS: readonly string[] = [
-  'last4Digits',
-  'cardSuffix',
-  'cardLast4',
-  'shortCardNumber',
-  'card4Number',
-];
-
 /**
  * Does the record's cardUniqueId / display fields match the identity?
  * @param rec - JSON record.
@@ -410,7 +402,9 @@ const DISPLAY_ID_FIELDS: readonly string[] = [
 function matchesIdentity(rec: Record<string, unknown>, identity: IAccountIdentity): boolean {
   const uid = rec.cardUniqueId ?? rec.cardUniqueID;
   if (typeof uid === 'string' && uid === identity.cardUniqueId) return true;
-  return DISPLAY_ID_FIELDS.some((f): boolean => matchDisplayField(rec[f], identity.cardDisplayId));
+  return PIPELINE_DISPLAY_ID_FIELDS.some((f): boolean =>
+    matchDisplayField(rec[f], identity.cardDisplayId),
+  );
 }
 
 /**
@@ -497,16 +491,50 @@ async function executeBalanceResolveAction(
   input: IActionContext,
 ): Promise<Procedure<IActionContext>> {
   const plan = input.balanceFetchPlan.has ? input.balanceFetchPlan.value : EMPTY_PLAN;
-  const identities = readAccountIdentities(input);
   if (plan.length === 0 || !input.api.has) {
-    return succeed({
-      ...input,
-      balanceResponsesByBankAccount: some(EMPTY_RESPONSES),
-      balanceExtracted: some(EMPTY_EXTRACTED),
-    });
+    const empty = commitEmptyAction(input);
+    return succeed(empty);
   }
-  const correlationId = randomUUID();
-  const fetchCtx: IFetchExecCtx = { api: input.api.value, logger: input.logger, correlationId };
+  const fetchCtx: IFetchExecCtx = {
+    api: input.api.value,
+    logger: input.logger,
+    correlationId: randomUUID(),
+  };
+  return executeDispatchChain(input, fetchCtx, plan);
+}
+
+/**
+ * Build the early-return shape when there is nothing to dispatch
+ * (empty plan, or api absent). Both empty sentinels committed so
+ * downstream `.post` / `.final` see consistent state.
+ *
+ * @param input - Action context.
+ * @returns Action context with empty extracted + responses committed.
+ */
+function commitEmptyAction(input: IActionContext): IActionContext {
+  return {
+    ...input,
+    balanceResponsesByBankAccount: some(EMPTY_RESPONSES),
+    balanceExtracted: some(EMPTY_EXTRACTED),
+  };
+}
+
+/**
+ * Run the dispatch + extract pipeline for the populated-plan path.
+ * Hoisted so {@link executeBalanceResolveAction} stays at ≤10 lines
+ * (project convention).
+ *
+ * @param input - Sealed action context.
+ * @param fetchCtx - Pre-built fetch execution context.
+ * @param plan - Per-bank-account plan entries.
+ * @returns Action context with responses + extracted committed.
+ */
+async function executeDispatchChain(
+  input: IActionContext,
+  fetchCtx: IFetchExecCtx,
+  plan: readonly IBalanceFetchPlanEntry[],
+): Promise<Procedure<IActionContext>> {
+  const identities = readAccountIdentities(input);
   const responses = await fetchAllPlanEntries(fetchCtx, plan);
   const extracted = extractAllCards(identities, responses);
   return succeed({

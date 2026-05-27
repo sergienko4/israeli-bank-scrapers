@@ -98,12 +98,32 @@ function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
     otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
+    ...balanceContextSlice(ctx),
+    browser: ctx.browser,
+  };
+}
+
+/**
+ * The five BALANCE-RESOLVE slots that both bootstrap and sealed action
+ * contexts carry. Hoisted so the two builders don't drift; matches the
+ * "Generic over duplication" project rule.
+ *
+ * @param ctx - Full pipeline context.
+ * @returns Slice of the five balance slots.
+ */
+function balanceContextSlice(ctx: IPipelineContext): {
+  readonly balanceFetchPlan: IPipelineContext['balanceFetchPlan'];
+  readonly balanceResponsesByBankAccount: IPipelineContext['balanceResponsesByBankAccount'];
+  readonly balanceExtracted: IPipelineContext['balanceExtracted'];
+  readonly balanceValidation: IPipelineContext['balanceValidation'];
+  readonly balanceResolution: IPipelineContext['balanceResolution'];
+} {
+  return {
     balanceFetchPlan: ctx.balanceFetchPlan,
     balanceResponsesByBankAccount: ctx.balanceResponsesByBankAccount,
     balanceExtracted: ctx.balanceExtracted,
     balanceValidation: ctx.balanceValidation,
     balanceResolution: ctx.balanceResolution,
-    browser: ctx.browser,
   };
 }
 
@@ -138,11 +158,7 @@ function buildActionContext(ctx: IPipelineContext): IActionContext {
     otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
-    balanceFetchPlan: ctx.balanceFetchPlan,
-    balanceResponsesByBankAccount: ctx.balanceResponsesByBankAccount,
-    balanceExtracted: ctx.balanceExtracted,
-    balanceValidation: ctx.balanceValidation,
-    balanceResolution: ctx.balanceResolution,
+    ...balanceContextSlice(ctx),
   };
 }
 

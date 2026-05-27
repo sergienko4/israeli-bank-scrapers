@@ -56,3 +56,18 @@ export const ILS_CURRENCY_CODE = 376;
 
 /** Hebrew shekel symbol. */
 export const ILS_CURRENCY_SYMBOL = '₪';
+
+/**
+ * Per-card display-id field aliases used by BALANCE-RESOLVE's
+ * per-card extractor when the response carries a tail-4 / short
+ * suffix rather than a full `cardUniqueId`. Centralised here so bank
+ * shape evolution lives next to the rest of the BALANCE-RESOLVE WK
+ * surface (coding-principle-guidlines: constants from configuration).
+ */
+export const PIPELINE_DISPLAY_ID_FIELDS: readonly string[] = [
+  'last4Digits',
+  'cardSuffix',
+  'cardLast4',
+  'shortCardNumber',
+  'card4Number',
+] as const;

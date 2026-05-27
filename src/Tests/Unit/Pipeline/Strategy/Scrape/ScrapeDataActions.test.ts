@@ -504,6 +504,7 @@ describe('buildAccountResult', () => {
     const result = buildAccountResult(ctx, []);
     const isOkResultScanned = isOk(result);
     expect(isOkResultScanned).toBe(true);
+    if (isOk(result)) expect(result.value.accountNumber).toBe('5555');
   });
 
   it('treats displayId="default" as a placeholder and prefers a captured account number', () => {
