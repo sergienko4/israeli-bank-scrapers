@@ -16,7 +16,7 @@
 const result = await scraper.scrape({
   email: 'user@example.com',
   password: 'mypassword',
-  phoneNumber: '972000000000',                       // digits-only international
+  phoneNumber: '+972000000000',                      // international-plus (with +)
   otpCodeRetriever: async () => await myInbox.getCode(),
 });
 

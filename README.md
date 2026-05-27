@@ -10,7 +10,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/pr.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![License](https://img.shields.io/github/license/sergienko4/israeli-bank-scrapers?style=for-the-badge)](./LICENSE)
-[![API Docs](https://img.shields.io/badge/API_Docs-TypeDoc-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://sergienko4.github.io/israeli-bank-scrapers/)
+[![API Docs](https://img.shields.io/badge/API_Docs-TypeDoc-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://sergienko4.github.io/israeli-bank-scrapers/api/)
 [![npm downloads](https://img.shields.io/npm/dm/@sergienko4/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
 [![SonarCloud](https://img.shields.io/sonar/quality_gate/sergienko4_israeli-bank-scrapers?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarcloud&logoColor=white)](https://sonarcloud.io/summary/overall?id=sergienko4_israeli-bank-scrapers)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/sergienko4/israeli-bank-scrapers?style=for-the-badge&label=OSSF)](https://securityscorecards.dev/viewer/?uri=github.com/sergienko4/israeli-bank-scrapers)
@@ -623,7 +623,7 @@ Thanks to the original [israeli-bank-scrapers](https://github.com/eshaham/israel
 
 ## Links
 
-- [API Documentation (TypeDoc)](https://sergienko4.github.io/israeli-bank-scrapers/)
+- [API Documentation (TypeDoc)](https://sergienko4.github.io/israeli-bank-scrapers/api/)
 - [Changelog](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/CHANGELOG.md)
 - [Contributing](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/CONTRIBUTING.md)
 - [Code of Conduct](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/CODE_OF_CONDUCT.md)

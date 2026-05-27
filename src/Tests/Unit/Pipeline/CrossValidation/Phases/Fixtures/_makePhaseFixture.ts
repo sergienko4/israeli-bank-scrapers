@@ -192,7 +192,7 @@ export interface IPhaseHExpected {
   readonly authDiscoveryPostMinCookieCount?: number;
   /** BALANCE-RESOLVE expected balance per accountId. Map allows
    *  multi-account banks to assert per-card values; single-account
-   *  banks use one entry. v5 BALANCE-RESOLVE phase factory contract. */
+   *  banks use one entry. v6 BALANCE-RESOLVE phase factory contract. */
   readonly balanceResolveExpected?: Readonly<Record<string, number>>;
   /** BALANCE-RESOLVE POST Procedure verdict — succeeds unless every
    *  accountId is unresolved (universal miss = scrape failure). */

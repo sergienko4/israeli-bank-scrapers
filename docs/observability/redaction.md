@@ -60,7 +60,7 @@ ESLint AST selectors reject pull requests that try to bypass the runtime layer. 
 - `LOG.<level>({ result, ... })` / `{ accounts }` / `{ transactions }` — passing whole payloads
 - `console.log` (any) — bypasses Pino entirely
 
-Source: [`src/Scrapers/Pipeline/EslintCanaries/pii-log.canary.ts`](https://github.com/sergienko4/israeli-bank-scrapers/tree/main/src/Scrapers/Pipeline/EslintCanaries) + the `PII-Log` rule in `lint-and-validate.ts`.
+Source: the [`pii-template-literal`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/EslintCanaries/pii-template-literal.canary.ts), [`pii-error-message`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/EslintCanaries/pii-error-message.canary.ts), and [`pii-payload-key`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/EslintCanaries/pii-payload-key.canary.ts) canary fixtures + the `PII-Log` rule in `lint-and-validate.ts`.
 
 If your new code emits a log that triggers the canary at commit time, the right fix is to extract the safe identifier first:
 

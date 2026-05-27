@@ -14,7 +14,7 @@
 
 ```typescript
 const result = await scraper.scrape({
-  phoneNumber: '972000000000',
+  phoneNumber: '972-000000000',                      // international-dash (with -)
   otpCodeRetriever: async () => await myInbox.getCode(),
 });
 
