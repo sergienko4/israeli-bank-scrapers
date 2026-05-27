@@ -1,0 +1,43 @@
+name: Workflow Security Scan
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  zizmor:
+    name: zizmor (workflow CVE / hardening)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Install zizmor
+        run: pipx install zizmor
+
+      - name: Run zizmor on every workflow file
+        run: |
+          set -euo pipefail
+          zizmor --format sarif .github/workflows > zizmor.sarif || true
+
+      - name: Upload SARIF to code-scanning
+        uses: github/codeql-action/upload-sarif@2820a76c64eb37b1a6d18b27f4dec02e0a09147e # v4
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor

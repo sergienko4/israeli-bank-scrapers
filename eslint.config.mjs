@@ -1069,6 +1069,95 @@ export default tseslint.config(
     },
   },
 
+  // 8g. BALANCE-RESOLVE QUARANTINE INTEGRITY (PR #264 CR finding #4)
+  //
+  // Every `await api.fetchPost(...)` / `await api.fetchGet(...)` inside
+  // the BALANCE-RESOLVE mediator MUST be wrapped in a TryStatement so a
+  // thrown exception from one bank account's network call does not
+  // reject the surrounding `Promise.all` and abort every sibling fetch.
+  // The `safeIssueOneFetch` helper is the canonical wrapper.
+  //
+  // Scope = the production mediator file + the dedicated canary fixture
+  // so `verify.sh` proves the rule actually fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-throw-leaks-quarantine.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        {
+          selector:
+            "AwaitExpression > CallExpression[callee.property.name=/^fetch(Post|Get)$/]",
+          message:
+            "🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical): wrap `await api.fetch*` in safeIssueOneFetch (try/catch) so a thrown fetch cannot abort the Promise.all loop and break per-bank-account quarantine.",
+        },
+      ],
+    },
+  },
+
+  // 8h. BALANCE-RESOLVE BULK_KEY CONSTANTS (PR #264 CR finding #7)
+  //
+  // The string literal `'__BULK__'` is the planner's bulk-key sentinel
+  // and lives only in `BalanceFetchPlanner.ts`. Every consumer must
+  // import the named constant `BULK_KEY` from there so the value can
+  // be renamed atomically. Hardcoded copies drift silently when the
+  // sentinel changes.
+  //
+  // Scope = the BALANCE-RESOLVE mediator consumer + canary.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-bulk-literal.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        {
+          selector: "Literal[value='__BULK__']",
+          message:
+            "🚫 BALANCE-RESOLVE CONSTANTS (CR #264 Major): use the named BULK_KEY constant imported from BalanceFetchPlanner instead of the hardcoded '__BULK__' literal.",
+        },
+      ],
+    },
+  },
+
+  // 8i. BALANCE DEFAULT-ZERO PROHIBITION (PR #264 CR finding #5)
+  //
+  // `<x>.balance ?? 0` (or `?? null`) makes "balance unknown" identical
+  // to a real zero, so PipelineResult cannot fall back to a legacy
+  // SCRAPE value. Per coding-principle-guidlines §4 DEFAULT-DENY: skip
+  // the slot, do not silently default.
+  //
+  // Scope = api-direct phase that emits balanceResolution + canary.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        {
+          selector:
+            "LogicalExpression[operator='??'][left.property.name='balance'][right.value=0]",
+          message:
+            "🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? 0` collapses unknown into a real zero. Skip the entry (or surface a typed failure) instead.",
+        },
+        {
+          selector:
+            "LogicalExpression[operator='??'][left.property.name='balance'][right.raw='null']",
+          message:
+            "🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? null` is forbidden for the same reason as `?? 0` — use a typed skip.",
+        },
+      ],
+    },
+  },
+
   // 8a. CROSS-BANK PHASE FACTORIES — STRICT QUALITY RULES
   //
   // Scoped to Phase H deep-factory work. Locks in the project's
