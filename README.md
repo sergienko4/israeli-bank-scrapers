@@ -141,7 +141,8 @@ Environment variables (all optional):
 |---|---|---|
 | `PII_REDACTION` | `on` | Set to `off` to disable redaction *for real-bank E2E only*. Unit tests always run with redaction default-on. |
 | `MOCK_MODE` | unset | `1` switches `test:mock` to its fixture-driven path. |
-| `DEFAULT_TIMEOUT_MS` | `30000` | Per-phase navigation timeout. Override per-scraper via `defaultTimeout` option. |
+
+Per-phase navigation timeout is controlled by the `defaultTimeout` scraper **option** (not an env var) — see [Configuration → Scraper options](#configuration).
 
 ## Usage
 
@@ -330,7 +331,6 @@ Field names per bank live in the [Supported Institutions](#supported-institution
 |--------------------|-----------|--------|
 | `PII_REDACTION`    | `on`      | Set `off` for real-bank E2E only; unit tests always run default-on |
 | `MOCK_MODE`        | unset     | `1` switches `test:mock` to fixture-driven path |
-| `DEFAULT_TIMEOUT_MS` | `30000` | Library-wide override; per-scraper `defaultTimeout` still wins |
 
 ### Disk locations
 
