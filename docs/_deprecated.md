@@ -1,0 +1,2 @@
+!!! warning "Legacy — scheduled for migration to Pipeline"
+    This component lives outside `src/Scrapers/Pipeline/` and is on the **wide-net migration path**. It still works through the public `createScraper(...)` API, but new features and bug fixes target the Pipeline architecture. Behavior preserved; expect it to fold into Pipeline in a future release. Track progress in **Architecture → Migration strategy**.
