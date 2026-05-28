@@ -696,16 +696,68 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      # Pinned to main HEAD pending v4.10.0 release: v4.9.0 still
-      # targets `node20` (deprecated 2025-09-19); main has `node24`.
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # main 2026-05-08
+      # v5.0.0 — first stable release on Node.js 24 (published
+      # 2026-05-08). The SHA a1d282b3... resolves to tag v5.0.0
+      # (verified via /repos/actions/dependency-review-action/git/refs).
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
+          # SPDX identifiers ONLY — `BSD License` (generic, no version)
+          # and similar non-SPDX classifier strings are intentionally
+          # excluded so an unknown license triggers a hard failure via
+          # the allow-licenses gate (production-code policy: every
+          # dependency must declare a machine-readable license).
           allow-licenses: >-
             MIT, ISC, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD,
             BlueOak-1.0.0, CC0-1.0, CC-BY-3.0, CC-BY-4.0, MPL-2.0,
             Python-2.0, WTFPL, Unlicense
+          # Per-package overrides for dependencies whose license IS
+          # machine-verifiable upstream (LICENSE file / repo metadata)
+          # but where dependency-review-action's PyPI/npm scanner
+          # cannot map the metadata to an SPDX identifier. Each entry
+          # below documents the upstream license verified by reading
+          # the project's LICENSE file directly.
           allow-dependencies-licenses: >-
             pkg:npm/playwright-core,
             pkg:githubactions/SonarSource/sonarqube-scan-action,
-            pkg:pypi/gitdb
+            pkg:pypi/gitdb,
+            pkg:pypi/Pygments,
+            pkg:pypi/GitPython,
+            pkg:pypi/Jinja2,
+            pkg:pypi/Markdown,
+            pkg:pypi/mkdocs-get-deps,
+            pkg:pypi/pymdown-extensions,
+            pkg:pypi/ghp-import
+          # Upstream license verification (audited 2026-05-28 via
+          # PyPI JSON API + each project's LICENSE file):
+          #   gitdb              → BSD-3-Clause  (joint w/ embedded
+          #                        Apache fragment + GPL-1.0-or-later
+          #                        for a single setup-helper file
+          #                        that ships unchanged from upstream;
+          #                        explicit allowlist required)
+          #   Pygments           → BSD-2-Clause  (PEP 639 only)
+          #   GitPython          → BSD-3-Clause  (license field)
+          #   Jinja2             → BSD-3-Clause  (Pallets LICENSE.txt)
+          #   Markdown           → BSD-3-Clause  (PEP 639 only)
+          #   mkdocs-get-deps    → MIT
+          #   pymdown-extensions → MIT
+          #   ghp-import         → Apache-2.0    (repo LICENSE)
+
+      # OpenSSF Scorecard hard-fail gate. dependency-review-action only
+      # WARNS on Scorecard regressions (its only knob is
+      # warn-on-openssf-scorecard-level); we want hard failures so a
+      # new low-scoring dep blocks the PR. This step queries the
+      # Scorecard API for every package in requirements-docs.txt,
+      # compares each score to the threshold, and fails the build on
+      # any violation that isn't on the documented exception list.
+      #
+      # Why the exception list exists at all: some packages are
+      # mandatory transitives of `mkdocs` with no maintained
+      # alternative. Each entry MUST document why no replacement is
+      # available + the date it was last reviewed. New additions
+      # require explicit reviewer signoff.
+      - name: OpenSSF Scorecard hard-fail gate
+        run: bash .github/workflows/scripts/scorecard-hardfail.sh
+        env:
+          SCORECARD_THRESHOLD: '3.0'
+          REQUIREMENTS_FILE: 'requirements-docs.txt'
