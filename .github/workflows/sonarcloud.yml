@@ -1,18 +1,17 @@
 name: SonarCloud
 
+# No `paths:` filter anymore. Branch protection requires the
+# `SonarCloud Scan` context on every PR; with a path filter the
+# context never fired on non-src PRs and we used to satisfy the gate
+# via the `sonarcloud-noop.yml` echo-shim. Folded in 2026-05-28 CI
+# consolidation (PR #275): the job now always runs and the heavy
+# scan steps gate on a `detect-changes` step output. Non-src PRs see
+# the `SonarCloud Scan` context report green within ~30s.
 on:
   push:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'sonar-project.properties'
-      - '.github/workflows/sonarcloud.yml'
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - 'src/**'
-      - 'sonar-project.properties'
-      - '.github/workflows/sonarcloud.yml'
   workflow_dispatch:
 
 permissions: {}
@@ -32,21 +31,45 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          # Closes zizmor `artipacked` (persisted credentials warning).
+          persist-credentials: false
+
+      # Single source of truth for "did src/** change?" — identical
+      # script wired into pr.yml's `validate` job. Keeps the two
+      # path-decision surfaces from drifting.
+      - name: Detect changed file groups
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash .github/scripts/ci/detect-changes.sh
+
+      # Non-src PRs: short-circuit and report the `SonarCloud Scan`
+      # context green. Replaces the former sonarcloud-noop.yml shim.
+      - name: Skip — no src/** changes
+        if: steps.changes.outputs.src == 'false'
+        run: |
+          echo "No src/** changes in this PR/push — SonarCloud Scan reports green without running."
+          echo "Real-scan trigger paths: src/**. If this PR DOES include src/** changes,"
+          echo "recheck .github/scripts/ci/detect-changes.sh — the real scan should have run."
 
       - name: Setup Node + Dependencies
+        if: steps.changes.outputs.src == 'true'
         uses: ./.github/actions/setup-node-deps
 
       - name: Install Camoufox
+        if: steps.changes.outputs.src == 'true'
         uses: ./.github/actions/install-camoufox
         with:
           gh-token: ${{ github.token }}
 
       - name: Run unit tests with coverage
+        if: steps.changes.outputs.src == 'true'
         run: npm run test:pipeline
         env:
           NODE_OPTIONS: --experimental-vm-modules
 
       - name: Verify SonarCloud secrets
+        if: steps.changes.outputs.src == 'true'
         run: |
           set -euo pipefail
           missing=""
@@ -63,6 +86,7 @@ jobs:
           SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
 
       - name: SonarCloud Scan
+        if: steps.changes.outputs.src == 'true'
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -72,7 +96,7 @@ jobs:
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
 
       - name: Fail on any new SonarCloud issues (count gate)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.changes.outputs.src == 'true'
         env:
           SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
           PR_NUMBER: ${{ github.event.number }}

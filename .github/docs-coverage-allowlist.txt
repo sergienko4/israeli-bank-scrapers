@@ -1,0 +1,39 @@
+# Docs coverage allowlist
+# =======================
+# Symbol names listed here are exempt from the docs-coverage CI gate
+# (.github/workflows/docs-coverage.yml). Each entry is a one-line
+# escape hatch — only use it when the symbol is intentionally
+# exported from src/Scrapers/Pipeline/ but not part of the
+# user-facing mkdocs guide under docs/.
+#
+# Format
+# ------
+#   # Reason: <why this symbol is exported but does not belong in docs/>
+#   <SymbolName>
+#
+# Rules
+# -----
+#   * One symbol per line, no leading/trailing whitespace.
+#   * `# …` lines are comments; blank lines are ignored.
+#   * The script does whole-word matching — case-sensitive.
+#   * Re-exports via barrel files (`export { Foo } from './bar.js'`)
+#     are NOT scanned, so they never need allowlisting.
+#   * Default exports (`export default …`) are NOT scanned for the
+#     same reason — there is no symbol name to grep against docs/.
+#
+# When NOT to add an entry
+# ------------------------
+#   * If the symbol is part of the public API and a consumer might
+#     reach for it from their own code → document it in docs/
+#     instead. The allowlist is for genuinely-internal-but-leaked
+#     names, not a way to skip documentation work.
+#   * If you're mid-refactor and the symbol will be removed in the
+#     same PR → drop the `export` keyword now and let the next
+#     incremental commit do the cleanup; the allowlist is meant to
+#     persist, not absorb in-flight churn.
+#
+# Maintenance
+# -----------
+# Review this file at least once per release. Symbols that have
+# since been deleted, renamed, or properly documented should be
+# removed so the allowlist does not accumulate dead entries.
