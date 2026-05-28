@@ -1,5 +1,18 @@
 # Changelog
 
+## [8.4.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.3.2...v8.4.0) (2026-05-28)
+
+
+### Features
+
+* **paybox:** onboard PayBox via api-direct unified primitives ([#261](https://github.com/sergienko4/israeli-bank-scrapers/issues/261)) ([c911add](https://github.com/sergienko4/israeli-bank-scrapers/commit/c911add65254943e701c50b5f5f1079abb3b2fbc))
+
+
+### Bug Fixes
+
+* **balance-resolve:** v6 single-phase ownership + mkdocs docs site ([#264](https://github.com/sergienko4/israeli-bank-scrapers/issues/264)) ([b0ea82b](https://github.com/sergienko4/israeli-bank-scrapers/commit/b0ea82b318c00f52d620dd71d56e2604ae008cdd))
+* **ci:** drop deprecated --exclude-mail from Lychee args ([#270](https://github.com/sergienko4/israeli-bank-scrapers/issues/270)) ([4e25ab3](https://github.com/sergienko4/israeli-bank-scrapers/commit/4e25ab333e5cb360fb71776fcbfc4e33256715b6))
+
 ## [8.3.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.3.1...v8.3.2) (2026-05-21)
 
 
