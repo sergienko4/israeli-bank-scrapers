@@ -12,6 +12,15 @@ const LOG = getDebug('safe-screenshot');
 export interface ISafeScreenshotOptions {
   readonly path: string;
   readonly fullPage?: boolean;
+  /**
+   * When true, persist the screenshot even when `process.env.CI` is
+   * truthy. Used by {@link BasePhase} to forensic-capture failures of
+   * allowlisted pre-credential phases (home / pre-login / otp-trigger /
+   * otp-fill) so CI runs surface a visual diagnostic without exposing
+   * post-login dashboards. Default false (= the original CI-suppress
+   * behaviour). See `Pipeline/Types/BasePhase.ts` for the allowlist.
+   */
+  readonly force?: boolean;
 }
 
 const PATH_PATTERN = /(?:[a-z]:)?[\\/][\w.\-+/\\]+/gi;
@@ -68,7 +77,7 @@ export async function safeScreenshot(
   page: Page,
   options: ISafeScreenshotOptions,
 ): Promise<boolean> {
-  if (process.env.CI) {
+  if (process.env.CI && !options.force) {
     LOG.debug({ file: basename(options.path) }, 'screenshot suppressed in CI');
     return false;
   }

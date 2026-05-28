@@ -32,6 +32,39 @@ type DidEmitHandoff = Brand<boolean, 'DidEmitHandoff'>;
 /** PRE-payload validation outcome — branded for Rule #15. */
 export type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
 
+/**
+ * Phase names whose `action-fail` / `post-fail` / `final-fail`
+ * screenshots ARE persisted in CI. Every other phase + every
+ * non-failure suffix follows the default CI-suppress contract
+ * (post-login pixels and per-stage successes never reach the
+ * artifact). The chosen four are pre-credential or
+ * pre-credential-transition surfaces:
+ *   - home          (the bank's public homepage; no creds yet)
+ *   - pre-login     (card-bank "reveal" toggle; pre-creds)
+ *   - otp-trigger   (post-login but pre-otp-fill; only an SMS prompt)
+ *   - otp-fill      (otp input; entry-state, captured BEFORE submit
+ *                    via the fail-suffix path)
+ */
+const SCREENSHOT_PHASE_ALLOWLIST_IN_CI: ReadonlySet<string> = new Set([
+  'home',
+  'pre-login',
+  'otp-trigger',
+  'otp-fill',
+]);
+
+/**
+ * Suffixes that {@link SCREENSHOT_PHASE_ALLOWLIST_IN_CI} releases for
+ * CI persistence. Per user direction 2026-05-28: ".action, .post and
+ * .final" — failure-stage screenshots only; never `*-done` (success)
+ * and never `pre-fail` (PRE-stage failures rarely carry diagnostic
+ * value: PRE only validates inputs).
+ */
+const SCREENSHOT_PERSIST_SUFFIXES_IN_CI: ReadonlySet<string> = new Set([
+  'action-fail',
+  'post-fail',
+  'final-fail',
+]);
+
 /** Lookup for success/fail trace tags. */
 /** Pino log-event discriminator emitted by every phase-stage debug line. */
 const PHASE_STAGE_EVENT = 'phase-stage' as const;
@@ -461,10 +494,32 @@ abstract class BasePhase {
     const target = screenshotPath(ctx.companyId, label);
     if (!target) return false;
     const page = ctx.browser.value.page;
-    const didCapture = await safeScreenshot(page, { path: target, fullPage: false });
+    const shouldForce = this.shouldForceScreenshotInCi(suffix);
+    const didCapture = await safeScreenshot(page, {
+      path: target,
+      fullPage: false,
+      force: shouldForce,
+    });
     if (didCapture) ctx.logger.debug({ message: `screenshot: ${target}` });
     await dumpFixtureHtml(ctx, label);
     return didCapture;
+  }
+
+  /**
+   * Decide whether to force-persist a screenshot under CI for the
+   * current phase + stage-suffix. True only when (a) the phase is on
+   * {@link SCREENSHOT_PHASE_ALLOWLIST_IN_CI} AND (b) the suffix is on
+   * {@link SCREENSHOT_PERSIST_SUFFIXES_IN_CI}. Local runs (no CI env
+   * var) ignore this gate — the existing safe-screenshot CI-suppress
+   * check returns false for them.
+   *
+   * @param suffix - Stage-output marker passed to takePhaseScreenshot.
+   * @returns True when this call should bypass the CI suppress check.
+   */
+  private shouldForceScreenshotInCi(suffix: string): boolean {
+    if (!process.env.CI) return false;
+    if (!SCREENSHOT_PHASE_ALLOWLIST_IN_CI.has(this.name)) return false;
+    return SCREENSHOT_PERSIST_SUFFIXES_IN_CI.has(suffix);
   }
 
   /**

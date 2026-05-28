@@ -90,6 +90,60 @@ describe('safeScreenshot — CI gating contract', () => {
       expect(screenshotMock).toHaveBeenCalledTimes(0);
     });
   });
+
+  /**
+   * `force` is the BasePhase allowlist escape hatch — when a phase
+   * is on SCREENSHOT_PHASE_ALLOWLIST_IN_CI AND the suffix is an
+   * action/post/final failure, BasePhase passes force=true so the
+   * screenshot actually persists despite CI being set.
+   */
+  describe('force=true escape hatch (BasePhase allowlist)', () => {
+    it('safeScreenshot_whenCiTrueAndForceTrue_persistsScreenshot', async () => {
+      process.env.CI = 'true';
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, {
+        path: '/tmp/test-forced-shot.png',
+        fullPage: false,
+        force: true,
+      });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({
+        path: '/tmp/test-forced-shot.png',
+        fullPage: false,
+      });
+    });
+
+    it('safeScreenshot_whenCiTrueAndForceFalse_stillSuppresses', async () => {
+      process.env.CI = 'true';
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, {
+        path: '/tmp/test-shot.png',
+        fullPage: false,
+        force: false,
+      });
+
+      expect(didCapture).toBe(false);
+      expect(screenshotMock).toHaveBeenCalledTimes(0);
+    });
+
+    it('safeScreenshot_whenCiUnsetAndForceTrue_capturesAsNormal', async () => {
+      delete process.env.CI;
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, {
+        path: '/tmp/test-shot.png',
+        fullPage: false,
+        force: true,
+      });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe('scrubPaths', () => {
