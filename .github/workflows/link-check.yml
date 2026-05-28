@@ -35,6 +35,20 @@ jobs:
           key: cache-lychee-${{ github.sha }}
           restore-keys: cache-lychee-
 
+      # Substitute {{BRANCH}} placeholders inserted by mkdocs_hooks/
+      # branch_substitution.py before Lychee scans the raw .md files.
+      # Lychee runs against source markdown (not the mkdocs-built site),
+      # so the mkdocs hook never fires here — we mirror its resolution
+      # logic via sed. Resolution order matches the hook exactly:
+      # GITHUB_HEAD_REF (PR) → GITHUB_REF_NAME (push to main) → 'main'.
+      - name: Substitute {{BRANCH}} placeholders for Lychee
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
+          echo "Substituting {{BRANCH}} → $BRANCH"
+          find docs README.md -name '*.md' -type f -print0 |
+            xargs -0 sed -i "s|{{BRANCH}}|$BRANCH|g"
+
       - name: Lychee
         uses: lycheeverse/lychee-action@1d97d84f0bc547f7b25f4c2170d87d810dc2fb2c # v2.4.1
         with:
