@@ -6,7 +6,7 @@ import {
   isRecord,
   resolveBalanceFromRecords,
   resolveRecordBalance,
-} from '../../../../../../Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.js';
+} from '../../../../../../Scrapers/Pipeline/Mediator/BalanceResolve/BalanceExtractor.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 describe('isRecord', () => {

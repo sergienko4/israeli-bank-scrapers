@@ -15,11 +15,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveBalanceFromRecords } from '../../../../Scrapers/Pipeline/Mediator/BalanceResolve/BalanceExtractor.js';
 import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
-import { resolveBalanceFromRecords } from '../../../../Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.js';
 import { resolveDisplayIdFromCapturedEndpoints } from '../../../../Scrapers/Pipeline/Strategy/Scrape/Account/ScrapeIdExtraction.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 

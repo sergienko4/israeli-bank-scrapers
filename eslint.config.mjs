@@ -943,6 +943,221 @@ export default tseslint.config(
     },
   },
 
+  // 8c. V5 ISOLATION — BALANCE-RESOLVE MUST NOT IMPORT SCRAPE INTERNALS (T49).
+  //
+  // The v5 phase architecture splits SCRAPE and BALANCE-RESOLVE into
+  // disjoint zones. BALANCE-RESOLVE consumes ONLY the typed
+  // `scrape.perAccountResponses` field from {@link IPipelineContext};
+  // anything deeper (helpers, types, mediator actions) would re-couple
+  // the phases and break the single-source-of-truth contract from
+  // `general-phases-view-guidlines.md`.
+  //
+  // Scope covers both the production BalanceResolve zone (so a regression
+  // fails pre-commit) AND the dedicated canary file (so verify.sh can
+  // confirm the rule still fires).
+  {
+    files: [
+      'src/Scrapers/Pipeline/Phases/BalanceResolve/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-isolation.canary.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/Strategy/Scrape/**',
+                '**/Mediator/Scrape/ScrapePhaseActions*',
+              ],
+              message:
+                '🚫 V5 ISOLATION (T49): BALANCE-RESOLVE must not import SCRAPE internals. Read ctx.scrape.perAccountResponses instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // 8d. V5 ISOLATION — SCRAPE MUST NOT REFERENCE BALANCE-RESOLVE (T50).
+  //
+  // Mirror of 8c — guards the SCRAPE zone from leaking back into
+  // balance resolution logic. The `Account/BalanceExtractor.ts` shim
+  // is excluded because it re-exports from the BalanceResolve module
+  // by design (compatibility shim, removed in a later decoupling phase).
+  // The canary file lives outside the production scope; it gets the
+  // same rule via the second `files:` glob so verify.sh sees the
+  // intended ESLint errors.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Strategy/Scrape/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts',
+    ],
+    ignores: ['src/Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/Registry/WK/BalanceResolveWK*',
+                '**/Mediator/BalanceResolve/**',
+              ],
+              message:
+                '🚫 V5 ISOLATION (T50): SCRAPE must not reference BalanceResolve internals. Balance resolution is owned by the BALANCE-RESOLVE phase.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // 8e. V5 LITERAL-BALANCE BAN — proves Agent 2's removal stuck (T50).
+  //
+  // `ScrapeDataActions.ts` previously held a `'balance'` literal as
+  // part of the assembled account shape. v4 moved balance to
+  // `ctx.balanceResolution`; this rule blocks the literal from
+  // sneaking back in. The canary file deliberately uses the literal
+  // so verify.sh can confirm the rule fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Literal[value='balance']",
+          message:
+            "🚫 V5 ISOLATION (T50): The literal 'balance' is forbidden in ScrapeDataActions.ts. Balance resolution belongs to the BALANCE-RESOLVE phase.",
+        },
+      ],
+    },
+  },
+
+  // 8f. V6 ISOLATION — BALANCE-FETCH TEMPLATE/PLANNER OWNED BY BALANCE-RESOLVE (H3).
+  //
+  // The v6 contract emits {@link IBalanceFetchTemplate} from SCRAPE.post
+  // but the live planner + fetch loop is owned by BALANCE-RESOLVE alone.
+  // Other phases must not import the planner module — they would be
+  // duplicating balance work and breaking the single-phase-ownership
+  // rule (general-phases-view-guidlines.md). The TYPE itself is shared
+  // via PipelineContext.ts (a typed seam, not a behaviour seam).
+  //
+  // This block targets the dedicated canary so verify.sh proves the
+  // rule fires; the canary's import of `BalanceFetchPlanner` is rejected.
+  {
+    files: [
+      'src/Scrapers/Pipeline/EslintCanaries/balance-fetch-only-in-balance-resolve.canary.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/Mediator/BalanceResolve/BalanceFetchPlanner*'],
+              message:
+                '🚫 V6 ISOLATION (H3): BalanceFetchPlanner is consumed only by BalanceResolveActions. Other phases must not depend on it.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // 8g. BALANCE-RESOLVE QUARANTINE INTEGRITY (PR #264 CR finding #4)
+  //
+  // Every `await api.fetchPost(...)` / `await api.fetchGet(...)` inside
+  // the BALANCE-RESOLVE mediator MUST be wrapped in a TryStatement so a
+  // thrown exception from one bank account's network call does not
+  // reject the surrounding `Promise.all` and abort every sibling fetch.
+  // The `safeIssueOneFetch` helper is the canonical wrapper.
+  //
+  // Scope = the production mediator file + the dedicated canary fixture
+  // so `verify.sh` proves the rule actually fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-throw-leaks-quarantine.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        {
+          selector:
+            "AwaitExpression > CallExpression[callee.property.name=/^fetch(Post|Get)$/]",
+          message:
+            "🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical): wrap `await api.fetch*` in safeIssueOneFetch (try/catch) so a thrown fetch cannot abort the Promise.all loop and break per-bank-account quarantine.",
+        },
+      ],
+    },
+  },
+
+  // 8h. BALANCE-RESOLVE BULK_KEY CONSTANTS (PR #264 CR finding #7)
+  //
+  // The string literal `'__BULK__'` is the planner's bulk-key sentinel
+  // and lives only in `BalanceFetchPlanner.ts`. Every consumer must
+  // import the named constant `BULK_KEY` from there so the value can
+  // be renamed atomically. Hardcoded copies drift silently when the
+  // sentinel changes.
+  //
+  // Scope = the BALANCE-RESOLVE mediator consumer + canary.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-bulk-literal.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        {
+          selector: "Literal[value='__BULK__']",
+          message:
+            "🚫 BALANCE-RESOLVE CONSTANTS (CR #264 Major): use the named BULK_KEY constant imported from BalanceFetchPlanner instead of the hardcoded '__BULK__' literal.",
+        },
+      ],
+    },
+  },
+
+  // 8i. BALANCE DEFAULT-ZERO PROHIBITION (PR #264 CR finding #5)
+  //
+  // `<x>.balance ?? 0` (or `?? null`) makes "balance unknown" identical
+  // to a real zero, so PipelineResult cannot fall back to a legacy
+  // SCRAPE value. Per coding-principle-guidlines §4 DEFAULT-DENY: skip
+  // the slot, do not silently default.
+  //
+  // Scope = api-direct phase that emits balanceResolution + canary.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        {
+          selector:
+            "LogicalExpression[operator='??'][left.property.name='balance'][right.value=0]",
+          message:
+            "🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? 0` collapses unknown into a real zero. Skip the entry (or surface a typed failure) instead.",
+        },
+        {
+          selector:
+            "LogicalExpression[operator='??'][left.property.name='balance'][right.raw='null']",
+          message:
+            "🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? null` is forbidden for the same reason as `?? 0` — use a typed skip.",
+        },
+      ],
+    },
+  },
+
   // 8a. CROSS-BANK PHASE FACTORIES — STRICT QUALITY RULES
   //
   // Scoped to Phase H deep-factory work. Locks in the project's

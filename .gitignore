@@ -71,7 +71,10 @@ CLAUDE.md
 .DS_Store
 .beinleumi-otp.tmp
 .onezero-otp.tmp
-/docs/
+# TypeDoc output (regenerated via `npm run docs`; deployed to GH Pages /api/)
+/typedoc-build/
+# mkdocs build output (regenerated via `python -m mkdocs build`; deployed to GH Pages /)
+/site/
 
 # Local debug sessions, trace output, inspection scripts — never commit
 # All local work lives in local-debug/ (debug captures + scripts)
@@ -88,3 +91,6 @@ scripts/**
 # src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),
 # so this in-repo path must never appear again.
 .canary-verify-tmp.json
+
+#Understand Anything local data (local research — not part of current PR)
+.understand-anything

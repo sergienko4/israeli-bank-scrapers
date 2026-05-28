@@ -259,13 +259,13 @@ describe('issuesFromCode — Rule PII-Log T09 template-literal patterns', () => 
     });
   }
   it('does NOT flag a scalar identifier in template literal', () => {
-    const code = 'LOG.info(`${count} txns scraped`);';
+    const code = 'LOG.info(`' + '$' + '{count} txns scraped`);';
     const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
     const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
     expect(pii.length).toBe(0);
   });
   it('does NOT flag PII identifier outside LOG.*', () => {
-    const code = 'console.log(`x: ${accountId}`);';
+    const code = 'console.log(`x: ' + '$' + '{accountId}`);';
     const issues = issuesFromCode(SYNTHETIC_OTHER, code, new Map());
     const pii = issues.filter((i): boolean => i.rule === 'PII-Log');
     expect(pii.length).toBe(0);

@@ -1,0 +1,181 @@
+site_name: Israeli Bank Scrapers
+site_description: Scrape transactions from 19 Israeli banks and credit card companies with built-in Cloudflare WAF bypass and end-to-end PII redaction.
+site_url: https://sergienko4.github.io/israeli-bank-scrapers/
+repo_url: https://github.com/sergienko4/israeli-bank-scrapers
+repo_name: sergienko4/israeli-bank-scrapers
+edit_uri: edit/main/docs/
+copyright: |
+  &copy; <a href="https://github.com/sergienko4">sergienko4</a> &middot; MIT &middot; based on <a href="https://github.com/eshaham/israeli-bank-scrapers">eshaham/israeli-bank-scrapers</a>
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - navigation.top
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - content.action.view
+    - content.tooltips
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+
+hooks:
+  - mkdocs_hooks/branch_substitution.py
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+  - mermaid2
+  - git-revision-date-localized:
+      type: timeago
+      enable_creation_date: true
+      fallback_to_build_date: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      base_path: ['docs', '.']
+      check_paths: false
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid_custom
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sergienko4/israeli-bank-scrapers
+    - icon: fontawesome/brands/npm
+      link: https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers
+  status:
+    new: New in v8.4
+    deprecated: Legacy — scheduled for migration to Pipeline
+
+nav:
+  - Home: index.md
+  - Quick Start: quick-start.md
+  - Architecture:
+      - Overview: architecture/index.md
+      - Pipeline architecture: architecture/pipeline.md
+      - Layer separation: architecture/layers.md
+      - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
+      - Legacy (deprecated): architecture/legacy.md
+      - Migration strategy: architecture/migration.md
+  - Phases:
+      - Overview: phases/index.md
+      - INIT: phases/init.md
+      - HOME: phases/home.md
+      - PRE-LOGIN: phases/pre-login.md
+      - LOGIN: phases/login.md
+      - OTP-TRIGGER: phases/otp-trigger.md
+      - OTP-FILL: phases/otp-fill.md
+      - AUTH-DISCOVERY: phases/auth-discovery.md
+      - ACCOUNT-RESOLVE: phases/account-resolve.md
+      - DASHBOARD: phases/dashboard.md
+      - SCRAPE: phases/scrape.md
+      - BALANCE-RESOLVE: phases/balance-resolve.md
+      - TERMINATE: phases/terminate.md
+      - API-DIRECT-CALL: phases/api-direct-call.md
+      - API-DIRECT-SCRAPE: phases/api-direct-scrape.md
+  - Banks:
+      - Overview: banks/index.md
+      - Browser:
+          - Amex: banks/amex.md
+          - Bank Hapoalim: banks/hapoalim.md
+          - Beinleumi: banks/beinleumi.md
+          - Discount: banks/discount.md
+          - Isracard: banks/isracard.md
+          - Massad: banks/massad.md
+          - Max: banks/max.md
+          - Mercantile: banks/mercantile.md
+          - Otsar Hahayal: banks/otsar-hahayal.md
+          - Pagi: banks/pagi.md
+          - Visa Cal: banks/visacal.md
+      - API-direct:
+          - OneZero: banks/onezero.md
+          - PayBox: banks/paybox.md
+          - Pepper: banks/pepper.md
+      - Legacy (deprecated):
+          - Behatsdaa: banks/behatsdaa.md
+          - Beyahad Bishvilha: banks/beyahad-bishvilha.md
+          - Bank Leumi: banks/leumi.md
+          - Mizrahi Bank: banks/mizrahi.md
+          - Bank Yahav: banks/yahav.md
+  - Observability:
+      - Overview: observability/index.md
+      - Structured events: observability/events.md
+      - PII redaction: observability/redaction.md
+      - Forensic audit: observability/forensic-audit.md
+  - Workflow:
+      - Overview: workflow/index.md
+      - CI gates: workflow/ci.md
+      - Pre-commit hook: workflow/pre-commit.md
+      - Branch flow & release-please: workflow/branch-flow.md
+  - Contributing:
+      - Overview: contributing/index.md
+      - Adding a new bank: contributing/new-bank.md
+      - Test surfaces: contributing/testing.md
+      - Code style & lint: contributing/lint.md
+  - API Reference: https://sergienko4.github.io/israeli-bank-scrapers/api/

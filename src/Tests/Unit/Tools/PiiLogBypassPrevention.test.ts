@@ -23,7 +23,7 @@ const MALICIOUS_CODE = [
   'declare const rawArr: object[];',
   'declare const LOG: { debug: (x: unknown) => unknown; info: (x: unknown) => unknown };',
   '',
-  'LOG.debug(`account: ${accountId}`);',
+  'LOG.debug(`account: ' + '$' + '{accountId}`);',
   'LOG.info({ result: scrapeOutput });',
   'LOG.info({ accounts: [...rawArr] });',
   '',

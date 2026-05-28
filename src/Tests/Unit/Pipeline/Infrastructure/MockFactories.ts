@@ -139,6 +139,11 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     authDiscovery: none(),
     otpTrigger: none(),
     otpFill: none(),
+    balanceFetchPlan: none(),
+    balanceResponsesByBankAccount: none(),
+    balanceExtracted: none(),
+    balanceValidation: none(),
+    balanceResolution: none(),
   };
   return { ...defaults, ...overrides };
 }

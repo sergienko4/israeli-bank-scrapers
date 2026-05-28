@@ -53,22 +53,17 @@ interface IPhaseSlots {
   readonly browser: IPipelineContext['browser'];
 }
 
-/** Pipeline-result optional slots (login, dashboard, etc.). */
-interface IResultSlots {
-  readonly login: IPipelineContext['login'];
-  readonly dashboard: IPipelineContext['dashboard'];
-  readonly scrape: IPipelineContext['scrape'];
-  readonly api: IPipelineContext['api'];
-  readonly preLoginDiscovery: IPipelineContext['preLoginDiscovery'];
-  readonly loginFieldDiscovery: IPipelineContext['loginFieldDiscovery'];
-  readonly scrapeDiscovery: IPipelineContext['scrapeDiscovery'];
-  readonly accountDiscovery: IPipelineContext['accountDiscovery'];
-  readonly txnEndpoint: IPipelineContext['txnEndpoint'];
-  readonly dashboardTxnHarvest: IPipelineContext['dashboardTxnHarvest'];
-  readonly authDiscovery: IPipelineContext['authDiscovery'];
-  readonly otpTrigger: IPipelineContext['otpTrigger'];
-  readonly otpFill: IPipelineContext['otpFill'];
-}
+/** Result-slot field names (single source of truth for IResultSlots). */
+// prettier-ignore
+type ResultSlotKey =
+  | 'login' | 'dashboard' | 'scrape' | 'api'
+  | 'preLoginDiscovery' | 'loginFieldDiscovery' | 'scrapeDiscovery' | 'accountDiscovery'
+  | 'txnEndpoint' | 'dashboardTxnHarvest' | 'authDiscovery' | 'otpTrigger' | 'otpFill'
+  | 'balanceFetchPlan' | 'balanceResponsesByBankAccount'
+  | 'balanceExtracted' | 'balanceValidation' | 'balanceResolution';
+
+/** Pipeline-result optional slots (login, dashboard, balance-resolve, etc.). */
+type IResultSlots = Pick<IPipelineContext, ResultSlotKey>;
 
 /**
  * Build empty phase-level Option slots.
@@ -137,6 +132,11 @@ function emptyResultSlots(): IResultSlots {
     ...emptyPhaseStateOptions(),
     ...emptyDiscoveryOptions(),
     ...emptyPhaseEmitOptions(),
+    balanceFetchPlan: none(),
+    balanceResponsesByBankAccount: none(),
+    balanceExtracted: none(),
+    balanceValidation: none(),
+    balanceResolution: none(),
   };
 }
 

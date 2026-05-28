@@ -1,5 +1,6 @@
 # Shell scripts must use LF — CRLF breaks bash execution on Windows/MSYS
 .husky/* text eol=lf
+*.sh text eol=lf
 
 # Source files: normalize to LF in repo, respect OS on checkout
 *.ts text eol=lf

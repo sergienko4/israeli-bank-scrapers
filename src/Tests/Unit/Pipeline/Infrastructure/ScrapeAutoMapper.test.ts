@@ -8,6 +8,7 @@ import {
   extractAccountRecords,
   extractTransactions,
   extractTransactionsForCard,
+  findAllFieldValues,
   isUsableIdentifier,
   matchField,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
@@ -272,5 +273,36 @@ describe('extractTransactionsForCard', () => {
     const txns = extractTransactionsForCard(body, '0');
     const isArrayResult5 = Array.isArray(txns);
     expect(isArrayResult5).toBe(true);
+  });
+});
+
+describe('findAllFieldValues — deep walk over arrays + records', () => {
+  it('returns every matching field across nested arrays and objects', () => {
+    const obj = {
+      bankAccountUniqueId: 'PARENT-BA',
+      result: {
+        bigNumbers: [
+          {
+            cards: [{ cardUniqueId: 'CARD-A' }, { cardUniqueId: 'CARD-B' }],
+          },
+        ],
+      },
+    };
+    const hits = findAllFieldValues(obj, ['cardUniqueId']);
+    expect(hits).toEqual(['CARD-A', 'CARD-B']);
+  });
+
+  it('returns empty when no field name matches anywhere in the tree', () => {
+    const obj = { a: 1, b: { c: [{ d: 'x' }] } };
+    const hits = findAllFieldValues(obj, ['missing']);
+    expect(hits).toEqual([]);
+  });
+
+  it('skips null and primitive nodes encountered during the walk', () => {
+    const obj = {
+      list: [null, 42, 'string', { cardUniqueId: 'CARD-OK' }],
+    };
+    const hits = findAllFieldValues(obj, ['cardUniqueId']);
+    expect(hits).toEqual(['CARD-OK']);
   });
 });

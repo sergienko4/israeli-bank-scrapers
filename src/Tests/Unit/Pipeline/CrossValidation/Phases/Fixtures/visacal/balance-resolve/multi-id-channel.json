@@ -1,0 +1,43 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "scenarioId": "balance-resolve/multi-id-channel",
+    "captureRunId": "redacted-from-27-05-2026",
+    "rationale": "VisaCal `getBigNumberAndDetails` exposes a parent-account id on the POST request side (`bankAccountUniqueId`) AND per-card ids on the response side (`result.bigNumbers[].cards[].cardUniqueId`). SCRAPE iterates per card, so accountNumber == cardUniqueId. The single-hit endpointAccountIdSignal returned the FIRST signal (the parent id from POST), causing the equality check to fail for the iterating card id even though the response carries the matching cardUniqueId deeper. Multi-id channel returns BOTH ids; equality check now finds the card hit and attributes the capture. Generic: any bank carrying parent+child ids on one capture benefits. All ids are FAKE; balance value is a round synthetic.",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-CARD-AAAA-0001": 250 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://api.cal-online.example/Transactions/api/financeDashboard/getBigNumberAndDetails",
+      "method": "POST",
+      "postData": "{\"bankAccountUniqueId\":\"FAKE-BANK-AAAA\"}",
+      "status": 200,
+      "responseBody": {
+        "result": {
+          "bigNumbers": [
+            {
+              "debitDate": "2026-06-15T00:00:00",
+              "totalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 250 }],
+              "prevTotalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 0 }],
+              "cards": [
+                {
+                  "cardUniqueId": "FAKE-CARD-AAAA-0001",
+                  "nextDebit": {
+                    "debitDate": "2026-06-15T00:00:00",
+                    "totalDebits": [{ "currencyCode": 3, "currencySymbol": "₪", "totalDebit": 250 }]
+                  }
+                }
+              ]
+            }
+          ],
+          "debitCards": []
+        },
+        "statusCode": 1
+      }
+    }
+  ]
+}

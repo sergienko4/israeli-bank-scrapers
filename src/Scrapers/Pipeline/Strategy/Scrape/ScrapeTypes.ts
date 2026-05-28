@@ -148,13 +148,19 @@ interface IBillingChunkCtx {
   readonly accountId: string;
 }
 
-/** Bundled params for account assembly. */
+/**
+ * Bundled params for account assembly.
+ *
+ * <p>v4 (2026-05-27): `rawRecord` removed. Balance resolution moved
+ * to the BALANCE-RESOLVE phase, which consumes
+ * `scrape.perAccountResponses` directly. SCRAPE's assembly owns only
+ * `accountNumber` derivation; balance is merged downstream by
+ * `PipelineResult.combineWithBalance`.
+ */
 interface IAccountAssemblyCtx {
   readonly fc: IAccountFetchCtx;
   readonly accountId: string;
   readonly displayId: string;
-  /** Optional raw record captured during discovery — used for record-first balance extraction. */
-  readonly rawRecord?: Record<string, unknown>;
 }
 
 /**

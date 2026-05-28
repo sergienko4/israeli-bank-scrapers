@@ -703,7 +703,12 @@ function buildCoreMethods(
   captured: IDiscoveredEndpoint[],
 ): Pick<
   INetworkDiscovery,
-  'findEndpoints' | 'getServicesUrl' | 'getAllEndpoints' | 'discoverByPatterns' | 'discoverSpaUrl'
+  | 'findEndpoints'
+  | 'getServicesUrl'
+  | 'getAllEndpoints'
+  | 'discoverByPatterns'
+  | 'discoverSpaUrl'
+  | 'countSuccessfulResponses'
 > {
   return {
     /** @inheritdoc */
@@ -719,6 +724,12 @@ function buildCoreMethods(
     /** @inheritdoc */
     discoverSpaUrl: (currentOrigin?: string): string | false =>
       discoverSpaUrlFromTraffic(captured, currentOrigin),
+    /** @inheritdoc */
+    countSuccessfulResponses: (): number =>
+      captured.filter((ep): boolean => {
+        const status = ep.status ?? 0;
+        return status >= 200 && status < 300;
+      }).length,
   };
 }
 

@@ -1,6 +1,12 @@
 /**
  * Scrape fetch helpers — rate limiting, POST templating,
- * deduplication, balance lookup, chunk fetch, monthly chunking.
+ * deduplication, chunk fetch, monthly chunking.
+ *
+ * v4 (2026-05-27): balance lookup moved out of SCRAPE. Balance
+ * resolution is owned exclusively by the BALANCE-RESOLVE phase,
+ * which consumes `scrape.perAccountResponses` and writes
+ * `ctx.balanceResolution`. SCRAPE here owns only `accountNumber`
+ * and `txns` on the assembled account.
  */
 
 import { setTimeout as timerWait } from 'node:timers/promises';
@@ -8,17 +14,13 @@ import { setTimeout as timerWait } from 'node:timers/promises';
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import ScraperError from '../../../Base/ScraperError.js';
 import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.js';
-import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscoveryTypes.js';
 import { findFieldValue, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
 import {
   PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
-  PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
-import { getDebug as createLogger } from '../../Types/Debug.js';
-import { redactAccount } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
@@ -39,17 +41,9 @@ type ShouldRetainTxn = Brand<boolean, 'ShouldRetainTxn'>;
 type TxnUrlStr = Brand<string, 'TxnUrlStr'>;
 /** Resolved final account-number string. */
 type AccountNumberStr = Brand<string, 'AccountNumberStr'>;
-import {
-  isRecord,
-  resolveBalanceFromRecords,
-  resolveRecordBalance,
-} from './Account/BalanceExtractor.js';
+
 import { resolveDisplayIdFromCapturedEndpoints } from './Account/ScrapeIdExtraction.js';
 import type { IAccountAssemblyCtx } from './ScrapeTypes.js';
-
-// Primitive type aliases removed — Rule S6564.
-// Original aliases (TxnHashKey, IsTemplate, FieldApplied, IsAfterDate,
-// TxnUrlStr, StartDateStr) were redundant string/boolean wrappers.
 
 /**
  * Pause execution for rate limiting between API calls.
@@ -127,10 +121,6 @@ function txnHash(t: ITransaction, dedupKeyFields: readonly string[]): TxnHashKey
   }
   return values.join('|') as TxnHashKey;
 }
-
-// ── Logger ───────────────────────────────────────────
-
-const LOG = createLogger('scrape-data');
 
 // ── Templating ───────────────────────────────────────────
 
@@ -346,29 +336,6 @@ function deduplicateTxns(
   );
 }
 
-// ── Balance ──────────────────────────────────────────────
-
-/**
- * Fetch balance for one account.
- * @param api - API fetch context.
- * @param network - Network discovery.
- * @param accountId - Account number.
- * @returns Balance number or 0.
- */
-async function lookupBalance(
-  api: IApiFetchContext,
-  network: INetworkDiscovery,
-  accountId: string,
-): Promise<number> {
-  const balUrl = network.buildBalanceUrl(accountId);
-  if (!balUrl) return 0;
-  const raw = await api.fetchGet<Record<string, unknown>>(balUrl);
-  if (!isOk(raw)) return 0;
-  const bal = findFieldValue(raw.value, WK.balance);
-  if (typeof bal === 'number') return bal;
-  return 0;
-}
-
 // ── Transaction URL ──────────────────────────────────────
 
 /** Bundled params for resolving transaction URL. */
@@ -450,123 +417,26 @@ function resolveAccountNumber(ctx: IAccountAssemblyCtx): AccountNumberStr {
 }
 
 /**
- * Build account result with balance + accountNumber lookup.
+ * Build SCRAPE-side account result.
+ *
+ * <p>v4 (2026-05-27): balance is NO LONGER set here. The BALANCE-
+ * RESOLVE phase owns balance resolution and writes
+ * `ctx.balanceResolution`; `PipelineResult.combineWithBalance` merges
+ * it onto the account by `accountNumber`. SCRAPE writes only the
+ * `accountNumber` and `txns` fields. Keeping `balance` undefined on
+ * the SCRAPE output is intentional — the type allows it (optional)
+ * and the merge step never reads it.
+ *
  * @param ctx - Assembly context.
  * @param txns - Transactions.
  * @returns Assembled account Procedure.
  */
-async function buildAccountResult(
+function buildAccountResult(
   ctx: IAccountAssemblyCtx,
   txns: readonly ITransaction[],
-): Promise<Procedure<ITransactionsAccount>> {
-  const balance = await resolveBalance(ctx);
+): Procedure<ITransactionsAccount> {
   const accountNumber = resolveAccountNumber(ctx);
-  return succeed({ accountNumber, balance, txns: [...txns] });
-}
-
-/** Captured record list — concrete type avoids null/undefined in signatures. */
-type CapturedRecords = readonly Record<string, unknown>[];
-
-/**
- * Project one captured endpoint to a 0- or 1-element record array.
- * flatMap over this produces a clean CapturedRecords list with no nulls.
- * @param ep - One discovered endpoint.
- * @returns Single-element array if responseBody is a plain record, else empty.
- */
-function projectEndpointBody(ep: IDiscoveredEndpoint): CapturedRecords {
-  if (!isRecord(ep.responseBody)) return [];
-  return [ep.responseBody];
-}
-
-/**
- * Resolve the balance-alias list to scan with. Phase 7f follow-up:
- * SCRAPE consumes `fc.txnEndpoint.fieldMap.balance` — the alias
- * DASHBOARD.FINAL resolved from the picked TXN body. Empty list when
- * DASHBOARD's fieldMap had no balance alias (replayablePost path with
- * EMPTY_FIELD_MAP). The architecture rule R-TXN-NOWK forbids SCRAPE-
- * zone code from importing `WK_TXN.balance` directly.
- *
- * @param ctx - Assembly context.
- * @returns Balance aliases to scan, or empty list when none.
- */
-function balanceAliasesFor(ctx: IAccountAssemblyCtx): readonly string[] {
-  const balanceAlias = ctx.fc.txnEndpoint?.fieldMap.balance ?? false;
-  if (balanceAlias === false) return [];
-  return [balanceAlias];
-}
-
-/**
- * Render the alias list for the `balance.miss` diagnostic — `(none)`
- * when DASHBOARD didn't resolve a balance alias, otherwise the
- * comma-joined list. Pulled out so the warn-emitter stays free of
- * inline ternaries (architecture rule no-restricted-syntax).
- *
- * @param aliases - Resolved balance aliases.
- * @returns Human-readable label.
- */
-function aliasesToLabel(aliases: readonly string[]): string {
-  if (aliases.length === 0) return '(none)';
-  return aliases.join(',');
-}
-
-/**
- * Scan every captured endpoint's responseBody for a balance match.
- * Generic: no bank routing. Used when the primary txn record yields
- * no balance but a sibling endpoint (e.g. /accountSummary, /balances)
- * carries one. Rule #15: returns Procedure.
- *
- * <p>Phase 7f follow-up: balance aliases come from
- * `ctx.txnEndpoint.fieldMap.balance` (DASHBOARD-resolved single
- * alias), not `WK_TXN.balance`. Banks whose balance lives under a
- * sibling endpoint with a different alias return fail — the caller
- * `resolveBalance` then signals via the URL fallback's failure path
- * rather than silently returning 0.
- *
- * @param network - Network discovery with all captured endpoints.
- * @param aliases - Resolved balance aliases.
- * @returns Procedure wrapping the balance value, or fail when no match.
- */
-function resolveBalanceFromCapturedEndpoints(
-  network: INetworkDiscovery,
-  aliases: readonly string[],
-): Procedure<number> {
-  const bodies = network.getAllEndpoints().flatMap(projectEndpointBody);
-  return resolveBalanceFromRecords(bodies, aliases);
-}
-
-/**
- * Resolve balance: record first (free), cross-endpoint scan, URL fallback.
- *
- * <p>Phase 7f follow-up: when no source yields a value, log a WARN-
- * level diagnostic so silent zero balances surface in pipeline.log.
- * Each phase's own output (DASHBOARD's `fieldMap.balance`) drives the
- * scan; failure of all three paths is a signal that the captured pool
- * has no balance under that alias, not a generic "0 balance".
- *
- * @param ctx - Assembly context.
- * @returns Balance number (0 when no source yields a value, with warn).
- */
-async function resolveBalance(ctx: IAccountAssemblyCtx): Promise<number> {
-  const aliases = balanceAliasesFor(ctx);
-  const fromRecord = resolveRecordBalance(ctx.rawRecord, aliases);
-  if (typeof fromRecord === 'number') return fromRecord;
-  const fromStore = resolveBalanceFromCapturedEndpoints(ctx.fc.network, aliases);
-  if (isOk(fromStore)) return fromStore.value;
-  const fromUrl = await lookupBalance(ctx.fc.api, ctx.fc.network, ctx.accountId);
-  if (fromUrl !== 0) return fromUrl;
-  // Signal-loud diagnostic — every prior path missed AND the URL
-  // fallback returned 0. Either the bank has a literal zero balance
-  // (legitimate) or our captured pool / fieldMap has no balance under
-  // the resolved alias (data-loss). PII-redacted: account is masked.
-  const aliasLabel = aliasesToLabel(aliases);
-  const accountLabel = redactAccount(ctx.accountId);
-  LOG.warn({
-    event: 'balance.miss',
-    account: accountLabel,
-    fieldMapAlias: aliasLabel,
-    message: 'balance unresolved across record/cross-endpoint/url paths — fallback to 0',
-  });
-  return 0;
+  return succeed({ accountNumber, txns: [...txns] });
 }
 
 export { applyGlobalDateFilter, scrapeWithMonthlyChunking } from './ScrapeChunking.js';
@@ -589,7 +459,6 @@ export {
   buildFilterDataUrl,
   deduplicateTxns,
   FALLBACK_DEDUP_KEY_FIELDS,
-  lookupBalance,
   parseStartDate,
   rateLimitPause,
   resolveTxnUrl,

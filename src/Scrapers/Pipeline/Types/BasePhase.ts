@@ -98,8 +98,34 @@ function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
     otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
+    ...balanceContextSlice(ctx),
     browser: ctx.browser,
   };
+}
+
+/** The five BALANCE-RESOLVE slot keys both bootstrap and sealed action contexts carry. */
+const BALANCE_SLOT_KEYS = [
+  'balanceFetchPlan',
+  'balanceResponsesByBankAccount',
+  'balanceExtracted',
+  'balanceValidation',
+  'balanceResolution',
+] as const;
+
+/** Pick-typed alias for the five BALANCE-RESOLVE slots. */
+type BalanceContextSlice = Pick<IPipelineContext, (typeof BALANCE_SLOT_KEYS)[number]>;
+
+/**
+ * The five BALANCE-RESOLVE slots that both bootstrap and sealed action
+ * contexts carry. Hoisted so the two builders don't drift; matches the
+ * "Generic over duplication" project rule.
+ *
+ * @param ctx - Full pipeline context.
+ * @returns Slice of the five balance slots.
+ */
+function balanceContextSlice(ctx: IPipelineContext): BalanceContextSlice {
+  const entries = BALANCE_SLOT_KEYS.map(k => [k, ctx[k]] as const);
+  return Object.fromEntries(entries) as BalanceContextSlice;
 }
 
 /**
@@ -133,6 +159,7 @@ function buildActionContext(ctx: IPipelineContext): IActionContext {
     otpTrigger: ctx.otpTrigger,
     api: ctx.api,
     loginAreaReady: ctx.loginAreaReady,
+    ...balanceContextSlice(ctx),
   };
 }
 

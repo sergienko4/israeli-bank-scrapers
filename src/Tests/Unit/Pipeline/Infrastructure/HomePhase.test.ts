@@ -275,6 +275,11 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
     api: ctx.api,
 
     loginAreaReady: ctx.loginAreaReady,
+    balanceFetchPlan: ctx.balanceFetchPlan,
+    balanceResponsesByBankAccount: ctx.balanceResponsesByBankAccount,
+    balanceExtracted: ctx.balanceExtracted,
+    balanceValidation: ctx.balanceValidation,
+    balanceResolution: ctx.balanceResolution,
   };
 }
 

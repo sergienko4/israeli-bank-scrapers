@@ -71,7 +71,8 @@ function globToRegex(glob: string): RegExp {
       i += 1;
       continue;
     }
-    if ('.+?^${}()|[]\\'.includes(ch)) {
+    const regexSpecials = '.+?^' + '$' + '{}()|[]\\';
+    if (regexSpecials.includes(ch)) {
       re += `\\${ch}`;
       i += 1;
       continue;

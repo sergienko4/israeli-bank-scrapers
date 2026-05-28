@@ -80,3 +80,32 @@ updates:
     labels:
       - ci
       - dependencies
+
+  # Python docs toolchain — requirements-docs.txt at the repo root
+  # drives the mkdocs build (`docs.yml` workflow). Dependabot bumps
+  # each pinned version weekly so we never ship with a known-CVE
+  # release of mkdocs/pymdown-extensions/etc. The mkdocs ecosystem
+  # ships releases in coordinated waves, so grouping them into one
+  # PR per week keeps reviews tractable while still surfacing the
+  # full upgrade window.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - docs
+      - dependencies
+    groups:
+      mkdocs-toolchain:
+        patterns:
+          - 'mkdocs*'
+          - 'pymdown-extensions'
+          - 'Markdown'
+          - 'markdown-it-py'
+          - 'Jinja2'
+          - 'Pygments'
+          - 'GitPython'
+          - 'gitdb'
+          - 'ghp-import'

@@ -1,0 +1,72 @@
+name: Markdown Link Check
+
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'docs/**'
+      - '**/*.md'
+  push:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'docs/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  lychee:
+    name: Lychee link checker
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Restore lychee cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .lycheecache
+          key: cache-lychee-${{ github.sha }}
+          restore-keys: cache-lychee-
+
+      # Substitute {{BRANCH}} placeholders inserted by mkdocs_hooks/
+      # branch_substitution.py before Lychee scans the raw .md files.
+      # Lychee runs against source markdown (not the mkdocs-built site),
+      # so the mkdocs hook never fires here — we mirror its resolution
+      # logic via sed. Resolution order matches the hook exactly:
+      # GITHUB_HEAD_REF (PR) → GITHUB_REF_NAME (push to main) → 'main'.
+      #
+      # `$BRANCH` is escaped before use as sed-replacement text. Per
+      # GNU sed manual (s command) + POSIX IEEE Std 1003.1: `\`, `&`,
+      # and the delimiter (`|` here) are special in the replacement
+      # side of `s|X|Y|`. git-check-ref-format(1) already forbids `\`
+      # in branch names (rule 10), but `&` and `|` are allowed in git
+      # refs and would otherwise corrupt the substitution. Escape all
+      # three for defence-in-depth.
+      - name: Substitute {{BRANCH}} placeholders for Lychee
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
+          BRANCH_SED=$(printf '%s\n' "$BRANCH" | sed -e 's/[\\&|]/\\&/g')
+          echo "Substituting {{BRANCH}} → $BRANCH (sed-escaped: $BRANCH_SED)"
+          find docs README.md -name '*.md' -type f -print0 |
+            xargs -0 sed -i "s|{{BRANCH}}|$BRANCH_SED|g"
+
+      - name: Lychee
+        uses: lycheeverse/lychee-action@1d97d84f0bc547f7b25f4c2170d87d810dc2fb2c # v2.4.1
+        with:
+          args: >-
+            --cache
+            --max-cache-age 1d
+            --no-progress
+            --exclude-mail
+            --exclude 'sergienko4.github.io/israeli-bank-scrapers/'
+            --exclude 'npmjs.com/package/'
+            'README.md' 'docs/**/*.md'
+          fail: true
