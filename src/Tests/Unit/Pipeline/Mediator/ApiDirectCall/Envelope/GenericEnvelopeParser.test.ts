@@ -127,3 +127,85 @@ describe('GenericEnvelopeParser.extractFields — deep + escaped paths', () => {
     if (result.success) expect(result.value.slashed).toBe('slash');
   });
 });
+
+describe('GenericEnvelopeParser.extractFields — bank-error sniff (PayBox CI fix)', () => {
+  /**
+   * Reproduces the PayBox pinValidation failure shape captured in CI
+   * pipeline.log run 26568852574: response carries an error envelope
+   * with keys ["explanation","code","name","message"] instead of the
+   * success ["code","content"]. Without the sniff, the operator only
+   * sees "envelope selector miss: accessToken2 at /content/access_token"
+   * and must re-run with PII_REDACTION=off to learn what the bank
+   * actually said.
+   */
+  it('appends [bank-error: code=N name=NAME message=M explanation=E] on miss', () => {
+    const errorEnvelope = {
+      code: 42,
+      name: 'INVALID_PIN',
+      message: 'Invalid PIN',
+      explanation: 'The supplied PIN does not match the stored credential.',
+    };
+    const selectors = { accessToken2: '/content/access_token' };
+    const result = extractFields(errorEnvelope, selectors);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toBe(
+        'envelope selector miss: accessToken2 at /content/access_token ' +
+          '[bank-error: code=42 name=INVALID_PIN message=Invalid PIN ' +
+          'explanation=The supplied PIN does not match the stored credential.]',
+      );
+    }
+  });
+
+  it('emits only the present hint fields (partial error envelope)', () => {
+    const partial = { code: 'RATE_LIMITED', message: 'Too many attempts' };
+    const result = extractFields(partial, { token: '/content/access_token' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toBe(
+        'envelope selector miss: token at /content/access_token ' +
+          '[bank-error: code=RATE_LIMITED message=Too many attempts]',
+      );
+    }
+  });
+
+  it('emits no suffix when the doc carries no error-envelope fields', () => {
+    const opaque = { sessionId: 'abc-123', timestamp: 1_700_000_000 };
+    const result = extractFields(opaque, { token: '/content/access_token' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toBe('envelope selector miss: token at /content/access_token');
+    }
+  });
+
+  it('caps long message strings at 200 chars (bounded log surface)', () => {
+    const longMessage = 'X'.repeat(500);
+    const longExpl = 'Y'.repeat(500);
+    const doc = { code: 1, name: 'OVER_LIMIT', message: longMessage, explanation: longExpl };
+    const result = extractFields(doc, { token: '/content/access_token' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const expectedMessage = 'X'.repeat(200);
+      const expectedExpl = 'Y'.repeat(200);
+      expect(result.errorMessage).toBe(
+        `envelope selector miss: token at /content/access_token [bank-error: code=1 name=OVER_LIMIT message=${expectedMessage} explanation=${expectedExpl}]`,
+      );
+    }
+  });
+
+  it('ignores hint fields with wrong types (e.g. nested object as code)', () => {
+    const weird = { code: { nested: 'object' }, name: 42, message: ['arr'], explanation: null };
+    const result = extractFields(weird, { token: '/content/access_token' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toBe('envelope selector miss: token at /content/access_token');
+    }
+  });
+
+  it('does not affect the success path when the envelope is well-formed', () => {
+    const successEnvelope = { code: 0, content: { access_token: 'tok-AAA-1234' } };
+    const result = extractFields(successEnvelope, { token: '/content/access_token' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.token).toBe('tok-AAA-1234');
+  });
+});
