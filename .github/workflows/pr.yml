@@ -752,10 +752,15 @@ jobs:
       # any violation that isn't on the documented exception list.
       #
       # Why the exception list exists at all: some packages are
-      # mandatory transitives of `mkdocs` with no maintained
-      # alternative. Each entry MUST document why no replacement is
-      # available + the date it was last reviewed. New additions
-      # require explicit reviewer signoff.
+      # mandatory transitives of `mkdocs` / `mkdocs-material` with no
+      # maintained alternative. Each entry MUST document why no
+      # replacement is available + the date it was last reviewed.
+      # New additions require explicit reviewer signoff. The current
+      # accepted exceptions (see scripts/scorecard-hardfail.sh) are:
+      #   - ghp-import                    (mkdocs gh-deploy publisher)
+      #   - mkdocs-material-extensions    (mkdocs-material 9.x transitive
+      #                                    providing emoji generators
+      #                                    pymdownx.emoji references)
       - name: OpenSSF Scorecard hard-fail gate
         run: bash .github/workflows/scripts/scorecard-hardfail.sh
         env:

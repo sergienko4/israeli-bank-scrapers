@@ -25,6 +25,7 @@ REQ_FILE="${REQUIREMENTS_FILE:-requirements-docs.txt}"
 # reviewed date when re-auditing.
 declare -A SCORECARD_ACCEPTED=(
   ['ghp-import']='Mandatory transitive of mkdocs (mkdocs>=1.6 hard-requires ghp-import>=1.0). Used by `mkdocs gh-deploy` and indirectly by GitHub-Pages publishing. Last upstream release 2.1.0 in 2022-05-02; low Scorecard reflects maintenance cadence, not a security advisory. No maintained alternative exists (verified PyPI 2026-05-28). License: Apache-2.0.'
+  ['mkdocs-material-extensions']='Mandatory transitive of mkdocs-material (mkdocs-material 9.x hard-requires mkdocs-material-extensions>=1.3 per its requires_dist). Provides the SVG/twemoji emoji generators that pymdownx.emoji + mkdocs.yml reference. Maintained by the same author (facelessuser) as pymdown-extensions; low Scorecard reflects maintenance cadence on a small support package, not a security advisory. No maintained alternative exists (verified PyPI 2026-05-28). License: MIT.'
 )
 
 FAIL=0
