@@ -168,6 +168,8 @@ nav:
       - Structured events: observability/events.md
       - PII redaction: observability/redaction.md
       - Forensic audit: observability/forensic-audit.md
+      - API-direct error diagnosis: observability/api-direct-errors.md
+      - CI screenshots: observability/ci-screenshots.md
   - Workflow:
       - Overview: workflow/index.md
       - CI gates: workflow/ci.md
