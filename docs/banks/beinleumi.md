@@ -27,4 +27,4 @@ const result = await scraper.scrape({
 ## Known quirks
 
 - Beinleumi is the parent of the Beinleumi group: same login flow used by Massad, Otsar Hahayal, Pagi.
-- Balance endpoint shape: `(withdrawable + current)` per account — see [`fixtures/beinleumi-dump/0002-balances-105.json`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Tests/E2eMocked/fixtures/beinleumi-dump) for the captured response.
+- Balance endpoint shape: `(withdrawable + current)` per account — see [`beinleumi/balance-resolve/last-good.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/beinleumi/balance-resolve/last-good.json) for the captured response shape.

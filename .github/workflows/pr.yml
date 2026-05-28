@@ -707,4 +707,5 @@ jobs:
             Python-2.0, WTFPL, Unlicense
           allow-dependencies-licenses: >-
             pkg:npm/playwright-core,
-            pkg:githubactions/SonarSource/sonarqube-scan-action
+            pkg:githubactions/SonarSource/sonarqube-scan-action,
+            pkg:pypi/gitdb

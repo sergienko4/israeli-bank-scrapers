@@ -93,7 +93,7 @@ Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts` that:
 2. Constructs the scraper.
 3. Asserts `result.success === true` + expected account count + sample txn.
 
-The existing [`Amex.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Amex/Amex.e2e-mocked.test.ts) is the template.
+The existing [`Amex.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Amex.e2e-mocked.test.ts) is the template.
 
 ### 7. Verify
 
