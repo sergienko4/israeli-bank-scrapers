@@ -28,6 +28,23 @@ reviews:
       instructions: >
         CI/CD workflows. Check for: missing timeout-minutes, unpinned actions,
         overly broad permissions, missing set -euo pipefail in shell scripts.
+    - path: "src/Scrapers/Pipeline/**"
+      instructions: >
+        Pipeline code. When this PR adds a new exported symbol
+        (function, class, interface, type, const) in this tree,
+        verify there is a corresponding mention in docs/**/*.md
+        (a new file under docs/observability/, docs/architecture/,
+        docs/phases/, docs/banks/, etc., or an edit to an existing
+        page). TypeDoc auto-flows from JSDoc on /api/, but the
+        mkdocs user guide (docs/) is hand-authored — flag the PR
+        when a user-visible behaviour change ships without a
+        docs/ update.
+    - path: "docs/**"
+      instructions: >
+        mkdocs user guide. Check for: links that 404 (Lychee runs
+        on CI), undefined cross-references (mkdocs build --strict
+        rejects), and pages added without a corresponding nav entry
+        in mkdocs.yml.
 
   # Don't review these paths
   path_filters:
