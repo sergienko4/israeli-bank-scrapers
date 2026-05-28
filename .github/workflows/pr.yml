@@ -1,14 +1,16 @@
 name: PR Validation
 
 on:
+  # No `paths:` filter anymore. Branch protection + ruleset require the
+  # `Validate` status context on every PR; with a path filter the
+  # context never fires on non-src PRs and we used to satisfy the gate
+  # via a `pr-docs.yml` echo-shim. Folded in 2026-05-28 CI consolidation
+  # (PR #275): the validate job now always runs, and `detect-changes`
+  # below short-circuits the heavy steps when no src/** is touched.
   push:
     branches: [main]
-    paths:
-      - 'src/**'
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
   workflow_dispatch:
     inputs:
       log_level:
@@ -92,42 +94,127 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: read
+    outputs:
+      src_touched: ${{ steps.changes.outputs.src }}
+      md_touched: ${{ steps.changes.outputs.md }}
+      docs_touched: ${{ steps.changes.outputs.docs }}
+      pipeline_ts_touched: ${{ steps.changes.outputs.pipeline_ts }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # Need base + head reachable so `detect-changes` can diff
+          # against the PR base. Also closes zizmor `artipacked`
+          # (does not set persist-credentials).
+          fetch-depth: 0
+          persist-credentials: false
+
+      # ── Detect which file groups this PR/push changed ──
+      # Single source of truth for which heavy steps run. Replaces the
+      # old `paths: ['src/**']` workflow-level filter so the `Validate`
+      # check context always fires (folds in pr-docs.yml echo-shim).
+      - name: Detect changed file groups
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash .github/scripts/ci/detect-changes.sh
+
       - uses: ./.github/actions/setup-node-deps
+        if: steps.changes.outputs.src == 'true'
       - uses: ./.github/actions/install-camoufox
+        if: steps.changes.outputs.src == 'true'
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - if: steps.changes.outputs.src == 'true'
+        run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
       # ── Lint & Format ──
       - name: ESLint (warnings as errors)
+        if: steps.changes.outputs.src == 'true'
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Prettier check
+        if: steps.changes.outputs.src == 'true'
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
+        if: steps.changes.outputs.md == 'true' || steps.changes.outputs.src == 'true'
         uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23.2.0
         with:
           globs: '*.md docs/**/*.md tasks/**/*.md'
           config: '.markdownlint.json'
 
+      # ── Lychee link check (folded in from former link-check.yml) ──
+      # `{{BRANCH}}` substitution mirrors the mkdocs hook because Lychee
+      # scans raw markdown, not the mkdocs-built site. Sed-escape `\&|`
+      # for defence-in-depth (`&` and `|` are legal in git refs).
+      - name: Substitute {{BRANCH}} placeholders for Lychee
+        if: steps.changes.outputs.md == 'true'
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
+          BRANCH_SED=$(printf '%s\n' "$BRANCH" | sed -e 's/[\\&|]/\\&/g')
+          find docs README.md -name '*.md' -type f -print0 |
+            xargs -0 sed -i "s|{{BRANCH}}|$BRANCH_SED|g"
+      - name: Lychee link checker
+        if: steps.changes.outputs.md == 'true'
+        uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.4.1
+        with:
+          args: >-
+            --cache
+            --max-cache-age 1d
+            --no-progress
+            --exclude 'sergienko4.github.io/israeli-bank-scrapers/'
+            --exclude 'npmjs.com/package/'
+            'README.md' 'docs/**/*.md'
+          fail: true
+
+      # ── mkdocs strict build (PR-time catch for dead nav / undefined refs) ──
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        if: steps.changes.outputs.docs == 'true'
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+      - name: Install mkdocs + plugins
+        if: steps.changes.outputs.docs == 'true'
+        run: pip install -r requirements-docs.txt
+      - name: mkdocs build --strict (catches dead links / undefined refs)
+        if: steps.changes.outputs.docs == 'true'
+        run: python -m mkdocs build --strict
+
+      # ── Docs coverage canary (folded in from PR #273 draft) ──
+      # Fails when a new public export under src/Scrapers/Pipeline/ ships
+      # without a mention in docs/. Allowlist file at
+      # `.github/docs-coverage-allowlist.txt` covers internal-but-exported
+      # symbols. See `.github/scripts/ci/docs-coverage.sh` for the diff +
+      # grep logic.
+      - name: Docs coverage canary
+        if: github.event_name == 'pull_request' && steps.changes.outputs.pipeline_ts == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/ci/docs-coverage.sh
+
       # ── Type Check ──
       - name: Type check
+        if: steps.changes.outputs.src == 'true'
         run: npx tsc --noEmit
 
       # ── Audit ──
       - name: Audit production dependencies
+        if: steps.changes.outputs.src == 'true'
         run: npm audit --audit-level=high --omit=dev
       - name: Audit all dependencies (informational)
+        if: steps.changes.outputs.src == 'true'
         run: npm audit --audit-level=high
         continue-on-error: true
 
       # ── Unit Tests ──
       - name: Unit tests with coverage
+        if: steps.changes.outputs.src == 'true'
         run: npm run test:pipeline
 
       # ── E2E Factory Tests ──
       - name: E2E factory tests
+        if: steps.changes.outputs.src == 'true'
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
 
       # ── E2E Smoke Tests are now a separate matrix job (e2e-smoke). ──
@@ -137,6 +224,7 @@ jobs:
 
       # ── E2E Mocked Tests ──
       - name: E2E mocked tests
+        if: steps.changes.outputs.src == 'true'
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
       # ── E2E Real Bank Tests (real credentials) ──
@@ -149,18 +237,21 @@ jobs:
 
       # ── Build ──
       - uses: ./.github/actions/build-package
+        if: steps.changes.outputs.src == 'true'
       - name: Dry-run publish (catch packaging errors early)
+        if: steps.changes.outputs.src == 'true'
         run: npm pack --dry-run
 
       # ── Upload Artifacts ──
       - name: Upload build artifact
+        if: steps.changes.outputs.src == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-output
           path: lib/
           retention-days: 7
       - name: Upload coverage artifact
-        if: always()
+        if: always() && steps.changes.outputs.src == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
@@ -180,6 +271,10 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   e2e-smoke:
     name: E2E Smoke (${{ matrix.bank }})
+    # Skip when only docs/CI/non-src files were touched — keeps non-src
+    # PRs from spinning up 17 runners they cannot meaningfully exercise.
+    needs: validate
+    if: needs.validate.outputs.src_touched == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -209,6 +304,8 @@ jobs:
           - OneZero
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-node-deps
       - uses: ./.github/actions/install-camoufox
         with:
@@ -312,13 +409,18 @@ jobs:
   dns-preflight:
     name: DNS Preflight (IL bank resolution)
     needs: validate
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: Force reliable DNS for Israeli bank resolution
         run: bash .github/scripts/ci/dns-warmup.sh
 
@@ -330,7 +432,10 @@ jobs:
     # If preflight is RED, this gate sits unclickable so we don't
     # burn the E2E Real matrix on guaranteed-DNS failures.
     needs: [validate, dns-preflight]
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
     runs-on: ubuntu-latest
     # Per-group environment (2026-05-26): each gate references a
     # DISTINCT GitHub environment so the reviewer must click
@@ -376,6 +481,8 @@ jobs:
           - Max
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       # DNS override + warmup (single source of truth lives in
       # `.github/scripts/ci/dns-warmup.sh` — extracts the hostname
       # for THIS matrix bank only from `PipelineBankConfig.ts`).
@@ -472,6 +579,8 @@ jobs:
           - Amex
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       # Same DNS-warmup script as preflight and Group A — extracts
       # the hostname for THIS matrix bank only.
       - name: Force reliable DNS for ${{ matrix.bank }}
@@ -527,7 +636,10 @@ jobs:
     # to finish (and vice-versa); within each group, banks still
     # run in parallel under one approval.
     needs: [validate, dns-preflight]
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
@@ -557,6 +669,8 @@ jobs:
           - Beinleumi
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: ./.github/actions/setup-node-deps
@@ -607,7 +721,10 @@ jobs:
     # Independent of Groups A + B — see the gate-B comment for the
     # rationale (per-group approval, no inter-group ordering).
     needs: [validate, dns-preflight]
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
@@ -638,6 +755,8 @@ jobs:
           - PayBox
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: ./.github/actions/setup-node-deps
@@ -686,7 +805,10 @@ jobs:
 
   dependency-review:
     name: Dependency Review
-    if: github.event_name == 'pull_request'
+    needs: validate
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.validate.outputs.src_touched == 'true'
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -696,6 +818,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       # v5.0.0 — first stable release on Node.js 24 (published
       # 2026-05-08). The SHA a1d282b3... resolves to tag v5.0.0
       # (verified via /repos/actions/dependency-review-action/git/refs).
