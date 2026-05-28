@@ -14,6 +14,7 @@ import { executeStampAccounts } from '../../../../Scrapers/Pipeline/Mediator/Scr
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IAccountDiscovery } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertHas, assertOk } from '../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from './MockFactories.js';
 import { makeMediatorWithPool, makeSingleAccountDiscovery } from './ScrapeMockHelpers.js';
 
@@ -122,11 +123,10 @@ describe('ScrapePhaseActions — SCRAPE.post detection branch coverage (v6)', ()
     };
     const ctx = makeStampCtx(putEp);
     const result = await executeStampAccounts(ctx);
-    expect(result.success).toBe(true);
-    if (isOk(result) && result.value.scrape.has) {
-      const tmpl = result.value.scrape.value.balanceFetchTemplate;
-      expect(tmpl).toBeUndefined();
-    }
+    assertOk(result);
+    assertHas(result.value.scrape);
+    const tmpl = result.value.scrape.value.balanceFetchTemplate;
+    expect(tmpl).toBeUndefined();
   });
 
   it('records.length < ids.length → buildAccountIdentities records[i] ?? {} fallback', async () => {

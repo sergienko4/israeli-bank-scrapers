@@ -10,6 +10,7 @@
 import { ApiDirectScrapePhase } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertHas, assertOk } from '../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../Infrastructure/MockFactories.js';
 
 describe('ApiDirectScrapePhase — v6 .final balanceResolution emission', () => {
@@ -60,12 +61,10 @@ describe('ApiDirectScrapePhase — v6 .final balanceResolution emission', () => 
       }),
     });
     const result = await phase.final(ctx, ctx);
-    const isSuccess = isOk(result);
-    expect(isSuccess).toBe(true);
-    if (isSuccess && result.value.balanceResolution.has) {
-      const map = result.value.balanceResolution.value;
-      const hasEntry = map.has('ACC-NULL');
-      expect(hasEntry).toBe(false);
-    }
+    assertOk(result);
+    assertHas(result.value.balanceResolution);
+    const map = result.value.balanceResolution.value;
+    const hasEntry = map.has('ACC-NULL');
+    expect(hasEntry).toBe(false);
   });
 });

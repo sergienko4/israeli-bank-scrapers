@@ -39,6 +39,20 @@ const TMPL_POST: IBalanceFetchTemplate = {
 };
 
 /**
+ * Build a synchronous thrower for one fetch verb. Extracted so
+ * {@link makeThrowingApi} stays within the 10-line method ceiling.
+ *
+ * @param verb - HTTP method label embedded in the thrown message.
+ * @returns Thrower function compatible with IApiFetchContext.fetchPost / fetchGet.
+ */
+function makeFetchThrower(verb: 'POST' | 'GET'): (url: string) => Promise<Procedure<unknown>> {
+  return (url: string): Promise<Procedure<unknown>> => {
+    const key = `${url}#${verb.toLowerCase()}`;
+    throw new ScraperError(`upstream blew up dispatching ${verb} ${key}`);
+  };
+}
+
+/**
  * Build a fake api whose every fetch THROWS an exception (rather than
  * returning a `Procedure` fail). Lets coverage tests exercise the
  * safeIssueOneFetch try/catch path that preserves the Promise.all
@@ -47,29 +61,9 @@ const TMPL_POST: IBalanceFetchTemplate = {
  * @returns Fake api context.
  */
 function makeThrowingApi(): IApiFetchContext {
-  /**
-   * Throws synchronously.
-   *
-   * @param url - URL (touched to satisfy unused-args).
-   * @returns Never returns.
-   */
-  const fetchPost = (url: string): Promise<Procedure<unknown>> => {
-    const key = `${url}#post`;
-    throw new ScraperError(`upstream blew up dispatching POST ${key}`);
-  };
-  /**
-   * Throws synchronously.
-   *
-   * @param url - URL.
-   * @returns Never returns.
-   */
-  const fetchGet = (url: string): Promise<Procedure<unknown>> => {
-    const key = `${url}#get`;
-    throw new ScraperError(`upstream blew up dispatching GET ${key}`);
-  };
   return {
-    fetchPost,
-    fetchGet,
+    fetchPost: makeFetchThrower('POST'),
+    fetchGet: makeFetchThrower('GET'),
     transactionsUrl: false,
     balanceUrl: false,
     pendingUrl: false,

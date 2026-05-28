@@ -103,6 +103,18 @@ function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
   };
 }
 
+/** The five BALANCE-RESOLVE slot keys both bootstrap and sealed action contexts carry. */
+const BALANCE_SLOT_KEYS = [
+  'balanceFetchPlan',
+  'balanceResponsesByBankAccount',
+  'balanceExtracted',
+  'balanceValidation',
+  'balanceResolution',
+] as const;
+
+/** Pick-typed alias for the five BALANCE-RESOLVE slots. */
+type BalanceContextSlice = Pick<IPipelineContext, (typeof BALANCE_SLOT_KEYS)[number]>;
+
 /**
  * The five BALANCE-RESOLVE slots that both bootstrap and sealed action
  * contexts carry. Hoisted so the two builders don't drift; matches the
@@ -111,20 +123,9 @@ function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
  * @param ctx - Full pipeline context.
  * @returns Slice of the five balance slots.
  */
-function balanceContextSlice(ctx: IPipelineContext): {
-  readonly balanceFetchPlan: IPipelineContext['balanceFetchPlan'];
-  readonly balanceResponsesByBankAccount: IPipelineContext['balanceResponsesByBankAccount'];
-  readonly balanceExtracted: IPipelineContext['balanceExtracted'];
-  readonly balanceValidation: IPipelineContext['balanceValidation'];
-  readonly balanceResolution: IPipelineContext['balanceResolution'];
-} {
-  return {
-    balanceFetchPlan: ctx.balanceFetchPlan,
-    balanceResponsesByBankAccount: ctx.balanceResponsesByBankAccount,
-    balanceExtracted: ctx.balanceExtracted,
-    balanceValidation: ctx.balanceValidation,
-    balanceResolution: ctx.balanceResolution,
-  };
+function balanceContextSlice(ctx: IPipelineContext): BalanceContextSlice {
+  const entries = BALANCE_SLOT_KEYS.map(k => [k, ctx[k]] as const);
+  return Object.fromEntries(entries) as BalanceContextSlice;
 }
 
 /**

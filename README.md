@@ -20,7 +20,7 @@
 
 Scrape transactions from **19 Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass** and **end-to-end PII redaction**.
 
-Maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers), rewritten on a typed phase-based pipeline using [Camoufox](https://github.com/niceboyatcomputers/camoufox) (Firefox anti-detect), Playwright, and TypeScript 6.0 strict mode.
+Maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers), rewritten on a typed phase-based pipeline using [Camoufox](https://github.com/daijro/camoufox) (Firefox anti-detect), Playwright, and TypeScript 6.0 strict mode.
 
 ```sh
 npm install @sergienko4/israeli-bank-scrapers

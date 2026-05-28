@@ -14,6 +14,30 @@ import type { IAccountDiscovery } from '../../../../Scrapers/Pipeline/Types/Pipe
 import { makeMockMediator } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 
 /**
+ * Build a `network` slice that returns the seeded pool via
+ * `getAllEndpoints`. Extracted so {@link makeMediatorWithPool} stays
+ * within the 10-line method ceiling.
+ *
+ * @param base - Base mediator network field.
+ * @param pool - Endpoint pool to expose.
+ * @returns Patched network object.
+ */
+function makeNetworkStub(
+  base: ReturnType<typeof makeMockMediator>['network'],
+  pool: readonly IDiscoveredEndpoint[],
+): ReturnType<typeof makeMockMediator>['network'] {
+  return {
+    ...base,
+    /**
+     * Returns the seeded pool.
+     *
+     * @returns Pool.
+     */
+    getAllEndpoints: (): readonly IDiscoveredEndpoint[] => pool,
+  };
+}
+
+/**
  * Build a mediator whose `network.getAllEndpoints` returns the
  * supplied pool. Used by SCRAPE.post detection tests across both
  * test files; centralised here so the discovery shape doesn't drift.
@@ -25,18 +49,7 @@ export function makeMediatorWithPool(
   pool: readonly IDiscoveredEndpoint[],
 ): ReturnType<typeof makeMockMediator> {
   const base = makeMockMediator();
-  return {
-    ...base,
-    network: {
-      ...base.network,
-      /**
-       * Returns the seeded pool.
-       *
-       * @returns Pool.
-       */
-      getAllEndpoints: (): readonly IDiscoveredEndpoint[] => pool,
-    },
-  };
+  return { ...base, network: makeNetworkStub(base.network, pool) };
 }
 
 /**
