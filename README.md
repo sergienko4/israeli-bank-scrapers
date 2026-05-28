@@ -118,7 +118,7 @@ Replace `userCode` and `password` with real credentials. See [Supported Institut
 - **WAF bypass on the first attempt** — Camoufox (Firefox anti-detect) instead of Puppeteer, no stealth shims.
 - **Zero CSS selectors in interaction code** — visible Hebrew text + a 7-strategy `SelectorResolver`. Site UI redesigns rarely break logins.
 - **Auto-detect + auto-fill OTP** — either via a callback you provide or a stable long-term token (returned for API banks).
-- **End-to-end PII redaction** — every log line, captured network body, and DOM snapshot goes through one redactor *before* it touches disk. Share traces publicly without leaking customer data.
+- **End-to-end PII redaction** — every log line, captured network body, and DOM snapshot goes through one redactor _before_ it touches disk. Share traces publicly without leaking customer data.
 - **Phase-based pipeline** — 12 isolated phases for browser banks, 2 for api-direct banks. One result shape across both paths.
 - **Single-phase balance ownership (v6)** — `BALANCE-RESOLVE` owns every live balance fetch + per-card extraction; legitimate empty-month results pass through without a false "scrape failed" signal.
 - **Dual ESM + CJS** — works with both `import` and `require()`.
@@ -126,21 +126,21 @@ Replace `userCode` and `password` with real credentials. See [Supported Institut
 
 ## Prerequisites
 
-| Requirement | Minimum | Why |
-|---|---|---|
-| **Node.js** | `>= 22.14.0` | ESM-by-default + `node:crypto` `randomUUID` used by the pipeline correlationId. |
-| **npm** | `>= 10` | Workspaces + `--access public` provenance. |
-| **OS** | Windows / macOS / Linux | Camoufox ships native binaries for all three (downloaded on `npm install`). |
-| **Disk** | ~500 MB for the Camoufox browser bundle | Cached under `~/.cache/camoufox` after first install. |
-| **Bank credentials** | Per-bank, real | See [Supported Institutions](#supported-institutions). The library never registers accounts on your behalf. |
-| **OTP callback** | For banks that require it | A `Promise<string>` returning the SMS code. See [OTP](#otp-two-factor-authentication). |
+| Requirement          | Minimum                                 | Why                                                                                                         |
+| -------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Node.js**          | `>= 22.14.0`                            | ESM-by-default + `node:crypto` `randomUUID` used by the pipeline correlationId.                             |
+| **npm**              | `>= 10`                                 | Workspaces + `--access public` provenance.                                                                  |
+| **OS**               | Windows / macOS / Linux                 | Camoufox ships native binaries for all three (downloaded on `npm install`).                                 |
+| **Disk**             | ~500 MB for the Camoufox browser bundle | Cached under `~/.cache/camoufox` after first install.                                                       |
+| **Bank credentials** | Per-bank, real                          | See [Supported Institutions](#supported-institutions). The library never registers accounts on your behalf. |
+| **OTP callback**     | For banks that require it               | A `Promise<string>` returning the SMS code. See [OTP](#otp-two-factor-authentication).                      |
 
 Environment variables (all optional):
 
-| Variable | Default | Effect |
-|---|---|---|
-| `PII_REDACTION` | `on` | Set to `off` to disable redaction *for real-bank E2E only*. Unit tests always run with redaction default-on. |
-| `MOCK_MODE` | unset | `1` switches `test:mock` to its fixture-driven path. |
+| Variable        | Default | Effect                                                                                                       |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `PII_REDACTION` | `on`    | Set to `off` to disable redaction _for real-bank E2E only_. Unit tests always run with redaction default-on. |
+| `MOCK_MODE`     | unset   | `1` switches `test:mock` to its fixture-driven path.                                                         |
 
 Per-phase navigation timeout is controlled by the `defaultTimeout` scraper **option** (not an env var) — see [Configuration → Scraper options](#configuration).
 
@@ -198,36 +198,52 @@ This snippet shows the redacted shape produced by the [redaction layer](#logging
 
 ## Supported Institutions
 
-<details>
-<summary><strong>All 19 institutions — credentials and engine</strong></summary>
+19 institutions across three categories. `CompanyTypes.<Name>` is the discriminator passed to `createScraper`; credential field names are validated at runtime against the tables below.
 
-| Institution                 | Type        | Engine     | Credentials                          |
-| --------------------------- | ----------- | ---------- | ------------------------------------ |
-| Amex                        | Credit Card | Browser    | `id`, `card6Digits`, `password`      |
-| Bank Hapoalim               | Bank        | Browser    | `userCode`, `password`, OTP          |
-| Bank Leumi                  | Bank        | Browser    | `username`, `password`               |
-| Bank Otsar Hahayal          | Bank        | Browser    | `username`, `password`, OTP          |
-| Bank Yahav                  | Bank        | Browser    | `username`, `nationalID`, `password` |
-| Behatsdaa                   | Bank        | Browser    | `id`, `password`                     |
-| Beinleumi                   | Bank        | Browser    | `username`, `password`, OTP          |
-| Beyahad Bishvilha           | Bank        | Browser    | `id`, `password`                     |
-| Discount Bank               | Bank        | Browser    | `id`, `password`, `num`              |
-| Isracard                    | Credit Card | Browser    | `id`, `card6Digits`, `password`      |
-| Massad                      | Bank        | Browser    | `username`, `password`, OTP          |
-| Max                         | Credit Card | Browser    | `username`, `password`               |
-| Mercantile Bank             | Bank        | Browser    | `id`, `password`, `num`              |
-| Mizrahi Bank                | Bank        | Browser    | `username`, `password`               |
-| One Zero                    | Bank        | API-direct | `email`, `password`, OTP             |
-| Pagi                        | Bank        | Browser    | `username`, `password`, OTP          |
-| PayBox (by Discount Bank)   | Wallet      | API-direct | `phoneNumber`, OTP                   |
-| Pepper (by Bank Leumi)      | Bank        | API-direct | `phoneNumber`, `password`, OTP       |
-| Visa Cal                    | Credit Card | Browser    | `username`, `password`               |
+<details open>
+<summary><strong>🏦 Banks</strong> (14)</summary>
 
-`CompanyTypes.<Name>` is the discriminator you pass to `createScraper`. Credential field names are validated at runtime against this table.
-
-> **Migration notice (wide-net policy):** 5 banks are still on the **legacy** scraper path — _Behatsdaa_, _Beyahad Bishvilha_, _Bank Leumi_, _Mizrahi Bank_, _Bank Yahav_. They keep working through the same `createScraper(...)` entry point, but new features and bug fixes target the Pipeline architecture. They are scheduled for migration; the broader `src/Scrapers/Base/`, `src/Common/`, and legacy bank folders are also on the migration path and will be folded into `src/Scrapers/Pipeline/` over time. Public API behavior is preserved.
+| Institution        | Engine     | Credentials                          |
+| ------------------ | ---------- | ------------------------------------ |
+| Bank Hapoalim      | Browser    | `userCode`, `password`, OTP          |
+| Bank Leumi         | Browser    | `username`, `password`               |
+| Bank Otsar Hahayal | Browser    | `username`, `password`, OTP          |
+| Bank Yahav         | Browser    | `username`, `nationalID`, `password` |
+| Behatsdaa          | Browser    | `id`, `password`                     |
+| Beinleumi          | Browser    | `username`, `password`, OTP          |
+| Beyahad Bishvilha  | Browser    | `id`, `password`                     |
+| Discount Bank      | Browser    | `id`, `password`, `num`              |
+| Massad             | Browser    | `username`, `password`, OTP          |
+| Mercantile Bank    | Browser    | `id`, `password`, `num`              |
+| Mizrahi Bank       | Browser    | `username`, `password`               |
+| One Zero           | API-direct | `email`, `password`, OTP             |
+| Pagi               | Browser    | `username`, `password`, OTP          |
+| Pepper (by Leumi)  | API-direct | `phoneNumber`, `password`, OTP       |
 
 </details>
+
+<details>
+<summary><strong>💳 Credit Cards</strong> (4)</summary>
+
+| Issuer   | Engine  | Credentials                     |
+| -------- | ------- | ------------------------------- |
+| Amex     | Browser | `id`, `card6Digits`, `password` |
+| Isracard | Browser | `id`, `card6Digits`, `password` |
+| Max      | Browser | `username`, `password`          |
+| Visa Cal | Browser | `username`, `password`          |
+
+</details>
+
+<details>
+<summary><strong>👛 Wallets</strong> (1)</summary>
+
+| Wallet                    | Engine     | Credentials        |
+| ------------------------- | ---------- | ------------------ |
+| PayBox (by Discount Bank) | API-direct | `phoneNumber`, OTP |
+
+</details>
+
+> **Migration notice (wide-net policy):** 5 banks are still on the **legacy** scraper path — _Behatsdaa_, _Beyahad Bishvilha_, _Bank Leumi_, _Mizrahi Bank_, _Bank Yahav_. They keep working through the same `createScraper(...)` entry point, but new features and bug fixes target the Pipeline architecture. They are scheduled for migration; the broader `src/Scrapers/Base/`, `src/Common/`, and legacy bank folders are also on the migration path and will be folded into `src/Scrapers/Pipeline/` over time. Public API behavior is preserved.
 
 ## OTP (Two-Factor Authentication)
 
@@ -265,23 +281,23 @@ await scraper.scrape({
 
 Every API bank that accepts a `phoneNumber` credential reads digits-only international form (no `+`, no dashes). For example: `'972000000000'`. The pipeline edge rewrites this into each bank's wire format on the fly:
 
-| Bank    | Wire format         | Example         |
-| ------- | ------------------- | --------------- |
-| OneZero | international-plus  | `+972000000000` |
-| Pepper  | international-flat  | `972000000000`  |
-| PayBox  | international-dash  | `972-000000000` |
+| Bank    | Wire format        | Example         |
+| ------- | ------------------ | --------------- |
+| OneZero | international-plus | `+972000000000` |
+| Pepper  | international-flat | `972000000000`  |
+| PayBox  | international-dash | `972-000000000` |
 
 You don't have to know which format each bank wants — pass the international digits and the mediator normalises before login.
 
 ## Error Types
 
-| Error                          | Meaning                                             |
-| ------------------------------ | --------------------------------------------------- |
-| `INVALID_PASSWORD`             | Wrong credentials                                   |
-| `INVALID_OTP`                  | Wrong/expired OTP code                              |
-| `WAF_BLOCKED`                  | Cloudflare block — check `errorDetails.suggestions` |
-| `TIMEOUT`                      | Page load timeout — increase `defaultTimeout`       |
-| `TWO_FACTOR_RETRIEVER_MISSING` | OTP needed but no callback set                      |
+| Error                          | Meaning                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `INVALID_PASSWORD`             | Wrong credentials                                                               |
+| `INVALID_OTP`                  | Wrong/expired OTP code                                                          |
+| `WAF_BLOCKED`                  | Cloudflare block — check `errorDetails.suggestions`                             |
+| `TIMEOUT`                      | Page load timeout — increase `defaultTimeout`                                   |
+| `TWO_FACTOR_RETRIEVER_MISSING` | OTP needed but no callback set                                                  |
 | `GENERIC`                      | Pipeline phase fail (BALANCE-RESOLVE universal miss, etc) — read `errorMessage` |
 
 <details>
@@ -302,45 +318,57 @@ Camoufox passes most challenges automatically. If you still get `WAF_BLOCKED`:
 
 All configuration goes through `ScraperOptions` at construction time and `ScraperCredentials` at scrape time. Nothing else reads from disk or env.
 
-### Scraper options (`createScraper({ ... })`)
+<details open>
+<summary><strong>Scraper options</strong> — <code>createScraper({ ... })</code></summary>
 
-| Field                  | Type                       | Default                  | What it controls |
-|------------------------|----------------------------|--------------------------|------------------|
-| `companyId`            | `CompanyTypes` (enum)      | (required)               | Picks the bank — discriminates pipeline vs legacy path |
-| `startDate`            | `Date`                     | (required)               | Earliest transaction date to fetch |
-| `defaultTimeout`       | `number` (ms)              | `30000`                  | Per-phase navigation timeout |
-| `navigationRetryCount` | `number`                   | `0`                      | Retries on `TIMEOUT` from any phase before failing |
-| `browserContext`       | `Playwright.BrowserContext`| Camoufox-launched per run | Reuse a shared context for parallel runs |
-| `otpCodeRetriever`     | `() => Promise<string>`    | (none)                   | Browser banks — callback invoked when OTP is required |
-| `headless`             | `boolean`                  | `true`                   | Run Camoufox headless |
-| `proxy`                | `{ server, username?, password? }` | (none)            | Residential proxy override (helps when datacenter IPs get WAF-blocked) |
+| Field                  | Type                               | Default                   | What it controls                                                       |
+| ---------------------- | ---------------------------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `companyId`            | `CompanyTypes` (enum)              | (required)                | Picks the bank — discriminates pipeline vs legacy path                 |
+| `startDate`            | `Date`                             | (required)                | Earliest transaction date to fetch                                     |
+| `defaultTimeout`       | `number` (ms)                      | `30000`                   | Per-phase navigation timeout                                           |
+| `navigationRetryCount` | `number`                           | `0`                       | Retries on `TIMEOUT` from any phase before failing                     |
+| `browserContext`       | `Playwright.BrowserContext`        | Camoufox-launched per run | Reuse a shared context for parallel runs                               |
+| `otpCodeRetriever`     | `() => Promise<string>`            | (none)                    | Browser banks — callback invoked when OTP is required                  |
+| `headless`             | `boolean`                          | `true`                    | Run Camoufox headless                                                  |
+| `proxy`                | `{ server, username?, password? }` | (none)                    | Residential proxy override (helps when datacenter IPs get WAF-blocked) |
 
-### Per-bank credentials (`scraper.scrape({ ... })`)
+</details>
 
-Field names per bank live in the [Supported Institutions](#supported-institutions) table. API banks additionally accept:
+<details>
+<summary><strong>Per-bank credentials</strong> — <code>scraper.scrape({ ... })</code></summary>
 
-| Field                  | Banks                       | Purpose |
-|------------------------|-----------------------------|---------|
-| `phoneNumber`          | OneZero, Pepper, PayBox     | Digits-only international form (no `+`/`-`); the mediator rewrites to each bank's wire format |
-| `otpCodeRetriever`     | OneZero, Pepper, PayBox     | API banks — passed in credentials, not options |
-| `otpLongTermToken`     | OneZero, Pepper, PayBox     | Persistent token returned in `result.persistentOtpToken` — skip SMS on next run |
+Field names per bank live in the [Supported Institutions](#supported-institutions) tables. API banks additionally accept:
 
-### Environment variables (optional)
+| Field              | Banks                   | Purpose                                                                                       |
+| ------------------ | ----------------------- | --------------------------------------------------------------------------------------------- |
+| `phoneNumber`      | OneZero, Pepper, PayBox | Digits-only international form (no `+`/`-`); the mediator rewrites to each bank's wire format |
+| `otpCodeRetriever` | OneZero, Pepper, PayBox | API banks — passed in credentials, not options                                                |
+| `otpLongTermToken` | OneZero, Pepper, PayBox | Persistent token returned in `result.persistentOtpToken` — skip SMS on next run               |
 
-| Variable           | Default   | Effect |
-|--------------------|-----------|--------|
-| `PII_REDACTION`    | `on`      | Set `off` for real-bank E2E only; unit tests always run default-on |
-| `MOCK_MODE`        | unset     | `1` switches `test:mock` to fixture-driven path |
+</details>
 
-### Disk locations
+<details>
+<summary><strong>Environment variables</strong> (optional)</summary>
 
-| Path                            | Purpose                                                                |
-|---------------------------------|------------------------------------------------------------------------|
-| `~/.cache/camoufox/`            | Camoufox browser bundle (~500 MB, downloaded on first install)         |
-| `<cwd>/pipeline.log`            | Pino transcript (PII-redacted)                                         |
-| `<cwd>/network/*.json`          | Captured HTTP bodies (redacted before write)                           |
-| `<cwd>/screenshots/*.html`      | DOM snapshots per phase (redacted in place)                            |
-| `<cwd>/screenshots/*.png`       | Raster screenshots (**not redacted** — see [Bug Reports](#filing-a-bug-report)) |
+| Variable        | Default | Effect                                                             |
+| --------------- | ------- | ------------------------------------------------------------------ |
+| `PII_REDACTION` | `on`    | Set `off` for real-bank E2E only; unit tests always run default-on |
+| `MOCK_MODE`     | unset   | `1` switches `test:mock` to fixture-driven path                    |
+
+</details>
+
+<details>
+<summary><strong>Disk locations</strong></summary>
+
+| Path                       | Purpose                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `~/.cache/camoufox/`       | Camoufox browser bundle (~500 MB, downloaded on first install)                  |
+| `<cwd>/pipeline.log`       | Pino transcript (PII-redacted)                                                  |
+| `<cwd>/network/*.json`     | Captured HTTP bodies (redacted before write)                                    |
+| `<cwd>/screenshots/*.html` | DOM snapshots per phase (redacted in place)                                     |
+| `<cwd>/screenshots/*.png`  | Raster screenshots (**not redacted** — see [Bug Reports](#filing-a-bug-report)) |
+
+</details>
 
 ## Testing
 
@@ -443,7 +471,7 @@ Skip `screenshots/*.png` (raster images are not OCR-redacted today — they may 
 
 Two independent enforcement layers keep raw PII out of the log surface even as the codebase evolves:
 
-- **Runtime layer** — `PiiRedactor.ts` is the single source of truth. Pino runs it as the `redact.censor` callback so every record is redacted *before* any transport. `NetworkDiscovery` and `FixtureCapture` route their byte streams through the same redactor before persisting.
+- **Runtime layer** — `PiiRedactor.ts` is the single source of truth. Pino runs it as the `redact.censor` callback so every record is redacted _before_ any transport. `NetworkDiscovery` and `FixtureCapture` route their byte streams through the same redactor before persisting.
 - **Commit-time layer** — ESLint AST selectors (T09 / T16) and an architecture-validator regex (`PII-Log` rule) reject pull requests that try to bypass the runtime by interpolating PII identifiers into `LOG.*` template literals or passing full payload objects under `result|accounts|transactions|...` keys.
 
 If you spot a pattern that leaks past both layers, please open an issue — that's a load-bearing bug, not cosmetic.
@@ -473,18 +501,21 @@ API-direct banks (2 phases):
 
 `BALANCE-RESOLVE` is the only phase that performs balance work. SCRAPE no longer attributes per-account responses — it just emits the typed inputs `BALANCE-RESOLVE` consumes.
 
-| Sub-step | Responsibility |
-|---|---|
-| **`.pre`** | Read `scrape.accountIdentities` + `scrape.balanceFetchTemplate`; default-deny on absent inputs; emit `balanceFetchPlan` (one entry per unique `bankAccountUniqueId`, plus a `__BULK__` entry for bulk endpoints). |
+| Sub-step      | Responsibility                                                                                                                                                                                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`.pre`**    | Read `scrape.accountIdentities` + `scrape.balanceFetchTemplate`; default-deny on absent inputs; emit `balanceFetchPlan` (one entry per unique `bankAccountUniqueId`, plus a `__BULK__` entry for bulk endpoints).                                                                               |
 | **`.action`** | Dispatch the plan under one `Promise.all` via `api.fetchPost` / `api.fetchGet`. Quarantine per-fetch failures (warn + downstream MISS for that bank account). Extract per-card balance from each response, supporting Visa Cal's nested-cards shape and Amex/Isracard's `cardChargeNext` shape. |
-| **`.post`** | Partition resolved vs missed cards. Hard-fail **only** if every card missed (universal miss = real scrape failure). Partial misses pass through. |
-| **`.final`** | Emit `ctx.balanceResolution` — a `Map<accountNumber, number>` that `PipelineResult` reads as the single source of truth. |
+| **`.post`**   | Partition resolved vs missed cards. Hard-fail **only** if every card missed (universal miss = real scrape failure). Partial misses pass through.                                                                                                                                                |
+| **`.final`**  | Emit `ctx.balanceResolution` — a `Map<accountNumber, number>` that `PipelineResult` reads as the single source of truth.                                                                                                                                                                        |
 
 Three ESLint canaries (`balance-resolve-isolation`, `no-balance-in-scrape`, `balance-fetch-only-in-balance-resolve`) enforce the separation at commit time — any PR that reaches across the boundary fails lint.
 
 </details>
 
-**Unified api-direct primitives** — every api-direct bank reuses the same building blocks below the two phases, so adding a new device-bound or symmetric-signing bank is a config-only change (no mediator code):
+<details>
+<summary><strong>Unified api-direct primitives</strong> — adding a new device-bound or symmetric-signing bank is a config-only change</summary>
+
+Every api-direct bank reuses the same building blocks below the two phases, so no mediator code changes when a new bank is onboarded:
 
 - **Signer config** is a discriminated union: asymmetric (ECDSA-P256 / RSA-2048, header-attached signature — Pepper) or symmetric (AES-CBC-PKCS7, signature written into the request body at an RFC-6901 pointer — PayBox). Banks declare the algorithm + canonical-string parts + key-ref in their config literal; the mediator dispatches without bank knowledge.
 - **Body templates** are declarative `JsonValueTemplate` literals with `$literal` / `$ref: creds.<field>` / `$ref: carry.<slot>` / `$ref: config.<dotted.path>` tokens. The same hydration engine serves login (`API-DIRECT-CALL`) and scrape (`API-DIRECT-SCRAPE`) step bodies.
@@ -494,14 +525,26 @@ Three ESLint canaries (`balance-resolve-isolation`, `no-balance-in-scrape`, `bal
 - **CryptoField pre-hook** — per-step optional encryption hook that takes a value from carry (e.g. the SMS OTP), AES-encrypts it with a key resolved from `config.secrets.*` or `carry.<slot>`, writes the ciphertext into the outbound body at an RFC-6901 pointer, and scrubs the plaintext from carry.
 - **Forensic-audit observability** — both `SCRAPE.post` (browser banks) and `API-DIRECT-SCRAPE.post` (api-direct banks) call `logForensicAudit`, so every scrape path emits the per-account `--- Account <masked> | <N> txns ---` line into `pipeline.log` regardless of the underlying transport.
 
-**Cross-cutting interceptors** run between phases — they don't own data, they observe and dismiss:
+</details>
+
+<details>
+<summary><strong>Cross-cutting interceptors</strong> — observe and dismiss between phases</summary>
+
+Interceptors don't own data, they observe and dismiss:
 
 - **PopupInterceptor** — before HOME, ACCOUNT-RESOLVE, and DASHBOARD, the interceptor scans for modal overlays (privacy banners, new-feature promos, "you have a message" dialogs) and dismisses them by visible-text.
 - **NetworkDiscovery + trace lifecycle** — every HTTP request and response the page issues is observed and indexed. The discovery layer learns each bank's per-account / per-card / per-statement endpoints at runtime (no hand-maintained URL list) and feeds them into SCRAPE and BALANCE-RESOLVE. Bodies are captured to disk only inside the configured boundary (post-auth onward) so pre-auth secrets never hit the trace; bodies + URLs flow through the central `PiiRedactor` before any write.
 
+</details>
+
+<details>
+<summary><strong>Selector resolver & declarative LoginConfig</strong> — UI-redesign-resilient login</summary>
+
 Inside the LOGIN phase, fields resolve through a 7-strategy `SelectorResolver` (visible Hebrew text → `textContent` walk-up → `placeholder` → `aria-label` → `name` → CSS → xpath). Once the first field matches, `FormAnchor` scopes the remaining fields to the discovered `<form>` so multi-form pages don't cross-pollute.
 
 All institutions are configured via declarative `LoginConfig` objects. Adding a new bank means writing one config object — no bank-specific imperative code.
+
+</details>
 
 ## Advanced Usage
 
@@ -570,18 +613,18 @@ The pre-commit hook runs the same gates plus mock-E2E and bank tests. PRs are sq
 
 ## Version history
 
-| Version | Milestone |
-| ------- | --------- |
-| v6.7.2  | Initial fork from upstream |
-| v7.0.0  | Puppeteer to Playwright |
-| v7.9.0  | Camoufox anti-detect browser |
-| v7.10.0 | Full ESM migration |
-| v8.0.0  | Strict ESLint + JSDoc, I-prefix interfaces, form-anchor |
-| v8.1.0  | Integration test framework — 18 tests across 6 scrapers |
-| v8.2.0  | SonarCloud static-analysis workflow + Max selectors via Hebrew text |
-| v8.2.1  | All bank logins migrated from CSS/ID selectors to visible Hebrew text |
-| v8.3.0  | Pipeline architecture v2 — Strategy / Builder / Mediator / Result patterns, AUTH-DISCOVERY phase + 100% phase isolation, cross-bank test factory (Phase H), TIMING ceilings, Telegram OTP delivery, PII redaction across log/network/snapshots |
-| v8.4.0  | **Unified api-direct primitives** across OneZero / Pepper / PayBox — AES-CBC-PKCS7 body-pointer signer alongside the existing asymmetric header-attached one, declarative `JsonValueTemplate` bodies served by one hydration engine, `seedCarryFromCreds` + `derivedCarry` carry derivations (incl. deterministic `sha256-prefix-16` bootstrap for warm-start-stable device identifiers), session-context bus method-pair, in-body `cryptoField` pre-hook for symmetric OTP encryption, per-bank `phoneNumberFormat` normaliser, forensic-audit observability hook on the api-direct scrape POST; PayBox onboarding lands as a pure consumer of these primitives.<br><br>**Single-phase balance ownership (BALANCE-RESOLVE v6)** — SCRAPE.post emits `accountIdentities` + `balanceFetchTemplate`; BALANCE-RESOLVE owns live `api.fetchPost` / `fetchGet`, per-card extraction (Visa Cal nested cards + Amex `cardChargeNext`), quarantine on per-fetch failure, universal-miss hard-fail only when *every* card missed; `ctx.balanceResolution` becomes the single source of truth read by `PipelineResult` for both browser and api-direct paths; v5 attribution path (~370 LOC) removed; 3 new ESLint canaries lock the separation at commit time. |
+| Version | Milestone                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| v6.7.2  | Initial fork from upstream                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| v7.0.0  | Puppeteer to Playwright                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| v7.9.0  | Camoufox anti-detect browser                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| v7.10.0 | Full ESM migration                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| v8.0.0  | Strict ESLint + JSDoc, I-prefix interfaces, form-anchor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| v8.1.0  | Integration test framework — 18 tests across 6 scrapers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| v8.2.0  | SonarCloud static-analysis workflow + Max selectors via Hebrew text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| v8.2.1  | All bank logins migrated from CSS/ID selectors to visible Hebrew text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| v8.3.0  | Pipeline architecture v2 — Strategy / Builder / Mediator / Result patterns, AUTH-DISCOVERY phase + 100% phase isolation, cross-bank test factory (Phase H), TIMING ceilings, Telegram OTP delivery, PII redaction across log/network/snapshots                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| v8.4.0  | **Unified api-direct primitives** across OneZero / Pepper / PayBox — AES-CBC-PKCS7 body-pointer signer alongside the existing asymmetric header-attached one, declarative `JsonValueTemplate` bodies served by one hydration engine, `seedCarryFromCreds` + `derivedCarry` carry derivations (incl. deterministic `sha256-prefix-16` bootstrap for warm-start-stable device identifiers), session-context bus method-pair, in-body `cryptoField` pre-hook for symmetric OTP encryption, per-bank `phoneNumberFormat` normaliser, forensic-audit observability hook on the api-direct scrape POST; PayBox onboarding lands as a pure consumer of these primitives.<br><br>**Single-phase balance ownership (BALANCE-RESOLVE v6)** — SCRAPE.post emits `accountIdentities` + `balanceFetchTemplate`; BALANCE-RESOLVE owns live `api.fetchPost` / `fetchGet`, per-card extraction (Visa Cal nested cards + Amex `cardChargeNext`), quarantine on per-fetch failure, universal-miss hard-fail only when _every_ card missed; `ctx.balanceResolution` becomes the single source of truth read by `PipelineResult` for both browser and api-direct paths; v5 attribution path (~370 LOC) removed; 3 new ESLint canaries lock the separation at commit time. |
 
 ## Contributors
 
