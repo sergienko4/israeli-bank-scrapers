@@ -60,7 +60,7 @@ const isSuccess = isOk(result);
 expect(isSuccess).toBe(true);
 ```
 
-Test files have the [`assertOk`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Tests/Helpers/AssertProcedure.ts) helper for this exact pattern.
+Test files have the [`assertOk`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Helpers/AssertProcedure.ts) helper for this exact pattern.
 
 ## Auto-fix vs hand-fix
 

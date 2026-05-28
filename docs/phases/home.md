@@ -6,7 +6,7 @@ Landing-page discovery — find the "Log in" affordance on the bank's home page 
 |---|---|
 | **Always-on?** | Yes (browser banks) |
 | **Owner slot** | `loginAreaReady: boolean`, `mediator.popupInterceptor` invocation |
-| **Source** | [`HomePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/Home/HomePhase.ts), [`FindLoginAreaPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/FindLoginArea/FindLoginAreaPhase.ts) |
+| **Source** | [`HomePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Home/HomePhase.ts), [`FindLoginAreaPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/FindLoginArea/FindLoginAreaPhase.ts) |
 
 ## Sub-step contract
 

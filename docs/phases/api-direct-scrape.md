@@ -6,7 +6,7 @@ Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-di
 |---|---|
 | **Always-on?** | api-direct banks only |
 | **Owner slots** | `scrape`, `balanceResolution` |
-| **Source** | [`ApiDirectScrapePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts) + [`ApiDirectScrapeSteps.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Mediator/ApiDirectScrape/ApiDirectScrapeSteps.ts) |
+| **Source** | [`ApiDirectScrapePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts) + [`ApiDirectScrapeSteps.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectScrape/ApiDirectScrapeSteps.ts) |
 
 ## Sub-step contract
 
@@ -38,8 +38,8 @@ Each api-direct bank declares its own `IApiDirectScrapeShape`:
 
 | Bank | TXN query | Balance query | Source |
 |---|---|---|---|
-| OneZero | `GET_ACCOUNT_TRANSACTIONS` GraphQL | `GET_ACCOUNT_BALANCE` GraphQL | [`Banks/OneZero/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/main/src/Scrapers/Pipeline/Banks/OneZero/scrape) |
-| Pepper | REST `/transactions` | REST `/balance` | [`Banks/Pepper/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/main/src/Scrapers/Pipeline/Banks/Pepper/scrape) |
-| PayBox | REST `/wallet/transactions` | REST `/wallet/balance` | [`Banks/PayBox/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/main/src/Scrapers/Pipeline/Banks/PayBox/scrape) |
+| OneZero | `GET_ACCOUNT_TRANSACTIONS` GraphQL | `GET_ACCOUNT_BALANCE` GraphQL | [`Banks/OneZero/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/OneZero/scrape) |
+| Pepper | REST `/transactions` | REST `/balance` | [`Banks/Pepper/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/scrape) |
+| PayBox | REST `/wallet/transactions` | REST `/wallet/balance` | [`Banks/PayBox/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PayBox/scrape) |
 
 The shape interface (`balanceVars`, `balanceExtract`, `txnVars`, `txnExtract`) is uniform; only the per-bank closures differ.

@@ -2,7 +2,7 @@
 
 Every scrape path (browser + api-direct) emits a **per-account audit line** during `.post`. The line is the primary debug surface for "did the scrape actually pull transactions for this account?".
 
-| Source | [`src/Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.ts) |
+| Source | [`src/Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.ts) |
 |---|---|
 
 ## What it looks like in `pipeline.log`

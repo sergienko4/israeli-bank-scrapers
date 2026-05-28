@@ -6,7 +6,7 @@ Per-account transaction walk. Emits the typed inputs that [BALANCE-RESOLVE](bala
 |---|---|
 | **Always-on?** | Yes (`ifAnyScraper`) |
 | **Owner slot** | `scrape: Option<{ accounts, accountIdentities, balanceFetchTemplate }>` |
-| **Source** | [`ScrapePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/Scrape/ScrapePhase.ts) + [`ScrapePhaseActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.ts) |
+| **Source** | [`ScrapePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Scrape/ScrapePhase.ts) + [`ScrapePhaseActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.ts) |
 
 ## Sub-step contract
 
@@ -38,7 +38,7 @@ See [Architecture → BALANCE-RESOLVE](../architecture/balance-resolve.md) for t
 | Accounts produced, all with `txns.length === 0`, AND `network.countSuccessfulResponses() > 0` | succeed (legitimate empty month) |
 | Accounts produced, all empty, AND `countSuccessfulResponses() === 0` | `Procedure fail` "scrape miss" |
 
-Test coverage: [`EmptyGateHeuristic.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Tests/Unit/Pipeline/Mediator/Scrape/EmptyGateHeuristic.test.ts).
+Test coverage: [`EmptyGateHeuristic.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/Scrape/EmptyGateHeuristic.test.ts).
 
 ## Forensic audit observability
 

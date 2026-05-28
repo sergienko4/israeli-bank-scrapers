@@ -49,6 +49,9 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
+hooks:
+  - mkdocs_hooks/branch_substitution.py
+
 plugins:
   - search
   - minify:

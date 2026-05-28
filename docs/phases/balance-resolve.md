@@ -10,7 +10,7 @@ This page is the **phase orchestrator reference**.
 |---|---|
 | **Always-on?** | Yes for browser banks (`ifBrowser`); api-direct banks emit the same `balanceResolution` via [API-DIRECT-SCRAPE.final](api-direct-scrape.md) instead |
 | **Owner slots** | `balanceFetchPlan`, `balanceResponsesByBankAccount`, `balanceExtracted`, `balanceValidation`, `balanceResolution` |
-| **Source** | [`BalanceResolvePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/BalanceResolve/BalanceResolvePhase.ts) (thin orchestrator) + [`BalanceResolveActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts) (all logic) |
+| **Source** | [`BalanceResolvePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/BalanceResolve/BalanceResolvePhase.ts) (thin orchestrator) + [`BalanceResolveActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts) (all logic) |
 
 ## Sub-step quick reference
 

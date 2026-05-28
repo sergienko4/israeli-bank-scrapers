@@ -56,7 +56,7 @@ type Procedure<T> =
 | `toLegacy(p)` | Convert to the public `IScraperScrapingResult` shape |
 | `assertOk(p)` | Test-only — `expect(p.success).toBe(true)` + type narrowing |
 
-See [`Procedure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Types/Procedure.ts).
+See [`Procedure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Procedure.ts).
 
 ## IPipelineContext — the shared state slot table
 
@@ -78,7 +78,7 @@ Key slots (v8.4+):
 | `balanceValidation` | BALANCE-RESOLVE.post | `{ resolvedIds, missedIds, totalAccounts }` |
 | `balanceResolution` | BALANCE-RESOLVE.final | Final `Map<accountNumber, number>` → `PipelineResult` |
 
-The two paths converge on `balanceResolution` — that's the single source of truth read by [`PipelineResult.combineWithBalance`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Core/PipelineResult.ts).
+The two paths converge on `balanceResolution` — that's the single source of truth read by [`PipelineResult.combineWithBalance`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts).
 
 ## Interceptors — cross-cutting, no data
 
@@ -87,11 +87,11 @@ The two paths converge on `balanceResolution` — that's the single source of tr
 | **PopupInterceptor** | HOME / ACCOUNT-RESOLVE / DASHBOARD | Dismiss modal overlays by visible text |
 | **NetworkDiscovery** | (whole run) | Index every HTTP request/response post-auth, redact body+URL before write, feed endpoints to SCRAPE + BALANCE-RESOLVE |
 
-Source: [`src/Scrapers/Pipeline/Interceptors/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/main/src/Scrapers/Pipeline/Interceptors).
+Source: [`src/Scrapers/Pipeline/Interceptors/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors).
 
 ## Source pointers
 
-- [`PipelineAssembly.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts) — `PHASE_CHAIN` slot declarations
-- [`PipelineExecutor.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts) — drives the slots in order
-- [`BasePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Types/BasePhase.ts) — `pre`/`action`/`post`/`final` contract every phase implements
-- [`PipelineContextFactory.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Core/PipelineContextFactory.ts) — builds the initial context per run
+- [`PipelineAssembly.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts) — `PHASE_CHAIN` slot declarations
+- [`PipelineExecutor.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts) — drives the slots in order
+- [`BasePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/BasePhase.ts) — `pre`/`action`/`post`/`final` contract every phase implements
+- [`PipelineContextFactory.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineContextFactory.ts) — builds the initial context per run

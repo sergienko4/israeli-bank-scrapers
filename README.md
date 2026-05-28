@@ -624,10 +624,10 @@ Thanks to the original [israeli-bank-scrapers](https://github.com/eshaham/israel
 ## Links
 
 - [API Documentation (TypeDoc)](https://sergienko4.github.io/israeli-bank-scrapers/api/)
-- [Changelog](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/CHANGELOG.md)
-- [Contributing](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/CONTRIBUTING.md)
-- [Code of Conduct](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/CODE_OF_CONDUCT.md)
-- [Security Policy](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/SECURITY.md)
+- [Changelog](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CHANGELOG.md)
+- [Contributing](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CONTRIBUTING.md)
+- [Code of Conduct](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CODE_OF_CONDUCT.md)
+- [Security Policy](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/SECURITY.md)
 
 ## Known Projects
 

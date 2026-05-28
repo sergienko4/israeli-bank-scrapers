@@ -7,7 +7,7 @@
 | Credentials | `id`, `password`, `num` |
 | OTP | — |
 | Phase chain | INIT → HOME → LOGIN → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE → TERMINATE |
-| Source | [`Banks/Mercantile/MercantilePipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.ts) |
+| Source | [`Banks/Mercantile/MercantilePipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.ts) |
 
 ## Known quirks
 

@@ -6,7 +6,7 @@ Launch the browser engine, build the initial `IPipelineContext`, navigate to the
 |---|---|
 | **Always-on?** | Yes (browser banks) |
 | **Owner slots** | `browser` (Playwright browser + context + page), `diagnostics.loginUrl`, `diagnostics.loginStartMs` |
-| **Source** | [`InitPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/Init/InitPhase.ts) |
+| **Source** | [`InitPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Init/InitPhase.ts) |
 
 ## Sub-step contract
 

@@ -10,7 +10,7 @@
 | [Test surfaces](testing.md) | Which test suite to write for what |
 | [Code style & lint](lint.md) | Project rules: SOLID, max-depth, no CSS selectors, etc. |
 
-See also: [CONTRIBUTING.md](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/CONTRIBUTING.md) at the repo root for the full PR checklist + Code of Conduct.
+See also: [CONTRIBUTING.md](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CONTRIBUTING.md) at the repo root for the full PR checklist + Code of Conduct.
 
 ## Quick start (contributor)
 

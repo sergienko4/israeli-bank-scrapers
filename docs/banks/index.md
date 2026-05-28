@@ -55,7 +55,7 @@
 | Mizrahi Bank | `Mizrahi` | `username`, `password` | — |
 | Bank Yahav | `Yahav` | `username`, `nationalID`, `password` | — |
 
-Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Definitions.ts).
+Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 
 ## How to pick the right page
 

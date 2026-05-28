@@ -7,7 +7,7 @@
 | Credentials | `userCode`, `password` (plus `otpCodeRetriever` callback in options) |
 | OTP | **Conditional** — only on unrecognised devices |
 | Phase chain | INIT → HOME → LOGIN → (OTP-FILL conditional) → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE → TERMINATE |
-| Source | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts) |
+| Source | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts) |
 
 ## Quick example
 

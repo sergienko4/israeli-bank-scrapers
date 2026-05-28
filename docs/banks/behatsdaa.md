@@ -9,7 +9,7 @@
 | Credentials | `id`, `password` |
 | OTP | — |
 | Registry | `SCRAPER_REGISTRY_AMEX_TO_ISRACARD` |
-| Source | [`src/Scrapers/Behatsdaa/BehatsdaaScraper.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Behatsdaa/BehatsdaaScraper.ts) |
+| Source | [`src/Scrapers/Behatsdaa/BehatsdaaScraper.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Behatsdaa/BehatsdaaScraper.ts) |
 
 ## Quick example
 

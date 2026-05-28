@@ -9,7 +9,7 @@
 | Credentials | `username`, `password` |
 | OTP | — |
 | Registry | `SCRAPER_REGISTRY_LEUMI_TO_YAHAV` |
-| Source | [`src/Scrapers/Mizrahi/MizrahiScraper.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Mizrahi/MizrahiScraper.ts) |
+| Source | [`src/Scrapers/Mizrahi/MizrahiScraper.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Mizrahi/MizrahiScraper.ts) |
 
 ## Quick example
 

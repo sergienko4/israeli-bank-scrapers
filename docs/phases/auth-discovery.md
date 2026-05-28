@@ -6,7 +6,7 @@ Capture the post-login auth token, API origin, cookies, and any session ids by o
 |---|---|
 | **Always-on?** | Yes (`ifBrowser`) |
 | **Owner slot** | `authDiscovery: Option<IAuthDiscovery>`, `api: Option<IApiFetchContext>` |
-| **Source** | [`AuthDiscoveryPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/AuthDiscovery/AuthDiscoveryPhase.ts) + [`AuthDiscovery.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.ts) |
+| **Source** | [`AuthDiscoveryPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/AuthDiscovery/AuthDiscoveryPhase.ts) + [`AuthDiscovery.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.ts) |
 
 ## Sub-step contract
 

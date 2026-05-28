@@ -2,7 +2,7 @@
 
 `PiiRedactor.ts` is the single source of truth. Pino runs it as the `redact.censor` callback so every record is redacted *before* any transport writes.
 
-| Source | [`src/Scrapers/Pipeline/Types/PiiRedactor.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Types/PiiRedactor.ts) |
+| Source | [`src/Scrapers/Pipeline/Types/PiiRedactor.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/PiiRedactor.ts) |
 |---|---|
 
 ## What gets redacted vs what survives
@@ -60,7 +60,7 @@ ESLint AST selectors reject pull requests that try to bypass the runtime layer. 
 - `LOG.<level>({ result, ... })` / `{ accounts }` / `{ transactions }` — passing whole payloads
 - `console.log` (any) — bypasses Pino entirely
 
-Source: the [`pii-template-literal`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/EslintCanaries/pii-template-literal.canary.ts), [`pii-error-message`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/EslintCanaries/pii-error-message.canary.ts), and [`pii-payload-key`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/EslintCanaries/pii-payload-key.canary.ts) canary fixtures + the `PII-Log` rule in `lint-and-validate.ts`.
+Source: the [`pii-template-literal`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/pii-template-literal.canary.ts), [`pii-error-message`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/pii-error-message.canary.ts), and [`pii-payload-key`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/pii-payload-key.canary.ts) canary fixtures + the `PII-Log` rule in `lint-and-validate.ts`.
 
 If your new code emits a log that triggers the canary at commit time, the right fix is to extract the safe identifier first:
 

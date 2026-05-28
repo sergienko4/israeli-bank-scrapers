@@ -6,7 +6,7 @@ Close the browser, dispose interceptors, and produce the final `IScraperScraping
 |---|---|
 | **Always-on?** | Yes (`ifBrowser`) |
 | **Owner slot** | (none — clean-up phase) |
-| **Source** | [`TerminatePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Phases/Terminate/TerminatePhase.ts) |
+| **Source** | [`TerminatePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Terminate/TerminatePhase.ts) |
 
 ## Sub-step contract
 

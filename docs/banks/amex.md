@@ -7,7 +7,7 @@
 | Credentials | `id`, `card6Digits`, `password` |
 | OTP | — |
 | Phase chain | INIT → HOME → **PRE-LOGIN** → LOGIN → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE → TERMINATE |
-| Source | [`Banks/Amex/AmexPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
+| Source | [`Banks/Amex/AmexPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
 
 ## Quick example
 

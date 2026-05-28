@@ -2,7 +2,7 @@
 
 Driven by [husky](https://typicode.github.io/husky/). Runs every quality gate in parallel before any commit lands locally.
 
-| Source | [`.husky/pre-commit`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.husky/pre-commit) |
+| Source | [`.husky/pre-commit`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.husky/pre-commit) |
 |---|---|
 
 ## Phase 1 — Prettier autoformat
