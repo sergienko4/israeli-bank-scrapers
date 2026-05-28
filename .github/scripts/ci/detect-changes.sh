@@ -71,7 +71,12 @@ if [ -z "${changed_files}" ]; then
 fi
 
 echo "[detect-changes] ${BASE_SHA:0:12}...HEAD changed files:"
-printf '  - %s\n' ${changed_files}
+# Quote the expansion (shellcheck SC2086): paths with spaces or
+# glob chars would otherwise be word-split / globbed by printf.
+while IFS= read -r file; do
+  [ -z "${file}" ] && continue
+  printf '  - %s\n' "${file}"
+done <<< "${changed_files}"
 echo
 
 has() {

@@ -69,7 +69,11 @@ load_allowlist() {
     return
   fi
   # Strip comments (# …) + blank lines; preserve symbol names only.
-  grep -vE '^\s*(#|$)' "$ALLOWLIST_FILE" | tr -d '[:space:]' | sort -u
+  # `grep -v` returns exit 1 when nothing matched (e.g. allowlist
+  # holds only comments/blank lines — current state) — that would
+  # trip `set -o pipefail` and abort the calling script. Swallow it.
+  { grep -vE '^\s*(#|$)' "$ALLOWLIST_FILE" || true; } \
+    | tr -d '[:space:]' | sort -u
 }
 
 # Resolve base — handles same-repo PRs and pre-fetched checkouts.
@@ -80,16 +84,34 @@ if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
 fi
 
 # Changed Pipeline TS files. --diff-filter=AMR includes added,
-# modified, and renamed files (rename: track the new path; the old
-# path's symbols are simply absent from HEAD — they read as removed,
-# not new, which is the correct behaviour).
-mapfile -t CHANGED_FILES < <(
-  git diff --name-only --diff-filter=AMR \
-    "${BASE_SHA}...HEAD" -- "${SCOPE_PREFIX}**/*.ts" \
-    | grep -v '\.test\.ts$' \
-    | grep -v '/Tests/' \
-    || true
-)
+# modified, and renamed files; --find-renames makes git emit the
+# pre-rename path alongside the post-rename path so we can diff
+# the symbol set against the SAME source file even after a move.
+# Without rename tracking, a pure rename would look up
+# `git show ${BASE_SHA}:<new-path>` (which doesn't exist on BASE),
+# fall back to an empty base set, and every existing export would
+# read as new — false-positive failures on rename-only PRs.
+declare -a CHANGED_FILES=()
+declare -A BASE_PATH_BY_HEAD=()  # post-rename path → pre-rename path
+
+while IFS=$'\t' read -r status path_a path_b; do
+  case "${status}" in
+    R*) head_path="${path_b}"; base_path="${path_a}" ;;
+    A|M) head_path="${path_a}"; base_path="${path_a}" ;;
+    *) continue ;;
+  esac
+  # Apply the same scope/exclusion filters as the old mapfile.
+  case "${head_path}" in
+    "${SCOPE_PREFIX}"*.ts) ;;
+    *) continue ;;
+  esac
+  case "${head_path}" in
+    *.test.ts | */Tests/*) continue ;;
+  esac
+  CHANGED_FILES+=("${head_path}")
+  BASE_PATH_BY_HEAD["${head_path}"]="${base_path}"
+done < <(git diff --name-status --find-renames --diff-filter=AMR \
+           "${BASE_SHA}...HEAD" -- "${SCOPE_PREFIX}")
 
 if [ "${#CHANGED_FILES[@]}" -eq 0 ]; then
   echo "[docs-coverage] No Pipeline production-code files changed. Skipping."
@@ -98,7 +120,14 @@ fi
 
 echo "[docs-coverage] Diffing against ${BASE_REF} @ ${BASE_SHA:0:12}"
 echo "[docs-coverage] ${#CHANGED_FILES[@]} Pipeline file(s) touched:"
-printf '  - %s\n' "${CHANGED_FILES[@]}"
+for f in "${CHANGED_FILES[@]}"; do
+  base_p="${BASE_PATH_BY_HEAD[$f]:-$f}"
+  if [ "${base_p}" != "${f}" ]; then
+    echo "  - ${f}  (renamed from ${base_p})"
+  else
+    echo "  - ${f}"
+  fi
+done
 echo
 
 ALLOWLIST="$(load_allowlist)"
@@ -114,9 +143,13 @@ for file in "${CHANGED_FILES[@]}"; do
     head_syms=""
   fi
 
-  # BASE set. `git show` errors if the file did not exist there —
-  # treat that as an empty set (every HEAD symbol counts as new).
-  if base_content="$(git show "${BASE_SHA}:${file}" 2>/dev/null)"; then
+  # BASE set. Look up using the PRE-rename path so a rename without
+  # any export changes resolves to the same symbol set on both sides
+  # and produces an empty NEW diff. `git show` still errors when the
+  # file is genuinely new (`A` status, base_path == head_path that
+  # didn't exist on BASE) — treat that as an empty set.
+  base_file="${BASE_PATH_BY_HEAD[$file]:-$file}"
+  if base_content="$(git show "${BASE_SHA}:${base_file}" 2>/dev/null)"; then
     base_syms="$(printf '%s\n' "$base_content" | extract_symbols)"
   else
     base_syms=""

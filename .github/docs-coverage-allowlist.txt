@@ -1,7 +1,9 @@
 # Docs coverage allowlist
 # =======================
 # Symbol names listed here are exempt from the docs-coverage CI gate
-# (.github/workflows/docs-coverage.yml). Each entry is a one-line
+# (the `Docs coverage canary` step inside .github/workflows/pr.yml's
+# `validate` job — driver script lives at
+# .github/scripts/ci/docs-coverage.sh). Each entry is a one-line
 # escape hatch — only use it when the symbol is intentionally
 # exported from src/Scrapers/Pipeline/ but not part of the
 # user-facing mkdocs guide under docs/.

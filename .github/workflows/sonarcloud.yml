@@ -48,6 +48,7 @@ jobs:
       - name: Skip — no src/** changes
         if: steps.changes.outputs.src == 'false'
         run: |
+          set -euo pipefail
           echo "No src/** changes in this PR/push — SonarCloud Scan reports green without running."
           echo "Real-scan trigger paths: src/**. If this PR DOES include src/** changes,"
           echo "recheck .github/scripts/ci/detect-changes.sh — the real scan should have run."
