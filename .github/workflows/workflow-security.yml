@@ -37,7 +37,7 @@ jobs:
           zizmor --format sarif .github/workflows > zizmor.sarif || true
 
       - name: Upload SARIF to code-scanning
-        uses: github/codeql-action/upload-sarif@2820a76c64eb37b1a6d18b27f4dec02e0a09147e # v4
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
         with:
           sarif_file: zizmor.sarif
           category: zizmor
