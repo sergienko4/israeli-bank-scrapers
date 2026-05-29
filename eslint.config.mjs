@@ -1493,7 +1493,7 @@ export default tseslint.config(
     },
   },
 
-  // 11. NETWORK SUB-MODULE FILE-SIZE GUARD
+  // 11. NETWORK SUB-MODULE FILE-SIZE + FUNCTION-SIZE GUARD
   //
   // Phase 4 split the 1812-LoC NetworkDiscovery.ts blob into seven
   // focused sub-modules under `Mediator/Network/`. Section 7 turns
@@ -1503,21 +1503,65 @@ export default tseslint.config(
   // sub-folder, future commits could quietly re-blob one of the new
   // homes back toward four-digit line counts.
   //
-  // The 500-line ceiling (blank + comment lines excluded) gives ~50%
-  // headroom over today's largest sub-module (Scoring.ts at 335
-  // effective LoC) while making any future growth into the
-  // sub-module's "split-or-extract" zone visible at pre-commit time.
+  // PR #276 review-fix: CodeRabbit pushed back on the 500-line cap
+  // — at that ceiling, files this size routinely violate SRP
+  // (Scoring.ts at 335 LoC already mixed shape-tier ranking,
+  // header probing and SPA-discovery). We tighten the ceiling to
+  // **150 effective lines per file** and add a **20-line cap per
+  // function** (skipBlankLines + skipComments) so every Network/
+  // sub-module stays small enough for a single reviewer to hold
+  // in working memory.
+  //
+  // Pre-existing files that already exceed the new cap
+  // (`Fetch.ts`, `AuthFailureWatcher.ts`, `AuthDiscovery.ts`) are
+  // grandfathered via file-level `eslint-disable` headers and
+  // tracked for split in a future Network/ phase.
   //
   // The shim itself (`NetworkDiscovery.ts`) is intentionally left
   // unconstrained — Section 7 already allows it, and this guard is
   // about preventing regression of the new homes, not the facade.
+  //
+  // Two canary files enforce both halves of the cap: the
+  // `no-network-discovery-blob.canary.ts` over-sizes the file to
+  // prove `max-lines` fires, and the
+  // `network-cluster-fn-over-cap.canary.ts` over-sizes a single
+  // function to prove `max-lines-per-function` fires.
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/Network/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/no-network-discovery-blob.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/network-cluster-fn-over-cap.canary.ts',
     ],
     rules: {
-      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 20, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+    },
+  },
+
+  // 11A. NETWORK SUB-MODULE GRANDFATHER OVERRIDE
+  //
+  // PR #276 review-fix: three pre-existing Network/ files exceed the
+  // new Section 11 caps (Fetch.ts 300 eff LoC, AuthFailureWatcher.ts
+  // 246 eff LoC, AuthDiscovery.ts 220 eff LoC). Splitting them is a
+  // separate Network/ phase — this override turns the file-size +
+  // per-function caps OFF for those three files ONLY so they pass
+  // pre-commit while still appearing in the linter inventory.
+  //
+  // Suppression via file-level `eslint-disable` headers is NOT used
+  // because Section 15 (`no-warning-comments`) bans the
+  // `eslint-disable` term across src/**.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Network/Fetch.ts',
+      'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.ts',
+      'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.ts',
+    ],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
     },
   },
 );
