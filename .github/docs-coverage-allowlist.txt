@@ -39,3 +39,22 @@
 # Review this file at least once per release. Symbols that have
 # since been deleted, renamed, or properly documented should be
 # removed so the allowlist does not accumulate dead entries.
+
+# --- Phase 5: ScrapeAutoMapper cluster shared internals (PR #277) ---
+# These symbols moved from the (formerly monolithic) ScrapeAutoMapper.ts
+# into AutoMapperFacade/AutoMapperTypes.ts as part of the 11-sub-module
+# split. They are CROSS-MODULE INTERNALS — shared types + constants
+# used by BfsFieldSearch, AccountExtractor, ContainerPicker, TxnMapper,
+# etc. — not part of the user-facing @sergienko4/israeli-bank-scrapers
+# public surface. They are not re-exported from lib/index.{cjs,mjs}.
+
+# Reason: ApiRecord — internal alias `Record<string, unknown>` for API response shapes (used by AccountExtractor + BfsFieldSearch + TxnMapper). Not a stable public type.
+ApiRecord
+# Reason: DEFAULT_CURRENCY — internal 'ILS' fallback constant for amount normalization; bundled into transaction objects via the shim, never imported by consumers.
+DEFAULT_CURRENCY
+# Reason: MAX_SEARCH_DEPTH — internal BFS recursion bound for AccountExtractor field discovery; tuning constant, not user-facing.
+MAX_SEARCH_DEPTH
+# Reason: ScalarFieldHit — internal helper union (`string | number | false`) for findFieldValue / coerce* miss-marking. Implementation detail of the field-search algorithm.
+ScalarFieldHit
+# Reason: UntypedValue — internal alias of the shared JsonValue union (named to avoid Sonar S6564); retained for call-site stability across Scrape sub-modules.
+UntypedValue
