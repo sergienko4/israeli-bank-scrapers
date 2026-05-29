@@ -18,7 +18,6 @@ import {
 } from '../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../Types/Debug.js';
 import type { IFieldMatch } from '../../Types/FieldMatch.js';
-import type { JsonValue } from '../../Types/JsonValue.js';
 import type {
   ITxnEndpoint,
   ITxnEndpointInternal,
@@ -27,6 +26,13 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
+import {
+  type ApiRecord,
+  DEFAULT_CURRENCY,
+  MAX_SEARCH_DEPTH,
+  type ScalarFieldHit,
+  type UntypedValue,
+} from './AutoMapperFacade/AutoMapperTypes.js';
 
 export type { IMonthChunk } from '../Scrape/ScrapeReplayAction.js';
 export {
@@ -38,33 +44,6 @@ export {
 } from '../Scrape/ScrapeReplayAction.js';
 
 const LOG = getDebug(import.meta.url);
-
-/** API response record — wraps Record to hide `unknown` from function signatures. */
-type ApiRecord = Record<string, unknown>;
-
-/**
- * Untyped value crossing module boundaries — alias of the shared
- * {@link JsonValue} structural union from
- * `Pipeline/Types/JsonValue.ts`. Closes Sonar S6564 (the prior
- * `type UntypedValue = unknown` alias was redundant); the
- * structural union RHS is accepted as non-redundant because it is a
- * `TSUnionType`, not a bare `TSUnknownKeyword`. Domain
- * name retained (`UntypedValue`) so the 14 call-sites do not
- * need renaming.
- */
-type UntypedValue = JsonValue;
-
-/**
- * Result of probing a record for a scalar field — the raw scalar
- * (string or number) when found, or `false` to mark a miss. Reused
- * widely by findFieldValue, coerceString, coerceNumber, and the
- * amount-resolution helpers; named here to keep the union out of
- * every signature (Sonar S4323).
- */
-type ScalarFieldHit = string | number | false;
-
-/** Default currency when none found in API response. */
-const DEFAULT_CURRENCY = 'ILS';
 
 /**
  * Coerce a field value to string, applying optional transform.
@@ -125,9 +104,6 @@ function coerceIdentifier(val: ScalarFieldHit): string | number | false {
   if (typeof val === 'string' && val.length > 0 && val !== '0') return val;
   return false;
 }
-
-/** Max depth for BFS field search. */
-const MAX_SEARCH_DEPTH = 10;
 
 // KNOWN_DATE_FORMATS imported from Registry/WK/ScrapeWK.ts
 
