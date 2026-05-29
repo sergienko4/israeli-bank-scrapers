@@ -28,7 +28,7 @@ import type {
   ITxnEndpointInternal,
   ITxnFieldMap,
 } from '../../../Types/PipelineContext.js';
-import type { INetworkDiscovery } from '../../Network/NetworkDiscovery.js';
+import type { IDiscoveredEndpoint, INetworkDiscovery } from '../../Network/NetworkDiscovery.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { extractTransactions } from '../ContainerPicker/ContainerPicker.js';
 import huntTransactions from '../FieldHunt/TxnHunt.js';
@@ -212,6 +212,65 @@ function resolveFieldMapOrEmpty(records: readonly ApiRecord[]): ITxnFieldMap {
 }
 
 /**
+ * Resolved request-shape bits the orchestrator commits into the
+ * outgoing {@link ITxnEndpoint}. Bundled so {@link buildTxnEndpoint}
+ * stays under the parameter cap.
+ */
+interface IResolvedRequestParts {
+  method: 'GET' | 'POST';
+  fieldMap: ITxnFieldMap;
+}
+
+/**
+ * Build the slim {@link ITxnEndpoint} that DASHBOARD commits to
+ * `ctx.txnEndpoint`. Pulls templatePostData / pendingUrl /
+ * billingUrl via their respective helpers so the orchestrator
+ * stays small.
+ * @param network - Network surface exposing the pool of captures.
+ * @param ep - Raw endpoint capture lifted from {@link INetworkDiscovery}.
+ * @param parts - Resolved request shape (method + fieldMap).
+ * @returns Slim endpoint payload for `ctx.txnEndpoint`.
+ */
+function buildTxnEndpoint(
+  network: INetworkDiscovery,
+  ep: IDiscoveredEndpoint,
+  parts: IResolvedRequestParts,
+): ITxnEndpoint {
+  return {
+    url: ep.url,
+    method: parts.method,
+    templatePostData: resolveTemplatePostData(parts.method, ep.postData),
+    fieldMap: parts.fieldMap,
+    pendingUrl: resolvePendingUrl(network),
+    billingUrl: resolveBillingUrl(network),
+  };
+}
+
+/**
+ * Wrap a built {@link ITxnEndpoint} into the wider
+ * {@link ITxnEndpointInternal} payload DASHBOARD.FINAL emits as
+ * telemetry alongside picker diagnostics.
+ * @param ep - Raw endpoint capture (used for tier + capture index).
+ * @param endpoint - Slim endpoint payload from {@link buildTxnEndpoint}.
+ * @param responseBody - Sampled response body for the telemetry pane.
+ * @returns Internal wrapper with picker diagnostics.
+ */
+function buildInternalResult(
+  ep: IDiscoveredEndpoint,
+  endpoint: ITxnEndpoint,
+  responseBody: ApiRecord,
+): ITxnEndpointInternal {
+  return {
+    endpoint,
+    captureIndex: ep.captureIndex ?? 0,
+    responseBodySample: responseBody,
+    normalizedRecords: extractTransactions(responseBody),
+    pickerTier: ep.pickerTier ?? 'shapePassing',
+    capturedPreClick: ep.capturedPreClick ?? false,
+  };
+}
+
+/**
  * Phase 7f — resolve the TXN endpoint from DASHBOARD's captures.
  * Returns the wider {@link ITxnEndpointInternal} so DASHBOARD.FINAL
  * can emit the `dashboard.txnEndpoint.committed` telemetry with the
@@ -236,23 +295,8 @@ function resolveTxnEndpoint(network: INetworkDiscovery): ITxnEndpointInternal | 
   const responseBody = (body ?? {}) as ApiRecord;
   const records = huntTransactions(responseBody);
   const fieldMap = resolveFieldMapOrEmpty(records);
-  const method: 'GET' | 'POST' = ep.method;
-  const endpoint: ITxnEndpoint = {
-    url: ep.url,
-    method,
-    templatePostData: resolveTemplatePostData(method, ep.postData),
-    fieldMap,
-    pendingUrl: resolvePendingUrl(network),
-    billingUrl: resolveBillingUrl(network),
-  };
-  return {
-    endpoint,
-    captureIndex: ep.captureIndex ?? 0,
-    responseBodySample: responseBody,
-    normalizedRecords: extractTransactions(responseBody),
-    pickerTier: ep.pickerTier ?? 'shapePassing',
-    capturedPreClick: ep.capturedPreClick ?? false,
-  };
+  const endpoint = buildTxnEndpoint(network, ep, { method: ep.method, fieldMap });
+  return buildInternalResult(ep, endpoint, responseBody);
 }
 
 export default resolveTxnEndpoint;

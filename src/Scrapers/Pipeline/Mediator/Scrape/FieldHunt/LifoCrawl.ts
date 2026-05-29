@@ -156,6 +156,24 @@ function drainLifoStack(stack: IStackEntry[], collected: UntypedValue[]): readon
 }
 
 /**
+ * BFS fallback used when the LIFO drain finds no leaf-array. Scans
+ * the entire object tree for any property whose value is an array
+ * of objects and returns the first hit.
+ * @param obj - Root API record to search.
+ * @returns First object-array discovered, or `[]` when none exists.
+ */
+function findArrayByBfsFallback(obj: ApiRecord): readonly UntypedValue[] {
+  const allObjects = flattenObjectTree(obj);
+  const arrays = allObjects.map((o): readonly UntypedValue[] | false => {
+    const arr = Object.values(o).find(Array.isArray);
+    if (arr) return arr as readonly UntypedValue[];
+    return false;
+  });
+  const hit = arrays.find((a): a is readonly UntypedValue[] => a !== false);
+  return hit ?? [];
+}
+
+/**
  * Find the first array of objects in a nested structure via LIFO traversal.
  * @param obj - Root API record to search.
  * @returns First array of searchable items found.
@@ -169,17 +187,8 @@ function findFirstArray(obj: ApiRecord): readonly UntypedValue[] {
     LOG.debug({ message: `findFirstArray: collected ${String(collected.length)} items` });
     return collected;
   }
-  LOG.debug({
-    message: 'findFirstArray: falling back to BFS',
-  });
-  const allObjects = flattenObjectTree(obj);
-  const arrays = allObjects.map((o): readonly UntypedValue[] | false => {
-    const arr = Object.values(o).find(Array.isArray);
-    if (arr) return arr as readonly UntypedValue[];
-    return false;
-  });
-  const hit = arrays.find((a): a is readonly UntypedValue[] => a !== false);
-  return hit ?? [];
+  LOG.debug({ message: 'findFirstArray: falling back to BFS' });
+  return findArrayByBfsFallback(obj);
 }
 
 export default findFirstArray;

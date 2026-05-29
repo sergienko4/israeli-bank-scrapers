@@ -131,6 +131,113 @@ function isMappableTxn(dateIso: string, amount: number): boolean {
 }
 
 /**
+ * Raw scalar field set lifted off a single API record via the
+ * WK.* registries. Bundled into a single struct so the per-txn
+ * orchestrator (`autoMapTransaction`) stays small while the
+ * coercion / amount-resolution helpers receive a typed input
+ * instead of seven loose positional parameters.
+ */
+interface IRawTxnFields {
+  date: ScalarFieldHit;
+  processedDate: ScalarFieldHit;
+  amount: ScalarFieldHit;
+  originalAmount: ScalarFieldHit;
+  description: ScalarFieldHit;
+  identifier: ScalarFieldHit;
+  currency: ScalarFieldHit;
+  voidField: ScalarFieldHit;
+}
+
+/**
+ * Resolved per-txn amounts after sign-correction and split
+ * debit/credit netting. `amtNum` is the signed charged amount,
+ * `origNum` is the signed original-currency amount.
+ */
+interface IResolvedAmounts {
+  amtNum: number;
+  origNum: number;
+}
+
+/**
+ * Pre-coerced date strings used to build the mapped txn. Bundled
+ * so {@link buildMappedTxn} stays under the parameter cap.
+ */
+interface IDateStrings {
+  date: string;
+  processedDate: string;
+}
+
+/**
+ * Extract every WK.* scalar a single raw record contributes. One
+ * `findFieldValue` call per WK list — no fall-back logic, no
+ * coercion, just the raw scalar hits the downstream helpers need.
+ * @param raw - Raw API record.
+ * @returns Bundled raw scalar hits for the record.
+ */
+function extractRawTxnFields(raw: ApiRecord): IRawTxnFields {
+  return {
+    date: findFieldValue(raw, WK.date),
+    processedDate: findFieldValue(raw, WK.processedDate),
+    amount: findFieldValue(raw, WK.amount),
+    originalAmount: findFieldValue(raw, WK.originalAmount),
+    description: findFieldValue(raw, WK.description),
+    identifier: findFieldValue(raw, WK.identifier),
+    currency: findFieldValue(raw, WK.currency),
+    voidField: findFieldValue(raw, WK.voidIndicators),
+  };
+}
+
+/**
+ * Compute the signed charged + original amounts. Runs the
+ * card-negation + direction-WK pipeline on both `amount` and
+ * `originalAmount`, falling back to `amount` for `originalAmount`
+ * when the record omits it.
+ * @param raw - Raw API record (needed for direction-WK lookup).
+ * @param fields - Pre-extracted scalar hits.
+ * @param isCard - True for Isracard/Amex (debit-as-positive).
+ * @returns Signed amounts ready to assign to the mapped txn.
+ */
+function computeAmounts(raw: ApiRecord, fields: IRawTxnFields, isCard: boolean): IResolvedAmounts {
+  const rawAmt = resolveAmount(raw, fields.amount);
+  const negAmt = maybeNegateAmount(rawAmt, isCard);
+  const amtNum = applyDirectionWk(raw, negAmt);
+  const rawOrig = coerceNumber(fields.originalAmount, amtNum);
+  const negOrig = maybeNegateAmount(rawOrig, isCard);
+  const origNum = applyDirectionWk(raw, negOrig);
+  return { amtNum, origNum };
+}
+
+/**
+ * Assemble the final {@link ITransaction} from the resolved
+ * primitives. Pure mapping — no coercion or validation beyond
+ * the currency normalisation + identifier sanitisation already
+ * performed upstream.
+ * @param dates - Pre-coerced date strings.
+ * @param amounts - Signed charged + original amounts.
+ * @param fields - Raw scalar hits (description, identifier, currency).
+ * @returns Mapped transaction.
+ */
+function buildMappedTxn(
+  dates: IDateStrings,
+  amounts: IResolvedAmounts,
+  fields: IRawTxnFields,
+): ITransaction {
+  const rawCurr = coerceString(fields.currency, undefined, DEFAULT_CURRENCY);
+  const rawId = coerceIdentifier(fields.identifier);
+  return {
+    type: TransactionTypes.Normal,
+    date: dates.date,
+    processedDate: dates.processedDate,
+    originalAmount: amounts.origNum,
+    originalCurrency: normalizeCurrency(rawCurr),
+    chargedAmount: amounts.amtNum,
+    description: coerceString(fields.description),
+    status: TransactionStatuses.Completed,
+    identifier: rawId || undefined,
+  };
+}
+
+/**
  * Map a raw API record to a standard ITransaction. Returns false
  * when required fields (date / amount) cannot be coerced, so the
  * extractor can drop the record with a LOUD log instead of letting
@@ -139,44 +246,17 @@ function isMappableTxn(dateIso: string, amount: number): boolean {
  * @returns Mapped transaction, or false on malformed record.
  */
 function autoMapTransaction(raw: ApiRecord): ITransaction | false {
-  const date = findFieldValue(raw, WK.date);
-  const processedDate = findFieldValue(raw, WK.processedDate);
-  const amount = findFieldValue(raw, WK.amount);
-  const originalAmount = findFieldValue(raw, WK.originalAmount);
-  const description = findFieldValue(raw, WK.description);
-  const identifier = findFieldValue(raw, WK.identifier);
-  const currency = findFieldValue(raw, WK.currency);
-  const dateStr = coerceString(date, parseAutoDate);
-  const procStr = coerceString(processedDate, parseAutoDate, dateStr);
-  const voidField = findFieldValue(raw, WK.voidIndicators);
-  const isCard = Boolean(voidField);
-  const rawAmt = resolveAmount(raw, amount);
-  const negAmt = maybeNegateAmount(rawAmt, isCard);
-  const amtNum = applyDirectionWk(raw, negAmt);
-  if (!isMappableTxn(dateStr, amtNum)) {
-    const why = `date="${dateStr}", amount=${String(amtNum)}`;
+  const fields = extractRawTxnFields(raw);
+  const dateStr = coerceString(fields.date, parseAutoDate);
+  const procStr = coerceString(fields.processedDate, parseAutoDate, dateStr);
+  const isCard = Boolean(fields.voidField);
+  const amounts = computeAmounts(raw, fields, isCard);
+  if (!isMappableTxn(dateStr, amounts.amtNum)) {
+    const why = `date="${dateStr}", amount=${String(amounts.amtNum)}`;
     LOG.debug({ message: `autoMapTransaction: rejected (${why})` });
     return false;
   }
-  const rawOrig = coerceNumber(originalAmount, amtNum);
-  const negOrig = maybeNegateAmount(rawOrig, isCard);
-  const origNum = applyDirectionWk(raw, negOrig);
-  const descStr = coerceString(description);
-  const rawCurr = coerceString(currency, undefined, DEFAULT_CURRENCY);
-  const currStr = normalizeCurrency(rawCurr);
-  const rawId = coerceIdentifier(identifier);
-  const idVal = rawId || undefined;
-  return {
-    type: TransactionTypes.Normal,
-    date: dateStr,
-    processedDate: procStr,
-    originalAmount: origNum,
-    originalCurrency: currStr,
-    chargedAmount: amtNum,
-    description: descStr,
-    status: TransactionStatuses.Completed,
-    identifier: idVal,
-  };
+  return buildMappedTxn({ date: dateStr, processedDate: procStr }, amounts, fields);
 }
 
 export { autoMapTransaction, isVoidedTransaction };
