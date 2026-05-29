@@ -2,13 +2,251 @@
  * PiiRedactor Facade — unified entry point composing every
  * per-category strategy.
  *
- * Phase 6 commit 1: this module is intentionally an empty shell. The
- * strategy registry and the unified `redact()` / `classify()` entry
- * points are populated in commit 5 (AuthCredentials + ErrorLog + Facade
- * composition). Commit 6 then collapses `../PiiRedactor.ts` into a
- * re-export shim that points at this Facade.
+ * Hosts the path-tail → category routing table, the strategy
+ * registry, the Pino `createCensorFn()` factory, and the unified
+ * value-only {@link redact} entry point used by call-sites that lack
+ * a structured path (CLI, free-form logger arguments).
+ *
+ * Auth credentials (token / OTP / cookie) are matched FIRST inside
+ * `redact()` and ALWAYS produce a stable hint — `PII_REDACTION=off`
+ * cannot leak them through this entry point.
  *
  * Spec: pipeline-decoupling-master-2026-05-28 / phase-6 / spec.txt §3.
  */
 
-export {};
+import { redactAccount } from './Account.js';
+import { redactAmount } from './Amount.js';
+import {
+  looksLikeCookie,
+  looksLikeOtp,
+  looksLikeToken,
+  redactCookie,
+  redactOtp,
+  redactToken,
+} from './AuthCredentials.js';
+import { redactCard } from './Card.js';
+import { redactIsraeliId } from './IsraeliId.js';
+import { redactMerchant } from './Merchant.js';
+import { redactName } from './Name.js';
+import { redactPhone } from './Phone.js';
+import {
+  type PiiCategory,
+  type PiiClassifierBool,
+  type PiiHintString,
+  REDACTED_HINT,
+  REDACTION_ERROR_HINT,
+} from './Types.js';
+
+/** Pino's redact callback value type — strings, numbers, or booleans. */
+export type CensorValue = string | number | boolean;
+
+/** Pino's redact callback signature — value+path → string. */
+export type CensorFn = (value: CensorValue, path: readonly string[]) => string;
+
+/** Path-tail key → PiiCategory routing table (Partial, missing keys → undefined). */
+export const PATH_TAIL_TO_CATEGORY: Readonly<Partial<Record<string, PiiCategory>>> = {
+  accountNumber: 'account',
+  accountId: 'account',
+  bankAccountNum: 'account',
+  cardSuffix: 'card',
+  last4Digits: 'card',
+  cardUniqueId: 'card',
+  cardUniqueID: 'card',
+  CardId: 'card',
+  card6Digits: 'card',
+  num: 'account',
+  MisparZihuy: 'israeliId',
+  israeliId: 'israeliId',
+  phoneNumber: 'phone',
+  phone: 'phone',
+  mobile: 'phone',
+  email: 'token',
+  firstName: 'name',
+  lastName: 'name',
+  customerName: 'name',
+  fullName: 'name',
+  username: 'name',
+  userName: 'name',
+  UserName: 'name',
+  Username: 'name',
+  description: 'merchant',
+  merchant: 'merchant',
+  payee: 'merchant',
+  balance: 'amount',
+  chargedAmount: 'amount',
+  originalAmount: 'amount',
+  eventAmount: 'amount',
+  bearer: 'token',
+  authorization: 'token',
+  Authorization: 'token',
+  token: 'token',
+  idToken: 'token',
+  otpToken: 'token',
+  otpLongTermToken: 'token',
+  smsAssertionId: 'token',
+  otpContext: 'token',
+  deviceToken: 'token',
+  sessionId: 'token',
+  deviceId: 'token',
+  pwdAssertionId: 'token',
+  challenge: 'token',
+  password: 'token',
+  secret: 'token',
+  Sisma: 'token',
+  bankAccountUniqueID: 'token',
+  bankAccountUniqueId: 'token',
+  queryIdentifier: 'token',
+  cookies: 'cookie',
+  cookie: 'cookie',
+  setCookie: 'cookie',
+  otpCode: 'otp',
+};
+
+/** String-strategy lookup table (excludes amount which has number input). */
+const STRING_STRATEGIES: Readonly<Partial<Record<PiiCategory, (value: string) => string>>> = {
+  account: redactAccount,
+  card: redactCard,
+  israeliId: redactIsraeliId,
+  phone: redactPhone,
+  name: redactName,
+  merchant: redactMerchant,
+  token: redactToken,
+  otp: redactOtp,
+  cookie: redactCookie,
+};
+
+/**
+ * Whether a path-tail key classifies as token-shaped via case-insensitive
+ * suffix match.
+ * @param key - Last segment of the path.
+ * @returns True when the key looks like a token.
+ */
+function isTokenSuffix(key: string): PiiClassifierBool {
+  const lower = key.toLowerCase();
+  if (lower.endsWith('token')) return true as PiiClassifierBool;
+  if (lower.endsWith('bearer')) return true as PiiClassifierBool;
+  if (lower.endsWith('cookie')) return true as PiiClassifierBool;
+  if (lower.endsWith('secret')) return true as PiiClassifierBool;
+  return false as PiiClassifierBool;
+}
+
+/**
+ * Whether a path-tail key classifies as a name-shaped value via
+ * case-insensitive suffix match. Bare `name` is intentionally NOT
+ * matched — too many non-PII uses.
+ * @param key - Last segment of the path.
+ * @returns True when the key looks like a personal-name field.
+ */
+function isNameSuffix(key: string): PiiClassifierBool {
+  const lower = key.toLowerCase();
+  if (lower.endsWith('firstname')) return true as PiiClassifierBool;
+  if (lower.endsWith('lastname')) return true as PiiClassifierBool;
+  if (lower.endsWith('fullname')) return true as PiiClassifierBool;
+  if (lower.endsWith('customername')) return true as PiiClassifierBool;
+  return false as PiiClassifierBool;
+}
+
+/**
+ * Classify a path's tail key into a PiiCategory.
+ * @param key - Path tail key.
+ * @returns Resolved category.
+ */
+export function classifyKey(key: string): PiiCategory {
+  const direct = PATH_TAIL_TO_CATEGORY[key];
+  if (direct !== undefined) return direct;
+  if (isTokenSuffix(key)) return 'token';
+  if (isNameSuffix(key)) return 'name';
+  return 'unknown';
+}
+
+/** Args bundle for dispatchStrategy — keeps the function signature typed. */
+interface IDispatchArgs {
+  readonly value: CensorValue;
+  readonly category: PiiCategory;
+}
+
+/**
+ * Coerce a censor input to its string form for lookup-table dispatch.
+ * @param value - Pino value (string | number | boolean).
+ * @returns String coercion.
+ */
+function toStringValue(value: CensorValue): PiiHintString {
+  if (typeof value === 'string') return value as PiiHintString;
+  return String(value) as PiiHintString;
+}
+
+/**
+ * Coerce a censor input to a number-or-string for redactAmount.
+ * @param value - Pino value.
+ * @returns Number when value is number, else its string form.
+ */
+function toAmountValue(value: CensorValue): number | string {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'boolean') return String(value);
+  return value;
+}
+
+/**
+ * Dispatch a single value+category pair to the matching strategy.
+ * @param args - Bundled value + category.
+ * @returns Stable hint.
+ */
+function dispatchStrategy(args: IDispatchArgs): PiiHintString {
+  if (args.category === 'amount') {
+    const amountInput = toAmountValue(args.value);
+    return redactAmount(amountInput);
+  }
+  const strategy = STRING_STRATEGIES[args.category];
+  if (strategy === undefined) return REDACTED_HINT as PiiHintString;
+  const stringInput = toStringValue(args.value);
+  return strategy(stringInput) as PiiHintString;
+}
+
+/**
+ * Pino redact callback factory. Each invocation classifies the path
+ * tail, dispatches to a strategy, and returns the stable hint string.
+ * Strategy throws are caught and translated to '[REDACTION_ERROR]'.
+ * @returns Censor function bound to the production strategy table.
+ */
+export function createCensorFn(): CensorFn {
+  return (value, path): PiiHintString => {
+    if (path.length === 0) return REDACTED_HINT as PiiHintString;
+    const tail = path.at(-1);
+    if (tail === undefined || tail.length === 0) return REDACTED_HINT as PiiHintString;
+    try {
+      const category = classifyKey(tail);
+      return dispatchStrategy({ value, category });
+    } catch {
+      return REDACTION_ERROR_HINT as PiiHintString;
+    }
+  };
+}
+
+/**
+ * Inner classification body for {@link redact}. Auth-credential
+ * sniffers run FIRST so `PII_REDACTION=off` cannot leak them.
+ * @param value - Candidate string already proven to be a string.
+ * @returns Stable hint string.
+ */
+function redactStringValue(value: string): PiiHintString {
+  if (looksLikeToken(value)) return REDACTED_HINT as PiiHintString;
+  if (looksLikeOtp(value)) return '[OTP]' as PiiHintString;
+  if (looksLikeCookie(value)) return REDACTED_HINT as PiiHintString;
+  return REDACTED_HINT as PiiHintString;
+}
+
+/**
+ * Unified PII redaction entry point. Default-deny: any unclassified
+ * value yields {@link REDACTED_HINT}. Auth credentials (token / OTP /
+ * cookie) are matched FIRST so `PII_REDACTION=off` cannot leak them.
+ * @param value - Arbitrary input value.
+ * @returns Stable hint string.
+ */
+export function redact(value: unknown): PiiHintString {
+  if (typeof value !== 'string') return REDACTED_HINT as PiiHintString;
+  try {
+    return redactStringValue(value);
+  } catch {
+    return REDACTION_ERROR_HINT as PiiHintString;
+  }
+}
