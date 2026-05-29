@@ -12,8 +12,9 @@
  */
 
 import { getDebug } from '../../../Types/Debug.js';
-import { maskVisibleText } from '../../../Types/LogEvent.js';
+import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
+import { isConfigOrSettingsUrl } from './ConfigUrlMatcher.js';
 import safeParseWindowUrl from './SafeUrl.js';
 
 const LOG = getDebug(import.meta.url);
@@ -35,7 +36,7 @@ function extractApiFromBody(ep: IDiscoveredEndpoint): string | false {
   if (parsed === false) return false;
   const origin = parsed.origin;
   LOG.debug({
-    message: `apiOrigin Tier1 (config): ${maskVisibleText(origin)} from ${maskVisibleText(ep.url)}`,
+    message: `apiOrigin Tier1 (config): ${redactUrlFull(origin)} from ${redactUrlFull(ep.url)}`,
   });
   return origin;
 }
@@ -46,9 +47,7 @@ function extractApiFromBody(ep: IDiscoveredEndpoint): string | false {
  * @returns API origin or false.
  */
 function discoverApiFromConfig(captured: readonly IDiscoveredEndpoint[]): string | false {
-  const configEps = captured.filter(
-    (ep): boolean => ep.url.includes('config') || ep.url.includes('settings'),
-  );
+  const configEps = captured.filter((ep): boolean => isConfigOrSettingsUrl(ep.url));
   const hit = configEps.find((ep): boolean => extractApiFromBody(ep) !== false);
   if (!hit) return false;
   return extractApiFromBody(hit);
@@ -78,7 +77,7 @@ function discoverApiFromSubdomain(captured: readonly IDiscoveredEndpoint[]): str
   const parsed = safeParseWindowUrl(hit.url);
   if (parsed === false) return false;
   const origin = parsed.origin;
-  LOG.debug({ message: `apiOrigin Tier2 (subdomain): ${maskVisibleText(origin)}` });
+  LOG.debug({ message: `apiOrigin Tier2 (subdomain): ${redactUrlFull(origin)}` });
   return origin;
 }
 
@@ -94,7 +93,7 @@ function discoverApiFromPath(captured: readonly IDiscoveredEndpoint[]): string |
   const parsed = safeParseWindowUrl(hit.url);
   if (parsed === false) return false;
   const origin = parsed.origin;
-  LOG.debug({ message: `apiOrigin Tier3 (path): ${maskVisibleText(origin)}` });
+  LOG.debug({ message: `apiOrigin Tier3 (path): ${redactUrlFull(origin)}` });
   return origin;
 }
 

@@ -168,7 +168,14 @@ function recordCaptureIfPresent(
     return false;
   }
   captured.push(endpoint);
-  LOG.trace({ method: endpoint.method, url: maskVisibleText(endpoint.url) });
+  // CR PR #276 post-review-fix #6 — structured Pino logs MUST carry
+  // an `event` field with a kebab-case dotted scope (per guidelines)
+  // so the trace stays filterable in `pipeline.log`.
+  LOG.trace({
+    event: 'recordCapture.hit',
+    method: endpoint.method,
+    url: maskVisibleText(endpoint.url),
+  });
   return true;
 }
 

@@ -13,6 +13,14 @@ import type { IRequestMeta } from './Indexing.js';
 
 const LOG = getDebug(import.meta.url);
 
+/**
+ * URL segment indicating a VisaCal-style "col-rest" API call —
+ * captured-miss heuristic for the response observer. Lifted into a
+ * named constant per CR PR #276 post-review-fix #7 so the literal
+ * does not appear inline (guideline: never hardcode values).
+ */
+const COL_REST_SEGMENT = '/col-rest/' as const;
+
 /** Drop reason — emitted when a gate filters the response. */
 type DropReason = 'unsupportedUrl' | 'shouldRecordResponse=false';
 
@@ -95,14 +103,21 @@ function logParseCatch(meta: IRequestMeta, status: number, error: Error): false 
 
 /**
  * Log a captured-response miss when the URL looks interesting (POST
- * or `/col-rest/`) — keeps the per-handleResponse function short.
+ * or contains {@link COL_REST_SEGMENT}) — keeps the per-handleResponse
+ * function short. CR PR #276 post-review-fix #7 adds the structured
+ * `event` field and lifts `/col-rest/` into a named constant.
  * @param meta - Response metadata.
  * @returns True when a miss line was logged, false when skipped.
  */
 function logCaptureMiss(meta: IResponseMeta): boolean {
-  const isInteresting = meta.method === 'POST' || meta.url.includes('/col-rest/');
+  const isInteresting = meta.method === 'POST' || meta.url.includes(COL_REST_SEGMENT);
   if (!isInteresting) return false;
-  LOG.trace({ method: meta.method, url: maskVisibleText(meta.url), status: meta.status });
+  LOG.trace({
+    event: 'captureMiss',
+    method: meta.method,
+    url: maskVisibleText(meta.url),
+    status: meta.status,
+  });
   return true;
 }
 

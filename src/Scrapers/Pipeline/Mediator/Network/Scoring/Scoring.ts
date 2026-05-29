@@ -27,6 +27,10 @@ const LOG = getDebug(import.meta.url);
 
 /**
  * Find the most common base URL from captured endpoints.
+ * Returns `false` (never `''`) when the ranked base is empty so
+ * callers see the documented `string | false` failure signal
+ * instead of an empty-string masquerading as a URL (CR PR #276
+ * post-review-fix #1).
  * @param endpoints - All captured endpoints.
  * @returns Most common base URL or false.
  */
@@ -39,7 +43,7 @@ function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): strin
   }
   const entries = [...counts.entries()];
   entries.sort((a, b): number => b[1] - a[1]);
-  return entries[0]?.[0] ?? '';
+  return entries[0]?.[0] || false;
 }
 
 /**

@@ -154,21 +154,6 @@ const FROZEN_LIFECYCLE = {
   setCollectionActive: (): true => true,
 } as const;
 
-/**
- * Create a FROZEN INetworkDiscovery from a static endpoint snapshot.
- * All discovery methods operate on the frozen captured array — no
- * live Page. Auth methods return the pre-cached token. Traffic
- * polling returns false. Used by SCRAPE.ACTION to execute without
- * browser access.
- *
- * @param endpoints - Frozen copy of captured endpoints from PRE.
- * @param cachedAuth - Pre-cached auth token from DASHBOARD.
- * @param dashboardClickAt - Click timestamp inherited from the live
- *   network at freeze time. `false` for tests / synthetic frozen
- *   replays — bucketing methods then expose the full pool, which is
- *   the safe default when no nav-click occurred.
- * @returns Frozen INetworkDiscovery.
- */
 /** Aggregated frozen bundle keyed by INetworkDiscovery slice. */
 interface IFrozenBundle {
   readonly core: ReturnType<typeof buildCoreMethods>;

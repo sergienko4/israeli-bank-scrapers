@@ -76,12 +76,18 @@ function recordInterceptedEndpoint(
 /**
  * CR PR #276 #3 — log non-timeout parse / network errors so they're
  * not silently lost. Timeouts are expected (no WK POST fired within
- * the budget); other failures surface in `pipeline.log`.
+ * the budget) — CR PR #276 post-review-fix #4 short-circuits the
+ * Playwright `TimeoutError` (Error.name === 'TimeoutError') so the
+ * expected branch stops adding noise to `pipeline.log`; other
+ * failures still surface.
  * @param err - Thrown value.
  * @returns False (the promise chain stays fire-and-forget).
  */
 function logInterceptError(err: unknown): boolean {
-  LOG.debug({ event: 'interceptPostResponses.error', error: String(err) });
+  const isExpectedTimeout = err instanceof Error && err.name === 'TimeoutError';
+  if (!isExpectedTimeout) {
+    LOG.debug({ event: 'interceptPostResponses.error', error: String(err) });
+  }
   return false;
 }
 

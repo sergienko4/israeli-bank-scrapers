@@ -14,8 +14,9 @@
 
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../../Types/Debug.js';
-import { maskVisibleText } from '../../../Types/LogEvent.js';
+import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
+import { isConfigOrSettingsUrl } from './ConfigUrlMatcher.js';
 import safeParseWindowUrl from './SafeUrl.js';
 
 const LOG = getDebug(import.meta.url);
@@ -58,7 +59,7 @@ function findByReferer(captured: readonly IDiscoveredEndpoint[]): string | false
   if (!ref) return false;
   LOG.debug({
     message:
-      `SPA Tier1 (referer): ${maskVisibleText(ref)} ` + `from ${maskVisibleText(apiEndpoint.url)}`,
+      `SPA Tier1 (referer): ${redactUrlFull(ref)} ` + `from ${redactUrlFull(apiEndpoint.url)}`,
   });
   return ref;
 }
@@ -79,7 +80,7 @@ function checkCorsHeader(ep: IDiscoveredEndpoint, pageOrigin: string): string | 
   const isCross = corsParsed.origin !== epParsed.origin && corsParsed.origin !== pageOrigin;
   if (!isCross) return false;
   LOG.debug({
-    message: `SPA Tier2 (CORS): ${maskVisibleText(cors)} from ${maskVisibleText(ep.url)}`,
+    message: `SPA Tier2 (CORS): ${redactUrlFull(cors)} from ${redactUrlFull(ep.url)}`,
   });
   return cors;
 }
@@ -142,7 +143,7 @@ function scanConfigBody(ep: IDiscoveredEndpoint, scan: IScanArgs): string | fals
   const hit = urls.find((u): boolean => isSpaCandidate(u, scan.currentHost, scan.parentDomain));
   if (!hit) return false;
   LOG.debug({
-    message: `SPA Tier3 (config): ${maskVisibleText(hit)} from ${maskVisibleText(ep.url)}`,
+    message: `SPA Tier3 (config): ${redactUrlFull(hit)} from ${redactUrlFull(ep.url)}`,
   });
   return hit;
 }
@@ -163,9 +164,7 @@ function findByConfigBody(
   const currentHost = parsedOrigin.hostname;
   const parentDomain = currentHost.split('.').slice(-3).join('.');
   const scan: IScanArgs = { currentHost, parentDomain };
-  const configEps = captured.filter(
-    (ep): boolean => ep.url.includes('config') || ep.url.includes('settings'),
-  );
+  const configEps = captured.filter((ep): boolean => isConfigOrSettingsUrl(ep.url));
   const hit = configEps.find((ep): boolean => scanConfigBody(ep, scan) !== false);
   if (!hit) return false;
   return scanConfigBody(hit, scan);

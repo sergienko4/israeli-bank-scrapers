@@ -43,16 +43,6 @@ interface INetworkDiscoveryOpts {
   readonly isDeferAttach?: boolean;
 }
 
-/**
- * Build the live INetworkDiscovery instance bound to a Playwright Page.
- * Captures responses, exposes WK-pattern discovery, and tracks the
- * dashboard-click moment so DASHBOARD.FINAL / SCRAPE.PRE can split
- * captures into pre-nav and post-nav buckets.
- *
- * @param page - Playwright page to capture responses from.
- * @param opts - Optional behaviour modifiers.
- * @returns The live network-discovery instance.
- */
 /** Discovery half of the live bundle (capture-pool only). */
 interface IDiscoverySlice {
   readonly core: ReturnType<typeof buildCoreMethods>;
@@ -142,9 +132,16 @@ function assembleLiveDiscovery(
   d: IDiscoverySlice,
   io: IIoSlice,
 ): INetworkDiscovery {
+  // CR PR #276 post-review-fix #3 — `d.endpoints` also carries a
+  // pre-click-aware `discoverTransactionsEndpoint`, but the live
+  // facade must use the post-click-aware one from `d.txnDiscovery`.
+  // Spreading `d.endpoints` here would let a future reorder silently
+  // regress txn discovery — so destructure the only field we want
+  // from `d.endpoints` (`discoverBalanceEndpoint`) and let
+  // `d.txnDiscovery` provide the txn implementation explicitly.
   return {
     ...d.core,
-    ...d.endpoints,
+    discoverBalanceEndpoint: d.endpoints.discoverBalanceEndpoint,
     ...d.originDiscover,
     ...d.urlBuilders,
     ...buckets.bucketing,
