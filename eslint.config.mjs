@@ -909,6 +909,9 @@ export default tseslint.config(
     rules: {
       'max-lines': 'off',
       'max-lines-per-function': 'off',
+      // Type-only modules (Types/Domain/*) often export a single interface;
+      // default export is a runtime concept that does not fit type-only files.
+      'import-x/prefer-default-export': 'off',
       // DO NOT redefine no-restricted-syntax here; let Section 6 handle it.
     },
   },
