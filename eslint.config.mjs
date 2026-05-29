@@ -1564,4 +1564,76 @@ export default tseslint.config(
       'max-lines-per-function': 'off',
     },
   },
+
+  // 12. SCRAPE SUB-MODULE FILE-SIZE + FUNCTION-SIZE GUARD
+  //
+  // Phase 5 split the 1637-LoC ScrapeAutoMapper.ts blob into eleven
+  // focused sub-modules under `Mediator/Scrape/<Bucket>/` (mirror of
+  // Phase 4's Network/ split). Section 7 turns `max-lines` off
+  // across all `Mediator/**` files; without a re-imposed bound on
+  // the Scrape sub-folder, future commits could quietly re-blob one
+  // of the new homes back toward four-digit line counts.
+  //
+  // Same ceilings as §11 (Network cluster) — **150 effective lines
+  // per file** + **20-line cap per function** (skipBlankLines +
+  // skipComments) so every Scrape sub-module stays small enough
+  // for a single reviewer to hold in working memory.
+  //
+  // Pre-existing files that already exceed the new cap
+  // (`ScrapePhaseActions.ts` 469 eff LoC, `ScrapeReplayAction.ts`
+  // 324 eff LoC) are grandfathered via §12A below, mirroring the
+  // §11A pattern.
+  //
+  // The shim itself (`ScrapeAutoMapper.ts`) is intentionally left
+  // unconstrained — Section 7 already allows it, and this guard is
+  // about preventing regression of the new homes, not the facade.
+  //
+  // Two canary files enforce both halves of the cap: the
+  // `no-scrape-mapper-blob.canary.ts` over-sizes the file to prove
+  // `max-lines` fires, and the
+  // `scrape-cluster-fn-over-cap.canary.ts` over-sizes a single
+  // function to prove `max-lines-per-function` fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Scrape/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-scrape-mapper-blob.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-cluster-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 20, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+    },
+  },
+
+  // 12A. SCRAPE SUB-MODULE GRANDFATHER OVERRIDE
+  //
+  // Phase 5 carries forward four pre-existing Scrape/ files whose
+  // shape exceeds the new Section 12 caps:
+  //   • ScrapePhaseActions.ts (469 eff LoC — file-size)
+  //   • ScrapeReplayAction.ts (324 eff LoC — file-size)
+  //   • FrozenScrapeAction.ts (`runFrozenScrape` ~39 lines — function-size)
+  //   • UrlDateRange.ts (`appendMissingAliases` ~22 lines — function-size)
+  // Splitting / refactoring them is a separate Scrape/ phase — this
+  // override turns the file-size + per-function caps OFF for those
+  // four files ONLY so they pass pre-commit while still appearing
+  // in the linter inventory.
+  //
+  // Suppression via file-level `eslint-disable` headers is NOT
+  // used because Section 15 (`no-warning-comments`) bans the
+  // `eslint-disable` term across src/**.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
+    ],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
+    },
+  },
 );

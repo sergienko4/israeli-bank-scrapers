@@ -39,11 +39,38 @@ describe('findFieldValue', () => {
   });
 });
 
+/**
+ * findFirstArray BFS-fallback cases — table-driven so the two near-
+ * duplicate sibling tests share one assertion body. Per repo style
+ * (config arrays mapped with `.map()` / `.forEach()`, no test-body
+ * duplication — see `WRONG_DETAILS_TEXTS` for the canonical pattern;
+ * CodeRabbit PR #277 follow-up Finding 3).
+ *
+ * Post-Phase-5 CR Finding 6: `findFirstArray`'s BFS fallback only
+ * returns arrays of OBJECTS (records). Primitive arrays return `[]`
+ * because downstream BFS callers expect record-like items they can
+ * BFS into.
+ */
+const FIND_FIRST_ARRAY_BFS_FALLBACK_CASES = [
+  {
+    name: 'PRIMITIVE array (object-array filter excludes it)',
+    fixture: { items: [1, 2, 3], name: 'test' } as Record<string, unknown>,
+    expected: [] as unknown[],
+  },
+  {
+    name: 'OBJECT array via BFS fallback',
+    fixture: { items: [{ kind: 'A' }, { kind: 'B' }], name: 'test' } as Record<string, unknown>,
+    expected: [{ kind: 'A' }, { kind: 'B' }] as unknown[],
+  },
+] as const;
+
 describe('findFirstArray', () => {
-  it('finds top-level array', () => {
-    const obj = { items: [1, 2, 3], name: 'test' };
-    const result = findFirstArray(obj);
-    expect(result).toEqual([1, 2, 3]);
+  FIND_FIRST_ARRAY_BFS_FALLBACK_CASES.forEach(({ name, fixture, expected }): void => {
+    const label = expected.length === 0 ? 'returns empty' : 'returns matching items';
+    it(`${label} for top-level ${name}`, (): void => {
+      const result = findFirstArray(fixture);
+      expect(result).toEqual(expected);
+    });
   });
 
   it('finds nested array (1 level deep)', () => {

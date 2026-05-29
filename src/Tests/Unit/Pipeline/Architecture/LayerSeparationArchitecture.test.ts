@@ -188,6 +188,7 @@ const SCRAPE_ZONES: readonly string[] = [
  */
 const SCRAPE_DISCOVERY_ALLOWLIST: readonly string[] = [
   path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+  path.join('Mediator', 'Scrape', 'EndpointResolver', 'EndpointResolver.ts'),
   path.join('Mediator', 'Scrape', 'TxnShape.ts'),
 ];
 
@@ -439,6 +440,7 @@ const NET_SCRAPE_ALLOWLIST: readonly string[] = [
   // The parser is the legitimate bridge between DASHBOARD and the
   // network surface; resolveTxnEndpoint runs here.
   path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
+  path.join('Mediator', 'Scrape', 'EndpointResolver', 'EndpointResolver.ts'),
   // Generic shape predicate consumed by the network picker; not a
   // SCRAPE consumer.
   path.join('Mediator', 'Scrape', 'TxnShape.ts'),

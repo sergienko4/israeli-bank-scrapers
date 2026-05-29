@@ -72,8 +72,14 @@ load_allowlist() {
   # `grep -v` returns exit 1 when nothing matched (e.g. allowlist
   # holds only comments/blank lines — current state) — that would
   # trip `set -o pipefail` and abort the calling script. Swallow it.
+  #
+  # Per-line whitespace trim (sed) — NOT `tr -d '[:space:]'`, which
+  # would also strip newlines and collapse every symbol onto a single
+  # line, breaking the `grep -qx "$sym"` whole-line match downstream
+  # (Phase 5 PR #277 was the first real test of this code path; the
+  # allowlist held only comments until then, hiding the bug).
   { grep -vE '^\s*(#|$)' "$ALLOWLIST_FILE" || true; } \
-    | tr -d '[:space:]' | sort -u
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort -u
 }
 
 # Resolve base — handles same-repo PRs and pre-fetched checkouts.
