@@ -134,23 +134,27 @@ function processOneLifo(stack: IStackEntry[], collected: UntypedValue[]): boolea
 const MAX_DRAIN_ITERATIONS = 1_000_000;
 
 /**
- * LIFO drain — bounded iterative loop. Processes every stack entry
- * until `processOneLifo` reports the stack is empty, capping at
- * MAX_DRAIN_ITERATIONS to defend against pathological cycles.
+ * LIFO drain — bounded iterative loop. Processes stack entries until
+ * either (a) the first qualifying array is collected, (b) the stack
+ * is exhausted, or (c) MAX_DRAIN_ITERATIONS fires (pathological-cycle
+ * defense).
  *
- * Previously allocated a million-element sentinel array via
- * `Array.from({ length: MAX_DRAIN_ITERATIONS })` to drive an
- * `every`-loop. That cost 1M number allocations per invocation
- * even on tiny payloads — CodeRabbit PR #277 review flagged the
- * memory/CPU tax. Replaced with a plain bounded `for` loop that
- * preserves the cycle-defense guarantee.
+ * Previously kept draining past the first match because `processOneLifo`
+ * only reports "stack empty", not "array found" — so later sibling
+ * arrays would be appended into `collected` and `findFirstArray` would
+ * silently merge multiple arrays' items together, violating its
+ * "first" contract (CodeRabbit PR #277 follow-up Finding 2).
+ *
+ * The `collected.length === 0` check in the loop condition becomes
+ * false after `handleArrayNode` appends a high-signature array, so the
+ * next iteration exits cleanly. Depth-1 compliant (no nested `if`).
  * @param stack - Mutable stack.
  * @param collected - Mutable accumulator.
  * @returns Collected items.
  */
 function drainLifoStack(stack: IStackEntry[], collected: UntypedValue[]): readonly UntypedValue[] {
   let isDone = false;
-  for (let i = 0; i < MAX_DRAIN_ITERATIONS && !isDone; i += 1) {
+  for (let i = 0; i < MAX_DRAIN_ITERATIONS && !isDone && collected.length === 0; i += 1) {
     isDone = processOneLifo(stack, collected);
   }
   return collected;

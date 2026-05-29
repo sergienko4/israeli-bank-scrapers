@@ -39,21 +39,38 @@ describe('findFieldValue', () => {
   });
 });
 
-describe('findFirstArray', () => {
-  it('returns empty for a top-level PRIMITIVE array (object-array filter)', () => {
-    // Post-Phase-5 CodeRabbit Finding 6 fix: findFirstArray's BFS
-    // fallback now only returns arrays of objects (records). Primitive
-    // arrays like [1, 2, 3] are NOT records and would crash downstream
-    // BFS callers — so the fallback returns [] for them.
-    const obj = { items: [1, 2, 3], name: 'test' };
-    const result = findFirstArray(obj);
-    expect(result).toEqual([]);
-  });
+/**
+ * findFirstArray BFS-fallback cases — table-driven so the two near-
+ * duplicate sibling tests share one assertion body. Per repo style
+ * (config arrays mapped with `.map()` / `.forEach()`, no test-body
+ * duplication — see `WRONG_DETAILS_TEXTS` for the canonical pattern;
+ * CodeRabbit PR #277 follow-up Finding 3).
+ *
+ * Post-Phase-5 CR Finding 6: `findFirstArray`'s BFS fallback only
+ * returns arrays of OBJECTS (records). Primitive arrays return `[]`
+ * because downstream BFS callers expect record-like items they can
+ * BFS into.
+ */
+const FIND_FIRST_ARRAY_BFS_FALLBACK_CASES = [
+  {
+    name: 'PRIMITIVE array (object-array filter excludes it)',
+    fixture: { items: [1, 2, 3], name: 'test' } as Record<string, unknown>,
+    expected: [] as unknown[],
+  },
+  {
+    name: 'OBJECT array via BFS fallback',
+    fixture: { items: [{ kind: 'A' }, { kind: 'B' }], name: 'test' } as Record<string, unknown>,
+    expected: [{ kind: 'A' }, { kind: 'B' }] as unknown[],
+  },
+] as const;
 
-  it('finds a top-level OBJECT array via BFS fallback', () => {
-    const obj = { items: [{ kind: 'A' }, { kind: 'B' }], name: 'test' };
-    const result = findFirstArray(obj);
-    expect(result).toEqual([{ kind: 'A' }, { kind: 'B' }]);
+describe('findFirstArray', () => {
+  FIND_FIRST_ARRAY_BFS_FALLBACK_CASES.forEach(({ name, fixture, expected }): void => {
+    const label = expected.length === 0 ? 'returns empty' : 'returns matching items';
+    it(`${label} for top-level ${name}`, (): void => {
+      const result = findFirstArray(fixture);
+      expect(result).toEqual(expected);
+    });
   });
 
   it('finds nested array (1 level deep)', () => {

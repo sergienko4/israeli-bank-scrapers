@@ -89,14 +89,23 @@ interface IProbeArgs {
  * assign multiple containers from the same record (e.g. `accounts` AND
  * `bankAccounts` both ending in `bankAccounts` claim each separately).
  * Previously returned only the first match, silently dropping siblings.
+ *
+ * Maintains a local `seen` set seeded from `claimedLower` so case-only
+ * key collisions inside one probe (e.g. record contains both
+ * `BankAccounts` and `bankaccounts` — same lowered key) are claimed
+ * exactly once. Without this seed, `flatMap` would emit two attempts
+ * sharing the same `claimedLowerKey` and double-append the bucket
+ * (CodeRabbit PR #277 follow-up Finding 1).
  * @param args - Bundled probe args.
  * @returns Claim attempts (empty when no unclaimed suffix matches).
  */
 function probeContainerForWk(args: IProbeArgs): readonly IClaimAttempt[] {
+  const seen = new Set(args.claimedLower);
   return args.keys.lowerKeys.flatMap((lk, idx): readonly IClaimAttempt[] => {
-    if (args.claimedLower.has(lk) || !lk.endsWith(args.wantedLower)) return [];
+    if (seen.has(lk) || !lk.endsWith(args.wantedLower)) return [];
     const objects = pickAccountObjectsFromKey(args.record, args.keys.originalKeys[idx]);
     if (objects.length === 0) return [];
+    seen.add(lk);
     return [{ claimedLowerKey: lk, objects }];
   });
 }
