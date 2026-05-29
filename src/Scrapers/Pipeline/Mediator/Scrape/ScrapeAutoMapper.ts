@@ -4,14 +4,12 @@
  * field names automatically via BFS iterative search.
  */
 
-import type { ITransaction } from '../../../../Transactions.js';
 import {
   PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_API as WK_API,
   PIPELINE_WELL_KNOWN_BILLING as WK_BILLING,
   PIPELINE_WELL_KNOWN_TXN_FIELDS as WK,
 } from '../../Registry/WK/ScrapeWK.js';
-import { getDebug } from '../../Types/Debug.js';
 import type {
   ITxnEndpoint,
   ITxnEndpointInternal,
@@ -19,14 +17,7 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
 import { type ApiRecord } from './AutoMapperFacade/AutoMapperTypes.js';
-import {
-  findAllFieldValues,
-  findFieldValue,
-  isSearchableObject,
-  matchField,
-} from './BfsFieldSearch/BfsFieldSearch.js';
-import { castSearchable } from './BfsFieldSearch/TxnSignature.js';
-import findFirstArray from './FieldHunt/LifoCrawl.js';
+import { extractTransactions } from './ContainerPicker/ContainerPicker.js';
 import huntTransactions from './FieldHunt/TxnHunt.js';
 
 export type { IMonthChunk } from '../Scrape/ScrapeReplayAction.js';
@@ -37,88 +28,6 @@ export {
   isRangeIterable,
   replaceField,
 } from '../Scrape/ScrapeReplayAction.js';
-
-const LOG = getDebug(import.meta.url);
-
-/**
- * Extract transactions from an API response using stack-based iterative hunt.
- * Filters voided/summary rows. Maps to ITransaction.
- * @param responseBody - Parsed JSON response body.
- * @returns Array of mapped ITransactions.
- */
-function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
-  const items = huntTransactions(responseBody);
-  const valid = items.filter((r): boolean => !isVoidedTransaction(r));
-  const mapped = valid.map(autoMapTransaction);
-  const kept = mapped.filter((t): t is ITransaction => t !== false);
-  const count = String(items.length);
-  const validCount = String(valid.length);
-  const keptCount = String(kept.length);
-  const msg = `huntTransactions: ${count} found, ${validCount} valid, ${keptCount} mapped`;
-  LOG.debug({ message: msg });
-  return kept;
-}
-
-// ── Card-aware extraction (anti-mirroring) ──────────────────────────────
-
-/**
- * Step 1: Key-based lookup — find `Index{cardId}` subtree in response.
- * Isracard/Amex pattern: `CardsTransactionsListBean.Index0`, `.Index1`, etc.
- * @param body - API response body.
- * @param cardId - Card index (e.g. '0', '1', '5').
- * @returns Subtree record if found, false otherwise.
- */
-function findIndexedSubtree(body: ApiRecord, cardId: string): ApiRecord | false {
-  const indexKey = `Index${cardId}`;
-  const values = Object.values(body);
-  const nested = values.filter((v): boolean => isSearchableObject(v));
-  const records = nested.map((v): ApiRecord => v as ApiRecord);
-  const match = records.find((rec): boolean => indexKey in rec);
-  if (match) return match[indexKey] as ApiRecord;
-  return false;
-}
-
-/**
- * Step 2: Value-based BFS — filter transaction items by cardIndex field.
- * @param body - API response body.
- * @param cardId - Card index to match.
- * @returns Filtered transaction items, empty if none matched.
- */
-function filterByCardIndex(body: ApiRecord, cardId: string): readonly ITransaction[] {
-  const allItems = findFirstArray(body);
-  const searchable = castSearchable(allItems);
-  const matched = searchable.filter((item): boolean => String(item.cardIndex) === cardId);
-  if (matched.length === 0) return [];
-  const mapped = matched.map(autoMapTransaction);
-  return mapped.filter((t): t is ITransaction => t !== false);
-}
-
-/**
- * Card-aware extraction — 3-step resolution chain.
- * 1. Key lookup: `Index{cardId}` subtree (Isracard/Amex)
- * 2. Value BFS: filter by `cardIndex` field value
- * 3. Fallback: extract all (single-card response)
- * @param body - API response body.
- * @param cardId - Card index for scoping.
- * @returns Transactions for the specified card only.
- */
-function extractTransactionsForCard(body: ApiRecord, cardId: string): readonly ITransaction[] {
-  const subtree = findIndexedSubtree(body, cardId);
-  if (subtree) {
-    LOG.debug({ message: `extractForCard: Index${cardId} → key lookup` });
-    return extractTransactions(subtree);
-  }
-  const byValue = filterByCardIndex(body, cardId);
-  if (byValue.length > 0) {
-    const count = String(byValue.length);
-    LOG.debug({ message: `extractForCard: cardIndex=${cardId} → value BFS (${count} txns)` });
-    return byValue;
-  }
-  LOG.warn({
-    message: `STRICT_SCOPE: no data for Card ${cardId} — returning empty (no fallback)`,
-  });
-  return [];
-}
 
 // ── Phase 7e — DASHBOARD.FINAL TXN-endpoint resolver ──────────────────────────
 
@@ -451,21 +360,17 @@ export type {
   ITxnFieldMap as TxnFieldMap,
 } from '../../Types/PipelineContext.js';
 export {
-  autoMapTransaction,
-  extractTransactions,
-  extractTransactionsForCard,
-  findAllFieldValues,
-  findFieldValue,
-  findFirstArray,
-  matchField,
-  resolveTxnEndpoint,
-};
-export {
   extractAccountIds,
   extractAccountRecords,
   extractAllContainers,
   isUsableIdentifier,
 } from './AccountExtractor/AccountExtractor.js';
-import { autoMapTransaction, isVoidedTransaction } from './TxnMapper/TxnMapper.js';
-
+export { findAllFieldValues, findFieldValue, matchField } from './BfsFieldSearch/BfsFieldSearch.js';
 export { parseAutoDate } from './Coercion/Coercion.js';
+export {
+  extractTransactions,
+  extractTransactionsForCard,
+} from './ContainerPicker/ContainerPicker.js';
+export { default as findFirstArray } from './FieldHunt/LifoCrawl.js';
+export { autoMapTransaction } from './TxnMapper/TxnMapper.js';
+export { resolveTxnEndpoint };
