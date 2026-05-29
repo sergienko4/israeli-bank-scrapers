@@ -40,10 +40,20 @@ describe('findFieldValue', () => {
 });
 
 describe('findFirstArray', () => {
-  it('finds top-level array', () => {
+  it('returns empty for a top-level PRIMITIVE array (object-array filter)', () => {
+    // Post-Phase-5 CodeRabbit Finding 6 fix: findFirstArray's BFS
+    // fallback now only returns arrays of objects (records). Primitive
+    // arrays like [1, 2, 3] are NOT records and would crash downstream
+    // BFS callers — so the fallback returns [] for them.
     const obj = { items: [1, 2, 3], name: 'test' };
     const result = findFirstArray(obj);
-    expect(result).toEqual([1, 2, 3]);
+    expect(result).toEqual([]);
+  });
+
+  it('finds a top-level OBJECT array via BFS fallback', () => {
+    const obj = { items: [{ kind: 'A' }, { kind: 'B' }], name: 'test' };
+    const result = findFirstArray(obj);
+    expect(result).toEqual([{ kind: 'A' }, { kind: 'B' }]);
   });
 
   it('finds nested array (1 level deep)', () => {

@@ -87,16 +87,41 @@ function processHuntEntry(entry: IHuntEntry, collected: ApiRecord[], stack: IHun
 }
 
 /**
- * Drain the hunt stack — process entries until empty.
+ * Pop the next stack entry (if any) and dispatch through
+ * `processHuntEntry`. Extracted from `drainHuntStack` so the
+ * iteration loop stays at depth 1 per the project's max-depth=1
+ * rule — the `if (entry !== undefined)` guard lives here at the
+ * helper's own depth-1 level.
+ * @param stack - Mutable stack (mutated via pop).
+ * @param collected - Mutable accumulator.
+ * @returns True when an entry was processed, false when the stack was empty.
+ */
+function popAndProcess(stack: IHuntEntry[], collected: ApiRecord[]): boolean {
+  const entry = stack.pop();
+  if (entry === undefined) return false;
+  processHuntEntry(entry, collected, stack);
+  return true;
+}
+
+/**
+ * Drain the hunt stack — iterative loop processes entries until
+ * the stack is empty.
+ *
+ * Previously implemented as tail recursion. JavaScript engines do
+ * NOT reliably perform tail-call optimization, so adversarial
+ * response trees with deep nesting could still hit
+ * `RangeError: Maximum call stack size exceeded`. CodeRabbit PR
+ * #277 review flagged the regression — replaced with a plain `while`
+ * loop that has the same semantics without stack risk.
  * @param stack - Mutable stack.
  * @param collected - Mutable collector.
  * @returns Collected transaction items.
  */
 function drainHuntStack(stack: IHuntEntry[], collected: ApiRecord[]): readonly ApiRecord[] {
-  if (stack.length === 0) return collected;
-  const entry = stack.pop();
-  if (entry) processHuntEntry(entry, collected, stack);
-  return drainHuntStack(stack, collected);
+  while (stack.length > 0) {
+    popAndProcess(stack, collected);
+  }
+  return collected;
 }
 
 /**

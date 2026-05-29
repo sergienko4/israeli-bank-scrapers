@@ -14,8 +14,6 @@ import type { ITransaction } from '../../../../../Transactions.js';
 import { getDebug } from '../../../Types/Debug.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { isSearchableObject } from '../BfsFieldSearch/BfsFieldSearch.js';
-import { castSearchable } from '../BfsFieldSearch/TxnSignature.js';
-import findFirstArray from '../FieldHunt/LifoCrawl.js';
 import huntTransactions from '../FieldHunt/TxnHunt.js';
 import { autoMapTransaction, isVoidedTransaction } from '../TxnMapper/TxnMapper.js';
 
@@ -61,14 +59,22 @@ function findIndexedSubtree(body: ApiRecord, cardId: string): ApiRecord | false 
 /**
  * Step 2: Value-based BFS — filter transaction items by cardIndex
  * field.
+ *
+ * Routes through `huntTransactions` + `isVoidedTransaction` so this
+ * fallback uses the SAME txn-signature filter + voided-row guard as
+ * the primary `extractTransactions` path. Previously walked the
+ * first array via `findFirstArray` and skipped the voided filter,
+ * which could either return zero items when the first array was not
+ * the txn array, OR let voided rows through when it was — CodeRabbit
+ * PR #277 review caught both behaviour gaps.
  * @param body - API response body.
  * @param cardId - Card index to match.
  * @returns Filtered transaction items, empty if none matched.
  */
 function filterByCardIndex(body: ApiRecord, cardId: string): readonly ITransaction[] {
-  const allItems = findFirstArray(body);
-  const searchable = castSearchable(allItems);
-  const matched = searchable.filter((item): boolean => String(item.cardIndex) === cardId);
+  const matched = huntTransactions(body).filter(
+    (item): boolean => !isVoidedTransaction(item) && String(item.cardIndex) === cardId,
+  );
   if (matched.length === 0) return [];
   const mapped = matched.map(autoMapTransaction);
   return mapped.filter((t): t is ITransaction => t !== false);

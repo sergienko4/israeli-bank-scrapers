@@ -134,39 +134,53 @@ function processOneLifo(stack: IStackEntry[], collected: UntypedValue[]): boolea
 const MAX_DRAIN_ITERATIONS = 1_000_000;
 
 /**
- * LIFO drain — iterative loop via `Array.every` short-circuit.
- * Processes every stack entry until `processOneLifo` reports the
- * stack is empty. Iterative (was tail-recursive) so adversarial
- * bodies with tens of thousands of nested items (e.g. Lottie
- * animation JSON) cannot blow Node's stack budget.
+ * LIFO drain — bounded iterative loop. Processes every stack entry
+ * until `processOneLifo` reports the stack is empty, capping at
+ * MAX_DRAIN_ITERATIONS to defend against pathological cycles.
+ *
+ * Previously allocated a million-element sentinel array via
+ * `Array.from({ length: MAX_DRAIN_ITERATIONS })` to drive an
+ * `every`-loop. That cost 1M number allocations per invocation
+ * even on tiny payloads — CodeRabbit PR #277 review flagged the
+ * memory/CPU tax. Replaced with a plain bounded `for` loop that
+ * preserves the cycle-defense guarantee.
  * @param stack - Mutable stack.
  * @param collected - Mutable accumulator.
  * @returns Collected items.
  */
 function drainLifoStack(stack: IStackEntry[], collected: UntypedValue[]): readonly UntypedValue[] {
-  // `every` short-circuits when the predicate returns false. Each
-  // step calls `processOneLifo`; when it returns true (stack drained)
-  // the negation short-circuits `every` and the loop ends.
-  const iterations: readonly number[] = Array.from(
-    { length: MAX_DRAIN_ITERATIONS },
-    (_unused, i): number => i,
-  );
-  iterations.every((): boolean => !processOneLifo(stack, collected));
+  let isDone = false;
+  for (let i = 0; i < MAX_DRAIN_ITERATIONS && !isDone; i += 1) {
+    isDone = processOneLifo(stack, collected);
+  }
   return collected;
+}
+
+/**
+ * Predicate: does `value` look like an array of object-shape items?
+ * Excludes arrays of primitives (string[], number[], boolean[])
+ * because the BFS fallback's downstream callers expect record-like
+ * items they can BFS into. Per CodeRabbit PR #277 review.
+ * @param value - Candidate value.
+ * @returns True when value is an array containing at least one object.
+ */
+function isObjectArray(value: unknown): value is readonly UntypedValue[] {
+  if (!Array.isArray(value)) return false;
+  return value.some((item): boolean => typeof item === 'object' && item !== null);
 }
 
 /**
  * BFS fallback used when the LIFO drain finds no leaf-array. Scans
  * the entire object tree for any property whose value is an array
- * of objects and returns the first hit.
+ * of OBJECTS (primitive arrays excluded) and returns the first hit.
  * @param obj - Root API record to search.
  * @returns First object-array discovered, or `[]` when none exists.
  */
 function findArrayByBfsFallback(obj: ApiRecord): readonly UntypedValue[] {
   const allObjects = flattenObjectTree(obj);
   const arrays = allObjects.map((o): readonly UntypedValue[] | false => {
-    const arr = Object.values(o).find(Array.isArray);
-    if (arr) return arr as readonly UntypedValue[];
+    const arr = Object.values(o).find(isObjectArray);
+    if (arr) return arr;
     return false;
   });
   const hit = arrays.find((a): a is readonly UntypedValue[] => a !== false);

@@ -36,13 +36,20 @@ function coerceString(
 
 /**
  * Coerce a field value to number with fallback.
+ *
+ * Treats empty strings and whitespace-only strings as invalid —
+ * `Number('')` returns 0, which would silently record a missing
+ * amount field as a zero-value transaction. Per CodeRabbit PR #277
+ * review, explicit `.trim() === ''` guard returns the fallback
+ * before parsing.
  * @param val - Raw field value from findFieldValue.
- * @param fallback - Fallback when val is not a number.
+ * @param fallback - Fallback when val is not a parseable number.
  * @returns Coerced number.
  */
 function coerceNumber(val: ScalarFieldHit, fallback: number): number {
   if (typeof val === 'number') return val;
   if (typeof val !== 'string') return fallback;
+  if (val.trim() === '') return fallback;
   const parsed = Number(val);
   if (Number.isNaN(parsed)) return fallback;
   return parsed;

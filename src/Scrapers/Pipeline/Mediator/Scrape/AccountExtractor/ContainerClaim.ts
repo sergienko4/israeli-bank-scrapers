@@ -69,13 +69,11 @@ function pickAccountObjectsFromKey(record: ApiRecord, originalKey: string): read
   return filtered.map((v): ApiRecord => v as ApiRecord);
 }
 
-/** Per-WK probe outcome — successful claim or skip-with-reason. */
+/** Per-WK probe outcome — successful claim metadata. */
 interface IClaimAttempt {
-  readonly claimedLowerKey: string | false;
+  readonly claimedLowerKey: string;
   readonly objects: readonly ApiRecord[];
 }
-
-const NO_CLAIM: IClaimAttempt = { claimedLowerKey: false, objects: [] };
 
 /** Bundled args for {@link probeContainerForWk}. */
 interface IProbeArgs {
@@ -86,45 +84,45 @@ interface IProbeArgs {
 }
 
 /**
- * Probe one record for the longest-suffix match of `wantedLower`
- * among unclaimed keys. Returns the claim metadata so the caller
- * mutates `assigned` and `claimedKeys` in one place — keeps the
- * loop body shallow per the project's max-depth=1 rule.
+ * Probe one record for EVERY unclaimed suffix match of `wantedLower`.
+ * Returns one IClaimAttempt per matching physical key so callers can
+ * assign multiple containers from the same record (e.g. `accounts` AND
+ * `bankAccounts` both ending in `bankAccounts` claim each separately).
+ * Previously returned only the first match, silently dropping siblings.
  * @param args - Bundled probe args.
- * @returns Claim attempt metadata.
+ * @returns Claim attempts (empty when no unclaimed suffix matches).
  */
-function probeContainerForWk(args: IProbeArgs): IClaimAttempt {
-  const matchIdx = args.keys.lowerKeys.findIndex(
-    (lk): boolean => !args.claimedLower.has(lk) && lk.endsWith(args.wantedLower),
-  );
-  if (matchIdx < 0) return NO_CLAIM;
-  const originalKey = args.keys.originalKeys[matchIdx];
-  const objects = pickAccountObjectsFromKey(args.record, originalKey);
-  if (objects.length === 0) return NO_CLAIM;
-  return { claimedLowerKey: args.keys.lowerKeys[matchIdx], objects };
+function probeContainerForWk(args: IProbeArgs): readonly IClaimAttempt[] {
+  return args.keys.lowerKeys.flatMap((lk, idx): readonly IClaimAttempt[] => {
+    if (args.claimedLower.has(lk) || !lk.endsWith(args.wantedLower)) return [];
+    const objects = pickAccountObjectsFromKey(args.record, args.keys.originalKeys[idx]);
+    if (objects.length === 0) return [];
+    return [{ claimedLowerKey: lk, objects }];
+  });
 }
 
-/** Bundled args for {@link applyClaimAttempt} so the call stays flat. */
+/** Bundled args for {@link applyClaimAttempts} so the call stays flat. */
 interface IApplyArgs {
-  readonly attempt: IClaimAttempt;
+  readonly attempts: readonly IClaimAttempt[];
   readonly wkName: string;
   readonly assigned: Record<string, ApiRecord[]>;
   readonly claimed: Set<string>;
 }
 
 /**
- * Apply one probe outcome — claim the lower-cased key and append
- * extracted records to the per-WK bucket. No-op when the attempt
- * surfaced no claim.
+ * Apply every probe outcome — claim each lower-cased key and append
+ * extracted records to the per-WK bucket. No-op when the probe surfaced
+ * no claims (empty `attempts`).
  * @param args - Bundled apply args.
  * @returns The same `assigned` map (chain-friendly).
  */
-function applyClaimAttempt(args: IApplyArgs): Record<string, ApiRecord[]> {
-  if (args.attempt.claimedLowerKey === false) return args.assigned;
-  args.claimed.add(args.attempt.claimedLowerKey);
-  const bucket = args.assigned[args.wkName] ?? [];
-  bucket.push(...args.attempt.objects);
-  args.assigned[args.wkName] = bucket;
+function applyClaimAttempts(args: IApplyArgs): Record<string, ApiRecord[]> {
+  for (const attempt of args.attempts) {
+    args.claimed.add(attempt.claimedLowerKey);
+    const bucket = args.assigned[args.wkName] ?? [];
+    bucket.push(...attempt.objects);
+    args.assigned[args.wkName] = bucket;
+  }
   return args.assigned;
 }
 
@@ -146,8 +144,8 @@ function assignContainersInRecord(
   const claimed = new Set<string>();
   for (const wkName of wkNames) {
     const wantedLower = wkName.toLowerCase();
-    const attempt = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
-    applyClaimAttempt({ attempt, wkName, assigned, claimed });
+    const attempts = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
+    applyClaimAttempts({ attempts, wkName, assigned, claimed });
   }
   return assigned;
 }
