@@ -26,6 +26,7 @@
 import ScraperErrorTypes from '../../Base/ErrorTypes.js';
 import type { Brand } from './Brand.js';
 import { redactAccount } from './PiiRedactor/Account.js';
+import { redactAmount } from './PiiRedactor/Amount.js';
 import { redactCard } from './PiiRedactor/Card.js';
 import { graphemeCount } from './PiiRedactor/CommonHelpers.js';
 import { redactIsraeliId } from './PiiRedactor/IsraeliId.js';
@@ -67,8 +68,6 @@ const isPiiRedactionDisabled: boolean = process.env.PII_REDACTION === 'off';
 type PiiHintString = Brand<string, 'PiiHintString'>;
 /** Boolean predicate result for PII classifiers. */
 type PiiClassifierBool = Brand<boolean, 'PiiClassifierBool'>;
-/** Integer count returned by PII helpers (graphemes, indices). */
-type PiiCountInt = Brand<number, 'PiiCountInt'>;
 
 /** Exhaustive PII classification. */
 type PiiCategory =
@@ -188,13 +187,6 @@ const FALLBACK_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[]
   { re: /eyJ[\w-]{20,}/g, to: REDACTED_HINT },
 ];
 
-/** HTML scrubbing patterns applied to text content. */
-const HTML_TEXT_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[] = [
-  { re: /\b(\d{2}-\d{3}-)\d+(\d{4})\b/g, to: '$1***$2' },
-  { re: /(?<!\d)\d{5}(\d{4})(?!\d)/g, to: '***$1' },
-  { re: /eyJ[\w-]{20,}/g, to: REDACTED_HINT },
-];
-
 /**
  * Whether a path-tail key classifies as token-shaped via case-insensitive
  * suffix match. Catches synthesised keys like `clsToken`, `xCsrfToken`.
@@ -240,29 +232,6 @@ function classifyKey(key: string): PiiCategory {
   if (isTokenSuffix(key)) return 'token';
   if (isNameSuffix(key)) return 'name';
   return 'unknown';
-}
-
-/**
- * Amount strategy. Returns sign-only marker.
- * @param value - Number or numeric string.
- * @returns Stable hint.
- */
-function redactAmount(value: number | string): PiiHintString {
-  if (isPiiRedactionDisabled) return String(value) as PiiHintString;
-  const num = coerceToNumber(value);
-  if (Number.isNaN(num)) return REDACTED_HINT as PiiHintString;
-  if (num < 0) return '-***' as PiiHintString;
-  return '+***' as PiiHintString;
-}
-
-/**
- * Coerce a number-or-string to a number, leaving NaN on bad input.
- * @param value - Number or numeric string.
- * @returns Number (NaN when value is non-numeric).
- */
-function coerceToNumber(value: number | string): PiiCountInt {
-  if (typeof value === 'number') return value as PiiCountInt;
-  return Number(value) as PiiCountInt;
 }
 
 /**
@@ -829,38 +798,6 @@ function redactUrlFull(url: string): PiiHintString {
   return parse.url.toString() as PiiHintString;
 }
 
-/** Regex matching `value="…"` / `value='…'` attributes (single capture). */
-const HTML_VALUE_ATTR_RE = /value\s*=\s*["']([^"']{2,})["']/gi;
-
-/**
- * Replace the captured @value content with a grapheme-count length
- * tag. Single-capture regex keeps the callback at 2 params.
- * @param _match - Whole match (unused; placeholder per replace API).
- * @param content - Captured @value content.
- * @returns Redacted attribute (always normalised to double quotes).
- */
-function replaceValueAttr(_match: string, content: string): PiiHintString {
-  const trimmed = content.trim();
-  if (trimmed.length === 0) return `value="${content}"` as PiiHintString;
-  const n = graphemeCount(content);
-  return `value="<name:${String(n)}>"` as PiiHintString;
-}
-
-/**
- * Redact an HTML string. Replaces well-known PII patterns inside text
- * nodes and inside input @value attributes. Structure is preserved.
- * @param html - Raw HTML.
- * @returns Redacted HTML.
- */
-function redactHtml(html: string): PiiHintString {
-  if (isPiiRedactionDisabled) return html as PiiHintString;
-  if (html.length === 0) return '' as PiiHintString;
-  let out = html;
-  for (const p of HTML_TEXT_PATTERNS) out = out.replaceAll(p.re, p.to);
-  out = out.replaceAll(HTML_VALUE_ATTR_RE, replaceValueAttr);
-  return out as PiiHintString;
-}
-
 /** Token-shaped prefix used to short-circuit unified value-only classification. */
 const TOKEN_VALUE_PREFIX_RE = /^eyJ[\w-]{20,}/;
 /** OTP-shaped value: 4..8 ASCII digits, no separators. */
@@ -936,7 +873,9 @@ function redact(value: unknown): PiiHintString {
 
 export type { CensorFn, JsonValue, PiiCategory };
 export { redactAccount } from './PiiRedactor/Account.js';
+export { redactAmount } from './PiiRedactor/Amount.js';
 export { redactCard } from './PiiRedactor/Card.js';
+export { redactHtml } from './PiiRedactor/Html.js';
 export { redactIsraeliId } from './PiiRedactor/IsraeliId.js';
 export { redactMerchant } from './PiiRedactor/Merchant.js';
 export { redactName } from './PiiRedactor/Name.js';
@@ -945,10 +884,8 @@ export {
   classifyKey,
   createCensorFn,
   redact,
-  redactAmount,
   redactCookie,
   redactErrorMessage,
-  redactHtml,
   REDACTION_ERROR_HINT,
   redactJsonBody,
   redactOtp,
