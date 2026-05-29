@@ -1,21 +1,16 @@
 /**
- * PiiRedactor — single source of truth for PII redaction across every
- * persisted log destination of this package.
+ * PiiRedactor — tombstone re-export shim.
  *
- * Phase 6 status: this file is now a thin re-export shim over the
- * per-category modules under `./PiiRedactor/`. The Facade hosts the
- * unified `redact()`, the Pino `createCensorFn()`, and the `classifyKey`
- * router; per-category strategies live in their own modules. Phase 6
- * commit 6 will collapse this shim further once downstream callers
- * have migrated to the per-module imports.
+ * The real implementations live in the per-category modules under
+ * `./PiiRedactor/`. This module exists only to preserve the legacy
+ * import path (`./PiiRedactor.js`) for downstream callers. Add new
+ * strategies in their own module under `./PiiRedactor/`; do NOT add
+ * implementation code here.
  *
- * Destinations covered (no bypass paths):
- *  - Pino terminal stream (pino-pretty)         via createCensorFn()
- *  - Pino file stream (pipeline.log)            via createCensorFn()
- *  - NetworkDiscovery.dumpResponseBody          via redactJsonBody()
- *  - FixtureCapture HTML / metadata writers     via redactHtml() /
- *                                               redactJsonBody()
- *  - Test result formatter                      via per-strategy exports
+ * Architecture: see `./PiiRedactor/Facade.ts` for the unified
+ * `redact()` entry point and the Pino `createCensorFn()` registry.
+ *
+ * Spec: pipeline-decoupling-master-2026-05-28 / phase-6.
  */
 
 export { redactAccount } from './PiiRedactor/Account.js';

@@ -2,6 +2,16 @@
  * PiiRedactor Facade — unified entry point composing every
  * per-category strategy.
  *
+ * Single source of truth for PII redaction across every persisted log
+ * destination of this package. Destinations covered (no bypass paths):
+ *
+ *  - Pino terminal stream (pino-pretty)         via createCensorFn()
+ *  - Pino file stream (pipeline.log)            via createCensorFn()
+ *  - NetworkDiscovery.dumpResponseBody          via redactJsonBody()
+ *  - FixtureCapture HTML / metadata writers     via redactHtml() /
+ *                                               redactJsonBody()
+ *  - Test result formatter                      via per-strategy exports
+ *
  * Hosts the path-tail → category routing table, the strategy
  * registry, the Pino `createCensorFn()` factory, and the unified
  * value-only {@link redact} entry point used by call-sites that lack
