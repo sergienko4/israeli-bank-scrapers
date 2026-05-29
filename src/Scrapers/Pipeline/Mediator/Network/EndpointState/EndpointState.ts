@@ -26,6 +26,14 @@ const FULL_TXN_PARAMS = [
 ];
 
 /**
+ * CodeRabbit PR #276 #4 — account-ID detection regex. Numeric path
+ * segments of 5+ digits are treated as the account-id slot in
+ * balance URLs (e.g. `/.../balance/123456789`), to be substituted
+ * with the caller-supplied account number.
+ */
+const ACCOUNT_ID_SEGMENT_PATTERN = /^\d{5,}$/;
+
+/**
  * Find the first captured endpoint that BOTH contains the account ID
  * AND matches a WK transactions URL pattern. Filters out unrelated
  * endpoints (e.g. `general/getUserPilotInfo/<accountId>`) that share
@@ -98,7 +106,7 @@ function buildBalUrlFromTraffic(
   const segments = pathOnly.split('/');
   const lastSegMaybe = segments.at(-1);
   if (lastSegMaybe === undefined) return false;
-  const isAccountInUrl = /^\d{5,}$/.test(lastSegMaybe);
+  const isAccountInUrl = ACCOUNT_ID_SEGMENT_PATTERN.test(lastSegMaybe);
   if (isAccountInUrl) {
     segments[segments.length - 1] = accountId;
     return segments.join('/');

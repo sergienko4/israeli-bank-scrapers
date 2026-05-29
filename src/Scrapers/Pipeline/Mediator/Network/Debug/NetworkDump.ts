@@ -13,8 +13,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { getActivePhase, getActiveStage } from '../../../Types/ActiveState.js';
+import { getDebug } from '../../../Types/Debug.js';
+import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../../Types/PiiRedactor.js';
 import { getSubStepNetworkDumpDir } from '../../../Types/TraceConfig.js';
+
+const LOG = getDebug(import.meta.url);
 
 /**
  * Per-run dump counter — each response body that gets dumped is numbered so
@@ -45,36 +49,82 @@ interface IDumpArgs {
  * @param args - Bundled url/method/postData/responseText.
  * @returns Count of dumps so far.
  */
+/** Bundled args for the actual disk write — keeps `tryWriteDump` under
+ *  the per-function cap and the helper inside the 3-param ceiling. */
+interface IWriteArgs {
+  readonly args: IDumpArgs;
+  readonly dir: string;
+  readonly sequence: number;
+}
+
+/**
+ * Build the redacted file path for one dump entry.
+ * @param dir - Trace-mode network dump folder.
+ * @param sequence - Per-process counter value.
+ * @param args - Dump arguments (url + method only used here).
+ * @returns Absolute path to the new dump file.
+ */
+function buildDumpPath(dir: string, sequence: number, args: IDumpArgs): string {
+  const redacted = redactUrlFull(args.url);
+  const sanitised = redacted.replaceAll(/[^\w.-]/g, '_');
+  const safeStub = sanitised.slice(-80);
+  const prefix = String(sequence).padStart(4, '0');
+  const name = `${prefix}-${args.method}-${safeStub}.json`;
+  return path.join(dir, name);
+}
+
+/**
+ * Format the dump-file contents from the captured request + response.
+ * @param args - Dump arguments.
+ * @returns Newline-joined string ready to write to disk.
+ */
+function formatDumpBody(args: IDumpArgs): string {
+  const safeUrl = redactUrl(args.url);
+  const safePostData = redactJsonBody(args.postData);
+  const safeText = redactJsonBody(args.text);
+  const postSuffix = { true: '', false: `\n// POST_BODY: ${safePostData}` };
+  const postLine = postSuffix[String(args.postData.length === 0) as 'true' | 'false'];
+  return `// ${args.method} ${safeUrl}${postLine}\n${safeText}`;
+}
+
+/**
+ * Write the dump file to disk, swallowing errors after a trace log.
+ * Keeps `dumpResponseBody` thin so the per-function 20-LoC cap holds.
+ * @param payload - Bundled write args (args + dir + sequence).
+ * @returns Sequence number (unchanged from input).
+ */
+function tryWriteDump(payload: IWriteArgs): number {
+  try {
+    const filePath = buildDumpPath(payload.dir, payload.sequence, payload.args);
+    const body = formatDumpBody(payload.args);
+    fs.writeFileSync(filePath, body);
+    return payload.sequence;
+  } catch (error) {
+    LOG.trace({
+      event: 'NetworkDump.write.error',
+      dumpCounter: payload.sequence,
+      url: redactUrl(payload.args.url),
+      error: toErrorMessage(error as Error),
+    });
+    return payload.sequence;
+  }
+}
+
+/**
+ * Debug hook: write each parsed response body to the trace-mode network
+ * dump folder, alongside the captured POST request body so future audits
+ * can replay the exact request shape. Always increments the counter so
+ * `captureIndex` stays a stable correlation key even off-trace.
+ * @param args - Bundled url/method/postData/responseText.
+ * @returns Count of dumps so far.
+ */
 function dumpResponseBody(args: IDumpArgs): number {
   const phase = getActivePhase();
   const stage = getActiveStage();
   const dir = getSubStepNetworkDumpDir(phase, stage);
-  // Always increment so `captureIndex` stays a stable per-process
-  // counter even when trace artefacts aren't being written to disk —
-  // the index is also the log-side correlation key.
   dumpCounter += 1;
   if (!dir) return dumpCounter;
-  try {
-    // Redact account / card IDs in path segments BEFORE the regex
-    // safe-encoding pass so identifiers never reach the on-disk
-    // filename. `redactUrl` (query) + `redactAccount` (per-segment)
-    // is composed inside `redactUrlFull` — same masking we use in
-    // structured discovery logs, single source of truth.
-    const safeStub = redactUrlFull(args.url)
-      .replaceAll(/[^\w.-]/g, '_')
-      .slice(-80);
-    const name = `${String(dumpCounter).padStart(4, '0')}-${args.method}-${safeStub}.json`;
-    const filePath = path.join(dir, name);
-    const safeUrl = redactUrl(args.url);
-    const safePostData = redactJsonBody(args.postData);
-    const safeText = redactJsonBody(args.text);
-    const postSuffix = { true: '', false: `\n// POST_BODY: ${safePostData}` };
-    const postLine = postSuffix[String(args.postData.length === 0) as 'true' | 'false'];
-    fs.writeFileSync(filePath, `// ${args.method} ${safeUrl}${postLine}\n${safeText}`);
-    return dumpCounter;
-  } catch {
-    return dumpCounter;
-  }
+  return tryWriteDump({ args, dir, sequence: dumpCounter });
 }
 
 export type { IDumpArgs };

@@ -1,6 +1,6 @@
 /**
- * Network Indexing — primitives for filtering, parsing, and recording
- * the JSON / no-content responses captured from the live browser page.
+ * Network Indexing — primitives for filtering and parsing the JSON /
+ * no-content responses captured from the live browser page.
  *
  * Boundary: pure functions over a single Playwright Response; no
  * cross-talk with scoring, endpoint-state, or discovery facade.
@@ -9,16 +9,17 @@
  *   • `parseTextOrNull` / `shouldRecordResponse` / `isUnsupportedUrl`
  *     — predicate gates that decide whether a response enters the
  *     captured pool.
- *   • `parseResponse` — read the body once, dump for trace, hand back
- *     an `IDiscoveredEndpoint`.
- *   • `handleResponse` — `page.on('response')` adapter that pushes
- *     into the mutable capture array.
+ *   • `extractRequestMeta` — validated meta bag (CR #6 — removes the
+ *     unsafe `as 'GET' | 'POST' | 'PUT'` cast).
  *   • `extractBaseUrl` — strip query params (used downstream by
  *     Scoring to find the most common base URL).
  *   • `isReplayablePost` — branch predicate used by Scoring's tier
  *     picker to recognise replayable POST templates.
+ *   • `parseResponse` / `handleResponse` are re-exported from
+ *     `ResponseParser.ts` so the public-API surface stays stable.
  *
  * Extracted from NetworkDiscovery.ts (Phase 4 commit 3/9).
+ * Split into Indexing + ResponseParser (PR #276 review — CR #7).
  */
 
 import type { Response } from 'playwright-core';
@@ -28,10 +29,6 @@ import {
   PIPELINE_WELL_KNOWN_HEADERS,
 } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../../Types/Debug.js';
-import { toErrorMessage } from '../../../Types/ErrorUtils.js';
-import { maskVisibleText } from '../../../Types/LogEvent.js';
-import { redactUrlFull } from '../../../Types/PiiRedactor.js';
-import { dumpResponseBody } from '../Debug/NetworkDump.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
 const LOG = getDebug(import.meta.url);
@@ -51,6 +48,10 @@ const NO_POST_DATA = '';
 /** Content types that may contain a JSON API response. */
 const JSON_CONTENT_TYPES = ['application/json', 'text/json', 'text/plain', 'text/html'];
 
+/** WK allowed HTTP methods — CR PR #276 #6 validates request().method(). */
+const ALLOWED_METHODS = ['GET', 'POST', 'PUT'] as const;
+type AllowedMethod = (typeof ALLOWED_METHODS)[number];
+
 /**
  * Check if a content-type header indicates JSON.
  * @param contentType - The content-type header value.
@@ -61,25 +62,44 @@ function isJsonContentType(contentType: string): boolean {
   return JSON_CONTENT_TYPES.some((jsonType): boolean => lower.includes(jsonType));
 }
 
+/** Request metadata bag returned by {@link extractRequestMeta}. */
+interface IRequestMeta {
+  readonly url: string;
+  readonly method: AllowedMethod;
+  readonly postData: string;
+  readonly contentType: string;
+  readonly requestHeaders: Record<string, string>;
+}
+
+/**
+ * Validate raw HTTP method against the allowed set; fall back to
+ * `'GET'` for unsupported verbs (DELETE/PATCH/HEAD/OPTIONS). Logs
+ * the fallback so unexpected verbs surface in trace logs.
+ * CR PR #276 #6 — removes the unsafe `as 'GET'|'POST'|'PUT'` cast.
+ * @param raw - Raw method string from Playwright request.
+ * @returns Validated method or `'GET'` fallback.
+ */
+function validateMethod(raw: string): AllowedMethod {
+  const isKnown = (ALLOWED_METHODS as readonly string[]).includes(raw);
+  if (isKnown) return raw as AllowedMethod;
+  LOG.trace({ event: 'extractRequestMeta.unsupportedMethod', method: raw });
+  return 'GET';
+}
+
 /**
  * Extract request metadata from a Playwright response.
  * @param response - Playwright response object.
- * @returns URL, method, postData, and contentType.
+ * @returns Bundled URL, method, postData, contentType, requestHeaders.
  */
-function extractRequestMeta(response: Response): {
-  url: string;
-  method: 'GET' | 'POST' | 'PUT';
-  postData: string;
-  contentType: string;
-  requestHeaders: Record<string, string>;
-} {
+function extractRequestMeta(response: Response): IRequestMeta {
   const headers = response.headers();
   const contentType = headers['content-type'] ?? NO_CONTENT_TYPE;
   const url = response.url();
-  const method = response.request().method() as 'GET' | 'POST' | 'PUT';
-  const rawPost = response.request().postData();
-  const postData = rawPost ?? NO_POST_DATA;
-  const requestHeaders = response.request().headers();
+  const request = response.request();
+  const rawMethod = request.method();
+  const method = validateMethod(rawMethod);
+  const postData = request.postData() ?? NO_POST_DATA;
+  const requestHeaders = request.headers();
   return { url, method, postData, contentType, requestHeaders };
 }
 
@@ -88,11 +108,7 @@ interface IParsedBody {
   readonly value: unknown;
 }
 
-/**
- * Branded signal — true when the response should enter the captured
- * pool. Named so Rule #15 (no primitive returns from exports) sees
- * the intent at a glance.
- */
+/** Branded signal — true when the response should enter the captured pool. */
 type ShouldRecordResponseSignal = boolean & {
   readonly __brand: 'ShouldRecordResponseSignal';
 };
@@ -112,23 +128,12 @@ function parseTextOrNull(text: string): IParsedBody {
 }
 
 /**
- * Phase H'' (2026-05-15): decision predicate for `parseResponse`.
- * 2xx-no-content responses (HTTP 204) carry no body and typically
- * have no `content-type` header — they fail the `isJsonContentType`
- * filter and would be dropped before `parseTextOrNull` ever runs,
- * making the picker's `urlOnlyMatch` rescue tier (which keys off
- * `responseBody === null`) unreachable for the exact captures it was
- * added to handle.
- *
- * <p>Bank's real Hapoalim txn URL fires `POST /current-account/
- * transactions?retrievalStartDate=X&retrievalEndDate=Y` and returns
- * 204 when the captured 30-day window is empty — this is the case
- * the rescue path was built for. Treat 204 as intrinsically
- * recordable regardless of content-type so the picker sees the URL.
- * Other non-JSON content types (HTML errors, redirects with body)
- * keep their existing JSON-only filter.
- *
- * <p>Exported for unit testing. Pure function.
+ * Decision predicate for `parseResponse`. 2xx-no-content responses
+ * (HTTP 204) carry no body and typically have no `content-type`
+ * header — they fail the JSON filter and would be dropped before
+ * `parseTextOrNull` ever runs, making the picker's `urlOnlyMatch`
+ * rescue tier unreachable for the exact captures it was added to
+ * handle. Treat 204 as intrinsically recordable.
  * @param status - HTTP status code.
  * @param contentType - Response content-type header (or `'none'`).
  * @returns True when the response should enter the captured pool.
@@ -138,8 +143,7 @@ function shouldRecordResponse(status: number, contentType: string): ShouldRecord
   return isJsonContentType(contentType) as ShouldRecordResponseSignal;
 }
 
-/** Branded boolean for the unsupported-URL gate. Rule #15 — exported
- *  functions never return raw primitives. */
+/** Branded boolean for the unsupported-URL gate. */
 type IsUnsupportedUrlSignal = boolean & {
   readonly __brand: 'IsUnsupportedUrlSignal';
 };
@@ -148,135 +152,13 @@ type IsUnsupportedUrlSignal = boolean & {
  * Test if a URL is on the unsupported-URL block list. WK-driven via
  * `PIPELINE_WELL_KNOWN_API.unsupported` — currently `.ashx` (Amex
  * legacy ProxyRequestHandler). Excluded URLs never enter the captured
- * pool, so no downstream picker / probe / extractor can ever see them.
- * Per user direction 15-05-2026: `.ashx` removal was completed long
- * ago — every bank goes through modern POST/GET. This is the
- * enforcement gate.
- *
- * <p>Exported for unit testing. Pure function.
+ * pool. Exported for unit testing.
  * @param url - Response URL.
  * @returns True when the URL matches a WK unsupported pattern.
  */
 function isUnsupportedUrl(url: string): IsUnsupportedUrlSignal {
   const isMatch = PIPELINE_WELL_KNOWN_API.unsupported.some((p): boolean => p.test(url));
   return isMatch as IsUnsupportedUrlSignal;
-}
-
-/**
- * Try to parse a response as a discovered endpoint.
- *
- * <p>Exported for unit testing — the production handlers
- * (`handleResponse` / `interceptPostResponses`) consume it internally
- * but the live 204-drop debug procedure (per debugging-guidlines.md
- * §1.2 "failing test before fixing") needs a direct entry point.
- *
- * @param response - Playwright response object.
- * @returns Discovered endpoint or false if not a JSON API response.
- */
-async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | false> {
-  const meta = extractRequestMeta(response);
-  const status = response.status();
-  // Permanent diagnostic trace — keep for future investigations of
-  // capture-pool drops. Logs every parseResponse entry with the
-  // sync-extracted status + contentType so any divergence between
-  // handleResponse's local capture and parseResponse's re-read is
-  // visible side-by-side in `pipeline.log`. Per debugging-
-  // guidlines.md §3 "Stage-Level Observability".
-  LOG.debug({
-    event: 'parseResponse.entry',
-    status,
-    contentType: meta.contentType,
-    method: meta.method,
-    url: redactUrlFull(meta.url),
-  });
-  // Unsupported-URL enforcement gate (Amex `.ashx` removal, 2026-05-15
-  // per user direction). Drop the response BEFORE any other logic so
-  // the URL never enters the captured pool and no downstream tier can
-  // pick it. WK-driven via `PIPELINE_WELL_KNOWN_API.unsupported`.
-  if (isUnsupportedUrl(meta.url)) {
-    LOG.debug({
-      event: 'parseResponse.drop',
-      reason: 'unsupportedUrl',
-      status,
-      url: redactUrlFull(meta.url),
-    });
-    return false;
-  }
-  if (!shouldRecordResponse(status, meta.contentType)) {
-    LOG.debug({
-      event: 'parseResponse.drop',
-      reason: 'shouldRecordResponse=false',
-      status,
-      contentType: meta.contentType,
-      url: redactUrlFull(meta.url),
-    });
-    return false;
-  }
-  // Phase H'' (2026-05-15): 204 No Content has no body. Calling
-  // `response.text()` on a no-body response can throw in some
-  // Playwright runtime / Camoufox builds, dropping the endpoint
-  // back at the catch below. Short-circuit BEFORE the read: we
-  // already know the body is null, so record the URL directly
-  // and bypass `response.text()` entirely.
-  if (status === 204) {
-    LOG.debug({ event: 'parseResponse.shortCircuit204', url: redactUrlFull(meta.url) });
-    const responseHeadersForNoContent = response.headers();
-    const captureIndexForNoContent = dumpResponseBody({
-      url: meta.url,
-      method: meta.method,
-      postData: meta.postData,
-      text: '',
-    });
-    return {
-      ...meta,
-      responseHeaders: responseHeadersForNoContent,
-      responseBody: null,
-      timestamp: Date.now(),
-      captureIndex: captureIndexForNoContent,
-      status,
-    };
-  }
-  try {
-    const text = await response.text();
-    LOG.debug({
-      event: 'parseResponse.textRead',
-      status,
-      textLen: text.length,
-      url: redactUrlFull(meta.url),
-    });
-    // CodeRabbit 2026-05-15: a true 204 / empty-body response has
-    // `text === ''` — `JSON.parse('')` throws and the catch below
-    // would drop the endpoint. Normalise empty / whitespace-only
-    // payloads to `null` so the picker sees the URL.
-    const responseBody = parseTextOrNull(text).value;
-    const responseHeaders = response.headers();
-    const captureIndex = dumpResponseBody({
-      url: meta.url,
-      method: meta.method,
-      postData: meta.postData,
-      text,
-    });
-    return {
-      ...meta,
-      responseHeaders,
-      responseBody,
-      timestamp: Date.now(),
-      captureIndex,
-      status,
-    };
-  } catch (error) {
-    // Permanent diagnostic — surface which captures get dropped by
-    // an internal throw (response.text() rejection, JSON parse
-    // failure, etc.) so we don't fly blind on future regressions.
-    LOG.debug({
-      event: 'parseResponse.catch',
-      status,
-      contentType: meta.contentType,
-      url: redactUrlFull(meta.url),
-      errorMessage: toErrorMessage(error as Error),
-    });
-    return false;
-  }
 }
 
 /**
@@ -291,42 +173,6 @@ function extractBaseUrl(fullUrl: string): string {
 }
 
 /**
- * Handle a response event — parse and store if JSON API.
- * @param captured - Mutable array to store discovered endpoints.
- * @param response - Playwright response.
- * @param isCollectionActive - Predicate gating capture storage so the
- *   listener can stay attached for the whole run while the
- *   discovery pool is silenced during pre-auth phases.
- * @returns True (always — fire-and-forget).
- */
-function handleResponse(
-  captured: IDiscoveredEndpoint[],
-  response: Response,
-  isCollectionActive: () => boolean,
-): boolean {
-  if (!isCollectionActive()) return false;
-  const url = response.url();
-  const status = response.status();
-  const method = response.request().method();
-  parseResponse(response)
-    .then((endpoint): boolean => {
-      const isInteresting = method === 'POST' || url.includes('/col-rest/');
-      if (!endpoint && isInteresting) {
-        LOG.trace({ method, url: maskVisibleText(url), status });
-      }
-      if (!endpoint) return false;
-      captured.push(endpoint);
-      LOG.trace({
-        method: endpoint.method,
-        url: maskVisibleText(endpoint.url),
-      });
-      return true;
-    })
-    .catch((): boolean => false);
-  return true;
-}
-
-/**
  * Returns true when the endpoint is a non-empty-body POST — the body
  * template is what MatrixLoop replays per-card / per-month.
  * @param ep - captured endpoint.
@@ -337,11 +183,13 @@ function isReplayablePost(ep: IDiscoveredEndpoint): boolean {
   return ep.postData.length > 0;
 }
 
+export { handleResponse, parseResponse } from './ResponseParser.js';
+
 export {
+  ALLOWED_METHODS,
   BROWSER_STANDARD_HEADERS,
   extractBaseUrl,
   extractRequestMeta,
-  handleResponse,
   isJsonContentType,
   isReplayablePost,
   isUnsupportedUrl,
@@ -349,10 +197,15 @@ export {
   NO_CONTENT_TYPE,
   NO_POST_DATA,
   ORIGIN_HEADERS,
-  parseResponse,
   parseTextOrNull,
   REFERER_HEADERS,
   shouldRecordResponse,
   SITE_ID_HEADERS,
 };
-export type { IParsedBody, IsUnsupportedUrlSignal, ShouldRecordResponseSignal };
+export type {
+  AllowedMethod,
+  IParsedBody,
+  IRequestMeta,
+  IsUnsupportedUrlSignal,
+  ShouldRecordResponseSignal,
+};
