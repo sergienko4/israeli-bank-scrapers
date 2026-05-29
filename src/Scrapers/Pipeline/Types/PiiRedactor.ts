@@ -25,6 +25,9 @@
 
 import ScraperErrorTypes from '../../Base/ErrorTypes.js';
 import type { Brand } from './Brand.js';
+import { redactAccount } from './PiiRedactor/Account.js';
+import { redactCard } from './PiiRedactor/Card.js';
+import { redactIsraeliId } from './PiiRedactor/IsraeliId.js';
 
 /**
  * Default-deny replacement string — used whenever a value fails to
@@ -94,13 +97,11 @@ type CensorFn = (value: CensorValue, path: readonly string[]) => string;
 
 /** Maximum walk depth before redactJsonBody bails out for safety. */
 const MAX_WALK_DEPTH = 1000;
-/** Minimum identifier length required to extract a stable last-4 hint. */
+/** Minimum identifier length required by the Phone strategy below. */
 const MIN_HINT_LEN = 4;
 /** OTP length range — 4..8 ASCII digits. */
 const OTP_MIN_LEN = 4;
 const OTP_MAX_LEN = 8;
-/** Israeli ID is exactly 9 digits. */
-const ISRAELI_ID_LEN = 9;
 
 /** Path-tail key → PiiCategory routing table (Partial, missing keys → undefined). */
 const PATH_TAIL_TO_CATEGORY: Readonly<Partial<Record<string, PiiCategory>>> = {
@@ -258,69 +259,6 @@ function graphemeCount(input: string): PiiCountInt {
   const segmenter = buildSegmenter();
   const segments = segmenter.segment(input);
   return Array.from(segments).length as PiiCountInt;
-}
-
-/**
- * Locate the last separator index across `-`, `/`, ` `.
- * @param value - Input string.
- * @returns Last separator index, or -1.
- */
-function lastSeparatorIndex(value: string): PiiCountInt {
-  const dash = value.lastIndexOf('-');
-  const slash = value.lastIndexOf('/');
-  const space = value.lastIndexOf(' ');
-  return Math.max(dash, slash, space) as PiiCountInt;
-}
-
-/**
- * Slice the terminal segment of an account-style string after the last
- * separator. Returns the whole string when no separator is present.
- * @param value - Account-style input.
- * @returns Terminal segment.
- */
-function terminalSegment(value: string): PiiHintString {
-  const sep = lastSeparatorIndex(value);
-  if (sep === -1) return value as PiiHintString;
-  return value.slice(sep + 1) as PiiHintString;
-}
-
-/**
- * Account-number strategy. Returns '***' + last 4 digits of the
- * terminal segment.
- * @param value - Raw account string.
- * @returns Stable hint.
- */
-function redactAccount(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
-  if (value.length === 0) return '' as PiiHintString;
-  const tail = terminalSegment(value);
-  if (tail.length <= MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;
-  return `***${tail.slice(-4)}` as PiiHintString;
-}
-
-/**
- * Card strategy. Returns '****' + last 4 digits.
- * @param value - Raw card string.
- * @returns Stable hint.
- */
-function redactCard(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
-  if (value.length === 0) return '' as PiiHintString;
-  if (value.length < MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;
-  return `****${value.slice(-4)}` as PiiHintString;
-}
-
-/**
- * Israeli ID strategy. Validates 9 ASCII digits; returns last-4 hint.
- * @param value - Raw value.
- * @returns Stable hint.
- */
-function redactIsraeliId(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
-  if (value.length === 0) return '' as PiiHintString;
-  const digits = value.replaceAll(/\D/g, '');
-  if (digits.length !== ISRAELI_ID_LEN) return REDACTED_HINT as PiiHintString;
-  return `***${digits.slice(-4)}` as PiiHintString;
 }
 
 /**
@@ -1053,18 +991,18 @@ function redact(value: unknown): PiiHintString {
 }
 
 export type { CensorFn, JsonValue, PiiCategory };
+export { redactAccount } from './PiiRedactor/Account.js';
+export { redactCard } from './PiiRedactor/Card.js';
+export { redactIsraeliId } from './PiiRedactor/IsraeliId.js';
 export {
   classifyKey,
   createCensorFn,
   redact,
-  redactAccount,
   redactAmount,
-  redactCard,
   redactCookie,
   redactErrorMessage,
   redactHtml,
   REDACTION_ERROR_HINT,
-  redactIsraeliId,
   redactJsonBody,
   redactMerchant,
   redactName,
