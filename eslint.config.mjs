@@ -909,10 +909,25 @@ export default tseslint.config(
     rules: {
       'max-lines': 'off',
       'max-lines-per-function': 'off',
-      // Type-only modules (Types/Domain/*) often export a single interface;
-      // default export is a runtime concept that does not fit type-only files.
-      'import-x/prefer-default-export': 'off',
       // DO NOT redefine no-restricted-syntax here; let Section 6 handle it.
+    },
+  },
+
+  // 7b. TYPE-ONLY DOMAIN MODULES — DEFAULT-EXPORT EXEMPTION
+  //
+  // CodeRabbit feedback on PR #274: scope the
+  // `import-x/prefer-default-export` exemption narrowly to the
+  // `Types/Domain/**` folder so {Mediator,Strategy,Types-root}
+  // files continue to enforce the global rule. A type-only module
+  // such as `Domain/BrowserState.ts` that exports a single
+  // `interface IBrowserState` has nothing to default-export (a
+  // default export is a runtime concept); the rule fires unhelpfully
+  // there. Scoping to `Types/Domain/**` keeps the protection where
+  // it adds value and removes the over-broad disable.
+  {
+    files: ['src/Scrapers/Pipeline/Types/Domain/**/*.ts'],
+    rules: {
+      'import-x/prefer-default-export': 'off',
     },
   },
 
@@ -1359,12 +1374,24 @@ export default tseslint.config(
 
   // 12e. RE-EXPORT SHORTHAND (Security Hardening 2026-05) — scoped
   //      flip of `unicorn/prefer-export-from` `ignoreUsedVariables`
-  //      under `src/Scrapers/Base/**` only. Decide §4 RC-8 OPTION-B:
-  //      keeps the global default at `true` to avoid surfacing the
-  //      10 collateral hits as in-scope; flips locally so the rule
-  //      fires on `BaseScraperWithBrowser.ts` after the manual rewrite.
+  //      under `src/Scrapers/Base/**` AND `src/Scrapers/Pipeline/Types/**`.
+  //      Decide §4 RC-8 OPTION-B: keeps the global default at `true`
+  //      to avoid surfacing the 10 collateral hits as in-scope; flips
+  //      locally so the rule fires on `BaseScraperWithBrowser.ts` after
+  //      the manual rewrite.
+  //
+  //      PR #274 extension — Pipeline/Types covered to match Sonar
+  //      `typescript:S7763`. The PR #274 review surfaced 11 instances of
+  //      `import type { X } from './Domain/...js'; export type { ..., X }`
+  //      in `PipelineContext.ts`; with `ignoreUsedVariables: true` the
+  //      global rule treats the barrel-export reference as "used" and
+  //      skips. Flipping the flag for `Pipeline/Types/**` makes ESLint
+  //      catch the same anti-pattern locally on the next commit so the
+  //      Sonar failure cannot recur. Production code base is unchanged
+  //      by this extension (the 11 PR #274 sites are converted to direct
+  //      `export type ... from` in the same commit).
   {
-    files: ['src/Scrapers/Base/**/*.ts'],
+    files: ['src/Scrapers/Base/**/*.ts', 'src/Scrapers/Pipeline/Types/**/*.ts'],
     plugins: { unicorn },
     rules: {
       'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: false }],

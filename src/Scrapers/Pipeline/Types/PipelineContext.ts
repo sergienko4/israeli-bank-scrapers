@@ -13,31 +13,22 @@ import type { IFetchStrategy } from '../Strategy/Fetch/FetchStrategy.js';
 import type { ScraperLogger } from './Debug.js';
 import type { IAccountDiscovery } from './Domain/AccountDiscoveryTypes.js';
 import type { IApiFetchContext } from './Domain/ApiFetchContext.js';
-import type { AuthDiscoveryFailCode, IAuthDiscovery } from './Domain/AuthDiscoveryTypes.js';
+import type { IAuthDiscovery } from './Domain/AuthDiscoveryTypes.js';
 import type {
-  BalanceExtractionOutcome,
-  IAccountIdentity,
   IBalanceExtracted,
   IBalanceFetchPlanEntry,
-  IBalanceFetchRequest,
-  IBalanceFetchTemplate,
   IBalanceValidation,
 } from './Domain/BalanceTypes.js';
 import type { IBrowserState } from './Domain/BrowserState.js';
 import type { IDashboardState } from './Domain/DashboardState.js';
 import type { IDiagnosticsState } from './Domain/DiagnosticsState.js';
 import type { ILoginState } from './Domain/LoginState.js';
-import type { ILoginFieldDiscovery, LoginFieldKey } from './Domain/LoginTypes.js';
+import type { ILoginFieldDiscovery } from './Domain/LoginTypes.js';
 import type { IOtpFill, IOtpTrigger } from './Domain/OtpTypes.js';
-import type { IPreLoginDiscovery, IResolvedTarget, RevealStatus } from './Domain/PreLoginTypes.js';
+import type { IPreLoginDiscovery } from './Domain/PreLoginTypes.js';
 import type { IScrapeDiscovery } from './Domain/ScrapeDiscoveryTypes.js';
 import type { IScrapeState } from './Domain/ScrapeState.js';
-import type {
-  ITxnEndpoint,
-  ITxnEndpointInternal,
-  ITxnFieldMap,
-  PickerTier,
-} from './Domain/TxnEndpointTypes.js';
+import type { ITxnEndpoint } from './Domain/TxnEndpointTypes.js';
 import type { IDashboardTxnHarvest } from './Domain/TxnHarvestTypes.js';
 import type { Option } from './Option.js';
 
@@ -240,41 +231,45 @@ export interface IBootstrapContext extends IActionContext {
   readonly browser: Option<IBrowserState>;
 }
 
+export type { IPipelineContext };
+// Direct re-exports — Sonar S7763 / `unicorn/prefer-export-from`.
+// These symbols are imported here ONLY to be re-emitted through the
+// barrel; routing them via `export type ... from` removes the
+// redundant local binding and matches the value-export style below.
+export { type IAccountDiscovery } from './Domain/AccountDiscoveryTypes.js';
+export { type IApiFetchContext } from './Domain/ApiFetchContext.js';
+export { API_STRATEGY, type ApiStrategyKind } from './Domain/ApiStrategy.js';
+export type { AuthDiscoveryFailCode, IAuthDiscovery } from './Domain/AuthDiscoveryTypes.js';
+export { EMPTY_AUTH_DISCOVERY } from './Domain/AuthDiscoveryTypes.js';
 export type {
-  AuthDiscoveryFailCode,
   BalanceExtractionOutcome,
-  IAccountDiscovery,
   IAccountIdentity,
-  IApiFetchContext,
-  IAuthDiscovery,
   IBalanceExtracted,
   IBalanceFetchPlanEntry,
   IBalanceFetchRequest,
   IBalanceFetchTemplate,
   IBalanceValidation,
-  IBrowserState,
-  IDashboardState,
-  IDashboardTxnHarvest,
-  IDiagnosticsState,
-  ILoginFieldDiscovery,
-  ILoginState,
-  IOtpFill,
-  IOtpTrigger,
-  IPipelineContext,
-  IPreLoginDiscovery,
-  IResolvedTarget,
-  IScrapeDiscovery,
-  IScrapeState,
+} from './Domain/BalanceTypes.js';
+export { type IBillingCycle, type IBillingCycleCatalog } from './Domain/BillingCycleTypes.js';
+export { type IBrowserState } from './Domain/BrowserState.js';
+export { type IDashboardState } from './Domain/DashboardState.js';
+export { type IDiagnosticsState } from './Domain/DiagnosticsState.js';
+export { type ILoginState } from './Domain/LoginState.js';
+export type { ILoginFieldDiscovery, LoginFieldKey } from './Domain/LoginTypes.js';
+export { LOGIN_FIELDS } from './Domain/LoginTypes.js';
+export {
+  EMPTY_OTP_FILL,
+  EMPTY_OTP_TRIGGER,
+  type IOtpFill,
+  type IOtpTrigger,
+} from './Domain/OtpTypes.js';
+export type { IPreLoginDiscovery, IResolvedTarget, RevealStatus } from './Domain/PreLoginTypes.js';
+export { type IScrapeDiscovery } from './Domain/ScrapeDiscoveryTypes.js';
+export { type IScrapeState } from './Domain/ScrapeState.js';
+export type {
   ITxnEndpoint,
   ITxnEndpointInternal,
   ITxnFieldMap,
-  LoginFieldKey,
   PickerTier,
-  RevealStatus,
-};
-export { API_STRATEGY, type ApiStrategyKind } from './Domain/ApiStrategy.js';
-export { EMPTY_AUTH_DISCOVERY } from './Domain/AuthDiscoveryTypes.js';
-export { type IBillingCycle, type IBillingCycleCatalog } from './Domain/BillingCycleTypes.js';
-export { LOGIN_FIELDS } from './Domain/LoginTypes.js';
-export { EMPTY_OTP_FILL, EMPTY_OTP_TRIGGER } from './Domain/OtpTypes.js';
-export { EMPTY_TXN_HARVEST } from './Domain/TxnHarvestTypes.js';
+} from './Domain/TxnEndpointTypes.js';
+export { EMPTY_TXN_HARVEST, type IDashboardTxnHarvest } from './Domain/TxnHarvestTypes.js';
