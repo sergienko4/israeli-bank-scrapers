@@ -1636,4 +1636,39 @@ export default tseslint.config(
       'max-lines-per-function': 'off',
     },
   },
+
+  // 13. PII REDACTOR SUB-MODULE FILE-SIZE GUARD
+  //
+  // Phase 6 split the 996-LoC PiiRedactor.ts blob into thirteen
+  // focused sub-modules under `Types/PiiRedactor/` (mirror of
+  // Phase 4 Network/ and Phase 5 Scrape/ splits). Section 7 turns
+  // `max-lines` off across all `Types/**` files; without a
+  // re-imposed bound on the PiiRedactor sub-folder, future commits
+  // could quietly re-blob one of the new homes back toward
+  // four-digit line counts.
+  //
+  // Ceiling: **200 effective lines per file** (skipBlankLines +
+  // skipComments). Larger than §11/§12 (150) because the Facade
+  // and JsonBody walker legitimately host the cross-strategy
+  // composition logic (routing table + walker state machine) that
+  // does not split further without introducing pointless
+  // indirection.
+  //
+  // The shim itself (`PiiRedactor.ts`) is intentionally left
+  // unconstrained — Section 7 already allows it, and this guard
+  // is about preventing regression of the new homes, not the
+  // tombstone re-export.
+  //
+  // Canary: `no-pii-redactor-blob.canary.ts` over-sizes the file
+  // above the 200 effective-line ceiling so `npm run lint:canaries`
+  // confirms the rule fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-pii-redactor-blob.canary.ts',
+    ],
+    rules: {
+      'max-lines': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
+    },
+  },
 );
