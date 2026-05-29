@@ -1492,4 +1492,32 @@ export default tseslint.config(
       ],
     },
   },
+
+  // 11. NETWORK SUB-MODULE FILE-SIZE GUARD
+  //
+  // Phase 4 split the 1812-LoC NetworkDiscovery.ts blob into seven
+  // focused sub-modules under `Mediator/Network/`. Section 7 turns
+  // `max-lines` off across all `Mediator/**` files (DI factories,
+  // Strategy adapters, and similar infrastructure files are
+  // legitimately long); without a re-imposed bound on the Network
+  // sub-folder, future commits could quietly re-blob one of the new
+  // homes back toward four-digit line counts.
+  //
+  // The 500-line ceiling (blank + comment lines excluded) gives ~50%
+  // headroom over today's largest sub-module (Scoring.ts at 335
+  // effective LoC) while making any future growth into the
+  // sub-module's "split-or-extract" zone visible at pre-commit time.
+  //
+  // The shim itself (`NetworkDiscovery.ts`) is intentionally left
+  // unconstrained — Section 7 already allows it, and this guard is
+  // about preventing regression of the new homes, not the facade.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Network/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-network-discovery-blob.canary.ts',
+    ],
+    rules: {
+      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+    },
+  },
 );
