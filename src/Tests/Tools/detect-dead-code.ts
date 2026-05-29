@@ -37,6 +37,13 @@ const PIPELINE_ROOT = path.join(SRC_ROOT, 'Scrapers', 'Pipeline');
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
   // Public barrel export — consumed via the npm package's entry.
   path.join(PIPELINE_ROOT, 'index.ts'),
+  // Phase 6 scaffolding — Types and Facade are populated across
+  // commits 1-5; the production import edges land in commit 5
+  // (Facade composes the registry) and commit 6 (PiiRedactor shim
+  // re-exports from Facade). Allow zero importers during the staged
+  // refactor so the dead-code gate doesn't gate commit 1 to commit 5.
+  path.join(PIPELINE_ROOT, 'Types', 'PiiRedactor', 'Facade.ts'),
+  path.join(PIPELINE_ROOT, 'Types', 'PiiRedactor', 'Types.ts'),
 ]);
 
 /** Sentinel returned by {@link resolveImport} for unresolved specifiers. */

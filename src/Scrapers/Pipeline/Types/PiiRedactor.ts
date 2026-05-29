@@ -35,6 +35,13 @@ import type { Brand } from './Brand.js';
 const REDACTED_HINT = '[REDACTED]' as const;
 
 /**
+ * Strategy-error replacement string — emitted when the unified
+ * {@link redact} entry point's strategy throws. Keeps the pipeline
+ * running even if a single value triggers a bug.
+ */
+const REDACTION_ERROR_HINT = '[REDACTION_ERROR]' as const;
+
+/**
  * Default-on PII redaction. Set `PII_REDACTION=off` in `.env` to pass
  * business-data values through unmasked during local debugging — real
  * account numbers, card numbers, descriptions, amounts, URLs, and
@@ -972,16 +979,91 @@ function redactHtml(html: string): PiiHintString {
   return out as PiiHintString;
 }
 
+/** Token-shaped prefix used to short-circuit unified value-only classification. */
+const TOKEN_VALUE_PREFIX_RE = /^eyJ[\w-]{20,}/;
+/** OTP-shaped value: 4..8 ASCII digits, no separators. */
+const OTP_VALUE_RE = /^\d{4,8}$/;
+/** Cookie-shaped value: NAME=VALUE pair (RFC 6265 cookie-name token). */
+const COOKIE_VALUE_RE = /^[a-z][\w.-]*=/i;
+
+/**
+ * Whether a value looks like an opaque bearer/JWT token. Conservative
+ * — matches only the canonical `eyJ…` JWT prefix so non-credential
+ * strings pass through to the default-deny branch.
+ * @param value - Candidate string.
+ * @returns True when the string starts with a JWT-shaped header.
+ */
+function looksLikeToken(value: string): PiiClassifierBool {
+  return TOKEN_VALUE_PREFIX_RE.test(value) as PiiClassifierBool;
+}
+
+/**
+ * Whether a value looks like an OTP code. 4..8 ASCII digits only.
+ * @param value - Candidate string.
+ * @returns True when the string is an OTP-shaped digit run.
+ */
+function looksLikeOtp(value: string): PiiClassifierBool {
+  return OTP_VALUE_RE.test(value) as PiiClassifierBool;
+}
+
+/**
+ * Whether a value looks like an HTTP cookie pair. Matches the
+ * `cookie-name=cookie-value` shape from RFC 6265.
+ * @param value - Candidate string.
+ * @returns True when the string is a cookie pair.
+ */
+function looksLikeCookie(value: string): PiiClassifierBool {
+  return COOKIE_VALUE_RE.test(value) as PiiClassifierBool;
+}
+
+/**
+ * Inner classification body for {@link redact}. Separated so the
+ * outer `try` block contains a single statement and the depth-2
+ * branches live at depth 1 instead of depth 2.
+ * @param value - Candidate string already proven to be a string.
+ * @returns Stable hint string.
+ */
+function redactStringValue(value: string): PiiHintString {
+  if (looksLikeToken(value)) return REDACTED_HINT as PiiHintString;
+  if (looksLikeOtp(value)) return '[OTP]' as PiiHintString;
+  if (looksLikeCookie(value)) return REDACTED_HINT as PiiHintString;
+  return REDACTED_HINT as PiiHintString;
+}
+
+/**
+ * Unified PII redaction entry point. Default-deny: any unclassified
+ * value yields {@link REDACTED_HINT}. Auth credentials (token / OTP /
+ * cookie) are matched FIRST so `PII_REDACTION=off` cannot leak them.
+ *
+ * Phase 6 commit 1: lives in this file alongside the per-category
+ * strategies. Phase 6 commit 5 moves the implementation into
+ * `./PiiRedactor/Facade.ts`; this file becomes a re-export shim in
+ * commit 6.
+ *
+ * @param value - Arbitrary input value (string / number / object / etc.).
+ * @returns Stable hint string.
+ */
+function redact(value: unknown): PiiHintString {
+  if (typeof value !== 'string') return REDACTED_HINT as PiiHintString;
+  try {
+    return redactStringValue(value);
+  } catch {
+    return REDACTION_ERROR_HINT as PiiHintString;
+  }
+}
+
 export type { CensorFn, JsonValue, PiiCategory };
 export {
   classifyKey,
   createCensorFn,
+  redact,
   redactAccount,
   redactAmount,
   redactCard,
   redactCookie,
   redactErrorMessage,
   redactHtml,
+  REDACTION_ERROR_HINT,
   redactIsraeliId,
   redactJsonBody,
   redactMerchant,
