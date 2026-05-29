@@ -4,229 +4,33 @@
  * All config injected via DI — no direct imports of SCRAPER_CONFIGURATION.
  */
 
-import type { BrowserContext, Frame, Page } from 'playwright-core';
-
 import type { CompanyTypes } from '../../../Definitions.js';
-import type { ITransaction, ITransactionsAccount } from '../../../Transactions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
 import type { IApiMediator } from '../Mediator/Api/ApiMediator.js';
 import type { IActionMediator, IElementMediator } from '../Mediator/Elements/ElementMediator.js';
-import type { IFormAnchor } from '../Mediator/Form/FormAnchor.js';
-import type { IDiscoveredEndpoint } from '../Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IPipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import type { IFetchStrategy } from '../Strategy/Fetch/FetchStrategy.js';
 import type { ScraperLogger } from './Debug.js';
+import type { IAccountDiscovery } from './Domain/AccountDiscoveryTypes.js';
+import type { IApiFetchContext } from './Domain/ApiFetchContext.js';
+import type { IAuthDiscovery } from './Domain/AuthDiscoveryTypes.js';
+import type {
+  IBalanceExtracted,
+  IBalanceFetchPlanEntry,
+  IBalanceValidation,
+} from './Domain/BalanceTypes.js';
+import type { IBrowserState } from './Domain/BrowserState.js';
+import type { IDashboardState } from './Domain/DashboardState.js';
+import type { IDiagnosticsState } from './Domain/DiagnosticsState.js';
+import type { ILoginState } from './Domain/LoginState.js';
+import type { ILoginFieldDiscovery } from './Domain/LoginTypes.js';
+import type { IOtpFill, IOtpTrigger } from './Domain/OtpTypes.js';
+import type { IPreLoginDiscovery } from './Domain/PreLoginTypes.js';
+import type { IScrapeDiscovery } from './Domain/ScrapeDiscoveryTypes.js';
+import type { IScrapeState } from './Domain/ScrapeState.js';
+import type { ITxnEndpoint } from './Domain/TxnEndpointTypes.js';
+import type { IDashboardTxnHarvest } from './Domain/TxnHarvestTypes.js';
 import type { Option } from './Option.js';
-import type { Procedure } from './Procedure.js';
-
-/** Cleanup handler return type — side-effect only, no payload. */
-type CleanupResult = Procedure<void>;
-
-/** Browser lifecycle context — absent for API-only scrapers. */
-interface IBrowserState {
-  readonly page: Page;
-  readonly context: BrowserContext;
-  readonly cleanups: readonly (() => Promise<CleanupResult>)[];
-}
-
-/** Login phase result context. */
-interface ILoginState {
-  readonly activeFrame: Page | Frame;
-  readonly persistentOtpToken: Option<string>;
-  /**
-   * URL captured at LOGIN.PRE entry — the page where credentials are
-   * about to be submitted. Threaded forward through OTP-TRIGGER /
-   * OTP-FILL emits (each phase carries the latest value on its own
-   * slim contract). AUTH-DISCOVERY.FINAL reads the LATEST slot's
-   * value to compare against the post-auth current URL (Mission M4.F1
-   * dashboard gate). Empty string ⇒ test / mock paths only.
-   */
-  readonly urlBeforeSubmit: string;
-}
-
-/** Dashboard phase result context. */
-interface IDashboardState {
-  readonly isReady: boolean;
-  readonly pageUrl: string;
-  readonly trafficPrimed: boolean;
-}
-
-/** Scrape phase result context. */
-interface IScrapeState {
-  readonly accounts: readonly ITransactionsAccount[];
-  /**
-   * Per-card identity triples committed by SCRAPE.post — v6 contract.
-   *
-   * <p>BALANCE-RESOLVE consumes this map to plan per-bank-account
-   * balance fetches. SCRAPE emits identity data only; no attribution,
-   * no scoring, no extractor work — single-phase ownership of balance
-   * is enforced in BALANCE-RESOLVE.
-   *
-   * <p>Absent (`undefined`) when SCRAPE could not derive identities
-   * (no accountDiscovery, frozen test paths). Downstream consumers
-   * treat the absent case as a soft signal and default-deny.
-   */
-  readonly accountIdentities?: ReadonlyMap<string, IAccountIdentity>;
-  /**
-   * Balance fetch template committed by SCRAPE.post — v6 contract.
-   *
-   * <p>The template carries the URL + method + post-body / url-query
-   * key SCRAPE already used during the billing N-loop. BALANCE-RESOLVE
-   * substitutes each unique bankAccountUniqueId into the template once
-   * per bank account to issue the live balance fetch.
-   *
-   * <p>Absent (`undefined`) when SCRAPE could not derive a template
-   * (no per-card POST observed). Downstream consumers default-deny.
-   */
-  readonly balanceFetchTemplate?: IBalanceFetchTemplate;
-}
-
-/** API strategy kind — DIRECT (SPA traffic). After .ashx removal there
- *  is one strategy; the enum is retained as a single-value frozen
- *  constant so existing callers (`apiStrategy: API_STRATEGY.DIRECT`)
- *  keep compiling without surprises. */
-const API_STRATEGY = {
-  DIRECT: 'DIRECT',
-} as const;
-
-/** Union type for API strategy. */
-type ApiStrategyKind = (typeof API_STRATEGY)[keyof typeof API_STRATEGY];
-
-/** Diagnostics state — tracks timing and breadcrumbs. */
-interface IDiagnosticsState {
-  readonly loginUrl: string;
-  readonly finalUrl: Option<string>;
-  readonly loginStartMs: number;
-  readonly fetchStartMs: Option<number>;
-  readonly lastAction: string;
-  readonly pageTitle: Option<string>;
-  readonly warnings: readonly string[];
-  /** Target URL extracted in DASHBOARD.PRE for navigation. */
-  readonly dashboardTargetUrl?: string;
-  /** Pre-resolved single click target from DASHBOARD.PRE (IDENTITY-based
-   *  race winner of `resolveVisible` against `WK_DASHBOARD.TRANSACTIONS`).
-   *  ACTION clicks this FIRST (HEAD behaviour — proven winner). Only when
-   *  this fails to trigger a txn signal does ACTION fall back to iterating
-   *  `dashboardFallbackSelector`'s `.nth(0..count-1)`. */
-  readonly dashboardTarget?: IResolvedTarget;
-  /** Generic-selector fallback string (e.g. `[aria-label="..."]` or
-   *  `text=...`) used by ACTION ONLY when the identity click yields no
-   *  success signal — covers Beinleumi pm.mataf vs pm.q077 (same
-   *  aria-label, different elements). */
-  readonly dashboardFallbackSelector?: string;
-  /** Number of DOM matches for `dashboardFallbackSelector` in the winning
-   *  frame. ≥1 when `dashboardTarget` set; 0 otherwise. ACTION iterates
-   *  `.nth(0..count-1)` after identity click failed. */
-  readonly dashboardCandidateCount?: number;
-  /** Pre-resolved menu toggle target for SEQUENTIAL dashboard nav. */
-  readonly dashboardMenuTarget?: IResolvedTarget;
-  /** Whether txn traffic already exists from login redirect — skip click if true. */
-  readonly dashboardTrafficExists?: boolean;
-  /** Auth token discovered from iframe sessionStorage in DASHBOARD.FINAL. */
-  readonly discoveredAuth?: string | false;
-  /** How the login form was submitted — used by POST to decide validation. */
-  readonly submitMethod?: 'enter' | 'click' | 'both';
-  /** API strategy discovered in LOGIN.FINAL — single value (DIRECT) post .ashx removal. */
-  readonly apiStrategy?: ApiStrategyKind;
-  /**
-   * URL captured at OTP-TRIGGER.PRE entry — Mission M4.F1 baton.
-   * OTP-TRIGGER.FINAL reads this to build its own slim emit's
-   * `urlBeforeSubmit` field. Empty / absent ⇒ OTP-TRIGGER did not
-   * run (test paths or non-OTP banks).
-   */
-  readonly otpTriggerPreUrl?: string;
-  /**
-   * ACTION timestamp (epoch-ms) used by OTP-TRIGGER.POST to scope
-   * network ACKs to the post-click window. Absent ⇒ POST treats every
-   * capture as a candidate (permissive default for test paths that
-   * don't run the full ACTION → POST sequence).
-   */
-  readonly triggerClickedAt?: number;
-  /**
-   * POST validation outcome for the OTP trigger's scope-bound effect.
-   * `true` when either the trigger target disappeared or a 2xx auth-
-   * domain ACK landed since `triggerClickedAt`. Absent ⇒ POST did not
-   * run or the validation was skipped (test paths).
-   */
-  readonly triggerScopeValidated?: boolean;
-}
-
-/** Auto-discovered API fetch context — injected by DASHBOARD phase. */
-interface IApiFetchContext {
-  /** Fetch POST with auto-injected auth + headers. Bank provides URL + body only. */
-  fetchPost<T>(url: string, body: Record<string, string | object>): Promise<Procedure<T>>;
-  /** Fetch GET with auto-injected auth + headers. Bank provides URL only. */
-  fetchGet<T>(url: string): Promise<Procedure<T>>;
-  /** Discovered transactions endpoint URL (or false). */
-  readonly transactionsUrl: string | false;
-  /** Discovered balance endpoint URL (or false). */
-  readonly balanceUrl: string | false;
-  /** Discovered pending endpoint URL (or false). */
-  readonly pendingUrl: string | false;
-  /** Config-fallback transaction URL — used when discovery finds no txn endpoint. */
-  readonly configTransactionsUrl?: string | false;
-}
-
-/**
- * Discovery status returned by PreLogin.PRE for each reveal candidate.
- *   READY    — element found and visible → ACTION fires a normal click.
- *   OBSCURED — element in DOM but not visible (e.g. aria-hidden by UserWay) → ACTION uses force:true.
- *   NOT_FOUND — element absent from DOM → ACTION skips.
- */
-export type RevealStatus = 'READY' | 'OBSCURED' | 'NOT_FOUND';
-
-/** PRE discovery results stored in context — ACTION reads these instead of re-discovering. */
-/** Reveal action determined by PRE for ACTION to execute. */
-type RevealAction = 'CLICK' | 'NAVIGATE' | 'NONE';
-
-export interface IPreLoginDiscovery {
-  /** Status of the Business/Private split selector. */
-  readonly privateCustomers: RevealStatus;
-  /** Status of the credential mode toggle (password vs SMS/OTP). */
-  readonly credentialArea: RevealStatus;
-  /** What ACTION must do: click, navigate, or nothing. */
-  readonly revealAction: RevealAction;
-  /** Pre-resolved target for ACTION to click/navigate (contextId + selector). */
-  readonly revealTarget?: IResolvedTarget;
-}
-
-// ── Phase-Specific Discovery Types (PRE → ACTION handoff) ───────────
-
-/** Resolved element target — PRE discovered, ACTION executes via contextId. */
-export interface IResolvedTarget {
-  /** CSS/XPath selector for the element. */
-  readonly selector: string;
-  /** Opaque frame identifier — `'main'` or `'iframe:<url>'`. */
-  readonly contextId: string;
-  /** Strategy that matched (xpath, placeholder, labelText, etc.). */
-  readonly kind: string;
-  /** Candidate value that was searched for. */
-  readonly candidateValue: string;
-}
-
-/** LOGIN field keys — compiler-enforced, no raw strings. */
-export const LOGIN_FIELDS = {
-  PASSWORD: 'password',
-  USERNAME: 'username',
-  ID: 'id',
-  CARD6: 'card6Digits',
-  NUM: 'num',
-  USER_CODE: 'userCode',
-} as const;
-/** Union of valid LOGIN field keys. */
-export type LoginFieldKey = (typeof LOGIN_FIELDS)[keyof typeof LOGIN_FIELDS];
-
-/** LOGIN phase discovery — resolved field targets from PRE. */
-export interface ILoginFieldDiscovery {
-  /** Pre-resolved field targets keyed by LoginFieldKey. */
-  readonly targets: ReadonlyMap<LoginFieldKey, IResolvedTarget>;
-  /** Form anchor discovered from password field. */
-  readonly formAnchor: Option<IFormAnchor>;
-  /** Opaque identifier of the frame where fields were found. */
-  readonly activeFrameId: string;
-  /** Pre-resolved submit button target (contextId + selector). */
-  readonly submitTarget: Option<IResolvedTarget>;
-}
 
 /**
  * Sealed action context — NO discovery methods, NO raw Page/Frame.
@@ -420,508 +224,6 @@ interface IPipelineContext {
 }
 
 /**
- * Account list committed by ACCOUNT-RESOLVE.POST. Format-stable so
- * SCRAPE.PRE can consume it without bank-specific coupling.
- *
- * <ul>
- *   <li>{@link ids} — qualified account / card identifiers, concat
- *       across every WK container surfaced from the picked endpoint
- *       (Phase 7d: VisaCal yields 4 cards + 3 bank accounts = 7
- *       ids).</li>
- *   <li>{@link records} — raw response payloads (display name,
- *       last-4, etc.), concatenated across the same containers.</li>
- *   <li>{@link containers} — per-WK-container split, e.g.
- *       `{cards: [...4], bankAccounts: [...3]}`. Empty when the
- *       picker fell back to root-array (Hapoalim shape) or to the
- *       request-side path.</li>
- *   <li>{@link endpointCaptureIndex} — diagnostic only. Identifies
- *       which capture POST picked. `0` when no endpoint was
- *       chosen (request-side fallback).</li>
- * </ul>
- */
-interface IAccountDiscovery {
-  readonly ids: readonly string[];
-  readonly records: readonly Record<string, unknown>[];
-  readonly containers: Readonly<Record<string, readonly Record<string, unknown>[]>>;
-  readonly endpointCaptureIndex: number;
-  /**
-   * Per-card billing-cycle catalog discovered from pre-nav captures.
-   *
-   * <p>Populated by {@link ACCOUNT_RESOLVE.POST} when the bank's
-   * pre-nav buffer carries a recognised cycle shape (Backbase,
-   * Max, VisaCal). Absent (`undefined`) for non-cycling
-   * banks (current-account scrapers such as Hapoalim / Beinleumi /
-   * Discount) — downstream SCRAPE falls back to month-chunk
-   * iteration.
-   */
-  readonly billingCycleCatalog?: IBillingCycleCatalog;
-}
-
-/**
- * One billing cycle for a credit card.
- *
- * <p>Normalised shape produced by the bank-agnostic cycle-catalog
- * detector. Source SPAs use different field names (`billingDate`
- * + `isFinalBillingDate` on Backbase; `Date` +
- * `IsFinnal` on Max; `cycleOpeningDate` + `cycleClosingDate`
- * on VisaCal) — the detector folds all of them into this single
- * canonical record so SCRAPE consumes one shape.
- *
- * <p>{@link cards} is populated when the source response scopes the
- * cycle to specific cards (VisaCal). It is omitted when the source
- * reports a single global cycle list per account (Backbase / Max).
- */
-interface IBillingCycle {
-  readonly billingDate: string;
-  readonly isOpen: boolean;
-  readonly cards?: readonly string[];
-}
-
-/**
- * Authoritative list of billing cycles for the scrape window.
- *
- * <p>When present, replaces the blind `generateMonthChunks`
- * iteration in SCRAPE — the bank itself told us which cycles exist
- * and which one is currently OPEN. Absent `billingCycleCatalog`
- * means the bank does not expose a cycle structure (current
- * accounts).
- */
-interface IBillingCycleCatalog {
-  readonly cycles: readonly IBillingCycle[];
-}
-
-/**
- * Auth-discovery snapshot committed by AUTH-DISCOVERY.FINAL —
- * Mission 1 of the CI quality hardening plan.
- *
- * <p>Single source of truth for "we are authenticated AND on the
- * dashboard". Replaces the auth-token + dashboard-reveal work
- * previously scattered across LOGIN.FINAL (LoginSignalProbe) and
- * OTP-FILL.PRE (maybeFastPathSuccess). The phase mirrors
- * ACCOUNT-RESOLVE: PRE inventories, ACTION collects, POST
- * validates, FINAL emits this slim value type.
- *
- * <p>Fields:
- * <ul>
- *   <li>{@link authToken} — bearer token discovered in headers /
- *       response bodies / sessionStorage. `false` for banks that
- *       authenticate via cookies only (Discount, Hapoalim, …).</li>
- *   <li>{@link origin} — origin URL captured from request headers
- *       (e.g. `https://www.fibi.co.il`). `false` when no captures
- *       have an Origin header set.</li>
- *   <li>{@link siteId} — site-id header value (X-Site-Id, etc.).
- *       `false` when no bank-specific site-id is exposed.</li>
- *   <li>{@link headers} — full discovered fetch-header bag built
- *       from in-flight traffic; ready to pass to fetchStrategy.
- *       Empty object when no captures were available.</li>
- *   <li>{@link dashboardReady} — `true` when AUTH-DISCOVERY's reveal
- *       probe found at least one dashboard marker; `false` when the
- *       probe budget elapsed with no reveal.</li>
- *   <li>{@link sessionCookieNames} — names (not values) of session
- *       cookies present at AUTH-DISCOVERY entry. Used for telemetry
- *       only — never logged with values.</li>
- * </ul>
- */
-interface IAuthDiscovery {
-  readonly authToken: string | false;
-  readonly origin: string | false;
-  readonly siteId: string | false;
-  readonly headers: Readonly<Record<string, string>>;
-  readonly dashboardReady: boolean;
-  readonly sessionCookieNames: readonly string[];
-}
-
-/**
- * Fail-loud codes emitted by AUTH-DISCOVERY.POST. Closed list,
- * exhaustive — every fail path uses one of these values.
- */
-type AuthDiscoveryFailCode =
-  | 'AUTH_DISCOVERY_SESSION_INVALID'
-  | 'AUTH_DISCOVERY_DASHBOARD_NOT_READY'
-  | 'AUTH_DISCOVERY_TOKEN_REQUIRED_AND_MISSING';
-
-/**
- * Empty default for test paths. Mirrors EMPTY_AUTH_DISCOVERY's role
- * in the ACCOUNT-RESOLVE / TXN-endpoint patterns.
- */
-const EMPTY_AUTH_DISCOVERY: IAuthDiscovery = {
-  authToken: false,
-  origin: false,
-  siteId: false,
-  headers: {},
-  dashboardReady: false,
-  sessionCookieNames: [],
-};
-
-/**
- * OTP-TRIGGER snapshot committed by OTP-TRIGGER.FINAL — Mission 4 of
- * the CI quality hardening plan. Carries the masked phone hint, the
- * boolean signal that the trigger click landed, and the scope-bound
- * validation outcome (target gone OR auth-domain HTTP 2xx since the
- * click). Mirrors the slim value-type shape used by
- * {@link IAccountDiscovery} and {@link IAuthDiscovery}: only fields
- * downstream consumers need; phase-internal artefacts emit via
- * telemetry events but do NOT travel on `ctx`.
- */
-interface IOtpTrigger {
-  /** Last 1-4 digits surfaced by PRE's phone-hint extractor. */
-  readonly phoneHint: string;
-  /** True when ACTION's clickElement resolved without throwing. */
-  readonly triggered: boolean;
-  /**
-   * True when POST verified the trigger's scope-bound effect: the
-   * trigger target either disappeared after the click OR a 2xx HTTP
-   * response from the bank's auth domain landed since
-   * `triggerClickedAt`.
-   */
-  readonly scopeValidated: boolean;
-  /**
-   * URL baton (Mission M4.F1) — copied forward from
-   * `ctx.login.value.urlBeforeSubmit` so AUTH-DISCOVERY.FINAL reads
-   * one consistent contract regardless of which auth phase ran last.
-   * OTP-TRIGGER does not re-capture the URL; it preserves the value
-   * the previous phase emitted.
-   */
-  readonly urlBeforeSubmit: string;
-}
-
-/**
- * Empty default for test paths. Mirrors EMPTY_AUTH_DISCOVERY's role
- * in the ACCOUNT-RESOLVE / TXN-endpoint patterns.
- */
-const EMPTY_OTP_TRIGGER: IOtpTrigger = {
-  phoneHint: '',
-  triggered: false,
-  scopeValidated: false,
-  urlBeforeSubmit: '',
-};
-
-/**
- * OTP-FILL slim emit — Mission M4.F1. Always populated when OTP-FILL
- * ran (whether it actually filled an OTP, soft-skipped because
- * `required=false`, or bypassed under MOCK_MODE). Carries
- * {@link urlBeforeSubmit} as a baton so AUTH-DISCOVERY.FINAL reads
- * the same field regardless of which auth-ladder shape the bank
- * needed (5 supported flows: LOGIN-only, +OTP-TRIGGER,
- * +OTP-TRIGGER+OTP-FILL, +OTP-FILL, +optional-OTP-FILL).
- */
-interface IOtpFill {
-  /**
-   * URL baton — captured at OTP-FILL.PRE entry when the OTP form
-   * was found, OR copied forward from
-   * {@link IOtpTrigger.urlBeforeSubmit} / {@link ILoginState.urlBeforeSubmit}
-   * when OTP-FILL soft-skipped.
-   */
-  readonly urlBeforeSubmit: string;
-}
-
-/** Empty default for test paths. */
-const EMPTY_OTP_FILL: IOtpFill = { urlBeforeSubmit: '' };
-
-/**
- * Empty-harvest sentinel for SCRAPE consumers when DASHBOARD did
- * not commit a harvest (no captured TXN body or harvest scope was
- * multi-account and the iteration's account doesn't match). Lives
- * next to {@link IDashboardTxnHarvest} so SCRAPE consumes it from
- * Types — kills the prior cross-zone SCRAPE → Dashboard import.
- */
-const EMPTY_TXN_HARVEST: IDashboardTxnHarvest = {
-  records: [],
-  capturedAccountId: false,
-  multiAccountScope: false,
-};
-
-/**
- * Field-name aliases resolved once per run by DASHBOARD.FINAL via
- * {@link resolveTxnEndpoint}. SCRAPE walks fresh per-account
- * responses by these aliases instead of importing `WK_TXN`. Phase 7e
- * shifts every TXN-side WK access into DASHBOARD's TxnParser; the
- * resolved aliases ride along as part of `ctx.txnEndpoint`.
- *
- * <p>`originalAmount`, `processedDate`, `balance` are nullable
- * (typed `string | false`) because not every bank exposes them
- * (card-family banks omit `balance`; Discount-class banks omit
- * `originalAmount`). Consumers test the boolean before walking.
- */
-interface ITxnFieldMap {
-  readonly date: string;
-  readonly amount: string;
-  readonly description: string;
-  readonly currency: string;
-  readonly identifier: string;
-  readonly originalAmount: string | false;
-  readonly processedDate: string | false;
-  readonly balance: string | false;
-}
-
-/**
- * TXN endpoint contract committed by DASHBOARD.FINAL onto
- * `ctx.txnEndpoint`. Phase 7f: this is the slim, SCRAPE-facing
- * payload — only the fields SCRAPE actually consumes. Mirrors how
- * `IAccountDiscovery` carries only the SCRAPE-facing payload (ids,
- * records, containers).
- *
- * <ul>
- *   <li>`url`/`method` — the resolved endpoint (template URL).</li>
- *   <li>`templatePostData` — raw POST body for SCRAPE.PRE to clone
- *     and substitute per-account ids; `false` for GET banks.</li>
- *   <li>`fieldMap` — resolved field-name aliases (date / amount / …)
- *     so SCRAPE walks fresh responses without WK access.</li>
- *   <li>`pendingUrl` — pre-resolved pending-transactions API URL (or
- *     `false` when the bank doesn't expose pending).</li>
- *   <li>`billingUrl` — pre-resolved billing-fallback URL (or `false`
- *     when the bank's family doesn't carry the billing path).</li>
- * </ul>
- *
- * <p>DASHBOARD-internal artefacts (`captureIndex`,
- * `responseBodySample`, `normalizedRecords`, `pickerTier`,
- * `capturedPreClick`) live on {@link ITxnEndpointInternal} which
- * never travels on `ctx`; they emit via the
- * `dashboard.txnEndpoint.committed` telemetry event only.
- */
-interface ITxnEndpoint {
-  readonly url: string;
-  readonly method: 'GET' | 'POST';
-  readonly templatePostData: string | false;
-  readonly fieldMap: ITxnFieldMap;
-  readonly pendingUrl: string | false;
-  readonly billingUrl: string | false;
-}
-
-/**
- * DASHBOARD-internal type returned by `resolveTxnEndpoint` and
- * consumed only inside `Mediator/Dashboard/`. Carries the slim
- * SCRAPE-facing `endpoint` plus the diagnostic / telemetry artefacts
- * that DASHBOARD needs to log but SCRAPE must not see.
- *
- * <p>`captureIndex` is the index of the picked capture inside the
- * network pool. `responseBodySample` is the raw captured body that
- * resolved the field-map. `normalizedRecords` is the pre-parsed
- * sample (used for buffered-account shortcuts inside DASHBOARD only).
- * `pickerTier` records which tier the picker picked from
- * (postWithShape / replayablePost / shapePassing / preClickFallback /
- * none). `capturedPreClick` is true when the resolver fell back to
- * the pre-click pool because the post-click pool was empty.
- */
-interface ITxnEndpointInternal {
-  readonly endpoint: ITxnEndpoint;
-  readonly captureIndex: number;
-  readonly responseBodySample: Readonly<Record<string, unknown>>;
-  readonly normalizedRecords: readonly ITransaction[];
-  readonly pickerTier: PickerTier;
-  readonly capturedPreClick: boolean;
-}
-
-/**
- * Picker tier preference name. The picker walks the captured pool in
- * tier order and emits one of these labels per `discover.shapeAware`
- * event so the chosen URL's provenance is traceable from logs.
- */
-type PickerTier =
-  | 'postWithShape'
-  | 'replayablePost'
-  | 'shapePassing'
-  | 'preClickFallback'
-  | 'urlOnlyMatch'
-  | 'windowParamsMatch'
-  | 'none';
-
-/**
- * DASHBOARD harvest committed by DASHBOARD.FINAL on a separate
- * `ctx.dashboardTxnHarvest` field — clean value-type pass of the
- * pre-extracted records. Mirrors `IAccountDiscovery.records`: the
- * phase that captured the response also normalizes the records and
- * commits them; downstream phases consume `readonly ITransaction[]`
- * without touching the captured body or `IDiscoveredEndpoint`.
- *
- * <p>Scope semantics:
- * <ul>
- *   <li>{@link capturedAccountId} = string — the captured request was
- *     scoped to one accountId (e.g. Hapoalim's
- *     `accountId=12-170-536347` URL param). SCRAPE applies the
- *     records only when the iteration's accountId is compatible
- *     (suffix match — handles raw-vs-display id formats).</li>
- *   <li>{@link capturedAccountId} = `false` — the captured request
- *     was unscoped (no per-account id in URL/body); applies to the
- *     single-account bank as a whole.</li>
- *   <li>{@link multiAccountScope} = true — the captured body bundled
- *     records for many accounts (`cards: [...]`, `accounts: [...]`).
- *     SCRAPE refuses reuse and falls through to per-account fetches
- *     so each card's records are correctly attributed.</li>
- * </ul>
- */
-interface IDashboardTxnHarvest {
-  readonly records: readonly ITransaction[];
-  readonly capturedAccountId: string | false;
-  readonly multiAccountScope: boolean;
-  /**
-   * Per-account dedup-key field tuple. Maps an accountId (or `''`
-   * sentinel for unscoped captures) to the list of
-   * {@link ITransaction} field names SCRAPE must use to dedup that
-   * account's rows.
-   *
-   * <p>Typical contents are `['identifier']` when every row in
-   * the account's harvest carries a distinct per-txn identifier, or
-   * `['date', 'identifier', 'originalAmount']` when the
-   * identifier collides across rows (Beinleumi's `reference` field
-   * is a transaction-TYPE code shared across recurring monthly txns).
-   *
-   * <p>DASHBOARD picks the tuple by shape inspection on the
-   * normalized-records sample (see
-   * {@link ./../Mediator/Dashboard/DedupKeyFieldsDetector}); the
-   * detector skips empty harvests and multi-scope captures, so the
-   * map is empty in those cases. SCRAPE consumers fall back to
-   * `['identifier']` when the map is empty (legacy/test ergonomics).
-   */
-  readonly dedupKeyFieldsByAccount?: ReadonlyMap<string, readonly string[]>;
-  /**
-   * Phase H'' (2026-05-15): per-account WK-aliased date-window URL
-   * parameter tuple. Maps an accountId (or `''` sentinel) to a
-   * two-element `[fromAlias, toAlias]` array of WK.fromDate /
-   * WK.toDate names the bank actually uses on its txn URL / response
-   * body. SCRAPE consumes this to drive `applyDateRangeToUrl` window
-   * injection — when SCRAPE has a captured txn URL that's missing the
-   * date-range params, it APPENDS them using the aliases from this
-   * tuple. Empty / absent → no append (no-op for banks whose
-   * captured URLs already carry WK-aliased date params explicitly).
-   *
-   * <p>DASHBOARD picks the tuple via shape inspection on the
-   * captured pool (see
-   * {@link ./../Mediator/Dashboard/DateWindowParamsDetector}). Zero
-   * bank-name knowledge — WK aliases drive the matching.
-   */
-  readonly dateWindowParamsByAccount?: ReadonlyMap<string, readonly [string, string]>;
-}
-
-/** Scrape phase discovery — qualification results from PRE step. */
-interface IScrapeDiscovery {
-  /** Card IDs that passed the behavioral probe (API returned success). */
-  readonly qualifiedCards: readonly string[];
-  /** Card IDs that failed the probe (API returned error). */
-  readonly prunedCards: readonly string[];
-  /** Discovered transaction template URL. */
-  readonly txnTemplateUrl: string;
-  /** Discovered transaction template POST body. */
-  readonly txnTemplateBody: Record<string, unknown>;
-  /** Billing months for 90-day replay. */
-  readonly billingMonths: readonly string[];
-  /** cardIndex → cardNumber display map (Isracard/Amex: last 4 digits). */
-  readonly cardDisplayMap?: ReadonlyMap<string, string>;
-  /** SPA URL for direct-fetch scrapers (false = no SPA navigation needed). */
-  readonly spaUrl?: string | false;
-  /** Raw account records from API discovery. */
-  readonly rawAccountRecords?: readonly Record<string, unknown>[];
-  /** Whether SPA navigation completed successfully. */
-  readonly spaNavigated?: boolean;
-
-  // ── DIRECT path fields (frozen discovery from PRE) ──
-
-  /** Frozen snapshot of ALL captured endpoints for createFrozenNetwork. */
-  readonly frozenEndpoints?: readonly IDiscoveredEndpoint[];
-  /** Discovered account IDs from accounts endpoint. */
-  readonly accountIds?: readonly string[];
-  /** Transaction endpoint for account iteration. */
-  readonly txnEndpoint?: ITxnEndpoint;
-  /** Pre-cached auth token from DASHBOARD. */
-  readonly cachedAuth?: string | false;
-  /**
-   * Dashboard navigation-click timestamp inherited from the live
-   * network at freeze time. Lets the frozen network split captures
-   * into pre-nav vs post-nav buckets so SCRAPE.PRE's discovery sees
-   * the same post-nav-aware view as DASHBOARD.FINAL did. `false`
-   * when no click was dispatched (banks like Hapoalim that fire
-   * full-history at login) — the frozen network's soft-fallback then
-   * exposes the full pool.
-   */
-  readonly dashboardClickAt?: number | false;
-  /** Harvested sessionStorage key-value pairs. */
-  readonly storageHarvest?: Readonly<Record<string, string>>;
-  /** DIRECT_API: raw card/account response from DASHBOARD.ACTION. */
-  readonly directApiResponse?: Record<string, unknown>;
-  /** DIRECT_API: transaction endpoint URL from config. */
-  readonly directApiTxnUrl?: string;
-}
-
-/**
- * v6 per-card identity emitted by SCRAPE.post. Carries the three
- * ids BALANCE-RESOLVE needs to plan its per-bank-account fetches and
- * map the responses back to per-card balances.
- */
-interface IAccountIdentity {
-  /** Display id — last-4 / account number shown to the user. */
-  readonly cardDisplayId: string;
-  /** Internal long card id used by the bank API on per-card calls. */
-  readonly cardUniqueId: string;
-  /** Internal long bank-account id used by per-bank-account balance
-   *  fetches (e.g. Visa Cal `getBigNumberAndDetails`). */
-  readonly bankAccountUniqueId: string;
-}
-
-/**
- * v6 balance fetch template emitted by SCRAPE.post. SCRAPE re-uses
- * the same request shape it already executed during the billing
- * N-loop; BALANCE-RESOLVE substitutes each unique bankAccountUniqueId
- * into the template per-bank-account.
- *
- * <p>One of {postBodyKey, urlQueryKey, urlPathInterpolation} is set:
- *   - `postBodyKey`            POST + JSON body field carries the id
- *   - `urlQueryKey`            GET  + URL query param carries the id
- *   - `urlPathInterpolation`   GET  + URL path segment carries the id
- * All three absent ⇒ bulk endpoint (one call returns every card).
- */
-interface IBalanceFetchTemplate {
-  readonly url: string;
-  readonly method: 'GET' | 'POST';
-  readonly postBodyKey?: string;
-  readonly urlQueryKey?: string;
-  readonly urlPathInterpolation?: boolean;
-  readonly headers?: Readonly<Record<string, string>>;
-}
-
-/** v6 single live fetch request — fully materialised from the template. */
-interface IBalanceFetchRequest {
-  readonly url: string;
-  readonly method: 'GET' | 'POST';
-  /** JSON-encoded POST body, or `''` for GET. */
-  readonly body: string;
-  readonly headers: Readonly<Record<string, string>>;
-}
-
-/**
- * v6 per-bank-account plan entry emitted by BALANCE-RESOLVE.pre and
- * consumed by BALANCE-RESOLVE.action.
- */
-interface IBalanceFetchPlanEntry {
-  readonly bankAccountUniqueId: string;
-  readonly request: IBalanceFetchRequest;
-}
-
-/**
- * Per-account extraction outcome. `number` means the extractor
- * found a finite balance value; `'MISS'` means the extractor
- * scanned every candidate (and the per-card record) without a hit.
- */
-type BalanceExtractionOutcome = number | 'MISS';
-
-/**
- * Per-account outcome map. Set by BALANCE-RESOLVE.action; consumed
- * by BALANCE-RESOLVE.post.
- */
-type IBalanceExtracted = ReadonlyMap<string, BalanceExtractionOutcome>;
-
-/**
- * Validation report from BALANCE-RESOLVE.post. Partitions the
- * extracted outcomes into resolved (finite number) and missed
- * (could not extract). Hard-fail only fires when every account
- * landed in `missedIds`.
- */
-interface IBalanceValidation {
-  readonly resolvedIds: readonly string[];
-  readonly missedIds: readonly string[];
-  readonly totalAccounts: number;
-}
-
-/**
  * Bootstrap context — IActionContext + browser.
  * Used by INIT/TERMINATE where no mediator exists yet but browser is available.
  */
@@ -929,34 +231,45 @@ export interface IBootstrapContext extends IActionContext {
   readonly browser: Option<IBrowserState>;
 }
 
+export type { IPipelineContext };
+// Direct re-exports — Sonar S7763 / `unicorn/prefer-export-from`.
+// These symbols are imported here ONLY to be re-emitted through the
+// barrel; routing them via `export type ... from` removes the
+// redundant local binding and matches the value-export style below.
+export { type IAccountDiscovery } from './Domain/AccountDiscoveryTypes.js';
+export { type IApiFetchContext } from './Domain/ApiFetchContext.js';
+export { API_STRATEGY, type ApiStrategyKind } from './Domain/ApiStrategy.js';
+export type { AuthDiscoveryFailCode, IAuthDiscovery } from './Domain/AuthDiscoveryTypes.js';
+export { EMPTY_AUTH_DISCOVERY } from './Domain/AuthDiscoveryTypes.js';
 export type {
-  ApiStrategyKind,
-  AuthDiscoveryFailCode,
   BalanceExtractionOutcome,
-  IAccountDiscovery,
   IAccountIdentity,
-  IApiFetchContext,
-  IAuthDiscovery,
   IBalanceExtracted,
   IBalanceFetchPlanEntry,
   IBalanceFetchRequest,
   IBalanceFetchTemplate,
   IBalanceValidation,
-  IBillingCycle,
-  IBillingCycleCatalog,
-  IBrowserState,
-  IDashboardState,
-  IDashboardTxnHarvest,
-  IDiagnosticsState,
-  ILoginState,
-  IOtpFill,
-  IOtpTrigger,
-  IPipelineContext,
-  IScrapeDiscovery,
-  IScrapeState,
+} from './Domain/BalanceTypes.js';
+export { type IBillingCycle, type IBillingCycleCatalog } from './Domain/BillingCycleTypes.js';
+export { type IBrowserState } from './Domain/BrowserState.js';
+export { type IDashboardState } from './Domain/DashboardState.js';
+export { type IDiagnosticsState } from './Domain/DiagnosticsState.js';
+export { type ILoginState } from './Domain/LoginState.js';
+export type { ILoginFieldDiscovery, LoginFieldKey } from './Domain/LoginTypes.js';
+export { LOGIN_FIELDS } from './Domain/LoginTypes.js';
+export {
+  EMPTY_OTP_FILL,
+  EMPTY_OTP_TRIGGER,
+  type IOtpFill,
+  type IOtpTrigger,
+} from './Domain/OtpTypes.js';
+export type { IPreLoginDiscovery, IResolvedTarget, RevealStatus } from './Domain/PreLoginTypes.js';
+export { type IScrapeDiscovery } from './Domain/ScrapeDiscoveryTypes.js';
+export { type IScrapeState } from './Domain/ScrapeState.js';
+export type {
   ITxnEndpoint,
   ITxnEndpointInternal,
   ITxnFieldMap,
   PickerTier,
-};
-export { API_STRATEGY, EMPTY_AUTH_DISCOVERY, EMPTY_OTP_FILL, EMPTY_OTP_TRIGGER, EMPTY_TXN_HARVEST };
+} from './Domain/TxnEndpointTypes.js';
+export { EMPTY_TXN_HARVEST, type IDashboardTxnHarvest } from './Domain/TxnHarvestTypes.js';
