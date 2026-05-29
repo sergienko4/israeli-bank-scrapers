@@ -27,7 +27,11 @@ import ScraperErrorTypes from '../../Base/ErrorTypes.js';
 import type { Brand } from './Brand.js';
 import { redactAccount } from './PiiRedactor/Account.js';
 import { redactCard } from './PiiRedactor/Card.js';
+import { graphemeCount } from './PiiRedactor/CommonHelpers.js';
 import { redactIsraeliId } from './PiiRedactor/IsraeliId.js';
+import { redactMerchant } from './PiiRedactor/Merchant.js';
+import { redactName } from './PiiRedactor/Name.js';
+import { redactPhone } from './PiiRedactor/Phone.js';
 
 /**
  * Default-deny replacement string — used whenever a value fails to
@@ -97,8 +101,6 @@ type CensorFn = (value: CensorValue, path: readonly string[]) => string;
 
 /** Maximum walk depth before redactJsonBody bails out for safety. */
 const MAX_WALK_DEPTH = 1000;
-/** Minimum identifier length required by the Phone strategy below. */
-const MIN_HINT_LEN = 4;
 /** OTP length range — 4..8 ASCII digits. */
 const OTP_MIN_LEN = 4;
 const OTP_MAX_LEN = 8;
@@ -238,64 +240,6 @@ function classifyKey(key: string): PiiCategory {
   if (isTokenSuffix(key)) return 'token';
   if (isNameSuffix(key)) return 'name';
   return 'unknown';
-}
-
-/**
- * Build a Segmenter via Reflect.construct (DI rule).
- * @returns Grapheme segmenter (Intl.Segmenter is required by Node 22+).
- */
-function buildSegmenter(): Intl.Segmenter {
-  return Reflect.construct(Intl.Segmenter, ['und', { granularity: 'grapheme' }]);
-}
-
-/**
- * Count Unicode graphemes in a string using Intl.Segmenter (correct
- * for Hebrew, emoji, and combining marks).
- * @param input - String to measure.
- * @returns Grapheme count.
- */
-function graphemeCount(input: string): PiiCountInt {
-  if (input.length === 0) return 0 as PiiCountInt;
-  const segmenter = buildSegmenter();
-  const segments = segmenter.segment(input);
-  return Array.from(segments).length as PiiCountInt;
-}
-
-/**
- * Phone strategy. Extracts trailing 4 digits across any separator.
- * @param value - Raw phone.
- * @returns Stable hint.
- */
-function redactPhone(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
-  if (value.length === 0) return '' as PiiHintString;
-  const digits = value.replaceAll(/\D/g, '');
-  if (digits.length < MIN_HINT_LEN) return REDACTED_HINT as PiiHintString;
-  return `***${digits.slice(-4)}` as PiiHintString;
-}
-
-/**
- * Name strategy. Returns '<name:N>' where N = grapheme count.
- * @param value - Raw name.
- * @returns Stable hint.
- */
-function redactName(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
-  if (value.length === 0) return '' as PiiHintString;
-  const n = graphemeCount(value);
-  return `<name:${String(n)}>` as PiiHintString;
-}
-
-/**
- * Merchant / description strategy. Returns '<merchant:N>'.
- * @param value - Raw merchant string.
- * @returns Stable hint.
- */
-function redactMerchant(value: string): PiiHintString {
-  if (isPiiRedactionDisabled) return value as PiiHintString;
-  if (value.length === 0) return '' as PiiHintString;
-  const n = graphemeCount(value);
-  return `<merchant:${String(n)}>` as PiiHintString;
 }
 
 /**
@@ -994,6 +938,9 @@ export type { CensorFn, JsonValue, PiiCategory };
 export { redactAccount } from './PiiRedactor/Account.js';
 export { redactCard } from './PiiRedactor/Card.js';
 export { redactIsraeliId } from './PiiRedactor/IsraeliId.js';
+export { redactMerchant } from './PiiRedactor/Merchant.js';
+export { redactName } from './PiiRedactor/Name.js';
+export { redactPhone } from './PiiRedactor/Phone.js';
 export {
   classifyKey,
   createCensorFn,
@@ -1004,10 +951,7 @@ export {
   redactHtml,
   REDACTION_ERROR_HINT,
   redactJsonBody,
-  redactMerchant,
-  redactName,
   redactOtp,
-  redactPhone,
   redactSensitiveEnum,
   redactToken,
   redactUrl,
