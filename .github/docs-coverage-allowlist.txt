@@ -130,3 +130,7 @@ SENSITIVE_SCRAPER_ENUMS
 buildSegmenter
 # Reason: graphemeCount — CommonHelpers.ts grapheme-cluster counter built on buildSegmenter; consumed only by per-category length-class hint logic.
 graphemeCount
+
+# --- Phase 6 follow-up: CR review #5 shared-table extract (PR #278) ---
+# Reason: LITERAL_TEXT_PII_PATTERNS — CommonHelpers.ts regex table shared by JsonBody.applyFallbackPatterns AND Html.redactHtml; extracted from the two former duplicate constants per CR review finding #5 (DRY / no-duplication guideline).
+LITERAL_TEXT_PII_PATTERNS

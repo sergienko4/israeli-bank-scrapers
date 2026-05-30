@@ -12,24 +12,24 @@
  * invariant, not a one-off bug fix.
  */
 
-import { redact } from '../../../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
+import { redact, REDACTED_HINT } from '../../../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 
 describe('PiiRedactor default-deny invariant', () => {
   it('returns the REDACTED hint for symbol values', () => {
     const exotic = Symbol('exotic') as unknown;
     const result = redact(exotic);
-    expect(result).toBe('[REDACTED]');
+    expect(result).toBe(REDACTED_HINT);
   });
 
   it('returns the REDACTED hint for empty objects', () => {
     const empty = {};
     const result = redact(empty);
-    expect(result).toBe('[REDACTED]');
+    expect(result).toBe(REDACTED_HINT);
   });
 
   it('returns the REDACTED hint for unclassified plain strings', () => {
     const debugString = 'some-arbitrary-debug-string';
     const result = redact(debugString);
-    expect(result).toBe('[REDACTED]');
+    expect(result).toBe(REDACTED_HINT);
   });
 });

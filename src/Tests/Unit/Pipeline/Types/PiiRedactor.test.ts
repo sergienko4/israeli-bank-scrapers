@@ -138,6 +138,14 @@ describe('PiiRedactor — redactAmount', () => {
     const result = redactAmount('abc');
     expect(result).toBe('[REDACTED]');
   });
+  it('returns [REDACTED] for empty string (CR review #1)', () => {
+    const result = redactAmount('');
+    expect(result).toBe('[REDACTED]');
+  });
+  it('returns [REDACTED] for whitespace-only string (CR review #1)', () => {
+    const result = redactAmount('   ');
+    expect(result).toBe('[REDACTED]');
+  });
 });
 
 describe('PiiRedactor — redactErrorMessage (CodeQL #28)', () => {
@@ -184,6 +192,14 @@ describe('PiiRedactor — redactOtp', () => {
   });
   it('returns [REDACTED] for too-long code', () => {
     const result = redactOtp('123456789');
+    expect(result).toBe('[REDACTED]');
+  });
+  it('returns [REDACTED] for length-OK but non-digit string (CR review #2)', () => {
+    const result = redactOtp('abcd');
+    expect(result).toBe('[REDACTED]');
+  });
+  it('returns [REDACTED] for length-OK mixed digits + separators (CR review #2)', () => {
+    const result = redactOtp('12-34');
     expect(result).toBe('[REDACTED]');
   });
 });
@@ -286,6 +302,11 @@ describe('PiiRedactor — redactUrlFull', () => {
     const out = redactUrlFull('https://x.example/api/v1/users/42/profile');
     expect(out).toContain('users/42/profile');
   });
+  it('masks dash-separated card-formatted path segments (CR review #8)', () => {
+    const out = redactUrlFull('https://x.example/api/cards/4111-1111-1111-1111/details');
+    expect(out).not.toContain('4111-1111-1111-1111');
+    expect(out).toContain('***1111');
+  });
 });
 
 describe('PiiRedactor — redactJsonBody', () => {
@@ -311,6 +332,23 @@ describe('PiiRedactor — redactJsonBody', () => {
   it('falls back to regex replacement for non-JSON input', () => {
     const out = redactJsonBody('Hapoalim 12-170-536347 client');
     expect(out).toContain('***6347');
+  });
+  it('collapses arrays whose elements carry nested PII (CR review #6)', () => {
+    const body = JSON.stringify({
+      records: [
+        { id: 1, meta: { phoneNumber: '0501234567' } },
+        { id: 2, meta: { phoneNumber: '0507654321' } },
+      ],
+    });
+    const out = redactJsonBody(body);
+    expect(out).toContain('[<2 redacted items>]');
+    expect(out).not.toContain('0501234567');
+    expect(out).not.toContain('0507654321');
+  });
+  it('detects PII nested inside arrays-of-arrays-of-objects (CR review #6)', () => {
+    const body = JSON.stringify({ groups: [[{ phoneNumber: '0501234567' }]] });
+    const out = redactJsonBody(body);
+    expect(out).not.toContain('0501234567');
   });
 });
 

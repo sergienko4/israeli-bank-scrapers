@@ -9,23 +9,11 @@
  * Spec: pipeline-decoupling-master-2026-05-28 / phase-6 / spec.txt §1.
  */
 
-import { graphemeCount } from './CommonHelpers.js';
-import {
-  isPiiRedactionDisabled,
-  type PiiCategory,
-  type PiiHintString,
-  REDACTED_HINT,
-} from './Types.js';
+import { graphemeCount, LITERAL_TEXT_PII_PATTERNS } from './CommonHelpers.js';
+import { isPiiRedactionDisabled, type PiiCategory, type PiiHintString } from './Types.js';
 
 /** HTML strategy descriptor — registered in the Facade. */
 export const CATEGORY: PiiCategory = 'html';
-
-/** HTML scrubbing patterns applied to text content. */
-const HTML_TEXT_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[] = [
-  { re: /\b(\d{2}-\d{3}-)\d+(\d{4})\b/g, to: '$1***$2' },
-  { re: /(?<!\d)\d{5}(\d{4})(?!\d)/g, to: '***$1' },
-  { re: /eyJ[\w-]{20,}/g, to: REDACTED_HINT },
-];
 
 /** Regex matching `value="…"` / `value='…'` attributes (single capture). */
 const HTML_VALUE_ATTR_RE = /value\s*=\s*["']([^"']{2,})["']/gi;
@@ -54,7 +42,7 @@ function redact(html: string): PiiHintString {
   if (isPiiRedactionDisabled) return html as PiiHintString;
   if (html.length === 0) return '' as PiiHintString;
   let out = html;
-  for (const p of HTML_TEXT_PATTERNS) out = out.replaceAll(p.re, p.to);
+  for (const p of LITERAL_TEXT_PII_PATTERNS) out = out.replaceAll(p.re, p.to);
   out = out.replaceAll(HTML_VALUE_ATTR_RE, replaceValueAttr);
   return out as PiiHintString;
 }

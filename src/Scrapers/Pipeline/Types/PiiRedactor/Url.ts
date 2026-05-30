@@ -78,6 +78,18 @@ function redactQueryKey(parsed: URL, key: string, censor: CensorFn): true {
 }
 
 /**
+ * List the URL's PII-classified query keys without mutating the URL.
+ * Extracted from `redactUrl` to keep that function under the 10-line
+ * function cap (CLAUDE.md "Max 10 lines per method").
+ * @param parsed - Parsed URL.
+ * @returns Subset of query keys matching {@link PII_QUERY_KEYS}.
+ */
+function listPiiQueryKeys(parsed: URL): readonly string[] {
+  const allKeys = [...parsed.searchParams.keys()];
+  return allKeys.filter((k): PiiClassifierBool => PII_QUERY_KEYS.has(k) as PiiClassifierBool);
+}
+
+/**
  * Redact a URL string. Replaces known PII query-key values; leaves
  * host, scheme, and path untouched. Returns input unchanged when
  * unparseable.
@@ -90,34 +102,43 @@ function redactUrl(url: string): PiiHintString {
   const parse = tryParseUrl(url);
   if (!parse.ok) return url as PiiHintString;
   const censor = createCensorFn();
-  const allKeys = [...parse.url.searchParams.keys()];
-  const piiKeys = allKeys.filter(
-    (k): PiiClassifierBool => PII_QUERY_KEYS.has(k) as PiiClassifierBool,
-  );
+  const piiKeys = listPiiQueryKeys(parse.url);
   for (const key of piiKeys) redactQueryKey(parse.url, key, censor);
   return parse.url.toString() as PiiHintString;
 }
 
+/** Separator characters allowed inside formatted ID path segments. */
+const PATH_ID_SEPARATOR_RE = /-/g;
+
 /**
  * Predicate for path segments that look like account / card / phone
- * IDs — runs of ≥ 4 digits, optionally with embedded separators.
+ * IDs — runs of ≥ 4 digits, optionally with embedded `-` separators
+ * (e.g., `4111-1111-1111-1111`). The separators are stripped before
+ * the digit-run check so card-formatted identifiers in URL paths are
+ * reliably masked. WHATWG URL parsing percent-encodes spaces, so raw
+ * spaces never appear here.
  * @param segment - Single path segment.
  * @returns True when the segment is a candidate for last-4 hinting.
  */
 function isLikelyIdSegment(segment: string): boolean {
-  if (segment.length < PATH_SEGMENT_DIGIT_THRESHOLD) return false;
-  return /^\d{4,}$/.test(segment);
+  const normalized = segment.replaceAll(PATH_ID_SEPARATOR_RE, '');
+  if (normalized.length < PATH_SEGMENT_DIGIT_THRESHOLD) return false;
+  return /^\d+$/.test(normalized);
 }
 
 /**
  * Mask a single URL path segment when it looks like an identifier.
+ * Strips `-` separators before handing the bare digit run to
+ * `redactAccount` so the resulting hint preserves the `***LAST4`
+ * shape even for card-formatted identifiers.
  * @param seg - Single path segment.
  * @returns The `***XXXX` hint when the segment looks like an ID,
  *   otherwise the input segment unchanged.
  */
 function maskPathSegmentIfId(seg: string): string {
   if (!isLikelyIdSegment(seg)) return seg;
-  return redactAccount(seg);
+  const normalized = seg.replaceAll(PATH_ID_SEPARATOR_RE, '');
+  return redactAccount(normalized);
 }
 
 /**

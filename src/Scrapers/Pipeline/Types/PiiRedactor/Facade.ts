@@ -125,6 +125,11 @@ const STRING_STRATEGIES: Readonly<Partial<Record<PiiCategory, (value: string) =>
   cookie: redactCookie,
 };
 
+/** Path-tail suffix list matched by {@link isTokenSuffix} (lowercase). */
+const TOKEN_SUFFIXES: readonly string[] = ['token', 'bearer', 'cookie', 'secret'];
+/** Path-tail suffix list matched by {@link isNameSuffix} (lowercase). */
+const NAME_SUFFIXES: readonly string[] = ['firstname', 'lastname', 'fullname', 'customername'];
+
 /**
  * Whether a path-tail key classifies as token-shaped via case-insensitive
  * suffix match.
@@ -133,11 +138,7 @@ const STRING_STRATEGIES: Readonly<Partial<Record<PiiCategory, (value: string) =>
  */
 function isTokenSuffix(key: string): PiiClassifierBool {
   const lower = key.toLowerCase();
-  if (lower.endsWith('token')) return true as PiiClassifierBool;
-  if (lower.endsWith('bearer')) return true as PiiClassifierBool;
-  if (lower.endsWith('cookie')) return true as PiiClassifierBool;
-  if (lower.endsWith('secret')) return true as PiiClassifierBool;
-  return false as PiiClassifierBool;
+  return TOKEN_SUFFIXES.some((s): boolean => lower.endsWith(s)) as PiiClassifierBool;
 }
 
 /**
@@ -149,11 +150,7 @@ function isTokenSuffix(key: string): PiiClassifierBool {
  */
 function isNameSuffix(key: string): PiiClassifierBool {
   const lower = key.toLowerCase();
-  if (lower.endsWith('firstname')) return true as PiiClassifierBool;
-  if (lower.endsWith('lastname')) return true as PiiClassifierBool;
-  if (lower.endsWith('fullname')) return true as PiiClassifierBool;
-  if (lower.endsWith('customername')) return true as PiiClassifierBool;
-  return false as PiiClassifierBool;
+  return NAME_SUFFIXES.some((s): boolean => lower.endsWith(s)) as PiiClassifierBool;
 }
 
 /**

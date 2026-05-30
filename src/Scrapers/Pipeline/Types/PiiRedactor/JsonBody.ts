@@ -9,6 +9,7 @@
  * shape is debuggable, individual transactions are not.
  */
 
+import { LITERAL_TEXT_PII_PATTERNS } from './CommonHelpers.js';
 import { type CensorFn, classifyKey, createCensorFn } from './Facade.js';
 import {
   type IJsonObject,
@@ -19,7 +20,6 @@ import {
   type PiiCategory,
   type PiiClassifierBool,
   type PiiHintString,
-  REDACTED_HINT,
 } from './Types.js';
 
 export const JSON_BODY_CATEGORY: PiiCategory = 'unknown';
@@ -27,12 +27,13 @@ export const JSON_BODY_CATEGORY: PiiCategory = 'unknown';
 /** Maximum walk depth before redactJsonBody bails out for safety. */
 const MAX_WALK_DEPTH = 1000;
 
-/** Regex set used by the JSON-fallback path when the body isn't valid JSON. */
-const FALLBACK_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[] = [
-  { re: /\b(\d{2}-\d{3}-)\d+(\d{4})\b/g, to: '$1***$2' },
-  { re: /(?<!\d)\d{5}(\d{4})(?!\d)/g, to: '***$1' },
-  { re: /eyJ[\w-]{20,}/g, to: REDACTED_HINT },
-];
+/**
+ * Maximum recursion depth used by {@link objectHasPii} when probing
+ * for nested PII. Conservative bail-out: deeper objects without a
+ * top-level PII key are NOT flagged for array-size collapse — the
+ * per-leaf censor still redacts any PII it walks past.
+ */
+const MAX_PII_PROBE_DEPTH = 50;
 
 /** Recursive walk state — carried through redactNode for safety guards. */
 interface IWalkState {
@@ -42,15 +43,32 @@ interface IWalkState {
 }
 
 /**
- * Whether a captured plain object carries at least one PII-classified
- * property — drives the array-size preservation rule.
- * @param obj - Candidate object.
- * @returns True when at least one own key classifies as PII.
+ * Whether a JsonValue at any nesting level contains a PII-classified
+ * key. Walks both arrays and objects up to {@link MAX_PII_PROBE_DEPTH}
+ * levels — the cap is a defensive bound for pathological inputs and
+ * is not normally reachable.
+ * @param value - Candidate value.
+ * @param depth - Current recursion depth.
+ * @returns True when nested PII is found.
  */
-function objectHasPii(obj: IJsonObject): PiiClassifierBool {
-  const keys = Object.keys(obj);
-  return keys.some(
-    (k): PiiClassifierBool => (classifyKey(k) !== 'unknown') as PiiClassifierBool,
+function nestedHasPii(value: JsonValue, depth: number): PiiClassifierBool {
+  if (depth > MAX_PII_PROBE_DEPTH) return false as PiiClassifierBool;
+  if (isJsonObject(value)) return objectHasPii(value, depth);
+  if (Array.isArray(value)) return arrayHasPiiObject(value, depth);
+  return false as PiiClassifierBool;
+}
+
+/**
+ * Whether a captured plain object carries PII — recursively inspects
+ * nested objects and arrays so `[{ meta: { phone: '…' } }]` is
+ * correctly flagged.
+ * @param obj - Candidate object.
+ * @param depth - Current recursion depth (default 0).
+ * @returns True when the subtree contains at least one PII-classified key.
+ */
+function objectHasPii(obj: IJsonObject, depth = 0): PiiClassifierBool {
+  return Object.keys(obj).some(
+    (k): boolean => classifyKey(k) !== 'unknown' || nestedHasPii(obj[k], depth + 1),
   ) as PiiClassifierBool;
 }
 
@@ -67,15 +85,17 @@ function isJsonObject(v: JsonValue): v is IJsonObject {
 }
 
 /**
- * Whether an array contains at least one plain-object element with PII.
+ * Whether an array contains at least one plain-object element with
+ * nested or top-level PII. Recurses through {@link objectHasPii} so
+ * `[{ meta: { phone: '…' } }]` triggers the array-collapse rule.
  * @param arr - Candidate array.
- * @returns True when at least one element has a PII-classified key.
+ * @param depth - Current recursion depth (default 0).
+ * @returns True when at least one element carries PII.
  */
-function arrayHasPiiObject(arr: JsonArray): PiiClassifierBool {
-  return arr.some((el): PiiClassifierBool => {
-    if (!isJsonObject(el)) return false as PiiClassifierBool;
-    return objectHasPii(el);
-  }) as PiiClassifierBool;
+function arrayHasPiiObject(arr: JsonArray, depth = 0): PiiClassifierBool {
+  return arr.some(
+    (el): boolean => isJsonObject(el) && objectHasPii(el, depth + 1),
+  ) as PiiClassifierBool;
 }
 
 /**
@@ -183,7 +203,7 @@ function redactNode(value: JsonValue, path: readonly string[], state: IWalkState
  * @returns Scrubbed string.
  */
 function applyFallbackPatterns(input: string): PiiHintString {
-  return FALLBACK_PATTERNS.reduce(
+  return LITERAL_TEXT_PII_PATTERNS.reduce(
     (acc, p): PiiHintString => acc.replaceAll(p.re, p.to) as PiiHintString,
     input as PiiHintString,
   );

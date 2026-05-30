@@ -16,14 +16,10 @@ import {
   REDACTED_HINT,
 } from './Types.js';
 
-/** OTP length range — 4..8 ASCII digits. */
-const OTP_MIN_LEN = 4;
-const OTP_MAX_LEN = 8;
-
-/** Token-shaped prefix used by value-only classification. */
-const TOKEN_VALUE_PREFIX_RE = /^eyJ[\w-]{20,}/;
 /** OTP-shaped value: 4..8 ASCII digits, no separators. */
 const OTP_VALUE_RE = /^\d{4,8}$/;
+/** Token-shaped prefix used by value-only classification. */
+const TOKEN_VALUE_PREFIX_RE = /^eyJ[\w-]{20,}/;
 /** Cookie-shaped value: NAME=VALUE pair (RFC 6265 cookie-name token). */
 const COOKIE_VALUE_RE = /^[a-z][\w.-]*=/i;
 
@@ -53,15 +49,16 @@ function redactToken(value: string): PiiHintString {
 }
 
 /**
- * OTP strategy. Returns '[OTP]' for 4..8 digit inputs; default-deny otherwise.
- * @param value - Raw OTP.
+ * OTP strategy. Returns '[OTP]' only for 4..8 ASCII-digit inputs;
+ * default-deny otherwise (including length-OK strings that contain
+ * non-digit characters like `abcd` or `12-34`).
+ * @param value - Raw OTP candidate.
  * @returns Stable hint.
  */
 function redactOtp(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
-  if (value.length < OTP_MIN_LEN) return REDACTED_HINT as PiiHintString;
-  if (value.length > OTP_MAX_LEN) return REDACTED_HINT as PiiHintString;
+  if (!OTP_VALUE_RE.test(value)) return REDACTED_HINT as PiiHintString;
   return '[OTP]' as PiiHintString;
 }
 

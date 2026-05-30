@@ -10,6 +10,25 @@
  */
 
 import type { PiiCountInt } from './Types.js';
+import { REDACTED_HINT } from './Types.js';
+
+/**
+ * PII regex set applied to free-form literal text content (not
+ * structured JSON keys / values). Shared by:
+ *
+ *  - `JsonBody.applyFallbackPatterns` — both the non-JSON fallback
+ *    path AND the post-stringify defense-in-depth scrub.
+ *  - `Html.redactHtml`                — text-node content scrub.
+ *
+ * Co-locating the table prevents the two redaction surfaces from
+ * drifting — adding a new PII pattern (e.g., a new BIN range) updates
+ * both surfaces atomically.
+ */
+export const LITERAL_TEXT_PII_PATTERNS: readonly { readonly re: RegExp; readonly to: string }[] = [
+  { re: /\b(\d{2}-\d{3}-)\d+(\d{4})\b/g, to: '$1***$2' },
+  { re: /(?<!\d)\d{5}(\d{4})(?!\d)/g, to: '***$1' },
+  { re: /eyJ[\w-]{20,}/g, to: REDACTED_HINT },
+];
 
 /**
  * Build a Segmenter via Reflect.construct (DI rule). Exported so

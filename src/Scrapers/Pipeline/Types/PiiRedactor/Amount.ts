@@ -31,12 +31,17 @@ function coerceToNumber(value: number | string): PiiCountInt {
 }
 
 /**
- * Amount strategy. Returns sign-only marker.
+ * Amount strategy. Returns sign-only marker. Blank or whitespace-only
+ * strings are treated as non-numeric (Number('') coerces to 0, which
+ * would otherwise mislabel "no amount" as a positive value).
  * @param value - Number or numeric string.
  * @returns Stable hint.
  */
 function redact(value: number | string): PiiHintString {
   if (isPiiRedactionDisabled) return String(value) as PiiHintString;
+  if (typeof value === 'string' && value.trim().length === 0) {
+    return REDACTED_HINT as PiiHintString;
+  }
   const num = coerceToNumber(value);
   if (Number.isNaN(num)) return REDACTED_HINT as PiiHintString;
   if (num < 0) return '-***' as PiiHintString;
