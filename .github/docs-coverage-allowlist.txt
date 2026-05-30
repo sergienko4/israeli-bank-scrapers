@@ -58,3 +58,75 @@ MAX_SEARCH_DEPTH
 ScalarFieldHit
 # Reason: UntypedValue — internal alias of the shared JsonValue union (named to avoid Sonar S6564); retained for call-site stability across Scrape sub-modules.
 UntypedValue
+
+# --- Phase 6: PiiRedactor cluster internal scaffolding (PR #278) ---
+# These symbols moved from the (formerly monolithic) PiiRedactor.ts
+# into per-category sub-modules under Pipeline/Types/PiiRedactor/ as
+# part of the 13-sub-module split. They are CROSS-MODULE INTERNALS
+# — the per-strategy classify/redact registry contract, brand types,
+# sentinel constants, and helpers consumed only by Facade.ts and the
+# per-category siblings. Not part of the user-facing
+# @sergienko4/israeli-bank-scrapers public surface and not re-exported
+# from lib/index.{cjs,mjs}. (The user-facing `redact()` entry point
+# is documented in docs/ and so is NOT in this allowlist.)
+
+# Reason: CATEGORY — each strategy module's PiiCategory literal, consumed by Facade STRATEGY_REGISTRY dispatch. Not user-facing — consumers use the unified `redact()` entry point.
+CATEGORY
+# Reason: JSON_BODY_CATEGORY — JsonBody.ts's strategy-registry category literal; same role as CATEGORY for the JSON walker.
+JSON_BODY_CATEGORY
+# Reason: URL_CATEGORY — Url.ts's strategy-registry category literal; same role as CATEGORY for URL redaction.
+URL_CATEGORY
+# Reason: ERROR_LOG_CATEGORY — ErrorLog.ts's strategy-registry category literal; same role as CATEGORY for error/log message redaction.
+ERROR_LOG_CATEGORY
+# Reason: TOKEN_CATEGORY — AuthCredentials.ts category literal for bearer-token classification within the always-redact credential bucket.
+TOKEN_CATEGORY
+# Reason: OTP_CATEGORY — AuthCredentials.ts category literal for one-time-password classification within the always-redact credential bucket.
+OTP_CATEGORY
+# Reason: COOKIE_CATEGORY — AuthCredentials.ts category literal for cookie/setCookie classification within the always-redact credential bucket.
+COOKIE_CATEGORY
+# Reason: PiiCategory — branded union type of all classifier outcomes; consumed only by Facade dispatch and the per-category modules' classify() return type.
+PiiCategory
+# Reason: PiiClassifierBool — Brand<boolean> tag for per-strategy classify() return values; type-system-only, no runtime surface.
+PiiClassifierBool
+# Reason: PiiCountInt — Brand<number> tag for counted-thing redaction outputs (e.g., name length class); type-system-only.
+PiiCountInt
+# Reason: PiiHintString — Brand<string> tag for redaction-output strings; type-system-only, never imported by consumers (they see plain string).
+PiiHintString
+# Reason: JsonValue — recursive JSON union consumed by JsonBody walker + Facade dispatch; identical to the prior internal alias on the pre-split PiiRedactor.ts.
+JsonValue
+# Reason: JsonScalar — JSON leaf-type alias (string|number|boolean|null); component of JsonValue, used only by JsonBody.
+JsonScalar
+# Reason: JsonArray — readonly JsonValue[] alias; component of JsonValue, used only by JsonBody walker.
+JsonArray
+# Reason: IJsonObject — `{readonly [k:string]: JsonValue}` shape; component of JsonValue, used only by JsonBody walker.
+IJsonObject
+# Reason: REDACTED_HINT — `[REDACTED]` literal sentinel returned by default-deny; held in Types.ts so every per-category module can import it without a Facade dependency cycle.
+REDACTED_HINT
+# Reason: REDACTION_ERROR_HINT — `[REDACTION_ERROR]` literal sentinel returned by the unified `redact()` catch block; same anti-cycle reason as REDACTED_HINT.
+REDACTION_ERROR_HINT
+# Reason: isPiiRedactionDisabled — boolean flag derived from PII_REDACTION env var; consumed by per-category modules to honor the bypass (credentials excluded).
+isPiiRedactionDisabled
+# Reason: CensorFn — internal type alias for the Pino censor callback shape; consumed by createCensorFn + Pino logger config wiring.
+CensorFn
+# Reason: CensorValue — internal type for the value-position argument Pino passes into the censor function; component of CensorFn.
+CensorValue
+# Reason: classifyKey — key-tail-to-category lookup used internally by createCensorFn to drive PATH_TAIL_TO_CATEGORY dispatch; not invoked by user code.
+classifyKey
+# Reason: createCensorFn — factory that builds the Pino censor callback from the strategy registry; wired by the Pipeline logger config, never called from user code.
+createCensorFn
+# Reason: PATH_TAIL_TO_CATEGORY — Pino payload key-tail to PiiCategory mapping table; static dispatch data for createCensorFn.
+PATH_TAIL_TO_CATEGORY
+# Reason: looksLikeToken — AuthCredentials.ts heuristic classifier for bearer-token-shaped values; component of the always-redact credential bucket.
+looksLikeToken
+# Reason: looksLikeOtp — AuthCredentials.ts heuristic classifier for one-time-password-shaped values; component of the always-redact credential bucket.
+looksLikeOtp
+# Reason: looksLikeCookie — AuthCredentials.ts heuristic classifier for cookie/setCookie-shaped values; component of the always-redact credential bucket.
+looksLikeCookie
+# Reason: PII_QUERY_KEYS — Url.ts list of query-string parameter names that must be redacted; static dispatch data for URL redaction.
+PII_QUERY_KEYS
+# Reason: SENSITIVE_SCRAPER_ENUMS — ErrorLog.ts allowlist of ScraperErrorTypes enum values that must never be log-interpolated (CodeQL #28); static dispatch data for redactSensitiveEnum.
+SENSITIVE_SCRAPER_ENUMS
+# Reason: buildSegmenter — CommonHelpers.ts factory returning a Unicode Intl.Segmenter for accurate grapheme counting; used by length-class hints in Name/Merchant.
+buildSegmenter
+# Reason: graphemeCount — CommonHelpers.ts grapheme-cluster counter built on buildSegmenter; consumed only by per-category length-class hint logic.
+graphemeCount
