@@ -180,6 +180,30 @@ else
     log "  ⏭️  docs-strict skipped — no docs/** or root .md files staged"
 fi
 
+# docs-coverage — fires when any Pipeline TS file is staged. Catches
+# the "new public export shipped without docs/ mention" class of CI
+# failure locally instead of burning a CI cycle (CR cycle-2 follow-up:
+# 8 EslintCanary exports landed against CI's `Validate` job because
+# the script's exclusion list didn't cover canaries). Soft-skips when
+# the base ref (origin/main → main) can't be resolved locally — CI
+# always re-runs it under the `Validate` job either way.
+DOCS_COV_FILES=$(echo "$STAGED_FILES" | grep -E '^src/Scrapers/Pipeline/.*\.ts$' || true)
+if [ -n "$DOCS_COV_FILES" ]; then
+    DOCS_COV_BASE_SHA=""
+    if git rev-parse --verify -q origin/main >/dev/null 2>&1; then
+        DOCS_COV_BASE_SHA=$(git rev-parse origin/main)
+    elif git rev-parse --verify -q main >/dev/null 2>&1; then
+        DOCS_COV_BASE_SHA=$(git rev-parse main)
+    fi
+    if [ -n "$DOCS_COV_BASE_SHA" ]; then
+        bg_gate "docs-coverage" "yes" bash -c "BASE_SHA='$DOCS_COV_BASE_SHA' BASE_REF=main bash .github/scripts/ci/docs-coverage.sh"
+    else
+        log "  ⏭️  docs-coverage skipped — origin/main and main both unresolvable locally (CI still enforces)"
+    fi
+else
+    log "  ⏭️  docs-coverage skipped — no Pipeline TS files staged"
+fi
+
 # Heavy gates — each runs Jest with its own worker pool. Three gates
 # run concurrently here, so each pool gets ~1/3 of the available cores
 # (floor-divide, min 2) instead of a fixed `8`. On a 4-core laptop the

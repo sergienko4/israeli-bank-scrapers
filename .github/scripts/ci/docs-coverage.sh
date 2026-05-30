@@ -112,7 +112,7 @@ while IFS=$'\t' read -r status path_a path_b; do
     *) continue ;;
   esac
   case "${head_path}" in
-    *.test.ts | */Tests/*) continue ;;
+    *.test.ts | */Tests/* | */EslintCanaries/* | *.canary.ts) continue ;;
   esac
   CHANGED_FILES+=("${head_path}")
   BASE_PATH_BY_HEAD["${head_path}"]="${base_path}"
