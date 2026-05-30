@@ -14,7 +14,6 @@
  * wiring time.
  */
 
-import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type {
   IDerivedCarry,
@@ -22,6 +21,13 @@ import type {
   IWarmStartConfig,
   SeedCarryBootstrapKind,
 } from './ConfigContracts/CarryTypes.js';
+import type {
+  AuthScheme,
+  IFingerprintConfig,
+  IJwtClaimsConfig,
+  IPreStepHook,
+  IProbeConfig,
+} from './ConfigContracts/EnvelopeTypes.js';
 import type {
   AsymmetricSignerAlgorithm,
   CanonicalPart,
@@ -45,49 +51,6 @@ type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
 
 /** Step identifiers in the sms-otp flow. */
 type StepName = 'bind' | 'assertPassword' | 'assertOtp' | 'getIdToken' | 'sessionToken';
-
-/**
- * Fingerprint shape consumed by GenericFingerprintBuilder. The shape
- * is a JsonValueTemplate hydrated at bind-time against a scope that
- * carries only fresh-timestamp tokens ($ref: 'now' / 'nowMs') — no
- * carry/creds/keypair. Banks embed any structure their server
- * requires; dynamic timestamps go in via the tokens.
- */
-interface IFingerprintConfig {
-  readonly shape: JsonValueTemplate;
-}
-
-/** JWT freshness configuration consumed by GenericJwtClaims. */
-interface IJwtClaimsConfig {
-  readonly freshnessField: 'exp' | 'nbf';
-  readonly skewSeconds: number;
-}
-
-/** Authorization scheme — "raw" for verbatim JWT, "bearer" for "Bearer <jwt>". */
-type AuthScheme = 'raw' | 'bearer';
-
-/**
- * Per-step pre-hook — before the step fires, await a function on
- * creds and deposit the result into scope.carry[intoCarryField].
- * Used for OTP retriever callbacks (carry.otpCode).
- */
-interface IPreStepHook {
-  readonly awaitCredsField: string;
-  readonly intoCarryField: string;
-  /**
-   * Optional encryption step — when set, the deposited carry value
-   * is AES-encrypted into the body at the configured pointer and
-   * the plaintext is scrubbed from carry so it cannot leak via
-   * debug traces or replay artifacts.
-   */
-  readonly cryptoField?: ICryptoFieldConfig;
-}
-
-/** Post-auth probe configuration — EXACTLY ONE of queryTag / urlTag. */
-interface IProbeConfig {
-  readonly queryTag?: WKQueryOperation;
-  readonly urlTag?: WKUrlGroup;
-}
 
 /** Per-step config: name, URL tag, body template, response-extract selectors. */
 interface IStepConfig {
