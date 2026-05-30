@@ -53,33 +53,92 @@ function buildUrlBuilders(
   };
 }
 
+/** Base context for the live-traffic waiters (Page + capture pool). */
+interface IAwaitTrafficBase {
+  readonly page: Page;
+  readonly captured: IDiscoveredEndpoint[];
+}
+
+/**
+ * Await the first traffic capture matching `patterns` (top-level
+ * helper so {@link buildTrafficMethods} can use `.bind(null, ...)`).
+ * @param base - Page + capture-pool bundle.
+ * @param patterns - URL patterns to wait for.
+ * @param timeoutMs - Wait timeout in milliseconds.
+ * @returns First matching endpoint or false on timeout.
+ */
+function awaitForPatterns(
+  base: IAwaitTrafficBase,
+  patterns: readonly RegExp[],
+  timeoutMs: number,
+): Promise<IDiscoveredEndpoint | false> {
+  const opts = { page: base.page, captured: base.captured, patterns };
+  return awaitTraffic(opts, timeoutMs);
+}
+
+/**
+ * Await the first transactions traffic capture.
+ * @param base - Page + capture-pool bundle.
+ * @param timeoutMs - Wait timeout in milliseconds.
+ * @returns First matching endpoint or false on timeout.
+ */
+function awaitForTxns(
+  base: IAwaitTrafficBase,
+  timeoutMs: number,
+): Promise<IDiscoveredEndpoint | false> {
+  return awaitForPatterns(base, PIPELINE_WELL_KNOWN_API.transactions, timeoutMs);
+}
+
+/**
+ * Await the first capture satisfying `predicate` (top-level so the
+ * `waitForFirstId` field can be a `.bind` instead of an inline arrow).
+ * @param captured - Captured endpoint pool.
+ * @param timeoutMs - Wait timeout in milliseconds.
+ * @param predicate - Discriminator predicate.
+ * @returns First matching endpoint or false on timeout.
+ */
+function awaitFirstIdFn(
+  captured: IDiscoveredEndpoint[],
+  timeoutMs: number,
+  predicate: FirstIdPredicate,
+): Promise<IDiscoveredEndpoint | false> {
+  return awaitFirstId(captured, timeoutMs, predicate);
+}
+
+/** Live-traffic waiter method bundle exposed to {@link INetworkDiscovery}. */
+type TrafficMethods = Pick<
+  INetworkDiscovery,
+  'waitForTraffic' | 'waitForTransactionsTraffic' | 'waitForFirstId'
+>;
+
 /**
  * Build the live-traffic waiter trio (waitForTraffic /
  * waitForTransactionsTraffic / waitForFirstId).
- * @param page - Playwright page used by `awaitTraffic`.
- * @param captured - Captured endpoint pool.
+ * @param base - Playwright page + captured-pool bundle.
  * @returns Live-traffic waiter method bundle.
  */
-function buildTrafficMethods(
-  page: Page,
-  captured: IDiscoveredEndpoint[],
-): Pick<INetworkDiscovery, 'waitForTraffic' | 'waitForTransactionsTraffic' | 'waitForFirstId'> {
+function buildTrafficMethods(base: IAwaitTrafficBase): TrafficMethods {
   return {
-    /** @inheritdoc */
-    waitForTraffic: (
-      patterns: readonly RegExp[],
-      timeoutMs: number,
-    ): Promise<IDiscoveredEndpoint | false> =>
-      awaitTraffic({ page, captured, patterns }, timeoutMs),
-    /** @inheritdoc */
-    waitForTransactionsTraffic: (timeoutMs: number): Promise<IDiscoveredEndpoint | false> =>
-      awaitTraffic({ page, captured, patterns: PIPELINE_WELL_KNOWN_API.transactions }, timeoutMs),
-    /** @inheritdoc */
-    waitForFirstId: (
-      timeoutMs: number,
-      predicate: FirstIdPredicate,
-    ): Promise<IDiscoveredEndpoint | false> => awaitFirstId(captured, timeoutMs, predicate),
+    waitForTraffic: awaitForPatterns.bind(null, base),
+    waitForTransactionsTraffic: awaitForTxns.bind(null, base),
+    waitForFirstId: awaitFirstIdFn.bind(null, base.captured),
   };
+}
+
+/**
+ * Pick the txn endpoint from the post-click pool first, then fall
+ * back to the full captured pool when the post-click pool is empty.
+ * Hoisted to top-level so {@link buildTxnDiscovery} can `.bind`.
+ * @param captured - Full captured endpoint pool.
+ * @param getPostNavCaptures - Lazy accessor for the post-click pool.
+ * @returns Discovered txn endpoint or false.
+ */
+function discoverTxn(
+  captured: readonly IDiscoveredEndpoint[],
+  getPostNavCaptures: () => readonly IDiscoveredEndpoint[],
+): IDiscoveredEndpoint | false {
+  const postNav = getPostNavCaptures();
+  return discoverShapeAware(postNav, captured, PIPELINE_WELL_KNOWN_API.transactions);
 }
 
 /**
@@ -94,13 +153,7 @@ function buildTxnDiscovery(
   captured: readonly IDiscoveredEndpoint[],
   getPostNavCaptures: () => readonly IDiscoveredEndpoint[],
 ): Pick<INetworkDiscovery, 'discoverTransactionsEndpoint'> {
-  return {
-    /** @inheritdoc */
-    discoverTransactionsEndpoint: (): IDiscoveredEndpoint | false => {
-      const postNav = getPostNavCaptures();
-      return discoverShapeAware(postNav, captured, PIPELINE_WELL_KNOWN_API.transactions);
-    },
-  };
+  return { discoverTransactionsEndpoint: discoverTxn.bind(null, captured, getPostNavCaptures) };
 }
 
 /**

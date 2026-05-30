@@ -271,3 +271,30 @@ buildResponseHandler
 buildWatcherApi
 # Reason: AuthMatcherBool — AuthFailureWatcher/UrlMatchers.ts Brand<boolean> tag for isAuthEndpointUrl + isFailureStatusCode return types; type-system-only, satisfies Rule #15.
 AuthMatcherBool
+
+# --- Phase 8.5a / commit 4 follow-up (AuthFailureWatcher public-surface paths) ---
+# These symbols existed in BASE's monolithic Mediator/Network/AuthFailureWatcher.ts
+# and constitute the public AuthFailureWatcher API. Phase 8.5a/commit 3 moved
+# them into focused sub-modules under .../AuthFailureWatcher/. The docs-coverage
+# gate diffs per-file, so the new file paths look "newly introduced" even though
+# the symbol names are unchanged. Allowlisted because the public API surface is
+# identical; no new exports were added.
+
+# Reason: classifyBodyAsFailure — AuthFailureWatcher/BodyClassifier.ts (was AuthFailureWatcher.ts) public body-pattern matcher; reused by L2 inspection.
+classifyBodyAsFailure
+# Reason: createAuthFailureWatcher — AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) primary entry point; used by DiscoveryEngine.buildIoSlice.
+createAuthFailureWatcher
+# Reason: createFrozenAuthFailureWatcher — AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) frozen-replay variant; used by FrozenReplay.buildBaseFrozenDiscovery.
+createFrozenAuthFailureWatcher
+# Reason: AuthFailureClassifier — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) classifier-function type alias; consumed externally.
+AuthFailureClassifier
+# Reason: IAuthFailure — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) failure-payload interface returned to callers.
+IAuthFailure
+# Reason: IAuthFailureWatcher — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) primary watcher contract returned by the Factory.
+IAuthFailureWatcher
+# Reason: IBodyFailurePattern — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) body-pattern shape used by AUTH_BODY_FAILURE_PATTERNS table.
+IBodyFailurePattern
+# Reason: isAuthEndpointUrl — AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public URL-pattern predicate; reused by inspection helpers.
+isAuthEndpointUrl
+# Reason: isFailureStatusCode — AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public 4xx status predicate; reused by inspection helpers.
+isFailureStatusCode

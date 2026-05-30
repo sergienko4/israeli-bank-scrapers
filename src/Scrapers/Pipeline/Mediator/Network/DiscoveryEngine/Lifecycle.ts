@@ -19,6 +19,24 @@ interface ILifecycleHandle {
 }
 
 /**
+ * `page.on('response')` adapter that forwards each response to
+ * `handleResponse` for parsing + storage. Hoisted to top-level so
+ * {@link attachLiveListeners} can use `.bind(null, ...)` instead of
+ * an inline arrow.
+ * @param captured - Mutable captured endpoints array.
+ * @param readCollection - Predicate gating capture storage.
+ * @param response - Playwright response.
+ * @returns True (always — fire-and-forget).
+ */
+function onResponseFor(
+  captured: IDiscoveredEndpoint[],
+  readCollection: () => boolean,
+  response: Response,
+): boolean {
+  return handleResponse(captured, response, readCollection);
+}
+
+/**
  * Attach the live `response` listener and the cross-frame POST/PUT
  * interceptor. Idempotency is enforced by {@link makeIdempotentAttacher}.
  * @param page - Playwright page.
@@ -31,16 +49,34 @@ function attachLiveListeners(
   captured: IDiscoveredEndpoint[],
   readCollection: () => boolean,
 ): true {
-  /**
-   * `page.on('response')` adapter that forwards each response to
-   * `handleResponse` for parsing + storage.
-   * @param response - Playwright response.
-   * @returns True (always — fire-and-forget).
-   */
-  const onResponse = (response: Response): boolean =>
-    handleResponse(captured, response, readCollection);
+  const onResponse = onResponseFor.bind(null, captured, readCollection);
   page.on('response', onResponse);
   interceptPostResponses(page, captured);
+  return true;
+}
+
+/** Mutable cell tracking whether listeners have been attached. */
+interface IAttachState {
+  isAttached: boolean;
+}
+
+/** Constructor args bag for {@link attachIfNeeded}. */
+interface IAttachArgs {
+  readonly page: Page;
+  readonly captured: IDiscoveredEndpoint[];
+  readonly readCollection: () => boolean;
+}
+
+/**
+ * Idempotent attacher core: attaches listeners exactly once.
+ * @param state - Mutable attached flag.
+ * @param args - Args forwarded to {@link attachLiveListeners}.
+ * @returns True when listeners were attached this call, false if already attached.
+ */
+function attachIfNeeded(state: IAttachState, args: IAttachArgs): boolean {
+  if (state.isAttached) return false;
+  attachLiveListeners(args.page, args.captured, args.readCollection);
+  state.isAttached = true;
   return true;
 }
 
@@ -59,13 +95,30 @@ function makeIdempotentAttacher(
   captured: IDiscoveredEndpoint[],
   readCollection: () => boolean,
 ): () => boolean {
-  let isAttached = false;
-  return (): boolean => {
-    if (isAttached) return false;
-    attachLiveListeners(page, captured, readCollection);
-    isAttached = true;
-    return true;
-  };
+  const state: IAttachState = { isAttached: false };
+  return attachIfNeeded.bind(null, state, { page, captured, readCollection });
+}
+
+/** Click-state slice exposed to {@link flipCollection}. */
+interface ICollectionToggle {
+  readonly flip: (active: boolean) => true;
+}
+
+/**
+ * Toggle collection on/off; lazily attaches listeners the first
+ * time collection is flipped to active.
+ * @param attachOnce - Idempotent attacher closure.
+ * @param collectionState - Collection-state toggle.
+ * @param active - True to enable capture storage.
+ * @returns True (after the flag is set).
+ */
+function flipCollection(
+  attachOnce: () => boolean,
+  collectionState: ICollectionToggle,
+  active: boolean,
+): true {
+  if (active) attachOnce();
+  return collectionState.flip(active);
 }
 
 /**
@@ -85,17 +138,7 @@ function buildLifecycleState(
   const collectionState = buildCollectionState(!isDeferAttach);
   const attachOnce = makeIdempotentAttacher(page, captured, collectionState.read);
   if (!isDeferAttach) attachOnce();
-  /**
-   * Toggle collection on/off; lazily attaches listeners the first
-   * time collection is flipped to active.
-   * @param active - True to enable capture storage.
-   * @returns True (after the flag is set).
-   */
-  const setCollectionActive = (active: boolean): true => {
-    if (active) attachOnce();
-    return collectionState.flip(active);
-  };
-  return { setCollectionActive };
+  return { setCollectionActive: flipCollection.bind(null, attachOnce, collectionState) };
 }
 
 export default buildLifecycleState;
