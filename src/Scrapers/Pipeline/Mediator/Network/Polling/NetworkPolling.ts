@@ -101,6 +101,18 @@ interface ITrafficWaitArgs {
 }
 
 /**
+ * True when the captured endpoint has a body AND its URL matches one
+ * of the WK traffic patterns. Bound by {@link findTrafficHit}.
+ * @param patterns - WK regex patterns.
+ * @param ep - Captured endpoint.
+ * @returns True when the endpoint counts as a traffic hit.
+ */
+function isTrafficMatch(patterns: readonly RegExp[], ep: IDiscoveredEndpoint): boolean {
+  if (ep.responseBody === undefined || ep.responseBody === null) return false;
+  return patterns.some((p): boolean => p.test(ep.url));
+}
+
+/**
  * Check if any captured endpoint matches the patterns.
  * @param captured - Live captured endpoints.
  * @param patterns - WellKnown regex patterns.
@@ -110,13 +122,21 @@ function findTrafficHit(
   captured: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): IDiscoveredEndpoint | false {
-  const hit = captured.find(
-    (ep): boolean =>
-      ep.responseBody !== undefined &&
-      ep.responseBody !== null &&
-      patterns.some((p): boolean => p.test(ep.url)),
-  );
+  const matcher = isTrafficMatch.bind(null, patterns);
+  const hit = captured.find(matcher);
   return hit ?? false;
+}
+
+/**
+ * True when the response URL matches any of the WK patterns. Bound
+ * by {@link awaitTraffic}'s `page.waitForResponse` adapter.
+ * @param patterns - WK regex patterns.
+ * @param response - Playwright response.
+ * @returns True when URL matches a pattern.
+ */
+function matchUrlPredicate(patterns: readonly RegExp[], response: Response): boolean {
+  const url = response.url();
+  return patterns.some((p): boolean => p.test(url));
 }
 
 /**
@@ -132,15 +152,7 @@ async function awaitTraffic(
 ): Promise<IDiscoveredEndpoint | false> {
   const immediate = findTrafficHit(args.captured, args.patterns);
   if (immediate) return immediate;
-  /**
-   * Match response URL against WellKnown patterns.
-   * @param r - Playwright response.
-   * @returns True if URL matches.
-   */
-  const matchUrl = (r: Response): boolean => {
-    const url = r.url();
-    return args.patterns.some((p): boolean => p.test(url));
-  };
+  const matchUrl = matchUrlPredicate.bind(null, args.patterns);
   await args.page.waitForResponse(matchUrl, { timeout: timeoutMs }).catch((): false => false);
   return findTrafficHit(args.captured, args.patterns);
 }

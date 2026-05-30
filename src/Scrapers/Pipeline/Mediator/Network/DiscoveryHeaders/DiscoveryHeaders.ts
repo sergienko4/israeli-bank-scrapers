@@ -13,6 +13,38 @@ import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import { discoverHeaderValue, extractSpaHeaders, spaHasAny } from '../Scoring/Scoring.js';
 
 /**
+ * Apply the Origin header (and Referer fallback) from captured traffic.
+ * @param spaBase - SPA-extracted header base (mutated).
+ * @param captured - Captured endpoints for the header probes.
+ * @returns The mutated header object (passed through for chaining).
+ */
+function setOriginAndReferer(
+  spaBase: Record<string, string>,
+  captured: readonly IDiscoveredEndpoint[],
+): Record<string, string> {
+  const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
+  if (!origin) return spaBase;
+  spaBase.Origin = origin;
+  if (!spaHasAny(spaBase, REFERER_HEADERS)) spaBase.Referer = origin;
+  return spaBase;
+}
+
+/**
+ * Apply the X-Site-Id fallback from captured traffic.
+ * @param spaBase - SPA-extracted header base (mutated).
+ * @param captured - Captured endpoints for the header probes.
+ * @returns The mutated header object (passed through for chaining).
+ */
+function setSiteId(
+  spaBase: Record<string, string>,
+  captured: readonly IDiscoveredEndpoint[],
+): Record<string, string> {
+  const siteId = discoverHeaderValue(captured, SITE_ID_HEADERS);
+  if (siteId && !spaHasAny(spaBase, SITE_ID_HEADERS)) spaBase['X-Site-Id'] = siteId;
+  return spaBase;
+}
+
+/**
  * Apply the bank-specific Origin / Referer / X-Site-Id fallback
  * layers on top of the SPA-extracted header base, gated by
  * {@link spaHasAny} so duplicate-header rejection (VisaCal 401
@@ -25,11 +57,8 @@ function applyOriginRefererSiteId(
   spaBase: Record<string, string>,
   captured: readonly IDiscoveredEndpoint[],
 ): Record<string, string> {
-  const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
-  if (origin) spaBase.Origin = origin;
-  if (origin && !spaHasAny(spaBase, REFERER_HEADERS)) spaBase.Referer = origin;
-  const siteId = discoverHeaderValue(captured, SITE_ID_HEADERS);
-  if (siteId && !spaHasAny(spaBase, SITE_ID_HEADERS)) spaBase['X-Site-Id'] = siteId;
+  setOriginAndReferer(spaBase, captured);
+  setSiteId(spaBase, captured);
   return spaBase;
 }
 

@@ -102,6 +102,21 @@ function logParseCatch(meta: IRequestMeta, status: number, error: Error): false 
 }
 
 /**
+ * Emit the structured captureMiss trace for an interesting hit.
+ * @param meta - Response metadata.
+ * @returns Always true.
+ */
+function emitCaptureMissTrace(meta: IResponseMeta): true {
+  LOG.trace({
+    event: 'captureMiss',
+    method: meta.method,
+    url: maskVisibleText(meta.url),
+    status: meta.status,
+  });
+  return true;
+}
+
+/**
  * Log a captured-response miss when the URL looks interesting (POST
  * or contains {@link COL_REST_SEGMENT}) — keeps the per-handleResponse
  * function short. CR PR #276 post-review-fix #7 adds the structured
@@ -112,12 +127,7 @@ function logParseCatch(meta: IRequestMeta, status: number, error: Error): false 
 function logCaptureMiss(meta: IResponseMeta): boolean {
   const isInteresting = meta.method === 'POST' || meta.url.includes(COL_REST_SEGMENT);
   if (!isInteresting) return false;
-  LOG.trace({
-    event: 'captureMiss',
-    method: meta.method,
-    url: maskVisibleText(meta.url),
-    status: meta.status,
-  });
+  emitCaptureMissTrace(meta);
   return true;
 }
 
