@@ -58,22 +58,156 @@ async function executeFrozenDirectScrape(
 }
 
 /**
+ * Bundled inputs for {@link buildFrozenFetchCtx} — keeps arity at 1.
+ */
+interface IFetchCtxInputs {
+  readonly input: IActionContext;
+  readonly disc: IScrapeDiscovery;
+  readonly api: IApiFetchContext;
+}
+
+/**
+ * Same as {@link IAccountFetchCtx} but with a narrowed, non-optional
+ * `txnEndpoint`. Frozen scrape always resolves this at PRE time via
+ * {@link pickFrozenTxnEndpoint}, so downstream helpers can read it
+ * directly without re-asserting presence.
+ */
+type IFrozenFetchCtx = IAccountFetchCtx & { readonly txnEndpoint: ITxnEndpoint };
+
+/**
+ * Bundled inputs for {@link mergePendingFor} — keeps arity at 1.
+ */
+interface IMergePendingArgs {
+  readonly fc: IFrozenFetchCtx;
+  readonly loadCtx: IFetchAllAccountsCtx;
+  readonly raw: readonly ITransactionsAccount[];
+}
+
+/**
+ * Bundled inputs for {@link scrapeWithFrozen} — keeps arity at 1.
+ */
+interface IScrapeFrozenArgs {
+  readonly disc: IScrapeDiscovery;
+  readonly fc: IFrozenFetchCtx;
+}
+
+/**
+ * DASHBOARD-derived slices shared into {@link IAccountFetchCtx} so
+ * tryFirstWave can attribute records DASHBOARD already saw without
+ * re-fetching (Hapoalim/Beinleumi 302 regression recovery).
+ */
+type IDashboardDerived = Pick<
+  IAccountFetchCtx,
+  'dashboardTxnHarvest' | 'dedupKeyFields' | 'dateWindowParams'
+>;
+
+/**
+ * Log `[ACTION] <msg>` at DEBUG then short-circuit with `succeed(input)`.
+ * @param input - Sealed action context.
+ * @param msg - Reason for skipping.
+ * @returns Procedure that propagates input unchanged.
+ */
+function debugAndSucceed(input: IActionContext, msg: string): Procedure<IActionContext> {
+  LOG.debug({ message: `[ACTION] ${msg}` });
+  return succeed(input);
+}
+
+/**
  * Guard: check preconditions for frozen scrape.
  * @param input - Sealed action context.
  * @returns Succeed(input) if should skip, false if ready.
  */
 function guardFrozenScrape(input: IActionContext): Procedure<IActionContext> | false {
-  if (!input.scrapeDiscovery.has) {
-    LOG.debug({ message: '[ACTION] no scrapeDiscovery — skipping' });
-    return succeed(input);
-  }
+  if (!input.scrapeDiscovery.has) return debugAndSucceed(input, 'no scrapeDiscovery — skipping');
   if (!input.api.has) return succeed(input);
-  const frozenEps = input.scrapeDiscovery.value.frozenEndpoints ?? [];
-  if (frozenEps.length === 0) {
-    LOG.debug({ message: '[ACTION] no frozen endpoints — skipping' });
-    return succeed(input);
-  }
-  return false;
+  const eps = input.scrapeDiscovery.value.frozenEndpoints ?? [];
+  return eps.length === 0 ? debugAndSucceed(input, 'no frozen endpoints — skipping') : false;
+}
+
+/**
+ * Build the frozen-network adapter for sealed replay.
+ * @param disc - Narrowed scrape discovery.
+ * @returns Frozen INetworkDiscovery wrapping the seal-time endpoints.
+ */
+function buildFrozenAdapter(disc: IScrapeDiscovery): ReturnType<typeof createFrozenNetwork> {
+  const eps = disc.frozenEndpoints ?? [];
+  const cachedAuth = disc.cachedAuth ?? false;
+  const dashboardClickAt = disc.dashboardClickAt ?? false;
+  return createFrozenNetwork(eps, cachedAuth, dashboardClickAt);
+}
+
+/**
+ * Resolve the DASHBOARD-derived harvest + dedup + window slices.
+ * @param input - Sealed action context.
+ * @returns Bundle assignable into {@link IAccountFetchCtx}.
+ */
+function resolveDashboardDerived(input: IActionContext): IDashboardDerived {
+  const dashboardTxnHarvest = readDashboardTxnHarvest(input);
+  const dedupKeyFields = readDedupKeyFields(dashboardTxnHarvest, FALLBACK_DEDUP_KEY_FIELDS);
+  const dateWindowParams = readDateWindowParams(dashboardTxnHarvest);
+  return { dashboardTxnHarvest, dedupKeyFields, dateWindowParams };
+}
+
+/**
+ * Assemble the IAccountFetchCtx for a frozen scrape. Phase 7f: the
+ * slim TXN endpoint is preferred from ctx (DASHBOARD.FINAL) with a
+ * fall-back to the SCRAPE.PRE discovery snapshot for mock/replay.
+ * @param args - Bundled inputs (input, disc, api).
+ * @returns IAccountFetchCtx ready for scrapeAllAccounts.
+ */
+function buildFrozenFetchCtx(args: IFetchCtxInputs): IFrozenFetchCtx {
+  const network = buildFrozenAdapter(args.disc);
+  const startDate = moment(args.input.options.startDate).format('YYYYMMDD');
+  const futureMonths = getFutureMonths(args.input.options);
+  const ctxTxn = readPreDiscoveredTxn(args.input);
+  const txnEndpoint = pickFrozenTxnEndpoint(ctxTxn, args.disc.txnEndpoint ?? false);
+  const derived = resolveDashboardDerived(args.input);
+  return { api: args.api, network, startDate, futureMonths, txnEndpoint, ...derived };
+}
+
+/**
+ * Wrap fetchAndMergePending in a 1-arg adapter to keep the orchestrator
+ * call site short and bypass the nested-call lint rule.
+ * @param args - Bundled inputs (fc, loadCtx, raw).
+ * @returns Accounts merged with their pending txns.
+ */
+async function mergePendingFor(args: IMergePendingArgs): Promise<readonly ITransactionsAccount[]> {
+  return fetchAndMergePending({
+    api: args.fc.api,
+    accounts: args.raw,
+    accountRecords: args.loadCtx.records,
+    pendingUrl: args.fc.txnEndpoint.pendingUrl,
+  });
+}
+
+/**
+ * Execute the scrape pipeline against a frozen network and apply the
+ * global startDate filter to the merged results.
+ * @param args - Bundled inputs (disc, fc).
+ * @returns Filtered accounts ready for the SCRAPE step result.
+ */
+async function scrapeWithFrozen(args: IScrapeFrozenArgs): Promise<readonly ITransactionsAccount[]> {
+  const loadCtx = buildFrozenLoadCtx(args.disc, args.fc, args.fc.txnEndpoint);
+  const raw = await scrapeAllAccounts(loadCtx);
+  const merged = await mergePendingFor({ fc: args.fc, loadCtx, raw });
+  const filterMs = parseStartDate(args.fc.startDate).getTime();
+  applyGlobalDateFilter(merged, filterMs);
+  return merged;
+}
+
+/**
+ * Log the scrape result and wrap it into the SCRAPE-step procedure.
+ * @param input - Sealed action context to thread through.
+ * @param accounts - Final scraped + merged + filtered accounts.
+ * @returns Succeed procedure with scrape.accounts populated.
+ */
+function finalizeFrozenResult(
+  input: IActionContext,
+  accounts: readonly ITransactionsAccount[],
+): Procedure<IActionContext> {
+  logScrapeResult(accounts);
+  const scrape = some({ accounts: [...accounts] });
+  return succeed({ ...input, scrape });
 }
 
 /**
@@ -86,46 +220,10 @@ async function runFrozenScrape(
   input: IActionContext,
   disc: IScrapeDiscovery,
 ): Promise<Procedure<IActionContext>> {
-  const frozenEps = disc.frozenEndpoints ?? [];
-  const cachedAuth = disc.cachedAuth ?? false;
-  const dashboardClickAt = disc.dashboardClickAt ?? false;
-  const frozen = createFrozenNetwork(frozenEps, cachedAuth, dashboardClickAt);
   const api = await resolveFrozenApi(input);
-  const startDate = moment(input.options.startDate).format('YYYYMMDD');
-  const futureMonths = getFutureMonths(input.options);
-  // Phase 7f: read the slim ITxnEndpoint DASHBOARD.FINAL committed.
-  // Falls back to the discovery snapshot frozen at SCRAPE.PRE only when
-  // ctx.txnEndpoint is empty (mock-mode bypass / replay tests).
-  const ctxTxnEndpoint = readPreDiscoveredTxn(input);
-  const txnEndpoint = pickFrozenTxnEndpoint(ctxTxnEndpoint, disc.txnEndpoint ?? false);
-  // Phase 7f follow-up: thread the DASHBOARD-side harvest onto fc so
-  // tryFirstWave can attribute records DASHBOARD already saw without
-  // re-fetching (Hapoalim/Beinleumi 302 regression recovery).
-  const dashboardTxnHarvest = readDashboardTxnHarvest(input);
-  const dedupKeyFields = readDedupKeyFields(dashboardTxnHarvest, FALLBACK_DEDUP_KEY_FIELDS);
-  const dateWindowParams = readDateWindowParams(dashboardTxnHarvest);
-  const fc: IAccountFetchCtx = {
-    api,
-    network: frozen,
-    startDate,
-    futureMonths,
-    txnEndpoint,
-    dashboardTxnHarvest,
-    dedupKeyFields,
-    dateWindowParams,
-  };
-  const loadCtx = buildFrozenLoadCtx(disc, fc, txnEndpoint);
-  const rawAccounts = await scrapeAllAccounts(loadCtx);
-  const withPending = await fetchAndMergePending({
-    api,
-    accounts: rawAccounts,
-    accountRecords: loadCtx.records,
-    pendingUrl: txnEndpoint.pendingUrl,
-  });
-  const filterMs = parseStartDate(startDate).getTime();
-  applyGlobalDateFilter(withPending, filterMs);
-  logScrapeResult(withPending);
-  return succeed({ ...input, scrape: some({ accounts: [...withPending] }) });
+  const fc = buildFrozenFetchCtx({ input, disc, api });
+  const accounts = await scrapeWithFrozen({ disc, fc });
+  return finalizeFrozenResult(input, accounts);
 }
 
 /**
