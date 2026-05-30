@@ -63,6 +63,14 @@ plugins:
       type: timeago
       enable_creation_date: true
       fallback_to_build_date: true
+      # Demote "no git logs" from WARNING to INFO so `mkdocs build
+      # --strict` doesn't false-fail on the FIRST commit that adds a
+      # brand-new .md file (the file has no git history *yet* — that
+      # is the natural state during the pre-commit hook). Broken
+      # links / dead nav / unknown plugin keys still abort under
+      # --strict; this only silences the inherent chicken-and-egg
+      # warning. Documented in Phase 8 PR #279 (F4 docs page).
+      strict: false
 
 markdown_extensions:
   - abbr
@@ -120,6 +128,7 @@ nav:
       - Overview: architecture/index.md
       - Pipeline architecture: architecture/pipeline.md
       - Layer separation: architecture/layers.md
+      - Config Contracts (api-direct-call): architecture/config-contracts.md
       - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
       - Legacy (deprecated): architecture/legacy.md
       - Migration strategy: architecture/migration.md

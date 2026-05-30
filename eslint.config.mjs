@@ -1845,6 +1845,18 @@ export default tseslint.config(
   // Canary:
   //   • `no-api-direct-call-blob.canary.ts` — proves `max-lines`
   //     fires (file > 150 LoC) so the guard cannot silently rot.
+  //
+  // CR feedback (PR #279, finding F1): canary now uses 71 *unique*
+  // function bodies (each returns its own integer literal) so the
+  // co-enabled `sonarjs/no-identical-functions` (S4144) cannot
+  // silently fire on duplicate bodies and mask a future
+  // `max-lines:150` regression. Note that rule-firing identity
+  // (asserting the *specific* error ID, not just `errorCount > 0`)
+  // is tracked separately as Phase 8.5c canary-infrastructure
+  // hardening — that work also adds the `tsconfig.eslint.json`
+  // needed to surface the intended rule instead of a fallback parse
+  // error caused by the canary dir being excluded from the main
+  // tsconfig.
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/**/*.ts',
