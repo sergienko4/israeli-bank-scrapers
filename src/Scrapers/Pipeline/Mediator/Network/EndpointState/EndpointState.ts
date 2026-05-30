@@ -143,7 +143,20 @@ function substituteAccountInPath(pathOnly: string, accountId: string): string {
 }
 
 /**
- * Build a balance URL from discovered traffic pattern.
+ * Split a URL into path and query parts. Preserves the leading '?' on
+ * the query so callers can re-concatenate without further branching.
+ * @param url - Full URL to split.
+ * @returns `{ path, query }` — query is the empty string when absent.
+ */
+function splitUrlAtQuery(url: string): { path: string; query: string } {
+  const qIdx = url.indexOf('?');
+  if (qIdx === -1) return { path: url, query: '' };
+  return { path: url.slice(0, qIdx), query: url.slice(qIdx) };
+}
+
+/**
+ * Build a balance URL from discovered traffic pattern. Preserves any
+ * query string after the account-id substitution (CR PR #280 #123 fix).
  * @param captured - Captured endpoints.
  * @param accountId - Account number.
  * @returns Balance URL or false.
@@ -154,8 +167,8 @@ function buildBalUrlFromTraffic(
 ): string | false {
   const hit = findBalanceHit(captured);
   if (!hit) return false;
-  const pathOnly = hit.url.split('?')[0];
-  return substituteAccountInPath(pathOnly, accountId);
+  const { path, query } = splitUrlAtQuery(hit.url);
+  return `${substituteAccountInPath(path, accountId)}${query}`;
 }
 
 /**

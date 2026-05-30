@@ -9,6 +9,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
+import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import { logApiCall, logResponseIssues } from './Logging.js';
 import { parseGetResult } from './ParseResult.js';
 
@@ -68,7 +69,7 @@ async function evaluateGetWithHeaders(
  */
 function finalisePageGet<TResult>(args: IFinalisePageGetArgs): Nullable<TResult> {
   const { result, status, url, startMs, shouldIgnoreErrors } = args;
-  logApiCall(`GET(page) ${url.slice(-100)}`, status, Date.now() - startMs);
+  logApiCall(`GET(page) ${redactUrlFull(url).slice(-100)}`, status, Date.now() - startMs);
   logResponseIssues(status, result, url);
   return parseGetResult({ result, status, url, shouldIgnoreErrors }) as TResult;
 }

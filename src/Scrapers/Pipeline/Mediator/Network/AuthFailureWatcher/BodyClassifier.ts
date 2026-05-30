@@ -23,7 +23,7 @@ function patternFits(record: Record<string, JsonValue>, pattern: IBodyFailurePat
  * @param record - Object to inspect.
  * @returns Note from the matching pattern, or false.
  */
-export function matchInRecord(record: Record<string, JsonValue>): string | false {
+function matchInRecord(record: Record<string, JsonValue>): string | false {
   const hit = AUTH_BODY_FAILURE_PATTERNS.find((pattern): boolean => patternFits(record, pattern));
   if (!hit) return false;
   return hit.note;
@@ -56,7 +56,7 @@ function findNestedMatch(values: readonly JsonValue[]): string | false {
  * @param body - Parsed JSON response body.
  * @returns Matching pattern note when failure detected, false otherwise.
  */
-export function classifyBodyAsFailure(body: JsonValue): string | false {
+function classifyBodyAsFailure(body: JsonValue): string | false {
   if (body === null || typeof body !== 'object') return false;
   const topRecord = body as Record<string, JsonValue>;
   const topHit = matchInRecord(topRecord);
@@ -64,3 +64,5 @@ export function classifyBodyAsFailure(body: JsonValue): string | false {
   const nestedValues = Object.values(topRecord);
   return findNestedMatch(nestedValues);
 }
+
+export default classifyBodyAsFailure;

@@ -70,7 +70,7 @@ function extractFirstToken(values: readonly string[]): string | false {
  */
 async function readFrameStorage(frame: Frame): Promise<string> {
   return frame
-    .evaluate((keys: string[]): string => {
+    .evaluate((keys: readonly string[]): string => {
       const vals = keys.map((k): string => sessionStorage.getItem(k) ?? '');
       return vals.find(Boolean) ?? 'NONE';
     }, STORAGE_AUTH_KEYS)
@@ -100,7 +100,8 @@ async function dumpFrameKeys(frame: Frame): Promise<string> {
   const keys = await readFrameKeyList(frame);
   const url = frame.url().slice(0, 50);
   if (keys !== 'EMPTY' && keys !== 'CROSS-ORIGIN') {
-    LOG.trace({ url: maskVisibleText(url), keys: keys.split(', ') });
+    const keyCount = keys.split(', ').length;
+    LOG.trace({ url: maskVisibleText(url), keyCount, keysSample: maskVisibleText(keys) });
   }
   return keys;
 }

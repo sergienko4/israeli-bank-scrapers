@@ -14,6 +14,8 @@ import { discoverHeaderValue, extractSpaHeaders, spaHasAny } from '../Scoring/Sc
 
 /**
  * Apply the Origin header (and Referer fallback) from captured traffic.
+ * CR PR #280 #122 fix: prefers the captured Referer over the Origin
+ * fallback when both are present.
  * @param spaBase - SPA-extracted header base (mutated).
  * @param captured - Captured endpoints for the header probes.
  * @returns The mutated header object (passed through for chaining).
@@ -23,9 +25,9 @@ function setOriginAndReferer(
   captured: readonly IDiscoveredEndpoint[],
 ): Record<string, string> {
   const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
-  if (!origin) return spaBase;
-  spaBase.Origin = origin;
-  if (!spaHasAny(spaBase, REFERER_HEADERS)) spaBase.Referer = origin;
+  if (origin) spaBase.Origin = origin;
+  const referer = discoverHeaderValue(captured, REFERER_HEADERS) || origin;
+  if (referer && !spaHasAny(spaBase, REFERER_HEADERS)) spaBase.Referer = referer;
   return spaBase;
 }
 

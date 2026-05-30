@@ -5,7 +5,7 @@
 import type { Page, Response } from 'playwright-core';
 
 import { safeBodyPreview } from './BodyReaders.js';
-import { readDetected, recordFailure } from './State.js';
+import { readDetected, readDisposed, recordFailure } from './State.js';
 import type { IAuthFailure, IWatcherState } from './Types.js';
 import { isAuthEndpointUrl, isFailureStatusCode } from './UrlMatchers.js';
 
@@ -74,20 +74,34 @@ export interface IAwaitFailureArgs {
 }
 
 /**
+ * Post-await flow — re-polls state through readDisposed / readDetected
+ * so TS flow analysis cannot narrow either value back to the literal
+ * it held before the await boundary. Extracted so {@link awaitFailure}
+ * fits the 10-LoC cap.
+ * @param args - Bundled page + state + timeout.
+ * @returns Failure record or false on timeout / disposal.
+ */
+async function executeAwait(args: IAwaitFailureArgs): Promise<IAuthFailure | false> {
+  const { page, state, timeoutMs } = args;
+  const next = await awaitNextResponse(page, timeoutMs);
+  if (readDisposed(state)) return false;
+  const post = readDetected(state);
+  if (post) return post;
+  if (next === false) return false;
+  return processAuthResponse(state, next);
+}
+
+/**
  * Awaitable wait — resolves with an existing failure synchronously,
  * otherwise uses Playwright's native event-driven `waitForResponse`.
  * @param args - Bundled page + state + timeout.
  * @returns Failure record or false on timeout.
  */
 async function awaitFailure(args: IAwaitFailureArgs): Promise<IAuthFailure | false> {
-  const { page, state, timeoutMs } = args;
-  const detectedBefore = readDetected(state);
-  if (detectedBefore) return detectedBefore;
-  const next = await awaitNextResponse(page, timeoutMs);
-  const detectedAfter = readDetected(state);
-  if (detectedAfter) return detectedAfter;
-  if (next === false) return false;
-  return processAuthResponse(state, next);
+  if (args.state.isDisposed) return false;
+  const pre = readDetected(args.state);
+  if (pre) return pre;
+  return executeAwait(args);
 }
 
 export default awaitFailure;

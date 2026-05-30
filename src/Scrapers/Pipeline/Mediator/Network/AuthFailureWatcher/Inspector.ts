@@ -7,7 +7,7 @@ import type { Response } from 'playwright-core';
 
 import type { JsonValue } from '../../../Types/JsonValue.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
-import { classifyBodyAsFailure } from './BodyClassifier.js';
+import classifyBodyAsFailure from './BodyClassifier.js';
 import { safeBodyPreview, safeParsedBody } from './BodyReaders.js';
 import { recordFailure } from './State.js';
 import type { IWatcherState } from './Types.js';

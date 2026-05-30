@@ -8,7 +8,12 @@
 import type { Frame, JSHandle, Page } from 'playwright-core';
 
 import { getDebug } from '../../../Types/Debug.js';
-import { AUTH_POLL_INTERVAL, AUTH_POLL_TIMEOUT, tryParseJsonToken } from './Tokens.js';
+import {
+  AUTH_MODULE_STORAGE_KEY,
+  AUTH_POLL_INTERVAL,
+  AUTH_POLL_TIMEOUT,
+  tryParseJsonToken,
+} from './Tokens.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -23,6 +28,18 @@ export async function handleToToken(handle: JSHandle): Promise<string | false> {
   return tryParseJsonToken(raw);
 }
 
+/** Options for the per-frame waitForFunction poll. */
+const POLL_OPTS = { polling: AUTH_POLL_INTERVAL, timeout: AUTH_POLL_TIMEOUT } as const;
+
+/**
+ * Browser-side reader executed inside the frame's JS context.
+ * @param storageKey - Session-storage key to read.
+ * @returns Raw stringified storage value (empty string when missing).
+ */
+function readAuthModule(storageKey: string): string {
+  return sessionStorage.getItem(storageKey) ?? '';
+}
+
 /**
  * Build a per-frame waiter that resolves with the parsed token or false.
  * @param frame - Playwright frame.
@@ -30,10 +47,7 @@ export async function handleToToken(handle: JSHandle): Promise<string | false> {
  */
 function buildFrameWaiter(frame: Frame): Promise<string | false> {
   return frame
-    .waitForFunction((): string => sessionStorage.getItem('auth-module') ?? '', {
-      polling: AUTH_POLL_INTERVAL,
-      timeout: AUTH_POLL_TIMEOUT,
-    })
+    .waitForFunction(readAuthModule, AUTH_MODULE_STORAGE_KEY, POLL_OPTS)
     .then(handleToToken)
     .catch((): false => false);
 }

@@ -4,7 +4,7 @@
 
 import type { Page } from 'playwright-core';
 
-import { STORAGE_AUTH_KEYS, tryParseJsonToken } from './Tokens.js';
+import { prefixToken, STORAGE_AUTH_KEYS, tryParseJsonToken } from './Tokens.js';
 
 /**
  * Evaluate `sessionStorage.getItem` for each candidate key; return the first non-empty value.
@@ -13,7 +13,7 @@ import { STORAGE_AUTH_KEYS, tryParseJsonToken } from './Tokens.js';
  */
 export async function readMainStorageRaw(page: Page): Promise<string> {
   return page
-    .evaluate((keys: string[]): string => {
+    .evaluate((keys: readonly string[]): string => {
       const values = keys.map((k): string => sessionStorage.getItem(k) ?? '');
       const found = values.find(Boolean);
       return found ?? 'NONE';
@@ -30,7 +30,7 @@ function pickTokenFromRaw(raw: string): string | false {
   if (raw === 'NONE') return false;
   const jsonToken = tryParseJsonToken(raw);
   if (jsonToken) return jsonToken;
-  if (raw.length > 10) return raw;
+  if (raw.length > 10) return prefixToken(raw);
   return false;
 }
 

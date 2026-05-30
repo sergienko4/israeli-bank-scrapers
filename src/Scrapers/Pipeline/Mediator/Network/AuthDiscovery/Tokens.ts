@@ -7,14 +7,29 @@
 
 import type { Brand } from '../../../Types/Brand.js';
 
+/** WellKnown sessionStorage key name for the canonical auth blob. */
+export const AUTH_MODULE_STORAGE_KEY = 'auth-module' as const;
+
 /** WellKnown token field names found in auth response bodies. */
-export const TOKEN_BODY_FIELDS = ['token', 'calConnectToken', 'access_token', 'authToken', 'jwt'];
+export const TOKEN_BODY_FIELDS = [
+  'token',
+  'calConnectToken',
+  'access_token',
+  'authToken',
+  'jwt',
+] as const;
 
 /** WellKnown sessionStorage keys for auth tokens. */
-export const STORAGE_AUTH_KEYS = ['auth-module', 'auth', 'token', 'session', 'guid'];
+export const STORAGE_AUTH_KEYS = [
+  AUTH_MODULE_STORAGE_KEY,
+  'auth',
+  'token',
+  'session',
+  'guid',
+] as const;
 
 /** WellKnown request header names for auth. */
-export const AUTH_HEADER_NAMES = ['authorization', 'x-auth-token'];
+export const AUTH_HEADER_NAMES = ['authorization', 'x-auth-token'] as const;
 
 /** Max polling time for auth-module to appear (ms). */
 export const AUTH_POLL_TIMEOUT = 3_000;
@@ -44,9 +59,9 @@ export function prefixToken(token: string): PrefixedAuthToken {
 /**
  * Extract token from parsed auth JSON.
  * @param parsed - Parsed JSON object.
- * @returns Token string or false.
+ * @returns Prefixed token or false (preserves the PrefixedAuthToken brand).
  */
-function extractFromParsed(parsed: IStorageAuth): string | false {
+function extractFromParsed(parsed: IStorageAuth): PrefixedAuthToken | false {
   const token = parsed.auth?.calConnectToken ?? parsed.auth?.token;
   if (!token) return false;
   return prefixToken(token);
@@ -55,9 +70,9 @@ function extractFromParsed(parsed: IStorageAuth): string | false {
 /**
  * Try extracting a token from JSON sessionStorage value.
  * @param raw - Raw JSON string.
- * @returns Prefixed token or false.
+ * @returns Prefixed token (branded) or false.
  */
-export function tryParseJsonToken(raw: string): string | false {
+export function tryParseJsonToken(raw: string): PrefixedAuthToken | false {
   try {
     const parsed = JSON.parse(raw) as IStorageAuth;
     return extractFromParsed(parsed);

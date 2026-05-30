@@ -148,6 +148,19 @@ describe('fetchGraphql', () => {
       restore();
     }
   });
+
+  it('truncates and sanitises long GraphQL error messages (CR PR #280 #125)', async () => {
+    const longMsg = 'auth failed: '.repeat(40) + 'https://leaky.bank.co.il/secret?token=x';
+    const body = JSON.stringify({ data: null, errors: [{ message: longMsg }] });
+    const restore = stubFetch({ status: 200, body });
+    try {
+      const call = fetchGraphql('https://g', 'query');
+      await expect(call).rejects.toThrow(/^auth failed:.*\.\.\.$/);
+      await expect(call).rejects.toThrow(/^(?!.*leaky\.bank\.co\.il).*$/);
+    } finally {
+      restore();
+    }
+  });
 });
 
 describe('fetchGetWithinPage', () => {

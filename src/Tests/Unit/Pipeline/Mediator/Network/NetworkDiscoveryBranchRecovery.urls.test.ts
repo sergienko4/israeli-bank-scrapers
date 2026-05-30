@@ -193,6 +193,17 @@ describe('NetworkDiscovery — buildTransactionUrl / buildBalanceUrl branches (L
     const balUrl = discovery.buildBalanceUrl('77777');
     expect(balUrl).toBe('https://api.bank.co.il/infoAndBalance/77777');
   });
+
+  it('buildBalanceUrl preserves query string after account-id substitution (CR PR #280 #123)', async () => {
+    const page = makeMockPage();
+    const discovery = createNetworkDiscovery(page);
+    await simulate({
+      url: 'https://api.bank.co.il/infoAndBalance/99999?lang=he&v=2',
+      body: {},
+    });
+    const balUrl = discovery.buildBalanceUrl('77777');
+    expect(balUrl).toBe('https://api.bank.co.il/infoAndBalance/77777?lang=he&v=2');
+  });
 });
 
 describe('NetworkDiscovery — findCommonServicesUrl edges (L200, L251, L281)', () => {

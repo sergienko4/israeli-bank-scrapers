@@ -230,12 +230,15 @@ describe('AuthDiscovery — branch completion', () => {
     expect(token).toBe('Bearer alreadyPrefixed-token');
   });
 
-  it('Tier 3: main-page sessionStorage raw long value (>10 chars) returned', async () => {
-    // pageStorage is raw string (not JSON), longer than 10 chars
+  it('Tier 3: main-page sessionStorage raw long value (>10 chars) returned (prefixed)', async () => {
+    // pageStorage is raw string (not JSON), longer than 10 chars.
+    // After CR fix #114, bare long raws are prefixed via prefixToken (CALAuthScheme)
+    // so Tier 3a matches Tier 3b's contract.
     const longRaw = 'raw-session-token-value';
     const page = makePage([], longRaw);
     const token = await discoverAuthThreeTier(NO_EPS, page);
-    expect(token).toBe(longRaw);
+    expect(token).toContain(longRaw);
+    expect(token).toMatch(/^CALAuthScheme /);
   });
 
   it('Tier 3: main-page sessionStorage short value (< 10 chars) → falls through', async () => {
@@ -299,11 +302,13 @@ describe('AuthDiscovery — branch completion', () => {
   });
 
   it('tryParseJsonToken catches JSON parse errors', async () => {
-    // Not JSON but > 10 chars → raw-string path
+    // Not JSON but > 10 chars → raw-string path; bare GUID is prefixed
+    // with CALAuthScheme so Tier 3a matches Tier 3b's contract.
     const storage = 'not-{valid{json}}-but-long';
     const page = makePage([], storage);
     const token = await discoverAuthThreeTier(NO_EPS, page);
-    expect(token).toBe(storage);
+    expect(token).toContain(storage);
+    expect(token).toMatch(/^CALAuthScheme /);
   });
 
   it('extractFromParsed prefixes calConnectToken with CALAuthScheme', async () => {

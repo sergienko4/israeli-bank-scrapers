@@ -20,16 +20,39 @@ function findTokenInFlat(obj: Record<string, unknown>): string | false {
 }
 
 /**
- * Search a response body for token (flat + 1 level nested).
+ * Try one nested value (must be a non-null object) against the flat
+ * token-field table. Pulled out of {@link findTokenInNested} so the
+ * walker stays flat (max-depth ≤ 1).
+ * @param value - One nested value from the parsed body.
+ * @returns Prefixed token or false when no match (or not an object).
+ */
+function tryNestedValue(value: unknown): string | false {
+  if (typeof value !== 'object' || value === null) return false;
+  return findTokenInFlat(value as Record<string, unknown>);
+}
+
+/**
+ * Search every nested object value (one level deep) for a flat-token hit.
+ * Walks ALL nested entries — not just the first — so a winner deeper in
+ * the response body is not missed (CR PR #280 #112 fix).
+ * @param body - Parsed response body.
+ * @returns Prefixed token or false.
+ */
+function findTokenInNested(body: Record<string, unknown>): string | false {
+  const hits = Object.values(body).map(tryNestedValue);
+  const found = hits.find((h): boolean => h !== false);
+  return found ?? false;
+}
+
+/**
+ * Search a response body for token (flat + 1 level nested across ALL nested entries).
  * @param body - Parsed response body.
  * @returns Prefixed token or false.
  */
 export function searchBodyForToken(body: Record<string, unknown>): string | false {
   const direct = findTokenInFlat(body);
   if (direct) return direct;
-  const nested = Object.values(body).find((v): boolean => typeof v === 'object' && v !== null);
-  if (!nested) return false;
-  return findTokenInFlat(nested as Record<string, unknown>);
+  return findTokenInNested(body);
 }
 
 /**

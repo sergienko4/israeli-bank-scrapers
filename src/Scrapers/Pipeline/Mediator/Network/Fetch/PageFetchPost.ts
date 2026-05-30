@@ -8,6 +8,8 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
+import { redactUrlFull } from '../../../Types/PiiRedactor.js';
+import { JSON_CONTENT_TYPE } from '../FetchConfig.js';
 import type { JsonValue } from './Headers.js';
 import { LOG, logApiCall, logResponseIssues } from './Logging.js';
 import { parsePostResult } from './ParseResult.js';
@@ -109,15 +111,25 @@ async function runPostEvaluate(
   return context.evaluate(doPostFetch, args);
 }
 
+/** Conservative defaults used ONLY when the caller omitted `extraHeaders`. */
+const DEFAULT_JSON_HEADERS: Record<string, string> = {
+  'content-type': JSON_CONTENT_TYPE,
+  accept: JSON_CONTENT_TYPE,
+};
+
 /**
  * Build the post-evaluate args bundle from the public options.
+ * When the caller supplies `extraHeaders` we forward them verbatim
+ * (captured SPA headers stay the source of truth). When the caller
+ * omitted them entirely we fall back to a minimal JSON shape so the
+ * server receives a valid Content-Type without callers having to know.
  * @param url - Target URL.
  * @param opts - Public fetch options.
  * @returns Args ready for runPostEvaluate.
  */
 function buildPostArgs(url: string, opts: IFetchPostOptions): IPostEvaluateArgs {
-  const { data, extraHeaders = {} } = opts;
-  return { innerUrl: url, innerDataJson: JSON.stringify(data), innerExtraHeaders: extraHeaders };
+  const innerExtraHeaders = opts.extraHeaders ?? DEFAULT_JSON_HEADERS;
+  return { innerUrl: url, innerDataJson: JSON.stringify(opts.data), innerExtraHeaders };
 }
 
 /** Bundled args for {@link finalisePagePost} — keeps the sig under max-params. */
@@ -136,7 +148,7 @@ interface IFinalisePagePostArgs {
  */
 function finalisePagePost<TResult>(args: IFinalisePagePostArgs): Nullable<TResult> {
   const { text, status, url, startMs, opts } = args;
-  logApiCall(`POST(page) ${url.slice(-100)}`, status, Date.now() - startMs);
+  logApiCall(`POST(page) ${redactUrlFull(url).slice(-100)}`, status, Date.now() - startMs);
   logResponseIssues(status, text, url);
   return parsePostResult({ text, status, url, opts }) as TResult;
 }

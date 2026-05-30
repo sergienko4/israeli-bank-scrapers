@@ -7,7 +7,8 @@
 
 import ScraperError from '../../../../Base/ScraperError.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
-import { BODY_PREVIEW_LIMIT } from '../FetchConfig.js';
+import { redactUrlFull } from '../../../Types/PiiRedactor.js';
+import { BODY_PREVIEW_LIMIT, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
 import { getJsonHeaders, type JsonValue } from './Headers.js';
 import { LOG, logApiCall } from './Logging.js';
 
@@ -21,6 +22,44 @@ export interface IFetchGraphqlOptions {
 interface IGraphqlResponse<TResult> {
   data: TResult;
   errors?: { message: string }[];
+}
+
+/** Max length for sanitised GraphQL error message before truncation. */
+const GRAPHQL_ERR_MAX = 200;
+
+/** URL pattern stripped from sanitised messages to avoid PII leakage. */
+const URL_PATTERN = /https?:\/\/\S+/g;
+
+/** Whitespace-collapse pattern for {@link sanitizeGraphqlErrorMessage}. */
+const WHITESPACE_PATTERN = /\s+/g;
+
+/**
+ * Sanitise a GraphQL error message — collapse whitespace, mask any
+ * URL-shaped substrings, truncate to {@link GRAPHQL_ERR_MAX}. Preserves
+ * short tokens like "Unauthorized" / "bad query" so callers can still
+ * pattern-match on them; only PII-leaking URLs and runaway whitespace
+ * are removed.
+ * @param raw - Raw `firstError.message` from the GraphQL envelope.
+ * @returns Safe-to-log error message.
+ */
+function sanitizeGraphqlErrorMessage(raw: string): string {
+  const masked = raw.replaceAll(URL_PATTERN, '[redacted-url]');
+  const collapsed = masked.replaceAll(WHITESPACE_PATTERN, ' ').trim();
+  if (collapsed.length <= GRAPHQL_ERR_MAX) return collapsed;
+  return `${collapsed.slice(0, GRAPHQL_ERR_MAX)}...`;
+}
+
+/**
+ * Wrap `fetch()` with a {@link NETWORK_FETCH_TIMEOUT_MS} timeout via the
+ * Web-standard {@link AbortSignal.timeout} helper. Prevents indefinite
+ * hangs when bank APIs stall mid-response. Uses the native signal API
+ * (no `setTimeout` — architecture rule §11 forbids manual delays).
+ * @param url - Target URL.
+ * @param init - Native fetch init (caller MUST NOT set its own signal).
+ * @returns Native Response.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(NETWORK_FETCH_TIMEOUT_MS) });
 }
 
 /**
@@ -60,7 +99,7 @@ async function parseFetchGetResponse<TResult>(
   url: string,
   startMs: number,
 ): Promise<TResult> {
-  logApiCall(`GET ${url.slice(-100)}`, fetchResult.status, Date.now() - startMs);
+  logApiCall(`GET ${redactUrlFull(url).slice(-100)}`, fetchResult.status, Date.now() - startMs);
   const text = await readBodyWithPreview(fetchResult);
   assertGetStatusOk(fetchResult);
   return JSON.parse(text) as TResult;
@@ -79,7 +118,7 @@ export async function fetchGet<TResult>(
   const jsonHeaders = getJsonHeaders();
   const merged = Object.assign(jsonHeaders, extraHeaders);
   const startMs = Date.now();
-  const fetchResult = await fetch(url, { method: 'GET', headers: merged });
+  const fetchResult = await fetchWithTimeout(url, { method: 'GET', headers: merged });
   return parseFetchGetResponse<TResult>(fetchResult, url, startMs);
 }
 
@@ -108,8 +147,8 @@ function buildPostInit(
  * @returns Raw response body text.
  */
 async function sendPost(url: string, postInit: RequestInit, startMs: number): Promise<string> {
-  const result = await fetch(url, postInit);
-  logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
+  const result = await fetchWithTimeout(url, postInit);
+  logApiCall(`POST ${redactUrlFull(url).slice(-100)}`, result.status, Date.now() - startMs);
   return readBodyWithPreview(result);
 }
 
@@ -134,12 +173,14 @@ export async function fetchPost<TResult>(
 /**
  * Unwrap a GraphQL envelope — throw on first error, return data.
  * Extracted so {@link fetchGraphql} fits the 10-LoC cap.
+ * The error message is routed through {@link sanitizeGraphqlErrorMessage}
+ * so URL-shaped substrings and runaway whitespace cannot leak into logs.
  * @param result - GraphQL envelope from fetchPost.
  * @returns Underlying data field.
  */
 function unwrapGraphqlResult<TResult>(result: IGraphqlResponse<TResult>): TResult {
   const firstError = result.errors?.[0];
-  if (firstError) throw new ScraperError(firstError.message);
+  if (firstError) throw new ScraperError(sanitizeGraphqlErrorMessage(firstError.message));
   return result.data;
 }
 

@@ -59,7 +59,7 @@ function isNonSuccessStatus(v: JsonValue): boolean {
  * Body-error patterns derived from real network captures of every migrated
  * pipeline bank. New bank = optionally add ONE row. No per-bank code.
  */
-const AUTH_BODY_FAILURE_PATTERNS: readonly IBodyFailurePattern[] = [
+const AUTH_BODY_FAILURE_PATTERNS = [
   {
     field: 'LoginStatus',
     isFailure: isNonZeroNumber,
@@ -85,6 +85,6 @@ const AUTH_BODY_FAILURE_PATTERNS: readonly IBodyFailurePattern[] = [
     isFailure: isNonSuccessStatus,
     note: 'Discount — Login.Status !== "SUCCESS"',
   },
-];
+] as const satisfies readonly IBodyFailurePattern[];
 
 export default AUTH_BODY_FAILURE_PATTERNS;

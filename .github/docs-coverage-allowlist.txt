@@ -230,10 +230,12 @@ discoverFromStorage
 discoverFromAllFrames
 # Reason: discoverFromAllStorageKeys — AuthDiscovery/StorageScanAll.ts Tier 3c wrapper that scans every sessionStorage key in every frame for token-shaped JSON; composed by Orchestrator.storageTiers.
 discoverFromAllStorageKeys
-# Reason: pollForAuthModule — AuthDiscovery/PollTier.ts Tier 4 wrapper that polls every frame's sessionStorage for uth-module until it appears; composed by Orchestrator.fallbackTiers as the last-resort tier.
+# Reason: pollForAuthModule — AuthDiscovery/PollTier.ts Tier 4 wrapper that polls every frame's sessionStorage for auth-module until it appears; composed by Orchestrator.fallbackTiers as the last-resort tier.
 pollForAuthModule
-# Reason: AUTH_HEADER_NAMES — AuthDiscovery/Tokens.ts WellKnown auth request-header name table (uthorization, x-auth-token); static dispatch data shared by HeadersTier.
+# Reason: AUTH_HEADER_NAMES — AuthDiscovery/Tokens.ts WellKnown auth request-header name table (authorization, x-auth-token); static dispatch data shared by HeadersTier.
 AUTH_HEADER_NAMES
+# Reason: AUTH_MODULE_STORAGE_KEY — AuthDiscovery/Tokens.ts WellKnown sessionStorage key name for the canonical auth blob; static dispatch data shared by PollTier (closure-captured via waitForFunction arg, see CR PR #280 #111).
+AUTH_MODULE_STORAGE_KEY
 
 # --- Phase 8.5a / commit 3 (AuthFailureWatcher split) ---
 # All entries below are internal helpers exposed by the focused sub-modules
@@ -251,7 +253,7 @@ FAIL_STATUS_MAX
 NO_PARSED_BODY
 # Reason: IWatcherState — AuthFailureWatcher/Types.ts mutable internal-state shape passed between Factory, Inspector, Waiter, State sub-modules.
 IWatcherState
-# Reason: matchInRecord — AuthFailureWatcher/BodyClassifier.ts per-record pattern matcher; composed by classifyBodyAsFailure for both the top-level record and each nested object.
+# Reason: matchInRecord — AuthFailureWatcher/BodyClassifier.ts (file-private since CR PR #280 #118); kept for historical trace — the symbol is no longer exported and this row is therefore inert.
 matchInRecord
 # Reason: safeBodyPreview — AuthFailureWatcher/BodyReaders.ts safe response.text() + mask + truncate helper; composed by Inspector + Waiter for diagnostic previews.
 safeBodyPreview
@@ -263,6 +265,10 @@ RecordOutcome
 recordFailure
 # Reason: readDetected — AuthFailureWatcher/State.ts cross-await re-read of state.detected (defeats TS narrowing); composed by Waiter.awaitFailure.
 readDetected
+# Reason: DisposedFlag — AuthFailureWatcher/State.ts Brand<boolean> tag for readDisposed's return; type-system-only, satisfies Rule #15 (CR PR #280 #121 follow-up).
+DisposedFlag
+# Reason: readDisposed — AuthFailureWatcher/State.ts cross-await re-read of state.isDisposed (defeats TS narrowing); composed by Waiter.executeAwait (CR PR #280 #121 follow-up).
+readDisposed
 # Reason: inspectAuthResponse — AuthFailureWatcher/Inspector.ts two-layer detection runner; composed by buildResponseHandler.
 inspectAuthResponse
 # Reason: buildResponseHandler — AuthFailureWatcher/Inspector.ts factory returning the Playwright response listener closure; composed by Factory.createAuthFailureWatcher.
@@ -301,3 +307,11 @@ isFailureStatusCode
 # --- Phase 8.5a / commit 7 (Network §11 cap tightening 20→10) ---
 # Reason: IAwaitFailureArgs — AuthFailureWatcher/Waiter.ts bundled-args interface introduced solely to keep awaitFailure within the 10-LoC per-function cap; internal-only — no external consumer.
 IAwaitFailureArgs
+
+# --- Phase 8.5a / commit 9 (CR PR #280 follow-up — Scoring/ShapeAwareLogs export surface) ---
+# Reason: logShapeAwarePick — Scoring/ShapeAwareLogs.ts canonical `discover.shapeAware` Pino emitter; composed by every ShapeAware caller so the structured event lives in one place.
+logShapeAwarePick
+# Reason: ShapeAwareTier — Scoring/ShapeAwareLogs.ts type alias enumerating the seven shape-aware tier labels carried on `discover.shapeAware`; consumed by callers to type-check tier arguments.
+ShapeAwareTier
+# Reason: NETWORK_FETCH_TIMEOUT_MS — Network/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
+NETWORK_FETCH_TIMEOUT_MS

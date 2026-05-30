@@ -114,12 +114,13 @@ function checkCorsHeader(ep: IDiscoveredEndpoint, pageOrigin: string): string | 
   const cors = ep.responseHeaders['access-control-allow-origin'];
   if (!cors || cors === '*') return false;
   if (!isCorsCrossDomainSpa(cors, ep.url, pageOrigin)) return false;
-  logTier2Cors(cors, ep.url);
   return cors;
 }
 
 /**
  * Tier 2 — find SPA URL from CORS allow-origin response header.
+ * Emits the structured `logTier2Cors` line once for the winner so the
+ * trace count matches a single decision (CR PR #280 #130).
  * @param captured - All captured endpoints.
  * @param pageOrigin - Current page origin for filtering.
  * @returns SPA URL or false.
@@ -130,7 +131,9 @@ function findByCorsOrigin(
 ): string | false {
   const hit = captured.find((ep): boolean => checkCorsHeader(ep, pageOrigin) !== false);
   if (!hit) return false;
-  return checkCorsHeader(hit, pageOrigin);
+  const cors = checkCorsHeader(hit, pageOrigin);
+  if (cors !== false) logTier2Cors(cors, hit.url);
+  return cors;
 }
 
 /** URL pattern in JSON config bodies — matches `https://sub.domain.co.il` paths. */
@@ -188,7 +191,6 @@ function scanConfigBody(ep: IDiscoveredEndpoint, scan: IScanArgs): string | fals
   if (!urls) return false;
   const hit = urls.find((u): boolean => isSpaCandidate(u, scan.currentHost, scan.parentDomain));
   if (!hit) return false;
-  logTier3Config(hit, ep.url);
   return hit;
 }
 
@@ -218,7 +220,9 @@ function pickConfigHit(captured: readonly IDiscoveredEndpoint[], scan: IScanArgs
   const configEps = captured.filter((ep): boolean => isConfigOrSettingsUrl(ep.url));
   const hit = configEps.find((ep): boolean => scanConfigBody(ep, scan) !== false);
   if (!hit) return false;
-  return scanConfigBody(hit, scan);
+  const spaUrl = scanConfigBody(hit, scan);
+  if (spaUrl !== false) logTier3Config(spaUrl, hit.url);
+  return spaUrl;
 }
 
 /**

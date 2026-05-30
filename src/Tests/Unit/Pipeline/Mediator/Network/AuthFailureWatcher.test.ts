@@ -589,6 +589,44 @@ describe('AuthFailureWatcher — lifecycle (reset, dispose, await)', () => {
     if (stillFirst !== false) expect(stillFirst.status).toBe(401);
     watcher.dispose();
   });
+
+  it('waitForFailure returns false immediately when called on an already-disposed watcher', async () => {
+    const mockPage = makeMockPage();
+    const watcher = createAuthFailureWatcher(mockPage.handle);
+    watcher.dispose();
+    // Pre-await guard in awaitFailure: isDisposed=true → return false
+    // without ever consulting the wait predicate (Waiter.ts L101 branch).
+    const result = await watcher.waitForFailure(2000);
+    expect(result).toBe(false);
+  });
+
+  it('waitForFailure returns false when disposed mid-wait even if a matching response arrives (CR PR #280 #121)', async () => {
+    const mockPage = makeMockPage();
+    const watcher = createAuthFailureWatcher(mockPage.handle);
+    const waitPromise = watcher.waitForFailure(2000);
+    // Dispose during the wait — listener is removed but the pending
+    // Playwright waiter remains live in the mock (mirrors real
+    // Playwright: page.off does not clear armed waitForResponse).
+    watcher.dispose();
+    /**
+     * Fire an auth-4xx response so the wait predicate matches and
+     * `next` resolves with a real Response. The post-await readDisposed
+     * branch (Waiter.ts L87) then aborts BEFORE processAuthResponse.
+     * @returns True after firing.
+     */
+    const triggerOnce = (): boolean => {
+      const resp = makeResponse('https://bank.example/api/v2/auth/login', 401, '{"err":1}');
+      mockPage.fire(resp);
+      return true;
+    };
+    globalThis.setImmediate(triggerOnce);
+    const failure = await waitPromise;
+    expect(failure).toBe(false);
+    // State must remain clean — the disposed-after-await branch returned
+    // false without committing the response to state.detected.
+    const finalState = watcher.hasFailed();
+    expect(finalState).toBe(false);
+  });
 });
 
 describe('AuthFailureWatcher — edge cases (empty body, idempotency)', () => {
