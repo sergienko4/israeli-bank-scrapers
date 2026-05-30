@@ -931,6 +931,23 @@ export default tseslint.config(
     },
   },
 
+  // 7c. API-DIRECT-CALL CONFIGCONTRACTS — DEFAULT-EXPORT EXEMPTION
+  //
+  // Phase 8 split: the `ConfigContracts/` sub-tree under
+  // `ApiDirectCall/` houses focused, type-only modules carved out of
+  // the former IApiDirectCallConfig god-file. Most files re-export
+  // multiple symbols, but the top-level composer
+  // `ApiDirectCallConfig.ts` legitimately exports a single
+  // `interface IApiDirectCallConfig` — and interfaces cannot be
+  // default-exported as values. Same rationale as 7b; same narrow
+  // scope.
+  {
+    files: ['src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/**/*.ts'],
+    rules: {
+      'import-x/prefer-default-export': 'off',
+    },
+  },
+
   // 8. PHASE ROOT GUARD (THE FINAL CHECK)
   {
     files: ['src/Scrapers/Pipeline/Phases/*.ts'],
@@ -1790,6 +1807,70 @@ export default tseslint.config(
             'security-classified and cannot be bypassed via PII_REDACTION=off.',
         },
       ],
+    },
+  },
+
+  // 14. API-DIRECT-CALL CONFIGCONTRACTS FILE-SIZE + PER-FN GUARD
+  //
+  // Phase 8 split the 369-LoC `IApiDirectCallConfig.ts` god-type-tree
+  // into six concern-slice sub-modules under
+  // `Mediator/ApiDirectCall/ConfigContracts/` (mirror of Phase 4
+  // Network/, Phase 5 Scrape/, Phase 6 PiiRedactor/ splits).
+  // Section 7 turns `max-lines` off across all `Mediator/**` files;
+  // without a re-imposed bound on the ConfigContracts sub-folder,
+  // future commits could quietly re-blob one of the new homes back
+  // toward four-digit line counts.
+  //
+  // Caps (canonical CLEAN_CODE.md "Code Quality" — matches §13
+  // PiiRedactor; type-only files should stay even smaller than
+  // logic-bearing clusters §11/§12, so per-fn cap is the strict 10):
+  //   • `max-lines` = **150** effective LoC (matches §11/§12/§13)
+  //   • `max-lines-per-function` = **10** effective LoC (matches
+  //     CLAUDE.md "Max 10 lines per method" + §13 precedent)
+  //   • `complexity` = **10** + `@typescript-eslint/max-params` = **3**
+  //     are inherited from §5/§6 globals — the guideline-coverage
+  //     gate (`npm run lint:guideline-coverage`) asserts the
+  //     resolved values stay ≤ canonical.
+  //   • `sonarjs/no-identical-functions` catches duplicate
+  //     factory / helper bodies if any are added later.
+  //   • `sonarjs/no-duplicate-string` threshold:3 surfaces repeated
+  //     string literals (signer-algorithm tags, ref-token prefixes)
+  //     before they harden into hardcoded constants.
+  //
+  // The legacy `IApiDirectCallConfig.ts` shim itself is intentionally
+  // left unconstrained — Section 7 already allows it, and this guard
+  // is about preventing regression of the new homes, not the
+  // tombstone re-export.
+  //
+  // Canary:
+  //   • `no-api-direct-call-blob.canary.ts` — proves `max-lines`
+  //     fires (file > 150 LoC) so the guard cannot silently rot.
+  //
+  // CR feedback (PR #279, finding F1): canary now uses 71 *unique*
+  // function bodies (each returns its own integer literal) so the
+  // co-enabled `sonarjs/no-identical-functions` (S4144) cannot
+  // silently fire on duplicate bodies and mask a future
+  // `max-lines:150` regression. Note that rule-firing identity
+  // (asserting the *specific* error ID, not just `errorCount > 0`)
+  // is tracked separately as Phase 8.5c canary-infrastructure
+  // hardening — that work also adds the `tsconfig.eslint.json`
+  // needed to surface the intended rule instead of a fallback parse
+  // error caused by the canary dir being excluded from the main
+  // tsconfig.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-api-direct-call-blob.canary.ts',
+    ],
+    plugins: { sonarjs },
+    rules: {
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'sonarjs/no-identical-functions': 'error',
+      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
     },
   },
 );
