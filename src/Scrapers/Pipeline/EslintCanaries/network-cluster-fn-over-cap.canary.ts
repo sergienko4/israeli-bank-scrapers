@@ -1,7 +1,9 @@
 // Canary: Phase 4 / PR #276 Section 11 per-function size guard —
-// asserts `max-lines-per-function: 20` fires on Network/ sub-modules.
-// The single function below is padded above the 20 skipBlankLines +
-// skipComments ceiling so verify.sh confirms the rule fires.
+// asserts `max-lines-per-function: 10` fires on Network/ sub-modules.
+// Phase 8.5a tightened the cap from 20 → 10 after draining the three
+// grandfathered files. The single function below is padded above the
+// 10 skipBlankLines + skipComments ceiling so verify.sh confirms the
+// rule fires.
 
 function canaryFunctionOverCap(): number {
   const s1 = 1;

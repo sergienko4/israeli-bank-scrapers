@@ -140,3 +140,178 @@ graphemeCount
 # --- Phase 6 follow-up: CR review #5 shared-table extract (PR #278) ---
 # Reason: LITERAL_TEXT_PII_PATTERNS — CommonHelpers.ts regex table shared by JsonBody.applyFallbackPatterns AND Html.redactHtml; extracted from the two former duplicate constants per CR review finding #5 (DRY / no-duplication guideline).
 LITERAL_TEXT_PII_PATTERNS
+
+# --- Phase 8.5a / Network canonical-10 drain (PR pending) ---
+# All entries below are internal helpers exposed by the focused sub-modules
+# under Mediator/Network/Fetch/ and Mediator/Network/AuthDiscovery/. They
+# are composed by their parent module (and consumed by the legacy shim's
+# re-export) and intentionally NOT part of the user-facing Pipeline API.
+# The barrel (index.ts) re-exports only the historical public surface.
+
+# Reason: getJsonHeaders — Fetch/Headers.ts JSON Content-Type/Accept builder; composed inside fetchPost/fetchGet to keep the parent functions <=10 LoC.
+getJsonHeaders
+# Reason: LogEmitted — Fetch/Logging.ts Brand<true> tag for log-emit functions; type-system-only, satisfies Rule #15 (no exported primitive returns).
+LogEmitted
+# Reason: logApiCall — Fetch/Logging.ts emit helper invoked by NativeFetch + PageFetchPost; centralizes the request-start LOG.info shape.
+logApiCall
+# Reason: logResponseIssues — Fetch/Logging.ts emit helper invoked by parseGetResult/parsePostResult; centralizes the response-anomaly LOG.warn shape.
+logResponseIssues
+# Reason: IFetchGraphqlOptions — Fetch/NativeFetch.ts option-bag interface for fetchGraphql; shared between the native call site and its test fixtures.
+IFetchGraphqlOptions
+# Reason: fetchGraphql — Fetch/NativeFetch.ts thin wrapper over fetchPost with GraphQL Content-Type defaults; re-exported by the Fetch barrel for historical callers.
+fetchGraphql
+# Reason: fetchGetWithinPage — Fetch/PageFetchGet.ts page-context evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
+fetchGetWithinPage
+# Reason: fetchGetWithinPageWithHeaders — Fetch/PageFetchGet.ts variant of fetchGetWithinPage with explicit request headers; re-exported for historical callers.
+fetchGetWithinPageWithHeaders
+# Reason: IFetchPostOptions — Fetch/PageFetchPost.ts option-bag interface for fetchPostWithinPage; shared between the page-eval call site and its test fixtures.
+IFetchPostOptions
+# Reason: fetchPostWithinPage — Fetch/PageFetchPost.ts page-context POST evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
+fetchPostWithinPage
+# Reason: EMPTY_RESULT — Fetch/ParseResult.ts sentinel literal returned by parseGetResult/parsePostResult on empty bodies; centralized to avoid sentinel duplication across sub-modules.
+EMPTY_RESULT
+# Reason: IParseErrorOpts — Fetch/ParseResult.ts option-bag interface for handleParseError; composed by parseGetResult/parsePostResult.
+IParseErrorOpts
+# Reason: IParseGetOpts — Fetch/ParseResult.ts option-bag interface for parseGetResult; composed by NativeFetch + PageFetchGet sub-modules.
+IParseGetOpts
+# Reason: IParsePostOpts — Fetch/ParseResult.ts option-bag interface for parsePostResult; composed by NativeFetch + PageFetchPost sub-modules.
+IParsePostOpts
+# Reason: handleParseError — Fetch/ParseResult.ts shared catch-block helper that emits LOG.warn + returns EMPTY_RESULT; composed by parseGetResult/parsePostResult.
+handleParseError
+# Reason: parseGetResult — Fetch/ParseResult.ts shared response-parser for GET-style calls; composed by NativeFetch.parseFetchGetResponse + PageFetchGet.evaluateGet.
+parseGetResult
+# Reason: parsePostResult — Fetch/ParseResult.ts shared response-parser for POST-style calls; composed by NativeFetch.fetchPost + PageFetchPost.runPostEvaluate.
+parsePostResult
+# Reason: WafBlockDescription — Fetch/WafDetection.ts Brand<string> tag for WAF detection results; type-system-only, consumed only by WafBlockError construction.
+WafBlockDescription
+# Reason: detectWafBlock — Fetch/WafDetection.ts shared detector invoked by fetchPost + fetchGet to short-circuit response parsing on WAF interception; re-exported by the Fetch barrel for historical callers.
+detectWafBlock
+# Reason: extractAuthHeader — AuthDiscovery/HeadersTier.ts per-endpoint header-extraction helper; composed by Tier 1 (discoverFromHeaders).
+extractAuthHeader
+# Reason: searchBodyForToken — AuthDiscovery/ResponseTier.ts response-body walker that finds WellKnown token fields (flat + 1 level nested); composed by Tier 2 (discoverFromResponses).
+searchBodyForToken
+# Reason: readMainStorageRaw — AuthDiscovery/StorageMain.ts raw sessionStorage reader for the main page frame; composed by Tier 3a (discoverFromStorage).
+readMainStorageRaw
+# Reason: readAllJsonStorageValues — AuthDiscovery/StorageScanAll.ts JSON-shape filter over sessionStorage keys in a single frame; composed by Tier 3c (discoverFromAllStorageKeys).
+readAllJsonStorageValues
+# Reason: checkOneValue — AuthDiscovery/StorageFrames.ts single-value token extractor with JSON-then-raw fallback; composed by Tier 3b (discoverFromAllFrames).
+checkOneValue
+# Reason: handleToToken — AuthDiscovery/PollTier.ts Playwright JSHandle-to-token resolver; composed by Tier 4 (pollForAuthModule).
+handleToToken
+# Reason: TOKEN_BODY_FIELDS — AuthDiscovery/Tokens.ts WellKnown auth-body field-name table; static dispatch data shared by ResponseTier search logic.
+TOKEN_BODY_FIELDS
+# Reason: STORAGE_AUTH_KEYS — AuthDiscovery/Tokens.ts WellKnown sessionStorage key-name table; static dispatch data shared by StorageMain + StorageFrames.
+STORAGE_AUTH_KEYS
+# Reason: AUTH_POLL_TIMEOUT — AuthDiscovery/Tokens.ts polling timeout constant (ms); consumed by PollTier.buildFrameWaiter.
+AUTH_POLL_TIMEOUT
+# Reason: AUTH_POLL_INTERVAL — AuthDiscovery/Tokens.ts polling interval constant (ms); consumed by PollTier.buildFrameWaiter.
+AUTH_POLL_INTERVAL
+# Reason: IStorageAuth — AuthDiscovery/Tokens.ts parsed JSON-storage auth shape; consumed by extractFromParsed in tryParseJsonToken.
+IStorageAuth
+# Reason: PrefixedAuthToken — AuthDiscovery/Tokens.ts Brand<string> tag for prefixToken's return type; type-system-only, satisfies Rule #15.
+PrefixedAuthToken
+# Reason: prefixToken — AuthDiscovery/Tokens.ts auth-scheme prefix helper (CALAuthScheme/Bearer); composed by ResponseTier + StorageFrames.
+prefixToken
+# Reason: tryParseJsonToken — AuthDiscovery/Tokens.ts safe JSON-parse-and-extract for sessionStorage-stored auth blobs; composed by StorageMain + StorageFrames + StorageScanAll + PollTier.
+tryParseJsonToken
+
+# --- Phase 8.5a / commit 2 follow-up (AuthDiscovery tier helpers) ---
+# Tier orchestrator helpers introduced by the AuthDiscovery sub-module split.
+# Each is composed by the wider discoverAuthThreeTier orchestrator and is
+# NOT part of the user-facing Pipeline API.
+
+# Reason: discoverFromHeaders — AuthDiscovery/HeadersTier.ts Tier 1 wrapper that scans captured endpoints for an Authorization-shaped request header; composed by Orchestrator.fallbackTiers.
+discoverFromHeaders
+# Reason: discoverFromResponses — AuthDiscovery/ResponseTier.ts Tier 2 wrapper that walks WK-auth response bodies for a token field; composed by Orchestrator as the first attempted tier.
+discoverFromResponses
+# Reason: discoverFromStorage — AuthDiscovery/StorageMain.ts Tier 3a wrapper that reads the main-page sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
+discoverFromStorage
+# Reason: discoverFromAllFrames — AuthDiscovery/StorageFrames.ts Tier 3b wrapper that scans every iframe sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
+discoverFromAllFrames
+# Reason: discoverFromAllStorageKeys — AuthDiscovery/StorageScanAll.ts Tier 3c wrapper that scans every sessionStorage key in every frame for token-shaped JSON; composed by Orchestrator.storageTiers.
+discoverFromAllStorageKeys
+# Reason: pollForAuthModule — AuthDiscovery/PollTier.ts Tier 4 wrapper that polls every frame's sessionStorage for auth-module until it appears; composed by Orchestrator.fallbackTiers as the last-resort tier.
+pollForAuthModule
+# Reason: AUTH_HEADER_NAMES — AuthDiscovery/Tokens.ts WellKnown auth request-header name table (authorization, x-auth-token); static dispatch data shared by HeadersTier.
+AUTH_HEADER_NAMES
+# Reason: AUTH_MODULE_STORAGE_KEY — AuthDiscovery/Tokens.ts WellKnown sessionStorage key name for the canonical auth blob; static dispatch data shared by PollTier (closure-captured via waitForFunction arg, see CR PR #280 #111).
+AUTH_MODULE_STORAGE_KEY
+
+# --- Phase 8.5a / commit 3 (AuthFailureWatcher split) ---
+# All entries below are internal helpers exposed by the focused sub-modules
+# under Mediator/Network/AuthFailureWatcher/. They are composed by the
+# Factory's createAuthFailureWatcher/createFrozenAuthFailureWatcher entry
+# points and intentionally NOT part of the user-facing Pipeline API.
+
+# Reason: BODY_PREVIEW_LIMIT — AuthFailureWatcher/Types.ts mask-truncate length for diagnostic body previews; shared by BodyReaders + Inspector.
+BODY_PREVIEW_LIMIT
+# Reason: FAIL_STATUS_MIN — AuthFailureWatcher/Types.ts inclusive lower bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
+FAIL_STATUS_MIN
+# Reason: FAIL_STATUS_MAX — AuthFailureWatcher/Types.ts inclusive upper bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
+FAIL_STATUS_MAX
+# Reason: NO_PARSED_BODY — AuthFailureWatcher/Types.ts sentinel string returned by BodyReaders.safeParsedBody when JSON parse fails; composed by Inspector.
+NO_PARSED_BODY
+# Reason: IWatcherState — AuthFailureWatcher/Types.ts mutable internal-state shape passed between Factory, Inspector, Waiter, State sub-modules.
+IWatcherState
+# Reason: matchInRecord — AuthFailureWatcher/BodyClassifier.ts (file-private since CR PR #280 #118); kept for historical trace — the symbol is no longer exported and this row is therefore inert.
+matchInRecord
+# Reason: safeBodyPreview — AuthFailureWatcher/BodyReaders.ts safe response.text() + mask + truncate helper; composed by Inspector + Waiter for diagnostic previews.
+safeBodyPreview
+# Reason: safeParsedBody — AuthFailureWatcher/BodyReaders.ts safe response.text() + JSON.parse helper; composed by Inspector for L2 (body-error) detection.
+safeParsedBody
+# Reason: RecordOutcome — AuthFailureWatcher/State.ts Brand<boolean> tag for recordFailure's return; type-system-only, satisfies Rule #15.
+RecordOutcome
+# Reason: recordFailure — AuthFailureWatcher/State.ts idempotent state-mutator + LOG.debug emitter; composed by Inspector (both layers) + Waiter.
+recordFailure
+# Reason: readDetected — AuthFailureWatcher/State.ts cross-await re-read of state.detected (defeats TS narrowing); composed by Waiter.awaitFailure.
+readDetected
+# Reason: DisposedFlag — AuthFailureWatcher/State.ts Brand<boolean> tag for readDisposed's return; type-system-only, satisfies Rule #15 (CR PR #280 #121 follow-up).
+DisposedFlag
+# Reason: readDisposed — AuthFailureWatcher/State.ts cross-await re-read of state.isDisposed (defeats TS narrowing); composed by Waiter.executeAwait (CR PR #280 #121 follow-up).
+readDisposed
+# Reason: inspectAuthResponse — AuthFailureWatcher/Inspector.ts two-layer detection runner; composed by buildResponseHandler.
+inspectAuthResponse
+# Reason: buildResponseHandler — AuthFailureWatcher/Inspector.ts factory returning the Playwright response listener closure; composed by Factory.createAuthFailureWatcher.
+buildResponseHandler
+# Reason: buildWatcherApi — AuthFailureWatcher/Factory.ts builder that returns the IAuthFailureWatcher public object bound to a page + state; composed by both createAuthFailureWatcher and tests.
+buildWatcherApi
+# Reason: AuthMatcherBool — AuthFailureWatcher/UrlMatchers.ts Brand<boolean> tag for isAuthEndpointUrl + isFailureStatusCode return types; type-system-only, satisfies Rule #15.
+AuthMatcherBool
+
+# --- Phase 8.5a / commit 4 follow-up (AuthFailureWatcher public-surface paths) ---
+# These symbols existed in BASE's monolithic Mediator/Network/AuthFailureWatcher.ts
+# and constitute the public AuthFailureWatcher API. Phase 8.5a/commit 3 moved
+# them into focused sub-modules under .../AuthFailureWatcher/. The docs-coverage
+# gate diffs per-file, so the new file paths look "newly introduced" even though
+# the symbol names are unchanged. Allowlisted because the public API surface is
+# identical; no new exports were added.
+
+# Reason: classifyBodyAsFailure — AuthFailureWatcher/BodyClassifier.ts (was AuthFailureWatcher.ts) public body-pattern matcher; reused by L2 inspection.
+classifyBodyAsFailure
+# Reason: createAuthFailureWatcher — AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) primary entry point; used by DiscoveryEngine.buildIoSlice.
+createAuthFailureWatcher
+# Reason: createFrozenAuthFailureWatcher — AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) frozen-replay variant; used by FrozenReplay.buildBaseFrozenDiscovery.
+createFrozenAuthFailureWatcher
+# Reason: AuthFailureClassifier — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) classifier-function type alias; consumed externally.
+AuthFailureClassifier
+# Reason: IAuthFailure — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) failure-payload interface returned to callers.
+IAuthFailure
+# Reason: IAuthFailureWatcher — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) primary watcher contract returned by the Factory.
+IAuthFailureWatcher
+# Reason: IBodyFailurePattern — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) body-pattern shape used by AUTH_BODY_FAILURE_PATTERNS table.
+IBodyFailurePattern
+# Reason: isAuthEndpointUrl — AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public URL-pattern predicate; reused by inspection helpers.
+isAuthEndpointUrl
+# Reason: isFailureStatusCode — AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public 4xx status predicate; reused by inspection helpers.
+isFailureStatusCode
+# --- Phase 8.5a / commit 7 (Network §11 cap tightening 20→10) ---
+# Reason: IAwaitFailureArgs — AuthFailureWatcher/Waiter.ts bundled-args interface introduced solely to keep awaitFailure within the 10-LoC per-function cap; internal-only — no external consumer.
+IAwaitFailureArgs
+
+# --- Phase 8.5a / commit 9 (CR PR #280 follow-up — Scoring/ShapeAwareLogs export surface) ---
+# Reason: logShapeAwarePick — Scoring/ShapeAwareLogs.ts canonical `discover.shapeAware` Pino emitter; composed by every ShapeAware caller so the structured event lives in one place.
+logShapeAwarePick
+# Reason: ShapeAwareTier — Scoring/ShapeAwareLogs.ts type alias enumerating the seven shape-aware tier labels carried on `discover.shapeAware`; consumed by callers to type-check tier arguments.
+ShapeAwareTier
+# Reason: NETWORK_FETCH_TIMEOUT_MS — Network/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
+NETWORK_FETCH_TIMEOUT_MS

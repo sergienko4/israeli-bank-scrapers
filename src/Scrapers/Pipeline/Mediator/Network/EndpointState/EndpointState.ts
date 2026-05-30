@@ -34,6 +34,22 @@ const FULL_TXN_PARAMS = [
 const ACCOUNT_ID_SEGMENT_PATTERN = /^\d{5,}$/;
 
 /**
+ * Match a captured endpoint against an account-id-plus-txn-pattern.
+ * @param accountId - Account ID to match in URL.
+ * @param txnPatterns - WK transactions URL patterns.
+ * @param ep - Captured endpoint to test.
+ * @returns True when both the account ID and a txn pattern match.
+ */
+function txnUrlPredicate(
+  accountId: string,
+  txnPatterns: readonly RegExp[],
+  ep: IDiscoveredEndpoint,
+): boolean {
+  if (!ep.url.includes(accountId)) return false;
+  return txnPatterns.some((p): boolean => p.test(ep.url));
+}
+
+/**
  * Find the first captured endpoint that BOTH contains the account ID
  * AND matches a WK transactions URL pattern. Filters out unrelated
  * endpoints (e.g. `general/getUserPilotInfo/<accountId>`) that share
@@ -49,11 +65,24 @@ function findTxnUrlWithAccountId(
   accountId: string,
 ): IDiscoveredEndpoint | false {
   const txnPatterns = PIPELINE_WELL_KNOWN_API.transactions;
-  const hit = captured.find((ep): boolean => {
-    if (!ep.url.includes(accountId)) return false;
-    return txnPatterns.some((p): boolean => p.test(ep.url));
-  });
+  const predicate = txnUrlPredicate.bind(null, accountId, txnPatterns);
+  const hit = captured.find(predicate);
   return hit ?? false;
+}
+
+/**
+ * Stitch a full transaction URL from a captured hit's URL prefix.
+ * @param hitUrl - Captured endpoint URL containing the account ID.
+ * @param accountId - Account number used as the split anchor.
+ * @param startDate - Formatted start date.
+ * @returns Assembled txn URL or false when the split has no prefix.
+ */
+function assembleTxnUrl(hitUrl: string, accountId: string, startDate: string): string | false {
+  const parts = hitUrl.split(accountId);
+  if (parts.length < 2) return false;
+  const prefix = parts[0];
+  const params = [...FULL_TXN_PARAMS, `FromDate=${startDate}`].join('&');
+  return `${prefix}${accountId}/Date?${params}`;
 }
 
 /**
@@ -80,15 +109,54 @@ function buildTxnUrlFromTraffic(
 ): string | false {
   const hit = findTxnUrlWithAccountId(captured, accountId);
   if (!hit) return false;
-  const parts = hit.url.split(accountId);
-  if (parts.length < 2) return false;
-  const prefix = parts[0];
-  const params = [...FULL_TXN_PARAMS, `FromDate=${startDate}`].join('&');
-  return `${prefix}${accountId}/Date?${params}`;
+  return assembleTxnUrl(hit.url, accountId, startDate);
 }
 
 /**
- * Build a balance URL from discovered traffic pattern.
+ * Find the first captured endpoint matching a WK balance pattern.
+ * @param captured - Captured endpoints.
+ * @returns First balance-URL hit or false.
+ */
+function findBalanceHit(captured: readonly IDiscoveredEndpoint[]): IDiscoveredEndpoint | false {
+  const hit = captured.find((ep): boolean =>
+    PIPELINE_WELL_KNOWN_API.balance.some((p): boolean => p.test(ep.url)),
+  );
+  return hit ?? false;
+}
+
+/**
+ * Substitute the caller-supplied account ID into the captured
+ * balance-URL path. When the final path segment is a numeric
+ * account-id slot (5+ digits), replace it; otherwise append.
+ * @param pathOnly - Captured balance URL minus any query string.
+ * @param accountId - Account ID to substitute.
+ * @returns Final balance URL.
+ */
+function substituteAccountInPath(pathOnly: string, accountId: string): string {
+  const segments = pathOnly.split('/');
+  const lastSegMaybe = segments.at(-1);
+  if (lastSegMaybe !== undefined && ACCOUNT_ID_SEGMENT_PATTERN.test(lastSegMaybe)) {
+    segments[segments.length - 1] = accountId;
+    return segments.join('/');
+  }
+  return `${pathOnly}/${accountId}`;
+}
+
+/**
+ * Split a URL into path and query parts. Preserves the leading '?' on
+ * the query so callers can re-concatenate without further branching.
+ * @param url - Full URL to split.
+ * @returns `{ path, query }` — query is the empty string when absent.
+ */
+function splitUrlAtQuery(url: string): { path: string; query: string } {
+  const qIdx = url.indexOf('?');
+  if (qIdx === -1) return { path: url, query: '' };
+  return { path: url.slice(0, qIdx), query: url.slice(qIdx) };
+}
+
+/**
+ * Build a balance URL from discovered traffic pattern. Preserves any
+ * query string after the account-id substitution (CR PR #280 #123 fix).
  * @param captured - Captured endpoints.
  * @param accountId - Account number.
  * @returns Balance URL or false.
@@ -97,21 +165,10 @@ function buildBalUrlFromTraffic(
   captured: readonly IDiscoveredEndpoint[],
   accountId: string,
 ): string | false {
-  const balanceHits = captured.filter((ep): boolean =>
-    PIPELINE_WELL_KNOWN_API.balance.some((p): boolean => p.test(ep.url)),
-  );
-  if (balanceHits.length === 0) return false;
-  const templateUrl = balanceHits[0].url;
-  const pathOnly = templateUrl.split('?')[0];
-  const segments = pathOnly.split('/');
-  const lastSegMaybe = segments.at(-1);
-  if (lastSegMaybe === undefined) return false;
-  const isAccountInUrl = ACCOUNT_ID_SEGMENT_PATTERN.test(lastSegMaybe);
-  if (isAccountInUrl) {
-    segments[segments.length - 1] = accountId;
-    return segments.join('/');
-  }
-  return `${pathOnly}/${accountId}`;
+  const hit = findBalanceHit(captured);
+  if (!hit) return false;
+  const { path, query } = splitUrlAtQuery(hit.url);
+  return `${substituteAccountInPath(path, accountId)}${query}`;
 }
 
 /**

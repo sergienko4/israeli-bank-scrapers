@@ -48,6 +48,20 @@ function isCrossDomainApiCall(ep: IDiscoveredEndpoint): boolean {
 }
 
 /**
+ * Emit the structured Tier 1 referer-discovery log line. Returns
+ * `true` so the caller can chain without a `void`-typed helper.
+ * @param ref - Discovered referer.
+ * @param epUrl - Captured endpoint URL.
+ * @returns Always true.
+ */
+function logTier1Referer(ref: string, epUrl: string): true {
+  LOG.debug({
+    message: `SPA Tier1 (referer): ${redactUrlFull(ref)} ` + `from ${redactUrlFull(epUrl)}`,
+  });
+  return true;
+}
+
+/**
  * Tier 1 — find SPA URL from cross-domain referer header.
  * @param captured - All captured endpoints.
  * @returns SPA URL or false.
@@ -57,11 +71,36 @@ function findByReferer(captured: readonly IDiscoveredEndpoint[]): string | false
   if (!apiEndpoint) return false;
   const ref = apiEndpoint.requestHeaders.referer;
   if (!ref) return false;
-  LOG.debug({
-    message:
-      `SPA Tier1 (referer): ${redactUrlFull(ref)} ` + `from ${redactUrlFull(apiEndpoint.url)}`,
-  });
+  logTier1Referer(ref, apiEndpoint.url);
   return ref;
+}
+
+/**
+ * Resolve whether a CORS header truly reveals a cross-domain SPA.
+ * Pulled out of {@link checkCorsHeader} so the parser fits the cap.
+ * @param cors - Access-Control-Allow-Origin header.
+ * @param epUrl - Captured endpoint URL.
+ * @param pageOrigin - Current page origin.
+ * @returns True when `cors` is a cross-domain SPA URL.
+ */
+function isCorsCrossDomainSpa(cors: string, epUrl: string, pageOrigin: string): boolean {
+  const corsParsed = safeParseWindowUrl(cors);
+  const epParsed = safeParseWindowUrl(epUrl);
+  if (corsParsed === false || epParsed === false) return false;
+  return corsParsed.origin !== epParsed.origin && corsParsed.origin !== pageOrigin;
+}
+
+/**
+ * Emit the structured Tier 2 CORS-discovery log line.
+ * @param cors - Discovered CORS allow-origin.
+ * @param epUrl - Captured endpoint URL.
+ * @returns Always true.
+ */
+function logTier2Cors(cors: string, epUrl: string): true {
+  LOG.debug({
+    message: `SPA Tier2 (CORS): ${redactUrlFull(cors)} from ${redactUrlFull(epUrl)}`,
+  });
+  return true;
 }
 
 /**
@@ -74,19 +113,14 @@ function findByReferer(captured: readonly IDiscoveredEndpoint[]): string | false
 function checkCorsHeader(ep: IDiscoveredEndpoint, pageOrigin: string): string | false {
   const cors = ep.responseHeaders['access-control-allow-origin'];
   if (!cors || cors === '*') return false;
-  const corsParsed = safeParseWindowUrl(cors);
-  const epParsed = safeParseWindowUrl(ep.url);
-  if (corsParsed === false || epParsed === false) return false;
-  const isCross = corsParsed.origin !== epParsed.origin && corsParsed.origin !== pageOrigin;
-  if (!isCross) return false;
-  LOG.debug({
-    message: `SPA Tier2 (CORS): ${redactUrlFull(cors)} from ${redactUrlFull(ep.url)}`,
-  });
+  if (!isCorsCrossDomainSpa(cors, ep.url, pageOrigin)) return false;
   return cors;
 }
 
 /**
  * Tier 2 — find SPA URL from CORS allow-origin response header.
+ * Emits the structured `logTier2Cors` line once for the winner so the
+ * trace count matches a single decision (CR PR #280 #130).
  * @param captured - All captured endpoints.
  * @param pageOrigin - Current page origin for filtering.
  * @returns SPA URL or false.
@@ -97,7 +131,9 @@ function findByCorsOrigin(
 ): string | false {
   const hit = captured.find((ep): boolean => checkCorsHeader(ep, pageOrigin) !== false);
   if (!hit) return false;
-  return checkCorsHeader(hit, pageOrigin);
+  const cors = checkCorsHeader(hit, pageOrigin);
+  if (cors !== false) logTier2Cors(cors, hit.url);
+  return cors;
 }
 
 /** URL pattern in JSON config bodies — matches `https://sub.domain.co.il` paths. */
@@ -131,6 +167,19 @@ interface IScanArgs {
 }
 
 /**
+ * Emit the structured Tier 3 config-body discovery log line.
+ * @param hit - Discovered SPA URL inside the config body.
+ * @param epUrl - Config endpoint URL.
+ * @returns Always true.
+ */
+function logTier3Config(hit: string, epUrl: string): true {
+  LOG.debug({
+    message: `SPA Tier3 (config): ${redactUrlFull(hit)} from ${redactUrlFull(epUrl)}`,
+  });
+  return true;
+}
+
+/**
  * Scan a single config endpoint body for SPA URLs.
  * @param ep - Config endpoint.
  * @param scan - Current host + parent domain.
@@ -142,10 +191,38 @@ function scanConfigBody(ep: IDiscoveredEndpoint, scan: IScanArgs): string | fals
   if (!urls) return false;
   const hit = urls.find((u): boolean => isSpaCandidate(u, scan.currentHost, scan.parentDomain));
   if (!hit) return false;
-  LOG.debug({
-    message: `SPA Tier3 (config): ${redactUrlFull(hit)} from ${redactUrlFull(ep.url)}`,
-  });
   return hit;
+}
+
+/**
+ * Resolve scan args (currentHost + parentDomain) from the page origin.
+ * Pulled out of {@link findByConfigBody} so the orchestrator fits cap.
+ * @param currentOrigin - Current page origin.
+ * @returns Bundled scan args or false on parse failure.
+ */
+function resolveScanArgs(currentOrigin: string): IScanArgs | false {
+  const parsedOrigin = safeParseWindowUrl(currentOrigin);
+  if (parsedOrigin === false) return false;
+  const currentHost = parsedOrigin.hostname;
+  const parentDomain = currentHost.split('.').slice(-3).join('.');
+  return { currentHost, parentDomain };
+}
+
+/**
+ * Pick the first config endpoint whose body yields a Tier 3 SPA hit.
+ * Pulled out of {@link findByConfigBody} so the orchestrator stays
+ * within the 10-LoC cap.
+ * @param captured - All captured endpoints.
+ * @param scan - Bundled current host + parent domain.
+ * @returns SPA URL or false.
+ */
+function pickConfigHit(captured: readonly IDiscoveredEndpoint[], scan: IScanArgs): string | false {
+  const configEps = captured.filter((ep): boolean => isConfigOrSettingsUrl(ep.url));
+  const hit = configEps.find((ep): boolean => scanConfigBody(ep, scan) !== false);
+  if (!hit) return false;
+  const spaUrl = scanConfigBody(hit, scan);
+  if (spaUrl !== false) logTier3Config(spaUrl, hit.url);
+  return spaUrl;
 }
 
 /**
@@ -159,15 +236,25 @@ function findByConfigBody(
   captured: readonly IDiscoveredEndpoint[],
   currentOrigin: string,
 ): string | false {
-  const parsedOrigin = safeParseWindowUrl(currentOrigin);
-  if (parsedOrigin === false) return false;
-  const currentHost = parsedOrigin.hostname;
-  const parentDomain = currentHost.split('.').slice(-3).join('.');
-  const scan: IScanArgs = { currentHost, parentDomain };
-  const configEps = captured.filter((ep): boolean => isConfigOrSettingsUrl(ep.url));
-  const hit = configEps.find((ep): boolean => scanConfigBody(ep, scan) !== false);
-  if (!hit) return false;
-  return scanConfigBody(hit, scan);
+  const scan = resolveScanArgs(currentOrigin);
+  if (scan === false) return false;
+  return pickConfigHit(captured, scan);
+}
+
+/**
+ * Tier 2 → 3 cascade — CORS-then-config fallback. Pulled out of
+ * {@link discoverSpaUrlFromTraffic} so the orchestrator fits the cap.
+ * @param captured - All captured endpoints.
+ * @param currentOrigin - Current page origin.
+ * @returns SPA URL or false.
+ */
+function cascadeCorsThenConfig(
+  captured: readonly IDiscoveredEndpoint[],
+  currentOrigin: string,
+): string | false {
+  const byCors = findByCorsOrigin(captured, currentOrigin);
+  if (byCors) return byCors;
+  return findByConfigBody(captured, currentOrigin);
 }
 
 /**
@@ -183,9 +270,7 @@ function discoverSpaUrlFromTraffic(
   const byReferer = findByReferer(captured);
   if (byReferer) return byReferer;
   if (!currentOrigin) return false;
-  const byCors = findByCorsOrigin(captured, currentOrigin);
-  if (byCors) return byCors;
-  return findByConfigBody(captured, currentOrigin);
+  return cascadeCorsThenConfig(captured, currentOrigin);
 }
 
 export default discoverSpaUrlFromTraffic;

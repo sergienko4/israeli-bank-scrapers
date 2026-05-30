@@ -55,27 +55,50 @@ function isSuccessStatus(ep: IDiscoveredEndpoint): boolean {
 }
 
 /**
+ * Filter the captured pool by URL pattern (top-level so
+ * {@link buildCoreMethods} can `.bind`).
+ * @param captured - Captured endpoints.
+ * @param pattern - URL pattern.
+ * @returns Matching subset.
+ */
+function findEndpointsFn(
+  captured: IDiscoveredEndpoint[],
+  pattern: RegExp,
+): readonly IDiscoveredEndpoint[] {
+  return captured.filter((ep): boolean => pattern.test(ep.url));
+}
+
+/**
+ * Snapshot of the captured pool.
+ * @param captured - Captured endpoints.
+ * @returns Shallow copy.
+ */
+function getAllEndpointsFn(captured: IDiscoveredEndpoint[]): readonly IDiscoveredEndpoint[] {
+  return [...captured];
+}
+
+/**
+ * Count 2xx responses in the captured pool.
+ * @param captured - Captured endpoints.
+ * @returns Number of successful responses.
+ */
+function countSuccessfulFn(captured: IDiscoveredEndpoint[]): number {
+  return captured.filter(isSuccessStatus).length;
+}
+
+/**
  * Build the low-level discovery methods bound to captured data.
  * @param captured - Mutable captured endpoints array.
  * @returns Low-level discovery methods.
  */
 function buildCoreMethods(captured: IDiscoveredEndpoint[]): CoreMethods {
   return {
-    /** @inheritdoc */
-    findEndpoints: (pattern: RegExp): readonly IDiscoveredEndpoint[] =>
-      captured.filter((ep): boolean => pattern.test(ep.url)),
-    /** @inheritdoc */
-    getServicesUrl: (): string | false => findCommonServicesUrl(captured),
-    /** @inheritdoc */
-    getAllEndpoints: (): readonly IDiscoveredEndpoint[] => [...captured],
-    /** @inheritdoc */
-    discoverByPatterns: (patterns: readonly RegExp[]): IDiscoveredEndpoint | false =>
-      discoverByWellKnown(captured, patterns),
-    /** @inheritdoc */
-    discoverSpaUrl: (currentOrigin?: string): string | false =>
-      discoverSpaUrlFromTraffic(captured, currentOrigin),
-    /** @inheritdoc */
-    countSuccessfulResponses: (): number => captured.filter(isSuccessStatus).length,
+    findEndpoints: findEndpointsFn.bind(null, captured),
+    getServicesUrl: findCommonServicesUrl.bind(null, captured),
+    getAllEndpoints: getAllEndpointsFn.bind(null, captured),
+    discoverByPatterns: discoverByWellKnown.bind(null, captured),
+    discoverSpaUrl: discoverSpaUrlFromTraffic.bind(null, captured),
+    countSuccessfulResponses: countSuccessfulFn.bind(null, captured),
   };
 }
 
@@ -124,6 +147,40 @@ function pickBucket(
 }
 
 /**
+ * Filter the captured pool by post-/pre-click split (top-level so
+ * {@link buildBucketingMethods} can `.bind`).
+ * @param captured - Captured endpoints.
+ * @param clickState - Shared click-at state.
+ * @param after - True for post-click, false for pre-click.
+ * @returns Captured subset (or full pool when no click was issued).
+ */
+function splitByClick(
+  captured: readonly IDiscoveredEndpoint[],
+  clickState: IDashboardClickState,
+  after: boolean,
+): readonly IDiscoveredEndpoint[] {
+  const clickAt = clickState.read();
+  return pickBucket(captured, clickAt, after);
+}
+
+/**
+ * Build the pre/post nav bucketing slice (extracted so
+ * {@link buildBucketingMethods} fits the 10-line cap).
+ * @param captured - Captures array.
+ * @param clickState - Shared click-at state.
+ * @returns Pre/post bucketing methods.
+ */
+function buildNavSplit(
+  captured: readonly IDiscoveredEndpoint[],
+  clickState: IDashboardClickState,
+): Pick<BucketingMethods, 'getPreNavCaptures' | 'getPostNavCaptures'> {
+  return {
+    getPreNavCaptures: splitByClick.bind(null, captured, clickState, false),
+    getPostNavCaptures: splitByClick.bind(null, captured, clickState, true),
+  };
+}
+
+/**
  * Build the click-aware capture-bucketing helpers shared by live and
  * frozen networks.
  * @param captured - Captures array (live or frozen).
@@ -134,24 +191,10 @@ function buildBucketingMethods(
   captured: readonly IDiscoveredEndpoint[],
   clickState: IDashboardClickState,
 ): BucketingMethods {
-  /**
-   * Filter the pool by post-/pre-click split using the live click-at.
-   * @param after - True for post-click, false for pre-click.
-   * @returns Captured subset (or full pool when no click was issued).
-   */
-  const splitByClick = (after: boolean): readonly IDiscoveredEndpoint[] => {
-    const clickAt = clickState.read();
-    return pickBucket(captured, clickAt, after);
-  };
   return {
-    /** @inheritdoc */
     markDashboardClickAt: clickState.mark,
-    /** @inheritdoc */
     getDashboardClickAt: clickState.read,
-    /** @inheritdoc */
-    getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => splitByClick(false),
-    /** @inheritdoc */
-    getPostNavCaptures: (): readonly IDiscoveredEndpoint[] => splitByClick(true),
+    ...buildNavSplit(captured, clickState),
   };
 }
 

@@ -132,6 +132,12 @@ export const PIPELINE_WELL_KNOWN_BILLING = {
 export const PIPELINE_WELL_KNOWN_HEADERS = {
   /** Request header names that carry the API origin. */
   origin: ['origin', 'referer'],
+  /** Narrow Origin-key set for `spaHasAny` guards (case-insensitive).
+   *  Separate from `origin` (which is the broader DISCOVERY fallback
+   *  chain) because using `origin` here would also match a captured
+   *  `referer` on `spaBase` and incorrectly suppress the bank-Origin
+   *  fallback. See `setOriginAndReferer` in DiscoveryHeaders.ts. */
+  originKey: ['origin'],
   /** Request header names that carry the SPA page Referer. Separate
    *  from `origin` because the Referer guard in `buildDiscoveredHeaders`
    *  must only check the captured `referer` value (the bare-origin

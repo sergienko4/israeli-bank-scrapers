@@ -35,6 +35,7 @@ const LOG = getDebug(import.meta.url);
 
 /** WK header names — imported from registry. */
 const ORIGIN_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.origin;
+const ORIGIN_KEY_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.originKey;
 const REFERER_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.referer;
 const SITE_ID_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.siteId;
 const BROWSER_STANDARD_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.browserStandard;
@@ -86,6 +87,25 @@ function validateMethod(raw: string): AllowedMethod {
   return 'GET';
 }
 
+/** Bundled args for {@link extractRequestParts} return-type alias. */
+type RequestParts = Pick<IRequestMeta, 'method' | 'postData' | 'requestHeaders'>;
+
+/**
+ * Extract the method + postData + requestHeaders triple from the
+ * response's request. Pulled out of {@link extractRequestMeta} so the
+ * orchestrator stays under the per-function 10-LoC cap.
+ * @param response - Playwright response (for `response.request()`).
+ * @returns Bundled method (validated), postData, requestHeaders.
+ */
+function extractRequestParts(response: Response): RequestParts {
+  const request = response.request();
+  const rawMethod = request.method();
+  const method = validateMethod(rawMethod);
+  const postData = request.postData() ?? NO_POST_DATA;
+  const requestHeaders = request.headers();
+  return { method, postData, requestHeaders };
+}
+
 /**
  * Extract request metadata from a Playwright response.
  * @param response - Playwright response object.
@@ -95,12 +115,8 @@ function extractRequestMeta(response: Response): IRequestMeta {
   const headers = response.headers();
   const contentType = headers['content-type'] ?? NO_CONTENT_TYPE;
   const url = response.url();
-  const request = response.request();
-  const rawMethod = request.method();
-  const method = validateMethod(rawMethod);
-  const postData = request.postData() ?? NO_POST_DATA;
-  const requestHeaders = request.headers();
-  return { url, method, postData, contentType, requestHeaders };
+  const parts = extractRequestParts(response);
+  return { url, contentType, ...parts };
 }
 
 /** Parsed body wrapper — keeps the typed bag separate from raw `unknown`. */
@@ -197,6 +213,7 @@ export {
   NO_CONTENT_TYPE,
   NO_POST_DATA,
   ORIGIN_HEADERS,
+  ORIGIN_KEY_HEADERS,
   parseTextOrNull,
   REFERER_HEADERS,
   shouldRecordResponse,

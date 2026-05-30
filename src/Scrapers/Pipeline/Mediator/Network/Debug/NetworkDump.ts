@@ -88,6 +88,22 @@ function formatDumpBody(args: IDumpArgs): string {
 }
 
 /**
+ * Log the error path of {@link tryWriteDump} as a structured trace.
+ * @param payload - Bundled write args.
+ * @param error - Caught I/O error.
+ * @returns Sequence number (unchanged from input).
+ */
+function logDumpWriteError(payload: IWriteArgs, error: Error): number {
+  LOG.trace({
+    event: 'NetworkDump.write.error',
+    dumpCounter: payload.sequence,
+    url: redactUrl(payload.args.url),
+    error: toErrorMessage(error),
+  });
+  return payload.sequence;
+}
+
+/**
  * Write the dump file to disk, swallowing errors after a trace log.
  * Keeps `dumpResponseBody` thin so the per-function 20-LoC cap holds.
  * @param payload - Bundled write args (args + dir + sequence).
@@ -100,13 +116,7 @@ function tryWriteDump(payload: IWriteArgs): number {
     fs.writeFileSync(filePath, body);
     return payload.sequence;
   } catch (error) {
-    LOG.trace({
-      event: 'NetworkDump.write.error',
-      dumpCounter: payload.sequence,
-      url: redactUrl(payload.args.url),
-      error: toErrorMessage(error as Error),
-    });
-    return payload.sequence;
+    return logDumpWriteError(payload, error as Error);
   }
 }
 

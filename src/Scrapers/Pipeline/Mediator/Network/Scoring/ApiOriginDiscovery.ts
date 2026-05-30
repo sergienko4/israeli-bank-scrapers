@@ -23,6 +23,20 @@ const LOG = getDebug(import.meta.url);
 const API_PATH_REGEX = /https:\/\/[^"]+\/api\//gi;
 
 /**
+ * Log the Tier 1 (config) origin discovery event. Pulled out of
+ * {@link extractApiFromBody} so the parser fits the 10-LoC cap.
+ * @param origin - Discovered origin.
+ * @param epUrl - Source endpoint URL.
+ * @returns Always true.
+ */
+function logTier1ConfigOrigin(origin: string, epUrl: string): true {
+  LOG.debug({
+    message: `apiOrigin Tier1 (config): ${redactUrlFull(origin)} from ${redactUrlFull(epUrl)}`,
+  });
+  return true;
+}
+
+/**
  * Extract API origin from a single config endpoint body. CR #9 guards
  * the URL parse.
  * @param ep - Config endpoint.
@@ -35,9 +49,7 @@ function extractApiFromBody(ep: IDiscoveredEndpoint): string | false {
   const parsed = safeParseWindowUrl(urls[0]);
   if (parsed === false) return false;
   const origin = parsed.origin;
-  LOG.debug({
-    message: `apiOrigin Tier1 (config): ${redactUrlFull(origin)} from ${redactUrlFull(ep.url)}`,
-  });
+  logTier1ConfigOrigin(origin, ep.url);
   return origin;
 }
 

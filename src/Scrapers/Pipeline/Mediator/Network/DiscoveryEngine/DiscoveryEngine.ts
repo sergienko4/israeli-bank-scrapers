@@ -86,24 +86,58 @@ function buildBucketingSlice(
   return { clickState, bucketing, lifecycle };
 }
 
+/** Accessor lambda for the post-click capture pool. */
+type CapturedAccessor = () => readonly IDiscoveredEndpoint[];
+
+/** Discovery slice without the URL/api-origin/txn-discovery (derived) part. */
+type CoreDiscoveryPart = Pick<IDiscoverySlice, 'core' | 'endpoints' | 'originDiscover'>;
+
+/** Discovery slice URL/api-origin/txn-discovery (derived) part. */
+type DerivedDiscoveryPart = Pick<IDiscoverySlice, 'apiOrigin' | 'txnDiscovery' | 'urlBuilders'>;
+
+/**
+ * Build the core discovery part of the discovery slice.
+ * @param captured - Captured endpoints array.
+ * @returns Core discovery part.
+ */
+function buildCoreDiscovery(captured: IDiscoveredEndpoint[]): CoreDiscoveryPart {
+  return {
+    core: buildCoreMethods(captured),
+    endpoints: buildEndpointMethods(captured),
+    originDiscover: buildOriginDiscoverMethods(captured),
+  };
+}
+
+/**
+ * Build the URL builders + api-origin + txn-discovery (derived) part
+ * of the discovery slice.
+ * @param captured - Captured endpoints array.
+ * @param getPostNav - Post-click pool accessor.
+ * @returns Derived part of the discovery slice.
+ */
+function buildDerivedDiscovery(
+  captured: IDiscoveredEndpoint[],
+  getPostNav: CapturedAccessor,
+): DerivedDiscoveryPart {
+  return {
+    urlBuilders: buildUrlBuilders(captured),
+    apiOrigin: buildApiOriginMethods(captured),
+    txnDiscovery: buildTxnDiscovery(captured, getPostNav),
+  };
+}
+
 /**
  * Build the pool-only discovery slice (core, endpoints, headers,
  * URL builders, api-origin, txn-discovery).
  * @param captured - Captured endpoints array.
- * @param getPostNavCaptures - Post-click pool accessor.
+ * @param getPostNav - Post-click pool accessor.
  * @returns Discovery slice.
  */
 function buildDiscoverySlice(
   captured: IDiscoveredEndpoint[],
-  getPostNavCaptures: () => readonly IDiscoveredEndpoint[],
+  getPostNav: CapturedAccessor,
 ): IDiscoverySlice {
-  const core = buildCoreMethods(captured);
-  const endpoints = buildEndpointMethods(captured);
-  const originDiscover = buildOriginDiscoverMethods(captured);
-  const urlBuilders = buildUrlBuilders(captured);
-  const apiOrigin = buildApiOriginMethods(captured);
-  const txnDiscovery = buildTxnDiscovery(captured, getPostNavCaptures);
-  return { core, endpoints, originDiscover, urlBuilders, apiOrigin, txnDiscovery };
+  return { ...buildCoreDiscovery(captured), ...buildDerivedDiscovery(captured, getPostNav) };
 }
 
 /**
@@ -114,10 +148,52 @@ function buildDiscoverySlice(
  * @returns I/O slice.
  */
 function buildIoSlice(page: Page, captured: IDiscoveredEndpoint[]): IIoSlice {
-  const traffic = buildTrafficMethods(page, captured);
+  const traffic = buildTrafficMethods({ page, captured });
   const authCache = buildAuthCache(page, captured);
   const authFailureWatcher = createAuthFailureWatcher(page);
   return { traffic, authCache, authFailureWatcher };
+}
+
+/**
+ * Build the discovery-side property bag used by
+ * {@link assembleLiveDiscovery}. Extracted so the assembler fits
+ * the 10-line cap.
+ *
+ * CR PR #276 post-review-fix #3 — `d.endpoints` carries a pre-click-
+ * aware `discoverTransactionsEndpoint`, but the live facade must use
+ * the post-click-aware one from `d.txnDiscovery`. Spreading
+ * `d.endpoints` here would let a future reorder silently regress txn
+ * discovery — so destructure only `discoverBalanceEndpoint` and let
+ * `d.txnDiscovery` provide the txn implementation explicitly.
+ * @param d - Discovery slice.
+ * @returns Discovery-side property bag.
+ */
+function buildDiscoveryBag(d: IDiscoverySlice): Partial<INetworkDiscovery> {
+  return {
+    ...d.core,
+    discoverBalanceEndpoint: d.endpoints.discoverBalanceEndpoint,
+    ...d.originDiscover,
+    ...d.urlBuilders,
+    ...d.txnDiscovery,
+    ...d.apiOrigin,
+  };
+}
+
+/**
+ * Build the I/O + bucketing property bag used by
+ * {@link assembleLiveDiscovery}.
+ * @param buckets - Bucketing + lifecycle slice.
+ * @param io - I/O slice.
+ * @returns I/O + bucketing property bag.
+ */
+function buildIoBag(buckets: IBucketingSlice, io: IIoSlice): Partial<INetworkDiscovery> {
+  return {
+    ...buckets.bucketing,
+    setCollectionActive: buckets.lifecycle.setCollectionActive,
+    ...io.traffic,
+    ...io.authCache,
+    authFailureWatcher: io.authFailureWatcher,
+  };
 }
 
 /**
@@ -132,26 +208,7 @@ function assembleLiveDiscovery(
   d: IDiscoverySlice,
   io: IIoSlice,
 ): INetworkDiscovery {
-  // CR PR #276 post-review-fix #3 — `d.endpoints` also carries a
-  // pre-click-aware `discoverTransactionsEndpoint`, but the live
-  // facade must use the post-click-aware one from `d.txnDiscovery`.
-  // Spreading `d.endpoints` here would let a future reorder silently
-  // regress txn discovery — so destructure the only field we want
-  // from `d.endpoints` (`discoverBalanceEndpoint`) and let
-  // `d.txnDiscovery` provide the txn implementation explicitly.
-  return {
-    ...d.core,
-    discoverBalanceEndpoint: d.endpoints.discoverBalanceEndpoint,
-    ...d.originDiscover,
-    ...d.urlBuilders,
-    ...buckets.bucketing,
-    setCollectionActive: buckets.lifecycle.setCollectionActive,
-    ...d.txnDiscovery,
-    ...io.traffic,
-    ...io.authCache,
-    ...d.apiOrigin,
-    authFailureWatcher: io.authFailureWatcher,
-  };
+  return { ...buildDiscoveryBag(d), ...buildIoBag(buckets, io) } as INetworkDiscovery;
 }
 
 /**

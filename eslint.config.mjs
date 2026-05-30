@@ -1524,15 +1524,18 @@ export default tseslint.config(
   // — at that ceiling, files this size routinely violate SRP
   // (Scoring.ts at 335 LoC already mixed shape-tier ranking,
   // header probing and SPA-discovery). We tighten the ceiling to
-  // **150 effective lines per file** and add a **20-line cap per
+  // **150 effective lines per file** and add a **10-line cap per
   // function** (skipBlankLines + skipComments) so every Network/
   // sub-module stays small enough for a single reviewer to hold
   // in working memory.
   //
-  // Pre-existing files that already exceed the new cap
+  // Phase 8.5a (commits 1-6): the three grandfathered legacy files
   // (`Fetch.ts`, `AuthFailureWatcher.ts`, `AuthDiscovery.ts`) are
-  // grandfathered via file-level `eslint-disable` headers and
-  // tracked for split in a future Network/ phase.
+  // now fully drained into focused sub-modules, and every remaining
+  // function across `Mediator/Network/**` fits the 10-LoC cap.
+  // Section §11A grandfather override is therefore removed and the
+  // per-function cap is tightened from 20 → 10 to match the §13
+  // PiiRedactor and CLAUDE.md ideal.
   //
   // The shim itself (`NetworkDiscovery.ts`) is intentionally left
   // unconstrained — Section 7 already allows it, and this guard is
@@ -1553,32 +1556,8 @@ export default tseslint.config(
       'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
       'max-lines-per-function': [
         'error',
-        { max: 20, skipBlankLines: true, skipComments: true, IIFEs: true },
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
       ],
-    },
-  },
-
-  // 11A. NETWORK SUB-MODULE GRANDFATHER OVERRIDE
-  //
-  // PR #276 review-fix: three pre-existing Network/ files exceed the
-  // new Section 11 caps (Fetch.ts 300 eff LoC, AuthFailureWatcher.ts
-  // 246 eff LoC, AuthDiscovery.ts 220 eff LoC). Splitting them is a
-  // separate Network/ phase — this override turns the file-size +
-  // per-function caps OFF for those three files ONLY so they pass
-  // pre-commit while still appearing in the linter inventory.
-  //
-  // Suppression via file-level `eslint-disable` headers is NOT used
-  // because Section 15 (`no-warning-comments`) bans the
-  // `eslint-disable` term across src/**.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Network/Fetch.ts',
-      'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.ts',
-      'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.ts',
-    ],
-    rules: {
-      'max-lines': 'off',
-      'max-lines-per-function': 'off',
     },
   },
 

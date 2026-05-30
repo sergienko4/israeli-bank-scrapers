@@ -75,6 +75,32 @@ function logCachedAuth(token: string | false): boolean {
 }
 
 /**
+ * Refresh + log preview shared helper (top-level so `buildAuthCache`
+ * can use `.bind(null, refresh)` instead of an inline arrow).
+ * @param refresh - Closure that performs a refresh.
+ * @returns Freshly discovered token (or false).
+ */
+async function cacheAuthTokenFn(refresh: () => Promise<string | false>): Promise<string | false> {
+  const token = await refresh();
+  logCachedAuth(token);
+  return token;
+}
+
+/**
+ * Build header bag using the cached auth via the shared helper.
+ * @param captured - Captured endpoint pool.
+ * @param read - Cached-auth reader closure.
+ * @returns Fetch options with merged auth + Origin + Site-Id headers.
+ */
+async function buildHeadersFn(
+  captured: readonly IDiscoveredEndpoint[],
+  read: () => Promise<string | false>,
+): Promise<IFetchOpts> {
+  const auth = await read();
+  return buildDiscoveredHeadersFromCapture(captured, auth);
+}
+
+/**
  * Build the auth-cache method bundle. The cache stores BOTH positive
  * and negative results so banks whose auth lives in cookies (not
  * sessionStorage) don't pay `pollForAuthModule`'s 10 s timeout on
@@ -95,24 +121,11 @@ function buildAuthCache(page: Page, captured: readonly IDiscoveredEndpoint[]): I
    * @returns Cached or freshly discovered token (or false).
    */
   const read = (): Promise<string | false> => readAuthState(refresh, state);
-  /**
-   * Refresh + log preview — invoked by the AUTH-cache warmup.
-   * @returns Freshly discovered token (or false).
-   */
-  const cacheAuthToken = async (): Promise<string | false> => {
-    const token = await refresh();
-    logCachedAuth(token);
-    return token;
+  return {
+    cacheAuthToken: cacheAuthTokenFn.bind(null, refresh),
+    discoverAuthToken: read,
+    buildDiscoveredHeaders: buildHeadersFn.bind(null, captured, read),
   };
-  /**
-   * Build header bag using cached auth via the shared helper.
-   * @returns Fetch options with merged auth + Origin + Site-Id headers.
-   */
-  const buildDiscoveredHeaders = async (): Promise<IFetchOpts> => {
-    const auth = await read();
-    return buildDiscoveredHeadersFromCapture(captured, auth);
-  };
-  return { cacheAuthToken, discoverAuthToken: read, buildDiscoveredHeaders };
 }
 
 export default buildAuthCache;

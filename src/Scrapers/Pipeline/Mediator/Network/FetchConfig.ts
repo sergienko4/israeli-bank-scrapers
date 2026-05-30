@@ -1,6 +1,9 @@
 /** Standard JSON content type for API request headers. */
 export const JSON_CONTENT_TYPE = 'application/json';
 
+/** Native fetch() timeout — bank APIs rarely take longer than this. */
+export const NETWORK_FETCH_TIMEOUT_MS = 30_000;
+
 /** Response body patterns that indicate a WAF or IP block. */
 export const WAF_BLOCK_PATTERNS = [
   'block automation',

@@ -31,6 +31,7 @@ import {
   shouldRecordResponse,
 } from './Indexing.js';
 import {
+  type DropReason,
   type IResponseMeta,
   logCaptureMiss,
   logHandleResponseError,
@@ -41,6 +42,17 @@ import {
 } from './ResponseParserLogs.js';
 
 const LOG = getDebug(import.meta.url);
+
+/**
+ * Single-call wrapper around {@link dumpResponseBody} that pre-bundles
+ * the meta-derived dump args. Keeps callers focused on body shape.
+ * @param meta - Request metadata.
+ * @param text - Body text (empty string for 204).
+ * @returns Dump sequence index.
+ */
+function dumpEndpointBody(meta: IRequestMeta, text: string): number {
+  return dumpResponseBody({ url: meta.url, method: meta.method, postData: meta.postData, text });
+}
 
 /**
  * CR #7 — 204 No Content fast-path: record the URL without reading
@@ -55,20 +67,7 @@ const LOG = getDebug(import.meta.url);
 function buildNoContentEndpoint(meta: IRequestMeta, response: Response): IDiscoveredEndpoint {
   LOG.debug({ event: 'parseResponse.shortCircuit204', url: maskVisibleText(meta.url) });
   const responseHeaders = response.headers();
-  const captureIndex = dumpResponseBody({
-    url: meta.url,
-    method: meta.method,
-    postData: meta.postData,
-    text: '',
-  });
-  return {
-    ...meta,
-    responseHeaders,
-    responseBody: null,
-    timestamp: Date.now(),
-    captureIndex,
-    status: 204,
-  };
+  return buildBodyEndpoint({ meta, text: '', responseBody: null, responseHeaders, status: 204 });
 }
 
 /** Bundled args for {@link buildBodyEndpoint} — keeps params ≤ 3. */
@@ -86,20 +85,32 @@ interface IBodyEndpointArgs {
  * @returns Discovered endpoint with `captureIndex` set.
  */
 function buildBodyEndpoint(args: IBodyEndpointArgs): IDiscoveredEndpoint {
-  const captureIndex = dumpResponseBody({
-    url: args.meta.url,
-    method: args.meta.method,
-    postData: args.meta.postData,
-    text: args.text,
-  });
-  return {
-    ...args.meta,
+  const captureIndex = dumpEndpointBody(args.meta, args.text);
+  const bag = {
     responseHeaders: args.responseHeaders,
     responseBody: args.responseBody,
-    timestamp: Date.now(),
-    captureIndex,
     status: args.status,
   };
+  return { ...args.meta, ...bag, timestamp: Date.now(), captureIndex };
+}
+
+/** Bundled args for {@link assembleBody} — keeps params ≤ 3. */
+interface IAssembleBodyArgs {
+  readonly meta: IRequestMeta;
+  readonly text: string;
+  readonly status: number;
+  readonly responseHeaders: Record<string, string>;
+}
+
+/**
+ * Parse the response text and build the captured endpoint.
+ * @param args - Bundled meta + body + status + headers.
+ * @returns Discovered endpoint.
+ */
+function assembleBody(args: IAssembleBodyArgs): IDiscoveredEndpoint {
+  const parsed = parseTextOrNull(args.text);
+  const responseBody = parsed.value;
+  return buildBodyEndpoint({ ...args, responseBody });
 }
 
 /**
@@ -118,9 +129,45 @@ async function readAndParseBody(
   const text = await response.text();
   const status = response.status();
   logTextRead(meta, status, text.length);
-  const responseBody = parseTextOrNull(text).value;
   const responseHeaders = response.headers();
-  return buildBodyEndpoint({ meta, text, responseBody, responseHeaders, status });
+  return assembleBody({ meta, text, status, responseHeaders });
+}
+
+/**
+ * Decide which (if any) drop reason fires for this response.
+ * @param meta - Request metadata.
+ * @param status - HTTP status code.
+ * @returns Drop reason string or `false` to proceed.
+ */
+function decideDrop(meta: IRequestMeta, status: number): DropReason | false {
+  if (isUnsupportedUrl(meta.url)) return 'unsupportedUrl';
+  if (!shouldRecordResponse(status, meta.contentType)) return 'shouldRecordResponse=false';
+  return false;
+}
+
+/** Bundled preflight result for {@link parseResponse}. */
+interface IPreflight {
+  readonly meta: IRequestMeta;
+  readonly status: number;
+  readonly drop: DropReason | false;
+}
+
+/**
+ * Extract request meta + status, emit the entry log, and run the
+ * drop-gate predicates. Pulled out of {@link parseResponse} so the
+ * orchestrator stays within the Section 11 10-LoC cap while keeping
+ * the body-read try / catch inline (an out-of-line `.catch(handler)`
+ * chain would add one propagation microtask and starve fast unit
+ * tests that await only twice).
+ * @param response - Playwright response.
+ * @returns Bundled meta + status + drop reason.
+ */
+function preflightParse(response: Response): IPreflight {
+  const meta = extractRequestMeta(response);
+  const status = response.status();
+  logParseEntry(meta, status);
+  const drop = decideDrop(meta, status);
+  return { meta, status, drop };
 }
 
 /**
@@ -135,19 +182,41 @@ async function readAndParseBody(
  * @returns Discovered endpoint or false if filtered / errored.
  */
 async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | false> {
-  const meta = extractRequestMeta(response);
-  const status = response.status();
-  logParseEntry(meta, status);
-  if (isUnsupportedUrl(meta.url)) return logParseDrop('unsupportedUrl', meta, status);
-  if (!shouldRecordResponse(status, meta.contentType)) {
-    return logParseDrop('shouldRecordResponse=false', meta, status);
-  }
+  const { meta, status, drop } = preflightParse(response);
+  if (drop !== false) return logParseDrop(drop, meta, status);
   if (status === 204) return buildNoContentEndpoint(meta, response);
   try {
     return await readAndParseBody(meta, response);
   } catch (error) {
     return logParseCatch(meta, status, error as Error);
   }
+}
+
+/**
+ * Record a hit captured endpoint into the live pool and emit the
+ * structured hit log.
+ * @param captured - Mutable capture array.
+ * @param endpoint - Parsed endpoint to record.
+ * @returns Always true.
+ */
+function recordHit(captured: IDiscoveredEndpoint[], endpoint: IDiscoveredEndpoint): boolean {
+  captured.push(endpoint);
+  LOG.trace({
+    event: 'recordCapture.hit',
+    method: endpoint.method,
+    url: maskVisibleText(endpoint.url),
+  });
+  return true;
+}
+
+/**
+ * Record a capture miss — fires the structured miss log.
+ * @param meta - Response metadata.
+ * @returns Always false.
+ */
+function recordMiss(meta: IResponseMeta): boolean {
+  logCaptureMiss(meta);
+  return false;
 }
 
 /**
@@ -163,19 +232,63 @@ function recordCaptureIfPresent(
   endpoint: IDiscoveredEndpoint | false,
   meta: IResponseMeta,
 ): boolean {
-  if (!endpoint) {
-    logCaptureMiss(meta);
-    return false;
-  }
-  captured.push(endpoint);
-  // CR PR #276 post-review-fix #6 — structured Pino logs MUST carry
-  // an `event` field with a kebab-case dotted scope (per guidelines)
-  // so the trace stays filterable in `pipeline.log`.
-  LOG.trace({
-    event: 'recordCapture.hit',
-    method: endpoint.method,
-    url: maskVisibleText(endpoint.url),
-  });
+  if (!endpoint) return recordMiss(meta);
+  return recordHit(captured, endpoint);
+}
+
+/**
+ * Build the response-meta bag (url, status, method) used by
+ * downstream log helpers.
+ * @param response - Playwright response.
+ * @returns Bundled response meta.
+ */
+function buildResponseMeta(response: Response): IResponseMeta {
+  const request = response.request();
+  return { url: response.url(), status: response.status(), method: request.method() };
+}
+
+/**
+ * Promise-chain glue between {@link parseResponse} and the capture
+ * recorder + error logger.
+ * @param captured - Mutable array to store discovered endpoints.
+ * @param meta - Response metadata.
+ * @param endpoint - Parsed endpoint or false (curried via bind).
+ * @returns Recorder outcome (true on hit, false on miss).
+ */
+function onParseHit(
+  captured: IDiscoveredEndpoint[],
+  meta: IResponseMeta,
+  endpoint: IDiscoveredEndpoint | false,
+): boolean {
+  return recordCaptureIfPresent(captured, endpoint, meta);
+}
+
+/**
+ * Catch-side of the parse-promise chain — logs the failure.
+ * @param meta - Response metadata.
+ * @param error - Unknown thrown value.
+ * @returns Always false.
+ */
+function onParseError(meta: IResponseMeta, error: unknown): boolean {
+  return logHandleResponseError(meta.url, error);
+}
+
+/**
+ * Dispatch the response into the parse pipeline; results land in
+ * the capture pool or the structured log on failure.
+ * @param captured - Mutable capture array.
+ * @param response - Playwright response.
+ * @param meta - Response metadata.
+ * @returns Always true (fire-and-forget).
+ */
+function dispatchParse(
+  captured: IDiscoveredEndpoint[],
+  response: Response,
+  meta: IResponseMeta,
+): boolean {
+  const onHit = onParseHit.bind(null, captured, meta);
+  const onError = onParseError.bind(null, meta);
+  parseResponse(response).then(onHit).catch(onError);
   return true;
 }
 
@@ -194,16 +307,8 @@ function handleResponse(
   isCollectionActive: () => boolean,
 ): boolean {
   if (!isCollectionActive()) return false;
-  const request = response.request();
-  const meta: IResponseMeta = {
-    url: response.url(),
-    status: response.status(),
-    method: request.method(),
-  };
-  parseResponse(response)
-    .then((endpoint): boolean => recordCaptureIfPresent(captured, endpoint, meta))
-    .catch((error: unknown): boolean => logHandleResponseError(meta.url, error));
-  return true;
+  const meta = buildResponseMeta(response);
+  return dispatchParse(captured, response, meta);
 }
 
 export { buildNoContentEndpoint, handleResponse, parseResponse, readAndParseBody };

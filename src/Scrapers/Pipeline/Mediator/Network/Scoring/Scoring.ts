@@ -26,7 +26,24 @@ import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 const LOG = getDebug(import.meta.url);
 
 /**
- * Find the most common base URL from captured endpoints.
+ * Tally base-URL frequencies across the captured endpoints.
+ * @param endpoints - All captured endpoints.
+ * @returns Map from base URL → occurrence count.
+ */
+function tallyBaseUrls(endpoints: readonly IDiscoveredEndpoint[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const ep of endpoints) {
+    const base = extractBaseUrl(ep.url);
+    counts.set(base, (counts.get(base) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Find the most common base URL among captured endpoints. Used by
+ * Amex / Isracard adapters that need a stable `services/Handler`
+ * base URL even when subdomains rotate per request.
+ *
  * Returns `false` (never `''`) when the ranked base is empty so
  * callers see the documented `string | false` failure signal
  * instead of an empty-string masquerading as a URL (CR PR #276
@@ -36,11 +53,7 @@ const LOG = getDebug(import.meta.url);
  */
 function findCommonServicesUrl(endpoints: readonly IDiscoveredEndpoint[]): string | false {
   if (endpoints.length === 0) return false;
-  const counts = new Map<string, number>();
-  for (const ep of endpoints) {
-    const base = extractBaseUrl(ep.url);
-    counts.set(base, (counts.get(base) ?? 0) + 1);
-  }
+  const counts = tallyBaseUrls(endpoints);
   const entries = [...counts.entries()];
   entries.sort((a, b): number => b[1] - a[1]);
   return entries[0]?.[0] || false;
@@ -123,6 +136,31 @@ function extractSpaHeaders(captured: readonly IDiscoveredEndpoint[]): Record<str
 }
 
 /**
+ * Build a lowercase Set of target header names for case-insensitive
+ * lookups. Pulled out of {@link spaHasAny} so the predicate stays
+ * within the 10-LoC cap.
+ * @param headerNames - WK alias list.
+ * @returns Lowercase target set.
+ */
+function buildLowercaseTargets(headerNames: readonly string[]): ReadonlySet<string> {
+  const lowered = headerNames.map((n): string => n.toLowerCase());
+  return new Set(lowered);
+}
+
+/**
+ * True when the lowercased `k` is one of the target header names.
+ * Top-level so {@link spaHasAny} can bind it without an inline
+ * arrow (sonarjs/no-nested-functions + nested-call gates).
+ * @param targets - Pre-lowercased target Set.
+ * @param k - SPA header key (any case).
+ * @returns True when `k` matches case-insensitively.
+ */
+function isLowercaseTargetKey(targets: ReadonlySet<string>, k: string): boolean {
+  const lower = k.toLowerCase();
+  return targets.has(lower);
+}
+
+/**
  * Case-insensitive presence check: does the SPA-extracted header set
  * already carry ANY of the names in `headerNames`? Used to gate the
  * bank-specific fallback layers (Referer / X-Site-Id from
@@ -136,18 +174,9 @@ function spaHasAny(
   spaBase: Readonly<Record<string, string>>,
   headerNames: readonly string[],
 ): boolean {
-  const lowered = headerNames.map((n): string => n.toLowerCase());
-  const targets = new Set(lowered);
+  const targets = buildLowercaseTargets(headerNames);
   const keys = Object.keys(spaBase);
-  /**
-   * True when the lowercased key is in the target set.
-   * @param k - SPA header key.
-   * @returns True on case-insensitive hit.
-   */
-  const isTargetKey = (k: string): boolean => {
-    const lower = k.toLowerCase();
-    return targets.has(lower);
-  };
+  const isTargetKey = isLowercaseTargetKey.bind(null, targets);
   return keys.some(isTargetKey);
 }
 
