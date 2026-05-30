@@ -140,3 +140,77 @@ graphemeCount
 # --- Phase 6 follow-up: CR review #5 shared-table extract (PR #278) ---
 # Reason: LITERAL_TEXT_PII_PATTERNS — CommonHelpers.ts regex table shared by JsonBody.applyFallbackPatterns AND Html.redactHtml; extracted from the two former duplicate constants per CR review finding #5 (DRY / no-duplication guideline).
 LITERAL_TEXT_PII_PATTERNS
+
+# --- Phase 8.5a / Network canonical-10 drain (PR pending) ---
+# All entries below are internal helpers exposed by the focused sub-modules
+# under Mediator/Network/Fetch/ and Mediator/Network/AuthDiscovery/. They
+# are composed by their parent module (and consumed by the legacy shim's
+# re-export) and intentionally NOT part of the user-facing Pipeline API.
+# The barrel (index.ts) re-exports only the historical public surface.
+
+# Reason: getJsonHeaders — Fetch/Headers.ts JSON Content-Type/Accept builder; composed inside fetchPost/fetchGet to keep the parent functions <=10 LoC.
+getJsonHeaders
+# Reason: LogEmitted — Fetch/Logging.ts Brand<true> tag for log-emit functions; type-system-only, satisfies Rule #15 (no exported primitive returns).
+LogEmitted
+# Reason: logApiCall — Fetch/Logging.ts emit helper invoked by NativeFetch + PageFetchPost; centralizes the request-start LOG.info shape.
+logApiCall
+# Reason: logResponseIssues — Fetch/Logging.ts emit helper invoked by parseGetResult/parsePostResult; centralizes the response-anomaly LOG.warn shape.
+logResponseIssues
+# Reason: IFetchGraphqlOptions — Fetch/NativeFetch.ts option-bag interface for fetchGraphql; shared between the native call site and its test fixtures.
+IFetchGraphqlOptions
+# Reason: fetchGraphql — Fetch/NativeFetch.ts thin wrapper over fetchPost with GraphQL Content-Type defaults; re-exported by the Fetch barrel for historical callers.
+fetchGraphql
+# Reason: fetchGetWithinPage — Fetch/PageFetchGet.ts page-context evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
+fetchGetWithinPage
+# Reason: fetchGetWithinPageWithHeaders — Fetch/PageFetchGet.ts variant of fetchGetWithinPage with explicit request headers; re-exported for historical callers.
+fetchGetWithinPageWithHeaders
+# Reason: IFetchPostOptions — Fetch/PageFetchPost.ts option-bag interface for fetchPostWithinPage; shared between the page-eval call site and its test fixtures.
+IFetchPostOptions
+# Reason: fetchPostWithinPage — Fetch/PageFetchPost.ts page-context POST evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
+fetchPostWithinPage
+# Reason: EMPTY_RESULT — Fetch/ParseResult.ts sentinel literal returned by parseGetResult/parsePostResult on empty bodies; centralized to avoid sentinel duplication across sub-modules.
+EMPTY_RESULT
+# Reason: IParseErrorOpts — Fetch/ParseResult.ts option-bag interface for handleParseError; composed by parseGetResult/parsePostResult.
+IParseErrorOpts
+# Reason: IParseGetOpts — Fetch/ParseResult.ts option-bag interface for parseGetResult; composed by NativeFetch + PageFetchGet sub-modules.
+IParseGetOpts
+# Reason: IParsePostOpts — Fetch/ParseResult.ts option-bag interface for parsePostResult; composed by NativeFetch + PageFetchPost sub-modules.
+IParsePostOpts
+# Reason: handleParseError — Fetch/ParseResult.ts shared catch-block helper that emits LOG.warn + returns EMPTY_RESULT; composed by parseGetResult/parsePostResult.
+handleParseError
+# Reason: parseGetResult — Fetch/ParseResult.ts shared response-parser for GET-style calls; composed by NativeFetch.parseFetchGetResponse + PageFetchGet.evaluateGet.
+parseGetResult
+# Reason: parsePostResult — Fetch/ParseResult.ts shared response-parser for POST-style calls; composed by NativeFetch.fetchPost + PageFetchPost.runPostEvaluate.
+parsePostResult
+# Reason: WafBlockDescription — Fetch/WafDetection.ts Brand<string> tag for WAF detection results; type-system-only, consumed only by WafBlockError construction.
+WafBlockDescription
+# Reason: detectWafBlock — Fetch/WafDetection.ts shared detector invoked by fetchPost + fetchGet to short-circuit response parsing on WAF interception; re-exported by the Fetch barrel for historical callers.
+detectWafBlock
+# Reason: extractAuthHeader — AuthDiscovery/HeadersTier.ts per-endpoint header-extraction helper; composed by Tier 1 (discoverFromHeaders).
+extractAuthHeader
+# Reason: searchBodyForToken — AuthDiscovery/ResponseTier.ts response-body walker that finds WellKnown token fields (flat + 1 level nested); composed by Tier 2 (discoverFromResponses).
+searchBodyForToken
+# Reason: readMainStorageRaw — AuthDiscovery/StorageMain.ts raw sessionStorage reader for the main page frame; composed by Tier 3a (discoverFromStorage).
+readMainStorageRaw
+# Reason: readAllJsonStorageValues — AuthDiscovery/StorageScanAll.ts JSON-shape filter over sessionStorage keys in a single frame; composed by Tier 3c (discoverFromAllStorageKeys).
+readAllJsonStorageValues
+# Reason: checkOneValue — AuthDiscovery/StorageFrames.ts single-value token extractor with JSON-then-raw fallback; composed by Tier 3b (discoverFromAllFrames).
+checkOneValue
+# Reason: handleToToken — AuthDiscovery/PollTier.ts Playwright JSHandle-to-token resolver; composed by Tier 4 (pollForAuthModule).
+handleToToken
+# Reason: TOKEN_BODY_FIELDS — AuthDiscovery/Tokens.ts WellKnown auth-body field-name table; static dispatch data shared by ResponseTier search logic.
+TOKEN_BODY_FIELDS
+# Reason: STORAGE_AUTH_KEYS — AuthDiscovery/Tokens.ts WellKnown sessionStorage key-name table; static dispatch data shared by StorageMain + StorageFrames.
+STORAGE_AUTH_KEYS
+# Reason: AUTH_POLL_TIMEOUT — AuthDiscovery/Tokens.ts polling timeout constant (ms); consumed by PollTier.buildFrameWaiter.
+AUTH_POLL_TIMEOUT
+# Reason: AUTH_POLL_INTERVAL — AuthDiscovery/Tokens.ts polling interval constant (ms); consumed by PollTier.buildFrameWaiter.
+AUTH_POLL_INTERVAL
+# Reason: IStorageAuth — AuthDiscovery/Tokens.ts parsed JSON-storage auth shape; consumed by extractFromParsed in tryParseJsonToken.
+IStorageAuth
+# Reason: PrefixedAuthToken — AuthDiscovery/Tokens.ts Brand<string> tag for prefixToken's return type; type-system-only, satisfies Rule #15.
+PrefixedAuthToken
+# Reason: prefixToken — AuthDiscovery/Tokens.ts auth-scheme prefix helper (CALAuthScheme/Bearer); composed by ResponseTier + StorageFrames.
+prefixToken
+# Reason: tryParseJsonToken — AuthDiscovery/Tokens.ts safe JSON-parse-and-extract for sessionStorage-stored auth blobs; composed by StorageMain + StorageFrames + StorageScanAll + PollTier.
+tryParseJsonToken
