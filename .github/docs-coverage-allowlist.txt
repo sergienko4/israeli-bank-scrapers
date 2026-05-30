@@ -214,3 +214,60 @@ PrefixedAuthToken
 prefixToken
 # Reason: tryParseJsonToken — AuthDiscovery/Tokens.ts safe JSON-parse-and-extract for sessionStorage-stored auth blobs; composed by StorageMain + StorageFrames + StorageScanAll + PollTier.
 tryParseJsonToken
+
+# --- Phase 8.5a / commit 2 follow-up (AuthDiscovery tier helpers) ---
+# Tier orchestrator helpers introduced by the AuthDiscovery sub-module split.
+# Each is composed by the wider discoverAuthThreeTier orchestrator and is
+# NOT part of the user-facing Pipeline API.
+
+# Reason: discoverFromHeaders — AuthDiscovery/HeadersTier.ts Tier 1 wrapper that scans captured endpoints for an Authorization-shaped request header; composed by Orchestrator.fallbackTiers.
+discoverFromHeaders
+# Reason: discoverFromResponses — AuthDiscovery/ResponseTier.ts Tier 2 wrapper that walks WK-auth response bodies for a token field; composed by Orchestrator as the first attempted tier.
+discoverFromResponses
+# Reason: discoverFromStorage — AuthDiscovery/StorageMain.ts Tier 3a wrapper that reads the main-page sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
+discoverFromStorage
+# Reason: discoverFromAllFrames — AuthDiscovery/StorageFrames.ts Tier 3b wrapper that scans every iframe sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
+discoverFromAllFrames
+# Reason: discoverFromAllStorageKeys — AuthDiscovery/StorageScanAll.ts Tier 3c wrapper that scans every sessionStorage key in every frame for token-shaped JSON; composed by Orchestrator.storageTiers.
+discoverFromAllStorageKeys
+# Reason: pollForAuthModule — AuthDiscovery/PollTier.ts Tier 4 wrapper that polls every frame's sessionStorage for uth-module until it appears; composed by Orchestrator.fallbackTiers as the last-resort tier.
+pollForAuthModule
+# Reason: AUTH_HEADER_NAMES — AuthDiscovery/Tokens.ts WellKnown auth request-header name table (uthorization, x-auth-token); static dispatch data shared by HeadersTier.
+AUTH_HEADER_NAMES
+
+# --- Phase 8.5a / commit 3 (AuthFailureWatcher split) ---
+# All entries below are internal helpers exposed by the focused sub-modules
+# under Mediator/Network/AuthFailureWatcher/. They are composed by the
+# Factory's createAuthFailureWatcher/createFrozenAuthFailureWatcher entry
+# points and intentionally NOT part of the user-facing Pipeline API.
+
+# Reason: BODY_PREVIEW_LIMIT — AuthFailureWatcher/Types.ts mask-truncate length for diagnostic body previews; shared by BodyReaders + Inspector.
+BODY_PREVIEW_LIMIT
+# Reason: FAIL_STATUS_MIN — AuthFailureWatcher/Types.ts inclusive lower bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
+FAIL_STATUS_MIN
+# Reason: FAIL_STATUS_MAX — AuthFailureWatcher/Types.ts inclusive upper bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
+FAIL_STATUS_MAX
+# Reason: NO_PARSED_BODY — AuthFailureWatcher/Types.ts sentinel string returned by BodyReaders.safeParsedBody when JSON parse fails; composed by Inspector.
+NO_PARSED_BODY
+# Reason: IWatcherState — AuthFailureWatcher/Types.ts mutable internal-state shape passed between Factory, Inspector, Waiter, State sub-modules.
+IWatcherState
+# Reason: matchInRecord — AuthFailureWatcher/BodyClassifier.ts per-record pattern matcher; composed by classifyBodyAsFailure for both the top-level record and each nested object.
+matchInRecord
+# Reason: safeBodyPreview — AuthFailureWatcher/BodyReaders.ts safe response.text() + mask + truncate helper; composed by Inspector + Waiter for diagnostic previews.
+safeBodyPreview
+# Reason: safeParsedBody — AuthFailureWatcher/BodyReaders.ts safe response.text() + JSON.parse helper; composed by Inspector for L2 (body-error) detection.
+safeParsedBody
+# Reason: RecordOutcome — AuthFailureWatcher/State.ts Brand<boolean> tag for recordFailure's return; type-system-only, satisfies Rule #15.
+RecordOutcome
+# Reason: recordFailure — AuthFailureWatcher/State.ts idempotent state-mutator + LOG.debug emitter; composed by Inspector (both layers) + Waiter.
+recordFailure
+# Reason: readDetected — AuthFailureWatcher/State.ts cross-await re-read of state.detected (defeats TS narrowing); composed by Waiter.awaitFailure.
+readDetected
+# Reason: inspectAuthResponse — AuthFailureWatcher/Inspector.ts two-layer detection runner; composed by buildResponseHandler.
+inspectAuthResponse
+# Reason: buildResponseHandler — AuthFailureWatcher/Inspector.ts factory returning the Playwright response listener closure; composed by Factory.createAuthFailureWatcher.
+buildResponseHandler
+# Reason: buildWatcherApi — AuthFailureWatcher/Factory.ts builder that returns the IAuthFailureWatcher public object bound to a page + state; composed by both createAuthFailureWatcher and tests.
+buildWatcherApi
+# Reason: AuthMatcherBool — AuthFailureWatcher/UrlMatchers.ts Brand<boolean> tag for isAuthEndpointUrl + isFailureStatusCode return types; type-system-only, satisfies Rule #15.
+AuthMatcherBool
