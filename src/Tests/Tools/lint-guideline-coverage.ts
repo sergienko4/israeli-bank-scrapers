@@ -87,6 +87,17 @@ const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],
   },
+  {
+    clusterName: 'ApiDirectCall ConfigContracts (§14)',
+    representativeFile:
+      'src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/TemplateTypes.ts',
+    expectations: [
+      { ruleId: 'max-lines', maxAllowed: 150 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
+      { ruleId: 'complexity', maxAllowed: 10 },
+      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
+    ],
+  },
 ];
 
 /**
