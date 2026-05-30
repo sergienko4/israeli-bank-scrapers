@@ -162,6 +162,24 @@ bg_gate "canaries"          "yes" npm run lint:canaries
 bg_gate "dead-code"         "yes" npm run lint:dead-code
 bg_gate "guideline-coverage" "yes" npm run lint:guideline-coverage
 
+# docs-strict — fires when docs/** or any root .md file (consumed by
+# mkdocs.yml's nav / referenced via relative link) changed. Catches the
+# broken-relative-link / dead-nav class of failure locally instead of
+# burning a CI cycle (CR cycle-2: docs/contributing/lint.md broke
+# `mkdocs build --strict` with `../../CLEAN_CODE.md` pointing outside
+# docs_dir). Soft-skips when Python or mkdocs is missing — CI will
+# always re-run it under the `Validate` job either way.
+DOCS_FILES=$(echo "$STAGED_FILES" | grep -E '^(docs/|[A-Z_]+\.md$|mkdocs\.yml$)' || true)
+if [ -n "$DOCS_FILES" ]; then
+    if command -v python >/dev/null 2>&1 && python -m mkdocs --version >/dev/null 2>&1; then
+        bg_gate "docs-strict" "yes" npm run lint:docs-strict
+    else
+        log "  ⏭️  docs-strict skipped — python or mkdocs not installed locally (CI still enforces)"
+    fi
+else
+    log "  ⏭️  docs-strict skipped — no docs/** or root .md files staged"
+fi
+
 # Heavy gates — each runs Jest with its own worker pool. Three gates
 # run concurrently here, so each pool gets ~1/3 of the available cores
 # (floor-divide, min 2) instead of a fixed `8`. On a 4-core laptop the

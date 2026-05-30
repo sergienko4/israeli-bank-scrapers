@@ -1720,6 +1720,16 @@ export default tseslint.config(
           message:
             "🚫 PII CONSTANT: Import { REDACTION_ERROR_HINT } from './Types.js' instead of hardcoding '[REDACTION_ERROR]'.",
         },
+        {
+          // CR cycle-2: catches `'-***'` / `'+***'` / `'***'` (Amount sign markers) and
+          // any future bracket-name sentinel (e.g. `'[NEW_HINT]'`). Forces every NEW
+          // redaction sentinel to live in Types.ts before it can be used elsewhere.
+          selector: "Literal[value=/^(\\[[A-Z_]+\\]|[+\\-]?\\*{3,})$/]",
+          message:
+            "🚫 PII SENTINEL: Hardcoded redaction sentinel detected. Define it once in './Types.js' " +
+            "(e.g. AMOUNT_NEGATIVE_HINT, AMOUNT_POSITIVE_HINT) and import the constant. " +
+            'CR cycle-2 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
+        },
       ],
     },
   },

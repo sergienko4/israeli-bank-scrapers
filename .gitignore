@@ -75,6 +75,7 @@ CLAUDE.md
 /typedoc-build/
 # mkdocs build output (regenerated via `python -m mkdocs build`; deployed to GH Pages /)
 /site/
+/.mkdocs-strict-out/
 
 # Local debug sessions, trace output, inspection scripts — never commit
 # All local work lives in local-debug/ (debug captures + scripts)

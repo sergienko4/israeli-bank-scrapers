@@ -50,6 +50,7 @@
     "lint:canaries": "bash src/Scrapers/Pipeline/EslintCanaries/verify.sh",
     "lint:dead-code": "npx tsx src/Tests/Tools/detect-dead-code.ts",
     "lint:guideline-coverage": "npx tsx src/Tests/Tools/lint-guideline-coverage.ts",
+    "lint:docs-strict": "python -m mkdocs build --strict --site-dir .mkdocs-strict-out",
     "lint:phases:strict": "eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0",
     "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",

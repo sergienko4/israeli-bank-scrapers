@@ -32,6 +32,19 @@ export const OTP_HINT = '[OTP]' as const;
 export const REDACTION_ERROR_HINT = '[REDACTION_ERROR]' as const;
 
 /**
+ * Amount-redaction sign markers. Centralised so the per-category
+ * Amount strategy + any sibling reader (logs, fixtures, tests) share
+ * one definition (CLAUDE.md "Constants from configuration — never
+ * hardcode values inline"; CR cycle-2 finding on Amount.ts).
+ *
+ * `AMOUNT_NEGATIVE_HINT` masks negative magnitudes; `AMOUNT_POSITIVE_HINT`
+ * masks positive magnitudes. The sign is preserved deliberately so
+ * engineers retain debit/credit signal without exposing the magnitude.
+ */
+export const AMOUNT_NEGATIVE_HINT = '-***' as const;
+export const AMOUNT_POSITIVE_HINT = '+***' as const;
+
+/**
  * Default-on PII redaction. Set `PII_REDACTION=off` in `.env` to pass
  * business-data values through unmasked during local debugging. Auth
  * credentials (`token`, `otp`, `cookie`) are NEVER bypassed even with

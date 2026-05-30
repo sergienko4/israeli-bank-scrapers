@@ -2,7 +2,7 @@
 
 The pre-commit hook runs ESLint + Biome + Prettier + the architecture validator + canaries + guideline-coverage on every commit. Skipping any of them is not an option.
 
-> **Quality caps** (per-function LoC, file size, complexity, parameter count) live in [CLEAN_CODE.md](../../CLEAN_CODE.md). That file is the single source of truth — do NOT restate the numbers here. The `lint:guideline-coverage` gate asserts `eslint.config.mjs` actually enforces those caps for every Pipeline cluster.
+> **Quality caps** (per-function LoC, file size, complexity, parameter count) live in [CLEAN_CODE.md](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CLEAN_CODE.md). That file is the single source of truth — do NOT restate the numbers here. The `lint:guideline-coverage` gate asserts `eslint.config.mjs` actually enforces those caps for every Pipeline cluster.
 
 ## Project-specific rules (beyond defaults)
 

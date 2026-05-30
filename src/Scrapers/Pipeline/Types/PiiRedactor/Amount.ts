@@ -10,6 +10,8 @@
  */
 
 import {
+  AMOUNT_NEGATIVE_HINT,
+  AMOUNT_POSITIVE_HINT,
   isPiiRedactionDisabled,
   type PiiCategory,
   type PiiCountInt,
@@ -44,8 +46,8 @@ function redact(value: number | string): PiiHintString {
   }
   const num = coerceToNumber(value);
   if (Number.isNaN(num)) return REDACTED_HINT as PiiHintString;
-  if (num < 0) return '-***' as PiiHintString;
-  return '+***' as PiiHintString;
+  if (num < 0) return AMOUNT_NEGATIVE_HINT as PiiHintString;
+  return AMOUNT_POSITIVE_HINT as PiiHintString;
 }
 
 export { redact, redact as redactAmount };
