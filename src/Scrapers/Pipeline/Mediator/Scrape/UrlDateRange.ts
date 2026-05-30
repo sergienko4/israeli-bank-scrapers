@@ -77,23 +77,29 @@ function readProbe(params: URLSearchParams, key: string): string {
 }
 
 /**
+ * Apply a date value to a URL param, preserving the captured format.
+ * Helper for {@link swapOneParam} — pulled out so the orchestrator
+ * fits the 10-LoC cap (Phase 8.5b §12 canonical-10 drain).
+ * @param params - URL search params (mutated in-place).
+ * @param key - Param key to overwrite.
+ * @param when - Date to format and set.
+ * @returns Always 1 (caller treats as swap count).
+ */
+function setDateParam(params: URLSearchParams, key: string, when: Date): 1 {
+  const probe = readProbe(params, key);
+  const formatted = formatLikeProbe(when, probe);
+  params.set(key, formatted);
+  return 1;
+}
+
+/**
  * Swap a single param if its key is in the WK from/to alias set.
  * @param ctx - Bundled swap context.
  * @returns 1 when swapped, 0 otherwise.
  */
 function swapOneParam(ctx: ISwapCtx): number {
-  if (FROM_KEYS.has(ctx.key)) {
-    const probe = readProbe(ctx.params, ctx.key);
-    const formatted = formatLikeProbe(ctx.fromDate, probe);
-    ctx.params.set(ctx.key, formatted);
-    return 1;
-  }
-  if (TO_KEYS.has(ctx.key)) {
-    const probe = readProbe(ctx.params, ctx.key);
-    const formatted = formatLikeProbe(ctx.toDate, probe);
-    ctx.params.set(ctx.key, formatted);
-    return 1;
-  }
+  if (FROM_KEYS.has(ctx.key)) return setDateParam(ctx.params, ctx.key, ctx.fromDate);
+  if (TO_KEYS.has(ctx.key)) return setDateParam(ctx.params, ctx.key, ctx.toDate);
   return 0;
 }
 
@@ -157,6 +163,27 @@ function urlAlreadyHasWkRange(params: URLSearchParams): boolean {
   return hasTo;
 }
 
+/** Bundled target for {@link appendMissingAliases} — keeps the orchestrator under the 10-LoC cap. */
+interface IAppendTarget {
+  readonly params: URLSearchParams;
+  readonly range: IDateRange;
+}
+
+/**
+ * Set a URL alias to the YYYYMMDD-formatted date value when missing.
+ * Helper for {@link appendMissingAliases}.
+ * @param params - URL search params (mutated in-place).
+ * @param alias - Alias key (e.g. `fromDate`).
+ * @param date - Date value to format.
+ * @returns 1 if appended, 0 if already present.
+ */
+function appendAliasIfMissing(params: URLSearchParams, alias: string, date: Date): number {
+  if (params.has(alias)) return 0;
+  const formatted = moment(date).format('YYYYMMDD');
+  params.set(alias, formatted);
+  return 1;
+}
+
 /**
  * Phase H'' (2026-05-15): when the detector emitted a non-empty
  * WK-aliased tuple but neither alias is present in the captured URL,
@@ -165,37 +192,41 @@ function urlAlreadyHasWkRange(params: URLSearchParams): boolean {
  * URL already carries any WK fromDate + any WK toDate alias (which
  * means {@link applyDateRangeToUrl} already substituted them — see
  * {@link urlAlreadyHasWkRange}).
- * @param params - URL search params (mutated in-place).
+ * @param target - Bundled params + range (mutated in-place).
  * @param tuple - Detector tuple `[fromAlias, toAlias]`.
- * @param range - Bundled date range.
  * @returns Count of newly appended params (0, 1, or 2).
  */
-function appendMissingAliases(
-  params: URLSearchParams,
-  tuple: readonly string[],
-  range: IDateRange,
-): number {
+function appendMissingAliases(target: IAppendTarget, tuple: readonly string[]): number {
   if (tuple.length < 2) return 0;
   const [fromAlias, toAlias] = tuple;
   if (fromAlias === '' || toAlias === '') return 0;
-  if (urlAlreadyHasWkRange(params)) return 0;
-  let appended = 0;
-  if (!params.has(fromAlias)) {
-    const formattedFrom = moment(range.fromDate).format('YYYYMMDD');
-    params.set(fromAlias, formattedFrom);
-    appended += 1;
-  }
-  if (!params.has(toAlias)) {
-    const formattedTo = moment(range.toDate).format('YYYYMMDD');
-    params.set(toAlias, formattedTo);
-    appended += 1;
-  }
-  return appended;
+  if (urlAlreadyHasWkRange(target.params)) return 0;
+  const fromCount = appendAliasIfMissing(target.params, fromAlias, target.range.fromDate);
+  const toCount = appendAliasIfMissing(target.params, toAlias, target.range.toDate);
+  return fromCount + toCount;
 }
 
 /** Bundled context for {@link patchUrl}. */
 interface IPatchCtx extends IDateRangeWithWindow {
   readonly input: string;
+}
+
+/**
+ * Walk every search-param key and swap WK fromDate/toDate aliases.
+ * Helper for {@link patchUrl}.
+ * @param params - URL search params (mutated in-place).
+ * @param fromDate - Range start.
+ * @param toDate - Range end.
+ * @returns Number of swapped params.
+ */
+function swapAllParams(params: URLSearchParams, fromDate: Date, toDate: Date): number {
+  let total = 0;
+  const keyIter = params.keys();
+  const keys = Array.from(keyIter);
+  for (const key of keys) {
+    total += swapOneParam({ params, key, fromDate, toDate });
+  }
+  return total;
 }
 
 /**
@@ -210,20 +241,10 @@ interface IPatchCtx extends IDateRangeWithWindow {
 function patchUrl(ctx: IPatchCtx): IPatchOutcome {
   const parsed = safeParseUrl(ctx.input);
   if (parsed === false) return { url: ctx.input, swapped: 0 };
-  let total = 0;
-  const keyIter = parsed.searchParams.keys();
-  const keys = Array.from(keyIter);
-  for (const key of keys) {
-    total += swapOneParam({
-      params: parsed.searchParams,
-      key,
-      fromDate: ctx.fromDate,
-      toDate: ctx.toDate,
-    });
-  }
   const range: IDateRange = { fromDate: ctx.fromDate, toDate: ctx.toDate };
-  total += appendMissingAliases(parsed.searchParams, ctx.windowParams, range);
-  return { url: parsed.toString(), swapped: total };
+  const swapped = swapAllParams(parsed.searchParams, ctx.fromDate, ctx.toDate);
+  const appended = appendMissingAliases({ params: parsed.searchParams, range }, ctx.windowParams);
+  return { url: parsed.toString(), swapped: swapped + appended };
 }
 
 /**
