@@ -50,28 +50,44 @@ function buildFailureFromResponse(next: Response, preview: string): IAuthFailure
 }
 
 /**
+ * Process a received auth response — build the failure record and
+ * commit it to state. Pulled out so {@link awaitFailure} fits cap.
+ * @param state - Watcher state.
+ * @param next - Auth-URL response that triggered the match.
+ * @returns Failure record after recording it on state.
+ */
+async function processAuthResponse(state: IWatcherState, next: Response): Promise<IAuthFailure> {
+  const preview = await safeBodyPreview(next);
+  const failure = buildFailureFromResponse(next, preview);
+  recordFailure(state, failure);
+  return failure;
+}
+
+/**
+ * Bundled args for {@link awaitFailure} — keeps the signature 1-line
+ * so the body stays within the 10-LoC cap.
+ */
+export interface IAwaitFailureArgs {
+  page: Page;
+  state: IWatcherState;
+  timeoutMs: number;
+}
+
+/**
  * Awaitable wait — resolves with an existing failure synchronously,
  * otherwise uses Playwright's native event-driven `waitForResponse`.
- * @param page - Playwright page.
- * @param state - Watcher state.
- * @param timeoutMs - Max wait time.
+ * @param args - Bundled page + state + timeout.
  * @returns Failure record or false on timeout.
  */
-async function awaitFailure(
-  page: Page,
-  state: IWatcherState,
-  timeoutMs: number,
-): Promise<IAuthFailure | false> {
+async function awaitFailure(args: IAwaitFailureArgs): Promise<IAuthFailure | false> {
+  const { page, state, timeoutMs } = args;
   const detectedBefore = readDetected(state);
   if (detectedBefore) return detectedBefore;
   const next = await awaitNextResponse(page, timeoutMs);
   const detectedAfter = readDetected(state);
   if (detectedAfter) return detectedAfter;
   if (next === false) return false;
-  const preview = await safeBodyPreview(next);
-  const failure = buildFailureFromResponse(next, preview);
-  recordFailure(state, failure);
-  return failure;
+  return processAuthResponse(state, next);
 }
 
 export default awaitFailure;

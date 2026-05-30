@@ -54,6 +54,18 @@ function firstWaiterToken(
 }
 
 /**
+ * Emit the poll-hit trace line for {@link pollForAuthModule}. Pulled
+ * out so the orchestrator fits the 10-LoC cap.
+ * @param startMs - Poll start timestamp.
+ * @returns True after the trace fires.
+ */
+function logPollHit(startMs: number): true {
+  const elapsed = String(Date.now() - startMs);
+  LOG.trace({ message: `auth-module found after ${elapsed}ms` });
+  return true;
+}
+
+/**
  * Poll all frames for auth-module until it appears or timeout.
  * @param page - Playwright page.
  * @returns Token or false.
@@ -64,9 +76,6 @@ export async function pollForAuthModule(page: Page): Promise<string | false> {
   const waiters = page.frames().map(buildFrameWaiter);
   const results = await Promise.allSettled(waiters);
   const token = firstWaiterToken(results);
-  if (token) {
-    const elapsed = String(Date.now() - startMs);
-    LOG.trace({ message: `auth-module found after ${elapsed}ms` });
-  }
+  if (token) logPollHit(startMs);
   return token;
 }

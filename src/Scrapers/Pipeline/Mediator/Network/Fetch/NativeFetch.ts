@@ -36,6 +36,19 @@ async function readBodyWithPreview(fetchResult: Response): Promise<string> {
 }
 
 /**
+ * Validate a GET response status — throw on non-200.
+ * Pulled out so {@link parseFetchGetResponse} fits the 10-LoC cap.
+ * @param fetchResult - The fetch Response object.
+ * @returns Always true on 200.
+ */
+function assertGetStatusOk(fetchResult: Response): true {
+  if (fetchResult.status !== 200) {
+    throw new ScraperError(`GET request returned status ${String(fetchResult.status)}`);
+  }
+  return true;
+}
+
+/**
  * Parse and log the response from a native fetch GET request.
  * @param fetchResult - The fetch Response object.
  * @param url - The original request URL for error reporting.
@@ -49,9 +62,7 @@ async function parseFetchGetResponse<TResult>(
 ): Promise<TResult> {
   logApiCall(`GET ${url.slice(-100)}`, fetchResult.status, Date.now() - startMs);
   const text = await readBodyWithPreview(fetchResult);
-  if (fetchResult.status !== 200) {
-    throw new ScraperError(`GET request returned status ${String(fetchResult.status)}`);
-  }
+  assertGetStatusOk(fetchResult);
   return JSON.parse(text) as TResult;
 }
 
@@ -90,6 +101,19 @@ function buildPostInit(
 }
 
 /**
+ * Send a POST + log + read body. Extracted so {@link fetchPost} fits cap.
+ * @param url - Target URL.
+ * @param postInit - Pre-built RequestInit.
+ * @param startMs - Start timestamp for duration calculation.
+ * @returns Raw response body text.
+ */
+async function sendPost(url: string, postInit: RequestInit, startMs: number): Promise<string> {
+  const result = await fetch(url, postInit);
+  logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
+  return readBodyWithPreview(result);
+}
+
+/**
  * Perform a POST request with JSON body using native fetch.
  * @param url - The URL to post to.
  * @param data - The request body as a plain object.
@@ -103,10 +127,20 @@ export async function fetchPost<TResult>(
 ): Promise<TResult> {
   const startMs = Date.now();
   const postInit = buildPostInit(data, extraHeaders);
-  const result = await fetch(url, postInit);
-  logApiCall(`POST ${url.slice(-100)}`, result.status, Date.now() - startMs);
-  const text = await readBodyWithPreview(result);
+  const text = await sendPost(url, postInit, startMs);
   return JSON.parse(text) as TResult;
+}
+
+/**
+ * Unwrap a GraphQL envelope — throw on first error, return data.
+ * Extracted so {@link fetchGraphql} fits the 10-LoC cap.
+ * @param result - GraphQL envelope from fetchPost.
+ * @returns Underlying data field.
+ */
+function unwrapGraphqlResult<TResult>(result: IGraphqlResponse<TResult>): TResult {
+  const firstError = result.errors?.[0];
+  if (firstError) throw new ScraperError(firstError.message);
+  return result.data;
 }
 
 /**
@@ -124,7 +158,5 @@ export async function fetchGraphql<TResult>(
   const { variables = {}, extraHeaders = {} } = opts;
   const body = { operationName: '', query, variables };
   const result = await fetchPost<IGraphqlResponse<TResult>>(url, body, extraHeaders);
-  const firstError = result.errors?.[0];
-  if (firstError) throw new ScraperError(firstError.message);
-  return result.data;
+  return unwrapGraphqlResult(result);
 }

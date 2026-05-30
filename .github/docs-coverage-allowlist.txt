@@ -298,3 +298,6 @@ IBodyFailurePattern
 isAuthEndpointUrl
 # Reason: isFailureStatusCode — AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public 4xx status predicate; reused by inspection helpers.
 isFailureStatusCode
+# --- Phase 8.5a / commit 7 (Network §11 cap tightening 20→10) ---
+# Reason: IAwaitFailureArgs — AuthFailureWatcher/Waiter.ts bundled-args interface introduced solely to keep awaitFailure within the 10-LoC per-function cap; internal-only — no external consumer.
+IAwaitFailureArgs

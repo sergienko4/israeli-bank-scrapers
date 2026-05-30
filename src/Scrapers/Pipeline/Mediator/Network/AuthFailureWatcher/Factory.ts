@@ -48,7 +48,7 @@ function waitForFailureBound(
   state: IWatcherState,
   timeoutMs: number,
 ): Promise<IAuthFailure | false> {
-  return awaitFailure(page, state, timeoutMs);
+  return awaitFailure({ page, state, timeoutMs });
 }
 
 /**
@@ -86,6 +86,14 @@ function placeholderHandler(): boolean {
 }
 
 /**
+ * Build the initial watcher state struct.
+ * @returns Fresh IWatcherState with no handler bound.
+ */
+function newWatcherState(): IWatcherState {
+  return { detected: false, responseHandler: placeholderHandler, isDisposed: false };
+}
+
+/**
  * Subscribe to page responses and return a watcher tracking the first
  * auth failure of either layer. The watcher MUST be disposed when the
  * LoginPhase exits to prevent stale OTP-flow 4xx responses from
@@ -94,11 +102,7 @@ function placeholderHandler(): boolean {
  * @returns Watcher API.
  */
 export function createAuthFailureWatcher(page: Page): IAuthFailureWatcher {
-  const state: IWatcherState = {
-    detected: false,
-    responseHandler: placeholderHandler,
-    isDisposed: false,
-  };
+  const state = newWatcherState();
   const handler = buildResponseHandler(state);
   state.responseHandler = handler;
   page.on('response', handler);

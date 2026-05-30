@@ -31,7 +31,7 @@ PR #278 can never recur.
 | Cluster | Cap | Rationale |
 |---|---|---|
 | PiiRedactor (§13) | **10** | Matches CLAUDE.md ideal; each redactor is a tight strategy. |
-| Network (§11) | 20 | Inherited from §6C base; tightening to 10 is tracked as follow-up. |
+| Network (§11) | **10** | Phase 8.5a drained the three grandfathered files and tightened the cap to match §13 / CLAUDE.md ideal. |
 | Scrape (§12) | 20 | Same as Network. |
 | Default §6C base | 15 | All other Pipeline files; can be overridden stricter. |
 

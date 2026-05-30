@@ -69,10 +69,10 @@ const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Network (§11)',
-    representativeFile: 'src/Scrapers/Pipeline/Mediator/Network/Scoring.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Mediator/Network/Scoring/Scoring.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
-      { ruleId: 'max-lines-per-function', maxAllowed: 20 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],

@@ -41,6 +41,28 @@ async function tryLayerOne(state: IWatcherState, response: Response): Promise<bo
   return true;
 }
 
+/** Bundled args for {@link recordLayerTwoFailure} — keeps the helper under max-params + LoC caps. */
+interface IL2FailureArgs {
+  state: IWatcherState;
+  response: Response;
+  note: string;
+  body: JsonValue;
+}
+
+/**
+ * Record an L2 (body-error on 200) failure with the matched note.
+ * Pulled out so {@link tryLayerTwo} fits the 10-LoC cap.
+ * @param args - Bundled state + response + note + body.
+ * @returns Always true (L2 fired).
+ */
+function recordLayerTwoFailure(args: IL2FailureArgs): true {
+  const { state, response, note, body } = args;
+  const preview = buildBodyErrorPreview(note, body);
+  const url = response.url();
+  recordFailure(state, { status: 200, url, bodyPreview: preview, classifier: 'body-error' });
+  return true;
+}
+
 /**
  * Try Layer 2 (body-error on 200) detection on a response.
  * @param state - Watcher state.
@@ -53,10 +75,7 @@ async function tryLayerTwo(state: IWatcherState, response: Response): Promise<bo
   if (body === NO_PARSED_BODY) return false;
   const note = classifyBodyAsFailure(body);
   if (note === false) return false;
-  const preview = buildBodyErrorPreview(note, body);
-  const url = response.url();
-  recordFailure(state, { status: 200, url, bodyPreview: preview, classifier: 'body-error' });
-  return true;
+  return recordLayerTwoFailure({ state, response, note, body });
 }
 
 /**

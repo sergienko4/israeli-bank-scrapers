@@ -50,24 +50,47 @@ async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, n
   return [await response.text(), response.status] as const;
 }
 
+/** Pino payload shape for the doPostFetch.headers diagnostic. */
+interface IDoPostFetchHeadersPayload {
+  event: string;
+  url: string;
+  headerNames: string[];
+  bodyLen: number;
+}
+
+/**
+ * Sort header names alphabetically — pulled out so the payload builder
+ * fits the 10-LoC cap.
+ * @param headers - Captured extra-headers map.
+ * @returns Alphabetically sorted header names.
+ */
+function sortHeaderNames(headers: Record<string, string>): string[] {
+  return Object.keys(headers).sort((a, b): number => a.localeCompare(b));
+}
+
+/**
+ * Build the doPostFetch.headers diagnostic payload — pulled out so
+ * {@link logDoPostFetchHeaders} fits the 10-LoC cap.
+ * @param args - Post-evaluate args (url + headers + body).
+ * @returns Pino debug payload.
+ */
+function buildDoPostFetchHeadersPayload(args: IPostEvaluateArgs): IDoPostFetchHeadersPayload {
+  return {
+    event: 'doPostFetch.headers',
+    url: args.innerUrl,
+    headerNames: sortHeaderNames(args.innerExtraHeaders),
+    bodyLen: args.innerDataJson.length,
+  };
+}
+
 /**
  * Emit the doPostFetch.headers diagnostic line for VisaCal/Hapoalim debug.
  * @param args - Post-evaluate args (url + headers + body).
  * @returns True after emission completes.
  */
 function logDoPostFetchHeaders(args: IPostEvaluateArgs): boolean {
-  // Temporary diagnostic — Phase H'' VisaCal 401 investigation
-  // 15-05-2026: print the EXACT header set we hand to the browser
-  // fetch so we can compare against the SPA's captured request.
-  const headerNames = Object.keys(args.innerExtraHeaders).sort((a, b): number =>
-    a.localeCompare(b),
-  );
-  LOG.debug({
-    event: 'doPostFetch.headers',
-    url: args.innerUrl,
-    headerNames,
-    bodyLen: args.innerDataJson.length,
-  });
+  const payload = buildDoPostFetchHeadersPayload(args);
+  LOG.debug(payload);
   return true;
 }
 
@@ -97,6 +120,27 @@ function buildPostArgs(url: string, opts: IFetchPostOptions): IPostEvaluateArgs 
   return { innerUrl: url, innerDataJson: JSON.stringify(data), innerExtraHeaders: extraHeaders };
 }
 
+/** Bundled args for {@link finalisePagePost} — keeps the sig under max-params. */
+interface IFinalisePagePostArgs {
+  text: string;
+  status: number;
+  url: string;
+  startMs: number;
+  opts: IFetchPostOptions;
+}
+
+/**
+ * Common tail for {@link fetchPostWithinPage} — log + parse.
+ * @param args - Bundled response text + status + url + start + opts.
+ * @returns Parsed JSON or EMPTY_RESULT on swallowed parse error.
+ */
+function finalisePagePost<TResult>(args: IFinalisePagePostArgs): Nullable<TResult> {
+  const { text, status, url, startMs, opts } = args;
+  logApiCall(`POST(page) ${url.slice(-100)}`, status, Date.now() - startMs);
+  logResponseIssues(status, text, url);
+  return parsePostResult({ text, status, url, opts }) as TResult;
+}
+
 /**
  * Perform a POST request inside a Playwright page context (with cookies).
  * @param page - The Playwright page or frame context.
@@ -112,7 +156,5 @@ export async function fetchPostWithinPage<TResult>(
   const startMs = Date.now();
   const postArgs = buildPostArgs(url, opts);
   const [text, status] = await runPostEvaluate(page, postArgs);
-  logApiCall(`POST(page) ${url.slice(-100)}`, status, Date.now() - startMs);
-  logResponseIssues(status, text, url);
-  return parsePostResult({ text, status, url, opts }) as TResult;
+  return finalisePagePost<TResult>({ text, status, url, startMs, opts });
 }

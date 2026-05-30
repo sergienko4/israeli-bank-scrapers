@@ -44,6 +44,24 @@ export function handleParseError(opts: IParseErrorOpts): Nullable<Record<string,
   throw new ScraperError(buildParseErrorMessage(opts));
 }
 
+/**
+ * Try to JSON.parse a body string; route parse errors through {@link handleParseError}.
+ * Extracted so the two public parsers fit the 10-LoC cap.
+ * @param body - Raw body text (caller already checked for empty).
+ * @param opts - Parse-error routing options (ignore-flag + url + status + context).
+ * @returns Parsed JSON or EMPTY_RESULT when errors are ignored.
+ */
+function tryParseOrHandle(
+  body: string,
+  opts: Omit<IParseErrorOpts, 'err'>,
+): Nullable<Record<string, JsonValue>> {
+  try {
+    return JSON.parse(body) as Record<string, JsonValue>;
+  } catch (error) {
+    return handleParseError({ ...opts, err: error as Error });
+  }
+}
+
 /** Options for parsing a GET-within-page response. */
 export interface IParseGetOpts {
   result: string;
@@ -60,17 +78,12 @@ export interface IParseGetOpts {
 export function parseGetResult(opts: IParseGetOpts): Nullable<Record<string, JsonValue>> {
   const { result, status, url, shouldIgnoreErrors } = opts;
   if (result === '') return {};
-  try {
-    return JSON.parse(result) as Record<string, JsonValue>;
-  } catch (error) {
-    return handleParseError({
-      err: error as Error,
-      shouldIgnore: shouldIgnoreErrors,
-      url,
-      status,
-      context: 'fetchGetWithinPage',
-    });
-  }
+  return tryParseOrHandle(result, {
+    shouldIgnore: shouldIgnoreErrors,
+    url,
+    status,
+    context: 'fetchGetWithinPage',
+  });
 }
 
 /** Options for parsing a POST-within-page response. */
@@ -82,6 +95,22 @@ export interface IParsePostOpts {
 }
 
 /**
+ * Build the parse-error routing options for the POST-within-page parser.
+ * Pulled out so {@link parsePostResult} fits the 10-LoC cap.
+ * @param url - Target URL (for error reporting).
+ * @param status - HTTP status from the in-page evaluator.
+ * @param shouldIgnore - Whether to swallow parse errors.
+ * @returns Routing options without the `err` field.
+ */
+function postParseOpts(
+  url: string,
+  status: number,
+  shouldIgnore: boolean,
+): Omit<IParseErrorOpts, 'err'> {
+  return { shouldIgnore, url, status, context: 'fetchPostWithinPage' };
+}
+
+/**
  * Parse the text result of a POST-within-page call into JSON.
  * @param pOpts - The response text, status, URL, and fetch options.
  * @returns The parsed JSON object, null if parse fails and errors are ignored, or empty object for empty responses.
@@ -90,15 +119,6 @@ export function parsePostResult(pOpts: IParsePostOpts): Nullable<Record<string, 
   const { text, status, url, opts } = pOpts;
   const { shouldIgnoreErrors = false } = opts;
   if (text === '') return {};
-  try {
-    return JSON.parse(text) as Record<string, JsonValue>;
-  } catch (error) {
-    return handleParseError({
-      err: error as Error,
-      shouldIgnore: shouldIgnoreErrors,
-      url,
-      status,
-      context: 'fetchPostWithinPage',
-    });
-  }
+  const parseOpts = postParseOpts(url, status, shouldIgnoreErrors);
+  return tryParseOrHandle(text, parseOpts);
 }
