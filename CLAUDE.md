@@ -8,8 +8,14 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Code Quality
 
+> **Canonical caps:** see [CLEAN_CODE.md](./CLEAN_CODE.md) for the single source
+> of truth on per-function, file-size, complexity, and parameter limits.
+> The pre-commit `lint:guideline-coverage` gate asserts `eslint.config.mjs`
+> actually enforces those caps for every Pipeline cluster.
+
 - SOLID principles, especially OCP (maps over if/else)
-- Max 10 lines per method — extract helpers
+- Max **10 lines per method** (ideal — see CLEAN_CODE.md for the per-cluster
+  hard caps; PiiRedactor enforces 10 strictly)
 - TypeScript strict mode — no `any`, no unused vars
 - Follow existing style: Prettier (120 width, single quotes, trailing commas) + ESLint 9 flat config
 - Generic over duplication — use factories, shared helpers, config arrays

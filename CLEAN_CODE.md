@@ -1,13 +1,47 @@
-# 🛠️ Clean Code Guide
+# 🛠️ Clean Code Guide — Canonical Quality Caps
+
+This file is the **single source of truth** for the per-function /
+per-file quality caps enforced by `eslint.config.mjs`. Every other
+doc (`CLAUDE.md`, `.code-rules.md`, `docs/contributing/lint.md`)
+links here — do NOT restate the numbers elsewhere.
 
 This project enforces quality limits automatically on every commit.
 When ESLint blocks your commit, find your error below and apply the fix.
+
+The pre-commit gate `lint:guideline-coverage` ALSO asserts that
+`eslint.config.mjs` actually enforces these caps for every Pipeline
+cluster — so the doc/config mismatch that caused CR cycle-1 #7 on
+PR #278 can never recur.
+
+---
+
+## Canonical caps (enforced by ESLint + `lint:guideline-coverage`)
+
+| Cap | Value | Rule | Scope |
+|---|---|---|---|
+| File size | **150** effective LoC | `max-lines` | All `src/Scrapers/Pipeline/**` |
+| Per-function LoC | **10** ideal / **20** hard | `max-lines-per-function` | Per cluster (see below) |
+| Cyclomatic complexity | **10** | `complexity` | All `src/Scrapers/Pipeline/**` |
+| Parameter count | **3** (use options object beyond) | `@typescript-eslint/max-params` | All `src/Scrapers/Pipeline/**` |
+| Nesting depth | **1** | `max-depth` | All `src/Scrapers/Pipeline/**` |
+| Classes per file | **1** | `max-classes-per-file` | All `src/**` |
+
+### Per-cluster `max-lines-per-function` (sourced from `eslint.config.mjs`)
+
+| Cluster | Cap | Rationale |
+|---|---|---|
+| PiiRedactor (§13) | **10** | Matches CLAUDE.md ideal; each redactor is a tight strategy. |
+| Network (§11) | 20 | Inherited from §6C base; tightening to 10 is tracked as follow-up. |
+| Scrape (§12) | 20 | Same as Network. |
+| Default §6C base | 15 | All other Pipeline files; can be overridden stricter. |
 
 ---
 
 ## 1. Function too long (`max-lines-per-function`)
 
-**Rule:** Hard limit = 20 lines. Ideal = 10 lines (see CLAUDE.md).
+**Rule:** Ideal = 10 lines (CLAUDE.md). Hard ceiling per cluster
+varies (see table above). Cluster-specific blocks in `eslint.config.mjs`
+can tighten the cap but never weaken it.
 
 **The Fix — Extract Method:**
 Break the function into smaller helpers, each with a descriptive name.
@@ -119,7 +153,26 @@ src/scrapers/bank-b.ts    ← class BankBScraper
 
 ---
 
-## 5. Unused imports (`unused-imports/no-unused-imports`)
+## 5. Hardcoded sentinel literals (PiiRedactor §13 only)
+
+**Rule:** Per-category PiiRedactor modules must NEVER hardcode
+`'[REDACTED]'`, `'[OTP]'`, or `'[REDACTION_ERROR]'` literals.
+Import the matching constant from `Types.ts` instead.
+
+```typescript
+// ❌ banned (CR cycle-1 #9)
+return '[REDACTED]' as PiiHintString;
+
+// ✅ allowed
+import { REDACTED_HINT } from './Types.js';
+return REDACTED_HINT as PiiHintString;
+```
+
+The canary `pii-hardcoded-sentinel.canary.ts` keeps the rule alive.
+
+---
+
+## 6. Unused imports (`unused-imports/no-unused-imports`)
 
 **The Fix — auto-clean:**
 
@@ -139,6 +192,7 @@ This removes unused imports automatically. Run it before committing.
 | Prettier formatting | `npm run format` |
 | All auto-fixable | `npm run lint:fix` |
 | See all errors | `npm run lint` |
+| Verify ESLint covers every cluster | `npm run lint:guideline-coverage` |
 
 ---
 
@@ -150,5 +204,7 @@ git commit
       eslint --fix  (auto-fixes unused imports, formatting)
       prettier --write  (normalises style)
   → tsc --noEmit  (type check)
+  → guideline-coverage gate  (asserts eslint.config covers CLEAN_CODE.md caps)
   → commit succeeds ✅ or shows remaining errors ❌
 ```
+

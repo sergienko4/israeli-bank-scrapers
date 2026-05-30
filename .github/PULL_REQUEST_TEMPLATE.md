@@ -26,6 +26,8 @@ Commit messages follow the 50/72 rule
 - [ ] unit tests added / updated
 - [ ] integration tests added / updated where the surface warrants
 - [ ] `npm run lint` passes
+- [ ] `npm run lint:guideline-coverage` passes (asserts `eslint.config.mjs` enforces CLEAN_CODE.md caps for every Pipeline cluster this PR touches)
+- [ ] `npm run lint:canaries` passes (asserts every architectural canary still fires)
 - [ ] `npm run test:pipeline` passes (coverage gates respected)
 - [ ] `npm run test:e2e:mock` passes (or N/A documented below)
 
