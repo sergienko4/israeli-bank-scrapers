@@ -40,6 +40,7 @@ import { redactMerchant } from './Merchant.js';
 import { redactName } from './Name.js';
 import { redactPhone } from './Phone.js';
 import {
+  OTP_HINT,
   type PiiCategory,
   type PiiClassifierBool,
   type PiiHintString,
@@ -210,6 +211,22 @@ function dispatchStrategy(args: IDispatchArgs): PiiHintString {
 }
 
 /**
+ * Classify + dispatch a single censor invocation. Strategy throws are
+ * translated to {@link REDACTION_ERROR_HINT} so the censor caller
+ * never propagates internal errors back to pino.
+ * @param value - Value being censored.
+ * @param tail - Non-empty path tail (last key).
+ * @returns Stable hint string.
+ */
+function censorTail(value: CensorValue, tail: string): PiiHintString {
+  try {
+    return dispatchStrategy({ value, category: classifyKey(tail) });
+  } catch {
+    return REDACTION_ERROR_HINT as PiiHintString;
+  }
+}
+
+/**
  * Pino redact callback factory. Each invocation classifies the path
  * tail, dispatches to a strategy, and returns the stable hint string.
  * Strategy throws are caught and translated to '[REDACTION_ERROR]'.
@@ -220,12 +237,7 @@ export function createCensorFn(): CensorFn {
     if (path.length === 0) return REDACTED_HINT as PiiHintString;
     const tail = path.at(-1);
     if (tail === undefined || tail.length === 0) return REDACTED_HINT as PiiHintString;
-    try {
-      const category = classifyKey(tail);
-      return dispatchStrategy({ value, category });
-    } catch {
-      return REDACTION_ERROR_HINT as PiiHintString;
-    }
+    return censorTail(value, tail);
   };
 }
 
@@ -237,7 +249,7 @@ export function createCensorFn(): CensorFn {
  */
 function redactStringValue(value: string): PiiHintString {
   if (looksLikeToken(value)) return REDACTED_HINT as PiiHintString;
-  if (looksLikeOtp(value)) return '[OTP]' as PiiHintString;
+  if (looksLikeOtp(value)) return OTP_HINT as PiiHintString;
   if (looksLikeCookie(value)) return REDACTED_HINT as PiiHintString;
   return REDACTED_HINT as PiiHintString;
 }

@@ -127,11 +127,8 @@ function redactLeaf(
   path: readonly string[],
   censor: CensorFn,
 ): JsonScalar {
-  if (path.length === 0) return value;
-  const tail = path.at(-1);
-  if (tail === undefined || tail.length === 0) return value;
-  const category = classifyKey(tail);
-  if (category === 'unknown') return value;
+  const tail = path.at(-1) ?? '';
+  if (classifyKey(tail) === 'unknown') return value;
   return censor(value, path);
 }
 
@@ -187,11 +184,8 @@ function isJsonArray(v: JsonValue): v is JsonArray {
 function redactNode(value: JsonValue, path: readonly string[], state: IWalkState): JsonValue {
   if (state.depth > MAX_WALK_DEPTH) return '[REDACTED:depth-limit]';
   if (value === null) return value;
-  if (typeof value === 'string') return redactLeaf(value, path, state.censor);
-  if (typeof value === 'number') return redactLeaf(value, path, state.censor);
-  if (typeof value === 'boolean') return redactLeaf(value, path, state.censor);
-  const isCycle = state.seen.has(value);
-  if (isCycle) return '[REDACTED:cycle]';
+  if (typeof value !== 'object') return redactLeaf(value, path, state.censor);
+  if (state.seen.has(value)) return '[REDACTED:cycle]';
   state.seen.add(value);
   if (isJsonArray(value)) return redactArray(value, path, state);
   return redactObject(value, path, state);

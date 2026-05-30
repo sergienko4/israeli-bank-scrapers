@@ -18,6 +18,14 @@ import type { Brand } from '../Brand.js';
 export const REDACTED_HINT = '[REDACTED]' as const;
 
 /**
+ * OTP replacement string — emitted by the OTP strategy for 4..8 ASCII
+ * digit inputs. Centralised here so per-category modules import the
+ * constant instead of hardcoding the literal (CLAUDE.md "Constants
+ * from configuration — never hardcode values inline"; CR cycle-1 #9).
+ */
+export const OTP_HINT = '[OTP]' as const;
+
+/**
  * Strategy-error replacement string — emitted when a redactor throws.
  * Keeps the pipeline running even if a single value triggers a bug.
  */

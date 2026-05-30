@@ -1,6 +1,8 @@
 # Code style & lint
 
-The pre-commit hook runs ESLint + Biome + Prettier + the architecture validator + canaries on every commit. Skipping any of them is not an option.
+The pre-commit hook runs ESLint + Biome + Prettier + the architecture validator + canaries + guideline-coverage on every commit. Skipping any of them is not an option.
+
+> **Quality caps** (per-function LoC, file size, complexity, parameter count) live in [CLEAN_CODE.md](../../CLEAN_CODE.md). That file is the single source of truth — do NOT restate the numbers here. The `lint:guideline-coverage` gate asserts `eslint.config.mjs` actually enforces those caps for every Pipeline cluster.
 
 ## Project-specific rules (beyond defaults)
 
@@ -11,7 +13,7 @@ Open-closed pattern enforced via `eslint.config.mjs` `max-depth: 1` and `complex
 | Banned | Allowed |
 |---|---|
 | `if (bank === 'amex') {} else if (...) {}` ladders | Lookup table — `MAP[bank]?.(...)` |
-| Functions > 10 lines | Extract helpers |
+| Functions over the cluster cap (see CLEAN_CODE.md) | Extract helpers |
 | `class` extension chains | Composition + declarative config |
 
 ### No CSS selectors in interaction code

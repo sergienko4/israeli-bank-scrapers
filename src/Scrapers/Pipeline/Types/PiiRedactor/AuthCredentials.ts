@@ -10,6 +10,7 @@
 
 import {
   isPiiRedactionDisabled,
+  OTP_HINT,
   type PiiCategory,
   type PiiClassifierBool,
   type PiiHintString,
@@ -59,7 +60,7 @@ function redactOtp(value: string): PiiHintString {
   if (isPiiRedactionDisabled) return value as PiiHintString;
   if (value.length === 0) return '' as PiiHintString;
   if (!OTP_VALUE_RE.test(value)) return REDACTED_HINT as PiiHintString;
-  return '[OTP]' as PiiHintString;
+  return OTP_HINT as PiiHintString;
 }
 
 /**

@@ -160,6 +160,7 @@ fi
 bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
 bg_gate "canaries"          "yes" npm run lint:canaries
 bg_gate "dead-code"         "yes" npm run lint:dead-code
+bg_gate "guideline-coverage" "yes" npm run lint:guideline-coverage
 
 # Heavy gates — each runs Jest with its own worker pool. Three gates
 # run concurrently here, so each pool gets ~1/3 of the available cores

@@ -9,7 +9,7 @@ Driven by [husky](https://typicode.github.io/husky/). Runs every quality gate in
 
 Runs first and auto-fixes whitespace / quote style / trailing commas. If anything changes, the gate cache key is recomputed *after* this step so cosmetic fixes don't invalidate the cache.
 
-## Phase 2 — 12 gates in parallel
+## Phase 2 — 13 gates in parallel
 
 The hook spawns each gate as a background process and `wait`s for them all. Cache key per gate is `git write-tree` (the SHA of the staged tree); when the same SHA passes a gate, the next commit on the same content set skips it.
 
@@ -24,9 +24,10 @@ The hook spawns each gate as a background process and `wait`s for them all. Cach
 | 7 | Build | `build` | `lint + tsup` |
 | 8 | Canaries | `canaries` | `lint:canaries` |
 | 9 | Dead code | `dead-code` | `lint:dead-code` |
-| 10 | Pipeline tests + coverage | `test:pipeline` | `test:pipeline` |
-| 11 | Bank tests | `bank-tests` | `test:e2e-factory-tests` |
-| 12 | Mock suite | `test:mock` | `test:mock` |
+| 10 | Guideline coverage | `guideline-coverage` | `lint:guideline-coverage` (asserts `eslint.config.mjs` enforces CLEAN_CODE.md caps for every Pipeline cluster) |
+| 11 | Pipeline tests + coverage | `test:pipeline` | `test:pipeline` |
+| 12 | Bank tests | `bank-tests` | `test:e2e-factory-tests` |
+| 13 | Mock suite | `test:mock` | `test:mock` |
 
 Total wall-clock: **3-5 minutes** on a modern laptop (everything is parallelised; the gate that takes the longest gates the whole run).
 

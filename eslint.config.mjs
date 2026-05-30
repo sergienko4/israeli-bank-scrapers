@@ -1637,7 +1637,7 @@ export default tseslint.config(
     },
   },
 
-  // 13. PII REDACTOR SUB-MODULE FILE-SIZE GUARD
+  // 13. PII REDACTOR SUB-MODULE FILE-SIZE + PER-FN + ANTI-LITERAL GUARD
   //
   // Phase 6 split the 996-LoC PiiRedactor.ts blob into thirteen
   // focused sub-modules under `Types/PiiRedactor/` (mirror of
@@ -1647,28 +1647,139 @@ export default tseslint.config(
   // could quietly re-blob one of the new homes back toward
   // four-digit line counts.
   //
-  // Ceiling: **200 effective lines per file** (skipBlankLines +
-  // skipComments). Larger than §11/§12 (150) because the Facade
-  // and JsonBody walker legitimately host the cross-strategy
-  // composition logic (routing table + walker state machine) that
-  // does not split further without introducing pointless
-  // indirection.
+  // Caps (all derived from CLAUDE.md "Code Quality" + the
+  // §11/§12 precedent for sibling Phase-4 / Phase-5 clusters):
+  //   • `max-lines` = **150** effective LoC (matches §11/§12)
+  //   • `max-lines-per-function` = **10** effective LoC (matches
+  //     CLAUDE.md "Max 10 lines per method"; CR cycle-1 #7 escaped
+  //     under the §6C default cap of 15)
+  //   • `no-restricted-syntax` bans hardcoded `'[REDACTED]'` /
+  //     `'[OTP]'` / `'[REDACTION_ERROR]'` literals so per-category
+  //     modules must import the matching constant from Types.ts
+  //     (CR cycle-1 #9 — "Use constants from configuration, never
+  //     hardcode values inline").
+  //   • `sonarjs/no-identical-functions` catches duplicate fn
+  //     bodies (e.g. the FALLBACK_PATTERNS regex helper that CR
+  //     cycle-1 #4/#5 caught duplicated across JsonBody.ts and
+  //     Html.ts).
+  //   • `sonarjs/no-duplicate-string` threshold:3 surfaces
+  //     repeated string literals before they become hardcoded
+  //     constants.
   //
   // The shim itself (`PiiRedactor.ts`) is intentionally left
   // unconstrained — Section 7 already allows it, and this guard
   // is about preventing regression of the new homes, not the
   // tombstone re-export.
   //
-  // Canary: `no-pii-redactor-blob.canary.ts` over-sizes the file
-  // above the 200 effective-line ceiling so `npm run lint:canaries`
-  // confirms the rule fires.
+  // Pre-existing files that already exceed the new file-size cap
+  // (`Facade.ts` ~162 eff LoC — composes every per-category
+  // strategy + the path-tail routing table + the dispatcher) are
+  // grandfathered via §13A below, mirroring the §11A / §12A
+  // pattern. The sentinel definers (`Types.ts`, which OWNS the
+  // hint constants) are unlocked via §13B so the bans don't fire
+  // on the defining file.
+  //
+  // Canaries:
+  //   • `no-pii-redactor-blob.canary.ts` — proves `max-lines`
+  //     fires (file > 150 LoC)
+  //   • `pii-cluster-fn-over-cap.canary.ts` — proves
+  //     `max-lines-per-function: 10` fires (function > 10 LoC)
+  //   • `pii-hardcoded-sentinel.canary.ts` — proves the
+  //     sentinel-literal ban fires
   {
     files: [
       'src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/no-pii-redactor-blob.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/pii-cluster-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/pii-hardcoded-sentinel.canary.ts',
+    ],
+    plugins: { sonarjs },
+    rules: {
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'sonarjs/no-identical-functions': 'error',
+      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Literal[value='[REDACTED]']",
+          message:
+            "🚫 PII CONSTANT: Import { REDACTED_HINT } from './Types.js' instead of hardcoding '[REDACTED]'. " +
+            'CR cycle-1 #9 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
+        },
+        {
+          selector: "Literal[value='[OTP]']",
+          message:
+            "🚫 PII CONSTANT: Import { OTP_HINT } from './Types.js' instead of hardcoding '[OTP]'.",
+        },
+        {
+          selector: "Literal[value='[REDACTION_ERROR]']",
+          message:
+            "🚫 PII CONSTANT: Import { REDACTION_ERROR_HINT } from './Types.js' instead of hardcoding '[REDACTION_ERROR]'.",
+        },
+      ],
+    },
+  },
+
+  // 13A. PII CLUSTER GRANDFATHER OVERRIDE
+  //
+  // Pre-existing files exceeding the new §13 caps. Splitting them
+  // is tracked as a follow-up phase — this override turns the cap
+  // OFF for those files ONLY so they pass pre-commit while still
+  // appearing in the linter inventory.
+  //
+  //   • Facade.ts (~162 eff LoC) — hosts the path-tail routing
+  //     table + STRING_STRATEGIES dispatch + the CensorFn factory.
+  //     A clean Routing.ts / Dispatch.ts extraction is a separate
+  //     phase; until then `max-lines` is off here.
+  //
+  // Suppression via file-level `eslint-disable` headers is NOT
+  // used because Section 15 (`no-warning-comments`) bans the
+  // `eslint-disable` term across src/**.
+  {
+    files: ['src/Scrapers/Pipeline/Types/PiiRedactor/Facade.ts'],
+    rules: {
+      'max-lines': 'off',
+    },
+  },
+
+  // 13B. PII CONSTANT DEFINER UNLOCK
+  //
+  // `Types.ts` legitimately HOLDS the hint constants — its
+  // `export const REDACTED_HINT = '[REDACTED]'` declaration MUST
+  // contain the bare literal. Unlock the §13 sentinel ban here.
+  {
+    files: ['src/Scrapers/Pipeline/Types/PiiRedactor/Types.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+
+  // 13C. PII ERROR-LOG NO-BYPASS LOCK
+  //
+  // `ErrorLog.ts` MUST NEVER reference `isPiiRedactionDisabled` —
+  // bank error messages are security-classified (CodeQL #28 / CR
+  // cycle-1 #3): they always redact, even with `PII_REDACTION=off`.
+  // The same lock applies to the canary that proves the rule fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Types/PiiRedactor/ErrorLog.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/pii-errorlog-bypass.canary.ts',
     ],
     rules: {
-      'max-lines': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Identifier[name='isPiiRedactionDisabled']",
+          message:
+            '🚫 SECURITY (CodeQL #28 / CR cycle-1 #3): ErrorLog.ts MUST always-redact. ' +
+            'Do not reference isPiiRedactionDisabled here — bank error messages are ' +
+            'security-classified and cannot be bypassed via PII_REDACTION=off.',
+        },
+      ],
     },
   },
 );
