@@ -931,6 +931,23 @@ export default tseslint.config(
     },
   },
 
+  // 7c. API-DIRECT-CALL CONFIGCONTRACTS — DEFAULT-EXPORT EXEMPTION
+  //
+  // Phase 8 split: the `ConfigContracts/` sub-tree under
+  // `ApiDirectCall/` houses focused, type-only modules carved out of
+  // the former IApiDirectCallConfig god-file. Most files re-export
+  // multiple symbols, but the top-level composer
+  // `ApiDirectCallConfig.ts` legitimately exports a single
+  // `interface IApiDirectCallConfig` — and interfaces cannot be
+  // default-exported as values. Same rationale as 7b; same narrow
+  // scope.
+  {
+    files: ['src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/**/*.ts'],
+    rules: {
+      'import-x/prefer-default-export': 'off',
+    },
+  },
+
   // 8. PHASE ROOT GUARD (THE FINAL CHECK)
   {
     files: ['src/Scrapers/Pipeline/Phases/*.ts'],
