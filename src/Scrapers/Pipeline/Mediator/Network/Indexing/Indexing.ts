@@ -35,6 +35,7 @@ const LOG = getDebug(import.meta.url);
 
 /** WK header names — imported from registry. */
 const ORIGIN_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.origin;
+const ORIGIN_KEY_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.originKey;
 const REFERER_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.referer;
 const SITE_ID_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.siteId;
 const BROWSER_STANDARD_HEADERS = PIPELINE_WELL_KNOWN_HEADERS.browserStandard;
@@ -212,6 +213,7 @@ export {
   NO_CONTENT_TYPE,
   NO_POST_DATA,
   ORIGIN_HEADERS,
+  ORIGIN_KEY_HEADERS,
   parseTextOrNull,
   REFERER_HEADERS,
   shouldRecordResponse,

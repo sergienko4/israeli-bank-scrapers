@@ -8,7 +8,12 @@
  */
 
 import type { IFetchOpts } from '../../../Strategy/Fetch/FetchStrategy.js';
-import { ORIGIN_HEADERS, REFERER_HEADERS, SITE_ID_HEADERS } from '../Indexing/Indexing.js';
+import {
+  ORIGIN_HEADERS,
+  ORIGIN_KEY_HEADERS,
+  REFERER_HEADERS,
+  SITE_ID_HEADERS,
+} from '../Indexing/Indexing.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import { discoverHeaderValue, extractSpaHeaders, spaHasAny } from '../Scoring/Scoring.js';
 
@@ -16,6 +21,13 @@ import { discoverHeaderValue, extractSpaHeaders, spaHasAny } from '../Scoring/Sc
  * Apply the Origin header (and Referer fallback) from captured traffic.
  * CR PR #280 #122 fix: prefers the captured Referer over the Origin
  * fallback when both are present.
+ * CR PR #280 cycle-2 fix: gates the Origin assignment behind
+ * `spaHasAny(spaBase, ORIGIN_KEY_HEADERS)` so an existing
+ * origin-equivalent SPA-captured header is not overwritten. The
+ * NARROW `ORIGIN_KEY_HEADERS = ['origin']` set is used (not the
+ * broader `ORIGIN_HEADERS = ['origin','referer']` discovery chain)
+ * because a captured `referer` on `spaBase` must NOT suppress the
+ * bank-required Origin fallback.
  * @param spaBase - SPA-extracted header base (mutated).
  * @param captured - Captured endpoints for the header probes.
  * @returns The mutated header object (passed through for chaining).
@@ -25,7 +37,7 @@ function setOriginAndReferer(
   captured: readonly IDiscoveredEndpoint[],
 ): Record<string, string> {
   const origin = discoverHeaderValue(captured, ORIGIN_HEADERS);
-  if (origin) spaBase.Origin = origin;
+  if (origin && !spaHasAny(spaBase, ORIGIN_KEY_HEADERS)) spaBase.Origin = origin;
   const referer = discoverHeaderValue(captured, REFERER_HEADERS) || origin;
   if (referer && !spaHasAny(spaBase, REFERER_HEADERS)) spaBase.Referer = referer;
   return spaBase;

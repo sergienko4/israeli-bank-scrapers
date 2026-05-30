@@ -193,4 +193,20 @@ describe("buildDiscoveredHeaders — Phase H'' captured-header pass-through", ()
     expect(opts.extraHeaders.host).toBeUndefined();
     expect(opts.extraHeaders.Host).toBeUndefined();
   });
+
+  it('BDH-ORIGIN-001 still sets bank-Origin fallback when captured Referer exists (CR PR #280 cycle-2 #1 — no regression)', async (): Promise<void> => {
+    // Critical: the captured Hapoalim fixture has BOTH lowercase
+    // `origin` (stripped by browserStandard filter) AND lowercase
+    // `referer` (kept). The cycle-2 guard must use the NARROW
+    // ORIGIN_KEY_HEADERS = ['origin'] check — NOT the broader
+    // ORIGIN_HEADERS = ['origin','referer'] discovery chain — so the
+    // captured Referer on spaBase does NOT suppress the bank-required
+    // Origin fallback. Bank API requires Origin for the txn POST.
+    const capture = buildHapoalimLikeCapture();
+    const network = createFrozenNetwork([capture], false);
+
+    const opts = await network.buildDiscoveredHeaders();
+
+    expect(opts.extraHeaders.Origin).toBe('https://login.bankhapoalim.fake.example');
+  });
 });
