@@ -16,6 +16,12 @@
 
 import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type {
+  IBodyTemplate,
+  IEnvelopeSelectors,
+  JsonValueTemplate,
+  RefToken,
+} from './ConfigContracts/TemplateTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
@@ -34,21 +40,6 @@ type CanonicalPart = 'pathAndQuery' | 'clientVersion' | 'bodyJson' | 'tsMs' | 'd
 
 /** Step identifiers in the sms-otp flow. */
 type StepName = 'bind' | 'assertPassword' | 'assertOtp' | 'getIdToken' | 'sessionToken';
-
-/** RefToken — interpolation tokens in IBodyTemplate. */
-type RefToken =
-  | 'fingerprint'
-  | 'uuid'
-  | 'now'
-  | 'nowMs'
-  | 'keypair.ec.publicKeyBase64'
-  | 'keypair.rsa.publicKeyBase64'
-  | `carry.${string}`
-  | `creds.${string}`
-  | `config.${string}`;
-
-/** Named selector map — values are RFC-6901 pointers like `/data/challenge`. */
-type IEnvelopeSelectors = Readonly<Record<string, string>>;
 
 /** Canonical-string assembly config — consumed by GenericCanonicalStringBuilder. */
 interface ICanonicalStringConfig {
@@ -179,17 +170,6 @@ interface IPreStepHook {
 interface IProbeConfig {
   readonly queryTag?: WKQueryOperation;
   readonly urlTag?: WKUrlGroup;
-}
-
-/** Recursive body template — JsonValueTemplate with $literal / $ref nodes. */
-type JsonValueTemplate =
-  | { readonly $literal: unknown }
-  | { readonly $ref: RefToken }
-  | Readonly<Record<string, unknown>>;
-
-/** Body template wrapper — shape is recursive JsonValueTemplate. */
-interface IBodyTemplate {
-  readonly shape: JsonValueTemplate;
 }
 
 /** Per-step config: name, URL tag, body template, response-extract selectors. */
