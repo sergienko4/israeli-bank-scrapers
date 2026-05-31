@@ -449,6 +449,12 @@ const NET_SCRAPE_ALLOWLIST: readonly string[] = [
   // pending the Phase 7g migration.
   path.join('Mediator', 'Scrape', 'ScrapePhaseActions.ts'),
   path.join('Mediator', 'Scrape', 'FrozenScrapeAction.ts'),
+  // Phase 8.5b commit 4: the balance-template-discovery code was
+  // extracted from ScrapePhaseActions.ts into a focused leaf module;
+  // it still consumes `IDiscoveredEndpoint` from the captured-endpoint
+  // pool for the same legacy displayId / balance lookups pending the
+  // Phase 7g migration. Inherits the allowlist rationale of its parent.
+  path.join('Mediator', 'Scrape', 'ScrapePhase', 'BalanceTemplate.ts'),
   // The strategies still receive the raw `network` field on
   // `IAccountFetchCtx` for legacy displayId / balance lookups
   // (BalanceExtractor / ScrapeChunking / UrlDateRange already

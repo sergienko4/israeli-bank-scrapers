@@ -18,6 +18,39 @@ const PATH_PATTERN = /(?:[a-z]:)?[\\/][\w.\-+/\\]+/gi;
 const MAX_REASON_LENGTH = 160;
 
 /**
+ * Phases whose screenshots are allowed to land in CI artifacts because
+ * the rendered DOM cannot contain user-supplied data. Aligned 1:1 with
+ * `.github/workflows/pr.yml` (lines 549-552 / 616-618), which documents
+ * the upload-artifact path as:
+ *
+ *   > Pre-auth screenshots (init/home only) included since the bank
+ *   > page carries no user data before LOGIN — needed to triage WAF /
+ *   > challenge-wall hypotheses without speculation. LOGIN / OTP /
+ *   > DASHBOARD / SCRAPE screenshots remain excluded.
+ *
+ * Keeping the allowlist as a TS const guarantees code + workflow drift
+ * is caught by `SafeScreenshotCiPolicy.test.ts` (regression pin).
+ */
+export const PRE_AUTH_SCREENSHOT_PHASES = Object.freeze(['init', 'home'] as const);
+
+const PRE_AUTH_PHASE_PATTERN = new RegExp(`^[^-]+-(?:${PRE_AUTH_SCREENSHOT_PHASES.join('|')})-`);
+
+/**
+ * Tests whether a screenshot basename belongs to a pre-auth phase
+ * allowed to surface in CI artifacts. Filenames are produced by
+ * `screenshotPath(bank, label)` in `RunLabel.ts` with the format
+ * `{bank}-{phaseName}-{stage}-{ts}.png`, so the bank prefix is one
+ * dash-free token. Returns false for anything that does not match
+ * — including the empty string, malformed names, post-auth phases,
+ * and multi-token phase names (`auth-discovery`, `account-resolve`).
+ * @param basename - Filesystem basename of the proposed screenshot.
+ * @returns True if the screenshot should be captured even under CI.
+ */
+export function isPreAuthScreenshot(basename: string): boolean {
+  return PRE_AUTH_PHASE_PATTERN.test(basename);
+}
+
+/**
  * Strip filesystem path tokens (Windows + POSIX, absolute or relative)
  * from a free-form string so they cannot reach the structured log.
  * @param input - Untrusted text that may contain caller-supplied paths.
@@ -50,15 +83,20 @@ export function describeError(err: unknown): string {
 }
 
 /**
- * Captures a Playwright page screenshot unless CI is active, in which
- * case capture is suppressed to keep rendered post-auth pixels out of
- * public CI artifacts. The CI check uses truthy semantics for parity
- * with the codebase's other 8 `process.env.CI` reads — note the literal
- * string `'false'` is truthy and will still suppress. See
- * `coding-principle-guidlines.md` §4 (Default Deny) and
- * `logging-pii-guidlines.md` §1 (preventive masking). The debug payload
- * is reduced to the path basename so consumer-supplied directories that
- * may carry PII never reach the structured log stream.
+ * Captures a Playwright page screenshot. Under CI, capture is restricted
+ * to the pre-auth phase allowlist published in `.github/workflows/pr.yml`
+ * (lines 549-552 / 616-618 — see `PRE_AUTH_SCREENSHOT_PHASES`) so that
+ * rendered post-auth pixels never reach public artifacts while still
+ * leaving WAF / challenge-wall failures triageable from `init` + `home`
+ * screenshots. Outside CI, every phase captures.
+ *
+ * The CI check uses truthy semantics for parity with the codebase's
+ * other 8 `process.env.CI` reads — note the literal string `'false'`
+ * is truthy and will still gate. See `coding-principle-guidlines.md`
+ * §4 (Default Deny) and `logging-pii-guidlines.md` §1 (preventive
+ * masking). The debug payload is reduced to the path basename so
+ * consumer-supplied directories that may carry PII never reach the
+ * structured log stream.
  *
  * @param page - The Playwright page to capture.
  * @param options - Target path and optional fullPage flag.
@@ -68,8 +106,9 @@ export async function safeScreenshot(
   page: Page,
   options: ISafeScreenshotOptions,
 ): Promise<boolean> {
-  if (process.env.CI) {
-    LOG.debug({ file: basename(options.path) }, 'screenshot suppressed in CI');
+  const file = basename(options.path);
+  if (process.env.CI && !isPreAuthScreenshot(file)) {
+    LOG.debug({ file }, 'screenshot suppressed in CI');
     return false;
   }
   try {

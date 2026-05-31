@@ -1,36 +1,14 @@
-import type { Browser } from 'playwright-core';
-
-import { DESKTOP_VIEWPORT_HEIGHT, DESKTOP_VIEWPORT_WIDTH, ISRAEL_LOCALE } from './BrowserConfig.js';
-
-export { ISRAEL_LOCALE } from './BrowserConfig.js';
-
 /**
- * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).
- * Uses dynamic import() because camoufox-js is ESM-only.
+ * Re-exports the canonical Camoufox launcher from Common. Single source
+ * of truth lives at src/Common/CamoufoxLauncher.ts — this file exists
+ * only so existing pipeline-local imports keep resolving without
+ * churning every import site across the codebase.
  *
- * Pins os/window/screen to a deterministic Windows 1920x1080 fingerprint
- * so banks cannot serve mobile content via screen-size heuristics. Without
- * this, Camoufox randomly picks per launch and an unlucky fingerprint can
- * trip the bank's mobile detection (observed: Isracard post-login splash
- * to /Sta… mobile-app upsell on small-screen fingerprint).
- *
- * Camoufox's `screen` option is a constraint pair (min/max); setting min
- * equal to max forces the exact desktop dimensions every run.
- * @param headless - Whether to launch in headless mode.
- * @returns A Playwright-compatible Browser instance.
+ * <p>Background (C11): the two duplicated launcher files diverged
+ * silently in 2026-05-18 when commit 1708ba39 ("humanize + disable_coop
+ * + virtual") was dropped during squash-merge — only Common was
+ * updated in the historical record while the Pipeline-side copy
+ * kept the older bare-bones options. C11 consolidates to one source
+ * of truth so the next anti-detect tuning can never miss a copy.
  */
-export async function launchCamoufox(headless: boolean): Promise<Browser> {
-  const camoufoxModule = await import('@hieutran094/camoufox-js');
-  return camoufoxModule.Camoufox({
-    headless,
-    locale: ISRAEL_LOCALE,
-    os: 'windows',
-    window: [DESKTOP_VIEWPORT_WIDTH, DESKTOP_VIEWPORT_HEIGHT],
-    screen: {
-      minWidth: DESKTOP_VIEWPORT_WIDTH,
-      maxWidth: DESKTOP_VIEWPORT_WIDTH,
-      minHeight: DESKTOP_VIEWPORT_HEIGHT,
-      maxHeight: DESKTOP_VIEWPORT_HEIGHT,
-    },
-  });
-}
+export { ISRAEL_LOCALE, launchCamoufox } from '../../../../Common/CamoufoxLauncher.js';

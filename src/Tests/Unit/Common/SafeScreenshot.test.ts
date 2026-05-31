@@ -1,7 +1,13 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
-import { describeError, safeScreenshot, scrubPaths } from '../../../Common/SafeScreenshot.js';
+import {
+  describeError,
+  isPreAuthScreenshot,
+  PRE_AUTH_SCREENSHOT_PHASES,
+  safeScreenshot,
+  scrubPaths,
+} from '../../../Common/SafeScreenshot.js';
 
 const ORIGINAL_CI = process.env.CI;
 
@@ -28,11 +34,59 @@ describe('safeScreenshot — CI gating contract', () => {
       process.env.CI = 'true';
     });
 
-    it('safeScreenshot_whenCiTrue_skipsPageScreenshotCall', async () => {
+    it('safeScreenshot_whenCiTrueAndPostAuthPhase_skipsPageScreenshotCall', async () => {
       const { page, screenshotMock } = makeMockPage();
 
       const didCapture = await safeScreenshot(page, {
-        path: '/tmp/test-fake-shot.png',
+        path: '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-dashboard-pre-done-20260531.png',
+        fullPage: true,
+      });
+
+      expect(didCapture).toBe(false);
+      expect(screenshotMock).toHaveBeenCalledTimes(0);
+    });
+
+    it('safeScreenshot_whenCiTrueAndInitPhase_capturesScreenshot', async () => {
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, {
+        path: '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-init-pre-done-20260531.png',
+        fullPage: true,
+      });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('safeScreenshot_whenCiTrueAndHomePhaseFail_capturesScreenshot', async () => {
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, {
+        path: '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-home-pre-fail-20260531.png',
+        fullPage: false,
+      });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('safeScreenshot_whenCiTrueAndLoginPhase_skipsPageScreenshotCall', async () => {
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, {
+        path: '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-login-action-done-20260531.png',
+        fullPage: true,
+      });
+
+      expect(didCapture).toBe(false);
+      expect(screenshotMock).toHaveBeenCalledTimes(0);
+    });
+
+    it('safeScreenshot_whenCiTrueAndAuthDiscoveryPhase_skipsPageScreenshotCall', async () => {
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, {
+        path: '/tmp/runs/pipeline/isracard/screenshots/isracard-auth-discovery-post-fail-20260531.png',
         fullPage: true,
       });
 
@@ -77,18 +131,71 @@ describe('safeScreenshot — CI gating contract', () => {
   });
 
   describe('CI truthy-semantics foot-gun', () => {
-    it('safeScreenshot_whenCiLiteralFalseString_stillSuppresses', async () => {
+    it('safeScreenshot_whenCiLiteralFalseStringAndPostAuthPhase_stillSuppresses', async () => {
       process.env.CI = 'false';
       const { page, screenshotMock } = makeMockPage();
 
       const didCapture = await safeScreenshot(page, {
-        path: '/tmp/test-fake-shot.png',
+        path: '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-scrape-pre-done.png',
         fullPage: true,
       });
 
       expect(didCapture).toBe(false);
       expect(screenshotMock).toHaveBeenCalledTimes(0);
     });
+  });
+});
+
+describe('isPreAuthScreenshot — phase-allowlist helper', () => {
+  it('accepts init phase basenames', () => {
+    const isInitPreDone = isPreAuthScreenshot('hapoalim-init-pre-done-20260531.png');
+    const isInitFinalFail = isPreAuthScreenshot('beinleumi-init-final-fail-20260531.png');
+    expect(isInitPreDone).toBe(true);
+    expect(isInitFinalFail).toBe(true);
+  });
+
+  it('accepts home phase basenames', () => {
+    const isHomePreFail = isPreAuthScreenshot('hapoalim-home-pre-fail-20260531.png');
+    const isHomePostDone = isPreAuthScreenshot('isracard-home-post-done-20260531.png');
+    expect(isHomePreFail).toBe(true);
+    expect(isHomePostDone).toBe(true);
+  });
+
+  it('rejects post-auth phase basenames', () => {
+    const postAuth = [
+      'hapoalim-login-action-done-20260531.png',
+      'hapoalim-otp-pre-fail-20260531.png',
+      'isracard-auth-discovery-post-fail-20260531.png',
+      'discount-account-resolve-pre-done-20260531.png',
+      'max-dashboard-pre-done-20260531.png',
+      'visacal-scrape-final-done-20260531.png',
+      'amex-terminate-pre-done-20260531.png',
+      'paybox-prelogin-pre-done-20260531.png',
+    ];
+    for (const file of postAuth) {
+      const isAllowed = isPreAuthScreenshot(file);
+      expect(isAllowed).toBe(false);
+    }
+  });
+
+  it('rejects malformed or empty basenames', () => {
+    const isEmptyAllowed = isPreAuthScreenshot('');
+    const isInitWithoutBank = isPreAuthScreenshot('init-pre-done.png');
+    const isUnderscoreSeparated = isPreAuthScreenshot('hapoalim_home_pre_done.png');
+    const isHomeWithoutBank = isPreAuthScreenshot('home-pre-done.png');
+    expect(isEmptyAllowed).toBe(false);
+    expect(isInitWithoutBank).toBe(false);
+    expect(isUnderscoreSeparated).toBe(false);
+    expect(isHomeWithoutBank).toBe(false);
+  });
+});
+
+describe('PRE_AUTH_SCREENSHOT_PHASES — workflow alignment pin', () => {
+  it('is frozen + matches the .github/workflows/pr.yml allowlist verbatim', () => {
+    const isFrozen = Object.isFrozen(PRE_AUTH_SCREENSHOT_PHASES);
+    const phases = [...PRE_AUTH_SCREENSHOT_PHASES];
+    expect(isFrozen).toBe(true);
+    expect(phases).toEqual(['init', 'home']);
   });
 });
 

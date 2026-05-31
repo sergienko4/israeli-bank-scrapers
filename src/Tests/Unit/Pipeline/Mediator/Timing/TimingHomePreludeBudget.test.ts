@@ -21,6 +21,17 @@
  * early-exit the underlying `Promise.all([load, networkidle])` so the
  * bump is cross-bank safe.
  *
+ * <p>Second bump 2026-05-31 (PR #281 C10) on top of the canonical-10
+ * baseline: the I-3 race resurfaced 5/5 attempts because Hapoalim's
+ * HOME.PRE wall on the GitHub Azure runner consistently exceeded the
+ * 35 s joint budget. Local docker repro on the CI-mirror image
+ * (`docker/Dockerfile.ci-mirror`, residential Israel IP) measured the
+ * same wall at 31_532 ms — within the old budget but with zero
+ * headroom. Bumped `HOME_PRELUDE_TIMEOUT_MS` 15_000 → 25_000 and
+ * `HOME_RESOLVER_ENTRY_TIMEOUT_MS` 20_000 → 30_000; new joint budget
+ * = 55 s per attempt absorbs the 20-30 s of CI bank-side overhead
+ * over residential measurement.
+ *
  * <p>This file pins both invariants so a future TIMING-mission cut
  * cannot silently re-introduce the race.
  */
@@ -35,10 +46,10 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingConfig.js';
 
 /** Minimum SPA-prelude budget required to absorb Hapoalim CI `load` delay. */
-const MIN_HOME_PRELUDE_TIMEOUT_MS = 15_000;
+const MIN_HOME_PRELUDE_TIMEOUT_MS = 25_000;
 
 /** Minimum visible-text probe budget required for Hapoalim CI. */
-const MIN_HOME_RESOLVER_ENTRY_TIMEOUT_MS = 20_000;
+const MIN_HOME_RESOLVER_ENTRY_TIMEOUT_MS = 30_000;
 
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);

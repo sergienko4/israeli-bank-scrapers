@@ -311,3 +311,52 @@ describe('replaceField — exhaustion', () => {
     expect(isChanged).toBe(true);
   });
 });
+
+// ── PR #281 C8 branch coverage: isJsonRecord type guard + Set lookup ──
+
+describe('isMonthlyEndpoint — isJsonRecord type guard branches', () => {
+  it('returns false when JSON parses to a primitive (string)', () => {
+    const isResult1 = isMonthlyEndpoint('"just-a-string"');
+    expect(isResult1).toBe(false);
+  });
+
+  it('returns false when JSON parses to a number', () => {
+    const isResult2 = isMonthlyEndpoint('42');
+    expect(isResult2).toBe(false);
+  });
+
+  it('returns false when JSON parses to null', () => {
+    const isResult3 = isMonthlyEndpoint('null');
+    expect(isResult3).toBe(false);
+  });
+
+  it('returns false when JSON parses to a boolean', () => {
+    const isResult4 = isMonthlyEndpoint('true');
+    expect(isResult4).toBe(false);
+  });
+
+  it('returns false when JSON parses to an array (Array.isArray guard)', () => {
+    const isResult5 = isMonthlyEndpoint('[1, 2, 3]');
+    expect(isResult5).toBe(false);
+  });
+});
+
+describe('isRangeIterable — Set-based lookup branches (SQ-3 fix)', () => {
+  it('matches FROM/TO with mixed-case field names via toLowerCase Set', () => {
+    const body: JsonRecord = { FROMDATE: '2026-01-01', toDATE: '2026-01-31' };
+    const isResult6 = isRangeIterable(body);
+    expect(isResult6).toBe(true);
+  });
+
+  it('returns false when only FROM is present (toLowerCase Set miss for TO)', () => {
+    const body: JsonRecord = { fromDate: '2026-01-01' };
+    const isResult7 = isRangeIterable(body);
+    expect(isResult7).toBe(false);
+  });
+
+  it('returns false for body with non-date fields only (Set-has rejects)', () => {
+    const body: JsonRecord = { someOther: 'x', AnotherField: 1 };
+    const isResult8 = isRangeIterable(body);
+    expect(isResult8).toBe(false);
+  });
+});

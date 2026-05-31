@@ -9,6 +9,7 @@
 | [CI gates](ci.md) | Every check that runs on a PR, what fails it, where to look for the log |
 | [Pre-commit hook](pre-commit.md) | 12 quality gates run in parallel before any commit lands locally |
 | [Branch flow & release-please](branch-flow.md) | Branch policy, PR rules, release-please automated versioning |
+| [Code-review tooling](code-review-tooling.md) | How to query CodeRabbit + SonarCloud findings via API + the OSS rate-limit posture in `.coderabbit.yaml` |
 
 ## Two lines of defense
 
