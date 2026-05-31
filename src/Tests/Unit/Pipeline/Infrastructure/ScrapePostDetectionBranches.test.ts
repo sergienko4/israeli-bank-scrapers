@@ -19,17 +19,24 @@ import { makeMockContext } from './MockFactories.js';
 import { makeMediatorWithPool, makeSingleAccountDiscovery } from './ScrapeMockHelpers.js';
 
 /**
- * Build a POST endpoint with the supplied request body. Used by the
- * narrowParsedToResult branch tests to feed null / array / primitive
- * JSON bodies into the SCRAPE.post template detector.
+ * Build a discovered endpoint with the supplied HTTP method, URL, and
+ * (for POST) request body. Single factory used by all branch tests in
+ * this file to avoid repeated `IDiscoveredEndpoint` object literals
+ * (CR #281 C9 nitpick — DRY fixture).
  *
- * @param postData - JSON body string to attach to the endpoint.
+ * @param method - HTTP method.
+ * @param url - Endpoint URL.
+ * @param postData - Optional POST body string (default `''`).
  * @returns Discovered endpoint stub.
  */
-function makePostEndpoint(postData: string): IDiscoveredEndpoint {
+function makeEndpoint(
+  method: IDiscoveredEndpoint['method'],
+  url: string,
+  postData = '',
+): IDiscoveredEndpoint {
   return {
-    url: 'https://bank.example/api/getBalance',
-    method: 'POST',
+    url,
+    method,
     postData,
     responseBody: null,
     contentType: 'application/json',
@@ -37,6 +44,30 @@ function makePostEndpoint(postData: string): IDiscoveredEndpoint {
     responseHeaders: {},
     timestamp: 1,
   };
+}
+
+/**
+ * Build a POST endpoint with the supplied request body. Thin wrapper
+ * around {@link makeEndpoint} kept for call-site readability in the
+ * narrowParsedToResult branch tests.
+ *
+ * @param postData - JSON body string to attach to the endpoint.
+ * @returns Discovered endpoint stub.
+ */
+function makePostEndpoint(postData: string): IDiscoveredEndpoint {
+  return makeEndpoint('POST', 'https://bank.example/api/getBalance', postData);
+}
+
+/**
+ * Build a GET endpoint at the supplied URL. Thin wrapper around
+ * {@link makeEndpoint} kept for call-site readability in the
+ * `replaceLastPathSegment` branch tests.
+ *
+ * @param url - Endpoint URL.
+ * @returns Discovered endpoint stub.
+ */
+function makeGetEndpoint(url: string): IDiscoveredEndpoint {
+  return makeEndpoint('GET', url);
 }
 
 /**
@@ -90,16 +121,7 @@ describe('ScrapePhaseActions — SCRAPE.post detection branch coverage (v6)', ()
   });
 
   it('GET endpoint with path-tail NOT in ids → cascades to bulk template', async () => {
-    const getEp: IDiscoveredEndpoint = {
-      url: 'https://bank.example/something/UNRELATED?q=1',
-      method: 'GET',
-      postData: '',
-      responseBody: null,
-      contentType: 'application/json',
-      requestHeaders: {},
-      responseHeaders: {},
-      timestamp: 1,
-    };
+    const getEp = makeGetEndpoint('https://bank.example/something/UNRELATED?q=1');
     const ctx = makeStampCtx(getEp);
     const result = await executeStampAccounts(ctx);
     expect(result.success).toBe(true);
@@ -111,16 +133,7 @@ describe('ScrapePhaseActions — SCRAPE.post detection branch coverage (v6)', ()
   });
 
   it('pool with only non-GET/POST endpoints (PUT/PATCH) → no balanceFetchTemplate emitted', async () => {
-    const putEp: IDiscoveredEndpoint = {
-      url: 'https://bank.example/api/something',
-      method: 'PUT',
-      postData: '',
-      responseBody: null,
-      contentType: 'application/json',
-      requestHeaders: {},
-      responseHeaders: {},
-      timestamp: 1,
-    };
+    const putEp = makeEndpoint('PUT', 'https://bank.example/api/something');
     const ctx = makeStampCtx(putEp);
     const result = await executeStampAccounts(ctx);
     assertOk(result);
@@ -158,16 +171,7 @@ describe('ScrapePhaseActions — SCRAPE.post detection branch coverage (v6)', ()
   // ── PR #281 CR-1 branch coverage: replaceLastPathSegment WITHOUT query ──
 
   it('GET endpoint with path-tail in ids AND no query string → replaces last segment, no query carry', async () => {
-    const getEp: IDiscoveredEndpoint = {
-      url: 'https://bank.example/api/accounts/ACC-001',
-      method: 'GET',
-      postData: '',
-      responseBody: null,
-      contentType: 'application/json',
-      requestHeaders: {},
-      responseHeaders: {},
-      timestamp: 1,
-    };
+    const getEp = makeGetEndpoint('https://bank.example/api/accounts/ACC-001');
     const ctx = makeStampCtx(getEp);
     const result = await executeStampAccounts(ctx);
     expect(result.success).toBe(true);
@@ -180,16 +184,7 @@ describe('ScrapePhaseActions — SCRAPE.post detection branch coverage (v6)', ()
   });
 
   it('GET endpoint with path-tail in ids AND query string → replaces last segment, preserves query', async () => {
-    const getEp: IDiscoveredEndpoint = {
-      url: 'https://bank.example/api/accounts/ACC-001?include=balance',
-      method: 'GET',
-      postData: '',
-      responseBody: null,
-      contentType: 'application/json',
-      requestHeaders: {},
-      responseHeaders: {},
-      timestamp: 1,
-    };
+    const getEp = makeGetEndpoint('https://bank.example/api/accounts/ACC-001?include=balance');
     const ctx = makeStampCtx(getEp);
     const result = await executeStampAccounts(ctx);
     expect(result.success).toBe(true);

@@ -1683,6 +1683,38 @@ export default tseslint.config(
     },
   },
 
+  // 12D. SCRAPE CANONICAL-10 NO-NEGATED-CONDITION GUARD (PR #281 C9 hardening, 2026-05-31)
+  //
+  // Pattern detection: PR #281 SonarCloud flagged `typescript:S7735`
+  // ("Unexpected negated condition") TWICE in the canonical-10 sub-folders:
+  //   • PR #281 SQ-1 — `ScrapePhase/PhaseActions.ts` `executeStampAccounts`
+  //     `if (!input.txnEndpoint.has) { … } else { … }` (early-cycle finding)
+  //   • PR #281 C9     — `ScrapePhase/PhaseActions.ts:139` ternary
+  //     `template.url !== '' ? template : undefined` (post-C8 finding)
+  //
+  // Both expose a tiny readability cost (cognitive double-negation),
+  // both surface in the same drained sub-folder, and both are trivially
+  // fixable by swapping branches to positive-first. Built-in ESLint
+  // `no-negated-condition` is the canonical mirror of S7735 — enable it
+  // locally so authors catch this BEFORE pushing.
+  //
+  // The accompanying canary
+  // `scrape-canonical10-negated-condition.canary.ts` exhibits the banned
+  // pattern (both if-else and ternary forms) so verify.sh asserts the
+  // rule fires on every commit.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-negated-condition.canary.ts',
+    ],
+    rules: {
+      'no-negated-condition': 'error',
+    },
+  },
+
   // 13. PII REDACTOR SUB-MODULE FILE-SIZE + PER-FN + ANTI-LITERAL GUARD
   //
   // Phase 6 split the 996-LoC PiiRedactor.ts blob into thirteen

@@ -136,7 +136,7 @@ function buildEmitScrape(args: IStampedScrapeArgs): IScrapeStateValue {
   return {
     ...args.scrape,
     accountIdentities: identities.size > 0 ? identities : undefined,
-    balanceFetchTemplate: template.url !== '' ? template : undefined,
+    balanceFetchTemplate: template.url === '' ? undefined : template,
   };
 }
 
