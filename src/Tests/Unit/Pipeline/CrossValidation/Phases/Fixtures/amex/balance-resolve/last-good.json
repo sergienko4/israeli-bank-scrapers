@@ -1,0 +1,30 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "scenarioId": "balance-resolve/last-good",
+    "captureRunId": "redacted-from-26-05-2026",
+    "rationale": "Amex aggregate balance lives at data.billingSumSekel as a STRING. v5 SCRAPE.final attributes via URL/POST mention; BALANCE-RESOLVE applies F3 widened-alias (billingSumSekel) + F4 string coercion (parseFloat). Per-card balance not exposed by GetCardList — aggregate is the user-visible number. Real billing breakdowns + Hebrew strings omitted. Real value redacted: \"1058.61\" → \"1000.00\" (round synthetic string preserves type contract).",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 1000 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://web.americanexpress.example/ocp/transactions/DigitalV3.Transactions/GetCardList",
+      "method": "POST",
+      "postData": "{\"companyCode\":\"99\",\"cardSuffixLength\":4,\"card\":\"FAKE-000000\"}",
+      "status": 200,
+      "responseBody": {
+        "data": {
+          "billingSumSekel": "1000.00",
+          "billingSumDollar": "0.00",
+          "billingSumEuro": "0.00"
+        },
+        "errorCode": "0",
+        "isSuccess": true
+      }
+    }
+  ]
+}

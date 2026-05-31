@@ -1,0 +1,40 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "shape": "TransactionsAndGraphs GET filterData",
+    "expectedMethod": "GET",
+    "expectedDateField": "purchaseDate",
+    "expectedAmountField": "paymentSum",
+    "expectedRecords": 2,
+    "expectedPendingUrl": false,
+    "expectedBillingUrl": false
+  },
+  "captures": [
+    {
+      "url": "https://onlinelcapi.max.fake.example/api/transactionDetails/getTransactionsAndGraphs?filterData=%7B%22month%22:4,%22year%22:2026%7D",
+      "method": "GET",
+      "captureIndex": 23,
+      "postData": "",
+      "responseBody": {
+        "result": {
+          "transactions": [
+            {
+              "purchaseDate": "2026-04-05",
+              "paymentSum": -65.0,
+              "originalAmount": -65.0,
+              "merchantName": "FAKE-CAFE",
+              "currencySymbol": "ILS"
+            },
+            {
+              "purchaseDate": "2026-04-06",
+              "paymentSum": -45.5,
+              "originalAmount": -45.5,
+              "merchantName": "FAKE-SHOP",
+              "currencySymbol": "ILS"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

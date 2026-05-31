@@ -1,0 +1,27 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "shape": "userAccountsData",
+    "expectedIds": 1,
+    "expectedContainers": ["accounts"]
+  },
+  "captures": [
+    {
+      "url": "https://api.discount.example/Lobby/userAccountsData",
+      "method": "GET",
+      "captureIndex": 5,
+      "responseBody": {
+        "UserAccountsData": {
+          "UserAccounts": [
+            {
+              "NewAccountInfo": { "BankID": "0011", "AccountID": "FAKE-DISCOUNT-001" },
+              "FormatAccountID": "99-999-FAKE",
+              "OwnerName": "TEST USER"
+            }
+          ]
+        },
+        "ResultStatus": "OK-FIXTURE"
+      }
+    }
+  ]
+}

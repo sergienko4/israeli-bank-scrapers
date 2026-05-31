@@ -1,0 +1,12 @@
+node_modules/**
+lib/**
+coverage/**
+*.map
+*.min.js
+*.min.css
+package-lock.json
+.env
+.env.bak
+*.log
+.pre-commit-output.log
+src/coverage/**

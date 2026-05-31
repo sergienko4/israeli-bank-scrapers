@@ -1,0 +1,23 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "shape": "rootArray-accounts",
+    "expectedIds": 1,
+    "expectedContainers": []
+  },
+  "captures": [
+    {
+      "url": "https://login.hapoalim.example/ServerServices/general/accounts",
+      "method": "GET",
+      "captureIndex": 8,
+      "responseBody": [
+        {
+          "bankNumber": 12,
+          "branchNumber": 170,
+          "accountNumber": 999999,
+          "productLabel": "FAKE-HAPOALIM-001"
+        }
+      ]
+    }
+  ]
+}

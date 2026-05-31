@@ -1,0 +1,128 @@
+name: SonarCloud
+
+# No `paths:` filter anymore. Branch protection requires the
+# `SonarCloud Scan` context on every PR; with a path filter the
+# context never fired on non-src PRs and we used to satisfy the gate
+# via the `sonarcloud-noop.yml` echo-shim. Folded in 2026-05-28 CI
+# consolidation (PR #275): the job now always runs and the heavy
+# scan steps gate on a `detect-changes` step output. Non-src PRs see
+# the `SonarCloud Scan` context report green within ~30s.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          # Closes zizmor `artipacked` (persisted credentials warning).
+          persist-credentials: false
+
+      # Single source of truth for "did src/** change?" — identical
+      # script wired into pr.yml's `validate` job. Keeps the two
+      # path-decision surfaces from drifting.
+      - name: Detect changed file groups
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash .github/scripts/ci/detect-changes.sh
+
+      # Non-src PRs: short-circuit and report the `SonarCloud Scan`
+      # context green. Replaces the former sonarcloud-noop.yml shim.
+      - name: Skip — no src/** changes
+        if: steps.changes.outputs.src == 'false'
+        run: |
+          set -euo pipefail
+          echo "No src/** changes in this PR/push — SonarCloud Scan reports green without running."
+          echo "Real-scan trigger paths: src/**. If this PR DOES include src/** changes,"
+          echo "recheck .github/scripts/ci/detect-changes.sh — the real scan should have run."
+
+      - name: Setup Node + Dependencies
+        if: steps.changes.outputs.src == 'true'
+        uses: ./.github/actions/setup-node-deps
+
+      - name: Install Camoufox
+        if: steps.changes.outputs.src == 'true'
+        uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ github.token }}
+
+      - name: Run unit tests with coverage
+        if: steps.changes.outputs.src == 'true'
+        run: npm run test:pipeline
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+
+      - name: Verify SonarCloud secrets
+        if: steps.changes.outputs.src == 'true'
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -z "${SONAR_TOKEN}" ] && missing="${missing} SONAR_TOKEN"
+          [ -z "${SONAR_ORG}" ] && missing="${missing} SONAR_ORG"
+          [ -z "${SONAR_PROJECT_KEY}" ] && missing="${missing} SONAR_PROJECT_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing secrets:${missing} — add in Settings → Secrets → Actions."
+            exit 1
+          fi
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ secrets.SONAR_ORG }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+
+      - name: SonarCloud Scan
+        if: steps.changes.outputs.src == 'true'
+        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ secrets.SONAR_ORG }}
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+
+      - name: Fail on any new SonarCloud issues (count gate)
+        if: github.event_name == 'pull_request' && steps.changes.outputs.src == 'true'
+        env:
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          # The MQR quality gate checks RATINGS (A-E), which can stay
+          # green at hundreds of code-smell hits. This step enforces the
+          # COUNT — any new issue introduced by this PR fails the gate.
+          api="https://sonarcloud.io/api/issues/search"
+          query="componentKeys=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true&ps=1"
+          attempt=1
+          total=""
+          while [ "${attempt}" -le 5 ]; do
+            total=$(curl -sS "${api}?${query}" | jq -r '.total // empty')
+            if [ -n "${total}" ]; then break; fi
+            echo "::warning::SonarCloud API returned empty body, retrying (${attempt}/5)"
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          if [ -z "${total}" ]; then
+            echo "::error::Could not read SonarCloud issue count after 5 attempts."
+            exit 1
+          fi
+          echo "SonarCloud reports ${total} new issues on PR #${PR_NUMBER}."
+          if [ "${total}" -gt 0 ]; then
+            echo "::error::SonarCloud reports ${total} new issues — blocking merge. See https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true"
+            exit 1
+          fi

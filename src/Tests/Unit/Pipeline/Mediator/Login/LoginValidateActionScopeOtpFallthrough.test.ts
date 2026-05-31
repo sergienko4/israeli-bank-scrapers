@@ -1,0 +1,258 @@
+/**
+ * Mission M4.F2.b — LOGIN.POST OTP discriminator.
+ *
+ * <p>Pins {@link validateActionScopeIntact}'s ambiguous-branch
+ * behaviour: when URL is unchanged AND the password element is still
+ * resolvable AND an OTP-trigger or OTP-input element is visible, the
+ * validator returns `false` (fall through to OTP-TRIGGER) instead of
+ * firing a false-positive `INVALID_PASSWORD`.
+ *
+ * <p>Test Case IDs:
+ *   - LOGIN-POST-OTP-001: OTP form visible → fall through (no fail)
+ *   - LOGIN-POST-OTP-002: OTP trigger visible → fall through (no fail)
+ *   - LOGIN-POST-OTP-003: neither visible → INVALID_PASSWORD (regression guard)
+ *   - LOGIN-POST-OTP-004: URL changed → fall through immediately (no probe)
+ *   - LOGIN-POST-OTP-005: password absent → fall through immediately (no probe)
+ *   - LOGIN-POST-OTP-006 (PR #221 review id 3216542548): OTP probe REJECTS
+ *     → fall through (probe-failure is unknown, not INVALID_PASSWORD)
+ */
+
+import type {
+  IElementMediator,
+  IRaceResult,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import { validateActionScopeIntact } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
+import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
+import type {
+  ILoginFieldDiscovery,
+  IPipelineContext,
+  IResolvedTarget,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { LOGIN_FIELDS } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+
+/**
+ * Scripted answer for a single `resolveVisible` call. PR #221 review
+ * (id 3216542553) — replaces the prior `'placeholder'`/`'clickableText'`
+ * kind-routing that encoded WK probe internals into the test. Each
+ * scenario row lists the answers IN CALL ORDER instead.
+ *
+ * <p>`otpScreenVisible` runs `Promise.all([detectOtpTrigger, detectOtpForm])`
+ * — both calls are dispatched synchronously, so `resolveVisible` is
+ * invoked exactly TWICE per validator entry in the URL-unchanged +
+ * password-present branch. Call #1 ≡ trigger probe, call #2 ≡ form
+ * probe. Each step in {@link IMediatorConfig.probeAnswers} is consumed
+ * in order regardless of how the underlying probes name their kinds.
+ */
+type ProbeAnswer = 'found' | 'not-found' | 'reject';
+
+/**
+ * Stub IRaceResult: a found / not-found pair so the stub mediator
+ * can report "OTP visible" via a successful race.
+ *
+ * @param wasFound - Whether the candidate was resolved.
+ * @returns Race-result-like shape with the {found} flag set.
+ */
+function raceResult(wasFound: boolean): IRaceResult {
+  return { found: wasFound } as unknown as IRaceResult;
+}
+
+/**
+ * Resolve a single scripted answer into the value the stubbed
+ * `resolveVisible` should yield — `Promise.resolve(...)` for the two
+ * boolean-valued outcomes, `Promise.reject(...)` for the probe-failure
+ * variant. Extracted so {@link makeMediator}'s closure stays inside
+ * the project's 10-line ceiling.
+ *
+ * @param answer - Scripted probe outcome.
+ * @returns Promise the stub returns from `resolveVisible`.
+ */
+function answerToRace(answer: ProbeAnswer): Promise<IRaceResult> {
+  if (answer === 'reject') {
+    const stubError = new TypeError('probe failed (test stub)');
+    return Promise.reject(stubError);
+  }
+  const wasFound = answer === 'found';
+  const race = raceResult(wasFound);
+  return Promise.resolve(race);
+}
+
+/** Configuration for the stub mediator's per-call answers. */
+interface IMediatorConfig {
+  readonly currentUrl: string;
+  readonly passwordCount: number;
+  /** Per-call answers consumed in invocation order. */
+  readonly probeAnswers: readonly ProbeAnswer[];
+}
+
+/**
+ * Build a minimal IElementMediator stub. PR #221 review (id 3216542553)
+ * — drives `resolveVisible` via per-call factories instead of routing by
+ * candidate `.kind` literals, so the suite no longer fails on harmless
+ * refactors inside `detectOtpTrigger` / `detectOtpForm`.
+ *
+ * @param config - Scripted answers for this scenario.
+ * @returns IElementMediator stub.
+ */
+function makeMediator(config: IMediatorConfig): IElementMediator {
+  let callIndex = 0;
+  return {
+    /**
+     * Returns the scripted current URL.
+     * @returns Scripted URL string.
+     */
+    getCurrentUrl: (): string => config.currentUrl,
+    /**
+     * Returns the scripted password-selector count.
+     * @returns Scripted count.
+     */
+    countBySelector: async (): Promise<number> => {
+      await Promise.resolve();
+      return config.passwordCount;
+    },
+    /**
+     * Yields the next scripted probe answer in call order. Falls back
+     * to `not-found` once the script is exhausted so a misconfigured
+     * scenario fails as "no OTP" rather than hanging.
+     * @returns Race result per the scripted answer.
+     */
+    resolveVisible: (): Promise<IRaceResult> => {
+      const answer = config.probeAnswers[callIndex] ?? 'not-found';
+      callIndex += 1;
+      return answerToRace(answer);
+    },
+  } as unknown as IElementMediator;
+}
+
+/**
+ * Build a minimal IPipelineContext stub with the fields
+ * {@link validateActionScopeIntact} reads.
+ *
+ * @param loginUrl - The login URL stored in diagnostics.
+ * @param passwordSelector - Selector string used by the validator.
+ * @returns Pipeline-context-shaped stub.
+ */
+function makeContext(loginUrl: string, passwordSelector: string): IPipelineContext {
+  const passwordTarget: IResolvedTarget = {
+    selector: passwordSelector,
+    contextId: 'frame-0',
+    kind: 'css',
+    candidateValue: 'password',
+  };
+  const discovery: ILoginFieldDiscovery = {
+    targets: new Map([[LOGIN_FIELDS.PASSWORD, passwordTarget]]),
+    formAnchor: none(),
+    activeFrameId: 'frame-0',
+    submitTarget: none(),
+  };
+  return {
+    diagnostics: { loginUrl },
+    loginFieldDiscovery: some(discovery),
+    logger: {
+      /**
+       * No-op debug sink — discards diagnostics produced by the
+       * validator so the test asserts only on the return value.
+       * Returns a non-undefined value to satisfy the architecture
+       * `no-return-void` rule; the validator never reads it.
+       * @returns Constant false sentinel.
+       */
+      debug: (): false => false,
+      /**
+       * No-op trace sink — same intent as the debug sink.
+       * @returns Constant false sentinel.
+       */
+      trace: (): false => false,
+    },
+  } as unknown as IPipelineContext;
+}
+
+describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', () => {
+  const loginUrl = 'https://login.bank.fake.example/ng-portals/auth/he/';
+  const passwordSelector = '#password';
+
+  it('LOGIN-POST-OTP-001: OTP form visible → fall through (no fail)', async () => {
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['not-found', 'found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+
+  it('LOGIN-POST-OTP-002: OTP trigger visible → fall through (no fail)', async () => {
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['found', 'not-found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+
+  it('LOGIN-POST-OTP-003: neither OTP element visible → INVALID_PASSWORD', async () => {
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['not-found', 'not-found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).not.toBe(false);
+    if (result !== false) {
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('LOGIN-POST-OTP-004: URL changed → fall through immediately (no probe)', async () => {
+    const mediator = makeMediator({
+      currentUrl: 'https://login.bank.fake.example/dashboard/',
+      passwordCount: 1,
+      probeAnswers: ['not-found', 'not-found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+
+  it('LOGIN-POST-OTP-005: password element absent → fall through (no probe)', async () => {
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 0,
+      probeAnswers: ['not-found', 'not-found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+
+  it('LOGIN-POST-OTP-006: probe REJECTS → fall through (probe-failure is unknown ≠ invalid)', async () => {
+    // PR #221 review (id 3216542548): a transient resolver failure on
+    // either probe used to collapse into "not visible" → false-positive
+    // INVALID_PASSWORD. The fix returns `'unknown'` from
+    // `otpScreenVisible`; the validator falls through instead of
+    // firing the credential-failure gate.
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['reject', 'not-found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+
+  it('LOGIN-POST-OTP-007: BOTH probes REJECT → fall through (unknown, not invalid)', async () => {
+    // Companion case to 006: both probes fail. Symmetric outcome —
+    // unknown means unknown; the validator must not pick a verdict.
+    const mediator = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['reject', 'reject'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+  });
+});

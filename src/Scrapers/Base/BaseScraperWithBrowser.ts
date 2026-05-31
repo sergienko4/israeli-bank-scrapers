@@ -1,0 +1,477 @@
+import type { Browser, Frame, Page } from 'playwright-core';
+
+import { buildContextOptions } from '../../Common/Browser.js';
+import { launchCamoufox } from '../../Common/CamoufoxLauncher.js';
+import { runLoggedChain } from '../../Common/ChainLogger.js';
+import { getDebug } from '../../Common/Debug.js';
+import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddleware.js';
+import type { WaitUntilState } from '../../Common/Navigation.js';
+import { safeScreenshot } from '../../Common/SafeScreenshot.js';
+import { ScraperProgressTypes } from '../../Definitions.js';
+import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
+import BaseScraper from './BaseScraper.js';
+import {
+  type ILoginOptions,
+  type ILoginResultContext,
+  resolveAndBuildLoginResult,
+} from './BaseScraperHelpers.js';
+import type { SelectorCandidate } from './Config/LoginConfig.js';
+import { ScraperErrorTypes } from './ErrorTypes.js';
+import type {
+  IDefaultBrowserOptions,
+  IScraperScrapingResult,
+  ScraperCredentials,
+} from './Interface.js';
+import buildLoginChain from './LoginChainBuilder.js';
+import type { ILoginStepContext } from './LoginSteps.js';
+import { fillOneInput } from './LoginSteps.js';
+import { handleNavigationFailure } from './NavigationRetry.js';
+import ScraperError from './ScraperError.js';
+
+/**
+ * Re-exports the bank-scraper login-options interface so downstream
+ * scrapers can type their `getLoginOptions` overrides from the base
+ * entrypoint without importing the helper file directly. The local
+ * import above is required because `getLoginOptions` (line 187)
+ * references `ILoginOptions` as its return type.
+ */
+export type { ILoginOptions } from './BaseScraperHelpers.js';
+/**
+ * Re-exports the login-result constant map from the helper module so
+ * downstream scrapers can consume it from the base entrypoint without
+ * importing the helper file directly. Closes Sonar S7763 — the
+ * shorthand re-export is the idiomatic form.
+ */
+export { LOGIN_RESULTS } from './BaseScraperHelpers.js';
+/**
+ * Re-exports the `LoginResults` discriminated union type so
+ * downstream scrapers can type their login outcomes from the base
+ * entrypoint. Closes Sonar S7763.
+ */
+export type { LoginResults } from './BaseScraperHelpers.js';
+/**
+ * Re-exports the `PossibleLoginResults` union of login-result
+ * keys so downstream tests can iterate over the discriminator set
+ * from the base entrypoint. Closes Sonar S7763.
+ */
+export type { PossibleLoginResults } from './BaseScraperHelpers.js';
+
+const LOG = getDebug('base-scraper-with-browser');
+
+/** Map type of legacy bank registry. */
+type LegacyBanksMap = typeof SCRAPER_CONFIGURATION.banks;
+/** Bank entry value type from the legacy SCRAPER_CONFIGURATION.banks map. */
+type LegacyBankConfig = LegacyBanksMap[keyof LegacyBanksMap];
+/** loginSetup field type extracted from a legacy bank config row. */
+type LegacyLoginSetup = LegacyBankConfig['loginSetup'];
+
+/** Discriminated result of resolveLegacyBank: either loginSetup or a failure. */
+type LegacyBankLookup =
+  | { readonly loginSetup: LegacyLoginSetup }
+  | { readonly failure: IScraperScrapingResult };
+
+/**
+ * Look up the legacy bank config for a given companyId. Pipeline-only
+ * banks (whose companyId is not present in SCRAPER_CONFIGURATION.banks)
+ * receive a structured failure Result here instead of a destructure
+ * crash downstream. Generic — same shape for every bank, no per-bank
+ * patches.
+ * @param companyId - Bank identifier from scraper options.
+ * @returns Either loginSetup for the legacy bank, or a fail Result for
+ *   the pipeline-only path.
+ */
+function resolveLegacyBank(companyId: string): LegacyBankLookup {
+  // Cast through Record<string, ... | undefined> so TS understands the
+  // index lookup may return undefined (the indexed-access type alone is
+  // narrowed to the value type by tsc unless noUncheckedIndexedAccess
+  // is on).
+  const bankRegistry = SCRAPER_CONFIGURATION.banks as Record<string, LegacyBankConfig | undefined>;
+  const bank = bankRegistry[companyId];
+  if (bank === undefined) {
+    const message = `Pipeline-only bank "${companyId}" reached legacy login path`;
+    LOG.warn(message);
+    return {
+      failure: {
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: message,
+      },
+    };
+  }
+  return { loginSetup: bank.loginSetup };
+}
+
+/**
+ * Run a cleanup function, swallowing errors to avoid masking earlier failures.
+ * @param fn - The cleanup function to execute.
+ * @returns True after the cleanup attempt completes.
+ */
+async function runCleanup(fn: () => Promise<boolean>): Promise<boolean> {
+  try {
+    await fn();
+  } catch (error) {
+    LOG.debug(`Cleanup function failed: ${(error as Error).message}`);
+  }
+  return true;
+}
+
+/**
+ * Execute field-fill actions sequentially and return true when all complete.
+ * @param actions - The array of async fill actions.
+ * @returns True after all actions complete.
+ */
+async function runFieldActions(actions: (() => Promise<boolean>)[]): Promise<boolean> {
+  const initialValue: Promise<boolean> = Promise.resolve(true);
+  await actions.reduce<Promise<boolean>>(async (prev, action) => {
+    await prev;
+    return action();
+  }, initialValue);
+  return true;
+}
+
+/** Browser-based scraper base class — manages Playwright lifecycle and login chain. */
+class BaseScraperWithBrowser<
+  TCredentials extends ScraperCredentials,
+> extends BaseScraper<TCredentials> {
+  protected activeLoginContext: Page | Frame | null = null;
+
+  protected page!: Page;
+
+  protected _otpTriggerSelectors?: SelectorCandidate[];
+
+  private _cleanups: (() => Promise<boolean>)[] = [];
+
+  private readonly _otpPhoneHint = '';
+
+  /**
+   * Initialize the browser page and prepare the scraper for login.
+   * @returns True when page is ready.
+   * @throws ScraperError if page creation fails.
+   */
+  public async initialize(): Promise<boolean> {
+    await super.initialize();
+    this.emitProgress(ScraperProgressTypes.Initializing);
+    const page = await this.initializePage();
+    if (!page) {
+      this.bankLog.debug('failed to initiate a browser page, exit');
+      throw new ScraperError('Failed to initiate browser page');
+    }
+    await this.setupPage(page);
+    return true;
+  }
+
+  /**
+   * Navigate to a URL with optional retry support for transient failures.
+   * @param url - The URL to navigate to.
+   * @param waitUntil - Playwright navigation wait strategy.
+   * @param retries - Remaining retry attempts for non-403 failures.
+   * @returns True when navigation succeeds.
+   */
+  public async navigateTo(
+    url: string,
+    waitUntil: WaitUntilState | undefined = 'load',
+    retries = this.options.navigationRetryCount ?? 0,
+  ): Promise<boolean> {
+    const response = await this.gotoAndLog(url, waitUntil);
+    if (response === null || response.ok()) return true;
+    const status = response.status();
+    const retryFn = this.buildRetryDelegate();
+    return handleNavigationFailure({
+      page: this.page,
+      url,
+      navOpts: { waitUntil },
+      status,
+      retries,
+      log: this.bankLog,
+      navigateTo: retryFn,
+    });
+  }
+
+  /**
+   * Get bank-specific login options — must be overridden by each scraper.
+   * @param credentials - The user's bank credentials.
+   * @returns The login configuration for this bank.
+   */
+  public getLoginOptions(credentials: ScraperCredentials): ILoginOptions {
+    const keyCount = Object.keys(credentials).length;
+    const company = this.options.companyId;
+    throw new ScraperError(`getLoginOptions(${String(keyCount)} keys) not created in ${company}`);
+  }
+
+  /**
+   * Fill multiple input fields on the login page.
+   * @param pageOrFrame - The page or frame containing the inputs.
+   * @param fields - The field descriptors with selectors and values.
+   * @returns True when all fields are filled.
+   */
+  public async fillInputs(
+    pageOrFrame: Page | Frame,
+    fields: {
+      selector: string;
+      value: string;
+      credentialKey?: string;
+    }[],
+  ): Promise<boolean> {
+    const stepCtx = this.buildStepContext();
+    /**
+     * Build a fill action for one field.
+     * @param field - The field descriptor.
+     * @param field.selector - The CSS selector for the input.
+     * @param field.value - The value to fill.
+     * @param field.credentialKey - The credential key identifier.
+     * @returns A deferred action that fills the input.
+     */
+    const toAction =
+      (field: {
+        selector: string;
+        value: string;
+        credentialKey?: string;
+      }): (() => Promise<boolean>) =>
+      () =>
+        fillOneInput(stepCtx, pageOrFrame, field);
+    const actions = fields.map(toAction);
+    return runFieldActions(actions);
+  }
+
+  /**
+   * Execute the full login chain and return the scraping result.
+   * @param credentials - The user's bank credentials.
+   * @returns The scraping result after login completes.
+   */
+  public async login(credentials: ScraperCredentials): Promise<IScraperScrapingResult> {
+    this.activeLoginContext = null;
+    const loginOptions = this.getLoginOptions(credentials);
+    const lookup = resolveLegacyBank(this.options.companyId);
+    if ('failure' in lookup) return lookup.failure;
+    const ctx: ILoginContext = {
+      page: this.page,
+      activeFrame: this.page,
+      loginSetup: lookup.loginSetup,
+    };
+    const stepCtx = this.buildStepContext();
+    const steps: INamedLoginStep[] = buildLoginChain(stepCtx, loginOptions, ctx);
+    const chainResult = await runLoggedChain(steps, ctx, this.bankLog);
+    if (chainResult !== null) return chainResult;
+    const resultCtx = this.loginResultCtx();
+    return resolveAndBuildLoginResult(resultCtx, loginOptions.possibleResults);
+  }
+
+  /**
+   * Terminate the browser session and run all cleanup handlers.
+   * @param isSuccess - Whether the scraping session was successful.
+   * @returns True when termination completes.
+   */
+  public async terminate(isSuccess: boolean): Promise<boolean> {
+    this.bankLog.debug('terminating browser with success = %s', isSuccess);
+    this.emitProgress(ScraperProgressTypes.Terminating);
+    await this.captureFailureScreenshot(isSuccess);
+    const reversed = [...this._cleanups].reverse();
+    const cleanupPromises = reversed.map(runCleanup);
+    await Promise.all(cleanupPromises);
+    this._cleanups = [];
+    return true;
+  }
+
+  /**
+   * Execute page.goto and log elapsed time.
+   * @param url - The URL to navigate to.
+   * @param waitUntil - Playwright wait strategy.
+   * @returns The navigation response or null.
+   */
+  private async gotoAndLog(
+    url: string,
+    waitUntil: WaitUntilState | undefined,
+  ): Promise<Awaited<ReturnType<Page['goto']>>> {
+    const startMs = Date.now();
+    const response = await this.page.goto(url, { waitUntil });
+    if (response !== null) {
+      const status = response.status();
+      this.bankLog.debug('navigateTo %s → %d (%dms)', url, status, Date.now() - startMs);
+    }
+    return response;
+  }
+
+  /**
+   * Create a retry delegate that forwards to this.navigateTo.
+   * @returns A navigation retry function for handleNavigationFailure.
+   */
+  private buildRetryDelegate(): (
+    url: string,
+    nav: { waitUntil?: WaitUntilState },
+    retries: number,
+  ) => Promise<boolean> {
+    return (url, nav, retries) => this.navigateTo(url, nav.waitUntil, retries);
+  }
+
+  /**
+   * Build the shared login step context for LoginSteps functions.
+   * @returns The step context wrapping this scraper's state.
+   */
+  private buildStepContext(): ILoginStepContext {
+    return {
+      page: this.page,
+      activeLoginContext: this.activeLoginContext,
+      currentParsedPage: undefined,
+      otpPhoneHint: this._otpPhoneHint,
+      otpTriggerSelectors: this._otpTriggerSelectors,
+      diagState: this.diagState,
+      /**
+       * Delegate progress events to the scraper.
+       * @param type - The progress event type.
+       * @returns True after emitting.
+       */
+      emitProgress: (type): boolean => {
+        this.emitProgress(type);
+        return true;
+      },
+      /**
+       * Delegate navigation to the scraper.
+       * @param url - The URL to navigate to.
+       * @param waitUntil - The wait-until strategy.
+       * @returns True when navigation succeeds.
+       */
+      navigateTo: (url, waitUntil) => this.navigateTo(url, waitUntil as WaitUntilState),
+      /**
+       * Delegate field filling to the scraper.
+       * @param ctx - The page or frame context.
+       * @param fields - The field descriptors.
+       * @returns True when all fields are filled.
+       */
+      fillInputs: (ctx, fields) => this.fillInputs(ctx, fields),
+      /**
+       * Build the login result context from the scraper state.
+       * @returns The login result context.
+       */
+      loginResultCtx: () => this.loginResultCtx(),
+      options: this.options,
+    };
+  }
+
+  /**
+   * Build the login result context for result evaluation.
+   * @returns The login result context with page and diagnostics.
+   */
+  private loginResultCtx(): ILoginResultContext {
+    return {
+      page: this.page,
+      diagState: this.diagState,
+      /**
+       * Emit a progress event to listeners.
+       * @param progressType - The progress type to emit.
+       * @returns True after emitting.
+       */
+      emitProgress: (progressType): boolean => {
+        this.emitProgress(progressType);
+        return true;
+      },
+    };
+  }
+
+  /**
+   * Configure the page with timeouts, interceptors, and event listeners.
+   * @param page - The Playwright page to configure.
+   * @returns True after configuration completes.
+   */
+  private async setupPage(page: Page): Promise<boolean> {
+    this.page = page;
+    this._cleanups.push(() => page.close().then(() => true));
+    if (this.options.defaultTimeout) {
+      this.page.setDefaultTimeout(this.options.defaultTimeout);
+    }
+    if (this.options.preparePage) {
+      this.bankLog.debug('execute preparePage interceptor provided in options');
+      await this.options.preparePage(this.page);
+    }
+    this.page.on('requestfailed', request => {
+      const errorText = request.failure()?.errorText ?? 'unknown';
+      const failedUrl = request.url();
+      this.bankLog.debug('Request failed: %s %s', errorText, failedUrl);
+    });
+    return true;
+  }
+
+  /**
+   * Create a new browser context and page from an existing browser.
+   * @param browser - The Playwright browser instance.
+   * @param isRegisterCleanup - Whether to register cleanup.
+   * @returns A new Playwright page.
+   */
+  private async createContextAndPage(browser: Browser, isRegisterCleanup = true): Promise<Page> {
+    const contextOpts = buildContextOptions();
+    const context = await browser.newContext(contextOpts);
+    if (isRegisterCleanup) {
+      this._cleanups.push(() => context.close().then(() => true));
+    }
+    return context.newPage();
+  }
+
+  /**
+   * Launch a new Camoufox browser instance and return a page.
+   * @returns A new Playwright page from the launched browser.
+   */
+  private async launchNewBrowser(): Promise<Page> {
+    const opts = this.options as IDefaultBrowserOptions;
+    const { shouldShowBrowser } = opts;
+    this.bankLog.debug('launch Camoufox headless=%s', !shouldShowBrowser);
+    const browser = await launchCamoufox(!shouldShowBrowser);
+    const bankLogger = this.bankLog;
+    this._cleanups.push(async () => {
+      bankLogger.debug('closing the browser');
+      await browser.close();
+      return true;
+    });
+    if (opts.prepareBrowser) await opts.prepareBrowser(browser);
+    return this.createContextAndPage(browser, false);
+  }
+
+  /**
+   * Initialize a page from the configured browser source.
+   * @returns A new Playwright page, or undefined on failure.
+   */
+  private async initializePage(): Promise<Page | undefined> {
+    this.bankLog.debug('initialize browser page');
+    if ('browserContext' in this.options) {
+      this.bankLog.debug('Using the browser context provided in options');
+      return this.options.browserContext.newPage();
+    }
+    if ('browser' in this.options) {
+      return this.initializeFromExistingBrowser();
+    }
+    return this.launchNewBrowser();
+  }
+
+  /**
+   * Initialize page from an existing browser instance.
+   * @returns A new Playwright page.
+   */
+  private async initializeFromExistingBrowser(): Promise<Page> {
+    this.bankLog.debug('Using the browser instance provided in options');
+    const opts = this.options as { browser: Browser; skipCloseBrowser?: boolean };
+    const { browser } = opts;
+    const bankLogger = this.bankLog;
+    if (!opts.skipCloseBrowser) {
+      this._cleanups.push(async () => {
+        bankLogger.debug('closing the browser');
+        await browser.close();
+        return true;
+      });
+    }
+    return this.createContextAndPage(browser);
+  }
+
+  /**
+   * Capture a failure screenshot if configured and the session failed.
+   * @param isSuccess - Whether the session was successful.
+   * @returns True if screenshot was captured, false if skipped or not configured.
+   */
+  private async captureFailureScreenshot(isSuccess: boolean): Promise<boolean> {
+    if (isSuccess || !this.options.storeFailureScreenShotPath) return false;
+    this.bankLog.debug('snapshot before terminate in %s', this.options.storeFailureScreenShotPath);
+    return safeScreenshot(this.page, {
+      path: this.options.storeFailureScreenShotPath,
+      fullPage: true,
+    });
+  }
+}
+
+export { BaseScraperWithBrowser };

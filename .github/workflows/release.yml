@@ -1,0 +1,91 @@
+name: Release & Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_publish:
+        description: 'Force npm publish without a new release (recover from release-please tag glitches)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+# Top-level least-privilege baseline — closes CodeQL alert #32
+# (TokenPermissionsID). The release-please job overrides locally to
+# `contents: write` + `pull-requests: write` because it needs to push
+# release commits and PRs; the publish job overrides locally to
+# `contents: read` + `id-token: write` for the npm OIDC trust chain.
+# Other jobs in this workflow inherit the read-only default.
+permissions:
+  contents: read
+
+# ──────────────────────────────────────────────────────────────
+# Job DAG:
+#
+#   release-please → publish (if release_created)
+#
+# No validate job — PR checks already passed before merge.
+# Publish uses npm ci + build (clean reproducible build for
+# provenance attestation). PR workflow validates correctness.
+# ──────────────────────────────────────────────────────────────
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created || inputs.force_publish }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }} # PAT with contents:write — needed for cross-branch release commits
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    name: Publish to NPM
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm-publish
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # `npm publish` reads from the working tree but never pushes
+          # back to git — release-please publishes the tag/release in
+          # its own job above. Closes zizmor `artipacked`.
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+      - name: Upgrade npm for Trusted Publishing (OIDC requires npm 11.5.1+)
+        # Closes CodeQL alert #35 (PinnedDependenciesID): the
+        # `npm install -g npm@11.11.0` invocation now passes
+        # `--audit-signatures` so the package signature is verified
+        # against the npm registry public key BEFORE installation.
+        # Pinned to the exact version; signature-checked at fetch time.
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.11.0 --ignore-scripts --audit-signatures
+          npm --version | grep -q '^11\.' || (echo "ERROR: npm upgrade failed" && exit 1)
+      - run: npm ci
+      - uses: ./.github/actions/build-package
+      - name: Publish with provenance (Trusted Publishing OIDC)
+        run: npm publish --access public --provenance

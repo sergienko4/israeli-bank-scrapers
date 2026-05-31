@@ -1,0 +1,58 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "shape": "GetLatestTransactions POST",
+    "expectedMethod": "POST",
+    "expectedDateField": "fullPurchaseDate",
+    "expectedAmountField": "dealSum",
+    "expectedRecords": 2,
+    "expectedPendingUrl": false,
+    "expectedBillingUrl": "https://digital.isracard.fake.example/Transactions/api/transactionsDetails/getCardTransactionsDetails"
+  },
+  "captures": [
+    {
+      "url": "https://digital.isracard.fake.example/Transactions/api/lastTransactions/GetLatestTransactions",
+      "method": "POST",
+      "captureIndex": 6,
+      "postData": "{\"cardUniqueId\":\"FAKE-ISRACARD-001\",\"month\":4,\"year\":2026}",
+      "responseBody": {
+        "Result": {
+          "BankAccounts": [
+            {
+              "Cards": [
+                {
+                  "CardUniqueID": "FAKE-ISRACARD-001",
+                  "CurrentCardTransactions": [
+                    {
+                      "Txn": [
+                        {
+                          "fullPurchaseDate": "2026-04-20",
+                          "dealSum": -180.0,
+                          "merchantName": "FAKE-RESTAURANT",
+                          "moed": "1"
+                        },
+                        {
+                          "fullPurchaseDate": "2026-04-21",
+                          "dealSum": -29.9,
+                          "merchantName": "FAKE-PETROL",
+                          "moed": "1"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "url": "https://digital.isracard.fake.example/Transactions/api/transactionsDetails/getCardTransactionsDetails",
+      "method": "POST",
+      "captureIndex": 7,
+      "postData": "{\"cardUniqueId\":\"FAKE-ISRACARD-001\"}",
+      "responseBody": {}
+    }
+  ]
+}

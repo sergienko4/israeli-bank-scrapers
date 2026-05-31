@@ -1,0 +1,24 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "scenarioId": "account-resolve/last-good",
+    "captureRunId": "15-05-2026_19273813",
+    "rationale": "Phase H.T3c.8 — isracard ACCOUNT-RESOLVE POST+FINAL last-good. Isracard accounts endpoint returns Result.cards. Card numbers fully PII-redacted.",
+    "accountsResponseBody": {
+      "Result": {
+        "cards": [
+          {
+            "card4Digits": "0000",
+            "cardUniqueId": "FAKE-UUID"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "accountResolvePostOutcome": "success",
+      "accountResolveExpectedIdCount": 1,
+      "accountResolveFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

@@ -1,0 +1,892 @@
+name: PR Validation
+
+on:
+  # No `paths:` filter anymore. Branch protection + ruleset require the
+  # `Validate` status context on every PR; with a path filter the
+  # context never fires on non-src PRs and we used to satisfy the gate
+  # via a `pr-docs.yml` echo-shim. Folded in 2026-05-28 CI consolidation
+  # (PR #275): the validate job now always runs, and `detect-changes`
+  # below short-circuits the heavy steps when no src/** is touched.
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: 'Log level for E2E real tests (info, debug, trace)'
+        required: false
+        default: 'info'
+        type: choice
+        options:
+          - info
+          - debug
+          - trace
+
+concurrency:
+  group: pr-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+# Top-level (file-scope) least-privilege baseline — closes CodeQL alert
+# #33 (TokenPermissionsID). Per the GitHub StepSecurity hardening
+# pattern, every workflow MUST declare permissions at the file scope so
+# the default `GITHUB_TOKEN` carries the minimum needed for the cheapest
+# job. Jobs that need elevated permissions override locally and ONLY for
+# the keys they need (see release.yml release-please job).
+permissions:
+  contents: read
+
+# Strict shell mode for every `run:` step.
+#   -e          — exit on first non-zero command
+#   -u          — error on unset variables (catches missing-env-var typos)
+#   -o pipefail — propagate failures through pipelines (e.g. `cmd | tee`)
+# Without `pipefail`, `node ... | tee` would mask a Jest failure behind
+# tee's 0 exit. Adding this once at workflow scope avoids forgetting
+# `set -euo pipefail` at the top of every multi-line `run: |` block.
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+# ──────────────────────────────────────────────────────────────
+# Job DAG (cheap-gates-first, fail-fast):
+#
+#   validate              — lint → tsc → audit → unit tests →
+#                           e2e factory + e2e mocked → build →
+#                           upload artifacts.
+#                           MOCKED tests live here so failures are
+#                           caught BEFORE we burn real-bank capacity.
+#   e2e-smoke             — 17-bank matrix (invalid-creds, parallel).
+#   dns-preflight         — Israeli bank DNS resolution sanity.
+#   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
+#                           non-OTP browser-form banks
+#                           (Isracard, VisaCal, Discount, Max).
+#   e2e-real-group-a-amex — Amex follow-on under gate-A approval;
+#                           `needs: e2e-real-group-a` enforces
+#                           Rule #16 (Amex never co-runs with
+#                           Isracard).
+#   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
+#                           OTP browser-form banks
+#                           (Hapoalim, Beinleumi).
+#   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
+#                           api-direct banks
+#                           (OneZero, Pepper, PayBox).
+#   dependency-review     — PR-only, independent.
+#
+# Each gate runs ONCE per PR — no overlap between validate and the
+# real-bank matrices. Three approval clicks per PR (gate-A, gate-B,
+# gate-C) — intentional revert of the 2026-05-13 single-gate
+# consolidation so each category can be approved independently.
+#
+# Gates are mutually INDEPENDENT — all three become approvable as
+# soon as `validate` + `dns-preflight` are green. The reviewer can
+# release any group without waiting for another to finish; in
+# practice that means Groups A, B and C can run in parallel once
+# each has been clicked. The only ordering constraint is Rule #16
+# inside Group A (Amex strictly after group-a's main matrix).
+# ──────────────────────────────────────────────────────────────
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    outputs:
+      src_touched: ${{ steps.changes.outputs.src }}
+      md_touched: ${{ steps.changes.outputs.md }}
+      docs_touched: ${{ steps.changes.outputs.docs }}
+      pipeline_ts_touched: ${{ steps.changes.outputs.pipeline_ts }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # Need base + head reachable so `detect-changes` can diff
+          # against the PR base. Also closes zizmor `artipacked`
+          # (does not set persist-credentials).
+          fetch-depth: 0
+          persist-credentials: false
+
+      # ── Detect which file groups this PR/push changed ──
+      # Single source of truth for which heavy steps run. Replaces the
+      # old `paths: ['src/**']` workflow-level filter so the `Validate`
+      # check context always fires (folds in pr-docs.yml echo-shim).
+      - name: Detect changed file groups
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: bash .github/scripts/ci/detect-changes.sh
+
+      - uses: ./.github/actions/setup-node-deps
+        if: steps.changes.outputs.src == 'true'
+      - uses: ./.github/actions/install-camoufox
+        if: steps.changes.outputs.src == 'true'
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.changes.outputs.src == 'true'
+        run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+
+      # ── Lint & Format ──
+      - name: ESLint (warnings as errors)
+        if: steps.changes.outputs.src == 'true'
+        run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
+      - name: Prettier check
+        if: steps.changes.outputs.src == 'true'
+        run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
+      - name: Lint Markdown
+        if: steps.changes.outputs.md == 'true' || steps.changes.outputs.src == 'true'
+        uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23.2.0
+        with:
+          globs: '*.md docs/**/*.md tasks/**/*.md'
+          config: '.markdownlint.json'
+
+      # ── Lychee link check (folded in from former link-check.yml) ──
+      # `{{BRANCH}}` substitution mirrors the mkdocs hook because Lychee
+      # scans raw markdown, not the mkdocs-built site. Sed-escape `\&|`
+      # for defence-in-depth (`&` and `|` are legal in git refs).
+      - name: Substitute {{BRANCH}} placeholders for Lychee
+        if: steps.changes.outputs.md == 'true'
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
+          BRANCH_SED=$(printf '%s\n' "$BRANCH" | sed -e 's/[\\&|]/\\&/g')
+          find docs README.md -name '*.md' -type f -print0 |
+            xargs -0 sed -i "s|{{BRANCH}}|$BRANCH_SED|g"
+      - name: Lychee link checker
+        if: steps.changes.outputs.md == 'true'
+        uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.4.1
+        with:
+          args: >-
+            --cache
+            --max-cache-age 1d
+            --no-progress
+            --exclude '[REDACTED-USER].github.io/israeli-bank-scrapers/'
+            --exclude 'npmjs.com/package/'
+            'README.md' 'docs/**/*.md'
+          fail: true
+
+      # ── mkdocs strict build (PR-time catch for dead nav / undefined refs) ──
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        if: steps.changes.outputs.docs == 'true'
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+      - name: Install mkdocs + plugins
+        if: steps.changes.outputs.docs == 'true'
+        run: pip install -r requirements-docs.txt
+      - name: mkdocs build --strict (catches dead links / undefined refs)
+        if: steps.changes.outputs.docs == 'true'
+        run: python -m mkdocs build --strict
+
+      # ── Docs coverage canary (folded in from PR #273 draft) ──
+      # Fails when a new public export under src/Scrapers/Pipeline/ ships
+      # without a mention in docs/. Allowlist file at
+      # `.github/docs-coverage-allowlist.txt` covers internal-but-exported
+      # symbols. See `.github/scripts/ci/docs-coverage.sh` for the diff +
+      # grep logic.
+      - name: Docs coverage canary
+        if: github.event_name == 'pull_request' && steps.changes.outputs.pipeline_ts == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/ci/docs-coverage.sh
+
+      # ── Type Check ──
+      - name: Type check
+        if: steps.changes.outputs.src == 'true'
+        run: npx tsc --noEmit
+
+      # ── Audit ──
+      - name: Audit production dependencies
+        if: steps.changes.outputs.src == 'true'
+        run: npm audit --audit-level=high --omit=dev
+      - name: Audit all dependencies (informational)
+        if: steps.changes.outputs.src == 'true'
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      # ── Unit Tests ──
+      - name: Unit tests with coverage
+        if: steps.changes.outputs.src == 'true'
+        run: npm run test:pipeline
+
+      # ── E2E Factory Tests ──
+      - name: E2E factory tests
+        if: steps.changes.outputs.src == 'true'
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
+
+      # ── E2E Smoke Tests are now a separate matrix job (e2e-smoke). ──
+      # See `e2e-smoke` job below — runs invalid-credential checks for each
+      # bank in its own ubuntu-latest runner in parallel. Wall time drops
+      # from ~25min serial to ~3-5min matrix.
+
+      # ── E2E Mocked Tests ──
+      - name: E2E mocked tests
+        if: steps.changes.outputs.src == 'true'
+        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
+
+      # ── E2E Real Bank Tests (real credentials) ──
+      # Moved out of this job into the dedicated 2-group matrix below
+      # (`e2e-real-group-a` → `e2e-real-group-b`). This avoids running
+      # the same real-bank scrapes twice on every PR (was: also a
+      # legacy `E2eFull` step here that overlapped the matrix).
+      # `npm run test:e2e:full` remains available for manual runs of
+      # the residual Mercantile coverage that lives in src/Tests/E2eFull/.
+
+      # ── Build ──
+      - uses: ./.github/actions/build-package
+        if: steps.changes.outputs.src == 'true'
+      - name: Dry-run publish (catch packaging errors early)
+        if: steps.changes.outputs.src == 'true'
+        run: npm pack --dry-run
+
+      # ── Upload Artifacts ──
+      - name: Upload build artifact
+        if: steps.changes.outputs.src == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-output
+          path: lib/
+          retention-days: 7
+      - name: Upload coverage artifact
+        if: always() && steps.changes.outputs.src == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-report
+          path: src/coverage/
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E Smoke Tests — matrix job, ONE bank per runner.
+  #
+  # Splits the previously-serial 17-bank smoke run into 17 parallel
+  # ubuntu-latest runners. Each runner installs deps + camoufox once,
+  # runs jest with --testNamePattern filtered to a single bank, and
+  # returns. Wall time: ~3-5min matrix vs ~25min serial.
+  #
+  # Per-test timeout is 90s (SMOKE_TIMEOUT) so any bank-specific hang
+  # cancels in 90s instead of the SCRAPE_TIMEOUT 15-min budget.
+  # ──────────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: E2E Smoke (${{ matrix.bank }})
+    # Skip when only docs/CI/non-src files were touched — keeps non-src
+    # PRs from spinning up 17 runners they cannot meaningfully exercise.
+    needs: validate
+    if: needs.validate.outputs.src_touched == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Hapoalim
+          - Leumi
+          - Mizrahi
+          - Max
+          - Isracard
+          - Amex
+          - VisaCal
+          - Discount
+          - Otsar Hahayal
+          - Beinleumi
+          - Mercantile
+          - Massad
+          - Yahav
+          - Beyahad Bishvilha
+          - Behatsdaa
+          - Pagi
+          - OneZero
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # Smoke is INFORMATIONAL — bank-side rate limiting / SPA invalid-creds
+      # rejection latency is bank-specific and outside this PR's scope.
+      # `continue-on-error: true` keeps the matrix runner reporting its
+      # outcome on the PR without blocking the merge gate.
+      - name: E2E smoke (${{ matrix.bank }})
+        continue-on-error: true
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns='E2eSmoke' \
+            --testNamePattern='${{ matrix.bank }} \(invalid login\)' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E Real (live banks, real credentials) — 3-stage / 3-group design.
+  #
+  # Gated on `needs: validate` so the cheap gates (lint, tsc, audit,
+  # unit tests, e2e-mocked, build) run FIRST. Real-bank runs hit
+  # actual bank websites with real credentials — running them only
+  # after the mocked suite passes saves both wall time and bank-side
+  # rate-limit budget when something is broken upstream.
+  #
+  #   Stage 0 — validate (lint/tsc/unit/e2e-mocked/build) MUST pass
+  #   Stage 1 — dns-preflight (Israeli-bank hostname resolution).
+  #
+  # After Stage 1, all three category gates become approvable in
+  # parallel. There is NO Stage 2/3/4 ordering — releasing one gate
+  # does not require any other group to have run or finished.
+  #
+  #   Group A, gate-A (parallel runners):
+  #     non-OTP browser-form banks
+  #     — Isracard, VisaCal, Discount, Max
+  #     + Amex follow-on (`needs: e2e-real-group-a`, Rule #16:
+  #       Amex never co-runs with Isracard).
+  #   Group B, gate-B (parallel runners):
+  #     OTP browser-form banks
+  #     — Hapoalim, Beinleumi
+  #     (TELEGRAM_* secrets exposed for OTP delivery).
+  #   Group C, gate-C (parallel runners):
+  #     api-direct banks (no browser)
+  #     — OneZero, Pepper, PayBox
+  #     (TELEGRAM_* secrets exposed for OTP delivery).
+  #
+  # Three approval clicks per PR — one per category. The 3-gate
+  # design lets each category be approved independently (e.g. skip
+  # api-direct review when a PR only touches Isracard) and keeps
+  # secrets scoped to the runners that need them. Updated 2026-05-26
+  # to drop inter-group `needs:` so groups can also run concurrently
+  # once each gate is released — the reviewer's click order does
+  # not impose a serial pipeline.
+  #
+  # Wall time (gates approved in parallel ⇒ longest group dominates):
+  #   validate                         ≈ 10–12 min
+  #   dns-preflight                    ≈ 1–2 min
+  #   max(Group A, Group B, Group C)   ≈ 9–11 min (Group A's
+  #                                      Isracard+Amex chain wins)
+  #
+  # Same-repo PRs and manual dispatch only — secrets are not exposed
+  # to forks (mirrors the prior gating of the now-removed E2eFull
+  # step).
+  # ──────────────────────────────────────────────────────────────
+  # Each gate concentrates an `environment:` approval requirement on
+  # ONE non-matrix job; the matrix below `needs:` the gate, so a
+  # SINGLE approval click releases ALL banks in that category.
+  # Without this indirection, putting `environment:` on a matrix
+  # job would spawn one approval per matrix cell — N clicks per
+  # gate instead of 1.
+  #
+  # The three gates reference DISTINCT environments
+  # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`).
+  # Sharing one environment across all three would let GitHub
+  # batch them into a single approval prompt — fine for an
+  # "approve everything" workflow but defeats per-category review.
+  # Required repo setup: Settings → Environments → create each of
+  # the three names above and attach reviewers; first runs against
+  # missing environments auto-create them WITHOUT reviewers (the
+  # workflow then passes through unapproved), so add reviewers
+  # right after the first run if not pre-created.
+  # ──────────────────────────────────────────────────────────────
+  # DNS Preflight — Israeli bank resolution sanity check.
+  #
+  # Runs automatically on every PR push (NO approval gate) so the
+  # reviewer can see whether the runner can reach Israeli bank
+  # authoritative DNS BEFORE clicking the expensive E2E Real A
+  # approval. Mirrors the resolv.conf override + fail-loud warmup
+  # baked into the Real A and Real B jobs themselves; if this job
+  # is RED, those jobs will also fail at their DNS step.
+  #
+  # Decoupled from the gate (no `needs:`) on purpose: occasionally
+  # the reviewer may want to approve E2E Real even when this
+  # preflight flaked (e.g. transient registry hiccup) — the gate
+  # stays unblocked. Treat the preflight as informational.
+  # ──────────────────────────────────────────────────────────────
+  dns-preflight:
+    name: DNS Preflight (IL bank resolution)
+    needs: validate
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Force reliable DNS for Israeli bank resolution
+        run: bash .github/scripts/ci/dns-warmup.sh
+
+  e2e-real-group-a-gate:
+    name: E2E Real A — approval gate
+    # HARD dependency on `dns-preflight` (2026-05-17): gate is only
+    # available for manual approval when ALL 12 Israeli bank hosts
+    # resolve through the runner's Cloudflare/Google/Quad9 chain.
+    # If preflight is RED, this gate sits unclickable so we don't
+    # burn the E2E Real matrix on guaranteed-DNS failures.
+    needs: [validate, dns-preflight]
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
+    runs-on: ubuntu-latest
+    # Per-group environment (2026-05-26): each gate references a
+    # DISTINCT GitHub environment so the reviewer must click
+    # "Approve" once per group. Sharing one environment across all
+    # three gates would let GitHub batch them into a single approval
+    # prompt — fine for "approve all" workflows but defeats the
+    # purpose of per-category review. Required setup: repo
+    # Settings → Environments → create `e2e-real-group-a` with the
+    # desired reviewers; same for `e2e-real-group-b` /
+    # `e2e-real-group-c`. Until the environments exist, GitHub
+    # auto-creates them on first run WITHOUT reviewers (the workflow
+    # passes through unapproved); flip-on protection by adding
+    # reviewers to each environment afterwards.
+    environment: e2e-real-group-a
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group A approved; matrix jobs may proceed."
+
+  e2e-real-group-a:
+    name: E2E Real A (${{ matrix.bank }})
+    needs: e2e-real-group-a-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Non-OTP browser-form banks. Amex runs separately
+    # (`e2e-real-group-a-amex` below) under the SAME gate-A approval
+    # but with `needs: e2e-real-group-a` so Rule #16 is enforced:
+    # Amex never co-runs with Isracard.
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Isracard
+          - VisaCal
+          - Discount
+          - Max
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      # DNS override + warmup (single source of truth lives in
+      # `.github/scripts/ci/dns-warmup.sh` — extracts the hostname
+      # for THIS matrix bank only from `PipelineBankConfig.ts`).
+      # Fail-loud — exits 1 if the host doesn't resolve.
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          # LOG_LEVEL=trace makes the pipeline write per-run artefacts
+          # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
+          # Both pipeline.log AND network/*.json are PII-redacted at
+          # write-time by the runtime layer (commit 3f1b966d: PiiRedactor
+          # is wired into Pino's redact.censor + NetworkDiscovery's
+          # dumpResponseBody routes through redactJsonBody/redactUrl).
+          # Both file types are safe to upload; the failure-only artifact
+          # below uploads them so we can debug auto-discovery + endpoint
+          # selection (e.g. Max's "scrape skipped — No txn URL" case
+          # needs the 71 captured network URLs to triage).
+          # Screenshots are still excluded — PNGs cannot be reliably
+          # redacted and may capture rendered PII text.
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          # Non-OTP browser-form banks only — no OTP / TELEGRAM
+          # secrets exposed to this runner. OTP banks live in Group B;
+          # api-direct banks in Group C.
+          ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
+          ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
+          ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
+          VISACAL_USERNAME: ${{ secrets.VISACAL_USERNAME }}
+          VISACAL_PASSWORD: ${{ secrets.VISACAL_PASSWORD }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
+          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
+
+        # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
+        # has two it() blocks: 'scrapes transactions successfully' (happy)
+        # and 'fails with invalid credentials' (already covered by smoke
+        # matrix). Running both here re-tests invalid-creds against the
+        # same bank twice per PR — testNamePattern eliminates the duplicate.
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # pipeline.log + network/*.json — both PII-redacted at write
+          # time by the runtime layer (commit 3f1b966d). Network dumps
+          # are required to triage auto-discovery failures (which URL
+          # got picked out of the captured set, what response shape).
+          # Pre-auth screenshots (init/home only) included since the
+          # bank page carries no user data before LOGIN — needed to
+          # triage WAF / challenge-wall hypotheses without speculation.
+          # LOGIN / OTP / DASHBOARD / SCRAPE screenshots remain excluded.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+  # Amex follow-on under gate-A approval. Rule #16: Amex never
+  # co-runs with Isracard, so we `needs: e2e-real-group-a` to make
+  # Amex run STRICTLY after the Group A matrix finishes. No
+  # additional approval click — gate-A's release applies.
+
+  e2e-real-group-a-amex:
+    name: E2E Real A (${{ matrix.bank }})
+    needs: e2e-real-group-a
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Amex
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      # Same DNS-warmup script as preflight and Group A — extracts
+      # the hostname for THIS matrix bank only.
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          # Same trace + RUNS_ROOT setup as Group A — failure artifact
+          # below relies on /tmp/runs being populated when LOG_LEVEL=trace.
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          AMEX_ID: ${{ secrets.AMEX_ID }}
+          AMEX_CARD6DIGITS: ${{ secrets.AMEX_CARD6DIGITS }}
+          AMEX_PASSWORD: ${{ secrets.AMEX_PASSWORD }}
+        # Happy-path filter — see Group A note above; same rationale.
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # Same pre-auth screenshot policy as Group A — init + home only
+          # so we can triage homepage WAF / challenge-wall failures
+          # (Hapoalim CI race investigated 2026-05-13) with visual proof.
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ──────────────────────────────────────────────────────────────
+  # Group B — OTP browser-form banks (Hapoalim, Beinleumi).
+  # Requires gate-B approval AFTER Group A + Amex have completed.
+  # Telegram OTP secrets exposed here for the SMS OTP dance.
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-b-gate:
+    name: E2E Real B — approval gate
+    # Independent of Group A — once validate + dns-preflight are
+    # green, all three category gates become approvable in parallel.
+    # The reviewer can release Group B without waiting for Group A
+    # to finish (and vice-versa); within each group, banks still
+    # run in parallel under one approval.
+    needs: [validate, dns-preflight]
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
+    runs-on: ubuntu-latest
+    # Distinct environment per the gate-A comment above — each
+    # group's approval click is independent.
+    environment: e2e-real-group-b
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group B approved; OTP browser-form matrix may proceed."
+
+  e2e-real-group-b:
+    name: E2E Real B (${{ matrix.bank }})
+    needs: e2e-real-group-b-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Hapoalim
+          - Beinleumi
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          # OTP browser-form banks. Telegram secrets deliver the SMS
+          # OTP to the Jest poller during the login flow.
+          HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
+          HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
+          BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
+          BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ──────────────────────────────────────────────────────────────
+  # Group C — api-direct banks (OneZero, Pepper, PayBox). No
+  # browser; HTTP-only flows. Requires gate-C approval AFTER
+  # Group B has completed. Telegram OTP secrets exposed for the
+  # SMS OTP dance on cold-start runs (warm runs use long-term JWTs).
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-c-gate:
+    name: E2E Real C — approval gate
+    # Independent of Groups A + B — see the gate-B comment for the
+    # rationale (per-group approval, no inter-group ordering).
+    needs: [validate, dns-preflight]
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository) &&
+      needs.validate.outputs.src_touched == 'true'
+    runs-on: ubuntu-latest
+    # Distinct environment per the gate-A comment above — each
+    # group's approval click is independent.
+    environment: e2e-real-group-c
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group C approved; api-direct matrix may proceed."
+
+  e2e-real-group-c:
+    name: E2E Real C (${{ matrix.bank }})
+    needs: e2e-real-group-c-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - OneZero
+          - Pepper
+          - PayBox
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          # api-direct banks. PayBox derives deviceId16Hex from
+          # PAYBOX_PHONE_NUMBER via the sha256-prefix-16 bootstrap
+          # (see PayBoxCreds.ts JSDoc) — no PAYBOX_DEVICE_ID16HEX
+          # secret needed.
+          ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
+          ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
+          ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
+          ONEZERO_OTP_LONG_TERM: ${{ secrets.ONEZERO_OTP_LONG_TERM }}
+          PEPPER_PHONE_NUMBER: ${{ secrets.PEPPER_PHONE_NUMBER }}
+          PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
+          PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
+          PAYBOX_PHONE_NUMBER: ${{ secrets.PAYBOX_PHONE_NUMBER }}
+          PAYBOX_OTP_LONG_TERM: ${{ secrets.PAYBOX_OTP_LONG_TERM }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload diagnostics on failure (${{ matrix.bank }})
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          path: |
+            /tmp/runs/pipeline/**/pipeline.log
+            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/screenshots/*.png
+          retention-days: 7
+          if-no-files-found: warn
+
+  dependency-review:
+    name: Dependency Review
+    needs: validate
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.validate.outputs.src_touched == 'true'
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      # v5.0.0 — first stable release on Node.js 24 (published
+      # 2026-05-08). The SHA a1d282b3... resolves to tag v5.0.0
+      # (verified via /repos/actions/dependency-review-action/git/refs).
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          # SPDX identifiers ONLY — `BSD License` (generic, no version)
+          # and similar non-SPDX classifier strings are intentionally
+          # excluded so an unknown license triggers a hard failure via
+          # the allow-licenses gate (production-code policy: every
+          # dependency must declare a machine-readable license).
+          allow-licenses: >-
+            MIT, ISC, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD,
+            BlueOak-1.0.0, CC0-1.0, CC-BY-3.0, CC-BY-4.0, MPL-2.0,
+            Python-2.0, WTFPL, Unlicense
+          # Per-package overrides for dependencies whose license IS
+          # machine-verifiable upstream (LICENSE file / repo metadata)
+          # but where dependency-review-action's PyPI/npm scanner
+          # cannot map the metadata to an SPDX identifier. Each entry
+          # below documents the upstream license verified by reading
+          # the project's LICENSE file directly.
+          allow-dependencies-licenses: >-
+            pkg:npm/playwright-core,
+            pkg:githubactions/SonarSource/sonarqube-scan-action,
+            pkg:pypi/gitdb,
+            pkg:pypi/Pygments,
+            pkg:pypi/GitPython,
+            pkg:pypi/Jinja2,
+            pkg:pypi/Markdown,
+            pkg:pypi/mkdocs-get-deps,
+            pkg:pypi/pymdown-extensions,
+            pkg:pypi/ghp-import
+          # Upstream license verification (audited 2026-05-28 via
+          # PyPI JSON API + each project's LICENSE file):
+          #   gitdb              → BSD-3-Clause  (joint w/ embedded
+          #                        Apache fragment + GPL-1.0-or-later
+          #                        for a single setup-helper file
+          #                        that ships unchanged from upstream;
+          #                        explicit allowlist required)
+          #   Pygments           → BSD-2-Clause  (PEP 639 only)
+          #   GitPython          → BSD-3-Clause  (license field)
+          #   Jinja2             → BSD-3-Clause  (Pallets LICENSE.txt)
+          #   Markdown           → BSD-3-Clause  (PEP 639 only)
+          #   mkdocs-get-deps    → MIT
+          #   pymdown-extensions → MIT
+          #   ghp-import         → Apache-2.0    (repo LICENSE)
+
+      # OpenSSF Scorecard hard-fail gate. dependency-review-action only
+      # WARNS on Scorecard regressions (its only knob is
+      # warn-on-openssf-scorecard-level); we want hard failures so a
+      # new low-scoring dep blocks the PR. This step queries the
+      # Scorecard API for every package in requirements-docs.txt,
+      # compares each score to the threshold, and fails the build on
+      # any violation that isn't on the documented exception list.
+      #
+      # Why the exception list exists at all: some packages are
+      # mandatory transitives of `mkdocs` / `mkdocs-material` with no
+      # maintained alternative. Each entry MUST document why no
+      # replacement is available + the date it was last reviewed.
+      # New additions require explicit reviewer signoff. The current
+      # accepted exceptions (see scripts/scorecard-hardfail.sh) are:
+      #   - ghp-import                    (mkdocs gh-deploy publisher)
+      #   - mkdocs-material-extensions    (mkdocs-material 9.x transitive
+      #                                    providing emoji generators
+      #                                    pymdownx.emoji references)
+      - name: OpenSSF Scorecard hard-fail gate
+        run: bash .github/workflows/scripts/scorecard-hardfail.sh
+        env:
+          SCORECARD_THRESHOLD: '3.0'
+          REQUIREMENTS_FILE: 'requirements-docs.txt'

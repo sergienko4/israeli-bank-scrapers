@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "scenarioId": "pre-login/last-good",
+    "captureRunId": "15-05-2026_14362341",
+    "rationale": "Phase H.T3c.3 — beinleumi PRE-LOGIN POST+FINAL last-good. Password field visible at PRE-LOGIN.POST scan time. Captured run completed through SCRAPE.",
+    "expected": {
+      "preLoginPostFormGateFound": true,
+      "preLoginPostOutcome": "success",
+      "preLoginFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

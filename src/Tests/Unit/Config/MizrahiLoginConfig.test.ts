@@ -1,0 +1,229 @@
+import { jest } from '@jest/globals';
+import type { Page } from 'playwright-core';
+
+const MOCK_WAIT_UNTIL_ELEMENT_FOUND = jest.fn().mockResolvedValue(undefined);
+const MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR = jest.fn().mockResolvedValue(undefined);
+
+jest.unstable_mockModule('../../../Common/Debug.js', () => ({
+  /**
+   * Creates a stub logger for the Debug module mock.
+   * @returns stub logger with jest.fn() methods
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
+  /**
+   * Passthrough mock for bank context.
+   * @param _b - Bank name (unused).
+   * @param fn - Function to execute.
+   * @returns fn result.
+   */
+  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+}));
+
+jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
+  waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
+  waitUntilElementDisappear: MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR,
+  clickButton: jest.fn().mockResolvedValue(undefined),
+  fillInput: jest.fn().mockResolvedValue(undefined),
+  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+  waitUntilIframeFound: jest.fn().mockResolvedValue(undefined),
+  pageEval: jest.fn().mockResolvedValue(''),
+  capturePageText: jest.fn().mockResolvedValue(''),
+}));
+
+jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
+  waitForNavigation: jest.fn().mockResolvedValue(undefined),
+  waitForRedirect: jest.fn().mockResolvedValue(undefined),
+  getCurrentUrl: jest.fn().mockResolvedValue(''),
+  waitForUrl: jest.fn().mockResolvedValue(undefined),
+  waitForNavigationAndDomLoad: jest.fn().mockResolvedValue(undefined),
+}));
+
+const { MIZRAHI_CONFIG } = await import('../../../Scrapers/Mizrahi/Config/MizrahiLoginConfig.js');
+
+const MOCK_GOTO = jest.fn().mockResolvedValue(undefined);
+
+/**
+ * Build locator stubs from visibility and count.
+ * @param isVisible - whether locator reports visible.
+ * @param count - value returned by count/all length.
+ * @returns stub record for locator mock.
+ */
+function locatorStubs(isVisible: boolean, count: number): Record<string, jest.Mock> {
+  const allItems = Array.from({ length: count }, () => ({}));
+  return {
+    click: jest.fn().mockResolvedValue(undefined),
+    isVisible: jest.fn().mockResolvedValue(isVisible),
+    waitFor: jest.fn().mockResolvedValue(undefined),
+    all: jest.fn().mockResolvedValue(allItems),
+  };
+}
+
+/**
+ * Creates a self-referencing mock locator.
+ * @param opts - visibility and count overrides.
+ * @param opts.isVisible - whether locator reports visible.
+ * @param opts.count - number of matched elements.
+ * @returns mock locator for text/css queries.
+ */
+function makeMockLocator(
+  opts: { isVisible?: boolean; count?: number } = {},
+): Record<string, jest.Mock> {
+  const loc: Record<string, jest.Mock> = {
+    first: jest.fn(),
+    ...locatorStubs(opts.isVisible ?? false, opts.count ?? 0),
+  };
+  loc.first.mockReturnValue(loc);
+  return loc;
+}
+
+/**
+ * Creates a mock Playwright Page for Mizrahi tests.
+ * @param url - the URL that page.url() returns
+ * @returns a mock Page with locator/getByText stubs
+ */
+function makeMockPage(url = 'https://mto.mizrahi-tefahot.co.il/OnlineApp/'): Page {
+  MOCK_GOTO.mockClear();
+  const defaultLocator = makeMockLocator();
+  return {
+    url: jest.fn().mockReturnValue(url),
+    goto: MOCK_GOTO,
+    locator: jest.fn().mockReturnValue(defaultLocator),
+    getByText: jest.fn().mockReturnValue(defaultLocator),
+  } as unknown as Page;
+}
+
+describe('MIZRAHI_CONFIG', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('has loginUrl from ScraperConfig', () => {
+    expect(MIZRAHI_CONFIG.loginUrl).toBeDefined();
+    expect(typeof MIZRAHI_CONFIG.loginUrl).toBe('string');
+  });
+
+  it('has username and password fields', () => {
+    expect(MIZRAHI_CONFIG.fields).toHaveLength(2);
+    expect(MIZRAHI_CONFIG.fields[0].credentialKey).toBe('username');
+    expect(MIZRAHI_CONFIG.fields[1].credentialKey).toBe('password');
+  });
+
+  it('uses empty selectors (wellKnown fallback) for all fields', () => {
+    for (const field of MIZRAHI_CONFIG.fields) {
+      expect(field.selectors).toEqual([]);
+    }
+  });
+
+  it('has submit selector', () => {
+    const submit = Array.isArray(MIZRAHI_CONFIG.submit)
+      ? MIZRAHI_CONFIG.submit
+      : [MIZRAHI_CONFIG.submit];
+    expect(submit.length).toBeGreaterThan(0);
+  });
+
+  it('has checkReadiness function', () => {
+    expect(typeof MIZRAHI_CONFIG.checkReadiness).toBe('function');
+  });
+
+  it('has postAction function', () => {
+    expect(typeof MIZRAHI_CONFIG.postAction).toBe('function');
+  });
+
+  describe('checkReadiness', () => {
+    it('navigates to loginRoute', async () => {
+      const page = makeMockPage();
+      const checkReadiness = MIZRAHI_CONFIG.checkReadiness;
+      expect(checkReadiness).toBeDefined();
+      await checkReadiness?.(page);
+      const mizrahiSubstring: string = expect.stringContaining('mizrahi') as string;
+      const anyObject: object = expect.any(Object) as object;
+      expect(MOCK_GOTO).toHaveBeenCalledWith(mizrahiSubstring, anyObject);
+    });
+
+    it('waits for overlay to disappear', async () => {
+      const page = makeMockPage();
+      const checkReadiness = MIZRAHI_CONFIG.checkReadiness;
+      await checkReadiness?.(page);
+      expect(MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR).toHaveBeenCalledWith(
+        page,
+        'div.ngx-overlay.loading-foreground',
+      );
+    });
+  });
+
+  describe('postAction', () => {
+    it('resolves when text-based waiter completes', async () => {
+      const page = makeMockPage();
+      const postAction = MIZRAHI_CONFIG.postAction?.bind(MIZRAHI_CONFIG);
+      await postAction?.(page);
+      const pageRecord = page as unknown as Record<string, jest.Mock>;
+      expect(pageRecord.getByText).toHaveBeenCalled();
+    });
+  });
+
+  describe('possibleResults.success', () => {
+    it('regex matches Mizrahi online app URL', () => {
+      const regex = MIZRAHI_CONFIG.possibleResults.success[0] as RegExp;
+      const isMatch = regex.test('https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard');
+      expect(isMatch).toBe(true);
+    });
+
+    it('regex rejects non-Mizrahi URL', () => {
+      const regex = MIZRAHI_CONFIG.possibleResults.success[0] as RegExp;
+      const isMatch = regex.test('https://other-bank.co.il/dashboard');
+      expect(isMatch).toBe(false);
+    });
+
+    it('mizrahiIsLoggedIn returns true when element exists', async () => {
+      const fn = MIZRAHI_CONFIG.possibleResults.success[1] as (opts: {
+        page: Page;
+      }) => Promise<boolean>;
+      const page = makeMockPage();
+      const visibleLocator = makeMockLocator({ count: 1 });
+      (page.locator as jest.Mock).mockReturnValue(visibleLocator);
+      expect(await fn({ page })).toBe(true);
+    });
+
+    it('mizrahiIsLoggedIn returns false when no page', async () => {
+      const fn = MIZRAHI_CONFIG.possibleResults.success[1] as (_opts?: {
+        page?: Page;
+      }) => Promise<boolean>;
+      expect(await fn()).toBe(false);
+      expect(await fn({})).toBe(false);
+    });
+
+    it('mizrahiIsLoggedIn returns false when no element', async () => {
+      const fn = MIZRAHI_CONFIG.possibleResults.success[1] as (opts: {
+        page: Page;
+      }) => Promise<boolean>;
+      const page = makeMockPage();
+      const emptyLocator = makeMockLocator({ count: 0 });
+      (page.locator as jest.Mock).mockReturnValue(emptyLocator);
+      expect(await fn({ page })).toBe(false);
+    });
+  });
+
+  describe('possibleResults.invalidPassword', () => {
+    it('returns true when error text visible', async () => {
+      const invalidPasswordResults = MIZRAHI_CONFIG.possibleResults.invalidPassword ?? [];
+      const fn = invalidPasswordResults[0] as (opts: { page: Page }) => Promise<boolean>;
+      const page = makeMockPage();
+      const visibleErrorLocator = makeMockLocator({ isVisible: true });
+      (page.getByText as jest.Mock).mockReturnValue(visibleErrorLocator);
+      expect(await fn({ page })).toBe(true);
+    });
+
+    it('returns false when error text not visible', async () => {
+      const invalidPasswordResults = MIZRAHI_CONFIG.possibleResults.invalidPassword ?? [];
+      const fn = invalidPasswordResults[0] as (opts: { page: Page }) => Promise<boolean>;
+      const page = makeMockPage();
+      const hiddenErrorLocator = makeMockLocator({ isVisible: false });
+      (page.getByText as jest.Mock).mockReturnValue(hiddenErrorLocator);
+      expect(await fn({ page })).toBe(false);
+    });
+  });
+});

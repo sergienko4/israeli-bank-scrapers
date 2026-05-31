@@ -1,0 +1,22 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "scenarioId": "account-resolve/last-good",
+    "captureRunId": "15-05-2026_19215086",
+    "rationale": "Phase H.T3c.8 — visacal ACCOUNT-RESOLVE POST+FINAL last-good. VisaCal accounts endpoint returns cards with cardId. Identifiers fully PII-redacted.",
+    "accountsResponseBody": {
+      "cards": [
+        {
+          "cardId": "FAKE-UUID",
+          "last4Digits": "0000"
+        }
+      ]
+    },
+    "expected": {
+      "accountResolvePostOutcome": "success",
+      "accountResolveExpectedIdCount": 1,
+      "accountResolveFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

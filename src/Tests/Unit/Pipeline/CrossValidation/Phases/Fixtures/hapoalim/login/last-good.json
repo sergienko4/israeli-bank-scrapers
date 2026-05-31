@@ -1,0 +1,31 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "login/last-good",
+    "captureRunId": "15-05-2026_19215646",
+    "rationale": "Phase H.T3c.4 — hapoalim LOGIN.FINAL last-good cookie-audit shape. Cookie names match the bank's observed post-login session set (cross-bank-contract-relevant). Values + domains fully PII-redacted: domains → '.example' reserved TLD; values → 'FAKE_VALUE'. Pool intentionally empty (LOGIN.FINAL cookie-audit consumes ONLY cookies — post-submit network captures live alongside in network/login-POST/ but are not asserted by this factory).",
+    "expected": {
+      "loginPreOutcome": "success",
+      "loginActionOutcome": "success",
+      "loginPostOutcome": "success",
+      "loginFinalOutcome": "success",
+      "loginPreFoundPassword": true,
+      "loginActionSubmitMethod": "form-submit",
+      "loginPostHasTraffic": true,
+      "loginFinalMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "JSESSIONID",
+      "domain": ".bankhapoalim.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "vid",
+      "domain": ".bankhapoalim.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

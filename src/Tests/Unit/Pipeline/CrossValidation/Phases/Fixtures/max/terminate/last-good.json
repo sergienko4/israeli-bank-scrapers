@@ -1,0 +1,12 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "terminate/last-good",
+    "captureRunId": "15-05-2026_19214652",
+    "rationale": "Phase H.T3c.10 — max TERMINATE PRE+POST+FINAL last-good. All three sub-steps always succeed by design (cleanups swallow errors). Factory exercises the cross-bank wiring regression mode.",
+    "expected": {
+      "terminateOutcome": "success"
+    }
+  },
+  "pool": []
+}

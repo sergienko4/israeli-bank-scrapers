@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "home/last-good",
+    "captureRunId": "15-05-2026_19220364",
+    "rationale": "Phase H.T3c.2 — discount HOME.POST last-good. Discount navigates from www.discountbank.co.il to start.telebank.co.il (second-hop domain). Captured run completed through SCRAPE — HOME.POST validated successfully via didNavigate=true. URLs are .example redactions.",
+    "expected": {
+      "homePreTriggerText": "FAKE TEXT",
+      "homePostDidNavigate": true,
+      "homePostHasFrames": false,
+      "homePostOutcome": "success"
+    }
+  },
+  "pool": []
+}

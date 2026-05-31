@@ -1,0 +1,65 @@
+// POST https://web.isracard.co.il/ocp/transactions/DigitalV3.Transactions/GetTransactionsList
+// POST_BODY: {"card4Number":"FAKE_C04","isNextBillingDate":true,"cardStatus":0,"billingMonth":"01/06/2026","companyCode":11,"isPartner":false}
+{
+  "data": {
+    "approvals": null,
+    "israelAbroadVouchers": {
+      "vouchers": {
+        "israelAbroadVouchersList": [
+          {
+            "billingAmountCurrencySymbol": "₪",
+            "billingAmountCurrency": 0,
+            "isIsraelDeal": true,
+            "purchaseDate": "08/05/2026",
+            "purchaseTime": "20:25:00",
+            "transactionCode": 1,
+            "transactionDescription": "FAKE_HEB_01",
+            "businessName": "FAKE_HEB_05",
+            "clearedCode": "7",
+            "clearedDescription": "FAKE_HEB_11",
+            "cityDescription": "FAKE_HEB_12",
+            "countryCode": "ISR",
+            "countryDescription": "FAKE_HEB_13",
+            "originalCurrency": 0,
+            "originalAmount": 126.7,
+            "originalCurrencyIso": "ILS",
+            "ilsAmount": 126.7,
+            "billingAmount": 126.7,
+            "usdAmount": null,
+            "moreInfo": "  ",
+            "tranzacCodeType": "R",
+            "tranzacCodeDescription": "FAKE_HEB_14",
+            "presentCard": false,
+            "isTransactionSecure": true,
+            "isWalletTransaction": true,
+            "isdirectDebit": false,
+            "isNewDirectDebit": null,
+            "isLastInstallment": null,
+            "currentInstallmentNum": null,
+            "numberOfInstallment": null,
+            "voucherNumber": 1106,
+            "seqVoucherNumber": "324916161",
+            "businessNumber": 2003211119,
+            "discountIndication": false,
+            "discountAmount": null,
+            "discountClubName": null
+          }
+        ],
+        "informativeOnlyVouchers": [],
+        "totalForStatement": {
+          "totalIlsBillingDate": 126.7,
+          "totalUsdBillingDate": 0,
+          "totalEurBillingDate": 0,
+          "totalInformativeOnly": 0,
+          "isMonthlyPayment": false,
+          "moreStatmentWithGrace": null
+        }
+      },
+      "outOfStatementChargeDateVouchers": []
+    },
+    "currentTransactionsList": null
+  },
+  "errorCode": "0",
+  "errorDescription": null,
+  "isSuccess": true
+}

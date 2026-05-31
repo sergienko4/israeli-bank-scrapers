@@ -1,0 +1,420 @@
+import { Writable } from 'node:stream';
+
+import { jest } from '@jest/globals';
+import pino from 'pino';
+
+import {
+  formatResultSummary,
+  maskAccount,
+  maskAmount,
+  maskDesc,
+} from '../../Common/ResultFormatter.js';
+import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
+import type { ITransaction } from '../../Transactions.js';
+import { TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+
+/**
+ * Creates a test transaction with sensible defaults.
+ * @param overrides - fields to override
+ * @returns a transaction object
+ */
+function txn(overrides: Partial<ITransaction> = {}): ITransaction {
+  return {
+    type: TransactionTypes.Normal,
+    date: '2026-02-18T00:00:00.000Z',
+    processedDate: '2026-02-20T00:00:00.000Z',
+    originalAmount: -150.3,
+    originalCurrency: 'ILS',
+    chargedAmount: -150.3,
+    description: 'סופר שופ רמי לוי',
+    status: TransactionStatuses.Completed,
+    ...overrides,
+  };
+}
+
+/** Node Writable.write callback signature, derived from the library types. */
+type WriteFn = NonNullable<ConstructorParameters<typeof Writable>[0]>['write'];
+
+/**
+ * Creates a writable stream that captures output to a string.
+ * @returns stream and output accessor
+ */
+function createCapture(): { stream: Writable; output: () => string } {
+  const chunks: string[] = [];
+  /**
+   * Buffer the incoming chunk as a string and ack via the provided callback.
+   * @param chunk - raw Buffer written to the stream
+   * @param _enc - encoding (unused — Buffer already carries bytes)
+   * @param cb - Node stream ack callback
+   * @returns Result.
+   */
+  const write: WriteFn = (chunk, _enc, cb) => {
+    const text = (chunk as Buffer).toString();
+    chunks.push(text);
+    cb();
+  };
+  const stream = new Writable({ write: jest.fn(write) });
+  /**
+   * Accessor for captured output.
+   * @returns captured output
+   */
+  const output = (): string => chunks.join('');
+  return { stream, output };
+}
+
+/**
+ * Reduce a pino JSON line to just its `msg` payload — strips out the
+ * runtime metadata (`time`, `pid`, `hostname`, `level`) so PII-leak
+ * assertions only inspect the human-rendered text. Without this,
+ * `time`'s epoch-ms (e.g. `1778247987644`) can incidentally contain
+ * a substring like `9876` and flake the test on certain clock
+ * boundaries.
+ *
+ * @param raw - One pino JSON log line.
+ * @returns The `msg` value, or the raw line on parse failure.
+ */
+function extractMsg(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as { msg?: unknown };
+    if (typeof parsed.msg === 'string') return parsed.msg;
+  } catch {
+    // Non-JSON line — return as-is so callers can still inspect it.
+  }
+  return raw;
+}
+
+/**
+ * Captures info-level log output for a given scraper result. Returns
+ * only the `msg` payload of each line — runtime metadata like
+ * `time`/`pid`/`hostname` is stripped so PII assertions test the
+ * rendered text, not pino's own framing fields.
+ *
+ * @param result - the scraper result to log
+ * @returns the captured log output string (msg-only, newline-joined)
+ */
+function captureInfoOutput(result: IScraperScrapingResult): string {
+  const { stream, output } = createCapture();
+  const logger = pino({ level: 'info' }, stream);
+  const lines = formatResultSummary('TestBank', result);
+  for (const line of lines) {
+    logger.info(line);
+  }
+  const raw = output();
+  return raw
+    .split('\n')
+    .filter((entry): boolean => entry.length > 0)
+    .map(extractMsg)
+    .join('\n');
+}
+
+describe('ResultFormatter — PII masking', () => {
+  describe('maskAccount', () => {
+    it('masks long account numbers to last 4 digits', () => {
+      const masked = maskAccount('12345678');
+      expect(masked).toBe('****5678');
+    });
+    it('masks short accounts and never exposes full number', () => {
+      const masked4 = maskAccount('1234');
+      const masked2 = maskAccount('12');
+      const maskedLong = maskAccount('9876543210');
+      expect(masked4).toBe('****');
+      expect(masked2).toBe('****');
+      expect(maskedLong).toBe('****3210');
+      expect(maskedLong).not.toContain('9876543210');
+    });
+  });
+  describe('maskAmount', () => {
+    it('masks amounts by sign', () => {
+      const pos = maskAmount(5000);
+      const neg = maskAmount(-150.3);
+      const zero = maskAmount(0);
+      const undef = maskAmount(undefined);
+      expect(pos).toBe(' +***');
+      expect(neg).toBe(' -***');
+      expect(zero).toBe(' +***');
+      expect(undef).toBe('  ***');
+      const large = maskAmount(12345.67);
+      expect(large).not.toContain('12345');
+    });
+  });
+  describe('maskDesc', () => {
+    it('returns a length-tagged merchant hint (grapheme count)', () => {
+      const hebrew = maskDesc('סופר שופ רמי לוי');
+      const empty = maskDesc('');
+      const short = maskDesc('AB');
+      expect(hebrew).toBe('<merchant:16>');
+      expect(empty).toBe('<merchant:0>');
+      expect(short).toBe('<merchant:2>');
+    });
+    it('never exposes full description', () => {
+      const desc = 'Visa purchase at Amazon.com order #123456';
+      const masked = maskDesc(desc);
+      expect(masked).not.toContain('Visa');
+      expect(masked).not.toContain('Amazon');
+      expect(masked).not.toContain('123456');
+      const isTagShape = masked.startsWith('<merchant:');
+      expect(isTagShape).toBe(true);
+    });
+  });
+  describe('formatResultSummary — no sensitive data leaks', () => {
+    it('masks all account numbers in output', () => {
+      const result: IScraperScrapingResult = {
+        success: true,
+        accounts: [
+          { accountNumber: '98765432', balance: 15000, txns: [] },
+          { accountNumber: '11223344', balance: -500, txns: [] },
+        ],
+      };
+      const output = formatResultSummary('TestBank', result).join('\n');
+      expect(output).not.toContain('98765432');
+      expect(output).not.toContain('11223344');
+      expect(output).toContain('****5432');
+      expect(output).toContain('****3344');
+    });
+    it('masks all amounts in output', () => {
+      const result: IScraperScrapingResult = {
+        success: true,
+        accounts: [{ accountNumber: '12345678', balance: 37666.9, txns: [] }],
+      };
+      const output = formatResultSummary('TestBank', result).join('\n');
+      expect(output).not.toContain('37666');
+      expect(output).not.toContain('37,666');
+    });
+    it('masks transaction descriptions', () => {
+      const result: IScraperScrapingResult = {
+        success: true,
+        accounts: [
+          {
+            accountNumber: '12345678',
+            balance: 5000,
+            txns: [txn({ description: 'Amazon purchase secret order' })],
+          },
+        ],
+      };
+      const output = formatResultSummary('TestBank', result).join('\n');
+      expect(output).not.toContain('Amazon purchase');
+      expect(output).not.toContain('secret order');
+      expect(output).toContain('<merchant:');
+    });
+
+    it('masks transaction amounts', () => {
+      const result: IScraperScrapingResult = {
+        success: true,
+        accounts: [
+          {
+            accountNumber: '12345678',
+            balance: 5000,
+            txns: [txn({ originalAmount: -9876.54 })],
+          },
+        ],
+      };
+      const lines = formatResultSummary('TestBank', result);
+      const output = lines.join('\n');
+      expect(output).not.toContain('9876');
+      expect(output).toContain('-***');
+    });
+    it('limits transaction preview to 3', () => {
+      const fiveTxns = Array.from({ length: 5 }, () => txn());
+      const result: IScraperScrapingResult = {
+        success: true,
+        accounts: [{ accountNumber: '12345678', balance: 1000, txns: fiveTxns }],
+      };
+      const output = formatResultSummary('TestBank', result).join('\n');
+      expect(output).toContain('Transactions: 5');
+      expect(output).toContain('... +2 more');
+    });
+    it('handles null currency at runtime', () => {
+      const result: IScraperScrapingResult = {
+        success: true,
+        accounts: [
+          {
+            accountNumber: '12345678',
+            balance: 0,
+            txns: [txn({ originalCurrency: null as unknown as string })],
+          },
+        ],
+      };
+      expect(() => formatResultSummary('TestBank', result)).not.toThrow();
+    });
+
+    it('shows bank name and success status', () => {
+      const result: IScraperScrapingResult = { success: true, accounts: [] };
+      const output = formatResultSummary('Amex', result).join('\n');
+      expect(output).toContain('Amex');
+      expect(output).toContain('Result: success=true');
+    });
+    it('shows error type on failure without sensitive details', () => {
+      // CodeQL #28 contract — closed-enum errorTypes (including
+      // InvalidPassword) are routed through redactSensitiveEnum and
+      // replaced with the constant `<REDACTED_ENUM>` placeholder.
+      const result: IScraperScrapingResult = {
+        success: false,
+        errorType: 'INVALID_PASSWORD' as IScraperScrapingResult['errorType'],
+      };
+      const output = formatResultSummary('TestBank', result).join('\n');
+      expect(output).toContain('success=false');
+      expect(output).toContain('<REDACTED_ENUM>');
+      expect(output).not.toContain('INVALID_PASSWORD');
+    });
+    it('redacts errorMessage to a length-tag (no raw content), falls back when missing', () => {
+      // CodeQL alert #28 — bank-side errorMessage can echo credentials.
+      // Contract: errorType (closed enum, public) stays visible; errorMessage
+      // (free text from the bank) is replaced with a length-tag `<msg:N>` so
+      // engineers retain "yes there was a message, ~N chars long" signal
+      // without exposing raw content. Per `logging-pii-guidlines.md §1`.
+      const rawMsg = 'page.goto: Timeout 30000ms exceeded';
+      const expectedLen = 35; // grapheme count of rawMsg
+      const withMsg: IScraperScrapingResult = {
+        success: false,
+        errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
+        errorMessage: rawMsg,
+      };
+      const out1 = formatResultSummary('TestBank', withMsg).join('\n');
+      // errorType stays visible (closed enum, not sensitive)
+      expect(out1).toContain('GENERIC');
+      // Raw message MUST NOT leak
+      expect(out1).not.toContain('page.goto');
+      expect(out1).not.toContain('30000ms');
+      expect(out1).not.toContain(rawMsg);
+      // Length-tag IS present (length-class signal preserved)
+      expect(out1).toContain(`<msg:${String(expectedLen)}>`);
+      // No-message path keeps the human-readable fallback
+      const noMsg: IScraperScrapingResult = {
+        success: false,
+        errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
+      };
+      const out2 = formatResultSummary('TestBank', noMsg).join('\n');
+      expect(out2).toContain('no error message');
+    });
+
+    it('redacts a credentials-leaking errorMessage (the CodeQL #28 contract)', () => {
+      // Worst-case: bank echoes the user's password in errorMessage. The
+      // length-tag MUST hide every credential-revealing substring AND
+      // the closed-enum errorType is itself routed through
+      // redactSensitiveEnum (replaced with `<REDACTED_ENUM>`).
+      const rawMsg = 'Login failed: Wrong password ABC123XYZ';
+      const expectedLen = 38;
+      const result: IScraperScrapingResult = {
+        success: false,
+        errorType: 'INVALID_PASSWORD' as IScraperScrapingResult['errorType'],
+        errorMessage: rawMsg,
+      };
+      const output = formatResultSummary('TestBank', result).join('\n');
+      expect(output).toContain('<REDACTED_ENUM>');
+      expect(output).not.toContain('INVALID_PASSWORD');
+      expect(output).not.toContain('ABC123XYZ');
+      expect(output).not.toContain('Wrong password');
+      expect(output).not.toContain(rawMsg);
+      expect(output).toContain(`<msg:${String(expectedLen)}>`);
+    });
+  });
+
+  describe('logger output at info level — no PII leaks', () => {
+    const piiAccount = '98765432109';
+    const piiDescription = 'Amazon purchase secret order #789';
+    const piiAmount = -9876.54;
+
+    /**
+     * Builds a scraper result containing PII for leak testing.
+     * @returns a scraper result with sensitive data
+     */
+    function buildResult(): IScraperScrapingResult {
+      return {
+        success: true,
+        accounts: [
+          {
+            accountNumber: piiAccount,
+            balance: 37666.9,
+            txns: [txn({ description: piiDescription, originalAmount: piiAmount })],
+          },
+        ],
+      };
+    }
+
+    it('info-level log does not contain full account number', () => {
+      const result = buildResult();
+      const output = captureInfoOutput(result);
+      expect(output).not.toContain(piiAccount);
+      expect(output).toContain('****2109');
+    });
+
+    it('info-level log does not contain balance value', () => {
+      const result = buildResult();
+      const output = captureInfoOutput(result);
+      expect(output).not.toContain('37666');
+    });
+
+    it('info-level log does not contain full description', () => {
+      const result = buildResult();
+      const output = captureInfoOutput(result);
+      expect(output).not.toContain('Amazon purchase');
+      expect(output).not.toContain('secret order');
+      expect(output).not.toContain('#789');
+    });
+
+    it('info-level log does not contain transaction amount', () => {
+      const result = buildResult();
+      const output = captureInfoOutput(result);
+      expect(output).not.toContain('9876');
+    });
+
+    it('debug and trace logs are suppressed at info level', () => {
+      const { stream, output } = createCapture();
+      const logger = pino({ level: 'info' }, stream);
+      logger.debug('navigateTo https://bank.com/secret-path → 200');
+      logger.debug('fill #password with value');
+      logger.trace('[1/6] navigate: url=https://bank.com, frames=3');
+      const logged = output();
+      expect(logged).toBe('');
+    });
+  });
+
+  describe('log level filtering — positive and negative', () => {
+    it('info level: prints info, suppresses debug and trace', () => {
+      const { stream, output } = createCapture();
+      const logger = pino({ level: 'info' }, stream);
+      logger.info('chain: navigate → fill → submit');
+      logger.debug('navigateTo https://bank.com → 200');
+      logger.trace('[1/3] navigate: url=about:blank, frames=0');
+      const logged = output();
+      expect(logged).toContain('chain: navigate');
+      expect(logged).not.toContain('navigateTo');
+      expect(logged).not.toContain('about:blank');
+    });
+    it('debug level: prints info and debug, suppresses trace', () => {
+      const { stream, output } = createCapture();
+      const logger = pino({ level: 'debug' }, stream);
+      logger.info('chain: navigate → fill');
+      logger.debug('navigateTo https://bank.com → 200');
+      logger.trace('[1/3] navigate: url=about:blank');
+      const logged = output();
+      expect(logged).toContain('chain: navigate');
+      expect(logged).toContain('navigateTo');
+      expect(logged).not.toContain('about:blank');
+    });
+    it('trace level: prints info, debug, and trace', () => {
+      const { stream, output } = createCapture();
+      const logger = pino({ level: 'trace' }, stream);
+      logger.info('chain: navigate → fill');
+      logger.debug('navigateTo https://bank.com → 200');
+      logger.trace('[1/3] navigate: url=about:blank');
+      const logged = output();
+      expect(logged).toContain('chain: navigate');
+      expect(logged).toContain('navigateTo');
+      expect(logged).toContain('about:blank');
+    });
+    it('warn level: suppresses info, debug, and trace', () => {
+      const { stream, output } = createCapture();
+      const logger = pino({ level: 'warn' }, stream);
+      logger.info('chain result summary');
+      logger.debug('fill #password');
+      logger.trace('url=https://bank.com');
+      logger.warn('WAF 403 detected');
+      const logged = output();
+      expect(logged).not.toContain('chain result');
+      expect(logged).not.toContain('fill');
+      expect(logged).not.toContain('bank.com');
+      expect(logged).toContain('WAF 403');
+    });
+  });
+});

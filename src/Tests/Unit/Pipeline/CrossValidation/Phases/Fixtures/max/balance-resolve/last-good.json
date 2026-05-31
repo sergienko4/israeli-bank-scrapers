@@ -1,0 +1,31 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "balance-resolve/last-good",
+    "captureRunId": "redacted-from-26-05-2026",
+    "rationale": "Max balance lives nested 2-level deep inside getTransactionsAndGraphs response (result.totalCycle[currency=376].totalAmount). Real prod URL is 'getTransactionsAndGraphs?filterData=&firstCallCardIndex=-1null' — NO accountId in URL/postData/responseBody (the firstCallCardIndex=-1 is a broadcast-all-cards signal). Validates v5 attribution's BROADCAST channel: when the endpoint carries no WK_ACCT.id-aliased value anywhere, attribute to every iterating accountId. BALANCE-RESOLVE then applies F2 deep BFS + F5 ILS-first to pick the 376 row. Real values redacted: balance 100.00 (round synthetic, real value was non-round).",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 100 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://www.max.example/api/registered/transactionDetails/getTransactionsAndGraphs?filterData=&firstCallCardIndex=-1null",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": {
+        "result": {
+          "totalCycle": [
+            { "currency": 376, "totalAmount": 100, "pastDebit": 0, "futureDebit": 100 },
+            { "currency": 840, "totalAmount": 0, "pastDebit": 0, "futureDebit": 0 },
+            { "currency": 978, "totalAmount": 0, "pastDebit": 0, "futureDebit": 0 }
+          ]
+        },
+        "returnCode": 0
+      }
+    }
+  ]
+}

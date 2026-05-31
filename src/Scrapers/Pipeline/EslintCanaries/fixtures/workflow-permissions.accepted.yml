@@ -1,0 +1,14 @@
+name: Accepted workflow fixture
+on: [push]
+
+# Top-level least-privilege baseline — closes spec.txt §1 RC-2.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6

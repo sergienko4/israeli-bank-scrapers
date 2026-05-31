@@ -1,0 +1,206 @@
+/**
+ * BALANCE-RESOLVE cross-bank factory (v6) — drives the live-fetch +
+ * extract chain end-to-end with a fake `IApiFetchContext`.
+ *
+ * <p>Per `test-guidlines.md` "integration > unit; unit for edge cases
+ * only": this file exercises ONE round-trip per shape family —
+ * single-account (Hapoalim-class) + per-bank-account loop
+ * (Visa-Cal-class) + bulk (Amex-class) — without the v5 fixture
+ * pool walk. The v6 contract emits identities + template from SCRAPE,
+ * so the cross-bank shape variance is in the API response body, not
+ * in the attribution. The unit suite (BalanceResolveActionsV6.test.ts)
+ * covers default-deny + quarantine + edge cases; this file pins the
+ * per-shape happy path.
+ */
+
+import {
+  executeBalanceResolveAction,
+  executeBalanceResolvePost,
+  executeBalanceResolvePre,
+} from '../../../../../Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.js';
+import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
+import type {
+  IAccountIdentity,
+  IApiFetchContext,
+  IBalanceFetchTemplate,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+
+/** Sentinel returned by runChain when a pipeline stage fails. */
+const RUNCHAIN_FAILED: ReadonlyMap<string, number | 'MISS'> = new Map();
+
+/**
+ * Build a fake `IApiFetchContext` that returns scripted bodies keyed
+ * by (url + '#' + JSON.stringify(body)). Missing keys resolve to
+ * `succeed(null)` so the extractor sees an empty body and yields MISS.
+ *
+ * @param scripts - Map of (url+'#'+body) → response.
+ * @returns Fake api context.
+ */
+function makeFakeApi(scripts: ReadonlyMap<string, unknown>): IApiFetchContext {
+  /**
+   * Scripted POST fetch — looks up by url + JSON body.
+   *
+   * @param url - URL.
+   * @param body - JSON-encoded body.
+   * @returns Scripted procedure (always succeed; null on miss).
+   */
+  const fetchPost = (url: string, body: Record<string, unknown>): Promise<Procedure<unknown>> => {
+    const key = `${url}#${JSON.stringify(body)}`;
+    const found = scripts.get(key) ?? null;
+    const procedure = succeed(found);
+    return Promise.resolve(procedure);
+  };
+  /**
+   * Scripted GET fetch — looks up by url only.
+   *
+   * @param url - URL.
+   * @returns Scripted procedure (always succeed; null on miss).
+   */
+  const fetchGet = (url: string): Promise<Procedure<unknown>> => {
+    const key = `${url}#`;
+    const found = scripts.get(key) ?? null;
+    const procedure = succeed(found);
+    return Promise.resolve(procedure);
+  };
+  return { fetchPost, fetchGet, transactionsUrl: false, balanceUrl: false } as IApiFetchContext;
+}
+
+/**
+ * Run pre → action → post end-to-end with a fake api and given inputs.
+ * Returns {@link RUNCHAIN_FAILED} when any stage fails so the caller
+ * stays branch-free (no null/undefined returns).
+ *
+ * @param identities - Per-card identities (SCRAPE.post emission).
+ * @param template - Fetch template (SCRAPE.post emission).
+ * @param scripts - API response scripts.
+ * @returns Final balanceExtracted map, or the failure sentinel.
+ */
+async function runChain(
+  identities: ReadonlyMap<string, IAccountIdentity>,
+  template: IBalanceFetchTemplate,
+  scripts: ReadonlyMap<string, unknown>,
+): Promise<ReadonlyMap<string, number | 'MISS'>> {
+  const accounts = [...identities.keys()].map(
+    (id): { accountNumber: string; balance: number; txns: never[] } => ({
+      accountNumber: id,
+      balance: 0,
+      txns: [],
+    }),
+  );
+  const scrape = some({ accounts, accountIdentities: identities, balanceFetchTemplate: template });
+  const fakeApi = makeFakeApi(scripts);
+  const api = some(fakeApi);
+  const ctx = makeMockContext({ scrape, api });
+  const preResult = await executeBalanceResolvePre(ctx);
+  if (!isOk(preResult)) return RUNCHAIN_FAILED;
+  const actionCtx = preResult.value as unknown as Parameters<typeof executeBalanceResolveAction>[0];
+  const actionResult = await executeBalanceResolveAction(actionCtx);
+  if (!isOk(actionResult)) return RUNCHAIN_FAILED;
+  const postCtx = actionResult.value as unknown as Parameters<typeof executeBalanceResolvePost>[0];
+  const postResult = await executeBalanceResolvePost(postCtx);
+  if (!isOk(postResult)) return RUNCHAIN_FAILED;
+  if (!actionResult.value.balanceExtracted.has) return RUNCHAIN_FAILED;
+  return actionResult.value.balanceExtracted.value;
+}
+
+const HAPOALIM_TEMPLATE: IBalanceFetchTemplate = {
+  url: 'https://bank.example/balance/<ID>',
+  method: 'GET',
+  urlPathInterpolation: true,
+};
+
+const VISACAL_TEMPLATE: IBalanceFetchTemplate = {
+  url: 'https://cal.example/getBigNumber',
+  method: 'POST',
+  postBodyKey: 'bankAccountUniqueId',
+};
+
+const AMEX_BULK_TEMPLATE: IBalanceFetchTemplate = {
+  url: 'https://amex.example/GetCardList',
+  method: 'POST',
+};
+
+describe('BALANCE-RESOLVE cross-bank factory — v6 happy paths', () => {
+  it('single-account (Hapoalim shape) — GET path interpolation → currentBalance', async () => {
+    const identities = new Map<string, IAccountIdentity>([
+      ['ACC-1', { cardDisplayId: 'ACC-1', cardUniqueId: 'ACC-1', bankAccountUniqueId: 'ACC-1' }],
+    ]);
+    const scripts = new Map<string, unknown>([
+      ['https://bank.example/balance/ACC-1#', { currentBalance: 150 }],
+    ]);
+    const out = await runChain(identities, HAPOALIM_TEMPLATE, scripts);
+    const balance = out.get('ACC-1');
+    expect(balance).toBe(150);
+  });
+
+  it('per-bank-account (Visa Cal shape) — POST loop with nested cards[].nextDebit', async () => {
+    const identities = new Map<string, IAccountIdentity>([
+      ['CARD-A', { cardDisplayId: 'CARD-A', cardUniqueId: 'UID-A', bankAccountUniqueId: 'BA-1' }],
+      ['CARD-B', { cardDisplayId: 'CARD-B', cardUniqueId: 'UID-B', bankAccountUniqueId: 'BA-2' }],
+    ]);
+    const ba1Body = {
+      result: {
+        bigNumbers: [
+          {
+            cards: [
+              {
+                cardUniqueId: 'UID-A',
+                nextDebit: { totalDebits: [{ currencyCode: 3, totalDebit: 100 }] },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const ba2Body = {
+      result: {
+        bigNumbers: [
+          {
+            cards: [
+              {
+                cardUniqueId: 'UID-B',
+                nextDebit: { totalDebits: [{ currencyCode: 3, totalDebit: 200 }] },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const ba1Key = `${VISACAL_TEMPLATE.url}#${JSON.stringify({ bankAccountUniqueId: 'BA-1' })}`;
+    const ba2Key = `${VISACAL_TEMPLATE.url}#${JSON.stringify({ bankAccountUniqueId: 'BA-2' })}`;
+    const scripts = new Map<string, unknown>([
+      [ba1Key, ba1Body],
+      [ba2Key, ba2Body],
+    ]);
+    const out = await runChain(identities, VISACAL_TEMPLATE, scripts);
+    const cardA = out.get('CARD-A');
+    const cardB = out.get('CARD-B');
+    expect(cardA).toBe(100);
+    expect(cardB).toBe(200);
+  });
+
+  it('bulk (Amex shape) — single POST → multi-card cardChargeNext.billingSumSekel', async () => {
+    const identities = new Map<string, IAccountIdentity>([
+      ['1111', { cardDisplayId: '1111', cardUniqueId: '1111', bankAccountUniqueId: '__BULK__' }],
+      ['4444', { cardDisplayId: '4444', cardUniqueId: '4444', bankAccountUniqueId: '__BULK__' }],
+    ]);
+    const bulkBody = {
+      data: {
+        cardsList: [
+          { cardSuffix: '1111', cardChargeNext: { billingSumSekel: '479.40' } },
+          { cardSuffix: '4444', cardChargeNext: { billingSumSekel: '169.84' } },
+        ],
+      },
+    };
+    // Bulk template has no postBodyKey — the request body is `{}`.
+    const bulkKey = `${AMEX_BULK_TEMPLATE.url}#${JSON.stringify({})}`;
+    const bulkScripts = new Map<string, unknown>([[bulkKey, bulkBody]]);
+    const out = await runChain(identities, AMEX_BULK_TEMPLATE, bulkScripts);
+    const card1111 = out.get('1111');
+    const card4444 = out.get('4444');
+    expect(card1111).toBe(479.4);
+    expect(card4444).toBe(169.84);
+  });
+});

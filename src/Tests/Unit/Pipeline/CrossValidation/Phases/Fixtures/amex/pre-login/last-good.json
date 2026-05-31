@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "scenarioId": "pre-login/last-good",
+    "captureRunId": "15-05-2026_19213979",
+    "rationale": "Phase H.T3c.3 — amex PRE-LOGIN POST+FINAL last-good. Amex inherits the Isracard SPA login shell; password field visible at scan time. Captured run completed through SCRAPE.",
+    "expected": {
+      "preLoginPostFormGateFound": true,
+      "preLoginPostOutcome": "success",
+      "preLoginFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

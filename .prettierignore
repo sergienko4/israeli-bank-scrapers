@@ -1,0 +1,6 @@
+# YAML workflows (no prettier-plugin-yaml installed)
+*.yml
+*.yaml
+
+# Shell scripts — not JS/TS
+*.sh

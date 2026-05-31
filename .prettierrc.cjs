@@ -1,0 +1,11 @@
+module.exports = {
+  printWidth: 100, // Matches max-len ESLint rule
+  semi: true,
+  singleQuote: true, // Common in airbnb style
+  trailingComma: 'all',
+  bracketSpacing: true,
+  endOfLine: 'auto', // Handle linebreak-style automatically
+  tabWidth: 2,
+  useTabs: false,
+  arrowParens: 'avoid',
+};

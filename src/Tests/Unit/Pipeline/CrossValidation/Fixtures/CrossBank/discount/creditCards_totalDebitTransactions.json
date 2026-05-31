@@ -1,0 +1,9 @@
+// GET https://start.telebank.co.il/Titan/gatewayAPI/creditCards/totalDebitTransactions/FAKE_ACCT_DISCOUNT
+{
+  "Error": {
+    "MsgText": "FAKE_HEB_57 6111*",
+    "ReturnedCode": "RET011148",
+    "SeverityCode": "BUSINESS_ERROR",
+    "GeneratedCode": "591231"
+  }
+}

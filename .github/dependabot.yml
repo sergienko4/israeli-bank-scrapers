@@ -1,0 +1,111 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    reviewers:
+      - [REDACTED-USER]
+    labels:
+      - dependencies
+    groups:
+      # Camoufox is a critical anti-detect dependency; every upstream
+      # release (patch / minor / major) must flow through CI as its own
+      # PR. Single source of truth for the version lives in
+      # package.json — Dependabot keeps it current.
+      camoufox:
+        patterns:
+          - '@hieutran094/camoufox-js'
+        update-types:
+          - patch
+          - minor
+          - major
+      # Playwright is the other critical browser-automation surface.
+      # Auto-bump on patch + minor so upstream regression fixes flow
+      # in as their own PR; CI (E2e.test.ts invalid-creds regression
+      # guard) gates whether the bump lands. The ~range in
+      # package.json is the install-time safety gate; this group
+      # is the discovery gate.
+      playwright:
+        patterns:
+          - 'playwright-core'
+          - 'playwright'
+        update-types:
+          - patch
+          - minor
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+        exclude-patterns:
+          - '@hieutran094/camoufox-js'
+          - 'playwright-core'
+          - 'playwright'
+      production-dependencies:
+        dependency-type: production
+        update-types:
+          - patch
+        exclude-patterns:
+          - '@hieutran094/camoufox-js'
+          - 'playwright-core'
+          - 'playwright'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - ci
+      - dependencies
+    groups:
+      actions:
+        patterns:
+          - '*'
+
+  # CI mirror Dockerfile — Dependabot auto-bumps the @sha256: digest on
+  # `FROM ubuntu:24.04@sha256:<digest>` whenever upstream re-tags 24.04.
+  # Pairs with the RC-3 pin in `docker/Dockerfile.ci-mirror` so the
+  # supply-chain integrity guarantee survives upstream image rebuilds.
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    labels:
+      - ci
+      - dependencies
+
+  # Python docs toolchain — requirements-docs.txt at the repo root
+  # drives the mkdocs build (`docs.yml` workflow). Dependabot bumps
+  # each pinned version weekly so we never ship with a known-CVE
+  # release of mkdocs/pymdown-extensions/etc. The mkdocs ecosystem
+  # ships releases in coordinated waves, so grouping them into one
+  # PR per week keeps reviews tractable while still surfacing the
+  # full upgrade window.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - docs
+      - dependencies
+    groups:
+      mkdocs-toolchain:
+        patterns:
+          - 'mkdocs*'
+          - 'pymdown-extensions'
+          - 'Markdown'
+          - 'markdown-it-py'
+          - 'Jinja2'
+          - 'Pygments'
+          - 'GitPython'
+          - 'gitdb'
+          - 'ghp-import'
