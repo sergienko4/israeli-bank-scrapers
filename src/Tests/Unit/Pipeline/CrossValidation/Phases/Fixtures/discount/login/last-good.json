@@ -1,0 +1,31 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "login/last-good",
+    "captureRunId": "15-05-2026_19220364",
+    "rationale": "Phase H.T3c.4c — discount LOGIN.FINAL last-good cookie-audit shape. Source run completed through SCRAPE (login-FINAL + scrape-ACTION stages present), confirming a successful session. Cookie domains + values fully PII-redacted: domains → '.example' reserved TLD; values → 'FAKE_VALUE'. Cookie names use a generic session-cookie shape — bank-specific cookie naming is not part of this factory's asserted contract (only count ≥ 1).",
+    "expected": {
+      "loginPreOutcome": "success",
+      "loginActionOutcome": "success",
+      "loginPostOutcome": "success",
+      "loginFinalOutcome": "success",
+      "loginPreFoundPassword": true,
+      "loginActionSubmitMethod": "form-submit",
+      "loginPostHasTraffic": true,
+      "loginFinalMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".discount.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "ASP.NET_SessionId",
+      "domain": ".discount.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "scenarioId": "pre-login/last-good",
+    "captureRunId": "15-05-2026_19273813",
+    "rationale": "Phase H.T3c.3 — isracard PRE-LOGIN POST+FINAL last-good. Isracard SPA login shell; password field visible at scan time. Captured run completed through SCRAPE.",
+    "expected": {
+      "preLoginPostFormGateFound": true,
+      "preLoginPostOutcome": "success",
+      "preLoginFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

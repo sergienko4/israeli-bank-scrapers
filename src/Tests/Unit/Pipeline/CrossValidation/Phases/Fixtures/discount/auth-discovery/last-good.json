@@ -1,0 +1,25 @@
+{
+  "_fixture": {
+    "bank": "discount",
+    "scenarioId": "auth-discovery/last-good",
+    "captureRunId": "15-05-2026_19220364",
+    "rationale": "Phase H.T3c.7 — discount AUTH-DISCOVERY POST entry-state. Same captured run as login/last-good.json. Dedicated AUTH-DISCOVERY fixture per locked plan H.T3c.7. Domains + values fully PII-redacted.",
+    "expected": {
+      "authDiscoveryPostOutcome": "success",
+      "authDiscoveryPostMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".discount.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "ASP.NET_SessionId",
+      "domain": ".discount.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

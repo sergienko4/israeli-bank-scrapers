@@ -1,0 +1,6 @@
+{
+  "__url": "/appsng/bff-balancetransactions/api/v1/transactions/balances/105",
+  "__note": "REDACTED placeholder values only — real captures use DUMP_NETWORK_DIR",
+  "withdrawableBalance": 1234.56,
+  "currentBalance": 1234.56
+}

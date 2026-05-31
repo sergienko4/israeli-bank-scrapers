@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+set -o pipefail
+LOG_FILE=".pre-commit-output.log"
+: > "$LOG_FILE"
+
+# ── Skip for non-code changes ─────────────────────────────────────────
+STAGED_FILES=$(git diff --cached --name-only)
+CODE_FILES=$(echo "$STAGED_FILES" | grep -v -E '^\.(github|husky)/|^(README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|CLEAN_CODE|LICENSE)' | grep -v -E '\.(md|json|yml|yaml)$' | grep -v -E '^(tasks/|\.)')
+if [ -z "$CODE_FILES" ]; then
+    echo "⏭️  No source code changes — skipping quality gates" | tee -a "$LOG_FILE"
+    exit 0
+fi
+
+log() { echo "$1" | tee -a "$LOG_FILE"; }
+FAIL_COUNT=0
+FAIL_NAMES=""
+
+# ── Cache infrastructure ──────────────────────────────────────────────
+# Each gate's pass/fail is cached against the SHA of the staged tree.
+# When the same content set has already passed a gate, skip it on the
+# next commit. The cache key is `git write-tree`, computed AFTER Phase
+# 1 prettier so whitespace fix-ups don't invalidate. Cache lives under
+# `node_modules/.cache/pre-commit/` so it inherits `node_modules/`'s
+# existing gitignore — no separate ignore entry needed.
+CACHE_DIR="node_modules/.cache/pre-commit"
+mkdir -p "$CACHE_DIR"
+
+cache_marker() {
+    # Gate names contain `:` (test:pipeline, test:mock, test:e2e:mock).
+    # On Windows NTFS, `:` is the Alternate Data Stream separator, so
+    # `touch foo:bar` writes to an ADS on `foo` and the subsequent
+    # `[ -f foo:bar ]` returns false — the cache speed-up silently
+    # disables for every Windows contributor. Replace `:` with `_`
+    # for the filename component to keep the markers portable.
+    echo "$CACHE_DIR/${1//:/_}.$CACHE_KEY.passed"
+}
+
+# ── Background-gate runner ────────────────────────────────────────────
+declare -a BG_PIDS=()
+declare -a BG_NAMES=()
+declare -a BG_LOGS=()
+declare -a BG_CACHEABLE=()
+
+bg_gate() {
+    local name="$1"; shift
+    local cacheable="$1"; shift
+    if [ "$cacheable" = "yes" ] && [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "$name")" ]; then
+        log "  ⚡ $name cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+        return 0
+    fi
+    local logfile
+    logfile=$(mktemp)
+    ( "$@" > "$logfile" 2>&1 ) &
+    BG_PIDS+=($!)
+    BG_NAMES+=("$name")
+    BG_LOGS+=("$logfile")
+    BG_CACHEABLE+=("$cacheable")
+}
+
+wait_all() {
+    local i
+    for i in "${!BG_PIDS[@]}"; do
+        if ! wait "${BG_PIDS[$i]}"; then
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+            FAIL_NAMES="$FAIL_NAMES ${BG_NAMES[$i]}"
+            log "  ❌ ${BG_NAMES[$i]} FAILED"
+        else
+            log "  ✅ ${BG_NAMES[$i]} passed"
+            if [ "${BG_CACHEABLE[$i]}" = "yes" ] && [ -n "$CACHE_KEY" ]; then
+                touch "$(cache_marker "${BG_NAMES[$i]}")"
+            fi
+        fi
+        cat "${BG_LOGS[$i]}" >> "$LOG_FILE"
+        rm -f "${BG_LOGS[$i]}"
+    done
+    BG_PIDS=(); BG_NAMES=(); BG_LOGS=(); BG_CACHEABLE=()
+    if [ "$FAIL_COUNT" -gt 0 ]; then
+        log "❌ FAILED GATES:$FAIL_NAMES"
+        exit 1
+    fi
+}
+
+log ""
+log "🛑  PIPELINE QUALITY GATE"
+log "══════════════════════════════════════════════════════"
+
+# ── Phase 1: Prettier ─────────────────────────────────────────────────
+log "📝 Phase 1: Prettier format..."
+STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
+if [ -n "$STAGED_SRC" ]; then
+    echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
+    echo "$STAGED_SRC" | xargs git add
+fi
+
+# Compute cache key from the tree AFTER Phase 1 fixed up whitespace.
+CACHE_KEY=$(git write-tree 2>/dev/null)
+if [ -n "$CACHE_KEY" ]; then
+    log "🔑 cache key: $CACHE_KEY"
+fi
+
+# Guard: CACHE_KEY reflects the STAGED tree (`git write-tree`), but
+# gates run against the WORKING tree. When unstaged changes exist in
+# directories the gates inspect (src/, .github/, .husky/, etc.), the
+# working tree diverges from the index — a cache HIT would then skip
+# a gate that should run against different content than the key
+# represents. Clear CACHE_KEY when unstaged changes exist to force
+# fresh runs for the whole ladder (per CodeRabbit PR #215 review).
+if [ -n "$CACHE_KEY" ] && ! git diff --quiet 2>/dev/null; then
+    log "⚠️  unstaged changes detected — cache disabled for this run"
+    CACHE_KEY=""
+fi
+
+# Trim cache: keep only markers for the current key — older entries are
+# stale (they reference content that's no longer on disk anywhere).
+if [ -n "$CACHE_KEY" ]; then
+    find "$CACHE_DIR" -type f -name "*.passed" ! -name "*.$CACHE_KEY.passed" -delete 2>/dev/null
+fi
+
+# ── Phase 2 + 3 + 4 — every gate in parallel ──────────────────────────
+# All gates that have no inter-gate dependencies run concurrently. The
+# old layout chained Phase 3 (pipeline tests) and Phase 4 (mock + e2e
+# mock) sequentially after Phase 2 (static analysis), even though the
+# only real dependency was on Phase 1 prettier output. The longest
+# single gate (mock or e2e:mock at ~3 min) now sets the wall clock.
+log ""
+log "⚡ Phase 2: All gates parallel..."
+
+bg_gate "tsc"          "yes" npx tsc --noEmit
+bg_gate "eslint"       "yes" npx eslint src/Scrapers/Pipeline --max-warnings=0
+bg_gate "biome"        "yes" npx biome lint src --max-diagnostics=50
+bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
+
+# Phase H deep-factory strict-lint — D1 in the rule-roadmap. Locks
+# the eslint.config.mjs §8a quality bundle (max-lines-per-function: 10,
+# max-statements: 10, sonarjs/no-identical-functions,
+# sonarjs/no-duplicate-string, double-cast ban) so PR #232 cannot
+# regress. Fast lint-only invocation — independent gate so a regression
+# fails loud + quickly rather than hiding behind the slower test gates.
+bg_gate "lint:phases:strict" "yes" npm run lint:phases:strict
+
+# Architectural Guardrails (Rules #10, #14, #15) — only fire on
+# Pipeline / Phases files. Pre-filter so we don't waste work iterating
+# test files, and so we don't blow Windows CreateProcess 32 KB
+# command-line limit on a large staged set.
+ARCH_FILES=$(echo "$CODE_FILES" | grep -E '(Scrapers/Pipeline/|/Phases/)' || true)
+if [ -n "$ARCH_FILES" ]; then
+    ARCH_FILE_COUNT=$(echo "$ARCH_FILES" | wc -l)
+    if [ "$ARCH_FILE_COUNT" -gt 50 ]; then
+        log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole Pipeline directory (cmdline-safe)"
+        bg_gate "architecture" "yes" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src/Scrapers/Pipeline"
+    else
+        ARCH_LIST=$(mktemp)
+        echo "$ARCH_FILES" > "$ARCH_LIST"
+        bg_gate "architecture" "yes" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
+    fi
+else
+    log "  ⏭️  architecture skipped — no Pipeline/Phases files staged"
+fi
+
+bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
+bg_gate "canaries"          "yes" npm run lint:canaries
+bg_gate "dead-code"         "yes" npm run lint:dead-code
+bg_gate "guideline-coverage" "yes" npm run lint:guideline-coverage
+
+# docs-strict — fires when docs/** or any root .md file (consumed by
+# mkdocs.yml's nav / referenced via relative link) changed. Catches the
+# broken-relative-link / dead-nav class of failure locally instead of
+# burning a CI cycle (CR cycle-2: docs/contributing/lint.md broke
+# `mkdocs build --strict` with `../../CLEAN_CODE.md` pointing outside
+# docs_dir). Soft-skips when Python or mkdocs is missing — CI will
+# always re-run it under the `Validate` job either way.
+DOCS_FILES=$(echo "$STAGED_FILES" | grep -E '^(docs/|[A-Z_]+\.md$|mkdocs\.yml$)' || true)
+if [ -n "$DOCS_FILES" ]; then
+    if command -v python >/dev/null 2>&1 && python -m mkdocs --version >/dev/null 2>&1; then
+        bg_gate "docs-strict" "yes" npm run lint:docs-strict
+    else
+        log "  ⏭️  docs-strict skipped — python or mkdocs not installed locally (CI still enforces)"
+    fi
+else
+    log "  ⏭️  docs-strict skipped — no docs/** or root .md files staged"
+fi
+
+# docs-coverage — fires when any Pipeline TS file is staged. Catches
+# the "new public export shipped without docs/ mention" class of CI
+# failure locally instead of burning a CI cycle (CR cycle-2 follow-up:
+# 8 EslintCanary exports landed against CI's `Validate` job because
+# the script's exclusion list didn't cover canaries). Soft-skips when
+# the base ref (origin/main → main) can't be resolved locally — CI
+# always re-runs it under the `Validate` job either way.
+DOCS_COV_FILES=$(echo "$STAGED_FILES" | grep -E '^src/Scrapers/Pipeline/.*\.ts$' || true)
+if [ -n "$DOCS_COV_FILES" ]; then
+    DOCS_COV_BASE_SHA=""
+    if git rev-parse --verify -q origin/main >/dev/null 2>&1; then
+        DOCS_COV_BASE_SHA=$(git rev-parse origin/main)
+    elif git rev-parse --verify -q main >/dev/null 2>&1; then
+        DOCS_COV_BASE_SHA=$(git rev-parse main)
+    fi
+    if [ -n "$DOCS_COV_BASE_SHA" ]; then
+        bg_gate "docs-coverage" "yes" bash -c "BASE_SHA='$DOCS_COV_BASE_SHA' BASE_REF=main bash .github/scripts/ci/docs-coverage.sh"
+    else
+        log "  ⏭️  docs-coverage skipped — origin/main and main both unresolvable locally (CI still enforces)"
+    fi
+else
+    log "  ⏭️  docs-coverage skipped — no Pipeline TS files staged"
+fi
+
+# Heavy gates — each runs Jest with its own worker pool. Three gates
+# run concurrently here, so each pool gets ~1/3 of the available cores
+# (floor-divide, min 2) instead of a fixed `8`. On a 4-core laptop the
+# split is 2/2/2 = 6 workers total; on a 16-core dev box it's 5/5/5 = 15;
+# on a 24-core build VM it's 8/8/8 = 24. Prevents the resource-exhaustion
+# observed when three gates each grabbed 8 workers on smaller machines.
+TOTAL_CORES="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+JEST_WORKERS="$(( (TOTAL_CORES + 2) / 3 ))"
+[ "$JEST_WORKERS" -lt 2 ] && JEST_WORKERS=2
+
+JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
+
+bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=$JEST_WORKERS"
+bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=$JEST_WORKERS"
+bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=$JEST_WORKERS"
+
+wait_all
+
+# ── Phase 2b: test:e2e:mock (sequential, CI-parity) ───────────────────
+# test:e2e:mock spawns Camoufox; running it in parallel with the other
+# three Camoufox-spawning gates above triggers upstream bug #386
+# ("instances interfere with each other") — the AntiDetection fixture
+# `beforeAll` hits its 30 s timeout under the concurrent launch load.
+# CI's Validate job runs test:e2e:mock as its own sequential step;
+# mirror that here for stability. CI evidence: PR #215 Validate job
+# in 25698550388 completed in 370 s wall with test:e2e:mock passing
+# every time.
+log ""
+log "🎭 Phase 2b: test:e2e:mock (sequential, CI-parity)..."
+if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:e2e:mock")" ]; then
+    log "  ⚡ test:e2e:mock cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+else
+    npm run test:e2e:mock 2>&1 | tee -a "$LOG_FILE"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "❌ test:e2e:mock FAILED"
+        exit 1
+    fi
+    if [ -n "$CACHE_KEY" ]; then
+        touch "$(cache_marker "test:e2e:mock")"
+    fi
+fi
+
+# ── Phase 3: e2e-factory-tests (network-bound, sequential) ────────────
+# Runs `Tests/E2e.test.ts` which hits real bank URLs to verify the
+# error-handling contract (invalid-creds rejection). The 180s
+# per-test timeout assumed an idle box — when this runs concurrent
+# with the browser-heavy test:mock + test:e2e:mock pools above, the
+# slow-path latency exceeds 180s. Sequencing this AFTER wait_all
+# returns the gate to its baseline timing budget.
+#
+# Disabled 2026-05-13: the invalid-creds test hits bankhapoalim.co.il
+# directly and is load-bearing on bank-side WAF / hCaptcha state,
+# which made the gate brittle. Invalid-credential rejection remains
+# covered by Phase 5 (`test:e2e:real`) against the operator-managed
+# real-bank target list. Re-enable by uncommenting the block below
+# when the bank-side flake is mitigated.
+#
+# log ""
+# log "🌐 Phase 3: e2e-factory-tests (network-bound, sequential)..."
+# if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "e2e-factory-tests")" ]; then
+#     log "  ⚡ e2e-factory-tests cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+# else
+#     npm run test:e2e-factory-tests 2>&1 | tee -a "$LOG_FILE"
+#     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+#         log "❌ e2e-factory-tests FAILED"
+#         exit 1
+#     fi
+#     if [ -n "$CACHE_KEY" ]; then
+#         touch "$(cache_marker "e2e-factory-tests")"
+#     fi
+# fi
+
+# # ── Phase 5: Live E2E (real banks, FINAL gate) ──
+# # This is the last gate — if it passes, the commit proceeds.
+# # Routes through `scripts/run-real-suite.ts` (gitignored, operator-
+# # controlled bank list — typically OneZero + Beinleumi for local
+# # runs). The Docker-based parallel hook lives in
+# # docker/{Dockerfile.ci-mirror,run-banks.sh} as scaffolding but is
+# # NOT wired in here yet: the in-flight smoke run on commit `cd0db7da`
+# # surfaced a Docker Desktop / vEthernet DNS contention pattern
+# # (5+ parallel Camoufox containers saturating the host resolver,
+# # producing "Server Not Found" on bank URLs) that is tracked for a
+# # follow-up. Until that is resolved, host sequential mode stays.
+run-e2e-happy-path() {
+    log ""
+    log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
+    npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "❌ Live E2E (happy-path) FAILED"
+        exit 1
+    fi
+    log ""
+}
+# run-e2e-happy-path
+run-e2e-happy-path
+
+log "══════════════════════════════════════════════════════"
+log "✅  ALL GATES PASSED (incl. Mock + Live E2E). COMMITTING..."
+log ""

@@ -1,0 +1,23 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "scenarioId": "account-resolve/last-good",
+    "captureRunId": "15-05-2026_14362341",
+    "rationale": "Phase H.T3c.8 — beinleumi ACCOUNT-RESOLVE POST+FINAL last-good. Beinleumi's accounts endpoint returns an `accounts` container — the WK-recognised container name extractor resolves the id via `bankAccountNum` alias (WK DISPLAY_ID_FIELDS). Account number fully PII-redacted.",
+    "accountsResponseBody": {
+      "accounts": [
+        {
+          "bankAccountNum": "FAKE-000000",
+          "branch": "000",
+          "bankNum": "31"
+        }
+      ]
+    },
+    "expected": {
+      "accountResolvePostOutcome": "success",
+      "accountResolveExpectedIdCount": 1,
+      "accountResolveFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

@@ -1,0 +1,24 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "scenarioId": "account-resolve/last-good",
+    "captureRunId": "15-05-2026_19213979",
+    "rationale": "Phase H.T3c.8 — amex ACCOUNT-RESOLVE POST+FINAL last-good. Amex shares the Isracard accounts endpoint shape — Result.cards array with card4Digits aliases. Card numbers fully PII-redacted.",
+    "accountsResponseBody": {
+      "Result": {
+        "cards": [
+          {
+            "card4Digits": "0000",
+            "cardUniqueId": "FAKE-UUID"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "accountResolvePostOutcome": "success",
+      "accountResolveExpectedIdCount": 1,
+      "accountResolveFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

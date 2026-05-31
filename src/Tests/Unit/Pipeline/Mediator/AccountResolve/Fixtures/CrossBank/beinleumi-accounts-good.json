@@ -1,0 +1,28 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "shape": "accounts-default",
+    "expectedIds": 1,
+    "expectedContainers": ["accounts"]
+  },
+  "captures": [
+    {
+      "url": "https://www.fibi.example/api/accounts",
+      "method": "GET",
+      "captureIndex": 6,
+      "responseBody": {
+        "data": {
+          "accounts": [
+            {
+              "accountId": "FAKE-BEINLEUMI-001",
+              "accountNumber": "0009999",
+              "branchNumber": "012",
+              "displayName": "FAKE DEFAULT"
+            }
+          ]
+        },
+        "Status": "OK-FIXTURE"
+      }
+    }
+  ]
+}

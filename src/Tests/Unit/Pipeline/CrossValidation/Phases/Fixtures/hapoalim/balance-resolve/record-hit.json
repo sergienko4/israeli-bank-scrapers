@@ -1,0 +1,25 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "balance-resolve/record-hit",
+    "captureRunId": "redacted-synthetic-shape",
+    "rationale": "Record-first scenario — accountDiscovery has the account record carrying AccountBalance, so BALANCE-RESOLVE.action's step-1 (record lookup) hits before the pool scan. Exercises the lookupRecord + extractor-from-record path. Synthetic pool entry kept so SCRAPE.final's emission stays consistent.",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 300 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://login.bankhapoalim.example/ServerServices/composite/dashboard?partyCurrentAccount=FAKE-000000",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": {
+        "totally": "unrelated-pool-entry",
+        "irrelevantField": 999
+      }
+    }
+  ]
+}

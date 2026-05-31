@@ -1,0 +1,172 @@
+{
+  "name": "@[REDACTED-USER]/israeli-bank-scrapers",
+  "version": "8.4.0",
+  "description": "Scrape transactions from all 18 Israeli banks with Cloudflare WAF bypass (Camoufox + Playwright)",
+  "engines": {
+    "node": ">= 22.14.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "sideEffects": [
+    "src/**/graphql/*Queries.ts",
+    "lib/index.cjs",
+    "lib/index.mjs"
+  ],
+  "main": "lib/index.cjs",
+  "module": "lib/index.mjs",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.ts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "clean": "rimraf lib",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2eSmoke --testPathIgnorePatterns=E2eFull",
+    "test:pipeline": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.pipeline.config.cjs --ci --coverage --maxWorkers=8 --testPathIgnorePatterns=E2eReal/ --testPathIgnorePatterns=E2eMocked/ --testPathIgnorePatterns=E2eSmoke/ --testPathIgnorePatterns=E2eFull/ --testPathIgnorePatterns=E2e.test",
+    "test:e2e:mock": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eReal --testPathPatterns=E2eMocked --maxWorkers=8",
+    "test:e2e:smoke": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns=E2eSmoke --forceExit",
+    "test:e2e:full": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns=E2eFull --forceExit",
+    "test:e2e:real": "npx tsx scripts/run-real-suite.ts",
+    "test:e2e:real:single": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eMocked --testPathPatterns=E2eReal",
+    "test:snapshot": "cross-env DUMP_SNAPSHOTS=1 npx tsx scripts/run-mock-suite.ts",
+    "test:mock": "cross-env MOCK_MODE=1 npx tsx scripts/run-mock-suite.ts",
+    "test:e2e-factory-tests": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\\.test' --verbose --forceExit --maxWorkers=8",
+    "test:full": "npm run test:mock && npm run test:unit",
+    "capture:invalid-login": "npx tsx src/Tests/E2eReal/tools/CaptureInvalidLogin.ts",
+    "test:gate": "npm run test:mock && npm run test:unit",
+    "log:view": "npx tsx scripts/log-view.ts",
+    "test:ci": "ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs && node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage",
+    "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
+    "check-exports": "publint",
+    "lint": "eslint src --max-warnings 0 && npm run lint:architecture src/Scrapers/Pipeline && bash src/Scrapers/Pipeline/EslintCanaries/verify.sh && npm run format:check",
+    "lint:biome": "biome lint src --max-diagnostics=50",
+    "lint:canaries": "bash src/Scrapers/Pipeline/EslintCanaries/verify.sh",
+    "lint:dead-code": "npx tsx src/Tests/Tools/detect-dead-code.ts",
+    "lint:guideline-coverage": "npx tsx src/Tests/Tools/lint-guideline-coverage.ts",
+    "lint:docs-strict": "python -m mkdocs build --strict --site-dir .mkdocs-strict-out",
+    "lint:phases:strict": "eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0",
+    "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "tsc --noEmit",
+    "dev": "npm run type-check -- --watch",
+    "build": "npm run lint && tsup",
+    "postbuild": "rimraf lib/Common lib/Scrapers lib/Tests",
+    "prepare:default": "git reset --hard && npm ci && npm run build",
+    "prepare": "tsup && rimraf lib/Common lib/Scrapers lib/Tests",
+    "reset": "git reset --hard && npm ci",
+    "docs": "typedoc",
+    "lint:architecture": "npx tsx src/Tests/Tools/lint-and-validate.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/[REDACTED-USER]/israeli-bank-scrapers.git"
+  },
+  "keywords": [
+    "israel",
+    "israeli banks",
+    "bank scraper",
+    "scraper",
+    "web-scraping",
+    "playwright",
+    "typescript",
+    "fintech",
+    "financial-automation",
+    "camoufox",
+    "waf-bypass",
+    "cloudflare"
+  ],
+  "author": "Elad Shaham",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/[REDACTED-USER]/israeli-bank-scrapers/issues"
+  },
+  "homepage": "https://github.com/[REDACTED-USER]/israeli-bank-scrapers#readme",
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "@eslint/js": "^10.0.1",
+    "@faker-js/faker": "^10.3.0",
+    "@json2csv/plainjs": "^7.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/lodash": "^4.17.24",
+    "@types/source-map-support": "^0.5.10",
+    "cross-env": "^10.1.0",
+    "dotenv": "^17.3.1",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-check-file": "^3.3.1",
+    "eslint-plugin-import-x": "^4.16.1",
+    "eslint-plugin-jest": "^29.15.2",
+    "eslint-plugin-jsdoc": "^63.0.0",
+    "eslint-plugin-regexp": "^3.1.0",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
+    "eslint-plugin-sonarjs": "^4.0.3",
+    "eslint-plugin-unicorn": "^64.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "fast-check": "^4.8.0",
+    "fs-extra": "^11.3.5",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "lint-staged": "^16.3.0",
+    "minimist": "^1.2.8",
+    "ncp": "^2.0.0",
+    "pino-pretty": "^13.1.3",
+    "prettier": "^3.8.1",
+    "publint": "^0.3.21",
+    "rimraf": "^6.1.3",
+    "source-map-support": "^0.5.21",
+    "ts-jest": "^29.4.6",
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.1",
+    "typedoc": "^0.28.17",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.3"
+  },
+  "dependencies": {
+    "@hieutran094/camoufox-js": "^0.6.8",
+    "lodash": "^4.17.23",
+    "moment": "^2.30.1",
+    "moment-timezone": "^0.6.0",
+    "pino": "^10.3.1",
+    "playwright-core": "~1.59.1",
+    "utility-types": "^3.11.0"
+  },
+  "files": [
+    "lib/**/*"
+  ],
+  "overrides": {
+    "test-exclude": "^7.0.2",
+    "ua-parser-js": "1.0.41"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "src/Scrapers/Pipeline/**/*.{ts,tsx}": [
+      "npx tsx src/Tests/Tools/lint-and-validate.ts",
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.json": [
+      "prettier --parser json --write"
+    ],
+    "*.md": [
+      "prettier --parser markdown --write"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+// GET https://login.bankhapoalim.co.il/ServerServices/general/accounts?lang=he
+[
+  {
+    "bankNumber": 12,
+    "extendedBankNumber": 912,
+    "branchNumber": 170,
+    "accountNumber": 9999999,
+    "partyPreferredIndication": 0,
+    "partyAccountInvolvementCode": 1,
+    "accountDealDate": 0,
+    "accountUpdateDate": 20260414,
+    "metegDoarNet": 1,
+    "kodHarshaatPeilut": 1,
+    "accountClosingReasonCode": 0,
+    "productLabel": "170 9999999",
+    "accountAgreementOpeningDate": 0,
+    "serviceAuthorizationDesc": "FAKE_HEB_58",
+    "branchTypeCode": 2,
+    "mymailEntitlementSwitch": 1
+  }
+]

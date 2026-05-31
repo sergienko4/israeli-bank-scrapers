@@ -1,0 +1,27 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "scenarioId": "balance-resolve/last-good",
+    "captureRunId": "redacted-synthetic-shape",
+    "rationale": "Isracard balance pattern — record-level AccountBalance committed by ACCOUNT-RESOLVE.POST (already-resolving baseline; no captured run carried balance.miss). Synthetic capture mirrors the record-shape WK alias hit. Real value redacted: 200.00 round synthetic.",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 200 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://digital.isracard.example/services/ProxyRequestHandler.ashx?cardIndex=FAKE-000000",
+      "method": "POST",
+      "postData": "{\"cardIndex\":\"FAKE-000000\"}",
+      "status": 200,
+      "responseBody": {
+        "AccountInfoAndBalance": {
+          "AccountBalance": 200,
+          "AccountCurrencyCode": "ILS"
+        }
+      }
+    }
+  ]
+}

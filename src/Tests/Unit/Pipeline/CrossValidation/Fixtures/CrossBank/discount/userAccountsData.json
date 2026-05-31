@@ -1,0 +1,52 @@
+// GET https://start.telebank.co.il/Titan/gatewayAPI/userAccountsData?FetchAccountsNickName=true&FirstTimeEntry=true
+{
+  "UserAccountsData": {
+    "IdentityType": "1",
+    "CategoryNumber": "EDqL703717185pg3D7",
+    "IdentityNumber": "000000000",
+    "UserAccounts": [
+      {
+        "NewAccountInfo": {
+          "BankID": "0011",
+          "BranchID": "0219",
+          "HandlingBranchID": "0535",
+          "ControlDigits": "",
+          "AccountID": "FAKE_ACCT_DISCOUNT"
+        },
+        "AccountInfo": {
+          "BankID": "0",
+          "BranchID": "535",
+          "AccountType": "0000",
+          "CurrencyID": "00",
+          "AccountID": "264303"
+        },
+        "DefaultAccountFlag": "Y",
+        "PersonalComment": "",
+        "AccountName": "FAKE_HEB_54",
+        "FormatAccountID": "FAKE_ACCT_DISCOUNT",
+        "CurrencyCode": "ILS",
+        "FinAccountNickName": "",
+        "AccountType": "0000",
+        "AccountCategory": "",
+        "AccOpenDate": "",
+        "FndAccessIndicator": "",
+        "AccountStatus": "",
+        "CustID": "",
+        "AccountNumberMD5": "f52ff7cc3e805c38e4906be7b9f76bfb",
+        "ProductCode": "0004"
+      }
+    ],
+    "UserDetails": {
+      "FirstName": "FAKE_HEB_55",
+      "LastName": "FAKE_HEB_56",
+      "Mobile": "",
+      "Email": ""
+    },
+    "DefaultAccountNumber": "FAKE_ACCT_DISCOUNT",
+    "IsAccessibility": false,
+    "LastEntryDate": "11/05/2026 17:23:39",
+    "PerformerNumber": "03717185",
+    "PrivacyPolicyStatus": "Valid",
+    "SwitchToOtherSiteEnabled": false
+  }
+}

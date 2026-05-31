@@ -1,0 +1,30 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "shape": "GetCardList-only",
+    "expectedIds": 8,
+    "expectedContainers": ["cardsList"]
+  },
+  "captures": [
+    {
+      "url": "https://web.americanexpress.example/ocp/StatusPage/api/AccountInfo/GetCardList",
+      "method": "POST",
+      "captureIndex": 163,
+      "responseBody": {
+        "data": {
+          "cardsList": [
+            { "cardSuffix": "1111", "accountNumber": "FAKE-AMEX-A", "cardName": "FAKE A" },
+            { "cardSuffix": "2222", "accountNumber": "FAKE-AMEX-B", "cardName": "FAKE B" },
+            { "cardSuffix": "3333", "accountNumber": "FAKE-AMEX-C", "cardName": "FAKE C" },
+            { "cardSuffix": "4444", "accountNumber": "FAKE-AMEX-D", "cardName": "FAKE D" },
+            { "cardSuffix": "5555", "accountNumber": "FAKE-AMEX-E", "cardName": "FAKE E" },
+            { "cardSuffix": "6666", "accountNumber": "FAKE-AMEX-F", "cardName": "FAKE F" },
+            { "cardSuffix": "7777", "accountNumber": "FAKE-AMEX-G", "cardName": "FAKE G" },
+            { "cardSuffix": "8888", "accountNumber": "FAKE-AMEX-H", "cardName": "FAKE H" }
+          ]
+        },
+        "Status": "OK-FIXTURE"
+      }
+    }
+  ]
+}

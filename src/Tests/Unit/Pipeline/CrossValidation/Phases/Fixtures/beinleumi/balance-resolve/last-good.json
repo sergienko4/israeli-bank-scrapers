@@ -1,0 +1,25 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "scenarioId": "balance-resolve/last-good",
+    "captureRunId": "redacted-from-26-05-2026",
+    "rationale": "Beinleumi balance lives at root: { withdrawableBalance, currentBalance }. v5 SCRAPE.final attributes via URL-mention (accountId in path); BALANCE-RESOLVE hits WK alias currentBalance at depth 0. Real value redacted: 22149.4 → 750.00 (round synthetic).",
+    "expected": {
+      "balanceResolveExpected": { "FAKE-000000": 750 },
+      "balanceResolvePostOutcome": "success",
+      "balanceResolveFinalOutcome": "success"
+    }
+  },
+  "pool": [
+    {
+      "url": "https://online.fibi.example/appsng/bff-balancetransactions/api/v1/transactions/balances/FAKE-000000?uid=FAKE-UID",
+      "method": "GET",
+      "postData": "",
+      "status": 200,
+      "responseBody": {
+        "withdrawableBalance": 750,
+        "currentBalance": 750
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+# Qodo Merge (PR-Agent) Configuration
+# Docs: https://qodo-merge-docs.qodo.ai/usage-guide/configuration_options/
+#
+# This repo uses CodeRabbit as the PRIMARY auto-reviewer (see
+# `.coderabbit.yaml`). Qodo is the FALLBACK: it stays inactive on
+# every PR by default and only fires when the workflow
+# `.github/workflows/qodo-failover.yml` posts `/review` after
+# detecting a CodeRabbit "Rate limit exceeded" comment.
+#
+# Phase I locked design I-D2: `handle_pr_actions` is intentionally
+# empty so qodo never auto-runs on `opened` / `reopened` /
+# `ready_for_review`. Triggers must arrive as explicit `/review`
+# comments — either from the failover workflow (rabbit rate-limit)
+# or via manual `workflow_dispatch` (operations override per I-D5).
+
+[github_app]
+# Empty list disables auto-trigger. Qodo only runs on explicit
+# `/review` / `/improve` / `/describe` PR comments.
+handle_pr_actions = []
+
+[pr_reviewer]
+# Match CodeRabbit's review style: focused, actionable, no fluff.
+require_focused_review = true
+require_score_review = false
+require_tests_review = true
+require_security_review = true
+num_code_suggestions = 4
+inline_code_comments = true
+# Avoid auto-approving — humans + reviewers own that decision.
+enable_review_labels_security = false
+enable_review_labels_effort = false
+
+[pr_code_suggestions]
+# Cap suggestions so qodo doesn't dump a long list when triggered.
+num_code_suggestions = 6
+summarize = true
+
+[pr_description]
+# When triggered, qodo can refresh the PR description. Leave off
+# by default to avoid clobbering author-written context.
+publish_description_as_comment = false
+add_original_user_description = true
+
+[pr_questions]
+# Disable interactive questions — failover use case is one-shot.
+enable_help_text = false

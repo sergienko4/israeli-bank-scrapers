@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "scenarioId": "home/last-good",
+    "captureRunId": "15-05-2026_19215086",
+    "rationale": "Phase H.T3c.2 — visacal HOME.POST last-good. VisaCal navigates from www.cal-online.co.il to login.cal-online.co.il. Captured run completed through SCRAPE — HOME.POST validated successfully via didNavigate=true. URLs are .example redactions.",
+    "expected": {
+      "homePreTriggerText": "FAKE TEXT",
+      "homePostDidNavigate": true,
+      "homePostHasFrames": false,
+      "homePostOutcome": "success"
+    }
+  },
+  "pool": []
+}

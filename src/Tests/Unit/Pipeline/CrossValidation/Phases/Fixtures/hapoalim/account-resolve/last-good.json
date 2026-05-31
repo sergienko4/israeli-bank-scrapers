@@ -1,0 +1,22 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "scenarioId": "account-resolve/last-good",
+    "captureRunId": "15-05-2026_19215646",
+    "rationale": "Phase H.T3c.8 — hapoalim ACCOUNT-RESOLVE POST+FINAL last-good. Hapoalim's accounts endpoint returns a flat array of partyAccount records keyed by retailAccount; the redacted response below carries one synthetic account so discoverAccountsInPool resolves ids.length=1. Account number / party id fully PII-redacted (FAKE-000000).",
+    "accountsResponseBody": [
+      {
+        "retailAccount": "FAKE-000000",
+        "branchNumber": "000",
+        "bankNumber": "10",
+        "accountNumber": "FAKE-000000"
+      }
+    ],
+    "expected": {
+      "accountResolvePostOutcome": "success",
+      "accountResolveExpectedIdCount": 1,
+      "accountResolveFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

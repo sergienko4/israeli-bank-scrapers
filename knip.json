@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/index.ts", "src/scheduler.ts"],
+  "project": ["src/**/*.ts!"],
+  "ignore": [
+    "src/**/*.test.ts",
+    "src/Tests/**/*",
+    "src/**/Mocks/**/*"
+  ],
+  "rules": {
+    "files": "error",
+    "dependencies": "error",
+    "unlisted": "error",
+    "exports": "error",
+    "types": "error"
+  }
+}

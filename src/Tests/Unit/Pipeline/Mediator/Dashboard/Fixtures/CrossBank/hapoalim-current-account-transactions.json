@@ -1,0 +1,36 @@
+{
+  "_fixture": {
+    "bank": "hapoalim",
+    "shape": "current-account/transactions GET",
+    "expectedMethod": "GET",
+    "expectedDateField": "eventDate",
+    "expectedAmountField": "eventAmount",
+    "expectedRecords": 2,
+    "expectedPendingUrl": false,
+    "expectedBillingUrl": false
+  },
+  "captures": [
+    {
+      "url": "https://login.bankhapoalim.fake.example/ng-portals-bt/rb/api/current-account/transactions?accountId=FAKE-HAPOALIM-001",
+      "method": "GET",
+      "captureIndex": 17,
+      "postData": "",
+      "responseBody": {
+        "transactions": [
+          {
+            "eventDate": 20260401,
+            "eventAmount": -42.5,
+            "description": "FAKE-RESTAURANT",
+            "currency": "ILS"
+          },
+          {
+            "eventDate": 20260402,
+            "eventAmount": -7.25,
+            "description": "FAKE-PARKING",
+            "currency": "ILS"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "scenarioId": "home/last-good",
+    "captureRunId": "15-05-2026_14362341",
+    "rationale": "Phase H.T3c.2 — beinleumi HOME.POST last-good. Beinleumi navigates from www.beinleumi.co.il to its login subdomain on click; no iframe. Captured run completed through SCRAPE — HOME.POST validated successfully via didNavigate=true. URLs are .example redactions.",
+    "expected": {
+      "homePreTriggerText": "FAKE TEXT",
+      "homePostDidNavigate": true,
+      "homePostHasFrames": false,
+      "homePostOutcome": "success"
+    }
+  },
+  "pool": []
+}

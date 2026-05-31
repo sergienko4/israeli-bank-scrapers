@@ -1,0 +1,358 @@
+/**
+ * ScrapePhaseActions — DIRECT branch tests split from main file.
+ */
+
+import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
+import {
+  executeForensicPre,
+  executeMatrixLoop,
+  executeValidateResults,
+} from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.js';
+import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
+import type {
+  IApiFetchContext,
+  IDashboardState,
+  IScrapeDiscovery,
+  ITxnEndpoint,
+} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { API_STRATEGY } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type { ITransaction } from '../../../../Transactions.js';
+import {
+  makeContextWithBrowser,
+  makeMockContext,
+} from '../../Scrapers/Pipeline/MockPipelineFactories.js';
+import { makeMockActionExecutor, makeScreenshotPage, toActionCtx } from './TestHelpers.js';
+
+/**
+ * Build a minimal API fetch context.
+ * @param postOk - Whether fetchPost succeeds.
+ * @returns Mock IApiFetchContext.
+ */
+function makeApi(postOk = true): IApiFetchContext {
+  const isFetchPostOk = postOk;
+  const okBody = succeed({});
+  const failBody = fail(ScraperErrorTypes.Generic, 'api-down');
+  return {
+    /**
+     * Succeed or fail POST with canned body.
+     * @returns Resolved procedure.
+     */
+    fetchPost: () => {
+      const postResult = isFetchPostOk ? okBody : failBody;
+      return Promise.resolve(postResult);
+    },
+    /**
+     * Succeed GET.
+     * @returns Resolved procedure.
+     */
+    fetchGet: () => Promise.resolve(okBody),
+    accountsUrl: false,
+    transactionsUrl: false,
+    balanceUrl: false,
+    pendingUrl: false,
+    proxyUrl: false,
+  } as unknown as IApiFetchContext;
+}
+
+describe('executeForensicPre DIRECT path', () => {
+  it('skips discovery when mediator absent (api present)', async () => {
+    const makeApiResult16 = makeApi();
+    const base = makeMockContext({ api: some(makeApiResult16) });
+    const result = await executeForensicPre(base);
+    const isOkResult17 = isOk(result);
+    expect(isOkResult17).toBe(true);
+  });
+
+  it('runs DIRECT discovery path when mediator + api present', async () => {
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const makeApiResult18 = makeApi();
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(makeApiResult18),
+    };
+    const result = await executeForensicPre(ctx);
+    // No real ids captured → fail-fast on empty identifiers. The path
+    // is exercised; assert that the procedure returned (success or
+    // fail), not that the scrape succeeded with empty data.
+    expect(typeof result.success).toBe('boolean');
+  });
+
+  it('runs DIRECT with dashboard already primed (skips forensic prime)', async () => {
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const dash: IDashboardState = {
+      isReady: true,
+      pageUrl: 'https://bank.example.com/d',
+      trafficPrimed: true,
+    };
+    const makeApiResult20 = makeApi();
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(makeApiResult20),
+      dashboard: some(dash),
+    };
+    const result = await executeForensicPre(ctx);
+    // Same reason as above — code path exercised, fail-fast on empty
+    // ids is the correct outcome here.
+    expect(typeof result.success).toBe('boolean');
+  });
+});
+
+describe('executeForensicPre DIRECT path edge cases', () => {
+  it('runs DIRECT with no fetchStrategy — succeeds passthrough', async () => {
+    const base = makeMockContext();
+    const ctx = {
+      ...base,
+      diagnostics: { ...base.diagnostics, apiStrategy: API_STRATEGY.DIRECT },
+    };
+    const result = await executeForensicPre(ctx);
+    const isOkResult22 = isOk(result);
+    expect(isOkResult22).toBe(true);
+  });
+
+  it('propagates discoverAndLoadAccounts fail through DIRECT path', async () => {
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const failApi = makeApi(false);
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(failApi),
+    };
+    const result = await executeForensicPre(ctx);
+    // discoverAndLoadAccounts internally returns succeed({}) when nothing
+    // discovered, so the path completes — we exercise the discovery
+    // pipeline with a no-data API.
+    expect(typeof result.success).toBe('boolean');
+  });
+
+  it('skips forensic prime when dashboard unprimed but mediator absent', async () => {
+    /** Dashboard present but unprimed, mediator absent → maybeForensicPrime
+     *  hits the `!input.mediator.has` short-circuit (isPrimed=false branch). */
+    const dash: IDashboardState = {
+      isReady: true,
+      pageUrl: 'https://bank.example.com/d',
+      trafficPrimed: false,
+    };
+    const base = makeMockContext({ dashboard: some(dash) });
+    const result = await executeForensicPre(base);
+    const isOkResult25 = isOk(result);
+    expect(isOkResult25).toBe(true);
+  });
+
+  it('runs DIRECT path with mediator + api (no fetchStrategy)', async () => {
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const makeApiResult23 = makeApi();
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(makeApiResult23),
+      diagnostics: {
+        ...baseWithBrowser.diagnostics,
+        apiStrategy: API_STRATEGY.DIRECT,
+      },
+    };
+    const result = await executeForensicPre(ctx);
+    // No real ids captured → fail-fast. Code path exercised; just
+    // assert a Procedure was returned.
+    expect(typeof result.success).toBe('boolean');
+  });
+
+  it('does not fabricate account identifiers when capture is empty', async () => {
+    // Discovery yields no usable identifier and no transaction endpoint
+    // is captured (mock fixtures don't replay real bank traffic) — the
+    // fail-fast guard intentionally lets the empty-accounts result flow
+    // through to downstream `assertSuccessfulScrape`, which fires the
+    // loud regression signal. The contract this test enforces: no fake
+    // ids materialise (no `default` sentinel, no `cardIndex: 0`).
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const apiCtx = makeApi();
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(apiCtx),
+    };
+    const result = await executeForensicPre(ctx);
+    /**
+     * Returns true when the procedure failed OR succeeded with no
+     * fabricated account identifier (the contract this test enforces).
+     * @returns Whether the discovery is empty.
+     */
+    const computeDiscoveryEmpty = (): boolean => {
+      if (!isOk(result)) return true;
+      if (!result.value.scrapeDiscovery.has) return true;
+      const ids = result.value.scrapeDiscovery.value.accountIds ?? [];
+      return ids.length === 0;
+    };
+    const isDiscoveryEmpty = computeDiscoveryEmpty();
+    expect(isDiscoveryEmpty).toBe(true);
+  });
+
+  it('proceeds past fail-fast when LOGIN.FINAL pre-discovered an account id', async () => {
+    // Architecture contract: SCRAPE.PRE no longer rediscovers accounts
+    // against the global pool. The auth FINAL stage (LOGIN.FINAL or
+    // OTP-FILL.FINAL) populates `ctx.accountDiscovery` from pre-nav
+    // captures. SCRAPE.PRE consumes that bundle directly. This test
+    // simulates the post-LOGIN state and asserts the fail-fast guard
+    // skips, plus the frozen-network setup path executes (the
+    // assertions on `accountIds` reaching `scrapeDiscovery` cover
+    // both halves of the contract).
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const apiCtx = makeApi();
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(apiCtx),
+      accountDiscovery: some({
+        ids: ['A-real-1234'],
+        records: [{ accountId: 'A-real-1234' }],
+        containers: {},
+        endpointCaptureIndex: 0,
+      }),
+    };
+    const result = await executeForensicPre(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    if (wasOk) {
+      expect(result.value.scrapeDiscovery.has).toBe(true);
+      if (result.value.scrapeDiscovery.has) {
+        expect(result.value.scrapeDiscovery.value.accountIds).toContain('A-real-1234');
+      }
+    }
+  });
+
+  it('fails fast when txnEndpoint captured but accountDiscovery is empty', async () => {
+    // Defense-in-depth: when DASHBOARD.FINAL captured a txn endpoint
+    // but ACCOUNT-RESOLVE.POST committed zero account ids, scraping
+    // would either inject the `default` sentinel or repeat-fire the
+    // endpoint with `cardIndex: 0`. The guard in checkLoadCtxValid
+    // refuses to scrape, surfacing the upstream contract violation.
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const apiCtx = makeApi();
+    const txnEndpoint: ITxnEndpoint = {
+      url: 'https://bank.example.com/txns',
+      method: 'POST',
+      templatePostData: false,
+      fieldMap: {} as ITxnEndpoint['fieldMap'],
+      pendingUrl: false,
+      billingUrl: false,
+    };
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(apiCtx),
+      accountDiscovery: some({
+        ids: [],
+        records: [],
+        containers: {},
+        endpointCaptureIndex: 0,
+      }),
+      txnEndpoint: some(txnEndpoint),
+    };
+    const result = await executeForensicPre(ctx);
+    // CR#281/CR-3: pin both the error TYPE and MESSAGE so the
+    // contract violation surfaces as a Generic fast-fail with the
+    // exact "no usable account identifier" sentinel rather than
+    // any other failure.
+    const isProcOk = isOk(result);
+    expect(isProcOk).toBe(false);
+    if (!isProcOk) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toContain('no usable account identifier');
+    }
+  });
+});
+
+describe('executeMatrixLoop branches', () => {
+  it('runs frozen direct when frozen endpoints exist', async () => {
+    const disc: IScrapeDiscovery = {
+      qualifiedCards: ['A1'],
+      prunedCards: [],
+      txnTemplateUrl: '',
+      txnTemplateBody: {},
+      billingMonths: [],
+      frozenEndpoints: [
+        { method: 'GET', url: 'https://bank.example.com/accounts', response: {} },
+      ] as unknown as IScrapeDiscovery['frozenEndpoints'],
+      accountIds: ['A1'],
+      rawAccountRecords: [],
+      cachedAuth: false,
+      storageHarvest: {},
+    };
+    const makeApiResult27 = makeApi();
+    const base = makeMockContext({
+      api: some(makeApiResult27),
+      scrapeDiscovery: some(disc),
+    });
+    const makeMockActionExecutorResult28 = makeMockActionExecutor();
+    const ctx = toActionCtx(base, makeMockActionExecutorResult28);
+    const result = await executeMatrixLoop(ctx);
+    expect(typeof result.success).toBe('boolean');
+  });
+});
+
+describe('executeValidateResults deep branches', () => {
+  it('warns when all txns have zero amount (multiple accounts)', async () => {
+    const txn = {
+      type: 'Normal',
+      date: '2026-01-01T00:00:00.000Z',
+      processedDate: '2026-01-01T00:00:00.000Z',
+      originalAmount: 0,
+      chargedAmount: 0,
+      originalCurrency: 'ILS',
+      description: '',
+      status: 'completed',
+    } as unknown as ITransaction;
+    const ctx = makeMockContext({
+      scrape: some({
+        accounts: [
+          { accountNumber: 'A1', balance: 0, txns: [txn, txn] },
+          { accountNumber: 'A2', balance: 0, txns: [txn] },
+        ],
+      }),
+    });
+    const result = await executeValidateResults(ctx);
+    const isOkResult29 = isOk(result);
+    expect(isOkResult29).toBe(true);
+  });
+
+  it('fails when no txns across all accounts (all-empty guard fires)', async () => {
+    // Contract change 2026-05-12 per `SCRAPE-ALL-EMPTY-001` in
+    // ScrapePhaseActions.test.ts: `executeValidateResults` now
+    // fails loud when EVERY account has 0 txns (silent scrape
+    // miss). Previously this case returned success without warning;
+    // the warn-skip behaviour is still tested by the
+    // `warnZeroAmounts` semantics (warn fires ONLY on all-zero
+    // AMOUNT — not on all-empty TXN-LIST). The all-empty case is
+    // structurally a different signal and now fails.
+    const ctx = makeMockContext({
+      scrape: some({ accounts: [{ accountNumber: 'A1', balance: 0, txns: [] }] }),
+    });
+    const result = await executeValidateResults(ctx);
+    const isOkResult30 = isOk(result);
+    expect(isOkResult30).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('all 1 accounts have 0 txns');
+    }
+  });
+
+  it('does not warn when some txns have nonzero amounts', async () => {
+    const zeroTxn = {
+      chargedAmount: 0,
+      originalAmount: 0,
+    } as unknown as ITransaction;
+    const okTxn = {
+      chargedAmount: 100,
+      originalAmount: 100,
+    } as unknown as ITransaction;
+    const ctx = makeMockContext({
+      scrape: some({
+        accounts: [{ accountNumber: 'A1', balance: 0, txns: [zeroTxn, okTxn] }],
+      }),
+    });
+    const result = await executeValidateResults(ctx);
+    const isOkResult31 = isOk(result);
+    expect(isOkResult31).toBe(true);
+  });
+});

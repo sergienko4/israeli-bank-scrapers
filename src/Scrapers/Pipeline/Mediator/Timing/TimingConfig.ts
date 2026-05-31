@@ -1,0 +1,476 @@
+/**
+ * Centralized timing configuration — single source of truth for every
+ * wait-budget ceiling across the Pipeline mediator. Per-phase
+ * constants previously scattered across each phase's actions file
+ * land here so tuning, audit, and the `R-NO-FIXED-WAIT-15S`
+ * architecture rule operate on ONE file.
+ *
+ * <p>Naming convention: every export ends in `_MS` and starts with
+ * the phase prefix (HOME / PRELOGIN / LOGIN / OTP / AUTH_DISCOVERY /
+ * ACCOUNT_RESOLVE / DASHBOARD / NETWORK / SCRAPE / TERMINATE /
+ * ELEMENTS). Architecture rule R-NO-FIXED-WAIT-15S blocks any new
+ * 15s ceiling outside the documented Playwright-defined allowlist.
+ *
+ * <p>Mission origins documented inline so a future tuner sees the
+ * commit + plan reference behind each value.
+ */
+
+/** One second in milliseconds — base unit for timeout arithmetic. */
+export const SECOND = 1000;
+
+/** Default timeout for waitUntil polling (ms). */
+export const DEFAULT_WAIT_TIMEOUT_MS = 10000;
+
+/** Default polling interval for waitUntil (ms). */
+export const DEFAULT_WAIT_INTERVAL_MS = 100;
+
+/** Minimum human-like delay for general interactions (ms). */
+export const HUMAN_DELAY_MIN_MS = 300;
+
+/** Maximum human-like delay for general interactions (ms). */
+export const HUMAN_DELAY_MAX_MS = 1200;
+
+/**
+ * Phase settle — fixed delay applied TWICE per phase:
+ * once before phase.PRE work begins, once after phase.FINAL completes.
+ * So each phase's wall-clock is bookended by a wait window in which
+ * the bank's SPA can finish settling and the page's anti-bot JS can
+ * observe a "human-paused-on-the-page" interval before our next
+ * interaction.
+ *
+ * <p>Was previously a single "between phases" settle (PR #233 fix
+ * for Hapoalim "no login nav link found"). Split into PRE + FINAL on
+ * 2026-05-17 after Hapoalim hCaptcha on PR #234 — the silent single
+ * window was profiled as bot by Incapsula. Splitting gives the page
+ * more contact-window time to settle naturally, and the next step
+ * (planned) is to humanize each window with small mouse / scroll
+ * events so Incapsula sees user-activity signals.
+ *
+ * <p>Applied at the SINGLE central chokepoint in
+ * {@link "../../Core/Executor/PipelineReducer.js"} `reducePhases`
+ * — no per-phase configuration, no per-bank override. PRE settle
+ * fires on every phase (incl. terminal). FINAL settle is skipped for
+ * the terminal phase so pipeline completion is not delayed. Failure
+ * paths skip the FINAL settle so sanitization-pulse retries are not
+ * penalized.
+ */
+export const PHASE_SETTLE_MS = 4000;
+
+// ── Auth-discovery thresholds (non-time) ──────────────────────────
+
+/**
+ * Minimum count of post-auth session cookies that, combined with
+ * REVEAL=true, is considered sufficient corroboration to override
+ * the M4.F1 URL-change requirement on same-URL SPAs (Isracard
+ * `/StatusPage`). Sized below the live P5 across 6 banks
+ * (Discount ≈ 12, Isracard ≈ 54-60) and above the typical
+ * interstitial tracking-cookie count (2-3 third-party cookies).
+ *
+ * <p>Hosted in TimingConfig as the centralised audit point for
+ * pipeline thresholds, even though this one is a count rather than
+ * a millisecond ceiling.
+ */
+export const STRONG_AUTH_COOKIE_FLOOR = 5;
+
+// ── Page prelude (cross-phase primitive) ──────────────────────────
+
+/** Sentinel budget for `'none'` prelude — never consulted (short-circuit). */
+export const PRELUDE_NONE_BUDGET_MS = 0;
+
+// ── INIT phase ─────────────────────────────────────────────────────
+
+/**
+ * INIT.ACTION navigation commit ceiling — Mission M4.F1 follow-up.
+ * Replaces Playwright's 30 s default with a 15 s commit-only wait.
+ * `page.goto(url, { waitUntil: 'commit' })` returns as soon as the
+ * server responds with the first byte (TLS done + HTTP headers
+ * received). Camoufox-isolated probe (2026-05-10) measured every
+ * browser-flow bank below 1 s for `commit`; the 15 s ceiling
+ * absorbs the 10× slowdown observed when the pre-commit hook runs
+ * 6 banks in parallel and Camoufox launches contend for bandwidth.
+ */
+export const INIT_NAV_COMMIT_TIMEOUT_MS = 15_000;
+
+/**
+ * INIT.FINAL `domcontentloaded` ceiling — Mission M4.F1 follow-up.
+ *
+ * @deprecated Mission M4.F2.0: use {@link ELEMENTS_DOM_READY_TIMEOUT_MS}.
+ *   The wait pattern is shared by INIT.FINAL and LOGIN.PRE (both use
+ *   {@link "../Elements/PageReadiness.js"} `waitForDomReady`) so the
+ *   constant moved to the cross-phase ELEMENTS namespace. Re-exported
+ *   here only so external callers do not break in a single commit.
+ */
+export const INIT_DOM_READY_TIMEOUT_MS = 10_000;
+
+/**
+ * `domcontentloaded` lifecycle ceiling — shared cross-phase primitive.
+ *
+ * <p>Both INIT.FINAL and LOGIN.PRE call `waitForDomReady` from
+ * {@link "../Elements/PageReadiness.js"} on the same ceiling. The HTML
+ * parser typically finishes under 3.5 s on every browser-flow bank
+ * (Camoufox-isolated probe, 2026-05-10); the 10 s budget absorbs the
+ * 3× slowdown observed when the pre-commit hook runs six banks in
+ * parallel and Camoufox launches contend for bandwidth. Waiting for
+ * the `load` event would block 12–15 s on Max / Amex / Isracard
+ * (analytics, marketing scripts) — work the framework never reads.
+ */
+export const ELEMENTS_DOM_READY_TIMEOUT_MS = 10_000;
+
+// ── HOME phase ─────────────────────────────────────────────────────
+
+/**
+ * HOME prelude — SPA-ready ceiling for HOME.PRE + HOME.ACTION.
+ *
+ * <p>`waitForSpaReady` budget: page must be `load`+`networkidle` before
+ * the resolver scans for the login trigger and before ACTION fires the
+ * click. Sized below {@link HOME_FORM_READY_TIMEOUT_MS} so the total
+ * per-phase wall stays unchanged.
+ *
+ * <p>Bumped 10_000 → 15_000 on 2026-05-13 to close the Hapoalim CI
+ * race (I-3): under throttled GitHub-runner bandwidth the bank's
+ * `load` event occasionally fires after 10 s because analytics
+ * scripts gate it, the non-fatal prelude returns false, then the
+ * downstream resolver scans a half-hydrated DOM and reports
+ * `GENERIC HOME PRE: no login nav link found`. Banks that settle
+ * fast (Discount, Beinleumi, Massad, VisaCal) early-exit on the
+ * underlying `Promise.all([load, networkidle])` so the bump is
+ * cross-bank safe. {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} carries
+ * the matching probe ceiling. Pinned by HOME-PRELUDE-BUDGET-001.
+ *
+ * <p>Bumped 15_000 → 25_000 on 2026-05-31 (PR #281 C10) after the
+ * I-3 race resurfaced 5/5 attempts on the canonical-10 baseline
+ * SHA `6c2f65be`. Local docker repro on the CI-mirror image
+ * (`docker/Dockerfile.ci-mirror`, residential Israel IP) measured
+ * Hapoalim HOME.PRE wall at **31_532 ms** — within the old 35 s
+ * joint budget but with zero headroom. GitHub-hosted Azure runners
+ * consistently report ~10-20 % higher latency than residential
+ * IPs (PR #234 footnote) and the bank-side Incapsula scoring on
+ * runner IPs adds further variance, so the joint budget must
+ * absorb the local measurement plus 20-30 s of CI overhead.
+ * 25 s prelude + 30 s probe = 55 s per attempt remains far below
+ * the test-level Jest timeout (300 s for E2E Real). Pinned by
+ * HOME-PRELUDE-BUDGET-001 (floor bumped to 25_000 in same commit).
+ */
+export const HOME_PRELUDE_TIMEOUT_MS = 25_000;
+
+/** HOME settle ceiling after click — TIMING mission cut from 15000. */
+export const HOME_SETTLE_TIMEOUT_MS = 8000;
+
+/**
+ * HOME post-click short-probe ceiling — TIMING-mission cut from
+ * 15_000. Covers TWO post-navigation probes that are expected to
+ * succeed near-instantly:
+ * <ul>
+ *   <li>HOME.ACTION: `WK_HOME.ENTRY` re-locate at click time. The
+ *       PRE pass (see {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS}) has
+ *       already verified the trigger exists; this is a cheap
+ *       re-find to obtain the click locator.</li>
+ *   <li>HOME.POST: `WK_HOME.FORM_CHECK` form-gate verify after the
+ *       trigger click navigated to the login page. The form is
+ *       already rendered; this is a confirmation probe.</li>
+ * </ul>
+ *
+ * <p>Distinct from {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} which
+ * owns the pre-click entry-trigger DISCOVERY budget (page may
+ * still be hydrating; long budget needed).
+ */
+export const HOME_ENTRY_TIMEOUT_MS = 5000;
+
+/**
+ * HOME-resolver visible-text probe ceiling — owned here so a future
+ * TIMING cut cannot silently re-introduce the Hapoalim CI race.
+ *
+ * <p>Centralises the previously-orphan local literal in
+ * `Mediator/Home/HomeResolver.ts`. Sized to 20 s so the joint
+ * budget {@link HOME_PRELUDE_TIMEOUT_MS} + this ceiling = 35 s
+ * after first byte, comfortably above the ~25-30 s wall observed
+ * for Hapoalim on the slowest CI runners. Pinned by
+ * HOME-PRELUDE-BUDGET-001/002 (Tests/Unit/.../TimingHomePreludeBudget).
+ *
+ * <p>Bumped 20_000 → 30_000 on 2026-05-31 (PR #281 C10) in lockstep
+ * with {@link HOME_PRELUDE_TIMEOUT_MS}. Local docker repro of
+ * Hapoalim (CI-mirror image, residential IP) measured HOME.PRE wall
+ * at 31_532 ms — the previous 35 s joint budget was breached by
+ * Azure runner anti-bot latency. New joint budget = 25 s prelude
+ * + 30 s probe = 55 s per attempt, headroom for the documented
+ * "~30 s observed on slowest CI runners" plus CI variance.
+ */
+export const HOME_RESOLVER_ENTRY_TIMEOUT_MS = 30_000;
+
+/** HOME SPA URL change wait after click (Angular routing delay). */
+export const HOME_SPA_NAV_TIMEOUT_MS = 10000;
+
+/** HOME form-ready gate probe — bank-side rendering ceiling. */
+export const HOME_FORM_READY_TIMEOUT_MS = 15000;
+
+/** HOME modal-overlay settle ceiling. */
+export const HOME_MODAL_SETTLE_TIMEOUT_MS = 15000;
+
+// ── PRE-LOGIN phase ────────────────────────────────────────────────
+
+/** PRE-LOGIN reveal-button discovery probe ceiling. */
+export const PRELOGIN_DISCOVER_TIMEOUT_MS = 15000;
+
+/** PRE-LOGIN private-customers nav ceiling. */
+export const PRELOGIN_REVEAL_NAV_TIMEOUT_MS = 15000;
+
+/** PRE-LOGIN target-resolve ceiling. */
+export const PRELOGIN_RESOLVE_TARGET_TIMEOUT_MS = 5000;
+
+/** PRE-LOGIN credential-area click ceiling. */
+export const PRELOGIN_CRED_AREA_TIMEOUT_MS = 10000;
+
+/** PRE-LOGIN form-gate validation probe ceiling. */
+export const PRELOGIN_FORM_GATE_TIMEOUT_MS = 5000;
+
+/** PRE-LOGIN OTP/password field probe ceiling. */
+export const PRELOGIN_FORM_PROBE_TIMEOUT_MS = 3000;
+
+/** PRE-LOGIN POST settle before login gate. */
+export const PRELOGIN_FORM_POST_TIMEOUT_MS = 15000;
+
+// ── LOGIN phase ────────────────────────────────────────────────────
+
+/** LOGIN form-frame scan budget per frame. */
+export const LOGIN_PER_FRAME_SCAN_TIMEOUT_MS = 3000;
+
+/** LOGIN post-submit settle ceiling. */
+export const LOGIN_POST_SUBMIT_SETTLE_TIMEOUT_MS = 15000;
+
+/**
+ * LOGIN.POST prelude — SPA-ready ceiling for the post-submit redirect.
+ *
+ * <p>After form submission, banks redirect / mutate to OTP screen or
+ * dashboard. The prelude waits for `load`+`networkidle` so the POST
+ * validator reads a stable URL + DOM, not a transient intermediate.
+ */
+export const LOGIN_PRELUDE_POST_TIMEOUT_MS = 8_000;
+
+/** LOGIN traffic-wait ceiling for organic SPA traffic — TIMING cut from 30000. */
+export const LOGIN_TRAFFIC_WAIT_TIMEOUT_MS = 10000;
+
+/** LOGIN cookie-audit network-idle wait. */
+export const LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS = 10000;
+
+// ── OTP phases (TRIGGER + FILL + form probe) ───────────────────────
+
+/**
+ * OTP-TRIGGER prelude — DOM-ready ceiling for phone-hint scan + click.
+ *
+ * <p>`waitForDomReady` budget before OTP-TRIGGER.PRE scans for the phone
+ * hint / send-code button and before ACTION fires the click. DOM parsing
+ * is sufficient — OTP screens are typically server-rendered or already
+ * hydrated by the time this phase runs.
+ */
+export const OTP_TRIGGER_PRELUDE_TIMEOUT_MS = 6_000;
+
+/**
+ * OTP-FILL prelude — DOM-ready ceiling for OTP input discovery.
+ *
+ * <p>OTP-FILL.PRE budget before scanning for the OTP code input. DOM
+ * parsing is sufficient (the OTP input is typically present from the
+ * moment the screen renders).
+ */
+export const OTP_FILL_PRELUDE_TIMEOUT_MS = 6_000;
+
+/** OTP trigger / fill post-action settle ceiling — TIMING cut from 10000. */
+export const OTP_PHASE_SETTLE_TIMEOUT_MS = 5000;
+
+/** OTP-TRIGGER POST scope-bound visibility re-probe ceiling — Mission 4. */
+export const OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS = 2000;
+
+/** OTP form-input discovery probe ceiling. */
+export const OTP_FORM_PROBE_TIMEOUT_MS = 3000;
+
+/** OTP submit-button discovery probe ceiling — TIMING cut from 15000. */
+export const OTP_SUBMIT_PROBE_TIMEOUT_MS = 5000;
+
+/** OTP error-banner probe ceiling. */
+export const OTP_ERROR_PROBE_TIMEOUT_MS = 2000;
+
+/** OTP retriever pre-prompt settle. */
+export const OTP_RETRIEVER_SETTLE_MS = 500;
+
+/**
+ * OTP user entry budget — single test case may extend per options.
+ * Imported via re-export from `OtpFillPhaseActions.ts` so the
+ * existing `Tests/Unit/.../OtpPollerPipelineTimeoutAlignment.test.ts`
+ * cross-validation continues to pass without renaming.
+ */
+export const DEFAULT_OTP_TIMEOUT_MS = 180_000;
+
+// ── AUTH-DISCOVERY phase ───────────────────────────────────────────
+
+/**
+ * AUTH-DISCOVERY dashboard reveal probe budget.
+ *
+ * <p>PR #220 cut this to 3000 ms in the TIMING mission, but the cut
+ * left slow Azure-CI runners short of the time the bank's SPA needs
+ * to commit a REVEAL anchor in DOM. Phase E (PR-α') restores the
+ * pre-cut budget of 8000 ms; combined with the catalog-driven
+ * iteration in `MatrixLoopStrategy`, this eliminates the silent
+ * Isracard `AUTH_DISCOVERY_DASHBOARD_NOT_READY` family of failures
+ * the CI mask had been hiding.
+ */
+export const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 8000;
+
+/** AUTH-DISCOVERY auth-module sessionStorage poll ceiling — TIMING cut from 10000. */
+export const AUTH_POLL_TIMEOUT_MS = 3_000;
+
+/**
+ * AUTH-DISCOVERY.PRE settle ceiling — gives the SPA time to flush
+ * post-login redirect chatter (auth-token endpoints, header-bearer
+ * fetches, redirect navigation) before AUTH-DISCOVERY.PRE inventories
+ * the capture pool. Event-driven via `mediator.waitForNetworkIdle`
+ * (early-exits the moment the network goes idle), so fast banks pay
+ * 0 ms while slow-redirect banks pay up to this ceiling. Starts at
+ * 3 s per architectural review — increase only if a slow-redirect
+ * bank empirically requires it.
+ */
+export const AUTH_DISCOVERY_PRE_SETTLE_MS = 3_000;
+
+/**
+ * AUTH-DISCOVERY.FINAL settle ceiling — Mission M4.F1. Before FINAL
+ * reads `mediator.getCurrentUrl()` to compare against the URL
+ * LOGIN.PRE emitted, give the page one more event-driven idle wait
+ * (1 s ceiling) so the URL we compare against is the FINAL post-auth
+ * URL, not a transient redirect intermediate. Fast banks pay 0 ms;
+ * banks with a slow last redirect pay up to the ceiling.
+ */
+export const AUTH_DISCOVERY_FINAL_SETTLE_MS = 1_000;
+
+// ── ACCOUNT-RESOLVE phase ──────────────────────────────────────────
+
+/**
+ * ACCOUNT-RESOLVE first-id-bearing-capture wait budget. Bumped from
+ * 10s to 20s after live Discount run 10-05-2026_02325569 timed out
+ * with `pool=1` while the previous run had `pool=72`. Serves as a
+ * cumulative-cut absorber: TIMING reductions to upstream phases
+ * shift this phase earlier in absolute time, so a longer ceiling
+ * keeps slow-bank runs reliable.
+ */
+export const ACCOUNT_RESOLVE_BUDGET_MS = 20_000;
+
+/** ACCOUNT-RESOLVE poll interval driving the recursive wait-loop. */
+export const ACCOUNT_RESOLVE_POLL_MS = 250;
+
+// ── DASHBOARD phase ────────────────────────────────────────────────
+
+/**
+ * DASHBOARD prelude — SPA-ready ceiling for PRE + ACTION.
+ *
+ * <p>`waitForSpaReady` budget before DASHBOARD.PRE resolves account /
+ * navigation targets and before ACTION fires the click. Dashboard pages
+ * are SPA-heavy (Backbase modules on Amex / Isracard); the click must
+ * land after JS hydration so the bank's SPA router responds.
+ */
+export const DASHBOARD_PRELUDE_TIMEOUT_MS = 10_000;
+
+/** DASHBOARD SPA transaction-link probe ceiling. */
+export const DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS = 15000;
+
+/** DASHBOARD menu settle after toggle click. */
+export const DASHBOARD_MENU_SETTLE_MS = 5000;
+
+/** DASHBOARD post-login redirect settle — TIMING cut from 15000. */
+export const DASHBOARD_SETTLE_MS = 5000;
+
+/**
+ * DASHBOARD success-probe resolveVisible ceiling.
+ *
+ * <p>PR #220 cut this to 8000 ms; Phase E (PR-α') restores the
+ * pre-cut 30000 ms so slow Azure-CI runners have the same envelope
+ * as the host runs. SPA-bound success-probes that race a 8 s
+ * window legitimately need this budget when the bank's hydration
+ * window is long (Backbase modules on Amex / Isracard).
+ */
+export const DASHBOARD_SUCCESS_TIMEOUT_MS = 30000;
+
+/**
+ * DASHBOARD reveal-string resolveVisible ceiling.
+ *
+ * <p>PR #220 cut this to 3000 ms; Phase E (PR-α') restores the
+ * pre-cut 15000 ms to give the reveal probe the same envelope as
+ * the original design. Combined with the longer
+ * {@link AUTH_DISCOVERY_DASHBOARD_WAIT_MS} this closes the CI race
+ * window the Isracard mask had been hiding.
+ */
+export const DASHBOARD_REVEAL_TIMEOUT_MS = 15000;
+
+/** DASHBOARD SPA-render timeout for href-extraction probe. */
+export const DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS = 10000;
+
+/** DASHBOARD date-filter element-visible ceiling. */
+export const DASHBOARD_DATE_FILTER_TIMEOUT_MS = 5000;
+
+/** DASHBOARD organic nav + filter settle — TIMING cut from 15000. */
+export const DASHBOARD_ORGANIC_IDLE_MS = 3000;
+
+/** DASHBOARD wait after txn-endpoint match before SCRAPE handoff. */
+export const DASHBOARD_POST_MATCH_TXN_WAIT_MS = 4000;
+
+/** DASHBOARD final TXN URL capture wait. */
+export const DASHBOARD_FINAL_TXN_WAIT_MS = 8000;
+
+/** DASHBOARD change-password probe timeout. */
+export const DASHBOARD_CHANGE_PWD_TIMEOUT_MS = 3000;
+
+// ── NETWORK ────────────────────────────────────────────────────────
+
+/**
+ * Fire-and-forget POST interceptor timeout.
+ *
+ * <p>PR #220 cut this to 30000 ms; Phase E (PR-α') restores the
+ * pre-cut 120000 ms. The interceptor watches for per-card txn
+ * POSTs throughout the dashboard hydration window; cycling-card
+ * banks (Amex / Isracard) issue these lazily as the user lands on
+ * each card view, and on slow CI runners the issuance can drag
+ * past 30 s.
+ */
+export const NETWORK_POST_INTERCEPT_TIMEOUT_MS = 120_000;
+
+/** Network capture poll interval for `waitForFirstId`. */
+export const NETWORK_WAIT_FIRST_ID_POLL_MS = 250;
+
+// ── SCRAPE / TERMINATE ─────────────────────────────────────────────
+
+/** SCRAPE UI-trigger best-effort traffic wait. */
+export const SCRAPE_UI_TRAFFIC_TIMEOUT_MS = 5000;
+
+/** SCRAPE WK element-discovery timeout. */
+export const SCRAPE_UI_WK_TIMEOUT_MS = 5000;
+
+/**
+ * TERMINATE per-cleanup wall-clock budget. Wraps every cleanup
+ * function in `Promise.race` so a hung cleanup cannot stall the LIFO
+ * walk (Isracard regression: live run 10-05-2026_02023248 hung 9 min
+ * because page.close waits for network-idle while the bank's
+ * frontend keepAlive POSTs every 30s).
+ */
+export const TERMINATE_CLEANUP_BUDGET_MS = 5000;
+
+// ── ELEMENTS / interactions ────────────────────────────────────────
+//
+// Allowlisted under R-NO-FIXED-WAIT-15S because they are Playwright-
+// driven primitives, not phase-wall budgets.
+
+/** Playwright click action timeout — generic primitive. */
+export const ELEMENTS_CLICK_TIMEOUT_MS = 15_000;
+
+/** Click forensics evaluate ceiling — short-cap, non-blocking. */
+export const ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS = 1_500;
+
+/** Element-mediator JS evaluate ceiling. */
+export const ELEMENTS_EVALUATE_TIMEOUT_MS = 5_000;
+
+/** Element-mediator delay between loading-indicator polls. */
+export const ELEMENTS_LOADING_DELAY_MS = 2_000;
+
+/** Element-mediator click-race ceiling. */
+export const ELEMENTS_CLICK_RACE_TIMEOUT_MS = 3_000;
+
+/** Element-mediator network-idle ceiling — generic primitive. */
+export const ELEMENTS_NETWORK_IDLE_TIMEOUT_MS = 15_000;
+
+/** Element-mediator URL-wait ceiling. */
+export const ELEMENTS_URL_WAIT_TIMEOUT_MS = 10_000;

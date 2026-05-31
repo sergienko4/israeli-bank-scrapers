@@ -1,0 +1,47 @@
+/**
+ * Post-login traffic probe — waits for organic SPA traffic after login.
+ * SSO redirect fires transaction APIs from iframe — catch the fallout.
+ * Uses WK patterns via mediator — zero hardcoded patterns in Phase code.
+ */
+
+import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
+import type { ScraperLogger } from '../../Types/Debug.js';
+import { maskVisibleText } from '../../Types/LogEvent.js';
+import type { IElementMediator } from '../Elements/ElementMediator.js';
+import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+
+/**
+ * Post-login traffic gate — Phase 7e R-AUTH-CLEANUP: no WK_API.transactions
+ * peek inside the auth boundary. The post-login signal is the bank's first
+ * authenticated dashboard fetch (account-init class endpoints), which fires
+ * before any transactions traffic on every observed bank. TXN-side
+ * discovery is owned by DASHBOARD.FINAL via {@link resolveTxnEndpoint}.
+ */
+const POST_LOGIN_PATTERNS: readonly RegExp[] = [...PIPELINE_WELL_KNOWN_API.accounts];
+
+/**
+ * Wait for organic SPA traffic after login submit.
+ * SSO redirect fires transaction APIs from iframe — Patient Observer.
+ * @param mediator - Element mediator with network discovery.
+ * @param logger - Pipeline logger.
+ * @returns True if transaction traffic detected.
+ */
+async function waitForPostLoginTraffic(
+  mediator: IElementMediator,
+  logger?: ScraperLogger,
+): Promise<boolean> {
+  const hit = await mediator.network.waitForTraffic(
+    POST_LOGIN_PATTERNS,
+    LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
+  );
+  if (hit) {
+    logger?.trace({ hasTraffic: true, url: maskVisibleText(hit.url) });
+    return true;
+  }
+  const currentUrl = mediator.getCurrentUrl();
+  logger?.trace({ hasTraffic: false, url: maskVisibleText(currentUrl) });
+  return false;
+}
+
+export default waitForPostLoginTraffic;
+export { waitForPostLoginTraffic };

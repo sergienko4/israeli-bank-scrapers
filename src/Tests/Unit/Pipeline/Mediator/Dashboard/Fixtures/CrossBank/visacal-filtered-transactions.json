@@ -1,0 +1,38 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "shape": "filteredTransactions POST",
+    "expectedMethod": "POST",
+    "expectedDateField": "trnPurchaseDate",
+    "expectedAmountField": "trnAmt",
+    "expectedRecords": 2,
+    "expectedPendingUrl": false,
+    "expectedBillingUrl": "https://api.cal-online.fake.example/Transactions/api/transactionsDetails/getCardTransactionsDetails"
+  },
+  "captures": [
+    {
+      "url": "https://api.cal-online.fake.example/Transactions/api/lastTransactions/filteredTransactions",
+      "method": "POST",
+      "captureIndex": 13,
+      "postData": "{\"cardUniqueId\":\"FAKE-VISACAL-001\",\"month\":4,\"year\":2026}",
+      "responseBody": {
+        "result": {
+          "transArr": [
+            {
+              "trnPurchaseDate": "2026-04-10",
+              "trnAmt": -90.0,
+              "merchantName": "FAKE-FUEL",
+              "trnCurrencySymbol": "ILS"
+            },
+            {
+              "trnPurchaseDate": "2026-04-11",
+              "trnAmt": -55.0,
+              "merchantName": "FAKE-PHARMACY",
+              "trnCurrencySymbol": "ILS"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "_fixture": {
+    "bank": "max",
+    "scenarioId": "login/last-good",
+    "captureRunId": "15-05-2026_19214652",
+    "rationale": "Phase H.T3c.4f — max LOGIN.FINAL last-good cookie-audit shape. Source run completed all phases through SCRAPE (dashboard-FINAL + scrape-ACTION stages present), confirming a successful session. Domains + values fully PII-redacted (domains → '.example'; values → 'FAKE_VALUE'). Cookie names use a generic session-cookie shape — only count ≥ 1 is asserted.",
+    "expected": {
+      "loginPreOutcome": "success",
+      "loginActionOutcome": "success",
+      "loginPostOutcome": "success",
+      "loginFinalOutcome": "success",
+      "loginPreFoundPassword": true,
+      "loginActionSubmitMethod": "form-submit",
+      "loginPostHasTraffic": true,
+      "loginFinalMinCookieCount": 1
+    }
+  },
+  "pool": [],
+  "cookies": [
+    {
+      "name": "session-id",
+      "domain": ".max.example",
+      "value": "FAKE_VALUE"
+    },
+    {
+      "name": "JSESSIONID",
+      "domain": ".max.example",
+      "value": "FAKE_VALUE"
+    }
+  ]
+}

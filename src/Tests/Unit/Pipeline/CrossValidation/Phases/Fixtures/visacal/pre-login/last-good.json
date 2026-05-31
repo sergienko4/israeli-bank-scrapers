@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "visacal",
+    "scenarioId": "pre-login/last-good",
+    "captureRunId": "15-05-2026_19215086",
+    "rationale": "Phase H.T3c.3 — visacal PRE-LOGIN POST+FINAL last-good. VisaCal SPA login on login.cal-online.co.il; password field visible at scan time. Captured run completed through SCRAPE.",
+    "expected": {
+      "preLoginPostFormGateFound": true,
+      "preLoginPostOutcome": "success",
+      "preLoginFinalOutcome": "success"
+    }
+  },
+  "pool": []
+}

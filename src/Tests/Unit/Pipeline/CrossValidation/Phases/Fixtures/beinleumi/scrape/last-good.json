@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "beinleumi",
+    "scenarioId": "scrape/last-good",
+    "captureRunId": "15-05-2026_14362341",
+    "rationale": "Phase H.T3c.9 — beinleumi SCRAPE POST+FINAL last-good. Beinleumi's last-good captured run produced >= 1 txn; passes the all-accounts-empty guard. Phase G fix landed beinleumi 38/38 txn dedup correctness.",
+    "expected": {
+      "scrapePostOutcome": "success",
+      "scrapeFinalOutcome": "success",
+      "scrapeExpectedTxnCount": 38
+    }
+  },
+  "pool": []
+}

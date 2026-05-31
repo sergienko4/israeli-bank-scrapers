@@ -1,0 +1,4 @@
+{
+  "Header": { "Status": "1" },
+  "ValidateIdDataBean": { "returnCode": "1", "userName": "TestUser" }
+}
