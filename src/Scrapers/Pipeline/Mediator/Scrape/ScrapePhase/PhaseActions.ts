@@ -165,10 +165,13 @@ function buildStampedScrape(args: IStampedScrapeArgs): IPipelineContext {
  * @returns Updated context with diagnostics + identities + template.
  */
 function executeStampAccounts(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  // SQ-1 fix (S7735): positive branch first.
   const diag = buildFinalDiag(input);
-  if (!input.scrape.has) return asResolvedSuccess({ ...input, diagnostics: diag });
-  const stamped = buildStampedScrape({ input, diag, scrape: input.scrape.value });
-  return asResolvedSuccess(stamped);
+  if (input.scrape.has) {
+    const stamped = buildStampedScrape({ input, diag, scrape: input.scrape.value });
+    return asResolvedSuccess(stamped);
+  }
+  return asResolvedSuccess({ ...input, diagnostics: diag });
 }
 
 /**

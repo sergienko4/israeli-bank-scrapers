@@ -1,19 +1,70 @@
 # CodeRabbit AI PR Review Configuration
-# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+# Docs: https://docs.coderabbit.ai/reference/configuration
+#
+# === OSS PLAN OPTIMIZATIONS (PR #281 C8 audit) =========================
+# This is a public MIT-licensed repository, so it auto-qualifies for the
+# CodeRabbit "Open Source" plan: Pro+ features at no cost, but with a
+# per-developer hourly review limit that varies between 1-10 reviews/hour
+# based on community size (see https://docs.coderabbit.ai/management/plans).
+#
+# The Phase 8.5b PR pushed 6 incremental commits within ~90 minutes and
+# triggered an auto-review on each push, exhausting the per-hour quota and
+# forcing a 35-minute cool-down. The settings below are tuned to keep
+# auto-review responsive on the FIRST few commits of a PR while pausing
+# automatically afterwards (devs trigger a fresh review manually with
+# `@coderabbitai review` when a batch of fixes is ready).
+# =======================================================================
 
-language: en
+language: en-US
+enable_free_tier: true
+early_access: false
+
 reviews:
-  # Auto-review every PR
+  # `assertive` surfaces more findings; we want high signal on
+  # byte-neutral refactor PRs even though it's noisier than `chill`.
+  profile: assertive
+
+  # Auto-approve once all CR threads are resolved and no pre-merge checks
+  # fail — saves a manual cycle when the dev addresses everything in one push.
+  request_changes_workflow: true
+
+  # Walkthrough hygiene — keep substance, drop pure noise.
+  collapse_walkthrough: true
+  poem: false                       # token-spend; no review value
+  in_progress_fortune: false        # token-spend; no review value
+  sequence_diagrams: true           # useful for pipeline refactors
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  suggested_reviewers: false        # solo-maintainer repo
+
   auto_review:
     enabled: true
-    drafts: false
+    drafts: false                   # skip draft PRs entirely
+    auto_incremental_review: true   # re-review each push (paired with auto-pause below)
+
+    # CRITICAL OSS rate-limit lever: after this many reviewed commits in
+    # a row, CR auto-pauses. Default is 5 — too high for canonical-10
+    # refactor PRs that ship 6-8 small commits. Setting to 3 means we
+    # get reviews on the first 3 pushes (the most impactful ones), then
+    # CR pauses, and we manually trigger a final pre-merge review with
+    # `@coderabbitai review`.
+    auto_pause_after_reviewed_commits: 3
+
     base_branches:
       - main
 
-  # Review profile: assertive catches more issues
-  profile: assertive
+    # Lightweight WIP signal — title-based skip keeps quota intact for
+    # ready-to-merge PRs.
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "[skip review]"
+      - "[skip-ci]"
 
-  # What to include in reviews
+  # Path-specific review guidance.
   path_instructions:
     - path: "src/Scrapers/**"
       instructions: >
@@ -45,19 +96,77 @@ reviews:
         on CI), undefined cross-references (mkdocs build --strict
         rejects), and pages added without a corresponding nav entry
         in mkdocs.yml.
+    - path: "src/Scrapers/Pipeline/EslintCanaries/**"
+      instructions: >
+        ESLint canaries deliberately contain code that fails specific lint
+        rules — they are excluded from tsconfig.eslint.json. Do NOT flag
+        their violations as bugs; the file existing AND producing the
+        expected lint error is the contract. Only flag them if a canary
+        is missing its corresponding rule trigger or if its docstring
+        does not state which rule it guards.
 
-  # Don't review these paths
+  # Files CodeRabbit should never analyze. `!` prefix excludes.
+  # Reduces token spend and avoids re-flagging generated content
+  # the maintainer already audits via husky gates.
   path_filters:
     - "!**/node_modules/**"
-    - "!**/lib/**"
+    - "!**/lib/**"                        # esbuild output (CJS bundle)
+    - "!**/dist/**"                       # alternative build output
+    - "!**/coverage/**"                   # Jest coverage HTML
+    - "!**/.nyc_output/**"
     - "!package-lock.json"
-    - "!CHANGELOG.md"
+    - "!CHANGELOG.md"                     # release-please-managed
+    - "!docs/api/**"                      # TypeDoc auto-generated
+    - "!**/*.snap"                        # Jest snapshots
+    - "!**/.understand-anything/**"       # KG artifacts (local-only)
+    - "!**/.copilot/**"                   # Session state (local-only)
+    - "!tasks/**"                         # Task tracking files
+    - "!.husky/**"                        # Git hook plumbing
+    - "!**/*.min.js"
+    - "!**/*.min.css"
 
-  # Request changes on high-severity issues
-  request_changes_workflow: true
+# Tools that feed signals into the review.
+# Only enable tools whose language/format actually appears in this repo
+# (TypeScript + Markdown + shell + YAML). Disabling unused tools shrinks
+# the prompt context CodeRabbit sends to its model and reduces walkthrough
+# clutter for languages we don't ship.
+tools:
+  # Used in CI/canaries — keep
+  biome:
+    enabled: true
+  markdownlint:
+    enabled: true
+  shellcheck:
+    enabled: true                  # we have .husky/* and scripts/*.sh
+  languagetool:
+    enabled: true
+  github-checks:
+    enabled: true
+  ast-grep:
+    essential_rules: true          # no custom rule dirs in this repo
 
-  # Collapse walkthrough for large PRs
-  collapse_walkthrough: true
+  # Not relevant to TypeScript-only repo — disable to save tokens
+  ruff:
+    enabled: false                 # Python linter
+  phpstan:
+    enabled: false                 # PHP static analysis
+  swiftlint:
+    enabled: false                 # Swift linter
+  hadolint:
+    enabled: false                 # Dockerfile linter — no Dockerfile in repo
+
+# Finishing touches — disable auto-generated artifacts we don't want
+# clashing with our own canon-10 test discipline.
+finishing_touches:
+  docstrings:
+    enabled: true                  # useful for new exports
+  unit_tests:
+    enabled: false                 # we author tests ourselves with strict shape
+  simplify:
+    enabled: false                 # default; refactor PRs are intentional shapes
+
+# Pre-merge checks — keep at warning (default); we already enforce these
+# via husky gates locally. CR's warnings remain a useful second opinion.
 
 chat:
   auto_reply: true

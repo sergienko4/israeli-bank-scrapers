@@ -1646,6 +1646,43 @@ export default tseslint.config(
     },
   },
 
+  // 12C. SCRAPE CANONICAL-10 LOOKUP-ARRAY NAMING GUARD (PR #281 C8 hardening, 2026-05-31)
+  //
+  // Pattern detection: PR #281 SonarCloud flagged the same anti-pattern
+  // (`typescript:S7776`) in TWO files within the canonical-10 sub-folders:
+  //   • `ScrapeReplay/JsonReplace.ts:47` — `lowerKeys = keys.map(toLowerCase)` then `.includes`
+  //   • `ScrapeReplay/RecordShape.ts:158` — `lowerKeys = bodyKeys.map(toLowerCase)` then `.includes`
+  //
+  // Root cause: a variable named `lowerKeys` (or `lowerXxxKeys`) conveys
+  // "set of keys for membership testing" — semantically a Set, not an Array.
+  // eslint-plugin-sonarjs@4.0.3 does NOT expose S7776 and a pure AST data-flow
+  // rule is fragile, so we enforce a NAMING convention in canonical-10
+  // sub-folders: `lower*Keys` is forbidden — force authors to either
+  // `lowerKeySet = new Set(...)` (lookup) or `lowerNames` (iteration-only).
+  //
+  // The accompanying canary
+  // `scrape-canonical10-lookup-array-shouldbe-set.canary.ts` exhibits
+  // the banned name so verify.sh asserts the rule fires on every commit.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-lookup-array-shouldbe-set.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "VariableDeclarator[id.name=/^lower\\w*Keys$/]",
+          message:
+            'PR #281 C8 §12C: name `lower*Keys` implies a key set for membership testing (Sonar S7776). Use `new Set(keys.map(k => k.toLowerCase()))` named `lower*KeySet`, or rename to `lowerNames` if iterating only.',
+        },
+      ],
+    },
+  },
+
   // 13. PII REDACTOR SUB-MODULE FILE-SIZE + PER-FN + ANTI-LITERAL GUARD
   //
   // Phase 6 split the 996-LoC PiiRedactor.ts blob into thirteen

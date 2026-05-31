@@ -20,7 +20,6 @@ import {
   buildLoadCtxInputs,
   buildScrapeDiscoveryState,
   checkLoadCtxValid,
-  collectStorageSafe,
   freezeNetworkSnapshot,
   type IDirectPreReads,
   type IReadyHandle,
@@ -80,4 +79,6 @@ async function executeDirectDiscovery(input: IPipelineContext, diag: IDiag): Pro
   return runDirectDiscoveryInner(ready, diag);
 }
 
-export { collectStorageSafe, executeDirectDiscovery };
+export { executeDirectDiscovery };
+// SQ-2 fix (S7763): re-export instead of import+re-export pass-through.
+export { collectStorageSafe } from './DirectFetch.js';

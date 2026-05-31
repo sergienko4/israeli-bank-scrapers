@@ -154,4 +154,50 @@ describe('ScrapePhaseActions — SCRAPE.post detection branch coverage (v6)', ()
       expect(id2?.cardUniqueId).toBe('ID-2');
     }
   });
+
+  // ── PR #281 CR-1 branch coverage: replaceLastPathSegment WITHOUT query ──
+
+  it('GET endpoint with path-tail in ids AND no query string → replaces last segment, no query carry', async () => {
+    const getEp: IDiscoveredEndpoint = {
+      url: 'https://bank.example/api/accounts/ACC-001',
+      method: 'GET',
+      postData: '',
+      responseBody: null,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 1,
+    };
+    const ctx = makeStampCtx(getEp);
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const tmpl = result.value.scrape.value.balanceFetchTemplate;
+      expect(tmpl?.method).toBe('GET');
+      expect(tmpl?.url).toBe('https://bank.example/api/accounts/<ID>');
+      expect(tmpl?.urlPathInterpolation).toBe(true);
+    }
+  });
+
+  it('GET endpoint with path-tail in ids AND query string → replaces last segment, preserves query', async () => {
+    const getEp: IDiscoveredEndpoint = {
+      url: 'https://bank.example/api/accounts/ACC-001?include=balance',
+      method: 'GET',
+      postData: '',
+      responseBody: null,
+      contentType: 'application/json',
+      requestHeaders: {},
+      responseHeaders: {},
+      timestamp: 1,
+    };
+    const ctx = makeStampCtx(getEp);
+    const result = await executeStampAccounts(ctx);
+    expect(result.success).toBe(true);
+    if (isOk(result) && result.value.scrape.has) {
+      const tmpl = result.value.scrape.value.balanceFetchTemplate;
+      expect(tmpl?.method).toBe('GET');
+      expect(tmpl?.url).toBe('https://bank.example/api/accounts/<ID>?include=balance');
+      expect(tmpl?.urlPathInterpolation).toBe(true);
+    }
+  });
 });

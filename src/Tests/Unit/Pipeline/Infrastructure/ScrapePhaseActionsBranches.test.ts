@@ -251,8 +251,16 @@ describe('executeForensicPre DIRECT path edge cases', () => {
       txnEndpoint: some(txnEndpoint),
     };
     const result = await executeForensicPre(ctx);
-    const wasFastFailed = !isOk(result);
-    expect(wasFastFailed).toBe(true);
+    // CR#281/CR-3: pin both the error TYPE and MESSAGE so the
+    // contract violation surfaces as a Generic fast-fail with the
+    // exact "no usable account identifier" sentinel rather than
+    // any other failure.
+    const isProcOk = isOk(result);
+    expect(isProcOk).toBe(false);
+    if (!isProcOk) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toContain('no usable account identifier');
+    }
   });
 });
 

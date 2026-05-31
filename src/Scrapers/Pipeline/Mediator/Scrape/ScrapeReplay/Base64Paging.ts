@@ -80,12 +80,11 @@ function findPagingContext(body: JsonRecord): IPagingContextHit | false {
  * @returns True if from+to WK fields are present.
  */
 function hasDateRangeFields(body: JsonRecord): boolean {
-  const lowerBodyKeys = Object.keys(body).map((k): string => k.toLowerCase());
-  const keys = new Set(lowerBodyKeys);
+  const lowerBodyKeySet = new Set(Object.keys(body).map((k): string => k.toLowerCase()));
   const lowerFrom = WK.fromDate.map((f): string => f.toLowerCase());
   const lowerTo = WK.toDate.map((f): string => f.toLowerCase());
-  const hasFrom = lowerFrom.some((lf): boolean => keys.has(lf));
-  const hasTo = lowerTo.some((lf): boolean => keys.has(lf));
+  const hasFrom = lowerFrom.some((lf): boolean => lowerBodyKeySet.has(lf));
+  const hasTo = lowerTo.some((lf): boolean => lowerBodyKeySet.has(lf));
   return hasFrom && hasTo;
 }
 

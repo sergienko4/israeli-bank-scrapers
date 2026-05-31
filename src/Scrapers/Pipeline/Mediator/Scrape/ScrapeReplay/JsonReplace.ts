@@ -38,17 +38,21 @@ function isSearchableObj(val: JsonNode): boolean {
 }
 
 /**
- * Find a WK field name (case-insensitive) present in `keys`.
+ * Find a body key (case-insensitive) whose lower form matches any of `fieldNames`.
+ *
+ * <p>The returned value is the ORIGINAL body key (preserving casing) so callers
+ * may mutate `obj[bodyKey]` directly. Returning the body key (not the WK field
+ * name) collapses the previous double-search and removes the unreachable
+ * defensive guard in `replaceInObject` (the prior `keys.find()` second pass
+ * was provably always defined per the lookup invariant).
+ *
  * @param keys - Object keys.
  * @param fieldNames - WellKnown field names.
- * @returns Matched field name or false.
+ * @returns Matched body key or false.
  */
 function findLowerHit(keys: readonly string[], fieldNames: readonly string[]): string | false {
-  const lowerKeys = keys.map((k): string => k.toLowerCase());
-  const lowerFields = fieldNames.map((f): string => f.toLowerCase());
-  const hitIdx = lowerFields.findIndex((lf): boolean => lowerKeys.includes(lf));
-  if (hitIdx < 0) return false;
-  return fieldNames[hitIdx];
+  const lowerFieldSet = new Set(fieldNames.map((f): string => f.toLowerCase()));
+  return keys.find((k): boolean => lowerFieldSet.has(k.toLowerCase())) ?? false;
 }
 
 /**
@@ -59,12 +63,8 @@ function findLowerHit(keys: readonly string[], fieldNames: readonly string[]): s
  * @returns True if a field was replaced.
  */
 function replaceInObject(obj: JsonRecord, fieldNames: readonly string[], value: string): boolean {
-  const keys = Object.keys(obj);
-  const hit = findLowerHit(keys, fieldNames);
-  if (!hit) return false;
-  const lowerKeys = keys.map((k): string => k.toLowerCase());
-  const lowerHit = hit.toLowerCase();
-  const bodyKey = keys[lowerKeys.indexOf(lowerHit)];
+  const bodyKey = findLowerHit(Object.keys(obj), fieldNames);
+  if (!bodyKey) return false;
   obj[bodyKey] = value;
   return true;
 }

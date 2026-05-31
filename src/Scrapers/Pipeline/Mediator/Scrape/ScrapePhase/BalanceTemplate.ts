@@ -212,6 +212,23 @@ function findGetQueryTemplate(pool: readonly IDiscoveredEndpoint[]): IBalanceFet
 }
 
 /**
+ * Replace ONLY the final `/${tail}` segment of a URL path. Anchors at
+ * the end of the path so an earlier occurrence is never replaced.
+ * CR#281/CR-1. Caller MUST guarantee `url`'s path ends with `/${tail}`
+ * (callers in this file verify via `ids.includes(pathTail)` upstream).
+ *
+ * @param url - URL string whose path ends with `/${tail}`.
+ * @param tail - Final path segment to swap for `<ID>`.
+ * @returns URL with last `/${tail}` swapped for `/<ID>`.
+ */
+function replaceLastPathSegment(url: string, tail: string): string {
+  const qIdx = url.indexOf('?');
+  const path = qIdx < 0 ? url : url.slice(0, qIdx);
+  const needle = `/${tail}`;
+  return `${path.slice(0, -needle.length)}/<ID>${qIdx < 0 ? '' : url.slice(qIdx)}`;
+}
+
+/**
  * Inspect one endpoint and return a GET-path template when its URL
  * path ends in `/<id>` where id is one of the iter accountIds.
  *
@@ -226,7 +243,7 @@ function tryBuildGetPathTemplate(
   if (ep.method !== 'GET') return EMPTY_BALANCE_TEMPLATE;
   const pathTail = pathTailSegment(ep.url);
   if (!ids.includes(pathTail)) return EMPTY_BALANCE_TEMPLATE;
-  const templateUrl = ep.url.replace(`/${pathTail}`, '/<ID>');
+  const templateUrl = replaceLastPathSegment(ep.url, pathTail);
   return { url: templateUrl, method: 'GET', urlPathInterpolation: true };
 }
 

@@ -150,16 +150,20 @@ function applyRecordShape(
 }
 
 /**
- * Pick the composite-date key index from a body's lowercased keys.
+ * Pick the composite-date body key from a body's keys.
+ *
+ * <p>Returns the ORIGINAL body key (preserving casing) so callers may use it
+ * directly. Returning the body key (not just its lowercase form) collapses
+ * the previous double-search in `findCompositeField` and removes the
+ * unreachable `?? false` defensive guard (the second `.find()` was provably
+ * always defined per the lookup invariant).
+ *
  * @param bodyKeys - Body keys.
- * @returns Match info or false.
+ * @returns Matched body key or false.
  */
-function pickComposite(bodyKeys: readonly string[]): { lower: string } | false {
-  const lowerKeys = bodyKeys.map((k): string => k.toLowerCase());
-  const lowerComposite = MF.compositeDate.map((f): string => f.toLowerCase());
-  const hit = lowerComposite.find((lf): boolean => lowerKeys.includes(lf));
-  if (!hit) return false;
-  return { lower: hit };
+function pickComposite(bodyKeys: readonly string[]): string | false {
+  const lowerCompositeSet = new Set(MF.compositeDate.map((f): string => f.toLowerCase()));
+  return bodyKeys.find((k): boolean => lowerCompositeSet.has(k.toLowerCase())) ?? false;
 }
 
 /**
@@ -169,11 +173,7 @@ function pickComposite(bodyKeys: readonly string[]): { lower: string } | false {
  * @returns The matched composite field key, or false.
  */
 function findCompositeField(body: JsonRecord): string | false {
-  const bodyKeys = Object.keys(body);
-  const pick = pickComposite(bodyKeys);
-  if (!pick) return false;
-  const lowerKeys = bodyKeys.map((k): string => k.toLowerCase());
-  return bodyKeys[lowerKeys.indexOf(pick.lower)];
+  return pickComposite(Object.keys(body));
 }
 
 /**
@@ -247,13 +247,27 @@ function buildMonthBody(opts: IMonthBodyOpts): JsonRecord {
 }
 
 /**
- * Safe JSON parse — returns parsed object or false on failure.
+ * Type-guard a parsed JSON value as a plain record. Rejects
+ * primitives (number/string/bool/null) and arrays so `in` operator
+ * downstream never throws TypeError. CR#281/CR-2.
+ *
+ * @param v - Value returned from `JSON.parse`.
+ * @returns True when value is a plain object record.
+ */
+function isJsonRecord(v: unknown): v is JsonRecord {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Safe JSON parse — returns plain-object record or false on failure
+ * (parse error, or parsed value is not a plain object).
  * @param raw - Raw JSON string.
- * @returns Parsed object or false.
+ * @returns Parsed record or false.
  */
 function safeParse(raw: string): JsonRecord | false {
   try {
-    return JSON.parse(raw) as JsonRecord;
+    const parsed: unknown = JSON.parse(raw);
+    return isJsonRecord(parsed) ? parsed : false;
   } catch {
     return false;
   }
