@@ -10,7 +10,11 @@
     "provenance": true
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "src/**/graphql/*Queries.ts",
+    "lib/index.cjs",
+    "lib/index.mjs"
+  ],
   "main": "lib/index.cjs",
   "module": "lib/index.mjs",
   "types": "lib/index.d.ts",
