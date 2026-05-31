@@ -14,8 +14,9 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 > actually enforces those caps for every Pipeline cluster.
 
 - SOLID principles, especially OCP (maps over if/else)
-- Max **10 lines per method** (ideal — see CLEAN_CODE.md for the per-cluster
-  hard caps; PiiRedactor enforces 10 strictly)
+- **≤ 10 lines per function** (hard cap — see [CLEAN_CODE.md §1
+  "Function too long"](./CLEAN_CODE.md#1-function-too-long-max-lines-per-function)
+  for the per-cluster table + how to refactor)
 - TypeScript strict mode — no `any`, no unused vars
 - Follow existing style: Prettier (120 width, single quotes, trailing commas) + ESLint 9 flat config
 - Generic over duplication — use factories, shared helpers, config arrays
