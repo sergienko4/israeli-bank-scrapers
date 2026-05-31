@@ -126,7 +126,7 @@ function makeBus(args: IStubArgs): IApiMediator {
 const BASE_CONFIG: IApiDirectCallConfig = {
   flow: 'sms-otp',
   envelope: {},
-  probe: {},
+  probe: { queryTag: 'customer' },
   warmStart: { credsField: 'stored', carryField: 'token', fromStepIndex: 1 },
   steps: [
     {
@@ -165,7 +165,7 @@ describe('api-direct-call strategy long-term token capture', () => {
     const noWarmConfig: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       steps: [
         {
           name: 'getIdToken',

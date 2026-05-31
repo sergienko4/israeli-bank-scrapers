@@ -29,8 +29,18 @@ interface IWarmStartConfig {
 /**
  * Random 16-byte hex bootstrap — non-deterministic, fresh per process.
  * Used when the carry slot just needs a unique opaque token.
+ *
+ * <p>Phase 8.5c / Commit T2 — discriminator unification. The earlier
+ * shape was the bare string literal `'random-hex-16'`, which forced
+ * `evalBootstrap` into an if-chain (`if (bootstrap === 'random-hex-16')
+ * ... else if (bootstrap.kind === …)`) and prevented an exhaustive
+ * `switch`. Wrapping the parameterless variant in `{ kind }` brings
+ * it inline with the two parameterised siblings + lets `assertNever`
+ * lock the dispatch.</p>
  */
-type IRandomHex16Bootstrap = 'random-hex-16';
+interface IRandomHex16Bootstrap {
+  readonly kind: 'random-hex-16';
+}
 
 /**
  * Deterministic 16-hex bootstrap derived from another creds field via

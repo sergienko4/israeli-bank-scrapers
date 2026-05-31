@@ -41,7 +41,7 @@ function makeConfig(): IApiDirectCallConfig {
   return {
     flow: 'sms-otp',
     envelope: {},
-    probe: {},
+    probe: { queryTag: 'customer' },
     steps: [
       {
         name: 'getIdToken',
@@ -99,8 +99,15 @@ describe('ApiDirectCallPhase action hook', () => {
 });
 
 describe('ApiDirectCallPhase post hook', () => {
-  it('delegates to runApiDirectCallPost and fails when probe config missing', async (): Promise<void> => {
-    const config = makeConfig();
+  it('delegates to runApiDirectCallPost and fails when probe config missing discriminator', async (): Promise<void> => {
+    // Phase 8.5c / T3 — the strict XOR on `IProbeConfig` makes `{}` an
+    // unrepresentable shape. Reach the runtime safety net via a `unknown`
+    // cast so the assertion still proves the "missing discriminator"
+    // diagnostic is produced when the config is malformed.
+    const config: IApiDirectCallConfig = {
+      ...makeConfig(),
+      probe: {} as unknown as IApiDirectCallConfig['probe'],
+    };
     const phase = createApiDirectCallPhase(config);
     const ctx = makePhaseCtx('tok');
     const result = await phase.post(ctx, ctx);

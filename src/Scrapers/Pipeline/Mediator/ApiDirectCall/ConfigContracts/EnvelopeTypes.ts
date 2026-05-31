@@ -37,11 +37,24 @@ interface IJwtClaimsConfig {
 /** Authorization scheme — "raw" for verbatim JWT, "bearer" for "Bearer <jwt>". */
 type AuthScheme = 'raw' | 'bearer';
 
-/** Post-auth probe configuration — EXACTLY ONE of queryTag / urlTag. */
-interface IProbeConfig {
-  readonly queryTag?: WKQueryOperation;
-  readonly urlTag?: WKUrlGroup;
-}
+/**
+ * Post-auth probe configuration — strict XOR: EXACTLY ONE of
+ * `queryTag` (GraphQL via `bus.apiQuery`) or `urlTag` (REST via
+ * `bus.apiGet`). Using `?: never` on the opposite arm of each union
+ * variant prevents the silently-accepted both-at-once shape
+ * (`{ queryTag, urlTag }`) AND the empty-discriminator shape (`{}`).
+ *
+ * <p>Phase 8.5c / Commit T3 — closes PR #279 CR F3. The earlier
+ * shape made both fields optional on a single interface, so the
+ * runtime preference logic at `ApiDirectCallActions.runProbe`
+ * (queryTag preferred over urlTag) was a hidden contract the type
+ * system did not enforce. Tests that intentionally exercise the
+ * runtime "missing discriminator" safety net must reach the
+ * unrepresentable shape via a cast through `unknown`.</p>
+ */
+type IProbeConfig =
+  | { readonly queryTag: WKQueryOperation; readonly urlTag?: never }
+  | { readonly urlTag: WKUrlGroup; readonly queryTag?: never };
 
 /**
  * Per-step pre-hook — before the step fires, await a function on

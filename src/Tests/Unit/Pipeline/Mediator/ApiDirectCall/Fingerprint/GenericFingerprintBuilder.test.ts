@@ -16,7 +16,7 @@ const CONFIG_STUB = {
   flow: 'sms-otp',
   steps: [],
   envelope: {},
-  probe: {},
+  probe: { queryTag: 'customer' },
 } as unknown as IApiDirectCallConfig;
 
 describe('GenericFingerprintBuilder.buildCollectionResult', () => {
