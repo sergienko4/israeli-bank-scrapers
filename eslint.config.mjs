@@ -1561,7 +1561,7 @@ export default tseslint.config(
     },
   },
 
-  // 12. SCRAPE SUB-MODULE FILE-SIZE + FUNCTION-SIZE GUARD
+  // 12. SCRAPE SUB-MODULE FILE-SIZE + FUNCTION-SIZE GUARD (baseline)
   //
   // Phase 5 split the 1637-LoC ScrapeAutoMapper.ts blob into eleven
   // focused sub-modules under `Mediator/Scrape/<Bucket>/` (mirror of
@@ -1570,15 +1570,20 @@ export default tseslint.config(
   // the Scrape sub-folder, future commits could quietly re-blob one
   // of the new homes back toward four-digit line counts.
   //
-  // Same ceilings as §11 (Network cluster) — **150 effective lines
-  // per file** + **20-line cap per function** (skipBlankLines +
-  // skipComments) so every Scrape sub-module stays small enough
-  // for a single reviewer to hold in working memory.
+  // Per-function cap stays at **20** effective lines for the broad
+  // Mediator/Scrape/** surface — this matches the original Phase 5
+  // baseline and avoids forcing pre-existing files unrelated to
+  // Phase 8.5b's canonical-10 drain (AccountExtractor, BfsFieldSearch,
+  // Coercion, ContainerPicker, EndpointResolver, ForensicAuditAction,
+  // JsonTraversal, MirrorDetection, ScrapeUiTrigger, TxnMapper,
+  // TxnShape, LifoCrawl, TxnHunt) into a phase-mismatched refactor.
+  // §12B below raises the bar to **10** for the drained canonical-10
+  // sub-folders (ScrapePhase/**, ScrapeReplay/**, FrozenScrapeAction,
+  // UrlDateRange). Pre-existing files retain cap 20 here until their
+  // own dedicated drain phase.
   //
-  // Pre-existing files that already exceed the new cap
-  // (`ScrapePhaseActions.ts` 469 eff LoC, `ScrapeReplayAction.ts`
-  // 324 eff LoC) are grandfathered via §12A below, mirroring the
-  // §11A pattern.
+  // File-size cap stays at **150 effective lines** so every Scrape
+  // sub-module still fits in a single reviewer's working memory.
   //
   // The shim itself (`ScrapeAutoMapper.ts`) is intentionally left
   // unconstrained — Section 7 already allows it, and this guard is
@@ -1604,32 +1609,40 @@ export default tseslint.config(
     },
   },
 
-  // 12A. SCRAPE SUB-MODULE GRANDFATHER OVERRIDE
+  // 12B. SCRAPE CANONICAL-10 SUB-FOLDER PER-FN CAP (Phase 8.5b 2026-05-31)
   //
-  // Phase 5 carries forward four pre-existing Scrape/ files whose
-  // shape exceeds the new Section 12 caps:
-  //   • ScrapePhaseActions.ts (469 eff LoC — file-size)
-  //   • ScrapeReplayAction.ts (324 eff LoC — file-size)
-  //   • FrozenScrapeAction.ts (`runFrozenScrape` ~39 lines — function-size)
-  //   • UrlDateRange.ts (`appendMissingAliases` ~22 lines — function-size)
-  // Splitting / refactoring them is a separate Scrape/ phase — this
-  // override turns the file-size + per-function caps OFF for those
-  // four files ONLY so they pass pre-commit while still appearing
-  // in the linter inventory.
+  // Locks the canonical-10 per-function cap (max 10 eff LoC) for the
+  // four sub-trees drained during Phase 8.5b commits C1-C5:
+  //   • `ScrapePhase/**` — composer + leaf modules split from
+  //     ScrapePhaseActions.ts (C4 + C5)
+  //   • `ScrapeReplay/**` — sub-modules split from
+  //     ScrapeReplayAction.ts (C3)
+  //   • `FrozenScrapeAction.ts` — in-place drained (C2)
+  //   • `UrlDateRange.ts` — in-place drained (C1)
   //
-  // Suppression via file-level `eslint-disable` headers is NOT
-  // used because Section 15 (`no-warning-comments`) bans the
-  // `eslint-disable` term across src/**.
+  // This is a **scoped** tightening (not a global §12 drop) because
+  // the broader Mediator/Scrape/** surface contains files unrelated
+  // to Phase 8.5b's canonical-10 work; forcing those into the same
+  // tightened cap here would expand C6 scope into a phase-mismatched
+  // drain. Those pre-existing files keep §12's cap-20 baseline and
+  // are slated for their own dedicated drain phase.
+  //
+  // The §12A grandfather block (which previously exempted the four
+  // drained files at cap 20) was deleted in the same commit — all
+  // four files now meet cap 10 through the C1-C4 refactor work.
   {
     files: [
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-fn-over-cap.canary.ts',
     ],
     rules: {
-      'max-lines': 'off',
-      'max-lines-per-function': 'off',
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
     },
   },
 

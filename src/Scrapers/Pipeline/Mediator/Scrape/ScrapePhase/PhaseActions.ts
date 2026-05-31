@@ -76,6 +76,19 @@ function buildLabeledDiag(input: IPipelineContext, label: string): IPipelineCont
 }
 
 /**
+ * Wrap an already-built context in the Promise<Procedure<...>> envelope
+ * (succeed + Promise.resolve) so executors stay ≤10 LoC and avoid the
+ * nested-call ESLint trap.
+ *
+ * @param value - Pipeline context (or sub-context) to wrap.
+ * @returns Resolved success procedure.
+ */
+function asResolvedSuccess<T>(value: T): Promise<Procedure<T>> {
+  const ok = succeed(value);
+  return Promise.resolve(ok);
+}
+
+/**
  * POST: Audit diagnostics — forensic audit table for qualified/pruned cards.
  *
  * <p>v4 Issue 2 fix: distinguishes a true scrape miss (no capture
@@ -89,13 +102,25 @@ function buildLabeledDiag(input: IPipelineContext, label: string): IPipelineCont
 function executeValidateResults(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const accountCount = countScrapedAccounts(input);
   const countStr = String(accountCount);
-  if (input.scrape.has) logForensicAudit(input);
-  warnZeroAmounts(input);
+  auditPostScrape(input);
   const emptyDecision = decideEmptyGate(input, countStr, accountCount);
   if (emptyDecision !== false) return Promise.resolve(emptyDecision);
   const diag = buildLabeledDiag(input, `scrape-post (${countStr} accounts)`);
-  const result = succeed({ ...input, diagnostics: diag });
-  return Promise.resolve(result);
+  const postCtx = { ...input, diagnostics: diag };
+  return asResolvedSuccess(postCtx);
+}
+
+/**
+ * Side-effects: forensic audit table (when scrape state present)
+ * + zero-amount-txn warning.
+ *
+ * @param input - Pipeline context after scraping.
+ * @returns Always true (audit side-effect signal).
+ */
+function auditPostScrape(input: IPipelineContext): boolean {
+  if (input.scrape.has) logForensicAudit(input);
+  warnZeroAmounts(input);
+  return true;
 }
 
 /**
@@ -108,12 +133,10 @@ function executeValidateResults(input: IPipelineContext): Promise<Procedure<IPip
 function buildEmitScrape(args: IStampedScrapeArgs): IScrapeStateValue {
   const identities = buildIdentitiesForScrape(args.input);
   const template = buildTemplateForScrape(args.input);
-  const hasIdentities = identities.size > 0;
-  const hasTemplate = template.url !== '';
   return {
     ...args.scrape,
-    accountIdentities: hasIdentities ? identities : undefined,
-    balanceFetchTemplate: hasTemplate ? template : undefined,
+    accountIdentities: identities.size > 0 ? identities : undefined,
+    balanceFetchTemplate: template.url !== '' ? template : undefined,
   };
 }
 
@@ -142,15 +165,22 @@ function buildStampedScrape(args: IStampedScrapeArgs): IPipelineContext {
  * @returns Updated context with diagnostics + identities + template.
  */
 function executeStampAccounts(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  const count = countScrapedAccounts(input);
-  const diag = buildLabeledDiag(input, `scrape-final (${String(count)} accounts)`);
-  if (!input.scrape.has) {
-    const noScrapeNext = succeed({ ...input, diagnostics: diag });
-    return Promise.resolve(noScrapeNext);
-  }
+  const diag = buildFinalDiag(input);
+  if (!input.scrape.has) return asResolvedSuccess({ ...input, diagnostics: diag });
   const stamped = buildStampedScrape({ input, diag, scrape: input.scrape.value });
-  const next = succeed(stamped);
-  return Promise.resolve(next);
+  return asResolvedSuccess(stamped);
+}
+
+/**
+ * Build the final-phase diagnostics bag with the scraped-account count.
+ *
+ * @param input - Pipeline context with scrape state.
+ * @returns Diagnostics with `scrape-final (N accounts)` label.
+ */
+function buildFinalDiag(input: IPipelineContext): IPipelineContext['diagnostics'] {
+  const count = countScrapedAccounts(input);
+  const countStr = String(count);
+  return buildLabeledDiag(input, `scrape-final (${countStr} accounts)`);
 }
 
 export { executeForensicPre, executeMatrixLoop, executeStampAccounts, executeValidateResults };

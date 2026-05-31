@@ -114,29 +114,26 @@ function buildAccountFetchCtx(args: IFetchCtxArgs): IAccountFetchCtx {
   return { ...buildRefFields(args), ...buildDerivedFields(args) };
 }
 
+/** Inputs assembled by {@link buildLoadCtxInputs}, consumed by `buildLoadCtxFromPreDiscovered`. */
+interface ILoadCtxInputs {
+  readonly fc: IAccountFetchCtx;
+  readonly ids: ReturnType<typeof readPreDiscoveredAccounts>['ids'];
+  readonly records: ReturnType<typeof readPreDiscoveredAccounts>['records'];
+  readonly txnEndpoint: IDirectPreReads['txnEndpoint'];
+  readonly harvest: IDirectPreReads['harvest'];
+}
+
 /**
- * Compose the {@link IFetchAllAccountsCtx} from reads + pre-resolved accounts.
+ * Compose the {@link ILoadCtxInputs} from reads + pre-resolved accounts.
  *
  * @param args - Bundled ready handle + reads.
- * @returns Partial inputs the caller stitches via buildLoadCtxFromPreDiscovered.
+ * @returns Inputs stitched via buildLoadCtxFromPreDiscovered.
  */
-function buildLoadCtxInputs(args: IFetchCtxArgs): {
-  fc: IAccountFetchCtx;
-  ids: ReturnType<typeof readPreDiscoveredAccounts>['ids'];
-  records: ReturnType<typeof readPreDiscoveredAccounts>['records'];
-  txnEndpoint: IDirectPreReads['txnEndpoint'];
-  harvest: IDirectPreReads['harvest'];
-} {
+function buildLoadCtxInputs(args: IFetchCtxArgs): ILoadCtxInputs {
   const fc = buildAccountFetchCtx(args);
   const ad = readPreDiscoveredAccounts(args.ready.input);
   const { reads } = args;
-  return {
-    fc,
-    ids: ad.ids,
-    records: ad.records,
-    txnEndpoint: reads.txnEndpoint,
-    harvest: reads.harvest,
-  };
+  return { fc, ...ad, txnEndpoint: reads.txnEndpoint, harvest: reads.harvest };
 }
 
 /**
@@ -180,14 +177,27 @@ async function freezeNetworkSnapshot(
  */
 function buildLiveDiscoveryFields(args: IDiscBuildArgs): Partial<IScrapeDiscovery> {
   return {
-    qualifiedCards: [...args.loadCtx.ids],
-    frozenEndpoints: [...args.snapshot.frozenEndpoints],
-    accountIds: [...args.loadCtx.ids],
-    rawAccountRecords: [...args.loadCtx.records],
-    txnEndpoint: args.loadCtx.txnEndpoint,
+    ...buildCardFields(args),
     cachedAuth: args.snapshot.cachedAuth,
     storageHarvest: args.snapshot.storageHarvest,
     dashboardClickAt: args.snapshot.dashboardClickAt,
+  };
+}
+
+/**
+ * Card / endpoint / records slice for {@link buildLiveDiscoveryFields}.
+ *
+ * @param args - Bundled loadCtx + snapshot.
+ * @returns Card-side partial discovery state.
+ */
+function buildCardFields(args: IDiscBuildArgs): Partial<IScrapeDiscovery> {
+  const cards = [...args.loadCtx.ids];
+  return {
+    qualifiedCards: cards,
+    accountIds: cards,
+    rawAccountRecords: [...args.loadCtx.records],
+    frozenEndpoints: [...args.snapshot.frozenEndpoints],
+    txnEndpoint: args.loadCtx.txnEndpoint,
   };
 }
 
@@ -218,6 +228,17 @@ function logFrozenPreCounts(args: IDiscBuildArgs): boolean {
 }
 
 /**
+ * Page-side: scrape sessionStorage to a string-keyed map.
+ *
+ * @returns Storage key-value pairs (empty when no entries).
+ */
+function harvestStorage(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(sessionStorage)) out[key] = sessionStorage.getItem(key) ?? '';
+  return out;
+}
+
+/**
  * Collect sessionStorage safely (empty when no browser / on eval error).
  *
  * @param ctx - Pipeline context.
@@ -226,13 +247,7 @@ function logFrozenPreCounts(args: IDiscBuildArgs): boolean {
 async function collectStorageSafe(ctx: IPipelineContext): Promise<Record<string, string>> {
   if (!ctx.browser.has) return {};
   const page = ctx.browser.value.page;
-  return page
-    .evaluate((): Record<string, string> => {
-      const out: Record<string, string> = {};
-      for (const key of Object.keys(sessionStorage)) out[key] = sessionStorage.getItem(key) ?? '';
-      return out;
-    })
-    .catch((): Record<string, string> => ({}));
+  return page.evaluate(harvestStorage).catch((): Record<string, string> => ({}));
 }
 
 export {
