@@ -931,7 +931,7 @@ export default tseslint.config(
   // declarations are zero-LoC contributions; helpers and any
   // future runtime code in this folder must fit within 10 LoC.
   {
-    files: ['src/Scrapers/Pipeline/Types/Domain/**/*.ts'],
+    files: ['src/Scrapers/Pipeline/Types/Domain/**/*.ts', 'src/Scrapers/Pipeline/EslintCanaries/types-domain-fn-over-10.canary.ts'],
     rules: {
       'import-x/prefer-default-export': 'off',
       'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true }],
@@ -1807,6 +1807,8 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/no-pii-redactor-blob.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/pii-cluster-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/pii-facade-no-grandfather.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/lint-guideline-coverage-defaults-audit.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/pii-hardcoded-sentinel.canary.ts',
     ],
     plugins: { sonarjs },
