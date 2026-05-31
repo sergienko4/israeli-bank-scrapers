@@ -25,7 +25,7 @@ import type { DidSolve, WafChallengeKind } from './WafChallengeTypes.js';
 type DidTickWork = Brand<boolean, 'DidTickWork'>;
 type DidAttach = Brand<boolean, 'DidAttach'>;
 type DidDetach = Brand<boolean, 'DidDetach'>;
-type IsEnabled = Brand<boolean, 'IsEnabled'>;
+type IsDisabled = Brand<boolean, 'IsDisabled'>;
 type IsInCooldown = Brand<boolean, 'IsInCooldown'>;
 
 /** Per-instance state — closed over by the returned interceptor. */
@@ -65,12 +65,12 @@ export function makeState(): IInterceptorState {
 
 /**
  * Read the kill-switch env var.
- * @returns IsEnabled(true) when the WAF interceptor is disabled by env.
+ * @returns IsDisabled(true) when the WAF interceptor is disabled by env.
  */
-export function isDisabled(): IsEnabled {
+export function isDisabled(): IsDisabled {
   const raw = process.env[WAF_INTERCEPTOR_DISABLED_ENV] ?? '';
   const isOn = raw === '1' || raw.toLowerCase() === 'true';
-  return isOn as IsEnabled;
+  return isOn as IsDisabled;
 }
 
 /**

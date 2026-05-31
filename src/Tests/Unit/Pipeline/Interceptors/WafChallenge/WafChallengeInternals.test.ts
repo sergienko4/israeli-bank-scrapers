@@ -11,7 +11,6 @@
  *   - detachPoller() clears the timer and removes the entry from state
  */
 
-import pino from 'pino';
 import type { Page } from 'playwright-core';
 
 import { WAF_INTERCEPTOR_DISABLED_ENV } from '../../../../../Scrapers/Pipeline/Interceptors/WafChallenge/WafChallengeConfig.js';
@@ -29,68 +28,11 @@ import {
   tickOnce,
   wirePageClose,
 } from '../../../../../Scrapers/Pipeline/Interceptors/WafChallenge/WafChallengeInternals.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IBrowserState } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
-
-/**
- * Make a silent logger compatible with ScraperLogger.
- * @returns Pino logger with output disabled.
- */
-function makeLogger(): ScraperLogger {
-  return pino({ enabled: false });
-}
-
-/**
- * Make a Page stub with a configurable frames() implementation.
- * @param frames - Frames to return from page.frames(); empty by default.
- * @returns Page-shaped mock.
- */
-interface IPageStub {
-  /**
-   * Mock frames() — returns the configured list.
-   * @returns The configured frame list.
-   */
-  readonly frames: () => readonly object[];
-  /**
-   * Mock on() — registers no-op listener and returns the stub for chaining.
-   * @returns Self for chaining.
-   */
-  readonly on: () => IPageStub;
-}
-
-/**
- * Make a Page stub with a configurable frames() implementation.
- * @param frames - Frames to return from page.frames(); empty by default.
- * @returns Page-shaped mock.
- */
-function makePageStub(frames: readonly object[] = []): Page {
-  const stub: IPageStub = {
-    /**
-     * Mock frames() — returns the configured list.
-     * @returns The configured frame list.
-     */
-    frames: (): readonly object[] => frames,
-    /**
-     * Mock on() — registers no-op listener and returns the stub for chaining.
-     * @returns Self for chaining.
-     */
-    on: (): IPageStub => stub,
-  };
-  return stub as unknown as Page;
-}
-
-/**
- * Reset env var to a known absent state.
- * Uses assignment instead of delete to avoid no-dynamic-delete.
- * @returns true sentinel.
- */
-function clearDisableEnv(): true {
-  process.env[WAF_INTERCEPTOR_DISABLED_ENV] = '';
-  return true;
-}
+import { clearDisableEnv, makeLogger, makePageStub } from './WafChallengeTestHelpers.js';
 
 describe('WafChallengeInternals.makeState', () => {
   it('returns empty Weak collections', () => {

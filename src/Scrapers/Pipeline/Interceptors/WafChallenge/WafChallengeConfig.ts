@@ -32,12 +32,12 @@ const WAF_SOLVE_COOLDOWN_MS = 8000;
  * hidden until challenge required). We must only click the checkbox —
  * clicking the centre of the puzzle modal would not solve it. The
  * `#frame=checkbox` fragment is canonical in hCaptcha's hosted widget. */
-const HCAPTCHA_IFRAME_URL_PATTERNS: readonly string[] = ['hcaptcha.html#frame=checkbox'];
+const HCAPTCHA_IFRAME_URL_PATTERNS = ['hcaptcha.html#frame=checkbox'] as const;
 
 /** Cloudflare Turnstile challenge frame URL substrings. */
-const TURNSTILE_IFRAME_URL_PATTERNS: readonly string[] = [
+const TURNSTILE_IFRAME_URL_PATTERNS = [
   'challenges.cloudflare.com/cdn-cgi/challenge-platform',
-];
+] as const;
 
 /** Env var — set to '1' / 'true' to disable the interceptor (bisect / debug). */
 const WAF_INTERCEPTOR_DISABLED_ENV = 'WAF_INTERCEPTOR_DISABLED';

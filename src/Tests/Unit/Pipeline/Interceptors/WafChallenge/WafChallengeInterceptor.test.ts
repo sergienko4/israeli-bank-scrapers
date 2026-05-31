@@ -18,15 +18,7 @@ import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/Pi
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
-
-/**
- * Reset disable env var without using delete (no-dynamic-delete).
- * @returns true sentinel.
- */
-function clearDisableEnv(): true {
-  process.env[WAF_INTERCEPTOR_DISABLED_ENV] = '';
-  return true;
-}
+import { clearDisableEnv } from './WafChallengeTestHelpers.js';
 
 describe('WafChallengeInterceptor.factory', () => {
   it('default and named exports are the same function', () => {

@@ -90,6 +90,23 @@ async function clickCentre(page: Page, box: IFrameBox): Promise<true> {
 }
 
 /**
+ * Click the iframe centre defensively — swallows page.mouse.click rejections
+ * (detached page, navigation during click, etc.) into DidSolve(false) so the
+ * solver contract ("false on any step failure") is honoured.
+ * @param page - Playwright page.
+ * @param box - Iframe bounding box.
+ * @returns DidSolve(true) when the click resolves, DidSolve(false) on throw.
+ */
+async function clickCentreSafe(page: Page, box: IFrameBox): Promise<DidSolve> {
+  try {
+    await clickCentre(page, box);
+    return DID_SOLVE_TRUE;
+  } catch {
+    return DID_SOLVE_FALSE;
+  }
+}
+
+/**
  * Resolve the iframe bounding box defensively — wrapper over getBoundingBox
  * kept for symmetry with getFrameElement.
  * @param handle - Frame element handle.
@@ -111,12 +128,12 @@ async function solveHCaptchaCheckbox(args: ISolverArgs): Promise<DidSolve> {
   if (handle === false) return DID_SOLVE_FALSE;
   const box = await readBox(handle);
   if (box === false) return DID_SOLVE_FALSE;
-  await clickCentre(args.page, box);
-  return DID_SOLVE_TRUE;
+  return clickCentreSafe(args.page, box);
 }
 
 export {
   clickCentre,
+  clickCentreSafe,
   getBoundingBox,
   getFrameElement,
   readBox,
