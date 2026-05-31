@@ -1,3 +1,4 @@
+import type { LaunchOptions as CamoufoxLaunchOptions } from '@hieutran094/camoufox-js';
 import type { Browser } from 'playwright-core';
 
 import {
@@ -72,7 +73,7 @@ const PINNED_SCREEN_CONSTRAINT = Object.freeze({
  * @param headless - Whether to launch in headless mode.
  * @returns Options object passed to `Camoufox()`.
  */
-function buildLaunchOptions(headless: boolean): Record<string, unknown> {
+function buildLaunchOptions(headless: boolean): CamoufoxLaunchOptions {
   return {
     headless,
     locale: ISRAEL_LOCALE,
@@ -109,7 +110,7 @@ function buildLaunchOptions(headless: boolean): Record<string, unknown> {
  */
 export async function launchCamoufox(headless: boolean): Promise<Browser> {
   const camoufoxModule = await import('@hieutran094/camoufox-js');
-  const options = buildLaunchOptions(headless) as Parameters<typeof camoufoxModule.Camoufox>[0];
+  const options = buildLaunchOptions(headless);
   return camoufoxModule.Camoufox(options);
 }
 
