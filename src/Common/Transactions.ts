@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { sortBy } from 'lodash';
 import moment, { type Moment } from 'moment';
 
 import { type ITransaction, TransactionTypes } from '../Transactions.js';
@@ -67,7 +67,7 @@ export function fixInstallments(txns: ITransaction[]): ITransaction[] {
  * @returns A new array of transactions sorted by date.
  */
 export function sortTransactionsByDate(txns: ITransaction[]): ITransaction[] {
-  return _.sortBy(txns, ['date']);
+  return sortBy(txns, ['date']);
 }
 
 /**
