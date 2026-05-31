@@ -13,6 +13,7 @@ import type {
   IApiFetchContext,
   IDashboardState,
   IScrapeDiscovery,
+  ITxnEndpoint,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { API_STRATEGY } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -219,6 +220,39 @@ describe('executeForensicPre DIRECT path edge cases', () => {
         expect(result.value.scrapeDiscovery.value.accountIds).toContain('A-real-1234');
       }
     }
+  });
+
+  it('fails fast when txnEndpoint captured but accountDiscovery is empty', async () => {
+    // Defense-in-depth: when DASHBOARD.FINAL captured a txn endpoint
+    // but ACCOUNT-RESOLVE.POST committed zero account ids, scraping
+    // would either inject the `default` sentinel or repeat-fire the
+    // endpoint with `cardIndex: 0`. The guard in checkLoadCtxValid
+    // refuses to scrape, surfacing the upstream contract violation.
+    const page = makeScreenshotPage();
+    const baseWithBrowser = makeContextWithBrowser(page);
+    const apiCtx = makeApi();
+    const txnEndpoint: ITxnEndpoint = {
+      url: 'https://bank.example.com/txns',
+      method: 'POST',
+      templatePostData: false,
+      fieldMap: {} as ITxnEndpoint['fieldMap'],
+      pendingUrl: false,
+      billingUrl: false,
+    };
+    const ctx = {
+      ...baseWithBrowser,
+      api: some(apiCtx),
+      accountDiscovery: some({
+        ids: [],
+        records: [],
+        containers: {},
+        endpointCaptureIndex: 0,
+      }),
+      txnEndpoint: some(txnEndpoint),
+    };
+    const result = await executeForensicPre(ctx);
+    const wasFastFailed = !isOk(result);
+    expect(wasFastFailed).toBe(true);
   });
 });
 
