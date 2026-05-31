@@ -25,7 +25,7 @@ function makeConfig(overrides: Partial<IApiDirectCallConfig>): IApiDirectCallCon
 describe('buildInitialCarry — seed validation branches', () => {
   it('runs the bootstrap when the creds field is present but empty', () => {
     const config = makeConfig({
-      seedCarryFromCreds: [{ field: 'deviceId16Hex', bootstrap: 'random-hex-16' }],
+      seedCarryFromCreds: [{ field: 'deviceId16Hex', bootstrap: { kind: 'random-hex-16' } }],
     });
     // creds.deviceId16Hex === '' triggers the empty-string fallthrough into
     // the bootstrap path (mirror branch returns coerced=ok but value==='').
@@ -59,7 +59,7 @@ describe('buildInitialCarry — seed validation branches', () => {
   it('mirrors a null creds value through coerceCredsValue when a bootstrap is configured', () => {
     // null coerces to succeed(null) but null !== '' → mirror branch wins.
     const config = makeConfig({
-      seedCarryFromCreds: [{ field: 'nullable', bootstrap: 'random-hex-16' }],
+      seedCarryFromCreds: [{ field: 'nullable', bootstrap: { kind: 'random-hex-16' } }],
     });
     const result = buildInitialCarry(config, { nullable: null }, {});
     expect(result.success).toBe(true);

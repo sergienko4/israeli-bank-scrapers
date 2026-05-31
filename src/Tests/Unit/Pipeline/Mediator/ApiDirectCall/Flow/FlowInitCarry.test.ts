@@ -30,7 +30,7 @@ describe('FlowInitCarry.buildInitialCarry', () => {
 
   it('runs the random-hex-16 bootstrap when creds value is absent', () => {
     const config = makeConfig({
-      seedCarryFromCreds: [{ field: 'deviceId16Hex', bootstrap: 'random-hex-16' }],
+      seedCarryFromCreds: [{ field: 'deviceId16Hex', bootstrap: { kind: 'random-hex-16' } }],
     });
     const result = buildInitialCarry(config, {}, {});
     expect(result.success).toBe(true);

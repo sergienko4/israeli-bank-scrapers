@@ -10,6 +10,8 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IAuthFlowInfo } from '../../../Base/Interface.js';
+import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
+import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { LoginKind } from '../../Types/LoginKind.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -334,12 +336,22 @@ type ProbeResponse = Record<string, unknown>;
 
 /**
  * Fire the configured probe — queryTag preferred over urlTag.
+ *
+ * <p>Phase 8.5c / Commit T3 — the new `IProbeConfig` XOR makes both
+ * `queryTag` and `urlTag` mutually exclusive at the type level.
+ * The runtime defends a 3rd path (BOTH undefined) for malformed
+ * configs that bypass the XOR via cast-through-unknown (covered by
+ * the `probe config missing discriminator` tests). Reading via the
+ * weaker view defeats TS's "unnecessary-condition" narrowing so the
+ * runtime safety net remains live.</p>
+ *
  * @param probe - Probe block from the API-direct-call config.
  * @param bus - ApiMediator instance.
  * @returns Probe procedure.
  */
 async function runProbe(probe: IProbeConfig, bus: IApiMediator): Promise<Procedure<ProbeResponse>> {
-  const { queryTag, urlTag } = probe;
+  const view: { queryTag?: WKQueryOperation; urlTag?: WKUrlGroup } = probe;
+  const { queryTag, urlTag } = view;
   if (queryTag !== undefined) {
     return safeInvoke('POST probe query', () => bus.apiQuery<ProbeResponse>(queryTag, {}));
   }

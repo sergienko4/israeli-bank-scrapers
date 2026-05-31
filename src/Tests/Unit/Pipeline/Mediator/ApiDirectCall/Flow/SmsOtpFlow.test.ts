@@ -33,7 +33,7 @@ function makeConfig(): IApiDirectCallConfig {
   return {
     flow: 'sms-otp',
     envelope: {},
-    probe: {},
+    probe: { queryTag: 'customer' },
     fingerprint: {
       shape: {
         metadata: { timestamp: { $ref: 'now' } },
@@ -158,7 +158,7 @@ describe('api-direct-call SmsOtpFlow no signer + no fingerprint', () => {
     const config: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       steps: [
         {
           name: 'getIdToken',

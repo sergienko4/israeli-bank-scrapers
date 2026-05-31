@@ -9,6 +9,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
+import { assertNever } from '../../../../../AssertNever.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
@@ -170,8 +171,15 @@ function bootstrapJwtClaim(args: IJwtClaimArgs): Procedure<string> {
  * Dispatch a bootstrap kind to its generator. Extracted so the
  * outer {@link evalSeedSource} stays inside the per-function depth
  * budget when a new kind is added.
- * @param bootstrap - Bootstrap kind (string for parameterless,
- *   object for parameterised generators).
+ *
+ * <p>Phase 8.5c / Commit T2 — `SeedCarryBootstrapKind` is now a
+ * uniform `{ kind, … }` union (PR #279 CR F2 closure), so the
+ * dispatch is a literal `switch (bootstrap.kind)` with
+ * `assertNever` exhaustiveness. Adding a new bootstrap kind to
+ * the union causes a TypeScript error on the `assertNever` call
+ * here, forcing the author to add a matching case.</p>
+ *
+ * @param bootstrap - Discriminated bootstrap descriptor.
  * @param creds - Caller credentials (consulted by parameterised kinds).
  * @returns Procedure with the bootstrap-produced value.
  */
@@ -179,15 +187,21 @@ function evalBootstrap(
   bootstrap: SeedCarryBootstrapKind,
   creds: Readonly<Record<string, unknown>>,
 ): Procedure<string> {
-  if (bootstrap === 'random-hex-16') return bootstrapRandomHex16();
-  if (bootstrap.kind === 'sha256-prefix-16') return bootstrapSha256Prefix16(bootstrap.from, creds);
-  const isOptional = bootstrap.optional === true;
-  return bootstrapJwtClaim({
-    from: bootstrap.from,
-    claim: bootstrap.claim,
-    optional: isOptional,
-    creds,
-  });
+  switch (bootstrap.kind) {
+    case 'random-hex-16':
+      return bootstrapRandomHex16();
+    case 'sha256-prefix-16':
+      return bootstrapSha256Prefix16(bootstrap.from, creds);
+    case 'jwt-claim':
+      return bootstrapJwtClaim({
+        from: bootstrap.from,
+        claim: bootstrap.claim,
+        optional: bootstrap.optional === true,
+        creds,
+      });
+    default:
+      return assertNever(bootstrap);
+  }
 }
 
 /**

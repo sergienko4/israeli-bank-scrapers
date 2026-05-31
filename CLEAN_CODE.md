@@ -20,7 +20,7 @@ PR #278 can never recur.
 | Cap | Value | Rule | Scope |
 |---|---|---|---|
 | File size | **150** effective LoC | `max-lines` | All `src/Scrapers/Pipeline/**` |
-| Per-function LoC | **10** ideal / **20** hard | `max-lines-per-function` | Per cluster (see below) |
+| Per-function LoC | **≤ 10** (hard cap) | `max-lines-per-function` | Per cluster (see below) |
 | Cyclomatic complexity | **10** | `complexity` | All `src/Scrapers/Pipeline/**` |
 | Parameter count | **3** (use options object beyond) | `@typescript-eslint/max-params` | All `src/Scrapers/Pipeline/**` |
 | Nesting depth | **1** | `max-depth` | All `src/Scrapers/Pipeline/**` |
@@ -30,18 +30,32 @@ PR #278 can never recur.
 
 | Cluster | Cap | Rationale |
 |---|---|---|
-| PiiRedactor (§13) | **10** | Matches CLAUDE.md ideal; each redactor is a tight strategy. |
-| Network (§11) | **10** | Phase 8.5a drained the three grandfathered files and tightened the cap to match §13 / CLAUDE.md ideal. |
-| Scrape (§12) | 20 | Phase 8.5a drained Network; Scrape sub-modules retain the 20-LoC ceiling until Phase 8.5b drains the grandfathered Scrape files, at which point the cap will tighten to 10 to match Network / PiiRedactor / CLAUDE.md ideal. |
-| Default §6C base | 15 | All other Pipeline files; can be overridden stricter. |
+| PiiRedactor (§13) | **10** | Phase 8.5c drained the §13A `Facade.ts` grandfather (Routing + Dispatch + Composer split); the cluster now matches the canonical ≤10-LoC cap end-to-end. |
+| Network (§11) | **10** | Phase 8.5a drained the three grandfathered files and tightened the cap to match the canonical ≤10-LoC cap. |
+| Scrape (§12) | **10** | Phase 8.5b drained the Scrape grandfathers; the cluster matches the canonical ≤10-LoC cap. |
+| ConfigContracts (§14) | **10** | Phase 8 split the IApiDirectCallConfig god-tree; sub-modules adopt the canonical ≤10-LoC cap. |
+| Default §6C base | **15** | All other Pipeline files; can be overridden stricter (the canonical target is 10 for every cluster — broader Types/** + Base/** per-fn:10 rollout is tracked as a follow-up). |
+
+> **Footnote — historical "ideal vs hard" terminology.** Earlier
+> phases of this codebase used "10 ideal / 20 hard" language. That
+> dual-tier was a transitional accommodation while clusters were
+> being drained one at a time. With Phase 8.5a/b/c complete, every
+> drained cluster enforces ≤10 LoC per function as a hard cap. Any
+> remaining `max-lines-per-function` value above 10 in
+> `eslint.config.mjs` corresponds to a not-yet-drained cluster
+> tracked for a future phase, NOT a license to write longer
+> functions in already-drained code.
 
 ---
 
 ## 1. Function too long (`max-lines-per-function`)
 
-**Rule:** Ideal = 10 lines (CLAUDE.md). Hard ceiling per cluster
-varies (see table above). Cluster-specific blocks in `eslint.config.mjs`
-can tighten the cap but never weaken it.
+**Rule:** ≤ 10 LoC per function as a hard cap (CLAUDE.md +
+`coding-principle-guidlines.md` "Max 10 lines per method"). Cluster-
+specific blocks in `eslint.config.mjs` can tighten the cap further
+(some canaries pin to 5–8) but never weaken it. The legacy "10
+ideal / 20 hard" terminology is retired — see the footnote above
+the table.
 
 **The Fix — Extract Method:**
 Break the function into smaller helpers, each with a descriptive name.

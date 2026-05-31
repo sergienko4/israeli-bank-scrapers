@@ -924,10 +924,17 @@ export default tseslint.config(
   // default export is a runtime concept); the rule fires unhelpfully
   // there. Scoping to `Types/Domain/**` keeps the protection where
   // it adds value and removes the over-broad disable.
+  //
+  // Phase 8.5c / Commit C2 — add the global ≤10-LoC function cap
+  // (`max-lines-per-function: 10`) so type-only domain files are
+  // measured by the same yardstick as production modules. Type
+  // declarations are zero-LoC contributions; helpers and any
+  // future runtime code in this folder must fit within 10 LoC.
   {
-    files: ['src/Scrapers/Pipeline/Types/Domain/**/*.ts'],
+    files: ['src/Scrapers/Pipeline/Types/Domain/**/*.ts', 'src/Scrapers/Pipeline/EslintCanaries/types-domain-fn-over-10.canary.ts'],
     rules: {
       'import-x/prefer-default-export': 'off',
+      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true }],
     },
   },
 
@@ -1408,10 +1415,41 @@ export default tseslint.config(
   //      by this extension (the 11 PR #274 sites are converted to direct
   //      `export type ... from` in the same commit).
   {
-    files: ['src/Scrapers/Base/**/*.ts', 'src/Scrapers/Pipeline/Types/**/*.ts'],
+    files: [
+      'src/Scrapers/Base/**/*.ts',
+      'src/Scrapers/Pipeline/Types/**/*.ts',
+      // Phase 8.5c / Commit T1 — extend scope to the re-export-shorthand
+      // canary so it can trip its target rule. Without this single-file
+      // entry the canary lives outside §12e's scope and silently passes
+      // (errorCount=0 with --no-ignore). T1's rewritten verify.sh now
+      // rejects any canary that produces zero real rule-IDs, so the
+      // canary must be made functional alongside the harness fix.
+      'src/Scrapers/Pipeline/EslintCanaries/re-export-shorthand.canary.ts',
+    ],
     plugins: { unicorn },
     rules: {
       'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: false }],
+    },
+  },
+
+  // 12f. PII REDACTOR CLUSTER — PER-FUNCTION ≤10-LoC CAP
+  //
+  // Phase 8.5c / Commit C2 — lock in the §13A `PiiRedactor/Facade.ts`
+  // grandfather drain (split into Routing + Dispatch + Composer in
+  // C1) by enforcing the global ≤10-LoC function cap across the whole
+  // PiiRedactor cluster. The split modules already comply; this rule
+  // prevents any future contributor from re-introducing the long
+  // helper functions that §13A was created to tolerate.
+  //
+  // Broader `Pipeline/Types/**` + `Scrapers/Base/**` per-function-cap
+  // rollout is deferred to a follow-up phase — those folders contain
+  // 60+ pre-existing long functions (BasePhase, FixtureCapture,
+  // Debug, RunLabel, …) that legitimately need surgical extraction
+  // work beyond Phase 8.5c's scope (see status.txt deferral entry).
+  {
+    files: ['src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts'],
+    rules: {
+      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true }],
     },
   },
 
@@ -1769,6 +1807,8 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/no-pii-redactor-blob.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/pii-cluster-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/pii-facade-no-grandfather.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/lint-guideline-coverage-defaults-audit.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/pii-hardcoded-sentinel.canary.ts',
     ],
     plugins: { sonarjs },
@@ -1809,28 +1849,6 @@ export default tseslint.config(
             'CR cycle-2 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
         },
       ],
-    },
-  },
-
-  // 13A. PII CLUSTER GRANDFATHER OVERRIDE
-  //
-  // Pre-existing files exceeding the new §13 caps. Splitting them
-  // is tracked as a follow-up phase — this override turns the cap
-  // OFF for those files ONLY so they pass pre-commit while still
-  // appearing in the linter inventory.
-  //
-  //   • Facade.ts (~162 eff LoC) — hosts the path-tail routing
-  //     table + STRING_STRATEGIES dispatch + the CensorFn factory.
-  //     A clean Routing.ts / Dispatch.ts extraction is a separate
-  //     phase; until then `max-lines` is off here.
-  //
-  // Suppression via file-level `eslint-disable` headers is NOT
-  // used because Section 15 (`no-warning-comments`) bans the
-  // `eslint-disable` term across src/**.
-  {
-    files: ['src/Scrapers/Pipeline/Types/PiiRedactor/Facade.ts'],
-    rules: {
-      'max-lines': 'off',
     },
   },
 

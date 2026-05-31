@@ -35,7 +35,7 @@ const PLAIN_CONFIG: IApiDirectCallConfig = {
   flow: 'sms-otp',
   steps: [],
   envelope: {},
-  probe: {},
+  probe: { queryTag: 'customer' },
   staticHeaders: { 'X-Static': 'ok' },
 };
 

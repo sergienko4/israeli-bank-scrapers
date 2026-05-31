@@ -31,7 +31,7 @@ function makeHookedConfig(): IApiDirectCallConfig {
   return {
     flow: 'sms-otp',
     envelope: {},
-    probe: {},
+    probe: { queryTag: 'customer' },
     steps: [
       {
         name: 'assertOtp',
@@ -139,7 +139,7 @@ describe('SmsOtpFlow warm-start', () => {
     const cfg: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       warmStart: { credsField: 'stored', carryField: 'token', fromStepIndex: 1 },
       steps: [
         {
@@ -178,7 +178,7 @@ describe('SmsOtpFlow warm-start', () => {
     const cfg: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       steps: [
         {
           name: 'getIdToken',
@@ -209,7 +209,7 @@ describe('SmsOtpFlow longTermToken edge cases', () => {
     const cfg: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       warmStart: { credsField: 'stored', carryField: 'numericField', fromStepIndex: 1 },
       steps: [
         {
@@ -235,7 +235,7 @@ describe('SmsOtpFlow fingerprint failure propagation', () => {
     const cfg: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       fingerprint: {
         shape: { missing: { $ref: 'carry.absent' } },
       },
@@ -261,7 +261,7 @@ describe('SmsOtpFlow fingerprint failure propagation', () => {
     const cfg: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       steps: [
         {
           name: 'getIdToken',

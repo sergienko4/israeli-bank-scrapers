@@ -2,18 +2,52 @@
 Pull Request — Israeli Bank Scrapers (Pipeline architecture)
 
 Keep the PR small and focused. One PR == one logical change
-(see C:/tmp/guidelines/pr-guidlines.md). Target 200–400 lines of
-changed code; split larger work before review.
+(see pr-guidlines.md §1). Target 200–400 lines of changed code;
+split larger work before review.
 
-Commit messages follow the 50/72 rule
-(C:/tmp/guidelines/commit-guidlines.md).
+Commit messages follow the 50/72 rule (commit-guidlines.md).
+
+MANDATORY sections (enforced by `.github/workflows/pr-body-check.yml`):
+  - `## Guideline compliance`  — required by pr-guidlines.md §10
+  - `## Why`                   — required by pr-guidlines.md §7
+  - `## What`                  — required by pr-guidlines.md §7
+Removing or renaming any of the three headers will FAIL the
+`PR Body Compliance` check and block merge.
 -->
 
-## Summary
+## Guideline compliance
 
 <!--
-1–3 bullets. WHAT changes + WHY. Link issues / prior PRs if relevant.
+REQUIRED (pr-guidlines.md §10). A 15-row (or 18-row for Phase 8.5*
+sub-phases) self-declaration table. Row sources MUST include
+where applicable: CLEAN_CODE.md (function/file/complexity/params caps),
+CLAUDE.md (ZERO CSS selectors), agent-contract.md §A3.5 (exit-gate
+GREEN + timestamp), agent-contract.md §Test safety net (bodies
+unchanged), spec.txt (commit-message contract), before-commit-guidlines.md
+(6-step + husky 20 gates), commit-guidlines.md (Conventional
+Commits + Co-authored-by trailer), Public API byte-identical at
+lib/index.cjs, Coverage 97/95/97/98 preserved, `lint:canaries` count
+matches status.txt declared, `madge --circular` returns zero new cycles.
+
+Each row format: | <#> | <Guideline (source)> | ✅ <verification method> |
+
+Use ✅ only if you can produce the verification command output.
+Use ❌ + explain otherwise — ❌ row = merge blocker, fix + re-run A3.5.
 -->
+
+| # | Guideline (source) | Status | Verification |
+|---|---|---|---|
+|  1 |  |  |  |
+|  2 |  |  |  |
+|  3 |  |  |  |
+
+## Why
+
+<!-- Short paragraph (1–3 sentences). Explain WHY this change exists. Link issues / prior PRs if relevant. -->
+
+## What
+
+<!-- Short paragraph or bullet list. Describe WHAT changed (scope, files touched, commits if multi-commit). -->
 
 -
 -
