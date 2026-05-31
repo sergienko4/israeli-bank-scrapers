@@ -6,6 +6,7 @@
 import type { ScraperOptions } from '../../../Base/Interface.js';
 import { createNetworkTraceLifecycleInterceptor } from '../../Interceptors/NetworkTraceLifecycleInterceptor.js';
 import { createPopupInterceptor } from '../../Interceptors/PopupInterceptor.js';
+import { createWafChallengeInterceptor } from '../../Interceptors/WafChallenge/WafChallengeInterceptor.js';
 import type { IPipelineInterceptor } from '../../Types/Interceptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
@@ -43,6 +44,15 @@ function resolveTraceBoundaryPhase(state: IBuilderState): string {
 }
 
 /**
+ * Build the browser-bank interceptor list. Extracted so buildInterceptors
+ * stays under the per-fn line budget.
+ * @returns Initial interceptor list before optional trace-gate.
+ */
+function buildBrowserBaseInterceptors(): IPipelineInterceptor[] {
+  return [createWafChallengeInterceptor(), createPopupInterceptor()];
+}
+
+/**
  * Build interceptors for the descriptor. Browser banks always get the
  * network-trace lifecycle interceptor wired against the boundary
  * phase resolved from `state` so the discovery pool only contains
@@ -58,7 +68,7 @@ function buildInterceptors(
   boundary: string,
 ): readonly IPipelineInterceptor[] {
   if (!state.hasBrowser) return [];
-  const list: IPipelineInterceptor[] = [createPopupInterceptor()];
+  const list: IPipelineInterceptor[] = buildBrowserBaseInterceptors();
   if (boundary !== '') {
     const traceGate = createNetworkTraceLifecycleInterceptor(phaseNames, boundary);
     list.push(traceGate);

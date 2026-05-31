@@ -913,6 +913,9 @@ describe('TIMING mission — R-NO-FIXED-WAIT-15S: no new 15s fixed-wait constant
  *   <li>`Interceptors/SnapshotFrameCapture.ts` /
  *       `Interceptors/SnapshotInterceptorIO.ts` — snapshot-capture
  *       infrastructure outside the phase pipeline.</li>
+ *   <li>`Interceptors/WafChallenge/HCaptchaCheckboxSolver.ts` — Camoufox
+ *       auto-pass recipe waits on networkidle inside its own iframe-bound
+ *       solver, not in any phase action.</li>
  * </ul>
  */
 const DIRECT_LOAD_STATE_ALLOWLIST: readonly string[] = [
@@ -920,6 +923,7 @@ const DIRECT_LOAD_STATE_ALLOWLIST: readonly string[] = [
   path.join('Mediator', 'Elements', 'CreateElementMediator.ts'),
   path.join('Interceptors', 'SnapshotFrameCapture.ts'),
   path.join('Interceptors', 'SnapshotInterceptorIO.ts'),
+  path.join('Interceptors', 'WafChallenge', 'HCaptchaCheckboxSolver.ts'),
 ];
 
 /** Match `<expr>.waitForLoadState(` invocations in source code. */
