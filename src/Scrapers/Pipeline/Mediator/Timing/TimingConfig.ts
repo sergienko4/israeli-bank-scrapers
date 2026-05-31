@@ -136,8 +136,22 @@ export const ELEMENTS_DOM_READY_TIMEOUT_MS = 10_000;
  * underlying `Promise.all([load, networkidle])` so the bump is
  * cross-bank safe. {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} carries
  * the matching probe ceiling. Pinned by HOME-PRELUDE-BUDGET-001.
+ *
+ * <p>Bumped 15_000 → 25_000 on 2026-05-31 (PR #281 C10) after the
+ * I-3 race resurfaced 5/5 attempts on the canonical-10 baseline
+ * SHA `6c2f65be`. Local docker repro on the CI-mirror image
+ * (`docker/Dockerfile.ci-mirror`, residential Israel IP) measured
+ * Hapoalim HOME.PRE wall at **31_532 ms** — within the old 35 s
+ * joint budget but with zero headroom. GitHub-hosted Azure runners
+ * consistently report ~10-20 % higher latency than residential
+ * IPs (PR #234 footnote) and the bank-side Incapsula scoring on
+ * runner IPs adds further variance, so the joint budget must
+ * absorb the local measurement plus 20-30 s of CI overhead.
+ * 25 s prelude + 30 s probe = 55 s per attempt remains far below
+ * the test-level Jest timeout (300 s for E2E Real). Pinned by
+ * HOME-PRELUDE-BUDGET-001 (floor bumped to 25_000 in same commit).
  */
-export const HOME_PRELUDE_TIMEOUT_MS = 15_000;
+export const HOME_PRELUDE_TIMEOUT_MS = 25_000;
 
 /** HOME settle ceiling after click — TIMING mission cut from 15000. */
 export const HOME_SETTLE_TIMEOUT_MS = 8000;
@@ -172,8 +186,16 @@ export const HOME_ENTRY_TIMEOUT_MS = 5000;
  * after first byte, comfortably above the ~25-30 s wall observed
  * for Hapoalim on the slowest CI runners. Pinned by
  * HOME-PRELUDE-BUDGET-001/002 (Tests/Unit/.../TimingHomePreludeBudget).
+ *
+ * <p>Bumped 20_000 → 30_000 on 2026-05-31 (PR #281 C10) in lockstep
+ * with {@link HOME_PRELUDE_TIMEOUT_MS}. Local docker repro of
+ * Hapoalim (CI-mirror image, residential IP) measured HOME.PRE wall
+ * at 31_532 ms — the previous 35 s joint budget was breached by
+ * Azure runner anti-bot latency. New joint budget = 25 s prelude
+ * + 30 s probe = 55 s per attempt, headroom for the documented
+ * "~30 s observed on slowest CI runners" plus CI variance.
  */
-export const HOME_RESOLVER_ENTRY_TIMEOUT_MS = 20_000;
+export const HOME_RESOLVER_ENTRY_TIMEOUT_MS = 30_000;
 
 /** HOME SPA URL change wait after click (Angular routing delay). */
 export const HOME_SPA_NAV_TIMEOUT_MS = 10000;
