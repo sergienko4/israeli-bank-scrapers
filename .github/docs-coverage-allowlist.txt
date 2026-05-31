@@ -315,3 +315,7 @@ logShapeAwarePick
 ShapeAwareTier
 # Reason: NETWORK_FETCH_TIMEOUT_MS — Network/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
 NETWORK_FETCH_TIMEOUT_MS
+
+# --- Phase 8.5b / commit 3 (ScrapeReplay split) ---
+# Reason: JsonRecord — ScrapeReplay/JsonTypes.ts canonical Record<string, JsonNode> alias used across every ScrapeReplay/* sub-module + Strategy/Scrape/ScrapeDataActions+ScrapeChunking+Account/AccountScrapeStrategy consumers; previously exported via "export type { JsonRecord }" from ScrapeReplayAction.ts (docs-coverage regex only matches direct "export type" declarations so the symbol is now flagged, but its public-surface status is unchanged).
+JsonRecord
