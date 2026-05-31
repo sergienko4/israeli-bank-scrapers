@@ -26,7 +26,7 @@ const SIGNER_CONFIG: IApiDirectCallConfig = {
   flow: 'sms-otp',
   steps: [],
   envelope: {},
-  probe: {},
+  probe: { queryTag: 'customer' },
   staticHeaders: { 'X-Static': 'yes' },
   signer: {
     algorithm: 'ECDSA-P256',
@@ -49,7 +49,7 @@ const PLAIN_CONFIG: IApiDirectCallConfig = {
   flow: 'sms-otp',
   steps: [],
   envelope: {},
-  probe: {},
+  probe: { queryTag: 'customer' },
 };
 
 /** Arbitrary WK tag we'll register for this test suite's fake bank. */

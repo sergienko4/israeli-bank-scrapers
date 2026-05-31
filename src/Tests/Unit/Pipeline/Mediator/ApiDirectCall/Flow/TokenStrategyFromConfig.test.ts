@@ -35,7 +35,7 @@ function makeSingleStepConfig(): IApiDirectCallConfig {
   return {
     flow: 'sms-otp',
     envelope: {},
-    probe: {},
+    probe: { queryTag: 'customer' },
     steps: [
       {
         name: 'getIdToken',
@@ -114,7 +114,7 @@ describe('api-direct-call createTokenStrategyFromConfig warmStart partial', () =
     const cfg: IApiDirectCallConfig = {
       flow: 'sms-otp',
       envelope: {},
-      probe: {},
+      probe: { queryTag: 'customer' },
       warmStart: { credsField: 'stored', carryField: 'otpToken', fromStepIndex: 1 },
       steps: [
         {

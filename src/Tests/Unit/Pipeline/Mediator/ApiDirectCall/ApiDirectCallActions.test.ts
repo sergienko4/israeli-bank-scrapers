@@ -42,7 +42,7 @@ function makeBaseConfig(): IApiDirectCallConfig {
   return {
     flow: 'sms-otp',
     envelope: {},
-    probe: {},
+    probe: { queryTag: 'customer' },
     steps: [
       {
         name: 'getIdToken',
@@ -209,11 +209,19 @@ describe('ApiDirectCallActions.runApiDirectCallPost probe', () => {
     if (!result.success) expect(result.errorMessage).toBe('unused');
   });
 
-  it('fails with a diagnostic when probe config is empty', async (): Promise<void> => {
+  it('fails with a diagnostic when probe config is missing discriminator', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const bus = makeStubMediator({ responses: [], captures });
     const ctx = makeActionsCtx({ bus });
-    const config = makeBaseConfig();
+    // Phase 8.5c / T3 — the strict XOR on `IProbeConfig` makes `{}` an
+    // unrepresentable shape at the type level. Reach the runtime safety
+    // net by casting through `unknown` (the cast is intentional: the
+    // assertion below proves the runtime still defends against the
+    // empty-discriminator shape even though the type forbids it).
+    const config: IApiDirectCallConfig = {
+      ...makeBaseConfig(),
+      probe: {} as unknown as IApiDirectCallConfig['probe'],
+    };
     const result = await runApiDirectCallPost(config, ctx);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('probe config missing');
@@ -252,12 +260,13 @@ describe('ApiDirectCallActions primeSession outcomes', () => {
 });
 
 describe('ApiDirectCallActions POST probe-absent branch', () => {
-  it('short-circuits with success when probe is undefined (vs empty object)', async (): Promise<void> => {
+  it('short-circuits with success when probe is undefined (vs config-level present)', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const bus = makeStubMediator({ responses: [], captures });
     const ctx = makeActionsCtx({ bus });
-    // `probe: undefined` (omit-the-field branch); the "probe: {}" path
-    // is covered separately by `fails with a diagnostic when probe config is empty`.
+    // `probe: undefined` (omit-the-field branch); the unrepresentable
+    // `probe: {}` path is covered separately by `fails with a diagnostic
+    // when probe config is missing discriminator`.
     const config: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: [] };
     const result = await runApiDirectCallPost(config, ctx);
     expect(result.success).toBe(true);

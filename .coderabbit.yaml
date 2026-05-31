@@ -125,45 +125,56 @@ reviews:
     - "!**/*.min.js"
     - "!**/*.min.css"
 
-# Tools that feed signals into the review.
-# Only enable tools whose language/format actually appears in this repo
-# (TypeScript + Markdown + shell + YAML). Disabling unused tools shrinks
-# the prompt context CodeRabbit sends to its model and reduces walkthrough
-# clutter for languages we don't ship.
-tools:
-  # Used in CI/canaries — keep
-  biome:
-    enabled: true
-  markdownlint:
-    enabled: true
-  shellcheck:
-    enabled: true                  # we have .husky/* and scripts/*.sh
-  languagetool:
-    enabled: true
-  github-checks:
-    enabled: true
-  ast-grep:
-    essential_rules: true          # no custom rule dirs in this repo
+  # Tools that feed signals into the review.
+  # Per CodeRabbit schema v2, `tools` is a sub-key of `reviews` (not
+  # top-level). PR #285 surfaced a validation warning because the
+  # previous revision had `tools:` at the document root — CodeRabbit
+  # silently ignored the entire block, defaulting every tool back
+  # to its (verbose) on-by-default state. This nested form is the
+  # source-of-truth shape per
+  # https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+  # (properties.reviews.properties.tools).
+  #
+  # Only enable tools whose language/format actually appears in this
+  # repo (TypeScript + Markdown + shell + YAML). Disabling unused
+  # tools shrinks the prompt context CodeRabbit sends to its model
+  # and reduces walkthrough clutter for languages we don't ship.
+  tools:
+    # Used in CI/canaries — keep
+    biome:
+      enabled: true
+    markdownlint:
+      enabled: true
+    shellcheck:
+      enabled: true                  # we have .husky/* and scripts/*.sh
+    languagetool:
+      enabled: true
+    github-checks:
+      enabled: true
+    ast-grep:
+      essential_rules: true          # no custom rule dirs in this repo
 
-  # Not relevant to TypeScript-only repo — disable to save tokens
-  ruff:
-    enabled: false                 # Python linter
-  phpstan:
-    enabled: false                 # PHP static analysis
-  swiftlint:
-    enabled: false                 # Swift linter
-  hadolint:
-    enabled: false                 # Dockerfile linter — no Dockerfile in repo
+    # Not relevant to TypeScript-only repo — disable to save tokens
+    ruff:
+      enabled: false                 # Python linter
+    phpstan:
+      enabled: false                 # PHP static analysis
+    swiftlint:
+      enabled: false                 # Swift linter
+    hadolint:
+      enabled: false                 # Dockerfile linter — no Dockerfile in repo
 
-# Finishing touches — disable auto-generated artifacts we don't want
-# clashing with our own canon-10 test discipline.
-finishing_touches:
-  docstrings:
-    enabled: true                  # useful for new exports
-  unit_tests:
-    enabled: false                 # we author tests ourselves with strict shape
-  simplify:
-    enabled: false                 # default; refactor PRs are intentional shapes
+  # Finishing touches — disable auto-generated artifacts we don't
+  # want clashing with our own canon-10 test discipline.
+  # Per CodeRabbit schema v2, `finishing_touches` is also a sub-key
+  # of `reviews` (not top-level). Same fix vector as `tools` above.
+  finishing_touches:
+    docstrings:
+      enabled: true                  # useful for new exports
+    unit_tests:
+      enabled: false                 # we author tests ourselves with strict shape
+    simplify:
+      enabled: false                 # default; refactor PRs are intentional shapes
 
 # Pre-merge checks — keep at warning (default); we already enforce these
 # via husky gates locally. CR's warnings remain a useful second opinion.

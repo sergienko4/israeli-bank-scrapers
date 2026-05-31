@@ -20,7 +20,7 @@ const CONFIG_STUB = {
   flow: 'sms-otp',
   steps: [],
   envelope: {},
-  probe: {},
+  probe: { queryTag: 'customer' },
   signer: {
     canonical: { clientVersion: '9.9.9' },
   },

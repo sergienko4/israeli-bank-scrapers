@@ -18,7 +18,7 @@ const STUB_CONFIG = {
   flow: 'sms-otp',
   steps: [],
   envelope: {},
-  probe: {},
+  probe: { queryTag: 'customer' },
   signer: {
     algorithm: 'ECDSA-P256',
     encoding: 'DER',

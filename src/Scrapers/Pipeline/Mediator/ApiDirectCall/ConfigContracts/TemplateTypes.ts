@@ -25,11 +25,20 @@ type RefToken =
 /** Named selector map — values are RFC-6901 pointers like `/data/challenge`. */
 type IEnvelopeSelectors = Readonly<Record<string, string>>;
 
-/** Recursive body template — JsonValueTemplate with $literal / $ref nodes. */
+/**
+ * Recursive body template — JsonValueTemplate with $literal / $ref nodes,
+ * heterogeneous arrays, and recursive object maps. The object arm admits
+ * `undefined` values because TS-widened heterogeneous unions of the form
+ * `{a:X, b?: undefined} | {a?: undefined, b:Y}` (e.g. Pepper headers list)
+ * carry undefined for the alternate arm. At runtime the literal objects
+ * never carry undefined values — `Object.entries` only enumerates own
+ * keys actually present.
+ */
 type JsonValueTemplate =
   | { readonly $literal: unknown }
   | { readonly $ref: RefToken }
-  | Readonly<Record<string, unknown>>;
+  | readonly JsonValueTemplate[]
+  | { readonly [key: string]: JsonValueTemplate | undefined };
 
 /** Body template wrapper — shape is recursive JsonValueTemplate. */
 interface IBodyTemplate {
