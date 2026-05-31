@@ -1408,7 +1408,17 @@ export default tseslint.config(
   //      by this extension (the 11 PR #274 sites are converted to direct
   //      `export type ... from` in the same commit).
   {
-    files: ['src/Scrapers/Base/**/*.ts', 'src/Scrapers/Pipeline/Types/**/*.ts'],
+    files: [
+      'src/Scrapers/Base/**/*.ts',
+      'src/Scrapers/Pipeline/Types/**/*.ts',
+      // Phase 8.5c / Commit T1 — extend scope to the re-export-shorthand
+      // canary so it can trip its target rule. Without this single-file
+      // entry the canary lives outside §12e's scope and silently passes
+      // (errorCount=0 with --no-ignore). T1's rewritten verify.sh now
+      // rejects any canary that produces zero real rule-IDs, so the
+      // canary must be made functional alongside the harness fix.
+      'src/Scrapers/Pipeline/EslintCanaries/re-export-shorthand.canary.ts',
+    ],
     plugins: { unicorn },
     rules: {
       'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: false }],
