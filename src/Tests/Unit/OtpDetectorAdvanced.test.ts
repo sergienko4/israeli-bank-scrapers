@@ -173,14 +173,18 @@ describe('detectOtpScreen — input field edge cases', () => {
 describe('detectOtpScreen — evaluate failure', () => {
   beforeEach(() => MOCK_TRY_IN_CONTEXT.mockResolvedValue(null));
 
-  it('returns false when page.evaluate throws (page context destroyed)', async () => {
+  it('falls back to input probe when page.evaluate throws (page context destroyed)', async () => {
+    // CR PR #286 F3: when page.evaluate throws, getBodyText returns '' and
+    // detectByText yields 'unknown'. Per the F3 fix, detectOtpScreen no longer
+    // short-circuits — it falls through to detectByInputField because Playwright
+    // locators query via the element-handle protocol independently of page.evaluate.
     const page = makePage(undefined);
     page.evaluate.mockRejectedValueOnce(new Error('context destroyed'));
 
     const isOtp = await OTP_MODULE.detectOtpScreen(page);
 
     expect(isOtp).toBe(false);
-    expect(MOCK_TRY_IN_CONTEXT).not.toHaveBeenCalled();
+    expect(MOCK_TRY_IN_CONTEXT).toHaveBeenCalled();
   });
 });
 

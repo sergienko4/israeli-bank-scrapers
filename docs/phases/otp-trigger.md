@@ -38,4 +38,6 @@ The selector-candidate lists + Hebrew/English text patterns these helpers consul
 - `OTP_SUBMIT_CANDIDATES` — selector candidates for the OTP form submit button.
 - `OTP_TEXT_PATTERNS` — Hebrew + English text snippets used to recognise an OTP screen by visible text.
 - `SMS_TRIGGER_CANDIDATES` — selector candidates for the "send code" trigger button.
-- `PHONE_PATTERN` — regex used by `extractPhoneHint` to match a masked phone hint.
+- `PHONE_PATTERN` — regex used by `extractPhoneHint` to match a masked phone hint (broad shape `{3,32}\d{2,4}` for the main-page extractor).
+- `PHONE_HINT_PATTERN` — narrow regex (`{3,7}\d{1,4}`) shared by the OtpFill + OtpTrigger frame-scan extractors (CR PR #286 F4: single source of truth, replaces two duplicated local copies).
+- `PHONE_LAST_DIGITS` — paired trailing-digits extractor used alongside `PHONE_HINT_PATTERN` to pull the last 1-4 digits out of a matched hint.

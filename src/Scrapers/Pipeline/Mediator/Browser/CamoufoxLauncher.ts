@@ -50,34 +50,55 @@ const PINNED_SCREEN_CONSTRAINT = Object.freeze({
 });
 
 /**
+ * Readonly table of Camoufox anti-detect knobs + their CI bisect-override
+ * env-var names + production defaults. Centralised so {@link buildLaunchOptions}
+ * stays a thin assembler and a single edit here flips every related callsite +
+ * the {@link "../../../../Tests/Unit/Common/CamoufoxLauncherKnobs.test.ts"}
+ * drift canary in lock-step (CR PR #286 F2 — readonly config table).
+ *
+ * Production defaults stay `true` for the documented Cloudflare-managed-
+ * challenge auto-pass recipe (https://camoufox.com/python/usage/) — proven on
+ * Amex Cloudflare + Hapoalim Incapsula in the cycle-3 forensic run.
+ *
+ * `block_webrtc` closes the WebRTC STUN IP-leak path that bot scorecards flag
+ * as a high-confidence headless-Chromium / Selenium signal.
+ */
+const CAMOUFOX_KNOBS = Object.freeze({
+  humanize: { envVar: 'CAMOUFOX_HUMANIZE', default: true },
+  disable_coop: { envVar: 'CAMOUFOX_DISABLE_COOP', default: true },
+  block_webrtc: { envVar: 'CAMOUFOX_BLOCK_WEBRTC', default: true },
+} as const);
+
+/** Frozen non-overridable Camoufox launch settings shared by every run. */
+const CAMOUFOX_PINNED = Object.freeze({
+  locale: ISRAEL_LOCALE,
+  os: 'windows' as const,
+});
+
+/**
+ * Pinned window dimensions — kept as a fresh mutable tuple per call because
+ * Camoufox's `LaunchOptions.window` is typed `[number, number]` (mutable).
+ * @returns Mutable `[width, height]` tuple at the pinned desktop dimensions.
+ */
+function pinnedWindow(): [number, number] {
+  return [DESKTOP_VIEWPORT_WIDTH, DESKTOP_VIEWPORT_HEIGHT];
+}
+
+/**
  * Build the Camoufox launch options bundle. Centralised so the
  * `humanize` + `disable_coop` anti-detect knobs and the pinned
  * Windows 1920x1080 fingerprint stay in ONE place, locked-in by
  * the {@link "../../../../Tests/Unit/Common/CamoufoxLauncherKnobs.test.ts"}
  * drift canary.
  *
- * <p>`humanize: true` + `disable_coop: true` + `block_webrtc: true`
- * are the documented Camoufox knobs for Cloudflare-managed-challenge
- * auto-pass (https://camoufox.com/python/usage/) — proven on Amex
- * Cloudflare + Hapoalim Incapsula in the original cycle-3 forensic
- * run that was lost from main and restored by C11.
- *
- * <p>`block_webrtc` closes the WebRTC STUN IP-leak path that real
- * users without VPN never trigger; bot scorecards (Incapsula,
- * DataDome, PerimeterX) all flag WebRTC-revealed private IPs as a
- * high-confidence headless-Chromium / Selenium signal.
- *
- * <p>All three are env-overridable for bisect via `CAMOUFOX_HUMANIZE`
- * / `CAMOUFOX_DISABLE_COOP` / `CAMOUFOX_BLOCK_WEBRTC` (set to any of
- * `false`/`0`/`no`/`off` to disable a single knob without a code edit).
+ * <p>Knob defaults + their CI bisect env-vars live in the
+ * {@link CAMOUFOX_KNOBS} readonly table; pinned non-overridable settings
+ * (locale/os/window) live in {@link CAMOUFOX_PINNED}.
  *
  * <p>NOTE: `headless: 'virtual'` (Xvfb-backed display on Linux) is
  * intentionally NOT enabled by default — Camoufox throws
  * `CannotFindXvfb` when the host lacks `xvfb`, and CI runners +
  * `docker/Dockerfile.ci-mirror` do not currently install it.
- * Tracked as a follow-up; restoring virtual mode requires the
- * matching apt-install change in `.github/actions/install-camoufox/
- * action.yml` and the Dockerfile.
  *
  * @param headless - Whether to launch in headless mode.
  * @returns Options object passed to `Camoufox()`.
@@ -85,12 +106,11 @@ const PINNED_SCREEN_CONSTRAINT = Object.freeze({
 export function buildLaunchOptions(headless: boolean): CamoufoxLaunchOptions {
   return {
     headless,
-    locale: ISRAEL_LOCALE,
-    os: 'windows',
-    humanize: envFlag('CAMOUFOX_HUMANIZE', true),
-    disable_coop: envFlag('CAMOUFOX_DISABLE_COOP', true),
-    block_webrtc: envFlag('CAMOUFOX_BLOCK_WEBRTC', true),
-    window: [DESKTOP_VIEWPORT_WIDTH, DESKTOP_VIEWPORT_HEIGHT],
+    ...CAMOUFOX_PINNED,
+    window: pinnedWindow(),
+    humanize: envFlag(CAMOUFOX_KNOBS.humanize.envVar, CAMOUFOX_KNOBS.humanize.default),
+    disable_coop: envFlag(CAMOUFOX_KNOBS.disable_coop.envVar, CAMOUFOX_KNOBS.disable_coop.default),
+    block_webrtc: envFlag(CAMOUFOX_KNOBS.block_webrtc.envVar, CAMOUFOX_KNOBS.block_webrtc.default),
     screen: PINNED_SCREEN_CONSTRAINT,
   };
 }

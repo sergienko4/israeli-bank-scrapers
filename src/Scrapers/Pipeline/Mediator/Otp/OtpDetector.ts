@@ -127,9 +127,13 @@ export async function detectOtpScreen(page: Page): Promise<boolean> {
     LOG.debug('OTP detected by text pattern');
     return true;
   }
+  // CR PR #286 F3: do NOT short-circuit on 'unknown' — Playwright locators
+  // (detectByInputField → tryInContext) probe the DOM via the element-handle
+  // protocol, not page.evaluate(); they remain viable even when
+  // page.evaluate() failed (the only condition that yields 'unknown'). The
+  // prior `return false` masked real OTP screens whenever getBodyText threw.
   if (textResult === 'unknown') {
-    LOG.debug('Page context inaccessible — skipping OTP input check');
-    return false;
+    LOG.debug('Page text inaccessible — falling back to input-field probe');
   }
   const isByInput = await detectByInputField(page);
   if (isByInput) LOG.debug('OTP detected by input field');

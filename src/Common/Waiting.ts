@@ -42,3 +42,8 @@ export {
   TimeoutError,
   waitUntil,
 } from '../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
+
+// CR PR #286 F1: preserve type export on the shim so call-sites that imported
+// `IWaitUntilOpts` from `Common/Waiting` keep compiling during the v8.5 → v8.6
+// deprecation window. Pure type re-export — emits no runtime code.
+export type { IWaitUntilOpts } from '../Scrapers/Pipeline/Mediator/Timing/Waiting.js';

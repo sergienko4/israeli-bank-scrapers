@@ -52,6 +52,22 @@ export const OTP_FORCE_CLICK_TIMEOUT_MS = 3000;
  * super-linearly backtrack on adversarial input. */
 export const PHONE_PATTERN = /(?<![\d*])\*{3,32}\d{2,4}(?!\d)/;
 
+/** Narrow phone-hint pattern used by OtpFill / OtpTrigger frame-scan extractors.
+ *
+ * Shape `***1` to `*******1234` — narrower bounds than {@link PHONE_PATTERN}
+ * because the Fill/Trigger extractors operate on per-frame body text where
+ * the typical bank-rendered hint is 3-7 asterisks + 1-4 trailing digits.
+ *
+ * Single source of truth for both OtpFillPhaseActions.extractHintFromFrame and
+ * OtpTriggerPhaseActions.extractHintFromFrame (CR PR #286 F4 — DRY centralise).
+ * Bounded quantifiers ({3,7} and {1,4}) prevent super-linear backtracking. */
+export const PHONE_HINT_PATTERN = /(?<![\d*])\*{3,7}\d{1,4}(?!\d)/;
+
+/** Trailing-digits extractor — paired with {@link PHONE_HINT_PATTERN} to pull
+ * the last 1-4 digits out of a matched masked hint. Shared by both Fill and
+ * Trigger phase extractors so the digit-window stays in sync. */
+export const PHONE_LAST_DIGITS = /(\d{1,4})$/;
+
 /** Selector candidates for the OTP submit/confirm button — text-first, no element assumption. */
 export const OTP_SUBMIT_CANDIDATES = [
   { kind: KIND_TEXT_CONTENT, value: 'אישור' },
