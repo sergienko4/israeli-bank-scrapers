@@ -493,6 +493,23 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   },
 ];
 
+// Phase 3 Common ↔ Pipeline unification guard — Commit 11 (refactor/phase-3-common-unify).
+//
+// Bans Pipeline production code from importing Common/* (Pipeline is canonical;
+// Common is the deprecated re-export shim layer). Uses `regex` (not `group`) so
+// the negative lookahead can ALLOWLIST `Common/Config/BrowserConfig`, which is
+// browser-bootstrap-only with no Pipeline duplicate. The single canonical
+// allowed Pipeline → Common runtime edge: CamoufoxLauncher.ts → BrowserConfig.
+//
+// Pinning by regex (not file-level `ignores` on CamoufoxLauncher) closes the
+// hole rubber-duck flagged in C11 critique Blocking-2: any OTHER Common import
+// added to CamoufoxLauncher in the future also fires this rule.
+const PHASE3_COMMON_IMPORT_BAN_PATTERN = {
+  regex: 'Common/(?!Config/BrowserConfig)',
+  message:
+    '🚫 PHASE-3 ARCHITECTURE: Pipeline production code must not import from Common/*. Pipeline is canonical; Common/* is a deprecated re-export shim. Import the symbol from src/Scrapers/Pipeline/Mediator/<Subdir>/<Module>.js instead. Allowlist: Common/Config/BrowserConfig (browser bootstrap-only, no Pipeline duplicate).',
+};
+
 export default tseslint.config(
   // 1. GLOBAL IGNORES
   {
@@ -1016,6 +1033,7 @@ export default tseslint.config(
               message:
                 '🚫 V5 ISOLATION (T49): BALANCE-RESOLVE must not import SCRAPE internals. Read ctx.scrape.perAccountResponses instead.',
             },
+            PHASE3_COMMON_IMPORT_BAN_PATTERN,
           ],
         },
       ],
@@ -1050,6 +1068,7 @@ export default tseslint.config(
               message:
                 '🚫 V5 ISOLATION (T50): SCRAPE must not reference BalanceResolve internals. Balance resolution is owned by the BALANCE-RESOLVE phase.',
             },
+            PHASE3_COMMON_IMPORT_BAN_PATTERN,
           ],
         },
       ],
@@ -1989,6 +2008,56 @@ export default tseslint.config(
       'max-lines-per-function': [
         'error',
         { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+    },
+  },
+
+  // 15. PHASE 3 COMMON ↔ PIPELINE UNIFICATION GUARD — Commit 11 (refactor/phase-3-common-unify).
+  //
+  // Closes Phase 3 Probe 3.4 (Pipeline → Common runtime imports = 0). Phase 3
+  // collapsed every Common/* duplicate into a thin re-export shim that delegates
+  // to the canonical Pipeline implementation; this rule prevents Pipeline
+  // production code from ever importing back from Common/*, which would
+  // re-introduce duplication and defeat the canonical-Pipeline mandate.
+  //
+  // The constant `PHASE3_COMMON_IMPORT_BAN_PATTERN` (defined above) uses a
+  // regex with a negative lookahead so `Common/Config/BrowserConfig` is the
+  // ONLY allowed Pipeline → Common edge (consumed by CamoufoxLauncher.ts).
+  //
+  // `ignores` here skips the scopes that already have their own
+  // `no-restricted-imports` block (sections 8c/8d) where the same Common ban
+  // pattern is merged into their patterns array. Without this, last-wins
+  // semantics in flat config would clobber the scoped V5 isolation rules.
+  {
+    files: ['src/Scrapers/Pipeline/**/*.ts'],
+    ignores: [
+      'src/Scrapers/Pipeline/EslintCanaries/**',
+      'src/Scrapers/Pipeline/Phases/BalanceResolve/**',
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/**',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] },
+      ],
+    },
+  },
+
+  // 15b. Phase 3 canary scope — re-enable the rule for the dedicated canary file.
+  //
+  // `EslintCanaries/**` is globally ignored at the top (line 509). `verify.sh`
+  // runs ESLint with `--no-ignore` so canaries are parsed; this single-file
+  // override re-attaches the Phase 3 rule so the canary's deliberate Common
+  // import trips it. Mirrors the pattern used by every other canary in this file.
+  {
+    files: [
+      'src/Scrapers/Pipeline/EslintCanaries/no-common-import-in-pipeline.canary.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] },
       ],
     },
   },
