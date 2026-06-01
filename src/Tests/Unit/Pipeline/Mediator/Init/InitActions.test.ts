@@ -23,6 +23,7 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
  * @param script.url - Script URL.
  * @param script.title - Script title.
  * @param script.gotoThrows - Whether goto throws.
+ * @param script.gotoErrorMessage - Custom error message for the goto rejection (default `nav-fail`).
  * @param script.titleThrows - Whether title throws.
  * @returns Mock Page.
  */
@@ -30,6 +31,7 @@ function makePage(script: {
   url?: string;
   title?: string;
   gotoThrows?: boolean;
+  gotoErrorMessage?: string;
   titleThrows?: boolean;
 }): Page {
   let currentUrl = script.url ?? 'https://bank.co.il';
@@ -45,7 +47,10 @@ function makePage(script: {
      * @returns Scripted.
      */
     goto: (newUrl: string): Promise<boolean> => {
-      if (script.gotoThrows) return Promise.reject(new Error('nav-fail'));
+      if (script.gotoThrows) {
+        const message = script.gotoErrorMessage ?? 'nav-fail';
+        return Promise.reject(new Error(message));
+      }
       currentUrl = newUrl;
       return Promise.resolve(true);
     },
@@ -146,6 +151,23 @@ describe('executeNavigateToBank', () => {
     const isOkResult3 = isOk(result);
     expect(isOkResult3).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('navigation failed');
+  });
+
+  it('runs the transport probe and surfaces fail when the goto error fingerprints as a timeout', async () => {
+    const probeUrl = 'http://nx-host-must-not-exist-zzz.invalid/';
+    const page = makePage({
+      url: 'about:blank',
+      gotoThrows: true,
+      gotoErrorMessage: 'page.goto: Timeout 15000ms exceeded.',
+    });
+    const baseCtx = ctxWithPage(page);
+    const probeCtx: IPipelineContext = {
+      ...baseCtx,
+      config: { ...baseCtx.config, urls: { ...baseCtx.config.urls, base: probeUrl } },
+    };
+    const result = await executeNavigateToBank(probeCtx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
   });
 });
 

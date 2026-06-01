@@ -22,10 +22,14 @@ import {
   buildNavFailureSnapshot,
   classifyNavError,
   type INavFailedRequest,
+  type INavInFlightRequest,
+  type INavTransportProbe,
   logNavFailureSnapshot,
   type NavErrorCategory,
+  wrapProbeAsOption,
 } from '../../../../../Scrapers/Pipeline/Mediator/Init/NavigationDiagnostics.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
+import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
 /** Handler shape Playwright's `requestfailed` listener delivers. */
 type IRequestFailedHandler = (req: Request) => boolean;
@@ -218,7 +222,7 @@ describe('attachFailedRequestCollector', () => {
 });
 
 describe('buildNavFailureSnapshot', () => {
-  it('assembles every field with classified category', () => {
+  it('assembles every field with classified category and safe defaults for new fields', () => {
     const error = new Error('page.goto: Timeout 15000ms exceeded.');
     error.name = 'TimeoutError';
     const failed: INavFailedRequest[] = [
@@ -237,7 +241,71 @@ describe('buildNavFailureSnapshot', () => {
       errorMessage: 'page.goto: Timeout 15000ms exceeded.',
       category: 'timeout',
       failedRequests: failed,
+      inFlightRequests: [],
+      inFlightRequestCount: 0,
+      inFlightRequestsTruncated: false,
+      nodeTransportProbe: none(),
     });
+  });
+
+  it('passes through in-flight + probe fields when supplied', () => {
+    const error = new Error('page.goto: Timeout 15000ms exceeded.');
+    const inFlight: INavInFlightRequest[] = [
+      {
+        url: 'https://x/a',
+        method: 'GET',
+        resourceType: 'document',
+        state: 'started',
+        startedMsAgo: 14_900,
+      },
+    ];
+    const probe: INavTransportProbe = {
+      host: 'x',
+      port: 443,
+      outcome: 'tls-timeout',
+      dnsLookupMs: 42,
+      tcpConnectMs: 31,
+      tlsHandshakeMs: 0,
+      resolvedAddress: '1.2.3.4',
+      errorText: 'TLS_HANDSHAKE_TIMEOUT',
+      timing: 'post-failure',
+      startedMsAfterGotoFailure: 8,
+      totalBudgetMs: 5000,
+    };
+    const snapshot = buildNavFailureSnapshot({
+      error,
+      attemptDurationMs: 15_001,
+      finalUrl: 'about:blank',
+      failedRequests: [],
+      inFlightRequests: inFlight,
+      inFlightRequestCount: 1,
+      inFlightRequestsTruncated: false,
+      nodeTransportProbe: some(probe),
+    });
+    expect(snapshot.inFlightRequests).toEqual(inFlight);
+    expect(snapshot.inFlightRequestCount).toBe(1);
+    expect(snapshot.inFlightRequestsTruncated).toBe(false);
+    const expectedProbe = wrapProbeAsOption(probe);
+    expect(snapshot.nodeTransportProbe).toEqual(expectedProbe);
+  });
+
+  it('wrapProbeAsOption returns Some(probe) ready to assign to the snapshot field', () => {
+    const probe: INavTransportProbe = {
+      host: 'y',
+      port: 80,
+      outcome: 'connected',
+      dnsLookupMs: 5,
+      tcpConnectMs: 10,
+      tlsHandshakeMs: 0,
+      resolvedAddress: '10.0.0.1',
+      errorText: '',
+      timing: 'post-failure',
+      startedMsAfterGotoFailure: 0,
+      totalBudgetMs: 5000,
+    };
+    const wrapped = wrapProbeAsOption(probe);
+    const expected = some(probe);
+    expect(wrapped).toEqual(expected);
   });
 });
 

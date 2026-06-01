@@ -17,7 +17,8 @@ import {
 import { createBrowserFetchStrategy } from '../../Strategy/Fetch/BrowserFetchStrategy.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import { some } from '../../Types/Option.js';
+import type { Option } from '../../Types/Option.js';
+import { none, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -28,11 +29,18 @@ import {
   ELEMENTS_DOM_READY_TIMEOUT_MS,
   INIT_NAV_COMMIT_TIMEOUT_MS,
 } from '../Timing/TimingConfig.js';
-import type { INavFailedRequest } from './NavigationDiagnostics.js';
+import type {
+  INavFailedRequest,
+  INavInFlightSnapshot,
+  INavTransportProbe,
+} from './NavigationDiagnostics.js';
 import {
   attachFailedRequestCollector,
+  attachRequestLifecycleObserver,
   buildNavFailureSnapshot,
   logNavFailureSnapshot,
+  probeTransport,
+  wrapProbeAsOption,
 } from './NavigationDiagnostics.js';
 
 /**
@@ -109,7 +117,13 @@ async function executeNavigateToBank(
  * Run the `page.goto` attempt with the failure-collector listener
  * attached for the lifetime of the call. Wraps both timing and the
  * detach-in-finally lifecycle so the public {@link executeNavigateToBank}
- * stays under the 10-line cap and the listener can never leak.
+ * stays under the 10-line cap and the listeners can never leak.
+ *
+ * <p>The lifecycle observer (added 2026-06-02) records every request
+ * still in-flight at the moment of failure so the snapshot can
+ * distinguish "browser never sent a request" from "browser is hung
+ * waiting on a response". It is detached in the same finally so the
+ * listeners don't leak into the next navigation attempt.
  *
  * @param input - Pipeline context (passed through on success).
  * @param page - Playwright page already validated as present.
@@ -122,26 +136,65 @@ async function runNavigationAttempt(
   targetUrl: string,
 ): Promise<Procedure<IPipelineContext>> {
   const collector = attachFailedRequestCollector(page);
+  const lifecycle = attachRequestLifecycleObserver(page);
   const startMs = Date.now();
   try {
     await page.goto(targetUrl, { waitUntil: 'commit', timeout: INIT_NAV_COMMIT_TIMEOUT_MS });
     return succeed(input);
-  } catch (error) {
-    return handleNavFailure({
+  } catch (gotoError) {
+    const context = collectFailureContext({
       input,
       page,
-      error: error as Error,
-      attemptDurationMs: Date.now() - startMs,
+      error: gotoError as Error,
+      startMs,
       failedRequests: collector.collected,
+      lifecycle,
     });
+    return await handleNavFailure(context, targetUrl);
   } finally {
     collector.detach();
+    lifecycle.detach();
   }
 }
 
 /**
+ * Snapshot the failure context (in-flight + final URL + timing)
+ * IMMEDIATELY in the catch block — BEFORE awaiting the post-failure
+ * probe — so the captured state reflects the moment of failure, not
+ * the network state 5 seconds later. Pure read; no awaits.
+ *
+ * @param bundle - All inputs needed to assemble the failure context.
+ * @returns Failure context bundle for {@link handleNavFailure}.
+ */
+function collectFailureContext(bundle: ICollectFailureContextInput): IHandleNavFailureInput {
+  const inFlightSnapshot = bundle.lifecycle.snapshot();
+  return {
+    input: bundle.input,
+    page: bundle.page,
+    error: bundle.error,
+    attemptDurationMs: Date.now() - bundle.startMs,
+    failedRequests: bundle.failedRequests,
+    inFlightSnapshot,
+    finalUrlAtFailure: bundle.page.url(),
+    failureTimestampMs: Date.now(),
+  };
+}
+
+/** Bundle of inputs to {@link collectFailureContext} (`max-params: 3`). */
+interface ICollectFailureContextInput {
+  readonly input: IPipelineContext;
+  readonly page: Page;
+  readonly error: Error;
+  readonly startMs: number;
+  readonly failedRequests: readonly INavFailedRequest[];
+  readonly lifecycle: { readonly snapshot: () => INavInFlightSnapshot };
+}
+
+/**
  * Inputs to {@link handleNavFailure}. Bundled to satisfy the
- * `max-params: 3` rule.
+ * `max-params: 3` rule. All fields are captured BEFORE the
+ * post-failure probe is awaited so the bundle reflects the moment
+ * of failure, not the post-probe state.
  */
 interface IHandleNavFailureInput {
   readonly input: IPipelineContext;
@@ -149,23 +202,89 @@ interface IHandleNavFailureInput {
   readonly error: Error;
   readonly attemptDurationMs: number;
   readonly failedRequests: readonly INavFailedRequest[];
+  readonly inFlightSnapshot: INavInFlightSnapshot;
+  readonly finalUrlAtFailure: string;
+  readonly failureTimestampMs: number;
+}
+
+/**
+ * Wall-clock budget (ms) for the Node-level transport probe run on
+ * the failure path. Bounded so the post-failure path never extends
+ * the INIT phase by more than {@link NODE_TRANSPORT_PROBE_BUDGET_MS}
+ * even when every probe phase times out.
+ */
+const NODE_TRANSPORT_PROBE_BUDGET_MS = 5000;
+
+/**
+ * Decide whether the failure fingerprint warrants the Node transport
+ * probe. Only the ambiguous case ({@link runNavigationAttempt} timed
+ * out with no failed sub-requests and no committed URL) benefits —
+ * other categories already carry their own diagnostic signal.
+ *
+ * @param inputs - The failure context bundle.
+ * @returns True when the probe should run.
+ */
+function shouldRunTransportProbe(inputs: IHandleNavFailureInput): boolean {
+  const snapshot = buildNavFailureSnapshot({
+    error: inputs.error,
+    attemptDurationMs: inputs.attemptDurationMs,
+    finalUrl: inputs.finalUrlAtFailure,
+    failedRequests: inputs.failedRequests,
+  });
+  return (
+    snapshot.category === 'timeout' &&
+    inputs.failedRequests.length === 0 &&
+    inputs.finalUrlAtFailure === 'about:blank'
+  );
+}
+
+/**
+ * Run the transport probe when the failure fingerprint is ambiguous,
+ * otherwise return `none()`. Always swallows probe errors via the
+ * always-resolves contract of {@link probeTransport}.
+ *
+ * @param inputs - The failure context bundle.
+ * @param targetUrl - Bank base URL that was being navigated to.
+ * @returns Option of probe result; `none()` when the probe was not run.
+ */
+async function maybeRunTransportProbe(
+  inputs: IHandleNavFailureInput,
+  targetUrl: string,
+): Promise<Option<INavTransportProbe>> {
+  if (!shouldRunTransportProbe(inputs)) return none();
+  const startedMsAfterGotoFailure = Date.now() - inputs.failureTimestampMs;
+  const probe = await probeTransport({
+    targetUrl,
+    totalBudgetMs: NODE_TRANSPORT_PROBE_BUDGET_MS,
+    startedMsAfterGotoFailure,
+  });
+  return wrapProbeAsOption(probe);
 }
 
 /**
  * Emit the structured failure snapshot and return the fail result.
- * Split out so {@link runNavigationAttempt} stays under the 10-line
- * cap and the snapshot-emit + error-message assembly live next to
- * each other.
+ * Runs the optional Node transport probe (gated to the ambiguous
+ * timeout fingerprint) and bundles its result into the snapshot, then
+ * emits a single `INIT-ACTION-NAV-FAILURE` warn line.
  *
  * @param inputs - Bundled context, page, error, timing, sub-request snapshot.
+ * @param targetUrl - Bank base URL (for the transport probe).
  * @returns Fail procedure with `ScraperErrorTypes.Generic`.
  */
-function handleNavFailure(inputs: IHandleNavFailureInput): Procedure<IPipelineContext> {
+async function handleNavFailure(
+  inputs: IHandleNavFailureInput,
+  targetUrl: string,
+): Promise<Procedure<IPipelineContext>> {
+  const nodeTransportProbe = await maybeRunTransportProbe(inputs, targetUrl);
   const snapshot = buildNavFailureSnapshot({
     error: inputs.error,
     attemptDurationMs: inputs.attemptDurationMs,
-    finalUrl: inputs.page.url(),
+    finalUrl: inputs.finalUrlAtFailure,
     failedRequests: inputs.failedRequests,
+    inFlightRequests: inputs.inFlightSnapshot.inFlightRequests,
+    inFlightRequestCount: inputs.inFlightSnapshot.inFlightRequestCount,
+    inFlightRequestsTruncated: inputs.inFlightSnapshot.inFlightRequestsTruncated,
+    nodeTransportProbe,
   });
   logNavFailureSnapshot(inputs.input.logger, snapshot);
   const message = `INIT ACTION: navigation failed — ${toErrorMessage(inputs.error)}`;

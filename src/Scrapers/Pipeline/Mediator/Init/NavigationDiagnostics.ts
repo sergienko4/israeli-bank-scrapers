@@ -21,6 +21,26 @@
 import type { Page, Request } from 'playwright-core';
 
 import type { ScraperLogger } from '../../Types/Debug.js';
+import type { Option } from '../../Types/Option.js';
+import { none, some } from '../../Types/Option.js';
+import type { INavInFlightRequest } from './NavigationRequestLifecycle.js';
+import type { INavTransportProbe } from './NavigationTransportProbe.js';
+
+export type {
+  INavInFlightRequest,
+  INavInFlightSnapshot,
+  IRequestLifecycleObserver,
+  RequestLifecycleState,
+} from './NavigationRequestLifecycle.js';
+export { attachRequestLifecycleObserver } from './NavigationRequestLifecycle.js';
+export type {
+  INavTransportProbe,
+  IProbeRunInput,
+  IProbeTransportInput,
+  ITransportProbeDeps,
+  TransportProbeOutcome,
+} from './NavigationTransportProbe.js';
+export { probeTransport, probeTransportWithDeps } from './NavigationTransportProbe.js';
 
 /** Categorised network-layer cause derived from the error message text. */
 export type NavErrorCategory = 'timeout' | 'dns' | 'tcp-refused' | 'tcp-reset' | 'tls' | 'unknown';
@@ -31,7 +51,16 @@ export interface INavFailedRequest {
   readonly errorText: string;
 }
 
-/** Snapshot of network state at the moment navigation failed. */
+/**
+ * Snapshot of network state at the moment navigation failed.
+ *
+ * <p>Additive evolution: the original five fields (`attemptDurationMs`,
+ * `finalUrl`, `errorName`, `errorMessage`, `category`, `failedRequests`)
+ * remain the stable triage surface. The newer `inFlight*` fields and
+ * `nodeTransportProbe` are populated when the lifecycle observer is
+ * attached and the probe is run respectively — both default to safe
+ * empty/`none()` values when the caller opts out.
+ */
 export interface INavFailureSnapshot {
   readonly attemptDurationMs: number;
   readonly finalUrl: string;
@@ -39,6 +68,10 @@ export interface INavFailureSnapshot {
   readonly errorMessage: string;
   readonly category: NavErrorCategory;
   readonly failedRequests: readonly INavFailedRequest[];
+  readonly inFlightRequests: readonly INavInFlightRequest[];
+  readonly inFlightRequestCount: number;
+  readonly inFlightRequestsTruncated: boolean;
+  readonly nodeTransportProbe: Option<INavTransportProbe>;
 }
 
 /** Handle returned by {@link attachFailedRequestCollector}. Call `detach()` to remove the listener. */
@@ -145,12 +178,21 @@ function makeCollectorDetach(page: Page, handler: (request: Request) => boolean)
 /**
  * Inputs to {@link buildNavFailureSnapshot}. Bundled to satisfy the
  * project's `max-params: 3` architecture rule.
+ *
+ * <p>The `inFlight*` fields and `nodeTransportProbe` are optional —
+ * callers that don't attach the lifecycle observer or run the probe
+ * can omit them and the snapshot will default to safe empty values
+ * (empty list / zero count / `none()` Option).
  */
 export interface INavFailureInput {
   readonly error: Error;
   readonly attemptDurationMs: number;
   readonly finalUrl: string;
   readonly failedRequests: readonly INavFailedRequest[];
+  readonly inFlightRequests?: readonly INavInFlightRequest[];
+  readonly inFlightRequestCount?: number;
+  readonly inFlightRequestsTruncated?: boolean;
+  readonly nodeTransportProbe?: Option<INavTransportProbe>;
 }
 
 /**
@@ -168,7 +210,23 @@ export function buildNavFailureSnapshot(input: INavFailureInput): INavFailureSna
     errorMessage: input.error.message,
     category: classifyNavError(input.error.message),
     failedRequests: input.failedRequests,
+    inFlightRequests: input.inFlightRequests ?? [],
+    inFlightRequestCount: input.inFlightRequestCount ?? 0,
+    inFlightRequestsTruncated: input.inFlightRequestsTruncated ?? false,
+    nodeTransportProbe: input.nodeTransportProbe ?? none(),
   };
+}
+
+/**
+ * Helper for callers that want to convert a non-null probe value
+ * into the {@link Option}-typed snapshot field. Kept here so the
+ * Option-vs-null translation lives in ONE place.
+ *
+ * @param probe - The probe result to wrap.
+ * @returns `some(probe)` ready to assign to {@link INavFailureSnapshot.nodeTransportProbe}.
+ */
+export function wrapProbeAsOption(probe: INavTransportProbe): Option<INavTransportProbe> {
+  return some(probe);
 }
 
 /**
