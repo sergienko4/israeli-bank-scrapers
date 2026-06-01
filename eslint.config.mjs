@@ -212,7 +212,7 @@ const NO_DIRECT_SCREENSHOT_RULE = {
   selector:
     'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
   message:
-    'page.screenshot(...) — use safeScreenshot() from src/Common/SafeScreenshot.ts (PII-safe CI gate).',
+    'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The src/Common/SafeScreenshot.ts shim is deprecated since v8.5; new imports MUST use the canonical Pipeline path.',
 };
 
 const RESTRICTED_SYNTAX_RULES_NEW = [
@@ -505,9 +505,9 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
 // hole rubber-duck flagged in C11 critique Blocking-2: any OTHER Common import
 // added to CamoufoxLauncher in the future also fires this rule.
 const PHASE3_COMMON_IMPORT_BAN_PATTERN = {
-  regex: 'Common/(?!Config/BrowserConfig)',
+  regex: String.raw`Common/(?!Config/BrowserConfig(?:\.js)?$)`,
   message:
-    '🚫 PHASE-3 ARCHITECTURE: Pipeline production code must not import from Common/*. Pipeline is canonical; Common/* is a deprecated re-export shim. Import the symbol from src/Scrapers/Pipeline/Mediator/<Subdir>/<Module>.js instead. Allowlist: Common/Config/BrowserConfig (browser bootstrap-only, no Pipeline duplicate).',
+    '🚫 PHASE-3 ARCHITECTURE: Pipeline production code must not import from Common/*. Pipeline is canonical; Common/* is a deprecated re-export shim. Import the symbol from src/Scrapers/Pipeline/Mediator/<Subdir>/<Module>.js instead. Allowlist: Common/Config/BrowserConfig (browser bootstrap-only, no Pipeline duplicate; exact module match, NOT lookalikes like BrowserConfigLegacy).',
 };
 
 export default tseslint.config(
@@ -2050,9 +2050,14 @@ export default tseslint.config(
   // runs ESLint with `--no-ignore` so canaries are parsed; this single-file
   // override re-attaches the Phase 3 rule so the canary's deliberate Common
   // import trips it. Mirrors the pattern used by every other canary in this file.
+  //
+  // CR PR #286 finding F3 added the `no-common-config-lookalike-in-pipeline`
+  // canary — same regex, but its target import is a sibling Common/Config/*
+  // module proving the negative-lookahead's `(?:\.js)?$` anchor pin works.
   {
     files: [
       'src/Scrapers/Pipeline/EslintCanaries/no-common-import-in-pipeline.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-common-config-lookalike-in-pipeline.canary.ts',
     ],
     rules: {
       'no-restricted-imports': [

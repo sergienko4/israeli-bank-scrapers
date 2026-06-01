@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
-import { mockToXpathLiteral } from '../MockModuleFactories.js';
+import { createClickableLocatorMock, mockToXpathLiteral } from '../MockModuleFactories.js';
 
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 
@@ -213,7 +213,9 @@ describe('extractPhoneHint — edge cases', () => {
   });
 
   it('returns empty string when text has asterisks but not enough', async () => {
-    const page = makePage('***12');
+    // CR PR #286 F10: lower bound loosened from 4 stars → 3 stars to match real
+    // bank screens. `**12` (2 stars) is below the 3-star floor; still rejected.
+    const page = makePage('**12');
 
     const hint = await OTP_MODULE.extractPhoneHint(page);
 
@@ -338,28 +340,13 @@ describe('clickFromCandidates — fallback selector path', () => {
 
 // ── text-click success — main page and child frame ──────────────────────────
 
-/**
- * Build a Page/Frame `locator(xpath)` mock that returns a single clickable
- * element whose `click()` resolves successfully. Used to exercise the
- * tryClickInnermostText → sequentialForceClicks → tryForceClick happy path.
- * @param onClick - Optional jest.fn captured by the caller for assertions.
- * @returns Locator mock with `.all()` returning one clickable element.
- */
-function makeClickableLocator(onClick: jest.Mock = jest.fn().mockResolvedValue(undefined)): {
-  all: jest.Mock;
-} {
-  return {
-    all: jest.fn().mockResolvedValue([{ click: onClick }]),
-  };
-}
-
 describe('clickFromCandidates — text-click success path', () => {
   beforeEach(() => MOCK_TRY_IN_CONTEXT.mockResolvedValue(null));
 
   it('clicks visible text in main page when the innermost-text locator matches', async () => {
     const clickSpy = jest.fn().mockResolvedValue(undefined);
     const page = makePage('');
-    const locatorMock = makeClickableLocator(clickSpy);
+    const locatorMock = createClickableLocatorMock(clickSpy);
     (page.locator as jest.Mock).mockReturnValue(locatorMock);
 
     const candidates = [{ kind: 'textContent' as const, value: 'אישור' }];
@@ -372,7 +359,7 @@ describe('clickFromCandidates — text-click success path', () => {
   it('clicks visible text in child frame when main page has no match', async () => {
     const childClick = jest.fn().mockResolvedValue(undefined);
     const childFrame = makeMockFrame('https://bank.test/otp-frame');
-    const frameLocatorMock = makeClickableLocator(childClick);
+    const frameLocatorMock = createClickableLocatorMock(childClick);
     (childFrame.locator as jest.Mock).mockReturnValue(frameLocatorMock);
     const page = makePage('', [childFrame]);
 

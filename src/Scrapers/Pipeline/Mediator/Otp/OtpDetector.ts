@@ -5,6 +5,8 @@ import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js
 import { getDebug } from '../../Types/Debug.js';
 import { toXpathLiteral, tryInContext } from '../Selector/SelectorResolver.js';
 import {
+  OTP_FALLBACK_CLICK_TIMEOUT_MS,
+  OTP_FORCE_CLICK_TIMEOUT_MS,
   OTP_INPUT_CANDIDATES,
   OTP_SUBMIT_CANDIDATES,
   OTP_TEXT_PATTERNS,
@@ -200,7 +202,7 @@ const TEXT_KINDS = ['textContent', 'clickableText'] as const;
  * @param candidates - Selector candidates to filter.
  * @returns Array of text values.
  */
-function extractTextValues(candidates: SelectorCandidate[]): string[] {
+function extractTextValues(candidates: readonly SelectorCandidate[]): string[] {
   return candidates
     .filter(c => TEXT_KINDS.includes(c.kind as (typeof TEXT_KINDS)[number]))
     .map(c => c.value);
@@ -214,13 +216,13 @@ function extractTextValues(candidates: SelectorCandidate[]): string[] {
  */
 async function tryFallbackClick(
   ctx: Page | Frame,
-  candidates: SelectorCandidate[],
+  candidates: readonly SelectorCandidate[],
 ): Promise<boolean> {
   const sel = await tryInContext(ctx, candidates);
   if (!sel) return false;
   LOG.debug('clickFromCandidates: fallback selector: %s', sel);
   return ctx
-    .click(sel, { timeout: 5000 })
+    .click(sel, { timeout: OTP_FALLBACK_CLICK_TIMEOUT_MS })
     .then((): true => true)
     .catch((): false => false);
 }
@@ -233,7 +235,7 @@ async function tryFallbackClick(
  */
 async function tryFallbackInContexts(
   contexts: (Page | Frame)[],
-  candidates: SelectorCandidate[],
+  candidates: readonly SelectorCandidate[],
 ): Promise<boolean> {
   const results = await runSequential(contexts, ctx => tryFallbackClick(ctx, candidates));
   return results.some(Boolean);
@@ -249,7 +251,7 @@ async function tryFallbackInContexts(
  */
 export async function clickFromCandidates(
   page: Page,
-  candidates: SelectorCandidate[],
+  candidates: readonly SelectorCandidate[],
   cachedFrames?: Frame[],
 ): Promise<boolean> {
   const textValues = extractTextValues(candidates);
@@ -351,10 +353,14 @@ const INTERACTIVE_FILTER = [
  */
 function innermostTextXpath(text: string): string {
   const escaped = toXpathLiteral(text);
+  // CR PR #286 F8: only filter out the parent when an INTERACTIVE descendant
+  // contains the same text — otherwise patterns like
+  // `<button><span>אישור</span></button>` get incorrectly excluded because
+  // the span (a non-interactive descendant) contains the text.
   return [
     `xpath=//*[${INTERACTIVE_FILTER}`,
     `and contains(., ${escaped})`,
-    `and not(.//*[contains(., ${escaped})])]`,
+    `and not(.//*[${INTERACTIVE_FILTER} and contains(., ${escaped})])]`,
   ].join(' ');
 }
 
@@ -393,7 +399,7 @@ interface IClickable {
  */
 async function tryForceClick(loc: IClickable): Promise<boolean> {
   return loc
-    .click({ timeout: 3000, force: true })
+    .click({ timeout: OTP_FORCE_CLICK_TIMEOUT_MS, force: true })
     .then((): true => true)
     .catch((): false => false);
 }

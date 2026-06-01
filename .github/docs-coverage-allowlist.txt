@@ -319,3 +319,9 @@ NETWORK_FETCH_TIMEOUT_MS
 # --- Phase 8.5b / commit 3 (ScrapeReplay split) ---
 # Reason: JsonRecord — ScrapeReplay/JsonTypes.ts canonical Record<string, JsonNode> alias used across every ScrapeReplay/* sub-module + Strategy/Scrape/ScrapeDataActions+ScrapeChunking+Account/AccountScrapeStrategy consumers; previously exported via "export type { JsonRecord }" from ScrapeReplayAction.ts (docs-coverage regex only matches direct "export type" declarations so the symbol is now flagged, but its public-surface status is unchanged).
 JsonRecord
+
+# --- Phase 3 / commit 13 (CR PR #286 finding F7 — OTP click timeouts) ---
+# Reason: OTP_FALLBACK_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (5000 ms) used exclusively by OtpDetector.tryFallbackClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
+OTP_FALLBACK_CLICK_TIMEOUT_MS
+# Reason: OTP_FORCE_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (3000 ms) used exclusively by OtpDetector.tryForceClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
+OTP_FORCE_CLICK_TIMEOUT_MS

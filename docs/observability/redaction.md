@@ -49,8 +49,10 @@ The canonical capture function is `safeScreenshot(page, options)` in
 the redaction passes above, then writes both the scrubbed HTML and the raw PNG
 to the run's screenshots directory. The `PRE_AUTH_SCREENSHOT_PHASES` constant
 enumerates the lifecycle phases (e.g. `pre-login`, `login-form`) where
-screenshots are unconditionally allowed in CI — outside those phases the call
-becomes a no-op so credential frames never leak.
+screenshots are unconditionally allowed in CI — **in CI only**, calls outside
+those phases become a no-op so credential frames never leak to public-readable
+artifacts. Outside CI the gate is disabled and every phase captures (developer
+local runs need the full diagnostic trail).
 
 ## Disabling redaction
 

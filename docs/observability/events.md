@@ -8,7 +8,7 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 |---|---|---|
 | `event` | string | `<phase>.<action>.<outcome>` — e.g. `balance-resolve.fetch.start` |
 | `correlationId` | string | `randomUUID()` per phase invocation — correlates `.start` / `.success` / `.failure` records |
-| `module` | string | Phase name |
+| `module` | string | Module/logger name — kebab-cased from `import.meta.url` basename (e.g. `balance-resolve-actions`) or an explicit name passed to `getDebugByName`. NOT the phase name. |
 | `bankAccountTail4` | string | `***NNNN` — last-4 of a bankAccountUniqueId, never the full id |
 
 ## Per-phase events
