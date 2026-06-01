@@ -2,13 +2,17 @@
  * Unit tests for InitActions — navigation, validate, wire helpers.
  */
 
+import { jest } from '@jest/globals';
 import type { BrowserContext, Page } from 'playwright-core';
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   executeNavigateToBank,
   executeValidatePage,
   executeWireComponents,
 } from '../../../../../Scrapers/Pipeline/Mediator/Init/InitActions.js';
+import type { INavTransportProbe } from '../../../../../Scrapers/Pipeline/Mediator/Init/NavigationDiagnostics.js';
+import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,
@@ -17,12 +21,32 @@ import type {
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
+/** Subset of the failure-snapshot payload the probe test inspects. */
+interface IFailureLogPayload {
+  readonly event?: string;
+  readonly nodeTransportProbe?: Option<INavTransportProbe>;
+}
+
+/**
+ * Type guard for the structured `INIT-ACTION-NAV-FAILURE` payload.
+ * Pino accepts arbitrary first arguments; the test must narrow the
+ * recorded call before reading the probe envelope.
+ *
+ * @param value - Recorded first argument of a `logger.warn` call.
+ * @returns True when the value is an object with an `event` field.
+ */
+function isFailurePayload(value: unknown): value is IFailureLogPayload {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'event' in value;
+}
+
 /**
  * Build a mock Page with scripted goto/title/url.
  * @param script - Behaviour.
  * @param script.url - Script URL.
  * @param script.title - Script title.
  * @param script.gotoThrows - Whether goto throws.
+ * @param script.gotoErrorMessage - Custom error message for the goto rejection (default `nav-fail`).
  * @param script.titleThrows - Whether title throws.
  * @returns Mock Page.
  */
@@ -30,6 +54,7 @@ function makePage(script: {
   url?: string;
   title?: string;
   gotoThrows?: boolean;
+  gotoErrorMessage?: string;
   titleThrows?: boolean;
 }): Page {
   let currentUrl = script.url ?? 'https://bank.co.il';
@@ -45,7 +70,10 @@ function makePage(script: {
      * @returns Scripted.
      */
     goto: (newUrl: string): Promise<boolean> => {
-      if (script.gotoThrows) return Promise.reject(new Error('nav-fail'));
+      if (script.gotoThrows) {
+        const message = script.gotoErrorMessage ?? 'nav-fail';
+        return Promise.reject(new Error(message));
+      }
       currentUrl = newUrl;
       return Promise.resolve(true);
     },
@@ -146,6 +174,39 @@ describe('executeNavigateToBank', () => {
     const isOkResult3 = isOk(result);
     expect(isOkResult3).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('navigation failed');
+  });
+
+  it('runs the transport probe and surfaces fail when the goto error fingerprints as a timeout', async () => {
+    const probeUrl = 'http://127.0.0.1:1/';
+    const page = makePage({
+      url: 'about:blank',
+      gotoThrows: true,
+      gotoErrorMessage: 'page.goto: Timeout 15000ms exceeded.',
+    });
+    const baseCtx = ctxWithPage(page);
+    const probeCtx: IPipelineContext = {
+      ...baseCtx,
+      config: { ...baseCtx.config, urls: { ...baseCtx.config.urls, base: probeUrl } },
+    };
+    const warnSpy = jest.spyOn(probeCtx.logger, 'warn').mockImplementation(() => undefined);
+    const result = await executeNavigateToBank(probeCtx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+    const navFailureCall = warnSpy.mock.calls.find(
+      call => isFailurePayload(call[0]) && call[0].event === 'INIT-ACTION-NAV-FAILURE',
+    );
+    expect(navFailureCall).toBeDefined();
+    if (!navFailureCall) throw new ScraperError('INIT-ACTION-NAV-FAILURE warn call missing');
+    const firstArg = navFailureCall[0];
+    const isFailure = isFailurePayload(firstArg);
+    expect(isFailure).toBe(true);
+    if (!isFailure) throw new ScraperError('warn payload not a failure log envelope');
+    expect(firstArg.nodeTransportProbe).toBeDefined();
+    const probe = firstArg.nodeTransportProbe;
+    expect(probe?.has).toBe(true);
+    if (probe?.has) {
+      expect(probe.value.timing).toBe('post-failure');
+    }
   });
 });
 
