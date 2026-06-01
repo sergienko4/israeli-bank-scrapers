@@ -19,7 +19,37 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
-            const body = context.payload.pull_request.body || '';
+            // Bot-authored PRs (Dependabot, release-please) cannot generate the §10
+            // guideline-compliance table by design. Exempt them so dependency bumps and
+            // release PRs are not blocked from auto-merge. Human PRs remain enforced.
+            //
+            // Bot signals — ANY match exempts the PR:
+            //   - pull_request.user.login matches a known bot account
+            //   - pull_request.head.ref matches a known bot branch prefix
+            //     (release-please uses a human PAT, so user.login alone is unreliable)
+            const pr = context.payload.pull_request;
+            const author = (pr.user && pr.user.login) || '';
+            const headRef = (pr.head && pr.head.ref) || '';
+            const BOT_AUTHORS = new Set([
+              'dependabot[bot]',
+              'release-please[bot]',
+              'github-actions[bot]',
+            ]);
+            const BOT_BRANCH_PREFIXES = [
+              'dependabot/',
+              'release-please--',
+            ];
+            const isBotPr =
+              BOT_AUTHORS.has(author) ||
+              BOT_BRANCH_PREFIXES.some((prefix) => headRef.startsWith(prefix));
+            if (isBotPr) {
+              core.info(
+                `PR-body check skipped — bot-authored PR (author='${author}', head='${headRef}').`,
+              );
+              return;
+            }
+
+            const body = pr.body || '';
             const required = [
               { header: '## Guideline compliance', cite: 'pr-guidlines.md §10' },
               { header: '## Why',                  cite: 'pr-guidlines.md §7'  },
