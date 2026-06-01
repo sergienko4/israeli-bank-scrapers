@@ -46,7 +46,6 @@ const LOG = getDebug(import.meta.url);
 import {
   setActivePhase as setGlobalPhase,
   setActiveStage as setGlobalStage,
-  type StageLabel,
 } from '../../Types/ActiveState.js';
 export { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 
@@ -1649,71 +1648,208 @@ function buildGetCookies(page: Page): () => Promise<readonly ICookieSnapshot[]> 
 }
 
 /**
- * Create an ElementMediator for the given page.
- * Each instance has its own form anchor cache — safe for concurrent use.
- * @param page - The Playwright page to resolve elements on.
- * @returns An IElementMediator with real implementations.
+ * Build addCookies — inject cookies into the browser context for
+ * cross-domain session promotion. Extracted from the historic inline
+ * arrow inside `createElementMediator` so the factory body stays ≤10 LoC.
+ * @param page - The Playwright page (provides the context).
+ * @returns Async function that accepts a cookie array.
  */
-function createElementMediator(page: Page): IElementMediator {
-  const cache: IFormCache = { selector: '' };
-  // Production path: defer page.on(...) attachment until the
-  // network-trace lifecycle interceptor flips the boundary gate
-  // ON (post-AUTH phase). Keeps the HOME / WAF-check window
-  // listener-free — see I-3 deferred-listener experiment 2026-05-13.
-  const network = createNetworkDiscovery(page, { isDeferAttach: true });
-  // Build networkidle once and reuse it in `raceWithNetworkIdle` —
-  // single source of truth for the networkidle primitive.
-  const waitForNetworkIdleFn = buildWaitForNetworkIdle(page);
-  const mediator: IElementMediator = {
+function buildAddCookies(page: Page): IElementMediator['addCookies'] {
+  return async (cookies): Promise<void> => {
+    await page.context().addCookies(cookies);
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Cluster-bundle TYPE aliases — let each cluster builder return a tightly
+// scoped slice of IElementMediator. Spreading the slices inside the
+// factory keeps `createElementMediator` body ≤ 10 LoC while preserving
+// identity (each method is the same function reference produced by the
+// underlying `buildXxx(page)` helper).
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Resolver methods — locator + click resolution surfaces. */
+type ResolveBundle = Pick<
+  IElementMediator,
+  | 'resolveField'
+  | 'resolveClickable'
+  | 'resolveVisible'
+  | 'resolveAllVisible'
+  | 'resolveVisibleInContext'
+  | 'resolveAndClick'
+>;
+
+/** Phase / stage / discovery primitives — page-independent state hooks. */
+type PhaseControlsBundle = Pick<
+  IElementMediator,
+  'setActivePhase' | 'setActiveStage' | 'discoverErrors' | 'waitForLoadingDone'
+>;
+
+/** Form-anchor cache surfaces — bound to a per-instance IFormCache. */
+type FormBundle = Pick<IElementMediator, 'discoverForm' | 'scopeToForm' | 'getFormAnchor'>;
+
+/** Navigation primitives — URL + networkidle gating. */
+type NavBundle = Pick<
+  IElementMediator,
+  'navigateTo' | 'getCurrentUrl' | 'waitForNetworkIdle' | 'raceWithNetworkIdle' | 'waitForURL'
+>;
+
+/** Attribute read surfaces — page-independent locator wrappers. */
+type AttrBundle = Pick<IElementMediator, 'checkAttribute' | 'getAttributeValue'>;
+
+/** Counting + href-collection surfaces. */
+type CountBundle = Pick<IElementMediator, 'countByText' | 'countBySelector' | 'collectAllHrefs'>;
+
+/** Cookie I/O — get + add against the browser context. */
+type CookieBundle = Pick<IElementMediator, 'getCookies' | 'addCookies'>;
+
+/** Stateless surfaces merged — keeps the aggregator's spread count ≤ 6. */
+type StaticBundle = PhaseControlsBundle & AttrBundle;
+
+/**
+ * Build the 6-method locator resolver cluster.
+ * @param page - The Playwright page to bind resolvers to.
+ * @returns Locator/click resolver method bundle.
+ */
+function buildResolveCluster(page: Page): ResolveBundle {
+  return {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
     resolveVisible: buildResolveVisible(page),
     resolveAllVisible: buildResolveAllVisible(page),
     resolveVisibleInContext: buildResolveVisibleInContext(),
     resolveAndClick: buildResolveAndClick(page),
-    /**
-     * Set active phase for log accuracy.
-     * @param name - Phase name.
-     * @returns True.
-     */
-    setActivePhase: (name: string): true => {
-      return setGlobalPhase(name);
-    },
-    /**
-     * Set active pipeline stage for log events.
-     * @param name - Stage name (PRE, ACTION, POST, FINAL).
-     * @returns True.
-     */
-    setActiveStage: (name: StageLabel): true => {
-      return setGlobalStage(name);
-    },
+  };
+}
+
+/**
+ * Build the 4-method phase / stage / discovery cluster. Page-independent
+ * (state hooks delegate to ActiveState module singletons).
+ * @returns Phase-control method bundle.
+ */
+function buildPhaseControls(): PhaseControlsBundle {
+  return {
+    setActivePhase: setGlobalPhase,
+    setActiveStage: setGlobalStage,
     discoverErrors: buildDiscoverErrors(),
     waitForLoadingDone: buildWaitForLoadingDone(),
+  };
+}
+
+/**
+ * Build the 3-method form-anchor cluster. Binds to per-instance cache so
+ * concurrent ElementMediator instances do not share form-anchor state.
+ * @param cache - The per-instance form-anchor cache.
+ * @returns Form-anchor method bundle.
+ */
+function buildFormCluster(cache: IFormCache): FormBundle {
+  return {
     discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
     getFormAnchor: buildGetFormAnchor(cache),
-    network,
+  };
+}
+
+/**
+ * Build the 5-method navigation cluster. Internally constructs the
+ * single `waitForNetworkIdle` primitive once and reuses it inside
+ * `raceWithNetworkIdle` — preserves the historic single-source-of-truth
+ * invariant from the original factory.
+ * @param page - The Playwright page to bind nav methods to.
+ * @returns Navigation method bundle.
+ */
+function buildNavCluster(page: Page): NavBundle {
+  const wfni = buildWaitForNetworkIdle(page);
+  return {
     navigateTo: buildNavigateTo(page),
     getCurrentUrl: buildGetCurrentUrl(page),
-    waitForNetworkIdle: waitForNetworkIdleFn,
-    raceWithNetworkIdle: buildRaceWithNetworkIdle(waitForNetworkIdleFn),
+    waitForNetworkIdle: wfni,
+    raceWithNetworkIdle: buildRaceWithNetworkIdle(wfni),
+    waitForURL: buildWaitForURL(page),
+  };
+}
+
+/**
+ * Build the 2-method attribute-read cluster. Page-independent — returns
+ * locator-bound wrappers (the locator carries its own Page reference).
+ * @returns Attribute-read method bundle.
+ */
+function buildAttrCluster(): AttrBundle {
+  return {
     checkAttribute: buildCheckAttribute(),
     getAttributeValue: buildGetAttributeValue(),
+  };
+}
 
-    waitForURL: buildWaitForURL(page),
+/**
+ * Build the 3-method counting + href-collection cluster.
+ * @param page - The Playwright page to count/collect against.
+ * @returns Count / href method bundle.
+ */
+function buildCountCluster(page: Page): CountBundle {
+  return {
     countByText: buildCountByText(page),
     countBySelector: buildCountBySelector(page),
     collectAllHrefs: buildCollectAllHrefs(page),
-    getCookies: buildGetCookies(page),
-    /**
-     * Inject cookies into the browser context for cross-domain session promotion.
-     * @param cookies - Cookies to add.
-     */
-    addCookies: async (cookies): Promise<void> => {
-      await page.context().addCookies(cookies);
-    },
   };
-  return mediator;
+}
+
+/**
+ * Build the 2-method cookie I/O cluster.
+ * @param page - The Playwright page (provides the browser context).
+ * @returns Cookie I/O method bundle.
+ */
+function buildCookieCluster(page: Page): CookieBundle {
+  return {
+    getCookies: buildGetCookies(page),
+    addCookies: buildAddCookies(page),
+  };
+}
+
+/**
+ * Merge the two stateless clusters (phase controls + attribute reads)
+ * into one bundle. Lets `assembleElementMediator` spread 6 sources
+ * instead of 7 so the aggregator body stays ≤ 10 LoC.
+ * @returns Static (page-independent) method bundle.
+ */
+function buildStaticCluster(): StaticBundle {
+  return { ...buildPhaseControls(), ...buildAttrCluster() };
+}
+
+/**
+ * Compose the full method bundle for IElementMediator (everything
+ * except `network`, which the factory inserts directly). Each spread
+ * preserves function identity — methods are the same references the
+ * underlying `buildXxx(page)` helpers returned.
+ * @param page - The Playwright page.
+ * @param cache - The per-instance form-anchor cache.
+ * @returns Method bundle covering every IElementMediator surface except `network`.
+ */
+function assembleElementMediator(page: Page, cache: IFormCache): Omit<IElementMediator, 'network'> {
+  return {
+    ...buildResolveCluster(page),
+    ...buildStaticCluster(),
+    ...buildFormCluster(cache),
+    ...buildNavCluster(page),
+    ...buildCountCluster(page),
+    ...buildCookieCluster(page),
+  };
+}
+
+/**
+ * Create an ElementMediator for the given page.
+ * Each instance has its own form anchor cache — safe for concurrent use.
+ * Production path: defer `page.on(...)` attachment until the
+ * network-trace lifecycle interceptor flips the boundary gate ON
+ * (post-AUTH phase). Keeps the HOME / WAF-check window listener-free
+ * (see I-3 deferred-listener experiment 2026-05-13).
+ * @param page - The Playwright page to resolve elements on.
+ * @returns An IElementMediator with real implementations.
+ */
+function createElementMediator(page: Page): IElementMediator {
+  const cache: IFormCache = { selector: '' };
+  const network = createNetworkDiscovery(page, { isDeferAttach: true });
+  return { ...assembleElementMediator(page, cache), network };
 }
 
 /**
