@@ -1,70 +1,37 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
-
-import pino, { type Logger } from 'pino';
-
-import {
-  AMOUNT_KEYS,
-  PII_LABEL,
-  SENSITIVE_PATHS,
-  WL_SENSITIVE_KEYS,
-} from './Config/DebugConfig.js';
-
-/** Async-local store for per-request bank context injected into every log line. */
-const BANK_CONTEXT = new AsyncLocalStorage<{ bank: string }>();
-
-/** Maximum value length that bypasses PII masking (preserves last4Digits, displayId). */
-const MAX_DISPLAY_LENGTH = 4;
-
 /**
- * Redact sensitive values from log output based on the JSON path.
- * @param value - The value at the sensitive path.
- * @param path - The JSON path segments leading to this value.
- * @returns A censored string replacement.
+ * Common-side shim — re-exports the canonical Debug surface from
+ * `src/Scrapers/Pipeline/Types/Debug.ts`.
+ *
+ * <p>Background: Common used to hold its own `getDebug(name)` impl with
+ * an eager pino root logger and a raw `module: name` `child()` call,
+ * while Pipeline already had a richer 266-line implementation with a
+ * deferred-resolve Proxy, lazy root, file transport, runId mixin, and
+ * `import.meta.url`-derived kebab module names. Phase 3 C9 (Common ↔
+ * Pipeline unification) collapses Common onto the Pipeline canonical so
+ * a single pino root + a single redaction/file-transport setup wires
+ * every log line in the codebase.
+ *
+ * <p>The Common-side import surface is preserved verbatim by exporting
+ * Pipeline's `getDebugByName` under the legacy name `getDebug`. The
+ * existing 9 Common-side callers (BaseScraper, BaseScraperHelpers,
+ * BaseScraperWithBrowser, LeumiScraper, BeyahadBishvilhaScraper,
+ * MizrahiHelpers, NavigationRetry, plus the two Debug.test +
+ * DebugCensor.test suites) keep using `getDebug('manual-name')` /
+ * `getDebug(options.companyId)` unchanged — Pipeline's
+ * `getDebugByName` passes the name verbatim into pino's
+ * `child({ module: name })`, so the `module:` log field value never
+ * drifts from what those callers produced before C9.
+ *
+ * <p>Pipeline-side callers continue using
+ * `getDebug(import.meta.url)` directly from the Pipeline module — they
+ * get the kebab-derived module name. The two entry points live side
+ * by side in `Pipeline/Types/Debug.ts` for the lifetime of the
+ * canonical-10 plan; once every legacy caller is migrated (post-Phase 3),
+ * this Common shim and the `getDebugByName` adapter can both be
+ * removed in a follow-up commit.
  */
-function censor(value: unknown, path: string[]): string {
-  const key = path.at(-1) ?? '';
-  const strValue = String(value);
-  // Length exception: short display values (last4Digits, account suffixes) are safe
-  if (WL_SENSITIVE_KEYS.has(key) && strValue.length > MAX_DISPLAY_LENGTH) return PII_LABEL;
-  if (key === 'accountNumber') return '****' + strValue.slice(-4);
-  if (AMOUNT_KEYS.has(key)) return (value as number) > 0 ? '+***' : '-***';
-  return '[REDACTED]';
-}
-
-const isDevMode = !process.env.CI && process.env.NODE_ENV !== 'production';
-
-/**
- * Inject bank context from AsyncLocalStorage into every log line.
- * @returns The current bank context or an empty object.
- */
-function getBankMixin(): Record<string, string> {
-  return BANK_CONTEXT.getStore() ?? {};
-}
-
-const ROOT_LOGGER = pino({
-  level: process.env.LOG_LEVEL ?? 'info',
-  transport: isDevMode ? { target: 'pino-pretty', options: { colorize: true } } : undefined,
-  redact: { paths: SENSITIVE_PATHS, censor },
-  mixin: getBankMixin,
-});
-
-export type ScraperLogger = Logger;
-
-/**
- * Create a child logger scoped to a specific module.
- * @param name - The module name for log context.
- * @returns A pino Logger child instance.
- */
-export function getDebug(name: string): Logger {
-  return ROOT_LOGGER.child({ module: name });
-}
-
-/**
- * Run a function with bank context injected into all pino log lines.
- * @param bank - The bank identifier (companyId).
- * @param fn - The async function to execute within the bank context.
- * @returns The result of the function.
- */
-export function runWithBankContext<T>(bank: string, fn: () => T): T {
-  return BANK_CONTEXT.run({ bank }, fn);
-}
+export type { ScraperLogger } from '../Scrapers/Pipeline/Types/Debug.js';
+export {
+  getDebugByName as getDebug,
+  runWithBankContext,
+} from '../Scrapers/Pipeline/Types/Debug.js';

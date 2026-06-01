@@ -235,6 +235,35 @@ function deriveLogName(metaUrl: string): LoggerNameKebab {
  */
 export function getDebug(metaUrl: string): Logger {
   const name = deriveLogName(metaUrl);
+  return buildDeferredLogger(name);
+}
+
+/**
+ * Compatibility entry-point for legacy Common-side callers that pass a
+ * manual module name string (e.g. `getDebug('leumi-scraper')`) or a
+ * dynamic bank identifier (e.g. `getDebug(options.companyId)`). Pipeline
+ * code MUST keep using {@link getDebug} with `import.meta.url`; this
+ * adapter exists only so the Common shim at `src/Common/Debug.ts`
+ * preserves verbatim `module:` log values during the Phase-3 unification
+ * window, without forcing the legacy scrapers (BaseScraper, Leumi,
+ * Mizrahi, BeyahadBishvilha, …) to migrate to `import.meta.url` in this
+ * commit.
+ * @param name - Verbatim module name written into the `module:` log field.
+ * @returns A pino-shaped logger that defers child creation.
+ */
+export function getDebugByName(name: string): Logger {
+  return buildDeferredLogger(name);
+}
+
+/**
+ * Shared proxy/deferred-resolve assembly used by both {@link getDebug}
+ * and {@link getDebugByName}. Extracted so adding a third caller-shape
+ * adapter in the future stays trivial.
+ * @param name - Logger module name (either kebab-derived from a URL or
+ *   the verbatim legacy string passed by Common-side callers).
+ * @returns A pino-shaped logger that defers child creation.
+ */
+function buildDeferredLogger(name: string): Logger {
   const entry: IDeferredChildEntry = { resolved: false };
   const target: object = {};
   const handler = makeChildProxyHandler(name, entry);
