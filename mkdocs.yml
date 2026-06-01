@@ -177,6 +177,7 @@ nav:
       - Structured events: observability/events.md
       - PII redaction: observability/redaction.md
       - Forensic audit: observability/forensic-audit.md
+      - INIT navigation forensics: observability/init-navigation-forensics.md
   - Workflow:
       - Overview: workflow/index.md
       - CI gates: workflow/ci.md

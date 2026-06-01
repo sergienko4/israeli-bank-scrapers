@@ -34,6 +34,7 @@ set -euo pipefail
 
 BASE_SHA="${BASE_SHA:?BASE_SHA must be set (workflow env)}"
 BASE_REF="${BASE_REF:-main}"
+STAGE_MODE="${STAGE_MODE:-0}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ALLOWLIST_FILE="${REPO_ROOT}/.github/docs-coverage-allowlist.txt"
@@ -100,6 +101,18 @@ fi
 declare -a CHANGED_FILES=()
 declare -A BASE_PATH_BY_HEAD=()  # post-rename path → pre-rename path
 
+# STAGE_MODE=1 (husky local): diff staged content against BASE_SHA.
+# This is needed because at pre-commit time HEAD is still the parent
+# commit, so the default `BASE_SHA...HEAD` range is empty and the
+# script always exits 0 — making the local gate cosmetic. The git
+# subcommand below reads the staged tree as the right-hand side,
+# matching the post-commit behaviour we want CI to mirror.
+if [ "$STAGE_MODE" = "1" ]; then
+  DIFF_CMD=(git diff --name-status --find-renames --diff-filter=AMR --cached "${BASE_SHA}" -- "${SCOPE_PREFIX}")
+else
+  DIFF_CMD=(git diff --name-status --find-renames --diff-filter=AMR "${BASE_SHA}...HEAD" -- "${SCOPE_PREFIX}")
+fi
+
 while IFS=$'\t' read -r status path_a path_b; do
   case "${status}" in
     R*) head_path="${path_b}"; base_path="${path_a}" ;;
@@ -116,8 +129,7 @@ while IFS=$'\t' read -r status path_a path_b; do
   esac
   CHANGED_FILES+=("${head_path}")
   BASE_PATH_BY_HEAD["${head_path}"]="${base_path}"
-done < <(git diff --name-status --find-renames --diff-filter=AMR \
-           "${BASE_SHA}...HEAD" -- "${SCOPE_PREFIX}")
+done < <("${DIFF_CMD[@]}")
 
 if [ "${#CHANGED_FILES[@]}" -eq 0 ]; then
   echo "[docs-coverage] No Pipeline production-code files changed. Skipping."
@@ -142,8 +154,18 @@ declare -a NEW_SYMBOLS=()
 declare -A SYMBOL_OWNERS=()  # symbol → first file that introduced it
 
 for file in "${CHANGED_FILES[@]}"; do
-  # HEAD set (working copy on this CI runner == merge commit HEAD).
-  if [ -f "${REPO_ROOT}/${file}" ]; then
+  # HEAD set. In STAGE_MODE we read the STAGED blob (git show :path)
+  # to match exactly what the commit would contain — protects against
+  # the rare "add then edit again" workflow where the working tree
+  # differs from the staged content. In CI mode the working tree
+  # equals HEAD by construction.
+  if [ "$STAGE_MODE" = "1" ]; then
+    if head_content="$(git show ":${file}" 2>/dev/null)"; then
+      head_syms="$(printf '%s\n' "$head_content" | extract_symbols)"
+    else
+      head_syms=""
+    fi
+  elif [ -f "${REPO_ROOT}/${file}" ]; then
     head_syms="$(extract_symbols < "${REPO_ROOT}/${file}")"
   else
     head_syms=""
