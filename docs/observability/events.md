@@ -19,6 +19,7 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 |---|---|---|
 | `init.browser.launched` | info | Camoufox + context + page ready |
 | `init.navigation.complete` | info | First nav to `loginUrl` returned |
+| `INIT-ACTION-NAV-FAILURE` | warn | `executeNavigateToBank` failed — full transport-layer envelope, see [INIT navigation forensics](init-navigation-forensics.md) |
 
 ### LOGIN
 

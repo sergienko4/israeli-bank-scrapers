@@ -193,6 +193,21 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash .github/scripts/ci/docs-coverage.sh
 
+      # ── Docs staleness canary (Case B counterpart of docs-coverage) ──
+      # Fails when a source file is modified AND a docs page declares
+      # that file in its YAML frontmatter `source-files:` list, BUT the
+      # docs page itself was not modified in the same PR. Opt-in by
+      # design: pages without frontmatter give zero signal. See
+      # `.github/scripts/ci/docs-staleness.sh` for the algorithm and
+      # `docs/observability/init-navigation-forensics.md` for a worked
+      # example of the frontmatter convention.
+      - name: Docs staleness canary
+        if: github.event_name == 'pull_request' && steps.changes.outputs.src == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/ci/docs-staleness.sh
+
       # ── Type Check ──
       - name: Type check
         if: steps.changes.outputs.src == 'true'

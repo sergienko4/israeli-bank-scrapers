@@ -150,6 +150,22 @@ describe('InitPhase/coldStartIfDumping', () => {
       else process.env.DUMP_SNAPSHOTS = prior;
     }
   });
+
+  it('does NOT clear context cookies when DUMP_SNAPSHOTS is unset', async () => {
+    const prior = process.env.DUMP_SNAPSHOTS;
+    delete process.env.DUMP_SNAPSHOTS;
+    try {
+      const { mockBrowser, mockContext } = MAKE_BROWSER_MOCK();
+      const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
+      launchFn.mockResolvedValue(mockBrowser);
+      const ctx = MAKE_MOCK_CONTEXT();
+      await INIT_MOD.INIT_STEP.execute(ctx, ctx);
+      expect(mockContext.clearCookies).not.toHaveBeenCalled();
+    } finally {
+      if (prior === undefined) delete process.env.DUMP_SNAPSHOTS;
+      else process.env.DUMP_SNAPSHOTS = prior;
+    }
+  });
 });
 
 describe('InitPhase/prepareBrowser', () => {
