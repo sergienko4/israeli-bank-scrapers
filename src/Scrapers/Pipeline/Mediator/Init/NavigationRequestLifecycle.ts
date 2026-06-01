@@ -256,6 +256,19 @@ function assembleSnapshotEnvelope(tracking: Map<Request, IRequestEntry>): INavIn
   const entries = collectSortedEntries(tracking);
   const nowMs = Date.now();
   const projected = projectAllEntries(entries, nowMs);
+  return capAndWrapProjected(projected);
+}
+
+/**
+ * Cap the projected in-flight list at {@link MAX_IN_FLIGHT_REQUESTS}
+ * and wrap with the truncation envelope. Addresses CodeRabbit R3-4 by
+ * isolating the cap/wrap rule in one audit point and keeping
+ * {@link assembleSnapshotEnvelope} ≤10 LoC.
+ *
+ * @param projected - Projected in-flight requests (oldest-first).
+ * @returns Snapshot envelope with capped list + true count + truncation flag.
+ */
+function capAndWrapProjected(projected: readonly INavInFlightRequest[]): INavInFlightSnapshot {
   const isTruncated = projected.length > MAX_IN_FLIGHT_REQUESTS;
   const capped = isTruncated ? projected.slice(0, MAX_IN_FLIGHT_REQUESTS) : projected;
   return {

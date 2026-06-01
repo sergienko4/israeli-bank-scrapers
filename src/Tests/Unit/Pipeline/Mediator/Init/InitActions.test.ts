@@ -25,6 +25,9 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 interface IFailureLogPayload {
   readonly event?: string;
   readonly nodeTransportProbe?: Option<INavTransportProbe>;
+  readonly frameTree?: readonly unknown[];
+  readonly consoleErrors?: readonly unknown[];
+  readonly landingResponse?: Option<unknown>;
 }
 
 /**
@@ -207,6 +210,12 @@ describe('executeNavigateToBank', () => {
     if (probe?.has) {
       expect(probe.value.timing).toBe('post-failure');
     }
+    const wasFrameTreeArray = Array.isArray(firstArg.frameTree);
+    const wasConsoleErrorsArray = Array.isArray(firstArg.consoleErrors);
+    expect(wasFrameTreeArray).toBe(true);
+    expect(wasConsoleErrorsArray).toBe(true);
+    expect(firstArg.landingResponse).toBeDefined();
+    expect(firstArg.landingResponse?.has).toBe(false);
   });
 });
 
