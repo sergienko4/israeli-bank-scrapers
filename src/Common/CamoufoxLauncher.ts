@@ -2,6 +2,10 @@
  * Common-side shim — re-exports the canonical Camoufox launcher
  * from `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts`.
  *
+ * @deprecated since v8.5 — delete in v8.6. Use the canonical Pipeline
+ *   path `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts`
+ *   directly.
+ *
  * <p>Background: the Camoufox launcher used to live here as the
  * canonical source while a 14-line shim sat in Pipeline. Phase 3 C8
  * (Common ↔ Pipeline unification) flipped the relationship so

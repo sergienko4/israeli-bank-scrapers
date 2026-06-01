@@ -2,6 +2,9 @@
  * Common-side shim — re-exports the canonical wait/timing helpers
  * from `src/Scrapers/Pipeline/Mediator/Timing/Waiting.ts`.
  *
+ * @deprecated since v8.5 — delete in v8.6. Use the canonical Pipeline
+ *   path `src/Scrapers/Pipeline/Mediator/Timing/Waiting.ts` directly.
+ *
  * <p>Background: Common used to ship its own 242-LoC implementation
  * of `waitUntil` / `raceTimeout` / `runSerial` / `sleep` / `humanDelay`
  * + `TimeoutError` class, while Pipeline already owned a more

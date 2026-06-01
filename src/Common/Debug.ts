@@ -2,6 +2,10 @@
  * Common-side shim — re-exports the canonical Debug surface from
  * `src/Scrapers/Pipeline/Types/Debug.ts`.
  *
+ * @deprecated since v8.5 — delete in v8.6. Use the canonical Pipeline
+ *   path `src/Scrapers/Pipeline/Types/Debug.ts` directly (call
+ *   `getDebug(import.meta.url)` for kebab-derived module names).
+ *
  * <p>Background: Common used to hold its own `getDebug(name)` impl with
  * an eager pino root logger and a raw `module: name` `child()` call,
  * while Pipeline already had a richer 266-line implementation with a
