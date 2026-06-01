@@ -95,3 +95,6 @@ scripts/**
 
 #Understand Anything local data (local research — not part of current PR)
 .understand-anything
+# Python bytecode (mkdocs hooks)
+__pycache__/
+*.pyc

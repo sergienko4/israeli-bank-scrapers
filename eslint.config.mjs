@@ -212,7 +212,7 @@ const NO_DIRECT_SCREENSHOT_RULE = {
   selector:
     'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
   message:
-    'page.screenshot(...) — use safeScreenshot() from src/Common/SafeScreenshot.ts (PII-safe CI gate).',
+    'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The src/Common/SafeScreenshot.ts shim is deprecated since v8.5; new imports MUST use the canonical Pipeline path.',
 };
 
 const RESTRICTED_SYNTAX_RULES_NEW = [
@@ -492,6 +492,23 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
       '🚫 PII LEAK (T16): Identifier with payload-shape name passed as LOG value. Pre-redact via PiiRedactor or pass scalar.',
   },
 ];
+
+// Phase 3 Common ↔ Pipeline unification guard — Commit 11 (refactor/phase-3-common-unify).
+//
+// Bans Pipeline production code from importing Common/* (Pipeline is canonical;
+// Common is the deprecated re-export shim layer). Uses `regex` (not `group`) so
+// the negative lookahead can ALLOWLIST `Common/Config/BrowserConfig`, which is
+// browser-bootstrap-only with no Pipeline duplicate. The single canonical
+// allowed Pipeline → Common runtime edge: CamoufoxLauncher.ts → BrowserConfig.
+//
+// Pinning by regex (not file-level `ignores` on CamoufoxLauncher) closes the
+// hole rubber-duck flagged in C11 critique Blocking-2: any OTHER Common import
+// added to CamoufoxLauncher in the future also fires this rule.
+const PHASE3_COMMON_IMPORT_BAN_PATTERN = {
+  regex: String.raw`Common/(?!Config/BrowserConfig(?:\.js)?$)`,
+  message:
+    '🚫 PHASE-3 ARCHITECTURE: Pipeline production code must not import from Common/*. Pipeline is canonical; Common/* is a deprecated re-export shim. Import the symbol from src/Scrapers/Pipeline/Mediator/<Subdir>/<Module>.js instead. Allowlist: Common/Config/BrowserConfig (browser bootstrap-only, no Pipeline duplicate; exact module match, NOT lookalikes like BrowserConfigLegacy).',
+};
 
 export default tseslint.config(
   // 1. GLOBAL IGNORES
@@ -1016,6 +1033,7 @@ export default tseslint.config(
               message:
                 '🚫 V5 ISOLATION (T49): BALANCE-RESOLVE must not import SCRAPE internals. Read ctx.scrape.perAccountResponses instead.',
             },
+            PHASE3_COMMON_IMPORT_BAN_PATTERN,
           ],
         },
       ],
@@ -1050,6 +1068,7 @@ export default tseslint.config(
               message:
                 '🚫 V5 ISOLATION (T50): SCRAPE must not reference BalanceResolve internals. Balance resolution is owned by the BALANCE-RESOLVE phase.',
             },
+            PHASE3_COMMON_IMPORT_BAN_PATTERN,
           ],
         },
       ],
@@ -1502,12 +1521,21 @@ export default tseslint.config(
 
   // 14. NO DIRECT page.screenshot() — added 2026-05-21 after PR #248 CI
   //     artifact 7128234088 leaked 18+ post-auth PNGs (run 26207506594).
-  //     The SafeScreenshot helper (src/Common/SafeScreenshot.ts) is the
-  //     only sanctioned call site — it short-circuits in CI to keep
-  //     rendered bank pixels out of public-readable artifacts.
+  //     The SafeScreenshot helper is the only sanctioned call site —
+  //     it short-circuits in CI to keep rendered bank pixels out of
+  //     public-readable artifacts. As of Phase-3 Commit 5 the canonical
+  //     implementation lives at
+  //     `src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts`;
+  //     `src/Common/SafeScreenshot.ts` is now a deprecated re-export
+  //     shim. Both files remain allow-listed so the helper itself can
+  //     call `page.screenshot()` without tripping the rule.
   {
     files: ['src/**/*.ts'],
-    ignores: ['src/Common/SafeScreenshot.ts', 'src/Tests/**'],
+    ignores: [
+      'src/Common/SafeScreenshot.ts',
+      'src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts',
+      'src/Tests/**',
+    ],
     rules: {
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
     },
@@ -1950,6 +1978,92 @@ export default tseslint.config(
       ],
       'sonarjs/no-identical-functions': 'error',
       'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
+    },
+  },
+
+  // 14. INIT SUB-MODULE FUNCTION-SIZE GUARD (strict 10-LoC)
+  //
+  // PR #288 added the L4 transport-forensics envelope under
+  // `Mediator/Init/**` (InitActions.ts, NavigationDiagnostics.ts,
+  // NavigationRequestLifecycle.ts, NavigationTransportProbe.ts).
+  // Those splits inherited the lax 20-cap default and immediately
+  // accumulated 24 over-cap function bodies — a regression caught
+  // only by CodeRabbit (R3-1..R3-5), not the pre-commit hook.
+  //
+  // Per `eslint-rules-guidlines.md` §1 (ALWAYS tighten when you
+  // split a module) and §2 (every strict cluster needs a canary),
+  // this cluster now pins Init/ to the canonical 10-LoC ceiling.
+  // No `max-lines` (file-size) cap yet — Init/ files are still
+  // large after the split; that hardening lands in a separate
+  // commit once the helpers are stable.
+  //
+  // Canary: `init-cluster-fn-over-cap.canary.ts` over-sizes a
+  // single function so verify.sh confirms the rule fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Init/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/init-cluster-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+    },
+  },
+
+  // 15. PHASE 3 COMMON ↔ PIPELINE UNIFICATION GUARD — Commit 11 (refactor/phase-3-common-unify).
+  //
+  // Closes Phase 3 Probe 3.4 (Pipeline → Common runtime imports = 0). Phase 3
+  // collapsed every Common/* duplicate into a thin re-export shim that delegates
+  // to the canonical Pipeline implementation; this rule prevents Pipeline
+  // production code from ever importing back from Common/*, which would
+  // re-introduce duplication and defeat the canonical-Pipeline mandate.
+  //
+  // The constant `PHASE3_COMMON_IMPORT_BAN_PATTERN` (defined above) uses a
+  // regex with a negative lookahead so `Common/Config/BrowserConfig` is the
+  // ONLY allowed Pipeline → Common edge (consumed by CamoufoxLauncher.ts).
+  //
+  // `ignores` here skips the scopes that already have their own
+  // `no-restricted-imports` block (sections 8c/8d) where the same Common ban
+  // pattern is merged into their patterns array. Without this, last-wins
+  // semantics in flat config would clobber the scoped V5 isolation rules.
+  {
+    files: ['src/Scrapers/Pipeline/**/*.ts'],
+    ignores: [
+      'src/Scrapers/Pipeline/EslintCanaries/**',
+      'src/Scrapers/Pipeline/Phases/BalanceResolve/**',
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/**',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] },
+      ],
+    },
+  },
+
+  // 15b. Phase 3 canary scope — re-enable the rule for the dedicated canary file.
+  //
+  // `EslintCanaries/**` is globally ignored at the top (line 509). `verify.sh`
+  // runs ESLint with `--no-ignore` so canaries are parsed; this single-file
+  // override re-attaches the Phase 3 rule so the canary's deliberate Common
+  // import trips it. Mirrors the pattern used by every other canary in this file.
+  //
+  // CR PR #286 finding F3 added the `no-common-config-lookalike-in-pipeline`
+  // canary — same regex, but its target import is a sibling Common/Config/*
+  // module proving the negative-lookahead's `(?:\.js)?$` anchor pin works.
+  {
+    files: [
+      'src/Scrapers/Pipeline/EslintCanaries/no-common-import-in-pipeline.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/no-common-config-lookalike-in-pipeline.canary.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] },
+      ],
     },
   },
 );

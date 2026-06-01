@@ -1,53 +1,22 @@
-import { type SelectorCandidate } from '../../Scrapers/Base/Config/LoginConfig.js';
+/**
+ * Common ↔ Pipeline UNIFY shim (Phase 3 — Commit 6 of 11).
+ *
+ * The canonical OTP detector configuration moved to
+ * `src/Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.ts` alongside
+ * `OtpDetector.ts`. This shim re-exports the five configuration
+ * constants so Common-tree readers (notably the Common OtpDetector
+ * shim's re-export consumers and the OtpDetector unit-test fixtures)
+ * keep compiling against `src/Common/Config/OtpDetectorConfig.js`.
+ *
+ * @deprecated Import from
+ * `src/Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.ts` directly.
+ * This shim will be deleted when the last legacy caller migrates.
+ */
 
-/** Hebrew + English text patterns that indicate an OTP screen, most-specific first. */
-export const OTP_TEXT_PATTERNS = [
-  'סיסמה חד פעמית',
-  'קוד חד פעמי',
-  'אימות זהות',
-  'לצורך אימות',
-  'בחר טלפון',
-  'שלח קוד',
-  'קוד SMS',
-  'קוד אימות',
-  'one-time password',
-  'SMS code',
-] as const;
-
-/** Selector candidates for locating OTP input fields — text-first. */
-export const OTP_INPUT_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'placeholder', value: 'קוד חד פעמי' },
-  { kind: 'placeholder', value: 'סיסמה חד פעמית' },
-  { kind: 'placeholder', value: 'קוד SMS' },
-  { kind: 'placeholder', value: 'קוד אימות' },
-  { kind: 'placeholder', value: 'הזן קוד' },
-  { kind: 'ariaLabel', value: 'קוד' },
-  { kind: 'ariaLabel', value: 'סיסמה חד פעמית' },
-  { kind: 'name', value: 'otpCode' },
-];
-
-/** Regex to detect masked phone number hints on OTP screens (e.g. ****1234).
- * Both quantifiers are bounded ({4,32} and {2,4}) so the matcher cannot
- * super-linearly backtrack on adversarial input. */
-export const PHONE_PATTERN = /\*{4,32}\d{2,4}/;
-
-/** Selector candidates for the OTP submit/confirm button — text-first, no element assumption. */
-export const OTP_SUBMIT_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'textContent', value: 'אישור' },
-  { kind: 'textContent', value: 'אשר' },
-  { kind: 'textContent', value: 'המשך' },
-  { kind: 'textContent', value: 'כניסה' },
-  { kind: 'ariaLabel', value: 'אישור' },
-  { kind: 'ariaLabel', value: 'כניסה' },
-];
-
-/** Selector candidates for the SMS send/trigger button — text-first, no element assumption. */
-export const SMS_TRIGGER_CANDIDATES: SelectorCandidate[] = [
-  { kind: 'textContent', value: 'שלח קוד' },
-  { kind: 'textContent', value: 'שלח' },
-  { kind: 'textContent', value: 'קבל קוד' },
-  { kind: 'textContent', value: 'לקבלת סיסמה חד פעמית' },
-  { kind: 'textContent', value: 'שלח SMS' },
-  { kind: 'ariaLabel', value: 'שלח' },
-  { kind: 'ariaLabel', value: 'שלח קוד' },
-];
+export {
+  OTP_INPUT_CANDIDATES,
+  OTP_SUBMIT_CANDIDATES,
+  OTP_TEXT_PATTERNS,
+  PHONE_PATTERN,
+  SMS_TRIGGER_CANDIDATES,
+} from '../../Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.js';

@@ -5,7 +5,7 @@ import { mockToXpathLiteral } from '../MockModuleFactories.js';
 
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Types/Debug.js', () => ({
   /**
    * Creates a mock debug logger.
    * @returns mock debug logger with all methods stubbed.
@@ -26,7 +26,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   /**
    * Delegates to the shared mock for tryInContext.
    * @param args - arguments forwarded to the mock.
@@ -162,10 +162,14 @@ describe('detectOtpScreen', () => {
     expect(await OTP_MODULE.detectOtpScreen(page)).toBe(false);
   });
 
-  it('returns false and skips input check when page context is inaccessible (evaluate returns non-string)', async () => {
+  it('falls back to input probe when page text is inaccessible (evaluate returns non-string)', async () => {
+    // CR PR #286 F3: when getBodyText returns '' (page.evaluate failed),
+    // detectByText yields 'unknown'. Per the F3 fix, detectOtpScreen no longer
+    // short-circuits — it falls through to detectByInputField because Playwright
+    // locators query via the element-handle protocol independently of page.evaluate.
     const page = makePage(undefined);
     expect(await OTP_MODULE.detectOtpScreen(page)).toBe(false);
-    expect(MOCK_TRY_IN_CONTEXT).not.toHaveBeenCalled();
+    expect(MOCK_TRY_IN_CONTEXT).toHaveBeenCalled();
   });
 });
 
