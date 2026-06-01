@@ -61,8 +61,10 @@ DESCRIBE_IF('E2E: Beinleumi (real credentials)', () => {
       password: beinleumiPass,
     });
     expect(result.success).toBe(false);
-    // TwoFactorRetrieverMissing = reached OTP screen (ideal case, non-Oracle IPs)
-    // Generic = portal blocked by Oracle CI IPs (403) — credentials may still be valid
+    // TwoFactorRetrieverMissing = reached OTP screen (ideal case)
+    // Generic = bank portal failed to respond on this runner IP. Happy-path
+    // verified locally via docker on residential IP, so credentials are still
+    // valid; this is a CI-environment-only failure mode for some runner pools.
     expect(result.errorType).not.toBe(ScraperErrorTypes.InvalidPassword);
     expect([ScraperErrorTypes.TwoFactorRetrieverMissing, ScraperErrorTypes.Generic]).toContain(
       result.errorType,

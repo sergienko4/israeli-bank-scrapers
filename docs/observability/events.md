@@ -8,7 +8,7 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 |---|---|---|
 | `event` | string | `<phase>.<action>.<outcome>` — e.g. `balance-resolve.fetch.start` |
 | `correlationId` | string | `randomUUID()` per phase invocation — correlates `.start` / `.success` / `.failure` records |
-| `module` | string | Phase name |
+| `module` | string | Module/logger name — kebab-cased from `import.meta.url` basename (e.g. `balance-resolve-actions`) or an explicit name passed to `getDebugByName`. NOT the phase name. |
 | `bankAccountTail4` | string | `***NNNN` — last-4 of a bankAccountUniqueId, never the full id |
 
 ## Per-phase events
@@ -103,3 +103,23 @@ grep "balance-resolve" pipeline.log | jq .
 # Find every fetch quarantine
 jq -c 'select(.event == "balance-resolve.fetch.failure")' pipeline.log
 ```
+
+## Per-module loggers
+
+Every Pipeline module obtains a Pino child logger derived from its file
+path so each event record carries an accurate `module` field without
+hand-maintained string constants:
+
+- `getDebug(import.meta.url)` — the default form, used by every Pipeline
+  module. The basename of the URL (e.g. `BalanceResolveActions.ts`) is
+  kebab-cased into the logger name (`balance-resolve-actions`).
+- `getDebugByName(name)` — the explicit-name escape hatch for cases
+  where the logger name has to be dynamic at construction time
+  (notably `BaseScraper` keying loggers by `companyId`). The legacy
+  `Common/Debug.js` shim re-exports this as its `getDebug` so historic
+  string-keyed callers keep working without churn.
+
+Both helpers route through the same lazy-resolved root logger, so
+`PiiRedactor` always intercepts before any transport writes — see
+[PII redaction](redaction.md) for the censor pipeline.
+
