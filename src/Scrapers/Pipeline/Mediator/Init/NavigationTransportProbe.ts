@@ -173,6 +173,71 @@ function defaultDnsLookup(host: string): Promise<IDnsLookupResult> {
 }
 
 /**
+ * Race a DNS lookup promise against a per-phase budget. Without this
+ * race a hung resolver would keep `runDnsPhase` waiting forever and
+ * silently break the {@link NODE_TRANSPORT_PROBE_BUDGET_MS} contract
+ * promised by the snapshot. Resolves with the lookup result when DNS
+ * answers first, rejects with `DNS_LOOKUP_TIMEOUT` when the budget
+ * expires first.
+ *
+ * @param input - DNS-phase context + deps + per-phase budget.
+ * @returns Promise of DNS result that always settles within `budgetMs`.
+ */
+function raceDnsAgainstBudget(input: IRunDnsInput): Promise<IDnsLookupResult> {
+  return new Promise((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      reject(new Error('DNS_LOOKUP_TIMEOUT'));
+    }, input.budgetMs);
+    input.deps
+      .dnsLookup(input.context.url.host)
+      .then(lookupResult => onDnsRaceResolved({ timer, lookupResult, resolve }))
+      .catch((lookupError: unknown) =>
+        onDnsRaceRejected({ timer, lookupError: lookupError as Error, reject }),
+      );
+  });
+}
+
+/** Bundle passed to {@link onDnsRaceResolved} (`max-params: 3`). */
+interface IDnsRaceResolved {
+  readonly timer: ReturnType<typeof globalThis.setTimeout>;
+  readonly lookupResult: IDnsLookupResult;
+  readonly resolve: (value: IDnsLookupResult) => unknown;
+}
+
+/**
+ * Forward a successful DNS lookup to the race promise and clear the
+ * budget timer so the rejection branch cannot fire afterwards.
+ *
+ * @param bundle - Timer + lookup result + resolve callback.
+ * @returns `true` (no-void rule).
+ */
+function onDnsRaceResolved(bundle: IDnsRaceResolved): boolean {
+  globalThis.clearTimeout(bundle.timer);
+  bundle.resolve(bundle.lookupResult);
+  return true;
+}
+
+/** Bundle passed to {@link onDnsRaceRejected} (`max-params: 3`). */
+interface IDnsRaceRejected {
+  readonly timer: ReturnType<typeof globalThis.setTimeout>;
+  readonly lookupError: Error;
+  readonly reject: (reason: Error) => unknown;
+}
+
+/**
+ * Forward a DNS lookup error to the race promise and clear the budget
+ * timer so the budget rejection cannot also fire.
+ *
+ * @param bundle - Timer + lookup error + reject callback.
+ * @returns `true` (no-void rule).
+ */
+function onDnsRaceRejected(bundle: IDnsRaceRejected): boolean {
+  globalThis.clearTimeout(bundle.timer);
+  bundle.reject(bundle.lookupError);
+  return true;
+}
+
+/**
  * Build the timeout handler that destroys the socket after the
  * budget elapses. Extracted to keep {@link defaultTcpConnect} short.
  *
@@ -336,30 +401,40 @@ interface IDnsPhaseOutcome {
 interface IRunDnsInput {
   readonly context: IProbeContext;
   readonly deps: ITransportProbeDeps;
+  readonly budgetMs: number;
 }
 
 /**
- * DNS phase: try to resolve the hostname. On success returns an OK
- * outcome carrying the lookup; on failure returns a not-OK outcome
- * carrying a fully-built `dns-error` probe envelope.
+ * DNS phase: try to resolve the hostname within the per-phase budget.
+ * On success returns an OK outcome carrying the lookup; on failure
+ * returns a not-OK outcome carrying a fully-built `dns-error` probe
+ * envelope. The `errorText` field carries the `DNS_LOOKUP_TIMEOUT`
+ * sentinel when the budget fired before the resolver answered, so
+ * operators can distinguish a real NXDOMAIN from a hung resolver.
  *
- * @param input - Context + deps bundle.
+ * @param input - Context + deps + per-phase budget.
  * @returns Tagged outcome (success carries DNS result, failure carries probe).
  */
 async function runDnsPhase(input: IRunDnsInput): Promise<IDnsPhaseOutcome> {
   try {
-    const result = await input.deps.dnsLookup(input.context.url.host);
+    const result = await raceDnsAgainstBudget(input);
     return { isOk: true, result, probe: buildDnsErrorPlaceholder(input.context) };
   } catch (dnsError) {
-    const errorText = (dnsError as Error).message;
-    const envelope: IProbeEnvelope = { ...EMPTY_ENVELOPE, errorText };
-    const probe = buildProbeResult({
-      context: input.context,
-      outcome: 'dns-error',
-      envelope,
-    });
+    const probe = buildDnsFailureProbe(input.context, dnsError as Error);
     return { isOk: false, result: buildDnsResultPlaceholder(), probe };
   }
+}
+
+/**
+ * Build the failure-probe envelope for the DNS phase.
+ *
+ * @param context - Probe context (target/host metadata + timing baseline).
+ * @param dnsError - Error object from the rejected DNS lookup or budget timeout.
+ * @returns Probe envelope tagged with the `dns-error` outcome.
+ */
+function buildDnsFailureProbe(context: IProbeContext, dnsError: Error): INavTransportProbe {
+  const envelope: IProbeEnvelope = { ...EMPTY_ENVELOPE, errorText: dnsError.message };
+  return buildProbeResult({ context, outcome: 'dns-error', envelope });
 }
 
 /**
@@ -576,6 +651,48 @@ function phaseBudget(totalBudgetMs: number): number {
   return Math.max(500, third);
 }
 
+/** Empty URL parts used when parsing fails — passed through `buildProbeResult`. */
+const EMPTY_URL: IUrlParts = { host: '', port: 0, isTls: false };
+
+/** Tagged result of {@link tryParseTargetUrl}. */
+interface IParseUrlOutcome {
+  readonly isOk: boolean;
+  readonly url: IUrlParts;
+  readonly errorText: string;
+}
+
+/**
+ * Safely parse the target URL — `new URL(...)` throws on malformed
+ * input, so we wrap that call here to honour the always-resolves
+ * contract of {@link probeTransportWithDeps}.
+ *
+ * @param targetUrl - URL string to parse.
+ * @returns Tagged outcome carrying either parsed parts or the error message.
+ */
+function tryParseTargetUrl(targetUrl: string): IParseUrlOutcome {
+  try {
+    return { isOk: true, url: parseTargetUrl(targetUrl), errorText: '' };
+  } catch (parseError) {
+    return { isOk: false, url: EMPTY_URL, errorText: (parseError as Error).message };
+  }
+}
+
+/**
+ * Build a synthetic `other-error` probe used when {@link tryParseTargetUrl}
+ * rejects the URL. The envelope carries the parse error in `errorText`
+ * so operators can diagnose malformed URL inputs without losing the
+ * always-resolves contract.
+ *
+ * @param run - Probe run inputs (used for `startedMsAfterGotoFailure` + budget).
+ * @param errorText - Message from the `new URL(...)` exception.
+ * @returns Probe envelope tagged `other-error` with empty timing fields.
+ */
+function buildUrlParseFailureProbe(run: IProbeRunInput, errorText: string): INavTransportProbe {
+  const context: IProbeContext = { url: EMPTY_URL, run };
+  const envelope: IProbeEnvelope = { ...EMPTY_ENVELOPE, errorText };
+  return buildProbeResult({ context, outcome: OUTCOME_OTHER_ERROR, envelope });
+}
+
 /** Bundle of inputs to {@link probeTransportWithDeps} (`max-params: 3`). */
 export interface IProbeTransportInput {
   readonly run: IProbeRunInput;
@@ -587,7 +704,8 @@ export interface IProbeTransportInput {
  * budget split across the three phases. Each phase reports its own
  * timing; the first failing phase short-circuits and returns the
  * partial timing it collected so the operator can see how far the
- * probe got. Always resolves; never throws.
+ * probe got. Always resolves; never throws — even malformed URLs map
+ * to an `other-error` probe instead of a thrown exception.
  *
  * @param input - Probe run inputs + dependency bundle.
  * @returns The probe envelope.
@@ -595,20 +713,22 @@ export interface IProbeTransportInput {
 export async function probeTransportWithDeps(
   input: IProbeTransportInput,
 ): Promise<INavTransportProbe> {
-  const url = parseTargetUrl(input.run.targetUrl);
-  const context: IProbeContext = { url, run: input.run };
-  const dnsPhase = await runDnsPhase({ context, deps: input.deps });
-  if (!dnsPhase.isOk) return dnsPhase.probe;
+  const parsed = tryParseTargetUrl(input.run.targetUrl);
+  if (!parsed.isOk) return buildUrlParseFailureProbe(input.run, parsed.errorText);
+  const context: IProbeContext = { url: parsed.url, run: input.run };
   const budgetMs = phaseBudget(input.run.totalBudgetMs);
+  const dnsPhase = await runDnsPhase({ context, deps: input.deps, budgetMs });
+  if (!dnsPhase.isOk) return dnsPhase.probe;
   const tcpPhase = await runTcpPhase({ context, deps: input.deps, dns: dnsPhase.result, budgetMs });
   if (!tcpPhase.isOk) return tcpPhase.probe;
-  return runTlsPhase({
+  const tlsInput: IRunTlsInput = {
     context,
     deps: input.deps,
     dns: dnsPhase.result,
     tcp: tcpPhase.handshake,
     budgetMs,
-  });
+  };
+  return runTlsPhase(tlsInput);
 }
 
 /**

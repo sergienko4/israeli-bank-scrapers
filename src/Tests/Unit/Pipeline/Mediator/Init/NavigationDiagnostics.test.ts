@@ -87,24 +87,8 @@ function recordOff(
  */
 function makeRecordingPage(): IRecordingPage {
   const handlers: IRequestFailedHandler[] = [];
-  /**
-   * `on` shim — delegates to {@link recordOn}.
-   *
-   * @param event - Event name forwarded to recordOn.
-   * @param handler - Handler forwarded to recordOn.
-   * @returns Always `true` (no-void rule).
-   */
-  const on = (event: string, handler: IRequestFailedHandler): boolean =>
-    recordOn(handlers, event, handler);
-  /**
-   * `off` shim — delegates to {@link recordOff}.
-   *
-   * @param event - Event name forwarded to recordOff.
-   * @param handler - Handler forwarded to recordOff.
-   * @returns Always `true` (no-void rule).
-   */
-  const off = (event: string, handler: IRequestFailedHandler): boolean =>
-    recordOff(handlers, event, handler);
+  const on = recordOn.bind(null, handlers);
+  const off = recordOff.bind(null, handlers);
   return { handlers, on, off };
 }
 
@@ -117,19 +101,32 @@ function makeRecordingPage(): IRecordingPage {
  */
 function makeRequest(url: string, errorText: string): Request {
   const failure = { errorText };
-  /**
-   * Scripted URL accessor.
-   *
-   * @returns The scripted URL.
-   */
-  const urlFn = (): string => url;
-  /**
-   * Scripted failure accessor.
-   *
-   * @returns The scripted failure record.
-   */
-  const failureFn = (): { errorText: string } => failure;
+  const urlFn = scriptedUrl.bind(null, url);
+  const failureFn = scriptedFailure.bind(null, failure);
   return { url: urlFn, failure: failureFn } as unknown as Request;
+}
+
+/**
+ * Module-level helper returning the bound scripted URL. Kept module-level
+ * so the test stays under the no-nested-JSDoc lint constraint.
+ *
+ * @param url - URL to return.
+ * @returns The scripted URL value.
+ */
+function scriptedUrl(url: string): string {
+  return url;
+}
+
+/**
+ * Module-level helper returning the bound scripted failure record.
+ * Kept module-level so the test avoids nested arrow JSDoc blocks.
+ *
+ * @param failure - Failure record to return.
+ * @param failure.errorText - The scripted Playwright `request.failure()` text.
+ * @returns The scripted failure record value.
+ */
+function scriptedFailure(failure: { errorText: string }): { errorText: string } {
+  return failure;
 }
 
 describe('classifyNavError', () => {

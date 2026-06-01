@@ -113,6 +113,17 @@ function makeErrno(message: string, code: string): Error {
 }
 
 /**
+ * DNS-lookup factory that never resolves — used to trigger the
+ * per-phase DNS budget timeout. The probe must race this promise
+ * against the budget timer and reject with `DNS_LOOKUP_TIMEOUT`.
+ *
+ * @returns A promise that never settles.
+ */
+function neverResolveDnsFactory(): Promise<IDnsLookupResult> {
+  return new Promise(() => undefined);
+}
+
+/**
  * Build a DNS-lookup factory that rejects with the given error.
  *
  * @param error - Error to reject the lookup with.
@@ -176,6 +187,27 @@ describe('probeTransportWithDeps — DNS failure', () => {
     const probe = await probeTransportWithDeps({ run: BASE_RUN, deps });
     expect(probe.outcome).toBe<INavTransportProbe['outcome']>('dns-error');
     expect(probe.errorText).toContain('ENOTFOUND');
+    expect(probe.dnsLookupMs).toBe(0);
+    expect(probe.tcpConnectMs).toBe(0);
+    expect(probe.tlsHandshakeMs).toBe(0);
+  });
+
+  it('returns dns-error with DNS_LOOKUP_TIMEOUT when the DNS phase exceeds its budget', async () => {
+    const tinyBudgetRun: IProbeRunInput = { ...BASE_RUN, totalBudgetMs: 60 };
+    const deps = makeDeps({ dnsLookup: neverResolveDnsFactory });
+    const probe = await probeTransportWithDeps({ run: tinyBudgetRun, deps });
+    expect(probe.outcome).toBe<INavTransportProbe['outcome']>('dns-error');
+    expect(probe.errorText).toContain('DNS_LOOKUP_TIMEOUT');
+  });
+});
+
+describe('probeTransportWithDeps — URL parse failure', () => {
+  it('resolves to other-error with the parse-failure text when the target URL is malformed', async () => {
+    const badRun: IProbeRunInput = { ...BASE_RUN, targetUrl: 'not a url' };
+    const deps = makeDeps();
+    const probe = await probeTransportWithDeps({ run: badRun, deps });
+    expect(probe.outcome).toBe<INavTransportProbe['outcome']>('other-error');
+    expect(probe.errorText).toMatch(/invalid url|url|parse/i);
     expect(probe.dnsLookupMs).toBe(0);
     expect(probe.tcpConnectMs).toBe(0);
     expect(probe.tlsHandshakeMs).toBe(0);

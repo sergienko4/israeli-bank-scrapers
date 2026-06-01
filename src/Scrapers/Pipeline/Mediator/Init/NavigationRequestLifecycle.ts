@@ -229,8 +229,8 @@ function compareEntriesOldestFirst(
 
 /**
  * Convert tracking map entries (sorted oldest-first) into the
- * public projected list. Extracted so the snapshot factory body
- * does not chain three nested method calls.
+ * public projected list. Map-based for a body that stays trivially
+ * small and reads as a single transformation.
  *
  * @param sorted - Tracking entries already sorted oldest-first.
  * @param nowMs - Reference time for `startedMsAgo` computation.
@@ -240,19 +240,52 @@ function projectAllEntries(
   sorted: readonly (readonly [Request, IRequestEntry])[],
   nowMs: number,
 ): INavInFlightRequest[] {
-  const projections: INavInFlightRequest[] = [];
-  for (const [req, entry] of sorted) {
-    const projection = projectInFlightRequest({ req, entry, nowMs });
-    projections.push(projection);
-  }
-  return projections;
+  return sorted.map(([req, entry]) => projectInFlightRequest({ req, entry, nowMs }));
 }
 
 /**
- * Build the snapshot accessor function. Pulls every entry from the
- * tracking map, sorts oldest-first, caps at {@link MAX_IN_FLIGHT_REQUESTS},
- * and reports truncation via flag + true count so downstream tooling
- * can detect dropped rows. Pure read; never mutates the map.
+ * Build the snapshot envelope from the tracking map — sorts oldest-first,
+ * caps at {@link MAX_IN_FLIGHT_REQUESTS}, and reports truncation via flag
+ * + true count so downstream tooling can detect dropped rows. Pure read;
+ * never mutates the map.
+ *
+ * @param tracking - Mutable map of in-flight requests.
+ * @returns Frozen-shape snapshot envelope.
+ */
+function assembleSnapshotEnvelope(tracking: Map<Request, IRequestEntry>): INavInFlightSnapshot {
+  const entries = collectSortedEntries(tracking);
+  const nowMs = Date.now();
+  const projected = projectAllEntries(entries, nowMs);
+  const isTruncated = projected.length > MAX_IN_FLIGHT_REQUESTS;
+  const capped = isTruncated ? projected.slice(0, MAX_IN_FLIGHT_REQUESTS) : projected;
+  return {
+    inFlightRequests: capped,
+    inFlightRequestCount: projected.length,
+    inFlightRequestsTruncated: isTruncated,
+  };
+}
+
+/**
+ * Collect every tracking entry into a freshly-allocated array sorted
+ * oldest-first. Pulled out so {@link assembleSnapshotEnvelope} body
+ * stays under the 10-line cap.
+ *
+ * @param tracking - Mutable map of in-flight requests.
+ * @returns Frozen array of (Request, IRequestEntry) tuples.
+ */
+function collectSortedEntries(
+  tracking: Map<Request, IRequestEntry>,
+): readonly (readonly [Request, IRequestEntry])[] {
+  const rawEntries = tracking.entries();
+  const entries = Array.from(rawEntries);
+  entries.sort(compareEntriesOldestFirst);
+  return entries;
+}
+
+/**
+ * Build the snapshot accessor function. Returns a thin closure that
+ * delegates to {@link assembleSnapshotEnvelope}; the heavy lifting
+ * lives in the helper so the closure body stays trivially small.
  *
  * @param tracking - Mutable map of in-flight requests.
  * @returns Snapshot function returning a frozen-shape envelope.
@@ -260,20 +293,7 @@ function projectAllEntries(
 function makeLifecycleSnapshotFn(
   tracking: Map<Request, IRequestEntry>,
 ): () => INavInFlightSnapshot {
-  return (): INavInFlightSnapshot => {
-    const nowMs = Date.now();
-    const entriesIter = tracking.entries();
-    const entries = Array.from(entriesIter);
-    entries.sort(compareEntriesOldestFirst);
-    const projected = projectAllEntries(entries, nowMs);
-    const isTruncated = projected.length > MAX_IN_FLIGHT_REQUESTS;
-    const capped = isTruncated ? projected.slice(0, MAX_IN_FLIGHT_REQUESTS) : projected;
-    return {
-      inFlightRequests: capped,
-      inFlightRequestCount: projected.length,
-      inFlightRequestsTruncated: isTruncated,
-    };
-  };
+  return (): INavInFlightSnapshot => assembleSnapshotEnvelope(tracking);
 }
 
 /**
