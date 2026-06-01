@@ -25,6 +25,7 @@ import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { INavInFlightRequest } from './NavigationRequestLifecycle.js';
 import type { INavTransportProbe } from './NavigationTransportProbe.js';
+import type { IConsoleErrorEntry, IFrameInfo, IResponseInfo } from './PageObservers.js';
 
 export type {
   INavInFlightRequest,
@@ -41,6 +42,19 @@ export type {
   TransportProbeOutcome,
 } from './NavigationTransportProbe.js';
 export { probeTransport, probeTransportWithDeps } from './NavigationTransportProbe.js';
+export type {
+  ConsoleErrorSource,
+  IConsoleErrorBuffer,
+  IConsoleErrorEntry,
+  IFrameInfo,
+  ILandingResponseCollector,
+  IResponseInfo,
+} from './PageObservers.js';
+export {
+  attachConsoleErrorBuffer,
+  attachLandingResponseCollector,
+  captureFrameTree,
+} from './PageObservers.js';
 
 /** Categorised network-layer cause derived from the error message text. */
 export type NavErrorCategory = 'timeout' | 'dns' | 'tcp-refused' | 'tcp-reset' | 'tls' | 'unknown';
@@ -72,6 +86,9 @@ export interface INavFailureSnapshot {
   readonly inFlightRequestCount: number;
   readonly inFlightRequestsTruncated: boolean;
   readonly nodeTransportProbe: Option<INavTransportProbe>;
+  readonly frameTree: readonly IFrameInfo[];
+  readonly consoleErrors: readonly IConsoleErrorEntry[];
+  readonly landingResponse: Option<IResponseInfo>;
 }
 
 /** Handle returned by {@link attachFailedRequestCollector}. Call `detach()` to remove the listener. */
@@ -193,6 +210,89 @@ export interface INavFailureInput {
   readonly inFlightRequestCount?: number;
   readonly inFlightRequestsTruncated?: boolean;
   readonly nodeTransportProbe?: Option<INavTransportProbe>;
+  readonly frameTree?: readonly IFrameInfo[];
+  readonly consoleErrors?: readonly IConsoleErrorEntry[];
+  readonly landingResponse?: Option<IResponseInfo>;
+}
+
+/** Default-applied in-flight projection fields used by {@link buildNavFailureSnapshot}. */
+type InFlightFields = Pick<
+  INavFailureSnapshot,
+  'inFlightRequests' | 'inFlightRequestCount' | 'inFlightRequestsTruncated'
+>;
+
+/** Default-applied L7 projection fields used by {@link buildNavFailureSnapshot}. */
+type L7Fields = Pick<INavFailureSnapshot, 'frameTree' | 'consoleErrors' | 'landingResponse'>;
+
+/** Derived error projection fields used by {@link buildNavFailureSnapshot}. */
+type ErrorFields = Pick<INavFailureSnapshot, 'errorName' | 'errorMessage' | 'category'>;
+
+/**
+ * Map the raw {@link Error} onto the snapshot's derived error fields
+ * (`errorName`, `errorMessage`, `category`). Pure read; classifier is
+ * memoised by message text. Pulled out so {@link buildNavFailureSnapshot}
+ * fits the 10-LoC cap.
+ *
+ * @param error - Raw error from the goto rejection.
+ * @returns Three derived snapshot fields.
+ */
+function projectErrorFields(error: Error): ErrorFields {
+  return {
+    errorName: error.name,
+    errorMessage: error.message,
+    category: classifyNavError(error.message),
+  };
+}
+
+/**
+ * Apply nullish defaults to the optional in-flight fields of the
+ * snapshot input. Empty array, zero count, false truncated flag.
+ *
+ * @param input - Failure input bundle (in-flight fields are optional).
+ * @returns In-flight fields with defaults filled in.
+ */
+function withInFlightDefaults(input: INavFailureInput): InFlightFields {
+  return {
+    inFlightRequests: input.inFlightRequests ?? [],
+    inFlightRequestCount: input.inFlightRequestCount ?? 0,
+    inFlightRequestsTruncated: input.inFlightRequestsTruncated ?? false,
+  };
+}
+
+/**
+ * Apply nullish defaults to the optional L7 fields of the snapshot
+ * input. Empty frame tree, empty console errors, `none()` landing
+ * response. Mirrors {@link withInFlightDefaults}.
+ *
+ * @param input - Failure input bundle (L7 fields are optional).
+ * @returns L7 fields with defaults filled in.
+ */
+function withL7Defaults(input: INavFailureInput): L7Fields {
+  return {
+    frameTree: input.frameTree ?? [],
+    consoleErrors: input.consoleErrors ?? [],
+    landingResponse: input.landingResponse ?? none(),
+  };
+}
+
+/** Combined defaults bundle returned by {@link withOptionalFieldDefaults}. */
+type OptionalSnapshotFields = InFlightFields &
+  L7Fields &
+  Pick<INavFailureSnapshot, 'nodeTransportProbe'>;
+
+/**
+ * Apply nullish defaults to ALL the optional snapshot fields in one
+ * call (in-flight + L7 + transport probe). Pulled out so
+ * {@link buildNavFailureSnapshot} stays ≤10 LoC.
+ *
+ * @param input - Failure input bundle (all optional fields).
+ * @returns Combined defaults bundle ready for spreading.
+ */
+function withOptionalFieldDefaults(input: INavFailureInput): OptionalSnapshotFields {
+  const inFlight = withInFlightDefaults(input);
+  const l7 = withL7Defaults(input);
+  const nodeTransportProbe = input.nodeTransportProbe ?? none();
+  return { ...inFlight, ...l7, nodeTransportProbe };
 }
 
 /**
@@ -206,14 +306,9 @@ export function buildNavFailureSnapshot(input: INavFailureInput): INavFailureSna
   return {
     attemptDurationMs: input.attemptDurationMs,
     finalUrl: input.finalUrl,
-    errorName: input.error.name,
-    errorMessage: input.error.message,
-    category: classifyNavError(input.error.message),
     failedRequests: input.failedRequests,
-    inFlightRequests: input.inFlightRequests ?? [],
-    inFlightRequestCount: input.inFlightRequestCount ?? 0,
-    inFlightRequestsTruncated: input.inFlightRequestsTruncated ?? false,
-    nodeTransportProbe: input.nodeTransportProbe ?? none(),
+    ...projectErrorFields(input.error),
+    ...withOptionalFieldDefaults(input),
   };
 }
 

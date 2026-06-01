@@ -36,6 +36,8 @@ import * as dns from 'node:dns';
 import * as net from 'node:net';
 import * as tls from 'node:tls';
 
+import { toError } from '../../Types/ErrorUtils.js';
+
 /** Outcome of the post-failure transport probe (discriminated union). */
 export type TransportProbeOutcome =
   | 'connected'
@@ -151,6 +153,48 @@ function parseTargetUrl(targetUrl: string): IUrlParts {
   return { host: parsed.hostname, port, isTls };
 }
 
+/** Bundle passed to {@link onDnsLookupComplete} (`max-params: 3`). */
+interface IDnsLookupCompleteInput {
+  readonly start: number;
+  readonly resolve: (value: IDnsLookupResult) => unknown;
+  readonly reject: (reason: Error) => unknown;
+}
+
+/**
+ * Build the `dns.lookup` callback in the `(err, address, family)`
+ * shape Node expects. Pulls Promise resolve/reject out of
+ * {@link defaultDnsLookup} so the host stays ≤ 10 LoC.
+ *
+ * @param bundle - Start timestamp + Promise resolve/reject hooks.
+ * @returns Node-style `dns.lookup` callback.
+ */
+function onDnsLookupComplete(bundle: IDnsLookupCompleteInput) {
+  return (lookupError: unknown, address: string, family: number): boolean => {
+    if (lookupError) return rejectAndAck(bundle.reject, lookupError);
+    const dnsLookupMs = Date.now() - bundle.start;
+    bundle.resolve({ address, family: family as 4 | 6, dnsLookupMs });
+    return true;
+  };
+}
+
+/**
+ * Forward a caught error (typed as `unknown`) to a Promise reject hook
+ * and acknowledge the listener. Normalizes `err` into a real `Error`
+ * via {@link toError} so the always-resolves; never-throws contract
+ * holds even when a dep rejects with a non-Error value (string, plain
+ * object, etc.). Saves a 2-line `if`/`return` block in callbacks
+ * bumping against the 10-LoC cap.
+ *
+ * @param reject - Promise reject hook.
+ * @param err - Caught value to normalize and propagate.
+ * @returns `true` (no-void rule).
+ */
+function rejectAndAck(reject: (e: Error) => unknown, err: unknown): boolean {
+  const normalized = toError(err);
+  reject(normalized);
+  return true;
+}
+
 /**
  * Resolve a hostname via `dns.lookup`. Single-shot lookup (first
  * address only) — IPv4/IPv6 preference is delegated to the system.
@@ -161,15 +205,22 @@ function parseTargetUrl(targetUrl: string): IUrlParts {
 function defaultDnsLookup(host: string): Promise<IDnsLookupResult> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
-    dns.lookup(host, { all: false }, (lookupError, address, family) => {
-      if (lookupError) {
-        reject(lookupError);
-      } else {
-        const dnsLookupMs = Date.now() - start;
-        resolve({ address, family: family as 4 | 6, dnsLookupMs });
-      }
-    });
+    const onComplete = onDnsLookupComplete({ start, resolve, reject });
+    dns.lookup(host, { all: false }, onComplete);
   });
+}
+
+/**
+ * Reject the DNS race when the per-phase budget fires before the
+ * resolver answers. Encapsulates the `new Error` + `reject + ack`
+ * pattern so the host {@link raceDnsAgainstBudget} fits ≤ 10 LoC.
+ *
+ * @param reject - Promise reject hook from {@link raceDnsAgainstBudget}.
+ * @returns `true` (no-void rule).
+ */
+function dnsBudgetTimeout(reject: (e: Error) => unknown): boolean {
+  const err = new Error('DNS_LOOKUP_TIMEOUT');
+  return rejectAndAck(reject, err);
 }
 
 /**
@@ -185,15 +236,12 @@ function defaultDnsLookup(host: string): Promise<IDnsLookupResult> {
  */
 function raceDnsAgainstBudget(input: IRunDnsInput): Promise<IDnsLookupResult> {
   return new Promise((resolve, reject) => {
-    const timer = globalThis.setTimeout(() => {
-      reject(new Error('DNS_LOOKUP_TIMEOUT'));
-    }, input.budgetMs);
-    input.deps
-      .dnsLookup(input.context.url.host)
-      .then(lookupResult => onDnsRaceResolved({ timer, lookupResult, resolve }))
-      .catch((lookupError: unknown) =>
-        onDnsRaceRejected({ timer, lookupError: lookupError as Error, reject }),
-      );
+    const timer = globalThis.setTimeout((): boolean => dnsBudgetTimeout(reject), input.budgetMs);
+    input.deps.dnsLookup(input.context.url.host).then(
+      (r: IDnsLookupResult): boolean => onDnsRaceResolved({ timer, lookupResult: r, resolve }),
+      (error: unknown): boolean =>
+        onDnsRaceRejected({ timer, lookupError: toError(error), reject }),
+    );
   });
 }
 
@@ -251,6 +299,49 @@ function makeTcpTimeoutHandler(socket: net.Socket): () => boolean {
   };
 }
 
+/** Bundle passed to {@link onTcpConnect} (`max-params: 3`). */
+interface ITcpConnectBundle {
+  readonly timer: ReturnType<typeof globalThis.setTimeout>;
+  readonly socket: net.Socket;
+  readonly start: number;
+  readonly resolve: (value: ITcpHandshakeResult) => unknown;
+}
+
+/**
+ * Handle the TCP `connect` event — clear the budget timer and
+ * resolve with the open socket + timing.
+ *
+ * @param bundle - Timer + socket + start timestamp + resolve hook.
+ * @returns `true` (no-void rule).
+ */
+function onTcpConnect(bundle: ITcpConnectBundle): boolean {
+  globalThis.clearTimeout(bundle.timer);
+  const tcpConnectMs = Date.now() - bundle.start;
+  bundle.resolve({ tcpConnectMs, socket: bundle.socket });
+  return true;
+}
+
+/** Bundle passed to {@link onTcpError} (`max-params: 3`). */
+interface ITcpErrorBundle {
+  readonly timer: ReturnType<typeof globalThis.setTimeout>;
+  readonly socket: net.Socket;
+  readonly reject: (reason: Error) => unknown;
+}
+
+/**
+ * Handle the TCP `error` event — clear the budget timer, destroy
+ * the socket, and reject the probe Promise.
+ *
+ * @param bundle - Timer + socket + reject hook.
+ * @param socketError - Error emitted by the socket.
+ * @returns `true` (no-void rule).
+ */
+function onTcpError(bundle: ITcpErrorBundle, socketError: Error): boolean {
+  globalThis.clearTimeout(bundle.timer);
+  bundle.socket.destroy();
+  return rejectAndAck(bundle.reject, socketError);
+}
+
 /**
  * Open a TCP socket to (host, port) within the budget, returning
  * timing + the connected socket. The socket is left OPEN for the
@@ -265,17 +356,8 @@ function defaultTcpConnect(input: ITcpConnectInput): Promise<ITcpHandshakeResult
     const socket = net.connect({ host: input.host, port: input.port });
     const onTimeout = makeTcpTimeoutHandler(socket);
     const timer = globalThis.setTimeout(onTimeout, input.budgetMs);
-    socket.once('connect', (): boolean => {
-      globalThis.clearTimeout(timer);
-      resolve({ tcpConnectMs: Date.now() - start, socket });
-      return true;
-    });
-    socket.once('error', (socketError: Error): boolean => {
-      globalThis.clearTimeout(timer);
-      socket.destroy();
-      reject(socketError);
-      return true;
-    });
+    socket.once('connect', (): boolean => onTcpConnect({ timer, socket, start, resolve }));
+    socket.once('error', (e: Error): boolean => onTcpError({ timer, socket, reject }, e));
   });
 }
 
@@ -293,6 +375,90 @@ function makeTlsTimeoutHandler(tlsSocket: tls.TLSSocket): () => boolean {
   };
 }
 
+/** Bundle passed to {@link onTlsSecureConnect} (`max-params: 3`). */
+interface ITlsSecureConnectBundle {
+  readonly timer: ReturnType<typeof globalThis.setTimeout>;
+  readonly tlsSocket: tls.TLSSocket;
+  readonly start: number;
+  readonly resolve: (value: number) => unknown;
+}
+
+/**
+ * Handle the TLS `secureConnect` event — clear the timer, destroy
+ * the TLS socket (probe is observation-only), and resolve with the
+ * handshake duration.
+ *
+ * @param bundle - Timer + TLS socket + start timestamp + resolve hook.
+ * @returns `true` (no-void rule).
+ */
+function onTlsSecureConnect(bundle: ITlsSecureConnectBundle): boolean {
+  globalThis.clearTimeout(bundle.timer);
+  bundle.tlsSocket.destroy();
+  bundle.resolve(Date.now() - bundle.start);
+  return true;
+}
+
+/** Bundle passed to {@link onTlsError} (`max-params: 3`). */
+interface ITlsErrorBundle {
+  readonly timer: ReturnType<typeof globalThis.setTimeout>;
+  readonly tlsSocket: tls.TLSSocket;
+  readonly reject: (reason: Error) => unknown;
+}
+
+/**
+ * Handle the TLS `error` event — clear the timer, destroy the TLS
+ * socket, and reject the probe Promise.
+ *
+ * @param bundle - Timer + TLS socket + reject hook.
+ * @param tlsError - Error emitted by the TLS socket.
+ * @returns `true` (no-void rule).
+ */
+function onTlsError(bundle: ITlsErrorBundle, tlsError: Error): boolean {
+  globalThis.clearTimeout(bundle.timer);
+  bundle.tlsSocket.destroy();
+  return rejectAndAck(bundle.reject, tlsError);
+}
+
+/**
+ * Bundle passed to {@link attachTlsHandlers} (`max-params: 3`).
+ * Carries everything both the success and error paths need.
+ */
+interface ITlsHandlersInput {
+  readonly tlsSocket: tls.TLSSocket;
+  readonly timer: ReturnType<typeof globalThis.setTimeout>;
+  readonly start: number;
+  readonly resolve: (value: number) => unknown;
+  readonly reject: (reason: Error) => unknown;
+}
+
+/**
+ * Wire both `secureConnect` and `error` once-listeners onto the TLS
+ * socket. Extracted so {@link defaultTlsUpgrade} stays ≤10 LoC and
+ * the two listener arrows remain ≤100 chars each.
+ *
+ * @param input - TLS socket + timer + Promise hooks.
+ * @returns `true` (no-void rule).
+ */
+function attachTlsHandlers(input: ITlsHandlersInput): boolean {
+  const { tlsSocket, timer, start, resolve, reject } = input;
+  /**
+   * Wire TLS `secureConnect` → resolve probe Promise with timing.
+   *
+   * @returns `true` (no-void rule).
+   */
+  const onOk = (): boolean => onTlsSecureConnect({ timer, tlsSocket, start, resolve });
+  /**
+   * Wire TLS `error` → reject probe Promise with the underlying error.
+   *
+   * @param error - Error emitted by the TLS socket.
+   * @returns `true` (no-void rule).
+   */
+  const onErr = (error: Error): boolean => onTlsError({ timer, tlsSocket, reject }, error);
+  tlsSocket.once('secureConnect', onOk);
+  tlsSocket.once('error', onErr);
+  return true;
+}
+
 /**
  * Upgrade an open TCP socket to TLS, returning handshake timing in
  * ms. Destroys the TLS socket on resolution to free the underlying
@@ -307,18 +473,7 @@ function defaultTlsUpgrade(input: ITlsUpgradeInput): Promise<number> {
     const tlsSocket = tls.connect({ socket: input.tcp.socket, servername: input.servername });
     const onTimeout = makeTlsTimeoutHandler(tlsSocket);
     const timer = globalThis.setTimeout(onTimeout, input.budgetMs);
-    tlsSocket.once('secureConnect', (): boolean => {
-      globalThis.clearTimeout(timer);
-      tlsSocket.destroy();
-      resolve(Date.now() - start);
-      return true;
-    });
-    tlsSocket.once('error', (tlsError: Error): boolean => {
-      globalThis.clearTimeout(timer);
-      tlsSocket.destroy();
-      reject(tlsError);
-      return true;
-    });
+    attachTlsHandlers({ tlsSocket, timer, start, resolve, reject });
   });
 }
 
@@ -367,6 +522,28 @@ interface IBuildProbeInput {
   readonly envelope: IProbeEnvelope;
 }
 
+/** Trailing timing / budget fields shared by every probe envelope. */
+interface IProbeTimingFields {
+  readonly timing: 'post-failure';
+  readonly startedMsAfterGotoFailure: number;
+  readonly totalBudgetMs: number;
+}
+
+/**
+ * Build the trailing timing / budget fields shared by every probe
+ * envelope. Pulled out so {@link buildProbeResult} fits ≤ 10 LoC.
+ *
+ * @param run - Probe run inputs (carries timing baseline + total budget).
+ * @returns Object literal with `timing`, `startedMsAfterGotoFailure`, `totalBudgetMs`.
+ */
+function buildTimingFields(run: IProbeRunInput): IProbeTimingFields {
+  return {
+    timing: 'post-failure',
+    startedMsAfterGotoFailure: run.startedMsAfterGotoFailure,
+    totalBudgetMs: run.totalBudgetMs,
+  };
+}
+
 /**
  * Build the final probe result envelope from the discriminated
  * outcome + collected envelope fields. Pure constructor; no I/O.
@@ -375,18 +552,13 @@ interface IBuildProbeInput {
  * @returns The probe envelope written to the snapshot.
  */
 function buildProbeResult(input: IBuildProbeInput): INavTransportProbe {
+  const { url, run } = input.context;
   return {
-    host: input.context.url.host,
-    port: input.context.url.port,
+    host: url.host,
+    port: url.port,
     outcome: input.outcome,
-    dnsLookupMs: input.envelope.dnsLookupMs,
-    tcpConnectMs: input.envelope.tcpConnectMs,
-    tlsHandshakeMs: input.envelope.tlsHandshakeMs,
-    resolvedAddress: input.envelope.resolvedAddress,
-    errorText: input.envelope.errorText,
-    timing: 'post-failure',
-    startedMsAfterGotoFailure: input.context.run.startedMsAfterGotoFailure,
-    totalBudgetMs: input.context.run.totalBudgetMs,
+    ...input.envelope,
+    ...buildTimingFields(run),
   };
 }
 
@@ -420,7 +592,7 @@ async function runDnsPhase(input: IRunDnsInput): Promise<IDnsPhaseOutcome> {
     const result = await raceDnsAgainstBudget(input);
     return { isOk: true, result, probe: buildDnsErrorPlaceholder(input.context) };
   } catch (dnsError) {
-    const probe = buildDnsFailureProbe(input.context, dnsError as Error);
+    const probe = buildDnsFailureProbe(input.context, dnsError);
     return { isOk: false, result: buildDnsResultPlaceholder(), probe };
   }
 }
@@ -432,8 +604,19 @@ async function runDnsPhase(input: IRunDnsInput): Promise<IDnsPhaseOutcome> {
  * @param dnsError - Error object from the rejected DNS lookup or budget timeout.
  * @returns Probe envelope tagged with the `dns-error` outcome.
  */
-function buildDnsFailureProbe(context: IProbeContext, dnsError: Error): INavTransportProbe {
-  const envelope: IProbeEnvelope = { ...EMPTY_ENVELOPE, errorText: dnsError.message };
+/**
+ * Build the failure-probe envelope for the DNS phase. Accepts the
+ * caught value as `unknown` and normalizes it via {@link toError}
+ * so the always-resolves contract holds even when the DNS dep
+ * rejects with a non-Error value.
+ *
+ * @param context - Probe context (target/host metadata + timing baseline).
+ * @param dnsError - Caught value from the rejected DNS lookup or budget timeout.
+ * @returns Probe envelope tagged with the DNS-error outcome.
+ */
+function buildDnsFailureProbe(context: IProbeContext, dnsError: unknown): INavTransportProbe {
+  const normalized = toError(dnsError);
+  const envelope: IProbeEnvelope = { ...EMPTY_ENVELOPE, errorText: normalized.message };
   return buildProbeResult({ context, outcome: 'dns-error', envelope });
 }
 
@@ -487,6 +670,45 @@ function tcpFailureOutcome(tcpError: Error): TransportProbeOutcome {
 }
 
 /**
+ * Build a TCP-phase outcome tagged as failed. Wraps the standard
+ * placeholder handshake + failure probe pair so {@link runTcpPhase}'s
+ * catch branch fits on a single line.
+ *
+ * @param input - TCP-phase bundle (context + deps + DNS result + budget).
+ * @param tcpError - Error from the rejected tcp-connect.
+ * @returns Tagged not-OK TCP outcome with the categorized probe envelope.
+ */
+/**
+ * Wrap a {@link buildTcpFailureProbe} call in a tagged failure outcome.
+ * Accepts the caught value as `unknown` and normalizes via the
+ * downstream probe builder so the always-resolves contract holds
+ * even when `tcpConnect` rejects with a non-Error value.
+ *
+ * @param input - TCP-phase bundle (context + deps + DNS result + budget).
+ * @param tcpError - Caught value from the rejected tcp-connect.
+ * @returns Tagged not-OK TCP outcome with the categorized probe envelope.
+ */
+function buildTcpFailureOutcome(input: IRunTcpInput, tcpError: unknown): ITcpPhaseOutcome {
+  return {
+    isOk: false,
+    handshake: buildHandshakePlaceholder2(),
+    probe: buildTcpFailureProbe(input, tcpError),
+  };
+}
+
+/**
+ * Build the {@link ITcpConnectInput} from the TCP-phase bundle. Pure
+ * field mapping; pulled out so {@link runTcpPhase} avoids a nested
+ * call (forbidden by lint) when calling `deps.tcpConnect`.
+ *
+ * @param input - TCP-phase bundle (context + deps + DNS result + budget).
+ * @returns The host / port / budget bundle the connector expects.
+ */
+function makeTcpConnectInput(input: IRunTcpInput): ITcpConnectInput {
+  return { host: input.dns.address, port: input.context.url.port, budgetMs: input.budgetMs };
+}
+
+/**
  * TCP phase: connect to the resolved address. On success returns an
  * OK outcome carrying the handshake (socket left open); on failure
  * returns a not-OK outcome carrying a fully-built probe envelope.
@@ -495,20 +717,30 @@ function tcpFailureOutcome(tcpError: Error): TransportProbeOutcome {
  * @returns Tagged outcome (success carries TCP handshake, failure carries probe).
  */
 async function runTcpPhase(input: IRunTcpInput): Promise<ITcpPhaseOutcome> {
+  const tcpInput = makeTcpConnectInput(input);
   try {
-    const handshake = await input.deps.tcpConnect({
-      host: input.dns.address,
-      port: input.context.url.port,
-      budgetMs: input.budgetMs,
-    });
+    const handshake = await input.deps.tcpConnect(tcpInput);
     return { isOk: true, handshake, probe: buildHandshakePlaceholder(input.context) };
   } catch (tcpError) {
-    return {
-      isOk: false,
-      handshake: buildHandshakePlaceholder2(),
-      probe: buildTcpFailureProbe(input, tcpError as Error),
-    };
+    return buildTcpFailureOutcome(input, tcpError);
   }
+}
+
+/**
+ * Build the TCP-failure envelope (DNS timing carried forward, TCP/TLS
+ * fields left empty, error message carried in `errorText`).
+ *
+ * @param dns - DNS phase result (address + lookup timing).
+ * @param message - Error message from the rejected tcp-connect.
+ * @returns Envelope sized for the failed-probe path.
+ */
+function makeTcpFailureEnvelope(dns: IDnsLookupResult, message: string): IProbeEnvelope {
+  return {
+    ...EMPTY_ENVELOPE,
+    dnsLookupMs: dns.dnsLookupMs,
+    resolvedAddress: dns.address,
+    errorText: message,
+  };
 }
 
 /**
@@ -518,18 +750,21 @@ async function runTcpPhase(input: IRunTcpInput): Promise<ITcpPhaseOutcome> {
  * @param tcpError - Error object from the rejected tcp-connect.
  * @returns Probe envelope tagged with the categorized TCP outcome.
  */
-function buildTcpFailureProbe(input: IRunTcpInput, tcpError: Error): INavTransportProbe {
-  const envelope: IProbeEnvelope = {
-    ...EMPTY_ENVELOPE,
-    dnsLookupMs: input.dns.dnsLookupMs,
-    resolvedAddress: input.dns.address,
-    errorText: tcpError.message,
-  };
-  return buildProbeResult({
-    context: input.context,
-    outcome: tcpFailureOutcome(tcpError),
-    envelope,
-  });
+/**
+ * Build the failure-probe envelope for the TCP phase. Accepts the
+ * caught value as `unknown` and normalizes via {@link toError} so
+ * `tcpFailureOutcome` and `makeTcpFailureEnvelope` see a real Error
+ * even when the dep rejects with a non-Error value.
+ *
+ * @param input - TCP-phase bundle (context + deps + DNS result + budget).
+ * @param tcpError - Caught value from the rejected tcp-connect.
+ * @returns Probe envelope tagged with the categorized TCP outcome.
+ */
+function buildTcpFailureProbe(input: IRunTcpInput, tcpError: unknown): INavTransportProbe {
+  const normalized = toError(tcpError);
+  const envelope = makeTcpFailureEnvelope(input.dns, normalized.message);
+  const outcome = tcpFailureOutcome(normalized);
+  return buildProbeResult({ context: input.context, outcome, envelope });
 }
 
 /**
@@ -590,6 +825,30 @@ function buildSuccessProbe(input: IRunTlsInput, tlsMs: number): INavTransportPro
   return buildProbeResult({ context: input.context, outcome: 'connected', envelope });
 }
 
+/** Bundle of inputs to {@link makeTlsFailureEnvelope} (`max-params: 3`). */
+interface ITlsFailureEnvInput {
+  readonly dns: IDnsLookupResult;
+  readonly tcp: ITcpHandshakeResult;
+  readonly message: string;
+}
+
+/**
+ * Build the TLS-failure envelope (DNS + TCP timings carried forward,
+ * TLS reset to zero, error message carried in `errorText`).
+ *
+ * @param input - DNS result + TCP result + error message.
+ * @returns Envelope sized for the failed-probe path.
+ */
+function makeTlsFailureEnvelope(input: ITlsFailureEnvInput): IProbeEnvelope {
+  return {
+    dnsLookupMs: input.dns.dnsLookupMs,
+    tcpConnectMs: input.tcp.tcpConnectMs,
+    tlsHandshakeMs: ZERO_MS,
+    resolvedAddress: input.dns.address,
+    errorText: input.message,
+  };
+}
+
 /**
  * Build the failure-path probe envelope for the TLS phase.
  *
@@ -597,19 +856,53 @@ function buildSuccessProbe(input: IRunTlsInput, tlsMs: number): INavTransportPro
  * @param tlsError - Error object from the rejected tls-upgrade.
  * @returns Probe envelope tagged with the categorized TLS outcome.
  */
-function buildTlsFailureProbe(input: IRunTlsInput, tlsError: Error): INavTransportProbe {
-  const envelope: IProbeEnvelope = {
-    dnsLookupMs: input.dns.dnsLookupMs,
-    tcpConnectMs: input.tcp.tcpConnectMs,
-    tlsHandshakeMs: ZERO_MS,
-    resolvedAddress: input.dns.address,
-    errorText: tlsError.message,
-  };
-  return buildProbeResult({
-    context: input.context,
-    outcome: tlsFailureOutcome(tlsError),
-    envelope,
-  });
+/**
+ * Build the failure-path probe envelope for the TLS phase. Accepts
+ * the caught value as `unknown` and normalizes via {@link toError}
+ * so `tlsFailureOutcome` and `makeTlsFailureEnvelope` see a real
+ * Error even when the dep rejects with a non-Error value.
+ *
+ * @param input - TLS-phase bundle (context + deps + DNS + TCP + budget).
+ * @param tlsError - Caught value from the rejected tls-upgrade.
+ * @returns Probe envelope tagged with the categorized TLS outcome.
+ */
+function buildTlsFailureProbe(input: IRunTlsInput, tlsError: unknown): INavTransportProbe {
+  const { dns, tcp } = input;
+  const normalized = toError(tlsError);
+  const envelope = makeTlsFailureEnvelope({ dns, tcp, message: normalized.message });
+  const outcome = tlsFailureOutcome(normalized);
+  return buildProbeResult({ context: input.context, outcome, envelope });
+}
+
+/**
+ * Build the {@link ITlsUpgradeInput} from the TLS-phase bundle. Pure
+ * field mapping; pulled out so {@link runTlsPhase}'s try-branch fits
+ * the 10-LoC cap.
+ *
+ * @param input - TLS-phase bundle (context + deps + DNS + TCP + budget).
+ * @returns The tcp / servername / budget bundle the upgrader expects.
+ */
+function makeTlsUpgradeInput(input: IRunTlsInput): ITlsUpgradeInput {
+  return { tcp: input.tcp, servername: input.context.url.host, budgetMs: input.budgetMs };
+}
+
+/**
+ * Attempt the TLS handshake; on success return the connected probe,
+ * on failure destroy the underlying socket and return the categorized
+ * failure probe. Extracted from {@link runTlsPhase} to stay ≤ 10 LoC.
+ *
+ * @param input - TLS-phase bundle (context + deps + DNS + TCP + budget).
+ * @returns Final probe envelope (success or failure).
+ */
+async function attemptTlsUpgrade(input: IRunTlsInput): Promise<INavTransportProbe> {
+  const tlsInput = makeTlsUpgradeInput(input);
+  try {
+    const tlsMs = await input.deps.tlsUpgrade(tlsInput);
+    return buildSuccessProbe(input, tlsMs);
+  } catch (tlsError) {
+    input.tcp.socket.destroy();
+    return buildTlsFailureProbe(input, tlsError);
+  }
 }
 
 /**
@@ -625,17 +918,7 @@ async function runTlsPhase(input: IRunTlsInput): Promise<INavTransportProbe> {
     input.tcp.socket.destroy();
     return buildSuccessProbe(input, ZERO_MS);
   }
-  try {
-    const tlsMs = await input.deps.tlsUpgrade({
-      tcp: input.tcp,
-      servername: input.context.url.host,
-      budgetMs: input.budgetMs,
-    });
-    return buildSuccessProbe(input, tlsMs);
-  } catch (tlsError) {
-    input.tcp.socket.destroy();
-    return buildTlsFailureProbe(input, tlsError as Error);
-  }
+  return attemptTlsUpgrade(input);
 }
 
 /**
@@ -673,7 +956,8 @@ function tryParseTargetUrl(targetUrl: string): IParseUrlOutcome {
   try {
     return { isOk: true, url: parseTargetUrl(targetUrl), errorText: '' };
   } catch (parseError) {
-    return { isOk: false, url: EMPTY_URL, errorText: (parseError as Error).message };
+    const normalized = toError(parseError);
+    return { isOk: false, url: EMPTY_URL, errorText: normalized.message };
   }
 }
 
@@ -700,6 +984,25 @@ export interface IProbeTransportInput {
 }
 
 /**
+ * Run DNS → TCP → TLS in sequence. The first phase to fail
+ * short-circuits and returns the partial probe envelope it built.
+ * Extracted from {@link probeTransportWithDeps} so that entry point
+ * fits the 10-LoC cap.
+ *
+ * @param phases - Probe context + deps + per-phase budget (shared by all 3 phases).
+ * @returns Probe envelope from the first failing phase, or the TLS phase result.
+ */
+async function runDnsTcpTlsPhases(phases: IRunDnsInput): Promise<INavTransportProbe> {
+  const dnsPhase = await runDnsPhase(phases);
+  if (!dnsPhase.isOk) return dnsPhase.probe;
+  const tcpInput: IRunTcpInput = { ...phases, dns: dnsPhase.result };
+  const tcpPhase = await runTcpPhase(tcpInput);
+  if (!tcpPhase.isOk) return tcpPhase.probe;
+  const tlsInput: IRunTlsInput = { ...phases, dns: dnsPhase.result, tcp: tcpPhase.handshake };
+  return runTlsPhase(tlsInput);
+}
+
+/**
  * Test-injectable probe — runs DNS → TCP → TLS with a hard wall-clock
  * budget split across the three phases. Each phase reports its own
  * timing; the first failing phase short-circuits and returns the
@@ -717,18 +1020,7 @@ export async function probeTransportWithDeps(
   if (!parsed.isOk) return buildUrlParseFailureProbe(input.run, parsed.errorText);
   const context: IProbeContext = { url: parsed.url, run: input.run };
   const budgetMs = phaseBudget(input.run.totalBudgetMs);
-  const dnsPhase = await runDnsPhase({ context, deps: input.deps, budgetMs });
-  if (!dnsPhase.isOk) return dnsPhase.probe;
-  const tcpPhase = await runTcpPhase({ context, deps: input.deps, dns: dnsPhase.result, budgetMs });
-  if (!tcpPhase.isOk) return tcpPhase.probe;
-  const tlsInput: IRunTlsInput = {
-    context,
-    deps: input.deps,
-    dns: dnsPhase.result,
-    tcp: tcpPhase.handshake,
-    budgetMs,
-  };
-  return runTlsPhase(tlsInput);
+  return runDnsTcpTlsPhases({ context, deps: input.deps, budgetMs });
 }
 
 /**

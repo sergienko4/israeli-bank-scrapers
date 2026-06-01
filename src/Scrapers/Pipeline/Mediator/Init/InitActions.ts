@@ -20,8 +20,9 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import type { INeterrorProbeResult } from '../Browser/BrowserErrorPage.js';
 import createElementMediator from '../Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Elements/PagePrelude.js';
 import { awaitPagePrelude, probeFirefoxNeterror } from '../Elements/PagePrelude.js';
@@ -29,18 +30,29 @@ import {
   ELEMENTS_DOM_READY_TIMEOUT_MS,
   INIT_NAV_COMMIT_TIMEOUT_MS,
 } from '../Timing/TimingConfig.js';
+import { logEnvSnapshot } from './EnvSnapshot.js';
 import type {
+  IConsoleErrorBuffer,
+  IConsoleErrorEntry,
   IFailedRequestCollector,
+  IFrameInfo,
+  ILandingResponseCollector,
   INavFailedRequest,
+  INavFailureInput,
   INavFailureSnapshot,
   INavInFlightSnapshot,
   INavTransportProbe,
+  IProbeRunInput,
   IRequestLifecycleObserver,
+  IResponseInfo,
 } from './NavigationDiagnostics.js';
 import {
+  attachConsoleErrorBuffer,
   attachFailedRequestCollector,
+  attachLandingResponseCollector,
   attachRequestLifecycleObserver,
   buildNavFailureSnapshot,
+  captureFrameTree,
   classifyNavError,
   logNavFailureSnapshot,
   probeTransport,
@@ -72,17 +84,69 @@ async function executeLaunchBrowser(input: IPipelineContext): Promise<Procedure<
   let browser: Browser | false = false;
   try {
     browser = await launchBrowser(input.options);
-    const launched = await createContextAndPage(browser);
-    await coldStartIfDumping(launched.context);
-    await installMockContextRoute(launched.context, input.companyId);
-    await setupPage(launched.page, input.options);
-    const state = buildBrowserState(launched.page, launched.context, browser);
-    return succeed({ ...input, browser: some(state) });
+    return await buildSuccessfulLaunch(input, browser);
   } catch (error) {
-    await closeBrowserSafe(browser);
-    const msg = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `INIT PRE: browser launch failed — ${msg}`);
+    return failLaunch(browser, error as Error);
   }
+}
+
+/** Bundle returned by {@link createContextAndPage} — context + page handles. */
+interface ILaunchedPage {
+  readonly context: BrowserContext;
+  readonly page: Page;
+}
+
+/**
+ * Apply the post-launch Cold-Start scrub, mock route install, and
+ * page-level setup in one call. Pulled out of
+ * {@link buildSuccessfulLaunch} so the success-path stays ≤10 LoC.
+ *
+ * @param launched - Context + page returned from {@link createContextAndPage}.
+ * @param input - Pipeline context (carries companyId + options).
+ * @returns `true` (no-void rule).
+ */
+async function applyPostLaunchSetup(
+  launched: ILaunchedPage,
+  input: IPipelineContext,
+): Promise<boolean> {
+  await coldStartIfDumping(launched.context);
+  await installMockContextRoute(launched.context, input.companyId);
+  await setupPage(launched.page, input.options);
+  return true;
+}
+
+/**
+ * Build the successful-launch procedure — create context + page, run
+ * post-launch setup, wire the browser state into the pipeline ctx.
+ *
+ * @param input - Pipeline context with options + companyId.
+ * @param browser - The launched browser handle.
+ * @returns Pipeline context with `browser` populated.
+ */
+async function buildSuccessfulLaunch(
+  input: IPipelineContext,
+  browser: Browser,
+): Promise<Procedure<IPipelineContext>> {
+  const launched = await createContextAndPage(browser);
+  await applyPostLaunchSetup(launched, input);
+  await logEnvSnapshot({ browser, page: launched.page, logger: input.logger });
+  const state = buildBrowserState(launched.page, launched.context, browser);
+  return succeed({ ...input, browser: some(state) });
+}
+
+/**
+ * Close the browser (best-effort) and return a structured `fail`
+ * carrying the original launch error message. Pulled out of
+ * {@link executeLaunchBrowser} so the try/catch shell stays ≤10 LoC.
+ *
+ * @param browser - Browser handle if launch had progressed (may be `false`).
+ * @param error - Error caught from `launchBrowser` or subsequent setup.
+ * @returns `Procedure` failure with `ScraperErrorTypes.Generic`.
+ */
+async function failLaunch(browser: Browser | false, error: Error): Promise<IProcedureFailure> {
+  await closeBrowserSafe(browser);
+  const msg = toErrorMessage(error);
+  return fail(ScraperErrorTypes.Generic, `INIT PRE: browser launch failed — ${msg}`);
 }
 
 /**
@@ -114,7 +178,7 @@ async function executeNavigateToBank(
   const page = input.browser.value.page;
   const targetUrl = input.config.urls.base;
   input.logger.debug({ url: maskVisibleText(targetUrl), didNavigate: false });
-  return runNavigationAttempt(input, page, targetUrl);
+  return runNavigationAttempt({ input, page, targetUrl });
 }
 
 /**
@@ -124,22 +188,15 @@ async function executeNavigateToBank(
  * failure-context capture so {@link executeNavigateToBank} stays
  * trivially small and listeners can never leak onto the page.
  *
- * @param input - Pipeline context (passed through on success).
- * @param page - Playwright page already validated as present.
- * @param targetUrl - Bank base URL to navigate to.
+ * @param bundle - Pipeline context + page + target URL (reused `INavCommitInput`).
  * @returns Same context on commit, structured fail on goto error.
  */
-async function runNavigationAttempt(
-  input: IPipelineContext,
-  page: Page,
-  targetUrl: string,
-): Promise<Procedure<IPipelineContext>> {
-  const observers = attachNavObservers(page);
+async function runNavigationAttempt(bundle: INavCommitInput): Promise<Procedure<IPipelineContext>> {
+  const observers = attachNavObservers(bundle.page);
   try {
-    return await navigateAndCommit({ input, page, targetUrl });
-  } catch (gotoError) {
-    const error = gotoError as Error;
-    return await handleGotoRejection({ input, page, targetUrl, observers, error });
+    return await navigateAndCommit(bundle);
+  } catch (error) {
+    return await handleGotoRejection({ ...bundle, observers, error: error as Error });
   } finally {
     detachNavObservers(observers);
   }
@@ -149,30 +206,35 @@ async function runNavigationAttempt(
 interface INavObservers {
   readonly collector: IFailedRequestCollector;
   readonly lifecycle: IRequestLifecycleObserver;
+  readonly consoleBuffer: IConsoleErrorBuffer;
+  readonly landingCollector: ILandingResponseCollector;
   readonly startMs: number;
 }
 
 /**
- * Attach the failed-request collector and lifecycle observer to the
- * page in one call, returning a single handle the caller can detach
- * in a `finally` block. Captures the start timestamp so the failure
+ * Attach the failed-request collector, lifecycle observer, L7
+ * console buffer, and L7 landing-response collector to the page in
+ * one call, returning a single handle the caller can detach in a
+ * `finally` block. Captures the start timestamp so the failure
  * snapshot can report attempt duration without a second `Date.now()`.
  *
  * @param page - Playwright page to observe.
- * @returns Observer handle + collector + start timestamp.
+ * @returns Observer handle + collectors + start timestamp.
  */
 function attachNavObservers(page: Page): INavObservers {
   return {
     collector: attachFailedRequestCollector(page),
     lifecycle: attachRequestLifecycleObserver(page),
+    consoleBuffer: attachConsoleErrorBuffer(page),
+    landingCollector: attachLandingResponseCollector(page),
     startMs: Date.now(),
   };
 }
 
 /**
- * Detach both observers from the page. Idempotent; safe to call in
- * the `finally` block of {@link runNavigationAttempt} on every code
- * path — success, failure, or thrown exception.
+ * Detach all four observers from the page. Idempotent; safe to call
+ * in the `finally` block of {@link runNavigationAttempt} on every
+ * code path — success, failure, or thrown exception.
  *
  * @param observers - Handle returned by {@link attachNavObservers}.
  * @returns `true` (no-void rule).
@@ -180,6 +242,8 @@ function attachNavObservers(page: Page): INavObservers {
 function detachNavObservers(observers: INavObservers): boolean {
   observers.collector.detach();
   observers.lifecycle.detach();
+  observers.consoleBuffer.detach();
+  observers.landingCollector.detach();
   return true;
 }
 
@@ -228,15 +292,41 @@ interface IGotoRejectionInput {
 async function handleGotoRejection(
   bundle: IGotoRejectionInput,
 ): Promise<Procedure<IPipelineContext>> {
-  const context = collectFailureContext({
-    input: bundle.input,
-    page: bundle.page,
-    error: bundle.error,
-    startMs: bundle.observers.startMs,
-    failedRequests: bundle.observers.collector.collected,
-    lifecycle: bundle.observers.lifecycle,
-  });
+  const ctxInput = buildFailureContextInput(bundle);
+  const context = collectFailureContext(ctxInput);
   return handleNavFailure(context, bundle.targetUrl);
+}
+
+/**
+ * Project the observer-derived fields of {@link ICollectFailureContextInput}
+ * — extracted to keep {@link buildFailureContextInput} ≤10 LoC.
+ *
+ * @param observers - Live navigation observers bundle.
+ * @returns The 5 observer-sourced fields of the failure-context bundle.
+ */
+function projectObserverFields(observers: INavObservers): IObservedFields {
+  return {
+    startMs: observers.startMs,
+    failedRequests: observers.collector.collected,
+    lifecycle: observers.lifecycle,
+    consoleBuffer: observers.consoleBuffer,
+    landingCollector: observers.landingCollector,
+  };
+}
+
+/**
+ * Re-shape an {@link IGotoRejectionInput} into the
+ * {@link ICollectFailureContextInput} carrier consumed by
+ * {@link collectFailureContext} — addresses CodeRabbit R3-1 and keeps
+ * {@link handleGotoRejection} ≤10 LoC.
+ *
+ * @param bundle - Goto-rejection bundle (context + page + observers + error).
+ * @returns Bundle ready for synchronous failure-context capture.
+ */
+function buildFailureContextInput(bundle: IGotoRejectionInput): ICollectFailureContextInput {
+  const refs = { input: bundle.input, page: bundle.page, error: bundle.error };
+  const observed = projectObserverFields(bundle.observers);
+  return { ...refs, ...observed };
 }
 
 /**
@@ -250,17 +340,47 @@ async function handleGotoRejection(
  */
 function collectFailureContext(bundle: ICollectFailureContextInput): IHandleNavFailureInput {
   const now = Date.now();
-  const inFlightSnapshot = bundle.lifecycle.snapshot();
-  return {
-    input: bundle.input,
-    page: bundle.page,
-    error: bundle.error,
-    attemptDurationMs: now - bundle.startMs,
-    failedRequests: bundle.failedRequests,
-    inFlightSnapshot,
-    finalUrlAtFailure: bundle.page.url(),
-    failureTimestampMs: now,
-  };
+  const inFlight = bundle.lifecycle.snapshot();
+  return assembleFailureInput(bundle, now, inFlight);
+}
+
+/**
+ * Combine the flight-state + L7 forensic fields into a single
+ * partial — extracted to keep {@link assembleFailureInput} ≤10 LoC.
+ *
+ * @param bundle - The failure-context input bundle.
+ * @param inFlight - In-flight snapshot from the lifecycle observer.
+ * @returns Combined flight + L7 partial.
+ */
+function buildFlightL7Fields(
+  bundle: ICollectFailureContextInput,
+  inFlight: INavInFlightSnapshot,
+): IFlightL7Fields {
+  const flight = { inFlightSnapshot: inFlight, finalUrl: bundle.page.url() };
+  const l7 = captureL7State(bundle);
+  return { ...flight, ...l7 };
+}
+
+/**
+ * Assemble the {@link IHandleNavFailureInput} carrier from the input
+ * bundle + the timestamp + the in-flight snapshot captured in the
+ * catch. Addresses CodeRabbit R3-3 — keeps {@link collectFailureContext}
+ * ≤10 LoC by splitting "snapshot" from "carrier assembly".
+ *
+ * @param bundle - The pre-snapshot inputs (context + page + error + start).
+ * @param now - `Date.now()` captured at the entry to the catch.
+ * @param inFlight - In-flight snapshot from the lifecycle observer.
+ * @returns Bundle ready for {@link handleNavFailure}.
+ */
+function assembleFailureInput(
+  bundle: ICollectFailureContextInput,
+  now: number,
+  inFlight: INavInFlightSnapshot,
+): IHandleNavFailureInput {
+  const refs = { input: bundle.input, page: bundle.page, error: bundle.error };
+  const timing = { attemptDurationMs: now - bundle.startMs, failureTimestampMs: now };
+  const flightL7 = buildFlightL7Fields(bundle, inFlight);
+  return { ...refs, ...timing, ...flightL7, failedRequests: bundle.failedRequests };
 }
 
 /** Bundle of inputs to {@link collectFailureContext} (`max-params: 3`). */
@@ -271,6 +391,8 @@ interface ICollectFailureContextInput {
   readonly startMs: number;
   readonly failedRequests: readonly INavFailedRequest[];
   readonly lifecycle: { readonly snapshot: () => INavInFlightSnapshot };
+  readonly consoleBuffer: IConsoleErrorBuffer;
+  readonly landingCollector: ILandingResponseCollector;
 }
 
 /**
@@ -286,8 +408,49 @@ interface IHandleNavFailureInput {
   readonly attemptDurationMs: number;
   readonly failedRequests: readonly INavFailedRequest[];
   readonly inFlightSnapshot: INavInFlightSnapshot;
-  readonly finalUrlAtFailure: string;
+  readonly finalUrl: string;
   readonly failureTimestampMs: number;
+  readonly frameTree: readonly IFrameInfo[];
+  readonly consoleErrors: readonly IConsoleErrorEntry[];
+  readonly landingResponse: Option<IResponseInfo>;
+}
+
+/** L7 state captured synchronously by {@link captureL7State}. */
+interface IL7State {
+  readonly frameTree: readonly IFrameInfo[];
+  readonly consoleErrors: readonly IConsoleErrorEntry[];
+  readonly landingResponse: Option<IResponseInfo>;
+}
+
+/** Observer-derived fields of {@link ICollectFailureContextInput}. */
+interface IObservedFields {
+  readonly startMs: number;
+  readonly failedRequests: readonly INavFailedRequest[];
+  readonly lifecycle: { readonly snapshot: () => INavInFlightSnapshot };
+  readonly consoleBuffer: IConsoleErrorBuffer;
+  readonly landingCollector: ILandingResponseCollector;
+}
+
+/** Combined flight + L7 fields returned by {@link buildFlightL7Fields}. */
+interface IFlightL7Fields extends IL7State {
+  readonly inFlightSnapshot: INavInFlightSnapshot;
+  readonly finalUrl: string;
+}
+
+/**
+ * Capture the L7 forensic state from the live page + the buffered
+ * observer handles. Pure synchronous reads — the page is still alive
+ * at this point (the catch block has not yet awaited anything).
+ *
+ * @param bundle - Failure-context bundle with page + observer handles.
+ * @returns L7 state snapshot.
+ */
+function captureL7State(bundle: ICollectFailureContextInput): IL7State {
+  return {
+    frameTree: captureFrameTree(bundle.page),
+    consoleErrors: bundle.consoleBuffer.collected,
+    landingResponse: bundle.landingCollector.getResponse(),
+  };
 }
 
 /**
@@ -309,7 +472,7 @@ const NODE_TRANSPORT_PROBE_BUDGET_MS = 5000;
  */
 function shouldRunTransportProbe(inputs: IHandleNavFailureInput): boolean {
   if (inputs.failedRequests.length !== 0) return false;
-  if (inputs.finalUrlAtFailure !== 'about:blank') return false;
+  if (inputs.finalUrl !== 'about:blank') return false;
   const message = toErrorMessage(inputs.error);
   return classifyNavError(message) === 'timeout';
 }
@@ -328,12 +491,25 @@ async function maybeRunTransportProbe(
   targetUrl: string,
 ): Promise<Option<INavTransportProbe>> {
   if (!shouldRunTransportProbe(inputs)) return none();
-  const probe = await probeTransport({
+  const runInput = buildProbeRunInput(inputs, targetUrl);
+  const probe = await probeTransport(runInput);
+  return wrapProbeAsOption(probe);
+}
+
+/**
+ * Build the {@link IProbeRunInput} bundle from the failure context.
+ * Extracted so {@link maybeRunTransportProbe} fits the 10-LoC cap.
+ *
+ * @param inputs - The failure context bundle.
+ * @param targetUrl - Bank base URL.
+ * @returns Probe run input with `startedMsAfterGotoFailure` computed.
+ */
+function buildProbeRunInput(inputs: IHandleNavFailureInput, targetUrl: string): IProbeRunInput {
+  return {
     targetUrl,
     totalBudgetMs: NODE_TRANSPORT_PROBE_BUDGET_MS,
     startedMsAfterGotoFailure: Date.now() - inputs.failureTimestampMs,
-  });
-  return wrapProbeAsOption(probe);
+  };
 }
 
 /**
@@ -371,18 +547,40 @@ function buildSnapshotFromInputs(
   inputs: IHandleNavFailureInput,
   nodeTransportProbe: Option<INavTransportProbe>,
 ): INavFailureSnapshot {
-  const snap = inputs.inFlightSnapshot;
-  return buildNavFailureSnapshot({
-    error: inputs.error,
-    attemptDurationMs: inputs.attemptDurationMs,
-    finalUrl: inputs.finalUrlAtFailure,
-    failedRequests: inputs.failedRequests,
-    inFlightRequests: snap.inFlightRequests,
-    inFlightRequestCount: snap.inFlightRequestCount,
-    inFlightRequestsTruncated: snap.inFlightRequestsTruncated,
-    nodeTransportProbe,
-  });
+  const fields = mapInputsToSnapshotFields(inputs, inputs.inFlightSnapshot, nodeTransportProbe);
+  return buildNavFailureSnapshot(fields);
 }
+
+/**
+ * Map the {@link IHandleNavFailureInput} carrier + the in-flight
+ * snapshot + the optional probe into the {@link INavFailureInput}
+ * shape consumed by {@link buildNavFailureSnapshot}. Addresses
+ * CodeRabbit R3-2 by isolating the field mapping in one audit point.
+ *
+ * @param inputs - Failure context bundle captured at the catch.
+ * @param snap - In-flight snapshot (already destructured by the caller).
+ * @param nodeTransportProbe - Optional probe result attached to the snapshot.
+ * @returns Field bundle ready for {@link buildNavFailureSnapshot}.
+ */
+function mapInputsToSnapshotFields(
+  inputs: IHandleNavFailureInput,
+  snap: INavInFlightSnapshot,
+  nodeTransportProbe: Option<INavTransportProbe>,
+): INavFailureInput {
+  const { error, attemptDurationMs, finalUrl, failedRequests } = inputs;
+  const { frameTree, consoleErrors, landingResponse } = inputs;
+  const l7 = { frameTree, consoleErrors, landingResponse };
+  return { error, attemptDurationMs, finalUrl, failedRequests, ...snap, ...l7, nodeTransportProbe };
+}
+
+/**
+ * Centralised failure messages for the validate/wire post-launch
+ * gates. Promoted to module-level constants so the inline `if`
+ * returns fit ≤100 chars without splitting (which would push the
+ * host functions over the 10-LoC cap).
+ */
+const VALIDATE_BLANK_MSG = 'INIT POST: page is blank';
+const WIRE_NO_DOM_MSG = 'INIT FINAL: domcontentloaded not observed';
 
 /**
  * POST: Validate the navigation committed — page URL is no longer
@@ -415,17 +613,24 @@ async function executeValidatePage(input: IPipelineContext): Promise<Procedure<I
   const page = input.browser.value.page;
   const currentUrl = page.url();
   input.logger.debug({ url: maskVisibleText(currentUrl) });
-  if (currentUrl === 'about:blank') {
-    return fail(ScraperErrorTypes.Generic, 'INIT POST: page is blank');
-  }
+  if (currentUrl === 'about:blank') return fail(ScraperErrorTypes.Generic, VALIDATE_BLANK_MSG);
   const probe = await probeFirefoxNeterror(page);
-  if (probe.isNeterror) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `INIT POST: browser error page — title="${probe.title}" url=${maskVisibleText(currentUrl)}`,
-    );
-  }
+  if (probe.isNeterror) return buildNeterrorFail(probe, currentUrl);
   return succeed(input);
+}
+
+/**
+ * Build the structured `fail` for the Firefox neterror branch of
+ * {@link executeValidatePage}. Pulled out so the validate host stays
+ * ≤10 LoC and the neterror message format lives in one audit point.
+ *
+ * @param probe - Result of {@link probeFirefoxNeterror} (carries `title`).
+ * @param currentUrl - URL at the moment the neterror was detected.
+ * @returns Failure `Procedure` describing the browser error page.
+ */
+function buildNeterrorFail(probe: INeterrorProbeResult, currentUrl: string): IProcedureFailure {
+  const detail = `title="${probe.title}" url=${maskVisibleText(currentUrl)}`;
+  return fail(ScraperErrorTypes.Generic, `INIT POST: browser error page — ${detail}`);
 }
 
 /**
@@ -464,19 +669,25 @@ async function executeWireComponents(
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'INIT FINAL: no browser');
   const page = input.browser.value.page;
   const wasReady = await awaitPagePrelude(input, INIT_FINAL_PRELUDE);
-  if (!wasReady) {
-    return fail(ScraperErrorTypes.Generic, 'INIT FINAL: domcontentloaded not observed');
-  }
+  if (!wasReady) return fail(ScraperErrorTypes.Generic, WIRE_NO_DOM_MSG);
+  const wired = buildWiredContext(input, page);
+  return succeed(wired);
+}
+
+/**
+ * Build the wired pipeline context — `fetchStrategy`, `mediator`,
+ * and `diagnostics.loginUrl` from the live page. Pulled out so
+ * {@link executeWireComponents} stays ≤10 LoC.
+ *
+ * @param input - Pipeline context with browser (caller already validated).
+ * @param page - Playwright page handle.
+ * @returns Updated pipeline context with FINAL fields populated.
+ */
+function buildWiredContext(input: IPipelineContext, page: Page): IPipelineContext {
   const fetchStrategy = createBrowserFetchStrategy(page);
   const mediator = createElementMediator(page);
-  const loginUrl = page.url();
-  const diag = { ...input.diagnostics, loginUrl };
-  return succeed({
-    ...input,
-    fetchStrategy: some(fetchStrategy),
-    mediator: some(mediator),
-    diagnostics: diag,
-  });
+  const diagnostics = { ...input.diagnostics, loginUrl: page.url() };
+  return { ...input, fetchStrategy: some(fetchStrategy), mediator: some(mediator), diagnostics };
 }
 
 export { executeLaunchBrowser, executeNavigateToBank, executeValidatePage, executeWireComponents };

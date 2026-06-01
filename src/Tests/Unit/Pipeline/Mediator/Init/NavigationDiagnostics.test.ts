@@ -242,6 +242,9 @@ describe('buildNavFailureSnapshot', () => {
       inFlightRequestCount: 0,
       inFlightRequestsTruncated: false,
       nodeTransportProbe: none(),
+      frameTree: [],
+      consoleErrors: [],
+      landingResponse: none(),
     });
   });
 
