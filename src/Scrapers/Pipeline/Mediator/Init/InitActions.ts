@@ -3,7 +3,7 @@
  * Phase orchestrates ONLY. All logic here.
  */
 
-import type { Browser, BrowserContext } from 'playwright-core';
+import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { installMockContextRoute } from '../../Interceptors/MockInterceptorIO.js';
@@ -28,6 +28,12 @@ import {
   ELEMENTS_DOM_READY_TIMEOUT_MS,
   INIT_NAV_COMMIT_TIMEOUT_MS,
 } from '../Timing/TimingConfig.js';
+import type { INavFailedRequest } from './NavigationDiagnostics.js';
+import {
+  attachFailedRequestCollector,
+  buildNavFailureSnapshot,
+  logNavFailureSnapshot,
+} from './NavigationDiagnostics.js';
 
 /**
  * Cold-Start protocol — when DUMP_SNAPSHOTS=1, strip every cookie so
@@ -78,6 +84,14 @@ async function executeLaunchBrowser(input: IPipelineContext): Promise<Procedure<
  * + `input.config.urls.base` only; emits no new ctx field — the
  * navigation is a side effect on the page, validated by POST.
  *
+ * <p>On failure, emits a structured `warn` log via
+ * {@link "./NavigationDiagnostics.js" logNavFailureSnapshot} with
+ * `category` (timeout/dns/tcp-refused/tcp-reset/tls/unknown),
+ * `attemptDurationMs`, `finalUrl`, and any failed sub-requests.
+ * The returned `Procedure` contract is unchanged: still a
+ * `ScraperErrorTypes.Generic` fail with the same message format
+ * so callers don't have to branch on the new telemetry.
+ *
  * @param input - Pipeline context with browser + config.
  * @returns Same context after the commit lands, or failure.
  */
@@ -88,16 +102,74 @@ async function executeNavigateToBank(
   const page = input.browser.value.page;
   const targetUrl = input.config.urls.base;
   input.logger.debug({ url: maskVisibleText(targetUrl), didNavigate: false });
+  return runNavigationAttempt(input, page, targetUrl);
+}
+
+/**
+ * Run the `page.goto` attempt with the failure-collector listener
+ * attached for the lifetime of the call. Wraps both timing and the
+ * detach-in-finally lifecycle so the public {@link executeNavigateToBank}
+ * stays under the 10-line cap and the listener can never leak.
+ *
+ * @param input - Pipeline context (passed through on success).
+ * @param page - Playwright page already validated as present.
+ * @param targetUrl - Bank base URL to navigate to.
+ * @returns Same context on commit, structured fail on goto error.
+ */
+async function runNavigationAttempt(
+  input: IPipelineContext,
+  page: Page,
+  targetUrl: string,
+): Promise<Procedure<IPipelineContext>> {
+  const collector = attachFailedRequestCollector(page);
+  const startMs = Date.now();
   try {
-    await page.goto(targetUrl, {
-      waitUntil: 'commit',
-      timeout: INIT_NAV_COMMIT_TIMEOUT_MS,
-    });
+    await page.goto(targetUrl, { waitUntil: 'commit', timeout: INIT_NAV_COMMIT_TIMEOUT_MS });
     return succeed(input);
   } catch (error) {
-    const msg = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `INIT ACTION: navigation failed — ${msg}`);
+    return handleNavFailure({
+      input,
+      page,
+      error: error as Error,
+      attemptDurationMs: Date.now() - startMs,
+      failedRequests: collector.collected,
+    });
+  } finally {
+    collector.detach();
   }
+}
+
+/**
+ * Inputs to {@link handleNavFailure}. Bundled to satisfy the
+ * `max-params: 3` rule.
+ */
+interface IHandleNavFailureInput {
+  readonly input: IPipelineContext;
+  readonly page: Page;
+  readonly error: Error;
+  readonly attemptDurationMs: number;
+  readonly failedRequests: readonly INavFailedRequest[];
+}
+
+/**
+ * Emit the structured failure snapshot and return the fail result.
+ * Split out so {@link runNavigationAttempt} stays under the 10-line
+ * cap and the snapshot-emit + error-message assembly live next to
+ * each other.
+ *
+ * @param inputs - Bundled context, page, error, timing, sub-request snapshot.
+ * @returns Fail procedure with `ScraperErrorTypes.Generic`.
+ */
+function handleNavFailure(inputs: IHandleNavFailureInput): Procedure<IPipelineContext> {
+  const snapshot = buildNavFailureSnapshot({
+    error: inputs.error,
+    attemptDurationMs: inputs.attemptDurationMs,
+    finalUrl: inputs.page.url(),
+    failedRequests: inputs.failedRequests,
+  });
+  logNavFailureSnapshot(inputs.input.logger, snapshot);
+  const message = `INIT ACTION: navigation failed — ${toErrorMessage(inputs.error)}`;
+  return fail(ScraperErrorTypes.Generic, message);
 }
 
 /**
