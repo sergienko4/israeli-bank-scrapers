@@ -236,3 +236,18 @@ export function mockToXpathLiteral(value: string): string {
   const parts = value.split('"').map((part: string) => `"${part}"`);
   return `concat(${parts.join(", '\"', ")})`;
 }
+
+/**
+ * Shared factory for a Page/Frame `locator(...)` mock that returns a single
+ * clickable element whose `click()` resolves successfully. Centralized here
+ * (CR PR #286 finding F11) so tests do not redefine local helpers.
+ * @param onClick - Optional jest.fn captured by the caller for click assertions.
+ * @returns Locator mock with `.all()` returning one clickable element.
+ */
+export function createClickableLocatorMock(
+  onClick: jest.Mock = jest.fn().mockResolvedValue(undefined),
+): { all: jest.Mock } {
+  return {
+    all: jest.fn().mockResolvedValue([{ click: onClick }]),
+  };
+}

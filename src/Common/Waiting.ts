@@ -1,241 +1,49 @@
-import { randomInt } from 'node:crypto';
-
-import type { Falsy } from 'utility-types';
-
-import {
-  DEFAULT_WAIT_INTERVAL_MS,
-  DEFAULT_WAIT_TIMEOUT_MS,
-  HUMAN_DELAY_MAX_MS,
-  HUMAN_DELAY_MIN_MS,
-} from './Config/TimingConfig.js';
-
-export { SECOND } from './Config/TimingConfig.js';
-
-/** Error thrown when an async wait operation exceeds its timeout. */
-export class TimeoutError extends Error {}
-
-type WaitUntilReturn<T> = T extends Falsy ? never : Promise<NonNullable<T>>;
-
 /**
- * Race a promise against a timeout, rejecting with TimeoutError if the timeout fires first.
- * @param ms - The timeout duration in milliseconds.
- * @param promise - The promise to race against the timeout.
- * @param description - A description for the timeout error message.
- * @returns The resolved promise value if it completes before the timeout.
+ * Common-side shim — re-exports the canonical wait/timing helpers
+ * from `src/Scrapers/Pipeline/Mediator/Timing/Waiting.ts`.
+ *
+ * @deprecated since v8.5 — delete in v8.6. Use the canonical Pipeline
+ *   path `src/Scrapers/Pipeline/Mediator/Timing/Waiting.ts` directly.
+ *
+ * <p>Background: Common used to ship its own 242-LoC implementation
+ * of `waitUntil` / `raceTimeout` / `runSerial` / `sleep` / `humanDelay`
+ * + `TimeoutError` class, while Pipeline already owned a more
+ * carefully-decomposed canonical at
+ * `Pipeline/Mediator/Timing/Waiting.ts` (with siblings
+ * `TimingActions.ts` + `WaitTickFactory.ts` + `TimingConfig.ts`) that
+ * exports the SAME public surface plus a few more (e.g.
+ * `executeWaitUntil` decomposition). Phase 3 C10 (Common ↔ Pipeline
+ * unification) collapses Common onto the Pipeline canonical so a
+ * single timeout/race/poll/jitter machine wires every callsite in
+ * the codebase.
+ *
+ * <p>The Common-side import surface is preserved verbatim by
+ * re-exporting the eight public symbols the existing 7 prod + 2 test
+ * importers actually consume:
+ *   - `TimeoutError` (BaseScraper, BaseScraper.test)
+ *   - `runSerial` (Base*, GenericBankScraper, Leumi, Mizrahi, Yahav)
+ *   - `humanDelay`, `RACE_TIMED_OUT`, `raceTimeout`, `sleep`,
+ *     `waitUntil`, `SECOND` (Tests/Unit/Waiting.test.ts)
+ * Pipeline-side callers already import directly from
+ * `Pipeline/Mediator/Timing/Waiting.js`; this shim is purely a
+ * back-compat layer for the legacy Common-side import paths.
+ *
+ * <p>After C10, `Common/Config/TimingConfig.ts` is deletable (its
+ * sole importer was this file's previous standalone impl) and is
+ * removed alongside this shim conversion.
  */
-function timeoutPromise<T>(ms: number, promise: Promise<T>, description: string): Promise<T> {
-  const timeout = new Promise((_, reject) => {
-    const id = globalThis.setTimeout(() => {
-      clearTimeout(id);
-      const error = new TimeoutError(description);
-      reject(error);
-    }, ms);
-  });
+export {
+  humanDelay,
+  RACE_TIMED_OUT,
+  raceTimeout,
+  runSerial,
+  SECOND,
+  sleep,
+  TimeoutError,
+  waitUntil,
+} from '../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
 
-  return Promise.race([promise, timeout as Promise<T>]);
-}
-
-/** Callbacks for the wait-tick polling loop. */
-interface IWaitCallbacks<T> {
-  /** Called when the async test resolves with a truthy value. */
-  resolve: (resolvedValue: NonNullable<T>) => boolean;
-  /** Called when the async test throws an error. */
-  reject: () => boolean;
-}
-
-/**
- * Create a polling function that calls asyncTest at intervals until truthy.
- * @param asyncTest - The async predicate to poll.
- * @param interval - The polling interval in milliseconds.
- * @param cbs - The resolve/reject callbacks.
- * @returns A function that starts the polling loop and returns true.
- */
-function makeWaitTick<T>(
-  asyncTest: () => Promise<T>,
-  interval: number,
-  cbs: IWaitCallbacks<T>,
-): () => boolean {
-  /**
-   * Execute one polling iteration and schedule the next if needed.
-   * @returns True after scheduling or resolving.
-   */
-  function wait(): boolean {
-    asyncTest()
-      .then(value => {
-        if (value) cbs.resolve(value);
-        else globalThis.setTimeout(wait, interval);
-      })
-      .catch(() => {
-        cbs.reject();
-      });
-    return true;
-  }
-  return wait;
-}
-
-/**
- * Build a promise that polls asyncTest until it returns a truthy value.
- * @param asyncTest - The async predicate to poll.
- * @param interval - The polling interval in milliseconds.
- * @returns A promise that resolves with the first truthy value.
- */
-function buildWaitPromise<T>(
-  asyncTest: () => Promise<T>,
-  interval: number,
-): Promise<NonNullable<T>> {
-  return new Promise<NonNullable<T>>((resolve, reject) => {
-    /**
-     * Wrap resolve to match IWaitCallbacks signature.
-     * @param resolvedValue - The resolved value from the async test.
-     * @returns True after resolving.
-     */
-    const wrappedResolve = (resolvedValue: NonNullable<T>): boolean => {
-      resolve(resolvedValue);
-      return true;
-    };
-    /**
-     * Wrap reject to match IWaitCallbacks signature.
-     * @returns True after rejecting.
-     */
-    const wrappedReject = (): boolean => {
-      reject(new TimeoutError('waitUntil polling rejected'));
-      return true;
-    };
-    makeWaitTick(asyncTest, interval, {
-      resolve: wrappedResolve,
-      reject: wrappedReject,
-    })();
-  });
-}
-
-/** Options for the waitUntil polling function. */
-export interface IWaitUntilOpts {
-  timeout?: number;
-  interval?: number;
-}
-
-/**
- * Safely stringify a value for diagnostic messages, truncating to 100 chars.
- * @param value - The value to stringify.
- * @returns A truncated string representation.
- */
-function safeStringify(value: unknown): string {
-  try {
-    const serialized = JSON.stringify(value);
-    return typeof serialized === 'string' ? serialized.slice(0, 100) : 'undefined';
-  } catch {
-    return String(value).slice(0, 100);
-  }
-}
-
-/**
- * Create a tracking test wrapper that records the last polled value.
- * @param asyncTest - The async predicate to wrap.
- * @param state - The state object to store the last seen value.
- * @param state.lastSeen - The last polled value (mutated by the tracking test).
- * @returns A wrapped async test function.
- */
-function createTrackingTest<T>(
-  asyncTest: () => Promise<T>,
-  state: { lastSeen: unknown },
-): () => Promise<T> {
-  return async (): Promise<T> => {
-    const polledValue = await asyncTest();
-    state.lastSeen = polledValue;
-    return polledValue;
-  };
-}
-
-/**
- * Wait until a promise resolves with a truthy value or reject after a timeout.
- * On timeout the error message includes the last polled value for diagnostics.
- * @param asyncTest - The async predicate to poll.
- * @param description - A description for the timeout error message.
- * @param opts - Optional timeout and interval configuration.
- * @returns The first truthy value from asyncTest.
- */
-export function waitUntil<T>(
-  asyncTest: () => Promise<T>,
-  description = '',
-  opts: IWaitUntilOpts = {},
-): WaitUntilReturn<T> {
-  const { timeout = DEFAULT_WAIT_TIMEOUT_MS, interval = DEFAULT_WAIT_INTERVAL_MS } = opts;
-  const state = { lastSeen: undefined as unknown };
-  const trackingTest = createTrackingTest(asyncTest, state);
-  const promise = buildWaitPromise(trackingTest, interval);
-  const withContext = timeoutPromise(timeout, promise, description).catch((error: unknown) => {
-    if (!(error instanceof TimeoutError)) throw error;
-    const lastStr = safeStringify(state.lastSeen);
-    throw new TimeoutError(`${error.message} — last: ${lastStr}`);
-  });
-  return withContext as WaitUntilReturn<T>;
-}
-
-/** Sentinel indicating the race timed out before the promise resolved. */
-export const RACE_TIMED_OUT = Symbol('RACE_TIMED_OUT');
-
-/** Result of a timed race — the value if resolved, or the timeout sentinel. */
-type RaceTimeoutResult<T> = Promise<T | typeof RACE_TIMED_OUT>;
-
-/**
- * Race a promise against a timeout, returning a sentinel on timeout.
- * @param ms - The timeout duration in milliseconds.
- * @param promise - The promise to race.
- * @returns The resolved value, or RACE_TIMED_OUT if timed out.
- */
-export function raceTimeout<T>(ms: number, promise: Promise<T>): RaceTimeoutResult<T> {
-  return timeoutPromise(ms, promise, 'timeout').catch((error: unknown) => {
-    if (!(error instanceof TimeoutError)) throw error;
-    return RACE_TIMED_OUT;
-  });
-}
-
-/**
- * Execute async actions sequentially, collecting all results.
- * @param actions - The array of async action factories.
- * @returns An array of all action results in order.
- */
-export function runSerial<T>(actions: (() => Promise<T>)[]): Promise<T[]> {
-  const initialValue = Promise.resolve<T[]>([]);
-  return actions.reduce(
-    (memo, action) => memo.then(async accumulated => [...accumulated, await action()]),
-    initialValue,
-  );
-}
-
-/**
- * Pause execution for a given number of milliseconds.
- * @param ms - The duration to sleep in milliseconds.
- * @returns A promise that resolves after the delay.
- */
-export function sleep(ms: number): Promise<boolean> {
-  return new Promise(resolve => {
-    globalThis.setTimeout(() => {
-      resolve(true);
-    }, ms);
-  });
-}
-
-/**
- * Random delay that mimics human interaction timing.
- * Default range: 300-1200ms (realistic for clicks and navigation).
- * @param minMs - The minimum delay in milliseconds.
- * @param maxMs - The maximum delay in milliseconds.
- * @returns A promise that resolves after a random delay.
- */
-export function humanDelay(
-  minMs = HUMAN_DELAY_MIN_MS,
-  maxMs = HUMAN_DELAY_MAX_MS,
-): Promise<boolean> {
-  // Cryptographic RNG isn't strictly needed for human-delay jitter, but
-  // crypto.randomInt sidesteps the SonarCloud `typescript:S2245` hotspot
-  // (PRNG-safety review) at zero behavioural cost. Edge-case: randomInt
-  // requires max > min strictly; the prior Math.random()-based code
-  // returned min when min === max — preserve that for fixed-delay callers.
-  const delay = minMs >= maxMs ? minMs : randomInt(minMs, maxMs);
-  return new Promise(resolve => {
-    globalThis.setTimeout(() => {
-      resolve(true);
-    }, delay);
-  });
-}
+// CR PR #286 F1: preserve type export on the shim so call-sites that imported
+// `IWaitUntilOpts` from `Common/Waiting` keep compiling during the v8.5 → v8.6
+// deprecation window. Pure type re-export — emits no runtime code.
+export type { IWaitUntilOpts } from '../Scrapers/Pipeline/Mediator/Timing/Waiting.js';

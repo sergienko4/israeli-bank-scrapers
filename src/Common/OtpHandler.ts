@@ -352,7 +352,7 @@ async function waitForOtpPageInFrames(page: Page): Promise<boolean> {
 export async function handleOtpConfirm(
   page: Page,
   parsedPage?: IParsedLoginPage,
-  triggerSelectors?: SelectorCandidate[],
+  triggerSelectors?: readonly SelectorCandidate[],
 ): Promise<string> {
   await waitForOtpPageInFrames(page);
   const phoneHint = await extractPhoneHint(page);

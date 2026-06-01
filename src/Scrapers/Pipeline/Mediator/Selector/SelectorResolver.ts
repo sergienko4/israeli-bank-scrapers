@@ -342,7 +342,7 @@ async function probeClickableText(
  */
 export async function tryInContextInternal(
   ctx: Page | Frame,
-  candidates: SelectorCandidate[],
+  candidates: readonly SelectorCandidate[],
 ): Promise<IProbeResult> {
   const actions = buildProbeActions(ctx, candidates);
   return reduceProbeActions(actions);
@@ -359,7 +359,7 @@ const EMPTY_PROBE: IProbeResult = { css: '', kind: 'css' };
  */
 function buildProbeActions(
   ctx: Page | Frame,
-  candidates: SelectorCandidate[],
+  candidates: readonly SelectorCandidate[],
 ): (() => Promise<IProbeResult>)[] {
   return candidates.map(
     (candidate): (() => Promise<IProbeResult>) =>
@@ -390,7 +390,7 @@ function reduceProbeActions(actions: (() => Promise<IProbeResult>)[]): Promise<I
  */
 export async function tryInContext(
   ctx: Page | Frame,
-  candidates: SelectorCandidate[],
+  candidates: readonly SelectorCandidate[],
 ): Promise<string> {
   const result = await tryInContextInternal(ctx, candidates);
   return result.css || '';

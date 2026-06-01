@@ -7,8 +7,8 @@
  * TypeScript compiler refuses resolveField/resolveVisible in action().
  */
 
-import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
+import { safeScreenshot } from '../Mediator/Browser/SafeScreenshot.js';
 import { extractActionMediator } from '../Mediator/Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Mediator/Elements/PagePrelude.js';
 import { awaitPagePrelude, PRELUDE_NONE } from '../Mediator/Elements/PagePrelude.js';
