@@ -56,13 +56,15 @@ const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/Init
 /** Mock browser stack returned by MAKE_BROWSER_MOCK. */
 interface IMockBrowserStack {
   readonly mockBrowser: { newContext: jest.Mock; close: jest.Mock };
-  readonly mockContext: { newPage: jest.Mock; close: jest.Mock };
+  readonly mockContext: { newPage: jest.Mock; close: jest.Mock; clearCookies: jest.Mock };
   readonly mockPage: {
     setDefaultTimeout: jest.Mock;
     close: jest.Mock;
     url: () => string;
     goto: jest.Mock;
     locator: jest.Mock;
+    on: jest.Mock;
+    off: jest.Mock;
   };
 }
 
@@ -87,10 +89,13 @@ const MAKE_BROWSER_MOCK = (): IMockBrowserStack => {
     goto: jest.fn().mockResolvedValue(null),
     locator: jest.fn().mockReturnValue({ first: jest.fn().mockReturnValue({ click: jest.fn() }) }),
     waitForLoadState: jest.fn().mockResolvedValue(undefined),
+    on: jest.fn(),
+    off: jest.fn(),
   };
   const mockContext = {
     newPage: jest.fn().mockResolvedValue(mockPage),
     close: jest.fn().mockResolvedValue(undefined),
+    clearCookies: jest.fn().mockResolvedValue(undefined),
   };
   const mockBrowser = {
     newContext: jest.fn().mockResolvedValue(mockContext),
@@ -126,6 +131,40 @@ describe('InitPhase/headless', () => {
     });
     await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     expect(launchFn).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('InitPhase/coldStartIfDumping', () => {
+  it('clears context cookies when DUMP_SNAPSHOTS=1 (cold-start protocol)', async () => {
+    const prior = process.env.DUMP_SNAPSHOTS;
+    process.env.DUMP_SNAPSHOTS = '1';
+    try {
+      const { mockBrowser, mockContext } = MAKE_BROWSER_MOCK();
+      const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
+      launchFn.mockResolvedValue(mockBrowser);
+      const ctx = MAKE_MOCK_CONTEXT();
+      await INIT_MOD.INIT_STEP.execute(ctx, ctx);
+      expect(mockContext.clearCookies).toHaveBeenCalledTimes(1);
+    } finally {
+      if (prior === undefined) delete process.env.DUMP_SNAPSHOTS;
+      else process.env.DUMP_SNAPSHOTS = prior;
+    }
+  });
+
+  it('does NOT clear context cookies when DUMP_SNAPSHOTS is unset', async () => {
+    const prior = process.env.DUMP_SNAPSHOTS;
+    delete process.env.DUMP_SNAPSHOTS;
+    try {
+      const { mockBrowser, mockContext } = MAKE_BROWSER_MOCK();
+      const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
+      launchFn.mockResolvedValue(mockBrowser);
+      const ctx = MAKE_MOCK_CONTEXT();
+      await INIT_MOD.INIT_STEP.execute(ctx, ctx);
+      expect(mockContext.clearCookies).not.toHaveBeenCalled();
+    } finally {
+      if (prior === undefined) delete process.env.DUMP_SNAPSHOTS;
+      else process.env.DUMP_SNAPSHOTS = prior;
+    }
   });
 });
 
