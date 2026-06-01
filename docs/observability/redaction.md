@@ -41,6 +41,17 @@ const redacted = PII_REDACTOR.censor({
 | `screenshots/*.html` (SafeScreenshot) | In-place text + `value` attribute scrubs | HTML |
 | `screenshots/*.png` | **NOT redacted** — raster | PNG |
 
+### `safeScreenshot` API
+
+The canonical capture function is `safeScreenshot(page, options)` in
+`src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts`. It accepts an
+`ISafeScreenshotOptions` describing the phase name and screenshot path, applies
+the redaction passes above, then writes both the scrubbed HTML and the raw PNG
+to the run's screenshots directory. The `PRE_AUTH_SCREENSHOT_PHASES` constant
+enumerates the lifecycle phases (e.g. `pre-login`, `login-form`) where
+screenshots are unconditionally allowed in CI — outside those phases the call
+becomes a no-op so credential frames never leak.
+
 ## Disabling redaction
 
 `PII_REDACTION=off` disables runtime redaction. **Intended for real-bank E2E tests only** (where the maintainer needs to compare actual vs expected values during development). Unit tests always run with redaction default-on so `PiiRedactor.test.ts` assertions hold.

@@ -5,7 +5,7 @@ import { mockToXpathLiteral } from '../MockModuleFactories.js';
 
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Types/Debug.js', () => ({
   /**
    * Creates a mock debug logger.
    * @returns mock debug logger with all methods stubbed.
@@ -26,7 +26,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   /**
    * Delegates to the shared mock for tryInContext.
    * @param args - arguments forwarded to the mock.
