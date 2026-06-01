@@ -1952,4 +1952,35 @@ export default tseslint.config(
       'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
     },
   },
+
+  // 14. INIT SUB-MODULE FUNCTION-SIZE GUARD (strict 10-LoC)
+  //
+  // PR #288 added the L4 transport-forensics envelope under
+  // `Mediator/Init/**` (InitActions.ts, NavigationDiagnostics.ts,
+  // NavigationRequestLifecycle.ts, NavigationTransportProbe.ts).
+  // Those splits inherited the lax 20-cap default and immediately
+  // accumulated 24 over-cap function bodies — a regression caught
+  // only by CodeRabbit (R3-1..R3-5), not the pre-commit hook.
+  //
+  // Per `eslint-rules-guidlines.md` §1 (ALWAYS tighten when you
+  // split a module) and §2 (every strict cluster needs a canary),
+  // this cluster now pins Init/ to the canonical 10-LoC ceiling.
+  // No `max-lines` (file-size) cap yet — Init/ files are still
+  // large after the split; that hardening lands in a separate
+  // commit once the helpers are stable.
+  //
+  // Canary: `init-cluster-fn-over-cap.canary.ts` over-sizes a
+  // single function so verify.sh confirms the rule fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Init/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/init-cluster-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+    },
+  },
 );
