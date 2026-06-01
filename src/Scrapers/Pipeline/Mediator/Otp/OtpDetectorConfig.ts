@@ -41,11 +41,16 @@ export const OTP_FALLBACK_CLICK_TIMEOUT_MS = 5000;
 export const OTP_FORCE_CLICK_TIMEOUT_MS = 3000;
 
 /** Regex to detect masked phone number hints on OTP screens (e.g. `***1234`).
+ *
+ * Token boundaries: `(?<![\d*])` (leading) and `(?!\d)` (trailing) anchor the
+ * pattern so it never returns a partial slice inside a longer masked value —
+ * e.g. `***12345` does NOT yield a truncated `***1234` hint (CR PR #286 F12).
+ *
  * Accepts 3+ asterisks to match documented hint shapes from real bank screens
  * (CR PR #286 finding F10: previously rejected `***1234` due to `{4,32}` lower
  * bound). Both quantifiers are bounded ({3,32} and {2,4}) so the matcher cannot
  * super-linearly backtrack on adversarial input. */
-export const PHONE_PATTERN = /\*{3,32}\d{2,4}/;
+export const PHONE_PATTERN = /(?<![\d*])\*{3,32}\d{2,4}(?!\d)/;
 
 /** Selector candidates for the OTP submit/confirm button — text-first, no element assumption. */
 export const OTP_SUBMIT_CANDIDATES = [

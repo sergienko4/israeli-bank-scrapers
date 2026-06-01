@@ -25,8 +25,13 @@ import {
   OTP_PHASE_SETTLE_TIMEOUT_MS,
   OTP_RETRIEVER_SETTLE_MS,
 } from '../Timing/TimingConfig.js';
-/** Full masked phone pattern (e.g. *****1234 or ******0). */
-const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
+/** Full masked phone pattern (e.g. *****1234 or ******0).
+ *
+ * Token boundaries `(?<![\d*])` + `(?!\d)` prevent partial matches inside a
+ * longer masked value — e.g. `***12345` does NOT yield a truncated `***1234`
+ * hint (CR PR #286 F12). DRY follow-up: 3 sibling phone-hint regexes (this,
+ * OtpTriggerPhaseActions, OtpDetectorConfig) could share one constant. */
+const PHONE_HINT_PATTERN = /(?<![\d*])\*{3,7}\d{1,4}(?!\d)/;
 /** Last 1-4 digits extractor. */
 const PHONE_LAST_DIGITS = /(\d{1,4})$/;
 
