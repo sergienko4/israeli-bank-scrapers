@@ -22,10 +22,25 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { isPreAuthScreenshot, PRE_AUTH_SCREENSHOT_PHASES } from '../../../Common/SafeScreenshot.js';
+import { jest } from '@jest/globals';
+import type { Page } from 'playwright-core';
+
+import { PRE_AUTH_SCREENSHOT_PHASES, safeScreenshot } from '../../../Common/SafeScreenshot.js';
 
 const REPO_ROOT = process.cwd();
 const PR_YML_PATH = resolve(REPO_ROOT, '.github', 'workflows', 'pr.yml');
+const ORIGINAL_CI = process.env.CI;
+
+/**
+ * Creates a mock Playwright Page exposing only `screenshot` as a jest mock.
+ * @returns An object exposing the screenshot mock and the Page-typed view.
+ */
+function makeMockPage(): { page: Page; screenshotMock: jest.Mock } {
+  const emptyBuffer = Buffer.alloc(0);
+  const screenshotMock = jest.fn().mockResolvedValue(emptyBuffer);
+  const page = { screenshot: screenshotMock } as unknown as Page;
+  return { page, screenshotMock };
+}
 
 describe('CI screenshot policy — pr.yml ↔ SafeScreenshot drift pin', () => {
   const prYml = readFileSync(PR_YML_PATH, 'utf8');
@@ -53,7 +68,16 @@ describe('CI screenshot policy — pr.yml ↔ SafeScreenshot drift pin', () => {
     expect(phases).toEqual(['init', 'home']);
   });
 
-  it('every PhaseName from the runtime maps to the correct CI gate verdict', () => {
+  describe('every PhaseName from the runtime maps to the correct CI gate verdict', () => {
+    beforeEach(() => {
+      process.env.CI = 'true';
+    });
+    afterEach(() => {
+      if (ORIGINAL_CI === undefined) delete process.env.CI;
+      else process.env.CI = ORIGINAL_CI;
+      jest.clearAllMocks();
+    });
+
     const expectations: readonly (readonly [string, boolean])[] = [
       ['hapoalim-init-pre-done-20260531.png', true],
       ['hapoalim-init-action-fail-20260531.png', true],
@@ -69,9 +93,14 @@ describe('CI screenshot policy — pr.yml ↔ SafeScreenshot drift pin', () => {
       ['visacal-scrape-final-done-20260531.png', false],
       ['amex-terminate-pre-done-20260531.png', false],
     ];
+
     for (const [file, isExpectedAllowed] of expectations) {
-      const isAllowed = isPreAuthScreenshot(file);
-      expect(isAllowed).toBe(isExpectedAllowed);
+      it(`policy maps "${file}" → ${String(isExpectedAllowed)}`, async () => {
+        const { page, screenshotMock } = makeMockPage();
+        const didCapture = await safeScreenshot(page, { path: file, fullPage: false });
+        expect(didCapture).toBe(isExpectedAllowed);
+        expect(screenshotMock).toHaveBeenCalledTimes(isExpectedAllowed ? 1 : 0);
+      });
     }
   });
 });

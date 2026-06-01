@@ -21,3 +21,23 @@ Ask the bank to dispatch the SMS/email OTP code. Runs only when the bank's `Logi
 ## Hapoalim conditional behavior
 
 Hapoalim runs OTP-FILL but **NOT** OTP-TRIGGER — the bank auto-sends the code when it detects an unrecognised device. The `otpCodeRetriever` callback is invoked only when the OTP form actually appears; on remembered devices, the phase is skipped at runtime.
+
+## Canonical helpers
+
+The OTP-TRIGGER and OTP-FILL phases share a small set of low-level Playwright helpers that detect the OTP entry surface, scrape the bank's phone hint, and fire the "send code" trigger button. They live in `src/Scrapers/Pipeline/Mediator/Otp/` and are intentionally Playwright-locator-only so the same flow works across every bank that exposes a standard SMS-OTP step.
+
+- `detectOtpScreen` — returns `true` when an OTP entry field is visible on the current page.
+- `extractPhoneHint` — scrapes the masked phone hint (e.g. `***1234`) the bank displays next to the OTP form.
+- `findOtpSubmitSelector` — returns the resolved selector for the form's submit button.
+- `clickOtpTriggerIfPresent` — clicks the "send SMS" trigger element when the bank shows one (no-op when absent).
+- `clickFromCandidates` — internal click helper that walks a SelectorCandidate[] list and clicks the first visible match.
+
+The selector-candidate lists + Hebrew/English text patterns these helpers consult live in `src/Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.ts`:
+
+- `OTP_INPUT_CANDIDATES` — selector candidates for the OTP code input box.
+- `OTP_SUBMIT_CANDIDATES` — selector candidates for the OTP form submit button.
+- `OTP_TEXT_PATTERNS` — Hebrew + English text snippets used to recognise an OTP screen by visible text.
+- `SMS_TRIGGER_CANDIDATES` — selector candidates for the "send code" trigger button.
+- `PHONE_PATTERN` — regex used by `extractPhoneHint` to match a masked phone hint (broad shape `{3,32}\d{2,4}` for the main-page extractor).
+- `PHONE_HINT_PATTERN` — narrow regex (`{3,7}\d{1,4}`) shared by the OtpFill + OtpTrigger frame-scan extractors (CR PR #286 F4: single source of truth, replaces two duplicated local copies).
+- `PHONE_LAST_DIGITS` — paired trailing-digits extractor used alongside `PHONE_HINT_PATTERN` to pull the last 1-4 digits out of a matched hint.

@@ -24,16 +24,15 @@ import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { traceResolution } from '../Elements/ResolutionTrace.js';
 import { detectOtpTrigger } from '../Form/OtpProbe.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
+import { PHONE_HINT_PATTERN, PHONE_LAST_DIGITS } from '../Otp/OtpDetectorConfig.js';
 import { OTP_FALLBACK, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 import {
   OTP_PHASE_SETTLE_TIMEOUT_MS,
   OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS,
 } from '../Timing/TimingConfig.js';
 
-/** Full masked phone pattern (e.g. *****1234 or ******0). */
-const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
-/** Last 1-4 digits extractor. */
-const PHONE_LAST_DIGITS = /(\d{1,4})$/;
+// PHONE_HINT_PATTERN + PHONE_LAST_DIGITS imported from OtpDetectorConfig
+// (CR PR #286 F4 — single source of truth shared with OtpFillPhaseActions).
 
 // ── PRE: Passive Discovery (Rule #20) ──────────────────────────────
 

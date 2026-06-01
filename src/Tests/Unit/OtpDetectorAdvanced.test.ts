@@ -1,11 +1,11 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
-import { mockToXpathLiteral } from '../MockModuleFactories.js';
+import { createClickableLocatorMock, mockToXpathLiteral } from '../MockModuleFactories.js';
 
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Types/Debug.js', () => ({
   /**
    * Creates a mock debug logger with all methods stubbed.
    * @returns Mock debug logger object.
@@ -26,7 +26,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   /**
    * Delegates to the shared mock for tryInContext.
    * @param args - Arguments forwarded to the mock.
@@ -173,14 +173,18 @@ describe('detectOtpScreen — input field edge cases', () => {
 describe('detectOtpScreen — evaluate failure', () => {
   beforeEach(() => MOCK_TRY_IN_CONTEXT.mockResolvedValue(null));
 
-  it('returns false when page.evaluate throws (page context destroyed)', async () => {
+  it('falls back to input probe when page.evaluate throws (page context destroyed)', async () => {
+    // CR PR #286 F3: when page.evaluate throws, getBodyText returns '' and
+    // detectByText yields 'unknown'. Per the F3 fix, detectOtpScreen no longer
+    // short-circuits — it falls through to detectByInputField because Playwright
+    // locators query via the element-handle protocol independently of page.evaluate.
     const page = makePage(undefined);
     page.evaluate.mockRejectedValueOnce(new Error('context destroyed'));
 
     const isOtp = await OTP_MODULE.detectOtpScreen(page);
 
     expect(isOtp).toBe(false);
-    expect(MOCK_TRY_IN_CONTEXT).not.toHaveBeenCalled();
+    expect(MOCK_TRY_IN_CONTEXT).toHaveBeenCalled();
   });
 });
 
@@ -213,7 +217,9 @@ describe('extractPhoneHint — edge cases', () => {
   });
 
   it('returns empty string when text has asterisks but not enough', async () => {
-    const page = makePage('***12');
+    // CR PR #286 F10: lower bound loosened from 4 stars → 3 stars to match real
+    // bank screens. `**12` (2 stars) is below the 3-star floor; still rejected.
+    const page = makePage('**12');
 
     const hint = await OTP_MODULE.extractPhoneHint(page);
 
@@ -333,5 +339,38 @@ describe('clickFromCandidates — fallback selector path', () => {
 
     expect(childFrame.click).toHaveBeenCalledWith('#frameBtn', { timeout: 5000 });
     expect(didClick).toBe(true);
+  });
+});
+
+// ── text-click success — main page and child frame ──────────────────────────
+
+describe('clickFromCandidates — text-click success path', () => {
+  beforeEach(() => MOCK_TRY_IN_CONTEXT.mockResolvedValue(null));
+
+  it('clicks visible text in main page when the innermost-text locator matches', async () => {
+    const clickSpy = jest.fn().mockResolvedValue(undefined);
+    const page = makePage('');
+    const locatorMock = createClickableLocatorMock(clickSpy);
+    (page.locator as jest.Mock).mockReturnValue(locatorMock);
+
+    const candidates = [{ kind: 'textContent' as const, value: 'אישור' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(didClick).toBe(true);
+    expect(clickSpy).toHaveBeenCalledWith({ timeout: 3000, force: true });
+  });
+
+  it('clicks visible text in child frame when main page has no match', async () => {
+    const childClick = jest.fn().mockResolvedValue(undefined);
+    const childFrame = makeMockFrame('https://bank.test/otp-frame');
+    const frameLocatorMock = createClickableLocatorMock(childClick);
+    (childFrame.locator as jest.Mock).mockReturnValue(frameLocatorMock);
+    const page = makePage('', [childFrame]);
+
+    const candidates = [{ kind: 'textContent' as const, value: 'אישור' }];
+    const didClick = await OTP_MODULE.clickFromCandidates(page, candidates);
+
+    expect(didClick).toBe(true);
+    expect(childClick).toHaveBeenCalledWith({ timeout: 3000, force: true });
   });
 });

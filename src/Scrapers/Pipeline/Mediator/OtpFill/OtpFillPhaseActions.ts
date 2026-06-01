@@ -18,6 +18,7 @@ import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { traceResolution } from '../Elements/ResolutionTrace.js';
 import { detectOtpError, detectOtpForm, detectOtpSubmit } from '../Form/OtpProbe.js';
+import { PHONE_HINT_PATTERN, PHONE_LAST_DIGITS } from '../Otp/OtpDetectorConfig.js';
 import { OTP_FALLBACK, readDiagString, readDiagTarget, unwrapProbe } from '../Otp/OtpShared.js';
 import { createPromise } from '../Timing/TimingActions.js';
 import {
@@ -25,12 +26,10 @@ import {
   OTP_PHASE_SETTLE_TIMEOUT_MS,
   OTP_RETRIEVER_SETTLE_MS,
 } from '../Timing/TimingConfig.js';
-/** Full masked phone pattern (e.g. *****1234 or ******0). */
-const PHONE_HINT_PATTERN = /\*{3,7}\d{1,4}/;
-/** Last 1-4 digits extractor. */
-const PHONE_LAST_DIGITS = /(\d{1,4})$/;
 
 // ── Deep Phone Hint — scan all frames ─────────────────────────────
+// PHONE_HINT_PATTERN + PHONE_LAST_DIGITS imported from OtpDetectorConfig
+// (CR PR #286 F4 — single source of truth shared with OtpTriggerPhaseActions).
 
 /**
  * Extract phone hint from a single frame's body text.
