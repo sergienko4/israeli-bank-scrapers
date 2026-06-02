@@ -110,7 +110,7 @@ function searchLevel(level: readonly JsonNode[], pattern: RegExp): boolean {
   if (level.length === 0) return false;
   const nextLevel: JsonNode[] = [];
   const reducer = buildSearchReducer(nextLevel, pattern);
-  const isMatchedInLevel = level.reduce(reducer, false);
+  const isMatchedInLevel = level.reduce<boolean>((acc, node) => reducer(acc, node), false);
   if (isMatchedInLevel) return true;
   return searchLevel(nextLevel, pattern);
 }

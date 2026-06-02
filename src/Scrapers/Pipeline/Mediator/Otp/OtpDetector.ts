@@ -74,7 +74,7 @@ async function runSequential<T>(
   const args: IStepArgs<T> = { state, results, action };
   const reducer = buildSequentialReducer(args);
   const seedChain = Promise.resolve(false);
-  await items.reduce<Promise<boolean>>(reducer, seedChain);
+  await items.reduce<Promise<boolean>>((acc, item, idx) => reducer(acc, item, idx), seedChain);
   return results;
 }
 

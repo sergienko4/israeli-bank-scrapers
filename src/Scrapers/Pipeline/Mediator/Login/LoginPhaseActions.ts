@@ -268,7 +268,7 @@ async function foldDiscoveryFields(
   const seed: IFieldAccum = { targets: new Map(), formAnchor: none() };
   const initial: Promise<IFieldAccum> = Promise.resolve(seed);
   const step = makeFieldStep(args);
-  return ordered.reduce(step, initial);
+  return ordered.reduce((acc, field) => step(acc, field), initial);
 }
 
 /**
