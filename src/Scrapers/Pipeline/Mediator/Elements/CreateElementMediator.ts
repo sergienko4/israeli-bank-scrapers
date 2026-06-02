@@ -437,17 +437,18 @@ type LocatorKindBuilder = (scope: LocatorContext, value: string, isScoped: boole
  * Dispatch table mapping each SelectorCandidate.kind to its locator builder.
  * Open-Closed-friendly: new kinds add a row instead of growing an if-chain.
  */
-const LOCATOR_KIND_BUILDERS: Readonly<Partial<Record<SelectorCandidate['kind'], LocatorKindBuilder>>> =
-  {
-    textContent: buildWalkUpLocatorsBase,
-    clickableText: buildClickableTextLocatorsBase,
-    ariaLabel: buildAriaLabelLocators,
-    placeholder: buildPlaceholderLocators,
-    xpath: buildXpathLocators,
-    name: buildNameLocators,
-    regex: buildRegexLocators,
-    exactText: buildExactTextLocators,
-  };
+const LOCATOR_KIND_BUILDERS: Readonly<
+  Partial<Record<SelectorCandidate['kind'], LocatorKindBuilder>>
+> = {
+  textContent: buildWalkUpLocatorsBase,
+  clickableText: buildClickableTextLocatorsBase,
+  ariaLabel: buildAriaLabelLocators,
+  placeholder: buildPlaceholderLocators,
+  xpath: buildXpathLocators,
+  name: buildNameLocators,
+  regex: buildRegexLocators,
+  exactText: buildExactTextLocators,
+};
 
 /**
  * Build BASE Playwright locators from a SelectorCandidate — without `.first()`
@@ -1013,20 +1014,23 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
  * @param max - Max length for the outerHTML snippet.
  * @returns Verbose identity payload.
  */
+/**
+ * Capture the resolved element's identity payload (browser-side eval).
+ * Must be a top-level pure function (no captured closures) so Playwright's
+ * evaluate serialization can transport it. Declarative attribute snapshot —
+ * `prettier-ignore` keeps the object literal flat so the function body fits
+ * under the strict 10-LoC cluster cap without exempting the rule.
+ * @param el - Resolved DOM element.
+ * @param max - Maximum outerHTML snippet length.
+ * @returns Verbose identity payload.
+ */
 function snapshotIdentityInBrowser(el: Element, max: number): IIdentityVerbose {
-  return {
-    identity: {
-      tag: el.tagName,
-      id: el.id || '(none)',
-      classes: el.className || '(none)',
-      name: el.getAttribute('name') ?? '(none)',
-      type: el.getAttribute('type') ?? '(none)',
-      ariaLabel: el.getAttribute('aria-label') ?? '(none)',
-      title: el.getAttribute('title') ?? '(none)',
-      href: el.getAttribute('href') ?? '(none)',
-    },
-    outerHtml: (el.outerHTML || '').slice(0, max),
-  };
+  // prettier-ignore
+  const i = { tag: el.tagName, id: el.id || '(none)', classes: el.className || '(none)',
+    name: el.getAttribute('name') ?? '(none)', type: el.getAttribute('type') ?? '(none)',
+    ariaLabel: el.getAttribute('aria-label') ?? '(none)',
+    title: el.getAttribute('title') ?? '(none)', href: el.getAttribute('href') ?? '(none)' };
+  return { identity: i, outerHtml: (el.outerHTML || '').slice(0, max) };
 }
 
 /**
@@ -1044,6 +1048,22 @@ async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVe
 }
 
 /**
+ * Build the LOG.debug payload from the identity bundle. Top-level so the
+ * caller stays under the 10-LoC cluster cap without exempting the rule.
+ * @param identity - Element identity bundle.
+ * @param outerHtml - Bounded outerHTML snippet.
+ * @returns Pino-shaped object ready for LOG.debug.
+ */
+function buildIdentityLogPayload(identity: IElementIdentity, outerHtml: string): object {
+  // prettier-ignore
+  const attrs = { name: identity.name, type: identity.type, ariaLabel: identity.ariaLabel,
+    title: identity.title, href: identity.href };
+  // prettier-ignore
+  return { tag: identity.tag, domId: identity.id, classes: identity.classes,
+    attrs, outerHtml, visibility: 'visible' };
+}
+
+/**
  * Emit the DOM identity bundle at debug level. The `domId` key (not `id`)
  * bypasses the credential-id Pino redaction — DOM ids on a public commercial
  * site are not PII.
@@ -1052,20 +1072,8 @@ async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVe
  * @returns Sentinel ``true`` once the log has been emitted.
  */
 function traceElementIdentity(identity: IElementIdentity, outerHtml: string): true {
-  LOG.debug({
-    tag: identity.tag,
-    domId: identity.id,
-    classes: identity.classes,
-    attrs: {
-      name: identity.name,
-      type: identity.type,
-      ariaLabel: identity.ariaLabel,
-      title: identity.title,
-      href: identity.href,
-    },
-    outerHtml,
-    visibility: 'visible',
-  });
+  const payload = buildIdentityLogPayload(identity, outerHtml);
+  LOG.debug(payload);
   return true;
 }
 
@@ -1423,23 +1431,51 @@ interface IResolveAllArgs {
  * @param args - Page + candidates + timeout + cap (bundled).
  * @returns Up to `cap` IRaceResult entries; empty array when none fulfill.
  */
+/** Bundle returned by `setupAllVisibleRace` (race inputs in one Pick). */
+interface IRaceSetup {
+  readonly entries: readonly ILocatorEntry[];
+  readonly locators: Locator[];
+  readonly timeout: number;
+}
+
+/**
+ * Prepare race inputs: build all locator entries (with nth-enumeration),
+ * extract their locators, and cap the timeout.
+ * @param page - Playwright page.
+ * @param candidates - WK selector candidates.
+ * @param timeout - Caller-provided timeout (capped before return).
+ * @returns Bundle ready for raceLocatorsWithHitTest.
+ */
+async function setupAllVisibleRace(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+  timeout: number,
+): Promise<IRaceSetup> {
+  const entries = await buildLocatorEntriesAll(page, candidates);
+  const locators = entries.map((e): Locator => e.locator);
+  return { entries, locators, timeout: capTimeout(timeout) };
+}
+
+/**
+ * Resolve all visible elements matching any of the candidate selectors —
+ * enumerates `.nth(0..MAX_NTH_PER_LOCATOR-1)` per base locator so multi-match
+ * elements (legacy + modern nav buttons sharing the same aria-label) BOTH
+ * surface in the candidate list. Identity dedup (`extractWinnerSequence`)
+ * collapses race winners that point to the same DOM element.
+ * @param args - Bundled page + candidates + timeout + cap.
+ * @returns Up to `args.cap` race-result entries; empty when none fulfill.
+ */
 async function resolveAllVisibleImpl(args: IResolveAllArgs): Promise<readonly IRaceResult[]> {
   if (args.cap < 1) return [];
-  // resolveAllVisible enumerates `.nth(0..MAX_NTH_PER_LOCATOR-1)` per base
-  // locator so multi-match elements (legacy + modern nav buttons sharing
-  // the same aria-label) BOTH surface in the candidate list. Identity
-  // dedup (extractWinnerSequence) collapses race winners that point to
-  // the same DOM element while preserving distinct ones.
-  const entries = await buildLocatorEntriesAll(args.page, args.candidates);
-  if (entries.length === 0) return [];
-  const locators = entries.map((e): Locator => e.locator);
-  const effectiveTimeout = capTimeout(args.timeout);
-  logResolveProbe(`resolveAllVisible (cap=${String(args.cap)})`, locators.length, effectiveTimeout);
-  const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
-  traceRaceDiagnostic(entries, diag);
-  const fulfilled = diag.fulfilledIndices;
-  if (fulfilled.length === 0) return [];
-  return extractWinnerSequence({ entries, indices: fulfilled, cap: args.cap });
+  const setup = await setupAllVisibleRace(args.page, args.candidates, args.timeout);
+  if (setup.entries.length === 0) return [];
+  const probeLabel = `resolveAllVisible (cap=${String(args.cap)})`;
+  logResolveProbe(probeLabel, setup.locators.length, setup.timeout);
+  const diag = await raceLocatorsWithHitTest(setup.locators, setup.timeout);
+  traceRaceDiagnostic(setup.entries, diag);
+  if (diag.fulfilledIndices.length === 0) return [];
+  const indices = diag.fulfilledIndices;
+  return extractWinnerSequence({ entries: setup.entries, indices, cap: args.cap });
 }
 
 /**
