@@ -20,6 +20,22 @@ import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 const POST_LOGIN_PATTERNS: readonly RegExp[] = [...PIPELINE_WELL_KNOWN_API.accounts];
 
 /**
+ * Emit a PII-safe `hasTraffic` trace event for the post-login wait.
+ * @param logger - Optional pipeline logger.
+ * @param hasTraffic - Whether the wait observed organic traffic.
+ * @param url - URL to mask and emit (request URL on hit, page URL on miss).
+ * @returns The `hasTraffic` flag verbatim so callers can return it.
+ */
+function logPostLoginTraffic(
+  logger: ScraperLogger | false,
+  hasTraffic: boolean,
+  url: string,
+): boolean {
+  if (logger !== false) logger.trace({ hasTraffic, url: maskVisibleText(url) });
+  return hasTraffic;
+}
+
+/**
  * Wait for organic SPA traffic after login submit.
  * SSO redirect fires transaction APIs from iframe — Patient Observer.
  * @param mediator - Element mediator with network discovery.
@@ -34,13 +50,10 @@ async function waitForPostLoginTraffic(
     POST_LOGIN_PATTERNS,
     LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
   );
-  if (hit) {
-    logger?.trace({ hasTraffic: true, url: maskVisibleText(hit.url) });
-    return true;
-  }
-  const currentUrl = mediator.getCurrentUrl();
-  logger?.trace({ hasTraffic: false, url: maskVisibleText(currentUrl) });
-  return false;
+  const sink: ScraperLogger | false = logger ?? false;
+  if (hit) return logPostLoginTraffic(sink, true, hit.url);
+  const missUrl = mediator.getCurrentUrl();
+  return logPostLoginTraffic(sink, false, missUrl);
 }
 
 export default waitForPostLoginTraffic;

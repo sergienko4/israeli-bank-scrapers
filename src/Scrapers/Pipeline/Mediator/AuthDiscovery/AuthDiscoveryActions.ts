@@ -59,6 +59,19 @@ import {
   probeDashboardSignal,
 } from './AuthDiscoveryProbes.js';
 
+/** Fail-loud reason emitted when the session-cookie audit observes zero cookies. */
+const AUTH_POST_COOKIES_EMPTY_REASON = 'cookies=0 after auth';
+
+/**
+ * Wrap the single-fail-code "cookies missing after auth" branch so the
+ * caller stays on one line and ESLint's max-len cap is respected.
+ *
+ * @returns Pre-built single-fail-code Procedure for the cookies-empty branch.
+ */
+function failCookiesEmpty(): Procedure<IPipelineContext> {
+  return failAuthDiscovery('AUTH_DISCOVERY_SESSION_INVALID', AUTH_POST_COOKIES_EMPTY_REASON);
+}
+
 /**
  * MOCK_MODE safety valve — lets AUTH-DISCOVERY skip its network-
  * driven probes for the offline snapshot suite, which has no
@@ -141,6 +154,85 @@ function executeAuthDiscoveryAction(input: IActionContext): Promise<Procedure<IA
 }
 
 /**
+ * Build the LOGIN.POST success-step Procedure: clones the input with
+ * the slim {@link IAuthDiscovery} snapshot pinned onto `authDiscovery`.
+ *
+ * @param input - Pipeline context entering AUTH-DISCOVERY POST.
+ * @param snapshot - Slim snapshot built from the collected channels.
+ * @returns Success Procedure wrapping the updated context.
+ */
+function commitAuthDiscovery(
+  input: IPipelineContext,
+  snapshot: IAuthDiscovery,
+): Procedure<IPipelineContext> {
+  return succeed({ ...input, authDiscovery: some(snapshot) });
+}
+
+/** Bundled args for {@link buildAndLogSnapshot}. */
+interface ISnapshotBuildArgs {
+  readonly input: IPipelineContext;
+  readonly channels: Awaited<ReturnType<typeof collectAuthChannels>>;
+  readonly reveal: Awaited<ReturnType<typeof probeDashboardSignal>>;
+  readonly cookieNames: readonly string[];
+}
+
+/**
+ * Build the slim {@link IAuthDiscovery} snapshot and emit the
+ * POST-validated telemetry line. Returns the snapshot so callers
+ * can commit it to the pipeline context.
+ *
+ * @param args - Bundled context + channels + reveal + cookie names.
+ * @returns The freshly built snapshot.
+ */
+function buildAndLogSnapshot(args: ISnapshotBuildArgs): IAuthDiscovery {
+  const { input, channels, reveal, cookieNames } = args;
+  const snapshot = buildSnapshot(channels, reveal.dashboardReady, cookieNames);
+  logPostValidated(input, snapshot, reveal.revealString);
+  return snapshot;
+}
+
+/**
+ * Collect the live AUTH-DISCOVERY channels (token + dashboard reveal),
+ * build the slim snapshot, and emit the POST-validated telemetry line.
+ * Single async call so {@link executeAuthDiscoveryPost} can stay a thin
+ * coordinator (gate → audit → snapshot → commit).
+ *
+ * @param input - Pipeline context.
+ * @param mediator - Live element mediator from the POST gate.
+ * @param cookieNames - Cookie names from the session-cookie audit.
+ * @returns Freshly built {@link IAuthDiscovery} snapshot.
+ */
+async function collectAuthDiscoverySnapshot(
+  input: IPipelineContext,
+  mediator: IElementMediator,
+  cookieNames: readonly string[],
+): Promise<IAuthDiscovery> {
+  const channels = await collectAuthChannels(mediator.network);
+  const reveal = await probeDashboardSignal(mediator);
+  return buildAndLogSnapshot({ input, channels, reveal, cookieNames });
+}
+
+/** Result of {@link gateAuthDiscoveryPost} — proceed or short-circuit. */
+type PostGate =
+  | { readonly tag: 'go'; readonly mediator: IElementMediator }
+  | { readonly tag: 'short'; readonly proc: Procedure<IPipelineContext> };
+
+/**
+ * Gate AUTH-DISCOVERY POST entry: short-circuits with pass-through
+ * success when no mediator is attached or MOCK_MODE is active;
+ * otherwise yields the live mediator for the POST workflow.
+ *
+ * @param input - Pipeline context.
+ * @returns Tagged result — `'go'` carries the mediator, `'short'`
+ *   carries the Procedure the caller should return verbatim.
+ */
+function gateAuthDiscoveryPost(input: IPipelineContext): PostGate {
+  if (!input.mediator.has) return { tag: 'short', proc: succeed(input) };
+  if (isMockModeAuthDiscoveryActive()) return { tag: 'short', proc: succeed(input) };
+  return { tag: 'go', mediator: input.mediator.value };
+}
+
+/**
  * POST — collect auth channels + dashboard reveal + cookie audit.
  * Builds the slim {@link IAuthDiscovery} value and commits it to
  * `ctx.authDiscovery` on success. Fails loud
@@ -154,18 +246,12 @@ function executeAuthDiscoveryAction(input: IActionContext): Promise<Procedure<IA
 async function executeAuthDiscoveryPost(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has) return succeed(input);
-  if (isMockModeAuthDiscoveryActive()) return succeed(input);
-  const mediator = input.mediator.value;
-  const cookieAudit = await auditSessionCookies(mediator);
-  if (cookieAudit.count === 0) {
-    return failAuthDiscovery('AUTH_DISCOVERY_SESSION_INVALID', 'cookies=0 after auth');
-  }
-  const channels = await collectAuthChannels(mediator.network);
-  const reveal = await probeDashboardSignal(mediator);
-  const snapshot = buildSnapshot(channels, reveal.dashboardReady, cookieAudit.names);
-  logPostValidated(input, snapshot, reveal.revealString);
-  return succeed({ ...input, authDiscovery: some(snapshot) });
+  const gate = gateAuthDiscoveryPost(input);
+  if (gate.tag === 'short') return gate.proc;
+  const cookieAudit = await auditSessionCookies(gate.mediator);
+  if (cookieAudit.count === 0) return failCookiesEmpty();
+  const snapshot = await collectAuthDiscoverySnapshot(input, gate.mediator, cookieAudit.names);
+  return commitAuthDiscovery(input, snapshot);
 }
 
 /**
@@ -192,6 +278,25 @@ function buildSnapshot(
 }
 
 /**
+ * Build the canonical PII-safe summary for an {@link IAuthDiscovery}
+ * snapshot: booleans + counts only (no header values, no token, no
+ * cookie values). Reused by both POST and FINAL telemetry events so
+ * the wire shape stays identical.
+ *
+ * @param snap - Slim auth-discovery snapshot.
+ * @returns Plain key/value record ready for the logger sink.
+ */
+function buildAuthDiscoverySummary(snap: IAuthDiscovery): Record<string, boolean | number> {
+  return {
+    dashboardReady: snap.dashboardReady,
+    hasAuthToken: snap.authToken !== false,
+    hasOrigin: snap.origin !== false,
+    hasSiteId: snap.siteId !== false,
+    sessionCookieCount: snap.sessionCookieNames.length,
+  };
+}
+
+/**
  * Emit POST-validated telemetry — PII-safe (booleans + counts only,
  * no header values, no token, no cookie values).
  * @param input - Pipeline context (for the logger handle).
@@ -205,15 +310,8 @@ function logPostValidated(
   snapshot: IAuthDiscovery,
   revealString: string,
 ): true {
-  input.logger.debug({
-    event: 'auth-discovery.post.validated',
-    dashboardReady: snapshot.dashboardReady,
-    hasAuthToken: snapshot.authToken !== false,
-    hasOrigin: snapshot.origin !== false,
-    hasSiteId: snapshot.siteId !== false,
-    sessionCookieCount: snapshot.sessionCookieNames.length,
-    revealString,
-  });
+  const summary = buildAuthDiscoverySummary(snapshot);
+  input.logger.debug({ event: 'auth-discovery.post.validated', ...summary, revealString });
   return true;
 }
 
@@ -315,14 +413,8 @@ async function settleBeforeGate(input: IPipelineContext): Promise<boolean> {
  * @returns True after the event is logged.
  */
 function emitCommittedTelemetry(input: IPipelineContext, snap: IAuthDiscovery): true {
-  input.logger.debug({
-    event: 'auth-discovery.committed',
-    dashboardReady: snap.dashboardReady,
-    hasAuthToken: snap.authToken !== false,
-    hasOrigin: snap.origin !== false,
-    hasSiteId: snap.siteId !== false,
-    sessionCookieCount: snap.sessionCookieNames.length,
-  });
+  const summary = buildAuthDiscoverySummary(snap);
+  input.logger.debug({ event: 'auth-discovery.committed', ...summary });
   return true;
 }
 

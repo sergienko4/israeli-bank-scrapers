@@ -27,10 +27,14 @@ import {
   LOGIN_FIELDS,
   type LoginFieldKey,
 } from '../../Types/PipelineContext.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { computeContextId } from '../Elements/ActionExecutors.js';
-import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
+import type {
+  IActionMediator,
+  IElementMediator,
+  IRaceResult,
+} from '../Elements/ElementMediator.js';
 import type { IPreludeSpec } from '../Elements/PagePrelude.js';
 import { awaitFramePrelude, probeFirefoxNeterror } from '../Elements/PagePrelude.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
@@ -38,6 +42,7 @@ import { fillFromDiscovery } from '../Form/LoginFormActions.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
 import { detectOtpForm, detectOtpTrigger } from '../Form/OtpProbe.js';
 import { runPostCallback } from '../Form/PostActionResolver.js';
+import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
 import {
   ELEMENTS_DOM_READY_TIMEOUT_MS,
   LOGIN_PER_FRAME_SCAN_TIMEOUT_MS,
@@ -65,6 +70,24 @@ async function runCheckReadiness(
 }
 
 /**
+ * Invoke the optional preAction callback and select the active frame —
+ * pulled out of {@link runPreAction} so the try-arm holds a single
+ * statement and the surrounding fn stays inside the 10-LoC ceiling.
+ *
+ * @param preAction - Verified-present preAction callback.
+ * @param page - Browser page.
+ * @returns Active frame (Page or Frame) — the callback's return when
+ *   defined, otherwise the page itself.
+ */
+async function performPreAction(
+  preAction: NonNullable<ILoginConfig['preAction']>,
+  page: Page,
+): Promise<Page | Frame> {
+  const frame = await preAction(page);
+  return frame ?? page;
+}
+
+/**
  * Run preAction if configured — returns the active frame.
  * @param config - Login config.
  * @param page - Browser page.
@@ -73,8 +96,7 @@ async function runCheckReadiness(
 async function runPreAction(config: ILoginConfig, page: Page): Promise<Procedure<Page | Frame>> {
   if (!config.preAction) return succeed(page as Page | Frame);
   try {
-    const frame = await config.preAction(page);
-    const activeFrame: Page | Frame = frame ?? page;
+    const activeFrame = await performPreAction(config.preAction, page);
     return succeed(activeFrame);
   } catch (error) {
     const msg = toErrorMessage(error as Error);
@@ -92,23 +114,35 @@ interface IResolveFieldArgs {
 }
 
 /**
+ * Assemble an {@link IResolvedTarget} from a resolved {@link IFieldContext}.
+ * Pure builder pulled out of {@link resolveOneField} so the caller
+ * stays inside the 10-LoC ceiling.
+ *
+ * @param value - Successful field-resolver value.
+ * @param page - Browser page (for frame-id derivation).
+ * @param key - Original credential key recorded as `candidateValue`.
+ * @returns Fully populated resolved target.
+ */
+function buildPreTarget(value: IFieldContext, page: Page, key: string): IResolvedTarget {
+  return {
+    selector: value.selector,
+    contextId: computeContextId(value.context, page),
+    kind: value.resolvedKind ?? value.resolvedVia,
+    candidateValue: key,
+  };
+}
+
+/**
  * Resolve one credential field and build an IResolvedTarget.
  * @param args - Bundled resolve arguments.
  * @returns Resolved target or false if not found.
  */
 async function resolveOneField(args: IResolveFieldArgs): Promise<IResolvedTarget | false> {
   const key = args.field.credentialKey;
-  const msg = `PRE resolving ${maskVisibleText(key)}`;
-  args.logger.debug({ message: msg });
+  args.logger.debug({ message: `PRE resolving ${maskVisibleText(key)}` });
   const result = await args.mediator.resolveField(key, args.field.selectors, args.activeFrame);
   if (!result.success) return false;
-  const contextId = computeContextId(result.value.context, args.page);
-  return {
-    selector: result.value.selector,
-    contextId,
-    kind: result.value.resolvedKind ?? result.value.resolvedVia,
-    candidateValue: key,
-  };
+  return buildPreTarget(result.value, args.page, key);
 }
 
 /** Bundled args for accumulating one resolved field. */
@@ -153,6 +187,53 @@ interface IFieldAccum {
 }
 
 /**
+ * Resolve one field via {@link resolveOneField} using the bundle
+ * fields of {@link IDiscoverFieldsArgs}. Forwards args without the
+ * field-discovery caller having to re-build the bundle inline.
+ *
+ * @param args - Discovery arguments bundle.
+ * @param field - Field config to resolve.
+ * @returns Resolved target or false when the field is not found.
+ */
+async function resolveFieldInDiscovery(
+  args: IDiscoverFieldsArgs,
+  field: IFieldConfig,
+): Promise<IResolvedTarget | false> {
+  return resolveOneField({
+    mediator: args.mediator,
+    field,
+    activeFrame: args.activeFrame,
+    page: args.page,
+    logger: args.logger,
+  });
+}
+
+/** Args bundle for {@link maybeDiscoverAnchor} — under the 3-param ceiling. */
+interface IAnchorCheckArgs {
+  readonly accum: IFieldAccum;
+  readonly field: IFieldConfig;
+  readonly resolved: IResolvedTarget | false;
+}
+
+/**
+ * Discover a form anchor lazily — only when the field resolved AND
+ * no anchor has been captured yet. Returns the existing anchor in
+ * both other branches so the caller does not have to fork on tags.
+ *
+ * @param args - Discovery arguments bundle.
+ * @param check - Anchor-check bundle (accum + field + resolved).
+ * @returns Form-anchor option (existing or newly discovered).
+ */
+async function maybeDiscoverAnchor(
+  args: IDiscoverFieldsArgs,
+  check: IAnchorCheckArgs,
+): Promise<Option<IFormAnchor>> {
+  if (!check.resolved) return check.accum.formAnchor;
+  if (check.accum.formAnchor.has) return check.accum.formAnchor;
+  return discoverFormFromField(args, check.field);
+}
+
+/**
  * Resolve one field and accumulate into the discovery state.
  * @param args - Discovery arguments.
  * @param accum - Running accumulator.
@@ -164,19 +245,57 @@ async function resolveAndAccumulate(
   accum: IFieldAccum,
   field: IFieldConfig,
 ): Promise<IFieldAccum> {
-  const resolved = await resolveOneField({
-    mediator: args.mediator,
-    field,
-    activeFrame: args.activeFrame,
-    page: args.page,
-    logger: args.logger,
-  });
+  const resolved = await resolveFieldInDiscovery(args, field);
   const key = field.credentialKey as LoginFieldKey;
   accumulateTarget({ targets: accum.targets, key, target: resolved }, args.logger);
-  if (!resolved) return accum;
-  if (accum.formAnchor.has) return accum;
-  const anchor = await discoverFormFromField(args, field);
-  return { targets: accum.targets, formAnchor: anchor };
+  const formAnchor = await maybeDiscoverAnchor(args, { accum, field, resolved });
+  return { targets: accum.targets, formAnchor };
+}
+
+/**
+ * Fold the ordered field list into a {@link IFieldAccum}, sequentially
+ * resolving and accumulating each field. Sequential — later fields
+ * scope from the first resolved field's frame.
+ *
+ * @param args - Discovery arguments bundle.
+ * @param ordered - Fields in password-first iteration order.
+ * @returns Accumulator after every field has been processed.
+ */
+async function foldDiscoveryFields(
+  args: IDiscoverFieldsArgs,
+  ordered: readonly IFieldConfig[],
+): Promise<IFieldAccum> {
+  const seed: IFieldAccum = { targets: new Map(), formAnchor: none() };
+  const initial: Promise<IFieldAccum> = Promise.resolve(seed);
+  const step = makeFieldStep(args);
+  return ordered.reduce(step, initial);
+}
+
+/**
+ * Build a single-step reducer that resolves one field on top of the
+ * running accumulator promise. Closes over the discovery args.
+ *
+ * @param args - Discovery arguments bundle.
+ * @returns Reducer accepted by {@link Array.reduce}.
+ */
+function makeFieldStep(
+  args: IDiscoverFieldsArgs,
+): (acc: Promise<IFieldAccum>, field: IFieldConfig) => Promise<IFieldAccum> {
+  return (acc, field) => acc.then(a => resolveAndAccumulate(args, a, field));
+}
+
+/**
+ * Select the active-frame id for downstream submit resolution —
+ * password's frame when password resolved, otherwise the args' frame.
+ *
+ * @param args - Discovery arguments bundle.
+ * @param final - Final field-resolution accumulator.
+ * @returns Frame id where the submit button must live.
+ */
+function pickActiveFrameId(args: IDiscoverFieldsArgs, final: IFieldAccum): string {
+  const fallback = computeContextId(args.activeFrame, args.page);
+  const passwordTarget = final.targets.get('password');
+  return passwordTarget?.contextId ?? fallback;
 }
 
 /**
@@ -187,15 +306,8 @@ async function resolveAndAccumulate(
  */
 async function executeDiscoverFields(args: IDiscoverFieldsArgs): Promise<ILoginFieldDiscovery> {
   const ordered = passwordFirst(args.config.fields);
-  const seed: IFieldAccum = { targets: new Map(), formAnchor: none() };
-  const seedPromise = Promise.resolve(seed);
-  const final = await ordered.reduce(
-    (acc, field) => acc.then(a => resolveAndAccumulate(args, a, field)),
-    seedPromise,
-  );
-  const fallbackFrameId = computeContextId(args.activeFrame, args.page);
-  const passwordTarget = final.targets.get('password');
-  const activeFrameId = passwordTarget?.contextId ?? fallbackFrameId;
+  const final = await foldDiscoveryFields(args, ordered);
+  const activeFrameId = pickActiveFrameId(args, final);
   const submitTarget = await resolveSubmitTarget(args, final.formAnchor, activeFrameId);
   return { targets: final.targets, formAnchor: final.formAnchor, activeFrameId, submitTarget };
 }
@@ -279,6 +391,50 @@ function extractCandidateKind(result: IRaceResult): string {
   return result.candidate.kind;
 }
 
+/** WK structural submit candidates — co-erced once at module scope. */
+const STRUCTURAL_SUBMIT_WK =
+  WK_LOGIN_FORM.submitStructural as unknown as readonly SelectorCandidate[];
+
+/**
+ * Try the WK structural submit candidates (`button[type="submit"]`) in
+ * the password frame, scoped to the form anchor when trustworthy.
+ *
+ * @param args - Discovery arguments bundle.
+ * @param frameId - Required frame id (password's frame).
+ * @param anchor - Trustworthy form-anchor selector or empty string.
+ * @returns Option wrapping the structurally matched submit target.
+ */
+async function tryStructuralSubmit(
+  args: IDiscoverFieldsArgs,
+  frameId: string,
+  anchor: string,
+): Promise<Option<IResolvedTarget>> {
+  return resolveInFrame({
+    args,
+    candidates: STRUCTURAL_SUBMIT_WK,
+    requiredFrameId: frameId,
+    formAnchor: anchor,
+  });
+}
+
+/**
+ * Try the bank-configured submit candidates (text/role-based) in
+ * the password frame, scoped to the form anchor when trustworthy.
+ *
+ * @param args - Discovery arguments bundle.
+ * @param frameId - Required frame id (password's frame).
+ * @param anchor - Trustworthy form-anchor selector or empty string.
+ * @returns Option wrapping the configured submit target.
+ */
+async function tryConfiguredSubmit(
+  args: IDiscoverFieldsArgs,
+  frameId: string,
+  anchor: string,
+): Promise<Option<IResolvedTarget>> {
+  const raw = normalizeSubmitConfig(args.config.submit);
+  return resolveInFrame({ args, candidates: raw, requiredFrameId: frameId, formAnchor: anchor });
+}
+
 /**
  * Resolve the submit button — ONE form, ONE button.
  * Step 1: Find button[type="submit"] in the SAME frame as password (structural).
@@ -299,21 +455,9 @@ async function resolveSubmitTarget(
   // kinds (xpath, textContent, regex, ariaLabel, ...) to descendants of the
   // matched form. Discriminates co-resident submit buttons on flip-card pages.
   const anchorSelector = extractFormAnchorSelector(formAnchor);
-  const structuralWk = WK_LOGIN_FORM.submitStructural as unknown as readonly SelectorCandidate[];
-  const structural = await resolveInFrame({
-    args,
-    candidates: structuralWk,
-    requiredFrameId: activeFrameId,
-    formAnchor: anchorSelector,
-  });
+  const structural = await tryStructuralSubmit(args, activeFrameId, anchorSelector);
   if (structural.has) return structural;
-  const raw = normalizeSubmitConfig(args.config.submit);
-  return resolveInFrame({
-    args,
-    candidates: raw,
-    requiredFrameId: activeFrameId,
-    formAnchor: anchorSelector,
-  });
+  return tryConfiguredSubmit(args, activeFrameId, anchorSelector);
 }
 
 /** Bundled args for resolveInFrame — keeps the function inside the 3-param ceiling. */
@@ -324,6 +468,98 @@ interface IResolveInFrameArgs {
   readonly formAnchor: string;
 }
 
+/** Bundled state captured once per submit-resolution race for logging + assembly. */
+interface IFrameMatchArgs {
+  readonly logger: IPipelineContext['logger'];
+  readonly candidateVal: string;
+  readonly contextId: string;
+  readonly kind: string;
+  readonly requiredFrameId: string;
+}
+
+/**
+ * Build the bundled match metadata captured once per submit-resolution
+ * race so both the wrong-frame logger and the success logger consume a
+ * single argument bundle.
+ *
+ * @param input - Original resolve-in-frame args (carries logger handle).
+ * @param result - Race result from `mediator.resolveVisible`.
+ * @param contextId - Frame id of the matched element.
+ * @returns Frame-match bundle for the logging + assembly helpers.
+ */
+function buildFrameMatchArgs(
+  input: IResolveInFrameArgs,
+  result: IRaceResult,
+  contextId: string,
+): IFrameMatchArgs {
+  return {
+    logger: input.args.logger,
+    candidateVal: extractCandidateVal(result),
+    contextId,
+    kind: extractCandidateKind(result),
+    requiredFrameId: input.requiredFrameId,
+  };
+}
+
+/**
+ * Log a wrong-frame submit-resolution outcome and return `none()` so
+ * the caller can `return logFrameMismatch(matchArgs)` in one line.
+ *
+ * @param matchArgs - Frame-match bundle (carries the expected frame id).
+ * @returns Always `none()`.
+ */
+function logFrameMismatch(matchArgs: IFrameMatchArgs): Option<IResolvedTarget> {
+  const { candidateVal, contextId, requiredFrameId, logger } = matchArgs;
+  const message = `"${candidateVal}" in ${contextId}, expected ${requiredFrameId}`;
+  logger.debug({ field: 'submit', result: 'WRONG_FRAME', message });
+  return none();
+}
+
+/**
+ * Log a matched submit-resolution outcome — returns `true` so the call
+ * site can be a single statement without a discarded-expression lint.
+ *
+ * @param matchArgs - Frame-match bundle from {@link buildFrameMatchArgs}.
+ * @returns Always `true`.
+ */
+function logFrameMatch(matchArgs: IFrameMatchArgs): true {
+  matchArgs.logger.debug({
+    field: 'submit',
+    result: 'FOUND',
+    message: `"${matchArgs.candidateVal}" kind=${matchArgs.kind} frame=${matchArgs.contextId}`,
+  });
+  return true;
+}
+
+/**
+ * Bridge to `mediator.resolveVisible` with the resolve-in-frame bundle —
+ * extracted so the wrapping call fits inside the print-width budget.
+ *
+ * @param input - Resolve-in-frame args bundle.
+ * @returns Race result from the mediator.
+ */
+async function resolveVisibleCandidates(input: IResolveInFrameArgs): Promise<IRaceResult> {
+  return input.args.mediator.resolveVisible(input.candidates, undefined, input.formAnchor);
+}
+
+/**
+ * Build the success `Option<IResolvedTarget>` for a frame-matched
+ * submit-resolution race — pulled out of {@link resolveInFrame} so
+ * the caller stays inside the 10-LoC ceiling without prettier-wrap.
+ *
+ * @param matchArgs - Frame-match bundle.
+ * @param selector - Final scoped or un-scoped click selector.
+ * @returns `some(target)` populated from the bundle.
+ */
+function buildSuccessTarget(matchArgs: IFrameMatchArgs, selector: string): Option<IResolvedTarget> {
+  return some({
+    selector,
+    contextId: matchArgs.contextId,
+    kind: matchArgs.kind,
+    candidateValue: matchArgs.candidateVal,
+  });
+}
+
 /**
  * Resolve a visible element strictly within a specific frame.
  * @param input - Bundled discovery args + candidates + frame + formAnchor.
@@ -332,28 +568,35 @@ interface IResolveInFrameArgs {
  * @returns Resolved target in the correct frame, or none.
  */
 async function resolveInFrame(input: IResolveInFrameArgs): Promise<Option<IResolvedTarget>> {
-  const args = input.args;
-  const requiredFrameId = input.requiredFrameId;
-  const result = await args.mediator.resolveVisible(input.candidates, undefined, input.formAnchor);
+  const result = await resolveVisibleCandidates(input);
   if (!result.found || !result.context) return none();
-  const contextId = computeContextId(result.context, args.page);
-  const candidateVal = extractCandidateVal(result);
-  const kind = extractCandidateKind(result);
-  if (contextId !== requiredFrameId) {
-    args.logger.debug({
-      field: 'submit',
-      result: 'WRONG_FRAME',
-      message: `"${candidateVal}" in ${contextId}, expected ${requiredFrameId}`,
-    });
-    return none();
-  }
-  args.logger.debug({
-    field: 'submit',
-    result: 'FOUND',
-    message: `"${candidateVal}" kind=${kind} frame=${contextId}`,
-  });
+  const contextId = computeContextId(result.context, input.args.page);
+  const matchArgs = buildFrameMatchArgs(input, result, contextId);
+  if (contextId !== matchArgs.requiredFrameId) return logFrameMismatch(matchArgs);
+  logFrameMatch(matchArgs);
   const selector = buildSubmitSelector(result, input.formAnchor);
-  return some({ selector, contextId, kind, candidateValue: candidateVal });
+  return buildSuccessTarget(matchArgs, selector);
+}
+
+/** Default structural submit selector when the race has no candidate. */
+const INNER_SUBMIT_FALLBACK = 'button[type="submit"]';
+
+/**
+ * Build the per-kind selector lookup for {@link buildInnerSubmitSelector}.
+ * Extracted so the caller stays inside the 10-LoC ceiling.
+ *
+ * @param value - The candidate's `value` (text / xpath / aria name).
+ * @returns Map keyed by candidate kind.
+ */
+function buildInnerSelectorMap(value: string): Record<string, string> {
+  return {
+    xpath: value,
+    textContent: `text=${value}`,
+    exactText: `text="${value}"`,
+    placeholder: `[placeholder="${value}"]`,
+    ariaLabel: `role=button[name="${value}"]`,
+    labelText: `text=${value}`,
+  };
 }
 
 /**
@@ -362,21 +605,14 @@ async function resolveInFrame(input: IResolveInFrameArgs): Promise<Option<IResol
  * @returns Inner selector string without form scope.
  */
 function buildInnerSubmitSelector(result: IRaceResult): string {
-  if (!result.candidate) return 'button[type="submit"]';
+  if (!result.candidate) return INNER_SUBMIT_FALLBACK;
   const c = result.candidate;
   // ariaLabel kind matches by accessible name, not the [aria-label] attribute.
   // PRE uses `getByRole('button', { name })`; click-time storage must use the
   // role engine to agree. Max's user-login-form button derives its name from
   // an inner <span> and has no aria-label attr — `[aria-label="..."]` would
   // match 0 elements and the click would silently no-op.
-  const selectorMap: Record<string, string> = {
-    xpath: c.value,
-    textContent: `text=${c.value}`,
-    exactText: `text="${c.value}"`,
-    placeholder: `[placeholder="${c.value}"]`,
-    ariaLabel: `role=button[name="${c.value}"]`,
-    labelText: `text=${c.value}`,
-  };
+  const selectorMap = buildInnerSelectorMap(c.value);
   return selectorMap[c.kind] ?? c.value;
 }
 
@@ -417,20 +653,19 @@ const LOGIN_PRE_FRAME_PRELUDE: IPreludeSpec = {
   timeoutMs: ELEMENTS_DOM_READY_TIMEOUT_MS,
 };
 
+/** Failure messages for the LOGIN PRE gates. */
+const LOGIN_PRE_NO_BROWSER = 'LOGIN PRE: no browser';
+const LOGIN_PRE_NO_MEDIATOR = 'LOGIN PRE: no mediator';
+
 /**
- * PRE: Discover credential form — run checkReadiness + preAction + field discovery.
- * Sets login.activeFrame AND loginFieldDiscovery for ACTION.
- * @param config - Login config.
- * @param input - Pipeline context with browser.
- * @returns Updated context with login state and field discovery.
+ * Probe the page for a Firefox-style network-error chrome and convert
+ * any positive verdict into a structured fail-loud procedure.
+ *
+ * @param page - Browser page (just landed on the bank's login domain).
+ * @returns Failure procedure when the chrome is detected, `false`
+ *   when the page is normal.
  */
-async function executeDiscoverForm(
-  config: ILoginConfig,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'LOGIN PRE: no browser');
-  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'LOGIN PRE: no mediator');
-  const page = input.browser.value.page;
+async function probeNeterrorAndFail(page: Page): Promise<Procedure<IPipelineContext> | false> {
   // PR #221 review-fix session 2026-05-11: the HOME → LOGIN navigation
   // (HOME.ACTION clicks the login-link nav, page lands on the bank's
   // dedicated login subdomain) can hit Firefox's built-in neterror page
@@ -442,28 +677,72 @@ async function executeDiscoverForm(
   // navigation. Fails loud immediately so the 25-30s downstream
   // cascade (HOME.FINAL → LOGIN.ACTION → LOGIN.POST → AUTH-DISCOVERY)
   // is short-circuited and the run reports a real diagnosis.
-  const neterrorProbe = await probeFirefoxNeterror(page);
-  if (neterrorProbe.isNeterror) {
-    const currentUrl = page.url();
-    const maskedUrl = maskVisibleText(currentUrl);
-    return fail(
-      ScraperErrorTypes.Generic,
-      `LOGIN PRE: browser error page — title="${neterrorProbe.title}" url=${maskedUrl}`,
-    );
-  }
+  const probe = await probeFirefoxNeterror(page);
+  if (!probe.isNeterror) return false;
+  const pageUrl = page.url();
+  const maskedUrl = maskVisibleText(pageUrl);
+  const msg = `LOGIN PRE: browser error page — title="${probe.title}" url=${maskedUrl}`;
+  return fail(ScraperErrorTypes.Generic, msg);
+}
+
+/** Outcome of {@link runDiscoverFormPreamble} — fail-loud or active frame. */
+type DiscoverFormPreamble =
+  | { readonly tag: 'fail'; readonly proc: Procedure<IPipelineContext> }
+  | { readonly tag: 'frame'; readonly activeFrame: Page | Frame };
+
+/**
+ * Run LOGIN.PRE's optional readiness + preAction callbacks and surface
+ * either the active frame (success) or a fail-loud procedure (failure).
+ *
+ * @param config - Login config.
+ * @param page - Browser page.
+ * @returns Tagged outcome — `'frame'` with the active frame or `'fail'`
+ *   with the structured failure procedure.
+ */
+async function runDiscoverFormPreamble(
+  config: ILoginConfig,
+  page: Page,
+): Promise<DiscoverFormPreamble> {
   const readyCheck = await runCheckReadiness(config, page);
-  if (readyCheck) return readyCheck;
+  if (readyCheck !== false) return { tag: 'fail', proc: readyCheck };
   const frameResult = await runPreAction(config, page);
-  if (!frameResult.success) return frameResult;
-  const activeFrame = frameResult.value;
-  const loginState: ILoginState = {
+  if (!frameResult.success) return { tag: 'fail', proc: frameResult };
+  return { tag: 'frame', activeFrame: frameResult.value };
+}
+
+/**
+ * Build LOGIN.PRE's slim {@link ILoginState} and emit the active-frame
+ * debug log in one helper so the caller stays a thin coordinator.
+ *
+ * @param activeFrame - Frame selected by `preAction` (or the page).
+ * @param page - Browser page (carries the `urlBeforeSubmit` baseline).
+ * @param logger - Pipeline logger for the active-frame trace line.
+ * @returns Freshly built login state value.
+ */
+function buildLoginState(
+  activeFrame: Page | Frame,
+  page: Page,
+  logger: IPipelineContext['logger'],
+): ILoginState {
+  logger.debug({ message: maskVisibleText(`activeFrame=${activeFrame.url()}`) });
+  return {
     activeFrame,
     persistentOtpToken: none(),
     urlBeforeSubmit: page.url(),
   };
-  input.logger.debug({
-    message: maskVisibleText(`activeFrame=${activeFrame.url()}`),
-  });
+}
+
+/**
+ * Best-effort DOM-ready wait on the active iframe — emits the
+ * `domReady=…` trace line and returns. Failures inside the prelude
+ * are non-fatal; the per-frame scan retry absorbs slow SPAs.
+ *
+ * @param input - Pipeline context (carries the logger handle).
+ * @param activeFrame - Frame to wait on (Page or iframe).
+ * @returns Always `true` (the boolean return keeps the call statement
+ *   self-documenting and avoids a `void` return type).
+ */
+async function waitFormDomReady(input: IPipelineContext, activeFrame: Page | Frame): Promise<true> {
   // Mission M4.F2.0 + dom-ready-everywhere P-7b: SPA-render wait on
   // the active iframe (Hapoalim-group banks host login inside an
   // iframe; the parent page fires `domcontentloaded` before the
@@ -474,17 +753,154 @@ async function executeDiscoverForm(
   // per-frame scan retry absorbs slow SPAs, so a timeout is non-fatal.
   const wasReady = await awaitFramePrelude(input, activeFrame, LOGIN_PRE_FRAME_PRELUDE);
   input.logger.debug({ message: `LOGIN PRE: domReady=${String(wasReady)}` });
-  const discovery = await executeDiscoverFields({
-    mediator: input.mediator.value,
-    config,
+  return true;
+}
+
+/** Bundled resources for {@link runDiscoverFormFlow} after early gates clear. */
+interface IDiscoverFormResources {
+  readonly config: ILoginConfig;
+  readonly input: IPipelineContext;
+  readonly page: Page;
+  readonly mediator: IElementMediator;
+}
+
+/**
+ * Run the field-discovery pass against the resolved active frame.
+ * Bridges {@link IDiscoverFormResources} fields into the args bundle
+ * consumed by {@link executeDiscoverFields}.
+ *
+ * @param r - Discover-form resources.
+ * @param activeFrame - Frame selected by `runDiscoverFormPreamble`.
+ * @returns Fully populated login-field discovery.
+ */
+async function runFieldDiscovery(
+  r: IDiscoverFormResources,
+  activeFrame: Page | Frame,
+): Promise<ILoginFieldDiscovery> {
+  return executeDiscoverFields({
+    mediator: r.mediator,
+    config: r.config,
     activeFrame,
-    page,
-    logger: input.logger,
+    page: r.page,
+    logger: r.input.logger,
   });
+}
+
+/**
+ * Commit LOGIN.PRE's state + discovery into the pipeline context.
+ *
+ * @param input - Pipeline context to extend.
+ * @param loginState - Freshly built login state.
+ * @param discovery - Result of the field-discovery pass.
+ * @returns Success procedure with the extended context.
+ */
+function commitDiscoverForm(
+  input: IPipelineContext,
+  loginState: ILoginState,
+  discovery: ILoginFieldDiscovery,
+): Procedure<IPipelineContext> {
   return succeed({
     ...input,
     login: some(loginState),
     loginFieldDiscovery: some(discovery),
+  });
+}
+
+/**
+ * Run the post-gate LOGIN.PRE flow: neterror probe → preamble → state +
+ * dom-ready wait → field discovery → commit. Single linear sequence so
+ * the entry point in {@link executeDiscoverForm} stays a thin gate.
+ *
+ * @param r - Discover-form resources (config + context + page + mediator).
+ * @returns Updated context with login state and field discovery.
+ */
+async function runDiscoverFormFlow(
+  r: IDiscoverFormResources,
+): Promise<Procedure<IPipelineContext>> {
+  const neterror = await probeNeterrorAndFail(r.page);
+  if (neterror !== false) return neterror;
+  const preamble = await runDiscoverFormPreamble(r.config, r.page);
+  if (preamble.tag === 'fail') return preamble.proc;
+  const loginState = buildLoginState(preamble.activeFrame, r.page, r.input.logger);
+  await waitFormDomReady(r.input, preamble.activeFrame);
+  const discovery = await runFieldDiscovery(r, preamble.activeFrame);
+  return commitDiscoverForm(r.input, loginState, discovery);
+}
+
+/**
+ * PRE: Discover credential form — run checkReadiness + preAction + field discovery.
+ * Sets login.activeFrame AND loginFieldDiscovery for ACTION.
+ * @param config - Login config.
+ * @param input - Pipeline context with browser.
+ * @returns Updated context with login state and field discovery.
+ */
+async function executeDiscoverForm(
+  config: ILoginConfig,
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, LOGIN_PRE_NO_BROWSER);
+  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, LOGIN_PRE_NO_MEDIATOR);
+  const page = input.browser.value.page;
+  const mediator = input.mediator.value;
+  return runDiscoverFormFlow({ config, input, page, mediator });
+}
+
+/** Failure messages for the LOGIN ACTION early gates. */
+const LOGIN_ACTION_NO_DISCOVERY = 'LOGIN ACTION: no field discovery';
+const LOGIN_ACTION_NO_EXECUTOR = 'LOGIN ACTION: no executor';
+
+/** Outcome of {@link gateActionInputs} — pre-narrowed inputs or a failure procedure. */
+type ActionInputsGate =
+  | {
+      readonly tag: 'ok';
+      readonly discovery: ILoginFieldDiscovery;
+      readonly executor: IActionMediator;
+    }
+  | { readonly tag: 'fail'; readonly proc: IProcedureFailure };
+
+/**
+ * Gate the LOGIN ACTION inputs (discovery + executor) and surface
+ * either the pre-narrowed values or a structured failure procedure.
+ *
+ * @param input - Sealed ACTION context.
+ * @returns Tagged result — `'ok'` with narrowed values or `'fail'`.
+ */
+function gateActionInputs(input: IActionContext): ActionInputsGate {
+  if (!input.loginFieldDiscovery.has) {
+    return { tag: 'fail', proc: fail(ScraperErrorTypes.Generic, LOGIN_ACTION_NO_DISCOVERY) };
+  }
+  if (!input.executor.has) {
+    return { tag: 'fail', proc: fail(ScraperErrorTypes.Generic, LOGIN_ACTION_NO_EXECUTOR) };
+  }
+  return { tag: 'ok', discovery: input.loginFieldDiscovery.value, executor: input.executor.value };
+}
+
+/** Bundled args for {@link runFillFromDiscovery} — under the 3-param ceiling. */
+interface IRunFillArgs {
+  readonly config: ILoginConfig;
+  readonly input: IActionContext;
+  readonly discovery: ILoginFieldDiscovery;
+  readonly executor: IActionMediator;
+}
+
+/**
+ * Run the sealed fill+submit executor against the PRE-resolved
+ * discovery. Bridges {@link IActionContext} fields into the
+ * mediator-agnostic `fillFromDiscovery` signature.
+ *
+ * @param args - Bundled config + context + pre-narrowed discovery + executor.
+ * @returns Fill outcome from `fillFromDiscovery`.
+ */
+async function runFillFromDiscovery(
+  args: IRunFillArgs,
+): Promise<Awaited<ReturnType<typeof fillFromDiscovery>>> {
+  const creds = args.input.credentials as Record<string, string>;
+  return fillFromDiscovery({
+    discovery: args.discovery,
+    executor: args.executor,
+    config: args.config,
+    creds,
+    logger: args.input.logger,
   });
 }
 
@@ -499,18 +915,10 @@ async function executeFillAndSubmitFromDiscovery(
   config: ILoginConfig,
   input: IActionContext,
 ): Promise<Procedure<IActionContext>> {
-  if (!input.loginFieldDiscovery.has) {
-    return fail(ScraperErrorTypes.Generic, 'LOGIN ACTION: no field discovery');
-  }
-  if (!input.executor.has) return fail(ScraperErrorTypes.Generic, 'LOGIN ACTION: no executor');
-  const creds = input.credentials as Record<string, string>;
-  const result = await fillFromDiscovery({
-    discovery: input.loginFieldDiscovery.value,
-    executor: input.executor.value,
-    config,
-    creds,
-    logger: input.logger,
-  });
+  const gate = gateActionInputs(input);
+  if (gate.tag === 'fail') return gate.proc;
+  const { discovery, executor } = gate;
+  const result = await runFillFromDiscovery({ config, input, discovery, executor });
   if (!result.success) return result;
   const diag = { ...input.diagnostics, submitMethod: result.value.method };
   return succeed({ ...input, diagnostics: diag });
@@ -625,42 +1033,77 @@ function detectAuthApiFailure(mediator: IElementMediator): Procedure<IPipelineCo
   return fail(ScraperErrorTypes.InvalidPassword, summary);
 }
 
+/** Failure messages for the LOGIN POST early gates. */
+const LOGIN_POST_NO_LOGIN_STATE = 'LOGIN POST: no login state';
+const LOGIN_POST_NO_BROWSER = 'LOGIN POST: no browser';
+
 /**
- * POST: Validate login — check for form errors, wait for SPA traffic.
- * @param config - Login config with postAction callback.
- * @param mediator - Element mediator.
- * @param input - Pipeline context with login state + browser.
- * @returns Succeed or fail with error type.
+ * Run the loading-gate wait + early auth-API watcher — fast-path that
+ * either fails loud (loading rejected, watcher already fired) or
+ * returns `false` so the caller continues to the legacy detectors.
+ *
+ * @param mediator - Element mediator (loading + auth-failure watcher).
+ * @param activeFrame - LOGIN PRE's captured active frame.
+ * @returns Failure procedure on early fail, otherwise `false`.
  */
-async function executeValidateLogin(
-  config: ILoginConfig,
+async function runPostLoadingGate(
   mediator: IElementMediator,
-  input: IPipelineContext,
-): Promise<Procedure<IPipelineContext>> {
-  if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'LOGIN POST: no login state');
-  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'LOGIN POST: no browser');
-  const page = input.browser.value.page;
-  const activeFrame = input.login.value.activeFrame;
+  activeFrame: Page | Frame,
+): Promise<Procedure<IPipelineContext> | false> {
   const loadingDone = await mediator.waitForLoadingDone(activeFrame);
   if (!loadingDone.success) return loadingDone;
   // Generic auth-API watcher — fast-path for any bank whose auth endpoint
   // already signalled failure (4xx or body-error) by the time the page
   // settled. Wins races against the slow URL/DOM detectors below for
   // SPA banks that never URL-redirect on rejected creds.
-  const earlyAuthFail = detectAuthApiFailure(mediator);
-  if (earlyAuthFail !== false) return earlyAuthFail;
+  return detectAuthApiFailure(mediator);
+}
+
+/** Bundled args for {@link runPostFormScanAndCallback} — under the 3-param ceiling. */
+interface IPostFormScanArgs {
+  readonly mediator: IElementMediator;
+  readonly config: ILoginConfig;
+  readonly input: IPipelineContext;
+  readonly page: Page;
+}
+
+/**
+ * Run the main-frame error scan plus the SPA-traffic wait and POST
+ * callback. Returns a failure procedure on any caught error, otherwise
+ * `false` so the caller can fall through to the late-fire detectors.
+ *
+ * @param args - Bundled mediator + config + context + page.
+ * @returns Failure procedure on detected error, otherwise `false`.
+ */
+async function runPostFormScanAndCallback(
+  args: IPostFormScanArgs,
+): Promise<Procedure<IPipelineContext> | false> {
   // Scan the main frame only — iframes on SPA banks (cal-online stack)
   // carry stale pre-submit validation placeholders that produce false
   // positives against valid credentials. Invalid-creds detection for
   // SPA banks falls through to detectLoginBounce below (URL pathname
   // stays on the login path after a rejected submit).
-  const errors = await safeScanFrame(mediator, page);
-  if (errors.hasErrors) {
-    return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
-  }
-  await waitForPostLoginTraffic(mediator, input.logger);
-  const cbResult = await runPostCallback(page, config, input);
+  const errors = await safeScanFrame(args.mediator, args.page);
+  if (errors.hasErrors) return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
+  await waitForPostLoginTraffic(args.mediator, args.input.logger);
+  const cbResult = await runPostCallback(args.page, args.config, args.input);
   if (!cbResult.success) return cbResult;
+  return false;
+}
+
+/**
+ * Run the late-fire auth-failure + async DOM detectors after the
+ * loading gate + POST callback have settled. Returns the first hit
+ * or falls through to {@link runLatePostChecks}.
+ *
+ * @param mediator - Element mediator (URL + watcher + DOM probes).
+ * @param input - Pipeline context.
+ * @returns Resolved Procedure for the late checks.
+ */
+async function runPostLateChecks(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
   // M2: dashboard-redirect orchestration removed. AUTH-DISCOVERY
   // (which runs after LOGIN/OTP-FILL) owns dashboard-readiness via
   // its FINAL-stage probe and emits `ctx.authDiscovery.dashboardReady`.
@@ -673,6 +1116,28 @@ async function executeValidateLogin(
   const asyncCheck = await detectAsyncLoginErrors(mediator, input);
   if (asyncCheck !== false) return asyncCheck;
   return runLatePostChecks(mediator, input);
+}
+
+/**
+ * POST: Validate login — check for form errors, wait for SPA traffic.
+ * @param config - Login config with postAction callback.
+ * @param mediator - Element mediator.
+ * @param input - Pipeline context with login state + browser.
+ * @returns Succeed or fail with error type.
+ */
+async function executeValidateLogin(
+  config: ILoginConfig,
+  mediator: IElementMediator,
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  if (!input.login.has) return fail(ScraperErrorTypes.Generic, LOGIN_POST_NO_LOGIN_STATE);
+  if (!input.browser.has) return fail(ScraperErrorTypes.Generic, LOGIN_POST_NO_BROWSER);
+  const page = input.browser.value.page;
+  const earlyGate = await runPostLoadingGate(mediator, input.login.value.activeFrame);
+  if (earlyGate !== false) return earlyGate;
+  const formScan = await runPostFormScanAndCallback({ mediator, config, input, page });
+  if (formScan !== false) return formScan;
+  return runPostLateChecks(mediator, input);
 }
 
 /**
@@ -835,35 +1300,121 @@ async function validateActionScopeIntact(
   mediator: IElementMediator,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext> | false> {
-  if (!hasStayedOnLoginUrl(mediator, input)) return false;
-  if (!input.loginFieldDiscovery.has) return false;
-  const discovery = input.loginFieldDiscovery.value;
-  const passwordTarget = discovery.targets.get(LOGIN_FIELDS.PASSWORD);
-  if (!passwordTarget) return false;
-  const stillPresent = await mediator.countBySelector(passwordTarget.selector);
-  if (stillPresent === 0) return false;
-  const otpVisibility = await otpScreenVisible(mediator);
-  if (otpVisibility === true) {
-    input.logger.debug({ message: 'POST: scope intact but OTP screen rendered — fall through' });
-    return false;
-  }
-  // PR #221 review (id 3216542548): probe FAILURE is not a credential
-  // verdict — fall through instead of firing a false-positive
-  // INVALID_PASSWORD. A real auth failure surfaces via the upstream
-  // `detectAuthApiFailure` / `detectAsyncLoginErrors` channels first.
-  if (otpVisibility === 'unknown') {
-    input.logger.debug({ message: 'POST: OTP probe failed — fall through (unknown ≠ invalid)' });
-    return false;
-  }
-  const masked = maskVisibleText(passwordTarget.selector);
-  const countStr = String(stillPresent);
-  input.logger.debug({
+  const probe = await probeScopeIntact(mediator, input);
+  if (probe === false) return false;
+  const scopeArgs: IScopeIntactArgs = {
+    input,
+    selector: probe.target.selector,
+    count: probe.count,
+  };
+  return disambiguateScopeIntact(mediator, scopeArgs);
+}
+
+/** Diagnostic log messages used by {@link validateActionScopeIntact}. */
+const SCOPE_OTP_VISIBLE_LOG = 'POST: scope intact but OTP screen rendered — fall through';
+const SCOPE_OTP_UNKNOWN_LOG = 'POST: OTP probe failed — fall through (unknown ≠ invalid)';
+const SCOPE_INTACT_FAIL_MSG =
+  'LOGIN POST: scope intact + URL unchanged — credentials likely invalid';
+
+/**
+ * Bundled state for {@link emitScopeIntactFailure} — keeps the helper
+ * within the 3-param ceiling and the caller within 10 LoC.
+ */
+interface IScopeIntactArgs {
+  readonly input: IPipelineContext;
+  readonly selector: string;
+  readonly count: number;
+}
+
+/**
+ * Emit the structured "scope intact + URL unchanged" failure procedure
+ * after the OTP-screen disambiguator has already cleared the false-
+ * positive branches.
+ *
+ * @param args - Bundled context + selector + count for the diagnostic log.
+ * @returns Failure procedure tagged `InvalidPassword`.
+ */
+function emitScopeIntactFailure(args: IScopeIntactArgs): IProcedureFailure {
+  const masked = maskVisibleText(args.selector);
+  const countStr = String(args.count);
+  args.input.logger.debug({
     message: `POST: scope intact + URL unchanged — selector ${masked} count=${countStr}`,
   });
-  return fail(
-    ScraperErrorTypes.InvalidPassword,
-    'LOGIN POST: scope intact + URL unchanged — credentials likely invalid',
-  );
+  return fail(ScraperErrorTypes.InvalidPassword, SCOPE_INTACT_FAIL_MSG);
+}
+
+/**
+ * Disambiguate an "ambiguous scope intact" outcome via the OTP-screen
+ * probe. Returns `false` to fall through when OTP is visible or the
+ * probe failed; returns the assembled failure procedure otherwise.
+ *
+ * @param mediator - Element mediator (for the OTP probe).
+ * @param scopeArgs - Bundled scope state (context, selector, count).
+ * @returns Failure procedure on confirmed scope-intact failure, else `false`.
+ */
+/** Lookup mapping OTP-visibility verdicts → the fall-through trace log. */
+const SCOPE_OTP_FALLTHROUGH_LOGS: Record<string, string> = {
+  true: SCOPE_OTP_VISIBLE_LOG,
+  unknown: SCOPE_OTP_UNKNOWN_LOG,
+};
+
+/**
+ * Resolve the fall-through trace log for an "OTP visible" or "OTP
+ * unknown" outcome — both branches log + return `false` in the caller.
+ *
+ * @param visibility - Tri-state OTP-visibility verdict.
+ * @returns Trace log string when fall-through applies, else `false`.
+ */
+function pickOtpFallthroughLog(visibility: OtpScreenVisibility): string | false {
+  if (visibility === false) return false;
+  const key = visibility === true ? 'true' : 'unknown';
+  return SCOPE_OTP_FALLTHROUGH_LOGS[key] ?? false;
+}
+
+/**
+ * Choose between accepting an OTP fall-through (returning `false`) or
+ * emitting a structured scope-intact failure. Delegates the tri-state
+ * verdict to {@link pickOtpFallthroughLog} and the failure shaping to
+ * {@link emitScopeIntactFailure}.
+ *
+ * @param mediator - Element mediator for the OTP visibility probe.
+ * @param scopeArgs - Scope-intact bundle (input + diagnostics).
+ * @returns Failure procedure when the scope is broken, `false` when
+ *   the OTP fall-through is accepted.
+ */
+async function disambiguateScopeIntact(
+  mediator: IElementMediator,
+  scopeArgs: IScopeIntactArgs,
+): Promise<Procedure<IPipelineContext> | false> {
+  const otpVisibility = await otpScreenVisible(mediator);
+  const fallthrough = pickOtpFallthroughLog(otpVisibility);
+  if (fallthrough !== false) {
+    scopeArgs.input.logger.debug({ message: fallthrough });
+    return false;
+  }
+  return emitScopeIntactFailure(scopeArgs);
+}
+
+/**
+ * Run the cheap structural pre-checks for {@link validateActionScopeIntact}
+ * — URL stability + password-target presence + DOM-count guard. Returns
+ * the password target with its current count when all guards pass.
+ *
+ * @param mediator - Element mediator (URL + count probes).
+ * @param input - Pipeline context with `loginFieldDiscovery`.
+ * @returns Resolved target + count when guards pass, otherwise `false`.
+ */
+async function probeScopeIntact(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+): Promise<{ readonly target: IResolvedTarget; readonly count: number } | false> {
+  if (!hasStayedOnLoginUrl(mediator, input)) return false;
+  if (!input.loginFieldDiscovery.has) return false;
+  const target = input.loginFieldDiscovery.value.targets.get(LOGIN_FIELDS.PASSWORD);
+  if (!target) return false;
+  const count = await mediator.countBySelector(target.selector);
+  if (count === 0) return false;
+  return { target, count };
 }
 
 /**
@@ -950,6 +1501,46 @@ async function otpScreenVisible(mediator: IElementMediator): Promise<OtpScreenVi
   return false;
 }
 
+/** Sentinel for the "no bounce" early-exit branches. */
+const BOUNCE_FAIL_MSG_PREFIX = 'LOGIN POST: bounced back to login path';
+
+/**
+ * True when the post-submit URL is the SAME login URL — verbatim or
+ * with a trailing `#`. Pure URL comparison; does NOT consider path
+ * equality alone (that case is the bounce condition).
+ *
+ * @param loginUrl - Captured login URL from HOME.
+ * @param currentUrl - Browser URL after the submit.
+ * @returns True when the URLs are byte-identical or differ only by `#`.
+ */
+function isSameLoginLocation(loginUrl: string, currentUrl: string): boolean {
+  if (currentUrl === loginUrl) return true;
+  if (currentUrl === `${loginUrl}#`) return true;
+  return false;
+}
+
+/**
+ * Build the structured bounce-failure procedure plus the diagnostic
+ * debug log. Pure builder so {@link detectLoginBounce} can stay a thin
+ * coordinator inside the 10-LoC ceiling.
+ *
+ * @param input - Pipeline context (for the logger handle).
+ * @param currentUrl - Browser URL where the bounce was detected.
+ * @param loginPath - Pathname of the captured login URL.
+ * @returns Failure procedure tagged `InvalidPassword`.
+ */
+function buildBounceFailure(
+  input: IPipelineContext,
+  currentUrl: string,
+  loginPath: string,
+): IProcedureFailure {
+  const masked = maskVisibleText(currentUrl);
+  input.logger.debug({
+    message: `POST: login bounce detected — still on ${loginPath} (url=${masked})`,
+  });
+  return fail(ScraperErrorTypes.InvalidPassword, `${BOUNCE_FAIL_MSG_PREFIX} ${loginPath}`);
+}
+
 /**
  * Detects when the post-submit URL landed back on the login path with a
  * materially different URL — server bounced us (Max → `/login?ReturnURL=…`).
@@ -965,19 +1556,10 @@ function detectLoginBounce(
   const loginUrl = input.diagnostics.loginUrl;
   if (loginUrl.length === 0) return false;
   const currentUrl = mediator.getCurrentUrl();
-  if (currentUrl === loginUrl) return false;
-  if (currentUrl === `${loginUrl}#`) return false;
+  if (isSameLoginLocation(loginUrl, currentUrl)) return false;
   const loginPath = loginPathOf(loginUrl);
-  const currentPath = loginPathOf(currentUrl);
-  if (loginPath !== currentPath) return false;
-  const masked = maskVisibleText(currentUrl);
-  input.logger.debug({
-    message: `POST: login bounce detected — still on ${loginPath} (url=${masked})`,
-  });
-  return fail(
-    ScraperErrorTypes.InvalidPassword,
-    `LOGIN POST: bounced back to login path ${loginPath}`,
-  );
+  if (loginPath !== loginPathOf(currentUrl)) return false;
+  return buildBounceFailure(input, currentUrl, loginPath);
 }
 
 export { executeLoginSignal } from './LoginCookieAudit.js';

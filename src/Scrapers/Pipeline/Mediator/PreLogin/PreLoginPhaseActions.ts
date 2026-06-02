@@ -26,7 +26,7 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
-import type { IElementMediator } from '../Elements/ElementMediator.js';
+import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
 import {
   isFormAlreadyVisible,
   tryClickCredentialArea,
@@ -112,6 +112,59 @@ function buildPreLoginDiscovery(
 }
 
 /**
+ * Race both REVEAL probes (privateCustomers + credentialArea) at the
+ * configured discovery timeout. Pure observer — emits no log events.
+ *
+ * @param mediator - Element mediator.
+ * @param logger - Pipeline logger threaded into the probe for masked
+ *   visible-text events.
+ * @returns Tuple of [privateCustomers, credentialArea] reveal statuses.
+ */
+async function runRevealProbes(
+  mediator: IElementMediator,
+  logger: IPipelineContext['logger'],
+): Promise<readonly [RevealStatus, RevealStatus]> {
+  const privateCustomers = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
+  const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
+  return [privateCustomers, credentialArea];
+}
+
+/**
+ * Emit the PRE-LOGIN "reveal target" diagnostic line. Builds the
+ * post-arrow location suffix when a target resolved; emits the bare
+ * boolean otherwise. Side-effect only.
+ *
+ * @param logger - Pipeline logger.
+ * @param revealTarget - Resolved click target, or false when none.
+ * @returns True after the event is emitted.
+ */
+function logRevealTarget(
+  logger: IPipelineContext['logger'],
+  revealTarget: IResolvedTarget | false,
+): true {
+  const hasFoundTarget = Boolean(revealTarget);
+  const targetInfo = revealTarget && ` → ${revealTarget.contextId} > ${revealTarget.selector}`;
+  logger.debug({ message: `reveal target: ${String(hasFoundTarget)}${targetInfo || ''}` });
+  return true;
+}
+
+/**
+ * Emit the PRE-LOGIN entry telemetry: masked URL trace + the
+ * "probing reveal" debug line. Side-effect only — single helper so
+ * {@link executePreLocateReveal} stays inside the per-fn ceiling.
+ *
+ * @param mediator - Element mediator (current URL probe).
+ * @param logger - Pipeline logger.
+ * @returns True after both events have been emitted.
+ */
+function logPreLocateEntry(mediator: IElementMediator, logger: IPipelineContext['logger']): true {
+  const rawUrl = mediator.getCurrentUrl();
+  logger.trace({ message: maskVisibleText(rawUrl) });
+  logger.debug({ message: 'probing reveal' });
+  return true;
+}
+
+/**
  * PRE: Probe REVEAL first; resolve target if any probe matched.
  * Reveal-first (no form-visible short-circuit) is required for 2-form
  * modal banks (Amex/Isracard flip cards) where the back-panel password
@@ -130,39 +183,117 @@ async function executePreLocateReveal(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   const logger = input.logger;
-  const rawUrl = mediator.getCurrentUrl();
-  logger.trace({ message: maskVisibleText(rawUrl) });
-  logger.debug({ message: 'probing reveal' });
-  const privateCustomers = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
-  const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
+  logPreLocateEntry(mediator, logger);
+  const [privateCustomers, credentialArea] = await runRevealProbes(mediator, logger);
   const hasReveal = privateCustomers !== 'NOT_FOUND' || credentialArea !== 'NOT_FOUND';
   const revealTarget = await resolveTargetWhenSeen(mediator, input, hasReveal);
-  const hasFoundTarget = Boolean(revealTarget);
-  const targetInfo = revealTarget && ` → ${revealTarget.contextId} > ${revealTarget.selector}`;
-  logger.debug({
-    message: `reveal target: ${String(hasFoundTarget)}${targetInfo || ''}`,
-  });
+  logRevealTarget(logger, revealTarget);
   const disc = buildPreLoginDiscovery(privateCustomers, credentialArea, revealTarget);
   return succeed({ ...input, preLoginDiscovery: some(disc) });
 }
 
 /**
- * Execute a sealed click on a resolved reveal target.
+ * Execute a sealed click on a resolved reveal target. Caller MUST have
+ * already narrowed `input.executor.has` and pass the narrowed value.
+ *
  * @param input - Sealed action context.
  * @param target - Pre-resolved target with contextId + selector.
+ * @param executor - Pre-narrowed executor from caller's `.has` gate.
  * @returns Succeed with input after click + network settle.
  */
 async function executeSealedClick(
   input: IActionContext,
   target: IResolvedTarget,
+  executor: IActionMediator,
 ): Promise<Procedure<IActionContext>> {
-  if (!input.executor.has) return succeed(input);
-  const executor = input.executor.value;
   input.logger.debug({
     message: `sealed-reveal: CLICK → ${target.contextId} > ${target.selector}`,
   });
   await executor.clickElement({ contextId: target.contextId, selector: target.selector });
   await executor.waitForNetworkIdle(5000).catch((): false => false);
+  return succeed(input);
+}
+
+/**
+ * Execute a sealed NAVIGATE reveal: navigate to the resolved URL via
+ * the executor. The selector field carries the URL in the NAVIGATE
+ * shape (see {@link IPreLoginDiscovery.revealTarget}). Side-effect
+ * only — caller still returns the original action context verbatim.
+ *
+ * @param input - Sealed action context.
+ * @param target - Resolved navigation target (selector = URL).
+ * @param executor - Pre-narrowed executor from caller's `.has` gate.
+ * @returns Succeed wrapping the input context after navigation.
+ */
+async function executeSealedNavigate(
+  input: IActionContext,
+  target: IResolvedTarget,
+  executor: IActionMediator,
+): Promise<Procedure<IActionContext>> {
+  const url = target.selector;
+  input.logger.debug({ message: `sealed-reveal: NAVIGATE → ${maskVisibleText(url)}` });
+  await executor.navigateTo(url);
+  return succeed(input);
+}
+
+/**
+ * Dispatch a sealed reveal action against the resolved target. CLICK
+ * delegates to {@link executeSealedClick}; NAVIGATE delegates to
+ * {@link executeSealedNavigate}; anything else falls through to the
+ * "no target/executor" diagnostic.
+ *
+ * @param input - Sealed action context.
+ * @param disc - Frozen PRE-LOGIN discovery payload.
+ * @returns Succeed Procedure after dispatch, or `false` when the
+ *   action is neither CLICK nor NAVIGATE (caller logs + passes through).
+ */
+async function dispatchSealedReveal(
+  input: IActionContext,
+  disc: IPreLoginDiscovery,
+): Promise<Procedure<IActionContext> | false> {
+  if (!disc.revealTarget || !input.executor.has) return false;
+  const executor = input.executor.value;
+  const target = disc.revealTarget;
+  if (disc.revealAction === 'CLICK') return executeSealedClick(input, target, executor);
+  if (disc.revealAction === 'NAVIGATE') return executeSealedNavigate(input, target, executor);
+  return false;
+}
+
+/** Static log payload for early-exit sealed-reveal branches. */
+const SEALED_REVEAL_EXIT_MSG: Record<string, string> = {
+  'no-discovery': 'sealed-reveal: no discovery',
+  NONE: 'sealed-reveal: NONE (form already visible)',
+};
+
+/**
+ * Emit the early-exit log for a sealed-reveal branch and pass the
+ * action context through unchanged. Keeps the orchestrator's branches
+ * symmetric (each is a single statement) so it stays ≤ 10 LoC.
+ *
+ * @param input - Sealed action context.
+ * @param key - Lookup key into {@link SEALED_REVEAL_EXIT_MSG}.
+ * @returns Pass-through success Procedure.
+ */
+function logExitAndPass(input: IActionContext, key: string): Procedure<IActionContext> {
+  input.logger.debug({ message: SEALED_REVEAL_EXIT_MSG[key] });
+  return succeed(input);
+}
+
+/**
+ * Dispatch a CLICK/NAVIGATE sealed reveal, falling through to a
+ * diagnostic "no target/executor" log when neither dispatch fires.
+ *
+ * @param input - Sealed action context.
+ * @param disc - Frozen PRE-LOGIN discovery payload.
+ * @returns Success Procedure after dispatch (or pass-through with log).
+ */
+async function executeDispatchedReveal(
+  input: IActionContext,
+  disc: IPreLoginDiscovery,
+): Promise<Procedure<IActionContext>> {
+  const dispatched = await dispatchSealedReveal(input, disc);
+  if (dispatched !== false) return dispatched;
+  input.logger.debug({ message: `sealed-reveal: ${disc.revealAction} but no target/executor` });
   return succeed(input);
 }
 
@@ -178,39 +309,48 @@ async function executeSealedClick(
 async function executeFireRevealClicksSealed(
   input: IActionContext,
 ): Promise<Procedure<IActionContext>> {
-  const logger = input.logger;
-  if (!input.preLoginDiscovery.has) {
-    logger.debug({
-      message: 'sealed-reveal: no discovery',
-    });
-    return succeed(input);
-  }
+  if (!input.preLoginDiscovery.has) return logExitAndPass(input, 'no-discovery');
   const disc = input.preLoginDiscovery.value;
+  if (disc.revealAction === 'NONE') return logExitAndPass(input, 'NONE');
+  return executeDispatchedReveal(input, disc);
+}
 
-  if (disc.revealAction === 'NONE') {
-    logger.debug({
-      message: 'sealed-reveal: NONE (form already visible)',
-    });
-    return succeed(input);
-  }
+/** Bundled args for `executeFireRevealClicks` reveal-click probes. */
+interface IFireRevealArgs {
+  readonly mediator: IElementMediator;
+  readonly page: Page;
+  readonly logger: IPipelineContext['logger'];
+  readonly disc: IPreLoginDiscovery | false;
+}
 
-  if (disc.revealAction === 'CLICK' && disc.revealTarget && input.executor.has) {
-    return executeSealedClick(input, disc.revealTarget);
-  }
+/**
+ * Run the `privateCustomers` reveal-click branch when the discovery
+ * payload says it matched. Side-effect only.
+ *
+ * @param args - Bundled mediator + page + logger + discovery payload.
+ * @returns True when the click attempt fired, false when it was skipped.
+ */
+async function runPrivateCustomersBranch(args: IFireRevealArgs): Promise<boolean> {
+  const { mediator, page, logger, disc } = args;
+  if (!disc || disc.privateCustomers === 'NOT_FOUND') return false;
+  const clickArgs = { mediator, browserPage: page, navTimeout: REVEAL_NAV_TIMEOUT, logger };
+  await tryClickPrivateCustomers(clickArgs);
+  return true;
+}
 
-  if (disc.revealAction === 'NAVIGATE' && disc.revealTarget && input.executor.has) {
-    const url = disc.revealTarget.selector;
-    logger.debug({
-      message: `sealed-reveal: NAVIGATE → ${maskVisibleText(url)}`,
-    });
-    await input.executor.value.navigateTo(url);
-    return succeed(input);
-  }
-
-  logger.debug({
-    message: `sealed-reveal: ${disc.revealAction} but no target/executor`,
-  });
-  return succeed(input);
+/**
+ * Run the two reveal-click attempts (`privateCustomers` then
+ * `credentialArea`) whenever the discovery payload says they matched.
+ * Pure side-effect — original Procedure shape is not threaded back.
+ *
+ * @param args - Bundled mediator + page + logger + discovery payload.
+ * @returns True after both branches have either run or skipped.
+ */
+async function runRevealClicks(args: IFireRevealArgs): Promise<true> {
+  const { mediator, logger, disc } = args;
+  await runPrivateCustomersBranch(args);
+  if (disc && disc.credentialArea !== 'NOT_FOUND') await tryClickCredentialArea(mediator, logger);
+  return true;
 }
 
 /**
@@ -227,21 +367,27 @@ async function executeFireRevealClicks(
 ): Promise<Procedure<IPipelineContext>> {
   const logger = input.logger;
   const disc = input.preLoginDiscovery.has && input.preLoginDiscovery.value;
-  if (disc && disc.privateCustomers !== 'NOT_FOUND') {
-    await tryClickPrivateCustomers({
-      mediator,
-      browserPage: page,
-      navTimeout: REVEAL_NAV_TIMEOUT,
-      logger,
-    });
-  }
-  if (disc && disc.credentialArea !== 'NOT_FOUND') {
-    await tryClickCredentialArea(mediator, logger);
-  }
+  await runRevealClicks({ mediator, page, logger, disc });
   const hasPwd = await isFormAlreadyVisible(mediator, logger);
   const iframeCount = page.frames().length - 1;
   logger.debug({ hasPwd, iframes: iframeCount });
   return succeed(input);
+}
+
+/**
+ * Log the FORM_GATE-validated URL once POST has confirmed the form
+ * is interactable. Side-effect only — caller composes the success
+ * Procedure with `loginAreaReady` set.
+ *
+ * @param mediator - Element mediator (for current URL).
+ * @param logger - Pipeline logger.
+ * @returns True after the masked URL is emitted.
+ */
+function logValidatedFormUrl(mediator: IElementMediator, logger: IPipelineContext['logger']): true {
+  const validatedUrl = mediator.getCurrentUrl();
+  const maskedUrl = maskVisibleText(validatedUrl);
+  logger.debug({ text: maskedUrl });
+  return true;
 }
 
 /**
@@ -260,9 +406,7 @@ async function executeValidateForm(
     input.logger.debug({ hasPwd: false, iframes: 0 });
     return fail(ScraperErrorTypes.Generic, 'PRE-LOGIN: no password field');
   }
-  const validatedUrl = mediator.getCurrentUrl();
-  const maskedUrl = maskVisibleText(validatedUrl);
-  input.logger.debug({ text: maskedUrl });
+  logValidatedFormUrl(mediator, input.logger);
   return succeed({ ...input, loginAreaReady: true });
 }
 
