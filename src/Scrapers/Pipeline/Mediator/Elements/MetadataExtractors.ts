@@ -63,12 +63,12 @@ export const EMPTY_METADATA: IElementMetadata = { ...EMPTY_DOM_PROPS, isVisible:
  * @param el - DOM element resolved by the locator.
  * @returns Raw DOM properties bundle.
  */
-// prettier-ignore
 function snapshotDomPropsInBrowser(el: Element): IRawDomProps {
   const input = el as HTMLInputElement;
-  return { id: el.id, className: el.className, tagName: el.tagName.toLowerCase(),
-    type: input.type, name: input.name, formId: el.closest('form')?.id ?? '',
-    ariaLabel: el.getAttribute('aria-label') ?? '', placeholder: input.placeholder };
+  const ids = { id: el.id, className: el.className, tagName: el.tagName.toLowerCase() };
+  const formAttrs = { type: input.type, name: input.name, formId: el.closest('form')?.id ?? '' };
+  const ariaLabel = el.getAttribute('aria-label') ?? '';
+  return { ...ids, ...formAttrs, ariaLabel, placeholder: input.placeholder };
 }
 
 /**
