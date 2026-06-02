@@ -72,25 +72,20 @@ function snapshotDomPropsInBrowser(el: Element): IRawDomProps {
 }
 
 /**
- * Promise.catch sentinel — converts any rejection into literal `false`.
- * Shared by visibility/attached probes inside this module.
- * @returns Always `false`.
- */
-function returnFalse(): boolean {
-  return false;
-}
-
-/**
  * Extract raw DOM properties from a resolved element via locator.evaluate.
  * Uses Playwright locator (not querySelector) — works for any selector type including xpath.
+ * Existence probe uses `locator.count()` (NOT `isVisible()`): an attached-but-hidden
+ * node still has real `id` / `name` / `formId` we want to surface to the Mediator.
+ * Visibility is computed separately in {@link extractMetadata} and exposed via
+ * `IElementMetadata.isVisible`.
  * @param ctx - Page or Frame containing the element.
  * @param selector - Any Playwright selector (CSS, xpath, text, etc.).
- * @returns Raw DOM properties object, or empty props if element not found.
+ * @returns Raw DOM properties object, or empty props if element is truly absent.
  */
 async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRawDomProps> {
   const locator = ctx.locator(selector).first();
-  const isAttached = await locator.isVisible().catch(returnFalse);
-  if (!isAttached) return EMPTY_DOM_PROPS;
+  const matchCount = await locator.count().catch((): number => 0);
+  if (matchCount === 0) return EMPTY_DOM_PROPS;
   return locator.evaluate(snapshotDomPropsInBrowser);
 }
 
