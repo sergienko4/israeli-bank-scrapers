@@ -29,6 +29,7 @@ import {
   clickElementImpl,
   ELEMENTS_LOADING_DELAY_MS,
   fillInputImpl,
+  type FrameRegistryMap,
   pressEnterImpl,
   resolveFrame,
 } from './ActionExecutors.js';
@@ -46,7 +47,6 @@ const LOG = getDebug(import.meta.url);
 import {
   setActivePhase as setGlobalPhase,
   setActiveStage as setGlobalStage,
-  type StageLabel,
 } from '../../Types/ActiveState.js';
 export { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 
@@ -235,28 +235,25 @@ async function discoverFormCore(
 }
 
 /**
+ * Catch form discovery errors — non-fatal, returns none.
+ * @param error - Thrown error.
+ * @returns None option.
+ */
+function handleDiscoverFormError(error: Error): Option<IFormAnchor> {
+  const truncated = toErrorMessage(error).slice(0, 60);
+  LOG.debug({ message: `discoverForm failed (non-fatal): ${truncated}` });
+  return none();
+}
+
+/**
  * Build discoverForm method with per-instance cache.
  * Uses resolvedContext.context (not root page) so iframe form anchors are found correctly.
  * @param cache - Mutable form cache owned by this mediator instance.
  * @returns Mediator discoverForm function.
  */
 function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] {
-  return (resolvedContext: IFieldContext): Promise<Option<IFormAnchor>> => {
-    /**
-     * Catch form discovery errors — non-fatal, returns none.
-     * @param error - Thrown error.
-     * @returns None option.
-     */
-    const handleError = (error: Error): Option<IFormAnchor> => {
-      const msg = toErrorMessage(error);
-      const truncated = msg.slice(0, 60);
-      LOG.debug({
-        message: `discoverForm failed (non-fatal): ${truncated}`,
-      });
-      return none();
-    };
-    return discoverFormCore(cache, resolvedContext).catch(handleError);
-  };
+  return (resolvedContext: IFieldContext): Promise<Option<IFormAnchor>> =>
+    discoverFormCore(cache, resolvedContext).catch(handleDiscoverFormError);
 }
 
 /**
@@ -366,6 +363,123 @@ function buildClickableTextLocatorsBase(
 }
 
 /**
+ * ariaLabel candidate fans out across label + 3 ARIA roles.
+ * @param scope - Form-scoped locator context.
+ * @param value - The aria-label / accessible name to match.
+ * @returns Array of base locators.
+ */
+function buildAriaLabelLocators(scope: LocatorContext, value: string): Locator[] {
+  return [
+    scope.getByLabel(value),
+    scope.getByRole('button', { name: value, exact: false }),
+    scope.getByRole('link', { name: value, exact: false }),
+    scope.getByRole('tab', { name: value, exact: false }),
+  ];
+}
+
+/**
+ * xpath candidate — prepend "xpath=" prefix because Playwright auto-detects
+ * xpath only when selector starts with "//"; the descendant-relative ".//"
+ * form would otherwise be parsed as CSS.
+ * @param scope - Form-scoped locator context.
+ * @param value - The xpath expression.
+ * @param isScoped - Whether form-scoping is active (relativize to descendant).
+ * @returns Single-element array containing the xpath locator.
+ */
+function buildXpathLocators(scope: LocatorContext, value: string, isScoped: boolean): Locator[] {
+  return [scope.locator(`xpath=${relativizeXpath(value, isScoped)}`)];
+}
+
+/**
+ * Placeholder candidate: single getByPlaceholder locator.
+ * @param scope - Locator context.
+ * @param value - Placeholder text.
+ * @returns Single-element locator array.
+ */
+function buildPlaceholderLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByPlaceholder(value)];
+}
+
+/**
+ * name attribute candidate: single CSS attribute-selector locator.
+ * @param scope - Locator context.
+ * @param value - HTML `name` attribute value.
+ * @returns Single-element locator array.
+ */
+function buildNameLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.locator(`[name="${value}"]`)];
+}
+
+/**
+ * regex candidate: single getByText(RegExp) locator.
+ * @param scope - Locator context.
+ * @param value - Regex pattern source string.
+ * @returns Single-element locator array.
+ */
+function buildRegexLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByText(new RegExp(value))];
+}
+
+/**
+ * exactText candidate: single getByText with exact:true.
+ * @param scope - Locator context.
+ * @param value - Exact text to match.
+ * @returns Single-element locator array.
+ */
+function buildExactTextLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByText(value, { exact: true })];
+}
+
+/**
+ * css candidate: raw CSS selector — wrap in a single Playwright locator
+ * so the candidate is treated as a selector (not as visible text).
+ * Restored after the dispatch-table refactor accidentally routed `css`
+ * candidates through the unknown-kind `getByText` fallback.
+ * @param scope - Locator context.
+ * @param value - Raw CSS selector string.
+ * @returns Single-element locator array.
+ */
+function buildCssLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.locator(value)];
+}
+
+/**
+ * labelText candidate: resolve to the form control associated with the
+ * given label (Playwright `getByLabel`) — NOT the label's visible text.
+ * Restored after the dispatch-table refactor accidentally routed
+ * `labelText` candidates through the unknown-kind `getByText` fallback,
+ * which targeted the label element itself instead of its bound input.
+ * @param scope - Locator context.
+ * @param value - Visible label text bound to the target control.
+ * @returns Single-element locator array.
+ */
+function buildLabelTextLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByLabel(value)];
+}
+
+/** Dispatch signature for per-kind locator builders. */
+type LocatorKindBuilder = (scope: LocatorContext, value: string, isScoped: boolean) => Locator[];
+
+/**
+ * Dispatch table mapping each SelectorCandidate.kind to its locator builder.
+ * Open-Closed-friendly: new kinds add a row instead of growing an if-chain.
+ */
+const LOCATOR_KIND_BUILDERS: Readonly<
+  Partial<Record<SelectorCandidate['kind'], LocatorKindBuilder>>
+> = {
+  css: buildCssLocators,
+  labelText: buildLabelTextLocators,
+  textContent: buildWalkUpLocatorsBase,
+  clickableText: buildClickableTextLocatorsBase,
+  ariaLabel: buildAriaLabelLocators,
+  placeholder: buildPlaceholderLocators,
+  xpath: buildXpathLocators,
+  name: buildNameLocators,
+  regex: buildRegexLocators,
+  exactText: buildExactTextLocators,
+};
+
+/**
  * Build BASE Playwright locators from a SelectorCandidate — without `.first()`
  * applied. Two callers wrap the output:
  *   - `buildCandidateLocators`: applies `.first()` for first-match-only
@@ -387,30 +501,9 @@ function buildCandidateLocatorsBase(
 ): Locator[] {
   const scope = applyFormScope(ctx, formAnchor);
   const isScoped = formAnchor.length > 0;
-  if (candidate.kind === 'textContent')
-    return buildWalkUpLocatorsBase(scope, candidate.value, isScoped);
-  if (candidate.kind === 'clickableText') {
-    return buildClickableTextLocatorsBase(scope, candidate.value, isScoped);
-  }
-  if (candidate.kind === 'ariaLabel')
-    return [
-      scope.getByLabel(candidate.value), // form inputs
-      scope.getByRole('button', { name: candidate.value, exact: false }),
-      scope.getByRole('link', { name: candidate.value, exact: false }),
-      scope.getByRole('tab', { name: candidate.value, exact: false }),
-    ];
-  if (candidate.kind === 'placeholder') return [scope.getByPlaceholder(candidate.value)];
-  if (candidate.kind === 'xpath') {
-    // Explicit "xpath=" prefix: Playwright auto-detects xpath only when
-    // selector starts with "//", but the descendant-relative form ".//"
-    // starts with "." — without prefix Playwright would parse as CSS.
-    const string = relativizeXpath(candidate.value, isScoped);
-    return [scope.locator(`xpath=${string}`)];
-  }
-  if (candidate.kind === 'name') return [scope.locator(`[name="${candidate.value}"]`)];
-  if (candidate.kind === 'regex') return [scope.getByText(new RegExp(candidate.value))];
-  if (candidate.kind === 'exactText') return [scope.getByText(candidate.value, { exact: true })];
-  return [scope.getByText(candidate.value)];
+  const builder = LOCATOR_KIND_BUILDERS[candidate.kind];
+  if (!builder) return [scope.getByText(candidate.value)];
+  return builder(scope, candidate.value, isScoped);
 }
 
 /**
@@ -478,37 +571,38 @@ async function raceLocators(
 const isMockModeActive = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
 
 /**
+ * Browser-evaluated hit-test predicate. MUST be a top-level pure function
+ * (no captured closures) so Playwright's evaluate serialization can
+ * transport it into the page context.
+ *
+ * Rejects disabled placeholders BEFORE hit-test (Wix renders a disabled
+ * `<button role="link">` over the real link on some bank templates).
+ * Scrolls into viewport ONLY under MOCK_MODE (live pages position via CSS,
+ * per-hit-test scroll would multiply hundreds of Playwright round-trips).
+ * MOCK_MODE relaxation: if elementFromPoint returns null, accept DOM
+ * presence with a positive bounding box.
+ * @param el - Target element under test.
+ * @param mockMode - True under mock E2E; enables scroll + bbox fallback.
+ * @returns True when the element is hit-testable at its center point.
+ */
+function isElementHitTestable(el: Element, mockMode: boolean): boolean {
+  if (el.hasAttribute('disabled')) return false;
+  if (el.getAttribute('aria-disabled') === 'true') return false;
+  if (mockMode) el.scrollIntoView({ block: 'center', inline: 'center' });
+  const rect = el.getBoundingClientRect();
+  const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  if (el === hit || el.contains(hit)) return true;
+  return mockMode && hit === null && rect.width > 0 && rect.height > 0;
+}
+
+/**
  * Hit-test — scroll into viewport then check elementFromPoint at center.
  * MOCK_MODE bypass: accept bbox-positive elements when hit returns null.
  * @param locator - The Playwright locator to test.
  * @returns True when the element is hit-testable.
  */
 async function isTrulyVisible(locator: Locator): Promise<boolean> {
-  return locator
-    .evaluate((el: Element, mockMode: boolean): boolean => {
-      // Reject disabled placeholders BEFORE hit-test. Wix renders a
-      // disabled <button role="link"> on top of the real link in some bank
-      // templates; without this filter the placeholder wins hit-test and
-      // the click times out.
-      if (el.hasAttribute('disabled')) return false;
-      if (el.getAttribute('aria-disabled') === 'true') return false;
-      // Scroll into viewport ONLY under MOCK_MODE — live pages position
-      // elements via CSS and don't need a per-hit-test scroll. Doing it on
-      // every locator in live multiplies hundreds of Playwright round-trips.
-      if (mockMode) el.scrollIntoView({ block: 'center', inline: 'center' });
-      const rect = el.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const hit = document.elementFromPoint(cx, cy);
-      if (el === hit || el.contains(hit)) return true;
-      // MOCK_MODE relaxation: if elementFromPoint returns null (point outside
-      // viewport / Gecko quirk in static mock), accept DOM presence with a
-      // positive bounding box. The selectors already proved correct in live
-      // E2E; mock only validates pipeline logic, not browser rendering.
-      if (mockMode && hit === null && rect.width > 0 && rect.height > 0) return true;
-      return false;
-    }, isMockModeActive)
-    .catch((): boolean => false);
+  return locator.evaluate(isElementHitTestable, isMockModeActive).catch((): boolean => false);
 }
 
 /**
@@ -533,28 +627,60 @@ interface IRaceDiagnostic {
  * @param timeout - Timeout in ms.
  * @returns Diagnostic with winner + fulfilled detail.
  */
-async function raceLocatorsWithHitTest(
+/**
+ * Await waitFor(visible) on all locators; return indices that resolved.
+ * @param locators - Locators to race.
+ * @param timeout - Per-locator waitFor timeout.
+ * @returns Indices that passed Playwright visibility check.
+ */
+async function awaitVisibleIndices(
   locators: Locator[],
   timeout: number,
-): Promise<IRaceDiagnostic> {
+): Promise<readonly number[]> {
   const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state: 'visible', timeout });
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  const fulfilled = results
+  return results
     .filter((r): boolean => r.status === 'fulfilled')
     .map((r): number => (r as PromiseFulfilledResult<number>).value);
-  const hitTestPromises = fulfilled.map(async (idx): Promise<number> => {
+}
+
+/**
+ * Run hit-test on every fulfilled index; return those that passed.
+ * @param locators - All locators (indexed by fulfilled).
+ * @param fulfilled - Indices that already passed visibility check.
+ * @returns Indices that ALSO passed elementFromPoint hit-test.
+ */
+async function hitTestIndices(
+  locators: Locator[],
+  fulfilled: readonly number[],
+): Promise<readonly number[]> {
+  const promises = fulfilled.map(async (idx): Promise<number> => {
     const isHit = await isTrulyVisible(locators[idx]);
-    if (isHit) return idx;
-    return -1;
+    return isHit ? idx : -1;
   });
-  const hitTests = await Promise.all(hitTestPromises);
-  const hitPassed = hitTests.filter((idx): boolean => idx >= 0);
-  const winner = resolveWinner(hitPassed, fulfilled);
+  const tests = await Promise.all(promises);
+  return tests.filter((idx): boolean => idx >= 0);
+}
+
+/**
+ * Race locators then validate winner with elementFromPoint hit-test.
+ * If winner fails hit-test, check remaining settled results.
+ * Falls back to first Playwright-visible if no hit-test passes.
+ * @param locators - Locators to race.
+ * @param timeout - Timeout in ms.
+ * @returns Diagnostic with winner + fulfilled detail.
+ */
+async function raceLocatorsWithHitTest(
+  locators: Locator[],
+  timeout: number,
+): Promise<IRaceDiagnostic> {
+  const fulfilled = await awaitVisibleIndices(locators, timeout);
+  const hitPassed = await hitTestIndices(locators, fulfilled);
   return {
-    winner,
+    winner: resolveWinner(hitPassed, fulfilled),
     fulfilledCount: fulfilled.length,
     hitTestPassedCount: hitPassed.length,
     fulfilledIndices: fulfilled,
@@ -652,18 +778,36 @@ interface IExpandEntryArgs {
  * @param args - Bundled context + candidate + per-locator cap + formAnchor.
  * @returns Locator entries (one per nth-match per base locator).
  */
-async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly ILocatorEntry[]> {
-  const bases = buildCandidateLocatorsBase(args.ctx, args.candidate, args.formAnchor);
-  const maxPerLocator = args.maxPerLocator;
-  const expansionPromises = bases.map(
-    (b): Promise<readonly Locator[]> => expandLocatorToNth(b, maxPerLocator),
-  );
-  const expanded = await Promise.all(expansionPromises);
-  const candidate = args.candidate;
-  const ctx = args.ctx;
+/**
+ * Flatten expanded locators into `ILocatorEntry` records.
+ * @param expanded - Per-base expansion of locator nth-matches.
+ * @param candidate - The candidate that produced these locators.
+ * @param ctx - Page or Frame they belong to.
+ * @returns Locator entries (locator + candidate + context).
+ */
+function entriesFromExpansion(
+  expanded: readonly (readonly Locator[])[],
+  candidate: SelectorCandidate,
+  ctx: Page | Frame,
+): readonly ILocatorEntry[] {
   return expanded.flatMap((locs): readonly ILocatorEntry[] =>
     locs.map((locator): ILocatorEntry => ({ locator, candidate, context: ctx })),
   );
+}
+
+/**
+ * Build locator entries that may surface multiple nth-matches per base
+ * locator. Used by resolveAllVisible / multi-match resolvers.
+ * @param args - Bundled context + candidate + per-locator cap + formAnchor.
+ * @returns Locator entries (one per nth-match per base locator).
+ */
+async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly ILocatorEntry[]> {
+  const bases = buildCandidateLocatorsBase(args.ctx, args.candidate, args.formAnchor);
+  const expansionPromises = bases.map(
+    (b): Promise<readonly Locator[]> => expandLocatorToNth(b, args.maxPerLocator),
+  );
+  const expanded = await Promise.all(expansionPromises);
+  return entriesFromExpansion(expanded, args.candidate, args.ctx);
 }
 
 /**
@@ -746,24 +890,42 @@ const NO_ATTR = '(none)';
 
 /**
  * Extract diagnostic trace info from a DOM element.
+ * Inlined ternaries to fit under the 10-LoC cap.
  * @param el - The DOM element.
  * @returns Diagnostic string with tag, text, href, aria.
  */
 function traceElementInfo(el: Element): string {
-  const tag = el.tagName;
   const rawText = el.textContent;
-  let text = NO_ATTR;
-  if (rawText) {
-    text = rawText.slice(0, 30).trim();
-  }
+  const text = rawText ? rawText.slice(0, 30).trim() : NO_ATTR;
   const href = el.getAttribute('href') ?? NO_ATTR;
   const aria = el.getAttribute('aria-label') ?? NO_ATTR;
   const closestA = el.closest('a');
-  let aHref = 'NO_ANCHOR';
-  if (closestA) {
-    aHref = closestA.getAttribute('href') ?? NO_ATTR;
-  }
-  return `tag=${tag} text=${text} href=${href} aria=${aria} closestA=${aHref}`;
+  const aHref = closestA ? (closestA.getAttribute('href') ?? NO_ATTR) : 'NO_ANCHOR';
+  return `tag=${el.tagName} text=${text} href=${href} aria=${aria} closestA=${aHref}`;
+}
+
+/**
+ * Emit the snapshotValue debug trace.
+ * @param elInfo - Result of traceElementInfo (or 'error').
+ * @param candidateInfo - Candidate kind=value descriptor.
+ * @returns True after logging.
+ */
+function traceSnapshot(elInfo: string, candidateInfo: string): true {
+  const elMasked = maskVisibleText(elInfo);
+  const candMasked = maskVisibleText(candidateInfo);
+  LOG.debug({ message: `snapshotValue: [${elMasked}] candidate=${candMasked}` });
+  return true;
+}
+
+/**
+ * Resolve href snapshot: try directly, then walk up to nearest ancestor anchor.
+ * @param entry - The winning locator entry.
+ * @returns Resolved href or empty string.
+ */
+async function resolveHrefSnapshot(entry: ILocatorEntry): Promise<string> {
+  const directHref = await entry.locator.getAttribute('href').catch((): string => '');
+  if (directHref) return directHref;
+  return entry.locator.evaluate(walkUpToAnchorHref).catch((): string => '');
 }
 
 /**
@@ -777,16 +939,8 @@ async function snapshotValue(entry: ILocatorEntry): Promise<string> {
   const target = entry.candidate.target ?? 'self';
   if (target !== 'href') return entry.locator.innerText().catch((): string => '');
   const elInfo = await entry.locator.evaluate(traceElementInfo).catch((): string => 'error');
-  const candidateInfo = `${entry.candidate.kind}="${entry.candidate.value}"`;
-  LOG.debug({
-    message:
-      `snapshotValue: [${maskVisibleText(elInfo)}] ` +
-      `candidate=${maskVisibleText(candidateInfo)}`,
-  });
-  const directHref = await entry.locator.getAttribute('href').catch((): string => '');
-  if (directHref) return directHref;
-  const string = await entry.locator.evaluate(walkUpToAnchorHref).catch((): string => '');
-  return string;
+  traceSnapshot(elInfo, `${entry.candidate.kind}="${entry.candidate.value}"`);
+  return resolveHrefSnapshot(entry);
 }
 
 /** Post-race winner details bundled to satisfy the 3-param ceiling. */
@@ -880,6 +1034,85 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
 }
 
 /**
+ * Capture the resolved element's identity payload (browser-side eval).
+ * Must be a top-level pure function (no captured closures) so Playwright's
+ * `evaluate(...)` serialization can transport it. The caller body stays
+ * ≤10 LoC by delegating attribute extraction and outerHTML truncation to
+ * this helper.
+ * @param el - The DOM element under inspection (browser context).
+ * @param max - Max length for the outerHTML snippet.
+ * @returns Verbose identity payload (identity bundle + bounded outerHTML).
+ */
+function snapshotIdentityInBrowser(el: Element, max: number): IIdentityVerbose {
+  const identity = {
+    tag: el.tagName,
+    id: el.id || '(none)',
+    classes: el.className || '(none)',
+    name: el.getAttribute('name') ?? '(none)',
+    type: el.getAttribute('type') ?? '(none)',
+    ariaLabel: el.getAttribute('aria-label') ?? '(none)',
+    title: el.getAttribute('title') ?? '(none)',
+    href: el.getAttribute('href') ?? '(none)',
+  };
+  const outerHtml = (el.outerHTML || '').slice(0, max);
+  return { identity, outerHtml };
+}
+
+/**
+ * Run the browser-side identity snapshot for an entry and normalise the
+ * payload against malformed test mocks (which may return `false` / strings
+ * instead of the structured shape).
+ * @param entry - The winning locator entry.
+ * @returns Verbose payload (never with missing fields).
+ */
+async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVerbose> {
+  const evaluated = await entry.locator
+    .evaluate(snapshotIdentityInBrowser, OUTER_HTML_SNIPPET_MAX)
+    .catch((): IIdentityVerbose => UNKNOWN_VERBOSE);
+  return normalizeVerbose(evaluated);
+}
+
+/**
+ * Build the LOG.debug payload from the identity bundle. Top-level so the
+ * caller (`traceElementIdentity`) stays under cap by delegating both the
+ * sub-attrs projection and the outer-shape composition here.
+ * @param identity - Element identity bundle.
+ * @param outerHtml - Bounded outerHTML snippet.
+ * @returns Pino-shaped object ready for LOG.debug.
+ */
+function buildIdentityLogPayload(identity: IElementIdentity, outerHtml: string): object {
+  const attrs = {
+    name: identity.name,
+    type: identity.type,
+    ariaLabel: identity.ariaLabel,
+    title: identity.title,
+    href: identity.href,
+  };
+  return {
+    tag: identity.tag,
+    domId: identity.id,
+    classes: identity.classes,
+    attrs,
+    outerHtml,
+    visibility: 'visible',
+  };
+}
+
+/**
+ * Emit the DOM identity bundle at debug level. The `domId` key (not `id`)
+ * bypasses the credential-id Pino redaction — DOM ids on a public commercial
+ * site are not PII.
+ * @param identity - The element identity bundle.
+ * @param outerHtml - Bounded outerHTML snippet from the same element.
+ * @returns Sentinel ``true`` once the log has been emitted.
+ */
+function traceElementIdentity(identity: IElementIdentity, outerHtml: string): true {
+  const payload = buildIdentityLogPayload(identity, outerHtml);
+  LOG.debug(payload);
+  return true;
+}
+
+/**
  * Snapshot the resolved element's DOM identity (tag, id, classes, attrs)
  * plus a bounded outerHTML, log the bundle at debug level, and return the
  * identity for ACTION-stage selector building. The trace emit uses `domId`
@@ -889,44 +1122,20 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
  * @returns Identity object captured during PRE.
  */
 async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementIdentity> {
-  const evaluated = await entry.locator
-    .evaluate(
-      (el: Element, max: number): IIdentityVerbose => ({
-        identity: {
-          tag: el.tagName,
-          id: el.id || '(none)',
-          classes: el.className || '(none)',
-          name: el.getAttribute('name') ?? '(none)',
-          type: el.getAttribute('type') ?? '(none)',
-          ariaLabel: el.getAttribute('aria-label') ?? '(none)',
-          title: el.getAttribute('title') ?? '(none)',
-          href: el.getAttribute('href') ?? '(none)',
-        },
-        outerHtml: (el.outerHTML || '').slice(0, max),
-      }),
-      OUTER_HTML_SNIPPET_MAX,
-    )
-    .catch((): IIdentityVerbose => UNKNOWN_VERBOSE);
-  // Static type says IIdentityVerbose but test mocks return arbitrary
-  // payloads — narrow defensively before destructuring.
-  const raw = evaluated as Partial<IIdentityVerbose>;
-  const verbose = normalizeVerbose(raw);
-  const { identity, outerHtml } = verbose;
-  LOG.debug({
-    tag: identity.tag,
-    domId: identity.id,
-    classes: identity.classes,
-    attrs: {
-      name: identity.name,
-      type: identity.type,
-      ariaLabel: identity.ariaLabel,
-      title: identity.title,
-      href: identity.href,
-    },
-    outerHtml,
-    visibility: 'visible',
-  });
+  const { identity, outerHtml } = await extractIdentityVerbose(entry);
+  traceElementIdentity(identity, outerHtml);
   return identity;
+}
+
+/**
+ * Format a single locator detail line for race diagnostic.
+ * @param entries - All entries array.
+ * @param idx - Index of the fulfilled entry to format.
+ * @returns Formatted "kind:value @ url" string.
+ */
+function formatLocatorDetail(entries: readonly ILocatorEntry[], idx: number): string {
+  const e = entries[idx];
+  return `${e.candidate.kind}:${e.candidate.value} @ ${e.context.url()}`;
 }
 
 /**
@@ -940,18 +1149,12 @@ async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementId
  * @returns True after logging.
  */
 function traceRaceDiagnostic(entries: readonly ILocatorEntry[], diag: IRaceDiagnostic): true {
-  const fulfilledDetail = diag.fulfilledIndices.map((idx): string => {
-    const e = entries[idx];
-    const kind = e.candidate.kind;
-    const val = e.candidate.value;
-    const ctx = e.context.url();
-    return `${kind}:${val} @ ${ctx}`;
-  });
+  const detail = diag.fulfilledIndices.map((idx): string => formatLocatorDetail(entries, idx));
   LOG.debug({
     fulfilled: diag.fulfilledCount,
     hitTestPassed: diag.hitTestPassedCount,
     winner: diag.winner,
-    detail: fulfilledDetail,
+    detail,
   });
   return true;
 }
@@ -1263,29 +1466,98 @@ interface IResolveAllArgs {
  * @param args - Page + candidates + timeout + cap (bundled).
  * @returns Up to `cap` IRaceResult entries; empty array when none fulfill.
  */
+/** Bundle returned by `setupAllVisibleRace` (race inputs in one Pick). */
+interface IRaceSetup {
+  readonly entries: readonly ILocatorEntry[];
+  readonly locators: Locator[];
+  readonly timeout: number;
+}
+
+/**
+ * Prepare race inputs: build all locator entries (with nth-enumeration),
+ * extract their locators, and cap the timeout.
+ * @param page - Playwright page.
+ * @param candidates - WK selector candidates.
+ * @param timeout - Caller-provided timeout (capped before return).
+ * @returns Bundle ready for raceLocatorsWithHitTest.
+ */
+async function setupAllVisibleRace(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+  timeout: number,
+): Promise<IRaceSetup> {
+  const entries = await buildLocatorEntriesAll(page, candidates);
+  const locators = entries.map((e): Locator => e.locator);
+  return { entries, locators, timeout: capTimeout(timeout) };
+}
+
+/**
+ * Resolve all visible elements matching any of the candidate selectors —
+ * enumerates `.nth(0..MAX_NTH_PER_LOCATOR-1)` per base locator so multi-match
+ * elements (legacy + modern nav buttons sharing the same aria-label) BOTH
+ * surface in the candidate list. Identity dedup (`extractWinnerSequence`)
+ * collapses race winners that point to the same DOM element.
+ * @param args - Bundled page + candidates + timeout + cap.
+ * @returns Up to `args.cap` race-result entries; empty when none fulfill.
+ */
 async function resolveAllVisibleImpl(args: IResolveAllArgs): Promise<readonly IRaceResult[]> {
   if (args.cap < 1) return [];
-  // resolveAllVisible enumerates `.nth(0..MAX_NTH_PER_LOCATOR-1)` per base
-  // locator so multi-match elements (legacy + modern nav buttons sharing
-  // the same aria-label) BOTH surface in the candidate list. Identity
-  // dedup (extractWinnerSequence) collapses race winners that point to
-  // the same DOM element while preserving distinct ones.
-  const entries = await buildLocatorEntriesAll(args.page, args.candidates);
-  if (entries.length === 0) return [];
-  const locators = entries.map((e): Locator => e.locator);
-  const effectiveTimeout = capTimeout(args.timeout);
-  const countStr = String(locators.length);
-  const timeoutStr = String(effectiveTimeout);
-  const capStr = String(args.cap);
-  LOG.debug({
-    message: `resolveAllVisible: ${countStr} locators, timeout=${timeoutStr}ms, cap=${capStr}`,
-  });
-  const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
-  traceRaceDiagnostic(entries, diag);
-  const fulfilled = diag.fulfilledIndices;
-  if (fulfilled.length === 0) return [];
-  const result = await extractWinnerSequence({ entries, indices: fulfilled, cap: args.cap });
-  return result;
+  const setup = await setupAllVisibleRace(args.page, args.candidates, args.timeout);
+  if (setup.entries.length === 0) return [];
+  const probeLabel = `resolveAllVisible (cap=${String(args.cap)})`;
+  logResolveProbe(probeLabel, setup.locators.length, setup.timeout);
+  const diag = await raceLocatorsWithHitTest(setup.locators, setup.timeout);
+  traceRaceDiagnostic(setup.entries, diag);
+  if (diag.fulfilledIndices.length === 0) return [];
+  const indices = diag.fulfilledIndices;
+  return extractWinnerSequence({ entries: setup.entries, indices, cap: args.cap });
+}
+
+/**
+ * Build IRaceResult entries from a list of WK selector candidates within a
+ * SINGLE Page or Frame context. Each candidate may produce multiple base
+ * locators; the result list pairs every locator with its source candidate
+ * and the context it was bound to.
+ * @param ctx - The Playwright Page or Frame to resolve against.
+ * @param candidates - WellKnown selector candidates to expand.
+ * @returns Flat list of ILocatorEntry — one per base locator.
+ */
+function buildContextEntries(
+  ctx: Page | Frame,
+  candidates: readonly SelectorCandidate[],
+): readonly ILocatorEntry[] {
+  return candidates.flatMap((c): ILocatorEntry[] =>
+    buildCandidateLocators(ctx, c).map(
+      (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
+    ),
+  );
+}
+
+/**
+ * Emit a structured "N locators racing with Tms budget" debug log used by
+ * every resolveImpl variant so log output is uniform.
+ * @param label - Label naming the caller (e.g. `resolveVisibleInContext`).
+ * @param count - Locator count.
+ * @param timeoutMs - Effective race timeout (post-capTimeout).
+ * @returns Sentinel `true` once the log has been emitted.
+ */
+function logResolveProbe(label: string, count: number, timeoutMs: number): true {
+  LOG.debug({ message: `${label}: ${String(count)} locators, ${String(timeoutMs)}ms` });
+  return true;
+}
+
+/**
+ * Enrich a winning entry into a fully populated IRaceResult by extracting
+ * the DOM identity (with debug trace), snapshotting the value, and bundling
+ * the index. Shared by all resolveImpl variants that need a single winner.
+ * @param entry - The winning locator entry.
+ * @param index - The winner index returned by the race.
+ * @returns Fully populated IRaceResult.
+ */
+async function enrichWinnerToResult(entry: ILocatorEntry, index: number): Promise<IRaceResult> {
+  const identity = await extractAndTraceIdentity(entry);
+  const value = await snapshotValue(entry);
+  return buildFoundResult(entry, { index, value, identity });
 }
 
 /**
@@ -1301,26 +1573,52 @@ async function resolveVisibleInContextImpl(
   candidates: readonly SelectorCandidate[],
   timeout: number,
 ): Promise<IRaceResult> {
-  const entries = candidates.flatMap((c): ILocatorEntry[] =>
-    buildCandidateLocators(ctx, c).map(
-      (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
-    ),
-  );
+  const entries = buildContextEntries(ctx, candidates);
   if (entries.length === 0) return NOT_FOUND_RESULT;
   const locators = entries.map((e): Locator => e.locator);
   const effectiveTimeout = capTimeout(timeout);
-  const countStr = String(locators.length);
-  const timeoutStr = String(effectiveTimeout);
-  LOG.debug({
-    message: `resolveVisibleInContext: ${countStr} locators, ${timeoutStr}ms`,
-  });
+  logResolveProbe('resolveVisibleInContext', locators.length, effectiveTimeout);
   const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
   traceRaceDiagnostic(entries, diag);
   if (diag.winner < 0) return NOT_FOUND_RESULT;
-  const winner = entries[diag.winner];
-  const identity = await extractAndTraceIdentity(winner);
-  const value = await snapshotValue(winner);
-  return buildFoundResult(winner, { index: diag.winner, value, identity });
+  return enrichWinnerToResult(entries[diag.winner], diag.winner);
+}
+
+/**
+ * Force-click the winner of an attached race. Returns whether the click
+ * actually fired — the caller propagates NOT_FOUND_RESULT on failure
+ * instead of silently claiming success. Extracted so the parent body
+ * stays ≤10 LoC while keeping the click-outcome check explicit.
+ * @param locator - Winner locator from the attached race.
+ * @param timeoutMs - Force-click timeout in milliseconds.
+ * @returns True when the click resolved without throwing.
+ */
+async function tryForceClick(locator: Locator, timeoutMs: number): Promise<boolean> {
+  return locator
+    .click({ force: true, timeout: timeoutMs })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
+ * Fallback path for resolveAndClickImpl when no element passed the
+ * "visible" hit-test race: try a force-click against the FIRST attached
+ * candidate. Extracted so the parent body stays ≤10 LoC.
+ * @param args - Bundled page + candidates + formAnchor.
+ * @param effectiveTimeout - Already-capped race timeout (ms).
+ * @returns Procedure wrapping the attached IRaceResult (or NOT_FOUND).
+ */
+async function tryAttachedClickFallback(
+  args: IClickResolveArgs,
+  effectiveTimeout: number,
+): Promise<Procedure<IRaceResult>> {
+  const entries = buildLocatorEntries(args.page, args.candidates, args.formAnchor);
+  const locators = entries.map((e): Locator => e.locator);
+  const winnerIdx = await raceLocators(locators, effectiveTimeout, 'attached');
+  if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
+  const didClick = await tryForceClick(entries[winnerIdx].locator, effectiveTimeout);
+  if (!didClick) return succeed(NOT_FOUND_RESULT);
+  return succeed(await enrichWinnerToResult(entries[winnerIdx], winnerIdx));
 }
 
 /**
@@ -1334,32 +1632,13 @@ async function resolveVisibleInContextImpl(
  */
 async function resolveAndClickImpl(args: IClickResolveArgs): Promise<Procedure<IRaceResult>> {
   const effectiveTimeout = capTimeout(args.timeout);
-  const raceArgs: IClickResolveArgs = {
-    page: args.page,
-    candidates: args.candidates,
-    timeout: effectiveTimeout,
-    formAnchor: args.formAnchor,
-  };
+  const raceArgs: IClickResolveArgs = { ...args, timeout: effectiveTimeout };
   const result = await resolveVisibleNthAware(raceArgs);
   if (result.found && result.locator) {
     await result.locator.click({ timeout: effectiveTimeout }).catch((): false => false);
     return succeed(result);
   }
-  // Fallback: attached state — element is in DOM but not visually visible
-  const entries = buildLocatorEntries(args.page, args.candidates, args.formAnchor);
-  const locators = entries.map((e): Locator => e.locator);
-  const winnerIdx = await raceLocators(locators, effectiveTimeout, 'attached');
-  if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
-  const clickOpts = { force: true, timeout: effectiveTimeout };
-  await entries[winnerIdx].locator.click(clickOpts).catch((): false => false);
-  const identity = await extractAndTraceIdentity(entries[winnerIdx]);
-  const snapshot = await snapshotValue(entries[winnerIdx]);
-  const attachedResult = buildFoundResult(entries[winnerIdx], {
-    index: winnerIdx,
-    value: snapshot,
-    identity,
-  });
-  return succeed(attachedResult);
+  return tryAttachedClickFallback(args, effectiveTimeout);
 }
 
 /**
@@ -1649,71 +1928,208 @@ function buildGetCookies(page: Page): () => Promise<readonly ICookieSnapshot[]> 
 }
 
 /**
- * Create an ElementMediator for the given page.
- * Each instance has its own form anchor cache — safe for concurrent use.
- * @param page - The Playwright page to resolve elements on.
- * @returns An IElementMediator with real implementations.
+ * Build addCookies — inject cookies into the browser context for
+ * cross-domain session promotion. Extracted from the historic inline
+ * arrow inside `createElementMediator` so the factory body stays ≤10 LoC.
+ * @param page - The Playwright page (provides the context).
+ * @returns Async function that accepts a cookie array.
  */
-function createElementMediator(page: Page): IElementMediator {
-  const cache: IFormCache = { selector: '' };
-  // Production path: defer page.on(...) attachment until the
-  // network-trace lifecycle interceptor flips the boundary gate
-  // ON (post-AUTH phase). Keeps the HOME / WAF-check window
-  // listener-free — see I-3 deferred-listener experiment 2026-05-13.
-  const network = createNetworkDiscovery(page, { isDeferAttach: true });
-  // Build networkidle once and reuse it in `raceWithNetworkIdle` —
-  // single source of truth for the networkidle primitive.
-  const waitForNetworkIdleFn = buildWaitForNetworkIdle(page);
-  const mediator: IElementMediator = {
+function buildAddCookies(page: Page): IElementMediator['addCookies'] {
+  return async (cookies): Promise<void> => {
+    await page.context().addCookies(cookies);
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Cluster-bundle TYPE aliases — let each cluster builder return a tightly
+// scoped slice of IElementMediator. Spreading the slices inside the
+// factory keeps `createElementMediator` body ≤ 10 LoC while preserving
+// identity (each method is the same function reference produced by the
+// underlying `buildXxx(page)` helper).
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Resolver methods — locator + click resolution surfaces. */
+type ResolveBundle = Pick<
+  IElementMediator,
+  | 'resolveField'
+  | 'resolveClickable'
+  | 'resolveVisible'
+  | 'resolveAllVisible'
+  | 'resolveVisibleInContext'
+  | 'resolveAndClick'
+>;
+
+/** Phase / stage / discovery primitives — page-independent state hooks. */
+type PhaseControlsBundle = Pick<
+  IElementMediator,
+  'setActivePhase' | 'setActiveStage' | 'discoverErrors' | 'waitForLoadingDone'
+>;
+
+/** Form-anchor cache surfaces — bound to a per-instance IFormCache. */
+type FormBundle = Pick<IElementMediator, 'discoverForm' | 'scopeToForm' | 'getFormAnchor'>;
+
+/** Navigation primitives — URL + networkidle gating. */
+type NavBundle = Pick<
+  IElementMediator,
+  'navigateTo' | 'getCurrentUrl' | 'waitForNetworkIdle' | 'raceWithNetworkIdle' | 'waitForURL'
+>;
+
+/** Attribute read surfaces — page-independent locator wrappers. */
+type AttrBundle = Pick<IElementMediator, 'checkAttribute' | 'getAttributeValue'>;
+
+/** Counting + href-collection surfaces. */
+type CountBundle = Pick<IElementMediator, 'countByText' | 'countBySelector' | 'collectAllHrefs'>;
+
+/** Cookie I/O — get + add against the browser context. */
+type CookieBundle = Pick<IElementMediator, 'getCookies' | 'addCookies'>;
+
+/** Stateless surfaces merged — keeps the aggregator's spread count ≤ 6. */
+type StaticBundle = PhaseControlsBundle & AttrBundle;
+
+/**
+ * Build the 6-method locator resolver cluster.
+ * @param page - The Playwright page to bind resolvers to.
+ * @returns Locator/click resolver method bundle.
+ */
+function buildResolveCluster(page: Page): ResolveBundle {
+  return {
     resolveField: buildResolveField(page),
     resolveClickable: buildResolveClickable(page),
     resolveVisible: buildResolveVisible(page),
     resolveAllVisible: buildResolveAllVisible(page),
     resolveVisibleInContext: buildResolveVisibleInContext(),
     resolveAndClick: buildResolveAndClick(page),
-    /**
-     * Set active phase for log accuracy.
-     * @param name - Phase name.
-     * @returns True.
-     */
-    setActivePhase: (name: string): true => {
-      return setGlobalPhase(name);
-    },
-    /**
-     * Set active pipeline stage for log events.
-     * @param name - Stage name (PRE, ACTION, POST, FINAL).
-     * @returns True.
-     */
-    setActiveStage: (name: StageLabel): true => {
-      return setGlobalStage(name);
-    },
+  };
+}
+
+/**
+ * Build the 4-method phase / stage / discovery cluster. Page-independent
+ * (state hooks delegate to ActiveState module singletons).
+ * @returns Phase-control method bundle.
+ */
+function buildPhaseControls(): PhaseControlsBundle {
+  return {
+    setActivePhase: setGlobalPhase,
+    setActiveStage: setGlobalStage,
     discoverErrors: buildDiscoverErrors(),
     waitForLoadingDone: buildWaitForLoadingDone(),
+  };
+}
+
+/**
+ * Build the 3-method form-anchor cluster. Binds to per-instance cache so
+ * concurrent ElementMediator instances do not share form-anchor state.
+ * @param cache - The per-instance form-anchor cache.
+ * @returns Form-anchor method bundle.
+ */
+function buildFormCluster(cache: IFormCache): FormBundle {
+  return {
     discoverForm: buildDiscoverForm(cache),
     scopeToForm: buildScopeToForm(cache),
     getFormAnchor: buildGetFormAnchor(cache),
-    network,
+  };
+}
+
+/**
+ * Build the 5-method navigation cluster. Internally constructs the
+ * single `waitForNetworkIdle` primitive once and reuses it inside
+ * `raceWithNetworkIdle` — preserves the historic single-source-of-truth
+ * invariant from the original factory.
+ * @param page - The Playwright page to bind nav methods to.
+ * @returns Navigation method bundle.
+ */
+function buildNavCluster(page: Page): NavBundle {
+  const wfni = buildWaitForNetworkIdle(page);
+  return {
     navigateTo: buildNavigateTo(page),
     getCurrentUrl: buildGetCurrentUrl(page),
-    waitForNetworkIdle: waitForNetworkIdleFn,
-    raceWithNetworkIdle: buildRaceWithNetworkIdle(waitForNetworkIdleFn),
+    waitForNetworkIdle: wfni,
+    raceWithNetworkIdle: buildRaceWithNetworkIdle(wfni),
+    waitForURL: buildWaitForURL(page),
+  };
+}
+
+/**
+ * Build the 2-method attribute-read cluster. Page-independent — returns
+ * locator-bound wrappers (the locator carries its own Page reference).
+ * @returns Attribute-read method bundle.
+ */
+function buildAttrCluster(): AttrBundle {
+  return {
     checkAttribute: buildCheckAttribute(),
     getAttributeValue: buildGetAttributeValue(),
+  };
+}
 
-    waitForURL: buildWaitForURL(page),
+/**
+ * Build the 3-method counting + href-collection cluster.
+ * @param page - The Playwright page to count/collect against.
+ * @returns Count / href method bundle.
+ */
+function buildCountCluster(page: Page): CountBundle {
+  return {
     countByText: buildCountByText(page),
     countBySelector: buildCountBySelector(page),
     collectAllHrefs: buildCollectAllHrefs(page),
-    getCookies: buildGetCookies(page),
-    /**
-     * Inject cookies into the browser context for cross-domain session promotion.
-     * @param cookies - Cookies to add.
-     */
-    addCookies: async (cookies): Promise<void> => {
-      await page.context().addCookies(cookies);
-    },
   };
-  return mediator;
+}
+
+/**
+ * Build the 2-method cookie I/O cluster.
+ * @param page - The Playwright page (provides the browser context).
+ * @returns Cookie I/O method bundle.
+ */
+function buildCookieCluster(page: Page): CookieBundle {
+  return {
+    getCookies: buildGetCookies(page),
+    addCookies: buildAddCookies(page),
+  };
+}
+
+/**
+ * Merge the two stateless clusters (phase controls + attribute reads)
+ * into one bundle. Lets `assembleElementMediator` spread 6 sources
+ * instead of 7 so the aggregator body stays ≤ 10 LoC.
+ * @returns Static (page-independent) method bundle.
+ */
+function buildStaticCluster(): StaticBundle {
+  return { ...buildPhaseControls(), ...buildAttrCluster() };
+}
+
+/**
+ * Compose the full method bundle for IElementMediator (everything
+ * except `network`, which the factory inserts directly). Each spread
+ * preserves function identity — methods are the same references the
+ * underlying `buildXxx(page)` helpers returned.
+ * @param page - The Playwright page.
+ * @param cache - The per-instance form-anchor cache.
+ * @returns Method bundle covering every IElementMediator surface except `network`.
+ */
+function assembleElementMediator(page: Page, cache: IFormCache): Omit<IElementMediator, 'network'> {
+  return {
+    ...buildResolveCluster(page),
+    ...buildStaticCluster(),
+    ...buildFormCluster(cache),
+    ...buildNavCluster(page),
+    ...buildCountCluster(page),
+    ...buildCookieCluster(page),
+  };
+}
+
+/**
+ * Create an ElementMediator for the given page.
+ * Each instance has its own form anchor cache — safe for concurrent use.
+ * Production path: defer `page.on(...)` attachment until the
+ * network-trace lifecycle interceptor flips the boundary gate ON
+ * (post-AUTH phase). Keeps the HOME / WAF-check window listener-free
+ * (see I-3 deferred-listener experiment 2026-05-13).
+ * @param page - The Playwright page to resolve elements on.
+ * @returns An IElementMediator with real implementations.
+ */
+function createElementMediator(page: Page): IElementMediator {
+  const cache: IFormCache = { selector: '' };
+  const network = createNetworkDiscovery(page, { isDeferAttach: true });
+  return { ...assembleElementMediator(page, cache), network };
 }
 
 /**
@@ -1732,6 +2148,218 @@ function snapshotSessionStorage(): Record<string, string> {
   return Object.fromEntries(pairs);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Action-mediator cluster builders — same spread-builders pattern as
+// createElementMediator (Phase 2a C1). Each method is produced by a small
+// named `buildXxx` helper so the cluster body is a flat property table
+// of function-call expressions (no inline arrows, no nested calls). The
+// pass-through wrappers use destructuring shorthand which preserves
+// function identity against the backing IElementMediator.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Frame-bound action methods — fillInput + clickElement + pressEnter. */
+type FrameActionBundle = Pick<IActionMediator, 'fillInput' | 'clickElement' | 'pressEnter'>;
+
+/** Navigation pass-through surfaces — bound to the full mediator. */
+type ActionNavBundle = Pick<
+  IActionMediator,
+  'navigateTo' | 'waitForNetworkIdle' | 'waitForURL' | 'getCurrentUrl'
+>;
+
+/** Cookie + count + href pass-through surfaces — bound to the full mediator. */
+type ActionDataBundle = Pick<
+  IActionMediator,
+  'getCookies' | 'addCookies' | 'countByText' | 'countBySelector' | 'collectAllHrefs'
+>;
+
+/** Combined pass-through bundle — nav + data merged. */
+type ActionPassThroughBundle = ActionNavBundle & ActionDataBundle;
+
+/** sessionStorage snapshot surface — page.evaluate wrapper. */
+type ActionStorageBundle = Pick<IActionMediator, 'collectStorage'>;
+
+/** Network-derived ACTION surfaces — read-only views over full.network. */
+type ActionNetworkBundle = Pick<
+  IActionMediator,
+  'hasTxnEndpoint' | 'waitForTxnEndpoint' | 'markDashboardClickAt'
+>;
+
+/**
+ * Build fillInput — resolves the target frame, then delegates to impl.
+ * @param registry - The immutable frame registry.
+ * @returns Bound fillInput handler.
+ */
+function buildFillInput(registry: FrameRegistryMap): IActionMediator['fillInput'] {
+  return (ctxId, sel, val): Promise<true> => {
+    const frame = resolveFrame(registry, ctxId);
+    return fillInputImpl(frame, sel, val);
+  };
+}
+
+/**
+ * Build clickElement — destructures IClickElementArgs and forwards to the
+ * impl with a resolved frame.
+ * @param registry - The immutable frame registry.
+ * @returns Bound clickElement handler.
+ */
+function buildClickElement(registry: FrameRegistryMap): IActionMediator['clickElement'] {
+  return (args): Promise<true> => {
+    const frame = resolveFrame(registry, args.contextId);
+    return clickElementImpl({
+      frame,
+      selector: args.selector,
+      isForce: args.isForce,
+      nth: args.nth,
+    });
+  };
+}
+
+/**
+ * Build pressEnter — resolves the target frame, then delegates to impl.
+ * @param registry - The immutable frame registry.
+ * @returns Bound pressEnter handler.
+ */
+function buildPressEnter(registry: FrameRegistryMap): IActionMediator['pressEnter'] {
+  return (ctxId): Promise<true> => {
+    const frame = resolveFrame(registry, ctxId);
+    return pressEnterImpl(frame);
+  };
+}
+
+/**
+ * Build the 3-method frame-bound execution cluster. Each method is a
+ * function-call expression — no inline arrows.
+ * @param registry - The immutable frame registry.
+ * @returns Frame-action method bundle.
+ */
+function buildFrameActionCluster(registry: FrameRegistryMap): FrameActionBundle {
+  return {
+    fillInput: buildFillInput(registry),
+    clickElement: buildClickElement(registry),
+    pressEnter: buildPressEnter(registry),
+  };
+}
+
+/**
+ * Build the 4-method navigation pass-through cluster. Wraps the matching
+ * methods on `full` so the cluster shape stays a flat property table.
+ * @param full - The backing full IElementMediator.
+ * @returns Navigation pass-through bundle.
+ */
+function buildActionNavCluster(full: IElementMediator): ActionNavBundle {
+  return {
+    /** @inheritdoc */
+    navigateTo: (...args) => full.navigateTo(...args),
+    /** @inheritdoc */
+    waitForNetworkIdle: (...args) => full.waitForNetworkIdle(...args),
+    /** @inheritdoc */
+    waitForURL: (...args) => full.waitForURL(...args),
+    /** @inheritdoc */
+    getCurrentUrl: () => full.getCurrentUrl(),
+  };
+}
+
+/**
+ * Build the 5-method cookie + count + href pass-through cluster.
+ * Wraps the matching methods on `full` so the cluster shape stays a flat
+ * property table.
+ * @param full - The backing full IElementMediator.
+ * @returns Data-surface pass-through bundle.
+ */
+function buildActionDataCluster(full: IElementMediator): ActionDataBundle {
+  return {
+    /** @inheritdoc */
+    getCookies: () => full.getCookies(),
+    /** @inheritdoc */
+    addCookies: (...args) => full.addCookies(...args),
+    /** @inheritdoc */
+    countByText: (...args) => full.countByText(...args),
+    /** @inheritdoc */
+    countBySelector: (...args) => full.countBySelector(...args),
+    /** @inheritdoc */
+    collectAllHrefs: () => full.collectAllHrefs(),
+  };
+}
+
+/**
+ * Build the 9-method pass-through cluster — merges nav + data sub-clusters.
+ * Identity-preserving (same function references as the backing `full`).
+ * @param full - The backing full IElementMediator.
+ * @returns Action pass-through method bundle.
+ */
+function buildActionPassThroughCluster(full: IElementMediator): ActionPassThroughBundle {
+  return { ...buildActionNavCluster(full), ...buildActionDataCluster(full) };
+}
+
+/**
+ * Build collectStorage — snapshots sessionStorage via page.evaluate.
+ * @param page - The Playwright page that will execute the snapshot.
+ * @returns Bound collectStorage handler.
+ */
+function buildCollectStorage(page: Page): IActionMediator['collectStorage'] {
+  return async (): Promise<Readonly<Record<string, string>>> =>
+    page.evaluate(snapshotSessionStorage);
+}
+
+/**
+ * Build the 1-method sessionStorage snapshot cluster.
+ * @param page - The Playwright page that will execute the snapshot.
+ * @returns Storage-collection method bundle.
+ */
+function buildActionStorageCluster(page: Page): ActionStorageBundle {
+  return { collectStorage: buildCollectStorage(page) };
+}
+
+/**
+ * Build hasTxnEndpoint — reports whether the transactions endpoint has
+ * been discovered yet on `full.network`.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Bound hasTxnEndpoint handler.
+ */
+function buildHasTxnEndpoint(full: IElementMediator): IActionMediator['hasTxnEndpoint'] {
+  return (): boolean => full.network.discoverTransactionsEndpoint() !== false;
+}
+
+/**
+ * Build waitForTxnEndpoint — awaits the transactions traffic on
+ * `full.network` and normalises the result to a boolean.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Bound waitForTxnEndpoint handler.
+ */
+function buildWaitForTxnEndpoint(full: IElementMediator): IActionMediator['waitForTxnEndpoint'] {
+  return async (timeoutMs): Promise<boolean> => {
+    const hit = await full.network.waitForTransactionsTraffic(timeoutMs);
+    return hit !== false;
+  };
+}
+
+/**
+ * Build markDashboardClickAt — forwards the click timestamp into
+ * `full.network` to seed the post-AUTH transactions watcher.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Bound markDashboardClickAt handler.
+ */
+function buildMarkDashboardClickAt(
+  full: IElementMediator,
+): IActionMediator['markDashboardClickAt'] {
+  return (timestampMs): true => full.network.markDashboardClickAt(timestampMs);
+}
+
+/**
+ * Build the 3-method network-derived ACTION cluster. Each method reads or
+ * mutates the closure-scoped `full.network` discovery state without
+ * exposing the full discovery surface to ACTION callers.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Network-bound action method bundle.
+ */
+function buildActionNetworkCluster(full: IElementMediator): ActionNetworkBundle {
+  return {
+    hasTxnEndpoint: buildHasTxnEndpoint(full),
+    waitForTxnEndpoint: buildWaitForTxnEndpoint(full),
+    markDashboardClickAt: buildMarkDashboardClickAt(full),
+  };
+}
+
 /**
  * Extract a sealed IActionMediator from a full IElementMediator.
  * Builds a closure-scoped frame registry — private, immutable.
@@ -1743,56 +2371,10 @@ function snapshotSessionStorage(): Record<string, string> {
 function extractActionMediator(full: IElementMediator, page: Page): IActionMediator {
   const registry = buildFrameRegistry(page);
   return {
-    /** @inheritdoc */
-    fillInput: (ctxId: string, sel: string, val: string): Promise<true> => {
-      const frame = resolveFrame(registry, ctxId);
-      return fillInputImpl(frame, sel, val);
-    },
-    /** @inheritdoc */
-    clickElement: (args): Promise<true> => {
-      const frame = resolveFrame(registry, args.contextId);
-      return clickElementImpl({
-        frame,
-        selector: args.selector,
-        isForce: args.isForce,
-        nth: args.nth,
-      });
-    },
-    /** @inheritdoc */
-    pressEnter: (ctxId: string): Promise<true> => {
-      const frame = resolveFrame(registry, ctxId);
-      return pressEnterImpl(frame);
-    },
-    /** @inheritdoc */
-    navigateTo: (...args) => full.navigateTo(...args),
-    /** @inheritdoc */
-    waitForNetworkIdle: (...args) => full.waitForNetworkIdle(...args),
-    /** @inheritdoc */
-    waitForURL: (...args) => full.waitForURL(...args),
-    /** @inheritdoc */
-    getCurrentUrl: () => full.getCurrentUrl(),
-    /** @inheritdoc */
-    countByText: (...args) => full.countByText(...args),
-    /** @inheritdoc */
-    countBySelector: (...args) => full.countBySelector(...args),
-    /** @inheritdoc */
-    getCookies: () => full.getCookies(),
-    /** @inheritdoc */
-    addCookies: (...args) => full.addCookies(...args),
-    /** @inheritdoc */
-    collectAllHrefs: () => full.collectAllHrefs(),
-    /** @inheritdoc */
-    collectStorage: async () => page.evaluate(snapshotSessionStorage),
-    /** @inheritdoc */
-    hasTxnEndpoint: (): boolean => full.network.discoverTransactionsEndpoint() !== false,
-    /** @inheritdoc */
-    waitForTxnEndpoint: async (timeoutMs: number): Promise<boolean> => {
-      const hit = await full.network.waitForTransactionsTraffic(timeoutMs);
-      return hit !== false;
-    },
-    /** @inheritdoc */
-    markDashboardClickAt: (timestampMs: number): true =>
-      full.network.markDashboardClickAt(timestampMs),
+    ...buildFrameActionCluster(registry),
+    ...buildActionPassThroughCluster(full),
+    ...buildActionStorageCluster(page),
+    ...buildActionNetworkCluster(full),
   };
 }
 

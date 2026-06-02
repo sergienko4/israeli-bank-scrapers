@@ -8,6 +8,13 @@ import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig
 import { getDebug as createLogger } from '../Types/Debug.js';
 import { none, some } from '../Types/Option.js';
 import type { IDiagnosticsState, IPipelineContext } from '../Types/PipelineContext.js';
+import type {
+  BalanceSlotKey,
+  DiscoverySlotKey,
+  PhaseEmitSlotKey,
+  PhaseStateSlotKey,
+  ResultSlotKey,
+} from './PipelineContextSlotKeys.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
 /**
@@ -53,14 +60,8 @@ interface IPhaseSlots {
   readonly browser: IPipelineContext['browser'];
 }
 
-/** Result-slot field names (single source of truth for IResultSlots). */
-// prettier-ignore
-type ResultSlotKey =
-  | 'login' | 'dashboard' | 'scrape' | 'api'
-  | 'preLoginDiscovery' | 'loginFieldDiscovery' | 'scrapeDiscovery' | 'accountDiscovery'
-  | 'txnEndpoint' | 'dashboardTxnHarvest' | 'authDiscovery' | 'otpTrigger' | 'otpFill'
-  | 'balanceFetchPlan' | 'balanceResponsesByBankAccount'
-  | 'balanceExtracted' | 'balanceValidation' | 'balanceResolution';
+/** Result-slot field names (re-exported here for legacy IResultSlots backward-compat). */
+export type { ResultSlotKey } from './PipelineContextSlotKeys.js';
 
 /** Pipeline-result optional slots (login, dashboard, balance-resolve, etc.). */
 type IResultSlots = Pick<IPipelineContext, ResultSlotKey>;
@@ -74,21 +75,16 @@ function emptyPhaseSlots(): IPhaseSlots {
 }
 
 /** Phase-state Options (login / dashboard / scrape / api). */
-type PhaseStateOptions = Pick<IResultSlots, 'login' | 'dashboard' | 'scrape' | 'api'>;
+type PhaseStateOptions = Pick<IResultSlots, PhaseStateSlotKey>;
 
 /** Discovery Options (preLogin / loginField / scrape / account / txn / harvest). */
-type DiscoveryOptions = Pick<
-  IResultSlots,
-  | 'preLoginDiscovery'
-  | 'loginFieldDiscovery'
-  | 'scrapeDiscovery'
-  | 'accountDiscovery'
-  | 'txnEndpoint'
-  | 'dashboardTxnHarvest'
->;
+type DiscoveryOptions = Pick<IResultSlots, DiscoverySlotKey>;
 
 /** Phase-emit Options (auth-discovery / otp-trigger / otp-fill). */
-type PhaseEmitOptions = Pick<IResultSlots, 'authDiscovery' | 'otpTrigger' | 'otpFill'>;
+type PhaseEmitOptions = Pick<IResultSlots, PhaseEmitSlotKey>;
+
+/** Balance Options (multi-stage balance pipeline outputs). */
+type BalanceOptions = Pick<IResultSlots, BalanceSlotKey>;
 
 /**
  * Phase-state slots — one Option per visible phase output.
@@ -124,6 +120,20 @@ function emptyPhaseEmitOptions(): PhaseEmitOptions {
 }
 
 /**
+ * Balance slots — Options for the multi-stage balance-resolve pipeline.
+ * @returns Balance Options set to none().
+ */
+function emptyBalanceOptions(): BalanceOptions {
+  return {
+    balanceFetchPlan: none(),
+    balanceResponsesByBankAccount: none(),
+    balanceExtracted: none(),
+    balanceValidation: none(),
+    balanceResolution: none(),
+  };
+}
+
+/**
  * Build empty result-level Option slots.
  * @returns Result slots set to none().
  */
@@ -132,11 +142,7 @@ function emptyResultSlots(): IResultSlots {
     ...emptyPhaseStateOptions(),
     ...emptyDiscoveryOptions(),
     ...emptyPhaseEmitOptions(),
-    balanceFetchPlan: none(),
-    balanceResponsesByBankAccount: none(),
-    balanceExtracted: none(),
-    balanceValidation: none(),
-    balanceResolution: none(),
+    ...emptyBalanceOptions(),
   };
 }
 

@@ -36,6 +36,16 @@ interface IWinnerMeta {
   readonly value: string;
 }
 
+/** Trace payload emitted to the logger for a single resolution. */
+interface ITracePayload {
+  readonly resolution: string;
+  readonly found: boolean;
+  readonly winner: IWinnerMeta | false;
+  readonly context: string;
+  readonly index: number;
+  readonly snapshot: string;
+}
+
 /**
  * Build winner metadata from race result candidate.
  * @param result - Race result.
@@ -47,6 +57,23 @@ function buildWinner(result: IRaceResult): IWinnerMeta | false {
 }
 
 /**
+ * Build the trace payload from a label + race result (pure, no I/O).
+ * @param label - Resolution label.
+ * @param result - The full race result from resolveVisible.
+ * @returns Frozen trace payload.
+ */
+function buildTracePayload(label: string, result: IRaceResult): ITracePayload {
+  return {
+    resolution: label,
+    found: result.found,
+    winner: buildWinner(result),
+    context: describeContext(result.context),
+    index: result.index,
+    snapshot: maskVisibleText(result.value),
+  };
+}
+
+/**
  * Log full IRaceResult at trace level — zero behavior change.
  * @param logger - Pipeline logger.
  * @param label - Resolution label (e.g. "HOME.PRE entry", "OTP.PRE mfa").
@@ -54,17 +81,8 @@ function buildWinner(result: IRaceResult): IWinnerMeta | false {
  * @returns The same result (pass-through for chaining).
  */
 function traceResolution(logger: ScraperLogger, label: string, result: IRaceResult): IRaceResult {
-  const winner = buildWinner(result);
-  const ctx = describeContext(result.context);
-  const snap = maskVisibleText(result.value);
-  logger.trace({
-    resolution: label,
-    found: result.found,
-    winner,
-    context: ctx,
-    index: result.index,
-    snapshot: snap,
-  });
+  const payload = buildTracePayload(label, result);
+  logger.trace(payload);
   return result;
 }
 

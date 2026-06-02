@@ -54,6 +54,24 @@ interface IFillAllArgs {
 }
 
 /**
+ * Run the sequential `reduceField` chain over an ordered field list.
+ * Extracted from `fillAllFields` so each function stays under cap.
+ * @param ctx - Fill context bundle.
+ * @param ordered - Fields in password-first order.
+ * @returns Final accumulator with merged scope + procedure.
+ */
+async function runFieldReduce(
+  ctx: IFillContext,
+  ordered: readonly IFieldConfig[],
+): Promise<IFillAccum> {
+  const seed = Promise.resolve<IFillAccum>({ scope: {}, procedure: succeed(true) });
+  return ordered.reduce(
+    (p: Promise<IFillAccum>, f: IFieldConfig): Promise<IFillAccum> => reduceField(ctx, p, f),
+    seed,
+  );
+}
+
+/**
  * Fill all credential fields sequentially via mediator.
  * Returns the resolved frame scope for submit targeting.
  * @param args - Bundled fill-all arguments.
@@ -65,11 +83,7 @@ async function fillAllFields(args: IFillAllArgs): Promise<IFillAllResult> {
   if (!validation.success) return { procedure: validation, frameContext: undefined };
   const ordered = passwordFirst(fields);
   const ctx: IFillContext = { mediator, creds, logger };
-  const seed = Promise.resolve<IFillAccum>({ scope: {}, procedure: succeed(true) });
-  const final = await ordered.reduce(
-    (p: Promise<IFillAccum>, f: IFieldConfig): Promise<IFillAccum> => reduceField(ctx, p, f),
-    seed,
-  );
+  const final = await runFieldReduce(ctx, ordered);
   return { procedure: final.procedure, frameContext: final.scope.ctx };
 }
 
@@ -127,6 +141,72 @@ interface IFillAndSubmitArgs {
 }
 
 /**
+ * Emit a "filling N fields" debug line.
+ * @param logger - Pipeline logger.
+ * @param count - Number of fields about to be filled.
+ * @returns True after emit (callers discard).
+ */
+function logFillCount(logger: ScraperLogger, count: number): true {
+  logger.debug({ message: `filling ${String(count)} fields` });
+  return true;
+}
+
+/**
+ * Emit the post-submit debug line (method + masked current URL).
+ * @param logger - Pipeline logger.
+ * @param source - Anything that exposes `getCurrentUrl()` (mediator or executor).
+ * @param source.getCurrentUrl - URL provider function on the source.
+ * @param method - Submit method that fired (enter / click / both).
+ * @returns True after emit (callers discard).
+ */
+function logSubmitResult(
+  logger: ScraperLogger,
+  source: { readonly getCurrentUrl: () => string },
+  method: SubmitMethod,
+): true {
+  const url = source.getCurrentUrl();
+  const masked = maskVisibleText(url);
+  logger.debug({ method, url: masked });
+  return true;
+}
+
+/** Result bundle returned by `runSubmitPhase`. */
+interface ISubmitPhaseResult {
+  readonly didEnter: boolean;
+  readonly clickResult: Procedure<boolean>;
+}
+
+/** Bundled args for `runSubmitPhase` — fits the 3-param ceiling. */
+interface ISubmitPhaseArgs {
+  readonly mediator: IElementMediator;
+  readonly config: ILoginConfig;
+  readonly enterCtx: Page | Frame | false;
+  readonly logger: ScraperLogger;
+}
+
+/**
+ * Run the Enter + Click submit attempts in order.
+ * Both fire so POST knows what to validate; the caller decides the outcome.
+ * @param args - Bundled submit-phase args.
+ * @returns Bundle of `didEnter` + `clickResult`.
+ */
+async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResult> {
+  const didEnter = await tryEnterSubmit(args.enterCtx, args.logger);
+  const clickResult = await tryClickSubmit(args.mediator, args.config, args.logger);
+  return { didEnter, clickResult };
+}
+
+/**
+ * Convert a submit-phase bundle into the final method label.
+ * @param submit - Result bundle from `runSubmitPhase`.
+ * @returns The submit method that fired (enter / click / both).
+ */
+function resolveSubmitFromPhase(submit: ISubmitPhaseResult): SubmitMethod {
+  const didClick = submit.clickResult.success && submit.clickResult.value;
+  return resolveSubmitMethod(submit.didEnter, didClick);
+}
+
+/**
  * Fill fields then submit — Enter first, then Click.
  * Returns which method fired so POST knows what to validate.
  * @param args - Bundled fill-and-submit arguments.
@@ -134,19 +214,16 @@ interface IFillAndSubmitArgs {
  */
 async function fillAndSubmit(args: IFillAndSubmitArgs): Promise<Procedure<ISubmitResult>> {
   const { mediator, config, creds, logger } = args;
-  const count = String(config.fields.length);
-  logger.debug({ message: `filling ${count} fields` });
+  logFillCount(logger, config.fields.length);
   const fillResult = await fillAllFields({ mediator, fields: config.fields, creds, logger });
   if (!fillResult.procedure.success) return fillResult.procedure;
   const enterCtx = fillResult.frameContext ?? false;
-  const didEnter = await tryEnterSubmit(enterCtx, logger);
-  const clickResult = await tryClickSubmit(mediator, config, logger);
-  if (!clickResult.success && !didEnter) return clickResult;
-  const didClick = clickResult.success && clickResult.value;
-  const method = resolveSubmitMethod(didEnter, didClick);
-  const currentUrl = mediator.getCurrentUrl();
-  const maskedUrl = maskVisibleText(currentUrl);
-  logger.debug({ method, url: maskedUrl });
+  const submit = await runSubmitPhase({ mediator, config, enterCtx, logger });
+  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
+  const gate = gateNoSubmitSignal(submit);
+  if (!gate.success) return gate;
+  const method = resolveSubmitFromPhase(submit);
+  logSubmitResult(logger, mediator, method);
   return succeed({ success: true, method });
 }
 
@@ -274,60 +351,125 @@ async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Pr
  * @param executor - Sealed action mediator.
  * @param activeFrameId - Opaque contextId of the frame with fields.
  * @param logger - Pipeline logger.
- * @returns True if Enter was pressed.
+ * @returns True only when pressEnter resolved against a non-empty
+ *   frame ID; false when the ID is empty OR pressEnter rejected.
  */
 async function tryEnterFromDiscovery(
   executor: IActionMediator,
   activeFrameId: string,
   logger: ScraperLogger,
 ): Promise<boolean> {
+  if (!activeFrameId) return false;
   logger.debug({ method: 'enter', url: maskVisibleText(activeFrameId) });
-  await executor.pressEnter(activeFrameId).catch((): false => false);
-  return true;
+  return executor
+    .pressEnter(activeFrameId)
+    .then((): true => true)
+    .catch((): false => false);
 }
 
 /**
- * Try clicking the submit button via sealed executor using pre-resolved target.
+ * Map a clickElement rejection to a uniform Procedure failure.
+ * Extracted from tryClickSubmitFromDiscovery to keep its body ≤10 LoC.
+ * @param error - Rejection value from the click promise.
+ * @returns Failure with normalized "click rejected: …" message.
+ */
+function mapClickRejection(error: unknown): Procedure<boolean> {
+  const msg = error instanceof Error ? error.message : String(error);
+  return fail(ScraperErrorTypes.Generic, `click rejected: ${msg}`);
+}
+
+/**
+ * Try clicking the submit button from a PRE-resolved discovery target.
+ * Mirrors `tryClickSubmit` shape so the discovery path reports real
+ * click outcomes instead of swallowing errors silently.
  * @param executor - Sealed action mediator.
  * @param discovery - Login field discovery with optional submit target.
  * @param logger - Pipeline logger.
- * @returns True if submit was clicked.
+ * @returns succeed(true) on click, succeed(false) when no submit target,
+ *   fail when the click rejected.
  */
 async function tryClickSubmitFromDiscovery(
   executor: IActionMediator,
   discovery: ILoginFieldDiscovery,
   logger: ScraperLogger,
-): Promise<boolean> {
-  if (!discovery.submitTarget.has) return false;
+): Promise<Procedure<boolean>> {
+  if (!discovery.submitTarget.has) return succeed(false);
   const target = discovery.submitTarget.value;
-  const masked = maskVisibleText(target.candidateValue);
-  logger.debug({ method: 'click', url: masked });
-  await executor
+  logger.debug({ method: 'click', url: maskVisibleText(target.candidateValue) });
+  return executor
     .clickElement({ contextId: target.contextId, selector: target.selector })
-    .catch((): false => false);
-  return true;
+    .then((): Procedure<boolean> => succeed(true))
+    .catch(mapClickRejection);
+}
+
+/**
+ * Run the discovery-mode submit attempts (Enter + Click) and capture
+ * both outcomes. Mirrors `runSubmitPhase` so the caller can decide.
+ * @param args - Bundled fill-from-discovery arguments.
+ * @returns Bundle of `didEnter` + `clickResult`.
+ */
+async function submitViaDiscovery(args: IFillFromDiscoveryArgs): Promise<ISubmitPhaseResult> {
+  const { executor, logger, discovery } = args;
+  const didEnter = await tryEnterFromDiscovery(executor, discovery.activeFrameId, logger);
+  const clickResult = await tryClickSubmitFromDiscovery(executor, discovery, logger);
+  return { didEnter, clickResult };
+}
+
+/**
+ * Detect whether any submit signal actually fired in the discovery path.
+ * @param submit - Submit-phase bundle.
+ * @returns True when Enter fired OR click resolved with value=true.
+ */
+function didAnySubmitFire(submit: ISubmitPhaseResult): boolean {
+  const didClick = submit.clickResult.success && submit.clickResult.value;
+  return submit.didEnter || didClick;
+}
+
+/**
+ * Gate the no-submit-signal branch — returns a failure when neither
+ * Enter nor Click fired (phantom-success guard). Extracted from
+ * fillFromDiscovery to keep its body ≤10 LoC.
+ * @param submit - Submit-phase bundle.
+ * @returns succeed(true) when at least one signal fired; failure otherwise.
+ */
+function gateNoSubmitSignal(submit: ISubmitPhaseResult): Procedure<true> {
+  if (didAnySubmitFire(submit)) return succeed(true);
+  return fail(ScraperErrorTypes.Generic, 'No submit signal fired (Enter and click both absent)');
+}
+
+/**
+ * Run the prerequisites for discovery-mode submit: log field count,
+ * validate credentials, and fill all discovered fields. Extracted
+ * from fillFromDiscovery to keep its body ≤10 LoC.
+ * @param args - Bundled fill-from-discovery arguments.
+ * @returns Procedure succeed(true) when ready to submit; failure propagated.
+ */
+async function runDiscoveryPrereqs(args: IFillFromDiscoveryArgs): Promise<Procedure<true>> {
+  logFillCount(args.logger, args.discovery.targets.size);
+  const validation = validateCredentials(args.config.fields, args.creds);
+  if (!validation.success) return validation;
+  const fillResult = await fillFieldsFromDiscovery(args);
+  if (!fillResult.success) return fillResult;
+  return succeed(true);
 }
 
 /**
  * Fill from PRE-resolved field discovery + submit via sealed executor.
  * No field resolution in ACTION — all targets come from PRE discovery.
+ * Mirrors `fillAndSubmit` shape: propagates click-failure when Enter
+ * never fired, and refuses to claim success when nothing fired at all.
  * @param args - Bundled fill-from-discovery arguments.
  * @returns Procedure with ISubmitResult.
  */
 async function fillFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Procedure<ISubmitResult>> {
-  const { executor, logger, discovery } = args;
-  const count = String(discovery.targets.size);
-  logger.debug({ message: `filling ${count} fields` });
-  const validation = validateCredentials(args.config.fields, args.creds);
-  if (!validation.success) return validation;
-  const fillResult = await fillFieldsFromDiscovery(args);
-  if (!fillResult.success) return fillResult;
-  const didEnter = await tryEnterFromDiscovery(executor, discovery.activeFrameId, logger);
-  const didClick = await tryClickSubmitFromDiscovery(executor, discovery, logger);
-  const method = resolveSubmitMethod(didEnter, didClick);
-  const currentUrl = executor.getCurrentUrl();
-  const maskedUrl = maskVisibleText(currentUrl);
-  logger.debug({ method, url: maskedUrl });
+  const prereqs = await runDiscoveryPrereqs(args);
+  if (!prereqs.success) return prereqs;
+  const submit = await submitViaDiscovery(args);
+  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
+  const gate = gateNoSubmitSignal(submit);
+  if (!gate.success) return gate;
+  const method = resolveSubmitFromPhase(submit);
+  logSubmitResult(args.logger, args.executor, method);
   return succeed({ success: true, method });
 }
 

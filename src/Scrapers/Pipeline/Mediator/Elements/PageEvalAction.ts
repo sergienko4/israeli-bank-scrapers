@@ -6,7 +6,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toError } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IPageEvalAllOpts, IPageEvalOpts } from './ElementsInteractions.js';
 
@@ -27,6 +27,25 @@ async function waitForReadyState(ctx: Page | Frame): Promise<boolean> {
 }
 
 /**
+ * Shared error logger for the pageEval/pageEvalAll catch arms.
+ * Uses {@link toError} to safely normalise non-Error throws
+ * (e.g. `throw 'string'`, `throw {…}`, `throw 42`) — the previous
+ * `toErrorMessage(error as Error)` cast crashed when a callback
+ * threw anything other than `Error` or `string`.
+ * @param label - Function name for the log message ('pageEval' / 'pageEvalAll').
+ * @param selector - Selector being evaluated (masked before emit).
+ * @param error - Caught error from the evaluate call.
+ * @returns True after emit (callers discard).
+ */
+function logEvalError(label: string, selector: string, error: unknown): true {
+  const msg = toError(error).message;
+  LOG.debug({
+    message: `${label}(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
+  });
+  return true;
+}
+
+/**
  * Evaluate a callback on all matching elements.
  * @param ctx - The Playwright page or frame.
  * @param opts - Selector, default result, and callback options.
@@ -43,10 +62,7 @@ async function pageEvalAll<TResult>(
   try {
     return await locator.evaluateAll(callback);
   } catch (error) {
-    const msg = toErrorMessage(error as Error);
-    LOG.debug({
-      message: `pageEvalAll(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
-    });
+    logEvalError('pageEvalAll', selector, error);
     return defaultResult;
   }
 }
@@ -68,10 +84,7 @@ async function pageEval<TResult>(
   try {
     return await locator.first().evaluate(callback);
   } catch (error) {
-    const msg = toErrorMessage(error as Error);
-    LOG.debug({
-      message: `pageEval(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
-    });
+    logEvalError('pageEval', selector, error);
     return defaultResult;
   }
 }
