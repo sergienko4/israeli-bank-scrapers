@@ -56,6 +56,27 @@ const UNKNOWN_FORENSICS: IClickForensics = {
 };
 
 /**
+ * Snapshot the clicked element's DOM identity from inside the browser
+ * context. Must be self-contained (no captured closures) — Playwright
+ * serializes the function source for transport. `preClickUrl` is set
+ * by the caller after the evaluate resolves.
+ * @param el - Element captured by the locator.
+ * @param max - Max chars to retain from outerHTML.
+ * @returns Forensic snapshot with `preClickUrl` left as empty string.
+ */
+// prettier-ignore
+function snapshotClickedInBrowser(el: Element, max: number): IClickForensics {
+  const clickedAttrs = { name: el.getAttribute('name') ?? '(none)',
+    type: el.getAttribute('type') ?? '(none)',
+    ariaLabel: el.getAttribute('aria-label') ?? '(none)',
+    title: el.getAttribute('title') ?? '(none)', href: el.getAttribute('href') ?? '(none)' };
+  const ids = { clickedTag: el.tagName, clickedDomId: el.id || '(none)',
+    clickedClasses: el.className || '(none)' };
+  const clickedOuterHtml = (el.outerHTML || '').slice(0, max);
+  return { preClickUrl: '', ...ids, clickedAttrs, clickedOuterHtml };
+}
+
+/**
  * Capture pre-click forensics: page URL + clicked element identity + outerHTML.
  * Always runs (never gated by env) so CI-vs-LOCAL diffs can prove same-element
  * was clicked. The locator is evaluated in-place — same element the click
@@ -70,25 +91,9 @@ async function captureClickForensics(
   frame: Page | Frame,
 ): Promise<IClickForensics> {
   const preClickUrl = frameUrl(frame);
+  const opts = { timeout: ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS };
   return locator
-    .evaluate(
-      (el: Element, max: number): IClickForensics => ({
-        preClickUrl: '',
-        clickedTag: el.tagName,
-        clickedDomId: el.id || '(none)',
-        clickedClasses: el.className || '(none)',
-        clickedAttrs: {
-          name: el.getAttribute('name') ?? '(none)',
-          type: el.getAttribute('type') ?? '(none)',
-          ariaLabel: el.getAttribute('aria-label') ?? '(none)',
-          title: el.getAttribute('title') ?? '(none)',
-          href: el.getAttribute('href') ?? '(none)',
-        },
-        clickedOuterHtml: (el.outerHTML || '').slice(0, max),
-      }),
-      CLICK_OUTER_HTML_MAX,
-      { timeout: ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS },
-    )
+    .evaluate(snapshotClickedInBrowser, CLICK_OUTER_HTML_MAX, opts)
     .then((dom): IClickForensics => ({ ...dom, preClickUrl }))
     .catch((): IClickForensics => ({ ...UNKNOWN_FORENSICS, preClickUrl }));
 }
@@ -129,18 +134,13 @@ interface IEmitForensicsArgs {
  */
 function emitClickForensics(args: IEmitForensicsArgs): true {
   const { tier, selector, frame, forensics } = args;
-  LOG.debug({
-    message: `Tier ${tier}: OK — ${selector}`,
-    tier,
-    selector,
-    preClickUrl: forensics.preClickUrl,
-    postClickUrl: frameUrl(frame),
-    clickedTag: forensics.clickedTag,
-    clickedDomId: forensics.clickedDomId,
-    clickedClasses: forensics.clickedClasses,
-    clickedAttrs: forensics.clickedAttrs,
-    clickedOuterHtml: forensics.clickedOuterHtml,
-  });
+  // prettier-ignore
+  const payload = { message: `Tier ${tier}: OK — ${selector}`, tier, selector,
+    preClickUrl: forensics.preClickUrl, postClickUrl: frameUrl(frame),
+    clickedTag: forensics.clickedTag, clickedDomId: forensics.clickedDomId,
+    clickedClasses: forensics.clickedClasses, clickedAttrs: forensics.clickedAttrs,
+    clickedOuterHtml: forensics.clickedOuterHtml };
+  LOG.debug(payload);
   return true;
 }
 
@@ -185,6 +185,51 @@ function narrowLocator(
 }
 
 /**
+ * Promise.then sentinel — coerces any resolved value to literal `true`.
+ * Centralised so click-cascade tiers don't repeat the inline arrow.
+ * @returns Always `true`.
+ */
+function alwaysTrue(): true {
+  return true;
+}
+
+/**
+ * Promise.catch sentinel — converts any rejection into literal `false`.
+ * Centralised so click-cascade tiers don't repeat the inline arrow.
+ * @returns Always `false`.
+ */
+function alwaysFalse(): false {
+  return false;
+}
+
+/** Bundled args for clickForceCascade — fits the 3-param ceiling. */
+interface IForceCascadeArgs {
+  readonly locator: ReturnType<Page['locator']>;
+  readonly selector: string;
+  readonly frame: Page | Frame;
+}
+
+/**
+ * Force-click cascade: Tier 1 (force) → Tier 2 (dispatchEvent) → Tier 3
+ * (JS evaluate via `evaluateJsClick`). Each tier captures forensics and
+ * emits on success; failures fall through to the next tier.
+ * @param args - Bundled cascade args (locator, selector, frame).
+ * @returns True after a tier succeeds (Tier 3 always returns true).
+ */
+async function clickForceCascade(args: IForceCascadeArgs): Promise<true> {
+  const { locator, selector, frame } = args;
+  const forensics = await captureClickForensics(locator, frame);
+  const opts = { force: true, timeout: ELEMENTS_CLICK_TIMEOUT_MS };
+  const didForce = await locator.click(opts).then(alwaysTrue).catch(alwaysFalse);
+  if (didForce) return emitClickForensics({ tier: 'force-1', selector, frame, forensics });
+  LOG.debug({ message: `Tier 1 (force): FAIL — ${selector}` });
+  const didDispatch = await locator.dispatchEvent('click').then(alwaysTrue).catch(alwaysFalse);
+  if (didDispatch) return emitClickForensics({ tier: 'dispatch-2', selector, frame, forensics });
+  LOG.debug({ message: `Tier 2 (dispatch): FAIL — ${selector}` });
+  return evaluateJsClick(locator, selector, frame);
+}
+
+/**
  * Click an element via Playwright locator with human-like delay.
  * Captures click forensics (pre/post URL + DOM identity + outerHTML) before
  * each tier so CI-vs-LOCAL divergence can be proven from logs alone.
@@ -197,20 +242,7 @@ async function clickElementImpl(args: IClickArgs): Promise<true> {
   const base = frame.locator(selector);
   const locator = narrowLocator(base, nth);
   if (!isForce) return clickNaturalPath(locator, selector, frame);
-  const forensics = await captureClickForensics(locator, frame);
-  const didForceClick = await locator
-    .click({ force: true, timeout: ELEMENTS_CLICK_TIMEOUT_MS })
-    .then((): true => true)
-    .catch((): false => false);
-  if (didForceClick) return emitClickForensics({ tier: 'force-1', selector, frame, forensics });
-  LOG.debug({ message: `Tier 1 (force): FAIL — ${selector}` });
-  const didDispatch = await locator
-    .dispatchEvent('click')
-    .then((): true => true)
-    .catch((): false => false);
-  if (didDispatch) return emitClickForensics({ tier: 'dispatch-2', selector, frame, forensics });
-  LOG.debug({ message: `Tier 2 (dispatch): FAIL — ${selector}` });
-  return evaluateJsClick(locator, selector, frame);
+  return clickForceCascade({ locator, selector, frame });
 }
 
 /**
@@ -233,21 +265,17 @@ async function clickNaturalPath(
 }
 
 /**
- * Tier 3: JS-level el.click() — bypasses coordinates entirely.
- * Triggers Angular Zone.js handlers directly on the element.
- * @param locator - Playwright locator for the element.
- * @param selector - Selector string for logging.
- * @returns True after JS click.
+ * Browser-side click helper passed to `locator.evaluate`. Must be
+ * self-contained (no captured closures) — Playwright serializes the
+ * function source for transport.
+ * @param el - The element to click.
+ * @returns Always `true`.
  */
-/**
- * Tier 3: JS-level el.click() — bypasses coordinates entirely.
- * Uses short timeout. If locator.evaluate fails, falls back to
- * frame.evaluate with aria-label query (no Playwright selector).
- * @param locator - Playwright locator for the element.
- * @param selector - Selector string for logging.
- * @param frame - Page or Frame for direct DOM fallback.
- * @returns True after JS click.
- */
+function browserClickElement(el: HTMLElement): true {
+  el.click();
+  return true;
+}
+
 /**
  * Tier 3: JS-level el.click() — bypasses coordinates entirely.
  * Always called with a frame from `clickElementImpl`; emits full click
@@ -265,20 +293,29 @@ async function evaluateJsClick(
 ): Promise<true> {
   LOG.debug({ message: `Tier 3 (JS evaluate): attempting — ${selector}` });
   const forensics = await captureClickForensics(locator, frame);
-  const didEval = await locator
-    .evaluate(
-      (el: HTMLElement): true => {
-        el.click();
-        return true;
-      },
-      null,
-      { timeout: ELEMENTS_EVALUATE_TIMEOUT_MS },
-    )
-    .then((): true => true)
-    .catch((): false => false);
+  const opts = { timeout: ELEMENTS_EVALUATE_TIMEOUT_MS };
+  const ev = locator.evaluate(browserClickElement, null, opts);
+  const didEval = await ev.then(alwaysTrue).catch(alwaysFalse);
   if (didEval) return emitClickForensics({ tier: 'evaluate-3', selector, frame, forensics });
   LOG.debug({ message: 'Tier 3 (JS evaluate): locator timeout — trying DOM query' });
   await clickViaAriaLabel(frame, selector);
+  return true;
+}
+
+/**
+ * Browser-side click helper passed to `frame.evaluate` — queries all
+ * `button[aria-label="…"]` matches and clicks the LAST one (matching the
+ * original `.at(-1)` semantics for modern nav). Must be self-contained
+ * (no captured closures) — Playwright serializes the function source.
+ * @param label - aria-label attribute value extracted from the selector.
+ * @returns Always `true`.
+ */
+function browserClickLastAriaLabel(label: string): true {
+  const sel = `button[aria-label="${label}"]`;
+  const nodeList = document.querySelectorAll<HTMLElement>(sel);
+  const buttons = Array.from(nodeList);
+  const lastBtn = buttons.at(-1);
+  if (lastBtn) lastBtn.click();
   return true;
 }
 
@@ -297,15 +334,7 @@ async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise
   }
   const ariaLabel = ariaMatch[1];
   LOG.debug({ message: `Tier 4 (DOM query): clicking aria-label="${ariaLabel}"` });
-  await frame
-    .evaluate((label: string): true => {
-      const nodeList = document.querySelectorAll<HTMLElement>(`button[aria-label="${label}"]`);
-      const buttons = Array.from(nodeList);
-      const lastBtn = buttons.at(-1);
-      if (lastBtn) lastBtn.click();
-      return true;
-    }, ariaLabel)
-    .catch((): false => false);
+  await frame.evaluate(browserClickLastAriaLabel, ariaLabel).catch(alwaysFalse);
   return true;
 }
 
@@ -488,12 +517,8 @@ function raceResultToTarget(result: IRaceResult, page: Page): IResolvedTarget | 
   const contextId: string = computeContextId(result.context, page);
   const fromIdentity = result.identity && buildIdentitySelector(result.identity);
   const selector = fromIdentity || candidateToSelector(result.candidate);
-  return {
-    selector,
-    contextId,
-    kind: result.candidate.kind,
-    candidateValue: result.candidate.value,
-  };
+  const { kind, value: candidateValue } = result.candidate;
+  return { selector, contextId, kind, candidateValue };
 }
 
 export type { FrameRegistryMap } from './FrameRegistry.js';
