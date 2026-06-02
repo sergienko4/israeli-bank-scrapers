@@ -59,16 +59,23 @@ export const EMPTY_METADATA: IElementMetadata = { ...EMPTY_DOM_PROPS, isVisible:
 /**
  * Browser-side callback for `extractDomProps` — must be self-contained
  * (no captured closures). Playwright serializes the function source for
- * transport into the page context.
+ * transport into the page context. Non-input elements (button, anchor,
+ * div) default type/name/placeholder to '' so IRawDomProps' contract of
+ * no `undefined` values is honoured uniformly. Tag-name check is used
+ * over `instanceof HTMLInputElement` so the function works in jsdom
+ * test contexts that don't expose the global constructor.
  * @param el - DOM element resolved by the locator.
  * @returns Raw DOM properties bundle.
  */
 function snapshotDomPropsInBrowser(el: Element): IRawDomProps {
-  const input = el as HTMLInputElement;
-  const ids = { id: el.id, className: el.className, tagName: el.tagName.toLowerCase() };
-  const formAttrs = { type: input.type, name: input.name, formId: el.closest('form')?.id ?? '' };
+  const tagName = el.tagName.toLowerCase();
+  const input = tagName === 'input' ? (el as HTMLInputElement) : null;
+  const inputProps = input
+    ? { type: input.type, name: input.name, placeholder: input.placeholder }
+    : { type: '', name: '', placeholder: '' };
+  const formId = el.closest('form')?.id ?? '';
   const ariaLabel = el.getAttribute('aria-label') ?? '';
-  return { ...ids, ...formAttrs, ariaLabel, placeholder: input.placeholder };
+  return { id: el.id, className: el.className, tagName, ...inputProps, formId, ariaLabel };
 }
 
 /**
