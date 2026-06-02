@@ -2014,6 +2014,95 @@ export default tseslint.config(
     },
   },
 
+  // 14b. PHASE 2 LOCKDOWN (commit `chore(eslint): lockdown Phase 2 clusters at canonical 10 statements`).
+  //
+  // Phase 2 (commits 3533ed97 / ec30d4ad / 01cdcebf / 53809048) extracted
+  // 194 over-cap functions across 55 files in the Mediator/ tree down to
+  // ≤10-statement bodies. The four override blocks below pin all 19
+  // Mediator/ sub-clusters touched in Phase 2 to the canonical 10-statement
+  // ceiling.
+  //
+  // Rule choice — `max-statements: 10` (NOT `max-lines-per-function: 10`).
+  // The §14 Init/ block uses `max-lines-per-function` and works because
+  // Init/ uses single-line typed signatures (params fit on one line).
+  // Phase 2 clusters use multi-line typed signatures (clearer for
+  // wider param lists) which inflate `max-lines-per-function`'s count
+  // past 10 even when the body is ≤10 statements. `max-statements`
+  // measures only the body — the exact dimension Phase 2 drove. This
+  // matches the probe semantics that drove the refactor work.
+  //
+  // File caps (`max-lines: 150`) are NOT applied here — several Phase 2
+  // files remain 1000-1800 LoC (DashboardPhaseActions.ts at 1861, etc.).
+  // File-split hardening is deferred to a future Phase 2f sub-phase per
+  // the §15 Init/ precedent ("hardening lands in a separate commit once
+  // the helpers are stable").
+  //
+  // Canaries (one per cluster) live alongside in EslintCanaries/:
+  //   • mediator-api-selector-fn-over-cap.canary.ts
+  //   • mediator-dashboard-fn-over-cap.canary.ts
+  //   • mediator-auth-fn-over-cap.canary.ts
+  //   • mediator-residue-fn-over-cap.canary.ts
+
+  // 14b.1. Phase 2b cluster — Api + ApiDirectCall + Selector.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Api/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/ApiDirectCall/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Selector/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-api-selector-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // 14b.2. Phase 2c cluster — Dashboard.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Dashboard/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-dashboard-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // 14b.3. Phase 2d cluster — Login + PreLogin + AuthDiscovery.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Login/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/PreLogin/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/AuthDiscovery/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-auth-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // 14b.4. Phase 2e cluster — 11 residue sub-clusters (incl. full Scrape/).
+  // Last-wins applies the 10-statement cap to the entire Phase 2e drain
+  // surface, while leaving §12's `max-lines: 150` (file cap) intact.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/BalanceResolve/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/AccountResolve/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/OtpFill/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/OtpTrigger/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Otp/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Browser/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Home/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Credentials/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Terminate/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Timing/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-statements': ['error', 10],
+    },
+  },
+
   // 15. PHASE 3 COMMON ↔ PIPELINE UNIFICATION GUARD — Commit 11 (refactor/phase-3-common-unify).
   //
   // Closes Phase 3 Probe 3.4 (Pipeline → Common runtime imports = 0). Phase 3
