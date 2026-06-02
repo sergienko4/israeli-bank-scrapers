@@ -430,6 +430,33 @@ function buildExactTextLocators(scope: LocatorContext, value: string): Locator[]
   return [scope.getByText(value, { exact: true })];
 }
 
+/**
+ * css candidate: raw CSS selector — wrap in a single Playwright locator
+ * so the candidate is treated as a selector (not as visible text).
+ * Restored after the dispatch-table refactor accidentally routed `css`
+ * candidates through the unknown-kind `getByText` fallback.
+ * @param scope - Locator context.
+ * @param value - Raw CSS selector string.
+ * @returns Single-element locator array.
+ */
+function buildCssLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.locator(value)];
+}
+
+/**
+ * labelText candidate: resolve to the form control associated with the
+ * given label (Playwright `getByLabel`) — NOT the label's visible text.
+ * Restored after the dispatch-table refactor accidentally routed
+ * `labelText` candidates through the unknown-kind `getByText` fallback,
+ * which targeted the label element itself instead of its bound input.
+ * @param scope - Locator context.
+ * @param value - Visible label text bound to the target control.
+ * @returns Single-element locator array.
+ */
+function buildLabelTextLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByLabel(value)];
+}
+
 /** Dispatch signature for per-kind locator builders. */
 type LocatorKindBuilder = (scope: LocatorContext, value: string, isScoped: boolean) => Locator[];
 
@@ -440,6 +467,8 @@ type LocatorKindBuilder = (scope: LocatorContext, value: string, isScoped: boole
 const LOCATOR_KIND_BUILDERS: Readonly<
   Partial<Record<SelectorCandidate['kind'], LocatorKindBuilder>>
 > = {
+  css: buildCssLocators,
+  labelText: buildLabelTextLocators,
   textContent: buildWalkUpLocatorsBase,
   clickableText: buildClickableTextLocatorsBase,
   ariaLabel: buildAriaLabelLocators,
@@ -1556,6 +1585,22 @@ async function resolveVisibleInContextImpl(
 }
 
 /**
+ * Force-click the winner of an attached race. Returns whether the click
+ * actually fired — the caller propagates NOT_FOUND_RESULT on failure
+ * instead of silently claiming success. Extracted so the parent body
+ * stays ≤10 LoC while keeping the click-outcome check explicit.
+ * @param locator - Winner locator from the attached race.
+ * @param timeoutMs - Force-click timeout in milliseconds.
+ * @returns True when the click resolved without throwing.
+ */
+async function tryForceClick(locator: Locator, timeoutMs: number): Promise<boolean> {
+  return locator
+    .click({ force: true, timeout: timeoutMs })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
  * Fallback path for resolveAndClickImpl when no element passed the
  * "visible" hit-test race: try a force-click against the FIRST attached
  * candidate. Extracted so the parent body stays ≤10 LoC.
@@ -1571,8 +1616,8 @@ async function tryAttachedClickFallback(
   const locators = entries.map((e): Locator => e.locator);
   const winnerIdx = await raceLocators(locators, effectiveTimeout, 'attached');
   if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
-  const clickOpts = { force: true, timeout: effectiveTimeout };
-  await entries[winnerIdx].locator.click(clickOpts).catch((): false => false);
+  const didClick = await tryForceClick(entries[winnerIdx].locator, effectiveTimeout);
+  if (!didClick) return succeed(NOT_FOUND_RESULT);
   return succeed(await enrichWinnerToResult(entries[winnerIdx], winnerIdx));
 }
 
