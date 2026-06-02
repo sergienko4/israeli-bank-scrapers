@@ -1005,32 +1005,28 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
 }
 
 /**
- * Browser-context snapshot of an element's DOM identity + bounded outerHTML.
- * Defined as a top-level named function so the evaluate-callback boundary is
- * type-checked separately from its caller (and so the caller body stays
- * ≤10 LoC). Runs inside `locator.evaluate(...)` — must not close over Node
- * lexicals other than the explicit `max` argument.
- * @param el - The DOM element under inspection (browser context).
- * @param max - Max length for the outerHTML snippet.
- * @returns Verbose identity payload.
- */
-/**
  * Capture the resolved element's identity payload (browser-side eval).
  * Must be a top-level pure function (no captured closures) so Playwright's
- * evaluate serialization can transport it. Declarative attribute snapshot —
- * `prettier-ignore` keeps the object literal flat so the function body fits
- * under the strict 10-LoC cluster cap without exempting the rule.
- * @param el - Resolved DOM element.
- * @param max - Maximum outerHTML snippet length.
- * @returns Verbose identity payload.
+ * `evaluate(...)` serialization can transport it. The caller body stays
+ * ≤10 LoC by delegating attribute extraction and outerHTML truncation to
+ * this helper.
+ * @param el - The DOM element under inspection (browser context).
+ * @param max - Max length for the outerHTML snippet.
+ * @returns Verbose identity payload (identity bundle + bounded outerHTML).
  */
 function snapshotIdentityInBrowser(el: Element, max: number): IIdentityVerbose {
-  // prettier-ignore
-  const i = { tag: el.tagName, id: el.id || '(none)', classes: el.className || '(none)',
-    name: el.getAttribute('name') ?? '(none)', type: el.getAttribute('type') ?? '(none)',
+  const identity = {
+    tag: el.tagName,
+    id: el.id || '(none)',
+    classes: el.className || '(none)',
+    name: el.getAttribute('name') ?? '(none)',
+    type: el.getAttribute('type') ?? '(none)',
     ariaLabel: el.getAttribute('aria-label') ?? '(none)',
-    title: el.getAttribute('title') ?? '(none)', href: el.getAttribute('href') ?? '(none)' };
-  return { identity: i, outerHtml: (el.outerHTML || '').slice(0, max) };
+    title: el.getAttribute('title') ?? '(none)',
+    href: el.getAttribute('href') ?? '(none)',
+  };
+  const outerHtml = (el.outerHTML || '').slice(0, max);
+  return { identity, outerHtml };
 }
 
 /**
@@ -1049,18 +1045,28 @@ async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVe
 
 /**
  * Build the LOG.debug payload from the identity bundle. Top-level so the
- * caller stays under the 10-LoC cluster cap without exempting the rule.
+ * caller (`traceElementIdentity`) stays under cap by delegating both the
+ * sub-attrs projection and the outer-shape composition here.
  * @param identity - Element identity bundle.
  * @param outerHtml - Bounded outerHTML snippet.
  * @returns Pino-shaped object ready for LOG.debug.
  */
 function buildIdentityLogPayload(identity: IElementIdentity, outerHtml: string): object {
-  // prettier-ignore
-  const attrs = { name: identity.name, type: identity.type, ariaLabel: identity.ariaLabel,
-    title: identity.title, href: identity.href };
-  // prettier-ignore
-  return { tag: identity.tag, domId: identity.id, classes: identity.classes,
-    attrs, outerHtml, visibility: 'visible' };
+  const attrs = {
+    name: identity.name,
+    type: identity.type,
+    ariaLabel: identity.ariaLabel,
+    title: identity.title,
+    href: identity.href,
+  };
+  return {
+    tag: identity.tag,
+    domId: identity.id,
+    classes: identity.classes,
+    attrs,
+    outerHtml,
+    visibility: 'visible',
+  };
 }
 
 /**
