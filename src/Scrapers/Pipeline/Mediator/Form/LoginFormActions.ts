@@ -366,7 +366,18 @@ async function tryEnterFromDiscovery(
 }
 
 /**
- * Try clicking the submit button via sealed executor using pre-resolved target.
+ * Map a clickElement rejection to a uniform Procedure failure.
+ * Extracted from tryClickSubmitFromDiscovery to keep its body ≤10 LoC.
+ * @param error - Rejection value from the click promise.
+ * @returns Failure with normalized "click rejected: …" message.
+ */
+function mapClickRejection(error: unknown): Procedure<boolean> {
+  const msg = error instanceof Error ? error.message : String(error);
+  return fail(ScraperErrorTypes.Generic, `click rejected: ${msg}`);
+}
+
+/**
+ * Try clicking the submit button from a PRE-resolved discovery target.
  * Mirrors `tryClickSubmit` shape so the discovery path reports real
  * click outcomes instead of swallowing errors silently.
  * @param executor - Sealed action mediator.
@@ -382,15 +393,11 @@ async function tryClickSubmitFromDiscovery(
 ): Promise<Procedure<boolean>> {
   if (!discovery.submitTarget.has) return succeed(false);
   const target = discovery.submitTarget.value;
-  const masked = maskVisibleText(target.candidateValue);
-  logger.debug({ method: 'click', url: masked });
+  logger.debug({ method: 'click', url: maskVisibleText(target.candidateValue) });
   return executor
     .clickElement({ contextId: target.contextId, selector: target.selector })
     .then((): Procedure<boolean> => succeed(true))
-    .catch((error: unknown): Procedure<boolean> => {
-      const msg = error instanceof Error ? error.message : String(error);
-      return fail(ScraperErrorTypes.Generic, `click rejected: ${msg}`);
-    });
+    .catch(mapClickRejection);
 }
 
 /**
@@ -417,6 +424,34 @@ function didAnySubmitFire(submit: ISubmitPhaseResult): boolean {
 }
 
 /**
+ * Gate the no-submit-signal branch — returns a failure when neither
+ * Enter nor Click fired (phantom-success guard). Extracted from
+ * fillFromDiscovery to keep its body ≤10 LoC.
+ * @param submit - Submit-phase bundle.
+ * @returns succeed(true) when at least one signal fired; failure otherwise.
+ */
+function gateNoSubmitSignal(submit: ISubmitPhaseResult): Procedure<true> {
+  if (didAnySubmitFire(submit)) return succeed(true);
+  return fail(ScraperErrorTypes.Generic, 'No submit signal fired (Enter and click both absent)');
+}
+
+/**
+ * Run the prerequisites for discovery-mode submit: log field count,
+ * validate credentials, and fill all discovered fields. Extracted
+ * from fillFromDiscovery to keep its body ≤10 LoC.
+ * @param args - Bundled fill-from-discovery arguments.
+ * @returns Procedure succeed(true) when ready to submit; failure propagated.
+ */
+async function runDiscoveryPrereqs(args: IFillFromDiscoveryArgs): Promise<Procedure<true>> {
+  logFillCount(args.logger, args.discovery.targets.size);
+  const validation = validateCredentials(args.config.fields, args.creds);
+  if (!validation.success) return validation;
+  const fillResult = await fillFieldsFromDiscovery(args);
+  if (!fillResult.success) return fillResult;
+  return succeed(true);
+}
+
+/**
  * Fill from PRE-resolved field discovery + submit via sealed executor.
  * No field resolution in ACTION — all targets come from PRE discovery.
  * Mirrors `fillAndSubmit` shape: propagates click-failure when Enter
@@ -425,19 +460,14 @@ function didAnySubmitFire(submit: ISubmitPhaseResult): boolean {
  * @returns Procedure with ISubmitResult.
  */
 async function fillFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Procedure<ISubmitResult>> {
-  const { executor, logger } = args;
-  logFillCount(logger, args.discovery.targets.size);
-  const validation = validateCredentials(args.config.fields, args.creds);
-  if (!validation.success) return validation;
-  const fillResult = await fillFieldsFromDiscovery(args);
-  if (!fillResult.success) return fillResult;
+  const prereqs = await runDiscoveryPrereqs(args);
+  if (!prereqs.success) return prereqs;
   const submit = await submitViaDiscovery(args);
   if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
-  if (!didAnySubmitFire(submit)) {
-    return fail(ScraperErrorTypes.Generic, 'No submit signal fired (Enter and click both absent)');
-  }
+  const gate = gateNoSubmitSignal(submit);
+  if (!gate.success) return gate;
   const method = resolveSubmitFromPhase(submit);
-  logSubmitResult(logger, executor, method);
+  logSubmitResult(args.logger, args.executor, method);
   return succeed({ success: true, method });
 }
 
