@@ -29,6 +29,7 @@ import {
   clickElementImpl,
   ELEMENTS_LOADING_DELAY_MS,
   fillInputImpl,
+  type FrameRegistryMap,
   pressEnterImpl,
   resolveFrame,
 } from './ActionExecutors.js';
@@ -1868,6 +1869,218 @@ function snapshotSessionStorage(): Record<string, string> {
   return Object.fromEntries(pairs);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Action-mediator cluster builders — same spread-builders pattern as
+// createElementMediator (Phase 2a C1). Each method is produced by a small
+// named `buildXxx` helper so the cluster body is a flat property table
+// of function-call expressions (no inline arrows, no nested calls). The
+// pass-through wrappers use destructuring shorthand which preserves
+// function identity against the backing IElementMediator.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Frame-bound action methods — fillInput + clickElement + pressEnter. */
+type FrameActionBundle = Pick<IActionMediator, 'fillInput' | 'clickElement' | 'pressEnter'>;
+
+/** Navigation pass-through surfaces — bound to the full mediator. */
+type ActionNavBundle = Pick<
+  IActionMediator,
+  'navigateTo' | 'waitForNetworkIdle' | 'waitForURL' | 'getCurrentUrl'
+>;
+
+/** Cookie + count + href pass-through surfaces — bound to the full mediator. */
+type ActionDataBundle = Pick<
+  IActionMediator,
+  'getCookies' | 'addCookies' | 'countByText' | 'countBySelector' | 'collectAllHrefs'
+>;
+
+/** Combined pass-through bundle — nav + data merged. */
+type ActionPassThroughBundle = ActionNavBundle & ActionDataBundle;
+
+/** sessionStorage snapshot surface — page.evaluate wrapper. */
+type ActionStorageBundle = Pick<IActionMediator, 'collectStorage'>;
+
+/** Network-derived ACTION surfaces — read-only views over full.network. */
+type ActionNetworkBundle = Pick<
+  IActionMediator,
+  'hasTxnEndpoint' | 'waitForTxnEndpoint' | 'markDashboardClickAt'
+>;
+
+/**
+ * Build fillInput — resolves the target frame, then delegates to impl.
+ * @param registry - The immutable frame registry.
+ * @returns Bound fillInput handler.
+ */
+function buildFillInput(registry: FrameRegistryMap): IActionMediator['fillInput'] {
+  return (ctxId, sel, val): Promise<true> => {
+    const frame = resolveFrame(registry, ctxId);
+    return fillInputImpl(frame, sel, val);
+  };
+}
+
+/**
+ * Build clickElement — destructures IClickElementArgs and forwards to the
+ * impl with a resolved frame.
+ * @param registry - The immutable frame registry.
+ * @returns Bound clickElement handler.
+ */
+function buildClickElement(registry: FrameRegistryMap): IActionMediator['clickElement'] {
+  return (args): Promise<true> => {
+    const frame = resolveFrame(registry, args.contextId);
+    return clickElementImpl({
+      frame,
+      selector: args.selector,
+      isForce: args.isForce,
+      nth: args.nth,
+    });
+  };
+}
+
+/**
+ * Build pressEnter — resolves the target frame, then delegates to impl.
+ * @param registry - The immutable frame registry.
+ * @returns Bound pressEnter handler.
+ */
+function buildPressEnter(registry: FrameRegistryMap): IActionMediator['pressEnter'] {
+  return (ctxId): Promise<true> => {
+    const frame = resolveFrame(registry, ctxId);
+    return pressEnterImpl(frame);
+  };
+}
+
+/**
+ * Build the 3-method frame-bound execution cluster. Each method is a
+ * function-call expression — no inline arrows.
+ * @param registry - The immutable frame registry.
+ * @returns Frame-action method bundle.
+ */
+function buildFrameActionCluster(registry: FrameRegistryMap): FrameActionBundle {
+  return {
+    fillInput: buildFillInput(registry),
+    clickElement: buildClickElement(registry),
+    pressEnter: buildPressEnter(registry),
+  };
+}
+
+/**
+ * Build the 4-method navigation pass-through cluster. Wraps the matching
+ * methods on `full` so the cluster shape stays a flat property table.
+ * @param full - The backing full IElementMediator.
+ * @returns Navigation pass-through bundle.
+ */
+function buildActionNavCluster(full: IElementMediator): ActionNavBundle {
+  return {
+    /** @inheritdoc */
+    navigateTo: (...args) => full.navigateTo(...args),
+    /** @inheritdoc */
+    waitForNetworkIdle: (...args) => full.waitForNetworkIdle(...args),
+    /** @inheritdoc */
+    waitForURL: (...args) => full.waitForURL(...args),
+    /** @inheritdoc */
+    getCurrentUrl: () => full.getCurrentUrl(),
+  };
+}
+
+/**
+ * Build the 5-method cookie + count + href pass-through cluster.
+ * Wraps the matching methods on `full` so the cluster shape stays a flat
+ * property table.
+ * @param full - The backing full IElementMediator.
+ * @returns Data-surface pass-through bundle.
+ */
+function buildActionDataCluster(full: IElementMediator): ActionDataBundle {
+  return {
+    /** @inheritdoc */
+    getCookies: () => full.getCookies(),
+    /** @inheritdoc */
+    addCookies: (...args) => full.addCookies(...args),
+    /** @inheritdoc */
+    countByText: (...args) => full.countByText(...args),
+    /** @inheritdoc */
+    countBySelector: (...args) => full.countBySelector(...args),
+    /** @inheritdoc */
+    collectAllHrefs: () => full.collectAllHrefs(),
+  };
+}
+
+/**
+ * Build the 9-method pass-through cluster — merges nav + data sub-clusters.
+ * Identity-preserving (same function references as the backing `full`).
+ * @param full - The backing full IElementMediator.
+ * @returns Action pass-through method bundle.
+ */
+function buildActionPassThroughCluster(full: IElementMediator): ActionPassThroughBundle {
+  return { ...buildActionNavCluster(full), ...buildActionDataCluster(full) };
+}
+
+/**
+ * Build collectStorage — snapshots sessionStorage via page.evaluate.
+ * @param page - The Playwright page that will execute the snapshot.
+ * @returns Bound collectStorage handler.
+ */
+function buildCollectStorage(page: Page): IActionMediator['collectStorage'] {
+  return async (): Promise<Readonly<Record<string, string>>> =>
+    page.evaluate(snapshotSessionStorage);
+}
+
+/**
+ * Build the 1-method sessionStorage snapshot cluster.
+ * @param page - The Playwright page that will execute the snapshot.
+ * @returns Storage-collection method bundle.
+ */
+function buildActionStorageCluster(page: Page): ActionStorageBundle {
+  return { collectStorage: buildCollectStorage(page) };
+}
+
+/**
+ * Build hasTxnEndpoint — reports whether the transactions endpoint has
+ * been discovered yet on `full.network`.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Bound hasTxnEndpoint handler.
+ */
+function buildHasTxnEndpoint(full: IElementMediator): IActionMediator['hasTxnEndpoint'] {
+  return (): boolean => full.network.discoverTransactionsEndpoint() !== false;
+}
+
+/**
+ * Build waitForTxnEndpoint — awaits the transactions traffic on
+ * `full.network` and normalises the result to a boolean.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Bound waitForTxnEndpoint handler.
+ */
+function buildWaitForTxnEndpoint(full: IElementMediator): IActionMediator['waitForTxnEndpoint'] {
+  return async (timeoutMs): Promise<boolean> => {
+    const hit = await full.network.waitForTransactionsTraffic(timeoutMs);
+    return hit !== false;
+  };
+}
+
+/**
+ * Build markDashboardClickAt — forwards the click timestamp into
+ * `full.network` to seed the post-AUTH transactions watcher.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Bound markDashboardClickAt handler.
+ */
+function buildMarkDashboardClickAt(
+  full: IElementMediator,
+): IActionMediator['markDashboardClickAt'] {
+  return (timestampMs): true => full.network.markDashboardClickAt(timestampMs);
+}
+
+/**
+ * Build the 3-method network-derived ACTION cluster. Each method reads or
+ * mutates the closure-scoped `full.network` discovery state without
+ * exposing the full discovery surface to ACTION callers.
+ * @param full - The backing full IElementMediator (for `full.network`).
+ * @returns Network-bound action method bundle.
+ */
+function buildActionNetworkCluster(full: IElementMediator): ActionNetworkBundle {
+  return {
+    hasTxnEndpoint: buildHasTxnEndpoint(full),
+    waitForTxnEndpoint: buildWaitForTxnEndpoint(full),
+    markDashboardClickAt: buildMarkDashboardClickAt(full),
+  };
+}
+
 /**
  * Extract a sealed IActionMediator from a full IElementMediator.
  * Builds a closure-scoped frame registry — private, immutable.
@@ -1879,56 +2092,10 @@ function snapshotSessionStorage(): Record<string, string> {
 function extractActionMediator(full: IElementMediator, page: Page): IActionMediator {
   const registry = buildFrameRegistry(page);
   return {
-    /** @inheritdoc */
-    fillInput: (ctxId: string, sel: string, val: string): Promise<true> => {
-      const frame = resolveFrame(registry, ctxId);
-      return fillInputImpl(frame, sel, val);
-    },
-    /** @inheritdoc */
-    clickElement: (args): Promise<true> => {
-      const frame = resolveFrame(registry, args.contextId);
-      return clickElementImpl({
-        frame,
-        selector: args.selector,
-        isForce: args.isForce,
-        nth: args.nth,
-      });
-    },
-    /** @inheritdoc */
-    pressEnter: (ctxId: string): Promise<true> => {
-      const frame = resolveFrame(registry, ctxId);
-      return pressEnterImpl(frame);
-    },
-    /** @inheritdoc */
-    navigateTo: (...args) => full.navigateTo(...args),
-    /** @inheritdoc */
-    waitForNetworkIdle: (...args) => full.waitForNetworkIdle(...args),
-    /** @inheritdoc */
-    waitForURL: (...args) => full.waitForURL(...args),
-    /** @inheritdoc */
-    getCurrentUrl: () => full.getCurrentUrl(),
-    /** @inheritdoc */
-    countByText: (...args) => full.countByText(...args),
-    /** @inheritdoc */
-    countBySelector: (...args) => full.countBySelector(...args),
-    /** @inheritdoc */
-    getCookies: () => full.getCookies(),
-    /** @inheritdoc */
-    addCookies: (...args) => full.addCookies(...args),
-    /** @inheritdoc */
-    collectAllHrefs: () => full.collectAllHrefs(),
-    /** @inheritdoc */
-    collectStorage: async () => page.evaluate(snapshotSessionStorage),
-    /** @inheritdoc */
-    hasTxnEndpoint: (): boolean => full.network.discoverTransactionsEndpoint() !== false,
-    /** @inheritdoc */
-    waitForTxnEndpoint: async (timeoutMs: number): Promise<boolean> => {
-      const hit = await full.network.waitForTransactionsTraffic(timeoutMs);
-      return hit !== false;
-    },
-    /** @inheritdoc */
-    markDashboardClickAt: (timestampMs: number): true =>
-      full.network.markDashboardClickAt(timestampMs),
+    ...buildFrameActionCluster(registry),
+    ...buildActionPassThroughCluster(full),
+    ...buildActionStorageCluster(page),
+    ...buildActionNetworkCluster(full),
   };
 }
 
