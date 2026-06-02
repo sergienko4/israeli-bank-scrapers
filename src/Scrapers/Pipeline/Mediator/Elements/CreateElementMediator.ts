@@ -1305,18 +1305,59 @@ async function resolveAllVisibleImpl(args: IResolveAllArgs): Promise<readonly IR
   if (entries.length === 0) return [];
   const locators = entries.map((e): Locator => e.locator);
   const effectiveTimeout = capTimeout(args.timeout);
-  const countStr = String(locators.length);
-  const timeoutStr = String(effectiveTimeout);
-  const capStr = String(args.cap);
-  LOG.debug({
-    message: `resolveAllVisible: ${countStr} locators, timeout=${timeoutStr}ms, cap=${capStr}`,
-  });
+  logResolveProbe(`resolveAllVisible (cap=${String(args.cap)})`, locators.length, effectiveTimeout);
   const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
   traceRaceDiagnostic(entries, diag);
   const fulfilled = diag.fulfilledIndices;
   if (fulfilled.length === 0) return [];
-  const result = await extractWinnerSequence({ entries, indices: fulfilled, cap: args.cap });
-  return result;
+  return extractWinnerSequence({ entries, indices: fulfilled, cap: args.cap });
+}
+
+/**
+ * Build IRaceResult entries from a list of WK selector candidates within a
+ * SINGLE Page or Frame context. Each candidate may produce multiple base
+ * locators; the result list pairs every locator with its source candidate
+ * and the context it was bound to.
+ * @param ctx - The Playwright Page or Frame to resolve against.
+ * @param candidates - WellKnown selector candidates to expand.
+ * @returns Flat list of ILocatorEntry — one per base locator.
+ */
+function buildContextEntries(
+  ctx: Page | Frame,
+  candidates: readonly SelectorCandidate[],
+): readonly ILocatorEntry[] {
+  return candidates.flatMap((c): ILocatorEntry[] =>
+    buildCandidateLocators(ctx, c).map(
+      (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
+    ),
+  );
+}
+
+/**
+ * Emit a structured "N locators racing with Tms budget" debug log used by
+ * every resolveImpl variant so log output is uniform.
+ * @param label - Label naming the caller (e.g. `resolveVisibleInContext`).
+ * @param count - Locator count.
+ * @param timeoutMs - Effective race timeout (post-capTimeout).
+ * @returns Sentinel `true` once the log has been emitted.
+ */
+function logResolveProbe(label: string, count: number, timeoutMs: number): true {
+  LOG.debug({ message: `${label}: ${String(count)} locators, ${String(timeoutMs)}ms` });
+  return true;
+}
+
+/**
+ * Enrich a winning entry into a fully populated IRaceResult by extracting
+ * the DOM identity (with debug trace), snapshotting the value, and bundling
+ * the index. Shared by all resolveImpl variants that need a single winner.
+ * @param entry - The winning locator entry.
+ * @param index - The winner index returned by the race.
+ * @returns Fully populated IRaceResult.
+ */
+async function enrichWinnerToResult(entry: ILocatorEntry, index: number): Promise<IRaceResult> {
+  const identity = await extractAndTraceIdentity(entry);
+  const value = await snapshotValue(entry);
+  return buildFoundResult(entry, { index, value, identity });
 }
 
 /**
@@ -1332,26 +1373,36 @@ async function resolveVisibleInContextImpl(
   candidates: readonly SelectorCandidate[],
   timeout: number,
 ): Promise<IRaceResult> {
-  const entries = candidates.flatMap((c): ILocatorEntry[] =>
-    buildCandidateLocators(ctx, c).map(
-      (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
-    ),
-  );
+  const entries = buildContextEntries(ctx, candidates);
   if (entries.length === 0) return NOT_FOUND_RESULT;
   const locators = entries.map((e): Locator => e.locator);
   const effectiveTimeout = capTimeout(timeout);
-  const countStr = String(locators.length);
-  const timeoutStr = String(effectiveTimeout);
-  LOG.debug({
-    message: `resolveVisibleInContext: ${countStr} locators, ${timeoutStr}ms`,
-  });
+  logResolveProbe('resolveVisibleInContext', locators.length, effectiveTimeout);
   const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
   traceRaceDiagnostic(entries, diag);
   if (diag.winner < 0) return NOT_FOUND_RESULT;
-  const winner = entries[diag.winner];
-  const identity = await extractAndTraceIdentity(winner);
-  const value = await snapshotValue(winner);
-  return buildFoundResult(winner, { index: diag.winner, value, identity });
+  return enrichWinnerToResult(entries[diag.winner], diag.winner);
+}
+
+/**
+ * Fallback path for resolveAndClickImpl when no element passed the
+ * "visible" hit-test race: try a force-click against the FIRST attached
+ * candidate. Extracted so the parent body stays ≤10 LoC.
+ * @param args - Bundled page + candidates + formAnchor.
+ * @param effectiveTimeout - Already-capped race timeout (ms).
+ * @returns Procedure wrapping the attached IRaceResult (or NOT_FOUND).
+ */
+async function tryAttachedClickFallback(
+  args: IClickResolveArgs,
+  effectiveTimeout: number,
+): Promise<Procedure<IRaceResult>> {
+  const entries = buildLocatorEntries(args.page, args.candidates, args.formAnchor);
+  const locators = entries.map((e): Locator => e.locator);
+  const winnerIdx = await raceLocators(locators, effectiveTimeout, 'attached');
+  if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
+  const clickOpts = { force: true, timeout: effectiveTimeout };
+  await entries[winnerIdx].locator.click(clickOpts).catch((): false => false);
+  return succeed(await enrichWinnerToResult(entries[winnerIdx], winnerIdx));
 }
 
 /**
@@ -1365,32 +1416,13 @@ async function resolveVisibleInContextImpl(
  */
 async function resolveAndClickImpl(args: IClickResolveArgs): Promise<Procedure<IRaceResult>> {
   const effectiveTimeout = capTimeout(args.timeout);
-  const raceArgs: IClickResolveArgs = {
-    page: args.page,
-    candidates: args.candidates,
-    timeout: effectiveTimeout,
-    formAnchor: args.formAnchor,
-  };
+  const raceArgs: IClickResolveArgs = { ...args, timeout: effectiveTimeout };
   const result = await resolveVisibleNthAware(raceArgs);
   if (result.found && result.locator) {
     await result.locator.click({ timeout: effectiveTimeout }).catch((): false => false);
     return succeed(result);
   }
-  // Fallback: attached state — element is in DOM but not visually visible
-  const entries = buildLocatorEntries(args.page, args.candidates, args.formAnchor);
-  const locators = entries.map((e): Locator => e.locator);
-  const winnerIdx = await raceLocators(locators, effectiveTimeout, 'attached');
-  if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
-  const clickOpts = { force: true, timeout: effectiveTimeout };
-  await entries[winnerIdx].locator.click(clickOpts).catch((): false => false);
-  const identity = await extractAndTraceIdentity(entries[winnerIdx]);
-  const snapshot = await snapshotValue(entries[winnerIdx]);
-  const attachedResult = buildFoundResult(entries[winnerIdx], {
-    index: winnerIdx,
-    value: snapshot,
-    identity,
-  });
-  return succeed(attachedResult);
+  return tryAttachedClickFallback(args, effectiveTimeout);
 }
 
 /**
