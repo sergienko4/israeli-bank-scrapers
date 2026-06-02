@@ -220,6 +220,8 @@ async function fillAndSubmit(args: IFillAndSubmitArgs): Promise<Procedure<ISubmi
   const enterCtx = fillResult.frameContext ?? false;
   const submit = await runSubmitPhase({ mediator, config, enterCtx, logger });
   if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
+  const gate = gateNoSubmitSignal(submit);
+  if (!gate.success) return gate;
   const method = resolveSubmitFromPhase(submit);
   logSubmitResult(logger, mediator, method);
   return succeed({ success: true, method });
