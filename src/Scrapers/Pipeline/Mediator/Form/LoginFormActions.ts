@@ -54,6 +54,24 @@ interface IFillAllArgs {
 }
 
 /**
+ * Run the sequential `reduceField` chain over an ordered field list.
+ * Extracted from `fillAllFields` so each function stays under cap.
+ * @param ctx - Fill context bundle.
+ * @param ordered - Fields in password-first order.
+ * @returns Final accumulator with merged scope + procedure.
+ */
+async function runFieldReduce(
+  ctx: IFillContext,
+  ordered: readonly IFieldConfig[],
+): Promise<IFillAccum> {
+  const seed = Promise.resolve<IFillAccum>({ scope: {}, procedure: succeed(true) });
+  return ordered.reduce(
+    (p: Promise<IFillAccum>, f: IFieldConfig): Promise<IFillAccum> => reduceField(ctx, p, f),
+    seed,
+  );
+}
+
+/**
  * Fill all credential fields sequentially via mediator.
  * Returns the resolved frame scope for submit targeting.
  * @param args - Bundled fill-all arguments.
@@ -65,11 +83,7 @@ async function fillAllFields(args: IFillAllArgs): Promise<IFillAllResult> {
   if (!validation.success) return { procedure: validation, frameContext: undefined };
   const ordered = passwordFirst(fields);
   const ctx: IFillContext = { mediator, creds, logger };
-  const seed = Promise.resolve<IFillAccum>({ scope: {}, procedure: succeed(true) });
-  const final = await ordered.reduce(
-    (p: Promise<IFillAccum>, f: IFieldConfig): Promise<IFillAccum> => reduceField(ctx, p, f),
-    seed,
-  );
+  const final = await runFieldReduce(ctx, ordered);
   return { procedure: final.procedure, frameContext: final.scope.ctx };
 }
 
@@ -127,6 +141,72 @@ interface IFillAndSubmitArgs {
 }
 
 /**
+ * Emit a "filling N fields" debug line.
+ * @param logger - Pipeline logger.
+ * @param count - Number of fields about to be filled.
+ * @returns True after emit (callers discard).
+ */
+function logFillCount(logger: ScraperLogger, count: number): true {
+  logger.debug({ message: `filling ${String(count)} fields` });
+  return true;
+}
+
+/**
+ * Emit the post-submit debug line (method + masked current URL).
+ * @param logger - Pipeline logger.
+ * @param source - Anything that exposes `getCurrentUrl()` (mediator or executor).
+ * @param source.getCurrentUrl - URL provider function on the source.
+ * @param method - Submit method that fired (enter / click / both).
+ * @returns True after emit (callers discard).
+ */
+function logSubmitResult(
+  logger: ScraperLogger,
+  source: { readonly getCurrentUrl: () => string },
+  method: SubmitMethod,
+): true {
+  const url = source.getCurrentUrl();
+  const masked = maskVisibleText(url);
+  logger.debug({ method, url: masked });
+  return true;
+}
+
+/** Result bundle returned by `runSubmitPhase`. */
+interface ISubmitPhaseResult {
+  readonly didEnter: boolean;
+  readonly clickResult: Procedure<boolean>;
+}
+
+/** Bundled args for `runSubmitPhase` — fits the 3-param ceiling. */
+interface ISubmitPhaseArgs {
+  readonly mediator: IElementMediator;
+  readonly config: ILoginConfig;
+  readonly enterCtx: Page | Frame | false;
+  readonly logger: ScraperLogger;
+}
+
+/**
+ * Run the Enter + Click submit attempts in order.
+ * Both fire so POST knows what to validate; the caller decides the outcome.
+ * @param args - Bundled submit-phase args.
+ * @returns Bundle of `didEnter` + `clickResult`.
+ */
+async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResult> {
+  const didEnter = await tryEnterSubmit(args.enterCtx, args.logger);
+  const clickResult = await tryClickSubmit(args.mediator, args.config, args.logger);
+  return { didEnter, clickResult };
+}
+
+/**
+ * Convert a submit-phase bundle into the final method label.
+ * @param submit - Result bundle from `runSubmitPhase`.
+ * @returns The submit method that fired (enter / click / both).
+ */
+function resolveSubmitFromPhase(submit: ISubmitPhaseResult): SubmitMethod {
+  const didClick = submit.clickResult.success && submit.clickResult.value;
+  return resolveSubmitMethod(submit.didEnter, didClick);
+}
+
+/**
  * Fill fields then submit — Enter first, then Click.
  * Returns which method fired so POST knows what to validate.
  * @param args - Bundled fill-and-submit arguments.
@@ -134,19 +214,14 @@ interface IFillAndSubmitArgs {
  */
 async function fillAndSubmit(args: IFillAndSubmitArgs): Promise<Procedure<ISubmitResult>> {
   const { mediator, config, creds, logger } = args;
-  const count = String(config.fields.length);
-  logger.debug({ message: `filling ${count} fields` });
+  logFillCount(logger, config.fields.length);
   const fillResult = await fillAllFields({ mediator, fields: config.fields, creds, logger });
   if (!fillResult.procedure.success) return fillResult.procedure;
   const enterCtx = fillResult.frameContext ?? false;
-  const didEnter = await tryEnterSubmit(enterCtx, logger);
-  const clickResult = await tryClickSubmit(mediator, config, logger);
-  if (!clickResult.success && !didEnter) return clickResult;
-  const didClick = clickResult.success && clickResult.value;
-  const method = resolveSubmitMethod(didEnter, didClick);
-  const currentUrl = mediator.getCurrentUrl();
-  const maskedUrl = maskVisibleText(currentUrl);
-  logger.debug({ method, url: maskedUrl });
+  const submit = await runSubmitPhase({ mediator, config, enterCtx, logger });
+  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
+  const method = resolveSubmitFromPhase(submit);
+  logSubmitResult(logger, mediator, method);
   return succeed({ success: true, method });
 }
 
@@ -309,25 +384,34 @@ async function tryClickSubmitFromDiscovery(
 }
 
 /**
+ * Run the discovery-mode submit attempts (Enter + Click) and resolve the
+ * final method label. Mirrors `runSubmitPhase` but uses the discovery
+ * variant tryEnter/tryClick (no mediator-side scoping).
+ * @param args - Bundled fill-from-discovery arguments.
+ * @returns Submit method label.
+ */
+async function submitViaDiscovery(args: IFillFromDiscoveryArgs): Promise<SubmitMethod> {
+  const { executor, logger, discovery } = args;
+  const didEnter = await tryEnterFromDiscovery(executor, discovery.activeFrameId, logger);
+  const didClick = await tryClickSubmitFromDiscovery(executor, discovery, logger);
+  return resolveSubmitMethod(didEnter, didClick);
+}
+
+/**
  * Fill from PRE-resolved field discovery + submit via sealed executor.
  * No field resolution in ACTION — all targets come from PRE discovery.
  * @param args - Bundled fill-from-discovery arguments.
  * @returns Procedure with ISubmitResult.
  */
 async function fillFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Procedure<ISubmitResult>> {
-  const { executor, logger, discovery } = args;
-  const count = String(discovery.targets.size);
-  logger.debug({ message: `filling ${count} fields` });
+  const { executor, logger } = args;
+  logFillCount(logger, args.discovery.targets.size);
   const validation = validateCredentials(args.config.fields, args.creds);
   if (!validation.success) return validation;
   const fillResult = await fillFieldsFromDiscovery(args);
   if (!fillResult.success) return fillResult;
-  const didEnter = await tryEnterFromDiscovery(executor, discovery.activeFrameId, logger);
-  const didClick = await tryClickSubmitFromDiscovery(executor, discovery, logger);
-  const method = resolveSubmitMethod(didEnter, didClick);
-  const currentUrl = executor.getCurrentUrl();
-  const maskedUrl = maskVisibleText(currentUrl);
-  logger.debug({ method, url: maskedUrl });
+  const method = await submitViaDiscovery(args);
+  logSubmitResult(logger, executor, method);
   return succeed({ success: true, method });
 }
 

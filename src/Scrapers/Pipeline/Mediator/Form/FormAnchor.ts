@@ -150,31 +150,15 @@ async function collectAncestorMeta(ctx: Page | Frame, selector: string): Promise
 function mapAncestorTuples(els: Element[]): AncestorTuple[] {
   return els.map((el): AncestorTuple => {
     const p = el.parentElement;
-    const children = p && [...p.children];
-    const sibs = children?.filter((c): boolean => c.tagName === el.tagName);
-    const idx = sibs?.indexOf(el) ?? 0;
-    const cnt = sibs?.length ?? 1;
-    // First non-Angular class (Angular adds dynamic ng-* classes that are
-    // unstable across renders — skip them and keep the first stable one).
-    // This function is serialized to the BROWSER context via Playwright
-    // `evaluateAll` — Node-side constants are not in scope. `String()`
-    // returns the empty-string sentinel for "absent" attributes; downstream
-    // `extractFormAnchorSelector` treats zero-length values as "not present".
+    const sibs = p ? [...p.children].filter((c): boolean => c.tagName === el.tagName) : null;
+    // `String()` is the empty-string sentinel for "absent" attributes;
+    // downstream `extractFormAnchorSelector` treats zero-length values as "not present".
     const absent = String();
-    const allClasses = el.className.split(/\s+/).filter((c): boolean => c.length > 0);
-    const foundClass = allClasses.find((c): boolean => !c.startsWith('ng-'));
-    const stableClass = foundClass ?? absent;
-    const nameAttr = el.getAttribute('name') ?? absent;
-    return [
-      el.tagName,
-      el.id,
-      el.tagName === 'FORM',
-      el.querySelectorAll('input').length,
-      idx,
-      cnt,
-      nameAttr,
-      stableClass,
-    ];
+    const filtered = el.className.split(/\s+/).filter((c): boolean => c.length > 0);
+    const stableClass = filtered.find((c): boolean => !c.startsWith('ng-')) ?? absent;
+    // prettier-ignore
+    return [el.tagName, el.id, el.tagName === 'FORM', el.querySelectorAll('input').length,
+      sibs?.indexOf(el) ?? 0, sibs?.length ?? 1, el.getAttribute('name') ?? absent, stableClass];
   });
 }
 
