@@ -97,9 +97,12 @@ function scanDomErrorsInBrowser({ sel }: IEvalArg): IRawDomItem[] {
     .map((el): IRawDomItem => {
       const cs = globalThis.getComputedStyle(el);
       const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
-      // prettier-ignore
-      return { tag: el.tagName.toLowerCase(), cls: el.getAttribute('class') ?? NO_CLASS,
-        text: (el.textContent || '').trim(), isHidden };
+      return {
+        tag: el.tagName.toLowerCase(),
+        cls: el.getAttribute('class') ?? NO_CLASS,
+        text: (el.textContent || '').trim(),
+        isHidden,
+      };
     });
 }
 
