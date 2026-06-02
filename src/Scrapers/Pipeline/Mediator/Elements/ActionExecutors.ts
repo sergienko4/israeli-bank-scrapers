@@ -64,14 +64,19 @@ const UNKNOWN_FORENSICS: IClickForensics = {
  * @param max - Max chars to retain from outerHTML.
  * @returns Forensic snapshot with `preClickUrl` left as empty string.
  */
-// prettier-ignore
 function snapshotClickedInBrowser(el: Element, max: number): IClickForensics {
-  const clickedAttrs = { name: el.getAttribute('name') ?? '(none)',
+  const clickedAttrs = {
+    name: el.getAttribute('name') ?? '(none)',
     type: el.getAttribute('type') ?? '(none)',
     ariaLabel: el.getAttribute('aria-label') ?? '(none)',
-    title: el.getAttribute('title') ?? '(none)', href: el.getAttribute('href') ?? '(none)' };
-  const ids = { clickedTag: el.tagName, clickedDomId: el.id || '(none)',
-    clickedClasses: el.className || '(none)' };
+    title: el.getAttribute('title') ?? '(none)',
+    href: el.getAttribute('href') ?? '(none)',
+  };
+  const ids = {
+    clickedTag: el.tagName,
+    clickedDomId: el.id || '(none)',
+    clickedClasses: el.className || '(none)',
+  };
   const clickedOuterHtml = (el.outerHTML || '').slice(0, max);
   return { preClickUrl: '', ...ids, clickedAttrs, clickedOuterHtml };
 }
@@ -134,12 +139,19 @@ interface IEmitForensicsArgs {
  */
 function emitClickForensics(args: IEmitForensicsArgs): true {
   const { tier, selector, frame, forensics } = args;
-  // prettier-ignore
-  const payload = { message: `Tier ${tier}: OK — ${selector}`, tier, selector,
-    preClickUrl: forensics.preClickUrl, postClickUrl: frameUrl(frame),
-    clickedTag: forensics.clickedTag, clickedDomId: forensics.clickedDomId,
-    clickedClasses: forensics.clickedClasses, clickedAttrs: forensics.clickedAttrs,
-    clickedOuterHtml: forensics.clickedOuterHtml };
+  const postClickUrl = frameUrl(frame);
+  const payload = {
+    message: `Tier ${tier}: OK — ${selector}`,
+    tier,
+    selector,
+    preClickUrl: forensics.preClickUrl,
+    postClickUrl,
+    clickedTag: forensics.clickedTag,
+    clickedDomId: forensics.clickedDomId,
+    clickedClasses: forensics.clickedClasses,
+    clickedAttrs: forensics.clickedAttrs,
+    clickedOuterHtml: forensics.clickedOuterHtml,
+  };
   LOG.debug(payload);
   return true;
 }
