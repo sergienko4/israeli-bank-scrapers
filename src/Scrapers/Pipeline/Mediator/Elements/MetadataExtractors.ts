@@ -57,35 +57,43 @@ const EMPTY_DOM_PROPS: IRawDomProps = {
 export const EMPTY_METADATA: IElementMetadata = { ...EMPTY_DOM_PROPS, isVisible: false };
 
 /**
+ * Browser-side callback for `extractDomProps` — must be self-contained
+ * (no captured closures). Playwright serializes the function source for
+ * transport into the page context. Non-input elements (button, anchor,
+ * div) default type/name/placeholder to '' so IRawDomProps' contract of
+ * no `undefined` values is honoured uniformly. Tag-name check is used
+ * over `instanceof HTMLInputElement` so the function works in jsdom
+ * test contexts that don't expose the global constructor.
+ * @param el - DOM element resolved by the locator.
+ * @returns Raw DOM properties bundle.
+ */
+function snapshotDomPropsInBrowser(el: Element): IRawDomProps {
+  const tagName = el.tagName.toLowerCase();
+  const input = tagName === 'input' ? (el as HTMLInputElement) : null;
+  const inputProps = input
+    ? { type: input.type, name: input.name, placeholder: input.placeholder }
+    : { type: '', name: '', placeholder: '' };
+  const formId = el.closest('form')?.id ?? '';
+  const ariaLabel = el.getAttribute('aria-label') ?? '';
+  return { id: el.id, className: el.className, tagName, ...inputProps, formId, ariaLabel };
+}
+
+/**
  * Extract raw DOM properties from a resolved element via locator.evaluate.
  * Uses Playwright locator (not querySelector) — works for any selector type including xpath.
+ * Existence probe uses `locator.count()` (NOT `isVisible()`): an attached-but-hidden
+ * node still has real `id` / `name` / `formId` we want to surface to the Mediator.
+ * Visibility is computed separately in {@link extractMetadata} and exposed via
+ * `IElementMetadata.isVisible`.
  * @param ctx - Page or Frame containing the element.
  * @param selector - Any Playwright selector (CSS, xpath, text, etc.).
- * @returns Raw DOM properties object, or empty props if element not found.
+ * @returns Raw DOM properties object, or empty props if element is truly absent.
  */
 async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRawDomProps> {
   const locator = ctx.locator(selector).first();
-  /**
-   * Catch visibility check failure.
-   * @returns False.
-   */
-  const catchFalse = (): boolean => false;
-  const isAttached = await locator.isVisible().catch(catchFalse);
-  if (!isAttached) return EMPTY_DOM_PROPS;
-  return locator.evaluate((el: Element): IRawDomProps => {
-    const input = el as HTMLInputElement;
-    const props: IRawDomProps = {
-      id: el.id,
-      className: el.className,
-      tagName: el.tagName.toLowerCase(),
-      type: input.type,
-      name: input.name,
-      formId: el.closest('form')?.id ?? '',
-      ariaLabel: el.getAttribute('aria-label') ?? '',
-      placeholder: input.placeholder,
-    };
-    return props;
-  });
+  const matchCount = await locator.count().catch((): number => 0);
+  if (matchCount === 0) return EMPTY_DOM_PROPS;
+  return locator.evaluate(snapshotDomPropsInBrowser);
 }
 
 /**

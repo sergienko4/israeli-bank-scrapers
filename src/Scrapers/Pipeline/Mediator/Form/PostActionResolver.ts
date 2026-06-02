@@ -9,7 +9,10 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
-import { hasPipelinePostAction } from '../../Types/PipelineLoginConfig.js';
+import {
+  hasPipelinePostAction,
+  type IPipelineLoginConfig,
+} from '../../Types/PipelineLoginConfig.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 
@@ -28,6 +31,38 @@ async function safeAction(action: () => Promise<void>): Promise<Procedure<void>>
 }
 
 /**
+ * Wrap a pipeline-aware postActionWithCtx into a zero-arg async callback.
+ * @param fn - The user-provided callback bound to a fresh closure.
+ * @param browserPage - Browser page to pass through.
+ * @param ctx - Pipeline context to pass through.
+ * @returns Zero-arg async wrapper invoking `fn(browserPage, ctx)`.
+ */
+function wrapWithCtx(
+  fn: NonNullable<IPipelineLoginConfig['postActionWithCtx']>,
+  browserPage: Page,
+  ctx: IPipelineContext,
+): () => Promise<void> {
+  return async (): Promise<void> => {
+    await fn(browserPage, ctx);
+  };
+}
+
+/**
+ * Wrap a legacy postAction into a zero-arg async callback.
+ * @param fn - The user-provided callback bound to a fresh closure.
+ * @param browserPage - Browser page to pass through.
+ * @returns Zero-arg async wrapper invoking `fn(browserPage)`.
+ */
+function wrapLegacy(
+  fn: NonNullable<ILoginConfig['postAction']>,
+  browserPage: Page,
+): () => Promise<void> {
+  return async (): Promise<void> => {
+    await fn(browserPage);
+  };
+}
+
+/**
  * Resolve pipeline-aware post-action or legacy postAction callback.
  * @param browserPage - Browser page.
  * @param config - Login config.
@@ -40,16 +75,10 @@ function resolvePostAction(
   ctx: IPipelineContext,
 ): (() => Promise<void>) | false {
   if (hasPipelinePostAction(config) && config.postActionWithCtx) {
-    const fn = config.postActionWithCtx;
-    return async (): Promise<void> => {
-      await fn(browserPage, ctx);
-    };
+    return wrapWithCtx(config.postActionWithCtx, browserPage, ctx);
   }
   if (!config.postAction) return false;
-  const legacyFn = config.postAction;
-  return async (): Promise<void> => {
-    await legacyFn(browserPage);
-  };
+  return wrapLegacy(config.postAction, browserPage);
 }
 
 /**

@@ -39,21 +39,30 @@ function stableUrl(rawUrl: string): string {
 }
 
 /**
+ * Identify the "main" context (the page itself or its mainFrame).
+ * Centralised so the contextId computation stays inside its budget.
+ * @param context - The Page or Frame to test.
+ * @param page - The main page.
+ * @returns True iff `context` resolves to the main context.
+ */
+function isMainContext(context: Page | Frame, page: Page): boolean {
+  if (context === page) return true;
+  if ('mainFrame' in page && context === page.mainFrame()) return true;
+  return false;
+}
+
+/**
  * Compute a stable opaque contextId for a Page or Frame.
  * @param context - The Page or Frame to identify.
  * @param page - The main page (for main-frame detection).
  * @returns Stable opaque contextId string.
  */
 function computeContextId(context: Page | Frame, page: Page): string {
-  const isMain: boolean = context === page;
-  if (isMain) return MAIN_CONTEXT_ID;
-  const isMainFrame: boolean = 'mainFrame' in page && context === page.mainFrame();
-  if (isMainFrame) return MAIN_CONTEXT_ID;
+  if (isMainContext(context, page)) return MAIN_CONTEXT_ID;
   const frame = context as Frame;
   const url = frame.url();
-  const name = frame.name();
   const hasRealUrl = url !== 'about:blank' && url.length > 0;
-  const stableIdMap: Record<string, string> = { true: stableUrl(url), false: name };
+  const stableIdMap: Record<string, string> = { true: stableUrl(url), false: frame.name() };
   const stableId = stableIdMap[String(hasRealUrl)];
   return `${IFRAME_PREFIX}${stableId}`;
 }

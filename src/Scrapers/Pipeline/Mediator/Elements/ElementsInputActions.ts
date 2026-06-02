@@ -62,6 +62,22 @@ async function ensureAngularHelper(ctx: Page | Frame): Promise<boolean> {
 }
 
 /**
+ * Browser-side callback for `syncAngularModel` — invokes the previously
+ * injected `window.__PIPELINE_NG_SYNC__` helper on the resolved element.
+ * Self-contained (no captured closures) — Playwright serializes the
+ * function source for transport.
+ * @param el - DOM element passed by locator.evaluate.
+ * @param val - Value to sync into the Angular ng-model controller.
+ * @returns Always `true`.
+ */
+function browserCallNgSync(el: Element, val: string): boolean {
+  const w = globalThis as unknown as Record<string, unknown>;
+  const fn = w.__PIPELINE_NG_SYNC__ as ((e: Element, v: string) => boolean) | undefined;
+  if (fn) fn(el, val);
+  return true;
+}
+
+/**
  * Call the injected AngularJS helper on a specific element.
  * The element IS passed because we use a function reference (not string).
  * @param ctx - Page or Frame.
@@ -75,18 +91,9 @@ async function syncAngularModel(
   value: string,
 ): Promise<boolean> {
   try {
-    await ctx
-      .locator(selector)
-      .first()
-      .evaluate((el: Element, val: string): boolean => {
-        const w = globalThis as unknown as Record<string, unknown>;
-        const fn = w.__PIPELINE_NG_SYNC__ as ((e: Element, v: string) => boolean) | undefined;
-        if (fn) fn(el, val);
-        return true;
-      }, value);
+    await ctx.locator(selector).first().evaluate(browserCallNgSync, value);
   } catch {
-    // Locator-chain or evaluate threw synchronously (mock ctx, missing
-    // method, restricted frame). Sync is opportunistic — safe to noop.
+    // Locator-chain or evaluate threw synchronously — opportunistic noop.
   }
   return true;
 }
@@ -134,6 +141,94 @@ async function safeSiblingCount(locator: ReturnType<Page['locator']>): Promise<n
 }
 
 /**
+ * Tier-1 strict fill attempt — Playwright `.fill()` with native input event
+ * dispatch. Returns boolean so callers don't have to handle the rejection.
+ * @param locator - Bound input locator (`.first()` already applied).
+ * @param value - Value to fill.
+ * @returns True iff `.fill()` resolved before the timeout.
+ */
+async function attemptFillStrict(
+  locator: ReturnType<Page['locator']>,
+  value: string,
+): Promise<boolean> {
+  return locator
+    .fill(value, { timeout: FILL_ATTEMPT_TIMEOUT_MS })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
+ * Inject the AngularJS helper into the page, then call it on the resolved
+ * element. The two steps are paired so callers express intent as one path.
+ * @param ctx - Page or Frame.
+ * @param selector - Playwright selector for the input.
+ * @param value - Value to sync into ng-model.
+ * @returns Result of `syncAngularModel`.
+ */
+async function runAngularSyncPath(
+  ctx: Page | Frame,
+  selector: string,
+  value: string,
+): Promise<boolean> {
+  await ensureAngularHelper(ctx);
+  return syncAngularModel(ctx, selector, value);
+}
+
+/** Bundled args for `clearAndPressSequentially` / fallback path — fits 3-param ceiling. */
+interface IPressSeqArgs {
+  readonly ctx: Page | Frame;
+  readonly locator: ReturnType<Page['locator']>;
+  readonly selector: string;
+  readonly value: string;
+  readonly didFill: boolean;
+  readonly isPinBuffer: boolean;
+}
+
+/**
+ * Clear-on-success (if `didFill`) then focus + pressSequentially the value
+ * char-by-char. Re-firing as keypresses triggers `keydown`/`keyup` handlers
+ * that auto-advance to the next PIN-buffer input.
+ * @param args - Bundled press-sequentially args.
+ * @returns Resolves after pressSequentially completes (failures swallowed).
+ */
+async function clearAndPressSequentially(args: IPressSeqArgs): Promise<void> {
+  if (args.didFill) {
+    await args.locator.fill('', { timeout: FILL_ATTEMPT_TIMEOUT_MS }).catch((): false => false);
+  }
+  await args.locator.focus().catch((): false => false);
+  const seqOpts = { delay: PRESS_SEQUENTIALLY_DELAY_MS };
+  await args.locator.pressSequentially(args.value, seqOpts).catch((): false => false);
+}
+
+/**
+ * Final DOM-events + AngularJS-sync pass for non-PIN-buffer fallback flows.
+ * Mutates the input value directly and dispatches input/change/blur events.
+ * @param args - Bundled press-sequentially args (reused for the suffix path).
+ * @returns Result of `runAngularSyncPath`.
+ */
+async function finalizeWithDomEvents(args: IPressSeqArgs): Promise<boolean> {
+  await args.locator.evaluate(setValueAndFireEvents, args.value);
+  return runAngularSyncPath(args.ctx, args.selector, args.value);
+}
+
+/**
+ * Fallback path entry: pressSequentially → either PIN-buffer short-circuit
+ * (preserves distributed state) or DOM events + AngularJS sync.
+ * @param args - Bundled press-sequentially args.
+ * @returns True after fallback completes.
+ */
+async function runPressSequentiallyPath(args: IPressSeqArgs): Promise<boolean> {
+  await clearAndPressSequentially(args);
+  if (args.isPinBuffer) {
+    LOG.trace({
+      message: 'PIN-buffer: skipping DOM/Model overwrite to preserve distributed state',
+    });
+    return true;
+  }
+  return finalizeWithDomEvents(args);
+}
+
+/**
  * Fill a form input via mediator — Playwright .fill() with DOM+Angular fallback.
  * PIN-buffer detection: if .fill() succeeds but input has sibling inputs,
  * clear and fall through to pressSequentially (fires keypress for auto-advance).
@@ -160,32 +255,11 @@ async function deepFillInput(ctx: Page | Frame, selector: string, value: string)
   LOG.debug({ field: maskVisibleText(selector), result: 'FOUND' });
   await humanDelay(FILL_INPUT_DELAY_MIN_MS, FILL_INPUT_DELAY_MAX_MS);
   const locator = ctx.locator(selector).first();
-  const didFill = await locator
-    .fill(value, { timeout: FILL_ATTEMPT_TIMEOUT_MS })
-    .then((): boolean => true)
-    .catch((): false => false);
-  const siblings = didFill && (await safeSiblingCount(locator));
-  const isSingleInput = didFill && typeof siblings === 'number' && siblings <= 1;
-  if (isSingleInput) {
-    await ensureAngularHelper(ctx);
-    return syncAngularModel(ctx, selector, value);
-  }
-  if (didFill)
-    await locator.fill('', { timeout: FILL_ATTEMPT_TIMEOUT_MS }).catch((): false => false);
-  // Fallback: DOM events + Angular Injected Helper
-  const isPinBuffer = didFill && typeof siblings === 'number' && siblings > 1;
-  await locator.focus().catch((): false => false);
-  const seqOpts = { delay: PRESS_SEQUENTIALLY_DELAY_MS };
-  await locator.pressSequentially(value, seqOpts).catch((): false => false);
-  if (isPinBuffer) {
-    LOG.trace({
-      message: 'PIN-buffer: skipping DOM/Model overwrite to preserve distributed state',
-    });
-    return true;
-  }
-  await locator.evaluate(setValueAndFireEvents, value);
-  await ensureAngularHelper(ctx);
-  return syncAngularModel(ctx, selector, value);
+  const didFill = await attemptFillStrict(locator, value);
+  const siblings = didFill ? await safeSiblingCount(locator) : 0;
+  if (didFill && siblings <= 1) return runAngularSyncPath(ctx, selector, value);
+  const isPinBuffer = didFill && siblings > 1;
+  return runPressSequentiallyPath({ ctx, locator, selector, value, didFill, isPinBuffer });
 }
 
 /**

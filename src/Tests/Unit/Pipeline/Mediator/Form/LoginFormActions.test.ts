@@ -99,6 +99,38 @@ const CONFIG: ILoginConfig = {
   possibleResults: {},
 } as unknown as ILoginConfig;
 
+/**
+ * Build an IActionMediator stub. All methods succeed by default;
+ * pass overrides to inject failure or alternate behavior.
+ * @param overrides - Per-test method overrides.
+ * @returns Mock IActionMediator.
+ */
+function makeActionExecutor(overrides: Partial<IActionMediator> = {}): IActionMediator {
+  const base: Partial<IActionMediator> = {
+    /**
+     * Default fillInput stub — no-op success.
+     * @returns Resolved true.
+     */
+    fillInput: (): Promise<true> => Promise.resolve(true),
+    /**
+     * Default pressEnter stub — Enter pressed successfully.
+     * @returns Resolved true.
+     */
+    pressEnter: (): Promise<true> => Promise.resolve(true),
+    /**
+     * Default clickElement stub — click performed.
+     * @returns Resolved true.
+     */
+    clickElement: (): Promise<true> => Promise.resolve(true),
+    /**
+     * Default getCurrentUrl stub — returns canned bank login URL.
+     * @returns Default login URL.
+     */
+    getCurrentUrl: (): string => 'https://bank.co.il/login',
+  };
+  return { ...base, ...overrides } as unknown as IActionMediator;
+}
+
 describe('fillAllFields', () => {
   it('fails validation when credential missing', async () => {
     const mediator = makeMediator();
@@ -332,7 +364,7 @@ describe('fillFromDiscovery', () => {
     expect(result.success).toBe(false);
   });
 
-  it('tryEnterFromDiscovery swallows pressEnter rejection (.catch line 286)', async () => {
+  it('fillFromDiscovery returns fail when pressEnter rejects AND submitTarget is absent (no signal fired)', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
       contextId: 'main',
@@ -344,32 +376,13 @@ describe('fillFromDiscovery', () => {
       targets: new Map([['username', target]]),
       submitTarget: { has: false },
     } as unknown as ILoginFieldDiscovery;
-    const executor = {
+    const executor = makeActionExecutor({
       /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      fillInput: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
+       * Per-test override: pressEnter rejects to exercise empty-signal fail path.
+       * @returns Rejected promise.
        */
       pressEnter: (): Promise<never> => Promise.reject(new Error('press fail')),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      clickElement: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      getCurrentUrl: (): string => 'https://bank.co.il/login',
-    } as unknown as IActionMediator;
+    });
     const result = await fillFromDiscovery({
       discovery,
       executor,
@@ -377,7 +390,7 @@ describe('fillFromDiscovery', () => {
       creds: { username: 'u' },
       logger: LOG,
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it('tryClickSubmitFromDiscovery swallows clickElement rejection (.catch line 306)', async () => {
@@ -393,32 +406,13 @@ describe('fillFromDiscovery', () => {
       targets: new Map([['username', target]]),
       submitTarget: { has: true as const, value: submitTarget },
     } as unknown as ILoginFieldDiscovery;
-    const executor = {
+    const executor = makeActionExecutor({
       /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      fillInput: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      pressEnter: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
+       * Reject the click to exercise the discovery-path catch arm.
+       * @returns Rejected promise.
        */
       clickElement: (): Promise<never> => Promise.reject(new Error('click fail')),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      getCurrentUrl: (): string => 'https://bank.co.il/login',
-    } as unknown as IActionMediator;
+    });
     const result = await fillFromDiscovery({
       discovery,
       executor,
@@ -427,5 +421,40 @@ describe('fillFromDiscovery', () => {
       logger: LOG,
     });
     expect(result.success).toBe(true);
+  });
+
+  it('fillFromDiscovery returns fail when activeFrameId is empty AND submitTarget absent', async () => {
+    const target: IResolvedTarget = {
+      selector: '#u',
+      contextId: 'main',
+      kind: 'css',
+      candidateValue: '#u',
+    };
+    const discovery: ILoginFieldDiscovery = {
+      activeFrameId: '',
+      targets: new Map([['username', target]]),
+      submitTarget: { has: false },
+    } as unknown as ILoginFieldDiscovery;
+    let didPress = false;
+    const executor = makeActionExecutor({
+      /**
+       * pressEnter records the call so the empty-frameId guard can be
+       * verified — MUST remain false because the guard short-circuits.
+       * @returns Resolved true.
+       */
+      pressEnter: (): Promise<true> => {
+        didPress = true;
+        return Promise.resolve(true);
+      },
+    });
+    const result = await fillFromDiscovery({
+      discovery,
+      executor,
+      config: CONFIG,
+      creds: { username: 'u' },
+      logger: LOG,
+    });
+    expect(didPress).toBe(false);
+    expect(result.success).toBe(false);
   });
 });

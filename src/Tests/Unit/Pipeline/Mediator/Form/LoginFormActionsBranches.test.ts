@@ -440,25 +440,30 @@ describe('LoginFormActions.fillAndSubmit — resolveAndClick failure propagation
 
 describe('LoginFormActions.fillAndSubmit — SUBMIT_METHOD_MAP branch coverage', () => {
   /**
-   * SUBMIT_METHOD_MAP entries that fall through to `'click'`. Both
-   * tests share the same `fillAllFields → fields=[]` short-circuit
-   * that drops `didEnter` to false; the click resolver toggles
-   * `didClick` (`makeFoundClickResult` → true → `'false-true'`,
-   * `NOT_FOUND_RESULT` → false → `'false-false'` fallback). Per
-   * CLAUDE.md's "config arrays mapped with .map()" rule.
+   * SUBMIT_METHOD_MAP entries exercised through fillAndSubmit. Both
+   * cases share the `fillAllFields → fields=[]` short-circuit that
+   * drops `didEnter` to false; the click resolver toggles `didClick`
+   * (`makeFoundClickResult` → true → `'false-true'` → 'click';
+   * `NOT_FOUND_RESULT` → false → gated FAILURE via `gateNoSubmitSignal`
+   * per CR4 #5, since "no Enter AND no real Click" must NOT phantom-
+   * succeed). Per CLAUDE.md's "config arrays mapped with .map()" rule.
    */
   const submitMethodCases = [
     {
       label: "returns 'click' when Enter fails and click hits",
       clickResult: makeFoundClickResult(),
+      shouldSucceed: true,
+      expectedMethod: 'click' as const,
     },
     {
-      label: "returns 'click' fallback when both Enter and click miss",
+      label: 'fails via gateNoSubmitSignal when both Enter and click miss',
       clickResult: NOT_FOUND_RESULT,
+      shouldSucceed: false,
+      expectedMethod: undefined,
     },
   ] as const;
 
-  submitMethodCases.forEach(({ label, clickResult }) => {
+  submitMethodCases.forEach(({ label, clickResult, shouldSucceed, expectedMethod }) => {
     it(`resolveSubmitMethod ${label}`, async (): Promise<void> => {
       const mediator = makeMediator(clickResult);
       const logger = makeSilentLogger();
@@ -468,8 +473,12 @@ describe('LoginFormActions.fillAndSubmit — SUBMIT_METHOD_MAP branch coverage',
         creds: {},
         logger,
       });
-      if (!result.success) throw new ScraperError(ASSERT_SUCCESS_FAILED);
-      expect(result.value.method).toBe('click');
+      expect(result.success).toBe(shouldSucceed);
+      if (result.success) {
+        expect(result.value.method).toBe(expectedMethod);
+      } else {
+        expect(result.errorMessage).toContain('No submit signal fired');
+      }
     });
   });
 });
