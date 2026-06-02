@@ -880,38 +880,54 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
 }
 
 /**
- * Snapshot the resolved element's DOM identity (tag, id, classes, attrs)
- * plus a bounded outerHTML, log the bundle at debug level, and return the
- * identity for ACTION-stage selector building. The trace emit uses `domId`
- * (not `id`) so the public DOM identity bypasses the credential-id Pino
- * redaction — DOM ids on a public commercial site are not PII.
- * @param entry - The winning locator entry.
- * @returns Identity object captured during PRE.
+ * Browser-context snapshot of an element's DOM identity + bounded outerHTML.
+ * Defined as a top-level named function so the evaluate-callback boundary is
+ * type-checked separately from its caller (and so the caller body stays
+ * ≤10 LoC). Runs inside `locator.evaluate(...)` — must not close over Node
+ * lexicals other than the explicit `max` argument.
+ * @param el - The DOM element under inspection (browser context).
+ * @param max - Max length for the outerHTML snippet.
+ * @returns Verbose identity payload.
  */
-async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementIdentity> {
+function snapshotIdentityInBrowser(el: Element, max: number): IIdentityVerbose {
+  return {
+    identity: {
+      tag: el.tagName,
+      id: el.id || '(none)',
+      classes: el.className || '(none)',
+      name: el.getAttribute('name') ?? '(none)',
+      type: el.getAttribute('type') ?? '(none)',
+      ariaLabel: el.getAttribute('aria-label') ?? '(none)',
+      title: el.getAttribute('title') ?? '(none)',
+      href: el.getAttribute('href') ?? '(none)',
+    },
+    outerHtml: (el.outerHTML || '').slice(0, max),
+  };
+}
+
+/**
+ * Run the browser-side identity snapshot for an entry and normalise the
+ * payload against malformed test mocks (which may return `false` / strings
+ * instead of the structured shape).
+ * @param entry - The winning locator entry.
+ * @returns Verbose payload (never with missing fields).
+ */
+async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVerbose> {
   const evaluated = await entry.locator
-    .evaluate(
-      (el: Element, max: number): IIdentityVerbose => ({
-        identity: {
-          tag: el.tagName,
-          id: el.id || '(none)',
-          classes: el.className || '(none)',
-          name: el.getAttribute('name') ?? '(none)',
-          type: el.getAttribute('type') ?? '(none)',
-          ariaLabel: el.getAttribute('aria-label') ?? '(none)',
-          title: el.getAttribute('title') ?? '(none)',
-          href: el.getAttribute('href') ?? '(none)',
-        },
-        outerHtml: (el.outerHTML || '').slice(0, max),
-      }),
-      OUTER_HTML_SNIPPET_MAX,
-    )
+    .evaluate(snapshotIdentityInBrowser, OUTER_HTML_SNIPPET_MAX)
     .catch((): IIdentityVerbose => UNKNOWN_VERBOSE);
-  // Static type says IIdentityVerbose but test mocks return arbitrary
-  // payloads — narrow defensively before destructuring.
-  const raw = evaluated as Partial<IIdentityVerbose>;
-  const verbose = normalizeVerbose(raw);
-  const { identity, outerHtml } = verbose;
+  return normalizeVerbose(evaluated);
+}
+
+/**
+ * Emit the DOM identity bundle at debug level. The `domId` key (not `id`)
+ * bypasses the credential-id Pino redaction — DOM ids on a public commercial
+ * site are not PII.
+ * @param identity - The element identity bundle.
+ * @param outerHtml - Bounded outerHTML snippet from the same element.
+ * @returns Sentinel ``true`` once the log has been emitted.
+ */
+function traceElementIdentity(identity: IElementIdentity, outerHtml: string): true {
   LOG.debug({
     tag: identity.tag,
     domId: identity.id,
@@ -926,6 +942,21 @@ async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementId
     outerHtml,
     visibility: 'visible',
   });
+  return true;
+}
+
+/**
+ * Snapshot the resolved element's DOM identity (tag, id, classes, attrs)
+ * plus a bounded outerHTML, log the bundle at debug level, and return the
+ * identity for ACTION-stage selector building. The trace emit uses `domId`
+ * (not `id`) so the public DOM identity bypasses the credential-id Pino
+ * redaction — DOM ids on a public commercial site are not PII.
+ * @param entry - The winning locator entry.
+ * @returns Identity object captured during PRE.
+ */
+async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementIdentity> {
+  const { identity, outerHtml } = await extractIdentityVerbose(entry);
+  traceElementIdentity(identity, outerHtml);
   return identity;
 }
 
