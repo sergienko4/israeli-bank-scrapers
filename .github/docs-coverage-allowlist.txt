@@ -337,3 +337,9 @@ PhaseEmitSlotKey
 BalanceSlotKey
 # Reason: ResultSlotKey — internal union-of-the-four-sub-key-types fed to Pick<IPipelineContext, ResultSlotKey> to derive IResultSlots inside PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
 ResultSlotKey
+
+# --- Phase 2c-strict / Dashboard split (DashboardPhaseActions / TxnParser) ---
+# Reason: IDashboardTargets — internal target-resolver bundle used by DashboardPhaseActions.sequential.ts + .targets.ts + .action.ts siblings after the 1991-line monolith was split to satisfy the 150-line file cap. Pure cross-sibling type plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
+IDashboardTargets
+# Reason: JsonScopeValue — internal JSON-value alias used by the TxnParser.scope.ts / .accountId.ts / .harvest.ts siblings after TxnParser.ts was split to satisfy the per-file LoC budget. Same architectural role as TxnParser.ts (DASHBOARD-side harvest scope); pure cross-sibling type plumbing, not part of the public API.
+JsonScopeValue

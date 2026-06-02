@@ -90,6 +90,19 @@ function logHrefLayer(label: string, outcome: IHrefRaceOutcome): true {
 }
 
 /**
+ * Project the WK candidate list onto its ariaLabel-only href subset.
+ * Pulled out so {@link extractHrefLayer1} stays under the LoC cap.
+ * @param candidates - Full WK candidate list.
+ * @returns Candidates filtered to `kind === 'ariaLabel'` with href target applied.
+ */
+function selectAriaHrefCandidates(
+  candidates: readonly SelectorCandidate[],
+): readonly SelectorCandidate[] {
+  const ariaOnly = candidates.filter((c): boolean => c.kind === 'ariaLabel');
+  return ariaOnly.map(withHrefTarget);
+}
+
+/**
  * Layer 1: ariaLabel-only href extraction, filtered to txn pages.
  * @param mediator - Element mediator.
  * @param candidates - Full WK candidate list.
@@ -99,9 +112,8 @@ async function extractHrefLayer1(
   mediator: IElementMediator,
   candidates: readonly SelectorCandidate[],
 ): Promise<string> {
-  const ariaOnly = candidates.filter((c): boolean => c.kind === 'ariaLabel');
-  if (ariaOnly.length === 0) return NO_HREF;
-  const hrefCandidates = ariaOnly.map(withHrefTarget);
+  const hrefCandidates = selectAriaHrefCandidates(candidates);
+  if (hrefCandidates.length === 0) return NO_HREF;
   const outcome = await raceHrefCandidates(mediator, hrefCandidates);
   logHrefLayer('L1 ariaLabel', outcome);
   return outcome.href;

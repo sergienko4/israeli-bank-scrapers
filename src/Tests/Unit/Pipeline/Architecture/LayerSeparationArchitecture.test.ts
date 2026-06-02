@@ -59,6 +59,13 @@ const RULES: readonly ILayerRule[] = [
       // travels as `IDashboardTxnHarvest` (clean value type), not as
       // any ACCOUNT-RESOLVE structure.
       path.join('Mediator', 'Dashboard', 'TxnParser.ts'),
+      // Phase 2c (2026-…): TxnParser.ts split into co-located siblings
+      // to satisfy the per-file LoC budget. `.accountId.ts` and
+      // `.scope.ts` carry the surface-id lines that originally lived
+      // in TxnParser.ts — same allowance, just relocated under the
+      // strict-LoC-cluster lockdown.
+      path.join('Mediator', 'Dashboard', 'TxnParser.accountId.ts'),
+      path.join('Mediator', 'Dashboard', 'TxnParser.scope.ts'),
       // Strategy/Scrape/Account/* still surface account ids to display
       // alongside transactions — bounded scope, kept under R-ACCOUNT.
       path.join('Strategy', 'Scrape', 'Account', 'ScrapeIdExtraction.ts'),

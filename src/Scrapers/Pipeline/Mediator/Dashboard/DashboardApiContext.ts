@@ -242,6 +242,28 @@ function composeBoundFetchers(
   };
 }
 
+/** Bundle for {@link assembleApiContextSync}. */
+interface IAssembleApiContextArgs {
+  readonly network: INetworkDiscovery;
+  readonly strategy: IFetchStrategy;
+  readonly configOverride?: IConfigOverride;
+}
+
+/**
+ * Assemble the API fetch context value synchronously from the
+ * bundled discovery inputs. Pulled out so {@link buildApiContext}
+ * stays under the LoC cap.
+ * @param args - Bundled discovery inputs.
+ * @returns API fetch context literal.
+ */
+function assembleApiContextSync(args: IAssembleApiContextArgs): IApiFetchContext {
+  const headerProvider = createHeaderProvider(args.network);
+  const urls = discoverUrls(args.network);
+  const fetchers = composeBoundFetchers(args.strategy, headerProvider);
+  const configTxnUrl = resolveConfigTxnUrl(args.configOverride);
+  return { ...fetchers, ...urls, configTransactionsUrl: configTxnUrl };
+}
+
 /**
  * Build auto-discovered API fetch context from network traffic.
  * @param network - Network discovery.
@@ -254,11 +276,7 @@ function buildApiContext(
   strategy: IFetchStrategy,
   configOverride?: IConfigOverride,
 ): Promise<IApiFetchContext> {
-  const headerProvider = createHeaderProvider(network);
-  const urls = discoverUrls(network);
-  const fetchers = composeBoundFetchers(strategy, headerProvider);
-  const configTxnUrl = resolveConfigTxnUrl(configOverride);
-  const ctx: IApiFetchContext = { ...fetchers, ...urls, configTransactionsUrl: configTxnUrl };
+  const ctx = assembleApiContextSync({ network, strategy, configOverride });
   return Promise.resolve(ctx);
 }
 
