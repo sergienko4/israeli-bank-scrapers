@@ -363,6 +363,93 @@ function buildClickableTextLocatorsBase(
 }
 
 /**
+ * ariaLabel candidate fans out across label + 3 ARIA roles.
+ * @param scope - Form-scoped locator context.
+ * @param value - The aria-label / accessible name to match.
+ * @returns Array of base locators.
+ */
+function buildAriaLabelLocators(scope: LocatorContext, value: string): Locator[] {
+  return [
+    scope.getByLabel(value),
+    scope.getByRole('button', { name: value, exact: false }),
+    scope.getByRole('link', { name: value, exact: false }),
+    scope.getByRole('tab', { name: value, exact: false }),
+  ];
+}
+
+/**
+ * xpath candidate — prepend "xpath=" prefix because Playwright auto-detects
+ * xpath only when selector starts with "//"; the descendant-relative ".//"
+ * form would otherwise be parsed as CSS.
+ * @param scope - Form-scoped locator context.
+ * @param value - The xpath expression.
+ * @param isScoped - Whether form-scoping is active (relativize to descendant).
+ * @returns Single-element array containing the xpath locator.
+ */
+function buildXpathLocators(scope: LocatorContext, value: string, isScoped: boolean): Locator[] {
+  return [scope.locator(`xpath=${relativizeXpath(value, isScoped)}`)];
+}
+
+/**
+ * Placeholder candidate: single getByPlaceholder locator.
+ * @param scope - Locator context.
+ * @param value - Placeholder text.
+ * @returns Single-element locator array.
+ */
+function buildPlaceholderLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByPlaceholder(value)];
+}
+
+/**
+ * name attribute candidate: single CSS attribute-selector locator.
+ * @param scope - Locator context.
+ * @param value - HTML `name` attribute value.
+ * @returns Single-element locator array.
+ */
+function buildNameLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.locator(`[name="${value}"]`)];
+}
+
+/**
+ * regex candidate: single getByText(RegExp) locator.
+ * @param scope - Locator context.
+ * @param value - Regex pattern source string.
+ * @returns Single-element locator array.
+ */
+function buildRegexLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByText(new RegExp(value))];
+}
+
+/**
+ * exactText candidate: single getByText with exact:true.
+ * @param scope - Locator context.
+ * @param value - Exact text to match.
+ * @returns Single-element locator array.
+ */
+function buildExactTextLocators(scope: LocatorContext, value: string): Locator[] {
+  return [scope.getByText(value, { exact: true })];
+}
+
+/** Dispatch signature for per-kind locator builders. */
+type LocatorKindBuilder = (scope: LocatorContext, value: string, isScoped: boolean) => Locator[];
+
+/**
+ * Dispatch table mapping each SelectorCandidate.kind to its locator builder.
+ * Open-Closed-friendly: new kinds add a row instead of growing an if-chain.
+ */
+const LOCATOR_KIND_BUILDERS: Readonly<Partial<Record<SelectorCandidate['kind'], LocatorKindBuilder>>> =
+  {
+    textContent: buildWalkUpLocatorsBase,
+    clickableText: buildClickableTextLocatorsBase,
+    ariaLabel: buildAriaLabelLocators,
+    placeholder: buildPlaceholderLocators,
+    xpath: buildXpathLocators,
+    name: buildNameLocators,
+    regex: buildRegexLocators,
+    exactText: buildExactTextLocators,
+  };
+
+/**
  * Build BASE Playwright locators from a SelectorCandidate — without `.first()`
  * applied. Two callers wrap the output:
  *   - `buildCandidateLocators`: applies `.first()` for first-match-only
@@ -384,30 +471,9 @@ function buildCandidateLocatorsBase(
 ): Locator[] {
   const scope = applyFormScope(ctx, formAnchor);
   const isScoped = formAnchor.length > 0;
-  if (candidate.kind === 'textContent')
-    return buildWalkUpLocatorsBase(scope, candidate.value, isScoped);
-  if (candidate.kind === 'clickableText') {
-    return buildClickableTextLocatorsBase(scope, candidate.value, isScoped);
-  }
-  if (candidate.kind === 'ariaLabel')
-    return [
-      scope.getByLabel(candidate.value), // form inputs
-      scope.getByRole('button', { name: candidate.value, exact: false }),
-      scope.getByRole('link', { name: candidate.value, exact: false }),
-      scope.getByRole('tab', { name: candidate.value, exact: false }),
-    ];
-  if (candidate.kind === 'placeholder') return [scope.getByPlaceholder(candidate.value)];
-  if (candidate.kind === 'xpath') {
-    // Explicit "xpath=" prefix: Playwright auto-detects xpath only when
-    // selector starts with "//", but the descendant-relative form ".//"
-    // starts with "." — without prefix Playwright would parse as CSS.
-    const string = relativizeXpath(candidate.value, isScoped);
-    return [scope.locator(`xpath=${string}`)];
-  }
-  if (candidate.kind === 'name') return [scope.locator(`[name="${candidate.value}"]`)];
-  if (candidate.kind === 'regex') return [scope.getByText(new RegExp(candidate.value))];
-  if (candidate.kind === 'exactText') return [scope.getByText(candidate.value, { exact: true })];
-  return [scope.getByText(candidate.value)];
+  const builder = LOCATOR_KIND_BUILDERS[candidate.kind];
+  if (!builder) return [scope.getByText(candidate.value)];
+  return builder(scope, candidate.value, isScoped);
 }
 
 /**
