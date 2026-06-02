@@ -57,14 +57,11 @@ function traceResolution(logger: ScraperLogger, label: string, result: IRaceResu
   const winner = buildWinner(result);
   const ctx = describeContext(result.context);
   const snap = maskVisibleText(result.value);
-  logger.trace({
-    resolution: label,
-    found: result.found,
-    winner,
-    context: ctx,
-    index: result.index,
-    snapshot: snap,
-  });
+  const { found: didFind, index } = result;
+  // prettier-ignore
+  const payload = { resolution: label, found: didFind, winner,
+    context: ctx, index, snapshot: snap };
+  logger.trace(payload);
   return result;
 }
 

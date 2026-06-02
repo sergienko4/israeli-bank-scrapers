@@ -57,6 +57,30 @@ const EMPTY_DOM_PROPS: IRawDomProps = {
 export const EMPTY_METADATA: IElementMetadata = { ...EMPTY_DOM_PROPS, isVisible: false };
 
 /**
+ * Browser-side callback for `extractDomProps` — must be self-contained
+ * (no captured closures). Playwright serializes the function source for
+ * transport into the page context.
+ * @param el - DOM element resolved by the locator.
+ * @returns Raw DOM properties bundle.
+ */
+// prettier-ignore
+function snapshotDomPropsInBrowser(el: Element): IRawDomProps {
+  const input = el as HTMLInputElement;
+  return { id: el.id, className: el.className, tagName: el.tagName.toLowerCase(),
+    type: input.type, name: input.name, formId: el.closest('form')?.id ?? '',
+    ariaLabel: el.getAttribute('aria-label') ?? '', placeholder: input.placeholder };
+}
+
+/**
+ * Promise.catch sentinel — converts any rejection into literal `false`.
+ * Shared by visibility/attached probes inside this module.
+ * @returns Always `false`.
+ */
+function returnFalse(): boolean {
+  return false;
+}
+
+/**
  * Extract raw DOM properties from a resolved element via locator.evaluate.
  * Uses Playwright locator (not querySelector) — works for any selector type including xpath.
  * @param ctx - Page or Frame containing the element.
@@ -65,27 +89,9 @@ export const EMPTY_METADATA: IElementMetadata = { ...EMPTY_DOM_PROPS, isVisible:
  */
 async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRawDomProps> {
   const locator = ctx.locator(selector).first();
-  /**
-   * Catch visibility check failure.
-   * @returns False.
-   */
-  const catchFalse = (): boolean => false;
-  const isAttached = await locator.isVisible().catch(catchFalse);
+  const isAttached = await locator.isVisible().catch(returnFalse);
   if (!isAttached) return EMPTY_DOM_PROPS;
-  return locator.evaluate((el: Element): IRawDomProps => {
-    const input = el as HTMLInputElement;
-    const props: IRawDomProps = {
-      id: el.id,
-      className: el.className,
-      tagName: el.tagName.toLowerCase(),
-      type: input.type,
-      name: input.name,
-      formId: el.closest('form')?.id ?? '',
-      ariaLabel: el.getAttribute('aria-label') ?? '',
-      placeholder: input.placeholder,
-    };
-    return props;
-  });
+  return locator.evaluate(snapshotDomPropsInBrowser);
 }
 
 /**

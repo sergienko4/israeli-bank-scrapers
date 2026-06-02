@@ -27,6 +27,21 @@ async function waitForReadyState(ctx: Page | Frame): Promise<boolean> {
 }
 
 /**
+ * Shared error logger for the pageEval/pageEvalAll catch arms.
+ * @param label - Function name for the log message ('pageEval' / 'pageEvalAll').
+ * @param selector - Selector being evaluated (masked before emit).
+ * @param error - Caught error from the evaluate call.
+ * @returns True after emit (callers discard).
+ */
+function logEvalError(label: string, selector: string, error: unknown): true {
+  const msg = toErrorMessage(error as Error);
+  LOG.debug({
+    message: `${label}(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
+  });
+  return true;
+}
+
+/**
  * Evaluate a callback on all matching elements.
  * @param ctx - The Playwright page or frame.
  * @param opts - Selector, default result, and callback options.
@@ -43,10 +58,7 @@ async function pageEvalAll<TResult>(
   try {
     return await locator.evaluateAll(callback);
   } catch (error) {
-    const msg = toErrorMessage(error as Error);
-    LOG.debug({
-      message: `pageEvalAll(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
-    });
+    logEvalError('pageEvalAll', selector, error);
     return defaultResult;
   }
 }
@@ -68,10 +80,7 @@ async function pageEval<TResult>(
   try {
     return await locator.first().evaluate(callback);
   } catch (error) {
-    const msg = toErrorMessage(error as Error);
-    LOG.debug({
-      message: `pageEval(${maskVisibleText(selector)}) error: ${maskVisibleText(msg)}`,
-    });
+    logEvalError('pageEval', selector, error);
     return defaultResult;
   }
 }
