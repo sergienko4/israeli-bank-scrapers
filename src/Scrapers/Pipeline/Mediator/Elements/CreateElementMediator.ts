@@ -235,28 +235,25 @@ async function discoverFormCore(
 }
 
 /**
+ * Catch form discovery errors — non-fatal, returns none.
+ * @param error - Thrown error.
+ * @returns None option.
+ */
+function handleDiscoverFormError(error: Error): Option<IFormAnchor> {
+  const truncated = toErrorMessage(error).slice(0, 60);
+  LOG.debug({ message: `discoverForm failed (non-fatal): ${truncated}` });
+  return none();
+}
+
+/**
  * Build discoverForm method with per-instance cache.
  * Uses resolvedContext.context (not root page) so iframe form anchors are found correctly.
  * @param cache - Mutable form cache owned by this mediator instance.
  * @returns Mediator discoverForm function.
  */
 function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] {
-  return (resolvedContext: IFieldContext): Promise<Option<IFormAnchor>> => {
-    /**
-     * Catch form discovery errors — non-fatal, returns none.
-     * @param error - Thrown error.
-     * @returns None option.
-     */
-    const handleError = (error: Error): Option<IFormAnchor> => {
-      const msg = toErrorMessage(error);
-      const truncated = msg.slice(0, 60);
-      LOG.debug({
-        message: `discoverForm failed (non-fatal): ${truncated}`,
-      });
-      return none();
-    };
-    return discoverFormCore(cache, resolvedContext).catch(handleError);
-  };
+  return (resolvedContext: IFieldContext): Promise<Option<IFormAnchor>> =>
+    discoverFormCore(cache, resolvedContext).catch(handleDiscoverFormError);
 }
 
 /**
@@ -478,37 +475,38 @@ async function raceLocators(
 const isMockModeActive = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
 
 /**
+ * Browser-evaluated hit-test predicate. MUST be a top-level pure function
+ * (no captured closures) so Playwright's evaluate serialization can
+ * transport it into the page context.
+ *
+ * Rejects disabled placeholders BEFORE hit-test (Wix renders a disabled
+ * `<button role="link">` over the real link on some bank templates).
+ * Scrolls into viewport ONLY under MOCK_MODE (live pages position via CSS,
+ * per-hit-test scroll would multiply hundreds of Playwright round-trips).
+ * MOCK_MODE relaxation: if elementFromPoint returns null, accept DOM
+ * presence with a positive bounding box.
+ * @param el - Target element under test.
+ * @param mockMode - True under mock E2E; enables scroll + bbox fallback.
+ * @returns True when the element is hit-testable at its center point.
+ */
+function isElementHitTestable(el: Element, mockMode: boolean): boolean {
+  if (el.hasAttribute('disabled')) return false;
+  if (el.getAttribute('aria-disabled') === 'true') return false;
+  if (mockMode) el.scrollIntoView({ block: 'center', inline: 'center' });
+  const rect = el.getBoundingClientRect();
+  const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  if (el === hit || el.contains(hit)) return true;
+  return mockMode && hit === null && rect.width > 0 && rect.height > 0;
+}
+
+/**
  * Hit-test — scroll into viewport then check elementFromPoint at center.
  * MOCK_MODE bypass: accept bbox-positive elements when hit returns null.
  * @param locator - The Playwright locator to test.
  * @returns True when the element is hit-testable.
  */
 async function isTrulyVisible(locator: Locator): Promise<boolean> {
-  return locator
-    .evaluate((el: Element, mockMode: boolean): boolean => {
-      // Reject disabled placeholders BEFORE hit-test. Wix renders a
-      // disabled <button role="link"> on top of the real link in some bank
-      // templates; without this filter the placeholder wins hit-test and
-      // the click times out.
-      if (el.hasAttribute('disabled')) return false;
-      if (el.getAttribute('aria-disabled') === 'true') return false;
-      // Scroll into viewport ONLY under MOCK_MODE — live pages position
-      // elements via CSS and don't need a per-hit-test scroll. Doing it on
-      // every locator in live multiplies hundreds of Playwright round-trips.
-      if (mockMode) el.scrollIntoView({ block: 'center', inline: 'center' });
-      const rect = el.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const hit = document.elementFromPoint(cx, cy);
-      if (el === hit || el.contains(hit)) return true;
-      // MOCK_MODE relaxation: if elementFromPoint returns null (point outside
-      // viewport / Gecko quirk in static mock), accept DOM presence with a
-      // positive bounding box. The selectors already proved correct in live
-      // E2E; mock only validates pipeline logic, not browser rendering.
-      if (mockMode && hit === null && rect.width > 0 && rect.height > 0) return true;
-      return false;
-    }, isMockModeActive)
-    .catch((): boolean => false);
+  return locator.evaluate(isElementHitTestable, isMockModeActive).catch((): boolean => false);
 }
 
 /**
@@ -533,28 +531,60 @@ interface IRaceDiagnostic {
  * @param timeout - Timeout in ms.
  * @returns Diagnostic with winner + fulfilled detail.
  */
-async function raceLocatorsWithHitTest(
+/**
+ * Await waitFor(visible) on all locators; return indices that resolved.
+ * @param locators - Locators to race.
+ * @param timeout - Per-locator waitFor timeout.
+ * @returns Indices that passed Playwright visibility check.
+ */
+async function awaitVisibleIndices(
   locators: Locator[],
   timeout: number,
-): Promise<IRaceDiagnostic> {
+): Promise<readonly number[]> {
   const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state: 'visible', timeout });
     return i;
   });
   const results = await Promise.allSettled(waiters);
-  const fulfilled = results
+  return results
     .filter((r): boolean => r.status === 'fulfilled')
     .map((r): number => (r as PromiseFulfilledResult<number>).value);
-  const hitTestPromises = fulfilled.map(async (idx): Promise<number> => {
+}
+
+/**
+ * Run hit-test on every fulfilled index; return those that passed.
+ * @param locators - All locators (indexed by fulfilled).
+ * @param fulfilled - Indices that already passed visibility check.
+ * @returns Indices that ALSO passed elementFromPoint hit-test.
+ */
+async function hitTestIndices(
+  locators: Locator[],
+  fulfilled: readonly number[],
+): Promise<readonly number[]> {
+  const promises = fulfilled.map(async (idx): Promise<number> => {
     const isHit = await isTrulyVisible(locators[idx]);
-    if (isHit) return idx;
-    return -1;
+    return isHit ? idx : -1;
   });
-  const hitTests = await Promise.all(hitTestPromises);
-  const hitPassed = hitTests.filter((idx): boolean => idx >= 0);
-  const winner = resolveWinner(hitPassed, fulfilled);
+  const tests = await Promise.all(promises);
+  return tests.filter((idx): boolean => idx >= 0);
+}
+
+/**
+ * Race locators then validate winner with elementFromPoint hit-test.
+ * If winner fails hit-test, check remaining settled results.
+ * Falls back to first Playwright-visible if no hit-test passes.
+ * @param locators - Locators to race.
+ * @param timeout - Timeout in ms.
+ * @returns Diagnostic with winner + fulfilled detail.
+ */
+async function raceLocatorsWithHitTest(
+  locators: Locator[],
+  timeout: number,
+): Promise<IRaceDiagnostic> {
+  const fulfilled = await awaitVisibleIndices(locators, timeout);
+  const hitPassed = await hitTestIndices(locators, fulfilled);
   return {
-    winner,
+    winner: resolveWinner(hitPassed, fulfilled),
     fulfilledCount: fulfilled.length,
     hitTestPassedCount: hitPassed.length,
     fulfilledIndices: fulfilled,
@@ -652,18 +682,36 @@ interface IExpandEntryArgs {
  * @param args - Bundled context + candidate + per-locator cap + formAnchor.
  * @returns Locator entries (one per nth-match per base locator).
  */
-async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly ILocatorEntry[]> {
-  const bases = buildCandidateLocatorsBase(args.ctx, args.candidate, args.formAnchor);
-  const maxPerLocator = args.maxPerLocator;
-  const expansionPromises = bases.map(
-    (b): Promise<readonly Locator[]> => expandLocatorToNth(b, maxPerLocator),
-  );
-  const expanded = await Promise.all(expansionPromises);
-  const candidate = args.candidate;
-  const ctx = args.ctx;
+/**
+ * Flatten expanded locators into `ILocatorEntry` records.
+ * @param expanded - Per-base expansion of locator nth-matches.
+ * @param candidate - The candidate that produced these locators.
+ * @param ctx - Page or Frame they belong to.
+ * @returns Locator entries (locator + candidate + context).
+ */
+function entriesFromExpansion(
+  expanded: readonly (readonly Locator[])[],
+  candidate: SelectorCandidate,
+  ctx: Page | Frame,
+): readonly ILocatorEntry[] {
   return expanded.flatMap((locs): readonly ILocatorEntry[] =>
     locs.map((locator): ILocatorEntry => ({ locator, candidate, context: ctx })),
   );
+}
+
+/**
+ * Build locator entries that may surface multiple nth-matches per base
+ * locator. Used by resolveAllVisible / multi-match resolvers.
+ * @param args - Bundled context + candidate + per-locator cap + formAnchor.
+ * @returns Locator entries (one per nth-match per base locator).
+ */
+async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly ILocatorEntry[]> {
+  const bases = buildCandidateLocatorsBase(args.ctx, args.candidate, args.formAnchor);
+  const expansionPromises = bases.map(
+    (b): Promise<readonly Locator[]> => expandLocatorToNth(b, args.maxPerLocator),
+  );
+  const expanded = await Promise.all(expansionPromises);
+  return entriesFromExpansion(expanded, args.candidate, args.ctx);
 }
 
 /**
