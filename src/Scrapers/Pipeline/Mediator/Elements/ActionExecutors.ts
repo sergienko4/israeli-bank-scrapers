@@ -315,31 +315,37 @@ async function evaluateJsClick(
 }
 
 /**
- * Browser-side click helper passed to `frame.evaluate` — queries all
- * `button[aria-label="…"]` matches and clicks the LAST one (matching the
+ * Browser-side click helper passed to `frame.evaluate` — queries every
+ * element matching `[aria-label="…"]` (NOT scoped to buttons — `<a>`,
+ * `<div role="button">`, etc. are valid targets emitted by `buildAria()`
+ * / `buildIdentitySelector()`) and clicks the LAST one (matching the
  * original `.at(-1)` semantics for modern nav). Must be self-contained
  * (no captured closures) — Playwright serializes the function source.
  * @param label - aria-label attribute value extracted from the selector.
  * @returns Always `true`.
  */
 function browserClickLastAriaLabel(label: string): true {
-  const sel = `button[aria-label="${label}"]`;
+  const sel = `[aria-label="${label}"]`;
   const nodeList = document.querySelectorAll<HTMLElement>(sel);
-  const buttons = Array.from(nodeList);
-  const lastBtn = buttons.at(-1);
-  if (lastBtn) lastBtn.click();
+  const elements = Array.from(nodeList);
+  const lastEl = elements.at(-1);
+  if (lastEl) lastEl.click();
   return true;
 }
 
 /**
  * Tier 4: Direct DOM query by aria-label — no Playwright selector.
- * Extracts aria-label from the selector string and queries DOM directly.
+ * Parses the `[aria-label="…"]` token emitted by `buildAria()` and
+ * `buildIdentitySelector()` (NOT Playwright's `name="…"` role-locator
+ * syntax — that filter would never have matched on our own builders,
+ * silently turning Tier 4 into a no-op for the click flows that
+ * actually reach it).
  * @param frame - Page or Frame to execute in.
- * @param selector - Playwright selector (parsed for aria-label).
+ * @param selector - Playwright selector (parsed for `[aria-label="…"]`).
  * @returns True after click attempt.
  */
 async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise<true> {
-  const ariaMatch = /name="([^"]+)"/.exec(selector);
+  const ariaMatch = /\[aria-label="([^"]+)"\]/.exec(selector);
   if (!ariaMatch) {
     LOG.debug({ message: 'Tier 4 (DOM query): no aria-label in selector' });
     return true;

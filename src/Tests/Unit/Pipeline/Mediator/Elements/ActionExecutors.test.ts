@@ -278,7 +278,7 @@ describe('clickElementImpl — Tier 4 aria-label DOM fallback branches', () => {
     (globalThis as { document?: unknown }).document = origDoc;
   });
 
-  it('selector without name="..." triggers early-return (line 149 branch)', async () => {
+  it('selector without [aria-label="..."] triggers early-return (line 149 branch)', async () => {
     const loc = makeLocator({
       /**
        * Test helper.
@@ -396,7 +396,7 @@ describe('clickElementImpl — Tier 4 aria-label DOM fallback branches', () => {
     } as unknown as Page;
     const isOk = await clickElementImpl({
       frame,
-      selector: 'role=button[name="OK"]',
+      selector: '[aria-label="OK"]',
       isForce: true,
     });
     expect(isOk).toBe(true);
@@ -469,7 +469,7 @@ describe('clickElementImpl — Tier 4 aria-label DOM fallback branches', () => {
     } as unknown as Page;
     const isOk = await clickElementImpl({
       frame,
-      selector: 'role=button[name="X"]',
+      selector: '[aria-label="X"]',
       isForce: true,
     });
     expect(isOk).toBe(true);
@@ -528,7 +528,7 @@ describe('clickElementImpl — Tier 4 aria-label DOM fallback branches', () => {
     } as unknown as Page;
     const isOk = await clickElementImpl({
       frame,
-      selector: 'role=button[name="Z"]',
+      selector: '[aria-label="Z"]',
       isForce: true,
     });
     expect(isOk).toBe(true);
