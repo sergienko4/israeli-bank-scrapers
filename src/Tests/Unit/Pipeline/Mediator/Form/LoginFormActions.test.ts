@@ -332,7 +332,7 @@ describe('fillFromDiscovery', () => {
     expect(result.success).toBe(false);
   });
 
-  it('tryEnterFromDiscovery swallows pressEnter rejection (.catch line 286)', async () => {
+  it('fillFromDiscovery returns fail when pressEnter rejects AND submitTarget is absent (no signal fired)', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
       contextId: 'main',
@@ -377,7 +377,7 @@ describe('fillFromDiscovery', () => {
       creds: { username: 'u' },
       logger: LOG,
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it('tryClickSubmitFromDiscovery swallows clickElement rejection (.catch line 306)', async () => {

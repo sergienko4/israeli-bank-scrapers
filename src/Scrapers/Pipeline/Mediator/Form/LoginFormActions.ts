@@ -349,7 +349,8 @@ async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Pr
  * @param executor - Sealed action mediator.
  * @param activeFrameId - Opaque contextId of the frame with fields.
  * @param logger - Pipeline logger.
- * @returns True if Enter was pressed.
+ * @returns True only when pressEnter resolved; false when it rejected
+ *   or activeFrameId is empty.
  */
 async function tryEnterFromDiscovery(
   executor: IActionMediator,
@@ -357,49 +358,68 @@ async function tryEnterFromDiscovery(
   logger: ScraperLogger,
 ): Promise<boolean> {
   logger.debug({ method: 'enter', url: maskVisibleText(activeFrameId) });
-  await executor.pressEnter(activeFrameId).catch((): false => false);
-  return true;
+  return executor
+    .pressEnter(activeFrameId)
+    .then((): true => true)
+    .catch((): false => false);
 }
 
 /**
  * Try clicking the submit button via sealed executor using pre-resolved target.
+ * Mirrors `tryClickSubmit` shape so the discovery path reports real
+ * click outcomes instead of swallowing errors silently.
  * @param executor - Sealed action mediator.
  * @param discovery - Login field discovery with optional submit target.
  * @param logger - Pipeline logger.
- * @returns True if submit was clicked.
+ * @returns succeed(true) on click, succeed(false) when no submit target,
+ *   fail when the click rejected.
  */
 async function tryClickSubmitFromDiscovery(
   executor: IActionMediator,
   discovery: ILoginFieldDiscovery,
   logger: ScraperLogger,
-): Promise<boolean> {
-  if (!discovery.submitTarget.has) return false;
+): Promise<Procedure<boolean>> {
+  if (!discovery.submitTarget.has) return succeed(false);
   const target = discovery.submitTarget.value;
   const masked = maskVisibleText(target.candidateValue);
   logger.debug({ method: 'click', url: masked });
-  await executor
+  return executor
     .clickElement({ contextId: target.contextId, selector: target.selector })
-    .catch((): false => false);
-  return true;
+    .then((): Procedure<boolean> => succeed(true))
+    .catch((error: unknown): Procedure<boolean> => {
+      const msg = error instanceof Error ? error.message : String(error);
+      return fail(ScraperErrorTypes.Generic, `click rejected: ${msg}`);
+    });
 }
 
 /**
- * Run the discovery-mode submit attempts (Enter + Click) and resolve the
- * final method label. Mirrors `runSubmitPhase` but uses the discovery
- * variant tryEnter/tryClick (no mediator-side scoping).
+ * Run the discovery-mode submit attempts (Enter + Click) and capture
+ * both outcomes. Mirrors `runSubmitPhase` so the caller can decide.
  * @param args - Bundled fill-from-discovery arguments.
- * @returns Submit method label.
+ * @returns Bundle of `didEnter` + `clickResult`.
  */
-async function submitViaDiscovery(args: IFillFromDiscoveryArgs): Promise<SubmitMethod> {
+async function submitViaDiscovery(args: IFillFromDiscoveryArgs): Promise<ISubmitPhaseResult> {
   const { executor, logger, discovery } = args;
   const didEnter = await tryEnterFromDiscovery(executor, discovery.activeFrameId, logger);
-  const didClick = await tryClickSubmitFromDiscovery(executor, discovery, logger);
-  return resolveSubmitMethod(didEnter, didClick);
+  const clickResult = await tryClickSubmitFromDiscovery(executor, discovery, logger);
+  return { didEnter, clickResult };
+}
+
+/**
+ * Detect whether any submit signal actually fired in the discovery path.
+ * @param submit - Submit-phase bundle.
+ * @returns True when Enter fired OR click resolved with value=true.
+ */
+function didAnySubmitFire(submit: ISubmitPhaseResult): boolean {
+  const didClick = submit.clickResult.success && submit.clickResult.value;
+  return submit.didEnter || didClick;
 }
 
 /**
  * Fill from PRE-resolved field discovery + submit via sealed executor.
  * No field resolution in ACTION — all targets come from PRE discovery.
+ * Mirrors `fillAndSubmit` shape: propagates click-failure when Enter
+ * never fired, and refuses to claim success when nothing fired at all.
  * @param args - Bundled fill-from-discovery arguments.
  * @returns Procedure with ISubmitResult.
  */
@@ -410,7 +430,12 @@ async function fillFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Procedur
   if (!validation.success) return validation;
   const fillResult = await fillFieldsFromDiscovery(args);
   if (!fillResult.success) return fillResult;
-  const method = await submitViaDiscovery(args);
+  const submit = await submitViaDiscovery(args);
+  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
+  if (!didAnySubmitFire(submit)) {
+    return fail(ScraperErrorTypes.Generic, 'No submit signal fired (Enter and click both absent)');
+  }
+  const method = resolveSubmitFromPhase(submit);
   logSubmitResult(logger, executor, method);
   return succeed({ success: true, method });
 }
