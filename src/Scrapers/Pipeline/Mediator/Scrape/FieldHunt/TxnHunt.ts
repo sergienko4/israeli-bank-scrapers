@@ -29,21 +29,46 @@ interface IHuntArrayArgs {
 }
 
 /**
+ * Push the array's object children onto the hunt stack as the
+ * "not-a-txn-array" fallback. Splitting this out keeps
+ * {@link processHuntArray} body short enough to satisfy the cap.
+ *
+ * @param objects - Object children of the candidate array.
+ * @param depth - Current BFS depth.
+ * @param stack - Mutable hunt stack to extend.
+ * @returns True after pushing (sentinel for callers).
+ */
+function pushNonTxnObjects(objects: readonly unknown[], depth: number, stack: IHuntEntry[]): true {
+  const children = objects.map((o): IHuntEntry => ({ val: o, depth: depth + 1 }));
+  stack.push(...children);
+  return true;
+}
+
+/**
+ * Commit a txn-shaped array onto the hunt collector. Pulled out so
+ * {@link processHuntArray} stays within the per-function LoC budget
+ * and the assert-style cast lives at the seam where the score check
+ * has already validated the shape.
+ *
+ * @param args - Bundled hunt array arguments (collected + objects).
+ * @returns Always true (sentinel for callers).
+ */
+function commitTxnArray(args: IHuntArrayArgs): true {
+  args.collected.push(...(args.objects as ApiRecord[]));
+  return true;
+}
+
+/**
  * Process one array node — collect if txn-like, else push children.
  * @param args - Bundled hunt array arguments.
  * @returns True if collected.
  */
 function processHuntArray(args: IHuntArrayArgs): boolean {
-  const { objects, depth, collected, stack } = args;
+  const { objects, depth, stack } = args;
   if (objects.length === 0) return false;
-  const firstObj = objects[0] as ApiRecord;
-  const score = scoreTxnSignature(firstObj);
-  if (score >= MIN_TXN_SCORE) {
-    collected.push(...(objects as ApiRecord[]));
-    return true;
-  }
-  const children = objects.map((o): IHuntEntry => ({ val: o, depth: depth + 1 }));
-  stack.push(...children);
+  const score = scoreTxnSignature(objects[0]);
+  if (score >= MIN_TXN_SCORE) return commitTxnArray(args);
+  pushNonTxnObjects(objects, depth, stack);
   return false;
 }
 
@@ -66,6 +91,51 @@ function processHuntObject(
   return true;
 }
 
+/** Bundled args for processArrayEntry. */
+interface IArrayEntryArgs {
+  readonly val: readonly unknown[];
+  readonly depth: number;
+  readonly collected: ApiRecord[];
+  readonly stack: IHuntEntry[];
+}
+
+/**
+ * Process an array entry off the hunt stack — filters to object
+ * children and delegates to {@link processHuntArray}. Pulled out so
+ * {@link processHuntEntry} stays within the per-function LoC budget.
+ *
+ * @param args - Bundled array-entry arguments.
+ * @returns True if the array was collected as a txn list.
+ */
+function processArrayEntry(args: IArrayEntryArgs): boolean {
+  const { val, depth, collected, stack } = args;
+  const objects = val.filter((v): boolean => typeof v === 'object' && v !== null);
+  return processHuntArray({ objects, depth, collected, stack });
+}
+
+/**
+ * Dispatch a stack value to the array or object handler. Returns
+ * `false` for primitives / null / depth-overflow so the parent can
+ * surface a single "no progress" sentinel.
+ *
+ * @param entry - Stack entry whose value to dispatch.
+ * @param collected - Mutable collector.
+ * @param stack - Mutable hunt stack.
+ * @returns True if processed; false on overflow / non-object.
+ */
+function dispatchHuntValue(
+  entry: IHuntEntry,
+  collected: ApiRecord[],
+  stack: IHuntEntry[],
+): boolean {
+  const { val, depth } = entry;
+  if (Array.isArray(val)) {
+    return processArrayEntry({ val: val as readonly unknown[], depth, collected, stack });
+  }
+  if (typeof val !== 'object' || val === null) return false;
+  return processHuntObject(val as Record<string, unknown>, depth, stack);
+}
+
 /**
  * Process one stack entry — dispatch array vs object.
  * @param entry - Entry to process.
@@ -75,15 +145,7 @@ function processHuntObject(
  */
 function processHuntEntry(entry: IHuntEntry, collected: ApiRecord[], stack: IHuntEntry[]): boolean {
   if (entry.depth > MAX_HUNT_DEPTH) return false;
-  const { val, depth } = entry;
-  if (Array.isArray(val)) {
-    const objects = (val as unknown[]).filter((v): boolean => typeof v === 'object' && v !== null);
-    return processHuntArray({ objects, depth, collected, stack });
-  }
-  if (typeof val === 'object' && val !== null) {
-    return processHuntObject(val as Record<string, unknown>, depth, stack);
-  }
-  return false;
+  return dispatchHuntValue(entry, collected, stack);
 }
 
 /**

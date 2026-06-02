@@ -168,6 +168,38 @@ interface IDateStrings {
 }
 
 /**
+ * WK lookup → field name dispatch map used by {@link extractRawTxnFields}.
+ * OCP-style: add a new raw field by appending its WK list here instead
+ * of adding a hand-written assignment in the orchestrator.
+ */
+const RAW_FIELD_LOOKUPS: Readonly<Record<keyof IRawTxnFields, readonly string[]>> = {
+  date: WK.date,
+  processedDate: WK.processedDate,
+  amount: WK.amount,
+  originalAmount: WK.originalAmount,
+  description: WK.description,
+  identifier: WK.identifier,
+  currency: WK.currency,
+  voidField: WK.voidIndicators,
+};
+
+/** Tuple shape produced by `Object.entries(RAW_FIELD_LOOKUPS)` for {@link extractRawTxnFields}. */
+type RawLookupEntry = readonly [keyof IRawTxnFields, readonly string[]];
+
+/**
+ * Mapper for one {@link RAW_FIELD_LOOKUPS} entry — resolves the
+ * raw scalar hit for the given WK alias list against `raw`.
+ *
+ * @param raw - Raw API record.
+ * @returns Mapper from a `[key, aliases]` entry to `[key, value]`.
+ */
+function buildRawFieldMapper(
+  raw: ApiRecord,
+): (entry: RawLookupEntry) => [string, ReturnType<typeof findFieldValue>] {
+  return ([key, wk]): [string, ReturnType<typeof findFieldValue>] => [key, findFieldValue(raw, wk)];
+}
+
+/**
  * Extract every WK.* scalar a single raw record contributes. One
  * `findFieldValue` call per WK list — no fall-back logic, no
  * coercion, just the raw scalar hits the downstream helpers need.
@@ -175,16 +207,10 @@ interface IDateStrings {
  * @returns Bundled raw scalar hits for the record.
  */
 function extractRawTxnFields(raw: ApiRecord): IRawTxnFields {
-  return {
-    date: findFieldValue(raw, WK.date),
-    processedDate: findFieldValue(raw, WK.processedDate),
-    amount: findFieldValue(raw, WK.amount),
-    originalAmount: findFieldValue(raw, WK.originalAmount),
-    description: findFieldValue(raw, WK.description),
-    identifier: findFieldValue(raw, WK.identifier),
-    currency: findFieldValue(raw, WK.currency),
-    voidField: findFieldValue(raw, WK.voidIndicators),
-  };
+  const entries = Object.entries(RAW_FIELD_LOOKUPS) as readonly RawLookupEntry[];
+  const mapper = buildRawFieldMapper(raw);
+  const mapped = entries.map(mapper);
+  return Object.fromEntries(mapped) as unknown as IRawTxnFields;
 }
 
 /**
@@ -208,6 +234,46 @@ function computeAmounts(raw: ApiRecord, fields: IRawTxnFields, isCard: boolean):
 }
 
 /**
+ * Resolve the currency + identifier suffix appended to the txn base.
+ * Pulled out so {@link buildMappedTxn} stays a thin compose helper.
+ *
+ * @param fields - Raw scalar hits (currency + identifier).
+ * @returns Suffix bundle ready to spread into the final txn.
+ */
+function resolveTxnSuffix(
+  fields: IRawTxnFields,
+): Pick<ITransaction, 'originalCurrency' | 'identifier'> {
+  const rawCurr = coerceString(fields.currency, undefined, DEFAULT_CURRENCY);
+  const rawId = coerceIdentifier(fields.identifier);
+  return { originalCurrency: normalizeCurrency(rawCurr), identifier: rawId || undefined };
+}
+
+/**
+ * Build the {@link ITransaction} base without the currency normalisation
+ * + identifier sanitisation. Pulled out so {@link buildMappedTxn} stays
+ * a thin compose helper.
+ *
+ * @param dates - Pre-coerced date strings.
+ * @param amounts - Signed charged + original amounts.
+ * @param fields - Raw scalar hits (description, identifier, currency).
+ * @returns Transaction shape minus `originalCurrency` and `identifier`.
+ */
+function buildTxnBase(
+  dates: IDateStrings,
+  amounts: IResolvedAmounts,
+  fields: IRawTxnFields,
+): Omit<ITransaction, 'originalCurrency' | 'identifier'> {
+  return {
+    type: TransactionTypes.Normal,
+    ...dates,
+    originalAmount: amounts.origNum,
+    chargedAmount: amounts.amtNum,
+    description: coerceString(fields.description),
+    status: TransactionStatuses.Completed,
+  };
+}
+
+/**
  * Assemble the final {@link ITransaction} from the resolved
  * primitives. Pure mapping — no coercion or validation beyond
  * the currency normalisation + identifier sanitisation already
@@ -222,19 +288,23 @@ function buildMappedTxn(
   amounts: IResolvedAmounts,
   fields: IRawTxnFields,
 ): ITransaction {
-  const rawCurr = coerceString(fields.currency, undefined, DEFAULT_CURRENCY);
-  const rawId = coerceIdentifier(fields.identifier);
-  return {
-    type: TransactionTypes.Normal,
-    date: dates.date,
-    processedDate: dates.processedDate,
-    originalAmount: amounts.origNum,
-    originalCurrency: normalizeCurrency(rawCurr),
-    chargedAmount: amounts.amtNum,
-    description: coerceString(fields.description),
-    status: TransactionStatuses.Completed,
-    identifier: rawId || undefined,
-  };
+  const base = buildTxnBase(dates, amounts, fields);
+  return { ...base, ...resolveTxnSuffix(fields) };
+}
+
+/**
+ * Emit the LOUD "rejected" log line and return `false`. Pulled out so
+ * {@link autoMapTransaction} stays under the LoC budget while keeping
+ * the rejection telemetry intact.
+ *
+ * @param dateStr - Coerced date string (may be empty on failure).
+ * @param amtNum - Resolved charged amount (may be NaN on failure).
+ * @returns Always `false` — the rejection sentinel for the extractor.
+ */
+function rejectMappedTxn(dateStr: string, amtNum: number): false {
+  const why = `date="${dateStr}", amount=${String(amtNum)}`;
+  LOG.debug({ message: `autoMapTransaction: rejected (${why})` });
+  return false;
 }
 
 /**
@@ -251,11 +321,7 @@ function autoMapTransaction(raw: ApiRecord): ITransaction | false {
   const procStr = coerceString(fields.processedDate, parseAutoDate, dateStr);
   const isCard = Boolean(fields.voidField);
   const amounts = computeAmounts(raw, fields, isCard);
-  if (!isMappableTxn(dateStr, amounts.amtNum)) {
-    const why = `date="${dateStr}", amount=${String(amounts.amtNum)}`;
-    LOG.debug({ message: `autoMapTransaction: rejected (${why})` });
-    return false;
-  }
+  if (!isMappableTxn(dateStr, amounts.amtNum)) return rejectMappedTxn(dateStr, amounts.amtNum);
   return buildMappedTxn({ date: dateStr, processedDate: procStr }, amounts, fields);
 }
 

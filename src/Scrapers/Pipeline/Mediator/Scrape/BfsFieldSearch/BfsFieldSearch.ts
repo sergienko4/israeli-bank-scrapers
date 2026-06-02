@@ -92,6 +92,26 @@ function matchFieldInRecord(
 }
 
 /**
+ * Build BFS child entries from a record's values, pre-filtered to
+ * searchable child objects. Pulled out so {@link enqueueChildren}
+ * stays a thin guard + push.
+ *
+ * @param record - Parent object.
+ * @param depth - Current BFS depth.
+ * @returns Child entries with depth+1.
+ */
+function buildBfsChildren(record: Record<string, unknown>, depth: number): readonly ISearchItem[] {
+  const nextDepth = depth + 1;
+  const recordValues = Object.values(record) as readonly UntypedValue[];
+  return recordValues.filter(isSearchableObject).map(
+    (child): ISearchItem => ({
+      value: child as Record<string, unknown>,
+      depth: nextDepth,
+    }),
+  );
+}
+
+/**
  * Enqueue child objects from a record into BFS queue.
  * @param record - Parent object.
  * @param depth - Current depth.
@@ -104,14 +124,7 @@ function enqueueChildren(
   queue: ISearchItem[],
 ): boolean {
   if (depth >= MAX_SEARCH_DEPTH) return false;
-  const nextDepth = depth + 1;
-  const recordValues = Object.values(record) as readonly UntypedValue[];
-  const children = recordValues.filter(isSearchableObject).map(
-    (child): ISearchItem => ({
-      value: child as Record<string, unknown>,
-      depth: nextDepth,
-    }),
-  );
+  const children = buildBfsChildren(record, depth);
   queue.push(...children);
   return true;
 }

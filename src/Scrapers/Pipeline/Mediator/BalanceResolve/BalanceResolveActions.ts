@@ -81,6 +81,59 @@ function readBalanceFetchTemplate(input: IPipelineContext | IActionContext): IBa
   return opt.value.balanceFetchTemplate ?? EMPTY_TEMPLATE;
 }
 
+/** Failure-procedure builder for empty SCRAPE-emitted state. */
+const PRE_EMPTY_FAILS: Record<'identities' | 'template', Procedure<IPipelineContext>> = {
+  identities: fail(
+    ScraperErrorTypes.Generic,
+    'balance-resolve.pre: SCRAPE emitted no accountIdentities',
+  ),
+  template: fail(
+    ScraperErrorTypes.Generic,
+    'balance-resolve.pre: SCRAPE emitted no balanceFetchTemplate',
+  ),
+};
+
+/**
+ * Pick the empty-state failure procedure when SCRAPE produced nothing
+ * usable for BALANCE-RESOLVE.pre. Returns `false` when both inputs are
+ * present (caller proceeds to plan-build).
+ *
+ * @param identities - Account identity map from `readAccountIdentities`.
+ * @param template - Balance fetch template from `readBalanceFetchTemplate`.
+ * @returns Pre-built failure procedure, or `false` to continue.
+ */
+function pickPreEmptyFailure(
+  identities: ReadonlyMap<string, IAccountIdentity>,
+  template: IBalanceFetchTemplate,
+): Procedure<IPipelineContext> | false {
+  if (identities.size === 0) return PRE_EMPTY_FAILS.identities;
+  if (template.url.length === 0) return PRE_EMPTY_FAILS.template;
+  return false;
+}
+
+/**
+ * Build the success continuation for BALANCE-RESOLVE.pre: emit the
+ * size debug log and commit `balanceFetchPlan`. Extracted so the
+ * outer phase orchestrator stays a thin guard/branch.
+ *
+ * @param input - Pipeline context.
+ * @param identities - Identities from SCRAPE.
+ * @param template - Template from SCRAPE.
+ * @returns Updated context with `balanceFetchPlan` populated.
+ */
+function buildPrePlanResult(
+  input: IPipelineContext,
+  identities: ReadonlyMap<string, IAccountIdentity>,
+  template: IBalanceFetchTemplate,
+): Procedure<IPipelineContext> {
+  const plan = buildBalanceFetchPlan(identities, template);
+  const idCount = String(identities.size);
+  const planCount = String(plan.length);
+  const message = `balance-resolve.pre identities=${idCount} plan=${planCount}`;
+  input.logger.debug({ message });
+  return succeed({ ...input, balanceFetchPlan: some(plan) });
+}
+
 /**
  * BALANCE-RESOLVE.pre — build the per-bank-account fetch plan from
  * SCRAPE-emitted identities + template. Default-deny (Procedure fail)
@@ -92,26 +145,9 @@ function readBalanceFetchTemplate(input: IPipelineContext | IActionContext): IBa
 function executeBalanceResolvePre(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const identities = readAccountIdentities(input);
   const template = readBalanceFetchTemplate(input);
-  if (identities.size === 0) {
-    const failure = fail(
-      ScraperErrorTypes.Generic,
-      'balance-resolve.pre: SCRAPE emitted no accountIdentities',
-    );
-    return Promise.resolve(failure);
-  }
-  if (template.url.length === 0) {
-    const failure = fail(
-      ScraperErrorTypes.Generic,
-      'balance-resolve.pre: SCRAPE emitted no balanceFetchTemplate',
-    );
-    return Promise.resolve(failure);
-  }
-  const plan = buildBalanceFetchPlan(identities, template);
-  input.logger.debug({
-    message:
-      `balance-resolve.pre identities=${String(identities.size)} ` + `plan=${String(plan.length)}`,
-  });
-  const next = succeed({ ...input, balanceFetchPlan: some(plan) });
+  const emptyFailure = pickPreEmptyFailure(identities, template);
+  if (emptyFailure !== false) return Promise.resolve(emptyFailure);
+  const next = buildPrePlanResult(input, identities, template);
   return Promise.resolve(next);
 }
 
@@ -191,6 +227,24 @@ function narrowParsed(parsed: unknown): Record<string, string | object> {
 }
 
 /**
+ * Emit the structured warn fired when JSON.parse threw inside
+ * {@link safeParseJson}. Splitting it out keeps the parser body at
+ * the project's per-function LoC budget.
+ *
+ * @param raw - The original JSON string (only its length is logged).
+ * @param logger - Pipeline logger sink.
+ * @returns Always true (sentinel for callers).
+ */
+function warnBodyParseFailure(raw: string, logger: IActionContext['logger']): true {
+  logger.warn({
+    event: 'balance-resolve.body-parse-failure',
+    bodyLen: String(raw.length),
+    message: 'malformed request body — sending empty payload; downstream MISS likely',
+  });
+  return true;
+}
+
+/**
  * Parse a JSON string to a record without throwing across module boundaries.
  * Malformed JSON is logged as `balance-resolve.body-parse-failure` (warn) —
  * body length only, never the body itself — so silent MISSes from a planner
@@ -209,11 +263,7 @@ function safeParseJson(
     const parsed: unknown = JSON.parse(raw);
     return narrowParsed(parsed);
   } catch {
-    logger.warn({
-      event: 'balance-resolve.body-parse-failure',
-      bodyLen: String(raw.length),
-      message: 'malformed request body — sending empty payload; downstream MISS likely',
-    });
+    warnBodyParseFailure(raw, logger);
     return EMPTY_PARSED_BODY;
   }
 }
@@ -289,6 +339,94 @@ interface IDispatchResult {
 /** Empty dispatch failure sentinel. */
 const DISPATCH_FAILURE: IDispatchResult = Object.freeze({ ok: false, body: null });
 
+/** Args bundle for the fetch lifecycle log helpers. */
+interface IFetchLogArgs {
+  readonly ctx: IFetchExecCtx;
+  readonly entry: IBalanceFetchPlanEntry;
+  readonly masked: string;
+}
+
+/**
+ * Emit the structured `balance-resolve.fetch.start` info log fired
+ * before a single plan-entry dispatch. Extracted so {@link dispatchEntry}
+ * stays within the per-function LoC budget.
+ *
+ * @param args - Bundle holding ctx, entry, and masked tail4.
+ * @returns Always true (sentinel for callers).
+ */
+function emitFetchStart(args: IFetchLogArgs): true {
+  args.ctx.logger.info({
+    event: 'balance-resolve.fetch.start',
+    correlationId: args.ctx.correlationId,
+    bankAccountTail4: args.masked,
+    method: args.entry.request.method,
+  });
+  return true;
+}
+
+/**
+ * Emit the structured `balance-resolve.fetch.failure` warn fired when
+ * {@link safeIssueOneFetch} returns a Procedure fail. Quarantines the
+ * outcome: the caller still returns {@link DISPATCH_FAILURE} so siblings
+ * continue.
+ *
+ * @param args - Bundle holding ctx and masked tail4.
+ * @param elapsedMs - String form of the dispatch elapsed time.
+ * @returns Always true (sentinel for callers).
+ */
+function emitFetchFailure(args: Pick<IFetchLogArgs, 'ctx' | 'masked'>, elapsedMs: string): true {
+  args.ctx.logger.warn({
+    event: 'balance-resolve.fetch.failure',
+    correlationId: args.ctx.correlationId,
+    bankAccountTail4: args.masked,
+    elapsedMs,
+    message: 'fetch failed — quarantined; downstream MISS for this bank account',
+  });
+  return true;
+}
+
+/**
+ * Emit the structured `balance-resolve.fetch.success` info log fired
+ * when {@link safeIssueOneFetch} returns a Procedure success.
+ *
+ * @param args - Bundle holding ctx and masked tail4.
+ * @param elapsedMs - String form of the dispatch elapsed time.
+ * @returns Always true (sentinel for callers).
+ */
+function emitFetchSuccess(args: Pick<IFetchLogArgs, 'ctx' | 'masked'>, elapsedMs: string): true {
+  args.ctx.logger.info({
+    event: 'balance-resolve.fetch.success',
+    correlationId: args.ctx.correlationId,
+    bankAccountTail4: args.masked,
+    elapsedMs,
+  });
+  return true;
+}
+
+/**
+ * Complete the fetch dispatch lifecycle: emit success/failure log
+ * based on the procedure outcome and return the matching dispatch
+ * result. Extracted so {@link dispatchEntry} stays within the per-
+ * function LoC budget.
+ *
+ * @param args - Bundle holding ctx + masked tail4.
+ * @param elapsedMs - String form of the dispatch elapsed time.
+ * @param result - Outcome from {@link safeIssueOneFetch}.
+ * @returns Dispatch outcome (`DISPATCH_FAILURE` on fail).
+ */
+function completeFetchOutcome(
+  args: Pick<IFetchLogArgs, 'ctx' | 'masked'>,
+  elapsedMs: string,
+  result: Procedure<unknown>,
+): IDispatchResult {
+  if (!isOk(result)) {
+    emitFetchFailure(args, elapsedMs);
+    return DISPATCH_FAILURE;
+  }
+  emitFetchSuccess(args, elapsedMs);
+  return { ok: true, body: result.value };
+}
+
 /**
  * Dispatch a single fetch with structured start/success/failure logs.
  * Quarantines failures (logs warn, returns DISPATCH_FAILURE — caller
@@ -303,32 +441,11 @@ async function dispatchEntry(
   entry: IBalanceFetchPlanEntry,
 ): Promise<IDispatchResult> {
   const masked = maskTail4(entry.bankAccountUniqueId);
-  ctx.logger.info({
-    event: 'balance-resolve.fetch.start',
-    correlationId: ctx.correlationId,
-    bankAccountTail4: masked,
-    method: entry.request.method,
-  });
+  emitFetchStart({ ctx, entry, masked });
   const startMs = Date.now();
   const result = await safeIssueOneFetch(ctx, entry);
   const elapsedMs = String(Date.now() - startMs);
-  if (!isOk(result)) {
-    ctx.logger.warn({
-      event: 'balance-resolve.fetch.failure',
-      correlationId: ctx.correlationId,
-      bankAccountTail4: masked,
-      elapsedMs,
-      message: 'fetch failed — quarantined; downstream MISS for this bank account',
-    });
-    return DISPATCH_FAILURE;
-  }
-  ctx.logger.info({
-    event: 'balance-resolve.fetch.success',
-    correlationId: ctx.correlationId,
-    bankAccountTail4: masked,
-    elapsedMs,
-  });
-  return { ok: true, body: result.value };
+  return completeFetchOutcome({ ctx, masked }, elapsedMs, result);
 }
 
 /** Sentinel returned by findCardRecord when no match is present. */
@@ -478,6 +595,19 @@ function extractOneCard(
 }
 
 /**
+ * Build the fetch-context bundle used by every dispatched plan entry.
+ * Splitting the construction keeps {@link executeBalanceResolveAction}
+ * within the per-function LoC budget.
+ *
+ * @param api - Unwrapped API fetch context (caller verified `.has`).
+ * @param logger - Pipeline logger sink for downstream lifecycle logs.
+ * @returns Fetch-context bundle including a fresh correlation id.
+ */
+function buildFetchCtx(api: IApiFetchContext, logger: IActionContext['logger']): IFetchExecCtx {
+  return { api, logger, correlationId: randomUUID() };
+}
+
+/**
  * BALANCE-RESOLVE.action — issue the per-bank-account fetches and
  * extract per-card balance.
  *
@@ -495,11 +625,7 @@ async function executeBalanceResolveAction(
     const empty = commitEmptyAction(input);
     return succeed(empty);
   }
-  const fetchCtx: IFetchExecCtx = {
-    api: input.api.value,
-    logger: input.logger,
-    correlationId: randomUUID(),
-  };
+  const fetchCtx = buildFetchCtx(input.api.value, input.logger);
   return executeDispatchChain(input, fetchCtx, plan);
 }
 
@@ -596,22 +722,86 @@ function buildUniversalMissMessage(totalAccounts: number): string {
  * @param input - Pipeline context.
  * @returns Updated context, or fail on universal miss.
  */
+/**
+ * Detect the universal-miss POST condition: every account landed in
+ * `missedIds`, with at least one identity present. Pulled out so the
+ * orchestrator stays a thin guard/branch.
+ *
+ * @param report - Partitioned outcome from {@link partitionOutcomes}.
+ * @returns True when every account missed.
+ */
+function isUniversalMiss(report: IBalanceValidation): boolean {
+  return report.totalAccounts > 0 && report.missedIds.length === report.totalAccounts;
+}
+
+/**
+ * Emit the `balance-resolve.post` debug summary covering counts for
+ * resolved / missed / total accounts. Pulled out so the orchestrator
+ * body stays within the per-function LoC budget.
+ *
+ * @param log - Pipeline logger sink.
+ * @param report - Partitioned validation report.
+ * @returns Always true (sentinel for callers).
+ */
+function emitPostSummary(log: IPipelineContext['logger'], report: IBalanceValidation): true {
+  const message =
+    `balance-resolve.post resolved=${String(report.resolvedIds.length)} ` +
+    `missed=${String(report.missedIds.length)} total=${String(report.totalAccounts)}`;
+  log.debug({ message });
+  return true;
+}
+
+/**
+ * Build the `ACCOUNT_RESOLUTION_FAILED`-style universal-miss failure
+ * procedure for BALANCE-RESOLVE.post. Pulled out so the orchestrator
+ * stays a flat dispatch and the nested-call lint passes.
+ *
+ * @param report - Partitioned validation report.
+ * @returns Failure procedure carrying the diagnostic message.
+ */
+function buildUniversalMissFailure(report: IBalanceValidation): Procedure<IPipelineContext> {
+  const msg = buildUniversalMissMessage(report.totalAccounts);
+  return fail(ScraperErrorTypes.Generic, msg);
+}
+
+/**
+ * BALANCE-RESOLVE.post — partition outcomes into resolved vs missed.
+ * Soft-warns per missed account; hard-fails ONLY when every account
+ * landed in missedIds (universal miss = scrape miss, not legitimate).
+ * @param input - Pipeline context.
+ * @returns Updated context, or fail on universal miss.
+ */
+/**
+ * Pick the success / fail procedure for BALANCE-RESOLVE.post based on
+ * whether the report exhibits the universal-miss invariant. Pure
+ * helper — the orchestrator stays a thin gather-and-dispatch flow.
+ *
+ * @param input - Pipeline context.
+ * @param report - Partitioned validation report.
+ * @returns Failure for universal-miss, otherwise the commit success.
+ */
+function chooseBalancePostOutcome(
+  input: IPipelineContext,
+  report: IBalanceValidation,
+): Procedure<IPipelineContext> {
+  if (isUniversalMiss(report)) return buildUniversalMissFailure(report);
+  return succeed({ ...input, balanceValidation: some(report) });
+}
+
+/**
+ * BALANCE-RESOLVE.post — partition outcomes into resolved vs missed.
+ * Soft-warns per missed account; hard-fails ONLY when every account
+ * landed in missedIds (universal miss = scrape miss, not legitimate).
+ * @param input - Pipeline context.
+ * @returns Updated context, or fail on universal miss.
+ */
 function executeBalanceResolvePost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   const extracted = input.balanceExtracted.has ? input.balanceExtracted.value : EMPTY_EXTRACTED;
   const report = partitionOutcomes(extracted);
   emitMissWarns(report.missedIds, input.logger);
-  input.logger.debug({
-    message:
-      `balance-resolve.post resolved=${String(report.resolvedIds.length)} ` +
-      `missed=${String(report.missedIds.length)} total=${String(report.totalAccounts)}`,
-  });
-  if (report.totalAccounts > 0 && report.missedIds.length === report.totalAccounts) {
-    const msg = buildUniversalMissMessage(report.totalAccounts);
-    const failure = fail(ScraperErrorTypes.Generic, msg);
-    return Promise.resolve(failure);
-  }
-  const next = succeed({ ...input, balanceValidation: some(report) });
-  return Promise.resolve(next);
+  emitPostSummary(input.logger, report);
+  const outcome = chooseBalancePostOutcome(input, report);
+  return Promise.resolve(outcome);
 }
 
 /**
@@ -628,6 +818,54 @@ function buildFinalMap(extracted: IBalanceExtracted): ReadonlyMap<string, number
   return out;
 }
 
+/** Counts surfaced from `ctx.balanceValidation` for FINAL reveal logging. */
+interface IFinalRevealCounts {
+  readonly resolvedCount: number;
+  readonly missedCount: number;
+}
+
+/**
+ * Read resolved/missed counts from the optional balance-validation
+ * record, collapsing to zeros when the option is absent. Pulled out
+ * so {@link emitFinalReveal} stays within the per-function LoC budget.
+ *
+ * @param input - Pipeline context.
+ * @returns Counts bundle (zeros when validation option is empty).
+ */
+function readFinalRevealCounts(input: IPipelineContext): IFinalRevealCounts {
+  if (!input.balanceValidation.has) return { resolvedCount: 0, missedCount: 0 };
+  const validation = input.balanceValidation.value;
+  return { resolvedCount: validation.resolvedIds.length, missedCount: validation.missedIds.length };
+}
+
+/** Diagnostic payload for `balance-resolve.final` REVEAL log. */
+interface IFinalRevealDiag {
+  readonly event: 'balance-resolve.final';
+  readonly resolvedCount: string;
+  readonly missedCount: string;
+  readonly totalCount: string;
+  readonly message: string;
+}
+
+/**
+ * Build the structured REVEAL log payload from the counts bundle.
+ * Pulled out so {@link emitFinalReveal} stays within the per-function
+ * LoC budget and the diagnostic shape is greppable on its own.
+ *
+ * @param counts - Resolved/missed counts from `readFinalRevealCounts`.
+ * @param totalCount - Total account count from the extracted map.
+ * @returns REVEAL diagnostic payload ready for `LOG.info`.
+ */
+function buildFinalRevealDiag(counts: IFinalRevealCounts, totalCount: number): IFinalRevealDiag {
+  return {
+    event: 'balance-resolve.final',
+    resolvedCount: String(counts.resolvedCount),
+    missedCount: String(counts.missedCount),
+    totalCount: String(totalCount),
+    message: 'balance resolution committed; ready for TERMINATE',
+  };
+}
+
 /**
  * Emit the REVEAL info log for BALANCE-RESOLVE.final.
  * @param input - Pipeline context.
@@ -635,19 +873,9 @@ function buildFinalMap(extracted: IBalanceExtracted): ReadonlyMap<string, number
  * @returns True after the log is emitted.
  */
 function emitFinalReveal(input: IPipelineContext, totalCount: number): true {
-  const resolvedCount = input.balanceValidation.has
-    ? input.balanceValidation.value.resolvedIds.length
-    : 0;
-  const missedCount = input.balanceValidation.has
-    ? input.balanceValidation.value.missedIds.length
-    : 0;
-  LOG.info({
-    event: 'balance-resolve.final',
-    resolvedCount: String(resolvedCount),
-    missedCount: String(missedCount),
-    totalCount: String(totalCount),
-    message: 'balance resolution committed; ready for TERMINATE',
-  });
+  const counts = readFinalRevealCounts(input);
+  const diag = buildFinalRevealDiag(counts, totalCount);
+  LOG.info(diag);
   return true;
 }
 

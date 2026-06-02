@@ -20,6 +20,45 @@ interface IRunState {
   done: boolean;
 }
 
+/** Bundled args for {@link runStep} — under the 3-param ceiling. */
+interface IStepArgs<T> {
+  readonly state: IRunState;
+  readonly results: boolean[];
+  readonly action: (item: T, idx: number) => Promise<boolean>;
+}
+
+/**
+ * Per-item step honouring the short-circuit flag in {@link IRunState}.
+ * Extracted from {@link runSequential} so each function stays within
+ * the per-function cap.
+ *
+ * @param args - Bundle of short-circuit state, result slots, action.
+ * @param item - Item to attempt.
+ * @param idx - Position in the input array (used as result slot).
+ * @returns Whether the action reported success for this item.
+ */
+async function runStep<T>(args: IStepArgs<T>, item: T, idx: number): Promise<boolean> {
+  if (args.state.done) return false;
+  const didSucceed = await args.action(item, idx);
+  args.results[idx] = didSucceed;
+  if (didSucceed) args.state.done = true;
+  return didSucceed;
+}
+
+/**
+ * Build the reducer arrow consumed by {@link runSequential}'s
+ * {@link Array.reduce}. Extracted so the chain factory call is not
+ * inlined inside the reduce invocation (no-nested-call rule).
+ *
+ * @param args - Bundle of short-circuit state, result slots, action.
+ * @returns Reducer accepted by `items.reduce<Promise<boolean>>(...)`.
+ */
+function buildSequentialReducer<T>(
+  args: IStepArgs<T>,
+): (chain: Promise<boolean>, item: T, idx: number) => Promise<boolean> {
+  return (chain, item, idx) => chain.then(() => runStep(args, item, idx));
+}
+
 /**
  * Run actions sequentially, short-circuiting after the first success.
  * @param items - Array of items to process.
@@ -31,32 +70,11 @@ async function runSequential<T>(
   action: (item: T, idx: number) => Promise<boolean>,
 ): Promise<boolean[]> {
   const state: IRunState = { done: false };
-  const results = items.map(() => false);
-
-  /**
-   * Per-item step honouring the short-circuit flag in `state`.
-   * @param item - Item to attempt.
-   * @param idx - Position in `items` (used as result slot).
-   * @returns Whether the action reported success for this item.
-   */
-  async function step(item: T, idx: number): Promise<boolean> {
-    if (state.done) {
-      return false;
-    }
-    const didSucceed = await action(item, idx);
-    results[idx] = didSucceed;
-    if (didSucceed) {
-      state.done = true;
-    }
-    return didSucceed;
-  }
-
-  const initialChain = Promise.resolve(false);
-  const reducer = items.reduce<Promise<boolean>>(
-    (chain, item, idx) => chain.then(() => step(item, idx)),
-    initialChain,
-  );
-  await reducer;
+  const results = items.map((): boolean => false);
+  const args: IStepArgs<T> = { state, results, action };
+  const reducer = buildSequentialReducer(args);
+  const seedChain = Promise.resolve(false);
+  await items.reduce<Promise<boolean>>(reducer, seedChain);
   return results;
 }
 
@@ -117,6 +135,33 @@ async function detectByInputField(page: Page, cachedFrames?: Frame[]): Promise<b
 }
 
 /**
+ * Probe the page DOM for an OTP input field and log the outcome.
+ * Wrapped here so {@link detectOtpScreen} stays a thin dispatcher
+ * under the per-function cap.
+ *
+ * @param page - Playwright page to probe.
+ * @returns True iff an OTP input field was found.
+ */
+async function probeInputFieldAndLog(page: Page): Promise<boolean> {
+  const isByInput = await detectByInputField(page);
+  if (isByInput) LOG.debug('OTP detected by input field');
+  return isByInput;
+}
+
+/**
+ * Log diagnostic for the 'unknown' text-result branch. Extracted so the
+ * caller can stay a single-line conditional. See CR PR #286 F3 for why
+ * 'unknown' does not short-circuit.
+ *
+ * @returns Sentinel `true` so the function has a meaningful return value
+ *   (callers discard it — only the side-effect log matters).
+ */
+function logTextUnknown(): true {
+  LOG.debug('Page text inaccessible — falling back to input-field probe');
+  return true;
+}
+
+/**
  * Detect whether the current page is showing an OTP screen.
  * @param page - The Playwright page to check for OTP indicators.
  * @returns True if an OTP screen is detected.
@@ -127,17 +172,8 @@ export async function detectOtpScreen(page: Page): Promise<boolean> {
     LOG.debug('OTP detected by text pattern');
     return true;
   }
-  // CR PR #286 F3: do NOT short-circuit on 'unknown' — Playwright locators
-  // (detectByInputField → tryInContext) probe the DOM via the element-handle
-  // protocol, not page.evaluate(); they remain viable even when
-  // page.evaluate() failed (the only condition that yields 'unknown'). The
-  // prior `return false` masked real OTP screens whenever getBodyText threw.
-  if (textResult === 'unknown') {
-    LOG.debug('Page text inaccessible — falling back to input-field probe');
-  }
-  const isByInput = await detectByInputField(page);
-  if (isByInput) LOG.debug('OTP detected by input field');
-  return isByInput;
+  if (textResult === 'unknown') logTextUnknown();
+  return probeInputFieldAndLog(page);
 }
 
 /**

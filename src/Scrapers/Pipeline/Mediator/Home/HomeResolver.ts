@@ -41,6 +41,49 @@ interface IHomeDiscovery {
   readonly triggerTarget: IResolvedTarget | false;
 }
 
+/** Bundled args for {@link classifyAndBuild} — keeps params ≤3. */
+interface IClassifyAndBuildArgs {
+  readonly mediator: IElementMediator;
+  readonly visible: IRaceResult;
+  readonly page: Page;
+  readonly logger: ScraperLogger;
+}
+
+/**
+ * Race the WK_HOME.ENTRY candidates to locate a visible trigger.
+ * Swallows the underlying race rejection into `false` so the caller
+ * can short-circuit with a fail Procedure rather than try/catch.
+ *
+ * @param mediator - Element mediator providing the visibility race.
+ * @returns Race result on success, `false` when nothing visible.
+ */
+async function resolveHomeTrigger(mediator: IElementMediator): Promise<false | IRaceResult> {
+  const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
+  return mediator
+    .resolveVisible(candidates, HOME_RESOLVER_ENTRY_TIMEOUT_MS)
+    .catch((): false => false);
+}
+
+/**
+ * Classify the visible trigger's navigation strategy and assemble the
+ * matching {@link IHomeDiscovery}. Logs the masked trigger text twice
+ * (pre-classify and post-classify) to keep the debug trace
+ * deterministic across strategies.
+ *
+ * @param args - Bundled mediator, visible race result, page, logger.
+ * @returns Strategy-specific discovery (DIRECT/MODAL/SEQUENTIAL).
+ */
+async function classifyAndBuild(args: IClassifyAndBuildArgs): Promise<IHomeDiscovery> {
+  const { mediator, visible, page, logger } = args;
+  const triggerText = visible.value;
+  const triggerTarget = raceResultToTarget(visible, page);
+  const masked = maskVisibleText(triggerText);
+  logger.debug({ text: masked });
+  const strategy = await classifyStrategy(mediator, visible);
+  logger.debug({ trigger: masked, target: strategy });
+  return buildDiscoveryByStrategy(strategy, triggerText, triggerTarget);
+}
+
 /**
  * Passive discovery — find login entry and detect navigation strategy.
  * Zero clicks. Zero DOM mutation. Only reads attributes.
@@ -54,23 +97,11 @@ async function resolveHomeStrategy(
   logger: ScraperLogger,
   page: Page,
 ): Promise<Procedure<IHomeDiscovery>> {
-  const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
-  const visible = await mediator
-    .resolveVisible(candidates, HOME_RESOLVER_ENTRY_TIMEOUT_MS)
-    .catch((): false => false);
-  if (visible === false) {
+  const visible = await resolveHomeTrigger(mediator);
+  if (visible === false || !visible.found) {
     return fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');
   }
-  if (!visible.found) {
-    return fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');
-  }
-  const triggerText = visible.value;
-  const triggerTarget = raceResultToTarget(visible, page);
-  const masked = maskVisibleText(triggerText);
-  logger.debug({ text: masked });
-  const strategy = await classifyStrategy(mediator, visible);
-  logger.debug({ trigger: masked, target: strategy });
-  const discovery = buildDiscoveryByStrategy(strategy, triggerText, triggerTarget);
+  const discovery = await classifyAndBuild({ mediator, visible, page, logger });
   return succeed(discovery);
 }
 

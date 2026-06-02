@@ -103,20 +103,77 @@ async function awaitAndLog(
   log: IPipelineContext['logger'],
 ): Promise<true> {
   const start = Date.now();
-  const idMatchPromise = mediator.network.waitForFirstId(
-    ACCOUNT_RESOLVE_BUDGET_MS,
-    findFirstIdInPool,
-  );
-  await mediator.raceWithNetworkIdle(idMatchPromise, ACCOUNT_RESOLVE_BUDGET_MS);
+  const idMatch = mediator.network.waitForFirstId(ACCOUNT_RESOLVE_BUDGET_MS, findFirstIdInPool);
+  await mediator.raceWithNetworkIdle(idMatch, ACCOUNT_RESOLVE_BUDGET_MS);
   const pool = mediator.network.getPreNavCaptures();
-  const final = findFirstIdInPool(pool);
-  const matchedKey = String(final !== false) as 'true' | 'false';
-  log.debug({
-    message: `account-resolve.pre wait → ${WAIT_OUTCOME[matchedKey]}`,
-    elapsedMs: String(Date.now() - start),
-    poolSize: String(pool.length),
-  });
+  logAwaitOutcome(log, pool, start);
   return true;
+}
+
+/**
+ * Compute the matched-key sentinel from the final pool snapshot. The
+ * non-nested wrapper keeps the {@link awaitAndLog} body free of the
+ * `String(findFirstIdInPool(...) !== false)` nested call that the
+ * project's no-restricted-syntax rule rejects.
+ *
+ * @param pool - Final pre-nav capture pool after the race resolved.
+ * @returns Stringified boolean keyed for {@link WAIT_OUTCOME}.
+ */
+function evaluateAwaitOutcome(pool: readonly IDiscoveredEndpoint[]): 'true' | 'false' {
+  const matched = findFirstIdInPool(pool);
+  return String(matched !== false) as 'true' | 'false';
+}
+
+/**
+ * Build the structured diagnostic and emit it through the pipeline
+ * logger. Combining build + emit here keeps the wait orchestrator
+ * down to a single call and stops the `log.debug(buildDiag(...))`
+ * nested-call lint violation.
+ *
+ * @param log - Pipeline logger sink.
+ * @param pool - Final pre-nav capture pool.
+ * @param start - Wall-clock start time in ms.
+ * @returns Always true (sentinel for the chained call site).
+ */
+function logAwaitOutcome(
+  log: IPipelineContext['logger'],
+  pool: readonly IDiscoveredEndpoint[],
+  start: number,
+): true {
+  const matchedKey = evaluateAwaitOutcome(pool);
+  const diagnostic = buildAwaitDiagnostic(matchedKey, start, pool.length);
+  log.debug(diagnostic);
+  return true;
+}
+
+/** Diagnostic fields for the post-wait `awaitAndLog` debug payload. */
+interface IAwaitDiagnostic {
+  readonly message: string;
+  readonly elapsedMs: string;
+  readonly poolSize: string;
+}
+
+/**
+ * Materialise the structured diagnostic logged by {@link awaitAndLog}.
+ * Pulled out so the wait orchestrator stays under the per-function LoC
+ * budget and the diag shape is easy to update in one place.
+ *
+ * @param outcomeKey - String form of the boolean outcome (`'true'` /
+ *   `'false'`) — keyed off {@link WAIT_OUTCOME}.
+ * @param start - Wall-clock start time in ms (from `Date.now()`).
+ * @param poolSize - Final capture-pool size after the wait/race.
+ * @returns Debug log payload shape consumed by `log.debug`.
+ */
+function buildAwaitDiagnostic(
+  outcomeKey: 'true' | 'false',
+  start: number,
+  poolSize: number,
+): IAwaitDiagnostic {
+  return {
+    message: `account-resolve.pre wait → ${WAIT_OUTCOME[outcomeKey]}`,
+    elapsedMs: String(Date.now() - start),
+    poolSize: String(poolSize),
+  };
 }
 
 /**
@@ -129,14 +186,10 @@ async function awaitAndLog(
 async function executeAccountResolvePre(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has) {
-    return fail(ScraperErrorTypes.Generic, 'ACCOUNT-RESOLVE: no mediator');
-  }
+  if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'ACCOUNT-RESOLVE: no mediator');
   const mediator = input.mediator.value;
   const initialPool = mediator.network.getPreNavCaptures();
-  input.logger.debug({
-    message: `account-resolve.pre pool=${String(initialPool.length)}`,
-  });
+  input.logger.debug({ message: `account-resolve.pre pool=${String(initialPool.length)}` });
   await awaitAndLog(mediator, input.logger);
   return succeed(input);
 }
@@ -268,35 +321,196 @@ function resolveCaptureIndex(
  * @returns Updated context with the discovery option populated, or
  *   one of the two fail-loud procedures.
  */
-function executeAccountResolvePost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has) {
-    const passThrough = succeed(input);
-    return Promise.resolve(passThrough);
-  }
-  // MOCK_MODE safety valve — the offline snapshot suite has no captured
-  // network traffic, so the fail-loud checks can't apply. Live E2E is
-  // the only environment where the contract is enforceable.
-  if (isMockModeAccountResolveActive) {
-    const passThrough = succeed(input);
-    return Promise.resolve(passThrough);
-  }
-  const mediator = input.mediator.value;
-  const pool = mediator.network.getPreNavCaptures();
-  const result = discoverAccountsInPool(pool);
-  if (result.ids.length === 0) {
-    const failure = failAccountResolutionFailed(pool.length);
-    return Promise.resolve(failure);
-  }
+/** Discriminated outcome of the POST validation pass. */
+type ResolveClassification =
+  | { readonly kind: 'skip' }
+  | { readonly kind: 'failEmpty'; readonly poolSize: number }
+  | {
+      readonly kind: 'failIncomplete';
+      readonly resolved: number;
+      readonly expected: number;
+      readonly containers: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+    }
+  | {
+      readonly kind: 'commit';
+      readonly pool: readonly IDiscoveredEndpoint[];
+      readonly result: ReturnType<typeof discoverAccountsInPool>;
+    };
+
+/**
+ * Build the `failIncomplete` classification carrying the picker
+ * shortfall counts. Pulled out so {@link classifyAccountResolveResult}
+ * stays a thin 3-branch dispatch.
+ *
+ * @param result - Resolution outcome from `discoverAccountsInPool`.
+ * @param expected - Maximum container size across the capture pool.
+ * @returns `failIncomplete` classification ready for the dispatcher.
+ */
+function buildFailIncompleteClassification(
+  result: ReturnType<typeof discoverAccountsInPool>,
+  expected: number,
+): ResolveClassification {
+  return {
+    kind: 'failIncomplete',
+    resolved: result.ids.length,
+    expected,
+    containers: result.containers,
+  };
+}
+
+/**
+ * Classify the `discoverAccountsInPool` outcome into a tagged
+ * union: empty pool → `failEmpty`, expected mismatch →
+ * `failIncomplete`, otherwise → `commit`.
+ *
+ * @param pool - Pre-nav capture pool (drives catalog detection).
+ * @param result - Resolution outcome from `discoverAccountsInPool`.
+ * @returns Discriminated classification used by the dispatcher.
+ */
+function classifyAccountResolveResult(
+  pool: readonly IDiscoveredEndpoint[],
+  result: ReturnType<typeof discoverAccountsInPool>,
+): ResolveClassification {
+  if (result.ids.length === 0) return { kind: 'failEmpty', poolSize: pool.length };
   const expected = poolMaxContainer(pool);
-  if (result.ids.length < expected) {
-    const failure = failAccountResolutionIncomplete(result.ids.length, expected, result.containers);
-    return Promise.resolve(failure);
-  }
+  if (result.ids.length < expected) return buildFailIncompleteClassification(result, expected);
+  return { kind: 'commit', pool, result };
+}
+
+/**
+ * Build the committed success procedure from a classification's
+ * `commit` branch — packages the discovery payload, wraps it in
+ * `some`, and clones the pipeline context with `accountDiscovery`
+ * populated. Pure: no mediator/network access.
+ *
+ * @param input - Pipeline context that produced the result.
+ * @param pool - Pre-nav capture pool (drives catalog detection).
+ * @param result - Resolution outcome from `discoverAccountsInPool`.
+ * @returns Success procedure carrying the cloned context.
+ */
+function buildAccountResolveSuccess(
+  input: IPipelineContext,
+  pool: readonly IDiscoveredEndpoint[],
+  result: ReturnType<typeof discoverAccountsInPool>,
+): Procedure<IPipelineContext> {
   const captureIndex = resolveCaptureIndex(result.endpoint);
   const discoveryPayload = buildDiscoveryPayload(pool, result, captureIndex);
   const accountDiscovery = some(discoveryPayload);
-  const success = succeed({ ...input, accountDiscovery });
-  return Promise.resolve(success);
+  return succeed({ ...input, accountDiscovery });
+}
+
+/** Handler map for {@link ResolveClassification} kinds — OCP-style. */
+type ResolveDispatchMap = {
+  readonly [K in ResolveClassification['kind']]: (
+    input: IPipelineContext,
+    classification: Extract<ResolveClassification, { kind: K }>,
+  ) => Procedure<IPipelineContext>;
+};
+
+const RESOLVE_DISPATCH: ResolveDispatchMap = {
+  /**
+   * Skip branch — passes the context through unchanged (mock-mode /
+   * no-mediator escape).
+   * @param input - Pipeline context.
+   * @returns Pass-through success.
+   */
+  skip: (input): Procedure<IPipelineContext> => succeed(input),
+  /**
+   * Empty-pool branch — emits the fail-loud `ACCOUNT_RESOLUTION_FAILED`
+   * with the diagnostic pool size.
+   * @param _input - Unused pipeline context.
+   * @param c - Classification with `poolSize`.
+   * @returns Failure procedure.
+   */
+  failEmpty: (_input, c): Procedure<IPipelineContext> => failAccountResolutionFailed(c.poolSize),
+  /**
+   * Partial-resolution branch — emits the fail-loud
+   * `ACCOUNT_RESOLUTION_INCOMPLETE` with resolved/expected/container
+   * diagnostics.
+   * @param _input - Unused pipeline context.
+   * @param c - Classification with resolved/expected/containers.
+   * @returns Failure procedure.
+   */
+  failIncomplete: (_input, c): Procedure<IPipelineContext> =>
+    failAccountResolutionIncomplete(c.resolved, c.expected, c.containers),
+  /**
+   * Commit branch — packages the discovery payload onto the context.
+   * @param input - Pipeline context.
+   * @param c - Classification carrying pool + result.
+   * @returns Success procedure with `accountDiscovery` populated.
+   */
+  commit: (input, c): Procedure<IPipelineContext> =>
+    buildAccountResolveSuccess(input, c.pool, c.result),
+};
+
+/**
+ * Dispatch the classification's `kind` to its concrete procedure via
+ * the {@link RESOLVE_DISPATCH} handler map. Single-line body; the
+ * `as never` cast lets us index the map with a narrowed kind without
+ * losing type safety.
+ *
+ * @param input - Pipeline context.
+ * @param classification - Outcome of {@link classifyAccountResolveResult}.
+ * @returns The success / fail procedure for this branch.
+ */
+function dispatchAccountResolveClassification(
+  input: IPipelineContext,
+  classification: ResolveClassification,
+): Procedure<IPipelineContext> {
+  const handler = RESOLVE_DISPATCH[classification.kind] as (
+    input: IPipelineContext,
+    classification: ResolveClassification,
+  ) => Procedure<IPipelineContext>;
+  return handler(input, classification);
+}
+
+/**
+ * POST — extracts ids from the pre-nav pool, commits
+ * `ctx.accountDiscovery`, or fails loud when the resolution is empty
+ * or partial via {@link classifyAccountResolveResult} +
+ * {@link dispatchAccountResolveClassification}.
+ *
+ * @param input - Pipeline context.
+ * @returns Updated context with the discovery option populated, or
+ *   one of the two fail-loud procedures.
+ */
+/**
+ * Resolve the success/fail procedure from the live mediator state.
+ * Pure pull-from-pool + classify + dispatch — pulled out so the
+ * outer phase stays a thin gate.
+ *
+ * @param input - Pipeline context.
+ * @param mediator - Unwrapped element mediator (POST guard already
+ *   verified `input.mediator.has`).
+ * @returns Procedure for this run — success/fail.
+ */
+function buildAccountResolvePostResult(
+  input: IPipelineContext,
+  mediator: IElementMediator,
+): Procedure<IPipelineContext> {
+  const pool = mediator.network.getPreNavCaptures();
+  const result = discoverAccountsInPool(pool);
+  const classification = classifyAccountResolveResult(pool, result);
+  return dispatchAccountResolveClassification(input, classification);
+}
+
+/**
+ * POST — extracts ids from the pre-nav pool, commits
+ * `ctx.accountDiscovery`, or fails loud when the resolution is empty
+ * or partial via {@link classifyAccountResolveResult} +
+ * {@link dispatchAccountResolveClassification}.
+ *
+ * @param input - Pipeline context.
+ * @returns Updated context with the discovery option populated, or
+ *   one of the two fail-loud procedures.
+ */
+function executeAccountResolvePost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  if (!input.mediator.has || isMockModeAccountResolveActive) {
+    const passThrough = succeed(input);
+    return Promise.resolve(passThrough);
+  }
+  const dispatched = buildAccountResolvePostResult(input, input.mediator.value);
+  return Promise.resolve(dispatched);
 }
 
 /** Args bundle for {@link buildDiscoveryPayload}. */

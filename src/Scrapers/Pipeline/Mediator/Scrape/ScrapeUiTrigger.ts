@@ -60,6 +60,27 @@ async function waitAndTrace(
 }
 
 /**
+ * Try one WK selector group, returning a `succeed(true|false)`
+ * procedure when the click landed. Returns `false` when no click
+ * was made so the orchestrator can fall through to the next group.
+ *
+ * @param mediator - Element mediator (black box).
+ * @param group - Selector candidates to attempt (transactions/menu).
+ * @param logger - Pipeline logger.
+ * @returns Procedure success, or `false` on no-match.
+ */
+async function tryWkGroup(
+  mediator: IElementMediator,
+  group: readonly SelectorCandidate[],
+  logger?: ScraperLogger,
+): Promise<Procedure<boolean> | false> {
+  const label = await tryWkClick(mediator, group);
+  if (!label) return false;
+  const hasTraffic = await waitAndTrace(mediator, label, logger);
+  return succeed(hasTraffic);
+}
+
+/**
  * Best-effort TRIGGER: ONE click attempt, short wait, then succeed.
  * @param mediator - Element mediator (black box).
  * @param logger - Pipeline logger.
@@ -70,14 +91,12 @@ async function triggerDashboardUi(
   logger?: ScraperLogger,
 ): Promise<Procedure<boolean>> {
   const txn = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
-  const txnLabel = await tryWkClick(mediator, txn);
-  if (txnLabel) return succeed(await waitAndTrace(mediator, txnLabel, logger));
+  const txnHit = await tryWkGroup(mediator, txn, logger);
+  if (txnHit !== false) return txnHit;
   const menu = WK_DASHBOARD.MENU_EXPAND as unknown as readonly SelectorCandidate[];
-  const menuLabel = await tryWkClick(mediator, menu);
-  if (menuLabel) return succeed(await waitAndTrace(mediator, menuLabel, logger));
-  logger?.debug({
-    message: 'No UI trigger — traffic from LOGIN',
-  });
+  const menuHit = await tryWkGroup(mediator, menu, logger);
+  if (menuHit !== false) return menuHit;
+  logger?.debug({ message: 'No UI trigger — traffic from LOGIN' });
   return succeed(false);
 }
 

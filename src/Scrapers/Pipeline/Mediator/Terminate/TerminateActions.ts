@@ -59,6 +59,38 @@ function cleanupTimeoutGuard(ms: number): Promise<Procedure<void>> {
 }
 
 /**
+ * Execute a single cleanup with the wall-clock guard race. Extracted so
+ * the surrounding {@link runCleanup} stays within the per-function cap.
+ *
+ * @param cleanup - Cleanup function returning Procedure<void>.
+ * @param logger - Logger for error reporting.
+ * @returns The cleanup result (or the timeout fail Procedure).
+ */
+async function runCleanupGuarded(
+  cleanup: CleanupFn,
+  logger: IPipelineContext['logger'],
+): Promise<Procedure<void>> {
+  const cleanupCall = cleanup();
+  const guard = cleanupTimeoutGuard(TERMINATE_CLEANUP_BUDGET_MS);
+  const result = await Promise.race([cleanupCall, guard]);
+  return logCleanupResult(result, logger);
+}
+
+/**
+ * Translate a thrown cleanup error into a fail Procedure, capping the
+ * message length so logs remain bounded.
+ *
+ * @param error - Caught error from the cleanup call.
+ * @param logger - Logger for debug emission.
+ * @returns Fail Procedure with the truncated message.
+ */
+function handleCleanupError(error: unknown, logger: IPipelineContext['logger']): Procedure<void> {
+  const msg = toErrorMessage(error as Error).slice(0, 80);
+  logger.debug({ message: msg });
+  return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
+}
+
+/**
  * Run a single cleanup handler with a wall-clock budget. Swallows any
  * error. The budget protects against a hung cleanup blocking the
  * pipeline (live Isracard regression — see `TERMINATE_CLEANUP_BUDGET_MS`).
@@ -72,14 +104,9 @@ async function runCleanup(
   logger: IPipelineContext['logger'],
 ): Promise<Procedure<void>> {
   try {
-    const cleanupCall = cleanup();
-    const guard = cleanupTimeoutGuard(TERMINATE_CLEANUP_BUDGET_MS);
-    const result = await Promise.race([cleanupCall, guard]);
-    return logCleanupResult(result, logger);
+    return await runCleanupGuarded(cleanup, logger);
   } catch (error) {
-    const msg = toErrorMessage(error as Error).slice(0, 80);
-    logger.debug({ message: msg });
-    return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
+    return handleCleanupError(error, logger);
   }
 }
 

@@ -64,6 +64,22 @@ interface IAccountDiscoveryResult {
 }
 
 /**
+ * True iff the first element of a candidate array is an object that
+ * exposes an account-id field. Extracted so the surrounding guard
+ * (`hasRootAccountArray`) stays under the LoC cap and the array-
+ * element shape check is greppable on its own.
+ *
+ * @param arr - Non-empty array peeled from the response body.
+ * @returns True iff `arr[0]` carries a WK account-id field.
+ */
+function isAccountShapedFirstElement(arr: readonly unknown[]): boolean {
+  const first = arr[0];
+  if (first === null || typeof first !== 'object') return false;
+  const hit = findFieldValue(first as Record<string, unknown>, [...WK_ACCT.id]);
+  return hit !== false;
+}
+
+/**
  * Returns true when the FIRST element of a root-level array exposes
  * an account-id field (one of `WK_ACCT.id`). Used as a strict
  * shape check for the Hapoalim `[{accountNumber,bankNumber,…}]`
@@ -79,11 +95,7 @@ function hasRootAccountArray(ep: IDiscoveredEndpoint): boolean {
   if (!Array.isArray(body)) return false;
   const arr = body as readonly unknown[];
   if (arr.length === 0) return false;
-  const first = arr[0];
-  if (first === null || typeof first !== 'object') return false;
-  const fields = [...WK_ACCT.id];
-  const hit = findFieldValue(first as Record<string, unknown>, fields);
-  return hit !== false;
+  return isAccountShapedFirstElement(arr);
 }
 
 /**
@@ -141,6 +153,19 @@ function isPopulated(value: FieldValue): boolean {
 }
 
 /**
+ * Count populated own keys on a single record, casting via the
+ * {@link FieldValue} alias so the populated-field tie-break stays
+ * typed end-to-end.
+ *
+ * @param record - First container record to score.
+ * @returns Number of own keys whose value satisfies {@link isPopulated}.
+ */
+function countPopulatedEntries(record: Record<string, unknown>): number {
+  const entries = Object.entries(record) as readonly (readonly [string, FieldValue])[];
+  return entries.filter((entry): boolean => isPopulated(entry[1])).length;
+}
+
+/**
  * Counts populated own keys on the FIRST record of the FIRST WK
  * container reachable from this capture's body. Used as the
  * deterministic tie-break when two candidate endpoints expose
@@ -151,14 +176,11 @@ function isPopulated(value: FieldValue): boolean {
  */
 function firstRecordFieldRichness(ep: IDiscoveredEndpoint): number {
   const body = ep.responseBody;
-  if (body === null) return 0;
-  if (typeof body !== 'object') return 0;
+  if (body === null || typeof body !== 'object') return 0;
   const containers = extractAllContainers(body as ApiPayload);
   const names = Object.keys(containers);
   if (names.length === 0) return 0;
-  const firstRecord = containers[names[0]][0];
-  const entries = Object.entries(firstRecord) as readonly (readonly [string, FieldValue])[];
-  return entries.filter((entry): boolean => isPopulated(entry[1])).length;
+  return countPopulatedEntries(containers[names[0]][0]);
 }
 
 /** Scoring tuple used to rank pool candidates for the picker. */
@@ -286,6 +308,37 @@ function asAccountId(hit: IScalarFieldHit): string | false {
 }
 
 /**
+ * Parse a URL string into a `URL` instance, returning `false` when
+ * the input is malformed. Pure helper so callers stay flat.
+ *
+ * @param url - Raw URL string from the capture.
+ * @returns Parsed URL or `false` on syntax error.
+ */
+function tryParseUrl(url: string): URL | false {
+  try {
+    return new URL(url);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Materialise a `URLSearchParams` into a plain `Record<string,string>`
+ * so {@link findFieldValue} (which walks plain objects) can scan the
+ * query for an account-id field.
+ *
+ * @param params - Query parameters from a parsed URL.
+ * @returns Plain record snapshot of the params.
+ */
+function urlSearchParamsToRecord(params: URLSearchParams): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of params.entries()) {
+    out[name] = value;
+  }
+  return out;
+}
+
+/**
  * Inspect a GET capture's URL query parameters for an account-id-
  * shaped value. Pure URL-side: never reads the response body, never
  * touches `postData`. Mirrors how the request itself carries the
@@ -294,18 +347,9 @@ function asAccountId(hit: IScalarFieldHit): string | false {
  * @returns Identifier or false.
  */
 function extractAccountIdFromGetUrl(ep: IDiscoveredEndpoint): string | false {
-  // Method-gating is the caller's job (see `extractAccountIdFromRequest`)
-  // so this helper stays single-purpose: parse URL, query, return id.
-  let parsed: URL;
-  try {
-    parsed = new URL(ep.url);
-  } catch {
-    return false;
-  }
-  const queryRecord: Record<string, string> = {};
-  for (const [name, value] of parsed.searchParams.entries()) {
-    queryRecord[name] = value;
-  }
+  const parsed = tryParseUrl(ep.url);
+  if (parsed === false) return false;
+  const queryRecord = urlSearchParamsToRecord(parsed.searchParams);
   const hit = findFieldValue(queryRecord, [...WK_ACCT.id]);
   return asAccountId(hit);
 }
@@ -386,6 +430,63 @@ function extractAccountIdFromRequest(ep: IDiscoveredEndpoint): string | false {
   return false;
 }
 
+/** Pair of (capture, extracted id) — surfaced by request-side discovery. */
+interface IRequestHit {
+  readonly ep: IDiscoveredEndpoint;
+  readonly id: string;
+}
+
+/** Empty discovery sentinel — shared so the picker stays allocation-free. */
+const EMPTY_DISCOVERY: IAccountDiscoveryResult = {
+  endpoint: false,
+  ids: [],
+  records: [],
+  containers: {},
+};
+
+/**
+ * Bridge a single capture to an {@link IRequestHit} — returns `false`
+ * when the per-method extractor cannot surface an id. Used by
+ * {@link discoverAccountFromRequest} as the .map() callback.
+ *
+ * @param ep - Captured endpoint to inspect.
+ * @returns Hit pair or `false` when no request-side id is present.
+ */
+function mapEndpointToRequestHit(ep: IDiscoveredEndpoint): IRequestHit | false {
+  const id = extractAccountIdFromRequest(ep);
+  if (id === false) return false;
+  return { ep, id };
+}
+
+/**
+ * Type guard for {@link IRequestHit} — exported via filter callback to
+ * narrow `(IRequestHit | false)[]` → `IRequestHit[]` without inline
+ * predicates that grow the orchestrator.
+ *
+ * @param entry - Candidate filter element.
+ * @returns True iff entry is a non-`false` hit.
+ */
+function isRequestHit(entry: IRequestHit | false): entry is IRequestHit {
+  return entry !== false;
+}
+
+/**
+ * Materialise a synthetic single-account discovery result from a
+ * request-side hit so the downstream consumer sees the same shape as
+ * the response-side path (`pickAccountEndpoint`).
+ *
+ * @param winner - First request-side hit from the pool.
+ * @returns Synthetic discovery carrying just the extracted id.
+ */
+function buildSyntheticDiscovery(winner: IRequestHit): IAccountDiscoveryResult {
+  return {
+    endpoint: winner.ep,
+    ids: [winner.id],
+    records: [{ accountId: winner.id }],
+    containers: {},
+  };
+}
+
 /**
  * Walk the pool until the first capture surfaces a request-side
  * identifier. Returns a synthetic single-account result so the
@@ -395,21 +496,25 @@ function extractAccountIdFromRequest(ep: IDiscoveredEndpoint): string | false {
  * @returns Synthetic account result, or false.
  */
 function discoverAccountFromRequest(pool: readonly IDiscoveredEndpoint[]): IAccountDiscoveryResult {
-  const hits = pool
-    .map((ep): { ep: IDiscoveredEndpoint; id: string } | false => {
-      const id = extractAccountIdFromRequest(ep);
-      if (id === false) return false;
-      return { ep, id };
-    })
-    .filter((entry): entry is { ep: IDiscoveredEndpoint; id: string } => entry !== false);
-  if (hits.length === 0) return { endpoint: false, ids: [], records: [], containers: {} };
-  const winner = hits[0];
-  return {
-    endpoint: winner.ep,
-    ids: [winner.id],
-    records: [{ accountId: winner.id }],
-    containers: {},
-  };
+  const hits = pool.map(mapEndpointToRequestHit).filter(isRequestHit);
+  if (hits.length === 0) return EMPTY_DISCOVERY;
+  return buildSyntheticDiscovery(hits[0]);
+}
+
+/**
+ * Build the response-body discovery payload — pulls ids/records and
+ * containers from the picked endpoint's body. Extracted so the
+ * orchestrator stays a thin two-branch dispatcher.
+ *
+ * @param endpoint - Picked endpoint with the richest container shape.
+ * @returns Discovery carrying spread copies of ids/records + containers.
+ */
+function buildDiscoveryFromEndpoint(endpoint: IDiscoveredEndpoint): IAccountDiscoveryResult {
+  const body = endpoint.responseBody as ApiPayload;
+  const ids = extractAccountIds(body);
+  const records = extractAccountRecords(body);
+  const containers = extractAllContainers(body);
+  return { endpoint, ids: [...ids], records: [...records], containers };
 }
 
 /**
@@ -428,19 +533,8 @@ function discoverAccountFromRequest(pool: readonly IDiscoveredEndpoint[]): IAcco
  */
 function discoverAccountsInPool(pool: readonly IDiscoveredEndpoint[]): IAccountDiscoveryResult {
   const endpoint = pickAccountEndpoint(pool);
-  if (endpoint !== false) {
-    const body = endpoint.responseBody as ApiPayload;
-    const ids = extractAccountIds(body);
-    const records = extractAccountRecords(body);
-    const containers = extractAllContainers(body);
-    return {
-      endpoint,
-      ids: [...ids],
-      records: [...records],
-      containers,
-    };
-  }
-  return discoverAccountFromRequest(pool);
+  if (endpoint === false) return discoverAccountFromRequest(pool);
+  return buildDiscoveryFromEndpoint(endpoint);
 }
 
 export type { IAccountDiscoveryResult };

@@ -8,6 +8,8 @@
  * FINAL:  handoff — pass contextId + phoneHint to OtpFill phase
  */
 
+import type { Page } from 'playwright-core';
+
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
@@ -20,7 +22,7 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
-import type { IElementMediator } from '../Elements/ElementMediator.js';
+import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
 import { traceResolution } from '../Elements/ResolutionTrace.js';
 import { detectOtpTrigger } from '../Form/OtpProbe.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
@@ -37,21 +39,150 @@ import {
 // ── PRE: Passive Discovery (Rule #20) ──────────────────────────────
 
 /**
- * Extract phone hint (last 3-4 digits) from main page text.
- * @param input - Pipeline context.
- * @returns Last digits or empty.
+ * Read the visible body text of the main page so the phone-hint
+ * regexes can pattern-match. Returns empty string when the page
+ * isn't attached or {@link Page.evaluate} rejects (mid-navigation,
+ * detached frame, etc.).
+ *
+ * @param input - Pipeline context carrying the optional browser.
+ * @returns Body inner text or `''` when unavailable.
  */
-async function extractPhoneHint(input: IPipelineContext): Promise<string> {
+async function readPageBodyText(input: IPipelineContext): Promise<string> {
   if (!input.browser.has) return '';
-  const page = input.browser.value.page;
-  const bodyText = await page
+  return input.browser.value.page
     .evaluate((): string => document.body.innerText)
     .catch((): string => '');
+}
+
+/**
+ * Match the phone-hint pattern against the page body and pull out the
+ * last 3-4 digits substring captured by {@link PHONE_LAST_DIGITS}.
+ *
+ * @param bodyText - Visible body text of the main page.
+ * @returns Last digits captured from the hint, or `''` when no match.
+ */
+function extractLastDigitsFromBody(bodyText: string): string {
   const fullMatch = PHONE_HINT_PATTERN.exec(bodyText);
   if (!fullMatch) return '';
   const digits = PHONE_LAST_DIGITS.exec(fullMatch[0]);
   if (!digits) return '';
   return digits[1];
+}
+
+/**
+ * Extract phone hint (last 3-4 digits) from main page text.
+ * @param input - Pipeline context.
+ * @returns Last digits or empty.
+ */
+async function extractPhoneHint(input: IPipelineContext): Promise<string> {
+  const bodyText = await readPageBodyText(input);
+  if (!bodyText) return '';
+  return extractLastDigitsFromBody(bodyText);
+}
+
+/** Bundled outcome of {@link probeTriggerForPre}. */
+interface ITriggerProbeOutcome {
+  readonly hasTrigger: boolean;
+  readonly triggerTarget: IResolvedTarget | false;
+}
+
+/** Bundled args for {@link probeTriggerForPre} — keeps params ≤3 and avoids
+ * passing a non-narrowed Option (the page is already unwrapped). */
+interface IProbeTriggerArgs {
+  readonly mediator: IElementMediator;
+  readonly page: Page;
+  readonly logger: IPipelineContext['logger'];
+}
+
+/**
+ * Probe the page for the OTP-trigger element, trace the resolution for
+ * forensic logs, and convert the race result to a click target.
+ * Extracted so {@link executeTriggerPre} stays a thin orchestrator.
+ *
+ * @param args - Bundle of mediator, page, and pipeline logger.
+ * @returns Probe outcome with `hasTrigger` flag and resolved target.
+ */
+async function probeTriggerForPre(args: IProbeTriggerArgs): Promise<ITriggerProbeOutcome> {
+  const triggerResult = unwrapProbe(await detectOtpTrigger(args.mediator).catch(OTP_FALLBACK));
+  traceResolution(args.logger, 'OTP_TRIGGER.PRE', triggerResult);
+  const triggerTarget = raceResultToTarget(triggerResult, args.page);
+  return { hasTrigger: triggerResult.found, triggerTarget };
+}
+
+/** Truthy MOCK_MODE values accepted at PRE for skipping the no-trigger fail. */
+const MOCK_MODE_TRUTHY: ReadonlySet<string> = new Set(['1', 'true']);
+
+/**
+ * Returns true when the MOCK_MODE env-var is set to a truthy value.
+ * Centralised so the predicate is greppable and matches the
+ * canonical truthy set ({@link MOCK_MODE_TRUTHY}).
+ *
+ * @returns Whether mock-mode short-circuits the no-trigger fail.
+ */
+function isMockModeEnabled(): boolean {
+  const raw = process.env.MOCK_MODE;
+  if (raw === undefined) return false;
+  return MOCK_MODE_TRUTHY.has(raw);
+}
+
+/** Bundled args for {@link buildTriggerPreDiag} — keeps params ≤3. */
+interface IPreDiagArgs {
+  readonly triggerTarget: IResolvedTarget | false;
+  readonly phoneHint: string;
+  readonly otpTriggerPreUrl: string;
+  readonly hasTrigger: boolean;
+}
+
+/**
+ * Compose the PRE-stage diagnostics patch carrying the trigger probe
+ * outcome, phone hint, and URL captured at PRE entry. Returned as a
+ * new object so the caller's spread/succeed stays under the cap.
+ *
+ * @param input - Pipeline context (for existing diagnostics).
+ * @param args - Bundled PRE outputs to stamp.
+ * @returns New diagnostics record.
+ */
+function buildTriggerPreDiag(
+  input: IPipelineContext,
+  args: IPreDiagArgs,
+): IPipelineContext['diagnostics'] {
+  const lastAction = `otp-trigger-pre (found=${String(args.hasTrigger)})`;
+  const extras: Record<string, unknown> = {
+    otpTriggerTarget: args.triggerTarget,
+    otpPhoneHint: args.phoneHint,
+    otpTriggerPreUrl: args.otpTriggerPreUrl,
+  };
+  return { ...input.diagnostics, lastAction, ...extras };
+}
+
+/** Bundled inputs for {@link finalizeTriggerPre} — keeps params ≤3. */
+interface IFinalizePreArgs {
+  readonly hasTrigger: boolean;
+  readonly triggerTarget: IResolvedTarget | false;
+  readonly phoneHint: string;
+}
+
+/**
+ * Stamp PRE diagnostics or fail loudly when no trigger was detected.
+ * Mock-mode short-circuits the fail so unit harnesses can drive ACTION
+ * without first satisfying the probe. Extracted to keep PRE ≤10 LoC.
+ *
+ * @param input - Pipeline context.
+ * @param mediator - Element mediator (for current URL).
+ * @param args - PRE outputs (trigger probe result + phone hint).
+ * @returns Failure when no trigger, otherwise context with PRE diag.
+ */
+function finalizeTriggerPre(
+  input: IPipelineContext,
+  mediator: IElementMediator,
+  args: IFinalizePreArgs,
+): Procedure<IPipelineContext> {
+  if (!args.hasTrigger && !isMockModeEnabled()) {
+    return fail(ScraperErrorTypes.Generic, 'OTP trigger not detected');
+  }
+  const otpTriggerPreUrl = mediator.getCurrentUrl();
+  const diag = buildTriggerPreDiag(input, { ...args, otpTriggerPreUrl });
+  return succeed({ ...input, diagnostics: diag });
 }
 
 /**
@@ -61,34 +192,76 @@ async function extractPhoneHint(input: IPipelineContext): Promise<string> {
  * @returns Updated context with trigger discovery in diagnostics.
  */
 async function executeTriggerPre(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has) return succeed(input);
-  if (!input.browser.has) return succeed(input);
+  if (!input.mediator.has || !input.browser.has) return succeed(input);
   const mediator = input.mediator.value;
   const page = input.browser.value.page;
-  const triggerResult = unwrapProbe(await detectOtpTrigger(mediator).catch(OTP_FALLBACK));
-  traceResolution(input.logger, 'OTP_TRIGGER.PRE', triggerResult);
-  const triggerTarget = raceResultToTarget(triggerResult, page);
+  const probe = await probeTriggerForPre({ mediator, page, logger: input.logger });
   const phoneHint = await extractPhoneHint(input);
-  input.logger.debug({
-    message: `phone-hint: ${maskVisibleText(phoneHint)}`,
-  });
-  const hasTrigger: boolean = triggerResult.found;
-  const isMockMode = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-  if (!hasTrigger && !isMockMode) {
-    return fail(ScraperErrorTypes.Generic, 'OTP trigger not detected');
-  }
-  const otpTriggerPreUrl = mediator.getCurrentUrl();
-  const diag = {
-    ...input.diagnostics,
-    lastAction: `otp-trigger-pre (found=${String(hasTrigger)})`,
-    otpTriggerTarget: triggerTarget,
-    otpPhoneHint: phoneHint,
-    otpTriggerPreUrl,
-  };
-  return succeed({ ...input, diagnostics: diag });
+  input.logger.debug({ message: `phone-hint: ${maskVisibleText(phoneHint)}` });
+  return finalizeTriggerPre(input, mediator, { ...probe, phoneHint });
 }
 
 // ── ACTION: Click Trigger ─────────────────────────────────────────
+
+/** Bundled args for {@link clickOtpTrigger} — keeps params ≤3. */
+interface IClickTriggerArgs {
+  readonly executor: IActionMediator;
+  readonly target: IResolvedTarget;
+  readonly logger: IPipelineContext['logger'];
+}
+
+/**
+ * Click the resolved OTP-trigger target and log the outcome. Swallows
+ * Playwright auto-wait rejections so callers can branch on the boolean
+ * rather than try/catch.
+ *
+ * @param args - Bundle of executor, click target, pipeline logger.
+ * @returns True iff the click resolved without rejecting.
+ */
+async function clickOtpTrigger(args: IClickTriggerArgs): Promise<boolean> {
+  const { executor, target, logger } = args;
+  const didClick = await executor
+    .clickElement({ contextId: target.contextId, selector: target.selector })
+    .then((): true => true)
+    .catch((): false => false);
+  logger.debug({ message: `trigger-otp: ${String(didClick)} @ ${target.contextId}` });
+  return didClick;
+}
+
+/**
+ * Stamp the click deadline IMMEDIATELY AFTER the click succeeds, BEFORE
+ * the network-idle settle wait. Any 2xx ACK landing during the wait
+ * window has its timestamp ≥ `triggerClickedAt` and is correctly
+ * recognised by {@link isPostClickAck} (PR #221 review finding A.1).
+ *
+ * @param executor - Sealed action mediator.
+ * @returns Epoch-ms captured BEFORE the settle wait begins.
+ */
+async function captureClickedAtAndSettle(executor: IActionMediator): Promise<number> {
+  const triggerClickedAt = Date.now();
+  await executor.waitForNetworkIdle(OTP_PHASE_SETTLE_TIMEOUT_MS).catch((): false => false);
+  return triggerClickedAt;
+}
+
+/**
+ * Perform the actual trigger click, capture the click deadline, and
+ * stamp `triggerClickedAt` into diagnostics. Extracted so the public
+ * {@link executeTriggerAction} entry-point remains ≤10 LoC.
+ *
+ * @param input - Sealed action context.
+ * @param args - Bundle of executor, target, and pipeline logger.
+ * @returns Updated context on click success, failure on click reject.
+ */
+async function performTriggerClickAndStamp(
+  input: IActionContext,
+  args: IClickTriggerArgs,
+): Promise<Procedure<IActionContext>> {
+  const didClick = await clickOtpTrigger(args);
+  if (!didClick) return fail(ScraperErrorTypes.Generic, 'OTP trigger failed — SMS not sent');
+  const triggerClickedAt = await captureClickedAtAndSettle(args.executor);
+  const diag = { ...input.diagnostics, triggerClickedAt };
+  return succeed({ ...input, diagnostics: diag });
+}
 
 /**
  * ACTION (sealed): Click the OTP trigger button.
@@ -100,29 +273,8 @@ async function executeTriggerAction(input: IActionContext): Promise<Procedure<IA
   if (!input.executor.has) return succeed(input);
   const executor = input.executor.value;
   const target = readDiagTarget(input.diagnostics, 'otpTriggerTarget');
-  if (!target) {
-    return fail(ScraperErrorTypes.Generic, 'OTP trigger — no target from PRE');
-  }
-  const didClick = await executor
-    .clickElement({ contextId: target.contextId, selector: target.selector })
-    .then((): true => true)
-    .catch((): false => false);
-  input.logger.debug({
-    message: `trigger-otp: ${String(didClick)} @ ${target.contextId}`,
-  });
-  if (!didClick) {
-    return fail(ScraperErrorTypes.Generic, 'OTP trigger failed — SMS not sent');
-  }
-  // M4 — capture the wall-clock deadline for the POST scope-bound
-  // validator IMMEDIATELY AFTER the click succeeds, BEFORE the settle
-  // wait. Any 2xx ACK landing during the wait window has its timestamp
-  // ≥ triggerClickedAt and is correctly recognised by isPostClickAck.
-  // (Stamping after the wait would race-filter ACKs as "pre-click" on
-  // fast banks — PR #221 review finding A.1.)
-  const triggerClickedAt = Date.now();
-  await executor.waitForNetworkIdle(OTP_PHASE_SETTLE_TIMEOUT_MS).catch((): false => false);
-  const diag = { ...input.diagnostics, triggerClickedAt };
-  return succeed({ ...input, diagnostics: diag });
+  if (!target) return fail(ScraperErrorTypes.Generic, 'OTP trigger — no target from PRE');
+  return performTriggerClickAndStamp(input, { executor, target, logger: input.logger });
 }
 
 // ── POST: Scope-bound validation ──────────────────────────────────
@@ -208,6 +360,29 @@ function isPostClickAck(ep: IDiscoveredEndpoint, sinceMs: number): boolean {
 }
 
 /**
+ * Re-probe whether the {@link IResolvedTarget} ACTION clicked is still
+ * visible. A rejected/timed-out re-probe is UNKNOWN, not "target gone"
+ * — stamping `true` here would mark `scopeValidated=true` without ever
+ * proving the trigger disappeared (PR #221 review finding B.2 — false
+ * positive on transient resolver failures).
+ *
+ * @param mediator - Element mediator for the re-resolve.
+ * @param target - Target ACTION previously clicked.
+ * @returns True iff the re-probe resolved AND the target is no longer found.
+ */
+async function reProbeTargetGone(
+  mediator: IElementMediator,
+  target: IResolvedTarget,
+): Promise<boolean> {
+  const candidate = { kind: 'css' as const, value: target.selector };
+  const probe = await mediator
+    .resolveVisible([candidate], OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS)
+    .catch((): false => false);
+  if (probe === false) return false;
+  return !probe.found;
+}
+
+/**
  * Verify the trigger's effect within ACTION's scope. Two signals
  * (logical OR) — either is enough:
  * <ul>
@@ -233,16 +408,7 @@ async function probeTriggerScope(
   const captures = mediator.network.getAllEndpoints();
   const hasAck = captures.some((ep): boolean => isPostClickAck(ep, triggerClickedAt));
   if (hasAck) return true;
-  const candidate = { kind: 'css' as const, value: target.selector };
-  const probe = await mediator
-    .resolveVisible([candidate], OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS)
-    .catch((): false => false);
-  // PR #221 review finding B.2 (id 3215505993): a rejected/timed-out
-  // re-probe is UNKNOWN, not "target gone". Stamping `true` here would
-  // mark `scopeValidated=true` without ever proving the trigger
-  // disappeared — false positive on transient resolver failures.
-  if (probe === false) return false;
-  return !probe.found;
+  return reProbeTargetGone(mediator, target);
 }
 
 // ── POST: Scope-bound validation (M4) ─────────────────────────────
@@ -272,6 +438,19 @@ function commitTriggerPost(
 }
 
 /**
+ * Build the no-target POST commit — stamps `triggerScopeValidated=false`
+ * so downstream consumers never see an undefined diagnostic. Extracted
+ * so {@link executeTriggerPost} stays a thin dispatcher.
+ *
+ * @param input - Pipeline context.
+ * @returns Success with the no-target diagnostics patch.
+ */
+function commitNoTargetTriggerPost(input: IPipelineContext): Procedure<IPipelineContext> {
+  const diag = { ...input.diagnostics, triggerScopeValidated: false };
+  return succeed({ ...input, diagnostics: diag });
+}
+
+/**
  * POST: Verify the trigger's scope-bound effect — re-resolve the
  * `otpTriggerTarget` and check post-click captures for a 2xx ACK.
  * Stamps `triggerScopeValidated` in diagnostics; never fails loud
@@ -284,10 +463,7 @@ function commitTriggerPost(
 async function executeTriggerPost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   const target = readDiagTarget(input.diagnostics, 'otpTriggerTarget');
-  if (!target) {
-    const diag = { ...input.diagnostics, triggerScopeValidated: false };
-    return succeed({ ...input, diagnostics: diag });
-  }
+  if (!target) return commitNoTargetTriggerPost(input);
   const triggerClickedAt = readTriggerClickedAt(input.diagnostics);
   const wasScopeValidated = await probeTriggerScope(input.mediator.value, target, triggerClickedAt);
   return commitTriggerPost(input, wasScopeValidated, triggerClickedAt);

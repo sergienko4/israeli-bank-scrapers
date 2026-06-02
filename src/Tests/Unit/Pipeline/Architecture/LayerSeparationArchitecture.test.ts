@@ -441,6 +441,11 @@ const NET_SCRAPE_ALLOWLIST: readonly string[] = [
   // network surface; resolveTxnEndpoint runs here.
   path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
   path.join('Mediator', 'Scrape', 'EndpointResolver', 'EndpointResolver.ts'),
+  // URL/body helpers extracted from EndpointResolver.ts under the
+  // same architectural rationale — consumes `IDiscoveredEndpoint` /
+  // `INetworkDiscovery` purely to build pending/billing URLs from
+  // captured traffic on behalf of the parser. No SCRAPE consumer.
+  path.join('Mediator', 'Scrape', 'EndpointResolver', 'EndpointUrlHelpers.ts'),
   // Generic shape predicate consumed by the network picker; not a
   // SCRAPE consumer.
   path.join('Mediator', 'Scrape', 'TxnShape.ts'),

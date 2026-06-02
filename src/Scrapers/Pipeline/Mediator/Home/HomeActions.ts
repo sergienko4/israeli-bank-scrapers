@@ -47,6 +47,53 @@ interface IValidateLoginAreaArgs {
 }
 
 /**
+ * Count frames in the browser page when a browser is attached, else 0.
+ * Extracted so {@link executeValidateLoginArea} stays under the cap.
+ *
+ * @param input - Pipeline context with an Option-shaped browser handle.
+ * @returns Frame count (≥ 0) or `0` when no browser is attached.
+ */
+function countBrowserFrames(input: IPipelineContext): number {
+  if (!input.browser.has) return 0;
+  return input.browser.value.page.frames().length;
+}
+
+/**
+ * Probe for a visible login-form gate inside the active context. Used
+ * by {@link executeValidateLoginArea} as a tertiary success signal so
+ * banks that mount the form in-place (no nav, no iframe) still validate.
+ *
+ * @param mediator - Element mediator providing the visibility race.
+ * @returns True iff the FORM_CHECK gate resolved to a visible element.
+ */
+async function probeLoginForm(mediator: IElementMediator): Promise<boolean> {
+  const formGate = WK_HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
+  const formProbe = await mediator
+    .resolveVisible(formGate, HOME_ENTRY_TIMEOUT_MS)
+    .catch((): false => false);
+  return formProbe !== false && formProbe.found;
+}
+
+/** Aggregated diagnostic signals used to decide login-area presence. */
+interface ILoginAreaSignals {
+  readonly didNavigate: boolean;
+  readonly frameCount: number;
+  readonly hasLoginForm: boolean;
+}
+
+/**
+ * Decide whether ANY of the three signals indicates the login area is
+ * present. Extracted so the threshold (`frameCount > 1`) sits next to
+ * the boolean composition rather than inline with the validator.
+ *
+ * @param signals - Aggregated nav / frame / form signals.
+ * @returns True when any signal indicates login-area presence.
+ */
+function loginAreaDetected(signals: ILoginAreaSignals): boolean {
+  return signals.didNavigate || signals.frameCount > 1 || signals.hasLoginForm;
+}
+
+/**
  * POST: Validate URL changed from homepage OR login iframe appeared.
  * @param args - Bundled validation arguments.
  * @returns Succeed if login area detected, fail otherwise.
@@ -55,22 +102,11 @@ async function executeValidateLoginArea(
   args: IValidateLoginAreaArgs,
 ): Promise<Procedure<IPipelineContext>> {
   const { mediator, input, homepageUrl, logger } = args;
-  const currentUrl = mediator.getCurrentUrl();
-  const didNavigate = currentUrl !== homepageUrl;
-  let frameCount = 0;
-  if (input.browser.has) frameCount = input.browser.value.page.frames().length;
-  const hasFrames = frameCount > 1;
-  const formGate = WK_HOME.FORM_CHECK as unknown as readonly SelectorCandidate[];
-  const formProbe = await mediator
-    .resolveVisible(formGate, HOME_ENTRY_TIMEOUT_MS)
-    .catch((): false => false);
-  const hasLoginForm: boolean = formProbe !== false && formProbe.found;
-  logger.debug({
-    didNavigate,
-    frames: frameCount,
-    loginForm: hasLoginForm,
-  });
-  if (didNavigate || hasFrames || hasLoginForm) return succeed(input);
+  const didNavigate = mediator.getCurrentUrl() !== homepageUrl;
+  const frameCount = countBrowserFrames(input);
+  const hasLoginForm = await probeLoginForm(mediator);
+  logger.debug({ didNavigate, frames: frameCount, loginForm: hasLoginForm });
+  if (loginAreaDetected({ didNavigate, frameCount, hasLoginForm })) return succeed(input);
   return fail(ScraperErrorTypes.Generic, 'HOME POST: login area not detected');
 }
 
@@ -242,6 +278,35 @@ async function settleAfterClick(
   return true;
 }
 
+/** Bundled args for direct/sequential HOME navigation click. */
+interface IDirectNavArgs {
+  readonly executor: IActionMediator;
+  readonly target: IResolvedTarget;
+  readonly isSequential: boolean;
+  readonly logger: ScraperLogger;
+}
+
+/**
+ * Perform the direct/sequential click + settle + URL probe path that
+ * both NAV_STRATEGY.DIRECT and NAV_STRATEGY.SEQUENTIAL share. Extracted
+ * so {@link executeHomeNavigation} stays a thin dispatch switch.
+ *
+ * @param args - Bundle of executor, pre-resolved target, sequencing
+ *   flag, and pipeline logger.
+ * @returns True iff `page.url()` changed after the click (fragment-only
+ *   mutations are filtered by {@link didReallyNavigate}).
+ */
+async function executeDirectNavigation(args: IDirectNavArgs): Promise<boolean> {
+  const { executor, target, isSequential, logger } = args;
+  const urlBefore = executor.getCurrentUrl();
+  await clickResolvedTarget(executor, target, isSequential);
+  await settleAfterClick(executor, isSequential);
+  const currentUrl = executor.getCurrentUrl();
+  const didNavigate = didReallyNavigate(urlBefore, currentUrl);
+  logger.debug({ url: maskVisibleText(currentUrl), didNavigate });
+  return didNavigate;
+}
+
 /**
  * Execute HOME navigation via sealed executor — SRP: ACTION clicks
  * ONLY the PRE-resolved `triggerTarget` (identity selector captured
@@ -268,18 +333,12 @@ async function executeHomeNavigation(
   discovery: IHomeDiscovery,
   logger: ScraperLogger,
 ): Promise<boolean> {
-  if (!discovery.triggerTarget) return false;
-  if (discovery.strategy === NAV_STRATEGY.MODAL) {
-    return executeModalClick(executor, discovery, logger);
-  }
-  const urlBefore = executor.getCurrentUrl();
-  const isSeq = discovery.strategy === NAV_STRATEGY.SEQUENTIAL;
-  await clickResolvedTarget(executor, discovery.triggerTarget, isSeq);
-  await settleAfterClick(executor, isSeq);
-  const currentUrl = executor.getCurrentUrl();
-  const didNavigate = didReallyNavigate(urlBefore, currentUrl);
-  logger.debug({ url: maskVisibleText(currentUrl), didNavigate });
-  return didNavigate;
+  const target = discovery.triggerTarget;
+  if (!target) return false;
+  const isModal = discovery.strategy === NAV_STRATEGY.MODAL;
+  if (isModal) return executeModalClick(executor, discovery, logger);
+  const isSequential = discovery.strategy === NAV_STRATEGY.SEQUENTIAL;
+  return executeDirectNavigation({ executor, target, isSequential, logger });
 }
 
 export {

@@ -179,6 +179,28 @@ function extractAllContainers(
 }
 
 /**
+ * Build the structured debug diagnostic line for
+ * {@link flattenContainersForLog}. Pulled out so the flatten helper
+ * stays within the per-function LoC budget.
+ *
+ * @param containers - Per-WK-name container split.
+ * @param concatenated - Flattened record list.
+ * @returns Diagnostic message ready for `LOG.debug`.
+ */
+function buildFlattenDebugMessage(
+  containers: Readonly<Record<string, readonly ApiRecord[]>>,
+  concatenated: readonly ApiRecord[],
+): string {
+  const containerNames = Object.keys(containers);
+  const joined = containerNames.join(',');
+  const count = String(containerNames.length);
+  return (
+    `extractAccountRecords: ${String(concatenated.length)} items ` +
+    `(${count} named containers: ${joined})`
+  );
+}
+
+/**
  * Concatenate every container's records and emit the per-container
  * trace line. Extracted helper so {@link extractAccountRecords}
  * stays inside the project's cognitive-complexity ceiling.
@@ -191,11 +213,8 @@ function flattenContainersForLog(
   const containerNames = Object.keys(containers);
   const concatenated: ApiRecord[] = [];
   for (const name of containerNames) concatenated.push(...containers[name]);
-  LOG.debug({
-    message:
-      `extractAccountRecords: ${String(concatenated.length)} items ` +
-      `(${String(containerNames.length)} named containers: ${containerNames.join(',')})`,
-  });
+  const message = buildFlattenDebugMessage(containers, concatenated);
+  LOG.debug({ message });
   return concatenated;
 }
 

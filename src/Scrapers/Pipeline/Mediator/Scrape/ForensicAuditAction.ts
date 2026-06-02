@@ -58,6 +58,19 @@ function redactDesc(desc: string): string {
 }
 
 /**
+ * Resolve the txn date string used by the audit preview. Returns an
+ * empty string when the underlying date is falsy so the dispatch map
+ * stays a pure literal lookup.
+ *
+ * @param raw - Raw transaction date as stored on the audit record.
+ * @returns `dd/MM/yyyy` (he-IL) when present, else empty string.
+ */
+function resolveTxnDateLabel(raw: string): string {
+  if (!raw) return '';
+  return new Date(raw).toLocaleDateString('he-IL');
+}
+
+/**
  * Format one transaction line for debug preview. Amount and description
  * are routed through PiiRedactor strategies so the audit line contains
  * only stable hints (sign of amount, length tag of merchant).
@@ -65,11 +78,7 @@ function redactDesc(desc: string): string {
  * @returns Formatted string: date | amount currency | description.
  */
 function formatTxnLine(txn: IAuditAccount['txns'][number]): string {
-  const parsed = new Date(txn.date);
-  const formatted = parsed.toLocaleDateString('he-IL');
-  const dateMap: Record<string, string> = { true: formatted, false: '' };
-  const hasDate = Boolean(txn.date);
-  const date = dateMap[String(hasDate)];
+  const date = resolveTxnDateLabel(txn.date);
   const rawAmt = txn.chargedAmount ?? txn.originalAmount ?? 0;
   const amt = redactAmount(rawAmt);
   const cur = txn.originalCurrency ?? 'ILS';
@@ -147,6 +156,38 @@ function resolveAuditLabel(scrapeSucceeded: boolean): AuditLabel {
 }
 
 /**
+ * Resolve the txn-count label for an audit line — `'0'` for unmatched
+ * cards, the actual count otherwise. Pulled out so
+ * {@link logQualifiedCard} stays a compose helper.
+ *
+ * @param acct - Matching account, or omitted when no card→account
+ *   pairing was possible (VisaCal-class banks pre-fix).
+ * @returns Stringified count for the audit line.
+ */
+function resolveQualifiedTxnCount(acct?: IAuditAccount): string {
+  if (!acct) return '0';
+  return String(acct.txns.length);
+}
+
+/**
+ * Build the `[AUDIT] | <card> | QUALIFIED | <label> | <N> txns |`
+ * message for a qualified-card audit line. Pulled out so
+ * {@link logQualifiedCard} stays a thin compose helper.
+ *
+ * @param card - Qualified-card identifier from scrapeDiscovery.
+ * @param accounts - Scraped accounts for txn-count lookup.
+ * @returns Ready-to-emit audit line.
+ */
+function buildQualifiedAuditMessage(card: string, accounts: readonly IAuditAccount[]): string {
+  const acct = accounts.find((a): boolean => isAccountIdMatch(a.accountNumber, card));
+  const txnCount = resolveQualifiedTxnCount(acct);
+  const cardLabel = showLastDigits(card);
+  const hasAcct = Boolean(acct);
+  const label = resolveAuditLabel(hasAcct);
+  return `[AUDIT] | ${cardLabel} | QUALIFIED | ${label} | ${txnCount} txns |`;
+}
+
+/**
  * Emit one `[AUDIT] | <card> | QUALIFIED | <label> | <N> txns |` line
  * per qualified card. Looks up the matching account via
  * {@link isAccountIdMatch} so VisaCal-class banks (long-form
@@ -161,18 +202,8 @@ function resolveAuditLabel(scrapeSucceeded: boolean): AuditLabel {
  * @returns True after logging.
  */
 function logQualifiedCard(card: string, accounts: readonly IAuditAccount[]): boolean {
-  const acct = accounts.find((a): boolean => isAccountIdMatch(a.accountNumber, card));
-  const didScrapeSucceed = Boolean(acct);
-  let txnCount = '0';
-  if (acct) {
-    txnCount = String(acct.txns.length);
-  }
-  const cardLabel = showLastDigits(card);
-  const label = resolveAuditLabel(didScrapeSucceed);
-  LOG.debug({
-    stage: 'POST',
-    message: `[AUDIT] | ${cardLabel} | QUALIFIED | ${label} | ${txnCount} txns |`,
-  });
+  const message = buildQualifiedAuditMessage(card, accounts);
+  LOG.debug({ stage: 'POST', message });
   return true;
 }
 
@@ -195,6 +226,22 @@ function logAccountTxnSummary(acct: IAuditAccount): boolean {
 }
 
 /**
+ * Log a single pruned card audit line. Pulled out so
+ * {@link logCardClassification} stays a thin two-line mapper.
+ *
+ * @param card - Pruned-card identifier from scrapeDiscovery.
+ * @returns Always true (sentinel for callers).
+ */
+function logPrunedCard(card: string): true {
+  const prunedLabel = showLastDigits(card);
+  LOG.debug({
+    stage: 'POST',
+    message: `[AUDIT] | ${prunedLabel} | PRUNED | ${AUDIT_LABEL_ERROR} | 0 |`,
+  });
+  return true;
+}
+
+/**
  * Emit qualified/pruned card audit lines when scrapeDiscovery is populated.
  * Browser-driven scrape paths populate discovery; api-direct-call paths
  * don't, so this section is skipped silently for them.
@@ -209,14 +256,21 @@ function logCardClassification(
   if (!input.scrapeDiscovery.has) return false;
   const disc = input.scrapeDiscovery.value;
   disc.qualifiedCards.map((card: string): boolean => logQualifiedCard(card, accounts));
-  disc.prunedCards.map((card: string): boolean => {
-    const prunedLabel = showLastDigits(card);
-    LOG.debug({
-      stage: 'POST',
-      message: `[AUDIT] | ${prunedLabel} | PRUNED | ${AUDIT_LABEL_ERROR} | 0 |`,
-    });
-    return true;
-  });
+  disc.prunedCards.map(logPrunedCard);
+  return true;
+}
+
+/**
+ * Emit the audit table header + mirror-check line. Pulled out so
+ * {@link logForensicAudit} stays a flat compose helper.
+ *
+ * @param accounts - Scraped accounts evaluated by the mirror check.
+ * @returns Always true (sentinel for callers).
+ */
+function logForensicHeader(accounts: readonly IAuditAccount[]): true {
+  LOG.debug({ stage: 'POST', message: '[AUDIT] | Card | Status | Reason | Txns |' });
+  const mirrorResult = detectMirroredAccounts(accounts);
+  LOG.debug({ stage: 'POST', message: `[AUDIT] | MIRROR CHECK | ${mirrorResult.message} |` });
   return true;
 }
 
@@ -232,16 +286,8 @@ function logCardClassification(
 function logForensicAudit(input: IPipelineContext): boolean {
   let accounts: readonly IAuditAccount[] = [];
   if (input.scrape.has) accounts = input.scrape.value.accounts;
-  LOG.debug({
-    stage: 'POST',
-    message: '[AUDIT] | Card | Status | Reason | Txns |',
-  });
   logCardClassification(input, accounts);
-  const mirrorResult = detectMirroredAccounts(accounts);
-  LOG.debug({
-    stage: 'POST',
-    message: `[AUDIT] | MIRROR CHECK | ${mirrorResult.message} |`,
-  });
+  logForensicHeader(accounts);
   accounts.map(logAccountTxnSummary);
   return true;
 }
