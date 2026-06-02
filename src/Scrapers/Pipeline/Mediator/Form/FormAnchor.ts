@@ -156,9 +156,16 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
     const absent = String();
     const filtered = el.className.split(/\s+/).filter((c): boolean => c.length > 0);
     const stableClass = filtered.find((c): boolean => !c.startsWith('ng-')) ?? absent;
-    // prettier-ignore
-    return [el.tagName, el.id, el.tagName === 'FORM', el.querySelectorAll('input').length,
-      sibs?.indexOf(el) ?? 0, sibs?.length ?? 1, el.getAttribute('name') ?? absent, stableClass];
+    return [
+      el.tagName,
+      el.id,
+      el.tagName === 'FORM',
+      el.querySelectorAll('input').length,
+      sibs?.indexOf(el) ?? 0,
+      sibs?.length ?? 1,
+      el.getAttribute('name') ?? absent,
+      stableClass,
+    ];
   });
 }
 
