@@ -63,7 +63,8 @@ interface IMockCtxOptions {
  * @returns Mock Page/Frame.
  */
 function makeMockCtx(props: IRawProps, opts: IMockCtxOptions = {}): Page | Frame {
-  const { isVisible = true, willThrow = false, isAttached = true } = opts;
+  const { willThrow = false, isAttached = true } = opts;
+  const isVisibleResult = opts.isVisible ?? isAttached;
   return {
     /**
      * Return a mock locator with isVisible + evaluate support.
@@ -81,11 +82,13 @@ function makeMockCtx(props: IRawProps, opts: IMockCtxOptions = {}): Page | Frame
          */
         count: (): Promise<number> => Promise.resolve(isAttached ? 1 : 0),
         /**
-         * Return isVisible based on test setup.
+         * Return isVisible — derived from isAttached when not explicitly set.
          * @returns Promise boolean.
          */
         isVisible: (): Promise<boolean> =>
-          willThrow ? Promise.reject(new Error('locator detached')) : Promise.resolve(isVisible),
+          willThrow
+            ? Promise.reject(new Error('locator detached'))
+            : Promise.resolve(isVisibleResult),
         /**
          * Return mock props as if extracted from DOM.
          * @returns Resolved props.

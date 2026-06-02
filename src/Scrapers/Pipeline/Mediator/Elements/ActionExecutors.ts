@@ -325,9 +325,8 @@ async function evaluateJsClick(
  * @returns Always `true`.
  */
 function browserClickLastAriaLabel(label: string): true {
-  const sel = `[aria-label="${label}"]`;
-  const nodeList = document.querySelectorAll<HTMLElement>(sel);
-  const elements = Array.from(nodeList);
+  const all = document.querySelectorAll<HTMLElement>('[aria-label]');
+  const elements = Array.from(all).filter((el): boolean => el.getAttribute('aria-label') === label);
   const lastEl = elements.at(-1);
   if (lastEl) lastEl.click();
   return true;

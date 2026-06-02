@@ -311,6 +311,12 @@ describe('clickElementImpl — Tier 4 aria-label DOM fallback branches', () => {
         /**
          * Test helper.
          *
+         * @returns aria-label value for filter.
+         */
+        getAttribute: (): string => 'OK',
+        /**
+         * Test helper.
+         *
          * @returns Result.
          */
         click: (): boolean => {
@@ -318,6 +324,12 @@ describe('clickElementImpl — Tier 4 aria-label DOM fallback branches', () => {
         },
       },
       {
+        /**
+         * Test helper.
+         *
+         * @returns aria-label value for filter.
+         */
+        getAttribute: (): string => 'OK',
         /**
          * Test helper.
          *
@@ -335,7 +347,10 @@ describe('clickElementImpl — Tier 4 aria-label DOM fallback branches', () => {
        *
        * @returns Result.
        */
-      querySelectorAll: (): readonly { click: () => boolean }[] => fakeBtns,
+      querySelectorAll: (): readonly {
+        click: () => boolean;
+        getAttribute: (n: string) => string;
+      }[] => fakeBtns,
     };
     const loc = makeLocator({
       /**

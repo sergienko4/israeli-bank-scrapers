@@ -99,6 +99,38 @@ const CONFIG: ILoginConfig = {
   possibleResults: {},
 } as unknown as ILoginConfig;
 
+/**
+ * Build an IActionMediator stub. All methods succeed by default;
+ * pass overrides to inject failure or alternate behavior.
+ * @param overrides - Per-test method overrides.
+ * @returns Mock IActionMediator.
+ */
+function makeActionExecutor(overrides: Partial<IActionMediator> = {}): IActionMediator {
+  const base: Partial<IActionMediator> = {
+    /**
+     * Default fillInput stub — no-op success.
+     * @returns Resolved true.
+     */
+    fillInput: (): Promise<true> => Promise.resolve(true),
+    /**
+     * Default pressEnter stub — Enter pressed successfully.
+     * @returns Resolved true.
+     */
+    pressEnter: (): Promise<true> => Promise.resolve(true),
+    /**
+     * Default clickElement stub — click performed.
+     * @returns Resolved true.
+     */
+    clickElement: (): Promise<true> => Promise.resolve(true),
+    /**
+     * Default getCurrentUrl stub — returns canned bank login URL.
+     * @returns Default login URL.
+     */
+    getCurrentUrl: (): string => 'https://bank.co.il/login',
+  };
+  return { ...base, ...overrides } as unknown as IActionMediator;
+}
+
 describe('fillAllFields', () => {
   it('fails validation when credential missing', async () => {
     const mediator = makeMediator();
@@ -344,32 +376,13 @@ describe('fillFromDiscovery', () => {
       targets: new Map([['username', target]]),
       submitTarget: { has: false },
     } as unknown as ILoginFieldDiscovery;
-    const executor = {
+    const executor = makeActionExecutor({
       /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      fillInput: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
+       * Per-test override: pressEnter rejects to exercise empty-signal fail path.
+       * @returns Rejected promise.
        */
       pressEnter: (): Promise<never> => Promise.reject(new Error('press fail')),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      clickElement: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      getCurrentUrl: (): string => 'https://bank.co.il/login',
-    } as unknown as IActionMediator;
+    });
     const result = await fillFromDiscovery({
       discovery,
       executor,
