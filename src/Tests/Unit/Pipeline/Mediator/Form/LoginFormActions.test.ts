@@ -428,4 +428,58 @@ describe('fillFromDiscovery', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('fillFromDiscovery returns fail when activeFrameId is empty AND submitTarget absent', async () => {
+    const target: IResolvedTarget = {
+      selector: '#u',
+      contextId: 'main',
+      kind: 'css',
+      candidateValue: '#u',
+    };
+    const discovery: ILoginFieldDiscovery = {
+      activeFrameId: '',
+      targets: new Map([['username', target]]),
+      submitTarget: { has: false },
+    } as unknown as ILoginFieldDiscovery;
+    let didPress = false;
+    const executor = {
+      /**
+       * Records that pressEnter was invoked — MUST remain false because
+       * the guard short-circuits on empty activeFrameId.
+       *
+       * @returns Resolved true.
+       */
+      fillInput: (): Promise<true> => Promise.resolve(true),
+      /**
+       * pressEnter records the call so the guard can be verified.
+       *
+       * @returns Resolved true.
+       */
+      pressEnter: (): Promise<true> => {
+        didPress = true;
+        return Promise.resolve(true);
+      },
+      /**
+       * clickElement noop.
+       *
+       * @returns Resolved true.
+       */
+      clickElement: (): Promise<true> => Promise.resolve(true),
+      /**
+       * getCurrentUrl noop.
+       *
+       * @returns URL string.
+       */
+      getCurrentUrl: (): string => 'https://bank.co.il/login',
+    } as unknown as IActionMediator;
+    const result = await fillFromDiscovery({
+      discovery,
+      executor,
+      config: CONFIG,
+      creds: { username: 'u' },
+      logger: LOG,
+    });
+    expect(didPress).toBe(false);
+    expect(result.success).toBe(false);
+  });
 });

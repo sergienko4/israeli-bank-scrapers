@@ -349,14 +349,15 @@ async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Pr
  * @param executor - Sealed action mediator.
  * @param activeFrameId - Opaque contextId of the frame with fields.
  * @param logger - Pipeline logger.
- * @returns True only when pressEnter resolved; false when it rejected
- *   or activeFrameId is empty.
+ * @returns True only when pressEnter resolved against a non-empty
+ *   frame ID; false when the ID is empty OR pressEnter rejected.
  */
 async function tryEnterFromDiscovery(
   executor: IActionMediator,
   activeFrameId: string,
   logger: ScraperLogger,
 ): Promise<boolean> {
+  if (!activeFrameId) return false;
   logger.debug({ method: 'enter', url: maskVisibleText(activeFrameId) });
   return executor
     .pressEnter(activeFrameId)
