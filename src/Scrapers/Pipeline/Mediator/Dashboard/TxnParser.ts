@@ -233,6 +233,21 @@ function extractAccountIdFromPair(pair: string): IPairOutcome {
 }
 
 /**
+ * Locate the first {@link IPairOutcome} of kind 'match' from a list
+ * of decoded query-string pairs. Pulled out so
+ * {@link extractAccountIdFromUrl} stays under the LoC cap. Returns
+ * the canonical SKIP sentinel when no pair matched — keeps the
+ * Result-Pattern (no `undefined` return).
+ * @param pairs - Raw `key=value` fragments to inspect.
+ * @returns Matched outcome or {@link PAIR_OUTCOME_SKIP} when nothing matched.
+ */
+function findFirstMatch(pairs: readonly string[]): IPairOutcome {
+  const outcomes = pairs.map(extractAccountIdFromPair);
+  const matched = outcomes.find((outcome): boolean => outcome.kind === 'match');
+  return matched ?? PAIR_OUTCOME_SKIP;
+}
+
+/**
  * Extract a per-account identifier from the captured URL's query
  * string when one of the WK_ACCT.id keys is present. Returns `false`
  * when the URL has no recognised account-id query parameter — the
@@ -246,10 +261,8 @@ function extractAccountIdFromUrl(url: string): string | false {
   if (queryStart === -1) return false;
   const query = url.slice(queryStart + 1);
   const pairs = query.split('&');
-  const matched = pairs
-    .map(extractAccountIdFromPair)
-    .find((outcome): boolean => outcome.kind === 'match');
-  if (matched?.kind === 'match') return matched.value;
+  const matched = findFirstMatch(pairs);
+  if (matched.kind === 'match') return matched.value;
   return false;
 }
 
@@ -329,6 +342,35 @@ function buildDateWindowParamsMap(
   return new Map([[key, [params[0], params[1]]]]);
 }
 
+/** Computed scope decision for a captured TXN endpoint. */
+interface IHarvestScope {
+  readonly capturedAccountId: string | false;
+  readonly isMultiAccountScope: boolean;
+  readonly shouldSkipDetector: boolean;
+}
+
+/**
+ * Resolve the captured-scope flags for a TXN endpoint. Pulled out so
+ * {@link buildTxnHarvest} keeps to the ≤10 LoC body cap. The decision
+ * is purely a function of the captured URL, the raw body shape, and
+ * how many accounts ACCOUNT-RESOLVE committed.
+ *
+ * @param internal - DASHBOARD-internal resolver result.
+ * @param accountIdCount - Accounts ACCOUNT-RESOLVE committed.
+ * @returns Scope flags consumed by the harvest builder.
+ */
+function resolveHarvestScope(
+  internal: ITxnEndpointInternal,
+  accountIdCount: number,
+): IHarvestScope {
+  const capturedAccountId = extractAccountIdFromUrl(internal.endpoint.url);
+  const isBodyShapeMulti = detectMultiAccountScope(internal.responseBodySample);
+  const isContextMulti = capturedAccountId === false && accountIdCount > 1;
+  const isMultiAccountScope = isBodyShapeMulti || isContextMulti;
+  const shouldSkipDetector = isMultiAccountScope || internal.normalizedRecords.length === 0;
+  return { capturedAccountId, isMultiAccountScope, shouldSkipDetector };
+}
+
 /**
  * Builds the DASHBOARD-side TXN harvest from the internal resolver
  * payload. Mirrors how ACCOUNT-RESOLVE builds {@link IAccountDiscovery}
@@ -354,29 +396,92 @@ function buildTxnHarvest(
   accountIdCount: number,
   pool: readonly IDateWindowProbeInput[] = [],
 ): IDashboardTxnHarvest {
-  const capturedAccountId = extractAccountIdFromUrl(internal.endpoint.url);
-  const isBodyShapeMulti = detectMultiAccountScope(internal.responseBodySample);
-  // Context-aware multi-scope: an unscoped capture in a multi-account
-  // run cannot be attributed to one iteration without mirroring.
-  const isContextMulti = capturedAccountId === false && accountIdCount > 1;
-  const isMultiAccountScope = isBodyShapeMulti || isContextMulti;
-  const shouldSkipDetector = isMultiAccountScope || internal.normalizedRecords.length === 0;
-  const dedupKeyFieldsByAccount = buildDedupKeyFieldsMap(
-    internal.normalizedRecords,
-    capturedAccountId,
-    shouldSkipDetector,
-  );
-  const dateWindowParamsByAccount = buildDateWindowParamsMap(
-    pool,
-    capturedAccountId,
-    isMultiAccountScope,
-  );
+  const scope = resolveHarvestScope(internal, accountIdCount);
+  const records = internal.normalizedRecords;
+  const maps = buildHarvestMaps({ records, scope, pool });
+  return assembleHarvestPayload(records, scope, maps);
+}
+
+/** Per-account harvest maps the assembler folds into the payload. */
+interface IHarvestMaps {
+  readonly dedupKeyFieldsByAccount: ReadonlyMap<string, readonly string[]>;
+  readonly dateWindowParamsByAccount: ReadonlyMap<string, readonly [string, string]>;
+}
+
+/** Inputs for {@link buildHarvestMaps}. Bundled to respect the ≤3-param cap. */
+interface IBuildHarvestMapsArgs {
+  readonly records: readonly ITransaction[];
+  readonly scope: IHarvestScope;
+  readonly pool: readonly IDateWindowProbeInput[];
+}
+
+/**
+ * Build the per-account dedup-key and date-window maps for a harvest.
+ * Pulled out so {@link buildTxnHarvest} stays under the LoC cap; the
+ * two map builders share the same scope flags and would otherwise
+ * inflate the body with extra wiring.
+ *
+ * @param args - Bundled records, scope flags, and captured pool.
+ * @returns Per-account dedup-key and date-window maps.
+ */
+function buildHarvestMaps(args: IBuildHarvestMapsArgs): IHarvestMaps {
+  const dedupKeyFieldsByAccount = buildDedupMapFromArgs(args);
+  const dateWindowParamsByAccount = buildDateWindowMapFromArgs(args);
+  return { dedupKeyFieldsByAccount, dateWindowParamsByAccount };
+}
+
+/**
+ * Project {@link IBuildHarvestMapsArgs} onto {@link buildDedupKeyFieldsMap}.
+ * Pulled out so {@link buildHarvestMaps} stays under the LoC cap; the
+ * multi-line argument list would otherwise dominate the orchestrator.
+ *
+ * @param args - Bundled records, scope flags, and captured pool.
+ * @returns Per-account dedup-key field-name tuples.
+ */
+function buildDedupMapFromArgs(
+  args: IBuildHarvestMapsArgs,
+): ReadonlyMap<string, readonly string[]> {
+  const { records, scope } = args;
+  return buildDedupKeyFieldsMap(records, scope.capturedAccountId, scope.shouldSkipDetector);
+}
+
+/**
+ * Project {@link IBuildHarvestMapsArgs} onto {@link buildDateWindowParamsMap}.
+ * Mirrors {@link buildDedupMapFromArgs} so the orchestrator stays a
+ * three-line sequence of named projections + a return literal.
+ *
+ * @param args - Bundled records, scope flags, and captured pool.
+ * @returns Per-account WK-aliased `[fromDate, toDate]` URL parameter tuples.
+ */
+function buildDateWindowMapFromArgs(
+  args: IBuildHarvestMapsArgs,
+): ReadonlyMap<string, readonly [string, string]> {
+  const { pool, scope } = args;
+  return buildDateWindowParamsMap(pool, scope.capturedAccountId, scope.isMultiAccountScope);
+}
+
+/**
+ * Assemble the final {@link IDashboardTxnHarvest} payload from the
+ * resolved scope, records, and per-account maps. Pure projection
+ * helper — kept module-scope so {@link buildTxnHarvest} body remains
+ * a small orchestration sequence.
+ *
+ * @param records - Normalised transaction records.
+ * @param scope - Resolved harvest-scope flags.
+ * @param maps - Per-account dedup-key and date-window maps.
+ * @returns Harvest payload for `ctx.dashboardTxnHarvest`.
+ */
+function assembleHarvestPayload(
+  records: readonly ITransaction[],
+  scope: IHarvestScope,
+  maps: IHarvestMaps,
+): IDashboardTxnHarvest {
   return {
-    records: internal.normalizedRecords,
-    capturedAccountId,
-    multiAccountScope: isMultiAccountScope,
-    dedupKeyFieldsByAccount,
-    dateWindowParamsByAccount,
+    records,
+    capturedAccountId: scope.capturedAccountId,
+    multiAccountScope: scope.isMultiAccountScope,
+    dedupKeyFieldsByAccount: maps.dedupKeyFieldsByAccount,
+    dateWindowParamsByAccount: maps.dateWindowParamsByAccount,
   };
 }
 

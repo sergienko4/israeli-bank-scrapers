@@ -34,6 +34,18 @@ async function safeNavigate(mediator: IElementMediator, url: string): Promise<bo
 }
 
 /**
+ * Click "apply" on an open filter panel and let the network settle.
+ * @param mediator - Element mediator.
+ * @returns Always true so the caller stays expression-shaped.
+ */
+async function clickApplyAndSettle(mediator: IElementMediator): Promise<true> {
+  const applyBtn = WK_DASHBOARD.FILTER_APPLY as unknown as readonly SelectorCandidate[];
+  await mediator.resolveAndClick(applyBtn);
+  await mediator.waitForNetworkIdle(DASHBOARD_ORGANIC_IDLE_MS).catch((): false => false);
+  return true;
+}
+
+/**
  * Try to fill date and click apply after filter panel opened.
  * @param mediator - Element mediator.
  * @returns Succeed after apply or skip.
@@ -42,13 +54,9 @@ async function fillAndApplyFilter(mediator: IElementMediator): Promise<Procedure
   const dateFrom = WK_DASHBOARD.DATE_FROM as unknown as readonly SelectorCandidate[];
   const dateField = await mediator.resolveVisible(dateFrom, DASHBOARD_DATE_FILTER_TIMEOUT_MS);
   if (!dateField.found) return succeed(undefined);
-  LOG.debug({
-    message: `date filter FOUND: ${maskVisibleText(dateField.value)}`,
-  });
+  LOG.debug({ message: `date filter FOUND: ${maskVisibleText(dateField.value)}` });
   await mediator.resolveField('dateFrom', dateFrom).catch((): false => false);
-  const applyBtn = WK_DASHBOARD.FILTER_APPLY as unknown as readonly SelectorCandidate[];
-  await mediator.resolveAndClick(applyBtn);
-  await mediator.waitForNetworkIdle(DASHBOARD_ORGANIC_IDLE_MS).catch((): false => false);
+  await clickApplyAndSettle(mediator);
   return succeed(undefined);
 }
 
@@ -88,6 +96,21 @@ async function extractFallbackUrl(mediator: IElementMediator): Promise<string> {
 }
 
 /**
+ * Navigate to the resolved dashboard URL and report the landed URL.
+ * Used by {@link triggerOrganicDashboard} to keep its body terse.
+ * @param mediator - Element mediator.
+ * @param url - Pre-resolved dashboard URL.
+ * @returns Landed URL after navigation + settle.
+ */
+async function navigateAndReport(mediator: IElementMediator, url: string): Promise<string> {
+  LOG.debug({ url: maskVisibleText(url), didNavigate: true });
+  await safeNavigate(mediator, url);
+  const landed = mediator.getCurrentUrl();
+  LOG.debug({ url: maskVisibleText(landed), didNavigate: true });
+  return landed;
+}
+
+/**
  * Trigger organic data loading via dashboard navigation.
  * Uses discovered targetUrl from DOM — zero hardcoded paths.
  * @param mediator - Element mediator.
@@ -100,16 +123,7 @@ async function triggerOrganicDashboard(
 ): Promise<Procedure<void>> {
   const resolvedUrl = targetUrl || (await extractFallbackUrl(mediator));
   if (!resolvedUrl) return succeed(undefined);
-  LOG.debug({
-    url: maskVisibleText(resolvedUrl),
-    didNavigate: true,
-  });
-  await safeNavigate(mediator, resolvedUrl);
-  const landed = mediator.getCurrentUrl();
-  LOG.debug({
-    url: maskVisibleText(landed),
-    didNavigate: true,
-  });
+  await navigateAndReport(mediator, resolvedUrl);
   return triggerDateFilter(mediator);
 }
 

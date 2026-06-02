@@ -14,6 +14,8 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
+import type { ITxnEndpointInternal } from '../../Types/Domain/TxnEndpointTypes.js';
+import type { IDashboardTxnHarvest } from '../../Types/Domain/TxnHarvestTypes.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { some } from '../../Types/Option.js';
 import type {
@@ -27,7 +29,11 @@ import { EMPTY_TXN_HARVEST } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
-import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
+import type {
+  IActionMediator,
+  IElementMediator,
+  IRaceResult,
+} from '../Elements/ElementMediator.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscoveryTypes.js';
 import { resolveTxnEndpoint } from '../Scrape/ScrapeAutoMapper.js';
 import { EMPTY_TXN_ENDPOINT } from '../Scrape/ScrapePhaseActions.js';
@@ -66,6 +72,54 @@ function clickAtForLog(clickAt: number | false): number {
   return clickAt;
 }
 
+/** Sentinel label emitted when no PRE-resolved target was found. */
+const NO_WINNER_LABEL = 'WINNER: NONE — no target resolved';
+
+/**
+ * Build the winner label for an identity click target.
+ * @param clickTarget - PRE-resolved click target.
+ * @param count - Generic-selector DOM match count.
+ * @returns Human-readable WINNER line.
+ */
+function winnerLabelClick(clickTarget: IResolvedTarget, count: number): string {
+  const { kind, candidateValue, contextId } = clickTarget;
+  const head = `WINNER: ${kind}="${candidateValue}" @ ${contextId}`;
+  return `${head} (x${String(count)} DOM matches)`;
+}
+
+/**
+ * Build the winner label for a menu-toggle target.
+ * @param menuTarget - PRE-resolved menu target.
+ * @returns Human-readable WINNER line.
+ */
+function winnerLabelMenu(menuTarget: IResolvedTarget): string {
+  const { kind, candidateValue, contextId } = menuTarget;
+  return `WINNER (menu): ${kind}="${candidateValue}" @ ${contextId}`;
+}
+
+/**
+ * Build the winner label for an href target.
+ * @param hrefTarget - Resolved href URL.
+ * @returns Human-readable WINNER line.
+ */
+function winnerLabelHref(hrefTarget: string): string {
+  return `WINNER (href): ${maskVisibleText(hrefTarget)}`;
+}
+
+/**
+ * Build the winner-target label from the PRE-resolved targets bundle.
+ * Picks the first present target in click → menu → href priority order.
+ * @param targets - Resolved dashboard targets.
+ * @returns Label string (NO_WINNER_LABEL when nothing matched).
+ */
+function buildWinnerLabel(targets: IDashboardTargets): string {
+  const { clickTarget, menuTarget, hrefTarget, clickCandidateCount } = targets;
+  if (clickTarget) return winnerLabelClick(clickTarget, clickCandidateCount);
+  if (menuTarget) return winnerLabelMenu(menuTarget);
+  if (hrefTarget) return winnerLabelHref(hrefTarget);
+  return NO_WINNER_LABEL;
+}
+
 /**
  * Log the winning dashboard target for diagnostics.
  * @param input - Pipeline context with logger.
@@ -73,26 +127,7 @@ function clickAtForLog(clickAt: number | false): number {
  * @returns Description of the winning target.
  */
 function logWinningTarget(input: IPipelineContext, targets: IDashboardTargets): string {
-  if (targets.clickTarget) {
-    const t = targets.clickTarget;
-    const n = String(targets.clickCandidateCount);
-    const head = `WINNER: ${t.kind}="${t.candidateValue}" @ ${t.contextId}`;
-    const label = `${head} (x${n} DOM matches)`;
-    input.logger.debug({ message: label });
-    return label;
-  }
-  if (targets.menuTarget) {
-    const m = targets.menuTarget;
-    const label = `WINNER (menu): ${m.kind}="${m.candidateValue}" @ ${m.contextId}`;
-    input.logger.debug({ message: label });
-    return label;
-  }
-  if (targets.hrefTarget) {
-    const label = `WINNER (href): ${maskVisibleText(targets.hrefTarget)}`;
-    input.logger.debug({ message: label });
-    return label;
-  }
-  const label = 'WINNER: NONE — no target resolved';
+  const label = buildWinnerLabel(targets);
   input.logger.debug({ message: label });
   return label;
 }
@@ -123,6 +158,132 @@ interface IDashboardTargets {
   readonly menuTarget: IResolvedTarget | false;
 }
 
+/** Frame/page context the identity race winner came from. */
+type ResolveContext = Exclude<IRaceResult['context'], false>;
+
+/**
+ * Build the href-only target shape returned when an href is resolved
+ * for the dashboard. Used by {@link resolveDashboardTargets} to keep
+ * the parent body short.
+ * @param hrefTarget - Absolute href URL.
+ * @returns Dashboard targets carrying only the href.
+ */
+function buildHrefOnlyTargets(hrefTarget: string): IDashboardTargets {
+  return {
+    hrefTarget,
+    clickTarget: false,
+    fallbackSelector: NO_HREF,
+    clickCandidateCount: 0,
+    menuTarget: false,
+  };
+}
+
+/**
+ * Probe the TXN trigger via mediator with the dashboard timeout,
+ * swallowing race errors as `false`.
+ * @param mediator - Element mediator.
+ * @returns Race result or false on probe error.
+ */
+async function probeTxnTrigger(mediator: IElementMediator): Promise<IRaceResult | false> {
+  const txnWk = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  const result = mediator.resolveVisible(txnWk, DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS);
+  return result.catch((): false => false);
+}
+
+/**
+ * Count generic-selector matches in the winning frame, capped at
+ * {@link DASHBOARD_MAX_CANDIDATES}. Failures coerce to `1` so ACTION
+ * still has a meaningful identity-click attempt.
+ * @param ctx - Winning Page/Frame context.
+ * @param genericSelector - Selector to count matches for.
+ * @returns Bounded match count.
+ */
+async function countGenericMatches(ctx: ResolveContext, genericSelector: string): Promise<number> {
+  const fallbackCount = 1;
+  const rawCount = await ctx
+    .locator(genericSelector)
+    .count()
+    .catch((): number => fallbackCount);
+  return Math.min(rawCount, DASHBOARD_MAX_CANDIDATES);
+}
+
+/** Bundled inputs for the identity-target builder. */
+interface IBuildIdentityTargetArgs {
+  readonly txnResult: IRaceResult;
+  readonly identityTarget: IResolvedTarget;
+  readonly page: Page;
+}
+
+/**
+ * Assemble the IDENTITY-click dashboard targets shape from the
+ * resolved click target + generic-selector fallback + match count.
+ * Pulled out so {@link buildIdentityTargets} stays under the LoC cap.
+ * @param clickTarget - PRE-resolved IDENTITY click target.
+ * @param fallbackSelector - Generic selector for nth-iteration fallback.
+ * @param count - Bounded DOM-match count for the fallback selector.
+ * @returns Dashboard targets carrying the identity click + fallback.
+ */
+function assembleClickTargets(
+  clickTarget: IResolvedTarget,
+  fallbackSelector: string,
+  count: number,
+): IDashboardTargets {
+  return {
+    hrefTarget: NO_HREF,
+    clickTarget,
+    fallbackSelector,
+    clickCandidateCount: count,
+    menuTarget: false,
+  };
+}
+
+/**
+ * Build the identity-click target shape returned when the TXN race
+ * winner exposed a candidate + frame context. Counts generic-selector
+ * fallbacks so ACTION can iterate `.nth(0..count-1)` if needed.
+ * @param args - Bundled inputs (race result + identity target + page).
+ * @returns Dashboard targets carrying the identity click + fallback.
+ */
+async function buildIdentityTargets(args: IBuildIdentityTargetArgs): Promise<IDashboardTargets> {
+  const genericSelector = candidateToSelector(args.txnResult.candidate as SelectorCandidate);
+  const ctx = args.txnResult.context as ResolveContext;
+  const count = await countGenericMatches(ctx, genericSelector);
+  return assembleClickTargets(args.identityTarget, genericSelector, count);
+}
+
+/**
+ * Resolve the click-or-menu side of the dashboard target picker: TXN
+ * trigger race → identity target build → menu fallback. No href here.
+ * @param mediator - Element mediator.
+ * @param page - Browser page.
+ * @returns Dashboard targets carrying the click+fallback or menu fallback.
+ */
+async function resolveClickOrMenu(
+  mediator: IElementMediator,
+  page: Page,
+): Promise<IDashboardTargets> {
+  const txnResult = await probeTxnTrigger(mediator);
+  if (txnResult === false) return resolveMenuFallback(mediator, page);
+  if (!txnResult.locator || !txnResult.candidate || !txnResult.context) {
+    return resolveMenuFallback(mediator, page);
+  }
+  const identityTarget = raceResultToTarget(txnResult, page);
+  if (!identityTarget) return resolveMenuFallback(mediator, page);
+  return buildIdentityTargets({ txnResult, identityTarget, page });
+}
+
+/**
+ * Resolve the href-first dashboard target — extract a transactions
+ * href, absolute-ify it, return `NO_HREF` when nothing resolved.
+ * @param mediator - Element mediator.
+ * @returns Absolute href or NO_HREF.
+ */
+async function resolveHrefTarget(mediator: IElementMediator): Promise<string> {
+  const href = await extractTransactionHref(mediator);
+  const pageUrl = mediator.getCurrentUrl();
+  return resolveAbsoluteHref(href, pageUrl) || NO_HREF;
+}
+
 /**
  * Resolve dashboard targets — single race-winner via `resolveVisible` (HEAD
  * behaviour), then count matching DOM elements for that one winning locator.
@@ -136,56 +297,11 @@ async function resolveDashboardTargets(
   mediator: IElementMediator,
   page: Page,
 ): Promise<IDashboardTargets> {
-  // SEQUENTIAL detection (HomeSequentialNav-style): probe WK_TRANSACTIONS for
-  // an exactText match in DOM (Max's "פירוט החיובים והעסקאות" — bank-specific
-  // disambiguator). When present + a MENU_EXPAND trigger is visible, fire
-  // menu→click chain instead of the legacy href-NAV. No-op for other banks
-  // whose dashboards don't contain the exactText. Validated offline:
-  // scripts/validate-max-sequential-v2.local.ts.
   const sequentialTargets = await tryDashboardSequentialNav(page);
   if (sequentialTargets) return sequentialTargets;
-  const href = await extractTransactionHref(mediator);
-  const pageUrl = mediator.getCurrentUrl();
-  const hrefTarget = resolveAbsoluteHref(href, pageUrl) || NO_HREF;
-  if (hrefTarget) {
-    return {
-      hrefTarget,
-      clickTarget: false,
-      fallbackSelector: NO_HREF,
-      clickCandidateCount: 0,
-      menuTarget: false,
-    };
-  }
-  const txnWk = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
-  const txnResult = await mediator
-    .resolveVisible(txnWk, DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS)
-    .catch((): false => false);
-  if (txnResult === false) return resolveMenuFallback(mediator, page);
-  if (!txnResult.locator || !txnResult.candidate || !txnResult.context) {
-    return resolveMenuFallback(mediator, page);
-  }
-  const identityTarget = raceResultToTarget(txnResult, page);
-  if (!identityTarget) return resolveMenuFallback(mediator, page);
-  // Keep the IDENTITY selector for clickTarget (HEAD behaviour — proven
-  // race winner). ACTION clicks this FIRST. Compute the GENERIC selector
-  // and DOM count separately so ACTION can iterate `.nth(0..count-1)` only
-  // as a fallback when identity click yields no success signal (Beinleumi
-  // pm.mataf vs pm.q077: same aria-label but different elements).
-  const genericSelector = candidateToSelector(txnResult.candidate);
-  const ctx = txnResult.context;
-  const fallbackCount = 1;
-  const rawCount = await ctx
-    .locator(genericSelector)
-    .count()
-    .catch((): number => fallbackCount);
-  const count = Math.min(rawCount, DASHBOARD_MAX_CANDIDATES);
-  return {
-    hrefTarget: NO_HREF,
-    clickTarget: identityTarget,
-    fallbackSelector: genericSelector,
-    clickCandidateCount: count,
-    menuTarget: false,
-  };
+  const hrefTarget = await resolveHrefTarget(mediator);
+  if (hrefTarget) return buildHrefOnlyTargets(hrefTarget);
+  return resolveClickOrMenu(mediator, page);
 }
 
 /** Main-frame context identifier — matches FrameRegistry.MAIN_CONTEXT_ID. */
@@ -298,6 +414,81 @@ function buildDropdownToggleSelector(value: string): string {
 }
 
 /**
+ * Build the menu trigger `IResolvedTarget` for the SEQUENTIAL menu →
+ * child chain. Pulled out to keep
+ * {@link tryDashboardSequentialNav} terse.
+ * @param triggerCandidate - Menu-expand candidate text.
+ * @returns Menu IResolvedTarget targeting the dropdown-toggle.
+ */
+function buildSequentialMenuTarget(triggerCandidate: SelectorCandidate): IResolvedTarget {
+  return {
+    selector: buildDropdownToggleSelector(triggerCandidate.value),
+    contextId: MAIN_CONTEXT_ID,
+    kind: 'css',
+    candidateValue: triggerCandidate.value,
+  };
+}
+
+/**
+ * Build the child-click `IResolvedTarget` for the SEQUENTIAL chain.
+ * @param childCandidate - Selector candidate for the child link.
+ * @returns IResolvedTarget for the child click.
+ */
+function buildSequentialChildTarget(childCandidate: SelectorCandidate): IResolvedTarget {
+  return {
+    selector: candidateToSelector(childCandidate),
+    contextId: MAIN_CONTEXT_ID,
+    kind: childCandidate.kind,
+    candidateValue: childCandidate.value,
+  };
+}
+
+/**
+ * Assemble the SEQUENTIAL targets bundle from the resolved menu +
+ * child sub-targets. Mirrors {@link assembleClickTargets} for the
+ * menu-driven path.
+ * @param menuTarget - Menu trigger target.
+ * @param childTarget - Child-click target.
+ * @returns Dashboard targets bundle for ACTION.
+ */
+function assembleSequentialTargets(
+  menuTarget: IResolvedTarget,
+  childTarget: IResolvedTarget,
+): IDashboardTargets {
+  return {
+    hrefTarget: NO_HREF,
+    clickTarget: childTarget,
+    fallbackSelector: NO_HREF,
+    clickCandidateCount: 0,
+    menuTarget,
+  };
+}
+
+/**
+ * Probe the SEQUENTIAL child candidate (a WK_TRANSACTIONS exactText that
+ * exists in the DOM). Wraps the `as unknown as readonly SelectorCandidate[]`
+ * narrowing so the caller can stay terse.
+ * @param page - Browser page.
+ * @returns Matching candidate or false when no WK_TRANSACTIONS entry exists.
+ */
+function probeSequentialChild(page: Page): Promise<SelectorCandidate | false> {
+  const txnWk = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  return findFirstChildInDom(page, txnWk);
+}
+
+/**
+ * Probe the SEQUENTIAL menu trigger (a real role=button + aria-haspopup
+ * dropdown toggle from WK_MENU_EXPAND). Wraps the same narrowing dance
+ * as {@link probeSequentialChild}.
+ * @param page - Browser page.
+ * @returns Matching candidate or false when no toggle matches.
+ */
+function probeSequentialTrigger(page: Page): Promise<SelectorCandidate | false> {
+  const menuWk = WK_DASHBOARD.MENU_EXPAND as unknown as readonly SelectorCandidate[];
+  return findDropdownToggleCandidate(page, menuWk);
+}
+
+/**
  * Detect the SEQUENTIAL menu-toggle-then-child pattern on the dashboard.
  * Mirrors HOME's `executeSequentialNav` shape, but uses the existing
  * Dashboard ACTION orchestrator's menu→click chain (line ~491 in this
@@ -319,27 +510,43 @@ function buildDropdownToggleSelector(value: string): string {
  * @returns Populated targets when SEQUENTIAL detected, else false.
  */
 async function tryDashboardSequentialNav(page: Page): Promise<IDashboardTargets | false> {
-  const txnWk = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
-  const childCandidate = await findFirstChildInDom(page, txnWk);
+  const childCandidate = await probeSequentialChild(page);
   if (!childCandidate) return false;
-  const menuWk = WK_DASHBOARD.MENU_EXPAND as unknown as readonly SelectorCandidate[];
-  const triggerCandidate = await findDropdownToggleCandidate(page, menuWk);
+  const triggerCandidate = await probeSequentialTrigger(page);
   if (!triggerCandidate) return false;
-  const menuTarget: IResolvedTarget = {
-    selector: buildDropdownToggleSelector(triggerCandidate.value),
-    contextId: MAIN_CONTEXT_ID,
-    kind: 'css',
-    candidateValue: triggerCandidate.value,
-  };
-  const childTarget: IResolvedTarget = {
-    selector: candidateToSelector(childCandidate),
-    contextId: MAIN_CONTEXT_ID,
-    kind: childCandidate.kind,
-    candidateValue: childCandidate.value,
-  };
+  const menuTarget = buildSequentialMenuTarget(triggerCandidate);
+  const childTarget = buildSequentialChildTarget(childCandidate);
+  return assembleSequentialTargets(menuTarget, childTarget);
+}
+
+/**
+ * Race the menu-expand candidates and convert the winner to an
+ * IResolvedTarget. Returns `false` when no menu candidate matched.
+ * @param mediator - Element mediator.
+ * @param page - Browser page (for contextId computation).
+ * @returns Menu target or false.
+ */
+async function probeMenuFallback(
+  mediator: IElementMediator,
+  page: Page,
+): Promise<IResolvedTarget | false> {
+  const menuWk = WK_DASHBOARD.MENU_EXPAND as unknown as readonly SelectorCandidate[];
+  const menuResult = await mediator
+    .resolveVisible(menuWk, DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS)
+    .catch((): false => false);
+  return menuResult && raceResultToTarget(menuResult, page);
+}
+
+/**
+ * Build the menu-only dashboard targets shape — used by
+ * {@link resolveMenuFallback} so the parent stays under the LoC cap.
+ * @param menuTarget - Resolved menu target (may be false).
+ * @returns Dashboard targets with only the menu populated.
+ */
+function buildMenuOnlyTargets(menuTarget: IResolvedTarget | false): IDashboardTargets {
   return {
     hrefTarget: NO_HREF,
-    clickTarget: childTarget,
+    clickTarget: false,
     fallbackSelector: NO_HREF,
     clickCandidateCount: 0,
     menuTarget,
@@ -356,18 +563,8 @@ async function resolveMenuFallback(
   mediator: IElementMediator,
   page: Page,
 ): Promise<IDashboardTargets> {
-  const menuWk = WK_DASHBOARD.MENU_EXPAND as unknown as readonly SelectorCandidate[];
-  const menuResult = await mediator
-    .resolveVisible(menuWk, DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS)
-    .catch((): false => false);
-  const menuTarget = menuResult && raceResultToTarget(menuResult, page);
-  return {
-    hrefTarget: NO_HREF,
-    clickTarget: false,
-    fallbackSelector: NO_HREF,
-    clickCandidateCount: 0,
-    menuTarget,
-  };
+  const menuTarget = await probeMenuFallback(mediator, page);
+  return buildMenuOnlyTargets(menuTarget);
 }
 
 /**
@@ -388,6 +585,37 @@ async function buildApiIfAvailable(
   return buildApiContext(network, input.fetchStrategy.value, override).catch((): false => false);
 }
 
+/** CSS selector for "clickable text" elements scanned by the PRE dump. */
+const CLICKABLE_SEL = 'a, button, [role="tab"], [role="link"], [role="button"]';
+
+/**
+ * Collect deduped, length-filtered visible text of all clickable
+ * elements on the page. Used by {@link dumpDashboardText} for WK
+ * forensic logging when PRE cannot find a nav target.
+ * @param page - Browser page.
+ * @returns Unique visible-text snippets (length 2..59).
+ */
+function collectClickableTexts(page: Page): Promise<string[]> {
+  return page.$$eval(CLICKABLE_SEL, (els: Element[]) => [
+    ...new Set(
+      els.map(el => (el.textContent || '').trim()).filter(t => t.length > 1 && t.length < 60),
+    ),
+  ]);
+}
+
+/**
+ * Inner branch of {@link dumpDashboardText} — pulled out so the
+ * caller's try/catch stays terse and the body fits under the LoC cap.
+ * @param page - Already-narrowed browser page.
+ * @param logger - Pipeline logger.
+ * @returns Always true once the log line is emitted.
+ */
+async function emitClickableTextLog(page: Page, logger: IPipelineContext['logger']): Promise<true> {
+  const texts = await collectClickableTexts(page);
+  logger.debug({ message: `VISIBLE CLICKABLE TEXT: [${texts.join(' | ')}]` });
+  return true;
+}
+
 /**
  * Dump all visible clickable text on the page for WK forensic discovery
  * when DASHBOARD.PRE cannot find a nav target. Pure observation — used
@@ -400,19 +628,8 @@ async function buildApiIfAvailable(
 async function dumpDashboardText(input: IPipelineContext): Promise<boolean> {
   if (!input.browser.has) return false;
   try {
-    const page = input.browser.value.page;
-    const sel = 'a, button, [role="tab"], [role="link"], [role="button"]';
-    const texts = await page.$$eval(sel, (els: Element[]) => [
-      ...new Set(
-        els.map(el => (el.textContent || '').trim()).filter(t => t.length > 1 && t.length < 60),
-      ),
-    ]);
-    input.logger.debug({
-      message: `VISIBLE CLICKABLE TEXT: [${texts.join(' | ')}]`,
-    });
-    return true;
+    return await emitClickableTextLog(input.browser.value.page, input.logger);
   } catch {
-    /* test mock or closed page */
     return false;
   }
 }
@@ -424,6 +641,61 @@ interface IPreDiscoveryResult {
   readonly hasAny: boolean;
   readonly apiCtx: IApiFetchContext | false;
   readonly hasExistingTraffic: boolean;
+}
+
+/** Side-effect bundle from PRE's mediator priming. */
+interface IDiscoveryPriming {
+  readonly network: IElementMediator['network'];
+  readonly matchInfo: string;
+  readonly hasExistingTraffic: boolean;
+  readonly hasAuth: boolean;
+}
+
+/**
+ * Run the "prime + probe" prefix common to DASHBOARD PRE — wait for
+ * network idle, cache auth, run success indicators, count traffic.
+ * Extracted so {@link discoverDashboard} stays under the LoC cap.
+ * @param mediator - Element mediator (already unwrapped).
+ * @returns Network handle + matchInfo + traffic/auth presence bits.
+ */
+async function primeDiscoveryNetwork(mediator: IElementMediator): Promise<IDiscoveryPriming> {
+  const network = mediator.network;
+  await mediator.waitForNetworkIdle(DASHBOARD_SETTLE_MS).catch((): false => false);
+  await network.cacheAuthToken();
+  const matchInfo = await probeSuccessIndicators(mediator);
+  const hasExistingTraffic = countTxnTraffic(network, 0) > 0;
+  const authToken = await network.discoverAuthToken();
+  return { network, matchInfo, hasExistingTraffic, hasAuth: Boolean(authToken) };
+}
+
+/**
+ * Compute the boolean `hasAny` for the resolved dashboard targets.
+ * Hides the disjunction so the PRE log call site stays expression-shaped.
+ * @param targets - Resolved targets.
+ * @returns True when ANY of href / click / menu was resolved.
+ */
+function hasAnyTarget(targets: IDashboardTargets): boolean {
+  return Boolean(targets.hrefTarget) || Boolean(targets.clickTarget) || Boolean(targets.menuTarget);
+}
+
+/**
+ * Emit the DASHBOARD PRE summary log line with targets + auth +
+ * existing-traffic flags.
+ * @param input - Pipeline context with logger.
+ * @param targets - Resolved targets.
+ * @param priming - Priming bundle (used for auth/traffic bits).
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function logPreDiscovery(
+  input: IPipelineContext,
+  targets: IDashboardTargets,
+  priming: IDiscoveryPriming,
+): true {
+  const targetDesc = describeTargets(targets);
+  const hasAuth = String(priming.hasAuth);
+  const traffic = String(priming.hasExistingTraffic);
+  input.logger.debug({ message: `PRE: ${targetDesc}, auth=${hasAuth}, traffic=${traffic}` });
+  return true;
 }
 
 /**
@@ -438,22 +710,78 @@ async function discoverDashboard(
   mediator: IElementMediator,
   page: Page,
 ): Promise<IPreDiscoveryResult> {
-  const network = mediator.network;
-  await mediator.waitForNetworkIdle(DASHBOARD_SETTLE_MS).catch((): false => false);
-  await network.cacheAuthToken();
-  const matchInfo = await probeSuccessIndicators(mediator);
+  const priming = await primeDiscoveryNetwork(mediator);
   const targets = await resolveDashboardTargets(mediator, page);
-  const hasAny =
-    Boolean(targets.hrefTarget) || Boolean(targets.clickTarget) || Boolean(targets.menuTarget);
-  const apiCtx = await buildApiIfAvailable(input, network);
-  const hasExistingTraffic = countTxnTraffic(network, 0) > 0;
-  const authToken = await network.discoverAuthToken();
-  const hasAuth = Boolean(authToken);
-  const targetDesc = describeTargets(targets);
-  input.logger.debug({
-    message: `PRE: ${targetDesc}, auth=${String(hasAuth)}, traffic=${String(hasExistingTraffic)}`,
-  });
+  const apiCtx = await buildApiIfAvailable(input, priming.network);
+  logPreDiscovery(input, targets, priming);
+  const hasAny = hasAnyTarget(targets);
+  const { matchInfo, hasExistingTraffic } = priming;
   return { matchInfo, targets, hasAny, apiCtx, hasExistingTraffic };
+}
+
+/**
+ * Bundle every PRE-resolved target field that ACTION consumes downstream.
+ * Pulled out so {@link buildPreDiagnostics} stays under the LoC cap.
+ * @param disc - Discovery bundle from {@link discoverDashboard}.
+ * @returns Diagnostics fragment with all dashboard-target fields.
+ */
+function buildPreTargetFields(disc: IPreDiscoveryResult): Partial<IPipelineContext['diagnostics']> {
+  return {
+    dashboardTargetUrl: disc.targets.hrefTarget || NO_HREF,
+    dashboardTarget: disc.targets.clickTarget || undefined,
+    dashboardFallbackSelector: disc.targets.fallbackSelector || undefined,
+    dashboardCandidateCount: disc.targets.clickCandidateCount,
+    dashboardMenuTarget: disc.targets.menuTarget || undefined,
+    dashboardTrafficExists: disc.hasExistingTraffic,
+  };
+}
+
+/**
+ * Build the diagnostics patch carrying every PRE-resolved field that
+ * ACTION consumes. Pulled out so {@link executePreLocateNav} keeps
+ * to the ≤10 LoC body cap.
+ * @param input - Pipeline context.
+ * @param disc - Discovery bundle from {@link discoverDashboard}.
+ * @returns New diagnostics object for the success branch.
+ */
+function buildPreDiagnostics(
+  input: IPipelineContext,
+  disc: IPreDiscoveryResult,
+): IPipelineContext['diagnostics'] {
+  const targetFields = buildPreTargetFields(disc);
+  return {
+    ...input.diagnostics,
+    lastAction: `dashboard-pre (${disc.matchInfo})`,
+    ...targetFields,
+  };
+}
+
+/**
+ * Compose the success-procedure context for PRE — optionally
+ * attaches the discovered API context when one was built.
+ * @param input - Pipeline context.
+ * @param diag - Diagnostics patch (already built).
+ * @param apiCtx - API context to attach, or false.
+ * @returns Procedure carrying the updated context.
+ */
+function composePreSuccess(
+  input: IPipelineContext,
+  diag: IPipelineContext['diagnostics'],
+  apiCtx: IApiFetchContext | false,
+): Procedure<IPipelineContext> {
+  if (!apiCtx) return succeed({ ...input, diagnostics: diag });
+  return succeed({ ...input, diagnostics: diag, api: some(apiCtx) });
+}
+
+/**
+ * Handle the "no target found" branch for PRE — dumps clickable text
+ * for forensic logging then returns the fail-loud procedure.
+ * @param input - Pipeline context.
+ * @returns Fail-loud procedure for PRE.
+ */
+async function failPreNoTarget(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  await dumpDashboardText(input);
+  return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no navigation target found');
 }
 
 /**
@@ -468,22 +796,29 @@ async function executePreLocateNav(input: IPipelineContext): Promise<Procedure<I
   if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no browser');
   const disc = await discoverDashboard(input, input.mediator.value, input.browser.value.page);
   logWinningTarget(input, disc.targets);
-  if (!disc.hasAny) {
-    await dumpDashboardText(input);
-    return fail(ScraperErrorTypes.Generic, 'DASHBOARD PRE: no navigation target found');
-  }
-  const diag = {
-    ...input.diagnostics,
-    lastAction: `dashboard-pre (${disc.matchInfo})`,
-    dashboardTargetUrl: disc.targets.hrefTarget || NO_HREF,
-    dashboardTarget: disc.targets.clickTarget || undefined,
-    dashboardFallbackSelector: disc.targets.fallbackSelector || undefined,
-    dashboardCandidateCount: disc.targets.clickCandidateCount,
-    dashboardMenuTarget: disc.targets.menuTarget || undefined,
-    dashboardTrafficExists: disc.hasExistingTraffic,
-  };
-  if (!disc.apiCtx) return succeed({ ...input, diagnostics: diag });
-  return succeed({ ...input, diagnostics: diag, api: some(disc.apiCtx) });
+  if (!disc.hasAny) return failPreNoTarget(input);
+  const diag = buildPreDiagnostics(input, disc);
+  return composePreSuccess(input, diag, disc.apiCtx);
+}
+
+/**
+ * Build the click-target description fragment of {@link describeTargets}.
+ * @param target - Resolved click target.
+ * @param count - Generic-selector match count.
+ * @returns Human-readable target line.
+ */
+function describeClickTarget(target: IResolvedTarget, count: number): string {
+  const n = String(count);
+  return `target=${target.contextId} > ${maskVisibleText(target.selector)} (DOM matches=${n})`;
+}
+
+/**
+ * Build the menu-target description fragment of {@link describeTargets}.
+ * @param menuTarget - Resolved menu target.
+ * @returns Human-readable menu line.
+ */
+function describeMenuTarget(menuTarget: IResolvedTarget): string {
+  return `menu=${menuTarget.contextId} > ${maskVisibleText(menuTarget.selector)}`;
 }
 
 /**
@@ -492,17 +827,38 @@ async function executePreLocateNav(input: IPipelineContext): Promise<Procedure<I
  * @returns Description string.
  */
 function describeTargets(targets: IDashboardTargets): string {
-  if (targets.clickTarget) {
-    const t = targets.clickTarget;
-    const n = String(targets.clickCandidateCount);
-    return `target=${t.contextId} > ${maskVisibleText(t.selector)} (DOM matches=${n})`;
-  }
-  if (targets.menuTarget) {
-    const m = targets.menuTarget;
-    return `menu=${m.contextId} > ${maskVisibleText(m.selector)}`;
-  }
-  if (targets.hrefTarget) return `href=${maskVisibleText(targets.hrefTarget)}`;
+  const { clickTarget, menuTarget, hrefTarget, clickCandidateCount } = targets;
+  if (clickTarget) return describeClickTarget(clickTarget, clickCandidateCount);
+  if (menuTarget) return describeMenuTarget(menuTarget);
+  if (hrefTarget) return `href=${maskVisibleText(hrefTarget)}`;
   return 'target=NONE';
+}
+
+/**
+ * Click a resolved menu target via the sealed action mediator. Best-
+ * effort — failures coerce to `false` so the caller can log + skip the
+ * network settle. Extracted so {@link executeMenuClick} stays terse.
+ * @param executor - Sealed action mediator.
+ * @param target - Pre-resolved menu target.
+ * @returns True when the click resolved, false on caught error.
+ */
+async function tryClickMenu(executor: IActionMediator, target: IResolvedTarget): Promise<boolean> {
+  const { contextId, selector } = target;
+  return executor
+    .clickElement({ contextId, selector, isForce: shouldForceMenuClick })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
+ * Settle the network after a successful menu click. Caller must guard
+ * on `didClick` — this helper assumes the click resolved.
+ * @param executor - Sealed action mediator.
+ * @returns Always true once the settle attempt has resolved.
+ */
+async function settleAfterMenuClick(executor: IActionMediator): Promise<true> {
+  await executor.waitForNetworkIdle(DASHBOARD_MENU_SETTLE_MS).catch((): false => false);
+  return true;
 }
 
 /**
@@ -518,23 +874,27 @@ async function executeMenuClick(
   target: IResolvedTarget,
   logger: IPipelineContext['logger'],
 ): Promise<boolean> {
-  logger.debug({
-    strategy: 'MENU',
-    result: `${target.contextId} > ${maskVisibleText(target.selector)}`,
-  });
-  const didClick = await executor
-    .clickElement({
-      contextId: target.contextId,
-      selector: target.selector,
-      isForce: shouldForceMenuClick,
-    })
+  const masked = maskVisibleText(target.selector);
+  logger.debug({ strategy: 'MENU', result: `${target.contextId} > ${masked}` });
+  const didClick = await tryClickMenu(executor, target);
+  if (!didClick) logger.debug({ message: 'menu click failed' });
+  if (didClick) await settleAfterMenuClick(executor);
+  return didClick;
+}
+
+/**
+ * Attempt the physical href navigation via the sealed action mediator.
+ * Best-effort — failures coerce to `false` so the caller can log + skip
+ * the network settle.
+ * @param executor - Sealed action mediator.
+ * @param href - Target URL.
+ * @returns True when the navigation resolved, false on caught error.
+ */
+async function tryNavHref(executor: IActionMediator, href: string): Promise<boolean> {
+  return executor
+    .navigateTo(href, { waitUntil: 'domcontentloaded' })
     .then((): true => true)
     .catch((): false => false);
-  if (!didClick) logger.debug({ message: 'menu click failed' });
-  if (didClick) {
-    await executor.waitForNetworkIdle(DASHBOARD_MENU_SETTLE_MS).catch((): false => false);
-  }
-  return didClick;
 }
 
 /**
@@ -550,14 +910,8 @@ async function executeHrefNav(
   href: string,
   logger: IPipelineContext['logger'],
 ): Promise<boolean> {
-  logger.debug({
-    strategy: 'NAV',
-    result: maskVisibleText(href),
-  });
-  const didClick = await executor
-    .navigateTo(href, { waitUntil: 'domcontentloaded' })
-    .then((): true => true)
-    .catch((): false => false);
+  logger.debug({ strategy: 'NAV', result: maskVisibleText(href) });
+  const didClick = await tryNavHref(executor, href);
   if (!didClick) logger.debug({ message: 'nav failed -- traffic from login' });
   if (didClick) await executor.waitForNetworkIdle().catch((): false => false);
   return didClick;
@@ -573,6 +927,46 @@ async function executeHrefNav(
  * @param input - Sealed action context with executor + diagnostics targets.
  * @returns Always succeed -- POST is the validator.
  */
+/**
+ * Inner "we have an executor" branch of {@link executeDashboardNavigationSealed}.
+ * Marks the click moment and delegates to the candidate-navigation loop.
+ * Extracted so the parent stays under the LoC cap.
+ * @param input - Sealed action context (executor already present).
+ * @param executor - Sealed action mediator (caller already unwrapped).
+ * @returns Procedure carrying the post-nav action context.
+ */
+async function runSealedNavWithExecutor(
+  input: IActionContext,
+  executor: IActionMediator,
+): Promise<Procedure<IActionContext>> {
+  if (input.diagnostics.dashboardTrafficExists) {
+    input.logger.debug({ message: 'traffic exists -- still click for post-nav API' });
+  }
+  const clickAtMs = Date.now();
+  executor.markDashboardClickAt(clickAtMs);
+  return runCandidateNavigation(input, executor);
+}
+
+/**
+ * ACTION (sealed): Physical navigation -- best-effort click.
+ * Reads `diagnostics.actionAttempt` (set by BasePhase) to pick the
+ * candidate from the pre-fetched list. On retry attempts (> 0) restores
+ * the dashboard URL via UNDO before clicking the next candidate.
+ * Menu fallback fires once (attempt 0); href fallback fires when there's
+ * no candidate left to try. POST validates the txn-traffic gate.
+ *
+ * Phase 7f follow-up: ALWAYS click when an executor is present. The
+ * pre-existing "traffic exists -- skip click" fast-path treated login-time
+ * API captures as sufficient, but those are PREVIEW shapes for
+ * Amex/Isracard (`GetLatestTransactions` 5-cap) — the real historical API
+ * only fires after the dashboard navigation. Skipping the click left those
+ * banks stuck on the preview cap; forcing the click is bank-agnostic
+ * (Discount/Hapoalim/etc. already clicked) and surfaces the post-nav
+ * captures the picker wants.
+ *
+ * @param input - Sealed action context with executor + diagnostics targets.
+ * @returns Always succeed -- POST is the validator.
+ */
 async function executeDashboardNavigationSealed(
   input: IActionContext,
 ): Promise<Procedure<IActionContext>> {
@@ -580,26 +974,7 @@ async function executeDashboardNavigationSealed(
     input.logger.debug({ message: 'no executor -- traffic from login' });
     return succeed(input);
   }
-  // Phase 7f follow-up: ALWAYS click when an executor is present.
-  // The pre-existing "traffic exists -- skip click" fast-path treated
-  // login-time API captures as sufficient, but those are PREVIEW
-  // shapes for Amex/Isracard (`GetLatestTransactions` 5-cap) — the
-  // real historical API only fires after the dashboard navigation.
-  // Skipping the click left those banks stuck on the preview cap;
-  // forcing the click is bank-agnostic (Discount/Hapoalim/etc.
-  // already clicked) and surfaces the post-nav captures the picker
-  // wants. PRE's resolved target stays load-bearing — no candidate,
-  // no click (executor.has guard above already handles that).
-  if (input.diagnostics.dashboardTrafficExists) {
-    input.logger.debug({ message: 'traffic exists -- still click for post-nav API' });
-  }
-  // Mark the navigation moment so DASHBOARD.POST and SCRAPE.PRE can
-  // split captures into pre-nav (login + dashboard widget) vs
-  // post-nav (full-history) buckets. PURE GENERIC — every bank's
-  // ACTION funnels through this entry point.
-  const clickAtMs = Date.now();
-  input.executor.value.markDashboardClickAt(clickAtMs);
-  return runCandidateNavigation(input, input.executor.value);
+  return runSealedNavWithExecutor(input, input.executor.value);
 }
 
 /**
@@ -660,20 +1035,51 @@ async function confirmTxnEndpoint(
  * @param executor - Sealed action mediator.
  * @returns Procedure (always succeed; POST is loose any-endpoint gate).
  */
+/** Read the candidate-navigation diagnostics fields into a typed bundle. */
+interface ICandidateNavDiag {
+  readonly target?: IResolvedTarget;
+  readonly fallbackSelector: string;
+  readonly count: number;
+  readonly menuTarget?: IResolvedTarget;
+  readonly hrefTarget?: string;
+}
+
+/**
+ * Read the four diagnostics fields the candidate-navigation loop needs
+ * into a typed bundle, applying the standard defaults.
+ * @param diag - Action diagnostics from PRE.
+ * @returns Bundled candidate-navigation inputs.
+ */
+function readCandidateNavDiag(diag: IActionContext['diagnostics']): ICandidateNavDiag {
+  return {
+    target: diag.dashboardTarget,
+    fallbackSelector: diag.dashboardFallbackSelector ?? NO_HREF,
+    count: diag.dashboardCandidateCount ?? 0,
+    menuTarget: diag.dashboardMenuTarget,
+    hrefTarget: diag.dashboardTargetUrl,
+  };
+}
+
+/**
+ * Candidate navigation — owned ENTIRELY by ACTION. Executes any pre-
+ * resolved menu fallback, then dispatches to the identity-then-fallback
+ * walker for clicks, or the href-nav helper. POST is the loose any-
+ * endpoint gate.
+ * @param input - Sealed action context.
+ * @param executor - Sealed action mediator (caller already unwrapped).
+ * @returns Procedure carrying the post-nav action context.
+ */
 async function runCandidateNavigation(
   input: IActionContext,
   executor: IActionMediator,
 ): Promise<Procedure<IActionContext>> {
-  const target = input.diagnostics.dashboardTarget;
-  const fallbackSelector = input.diagnostics.dashboardFallbackSelector ?? NO_HREF;
-  const count = input.diagnostics.dashboardCandidateCount ?? 0;
-  const menuTarget = input.diagnostics.dashboardMenuTarget;
-  const hrefTarget = input.diagnostics.dashboardTargetUrl;
-  if (menuTarget) await executeMenuClick(executor, menuTarget, input.logger);
-  if (target) {
+  const diag = readCandidateNavDiag(input.diagnostics);
+  if (diag.menuTarget) await executeMenuClick(executor, diag.menuTarget, input.logger);
+  if (diag.target) {
+    const { target, fallbackSelector, count } = diag;
     return runIdentityThenFallback({ executor, target, fallbackSelector, count, input });
   }
-  if (hrefTarget) await executeHrefNav(executor, hrefTarget, input.logger);
+  if (diag.hrefTarget) await executeHrefNav(executor, diag.hrefTarget, input.logger);
   return succeed(input);
 }
 
@@ -704,41 +1110,88 @@ interface IClickOutcome {
 }
 
 /**
+ * Emit the "starting CLICK" log line for {@link evaluateClickAttempt}.
+ * @param input - Action context for logger access.
+ * @param args - Bundled click attempt arguments.
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function logClickStart(input: IActionContext, args: IClickAttemptArgs): true {
+  input.logger.debug({
+    strategy: 'CLICK',
+    attempt: args.attemptLabel,
+    result: `${args.contextId} > ${maskVisibleText(args.selector)}`,
+  });
+  return true;
+}
+
+/**
+ * Best-effort click + settle for {@link evaluateClickAttempt}. Failures
+ * coerce to false; the txn signal is the validator either way.
+ * @param args - Bundled click attempt arguments.
+ * @returns Always true once the click + settle attempt has resolved.
+ */
+async function dispatchClickAndSettle(args: IClickAttemptArgs): Promise<true> {
+  const { executor, contextId, selector, nth } = args;
+  await executor
+    .clickElement({ contextId, selector, isForce: shouldForceCandidateClick, nth })
+    .then((): true => true)
+    .catch((): false => false);
+  await executor.waitForNetworkIdle().catch((): false => false);
+  return true;
+}
+
+/** Bundled signal-read result for {@link evaluateClickAttempt}. */
+interface IClickSignal {
+  readonly isHasTxn: boolean;
+  readonly isOnTxnPage: boolean;
+  readonly isSuccess: boolean;
+  readonly urlAfter: string;
+}
+
+/**
+ * Evaluate the post-click txn signal (BFF endpoint capture OR URL on a
+ * known TXN_PAGE_PATTERN). Pulled out so {@link evaluateClickAttempt}
+ * stays under the LoC cap.
+ * @param executor - Sealed action mediator.
+ * @returns hasTxn + isOnTxnPage + success bit + post-click URL.
+ */
+async function readClickSignal(executor: IActionMediator): Promise<IClickSignal> {
+  const urlAfter = executor.getCurrentUrl();
+  const isOnTxnPage = isTxnPageUrl(urlAfter);
+  const isHasTxn = await confirmTxnEndpoint(executor, isOnTxnPage);
+  return { isHasTxn, isOnTxnPage, urlAfter, isSuccess: isHasTxn || isOnTxnPage };
+}
+
+/**
+ * Emit the OK log line when {@link evaluateClickAttempt} sees a txn signal.
+ * No-op on failure (the caller's caller logs the miss).
+ * @param input - Action context for logger access.
+ * @param attemptLabel - Identity/F-N attempt label.
+ * @param signal - Post-click signal bundle with hasTxn + urlAfter.
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function logClickSuccess(input: IActionContext, attemptLabel: string, signal: IClickSignal): true {
+  input.logger.debug({
+    strategy: 'CLICK',
+    attempt: attemptLabel,
+    result: `OK — hasTxn=${String(signal.isHasTxn)} url=${signal.urlAfter}`,
+  });
+  return true;
+}
+
+/**
  * Execute a click + evaluate post-click txn signal. Single source of truth
  * for the success criteria (URL match OR BFF txn endpoint observable).
  * @param args - Bundled click attempt arguments.
  * @returns Outcome with success bit and url state.
  */
 async function evaluateClickAttempt(args: IClickAttemptArgs): Promise<IClickOutcome> {
-  const { executor, contextId, selector, nth, attemptLabel, input } = args;
-  const urlBefore = executor.getCurrentUrl();
-  input.logger.debug({
-    strategy: 'CLICK',
-    attempt: attemptLabel,
-    result: `${contextId} > ${maskVisibleText(selector)}`,
-  });
-  await executor
-    .clickElement({ contextId, selector, isForce: shouldForceCandidateClick, nth })
-    .then((): true => true)
-    .catch((): false => false);
-  await executor.waitForNetworkIdle().catch((): false => false);
-  // Two-source success: BFF txn-shape endpoint captured (Beinleumi pm.q077,
-  // Discount BFF) OR URL on TXN_PAGE_PATTERNS (Isracard /Transactions, Amex).
-  // Angular SPAs navigate to /transactions BEFORE the BFF XHR fires — when
-  // URL matches we wait event-driven for the BFF response so SCRAPE.PRE's
-  // autoScrape sees the captured endpoint.
-  const urlAfter = executor.getCurrentUrl();
-  const isOnTxnPage = isTxnPageUrl(urlAfter);
-  const isHasTxn = await confirmTxnEndpoint(executor, isOnTxnPage);
-  const isSuccess = isHasTxn || isOnTxnPage;
-  if (isSuccess) {
-    input.logger.debug({
-      strategy: 'CLICK',
-      attempt: attemptLabel,
-      result: `OK — hasTxn=${String(isHasTxn)} url=${urlAfter}`,
-    });
-  }
-  return { isSuccess, urlBefore, urlAfter };
+  const urlBefore = args.executor.getCurrentUrl();
+  logClickStart(args.input, args);
+  await dispatchClickAndSettle(args);
+  const signal = await readClickSignal(args.executor);
+  if (signal.isSuccess) logClickSuccess(args.input, args.attemptLabel, signal);
+  return { isSuccess: signal.isSuccess, urlBefore, urlAfter: signal.urlAfter };
 }
 
 /**
@@ -763,26 +1216,50 @@ async function restoreUrlIfChanged(
 }
 
 /**
+ * Run the STAGE-1 identity click for {@link runIdentityThenFallback}.
+ * Pulled out so the parent stays under the LoC cap.
+ * @param args - Bundled iteration arguments.
+ * @returns Outcome of the identity click attempt.
+ */
+function runIdentityAttempt(args: IIterateArgs): Promise<IClickOutcome> {
+  return evaluateClickAttempt({
+    executor: args.executor,
+    contextId: args.target.contextId,
+    selector: args.target.selector,
+    attemptLabel: 'identity',
+    input: args.input,
+  });
+}
+
+/**
  * Two-stage walker entry: identity click first, then iterate fallback nth(0..count-1).
  * @param args - Bundled iteration arguments.
  * @returns Procedure once a click landed on a txn page or all options exhausted.
  */
 async function runIdentityThenFallback(args: IIterateArgs): Promise<Procedure<IActionContext>> {
-  const { executor, target, fallbackSelector, count, input } = args;
-  // STAGE 1: identity click (HEAD behaviour — proven race winner).
-  const identityOutcome = await evaluateClickAttempt({
-    executor,
-    contextId: target.contextId,
-    selector: target.selector,
-    attemptLabel: 'identity',
-    input,
+  const identityOutcome = await runIdentityAttempt(args);
+  if (identityOutcome.isSuccess) return succeed(args.input);
+  await restoreUrlIfChanged(args.executor, identityOutcome, args.input.logger);
+  if (!args.fallbackSelector || args.count <= 1) return succeed(args.input);
+  return walkFallbackNth(args, 0);
+}
+
+/**
+ * Run one F-N attempt for {@link walkFallbackNth}. Extracted so the
+ * recursive parent stays under the LoC cap.
+ * @param args - Bundled iteration arguments.
+ * @param i - Current 0-based nth index.
+ * @returns Outcome of the click attempt at .nth(i).
+ */
+function runFallbackAttempt(args: IIterateArgs, i: number): Promise<IClickOutcome> {
+  return evaluateClickAttempt({
+    executor: args.executor,
+    contextId: args.target.contextId,
+    selector: args.fallbackSelector,
+    nth: i,
+    attemptLabel: `nth=${String(i)}`,
+    input: args.input,
   });
-  if (identityOutcome.isSuccess) return succeed(input);
-  await restoreUrlIfChanged(executor, identityOutcome, input.logger);
-  // STAGE 2: only iterate when there's a meaningful fallback (count > 1
-  // implies same selector matches multiple DOM elements — Beinleumi case).
-  if (!fallbackSelector || count <= 1) return succeed(input);
-  return walkFallbackNth({ executor, target, fallbackSelector, count, input }, 0);
 }
 
 /**
@@ -793,19 +1270,81 @@ async function runIdentityThenFallback(args: IIterateArgs): Promise<Procedure<IA
  * @returns Procedure for the action context.
  */
 async function walkFallbackNth(args: IIterateArgs, i: number): Promise<Procedure<IActionContext>> {
-  const { executor, target, fallbackSelector, count, input } = args;
-  if (i >= count) return succeed(input);
-  const outcome = await evaluateClickAttempt({
-    executor,
-    contextId: target.contextId,
-    selector: fallbackSelector,
-    nth: i,
-    attemptLabel: `nth=${String(i)}`,
-    input,
-  });
-  if (outcome.isSuccess) return succeed(input);
-  await restoreUrlIfChanged(executor, outcome, input.logger);
+  if (i >= args.count) return succeed(args.input);
+  const outcome = await runFallbackAttempt(args, i);
+  if (outcome.isSuccess) return succeed(args.input);
+  await restoreUrlIfChanged(args.executor, outcome, args.input.logger);
   return walkFallbackNth(args, i + 1);
+}
+
+/** Bundle of POST-time traffic counters used by the delta log. */
+interface IPostDelta {
+  readonly preNavCount: number;
+  readonly postNavCount: number;
+  readonly clickAt: number;
+}
+
+/**
+ * Read the pre/post-nav capture counts + the masked click timestamp.
+ * Extracted so {@link executeValidateTraffic} stays under the LoC cap.
+ * @param network - Network discovery handle.
+ * @returns Bundle of counts + clickAt for the delta log.
+ */
+function readPostDelta(network: IElementMediator['network']): IPostDelta {
+  const preNavCount = network.getPreNavCaptures().length;
+  const postNavCount = network.getPostNavCaptures().length;
+  const rawClickAt = network.getDashboardClickAt();
+  return { preNavCount, postNavCount, clickAt: clickAtForLog(rawClickAt) };
+}
+
+/**
+ * Emit the `dashboard.post.delta` log event for {@link executeValidateTraffic}.
+ * @param input - Pipeline context with logger.
+ * @param delta - Pre-built delta bundle.
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function logPostDelta(input: IPipelineContext, delta: IPostDelta): true {
+  input.logger.debug({ event: 'dashboard.post.delta', ...delta });
+  return true;
+}
+
+/**
+ * Read the post-nav delta off the mediator's network and emit the
+ * structured log event. Bundled so {@link executeValidateTraffic} stays
+ * under the LoC cap with no nested calls.
+ * @param input - Pipeline context with logger.
+ * @param mediator - Element mediator (already unwrapped).
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function emitPostDeltaFromMediator(input: IPipelineContext, mediator: IElementMediator): true {
+  const delta = readPostDelta(mediator.network);
+  return logPostDelta(input, delta);
+}
+
+/**
+ * Build the success-branch dashboard state for {@link executeValidateTraffic}.
+ * @param pageUrl - Current URL captured at POST time.
+ * @returns Ready dashboard state with traffic primed.
+ */
+function buildDashState(pageUrl: string): IDashboardState {
+  return { isReady: true, pageUrl, trafficPrimed: true };
+}
+
+/**
+ * Run the password-change probe + the primed-traffic gate. Extracted so
+ * {@link executeValidateTraffic} keeps to the LoC cap; both calls are
+ * sequenced because the pwd check may fail-loud before the gate runs.
+ * @param mediator - Element mediator (already unwrapped).
+ * @param input - Pipeline context (for logger access).
+ * @returns Fail procedure when pwd flagged; otherwise the primed gate bit.
+ */
+async function runPwdAndPrime(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext> | boolean> {
+  const pwdCheck = await checkChangePassword(mediator);
+  if (pwdCheck) return pwdCheck;
+  return validateTrafficGate(mediator.network, input.logger);
 }
 
 /**
@@ -821,41 +1360,79 @@ async function walkFallbackNth(args: IIterateArgs, i: number): Promise<Procedure
  * @param input - Pipeline context.
  * @returns Updated context with dashboard state.
  */
+/**
+ * Read the current URL + emit the POST primed log line. Pulled out so
+ * {@link executeValidateTraffic} stays under the LoC cap.
+ * @param input - Pipeline context (for logger access).
+ * @param mediator - Element mediator (already unwrapped).
+ * @param primed - Result of the traffic-gate probe.
+ * @returns Current page URL captured at POST time.
+ */
+function logPrimedAndReadUrl(
+  input: IPipelineContext,
+  mediator: IElementMediator,
+  primed: boolean,
+): string {
+  const pageUrl = mediator.getCurrentUrl();
+  input.logger.debug({ primed, url: maskVisibleText(pageUrl) });
+  return pageUrl;
+}
+
+/**
+ * POST: Change-password check + simple traffic gate (HEAD-equivalent).
+ *
+ * The "did the click do the right thing?" decision now lives INSIDE
+ * dashboard ACTION's candidate-iteration loop. POST just confirms ANY
+ * traffic was hasTxn — same trivial gate HEAD uses.
+ *
+ * @param input - Pipeline context.
+ * @returns Updated context with dashboard state.
+ */
 async function executeValidateTraffic(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD POST: no mediator');
   const mediator = input.mediator.value;
-  const pwdCheck = await checkChangePassword(mediator);
-  if (pwdCheck) return pwdCheck;
-  const isPrimed = validateTrafficGate(mediator.network, input.logger);
-  const pageUrl = mediator.getCurrentUrl();
-  input.logger.debug({ primed: isPrimed, url: maskVisibleText(pageUrl) });
-  // POST validates the traffic delta the click produced. The bucketing
-  // helpers compute pre-nav vs post-nav from the timestamp marker set
-  // by ACTION; emitting the counts here gives operators a single
-  // structured event to reason about whether the click revealed a
-  // new endpoint.
-  const network = mediator.network;
-  const preNavCount = network.getPreNavCaptures().length;
-  const postNavCount = network.getPostNavCaptures().length;
-  const rawClickAt = network.getDashboardClickAt();
-  const clickAt = clickAtForLog(rawClickAt);
-  input.logger.debug({
-    event: 'dashboard.post.delta',
-    preNavCount,
-    postNavCount,
-    clickAt,
-  });
-  if (!isPrimed) {
-    return fail(ScraperErrorTypes.Generic, 'DASHBOARD POST: no API traffic hasTxn');
-  }
-  const dashState: IDashboardState = {
-    isReady: true,
-    pageUrl,
-    trafficPrimed: isPrimed,
-  };
-  return succeed({ ...input, dashboard: some(dashState) });
+  const primedOrFail = await runPwdAndPrime(mediator, input);
+  if (typeof primedOrFail !== 'boolean') return primedOrFail;
+  return finalizePrimedTraffic(input, mediator, primedOrFail);
+}
+
+/**
+ * Tail of {@link executeValidateTraffic} that runs after PWD priming
+ * settles. Logs the primed URL, emits the post-delta telemetry, then
+ * either fails loud (no API traffic) or commits the assembled
+ * dashboard state. Pulled out so the caller stays under the LoC cap.
+ *
+ * @param input - Pipeline context.
+ * @param mediator - Unwrapped mediator (caller-side narrowed).
+ * @param primed - Whether PWD priming captured txn-shape traffic.
+ * @returns Procedure with the committed dashboard state, or a failure.
+ */
+function finalizePrimedTraffic(
+  input: IPipelineContext,
+  mediator: IElementMediator,
+  primed: boolean,
+): Procedure<IPipelineContext> {
+  const pageUrl = logPrimedAndReadUrl(input, mediator, primed);
+  emitPostDeltaFromMediator(input, mediator);
+  if (!primed) return fail(ScraperErrorTypes.Generic, 'DASHBOARD POST: no API traffic hasTxn');
+  const dashState = buildDashState(pageUrl);
+  const dashboard = some(dashState);
+  return succeed({ ...input, dashboard });
+}
+
+/**
+ * Build the API-context override bundle from the pipeline config. Pulled
+ * out so {@link maybeAttachApi} stays under the LoC cap.
+ * @param input - Pipeline context with config.
+ * @returns Override bundle for {@link buildApiContext}.
+ */
+function buildOverrideFromConfig(input: IPipelineContext): {
+  readonly baseUrl: string;
+  readonly transactionsPath?: string;
+} {
+  return { baseUrl: input.config.urls.base, transactionsPath: input.config.transactionsPath };
 }
 
 /**
@@ -869,10 +1446,7 @@ async function maybeAttachApi(input: IPipelineContext): Promise<IPipelineContext
   if (input.api.has) return input;
   const network = input.mediator.value.network;
   await network.cacheAuthToken();
-  const override = {
-    baseUrl: input.config.urls.base,
-    transactionsPath: input.config.transactionsPath,
-  };
+  const override = buildOverrideFromConfig(input);
   const apiCtx = await buildApiContext(network, input.fetchStrategy.value, override);
   return { ...input, api: some(apiCtx) };
 }
@@ -981,6 +1555,128 @@ async function waitForPostNavTxnMatch(input: IPipelineContext): Promise<boolean>
 }
 
 /**
+ * Wait gate at the head of FINAL — returns fail-loud when the post-nav pool
+ * has no WK-txn match within the budget. Pulled out so
+ * {@link executeCollectAndSignal} stays under the LoC cap.
+ * @param input - Pipeline context.
+ * @returns Fail procedure on miss, or false to continue.
+ */
+async function gateFinalTxnMatch(
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext> | false> {
+  const isMatched = await waitForPostNavTxnMatch(input);
+  if (input.mediator.has && !isMatched) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      'DASHBOARD FINAL: DASHBOARD_TXN_ENDPOINT_MISSING — post-nav pool empty of WK-txn matches after wait budget',
+    );
+  }
+  return false;
+}
+
+/** Bundle of post-commit FINAL state used to compose the success branch. */
+interface IFinalSignalState {
+  readonly diag: IPipelineContext['diagnostics'];
+  readonly hasAuth: boolean;
+  readonly epCount: string;
+  readonly preNavCount: number;
+  readonly postNavCount: number;
+}
+
+/**
+ * Build the FINAL post-commit state bundle — diagnostics patch + counts
+ * for the signal-ready event. Pulled out so
+ * {@link executeCollectAndSignal} stays under the LoC cap.
+ * @param ctx - Pipeline context after the TXN endpoint commit.
+ * @returns Bundle for the signal-ready emit + success procedure.
+ */
+/**
+ * Build the diagnostics patch for FINAL: `discoveredAuth` + `finalUrl`.
+ * Extracted so {@link buildFinalSignalState} stays under the LoC cap.
+ * @param ctx - Pipeline context after TXN commit.
+ * @returns Diagnostics patch + the discoveredAuth string for reuse.
+ */
+async function buildFinalDiagPatch(ctx: IPipelineContext): Promise<{
+  readonly diag: IPipelineContext['diagnostics'];
+  readonly discoveredAuth: string | false;
+}> {
+  const dashUrl = ctx.dashboard.has && ctx.dashboard.value.pageUrl;
+  const discoveredAuth = await extractAuthFromContext(ctx);
+  const diag = { ...ctx.diagnostics, finalUrl: some(dashUrl || ''), discoveredAuth };
+  return { diag, discoveredAuth };
+}
+
+/**
+ * Assemble the {@link IFinalSignalState} bundle from already-computed
+ * inputs. Pulled out so {@link buildFinalSignalState} stays under the
+ * LoC cap (the 5-field object literal otherwise dominates the body).
+ * @param diag - Pre-built diagnostics patch.
+ * @param hasAuth - Whether auth was discovered.
+ * @param ctx - Pipeline context (for endpoint count + bucket counts).
+ * @returns FINAL signal state bundle.
+ */
+function assembleFinalSignalState(
+  diag: IPipelineContext['diagnostics'],
+  hasAuth: boolean,
+  ctx: IPipelineContext,
+): IFinalSignalState {
+  const counts = countNavBuckets(ctx);
+  return {
+    diag,
+    hasAuth,
+    epCount: countEndpoints(ctx),
+    preNavCount: counts.preNavCount,
+    postNavCount: counts.postNavCount,
+  };
+}
+
+/**
+ * Build the FINAL post-commit state bundle — diagnostics patch + counts
+ * for the signal-ready event. Pulled out so {@link executeCollectAndSignal}
+ * stays under the LoC cap.
+ * @param ctx - Pipeline context after the TXN endpoint commit.
+ * @returns Bundle for the signal-ready emit + success procedure.
+ */
+async function buildFinalSignalState(ctx: IPipelineContext): Promise<IFinalSignalState> {
+  const { diag, discoveredAuth } = await buildFinalDiagPatch(ctx);
+  const hasAuth = Boolean(discoveredAuth);
+  return assembleFinalSignalState(diag, hasAuth, ctx);
+}
+
+/**
+ * Emit the canonical `dashboard.signal.ready` event for SCRAPE.PRE.
+ * preNavCount / postNavCount form the materialised contract.
+ * @param input - Pipeline context with logger.
+ * @param state - Pre-built FINAL signal state.
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function logSignalReady(input: IPipelineContext, state: IFinalSignalState): true {
+  input.logger.debug({
+    event: 'dashboard.signal.ready',
+    authFound: state.hasAuth,
+    endpoints: state.epCount,
+    preNavCount: state.preNavCount,
+    postNavCount: state.postNavCount,
+  });
+  return true;
+}
+
+/**
+ * Emit the signal-ready log line and compose the FINAL success procedure.
+ * Pulled out so {@link executeCollectAndSignal} stays under the LoC cap.
+ * @param ctx - Pipeline context after TXN commit (carries logger).
+ * @param state - Pre-built FINAL signal state.
+ * @returns Success procedure carrying the patched diagnostics.
+ */
+function emitSignalReadyAndSucceed(
+  ctx: IPipelineContext,
+  state: IFinalSignalState,
+): Procedure<IPipelineContext> {
+  logSignalReady(ctx, state);
+  return succeed({ ...ctx, diagnostics: state.diag });
+}
+
+/**
  * FINAL: gate the phase, build API context, and emit the
  * `dashboard.signal.ready` event for SCRAPE.PRE.
  * @param input - Pipeline context.
@@ -990,44 +1686,13 @@ async function executeCollectAndSignal(
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.dashboard.has) return fail(ScraperErrorTypes.Generic, 'DASHBOARD FINAL: not ready');
-  // F-DASH-1: when the post-nav pool exposes no WK-txn match within the
-  // FINAL wait budget, DASHBOARD halts the pipeline. SCRAPE never starts
-  // on an empty contract — there is no bridge fallback, no soft
-  // re-discovery in SCRAPE. The wait absorbs the SPA timing race
-  // (Discount's BFF, Hapoalim's role-bound txn fetch).
-  const isMatched = await waitForPostNavTxnMatch(input);
-  if (input.mediator.has && !isMatched) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      'DASHBOARD FINAL: DASHBOARD_TXN_ENDPOINT_MISSING — post-nav pool empty of WK-txn matches after wait budget',
-    );
-  }
+  const gate = await gateFinalTxnMatch(input);
+  if (gate !== false) return gate;
   const withApi = await maybeAttachApi(input);
   const txnCommitted = await commitTxnEndpoint(withApi);
   if (!txnCommitted.ok) return txnCommitted.failure;
-  const dashUrl = txnCommitted.ctx.dashboard.has && txnCommitted.ctx.dashboard.value.pageUrl;
-  const discoveredAuth = await extractAuthFromContext(txnCommitted.ctx);
-  const diag = {
-    ...txnCommitted.ctx.diagnostics,
-    finalUrl: some(dashUrl || ''),
-    discoveredAuth,
-  };
-  const hasAuth = Boolean(discoveredAuth);
-  const epCount = countEndpoints(txnCommitted.ctx);
-  // Emit the canonical signal-ready event. preNavCount / postNavCount
-  // form the materialised contract: SCRAPE.PRE consumes the post-nav
-  // pool (already validated above) and never re-checks completeness.
-  const counts = countNavBuckets(txnCommitted.ctx);
-  const preNavCount = counts.preNavCount;
-  const postNavCount = counts.postNavCount;
-  withApi.logger.debug({
-    event: 'dashboard.signal.ready',
-    authFound: hasAuth,
-    endpoints: epCount,
-    preNavCount,
-    postNavCount,
-  });
-  return succeed({ ...txnCommitted.ctx, diagnostics: diag });
+  const state = await buildFinalSignalState(txnCommitted.ctx);
+  return emitSignalReadyAndSucceed(txnCommitted.ctx, state);
 }
 
 /** Outcome of {@link commitTxnEndpoint} — discriminated success/fail. */
@@ -1065,6 +1730,27 @@ function readAccountIdCount(ctx: IPipelineContext): number {
   return ctx.accountDiscovery.value.ids.length;
 }
 
+/** Sentinel empty-failure procedure used by success branches of commit helpers. */
+const EMPTY_COMMIT_FAILURE = fail(ScraperErrorTypes.Generic, '');
+
+/** Reason text for the dormant-empty commit log line — extracted for the 100-col cap. */
+const DORMANT_COMMIT_REASON =
+  'resolveTxnEndpoint returned false; captured pool carries empty-window evidence — ' +
+  'committing empty endpoint per spec.txt:162';
+
+/**
+ * Build the dormant-empty context patch — applies the empty endpoint +
+ * harvest. Pulled out so {@link commitDormantEmptyEndpoint} stays
+ * under the LoC cap.
+ * @param ctx - Pipeline context to patch.
+ * @returns Pipeline context with dormant-empty commits applied.
+ */
+function buildDormantEmptyCtx(ctx: IPipelineContext): IPipelineContext {
+  const txnEndpoint = some(EMPTY_TXN_ENDPOINT);
+  const dashboardTxnHarvest = some(EMPTY_TXN_HARVEST);
+  return { ...ctx, txnEndpoint, dashboardTxnHarvest };
+}
+
 /**
  * Phase H'' (2026-05-15): commit an empty endpoint shape when the
  * captured pool carries dormant-account evidence. SCRAPE produces
@@ -1075,18 +1761,24 @@ function readAccountIdCount(ctx: IPipelineContext): number {
  * @returns Outcome carrying the empty-endpoint commit.
  */
 function commitDormantEmptyEndpoint(ctx: IPipelineContext): ITxnCommitOutcome {
-  ctx.logger.debug({
-    event: 'dashboard.txnEndpoint.dormantEmpty',
-    reason:
-      'resolveTxnEndpoint returned false; captured pool carries empty-window evidence — ' +
-      'committing empty endpoint per spec.txt:162',
-  });
-  const dormantCtx: IPipelineContext = {
-    ...ctx,
-    txnEndpoint: some(EMPTY_TXN_ENDPOINT),
-    dashboardTxnHarvest: some(EMPTY_TXN_HARVEST),
-  };
-  return { ok: true, ctx: dormantCtx, failure: fail(ScraperErrorTypes.Generic, '') };
+  ctx.logger.debug({ event: 'dashboard.txnEndpoint.dormantEmpty', reason: DORMANT_COMMIT_REASON });
+  const newCtx = buildDormantEmptyCtx(ctx);
+  return { ok: true, ctx: newCtx, failure: EMPTY_COMMIT_FAILURE };
+}
+
+/** Reason text for the fail-loud debug log line — extracted for the 100-col cap. */
+const FIELDMAP_FAIL_LOUD_REASON =
+  'resolveTxnEndpoint returned false; TXN body missing date or amount field aliases';
+
+/**
+ * Build the FIELDMAP_INCOMPLETE fail-loud procedure used by {@link commitTxnEndpointFailLoud}.
+ * @returns Fail procedure carrying the canonical error message.
+ */
+function buildFieldMapFailLoud(): Procedure<IPipelineContext> {
+  return fail(
+    ScraperErrorTypes.Generic,
+    `DASHBOARD FINAL: DASHBOARD_TXN_FIELDMAP_INCOMPLETE — ${FIELDMAP_FAIL_LOUD_REASON}`,
+  );
 }
 
 /**
@@ -1101,14 +1793,9 @@ function commitTxnEndpointFailLoud(ctx: IPipelineContext): ITxnCommitOutcome {
   ctx.logger.debug({
     event: 'dashboard.txnEndpoint.failLoud',
     code: 'DASHBOARD_TXN_FIELDMAP_INCOMPLETE',
-    reason: 'resolveTxnEndpoint returned false; TXN body missing date or amount field aliases',
+    reason: FIELDMAP_FAIL_LOUD_REASON,
   });
-  const failure = fail(
-    ScraperErrorTypes.Generic,
-    'DASHBOARD FINAL: DASHBOARD_TXN_FIELDMAP_INCOMPLETE — resolveTxnEndpoint returned false; ' +
-      'TXN body missing date or amount field aliases',
-  );
-  return { ok: false, ctx, failure };
+  return { ok: false, ctx, failure: buildFieldMapFailLoud() };
 }
 
 /**
@@ -1140,56 +1827,154 @@ function handleNoTxnEndpoint(ctx: IPipelineContext, network: INetworkDiscovery):
  * @returns Outcome carrying the updated context (success) or the
  *   fail-loud procedure to propagate.
  */
-async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutcome> {
-  await Promise.resolve();
-  if (!ctx.mediator.has) {
-    return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
-  }
-  if (isMockModeDashboardFinalActive) {
-    return { ok: true, ctx, failure: fail(ScraperErrorTypes.Generic, '') };
-  }
-  const internal = resolveTxnEndpoint(ctx.mediator.value.network);
-  if (internal === false) return handleNoTxnEndpoint(ctx, ctx.mediator.value.network);
-  // Phase 7f: commit ONLY the slim SCRAPE-facing endpoint to ctx.
-  // captureIndex / responseBodySample / pickerTier / capturedPreClick
-  // are DASHBOARD-internal artefacts that emit via telemetry but
-  // never travel on ctx. The pre-extracted records (and their scope)
-  // travel on ctx.dashboardTxnHarvest as a clean value type — the
-  // mirror of ACCOUNT-RESOLVE's IAccountDiscovery.records, so SCRAPE
-  // can consume the records DASHBOARD already saw without issuing a
-  // redundant fetch when the bank's anti-bot guard would otherwise
-  // 302 the second request. Pass ACCOUNT-RESOLVE's account count so
-  // the harvest's multi-scope decision becomes context-aware: an
-  // unscoped capture in a multi-account run is multi-scope unsafe
-  // (Amex/Isracard would otherwise mirror the captured 5 records
-  // across every card).
-  const accountIdCount = readAccountIdCount(ctx);
-  const pool = ctx.mediator.value.network.getAllEndpoints();
-  const harvest = buildTxnHarvest(internal, accountIdCount, pool);
-  const updated: IPipelineContext = {
-    ...ctx,
-    txnEndpoint: some(internal.endpoint),
-    dashboardTxnHarvest: some(harvest),
-  };
-  ctx.logger.debug({
-    event: 'dashboard.txnEndpoint.committed',
+/**
+ * Sentinel "no-op" success outcome used when the commit is bypassed
+ * (mediator-less or mock-mode).
+ * @param ctx - Pipeline context to pass through unchanged.
+ * @returns Success outcome that leaves the context untouched.
+ */
+function buildBypassOutcome(ctx: IPipelineContext): ITxnCommitOutcome {
+  return { ok: true, ctx, failure: EMPTY_COMMIT_FAILURE };
+}
+
+/** Static `event` tag for the committed-endpoint telemetry payload. */
+const TXN_COMMITTED_EVENT = 'dashboard.txnEndpoint.committed';
+
+/**
+ * Build the endpoint-derived half of {@link buildTxnCommittedPayload}.
+ * Pulled out so neither helper exceeds the LoC cap.
+ * @param internal - Resolver result that was just committed.
+ * @returns Endpoint fingerprint fragment.
+ */
+function buildTxnEndpointFingerprint(internal: ITxnEndpointInternal): Record<string, unknown> {
+  return {
     method: internal.endpoint.method,
-    captureIndex: internal.captureIndex,
     fieldMapDate: internal.endpoint.fieldMap.date,
     fieldMapAmount: internal.endpoint.fieldMap.amount,
     pendingUrlPresent: internal.endpoint.pendingUrl !== false,
     billingUrlPresent: internal.endpoint.billingUrl !== false,
+  };
+}
+
+/**
+ * Build the resolver-context half of {@link buildTxnCommittedPayload}
+ * — captureIndex / pickerTier / record counts.
+ * @param internal - Resolver result that was just committed.
+ * @returns Resolver-context fragment.
+ */
+function buildTxnResolverContext(internal: ITxnEndpointInternal): Record<string, unknown> {
+  return {
+    captureIndex: internal.captureIndex,
     normalizedRecords: internal.normalizedRecords.length,
     pickerTier: internal.pickerTier,
     capturedPreClick: internal.capturedPreClick,
-  });
+  };
+}
+
+/**
+ * Build the structured payload for the `dashboard.txnEndpoint.committed`
+ * event by merging the endpoint fingerprint with the resolver context.
+ * @param internal - Resolver result that was just committed.
+ * @returns Telemetry payload literal.
+ */
+function buildTxnCommittedPayload(internal: ITxnEndpointInternal): Record<string, unknown> {
+  return {
+    event: TXN_COMMITTED_EVENT,
+    ...buildTxnEndpointFingerprint(internal),
+    ...buildTxnResolverContext(internal),
+  };
+}
+
+/**
+ * Emit the `dashboard.txnEndpoint.committed` debug event describing the
+ * picked TXN endpoint's fingerprint. Pulled out so {@link commitTxnEndpoint}
+ * stays under the LoC cap; the literal would otherwise dominate the body.
+ * @param ctx - Pipeline context (for logger access).
+ * @param internal - Resolver result that was just committed.
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function logTxnEndpointCommitted(ctx: IPipelineContext, internal: ITxnEndpointInternal): true {
+  const payload = buildTxnCommittedPayload(internal);
+  ctx.logger.debug(payload);
+  return true;
+}
+
+/**
+ * Emit the `dashboard.txnHarvest.committed` debug event describing the
+ * pre-extracted records harvest committed alongside the endpoint.
+ * @param ctx - Pipeline context (for logger access).
+ * @param harvest - Harvest payload that was just committed.
+ * @returns Always true so the caller stays expression-shaped.
+ */
+function logTxnHarvestCommitted(ctx: IPipelineContext, harvest: IDashboardTxnHarvest): true {
   ctx.logger.debug({
     event: 'dashboard.txnHarvest.committed',
     records: harvest.records.length,
     capturedAccountIdPresent: harvest.capturedAccountId !== false,
     multiAccountScope: harvest.multiAccountScope,
   });
-  return { ok: true, ctx: updated, failure: fail(ScraperErrorTypes.Generic, '') };
+  return true;
+}
+
+/**
+ * Patch the pipeline context with the just-resolved TXN endpoint +
+ * harvest. Pulled out so {@link commitResolvedEndpoint} stays terse.
+ * @param ctx - Pipeline context.
+ * @param internal - Resolver result carrying the endpoint to commit.
+ * @param harvest - Harvest payload to commit.
+ * @returns Pipeline context with both options populated.
+ */
+function applyEndpointCommit(
+  ctx: IPipelineContext,
+  internal: ITxnEndpointInternal,
+  harvest: IDashboardTxnHarvest,
+): IPipelineContext {
+  return { ...ctx, txnEndpoint: some(internal.endpoint), dashboardTxnHarvest: some(harvest) };
+}
+
+/**
+ * Commit a successfully-resolved TXN endpoint + its pre-extracted harvest
+ * to the pipeline context, emitting both debug events for telemetry.
+ * Extracted so {@link commitTxnEndpoint} stays under the LoC cap.
+ * @param ctx - Pipeline context with a live mediator.
+ * @param internal - Resolver result carrying endpoint + records.
+ * @returns Success outcome with the patched context.
+ */
+function commitResolvedEndpoint(
+  ctx: IPipelineContext,
+  internal: ITxnEndpointInternal,
+): ITxnCommitOutcome {
+  const accountIdCount = readAccountIdCount(ctx);
+  const network = ctx.mediator.has ? ctx.mediator.value.network : undefined;
+  const pool = network ? network.getAllEndpoints() : [];
+  const harvest = buildTxnHarvest(internal, accountIdCount, pool);
+  const updated = applyEndpointCommit(ctx, internal, harvest);
+  logTxnEndpointCommitted(ctx, internal);
+  logTxnHarvestCommitted(ctx, harvest);
+  return { ok: true, ctx: updated, failure: EMPTY_COMMIT_FAILURE };
+}
+
+/**
+ * Phase 7e — commit the resolved TXN endpoint to `ctx.txnEndpoint`,
+ * or fail loud with `DASHBOARD_TXN_FIELDMAP_INCOMPLETE` when the
+ * resolver cannot pick a date AND amount field. Mirrors the
+ * ACCOUNT-RESOLVE.POST contract: every successful run either commits
+ * the endpoint OR halts the pipeline before SCRAPE starts. The
+ * MOCK_MODE valve preserves the offline snapshot suite — no captured
+ * network traffic, no fail-loud applicable.
+ *
+ * @param ctx - Pipeline context after `maybeAttachApi`.
+ * @returns Outcome carrying the updated context (success) or the
+ *   fail-loud procedure to propagate.
+ */
+async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutcome> {
+  await Promise.resolve();
+  if (!ctx.mediator.has) return buildBypassOutcome(ctx);
+  if (isMockModeDashboardFinalActive) return buildBypassOutcome(ctx);
+  const network = ctx.mediator.value.network;
+  const internal = resolveTxnEndpoint(network);
+  if (internal === false) return handleNoTxnEndpoint(ctx, network);
+  return commitResolvedEndpoint(ctx, internal);
 }
 
 export {
