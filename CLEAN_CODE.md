@@ -34,7 +34,26 @@ PR #278 can never recur.
 | Network (§11) | **10** | Phase 8.5a drained the three grandfathered files and tightened the cap to match the canonical ≤10-LoC cap. |
 | Scrape (§12) | **10** | Phase 8.5b drained the Scrape grandfathers; the cluster matches the canonical ≤10-LoC cap. |
 | ConfigContracts (§14) | **10** | Phase 8 split the IApiDirectCallConfig god-tree; sub-modules adopt the canonical ≤10-LoC cap. |
+| Init (§14) | **10** | Init/ uses single-line typed signatures so `max-lines-per-function: 10` measures body length. |
+| Mediator Phase 2 (§14b) | **10 *statements*** | Phase 2 used `max-statements: 10` (NOT `max-lines-per-function`) because the cluster intentionally uses multi-line typed signatures for wider param lists. See the "Phase 2 lockdown — statement vs line" note below. |
 | Default §6C base | **15** | All other Pipeline files; can be overridden stricter (the canonical target is 10 for every cluster — broader Types/** + Base/** per-fn:10 rollout is tracked as a follow-up). |
+
+> **Phase 2 lockdown — statement vs line.** §14b (`Mediator/{Api,
+> ApiDirectCall, Selector, Dashboard, Login, PreLogin, AuthDiscovery,
+> BalanceResolve, AccountResolve, OtpFill, OtpTrigger, Scrape, Otp,
+> Browser, Home, Credentials, Terminate, Timing}/**`) enforces
+> `max-statements: 10` rather than `max-lines-per-function: 10`. Both
+> rules express the "≤10-body" intent but measure different
+> dimensions: `max-lines-per-function` counts the function signature +
+> body + braces, while `max-statements` counts only top-level
+> statements in the body. Phase 2 clusters adopted multi-line typed
+> signatures (5+ params is common for the orchestrator helpers) which
+> inflates `max-lines-per-function`'s count past 10 even when the body
+> is ≤10 statements. `max-statements: 10` is the body-only metric
+> that the Phase 2 refactor probe drove, and matches the user's
+> "Pipeline production max-10" intent for body complexity. The Init/
+> cluster keeps `max-lines-per-function: 10` because Init/ uses
+> single-line typed signatures and the two measures coincide there.
 
 > **Footnote — historical "ideal vs hard" terminology.** Earlier
 > phases of this codebase used "10 ideal / 20 hard" language. That
