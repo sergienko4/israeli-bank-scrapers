@@ -746,24 +746,42 @@ const NO_ATTR = '(none)';
 
 /**
  * Extract diagnostic trace info from a DOM element.
+ * Inlined ternaries to fit under the 10-LoC cap.
  * @param el - The DOM element.
  * @returns Diagnostic string with tag, text, href, aria.
  */
 function traceElementInfo(el: Element): string {
-  const tag = el.tagName;
   const rawText = el.textContent;
-  let text = NO_ATTR;
-  if (rawText) {
-    text = rawText.slice(0, 30).trim();
-  }
+  const text = rawText ? rawText.slice(0, 30).trim() : NO_ATTR;
   const href = el.getAttribute('href') ?? NO_ATTR;
   const aria = el.getAttribute('aria-label') ?? NO_ATTR;
   const closestA = el.closest('a');
-  let aHref = 'NO_ANCHOR';
-  if (closestA) {
-    aHref = closestA.getAttribute('href') ?? NO_ATTR;
-  }
-  return `tag=${tag} text=${text} href=${href} aria=${aria} closestA=${aHref}`;
+  const aHref = closestA ? (closestA.getAttribute('href') ?? NO_ATTR) : 'NO_ANCHOR';
+  return `tag=${el.tagName} text=${text} href=${href} aria=${aria} closestA=${aHref}`;
+}
+
+/**
+ * Emit the snapshotValue debug trace.
+ * @param elInfo - Result of traceElementInfo (or 'error').
+ * @param candidateInfo - Candidate kind=value descriptor.
+ * @returns True after logging.
+ */
+function traceSnapshot(elInfo: string, candidateInfo: string): true {
+  const elMasked = maskVisibleText(elInfo);
+  const candMasked = maskVisibleText(candidateInfo);
+  LOG.debug({ message: `snapshotValue: [${elMasked}] candidate=${candMasked}` });
+  return true;
+}
+
+/**
+ * Resolve href snapshot: try directly, then walk up to nearest ancestor anchor.
+ * @param entry - The winning locator entry.
+ * @returns Resolved href or empty string.
+ */
+async function resolveHrefSnapshot(entry: ILocatorEntry): Promise<string> {
+  const directHref = await entry.locator.getAttribute('href').catch((): string => '');
+  if (directHref) return directHref;
+  return entry.locator.evaluate(walkUpToAnchorHref).catch((): string => '');
 }
 
 /**
@@ -777,16 +795,8 @@ async function snapshotValue(entry: ILocatorEntry): Promise<string> {
   const target = entry.candidate.target ?? 'self';
   if (target !== 'href') return entry.locator.innerText().catch((): string => '');
   const elInfo = await entry.locator.evaluate(traceElementInfo).catch((): string => 'error');
-  const candidateInfo = `${entry.candidate.kind}="${entry.candidate.value}"`;
-  LOG.debug({
-    message:
-      `snapshotValue: [${maskVisibleText(elInfo)}] ` +
-      `candidate=${maskVisibleText(candidateInfo)}`,
-  });
-  const directHref = await entry.locator.getAttribute('href').catch((): string => '');
-  if (directHref) return directHref;
-  const string = await entry.locator.evaluate(walkUpToAnchorHref).catch((): string => '');
-  return string;
+  traceSnapshot(elInfo, `${entry.candidate.kind}="${entry.candidate.value}"`);
+  return resolveHrefSnapshot(entry);
 }
 
 /** Post-race winner details bundled to satisfy the 3-param ceiling. */
@@ -961,6 +971,17 @@ async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementId
 }
 
 /**
+ * Format a single locator detail line for race diagnostic.
+ * @param entries - All entries array.
+ * @param idx - Index of the fulfilled entry to format.
+ * @returns Formatted "kind:value @ url" string.
+ */
+function formatLocatorDetail(entries: readonly ILocatorEntry[], idx: number): string {
+  const e = entries[idx];
+  return `${e.candidate.kind}:${e.candidate.value} @ ${e.context.url()}`;
+}
+
+/**
  * Log race diagnostic — fulfilled count + winner index + per-locator detail.
  * Emitted at debug level (not trace) so the resolver flow stays visible at
  * the standard CI debug level. Without this, debug-level runs see the
@@ -971,18 +992,12 @@ async function extractAndTraceIdentity(entry: ILocatorEntry): Promise<IElementId
  * @returns True after logging.
  */
 function traceRaceDiagnostic(entries: readonly ILocatorEntry[], diag: IRaceDiagnostic): true {
-  const fulfilledDetail = diag.fulfilledIndices.map((idx): string => {
-    const e = entries[idx];
-    const kind = e.candidate.kind;
-    const val = e.candidate.value;
-    const ctx = e.context.url();
-    return `${kind}:${val} @ ${ctx}`;
-  });
+  const detail = diag.fulfilledIndices.map((idx): string => formatLocatorDetail(entries, idx));
   LOG.debug({
     fulfilled: diag.fulfilledCount,
     hitTestPassed: diag.hitTestPassedCount,
     winner: diag.winner,
-    detail: fulfilledDetail,
+    detail,
   });
   return true;
 }
