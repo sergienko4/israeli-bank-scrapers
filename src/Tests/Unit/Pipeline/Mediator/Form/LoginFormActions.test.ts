@@ -406,32 +406,13 @@ describe('fillFromDiscovery', () => {
       targets: new Map([['username', target]]),
       submitTarget: { has: true as const, value: submitTarget },
     } as unknown as ILoginFieldDiscovery;
-    const executor = {
+    const executor = makeActionExecutor({
       /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      fillInput: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      pressEnter: (): Promise<true> => Promise.resolve(true),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
+       * Reject the click to exercise the discovery-path catch arm.
+       * @returns Rejected promise.
        */
       clickElement: (): Promise<never> => Promise.reject(new Error('click fail')),
-      /**
-       * Test helper.
-       *
-       * @returns Result.
-       */
-      getCurrentUrl: (): string => 'https://bank.co.il/login',
-    } as unknown as IActionMediator;
+    });
     const result = await fillFromDiscovery({
       discovery,
       executor,
@@ -455,36 +436,17 @@ describe('fillFromDiscovery', () => {
       submitTarget: { has: false },
     } as unknown as ILoginFieldDiscovery;
     let didPress = false;
-    const executor = {
+    const executor = makeActionExecutor({
       /**
-       * Records that pressEnter was invoked — MUST remain false because
-       * the guard short-circuits on empty activeFrameId.
-       *
-       * @returns Resolved true.
-       */
-      fillInput: (): Promise<true> => Promise.resolve(true),
-      /**
-       * pressEnter records the call so the guard can be verified.
-       *
+       * pressEnter records the call so the empty-frameId guard can be
+       * verified — MUST remain false because the guard short-circuits.
        * @returns Resolved true.
        */
       pressEnter: (): Promise<true> => {
         didPress = true;
         return Promise.resolve(true);
       },
-      /**
-       * clickElement noop.
-       *
-       * @returns Resolved true.
-       */
-      clickElement: (): Promise<true> => Promise.resolve(true),
-      /**
-       * getCurrentUrl noop.
-       *
-       * @returns URL string.
-       */
-      getCurrentUrl: (): string => 'https://bank.co.il/login',
-    } as unknown as IActionMediator;
+    });
     const result = await fillFromDiscovery({
       discovery,
       executor,
