@@ -9,7 +9,6 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
-import { assertNever } from '../../../../../AssertNever.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
@@ -43,6 +42,18 @@ function bootstrapRandomHex16(): Procedure<string> {
 }
 
 /**
+ * Standard failure for missing/empty source on sha256-prefix-16.
+ * @param from - Creds field name.
+ * @returns Procedure failure.
+ */
+function sha256MissingFail(from: string): Procedure<string> {
+  return fail(
+    ScraperErrorTypes.Generic,
+    `sha256-prefix-16 bootstrap: creds.${from} missing or empty`,
+  );
+}
+
+/**
  * Deterministically derive a 16-character hex prefix from another
  * creds field. Used for warm-start-stable per-user identifiers
  * (e.g. `deviceId16Hex` derived from `phoneNumber`) so banks whose
@@ -57,12 +68,7 @@ function bootstrapSha256Prefix16(
   creds: Readonly<Record<string, unknown>>,
 ): Procedure<string> {
   const raw = creds[from];
-  if (typeof raw !== 'string' || raw.length === 0) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `sha256-prefix-16 bootstrap: creds.${from} missing or empty`,
-    );
-  }
+  if (typeof raw !== 'string' || raw.length === 0) return sha256MissingFail(from);
   const digest = createHash('sha256').update(raw, 'utf8').digest('hex');
   const prefix = digest.slice(0, SHA256_PREFIX_LENGTH);
   return succeed(prefix);
@@ -70,6 +76,46 @@ function bootstrapSha256Prefix16(
 
 /** Index of the JWT payload segment (between header and signature). */
 const JWT_PAYLOAD_SEGMENT_INDEX = 1;
+
+/** Walk context for {@link stepJsonPath}. */
+interface IWalkJsonCtx {
+  readonly path: string;
+}
+
+/**
+ * Step the json-path walker one segment forward.
+ * @param acc - Current cursor procedure.
+ * @param segment - Next path segment.
+ * @param ctx - Walk context (carries the full dotted path).
+ * @returns Updated cursor procedure.
+ */
+function stepJsonPath(
+  acc: Procedure<unknown>,
+  segment: string,
+  ctx: IWalkJsonCtx,
+): Procedure<unknown> {
+  if (!isOk(acc)) return acc;
+  const cursor = acc.value;
+  if (cursor === null || typeof cursor !== 'object') {
+    return fail(ScraperErrorTypes.Generic, `jwt-claim: path '${ctx.path}' miss at '${segment}'`);
+  }
+  const child = (cursor as Record<string, unknown>)[segment];
+  return succeed(child);
+}
+
+/**
+ * Coerce the final walker cursor to a string Procedure.
+ * @param walked - Walker outcome.
+ * @param path - Dotted path (for diagnostics).
+ * @returns Procedure with the string value.
+ */
+function coerceWalkedString(walked: Procedure<unknown>, path: string): Procedure<string> {
+  if (!isOk(walked)) return walked;
+  if (typeof walked.value !== 'string') {
+    return fail(ScraperErrorTypes.Generic, `jwt-claim: path '${path}' non-string`);
+  }
+  return succeed(walked.value);
+}
 
 /**
  * Walk a dotted path through a record-of-records, returning the leaf
@@ -82,19 +128,28 @@ const JWT_PAYLOAD_SEGMENT_INDEX = 1;
 function walkJsonPath(root: unknown, path: string): Procedure<string> {
   const segments = path.split('.');
   const seed: Procedure<unknown> = succeed(root);
-  const walked = segments.reduce<Procedure<unknown>>((acc, segment): Procedure<unknown> => {
-    if (!isOk(acc)) return acc;
-    const cursor = acc.value;
-    if (cursor === null || typeof cursor !== 'object') {
-      return fail(ScraperErrorTypes.Generic, `jwt-claim: path '${path}' miss at '${segment}'`);
-    }
-    return succeed((cursor as Record<string, unknown>)[segment]);
-  }, seed);
-  if (!isOk(walked)) return walked;
-  if (typeof walked.value !== 'string') {
-    return fail(ScraperErrorTypes.Generic, `jwt-claim: path '${path}' non-string`);
+  const ctx: IWalkJsonCtx = { path };
+  const walked = segments.reduce<Procedure<unknown>>(
+    (acc, seg) => stepJsonPath(acc, seg, ctx),
+    seed,
+  );
+  return coerceWalkedString(walked, path);
+}
+
+/**
+ * Decode + parse one base64url JWT segment (the inner try/catch).
+ * @param payloadB64 - Raw base64url-encoded JWT payload segment.
+ * @returns Procedure with the parsed value or fail.
+ */
+function tryParseJwtSegment(payloadB64: string): Procedure<unknown> {
+  try {
+    const decoded = Buffer.from(payloadB64, 'base64url').toString('utf8');
+    const parsed = JSON.parse(decoded) as unknown;
+    return succeed(parsed);
+  } catch (error) {
+    const reason = (error as Error).message;
+    return fail(ScraperErrorTypes.Generic, `jwt-claim: payload decode failed: ${reason}`);
   }
-  return succeed(walked.value);
 }
 
 /**
@@ -110,14 +165,7 @@ function decodeJwtPayload(jwt: string): Procedure<unknown> {
     return fail(ScraperErrorTypes.Generic, 'jwt-claim: JWT must have 3 segments');
   }
   const payloadB64 = segments[JWT_PAYLOAD_SEGMENT_INDEX];
-  try {
-    const decoded = Buffer.from(payloadB64, 'base64url').toString('utf8');
-    const parsed = JSON.parse(decoded) as unknown;
-    return succeed(parsed);
-  } catch (error) {
-    const reason = (error as Error).message;
-    return fail(ScraperErrorTypes.Generic, `jwt-claim: payload decode failed: ${reason}`);
-  }
+  return tryParseJwtSegment(payloadB64);
 }
 
 /**
@@ -168,16 +216,35 @@ function bootstrapJwtClaim(args: IJwtClaimArgs): Procedure<string> {
 }
 
 /**
+ * Build the bootstrapJwtClaim args bundle from a discriminated
+ * jwt-claim bootstrap descriptor.
+ * @param bootstrap - Discriminated jwt-claim bootstrap.
+ * @param creds - Caller credentials.
+ * @returns IJwtClaimArgs bundle.
+ */
+function makeJwtClaimArgs(
+  bootstrap: Extract<SeedCarryBootstrapKind, { kind: 'jwt-claim' }>,
+  creds: Readonly<Record<string, unknown>>,
+): IJwtClaimArgs {
+  return {
+    from: bootstrap.from,
+    claim: bootstrap.claim,
+    optional: bootstrap.optional === true,
+    creds,
+  };
+}
+
+/**
  * Dispatch a bootstrap kind to its generator. Extracted so the
  * outer {@link evalSeedSource} stays inside the per-function depth
  * budget when a new kind is added.
  *
  * <p>Phase 8.5c / Commit T2 — `SeedCarryBootstrapKind` is now a
  * uniform `{ kind, … }` union (PR #279 CR F2 closure), so the
- * dispatch is a literal `switch (bootstrap.kind)` with
- * `assertNever` exhaustiveness. Adding a new bootstrap kind to
- * the union causes a TypeScript error on the `assertNever` call
- * here, forcing the author to add a matching case.</p>
+ * dispatch falls through an exhaustive `kind` check terminated
+ * by {@link assertNever}. Adding a new bootstrap kind to the
+ * union causes a TypeScript error on the `assertNever` call,
+ * forcing the author to add a matching case.</p>
  *
  * @param bootstrap - Discriminated bootstrap descriptor.
  * @param creds - Caller credentials (consulted by parameterised kinds).
@@ -187,21 +254,12 @@ function evalBootstrap(
   bootstrap: SeedCarryBootstrapKind,
   creds: Readonly<Record<string, unknown>>,
 ): Procedure<string> {
-  switch (bootstrap.kind) {
-    case 'random-hex-16':
-      return bootstrapRandomHex16();
-    case 'sha256-prefix-16':
-      return bootstrapSha256Prefix16(bootstrap.from, creds);
-    case 'jwt-claim':
-      return bootstrapJwtClaim({
-        from: bootstrap.from,
-        claim: bootstrap.claim,
-        optional: bootstrap.optional === true,
-        creds,
-      });
-    default:
-      return assertNever(bootstrap);
+  if (bootstrap.kind === 'random-hex-16') return bootstrapRandomHex16();
+  if (bootstrap.kind === 'sha256-prefix-16') {
+    return bootstrapSha256Prefix16(bootstrap.from, creds);
   }
+  const args = makeJwtClaimArgs(bootstrap, creds);
+  return bootstrapJwtClaim(args);
 }
 
 /**
@@ -219,6 +277,18 @@ function coerceCredsValue(raw: unknown): Procedure<JsonValue> {
 }
 
 /**
+ * Standard failure for absent creds with no bootstrap configured.
+ * @param field - Creds field name.
+ * @returns Procedure failure.
+ */
+function noBootstrapFail(field: string): Procedure<JsonValue> {
+  return fail(
+    ScraperErrorTypes.Generic,
+    `seedCarryFromCreds: creds.${field} absent and no bootstrap configured`,
+  );
+}
+
+/**
  * Evaluate one {@link ISeedCarrySource} entry: mirror the creds field
  * when present + non-empty, fall back to the bootstrap when
  * configured, or fail when neither is available.
@@ -233,12 +303,7 @@ function evalSeedSource(
   const raw = creds[entry.field];
   const coerced = coerceCredsValue(raw);
   if (isOk(coerced) && coerced.value !== '') return coerced;
-  if (entry.bootstrap === undefined) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `seedCarryFromCreds: creds.${entry.field} absent and no bootstrap configured`,
-    );
-  }
+  if (entry.bootstrap === undefined) return noBootstrapFail(entry.field);
   return evalBootstrap(entry.bootstrap, creds);
 }
 
@@ -325,6 +390,49 @@ interface IResolveDerivedPartArgs {
 }
 
 /**
+ * Resolve a `carry.<slot>` derived part.
+ * @param rest - Slot name after the `carry.` prefix.
+ * @param args - Resolver args bundle.
+ * @returns Procedure with the string value.
+ */
+function resolveCarryPart(rest: string, args: IResolveDerivedPartArgs): Procedure<string> {
+  return carryString(rest, args.carry);
+}
+
+/**
+ * Resolve a `creds.<field>` derived part.
+ * @param rest - Creds field after the `creds.` prefix.
+ * @param args - Resolver args bundle.
+ * @returns Procedure with the string value.
+ */
+function resolveCredsPart(rest: string, args: IResolveDerivedPartArgs): Procedure<string> {
+  return credsString(rest, args.creds);
+}
+
+/**
+ * Resolve a `config.<path>` derived part.
+ * @param rest - Dotted path after the `config.` prefix.
+ * @param args - Resolver args bundle.
+ * @returns Procedure with the string value.
+ */
+function resolveConfigPart(rest: string, args: IResolveDerivedPartArgs): Procedure<string> {
+  return configString(rest, args.config);
+}
+
+/** Single prefix→resolver rule for the derived-part dispatch. */
+interface IPartRule {
+  readonly prefix: string;
+  readonly resolve: (rest: string, args: IResolveDerivedPartArgs) => Procedure<string>;
+}
+
+/** Dispatch table mapping RefToken prefixes to their resolvers. */
+const PART_RULES: readonly IPartRule[] = [
+  { prefix: 'carry.', resolve: resolveCarryPart },
+  { prefix: 'creds.', resolve: resolveCredsPart },
+  { prefix: 'config.', resolve: resolveConfigPart },
+];
+
+/**
  * Resolve a single {@link IDerivedCarry} part — RefToken targeting
  * `carry.<slot>`, `creds.<field>`, or `config.<dotted.path>`.
  * @param args - Bundle (part + creds + config + carry).
@@ -332,19 +440,12 @@ interface IResolveDerivedPartArgs {
  */
 function resolveDerivedPart(args: IResolveDerivedPartArgs): Procedure<string> {
   const part = args.part;
-  if (part.startsWith('carry.')) {
-    const slot = part.slice('carry.'.length);
-    return carryString(slot, args.carry);
+  const rule = PART_RULES.find(candidate => part.startsWith(candidate.prefix));
+  if (rule === undefined) {
+    return fail(ScraperErrorTypes.Generic, `derivedCarry part not supported: ${part as string}`);
   }
-  if (part.startsWith('creds.')) {
-    const field = part.slice('creds.'.length);
-    return credsString(field, args.creds);
-  }
-  if (part.startsWith('config.')) {
-    const dotted = part.slice('config.'.length);
-    return configString(dotted, args.config);
-  }
-  return fail(ScraperErrorTypes.Generic, `derivedCarry part not supported: ${part as string}`);
+  const rest = part.slice(rule.prefix.length);
+  return rule.resolve(rest, args);
 }
 
 /**
@@ -416,6 +517,20 @@ function reduceConfigPath(acc: Procedure<unknown>, ctx: IReduceConfigPathCtx): P
 }
 
 /**
+ * Coerce a config-walker outcome to a string Procedure.
+ * @param walked - Walker outcome.
+ * @param dotted - Original dotted path (for diagnostics).
+ * @returns Procedure with the string value.
+ */
+function coerceConfigWalked(walked: Procedure<unknown>, dotted: string): Procedure<string> {
+  if (!isOk(walked)) return walked;
+  if (typeof walked.value !== 'string') {
+    return fail(ScraperErrorTypes.Generic, `derivedCarry: config.${dotted} non-string`);
+  }
+  return succeed(walked.value);
+}
+
+/**
  * Walk a dotted path through `config` and stringify the leaf.
  * @param dotted - Dotted path like `secrets.signKey`.
  * @param config - API-direct-call config.
@@ -428,11 +543,7 @@ function configString(dotted: string, config: IApiDirectCallConfig): Procedure<s
     (acc, segment) => reduceConfigPath(acc, { segment, dotted }),
     seed,
   );
-  if (!isOk(walked)) return walked;
-  if (typeof walked.value !== 'string') {
-    return fail(ScraperErrorTypes.Generic, `derivedCarry: config.${dotted} non-string`);
-  }
-  return succeed(walked.value);
+  return coerceConfigWalked(walked, dotted);
 }
 
 /** Args bundle for {@link evalDerivedCarry} — respects the 3-param ceiling. */
@@ -503,6 +614,19 @@ function truncateUtf8(value: string, maxBytes: number): string {
 }
 
 /**
+ * Join collected parts with the configured separator and optionally
+ * truncate to a UTF-8 byte cap.
+ * @param parts - Collected string parts.
+ * @param derived - Derived-carry spec (separator + truncateBytes).
+ * @returns Assembled string.
+ */
+function joinAndTruncate(parts: readonly string[], derived: IDerivedCarry): string {
+  const joined = parts.join(derived.separator ?? '');
+  if (derived.truncateBytes === undefined) return joined;
+  return truncateUtf8(joined, derived.truncateBytes);
+}
+
+/**
  * Evaluate a single derivedCarry spec end-to-end — collect its
  * `parts`, join via the configured separator, optionally truncate
  * to a UTF-8 byte cap, and surface the result as a Procedure.
@@ -516,10 +640,8 @@ function evalDerivedCarry(args: IEvalDerivedArgs): Procedure<string> {
     seed,
   );
   if (!isOk(collected)) return collected;
-  const joined = collected.value.join(args.derived.separator ?? '');
-  if (args.derived.truncateBytes === undefined) return succeed(joined);
-  const truncated = truncateUtf8(joined, args.derived.truncateBytes);
-  return succeed(truncated);
+  const value = joinAndTruncate(collected.value, args.derived);
+  return succeed(value);
 }
 
 /**

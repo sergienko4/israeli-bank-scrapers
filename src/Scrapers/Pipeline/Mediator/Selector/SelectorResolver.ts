@@ -70,6 +70,57 @@ function clickableTextXpath(value: string): string {
   ].join(' ');
 }
 
+/** Builder fn signature shared by the candidate→css dispatch map. */
+type CssBuilder = (v: string, lit: string) => string;
+
+/** Map from candidate kind to its Playwright-selector builder. */
+const CANDIDATE_TO_CSS: Partial<Record<SelectorCandidate['kind'], CssBuilder>> = {
+  /**
+   * Build XPath for clickableText — innermost element with visible text.
+   * @param v - Visible text value.
+   * @returns XPath selector.
+   */
+  clickableText: (v): string => clickableTextXpath(v),
+  /**
+   * Build XPath for labelText — `<label>` matching by visible text.
+   * @param _v - Unused raw value (use the literal form).
+   * @param lit - XPath-safe quoted literal.
+   * @returns XPath selector.
+   */
+  labelText: (_v, lit): string => `xpath=//label[contains(., ${lit})]`,
+  /**
+   * Build XPath for textContent — any element containing visible text.
+   * @param _v - Unused raw value (use the literal form).
+   * @param lit - XPath-safe quoted literal.
+   * @returns XPath selector.
+   */
+  textContent: (_v, lit): string => `xpath=//*[contains(text(), ${lit})]`,
+  /**
+   * Pass-through for raw CSS selectors.
+   * @param v - CSS selector string.
+   * @returns The CSS selector unchanged.
+   */
+  css: (v): string => v,
+  /**
+   * Build CSS selector matching a placeholder fragment.
+   * @param v - Placeholder fragment.
+   * @returns CSS selector.
+   */
+  placeholder: (v): string => `input[placeholder*="${v}"]`,
+  /**
+   * Build CSS selector matching an exact aria-label.
+   * @param v - aria-label value.
+   * @returns CSS selector.
+   */
+  ariaLabel: (v): string => `input[aria-label="${v}"]`,
+  /**
+   * Build CSS selector matching a form-control name attribute.
+   * @param v - Name value.
+   * @returns CSS selector.
+   */
+  name: (v): string => `[name="${v}"]`,
+};
+
 /**
  * Convert a SelectorCandidate to a Playwright-compatible selector.
  * @param candidate - The selector candidate to convert.
@@ -78,15 +129,8 @@ function clickableTextXpath(value: string): string {
 export function candidateToCss(candidate: SelectorCandidate): PlaywrightSelector {
   const v = candidate.value;
   const lit = toXpathLiteral(v);
-  if (candidate.kind === 'clickableText') return clickableTextXpath(v) as PlaywrightSelector;
-  if (candidate.kind === 'labelText')
-    return `xpath=//label[contains(., ${lit})]` as PlaywrightSelector;
-  if (candidate.kind === 'textContent')
-    return `xpath=//*[contains(text(), ${lit})]` as PlaywrightSelector;
-  if (candidate.kind === 'css') return v as PlaywrightSelector;
-  if (candidate.kind === 'placeholder') return `input[placeholder*="${v}"]` as PlaywrightSelector;
-  if (candidate.kind === 'ariaLabel') return `input[aria-label="${v}"]` as PlaywrightSelector;
-  if (candidate.kind === 'name') return `[name="${v}"]` as PlaywrightSelector;
+  const handler = CANDIDATE_TO_CSS[candidate.kind];
+  if (handler) return handler(v, lit) as PlaywrightSelector;
   return `xpath=${v}` as PlaywrightSelector;
 }
 
@@ -213,6 +257,47 @@ async function checkFillable(ctx: Page | Frame, css: string, kind: string): Prom
 }
 
 /**
+ * Emit a found/not-found diagnostic for a probe outcome.
+ * @param candidate - Selector candidate being probed.
+ * @param result - Probe outcome.
+ * @returns Sentinel `true` so the call can be expression-chained.
+ */
+function logProbeOutcome(candidate: SelectorCandidate, result: 'FOUND' | 'NOT_FOUND'): true {
+  LOG.debug({ field: `${candidate.kind}:${maskVisibleText(candidate.value)}`, result });
+  return true;
+}
+
+/**
+ * Build the standard "empty miss" probe result for a candidate kind.
+ * @param candidate - Selector candidate whose kind seeds the result.
+ * @returns Empty IProbeResult with the candidate's kind.
+ */
+function emptyProbeFor(candidate: SelectorCandidate): IProbeResult {
+  return { css: '', kind: candidate.kind };
+}
+
+/**
+ * Emit "candidate NOT FILLABLE" diagnostic and return empty result.
+ * @param candidate - Selector candidate that failed the fillable check.
+ * @returns Empty probe result with the candidate's kind.
+ */
+function logProbeNotFillable(candidate: SelectorCandidate): IProbeResult {
+  const masked = maskVisibleText(candidate.value);
+  LOG.debug({ message: `candidate ${candidate.kind} "${masked}" → NOT FILLABLE` });
+  return emptyProbeFor(candidate);
+}
+
+/**
+ * Emit NOT_FOUND diagnostic and return the standard empty probe result.
+ * @param candidate - Selector candidate that missed.
+ * @returns Empty probe result with the candidate's kind.
+ */
+function logProbeNotFound(candidate: SelectorCandidate): IProbeResult {
+  logProbeOutcome(candidate, 'NOT_FOUND');
+  return emptyProbeFor(candidate);
+}
+
+/**
  * Probe a standard (non-label, non-textContent) candidate via direct query.
  * @param ctx - The Page or Frame context to query in.
  * @param candidate - The selector candidate to probe.
@@ -224,24 +309,10 @@ async function probeStandardCandidate(
 ): Promise<IProbeResult> {
   const css = candidateToCss(candidate);
   const isFound = await queryWithTimeout(ctx, css);
-  if (!isFound) {
-    LOG.debug({
-      field: `${candidate.kind}:${maskVisibleText(candidate.value)}`,
-      result: 'NOT_FOUND',
-    });
-    return { css: '', kind: candidate.kind };
-  }
+  if (!isFound) return logProbeNotFound(candidate);
   const isFillable = await checkFillable(ctx, css, candidate.kind);
-  if (!isFillable) {
-    LOG.debug({
-      message: `candidate ${candidate.kind} "${maskVisibleText(candidate.value)}" → NOT FILLABLE`,
-    });
-    return { css: '', kind: candidate.kind };
-  }
-  LOG.debug({
-    field: `${candidate.kind}:${maskVisibleText(candidate.value)}`,
-    result: 'FOUND',
-  });
+  if (!isFillable) return logProbeNotFillable(candidate);
+  logProbeOutcome(candidate, 'FOUND');
   return { css, kind: candidate.kind };
 }
 
@@ -327,10 +398,7 @@ async function probeClickableText(
   if (!isFound) return { css: '', kind: 'clickableText' };
   const hasClick = await isClickableElement(ctx, xpath).catch((): boolean => true);
   if (!hasClick) return { css: '', kind: 'clickableText' };
-  LOG.debug({
-    field: `clickableText:${maskVisibleText(candidate.value)}`,
-    result: 'FOUND',
-  });
+  LOG.debug({ field: `clickableText:${maskVisibleText(candidate.value)}`, result: 'FOUND' });
   return { css: xpath, kind: 'clickableText' };
 }
 
@@ -413,19 +481,27 @@ export interface IDashboardFieldOpts {
 }
 
 /**
+ * Emit the "resolving" diagnostic line at the start of resolveAll.
+ * @param opts - Resolve options.
+ * @returns Sentinel `true` so the call can be expression-chained.
+ */
+function logResolveStart(opts: IResolveAllOpts): true {
+  const bankCount = String(opts.bankCandidates.length);
+  const wkCount = String(opts.wellKnownCandidates.length);
+  const masked = maskVisibleText(opts.pageUrl);
+  const key = opts.field.credentialKey;
+  LOG.debug({ message: `resolving "${key}": ${bankCount}b+${wkCount}wk on ${masked}` });
+  return true;
+}
+
+/**
  * Run the full resolution pipeline: iframes first, then main context.
  * @param opts - The resolve options containing page, field, candidates, and page URL.
  * @returns A IFieldContext with resolution details.
  */
 async function resolveAll(opts: IResolveAllOpts): Promise<IFieldContext> {
-  const { pageOrFrame, field, pageUrl, bankCandidates, wellKnownCandidates } = opts;
-  const bankCount = String(bankCandidates.length);
-  const wellKnownCount = String(wellKnownCandidates.length);
-  LOG.debug({
-    message:
-      `resolving "${field.credentialKey}": ` +
-      `${bankCount}b+${wellKnownCount}wk on ${maskVisibleText(pageUrl)}`,
-  });
+  logResolveStart(opts);
+  const { pageOrFrame } = opts;
   const iframeResult = isPage(pageOrFrame) && (await probeIframes(pageOrFrame, opts));
   if (iframeResult && 'isResolved' in iframeResult) return iframeResult;
   const mainResult = await probeMainPage(opts);
@@ -468,19 +544,33 @@ export async function resolveFieldWithCache(opts: ICachedResolveOpts): Promise<I
 }
 
 /**
+ * Build IResolveAllOpts for a dashboard field resolution call.
+ * @param args - Dashboard field options.
+ * @param wellKnown - Resolved dashboard well-known candidates.
+ * @returns Resolve options ready for resolveAll.
+ */
+function buildDashboardOpts(
+  args: IDashboardFieldOpts,
+  wellKnown: readonly SelectorCandidate[],
+): IResolveAllOpts {
+  const field: IFieldConfig = { credentialKey: args.fieldKey, selectors: [...args.bankCandidates] };
+  return {
+    pageOrFrame: args.pageOrFrame,
+    field,
+    pageUrl: args.pageUrl,
+    bankCandidates: [...args.bankCandidates],
+    wellKnownCandidates: [...wellKnown],
+  };
+}
+
+/**
  * Resolve a dashboard data field using the same pipeline as login resolution.
  * @param opts - The dashboard field options including page, field key, candidates, and URL.
  * @returns A IFieldContext with resolution details.
  */
 export async function resolveDashboardField(opts: IDashboardFieldOpts): Promise<IFieldContext> {
-  const { pageOrFrame, fieldKey, bankCandidates, pageUrl } = opts;
-  const dashboardSelectors = WELL_KNOWN_DASHBOARD_SELECTORS as Record<string, SelectorCandidate[]>;
-  const wellKnownCandidates: SelectorCandidate[] = dashboardSelectors[fieldKey] ?? [];
-  return resolveAll({
-    pageOrFrame,
-    field: { credentialKey: fieldKey, selectors: [...bankCandidates] },
-    pageUrl,
-    bankCandidates: [...bankCandidates],
-    wellKnownCandidates: [...wellKnownCandidates],
-  });
+  const dashboard = WELL_KNOWN_DASHBOARD_SELECTORS as Record<string, SelectorCandidate[]>;
+  const wellKnown: SelectorCandidate[] = dashboard[opts.fieldKey] ?? [];
+  const callOpts = buildDashboardOpts(opts, wellKnown);
+  return resolveAll(callOpts);
 }

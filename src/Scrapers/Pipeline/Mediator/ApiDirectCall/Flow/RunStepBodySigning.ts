@@ -18,7 +18,12 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import { signAesCbcPkcs7 } from '../Crypto/AesSymmetricSigner.js';
 import { buildCanonical } from '../Crypto/GenericCanonicalStringBuilder.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IAesSignerConfig, ICryptoFieldConfig, IStepConfig } from '../IApiDirectCallConfig.js';
+import type {
+  IAesSignerConfig,
+  ICryptoFieldConfig,
+  ISignerConfig,
+  IStepConfig,
+} from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 
 /** IV byte length for AES-CBC (matches block size). */
@@ -75,6 +80,33 @@ function writeCryptoIvSlot(args: ISeedCryptoIvArgs): boolean {
 }
 
 /**
+ * Seed the AES-signer IV slot when configured.
+ * @param carry - Mutable carry record.
+ * @param signer - Resolved signer config (may be undefined).
+ * @returns Sentinel true.
+ */
+function primeAesSignerIv(carry: Record<string, JsonValue>, signer?: ISignerConfig): true {
+  if (signer?.algorithm === 'AES-CBC-PKCS7') {
+    carry[signer.ivCarrySlot] = freshIvHex();
+  }
+  return true;
+}
+
+/**
+ * Seed the cryptoField IV slot when the step has a preHook.cryptoField.
+ * @param carry - Mutable carry record.
+ * @param step - Step config.
+ * @returns Sentinel true.
+ */
+function primeCryptoFieldIv(carry: Record<string, JsonValue>, step: IStepConfig): true {
+  const cryptoField = step.preHook?.cryptoField;
+  if (cryptoField !== undefined) {
+    writeCryptoIvSlot({ cryptoField, carry });
+  }
+  return true;
+}
+
+/**
  * Prime step-local carry slots: fresh `tsMs` (request timestamp) and
  * a fresh signing-IV hex into `signer.ivCarrySlot` when the bank
  * uses AES. Also seeds the cryptoField IV slot when the step has a
@@ -87,14 +119,8 @@ export function primeStepCarry(scope: ITemplateScope, step: IStepConfig): ITempl
   const nowMs = Date.now();
   const tsMs = String(nowMs);
   const carry: Record<string, JsonValue> = { ...scope.carry, tsMs };
-  const signer = scope.config.signer;
-  if (signer?.algorithm === 'AES-CBC-PKCS7') {
-    carry[signer.ivCarrySlot] = freshIvHex();
-  }
-  const cryptoField = step.preHook?.cryptoField;
-  if (cryptoField !== undefined) {
-    writeCryptoIvSlot({ cryptoField, carry });
-  }
+  primeAesSignerIv(carry, scope.config.signer);
+  primeCryptoFieldIv(carry, step);
   return { ...scope, carry };
 }
 
@@ -118,6 +144,30 @@ function resolveDottedPath(root: unknown, path: string): string {
 }
 
 /**
+ * Resolve a `carry.<slot>` ref to its scalar string value.
+ * @param ref - RefToken (must start with `carry.`).
+ * @param scope - Current scope.
+ * @returns Scalar string (REF_MISS when missing).
+ */
+function resolveCarryRef(ref: string, scope: ITemplateScope): string {
+  const slot = ref.slice('carry.'.length);
+  const value = scope.carry[slot];
+  return typeof value === 'string' ? value : REF_MISS;
+}
+
+/**
+ * Resolve a `config.<path>` ref to its scalar string value.
+ * @param ref - RefToken (must start with `config.`).
+ * @param scope - Current scope.
+ * @returns Scalar string (REF_MISS when missing).
+ */
+function resolveConfigRef(ref: string, scope: ITemplateScope): string {
+  const path = ref.slice('config.'.length);
+  const value = resolveDottedPath(scope.config, path);
+  return typeof value === 'string' ? value : REF_MISS;
+}
+
+/**
  * Resolve a RefToken to its scalar string value in scope (carry /
  * config). Returns {@link REF_MISS} on miss so callers chain through
  * `length === 0` rather than nullable checks.
@@ -126,16 +176,8 @@ function resolveDottedPath(root: unknown, path: string): string {
  * @returns Scalar string (empty when missing).
  */
 function resolveRefValue(ref: string, scope: ITemplateScope): string {
-  if (ref.startsWith('carry.')) {
-    const slot = ref.slice('carry.'.length);
-    const value = scope.carry[slot];
-    return typeof value === 'string' ? value : REF_MISS;
-  }
-  if (ref.startsWith('config.')) {
-    const path = ref.slice('config.'.length);
-    const value = resolveDottedPath(scope.config, path);
-    return typeof value === 'string' ? value : REF_MISS;
-  }
+  if (ref.startsWith('carry.')) return resolveCarryRef(ref, scope);
+  if (ref.startsWith('config.')) return resolveConfigRef(ref, scope);
   return REF_MISS;
 }
 
@@ -310,6 +352,42 @@ function scrubFromCarry(scope: ITemplateScope, slot: string): ITemplateScope {
   return { ...scope, carry: filtered };
 }
 
+/** Inputs for {@link signAesCbcPkcs7} extracted from cryptoField args. */
+interface IEncryptInputs {
+  readonly plaintext: string;
+  readonly keyBytes: Buffer;
+  readonly ivBytes: Buffer;
+  readonly outputPostfix: ICryptoFieldConfig['outputPostfix'];
+}
+
+/**
+ * Build the AES-encrypt inputs from the cryptoField args + resolved bytes.
+ * @param args - Encrypt-and-write args bundle.
+ * @param keyIv - Resolved key/IV byte buffers.
+ * @returns Encrypt inputs.
+ */
+function buildEncryptInputs(args: IEncryptAndWriteArgs, keyIv: IResolvedKeyAndIv): IEncryptInputs {
+  return {
+    plaintext: args.plaintext,
+    keyBytes: keyIv.keyBytes,
+    ivBytes: keyIv.ivBytes,
+    outputPostfix: args.cryptoField.outputPostfix,
+  };
+}
+
+/**
+ * Write the ciphertext into the body and scrub the carry plaintext.
+ * @param args - Encrypt-and-write args bundle.
+ * @param signed - Ciphertext to write.
+ * @returns Procedure with updated body + scope.
+ */
+function writeAndScrub(args: IEncryptAndWriteArgs, signed: string): Procedure<ICryptoFieldResult> {
+  const writeProc = writeAtPointer(args.body, args.cryptoField.writeTo, signed);
+  if (!isOk(writeProc)) return writeProc;
+  const nextScope = scrubFromCarry(args.scope, args.cryptoField.scrubFromCarry);
+  return succeed({ body: writeProc.value, scope: nextScope });
+}
+
 /**
  * Resolve key+iv, encrypt plaintext, write ciphertext to body, scrub
  * carry. Extracted so {@link applyCryptoField} stays inside the
@@ -320,17 +398,27 @@ function scrubFromCarry(scope: ITemplateScope, slot: string): ITemplateScope {
 function encryptAndWrite(args: IEncryptAndWriteArgs): Procedure<ICryptoFieldResult> {
   const keyIvProc = resolveCryptoFieldKeyIv(args.cryptoField, args.scope);
   if (!isOk(keyIvProc)) return keyIvProc;
-  const signed = signAesCbcPkcs7({
-    plaintext: args.plaintext,
-    keyBytes: keyIvProc.value.keyBytes,
-    ivBytes: keyIvProc.value.ivBytes,
-    outputPostfix: args.cryptoField.outputPostfix,
-  });
+  const inputs = buildEncryptInputs(args, keyIvProc.value);
+  const signed = signAesCbcPkcs7(inputs);
   if (!isOk(signed)) return signed;
-  const writeProc = writeAtPointer(args.body, args.cryptoField.writeTo, signed.value);
-  if (!isOk(writeProc)) return writeProc;
-  const nextScope = scrubFromCarry(args.scope, args.cryptoField.scrubFromCarry);
-  return succeed({ body: writeProc.value, scope: nextScope });
+  return writeAndScrub(args, signed.value);
+}
+
+/**
+ * Resolve the cryptoField plaintext from carry.
+ * @param scope - Current scope.
+ * @param intoCarryField - Carry slot holding the plaintext.
+ * @returns Procedure with the plaintext string.
+ */
+function resolvePlaintext(scope: ITemplateScope, intoCarryField: string): Procedure<string> {
+  const value = scope.carry[intoCarryField];
+  if (typeof value !== 'string') {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `cryptoField: carry.${intoCarryField} missing or non-string`,
+    );
+  }
+  return succeed(value);
 }
 
 /**
@@ -347,14 +435,9 @@ export function applyCryptoField(args: IApplyCryptoFieldArgs): Procedure<ICrypto
   if (hook === undefined || cryptoField === undefined) {
     return succeed({ body: args.body, scope: args.scope });
   }
-  const plaintext = args.scope.carry[hook.intoCarryField];
-  if (typeof plaintext !== 'string') {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `cryptoField: carry.${hook.intoCarryField} missing or non-string`,
-    );
-  }
-  return encryptAndWrite({ cryptoField, plaintext, ...args });
+  const plaintextProc = resolvePlaintext(args.scope, hook.intoCarryField);
+  if (!isOk(plaintextProc)) return plaintextProc;
+  return encryptAndWrite({ cryptoField, plaintext: plaintextProc.value, ...args });
 }
 
 /** Args bundle for {@link attachBodySignature} — keeps params ≤3. */
@@ -373,35 +456,100 @@ interface ISignAndWriteArgs {
 }
 
 /**
- * Compute canonical → sign → write at pointer for the AES signer.
- * @param args - Signing bundle.
- * @returns Procedure with the body (signature written in place).
+ * Build the AES canonical bytes from the signer config + body + carry.
+ * @param args - Sign-and-write args bundle.
+ * @returns Procedure with the canonical string.
  */
-function signAndWrite(args: ISignAndWriteArgs): Procedure<Record<string, unknown>> {
+function buildAesCanonical(args: ISignAndWriteArgs): Procedure<string> {
   const bodyJson = JSON.stringify(args.body);
-  const canonicalProc = buildCanonical({
+  return buildCanonical({
     canonical: args.signer.canonical,
     pathAndQuery: args.pathAndQuery,
     bodyJson,
     carry: args.scope.carry,
   });
+}
+
+/**
+ * Resolve the AES signer IV bytes from carry.
+ * @param signer - AES signer config.
+ * @param scope - Current scope.
+ * @returns Procedure with the IV byte buffer.
+ */
+function resolveSignerIv(signer: IAesSignerConfig, scope: ITemplateScope): Procedure<Buffer> {
+  const ivHex = scope.carry[signer.ivCarrySlot];
+  if (typeof ivHex !== 'string') {
+    return fail(ScraperErrorTypes.Generic, `signer: carry.${signer.ivCarrySlot} missing`);
+  }
+  const ivBytes = Buffer.from(ivHex, 'hex');
+  return succeed(ivBytes);
+}
+
+/** Resolved AES-signer inputs ready to feed signAesCbcPkcs7. */
+interface IResolvedSignerInputs {
+  readonly canonical: string;
+  readonly keyBytes: Buffer;
+  readonly ivBytes: Buffer;
+}
+
+/**
+ * Resolve canonical bytes + key bytes + IV bytes for the AES signer.
+ * @param args - Sign-and-write args bundle.
+ * @returns Procedure with the resolved inputs.
+ */
+function resolveSignerInputs(args: ISignAndWriteArgs): Procedure<IResolvedSignerInputs> {
+  const canonicalProc = buildAesCanonical(args);
   if (!isOk(canonicalProc)) return canonicalProc;
   const keyProc = resolveKeyBytes(args.signer.keyRef, args.scope);
   if (!isOk(keyProc)) return keyProc;
-  const ivHex = args.scope.carry[args.signer.ivCarrySlot];
-  if (typeof ivHex !== 'string') {
-    const slot = args.signer.ivCarrySlot;
-    return fail(ScraperErrorTypes.Generic, `signer: carry.${slot} missing`);
-  }
-  const ivBytes = Buffer.from(ivHex, 'hex');
-  const signed = signAesCbcPkcs7({
-    plaintext: canonicalProc.value,
-    keyBytes: keyProc.value,
-    ivBytes,
-    outputPostfix: args.signer.outputPostfix,
+  const ivProc = resolveSignerIv(args.signer, args.scope);
+  if (!isOk(ivProc)) return ivProc;
+  const out = { canonical: canonicalProc.value, keyBytes: keyProc.value, ivBytes: ivProc.value };
+  return succeed(out);
+}
+
+/**
+ * Run signAesCbcPkcs7 with the resolved inputs.
+ * @param inputs - Resolved canonical + key + IV bytes.
+ * @param signer - AES signer config (for outputPostfix).
+ * @returns Procedure with the signature string.
+ */
+function performAesSign(
+  inputs: IResolvedSignerInputs,
+  signer: IAesSignerConfig,
+): Procedure<string> {
+  return signAesCbcPkcs7({
+    plaintext: inputs.canonical,
+    keyBytes: inputs.keyBytes,
+    ivBytes: inputs.ivBytes,
+    outputPostfix: signer.outputPostfix,
   });
+}
+
+/**
+ * Compute canonical → sign → write at pointer for the AES signer.
+ * @param args - Signing bundle.
+ * @returns Procedure with the body (signature written in place).
+ */
+function signAndWrite(args: ISignAndWriteArgs): Procedure<Record<string, unknown>> {
+  const inputsProc = resolveSignerInputs(args);
+  if (!isOk(inputsProc)) return inputsProc;
+  const signed = performAesSign(inputsProc.value, args.signer);
   if (!isOk(signed)) return signed;
   return writeAtPointer(args.body, args.signer.bodySignatureField, signed.value);
+}
+
+/**
+ * Build the ISignAndWriteArgs bundle from the public args + narrowed signer.
+ * @param args - Attach-body-signature args.
+ * @param signer - Validated AES signer.
+ * @returns Sign-and-write args bundle.
+ */
+function makeSignAndWriteArgs(
+  args: IAttachBodySignatureArgs,
+  signer: IAesSignerConfig,
+): ISignAndWriteArgs {
+  return { signer, body: args.body, scope: args.scope, pathAndQuery: args.pathAndQuery };
 }
 
 /**
@@ -418,10 +566,6 @@ export function attachBodySignature(
   const signer = args.scope.config.signer;
   if (signer === undefined) return succeed(args.body);
   if (signer.algorithm !== 'AES-CBC-PKCS7') return succeed(args.body);
-  return signAndWrite({
-    signer,
-    body: args.body,
-    scope: args.scope,
-    pathAndQuery: args.pathAndQuery,
-  });
+  const swArgs = makeSignAndWriteArgs(args, signer);
+  return signAndWrite(swArgs);
 }

@@ -58,6 +58,89 @@ async function extractAttrOrEmpty(loc: Locator, name: string): Promise<string> {
 }
 
 /**
+ * Compact LOG.debug for {field, result} diagnostic pairs.
+ * @param field - Field label tag (e.g. 'labelText:nested').
+ * @param result - Discovery outcome.
+ * @returns Sentinel `true` so the call can be expression-chained where needed.
+ */
+function logField(field: string, result: 'FOUND' | 'NOT_FOUND'): true {
+  LOG.debug({ field, result });
+  return true;
+}
+
+/**
+ * Compact LOG.debug for {message} diagnostic strings.
+ * @param message - Plain message to emit at DEBUG.
+ * @returns Sentinel `true` so the call can be expression-chained where needed.
+ */
+function logMsg(message: string): true {
+  LOG.debug({ message });
+  return true;
+}
+
+/** Bundle of inputs for probeFillableLogField — keeps the 3-param cap. */
+interface IProbeFillableOpts {
+  readonly ctx: Page | Frame;
+  readonly xpath: string;
+  readonly queryFn: QueryFn;
+  readonly fieldTag: string;
+}
+
+/**
+ * Probe an xpath/css selector: must exist AND be a fillable input.
+ * Logs FOUND with the supplied field tag on success. Centralises
+ * the exists→fillable→log triple shared by xpath strategies.
+ * @param opts - Probe context bundle.
+ * @returns Selector itself when found+fillable, empty string on miss.
+ */
+async function probeFillableLogField(opts: IProbeFillableOpts): Promise<string> {
+  const { ctx, xpath, queryFn, fieldTag } = opts;
+  const isFound = await queryFn(ctx, xpath);
+  if (!isFound) return '';
+  const isFillable = await isFillableInput(ctx, xpath);
+  if (!isFillable) return '';
+  logField(fieldTag, 'FOUND');
+  return xpath;
+}
+
+/**
+ * Helper for findInputByForAttr — log NOT_FOUND outcome and return ''.
+ * @param field - The field tag for the diagnostic.
+ * @returns Empty string sentinel.
+ */
+function logMissAndEmpty(field: string): string {
+  logField(field, 'NOT_FOUND');
+  return '';
+}
+
+/**
+ * Helper for findInputByForAttr — log NOT-FILLABLE outcome and return ''.
+ * @param forAttr - The for-attribute value.
+ * @param labelValue - The visible label text.
+ * @returns Empty string sentinel.
+ */
+function logFillFailAndEmpty(forAttr: string, labelValue: string): string {
+  const masked = maskVisibleText(labelValue);
+  logMsg(`labelText "${masked}" for="${forAttr}" → NOT FILLABLE`);
+  return '';
+}
+
+/**
+ * Chain async string-producing actions; return the first non-empty result.
+ * Uses Array.reduce to avoid no-await-in-loop lint.
+ * @param actions - Lazy actions to try in order.
+ * @returns First non-empty action result, or '' when all yield ''.
+ */
+async function chainFirstNonEmpty(actions: readonly (() => Promise<string>)[]): Promise<string> {
+  const empty = Promise.resolve('');
+  return actions.reduce<Promise<string>>(async (prev, action): Promise<string> => {
+    const found = await prev;
+    if (found) return found;
+    return action();
+  }, empty);
+}
+
+/**
  * Extract metadata from a DOM element for classification.
  * @param ctx - Playwright Page or Frame.
  * @param selector - CSS or XPath selector.
@@ -118,24 +201,12 @@ export async function findInputByForAttr(
   labelValue: string,
 ): Promise<string> {
   const inputSelector = `#${forAttr}`;
-  if ((await ctx.locator(inputSelector).count()) === 0) {
-    LOG.debug({
-      field: `labelText:for=${maskVisibleText(forAttr)}`,
-      result: 'NOT_FOUND',
-    });
-    return '';
-  }
+  const maskedForAttr = maskVisibleText(forAttr);
+  const isExisting = (await ctx.locator(inputSelector).count()) > 0;
+  if (!isExisting) return logMissAndEmpty(`labelText:for=${maskedForAttr}`);
   const isFillable = await isFillableInput(ctx, inputSelector);
-  if (!isFillable) {
-    LOG.debug({
-      message: `labelText "${maskVisibleText(labelValue)}" for="${forAttr}" → NOT FILLABLE`,
-    });
-    return '';
-  }
-  LOG.debug({
-    field: `labelText:${maskVisibleText(labelValue)}`,
-    result: 'FOUND',
-  });
+  if (!isFillable) return logFillFailAndEmpty(forAttr, labelValue);
+  logField(`labelText:${maskVisibleText(labelValue)}`, 'FOUND');
   return inputSelector;
 }
 
@@ -154,15 +225,7 @@ interface IXpathStrategyOpts {
 export async function resolveByNestedInput(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
   const xpath = `${baseXpath}//input[${NON_FILLABLE_FILTER}][1]`;
-  const isFound = await queryFn(ctx, xpath);
-  if (!isFound) return '';
-  const isFillable = await isFillableInput(ctx, xpath);
-  if (!isFillable) return '';
-  LOG.debug({
-    field: 'labelText:nested',
-    result: 'FOUND',
-  });
-  return xpath;
+  return probeFillableLogField({ ctx, xpath, queryFn, fieldTag: 'labelText:nested' });
 }
 
 /** Nullable string result from DOM attribute lookups — matches Playwright ElementHandle API. */
@@ -194,10 +257,7 @@ export async function resolveByAriaRef(opts: IAriaRefOpts): Promise<string> {
   const selector = `input[aria-labelledby="${labelId}"]`;
   const isFound = await queryFn(ctx, selector);
   if (!isFound) return '';
-  LOG.debug({
-    field: `labelText:${maskVisibleText(labelValue)}`,
-    result: 'FOUND',
-  });
+  logField(`labelText:${maskVisibleText(labelValue)}`, 'FOUND');
   return selector;
 }
 
@@ -209,15 +269,7 @@ export async function resolveByAriaRef(opts: IAriaRefOpts): Promise<string> {
 export async function resolveBySibling(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
   const xpath = `${baseXpath}/following-sibling::input[${NON_FILLABLE_FILTER}][1]`;
-  const isFound = await queryFn(ctx, xpath);
-  if (!isFound) return '';
-  const isFillable = await isFillableInput(ctx, xpath);
-  if (!isFillable) return '';
-  LOG.debug({
-    field: 'labelText:sibling',
-    result: 'FOUND',
-  });
-  return xpath;
+  return probeFillableLogField({ ctx, xpath, queryFn, fieldTag: 'labelText:sibling' });
 }
 
 /**
@@ -228,15 +280,7 @@ export async function resolveBySibling(opts: IXpathStrategyOpts): Promise<string
 export async function resolveByProximity(opts: IXpathStrategyOpts): Promise<string> {
   const { ctx, baseXpath, queryFn } = opts;
   const xpath = `${baseXpath}/..//input[${NON_FILLABLE_FILTER}][1]`;
-  const isFound = await queryFn(ctx, xpath);
-  if (!isFound) return '';
-  const isFillable = await isFillableInput(ctx, xpath);
-  if (!isFillable) return '';
-  LOG.debug({
-    field: 'labelText:proximity',
-    result: 'FOUND',
-  });
-  return xpath;
+  return probeFillableLogField({ ctx, xpath, queryFn, fieldTag: 'labelText:proximity' });
 }
 
 /** Inputs for label-based input resolution strategies. */
@@ -249,21 +293,31 @@ export interface ILabelStrategyOpts {
 }
 
 /**
+ * Run the xpath/aria strategies in fallback order: nested → aria → sibling → proximity.
+ * Extracted out of resolveLabelStrategies to honour the 10-LoC body cap.
+ * @param opts - The label resolution options.
+ * @returns The resolved selector, or '' when all four strategies miss.
+ */
+async function tryXpathStrategiesFallback(opts: ILabelStrategyOpts): Promise<string> {
+  const { ctx, label, baseXpath, labelValue, queryFn } = opts;
+  const nested = await resolveByNestedInput({ ctx, baseXpath, queryFn });
+  if (nested) return nested;
+  const aria = await resolveByAriaRef({ ctx, label, labelValue, queryFn });
+  if (aria) return aria;
+  const sibling = await resolveBySibling({ ctx, baseXpath, queryFn });
+  if (sibling) return sibling;
+  return resolveByProximity({ ctx, baseXpath, queryFn });
+}
+
+/**
  * Try label-based resolution (for-attr, then nesting/ariaRef/sibling/proximity/walk-up).
  * @param opts - The label resolution options.
  * @returns The resolved CSS/XPath selector, or empty string if no strategy matched.
  */
 export async function resolveLabelStrategies(opts: ILabelStrategyOpts): Promise<string> {
-  const { ctx, label, baseXpath, labelValue, queryFn } = opts;
-  const forAttr = await label.getAttribute('for');
-  if (forAttr) return findInputByForAttr(ctx, forAttr, labelValue);
-  const nestedResult = await resolveByNestedInput({ ctx, baseXpath, queryFn });
-  if (nestedResult) return nestedResult;
-  const ariaResult = await resolveByAriaRef({ ctx, label, labelValue, queryFn });
-  if (ariaResult) return ariaResult;
-  const siblingResult = await resolveBySibling({ ctx, baseXpath, queryFn });
-  if (siblingResult) return siblingResult;
-  return resolveByProximity({ ctx, baseXpath, queryFn });
+  const forAttr = await opts.label.getAttribute('for');
+  if (forAttr) return findInputByForAttr(opts.ctx, forAttr, opts.labelValue);
+  return tryXpathStrategiesFallback(opts);
 }
 
 /** XPath filter to exclude non-fillable input types (hidden, submit, button, radio, checkbox). */
@@ -289,15 +343,8 @@ export async function resolveByContainerInput(
   const xpath =
     `xpath=//*[text()[contains(., "${textValue}")]]/` +
     `ancestor::*[.//input[${NON_FILLABLE_FILTER}]][1]//input[${NON_FILLABLE_FILTER}][1]`;
-  const isFound = await queryFn(ctx, xpath);
-  if (!isFound) return '';
-  const isOk = await isFillableInput(ctx, xpath);
-  if (!isOk) return '';
-  LOG.debug({
-    field: `textContent:${maskVisibleText(textValue)}`,
-    result: 'FOUND',
-  });
-  return xpath;
+  const fieldTag = `textContent:${maskVisibleText(textValue)}`;
+  return probeFillableLogField({ ctx, xpath, queryFn, fieldTag });
 }
 
 /** Options for building an ancestor probe action. */
@@ -308,22 +355,29 @@ interface IAncestorProbeOpts {
 }
 
 /**
+ * Resolve one ancestor-tag probe — emits a FOUND log on hit.
+ * Hoisted out of buildAncestorProbe so the parent body stays ≤ 10 LoC.
+ * @param opts - The ancestor probe options.
+ * @param tag - The HTML tag name to search for.
+ * @returns The xpath selector when found, '' on miss.
+ */
+async function probeAncestorTag(opts: IAncestorProbeOpts, tag: string): Promise<string> {
+  const xpath = `xpath=//${tag}[.//text()[contains(., "${opts.textValue}")]]`;
+  const isFound = await opts.queryFn(opts.ctx, xpath);
+  if (!isFound) return '';
+  const masked = maskVisibleText(opts.textValue);
+  logField(`textContent:${masked}`, 'FOUND');
+  return xpath;
+}
+
+/**
  * Build a lazy action that probes a single ancestor tag for a text value.
  * @param opts - The ancestor probe options.
  * @param tag - The HTML tag name to search for.
  * @returns An async function that resolves to a selector or empty string.
  */
 function buildAncestorProbe(opts: IAncestorProbeOpts, tag: string): () => Promise<string> {
-  return async (): Promise<string> => {
-    const xpath = `xpath=//${tag}[.//text()[contains(., "${opts.textValue}")]]`;
-    const isFound = await opts.queryFn(opts.ctx, xpath);
-    if (!isFound) return '';
-    LOG.debug({
-      field: `textContent:${maskVisibleText(opts.textValue)}`,
-      result: 'FOUND',
-    });
-    return xpath;
-  };
+  return (): Promise<string> => probeAncestorTag(opts, tag);
 }
 
 /**
@@ -342,13 +396,7 @@ export async function resolveByAncestorWalkUp(
   const actions = INTERACTIVE_ANCESTORS.map((tag): (() => Promise<string>) =>
     buildAncestorProbe(opts, tag),
   );
-  const emptyPromise = Promise.resolve('');
-  return actions.reduce<Promise<string>>(async (prev, action): Promise<string> => {
-    const found = await prev;
-    if (found) return found;
-    const next = await action();
-    return next;
-  }, emptyPromise);
+  return chainFirstNonEmpty(actions);
 }
 
 /**
@@ -387,23 +435,34 @@ interface IResolveLabelTextOpts {
 }
 
 /**
- * Resolve a labelText candidate: try label first, then div/span with strict text.
+ * Try the direct label-locator path first. Returns '' when the locator
+ * matches at least one element (forwards to resolveLabelStrategies) or
+ * `false` when the labelXpath did not match anything (caller falls back
+ * to the div/span path). `string | false` keeps us off the banned
+ * `undefined` return surface.
  * @param opts - The label text resolution options.
- * @returns The resolved input selector, or empty string if no resolution succeeded.
+ * @returns Resolved selector or `false` when no direct label was found.
  */
-export async function resolveLabelText(opts: IResolveLabelTextOpts): Promise<string> {
+async function tryDirectLabel(opts: IResolveLabelTextOpts): Promise<string | false> {
   const { ctx, labelXpath, labelValue, queryFn } = opts;
   const labelLoc = ctx.locator(labelXpath).first();
-  if ((await labelLoc.count()) > 0) {
-    const labelOpts = { ctx, label: labelLoc, baseXpath: labelXpath, labelValue, queryFn };
-    return resolveLabelStrategies(labelOpts);
-  }
+  if ((await labelLoc.count()) === 0) return false;
+  const labelOpts = { ctx, label: labelLoc, baseXpath: labelXpath, labelValue, queryFn };
+  return resolveLabelStrategies(labelOpts);
+}
+
+/**
+ * Fallback: search div/span elements with strict text match, then run
+ * the same label-strategy ladder against them.
+ * @param opts - The label text resolution options.
+ * @returns Resolved selector or '' when no div/span matched.
+ */
+async function tryDivSpanFallback(opts: IResolveLabelTextOpts): Promise<string> {
+  const { ctx, labelValue, queryFn } = opts;
   const strictXpath = divSpanStrictXpath(labelValue);
   const divSpanLoc = ctx.locator(strictXpath).first();
   if ((await divSpanLoc.count()) === 0) return '';
-  LOG.debug({
-    message: `labelText "${maskVisibleText(labelValue)}" found via div/span fallback`,
-  });
+  logMsg(`labelText "${maskVisibleText(labelValue)}" found via div/span fallback`);
   return resolveLabelStrategies({
     ctx,
     label: divSpanLoc,
@@ -411,4 +470,15 @@ export async function resolveLabelText(opts: IResolveLabelTextOpts): Promise<str
     labelValue,
     queryFn,
   });
+}
+
+/**
+ * Resolve a labelText candidate: try label first, then div/span with strict text.
+ * @param opts - The label text resolution options.
+ * @returns The resolved input selector, or empty string if no resolution succeeded.
+ */
+export async function resolveLabelText(opts: IResolveLabelTextOpts): Promise<string> {
+  const direct = await tryDirectLabel(opts);
+  if (direct !== false) return direct;
+  return tryDivSpanFallback(opts);
 }

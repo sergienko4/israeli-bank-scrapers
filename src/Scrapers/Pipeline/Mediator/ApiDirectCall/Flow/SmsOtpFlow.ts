@@ -143,6 +143,19 @@ function coercePreHookResult(args: IPreHookCoerceArgs): Procedure<string> {
 }
 
 /**
+ * Build the standard preHook-throw failure procedure.
+ * @param hook - Pre-step hook config.
+ * @param message - Error message text.
+ * @returns Procedure failure.
+ */
+function preHookThrowFail(hook: IPreStepHook, message: string): Procedure<string> {
+  return fail(
+    ScraperErrorTypes.Generic,
+    `preHook: creds.${hook.awaitCredsField}() threw: ${message}`,
+  );
+}
+
+/**
  * Invoke the creds callback and coerce the result to a string.
  * @param fn - The bound creds function.
  * @param hook - Hook config (used only for diagnostics).
@@ -157,11 +170,20 @@ async function invokePreHookFn(
     return coercePreHookResult({ raw, hook });
   } catch (error) {
     const message = toErrorMessage(error as Error);
-    return fail(
-      ScraperErrorTypes.Generic,
-      `preHook: creds.${hook.awaitCredsField}() threw: ${message}`,
-    );
+    return preHookThrowFail(hook, message);
   }
+}
+
+/**
+ * Build the standard preHook missing-function failure procedure.
+ * @param hook - Pre-step hook config.
+ * @returns Procedure failure.
+ */
+function preHookMissingFnFail(hook: IPreStepHook): Procedure<ITemplateScope> {
+  return fail(
+    ScraperErrorTypes.TwoFactorRetrieverMissing,
+    `preHook: creds.${hook.awaitCredsField} is not a function`,
+  );
 }
 
 /**
@@ -178,12 +200,7 @@ async function applyPreHook(
   hook: IPreStepHook,
 ): Promise<Procedure<ITemplateScope>> {
   const fn = creds[hook.awaitCredsField];
-  if (typeof fn !== 'function') {
-    return fail(
-      ScraperErrorTypes.TwoFactorRetrieverMissing,
-      `preHook: creds.${hook.awaitCredsField} is not a function`,
-    );
-  }
+  if (typeof fn !== 'function') return preHookMissingFnFail(hook);
   const valueProc = await invokePreHookFn(fn as () => Promise<unknown>, hook);
   if (!isOk(valueProc)) return valueProc;
   const nextCarry = { ...scope.carry, [hook.intoCarryField]: valueProc.value };
@@ -216,6 +233,28 @@ async function resolveStepScope(
 }
 
 /**
+ * Build the runStep payload for the current iteration.
+ * @param args - Step-reduce shared args.
+ * @param step - Step config.
+ * @param scope - Resolved scope for this iteration.
+ * @returns runStep input bundle.
+ */
+function makeRunStepArgs(
+  args: IStepReduceArgs,
+  step: IApiDirectCallConfig['steps'][number],
+  scope: ITemplateScope,
+): Parameters<typeof runStep>[0] {
+  return {
+    step,
+    bus: args.bus,
+    scope,
+    companyId: args.companyId,
+    signingKeypair: args.keypair,
+    cookieJar: args.cookieJar,
+  };
+}
+
+/**
  * Run preHook (if any) then runStep.
  * @param args - Reduce args.
  * @param scope - Current scope.
@@ -229,14 +268,8 @@ async function runOneStep(
 ): Promise<Procedure<ITemplateScope>> {
   const hooked = await resolveStepScope(args, scope, step);
   if (!isOk(hooked)) return hooked;
-  return runStep({
-    step,
-    bus: args.bus,
-    scope: hooked.value,
-    companyId: args.companyId,
-    signingKeypair: args.keypair,
-    cookieJar: args.cookieJar,
-  });
+  const stepArgs = makeRunStepArgs(args, step, hooked.value);
+  return runStep(stepArgs);
 }
 
 /** Bundle of reducer inputs — keeps reduceSteps at ≤3 params. */
@@ -340,47 +373,157 @@ function mergeInitialCarry(
   return { ...baseSeed, ...args.initialCarry };
 }
 
+/** Prepared inputs for the seedScope + reduce passes. */
+interface ISmsOtpPrep {
+  readonly keypairs: IKeypairBundle;
+  readonly fingerprint: ICollectionResult | false;
+  readonly initialCarry: Readonly<Record<string, JsonValue>>;
+}
+
+/**
+ * Build the initial carry (system seed + caller initialCarry merged
+ * via buildInitialCarry).
+ * @param args - Flow run args.
+ * @returns Initial carry procedure.
+ */
+function buildSmsOtpCarry(args: IRunSmsOtpArgs): Procedure<Readonly<Record<string, JsonValue>>> {
+  const baseSeed: Record<string, JsonValue> = { flowId: randomUUID() };
+  const merged = mergeInitialCarry(baseSeed, args);
+  return buildInitialCarry(args.config, args.creds, merged);
+}
+
+/** Core inputs prepared before the initial carry — keypairs + fingerprint. */
+interface ICoreSmsOtpInputs {
+  readonly keypairs: IKeypairBundle;
+  readonly fingerprint: ICollectionResult | false;
+}
+
+/**
+ * Prepare the keypairs + fingerprint bundle (no carry build).
+ * @param args - Flow run args.
+ * @returns Core inputs procedure.
+ */
+function prepCoreInputs(args: IRunSmsOtpArgs): Procedure<ICoreSmsOtpInputs> {
+  const keypairsProc = prepareKeypairs(args.config);
+  if (!isOk(keypairsProc)) return keypairsProc;
+  const fpProc = prepareFingerprint(args.config);
+  if (!isOk(fpProc)) return fpProc;
+  return succeed({ keypairs: keypairsProc.value, fingerprint: fpProc.value });
+}
+
+/**
+ * Prepare keypairs, fingerprint, and initial carry for the flow.
+ * @param args - Flow run args.
+ * @returns Prepared bundle procedure.
+ */
+function prepareSmsOtpFlow(args: IRunSmsOtpArgs): Procedure<ISmsOtpPrep> {
+  const coreProc = prepCoreInputs(args);
+  if (!isOk(coreProc)) return coreProc;
+  const carryProc = buildSmsOtpCarry(args);
+  if (!isOk(carryProc)) return carryProc;
+  return succeed({ ...coreProc.value, initialCarry: carryProc.value });
+}
+
+/**
+ * Build the ISeedArgs payload from flow args + prep.
+ * @param args - Flow run args.
+ * @param prep - Prepared inputs.
+ * @returns Seed args.
+ */
+function makeSeedArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): ISeedArgs {
+  return {
+    config: args.config,
+    creds: args.creds,
+    keypairs: prep.keypairs,
+    fingerprint: prep.fingerprint,
+    initialCarry: prep.initialCarry,
+  };
+}
+
+/**
+ * Build the IStepReduceArgs payload from flow args + prep.
+ * @param args - Flow run args.
+ * @param prep - Prepared inputs.
+ * @returns Step-reduce args.
+ */
+function buildReduceArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): IStepReduceArgs {
+  return {
+    bus: args.bus,
+    companyId: args.companyId,
+    keypair: prep.keypairs.ec,
+    creds: args.creds,
+    cookieJar: createSimpleCookieJar(),
+  };
+}
+
+/**
+ * Build the IReduceStepsArgs payload.
+ * @param args - Flow run args.
+ * @param reduceArgs - Per-step shared args.
+ * @param initial - Seed scope.
+ * @returns Reduce-steps args.
+ */
+function makeReduceStepsArgs(
+  args: IRunSmsOtpArgs,
+  reduceArgs: IStepReduceArgs,
+  initial: ITemplateScope,
+): IReduceStepsArgs {
+  return {
+    steps: args.config.steps,
+    startIndex: args.startStepIndex ?? 0,
+    reduceArgs,
+    initial,
+  };
+}
+
+/**
+ * Drive the full step reduction (seed → reduceArgs → reduce).
+ * @param args - Flow run args.
+ * @param prep - Prepared inputs.
+ * @returns Final scope procedure.
+ */
+async function reduceAllSteps(
+  args: IRunSmsOtpArgs,
+  prep: ISmsOtpPrep,
+): Promise<Procedure<ITemplateScope>> {
+  const seedArgs = makeSeedArgs(args, prep);
+  const initial = seedScope(seedArgs);
+  const reduceArgs = buildReduceArgs(args, prep);
+  const reduceStepsArgs = makeReduceStepsArgs(args, reduceArgs, initial);
+  return reduceSteps(reduceStepsArgs);
+}
+
+/**
+ * Build the final IFlowResult after step reduction.
+ * @param scope - Final scope.
+ * @param config - Bank config.
+ * @param bearer - Extracted bearer token.
+ * @returns Flow result bundle.
+ */
+function buildFlowResult(
+  scope: ITemplateScope,
+  config: IApiDirectCallConfig,
+  bearer: string,
+): IFlowResult {
+  const longTermToken = extractLongTermTokenFromCarry(config, scope);
+  const carrySnapshot = Object.freeze({ ...scope.carry });
+  return { bearer, longTermToken, carrySnapshot };
+}
+
 /**
  * Run the sms-otp flow end-to-end.
  * @param args - Run args.
  * @returns Procedure with { bearer, longTermToken }.
  */
 async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResult>> {
-  const keypairsProc = prepareKeypairs(args.config);
-  if (!isOk(keypairsProc)) return keypairsProc;
-  const fpProc = prepareFingerprint(args.config);
-  if (!isOk(fpProc)) return fpProc;
-  const baseSeed: Record<string, JsonValue> = { flowId: randomUUID() };
-  const mergedInitialCarry = mergeInitialCarry(baseSeed, args);
-  const initialCarryProc = buildInitialCarry(args.config, args.creds, mergedInitialCarry);
-  if (!isOk(initialCarryProc)) return initialCarryProc;
-  const initial = seedScope({
-    config: args.config,
-    creds: args.creds,
-    keypairs: keypairsProc.value,
-    fingerprint: fpProc.value,
-    initialCarry: initialCarryProc.value,
-  });
-  const reduceArgs: IStepReduceArgs = {
-    bus: args.bus,
-    companyId: args.companyId,
-    keypair: keypairsProc.value.ec,
-    creds: args.creds,
-    cookieJar: createSimpleCookieJar(),
-  };
-  const startIndex = args.startStepIndex ?? 0;
-  const finalProc = await reduceSteps({
-    steps: args.config.steps,
-    startIndex,
-    reduceArgs,
-    initial,
-  });
+  const prepProc = prepareSmsOtpFlow(args);
+  if (!isOk(prepProc)) return prepProc;
+  const finalProc = await reduceAllSteps(args, prepProc.value);
   if (!isOk(finalProc)) return finalProc;
   const bearerProc = extractTokenFromCarry(finalProc.value);
   if (!isOk(bearerProc)) return bearerProc;
-  const longTermToken = extractLongTermTokenFromCarry(args.config, finalProc.value);
-  const carrySnapshot = Object.freeze({ ...finalProc.value.carry });
-  return succeed({ bearer: bearerProc.value, longTermToken, carrySnapshot });
+  const result = buildFlowResult(finalProc.value, args.config, bearerProc.value);
+  return succeed(result);
 }
 
 export type { IFlowResult, IRunSmsOtpArgs };

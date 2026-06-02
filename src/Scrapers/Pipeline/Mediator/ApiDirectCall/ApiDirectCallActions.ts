@@ -202,13 +202,11 @@ function logFormatFailure(bundle: INormaliseBundle, reason: string): IPipelineCo
 function applyWireFormat(bundle: INormaliseBundle, wireValue: string): IPipelineContext {
   const { ctx, format, rawShape } = bundle;
   const wireShape = phoneShape(wireValue);
-  ctx.logger.info(
-    { module: PHASE_LABEL, format, rawShape, wireShape },
-    'phoneNumber normalised (PII-safe shape only)',
-  );
-  const creds = ctx.credentials as unknown as Record<string, unknown>;
-  const normalisedCreds = { ...creds, phoneNumber: wireValue };
-  const credentials = normalisedCreds as unknown as IPipelineContext['credentials'];
+  const msg = 'phoneNumber normalised (PII-safe shape only)';
+  ctx.logger.info({ module: PHASE_LABEL, format, rawShape, wireShape }, msg);
+  const credsBag = ctx.credentials as unknown as Record<string, unknown>;
+  const next = { ...credsBag, phoneNumber: wireValue };
+  const credentials = next as unknown as IPipelineContext['credentials'];
   return { ...ctx, credentials };
 }
 
@@ -245,6 +243,83 @@ function withNormalisedCreds(ctx: IPipelineContext): IPipelineContext {
   return applyWireOutcome(bundle);
 }
 
+/** Booted ACTION bundle — bus + strategy + ctx + creds. */
+interface IBootedAction {
+  readonly bus: IApiMediator;
+  readonly strategy: IConfigTokenStrategy;
+  readonly ctx: IPipelineContext;
+  readonly creds: GenericCreds;
+}
+
+/**
+ * Build the bus + strategy + creds bundle (ACTION-stage boot).
+ * @param config - API-direct-call config.
+ * @param rawCtx - Pipeline context (pre-normalisation).
+ * @returns Boot bundle procedure.
+ */
+function bootApiAction(
+  config: IApiDirectCallConfig,
+  rawCtx: IPipelineContext,
+): Procedure<IBootedAction> {
+  const ctx = withNormalisedCreds(rawCtx);
+  const busProc = resolveApiMediator(ctx, PHASE_LABEL);
+  if (!isOk(busProc)) return busProc;
+  const stratProc = createTokenStrategyFromConfig({ config });
+  if (!isOk(stratProc)) return stratProc;
+  const creds = mergeOptionsIntoCreds(ctx);
+  return succeed({ bus: busProc.value, strategy: stratProc.value, ctx, creds });
+}
+
+/**
+ * Standard empty-header failure builder.
+ * @returns Procedure failure for empty primeSession result.
+ */
+function emptyHeaderFail<T>(): Procedure<T> {
+  return fail(ScraperErrorTypes.Generic, `${PHASE_LABEL} ACTION empty header`);
+}
+
+/**
+ * Run primeSession with safeInvoke + empty-header guard.
+ * @param bus - ApiMediator.
+ * @returns Header string procedure.
+ */
+async function primeAndCheck(bus: IApiMediator): Promise<Procedure<string>> {
+  const primed = await safeInvoke('ACTION primeSession', () => bus.primeSession());
+  if (!isOk(primed)) return primed;
+  if (primed.value.length === 0) return emptyHeaderFail();
+  return primed;
+}
+
+/**
+ * Install raw auth + session-context on the bus.
+ * @param bus - ApiMediator.
+ * @param strategy - Token strategy (for carry snapshot).
+ * @param header - Authorization header value to install.
+ * @returns true for chaining.
+ */
+function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: string): true {
+  bus.setRawAuth(header);
+  const snapshot = strategy.getLatestCarrySnapshot();
+  bus.setSessionContext(snapshot);
+  return true;
+}
+
+/**
+ * Run primeSession on the booted bus, install auth + session
+ * context, and surface the optional auth-flow callback.
+ * @param booted - Booted ACTION bundle.
+ * @returns Updated context procedure.
+ */
+async function installPrimedAuth(booted: IBootedAction): Promise<Procedure<IPipelineContext>> {
+  const { bus, strategy, ctx, creds } = booted;
+  bus.withTokenStrategy(strategy, ctx, creds);
+  const primed = await primeAndCheck(bus);
+  if (!isOk(primed)) return primed;
+  setBusAuth(bus, strategy, primed.value);
+  await invokeAuthFlowComplete(ctx, strategy, primed.value);
+  return succeed(ctx);
+}
+
 /**
  * ACTION stage — normalise credentials, build strategy from config,
  * register, prime, install.
@@ -256,28 +331,37 @@ async function runApiDirectCallAction(
   config: IApiDirectCallConfig,
   rawCtx: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const ctx = withNormalisedCreds(rawCtx);
-  const busProc = resolveApiMediator(ctx, PHASE_LABEL);
-  if (!isOk(busProc)) return busProc;
-  const bus = busProc.value;
-  const stratProc = createTokenStrategyFromConfig({ config });
-  if (!isOk(stratProc)) return stratProc;
-  const strategy = stratProc.value;
-  const creds = mergeOptionsIntoCreds(ctx);
-  bus.withTokenStrategy(strategy, ctx, creds);
-  const primed = await safeInvoke('ACTION primeSession', () => bus.primeSession());
-  if (!isOk(primed)) return primed;
-  if (primed.value.length === 0) {
-    return fail(ScraperErrorTypes.Generic, `${PHASE_LABEL} ACTION empty header`);
+  const bootProc = bootApiAction(config, rawCtx);
+  if (!isOk(bootProc)) return bootProc;
+  return installPrimedAuth(bootProc.value);
+}
+
+/** Auth-flow callback payload. */
+interface IAuthFlowPayload {
+  readonly longTermToken: string;
+  readonly bearer: string;
+}
+
+/**
+ * Run the configured auth-flow callback with catch+log.
+ * @param ctx - Pipeline context (for logger).
+ * @param callback - User-supplied callback from ScraperOptions.
+ * @param payload - Auth-flow info bundle (longTermToken + bearer).
+ * @returns true on success, false on callback throw.
+ */
+async function runAuthFlowCallback(
+  ctx: IPipelineContext,
+  callback: IAuthFlowCallback,
+  payload: IAuthFlowPayload,
+): Promise<boolean> {
+  try {
+    await callback(payload);
+    return true;
+  } catch (error) {
+    const message = toErrorMessage(error as Error);
+    ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${message}` });
+    return false;
   }
-  bus.setRawAuth(primed.value);
-  // Propagate the flow's final-carry snapshot to the bus so the
-  // scrape phase can read post-login slots (uId, deviceId16Hex, …)
-  // when hydrating class-y body envelopes via `$ref: carry.<slot>`.
-  const sessionContext = strategy.getLatestCarrySnapshot();
-  bus.setSessionContext(sessionContext);
-  await invokeAuthFlowComplete(ctx, strategy, primed.value);
-  return succeed(ctx);
 }
 
 /**
@@ -299,16 +383,7 @@ async function invokeAuthFlowComplete(
   if (callback === undefined) return false;
   const longTermToken = strategy.getLatestLongTermToken();
   if (longTermToken.length === 0) return false;
-  try {
-    await callback({ longTermToken, bearer });
-    return true;
-  } catch (error) {
-    const message = toErrorMessage(error as Error);
-    ctx.logger.warn({
-      message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${message}`,
-    });
-    return false;
-  }
+  return runAuthFlowCallback(ctx, callback, { longTermToken, bearer });
 }
 
 /**
@@ -334,6 +409,35 @@ async function runApiDirectCallPost(
 /** Probe response shape — opaque record so callers can introspect fields. */
 type ProbeResponse = Record<string, unknown>;
 
+/** Diagnostic label for probe query invocation. */
+const PROBE_QUERY_LABEL = 'POST probe query';
+
+/** Diagnostic label for probe URL invocation. */
+const PROBE_URL_LABEL = 'POST probe url';
+
+/**
+ * safeInvoke wrapper for the apiQuery probe path.
+ * @param bus - ApiMediator.
+ * @param tag - Query tag.
+ * @returns Probe procedure.
+ */
+async function tryProbeQuery(
+  bus: IApiMediator,
+  tag: WKQueryOperation,
+): Promise<Procedure<ProbeResponse>> {
+  return safeInvoke(PROBE_QUERY_LABEL, () => bus.apiQuery<ProbeResponse>(tag, {}));
+}
+
+/**
+ * safeInvoke wrapper for the apiGet probe path.
+ * @param bus - ApiMediator.
+ * @param tag - URL tag.
+ * @returns Probe procedure.
+ */
+async function tryProbeUrl(bus: IApiMediator, tag: WKUrlGroup): Promise<Procedure<ProbeResponse>> {
+  return safeInvoke(PROBE_URL_LABEL, () => bus.apiGet<ProbeResponse>(tag));
+}
+
 /**
  * Fire the configured probe — queryTag preferred over urlTag.
  *
@@ -352,12 +456,8 @@ type ProbeResponse = Record<string, unknown>;
 async function runProbe(probe: IProbeConfig, bus: IApiMediator): Promise<Procedure<ProbeResponse>> {
   const view: { queryTag?: WKQueryOperation; urlTag?: WKUrlGroup } = probe;
   const { queryTag, urlTag } = view;
-  if (queryTag !== undefined) {
-    return safeInvoke('POST probe query', () => bus.apiQuery<ProbeResponse>(queryTag, {}));
-  }
-  if (urlTag !== undefined) {
-    return safeInvoke('POST probe url', () => bus.apiGet<ProbeResponse>(urlTag));
-  }
+  if (queryTag !== undefined) return tryProbeQuery(bus, queryTag);
+  if (urlTag !== undefined) return tryProbeUrl(bus, urlTag);
   return fail(ScraperErrorTypes.Generic, `${PHASE_LABEL} POST probe config missing`);
 }
 

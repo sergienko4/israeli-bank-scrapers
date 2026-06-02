@@ -95,6 +95,40 @@ interface ILongTermTokenSlot {
 }
 
 /**
+ * Build IRunSmsOtpArgs payload from IRunFlowArgs (passthrough).
+ * @param args - Outer run-flow args.
+ * @returns Inner SmsOtp run args.
+ */
+function toFlowArgs(args: IRunFlowArgs): Parameters<typeof runSmsOtpFlow>[0] {
+  return {
+    config: args.config,
+    bus: args.bus,
+    creds: args.creds,
+    companyId: args.companyId,
+    initialCarry: args.initialCarry,
+    startStepIndex: args.startStepIndex,
+  };
+}
+
+/** Subset of IFlowResult consumed by captureFlowResult. */
+interface IFlowCapture {
+  readonly longTermToken: string;
+  readonly carrySnapshot: Readonly<Record<string, JsonValue>>;
+}
+
+/**
+ * Capture the flow's long-term token + carry snapshot into the slot.
+ * @param slot - Capture slot.
+ * @param result - Captured flow outputs (longTermToken + carrySnapshot).
+ * @returns true for chaining.
+ */
+function captureFlowResult(slot: ILongTermTokenSlot, result: IFlowCapture): true {
+  if (result.longTermToken.length > 0) slot.latest = result.longTermToken;
+  slot.latestCarrySnapshot = result.carrySnapshot;
+  return true;
+}
+
+/**
  * Run SmsOtpFlow, capture the long-term token into the slot, and wrap
  * the bearer per authScheme.
  * @param args - Run args.
@@ -105,19 +139,10 @@ async function runConfiguredFlow(
   args: IRunFlowArgs,
   slot: ILongTermTokenSlot,
 ): Promise<Procedure<string>> {
-  const flowProc = await runSmsOtpFlow({
-    config: args.config,
-    bus: args.bus,
-    creds: args.creds,
-    companyId: args.companyId,
-    initialCarry: args.initialCarry,
-    startStepIndex: args.startStepIndex,
-  });
+  const flowArgs = toFlowArgs(args);
+  const flowProc = await runSmsOtpFlow(flowArgs);
   if (!isOk(flowProc)) return flowProc;
-  if (flowProc.value.longTermToken.length > 0) {
-    slot.latest = flowProc.value.longTermToken;
-  }
-  slot.latestCarrySnapshot = flowProc.value.carrySnapshot;
+  captureFlowResult(slot, flowProc.value);
   const authValue = formatAuthValue(args.config, flowProc.value.bearer);
   return succeed(authValue);
 }
@@ -131,6 +156,9 @@ interface IMakeWarmArgs {
   readonly companyId: IPipelineContext['companyId'];
 }
 
+/** Diagnostic message — warmStart required for makeWarmArgs. */
+const WARM_REQUIRED_MSG = 'makeWarmArgs requires config.warmStart to be set';
+
 /**
  * Build the warm-path IRunFlowArgs given a stored seed value.
  * @param args - Config + bus + creds + stored seed + companyId.
@@ -138,18 +166,10 @@ interface IMakeWarmArgs {
  */
 function makeWarmArgs(args: IMakeWarmArgs): IRunFlowArgs {
   const warm = args.config.warmStart;
-  if (warm === undefined) {
-    throw new ScraperError('makeWarmArgs requires config.warmStart to be set');
-  }
+  if (warm === undefined) throw new ScraperError(WARM_REQUIRED_MSG);
   const initialCarry: Record<string, JsonValue> = { [warm.carryField]: args.stored };
-  return {
-    config: args.config,
-    bus: args.bus,
-    creds: args.creds,
-    companyId: args.companyId,
-    initialCarry,
-    startStepIndex: warm.fromStepIndex,
-  };
+  const { config, bus, creds, companyId } = args;
+  return { config, bus, creds, companyId, initialCarry, startStepIndex: warm.fromStepIndex };
 }
 
 /** Args bundle for primeInitialImpl / primeFreshImpl — respects 3-param ceiling. */
@@ -214,6 +234,87 @@ function gateFlowKind(config: IApiDirectCallConfig): Procedure<true> {
   return fail(ScraperErrorTypes.Generic, `unsupported flow-kind: ${config.flow}`);
 }
 
+/** Binding factory output — the 5 functions exposed by the strategy. */
+type IStrategyBindings = Omit<IConfigTokenStrategy, 'name'>;
+
+/**
+ * primeInitial factory — captures (config, slot) for the dispatch.
+ * @param config - Bank config.
+ * @param slot - Mutable capture slot.
+ * @returns Strategy primeInitial binding.
+ */
+function makePrimeInitial(
+  config: IApiDirectCallConfig,
+  slot: ILongTermTokenSlot,
+): IConfigTokenStrategy['primeInitial'] {
+  return (bus, ctx, creds): Promise<Procedure<string>> =>
+    primeInitialImpl({ config, bus, ctx, creds, slot });
+}
+
+/**
+ * primeFresh factory — captures (config, slot) for the dispatch.
+ * @param config - Bank config.
+ * @param slot - Mutable capture slot.
+ * @returns Strategy primeFresh binding.
+ */
+function makePrimeFresh(
+  config: IApiDirectCallConfig,
+  slot: ILongTermTokenSlot,
+): IConfigTokenStrategy['primeFresh'] {
+  return (bus, ctx, creds): Promise<Procedure<string>> =>
+    primeFreshImpl({ config, bus, ctx, creds, slot });
+}
+
+/**
+ * hasWarmState factory — wraps hasWarmStateImpl with captured config.
+ * @param config - Bank config.
+ * @returns Strategy hasWarmState binding.
+ */
+function makeHasWarmState(config: IApiDirectCallConfig): IConfigTokenStrategy['hasWarmState'] {
+  return (creds): boolean => hasWarmStateImpl(config, creds);
+}
+
+/**
+ * getLatestLongTermToken factory — closes over the slot.
+ * @param slot - Mutable capture slot.
+ * @returns Strategy getLatestLongTermToken binding.
+ */
+function makeGetLatestLongTermToken(
+  slot: ILongTermTokenSlot,
+): IConfigTokenStrategy['getLatestLongTermToken'] {
+  return (): string => slot.latest;
+}
+
+/**
+ * getLatestCarrySnapshot factory — closes over the slot.
+ * @param slot - Mutable capture slot.
+ * @returns Strategy getLatestCarrySnapshot binding.
+ */
+function makeGetLatestCarrySnapshot(
+  slot: ILongTermTokenSlot,
+): IConfigTokenStrategy['getLatestCarrySnapshot'] {
+  return (): Readonly<Record<string, JsonValue>> => slot.latestCarrySnapshot;
+}
+
+/**
+ * Build the 5 bindings exposed by IConfigTokenStrategy.
+ * @param config - Bank config.
+ * @param slot - Mutable capture slot.
+ * @returns Strategy bindings (no name field).
+ */
+function buildStrategyBindings(
+  config: IApiDirectCallConfig,
+  slot: ILongTermTokenSlot,
+): IStrategyBindings {
+  return {
+    primeInitial: makePrimeInitial(config, slot),
+    primeFresh: makePrimeFresh(config, slot),
+    hasWarmState: makeHasWarmState(config),
+    getLatestLongTermToken: makeGetLatestLongTermToken(slot),
+    getLatestCarrySnapshot: makeGetLatestCarrySnapshot(slot),
+  };
+}
+
 /**
  * Factory — build the config-driven token strategy.
  * @param args - Factory args (config + optional name).
@@ -224,64 +325,11 @@ function createTokenStrategyFromConfig(
 ): Procedure<IConfigTokenStrategy> {
   const gate = gateFlowKind(args.config);
   if (!isOk(gate)) return gate;
-  const config = args.config;
+  const { config } = args;
   const name = args.name ?? STRATEGY_NAME_DEFAULT;
   const slot: ILongTermTokenSlot = { latest: '', latestCarrySnapshot: Object.freeze({}) };
-  /**
-   * primeInitial binding — routes to primeInitialImpl with captured deps.
-   * @param bus - ApiMediator.
-   * @param ctx - Pipeline context.
-   * @param creds - Caller credentials.
-   * @returns Header-value procedure.
-   */
-  const primeInitial = (
-    bus: IApiMediator,
-    ctx: IPipelineContext,
-    creds: GenericCreds,
-  ): Promise<Procedure<string>> => {
-    return primeInitialImpl({ config, bus, ctx, creds, slot });
-  };
-  /**
-   * primeFresh binding — routes to primeFreshImpl with captured deps.
-   * @param bus - ApiMediator.
-   * @param ctx - Pipeline context.
-   * @param creds - Caller credentials.
-   * @returns Header-value procedure.
-   */
-  const primeFresh = (
-    bus: IApiMediator,
-    ctx: IPipelineContext,
-    creds: GenericCreds,
-  ): Promise<Procedure<string>> => {
-    return primeFreshImpl({ config, bus, ctx, creds, slot });
-  };
-  /**
-   * hasWarmState binding.
-   * @param creds - Caller credentials.
-   * @returns Warm-state flag.
-   */
-  const hasWarmState = (creds: GenericCreds): boolean => hasWarmStateImpl(config, creds);
-  /**
-   * getLatestLongTermToken binding.
-   * @returns Latest captured long-term token string.
-   */
-  const getLatestLongTermToken = (): string => slot.latest;
-  /**
-   * getLatestCarrySnapshot binding — exposes the post-login carry
-   * for the bus to install via setSessionContext.
-   * @returns Frozen carry snapshot.
-   */
-  const getLatestCarrySnapshot = (): Readonly<Record<string, JsonValue>> =>
-    slot.latestCarrySnapshot;
-  const strategy: IConfigTokenStrategy = {
-    name,
-    primeInitial,
-    primeFresh,
-    hasWarmState,
-    getLatestLongTermToken,
-    getLatestCarrySnapshot,
-  };
-  return succeed(strategy);
+  const bindings = buildStrategyBindings(config, slot);
+  return succeed({ name, ...bindings });
 }
 
 export type { GenericCreds, IConfigTokenStrategy, ICreateTokenStrategyArgs };

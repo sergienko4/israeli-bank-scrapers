@@ -161,6 +161,23 @@ function firstErrorMessage(errors: readonly IGraphQLError[]): string {
 }
 
 /**
+ * Fail-helper for GraphQL envelopes with non-empty error list.
+ * @param label - First error message label.
+ * @returns Procedure failure.
+ */
+function envelopeErrorFail<T>(label: string): Procedure<T> {
+  return fail(ScraperErrorTypes.Generic, `graphql errors: ${label}`);
+}
+
+/**
+ * Fail-helper for GraphQL envelopes whose `data` field is undefined.
+ * @returns Procedure failure.
+ */
+function envelopeMissingDataFail<T>(): Procedure<T> {
+  return fail(ScraperErrorTypes.Generic, 'graphql response missing data');
+}
+
+/**
  * Unwrap a GraphQL envelope to a Procedure payload.
  * Errors → fail. Missing data → fail. Success → succeed(data).
  * @param envelope - Raw GraphQL response object.
@@ -169,12 +186,8 @@ function firstErrorMessage(errors: readonly IGraphQLError[]): string {
 function unwrapGraphql<T>(envelope: IGraphQLEnvelope<T>): Procedure<T> {
   const errors = envelope.errors ?? [];
   const errorLabel = firstErrorMessage(errors);
-  if (errorLabel.length > 0) {
-    return fail(ScraperErrorTypes.Generic, `graphql errors: ${errorLabel}`);
-  }
-  if (envelope.data === undefined) {
-    return fail(ScraperErrorTypes.Generic, 'graphql response missing data');
-  }
+  if (errorLabel.length > 0) return envelopeErrorFail<T>(errorLabel);
+  if (envelope.data === undefined) return envelopeMissingDataFail<T>();
   return succeed(envelope.data);
 }
 
@@ -250,6 +263,421 @@ async function fireQuery<T>(args: IFireQueryArgs): Promise<Procedure<T>> {
   return unwrapGraphql<T>(envelopeProc.value);
 }
 
+/** Mutable mediator state isolated from the public interface. */
+interface IMediatorState {
+  rawAuth: string;
+  resolver: ITokenResolver;
+  sessionContext: SessionContext;
+}
+
+/** Per-call context shared by apiPost/apiGet/apiQuery operations. */
+interface IApiCallContext {
+  readonly state: IMediatorState;
+  readonly deps: IApiMediatorDeps;
+  readonly bankHint: CompanyTypes;
+}
+
+/** Arg bundle for `withTokenStrategyOp` to respect the 4-param ceiling. */
+interface IWithTokenStrategyOpArgs<TCreds> {
+  readonly state: IMediatorState;
+  readonly self: IApiMediator;
+  readonly strategy: ITokenStrategy<TCreds>;
+  readonly ctx: IPipelineContext;
+  readonly creds: TCreds;
+}
+
+/** Arg bundle for `apiPostOp`. */
+interface IApiPostOpArgs {
+  readonly ctx: IApiCallContext;
+  readonly wkUrl: WKUrlGroup;
+  readonly body: Record<string, unknown>;
+  readonly opts?: IApiQueryOpts;
+}
+
+/** Arg bundle for `apiQueryOp`. */
+interface IApiQueryOpArgs {
+  readonly ctx: IApiCallContext;
+  readonly wkQuery: WKQueryOperation;
+  readonly variables: Record<string, unknown>;
+  readonly opts?: IApiQueryOpts;
+}
+
+/**
+ * Construct the initial frozen-snapshot state for a fresh mediator.
+ * @returns Initial state record.
+ */
+function makeInitialMediatorState(): IMediatorState {
+  return {
+    rawAuth: '',
+    resolver: NULL_RESOLVER,
+    sessionContext: Object.freeze({}),
+  };
+}
+
+/**
+ * Store an Authorization header verbatim on the mediator state.
+ * @param state - Mediator state.
+ * @param headerValue - Full Authorization header value.
+ * @returns True once stored.
+ */
+function setRawAuthOp(state: IMediatorState, headerValue: string): boolean {
+  state.rawAuth = headerValue;
+  return true;
+}
+
+/**
+ * Install the post-login session-context snapshot (freezes a copy).
+ * @param state - Mediator state.
+ * @param ctx - Session-context snapshot.
+ * @returns True once stored.
+ */
+function setSessionContextOp(state: IMediatorState, ctx: SessionContext): boolean {
+  state.sessionContext = Object.freeze({ ...ctx });
+  return true;
+}
+
+/**
+ * Return the stored session-context snapshot (frozen).
+ * @param state - Mediator state.
+ * @returns Session-context snapshot.
+ */
+function getSessionContextOp(state: IMediatorState): SessionContext {
+  return state.sessionContext;
+}
+
+/**
+ * Convenience wrapper — stores a `Bearer <token>` Authorization header.
+ * @param state - Mediator state.
+ * @param token - Opaque bearer value.
+ * @returns True once stored.
+ */
+function setBearerOp(state: IMediatorState, token: string): boolean {
+  return setRawAuthOp(state, `Bearer ${token}`);
+}
+
+/**
+ * Register a concrete token resolver. Replaces any prior resolver.
+ * @param state - Mediator state.
+ * @param resolver - Bank-specific resolver.
+ * @returns True once registered.
+ */
+function withTokenResolverOp(state: IMediatorState, resolver: ITokenResolver): WasResolverSet {
+  state.resolver = resolver;
+  return true;
+}
+
+/**
+ * Register a bank token strategy bound via `buildResolverFromStrategy`.
+ * @param args - Strategy + context + creds bundle.
+ * @returns True once registered.
+ */
+function withTokenStrategyOp<TCreds>(args: IWithTokenStrategyOpArgs<TCreds>): WasResolverSet {
+  const { state, self, strategy, ctx, creds } = args;
+  state.resolver = buildResolverFromStrategy({ strategy, bus: self, ctx, creds });
+  return true;
+}
+
+/**
+ * Prime the session via the currently registered resolver.
+ * @param state - Mediator state.
+ * @returns Header-value procedure.
+ */
+async function primeSessionOp(state: IMediatorState): Promise<Procedure<string>> {
+  return state.resolver.resolve();
+}
+
+/**
+ * Invoke the resolver's `refresh()` with an exception safety net.
+ * @param state - Mediator state.
+ * @returns Refresh procedure (or a Generic failure when the resolver threw).
+ */
+async function safeRefreshOp(state: IMediatorState): Promise<Procedure<string>> {
+  try {
+    return await state.resolver.refresh();
+  } catch (error) {
+    const message = toErrorMessage(error as Error);
+    return fail(ScraperErrorTypes.Generic, `token resolver threw: ${message}`);
+  }
+}
+
+/**
+ * Run a request once, and on a 401 response refresh and retry once.
+ * @param state - Mediator state.
+ * @param fire - Function that performs the request.
+ * @returns Procedure from the first or second attempt.
+ */
+async function retryOn401Op<T>(
+  state: IMediatorState,
+  fire: () => Promise<Procedure<T>>,
+): Promise<Procedure<T>> {
+  const first = await fire();
+  if (first.success) return first;
+  if (!/\s401:\s/.test(first.errorMessage)) return first;
+  const refreshed = await safeRefreshOp(state);
+  if (!isOk(refreshed)) return first;
+  if (refreshed.value.length === 0) return first;
+  setRawAuthOp(state, refreshed.value);
+  return fire();
+}
+
+/**
+ * Build the optional extras subset of firePost args.
+ * @param args - apiPost op args.
+ * @returns Optional extras subset.
+ */
+function buildFirePostExtras(
+  args: IApiPostOpArgs,
+): Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie'> {
+  return {
+    extraHeaders: args.opts?.extraHeaders ?? NO_EXTRA_HEADERS,
+    query: args.opts?.query ?? NO_EXTRA_HEADERS,
+    onSetCookie: args.opts?.onSetCookie,
+  };
+}
+
+/**
+ * Build the per-attempt firePost args so retry-on-401 can re-read
+ * `state.rawAuth` after a refresh installs a new header.
+ * @param args - apiPost op args.
+ * @param urlValue - Resolved URL.
+ * @returns Fresh firePost args.
+ */
+function buildFirePostArgs(args: IApiPostOpArgs, urlValue: string): IFirePostArgs {
+  const extras = buildFirePostExtras(args);
+  return {
+    deps: args.ctx.deps,
+    url: urlValue,
+    body: args.body,
+    rawAuth: args.ctx.state.rawAuth,
+    ...extras,
+  };
+}
+
+/**
+ * Build the per-attempt fireOnce for `apiPost`.
+ * @param args - apiPost op args.
+ * @param urlValue - Resolved URL.
+ * @returns Async fire-once callable.
+ */
+function makeApiPostFireOnce<T>(
+  args: IApiPostOpArgs,
+  urlValue: string,
+): () => Promise<Procedure<T>> {
+  return async () => {
+    const firePostArgs = buildFirePostArgs(args, urlValue);
+    return firePost<T>(firePostArgs);
+  };
+}
+
+/**
+ * POST with auth-header injection, WK URL resolution, optional
+ * query params and extraHeaders. Retries once on a 401.
+ * @param args - apiPost op args.
+ * @returns Procedure with typed payload.
+ */
+async function apiPostOp<T>(args: IApiPostOpArgs): Promise<Procedure<T>> {
+  const urlProc = resolveWkUrl(args.wkUrl, args.ctx.bankHint);
+  if (!isOk(urlProc)) return urlProc;
+  const fireOnce = makeApiPostFireOnce<T>(args, urlProc.value);
+  return retryOn401Op(args.ctx.state, fireOnce);
+}
+
+/**
+ * Build the per-attempt fireOnce for `apiGet`.
+ * @param ctx - Per-call context.
+ * @param urlValue - Resolved URL.
+ * @returns Async fire-once callable.
+ */
+function makeApiGetFireOnce<T>(
+  ctx: IApiCallContext,
+  urlValue: string,
+): () => Promise<Procedure<T>> {
+  return async () => fireGet<T>(ctx.deps, urlValue, ctx.state.rawAuth);
+}
+
+/**
+ * GET with auth-header injection and WK URL resolution. Retries once on 401.
+ * @param ctx - Per-call context.
+ * @param wkUrl - WK URL group to resolve.
+ * @returns Procedure with typed payload.
+ */
+async function apiGetOp<T>(ctx: IApiCallContext, wkUrl: WKUrlGroup): Promise<Procedure<T>> {
+  const urlProc = resolveWkUrl(wkUrl, ctx.bankHint);
+  if (!isOk(urlProc)) return urlProc;
+  const fireOnce = makeApiGetFireOnce<T>(ctx, urlProc.value);
+  return retryOn401Op(ctx.state, fireOnce);
+}
+
+/**
+ * Build the per-attempt fireQuery args so retry-on-401 can re-read
+ * `state.rawAuth` after a refresh installs a new header.
+ * @param args - apiQuery op args.
+ * @param queryString - Resolved GraphQL query string.
+ * @returns Fresh fireQuery args.
+ */
+function buildFireQueryArgs(args: IApiQueryOpArgs, queryString: string): IFireQueryArgs {
+  const { ctx, variables, opts } = args;
+  return {
+    deps: ctx.deps,
+    queryString,
+    variables,
+    rawAuth: ctx.state.rawAuth,
+    extraHeaders: opts?.extraHeaders ?? NO_EXTRA_HEADERS,
+  };
+}
+
+/**
+ * Build the per-attempt fireOnce for `apiQuery`.
+ * @param args - apiQuery op args.
+ * @param queryString - Resolved GraphQL query string.
+ * @returns Async fire-once callable.
+ */
+function makeApiQueryFireOnce<T>(
+  args: IApiQueryOpArgs,
+  queryString: string,
+): () => Promise<Procedure<T>> {
+  return async () => {
+    const fireQueryArgs = buildFireQueryArgs(args, queryString);
+    return fireQuery<T>(fireQueryArgs);
+  };
+}
+
+/**
+ * GraphQL query with WK query resolution + envelope unwrap. Retries once on 401.
+ * @param args - apiQuery op args.
+ * @returns Procedure with unwrapped GraphQL data.
+ */
+async function apiQueryOp<T>(args: IApiQueryOpArgs): Promise<Procedure<T>> {
+  const queryProc = resolveWkQuery(args.wkQuery, args.ctx.bankHint);
+  if (!isOk(queryProc)) return queryProc;
+  const fireOnce = makeApiQueryFireOnce<T>(args, queryProc.value);
+  return retryOn401Op(args.ctx.state, fireOnce);
+}
+
+/** Picked subset of `IApiMediator` produced by `buildAuthMethods`. */
+type IAuthMethods = Pick<
+  IApiMediator,
+  'setRawAuth' | 'setBearer' | 'setSessionContext' | 'getSessionContext'
+>;
+
+/** Picked subset of `IApiMediator` produced by `buildResolverMethods`. */
+type IResolverMethods = Pick<
+  IApiMediator,
+  'withTokenResolver' | 'withTokenStrategy' | 'primeSession'
+>;
+
+/** Picked subset of `IApiMediator` produced by `buildCallMethods`. */
+type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
+
+/**
+ * Build the auth/session-context method bundle.
+ * @param state - Mediator state.
+ * @returns Auth methods.
+ */
+function buildAuthMethods(state: IMediatorState): IAuthMethods {
+  return {
+    /**
+     * Store the Authorization header verbatim.
+     * @param h - Header value.
+     * @returns True once stored.
+     */
+    setRawAuth: h => setRawAuthOp(state, h),
+    /**
+     * Store a `Bearer <token>` Authorization header.
+     * @param t - Bearer token.
+     * @returns True once stored.
+     */
+    setBearer: t => setBearerOp(state, t),
+    /**
+     * Install the post-login session-context snapshot (frozen copy).
+     * @param ctx - Snapshot to install.
+     * @returns True once stored.
+     */
+    setSessionContext: ctx => setSessionContextOp(state, ctx),
+    /**
+     * Read the stored session-context snapshot.
+     * @returns Frozen snapshot reference.
+     */
+    getSessionContext: () => getSessionContextOp(state),
+  };
+}
+
+/**
+ * Build the resolver-registration + session-prime method bundle.
+ * @param self - Mediator shell (captured by withTokenStrategy).
+ * @param state - Mediator state.
+ * @returns Resolver methods.
+ */
+function buildResolverMethods(self: IApiMediator, state: IMediatorState): IResolverMethods {
+  return {
+    /**
+     * Register a concrete token resolver.
+     * @param resolver - Bank-specific resolver.
+     * @returns True once registered.
+     */
+    withTokenResolver: resolver => withTokenResolverOp(state, resolver),
+    /**
+     * Register a bank token strategy bound via `buildResolverFromStrategy`.
+     * @param strategy - Bank token strategy.
+     * @param ctx - Pipeline context.
+     * @param creds - Bank credentials.
+     * @returns True once registered.
+     */
+    withTokenStrategy: (strategy, ctx, creds) =>
+      withTokenStrategyOp({ state, self, strategy, ctx, creds }),
+    /**
+     * Prime the session via the registered resolver.
+     * @returns Header-value procedure.
+     */
+    primeSession: async () => primeSessionOp(state),
+  };
+}
+
+/**
+ * Build the apiPost/apiGet/apiQuery method bundle.
+ * @param ctx - Per-call context.
+ * @returns Call methods.
+ */
+function buildCallMethods(ctx: IApiCallContext): ICallMethods {
+  return {
+    /**
+     * POST with auth-header injection and WK URL resolution.
+     * @param wkUrl - WK URL group to resolve.
+     * @param body - Request body.
+     * @param opts - Optional per-call options.
+     * @returns Procedure with typed payload.
+     */
+    apiPost: async (wkUrl, body, opts) => apiPostOp({ ctx, wkUrl, body, opts }),
+    /**
+     * GET with auth-header injection and WK URL resolution.
+     * @param wkUrl - WK URL group to resolve.
+     * @returns Procedure with typed payload.
+     */
+    apiGet: async wkUrl => apiGetOp(ctx, wkUrl),
+    /**
+     * GraphQL query with WK query resolution and envelope unwrap.
+     * @param wkQuery - WK query operation.
+     * @param variables - Query variables.
+     * @param opts - Optional per-call options.
+     * @returns Procedure with unwrapped GraphQL data.
+     */
+    apiQuery: async (wkQuery, variables, opts) => apiQueryOp({ ctx, wkQuery, variables, opts }),
+  };
+}
+
+/**
+ * Assemble all mediator methods on the provided shell.
+ * @param self - Mediator shell to populate.
+ * @param ctx - Per-call context.
+ * @returns Same shell, populated.
+ */
+function assembleMediator(self: IApiMediator, ctx: IApiCallContext): IApiMediator {
+  const auth = buildAuthMethods(ctx.state);
+  const resolver = buildResolverMethods(self, ctx.state);
+  const calls = buildCallMethods(ctx);
+  return Object.assign(self, auth, resolver, calls);
+}
+
 /**
  * Create an ApiMediator instance (the Black Box).
  * Bearer state lives in a closed-over variable — callers have no direct access.
@@ -264,231 +692,10 @@ export function createApiMediator(
   graphqlStrategy: GraphQLFetchStrategy,
 ): IApiMediator {
   const deps: IApiMediatorDeps = { bankHint, fetchStrategy, graphqlStrategy };
-  /** Mutable shell populated via Object.assign below — captured by withTokenStrategy. */
   const self = {} as IApiMediator;
-  const state: {
-    rawAuth: string;
-    resolver: ITokenResolver;
-    sessionContext: SessionContext;
-  } = {
-    rawAuth: '',
-    resolver: NULL_RESOLVER,
-    sessionContext: Object.freeze({}),
-  };
-
-  /**
-   * Store an Authorization header verbatim (caller owns the scheme).
-   * @param headerValue - Full Authorization header value.
-   * @returns True once stored.
-   */
-  const setRawAuth = (headerValue: string): boolean => {
-    state.rawAuth = headerValue;
-    return true;
-  };
-
-  /**
-   * Install the post-login session-context snapshot. The login
-   * action calls this once after `primeSession`; subsequent calls
-   * replace the prior snapshot wholesale (no merge).
-   * @param ctx - Frozen snapshot from the flow's final carry.
-   * @returns True once stored.
-   */
-  const setSessionContext = (ctx: SessionContext): boolean => {
-    state.sessionContext = Object.freeze({ ...ctx });
-    return true;
-  };
-
-  /**
-   * Return the stored session-context snapshot (empty frozen object
-   * before any login completes). The stored object is frozen at
-   * `setSessionContext` time so callers cannot mutate the bus
-   * payload even if the doc comment is ignored.
-   * @returns Frozen snapshot reference.
-   */
-  const getSessionContext = (): SessionContext => state.sessionContext;
-
-  /**
-   * Convenience wrapper — prefixes "Bearer " for JWT flows.
-   * @param token - Opaque bearer value.
-   * @returns True once stored.
-   */
-  const setBearer = (token: string): boolean => setRawAuth(`Bearer ${token}`);
-
-  /**
-   * Register a concrete token resolver. Replaces any prior resolver.
-   * Kept for NULL_RESOLVER + unit tests; banks use withTokenStrategy.
-   * @param resolver - Bank-specific resolver.
-   * @returns True once registered.
-   */
-  const withTokenResolver = (resolver: ITokenResolver): WasResolverSet => {
-    state.resolver = resolver;
-    return true;
-  };
-
-  /**
-   * Register a bank token strategy (generic, TCreds-parameterised).
-   * Internally binds the strategy + context + creds into an
-   * ITokenResolver via TokenResolverBuilder and registers it.
-   * @param strategy - Bank token strategy.
-   * @param ctx - Pipeline context.
-   * @param creds - Bank credentials.
-   * @returns True once registered.
-   */
-  const withTokenStrategy = <TCreds>(
-    strategy: ITokenStrategy<TCreds>,
-    ctx: IPipelineContext,
-    creds: TCreds,
-  ): WasResolverSet => {
-    state.resolver = buildResolverFromStrategy({ strategy, bus: self, ctx, creds });
-    return true;
-  };
-
-  /**
-   * Prime the session via the registered resolver's ladder.
-   * Runs the stored-then-fresh retry behaviour exactly once at
-   * login time (spec.txt §A.1). Returns the Authorization header
-   * value so callers can install it via setRawAuth.
-   * @returns Header-value procedure.
-   */
-  const primeSession = async (): Promise<Procedure<string>> => {
-    return state.resolver.resolve();
-  };
-
-  /**
-   * Invoke the current resolver's refresh() with an exception safety net.
-   * @returns Refresh procedure (or a Generic failure when the resolver threw).
-   */
-  const safeRefresh = async (): Promise<Procedure<string>> => {
-    try {
-      return await state.resolver.refresh();
-    } catch (error) {
-      const message = toErrorMessage(error as Error);
-      return fail(ScraperErrorTypes.Generic, `token resolver threw: ${message}`);
-    }
-  };
-
-  /**
-   * Run a request once, and on a 401 response refresh the Authorization
-   * header via the resolver and retry exactly once. Any other outcome
-   * propagates verbatim. 401 detection reads the NativeFetchStrategy
-   * error-message format (`"<VERB> <URL> 401: <body>"`) — no dedicated
-   * Unauthorized error type exists.
-   * @param fire - Function that performs the request.
-   * @returns Procedure from the first or second attempt.
-   */
-  const retryOn401 = async <T>(fire: () => Promise<Procedure<T>>): Promise<Procedure<T>> => {
-    const first = await fire();
-    if (first.success) return first;
-    if (!/\s401:\s/.test(first.errorMessage)) return first;
-    const refreshed = await safeRefresh();
-    if (!isOk(refreshed)) return first;
-    if (refreshed.value.length === 0) return first;
-    setRawAuth(refreshed.value);
-    return fire();
-  };
-
-  /**
-   * POST with auth-header injection, WK URL resolution, optional
-   * query params and extraHeaders. Retries once on a 401.
-   * @param wkUrl - WK URL group to resolve.
-   * @param body - Request body.
-   * @param opts - Optional per-call options (query + extraHeaders).
-   * @returns Procedure with typed payload.
-   */
-  const apiPost = async <T>(
-    wkUrl: WKUrlGroup,
-    body: Record<string, unknown>,
-    opts?: IApiQueryOpts,
-  ): Promise<Procedure<T>> => {
-    const urlProc = resolveWkUrl(wkUrl, bankHint);
-    if (!isOk(urlProc)) return urlProc;
-    /**
-     * Build the per-attempt firePost args so retry-on-401 can re-read
-     * state.rawAuth after a refresh installs a new header.
-     * @returns Fresh firePost args.
-     */
-    const buildArgs = (): IFirePostArgs => ({
-      deps,
-      url: urlProc.value,
-      body,
-      rawAuth: state.rawAuth,
-      extraHeaders: opts?.extraHeaders ?? NO_EXTRA_HEADERS,
-      query: opts?.query ?? NO_EXTRA_HEADERS,
-      onSetCookie: opts?.onSetCookie,
-    });
-    /**
-     * One attempt — re-reads args so the second call sees a refreshed token.
-     * @returns Post procedure.
-     */
-    const fireOnce = async (): Promise<Procedure<T>> => {
-      const args = buildArgs();
-      return firePost<T>(args);
-    };
-    return retryOn401(fireOnce);
-  };
-
-  /**
-   * GET with auth-header injection and WK URL resolution. Retries once on 401.
-   * @param wkUrl - WK URL group to resolve.
-   * @returns Procedure with typed payload.
-   */
-  const apiGet = async <T>(wkUrl: WKUrlGroup): Promise<Procedure<T>> => {
-    const urlProc = resolveWkUrl(wkUrl, bankHint);
-    if (!isOk(urlProc)) return urlProc;
-    return retryOn401(async () => fireGet<T>(deps, urlProc.value, state.rawAuth));
-  };
-
-  /**
-   * GraphQL query with WK query resolution, optional extra headers, and
-   * envelope unwrap. Retries once on a 401.
-   * @param wkQuery - WK query operation.
-   * @param variables - Query variables.
-   * @param opts - Optional per-call options (e.g. extraHeaders).
-   * @returns Procedure with unwrapped GraphQL data.
-   */
-  const apiQuery = async <T>(
-    wkQuery: WKQueryOperation,
-    variables: Record<string, unknown>,
-    opts?: IApiQueryOpts,
-  ): Promise<Procedure<T>> => {
-    const queryProc = resolveWkQuery(wkQuery, bankHint);
-    if (!isOk(queryProc)) return queryProc;
-    /**
-     * Build the per-attempt fireQuery args so retry-on-401 can re-read
-     * state.rawAuth after a refresh installs a new header.
-     * @returns Fresh fireQuery args.
-     */
-    const buildArgs = (): IFireQueryArgs => ({
-      deps,
-      queryString: queryProc.value,
-      variables,
-      rawAuth: state.rawAuth,
-      extraHeaders: opts?.extraHeaders ?? NO_EXTRA_HEADERS,
-    });
-    /**
-     * One attempt — re-reads args so the second call sees a refreshed token.
-     * @returns Query procedure.
-     */
-    const fireOnce = async (): Promise<Procedure<T>> => {
-      const args = buildArgs();
-      return fireQuery<T>(args);
-    };
-    return retryOn401(fireOnce);
-  };
-
-  Object.assign(self, {
-    setBearer,
-    setRawAuth,
-    setSessionContext,
-    getSessionContext,
-    withTokenResolver,
-    withTokenStrategy,
-    primeSession,
-    apiPost,
-    apiGet,
-    apiQuery,
-  });
-  return self;
+  const state: IMediatorState = makeInitialMediatorState();
+  const ctx: IApiCallContext = { state, deps, bankHint };
+  return assembleMediator(self, ctx);
 }
 
 /** Args bundle for the headless-mediator factory (respects 3-param ceiling). */
@@ -500,6 +707,23 @@ interface IHeadlessMediatorArgs {
   readonly staticAuth?: string;
 }
 
+/** Bundled strategy pair returned by the headless builder. */
+interface IHeadlessStrategies {
+  readonly fetch: NativeFetchStrategy;
+  readonly gql: GraphQLFetchStrategy;
+}
+
+/**
+ * Construct the native + GraphQL strategies for a headless mediator.
+ * @param args - Mediator args bundle.
+ * @returns Strategy pair.
+ */
+function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategies {
+  const fetch: NativeFetchStrategy = Reflect.construct(NativeFetchStrategy, [args.identityBaseUrl]);
+  const gql: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl]);
+  return { fetch, gql };
+}
+
 /**
  * Build a ready-to-use ApiMediator for a headless (API-only) bank.
  * When args.staticAuth is provided, installs it via setRawAuth so the first
@@ -508,14 +732,9 @@ interface IHeadlessMediatorArgs {
  * @returns A fully-wired IApiMediator instance.
  */
 export function createHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMediator {
-  const fetchStrategy: NativeFetchStrategy = Reflect.construct(NativeFetchStrategy, [
-    args.identityBaseUrl,
-  ]);
-  const graphqlStrategy: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [
-    args.graphqlUrl,
-  ]);
-  const mediator = createApiMediator(args.bankHint, fetchStrategy, graphqlStrategy);
-  if (args.staticAuth) mediator.setRawAuth(args.staticAuth);
+  const { fetch, gql } = buildHeadlessStrategies(args);
+  const mediator = createApiMediator(args.bankHint, fetch, gql);
+  if (args.staticAuth !== undefined) mediator.setRawAuth(args.staticAuth);
   return mediator;
 }
 
@@ -533,6 +752,51 @@ interface IBrowserBackedHeadlessMediatorArgs {
   readonly bypassOriginChallenge?: boolean;
 }
 
+/** Bundled strategy pair returned by the browser-backed headless builder. */
+interface IBrowserBackedStrategies {
+  readonly fetch: CamoufoxIdentityFetchStrategy;
+  readonly gql: GraphQLFetchStrategy;
+}
+
+/**
+ * Build the readonly tuple of args to Reflect.construct the Camoufox
+ * identity fetch strategy with.
+ * @param args - Mediator args bundle.
+ * @returns Readonly tuple to pass to Reflect.construct.
+ */
+function buildCamoufoxConstructArgs(
+  args: IBrowserBackedHeadlessMediatorArgs,
+): readonly [string, boolean] {
+  return [args.identityOriginUrl, args.bypassOriginChallenge === true];
+}
+
+/**
+ * Construct the Camoufox + GraphQL strategies for a browser-backed
+ * headless mediator.
+ * @param args - Mediator args bundle.
+ * @returns Strategy pair.
+ */
+function buildBrowserBackedStrategies(
+  args: IBrowserBackedHeadlessMediatorArgs,
+): IBrowserBackedStrategies {
+  const camoufoxArgs = buildCamoufoxConstructArgs(args);
+  const fetch: CamoufoxIdentityFetchStrategy = Reflect.construct(
+    CamoufoxIdentityFetchStrategy,
+    camoufoxArgs,
+  );
+  const gql: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl]);
+  return { fetch, gql };
+}
+
+/**
+ * Build a dispose hook bound to the underlying Camoufox strategy.
+ * @param strategy - Camoufox strategy instance.
+ * @returns Dispose function.
+ */
+function makeCamoufoxDispose(strategy: CamoufoxIdentityFetchStrategy): () => Promise<void> {
+  return () => strategy.dispose();
+}
+
 /**
  * Builds an ApiMediator whose identity REST transport runs through a Camoufox
  * browser session (TLS-bypass) while GraphQL keeps the native transport.
@@ -543,21 +807,10 @@ interface IBrowserBackedHeadlessMediatorArgs {
 export function createBrowserBackedHeadlessApiMediator(
   args: IBrowserBackedHeadlessMediatorArgs,
 ): IApiMediator {
-  const fetchStrategy: CamoufoxIdentityFetchStrategy = Reflect.construct(
-    CamoufoxIdentityFetchStrategy,
-    [args.identityOriginUrl, args.bypassOriginChallenge === true],
-  );
-  const graphqlStrategy: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [
-    args.graphqlUrl,
-  ]);
-  const mediator = createApiMediator(args.bankHint, fetchStrategy, graphqlStrategy);
-  if (args.staticAuth) mediator.setRawAuth(args.staticAuth);
-  /**
-   * Dispose hook delegating to the strategy's close. Idempotent via the
-   * strategy's own _disposed flag.
-   * @returns Resolves once the underlying Camoufox process is closed.
-   */
-  const dispose = (): Promise<void> => fetchStrategy.dispose();
+  const { fetch, gql } = buildBrowserBackedStrategies(args);
+  const mediator = createApiMediator(args.bankHint, fetch, gql);
+  if (args.staticAuth !== undefined) mediator.setRawAuth(args.staticAuth);
+  const dispose = makeCamoufoxDispose(fetch);
   return Object.assign(mediator, { dispose });
 }
 

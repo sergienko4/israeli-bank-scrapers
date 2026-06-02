@@ -9,10 +9,11 @@
  * Only fires when Round 1 (iframe) and Round 2 (main page) both return empty.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+import { none, type Option, some } from '../../Types/Option.js';
 import { isPage } from './SelectorResolver.js';
 import type { IFieldContext, IFieldMatch } from './SelectorResolverPipeline.js';
 
@@ -51,35 +52,116 @@ const TEXT_INPUT_SELECTOR =
   'input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"])';
 
 /**
+ * Build the standard "empty miss" field match for a Page/Frame context.
+ * @param ctx - Page or Frame that owns the negative result.
+ * @returns IFieldMatch with empty selector.
+ */
+function emptyMatch(ctx: Page | Frame): IFieldMatch {
+  return { selector: '', context: ctx };
+}
+
+/**
+ * Compose an `#id` selector when an id is present, otherwise return the fallback.
+ * @param fallback - Selector used when no element id is present.
+ * @param id - DOM id (empty string ⇒ no id).
+ * @returns Best-available selector.
+ */
+function buildIdSelector(fallback: string, id: string): string {
+  return id ? `#${id}` : fallback;
+}
+
+/**
+ * Probe `locator.count()` swallowing playwright failures (defaults to 0).
+ * @param locator - Locator to probe.
+ * @returns Element count, 0 on failure.
+ */
+async function probeLocatorCount(locator: Locator): Promise<number> {
+  return locator.count().catch((): number => 0);
+}
+
+/**
+ * Probe `locator.isVisible()` swallowing playwright failures (defaults to false).
+ * @param locator - Locator to probe.
+ * @returns True when visible, false otherwise.
+ */
+async function probeLocatorVisible(locator: Locator): Promise<boolean> {
+  return locator.isVisible().catch((): boolean => false);
+}
+
+/**
+ * Probe `locator.isEnabled()` swallowing playwright failures (defaults to false).
+ * @param locator - Locator to probe.
+ * @returns True when enabled, false otherwise.
+ */
+async function probeLocatorEnabled(locator: Locator): Promise<boolean> {
+  return locator.isEnabled().catch((): boolean => false);
+}
+
+/**
+ * Probe a locator's DOM `id` attribute, returning '' on miss or failure.
+ * @param locator - Locator to probe.
+ * @returns DOM id or empty string.
+ */
+async function probeLocatorId(locator: Locator): Promise<string> {
+  const id = await locator.getAttribute('id').catch((): string => '');
+  return id ?? '';
+}
+
+/**
+ * Emit the password probe trace line.
+ * @param isFound - Whether at least one password element was found.
+ * @returns Sentinel `true` so the call can be expression-chained.
+ */
+function logPasswordTrace(isFound: boolean): true {
+  const result = isFound ? 'FOUND' : 'NOT_FOUND';
+  LOG.trace({ field: 'password', result });
+  return true;
+}
+
+/**
+ * Reachability probe: count + visibility for a password locator.
+ * @param locator - First-match locator for `input[type="password"]`.
+ * @returns True when the password input is present AND visible.
+ */
+async function isPasswordReachable(locator: Locator): Promise<boolean> {
+  const count = await probeLocatorCount(locator);
+  logPasswordTrace(count > 0);
+  if (count === 0) return false;
+  const isVis = await probeLocatorVisible(locator);
+  LOG.trace({ message: `password visible=${String(isVis)}` });
+  return isVis;
+}
+
+/**
  * Try to resolve a password field in the given frame.
  * @param frame - The iframe to search in.
  * @returns Field match with selector, or empty if not found.
  */
 async function resolvePasswordInFrame(frame: Frame): Promise<IFieldMatch> {
   const locator = frame.locator(PASSWORD_SELECTOR).first();
-  const count = await locator.count().catch((): number => 0);
-  const resultMap: Record<string, 'FOUND' | 'NOT_FOUND'> = { true: 'FOUND', false: 'NOT_FOUND' };
-  const pwdResult = resultMap[String(count > 0)];
-  LOG.trace({
-    field: 'password',
-    result: pwdResult,
-  });
-  if (count === 0) return { selector: '', context: frame };
-  const isVis: boolean = await locator.isVisible().catch((): boolean => false);
-  LOG.trace({
-    message: `password visible=${String(isVis)}`,
-  });
-  if (!isVis) return { selector: '', context: frame };
-  const elemId = await locator.getAttribute('id').catch((): string => '');
-  let selector = PASSWORD_SELECTOR;
-  if (elemId) {
-    selector = `#${elemId}`;
-  }
-  LOG.trace({
-    field: 'password',
-    result: 'FOUND',
-  });
+  const isReachable = await isPasswordReachable(locator);
+  if (!isReachable) return emptyMatch(frame);
+  const elemId = await probeLocatorId(locator);
+  const selector = buildIdSelector(PASSWORD_SELECTOR, elemId);
+  LOG.trace({ field: 'password', result: 'FOUND' });
   return { selector, context: frame, kind: 'css' };
+}
+
+/**
+ * Probe an index-based text input candidate for visibility + enablement.
+ * @param all - Locator over all candidate text inputs.
+ * @param index - Positional index inside `all`.
+ * @returns Some(target) when reachable, none() otherwise.
+ */
+async function probeTextAtIndex(all: Locator, index: number): Promise<Option<Locator>> {
+  const total = await probeLocatorCount(all);
+  if (index >= total) return none();
+  const target = all.nth(index);
+  const isVis = await probeLocatorVisible(target);
+  if (!isVis) return none();
+  const isEnabled = await probeLocatorEnabled(target);
+  if (!isEnabled) return none();
+  return some(target);
 }
 
 /**
@@ -95,24 +177,42 @@ async function resolveTextByIndex(
   fieldKey: string,
 ): Promise<IFieldMatch> {
   const all = frame.locator(TEXT_INPUT_SELECTOR);
-  const total = await all.count().catch((): number => 0);
-  if (index >= total) return { selector: '', context: frame };
-  const target = all.nth(index);
-  const isVis: boolean = await target.isVisible().catch((): boolean => false);
-  if (!isVis) return { selector: '', context: frame };
-  const isEnabled: boolean = await target.isEnabled().catch((): boolean => false);
-  if (!isEnabled) return { selector: '', context: frame };
-  const elemId = await target.getAttribute('id').catch((): string => '');
-  let selector = `${TEXT_INPUT_SELECTOR} >> nth=${String(index)}`;
-  if (elemId) {
-    selector = `#${elemId}`;
-  }
-  LOG.debug({
-    field: `heuristic:${fieldKey}`,
-    result: 'FOUND',
-  });
+  const targetOpt = await probeTextAtIndex(all, index);
+  if (!targetOpt.has) return emptyMatch(frame);
+  const elemId = await probeLocatorId(targetOpt.value);
+  const fallback = `${TEXT_INPUT_SELECTOR} >> nth=${String(index)}`;
+  const selector = buildIdSelector(fallback, elemId);
+  LOG.debug({ field: `heuristic:${fieldKey}`, result: 'FOUND' });
   return { selector, context: frame, kind: 'css' };
 }
+
+/** Handler signature for a single heuristic strategy variant. */
+type StrategyHandler = (
+  frame: Frame,
+  fieldKey: string,
+  strategy: HeuristicStrategy,
+) => Promise<IFieldMatch>;
+
+/** Dispatch table mapping each strategy variant to its handler. */
+const STRATEGY_HANDLERS: Record<HeuristicStrategy['type'], StrategyHandler> = {
+  /**
+   * Password-input heuristic — first `input[type="password"]`.
+   * @param frame - Frame to probe.
+   * @returns Field match (selector empty when not found).
+   */
+  password: async (frame): Promise<IFieldMatch> => resolvePasswordInFrame(frame),
+  /**
+   * Text-input heuristic — `index`-th visible/enabled text input.
+   * @param frame - Frame to probe.
+   * @param fieldKey - Credential key for logging.
+   * @param strategy - Strategy carrying the positional index.
+   * @returns Field match (selector empty when not found).
+   */
+  text: async (frame, fieldKey, strategy): Promise<IFieldMatch> => {
+    const textStrategy = strategy as ITextStrategy;
+    return resolveTextByIndex(frame, textStrategy.index, fieldKey);
+  },
+};
 
 /**
  * Resolve a field using heuristics within a specific frame.
@@ -126,18 +226,9 @@ async function heuristicResolveInFrame(
   fieldKey: string,
 ): Promise<IFieldMatch> {
   const strategy = HEURISTIC_MAP[fieldKey];
-  if (!strategy) return { selector: '', context: frame };
-  if (strategy.type === 'password')
-    return resolvePasswordInFrame(frame as Frame).catch(
-      (): IFieldMatch => ({ selector: '', context: frame }),
-    );
-  const empty: IFieldMatch = { selector: '', context: frame };
-  try {
-    const result = await resolveTextByIndex(frame as Frame, strategy.index, fieldKey);
-    return result;
-  } catch {
-    return empty;
-  }
+  if (!strategy) return emptyMatch(frame);
+  const handler = STRATEGY_HANDLERS[strategy.type];
+  return handler(frame as Frame, fieldKey, strategy).catch((): IFieldMatch => emptyMatch(frame));
 }
 
 /**
@@ -147,14 +238,12 @@ async function heuristicResolveInFrame(
  * @returns IFieldContext with heuristic metadata.
  */
 function toHeuristicContext(match: IFieldMatch, fieldKey: string): IFieldContext {
-  LOG.debug({
-    field: `heuristic:${fieldKey}`,
-    result: 'FOUND',
-  });
+  LOG.debug({ field: `heuristic:${fieldKey}`, result: 'FOUND' });
+  const { selector, context } = match;
   return {
     isResolved: true,
-    selector: match.selector,
-    context: match.context,
+    selector,
+    context,
     resolvedVia: 'heuristic',
     round: 'heuristic',
     resolvedKind: 'css',
@@ -189,11 +278,9 @@ async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFie
   const mainFrame = page.mainFrame();
   const childFrames = page.frames().filter(f => f !== mainFrame);
   if (childFrames.length === 0) return false;
-  LOG.debug({
-    message:
-      `Round 3: searching ${String(childFrames.length)} iframe(s)` +
-      ` for "${maskVisibleText(fieldKey)}"`,
-  });
+  const count = String(childFrames.length);
+  const masked = maskVisibleText(fieldKey);
+  LOG.debug({ message: `Round 3: searching ${count} iframe(s) for "${masked}"` });
   return probeFrameAt(childFrames, fieldKey, 0);
 }
 
@@ -214,9 +301,8 @@ async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFie
 async function probePageHeuristic(page: Page, fieldKey: string): Promise<IFieldContext | false> {
   const iframeResult = await heuristicProbeIframes(page, fieldKey);
   if (iframeResult) return iframeResult;
-  LOG.debug({
-    message: `Round 3 (heuristic): trying main page for "${maskVisibleText(fieldKey)}"`,
-  });
+  const masked = maskVisibleText(fieldKey);
+  LOG.debug({ message: `Round 3 (heuristic): trying main page for "${masked}"` });
   const mainFrame = page.mainFrame();
   const mainMatch = await heuristicResolveInFrame(mainFrame, fieldKey);
   if (mainMatch.selector) return toHeuristicContext(mainMatch, fieldKey);

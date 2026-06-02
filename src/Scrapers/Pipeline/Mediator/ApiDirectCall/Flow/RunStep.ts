@@ -19,7 +19,11 @@ import { buildCanonical } from '../Crypto/GenericCanonicalStringBuilder.js';
 import { signCanonical } from '../Crypto/GenericCryptoSigner.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IStepConfig } from '../IApiDirectCallConfig.js';
+import type {
+  IApiDirectCallConfig,
+  IAsymmetricSignerConfig,
+  IStepConfig,
+} from '../IApiDirectCallConfig.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { applyCryptoField, attachBodySignature, primeStepCarry } from './RunStepBodySigning.js';
@@ -98,6 +102,39 @@ function emitCookieHeader(jar: Map<string, string>): string {
 }
 
 /**
+ * Bind the cookie-jar add method to a backing map.
+ * @param jar - Backing cookie map.
+ * @returns Add function.
+ */
+function makeCookieJarAdd(jar: Map<string, string>): (lines: readonly string[]) => number {
+  /**
+   * Add cookies to the jar.
+   * @param lines - Raw Set-Cookie lines.
+   * @returns Jar size after addition.
+   */
+  function addToJar(lines: readonly string[]): number {
+    return ingestCookies(jar, lines);
+  }
+  return addToJar;
+}
+
+/**
+ * Bind the cookie-jar header method to a backing map.
+ * @param jar - Backing cookie map.
+ * @returns Header function.
+ */
+function makeCookieJarHeader(jar: Map<string, string>): () => string {
+  /**
+   * Emit current cookie header.
+   * @returns Header string.
+   */
+  function emit(): string {
+    return emitCookieHeader(jar);
+  }
+  return emit;
+}
+
+/**
  * Minimal cookie jar — stores last-seen Set-Cookie lines and emits
  * a `k=v; …` header on demand. Duplicate names overwrite.
  * @returns Cookie jar implementation.
@@ -105,21 +142,8 @@ function emitCookieHeader(jar: Map<string, string>): string {
 function createSimpleCookieJar(): IStepCookieJar {
   const jar = new Map<string, string>();
   return {
-    /**
-     * Add Set-Cookie lines.
-     * @param setCookieLines - Raw Set-Cookie lines.
-     * @returns Jar size.
-     */
-    add(setCookieLines: readonly string[]): number {
-      return ingestCookies(jar, setCookieLines);
-    },
-    /**
-     * Emit cookie header.
-     * @returns Cookie header string.
-     */
-    header(): string {
-      return emitCookieHeader(jar);
-    },
+    add: makeCookieJarAdd(jar),
+    header: makeCookieJarHeader(jar),
   };
 }
 
@@ -136,6 +160,23 @@ function scalarToString(v: JsonValue): string | false {
 }
 
 /**
+ * Convert the validated hydrated-query entries into a string-string
+ * record. Extracted from {@link coerceQueryRecord} so the latter
+ * stays inside the per-function LOC budget.
+ * @param entries - Object entries from the hydrated query template.
+ * @returns Procedure with the flat string-string map, or fail.
+ */
+function buildQueryFromEntries(entries: readonly [string, JsonValue][]): Procedure<QueryRecord> {
+  const bad = entries.find(([, v]): boolean => scalarToString(v) === false);
+  if (bad !== undefined) {
+    return fail(ScraperErrorTypes.Generic, `queryTemplate[${bad[0]}] must be a scalar`);
+  }
+  const pairs = entries.map(([k, v]): [string, string] => [k, scalarToString(v) as string]);
+  const out: Record<string, string> = Object.fromEntries(pairs);
+  return succeed(out);
+}
+
+/**
  * Stringify a hydrated query record — walks the top-level object and
  * coerces each value to its string form. Non-record hydrated query
  * fails.
@@ -147,13 +188,7 @@ function coerceQueryRecord(hydrated: JsonValue): Procedure<QueryRecord> {
     return fail(ScraperErrorTypes.Generic, 'step.queryTemplate did not hydrate to an object');
   }
   const entries = Object.entries(hydrated);
-  const badKey = entries.find(([, v]): boolean => scalarToString(v) === false);
-  if (badKey !== undefined) {
-    return fail(ScraperErrorTypes.Generic, `queryTemplate[${badKey[0]}] must be a scalar`);
-  }
-  const pairs = entries.map(([k, v]): [string, string] => [k, scalarToString(v) as string]);
-  const out: Record<string, string> = Object.fromEntries(pairs);
-  return succeed(out);
+  return buildQueryFromEntries(entries);
 }
 
 /**
@@ -169,6 +204,38 @@ function buildQueryRecord(step: IStepConfig, scope: ITemplateScope): Procedure<Q
   return coerceQueryRecord(hydrated.value);
 }
 
+/** Parsed URL parts used by {@link buildPathAndQuery}. */
+interface IParsedUrlParts {
+  readonly pathname: string;
+  readonly search: string;
+}
+
+/**
+ * Parse a URL or return false when malformed — keeps the
+ * try/catch contained.
+ * @param resolvedUrl - Full URL string.
+ * @returns Parsed parts or false on failure.
+ */
+function parseUrlOrFalse(resolvedUrl: string): IParsedUrlParts | false {
+  try {
+    const parsed = new URL(resolvedUrl);
+    return { pathname: parsed.pathname, search: parsed.search };
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Encode and join query record pairs for URL appending.
+ * @param extra - Extra query record.
+ * @param keys - Keys to encode (in iteration order).
+ * @returns `k1=v1&k2=v2` string.
+ */
+function encodeQueryPairs(extra: QueryRecord, keys: readonly string[]): string {
+  const pairs = keys.map(key => `${encodeURIComponent(key)}=${encodeURIComponent(extra[key])}`);
+  return pairs.join('&');
+}
+
 /**
  * Merge an existing URL's query string with an additional record.
  * Uses encodeURIComponent to match ApiMediator.appendQuery exactly
@@ -178,21 +245,13 @@ function buildQueryRecord(step: IStepConfig, scope: ITemplateScope): Procedure<Q
  * @returns Path + final query string.
  */
 function buildPathAndQuery(resolvedUrl: string, extra: QueryRecord): string {
-  let pathname: string;
-  let search: string;
-  try {
-    const parsed = new URL(resolvedUrl);
-    pathname = parsed.pathname;
-    search = parsed.search;
-  } catch {
-    return resolvedUrl;
-  }
+  const parsed = parseUrlOrFalse(resolvedUrl);
+  if (parsed === false) return resolvedUrl;
   const keys = Object.keys(extra);
-  if (keys.length === 0) return `${pathname}${search}`;
-  const pairs = keys.map(k => `${encodeURIComponent(k)}=${encodeURIComponent(extra[k])}`);
-  const joined = pairs.join('&');
-  if (search.length === 0) return `${pathname}?${joined}`;
-  return `${pathname}${search}&${joined}`;
+  if (keys.length === 0) return `${parsed.pathname}${parsed.search}`;
+  const joined = encodeQueryPairs(extra, keys);
+  if (parsed.search.length === 0) return `${parsed.pathname}?${joined}`;
+  return `${parsed.pathname}${parsed.search}&${joined}`;
 }
 
 /** Inputs needed to assemble the signer header value. */
@@ -202,20 +261,34 @@ interface ISignerInput {
   readonly keypair: IGenericKeypair;
 }
 
+/** Asymmetric (non-AES) signer config — re-exported alias for clarity. */
+type NonAesSignerConfig = IAsymmetricSignerConfig;
+
 /**
- * Compute the Content-Signature-style header value per config.signer.
- * @param args - Run-step args bundle (uses scope.config.signer).
- * @param input - Canonical-string inputs for this step.
- * @returns Procedure with the header value.
+ * Validate signer presence + non-AES algorithm — extracted so the
+ * caller stays inside the per-function LOC budget.
+ * @param signer - Optional signer config.
+ * @returns Procedure with the narrowed non-AES signer.
  */
-function computeSignerHeader(args: IRunStepArgs, input: ISignerInput): Procedure<string> {
-  const signer = args.scope.config.signer;
+function requireNonAesSigner(
+  signer: IApiDirectCallConfig['signer'],
+): Procedure<NonAesSignerConfig> {
   if (signer === undefined) {
     return fail(ScraperErrorTypes.Generic, 'computeSignerHeader called without signer');
   }
   if (signer.algorithm === 'AES-CBC-PKCS7') {
     return fail(ScraperErrorTypes.Generic, 'computeSignerHeader called with AES signer');
   }
+  return succeed(signer);
+}
+
+/**
+ * Build the canonical bytes for a non-AES signer.
+ * @param signer - Validated non-AES signer.
+ * @param input - Canonical-string inputs.
+ * @returns Procedure with the canonical buffer.
+ */
+function buildSignerCanonical(signer: NonAesSignerConfig, input: ISignerInput): Procedure<Buffer> {
   const canonicalProc = buildCanonical({
     canonical: signer.canonical,
     pathAndQuery: input.pathAndQuery,
@@ -223,7 +296,22 @@ function computeSignerHeader(args: IRunStepArgs, input: ISignerInput): Procedure
   });
   if (!isOk(canonicalProc)) return canonicalProc;
   const bytes = Buffer.from(canonicalProc.value, 'utf8');
-  return signCanonical(bytes, input.keypair, signer);
+  return succeed(bytes);
+}
+
+/**
+ * Compute the Content-Signature-style header value per config.signer.
+ * @param args - Run-step args bundle (uses scope.config.signer).
+ * @param input - Canonical-string inputs for this step.
+ * @returns Procedure with the header value.
+ */
+function computeSignerHeader(args: IRunStepArgs, input: ISignerInput): Procedure<string> {
+  const signerProc = requireNonAesSigner(args.scope.config.signer);
+  if (!isOk(signerProc)) return signerProc;
+  const signer = signerProc.value;
+  const bytesProc = buildSignerCanonical(signer, input);
+  if (!isOk(bytesProc)) return bytesProc;
+  return signCanonical(bytesProc.value, input.keypair, signer);
 }
 
 /** Inputs used to assemble the outbound header map. */
@@ -259,6 +347,67 @@ function applyCookieHeader(
   return out;
 }
 
+/** Args bundle for {@link applySignerHeader} — respects the 3-param ceiling. */
+interface IApplySignerArgs {
+  readonly args: IRunStepArgs;
+  readonly assembly: IHeaderAssembly;
+  readonly out: Record<string, string>;
+  readonly keypair: IGenericKeypair;
+}
+
+/**
+ * Build the ISignerInput bundle from the apply-args.
+ * @param opts - Apply args bundle.
+ * @returns Canonical-string input.
+ */
+function makeSignerInput(opts: IApplySignerArgs): ISignerInput {
+  return {
+    pathAndQuery: opts.assembly.pathAndQuery,
+    bodyJson: opts.assembly.bodyJson,
+    keypair: opts.keypair,
+  };
+}
+
+/**
+ * Run computeSignerHeader and attach the result under config.signer.headerName.
+ * @param opts - Apply args bundle.
+ * @returns Procedure with the merged header map.
+ */
+function applySignerHeader(opts: IApplySignerArgs): Procedure<HeaderMap> {
+  const signerProc = requireNonAesSigner(opts.args.scope.config.signer);
+  if (!isOk(signerProc)) return signerProc;
+  const input = makeSignerInput(opts);
+  const sigProc = computeSignerHeader(opts.args, input);
+  if (!isOk(sigProc)) return sigProc;
+  opts.out[signerProc.value.headerName] = sigProc.value;
+  return succeed(opts.out);
+}
+
+/**
+ * Attach the signer header to `out` when a non-AES signer is configured.
+ * Extracted from {@link buildStepHeaders} so the latter stays inside
+ * the per-function LOC budget.
+ * @param args - Run-step args.
+ * @param assembly - Body JSON + computed pathAndQuery.
+ * @param out - Mutable header map.
+ * @returns Procedure with the final header map.
+ */
+function attachSignerHeader(
+  args: IRunStepArgs,
+  assembly: IHeaderAssembly,
+  out: Record<string, string>,
+): Procedure<HeaderMap> {
+  const config = args.scope.config;
+  if (config.signer === undefined) return succeed(out);
+  // AES variant signs into the body (not a header) — handled by a
+  // separate body-pointer hook before firePost. Skip header attachment.
+  if (config.signer.algorithm === 'AES-CBC-PKCS7') return succeed(out);
+  if (args.signingKeypair === undefined) {
+    return fail(ScraperErrorTypes.Generic, 'signer configured but no signing keypair in scope');
+  }
+  return applySignerHeader({ args, assembly, out, keypair: args.signingKeypair });
+}
+
 /**
  * Build the outbound header map — static + signer + optional cookies.
  * @param args - Run-step args.
@@ -270,21 +419,7 @@ function buildStepHeaders(args: IRunStepArgs, assembly: IHeaderAssembly): Proced
   const staticHeaders = config.staticHeaders ?? {};
   const seeded = seedHeaders(staticHeaders);
   const out = applyCookieHeader(seeded, args);
-  if (config.signer === undefined) return succeed(out);
-  // AES variant signs into the body (not a header) — handled by a
-  // separate body-pointer hook before firePost. Skip header attachment.
-  if (config.signer.algorithm === 'AES-CBC-PKCS7') return succeed(out);
-  if (args.signingKeypair === undefined) {
-    return fail(ScraperErrorTypes.Generic, 'signer configured but no signing keypair in scope');
-  }
-  const sigProc = computeSignerHeader(args, {
-    pathAndQuery: assembly.pathAndQuery,
-    bodyJson: assembly.bodyJson,
-    keypair: args.signingKeypair,
-  });
-  if (!isOk(sigProc)) return sigProc;
-  out[config.signer.headerName] = sigProc.value;
-  return succeed(out);
+  return attachSignerHeader(args, assembly, out);
 }
 
 /**
@@ -457,6 +592,46 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
  * @param args - Run-step args.
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
+/** Prepared body + scope after hydration / crypto / signing. */
+interface IPreparedBody {
+  readonly body: Record<string, unknown>;
+  readonly scope: ITemplateScope;
+}
+
+/**
+ * Hydrate the body template, prime carry, and apply cryptoField when
+ * configured. Extracted from {@link prepareStepBody} so the latter
+ * stays inside the per-function LOC budget.
+ * @param args - Run-step args.
+ * @param primedScope - Scope after primeStepCarry.
+ * @returns Procedure with the pre-signature prepared body.
+ */
+function hydrateAndCrypto(
+  args: IRunStepArgs,
+  primedScope: ITemplateScope,
+): Procedure<IPreparedBody> {
+  const bodyProc = hydrate(args.step.body.shape, primedScope);
+  if (!isOk(bodyProc)) return bodyProc;
+  const hydratedBody = bodyProc.value as Record<string, unknown>;
+  const cryptoArgs = { step: args.step, scope: primedScope, body: hydratedBody };
+  const afterCrypto = applyCryptoField(cryptoArgs);
+  if (!isOk(afterCrypto)) return afterCrypto;
+  return succeed({ body: afterCrypto.value.body, scope: afterCrypto.value.scope });
+}
+
+/**
+ * Attach the AES body-pointer signature when configured.
+ * @param preBody - Pre-signature prepared body.
+ * @param pathAndQuery - Canonical pathAndQuery for AES signing.
+ * @returns Procedure with the signed body + scope.
+ */
+function attachBodySig(preBody: IPreparedBody, pathAndQuery: string): Procedure<IPreparedBody> {
+  const sigArgs = { scope: preBody.scope, body: preBody.body, pathAndQuery };
+  const signedProc = attachBodySignature(sigArgs);
+  if (!isOk(signedProc)) return signedProc;
+  return succeed({ body: signedProc.value, scope: preBody.scope });
+}
+
 /**
  * Resolve the step's body — hydrate template, prime carry (tsMs +
  * AES-signer IV), apply cryptoField encryption when present, and
@@ -467,23 +642,11 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
  * @param pathAndQuery - Canonical-string path+query (for AES signing).
  * @returns Procedure with the ready-to-POST body + the post-prep scope.
  */
-function prepareStepBody(
-  args: IRunStepArgs,
-  pathAndQuery: string,
-): Procedure<{ readonly body: Record<string, unknown>; readonly scope: ITemplateScope }> {
+function prepareStepBody(args: IRunStepArgs, pathAndQuery: string): Procedure<IPreparedBody> {
   const primedScope = primeStepCarry(args.scope, args.step);
-  const bodyProc = hydrate(args.step.body.shape, primedScope);
-  if (!isOk(bodyProc)) return bodyProc;
-  const hydratedBody = bodyProc.value as Record<string, unknown>;
-  const afterCrypto = applyCryptoField({ step: args.step, scope: primedScope, body: hydratedBody });
-  if (!isOk(afterCrypto)) return afterCrypto;
-  const signedProc = attachBodySignature({
-    scope: afterCrypto.value.scope,
-    body: afterCrypto.value.body,
-    pathAndQuery,
-  });
-  if (!isOk(signedProc)) return signedProc;
-  return succeed({ body: signedProc.value, scope: afterCrypto.value.scope });
+  const preProc = hydrateAndCrypto(args, primedScope);
+  if (!isOk(preProc)) return preProc;
+  return attachBodySig(preProc.value, pathAndQuery);
 }
 
 /** Bundle of values that prepareDispatch hands off to fireAndMergeScope. */
@@ -514,6 +677,85 @@ function resolvePathAndQuery(args: IRunStepArgs): Procedure<IPathAndQuery> {
   return succeed({ pathAndQuery, query: queryProc.value });
 }
 
+/** Args bundle for {@link assembleFire} — respects the 3-param ceiling. */
+interface IAssembleFireArgs {
+  readonly args: IRunStepArgs;
+  readonly preparedBody: IPreparedBody;
+  readonly query: Record<string, string>;
+  readonly headers: Record<string, string>;
+}
+
+/**
+ * Build the final IFireArgs bundle including the optional cookie sink.
+ * @param opts - Assemble args bundle.
+ * @returns Fire-call args ready for firePost.
+ */
+function assembleFire(opts: IAssembleFireArgs): IFireArgs {
+  const fireBase: IFireArgs = {
+    body: opts.preparedBody.body,
+    query: opts.query,
+    extraHeaders: opts.headers,
+  };
+  const onSetCookie = buildOnSetCookie(opts.args);
+  return attachSink(fireBase, onSetCookie);
+}
+
+/** Args bundle for {@link finalizeDispatch} — keeps params ≤3. */
+interface IPostPrepArgs {
+  readonly args: IRunStepArgs;
+  readonly preparedBody: IPreparedBody;
+  readonly pathAndQuery: string;
+  readonly query: Record<string, string>;
+}
+
+/**
+ * Construct the IFireArgs payload from the prepared body + headers.
+ * @param opts - Post-prep args bundle.
+ * @param headers - Resolved header map.
+ * @returns Fire-call payload.
+ */
+function makeFireArgs(opts: IPostPrepArgs, headers: Record<string, string>): IFireArgs {
+  return assembleFire({
+    args: opts.args,
+    preparedBody: opts.preparedBody,
+    query: opts.query,
+    headers,
+  });
+}
+
+/**
+ * Build headers + fire bundle for the post-prep dispatch stage.
+ * @param opts - Post-prep args bundle.
+ * @param fireScope - Run-step args scoped to the prepared scope.
+ * @param baseCtx - Step log context.
+ * @returns Procedure with the assembled dispatch bundle.
+ */
+function headersAndFire(
+  opts: IPostPrepArgs,
+  fireScope: IRunStepArgs,
+  baseCtx: IStepLogContext,
+): Procedure<IDispatchBundle> {
+  const bodyJson = JSON.stringify(opts.preparedBody.body);
+  const headerInput = { bodyJson, pathAndQuery: opts.pathAndQuery };
+  const headersProc = buildStepHeaders(fireScope, headerInput);
+  if (!isOk(headersProc)) return headersProc;
+  const fireArgs = makeFireArgs(opts, headersProc.value);
+  const preparedScope = opts.preparedBody.scope;
+  return succeed({ fireArgs, fireScope, baseCtx, preparedScope });
+}
+
+/**
+ * Assemble fireScope + baseCtx and delegate to {@link headersAndFire}.
+ * @param opts - Post-prep args bundle.
+ * @returns Procedure with the dispatch bundle.
+ */
+function finalizeDispatch(opts: IPostPrepArgs): Procedure<IDispatchBundle> {
+  const fireScope = { ...opts.args, scope: opts.preparedBody.scope };
+  const baseCtx = buildStepContext(opts.args.step, opts.preparedBody.body as JsonValue);
+  LOG.debug({ ...baseCtx, message: '[runStep] START' });
+  return headersAndFire(opts, fireScope, baseCtx);
+}
+
 /**
  * Hydrate the request body and build the dispatch bundle.
  * @param args - Run-step args.
@@ -528,17 +770,46 @@ function buildDispatchBundle(
 ): Procedure<IDispatchBundle> {
   const prepProc = prepareStepBody(args, pathAndQuery);
   if (!isOk(prepProc)) return prepProc;
-  const fireScope = { ...args, scope: prepProc.value.scope };
-  const bodyValue = prepProc.value.body;
-  const baseCtx = buildStepContext(args.step, bodyValue as JsonValue);
-  LOG.debug({ ...baseCtx, message: '[runStep] START' });
-  const bodyJson = JSON.stringify(bodyValue);
-  const headersProc = buildStepHeaders(fireScope, { bodyJson, pathAndQuery });
-  if (!isOk(headersProc)) return headersProc;
-  const fireBase: IFireArgs = { body: bodyValue, query, extraHeaders: headersProc.value };
-  const onSetCookie = buildOnSetCookie(args);
-  const fireArgs = attachSink(fireBase, onSetCookie);
-  return succeed({ fireArgs, fireScope, baseCtx, preparedScope: prepProc.value.scope });
+  return finalizeDispatch({ args, preparedBody: prepProc.value, pathAndQuery, query });
+}
+
+/**
+ * Fold the response carry into the prepared scope.
+ * @param bundle - Dispatch bundle.
+ * @param resp - Successful response JSON.
+ * @returns Procedure with the merged scope.
+ */
+function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
+  const carryProc = extractFields(resp, bundle.fireScope.step.extractsToCarry);
+  if (!isOk(carryProc)) return carryProc;
+  const merged = mergeScopeCarry(bundle.preparedScope, carryProc.value);
+  return succeed(merged);
+}
+
+/**
+ * Log a fire-post failure (PII-safe). Returns true so the caller can
+ * chain via a regular statement without invoking a void-returning
+ * helper (project rule bans `: void`).
+ * @param bundle - Dispatch bundle.
+ * @param errorMessage - Error message from the failed post.
+ * @returns Sentinel true.
+ */
+function logFireFail(bundle: IDispatchBundle, errorMessage: string): true {
+  const errCtx = { ...bundle.baseCtx, errorMessage };
+  LOG.debug({ ...errCtx, message: 'firePost FAIL' });
+  return true;
+}
+
+/**
+ * Log a successful fire-post outcome (PII-safe).
+ * @param bundle - Dispatch bundle.
+ * @param resp - Successful response JSON.
+ * @returns Sentinel true.
+ */
+function logFireOk(bundle: IDispatchBundle, resp: JsonValue): true {
+  const okCtx = { ...bundle.baseCtx, ...describeResponse(resp) };
+  LOG.debug({ ...okCtx, message: '[runStep] firePost OK' });
+  return true;
 }
 
 /**
@@ -549,16 +820,11 @@ function buildDispatchBundle(
 async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITemplateScope>> {
   const respProc = await firePost(bundle.fireScope, bundle.fireArgs);
   if (!isOk(respProc)) {
-    const errCtx = { ...bundle.baseCtx, errorMessage: respProc.errorMessage };
-    LOG.debug({ ...errCtx, message: 'firePost FAIL' });
+    logFireFail(bundle, respProc.errorMessage);
     return respProc;
   }
-  const okCtx = { ...bundle.baseCtx, ...describeResponse(respProc.value) };
-  LOG.debug({ ...okCtx, message: '[runStep] firePost OK' });
-  const carryProc = extractFields(respProc.value, bundle.fireScope.step.extractsToCarry);
-  if (!isOk(carryProc)) return carryProc;
-  const merged = mergeScopeCarry(bundle.preparedScope, carryProc.value);
-  return succeed(merged);
+  logFireOk(bundle, respProc.value);
+  return extractAndMerge(bundle, respProc.value);
 }
 
 /**

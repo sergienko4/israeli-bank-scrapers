@@ -7,6 +7,10 @@ import { tryInContextInternal } from './SelectorResolver.js';
 
 const LOG = getDebug(import.meta.url);
 
+/** Diagnostic constants for not-found message hints. */
+const INSPECT_SCRIPT = 'npx ts-node scripts/inspect-bank-login.ts';
+const REDESIGN_NOTE = 'This usually means the bank redesigned their login page.';
+
 /** List of tried selectors for diagnostics. */
 type TriedList = string[];
 
@@ -59,21 +63,14 @@ function toFieldContext(
   via: IFieldContext['resolvedVia'],
   round: IFieldContext['round'],
 ): IFieldContext {
-  const kindStr = match.kind ?? 'unknown';
+  const { selector, context, kind } = match;
   LOG.trace({
-    wkKey: match.selector,
-    strategy: kindStr,
-    matchValue: maskVisibleText(match.selector),
+    wkKey: selector,
+    strategy: kind ?? 'unknown',
+    matchValue: maskVisibleText(selector),
     via,
   });
-  return {
-    isResolved: true,
-    selector: match.selector,
-    context: match.context,
-    resolvedVia: via,
-    round,
-    resolvedKind: match.kind,
-  };
+  return { isResolved: true, selector, context, resolvedVia: via, round, resolvedKind: kind };
 }
 
 /**
@@ -104,16 +101,11 @@ interface INotFoundContext {
  */
 function buildNotFoundMessage(ctx: INotFoundContext): string {
   const { credentialKey, pageUrl, tried, pageTitle } = ctx;
-  const triedCount = String(tried.length);
-  return (
-    `Could not find '${credentialKey}' field on ${pageUrl}\n` +
-    `Tried ${triedCount} candidates:\n` +
-    tried.join('\n') +
-    `\nPage title: "${pageTitle}"\n` +
-    'This usually means the bank redesigned their login page.\n' +
-    'Run: npx ts-node scripts/inspect-bank-login.ts' +
-    ` --url '${pageUrl}' to re-detect selectors.`
-  );
+  const header = `Could not find '${credentialKey}' field on ${pageUrl}`;
+  const summary = `Tried ${String(tried.length)} candidates:\n${tried.join('\n')}`;
+  const titleLine = `Page title: "${pageTitle}"`;
+  const cmdHint = `Run: ${INSPECT_SCRIPT} --url '${pageUrl}' to re-detect selectors.`;
+  return [header, summary, titleLine, REDESIGN_NOTE, cmdHint].join('\n');
 }
 
 /**
@@ -124,15 +116,8 @@ function buildNotFoundMessage(ctx: INotFoundContext): string {
  * @returns True after logging completes.
  */
 function logTriedCandidates(key: string, _url: string, tried: TriedList): boolean {
-  LOG.debug({
-    field: key,
-    result: 'NOT_FOUND',
-  });
-  for (const line of tried) {
-    LOG.debug({
-      message: maskVisibleText(line),
-    });
-  }
+  LOG.debug({ field: key, result: 'NOT_FOUND' });
+  for (const line of tried) LOG.debug({ message: maskVisibleText(line) });
   return true;
 }
 
@@ -158,18 +143,12 @@ function formatTriedCandidates(
  */
 export async function buildNotFoundContext(opts: IResolveAllOpts): Promise<IFieldContext> {
   const { pageOrFrame, field, pageUrl } = opts;
+  const { credentialKey } = field;
   const tried = formatTriedCandidates(opts.bankCandidates, opts.wellKnownCandidates);
-  logTriedCandidates(field.credentialKey, pageUrl, tried);
+  logTriedCandidates(credentialKey, pageUrl, tried);
   const pageTitle = await getPageTitle(pageOrFrame);
-  const msg = buildNotFoundMessage({
-    credentialKey: field.credentialKey,
-    pageUrl,
-    tried,
-    pageTitle,
-  });
-  LOG.debug({
-    message: maskVisibleText(msg),
-  });
+  const msg = buildNotFoundMessage({ credentialKey, pageUrl, tried, pageTitle });
+  LOG.debug({ message: maskVisibleText(msg) });
   return buildNotResolvedResult(pageOrFrame, msg);
 }
 
@@ -198,15 +177,10 @@ function buildNotResolvedResult(context: Page | Frame, message: string): IFieldC
  */
 async function tryFrame(frame: Frame, allCandidates: SelectorCandidate[]): Promise<IFieldMatch> {
   const found = await tryInContextInternal(frame, allCandidates);
-  if (found.css) {
-    const frameUrl = frame.url();
-    LOG.debug({
-      field: `iframe:${maskVisibleText(frameUrl)}`,
-      result: 'FOUND',
-    });
-    return { selector: found.css, context: frame, kind: found.kind };
-  }
-  return { selector: '', context: frame };
+  if (!found.css) return { selector: '', context: frame };
+  const frameUrl = frame.url();
+  LOG.debug({ field: `iframe:${maskVisibleText(frameUrl)}`, result: 'FOUND' });
+  return { selector: found.css, context: frame, kind: found.kind };
 }
 
 /**
@@ -251,15 +225,10 @@ export async function searchInChildFrames(
   cachedFrames?: Frame[],
 ): Promise<IFieldMatch> {
   const childFrames = getChildFrames(page, cachedFrames);
-  if (childFrames.length > 0) {
-    LOG.debug({
-      message: `Round 1: searching ${String(childFrames.length)} iframe(s)`,
-    });
-  }
+  const count = String(childFrames.length);
+  if (childFrames.length > 0) LOG.debug({ message: `Round 1: searching ${count} iframe(s)` });
   const actions = childFrames.map(
-    (frame): (() => Promise<IFieldMatch>) =>
-      () =>
-        tryFrame(frame, allCandidates),
+    frame => async (): Promise<IFieldMatch> => tryFrame(frame, allCandidates),
   );
   return reduceFrameActions(actions, { selector: '', context: page });
 }
@@ -276,15 +245,10 @@ export async function resolveInMainContext(
   allCandidates: SelectorCandidate[],
   credentialKey: string,
 ): Promise<IFieldMatch> {
-  LOG.debug({
-    message: 'Round 2: searching main page',
-  });
+  LOG.debug({ message: 'Round 2: searching main page' });
   const main = await tryInContextInternal(pageOrFrame, allCandidates);
   if (!main.css) return { selector: '', context: pageOrFrame };
-  LOG.debug({
-    field: credentialKey,
-    result: 'FOUND',
-  });
+  LOG.debug({ field: credentialKey, result: 'FOUND' });
   return { selector: main.css, context: pageOrFrame, kind: main.kind };
 }
 
@@ -320,20 +284,14 @@ export async function probeIframes(
   opts: IResolveAllOpts,
 ): Promise<IFieldContext | IFieldMatch> {
   const { bankCandidates, wellKnownCandidates, cachedFrames } = opts;
+  const base = { page, cachedFrames };
   const bankResult = await tryIframeGroup({
-    page,
+    ...base,
     candidates: bankCandidates,
     via: 'bankConfig',
-    cachedFrames,
   });
   if ('isResolved' in bankResult) return bankResult;
-  const wkResult = await tryIframeGroup({
-    page,
-    candidates: wellKnownCandidates,
-    via: 'wellKnown',
-    cachedFrames,
-  });
-  return wkResult;
+  return tryIframeGroup({ ...base, candidates: wellKnownCandidates, via: 'wellKnown' });
 }
 
 /** Options for trying a candidate group in the main page context. */
@@ -364,18 +322,8 @@ async function tryMainGroup(opts: IMainGroupOpts): Promise<IFieldContext | IFiel
  */
 export async function probeMainPage(opts: IResolveAllOpts): Promise<IFieldContext | IFieldMatch> {
   const { pageOrFrame, bankCandidates, wellKnownCandidates, field } = opts;
-  const bankResult = await tryMainGroup({
-    ctx: pageOrFrame,
-    candidates: bankCandidates,
-    credentialKey: field.credentialKey,
-    via: 'bankConfig',
-  });
+  const base = { ctx: pageOrFrame, credentialKey: field.credentialKey };
+  const bankResult = await tryMainGroup({ ...base, candidates: bankCandidates, via: 'bankConfig' });
   if ('isResolved' in bankResult) return bankResult;
-  const wkResult = await tryMainGroup({
-    ctx: pageOrFrame,
-    candidates: wellKnownCandidates,
-    credentialKey: field.credentialKey,
-    via: 'wellKnown',
-  });
-  return wkResult;
+  return tryMainGroup({ ...base, candidates: wellKnownCandidates, via: 'wellKnown' });
 }

@@ -88,6 +88,17 @@ function stepArrayPick(arr: JsonArray, propName: string, path: string): Procedur
 }
 
 /**
+ * Build a predicate matching plain-object entries whose `k` property equals `v`.
+ * Closure-free factory so callers can compose it directly into Array.find.
+ * @param k - Property name to probe.
+ * @param v - Expected string value at `entry[k]`.
+ * @returns Predicate suitable for Array.find on JsonArray entries.
+ */
+function makeKvPredicate(k: string, v: string): (entry: JsonValue) => boolean {
+  return (entry): boolean => isPlainObject(entry) && Object.hasOwn(entry, k) && entry[k] === v;
+}
+
+/**
  * Extended: filter an array down to the first element whose named
  * property equals the given string. Encoded as segment `?k=v`.
  * @param arr - Current array cursor.
@@ -100,13 +111,9 @@ function stepArrayFilter(arr: JsonArray, expr: string, path: string): Procedure<
   if (eq <= 0) return missFail(path);
   const k = expr.slice(0, eq);
   const v = expr.slice(eq + 1);
-  const matched = arr.find((entry): boolean => {
-    if (!isPlainObject(entry)) return false;
-    if (!Object.hasOwn(entry, k)) return false;
-    return entry[k] === v;
-  });
-  if (matched === undefined) return missFail(path);
-  return succeed(matched);
+  const predicate = makeKvPredicate(k, v);
+  const matched = arr.find(predicate);
+  return matched === undefined ? missFail(path) : succeed(matched);
 }
 
 /**

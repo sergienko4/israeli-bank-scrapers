@@ -101,28 +101,45 @@ async function tryIframeProbe(
 }
 
 /**
+ * Log a not-found diagnostic and build the final not-found context.
+ * @param opts - Resolve options containing field details.
+ * @returns Not-resolved IFieldContext with diagnostic message.
+ */
+async function logAndBuildNotFound(opts: IResolveAllOpts): Promise<IFieldContext> {
+  LOG.debug({ field: opts.field.credentialKey, result: 'NOT_FOUND' });
+  return buildNotFoundContext(opts);
+}
+
+/**
+ * Hot-path probe: iframes first, then main page.
+ * @param pageOrFrame - Page or Frame to search in.
+ * @param opts - Resolve options.
+ * @returns Some(context) on hit, none() on miss.
+ */
+async function tryHotPath(
+  pageOrFrame: Page | Frame,
+  opts: IResolveAllOpts,
+): Promise<Option<IFieldContext>> {
+  const iframeResult = await tryIframeProbe(pageOrFrame, opts);
+  if (iframeResult.has) return iframeResult;
+  const mainResult = await probeMainPage(opts);
+  if ('isResolved' in mainResult) return some(mainResult);
+  return none();
+}
+
+/**
  * Run the resolution pipeline: iframes first, then main page.
  * @param pageOrFrame - Page or Frame to search in.
  * @param opts - Pre-built resolve options.
  * @returns Resolved IFieldContext (may have isResolved=false on failure).
  */
 async function probeAll(pageOrFrame: Page | Frame, opts: IResolveAllOpts): Promise<IFieldContext> {
-  const iframeResult = await tryIframeProbe(pageOrFrame, opts);
-  if (iframeResult.has) return iframeResult.value;
-  const mainResult = await probeMainPage(opts);
-  if ('isResolved' in mainResult) return mainResult;
-  // Round 3: Heuristic — input[type="password"] on main page + iframes
-  LOG.trace({
-    field: opts.field.credentialKey,
-    result: 'NOT_FOUND',
-  });
-  const heuristicResult = await tryHeuristicProbe(pageOrFrame, opts.field.credentialKey);
-  if (heuristicResult) return heuristicResult;
-  LOG.debug({
-    field: opts.field.credentialKey,
-    result: 'NOT_FOUND',
-  });
-  return buildNotFoundContext(opts);
+  const hot = await tryHotPath(pageOrFrame, opts);
+  if (hot.has) return hot.value;
+  LOG.trace({ field: opts.field.credentialKey, result: 'NOT_FOUND' });
+  const heuristic = await tryHeuristicProbe(pageOrFrame, opts.field.credentialKey);
+  if (heuristic) return heuristic;
+  return logAndBuildNotFound(opts);
 }
 
 /**
@@ -169,6 +186,65 @@ export interface IResolveFieldArgs {
 /** Sentinel for no form scoping — avoids bare '' fallback. */
 const NO_FORM_SCOPE = '';
 
+/** Resolved WK concept slot + candidate list pair. */
+interface IWkLookup {
+  readonly slot: Option<string>;
+  readonly wellKnown: readonly SelectorCandidate[];
+}
+
+/**
+ * Look up well-known candidates for a field key.
+ * @param fieldKey - Credential key.
+ * @returns Slot label and candidate list (empty when no match).
+ */
+function resolveWkCandidates(fieldKey: string): IWkLookup {
+  const wkSlot = WK_CONCEPT_MAP[fieldKey];
+  if (wkSlot === undefined) return { slot: none(), wellKnown: [] };
+  return { slot: some(wkSlot), wellKnown: WK_LOGIN_FORM[wkSlot] };
+}
+
+/**
+ * Apply form scoping to bank + well-known candidate lists.
+ * @param bank - Bank-specific candidates.
+ * @param wellKnown - Well-known candidates.
+ * @param formSelector - Optional form selector for scoping.
+ * @returns Scoped candidate pair.
+ */
+function buildScopedCandidates(
+  bank: readonly SelectorCandidate[],
+  wellKnown: readonly SelectorCandidate[],
+  formSelector?: string,
+): IFieldCandidates {
+  const scope = formSelector ?? NO_FORM_SCOPE;
+  return { bank: applyFormScope(bank, scope), wk: applyFormScope(wellKnown, scope) };
+}
+
+/**
+ * Emit the resolved-field diagnostic log row.
+ * @param fieldKey - Credential key.
+ * @param enriched - Enriched field context with metadata.
+ * @param wkSlot - WK concept slot (Option) — `'CUSTOM'` is logged when none.
+ * @returns Sentinel `true` so the call can be expression-chained.
+ */
+function logResolvedDetails(
+  fieldKey: string,
+  enriched: IPipelineFieldContext,
+  wkSlot: Option<string>,
+): true {
+  const meta = enriched.metadata ?? EMPTY_METADATA;
+  const concept = wkSlot.has ? wkSlot.value : 'CUSTOM';
+  const strategy = enriched.resolvedKind ?? 'unknown';
+  LOG.debug({
+    field: fieldKey,
+    wkConcept: concept,
+    strategy,
+    elementId: meta.id,
+    elementTag: meta.tagName,
+    elementClasses: meta.className,
+  });
+  return true;
+}
+
 /**
  * Resolve a login field using pipeline text-only well-known candidates.
  * Finds the element by visible Hebrew text, then extracts DOM metadata.
@@ -178,28 +254,11 @@ const NO_FORM_SCOPE = '';
 export async function resolveFieldPipeline(
   args: IResolveFieldArgs,
 ): Promise<IPipelineFieldContext> {
-  const wkSlot = WK_CONCEPT_MAP[args.fieldKey];
-  let wk: readonly SelectorCandidate[] = [];
-  if (wkSlot !== undefined) wk = WK_LOGIN_FORM[wkSlot];
-  const scope = args.formSelector ?? NO_FORM_SCOPE;
-  const scopedBank = applyFormScope(args.bankCandidates, scope);
-  const scopedWk = applyFormScope(wk, scope);
-  const candidates = { bank: scopedBank, wk: scopedWk };
+  const { slot, wellKnown } = resolveWkCandidates(args.fieldKey);
+  const candidates = buildScopedCandidates(args.bankCandidates, wellKnown, args.formSelector);
   const opts = buildResolveOpts(args.pageOrFrame, args.fieldKey, candidates);
   const result = await probeAll(args.pageOrFrame, opts);
   const enriched = await enrichWithMetadata(result);
-  if (enriched.isResolved) {
-    const meta = enriched.metadata ?? EMPTY_METADATA;
-    const wkLabel = wkSlot ?? 'CUSTOM';
-    const kindLabel = enriched.resolvedKind ?? 'unknown';
-    LOG.debug({
-      field: args.fieldKey,
-      wkConcept: wkLabel,
-      strategy: kindLabel,
-      elementId: meta.id,
-      elementTag: meta.tagName,
-      elementClasses: meta.className,
-    });
-  }
+  if (enriched.isResolved) logResolvedDetails(args.fieldKey, enriched, slot);
   return enriched;
 }
