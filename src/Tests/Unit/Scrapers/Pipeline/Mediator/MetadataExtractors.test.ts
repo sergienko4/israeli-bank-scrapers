@@ -1,12 +1,10 @@
 /**
  * Unit tests for MetadataExtractors.ts.
- * Mocks ctx.evaluate and locator.isVisible to test all paths.
+ * Mocks ctx.evaluate, locator.count and locator.isVisible to test all paths.
  * JSDOM evaluate-callback tests use manual JSDOM instance for branch coverage.
  */
 
 import type { Frame, Page } from 'playwright-core';
-
-type MockStr = string;
 
 import {
   EMPTY_METADATA,
@@ -17,14 +15,14 @@ import {
 
 /** Raw DOM props shape returned by evaluate. */
 interface IRawProps {
-  id: MockStr;
-  className: MockStr;
-  tagName: MockStr;
-  type: MockStr;
-  name: MockStr;
-  formId: MockStr;
-  ariaLabel: MockStr;
-  placeholder: MockStr;
+  id: string;
+  className: string;
+  tagName: string;
+  type: string;
+  name: string;
+  formId: string;
+  ariaLabel: string;
+  placeholder: string;
 }
 
 /** Full DOM props for a typical Angular Material input. */
@@ -51,14 +49,22 @@ const EMPTY_PROPS: IRawProps = {
   placeholder: '',
 };
 
+/** Options for `makeMockCtx` — bundled to respect the 3-param ceiling. */
+interface IMockCtxOptions {
+  readonly isVisible?: boolean;
+  readonly willThrow?: boolean;
+  readonly isAttached?: boolean;
+}
+
 /**
  * Build a mock ctx that returns given props from evaluate and optional isVisible.
  * @param props - DOM props to return.
- * @param isVisible - Whether locator.first().isVisible() returns true.
- * @param visibleThrows - Whether isVisible throws instead.
+ * @param opts - Optional flags controlling locator behavior.
  * @returns Mock Page/Frame.
  */
-function makeMockCtx(props: IRawProps, isVisible = true, visibleThrows = false): Page | Frame {
+function makeMockCtx(props: IRawProps, opts: IMockCtxOptions = {}): Page | Frame {
+  const { willThrow = false, isAttached = true } = opts;
+  const isVisibleResult = opts.isVisible ?? isAttached;
   return {
     /**
      * Return a mock locator with isVisible + evaluate support.
@@ -71,13 +77,18 @@ function makeMockCtx(props: IRawProps, isVisible = true, visibleThrows = false):
        */
       first: () => ({
         /**
-         * Return isVisible based on test setup.
+         * Return count for attachment probe — 1 if attached, 0 if absent.
+         * @returns Promise number.
+         */
+        count: (): Promise<number> => Promise.resolve(isAttached ? 1 : 0),
+        /**
+         * Return isVisible — derived from isAttached when not explicitly set.
          * @returns Promise boolean.
          */
         isVisible: (): Promise<boolean> =>
-          visibleThrows
+          willThrow
             ? Promise.reject(new Error('locator detached'))
-            : Promise.resolve(isVisible),
+            : Promise.resolve(isVisibleResult),
         /**
          * Return mock props as if extracted from DOM.
          * @returns Resolved props.
@@ -111,7 +122,7 @@ describe('EMPTY_METADATA', () => {
 
 describe('extractMetadata/success', () => {
   it('populates all fields from evaluate result', async () => {
-    const ctx = makeMockCtx(FULL_PROPS, true);
+    const ctx = makeMockCtx(FULL_PROPS, { isVisible: true });
     const meta = await extractMetadata(ctx, '#mat-input-2');
     expect(meta.id).toBe('mat-input-2');
     expect(meta.className).toBe('mat-input-element');
@@ -124,30 +135,46 @@ describe('extractMetadata/success', () => {
   });
 
   it('sets isVisible=true when locator.isVisible returns true', async () => {
-    const ctx = makeMockCtx(FULL_PROPS, true);
+    const ctx = makeMockCtx(FULL_PROPS, { isVisible: true });
     const meta = await extractMetadata(ctx, '#mat-input-2');
     expect(meta.isVisible).toBe(true);
   });
 
   it('sets isVisible=false when locator.isVisible returns false', async () => {
-    const ctx = makeMockCtx(FULL_PROPS, false);
+    const ctx = makeMockCtx(FULL_PROPS, { isVisible: false });
     const meta = await extractMetadata(ctx, '#mat-input-2');
     expect(meta.isVisible).toBe(false);
   });
 });
 
 describe('extractMetadata/empty-element', () => {
-  it('returns empty fields when element is not found (evaluate returns empty)', async () => {
-    const ctx = makeMockCtx(EMPTY_PROPS, false);
+  it('returns empty fields when element is absent from DOM (count=0)', async () => {
+    const ctx = makeMockCtx(EMPTY_PROPS, { isAttached: false });
     const meta = await extractMetadata(ctx, '#not-found');
     expect(meta.tagName).toBe('');
     expect(meta.id).toBe('');
+  });
+
+  it('extracts all props for attached-but-hidden element (regression: was lost via isVisible-as-attachment bug)', async () => {
+    // Element is in the DOM (count=1) but visually hidden (isVisible=false).
+    // The pre-fix `extractDomProps` used `isVisible()` as the attachment probe,
+    // which incorrectly returned EMPTY_DOM_PROPS for hidden-but-attached nodes,
+    // silently dropping `id` / `name` / `formId` / `ariaLabel`. The fix probes
+    // existence via `count()` and lets `extractMetadata` compute `isVisible`
+    // separately as an independent visibility signal.
+    const ctx = makeMockCtx(FULL_PROPS, { isVisible: false, isAttached: true });
+    const meta = await extractMetadata(ctx, '#hidden-but-attached');
+    expect(meta.id).toBe('mat-input-2');
+    expect(meta.name).toBe('username');
+    expect(meta.formId).toBe('login-form');
+    expect(meta.ariaLabel).toBe('שם משתמש');
+    expect(meta.isVisible).toBe(false);
   });
 });
 
 describe('extractMetadata/error-handling', () => {
   it('sets isVisible=false when locator.isVisible throws', async () => {
-    const ctx = makeMockCtx(FULL_PROPS, true, true);
+    const ctx = makeMockCtx(FULL_PROPS, { willThrow: true });
     const meta = await extractMetadata(ctx, '#mat-input-2');
     expect(meta.isVisible).toBe(false);
   });
@@ -207,6 +234,11 @@ function makeJsdomCtx(html: string, isVisible = true): Page | Frame {
        * @returns First locator mock.
        */
       first: (): object => ({
+        /**
+         * Return count based on JSDOM querySelector — 1 if found, 0 if absent.
+         * @returns Promise number.
+         */
+        count: (): Promise<number> => Promise.resolve(domDoc.querySelector(selector) ? 1 : 0),
         /**
          * Return visibility based on test setup.
          * @returns Visibility state.

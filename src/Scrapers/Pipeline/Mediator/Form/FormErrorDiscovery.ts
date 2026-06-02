@@ -76,9 +76,37 @@ export const NO_ERRORS: IFormErrorScanResult = { hasErrors: false, errors: [], s
 
 // ── Layer 1: Dynamic DOM scan ──────────────────────────────
 
-/** Evaluation argument — passes the selector string to the browser context. */
+/** Evaluation argument — passes the selector + sentinel into the browser context. */
 interface IEvalArg {
   readonly sel: string;
+  readonly noClass: string;
+}
+
+/**
+ * Browser-context callback for `queryDomErrors` — must be self-contained
+ * (no captured closures). Playwright serializes the function source for
+ * transport into the page context — any module-scope reference would be
+ * `undefined` at runtime.
+ * @param arg - Selector + sentinel bundle passed from Node side.
+ * @param arg.sel - CSS selector for the error candidates.
+ * @param arg.noClass - Sentinel string for elements with no `class` attribute.
+ * @returns Raw DOM items for every visible error candidate.
+ */
+function scanDomErrorsInBrowser({ sel, noClass }: IEvalArg): IRawDomItem[] {
+  const fieldTags = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
+  const all = [...document.querySelectorAll(sel)];
+  return all
+    .filter((el): boolean => !fieldTags.has(el.tagName))
+    .map((el): IRawDomItem => {
+      const cs = globalThis.getComputedStyle(el);
+      const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
+      return {
+        tag: el.tagName.toLowerCase(),
+        cls: el.getAttribute('class') ?? noClass,
+        text: (el.textContent || '').trim(),
+        isHidden,
+      };
+    });
 }
 
 /**
@@ -88,25 +116,7 @@ interface IEvalArg {
  * @returns Array of raw DOM items matching the error selectors.
  */
 async function queryDomErrors(ctx: Page | Frame): Promise<readonly IRawDomItem[]> {
-  return ctx.evaluate(
-    ({ sel }: IEvalArg): IRawDomItem[] => {
-      const fieldTags = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
-      const els = [...document.querySelectorAll(sel)];
-      return els
-        .filter((el): boolean => !fieldTags.has(el.tagName))
-        .map((el): IRawDomItem => {
-          const cs = globalThis.getComputedStyle(el);
-          const isHidden = cs.display === 'none' || cs.visibility === 'hidden';
-          const cls = el.getAttribute('class') ?? NO_CLASS;
-          const rawText = el.textContent;
-          const text = (rawText || '').trim();
-          const tag = el.tagName.toLowerCase();
-          const item: IRawDomItem = { tag, cls, text, isHidden };
-          return item;
-        });
-    },
-    { sel: ERROR_SELECTOR },
-  );
+  return ctx.evaluate(scanDomErrorsInBrowser, { sel: ERROR_SELECTOR, noClass: NO_CLASS });
 }
 
 /**

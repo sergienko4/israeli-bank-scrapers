@@ -64,8 +64,7 @@ function logResolveResult(log: ScraperLogger, key: string, success: boolean): bo
  */
 async function resolveCredentialField(opts: IFillFieldOpts): Promise<Procedure<IFieldContext>> {
   const key = opts.fill.credentialKey;
-  const msg = `resolving ${maskVisibleText(key)}`;
-  opts.logger.debug({ message: msg });
+  opts.logger.debug({ message: `resolving ${maskVisibleText(key)}` });
   const result = await opts.mediator.resolveField(
     key,
     opts.fill.selectors,

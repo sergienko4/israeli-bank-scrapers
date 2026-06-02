@@ -325,3 +325,15 @@ JsonRecord
 OTP_FALLBACK_CLICK_TIMEOUT_MS
 # Reason: OTP_FORCE_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (3000 ms) used exclusively by OtpDetector.tryForceClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
 OTP_FORCE_CLICK_TIMEOUT_MS
+
+# --- Phase 2a / C15 (PipelineContextSlotKeys — extracted from PipelineContextFactory.ts) ---
+# Reason: PhaseStateSlotKey — internal string-literal union 'login' | 'dashboard' | 'scrape' | 'api' used by PipelineContextFactory.ts to type the four top-level phase-state result slots. Pure type-plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
+PhaseStateSlotKey
+# Reason: DiscoverySlotKey — internal string-literal union of the six discovery result-slot names (preLoginDiscovery, loginFieldDiscovery, scrapeDiscovery, accountDiscovery, txnEndpoint, dashboardTxnHarvest) used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+DiscoverySlotKey
+# Reason: PhaseEmitSlotKey — internal string-literal union 'authDiscovery' | 'otpTrigger' | 'otpFill' for the M1/M4 sealed-phase result slots used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+PhaseEmitSlotKey
+# Reason: BalanceSlotKey — internal string-literal union of the five balance-pipeline result-slot names (balanceFetchPlan, balanceResponsesByBankAccount, balanceExtracted, balanceValidation, balanceResolution) used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+BalanceSlotKey
+# Reason: ResultSlotKey — internal union-of-the-four-sub-key-types fed to Pick<IPipelineContext, ResultSlotKey> to derive IResultSlots inside PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+ResultSlotKey

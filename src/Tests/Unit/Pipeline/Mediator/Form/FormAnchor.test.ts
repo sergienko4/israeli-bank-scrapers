@@ -346,8 +346,9 @@ describe('discoverFormAnchor — mapAncestorTuples invocation', () => {
     });
     const page = makeExecPage([form]);
     const result = await discoverFormAnchor(page, '#u');
-    // Without id, tag:nth-of-type when sibCount > 1
-    expect(result?.selector).toBe('form:nth-of-type(0)');
+    // Without id, tag:nth-of-type when sibCount > 1.
+    // sibIndex is 1-based to match CSS `:nth-of-type` semantics.
+    expect(result?.selector).toBe('form:nth-of-type(1)');
   });
 
   it('returns null when outer locator resolves but ancestor chain is empty (line 148)', async () => {
