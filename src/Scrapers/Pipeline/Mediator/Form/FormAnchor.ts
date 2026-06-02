@@ -161,7 +161,7 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
       el.id,
       el.tagName === 'FORM',
       el.querySelectorAll('input').length,
-      sibs?.indexOf(el) ?? 0,
+      sibs ? sibs.indexOf(el) + 1 : 1,
       sibs?.length ?? 1,
       el.getAttribute('name') ?? absent,
       stableClass,
