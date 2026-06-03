@@ -209,8 +209,7 @@ const RESTRICTED_SYNTAX_RULES = [
 // helper, which short-circuits in CI. Applied via a dedicated files
 // block below so the helper itself + tests remain allow-listed.
 const NO_DIRECT_SCREENSHOT_RULE = {
-  selector:
-    'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
+  selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
   message:
     'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The src/Common/SafeScreenshot.ts shim is deprecated since v8.5; new imports MUST use the canonical Pipeline path.',
 };
@@ -869,7 +868,7 @@ export default tseslint.config(
           selector:
             'TSTypeReference[typeName.name="ReadonlySet"] > TSTypeParameterInstantiation > TSStringKeyword',
           message:
-            "🚫 PIPELINE TYPE: Type literal sets via a string-literal union (e.g. ReadonlySet<PhaseName>) + `as const`, not ReadonlySet<string>. Catches typos at compile time.",
+            '🚫 PIPELINE TYPE: Type literal sets via a string-literal union (e.g. ReadonlySet<PhaseName>) + `as const`, not ReadonlySet<string>. Catches typos at compile time.',
         },
         {
           // CR-P2 — ban `expr as unknown as T` double-casts at API boundaries
@@ -888,7 +887,7 @@ export default tseslint.config(
           selector:
             'BinaryExpression[operator=/^[!=]==$/][left.type="MemberExpression"][left.property.name="success"][right.type="Literal"][right.value=/^(true|false)$/]',
           message:
-            "🚫 PROCEDURE: Use `isOk(result)` instead of `result.success === true/false`. Keeps narrowing + call-site consistency aligned across the codebase.",
+            '🚫 PROCEDURE: Use `isOk(result)` instead of `result.success === true/false`. Keeps narrowing + call-site consistency aligned across the codebase.',
         },
       ],
 
@@ -949,10 +948,16 @@ export default tseslint.config(
   // declarations are zero-LoC contributions; helpers and any
   // future runtime code in this folder must fit within 10 LoC.
   {
-    files: ['src/Scrapers/Pipeline/Types/Domain/**/*.ts', 'src/Scrapers/Pipeline/EslintCanaries/types-domain-fn-over-10.canary.ts'],
+    files: [
+      'src/Scrapers/Pipeline/Types/Domain/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/types-domain-fn-over-10.canary.ts',
+    ],
     rules: {
       'import-x/prefer-default-export': 'off',
-      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
     },
   },
 
@@ -1027,10 +1032,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: [
-                '**/Strategy/Scrape/**',
-                '**/Mediator/Scrape/ScrapePhaseActions*',
-              ],
+              group: ['**/Strategy/Scrape/**', '**/Mediator/Scrape/ScrapePhaseActions*'],
               message:
                 '🚫 V5 ISOLATION (T49): BALANCE-RESOLVE must not import SCRAPE internals. Read ctx.scrape.perAccountResponses instead.',
             },
@@ -1062,10 +1064,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: [
-                '**/Registry/WK/BalanceResolveWK*',
-                '**/Mediator/BalanceResolve/**',
-              ],
+              group: ['**/Registry/WK/BalanceResolveWK*', '**/Mediator/BalanceResolve/**'],
               message:
                 '🚫 V5 ISOLATION (T50): SCRAPE must not reference BalanceResolve internals. Balance resolution is owned by the BALANCE-RESOLVE phase.',
             },
@@ -1112,9 +1111,7 @@ export default tseslint.config(
   // This block targets the dedicated canary so verify.sh proves the
   // rule fires; the canary's import of `BalanceFetchPlanner` is rejected.
   {
-    files: [
-      'src/Scrapers/Pipeline/EslintCanaries/balance-fetch-only-in-balance-resolve.canary.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/EslintCanaries/balance-fetch-only-in-balance-resolve.canary.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -1151,10 +1148,9 @@ export default tseslint.config(
         'error',
         ...RESTRICTED_SYNTAX_RULES,
         {
-          selector:
-            "AwaitExpression > CallExpression[callee.property.name=/^fetch(Post|Get)$/]",
+          selector: 'AwaitExpression > CallExpression[callee.property.name=/^fetch(Post|Get)$/]',
           message:
-            "🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical): wrap `await api.fetch*` in safeIssueOneFetch (try/catch) so a thrown fetch cannot abort the Promise.all loop and break per-bank-account quarantine.",
+            '🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical): wrap `await api.fetch*` in safeIssueOneFetch (try/catch) so a thrown fetch cannot abort the Promise.all loop and break per-bank-account quarantine.',
         },
       ],
     },
@@ -1205,16 +1201,15 @@ export default tseslint.config(
         'error',
         ...RESTRICTED_SYNTAX_RULES,
         {
-          selector:
-            "LogicalExpression[operator='??'][left.property.name='balance'][right.value=0]",
+          selector: "LogicalExpression[operator='??'][left.property.name='balance'][right.value=0]",
           message:
-            "🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? 0` collapses unknown into a real zero. Skip the entry (or surface a typed failure) instead.",
+            '🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? 0` collapses unknown into a real zero. Skip the entry (or surface a typed failure) instead.',
         },
         {
           selector:
             "LogicalExpression[operator='??'][left.property.name='balance'][right.raw='null']",
           message:
-            "🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? null` is forbidden for the same reason as `?? 0` — use a typed skip.",
+            '🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? null` is forbidden for the same reason as `?? 0` — use a typed skip.',
         },
       ],
     },
@@ -1408,10 +1403,7 @@ export default tseslint.config(
       // feedback on PR #248, recognising the `assert*` and `run*`
       // names lets each helper be the single source of truth and
       // removes the duplicate-assertion noise.
-      'jest/expect-expect': [
-        'error',
-        { assertFunctionNames: ['expect', 'assert*', 'run*'] },
-      ],
+      'jest/expect-expect': ['error', { assertFunctionNames: ['expect', 'assert*', 'run*'] }],
       'jest/no-standalone-expect': 'error',
     },
   },
@@ -1469,7 +1461,10 @@ export default tseslint.config(
   {
     files: ['src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts'],
     rules: {
-      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
     },
   },
 
@@ -1743,7 +1738,7 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector: "VariableDeclarator[id.name=/^lower\\w*Keys$/]",
+          selector: 'VariableDeclarator[id.name=/^lower\\w*Keys$/]',
           message:
             'PR #281 C8 §12C: name `lower*Keys` implies a key set for membership testing (Sonar S7776). Use `new Set(keys.map(k => k.toLowerCase()))` named `lower*KeySet`, or rename to `lowerNames` if iterating only.',
         },
@@ -1872,10 +1867,10 @@ export default tseslint.config(
           // CR cycle-2: catches `'-***'` / `'+***'` / `'***'` (Amount sign markers) and
           // any future bracket-name sentinel (e.g. `'[NEW_HINT]'`). Forces every NEW
           // redaction sentinel to live in Types.ts before it can be used elsewhere.
-          selector: "Literal[value=/^(\\[[A-Z_]+\\]|[+\\-]?\\*{3,})$/]",
+          selector: 'Literal[value=/^(\\[[A-Z_]+\\]|[+\\-]?\\*{3,})$/]',
           message:
             "🚫 PII SENTINEL: Hardcoded redaction sentinel detected. Define it once in './Types.js' " +
-            "(e.g. AMOUNT_NEGATIVE_HINT, AMOUNT_POSITIVE_HINT) and import the constant. " +
+            '(e.g. AMOUNT_NEGATIVE_HINT, AMOUNT_POSITIVE_HINT) and import the constant. ' +
             'CR cycle-2 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
         },
       ],
@@ -2014,34 +2009,38 @@ export default tseslint.config(
     },
   },
 
-  // 14b. PHASE 2 LOCKDOWN (commit `chore(eslint): lockdown Phase 2 clusters at canonical 10 statements`).
+  // 14b. PHASE 2 LOCKDOWN — full strict three-rule lock (`refactor/phase-2-decoupling-mediator`).
   //
-  // Phase 2 (commits 3533ed97 / ec30d4ad / 01cdcebf / 53809048) extracted
-  // 194 over-cap functions across 55 files in the Mediator/ tree down to
-  // ≤10-statement bodies. The four override blocks below pin all 19
-  // Mediator/ sub-clusters touched in Phase 2 to the canonical 10-statement
-  // ceiling.
+  // Phase 2 (loose commits 3533ed97 / ec30d4ad / 01cdcebf / 53809048 +
+  // strict commits 59a4b837 / 98572c69 / 3961607b / 4ee2046b / 9c94087d)
+  // extracted ~250+ over-cap functions across 55 cluster files in the
+  // Mediator/ tree down to ≤10-statement, ≤10-line bodies AND split
+  // every cluster file to ≤150-line co-located siblings. The four
+  // override blocks below pin all 19 Mediator/ sub-clusters touched
+  // in Phase 2 to the canonical three-rule lock (no relaxation):
   //
-  // Rule choice — `max-statements: 10` (NOT `max-lines-per-function: 10`).
-  // The §14 Init/ block uses `max-lines-per-function` and works because
-  // Init/ uses single-line typed signatures (params fit on one line).
-  // Phase 2 clusters use multi-line typed signatures (clearer for
-  // wider param lists) which inflate `max-lines-per-function`'s count
-  // past 10 even when the body is ≤10 statements. `max-statements`
-  // measures only the body — the exact dimension Phase 2 drove. This
-  // matches the probe semantics that drove the refactor work.
+  //   • max-statements: 10            — body statement count
+  //   • max-lines-per-function: 10    — signature+body+brace
+  //                                     (skipBlankLines + skipComments + IIFEs)
+  //   • max-lines: 150                — per-file
+  //                                     (skipBlankLines + skipComments)
   //
-  // File caps (`max-lines: 150`) are NOT applied here — several Phase 2
-  // files remain 1000-1800 LoC (DashboardPhaseActions.ts at 1861, etc.).
-  // File-split hardening is deferred to a future Phase 2f sub-phase per
-  // the §15 Init/ precedent ("hardening lands in a separate commit once
-  // the helpers are stable").
+  // The three rules lock in lock-step: a function may grow to 10
+  // statements OR 10 lines OR live in a 150-line file before its
+  // cluster fails CI. Any future "let it slip just one more" attempt
+  // is rejected. File-split hardening is no longer deferred.
   //
-  // Canaries (one per cluster) live alongside in EslintCanaries/:
-  //   • mediator-api-selector-fn-over-cap.canary.ts
+  // Canaries — one fn-over-cap + one file-over-cap per cluster — live
+  // alongside in EslintCanaries/ and are scoped into each block via
+  // the `files` array so the corresponding rule provably fires:
+  //   • mediator-api-selector-fn-over-cap.canary.ts (max-statements + max-lines-per-function)
+  //   • mediator-api-selector-file-over-cap.canary.ts (max-lines)
   //   • mediator-dashboard-fn-over-cap.canary.ts
+  //   • mediator-dashboard-file-over-cap.canary.ts
   //   • mediator-auth-fn-over-cap.canary.ts
+  //   • mediator-auth-file-over-cap.canary.ts
   //   • mediator-residue-fn-over-cap.canary.ts
+  //   • mediator-residue-file-over-cap.canary.ts
 
   // 14b.1. Phase 2b cluster — Api + ApiDirectCall + Selector.
   {
@@ -2050,9 +2049,15 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Mediator/ApiDirectCall/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Selector/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-api-selector-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-api-selector-file-over-cap.canary.ts',
     ],
     rules: {
       'max-statements': ['error', 10],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
 
@@ -2061,9 +2066,15 @@ export default tseslint.config(
     files: [
       'src/Scrapers/Pipeline/Mediator/Dashboard/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-dashboard-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-dashboard-file-over-cap.canary.ts',
     ],
     rules: {
       'max-statements': ['error', 10],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
 
@@ -2074,15 +2085,20 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Mediator/PreLogin/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/AuthDiscovery/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-auth-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-auth-file-over-cap.canary.ts',
     ],
     rules: {
       'max-statements': ['error', 10],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
 
   // 14b.4. Phase 2e cluster — 11 residue sub-clusters (incl. full Scrape/).
-  // Last-wins applies the 10-statement cap to the entire Phase 2e drain
-  // surface, while leaving §12's `max-lines: 150` (file cap) intact.
+  // Last-wins applies all three caps to the entire Phase 2e drain surface.
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/BalanceResolve/**/*.ts',
@@ -2097,9 +2113,15 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Mediator/Terminate/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Timing/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-file-over-cap.canary.ts',
     ],
     rules: {
       'max-statements': ['error', 10],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
 
@@ -2128,10 +2150,7 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Strategy/Scrape/**',
     ],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] },
-      ],
+      'no-restricted-imports': ['error', { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] }],
     },
   },
 
@@ -2151,10 +2170,7 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/EslintCanaries/no-common-config-lookalike-in-pipeline.canary.ts',
     ],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] },
-      ],
+      'no-restricted-imports': ['error', { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] }],
     },
   },
 );

@@ -231,15 +231,15 @@ async function clickSubmitIfPresent(args: IFillAndSubmitArgs): Promise<true> {
   return true;
 }
 
-/** Promise alias keeping fillAndSubmitOtpForm sig single-line. */
-type FillSubmitResult = Promise<Procedure<IActionContext>>;
+/** Promise alias keeping fill/executeAction sigs single-line. */
+type FillActionResult = Promise<Procedure<IActionContext>>;
 
 /**
  * Fill the OTP input then optionally click submit and settle.
  * @param args - Bundled input/executor/code.
  * @returns Updated context on success, or fail if PRE target missing.
  */
-async function fillAndSubmitOtpForm(args: IFillAndSubmitArgs): FillSubmitResult {
+async function fillAndSubmitOtpForm(args: IFillAndSubmitArgs): FillActionResult {
   const { input, executor, code } = args;
   const inputTarget = readDiagTarget(input.diagnostics, 'otpInputTarget');
   if (!inputTarget) return fail(ScraperErrorTypes.Generic, 'OTP input target missing from PRE');
@@ -249,9 +249,6 @@ async function fillAndSubmitOtpForm(args: IFillAndSubmitArgs): FillSubmitResult 
   await settleAfterOtpSubmit(executor, input.logger);
   return succeed(input);
 }
-
-/** Promise alias keeping executeFillAction sig single-line. */
-type FillActionResult = Promise<Procedure<IActionContext>>;
 
 /**
  * ACTION (sealed): Call retriever → fill code → click submit.

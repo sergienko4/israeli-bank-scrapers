@@ -17,43 +17,42 @@ PR #278 can never recur.
 
 ## Canonical caps (enforced by ESLint + `lint:guideline-coverage`)
 
-| Cap | Value | Rule | Scope |
-|---|---|---|---|
-| File size | **150** effective LoC | `max-lines` | All `src/Scrapers/Pipeline/**` |
-| Per-function LoC | **≤ 10** (hard cap) | `max-lines-per-function` | Per cluster (see below) |
-| Cyclomatic complexity | **10** | `complexity` | All `src/Scrapers/Pipeline/**` |
-| Parameter count | **3** (use options object beyond) | `@typescript-eslint/max-params` | All `src/Scrapers/Pipeline/**` |
-| Nesting depth | **1** | `max-depth` | All `src/Scrapers/Pipeline/**` |
-| Classes per file | **1** | `max-classes-per-file` | All `src/**` |
+| Cap                   | Value                             | Rule                            | Scope                          |
+| --------------------- | --------------------------------- | ------------------------------- | ------------------------------ |
+| File size             | **150** effective LoC             | `max-lines`                     | All `src/Scrapers/Pipeline/**` |
+| Per-function LoC      | **≤ 10** (hard cap)               | `max-lines-per-function`        | Per cluster (see below)        |
+| Cyclomatic complexity | **10**                            | `complexity`                    | All `src/Scrapers/Pipeline/**` |
+| Parameter count       | **3** (use options object beyond) | `@typescript-eslint/max-params` | All `src/Scrapers/Pipeline/**` |
+| Nesting depth         | **1**                             | `max-depth`                     | All `src/Scrapers/Pipeline/**` |
+| Classes per file      | **1**                             | `max-classes-per-file`          | All `src/**`                   |
 
 ### Per-cluster `max-lines-per-function` (sourced from `eslint.config.mjs`)
 
-| Cluster | Cap | Rationale |
-|---|---|---|
-| PiiRedactor (§13) | **10** | Phase 8.5c drained the §13A `Facade.ts` grandfather (Routing + Dispatch + Composer split); the cluster now matches the canonical ≤10-LoC cap end-to-end. |
-| Network (§11) | **10** | Phase 8.5a drained the three grandfathered files and tightened the cap to match the canonical ≤10-LoC cap. |
-| Scrape (§12) | **10** | Phase 8.5b drained the Scrape grandfathers; the cluster matches the canonical ≤10-LoC cap. |
-| ConfigContracts (§14) | **10** | Phase 8 split the IApiDirectCallConfig god-tree; sub-modules adopt the canonical ≤10-LoC cap. |
-| Init (§14) | **10** | Init/ uses single-line typed signatures so `max-lines-per-function: 10` measures body length. |
-| Mediator Phase 2 (§14b) | **10 *statements*** | Phase 2 used `max-statements: 10` (NOT `max-lines-per-function`) because the cluster intentionally uses multi-line typed signatures for wider param lists. See the "Phase 2 lockdown — statement vs line" note below. |
-| Default §6C base | **15** | All other Pipeline files; can be overridden stricter (the canonical target is 10 for every cluster — broader Types/** + Base/** per-fn:10 rollout is tracked as a follow-up). |
+| Cluster                 | Cap                           | Rationale                                                                                                                                                                                                                         |
+| ----------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PiiRedactor (§13)       | **10**                        | Phase 8.5c drained the §13A `Facade.ts` grandfather (Routing + Dispatch + Composer split); the cluster now matches the canonical ≤10-LoC cap end-to-end.                                                                          |
+| Network (§11)           | **10**                        | Phase 8.5a drained the three grandfathered files and tightened the cap to match the canonical ≤10-LoC cap.                                                                                                                        |
+| Scrape (§12)            | **10**                        | Phase 8.5b drained the Scrape grandfathers; the cluster matches the canonical ≤10-LoC cap.                                                                                                                                        |
+| ConfigContracts (§14)   | **10**                        | Phase 8 split the IApiDirectCallConfig god-tree; sub-modules adopt the canonical ≤10-LoC cap.                                                                                                                                     |
+| Init (§14)              | **10**                        | Init/ uses single-line typed signatures so `max-lines-per-function: 10` measures body length.                                                                                                                                     |
+| Mediator Phase 2 (§14b) | **10** (full three-rule lock) | Phase 2 mega-PR drove ALL THREE Mediator/ clusters down to `max-statements: 10` + `max-lines-per-function: 10` + `max-lines: 150` (no relaxation). The strict-mode lockdown lands as a single chore commit at the end of Phase 2. |
+| Default §6C base        | **15**                        | All other Pipeline files; can be overridden stricter (the canonical target is 10 for every cluster — broader Types/** + Base/** per-fn:10 rollout is tracked as a follow-up).                                                     |
 
-> **Phase 2 lockdown — statement vs line.** §14b (`Mediator/{Api,
-> ApiDirectCall, Selector, Dashboard, Login, PreLogin, AuthDiscovery,
-> BalanceResolve, AccountResolve, OtpFill, OtpTrigger, Scrape, Otp,
-> Browser, Home, Credentials, Terminate, Timing}/**`) enforces
-> `max-statements: 10` rather than `max-lines-per-function: 10`. Both
-> rules express the "≤10-body" intent but measure different
-> dimensions: `max-lines-per-function` counts the function signature +
-> body + braces, while `max-statements` counts only top-level
-> statements in the body. Phase 2 clusters adopted multi-line typed
-> signatures (5+ params is common for the orchestrator helpers) which
-> inflates `max-lines-per-function`'s count past 10 even when the body
-> is ≤10 statements. `max-statements: 10` is the body-only metric
-> that the Phase 2 refactor probe drove, and matches the user's
-> "Pipeline production max-10" intent for body complexity. The Init/
-> cluster keeps `max-lines-per-function: 10` because Init/ uses
-> single-line typed signatures and the two measures coincide there.
+> **Phase 2 lockdown — full three-rule lock (no relaxation).** §14b
+> (`Mediator/{Api, ApiDirectCall, Selector, Dashboard, Login, PreLogin,
+AuthDiscovery, BalanceResolve, AccountResolve, OtpFill, OtpTrigger,
+Scrape, Otp, Browser, Home, Credentials, Terminate, Timing}/**`)
+> enforces all three caps simultaneously: `max-statements: 10` +
+> `max-lines-per-function: 10` + `max-lines: 150`. Earlier revisions of
+> the lockdown enforced only `max-statements` and deferred file-cap +
+> per-function-LoC to a follow-up — the user explicitly rejected that
+> relaxation and required the full strict three-rule lock to land in
+> the Phase 2 mega-PR. Every Phase 2 cluster file now passes all three
+> rules. Eight canaries (one fn-over-cap + one file-over-cap per
+> cluster) prove the rules fire. The Init/ cluster keeps its own
+> single-line-signature `max-lines-per-function: 10` because Init/
+> uses single-line typed signatures so the function-level metrics
+> coincide.
 
 > **Footnote — historical "ideal vs hard" terminology.** Earlier
 > phases of this codebase used "10 ideal / 20 hard" language. That
@@ -219,12 +218,12 @@ This removes unused imports automatically. Run it before committing.
 
 ## Quick Reference
 
-| Error | Command to fix |
-|-------|---------------|
-| Unused imports | `npm run lint:fix` |
-| Prettier formatting | `npm run format` |
-| All auto-fixable | `npm run lint:fix` |
-| See all errors | `npm run lint` |
+| Error                              | Command to fix                    |
+| ---------------------------------- | --------------------------------- |
+| Unused imports                     | `npm run lint:fix`                |
+| Prettier formatting                | `npm run format`                  |
+| All auto-fixable                   | `npm run lint:fix`                |
+| See all errors                     | `npm run lint`                    |
 | Verify ESLint covers every cluster | `npm run lint:guideline-coverage` |
 
 ---
@@ -240,4 +239,3 @@ git commit
   → guideline-coverage gate  (asserts eslint.config covers CLEAN_CODE.md caps)
   → commit succeeds ✅ or shows remaining errors ❌
 ```
-
