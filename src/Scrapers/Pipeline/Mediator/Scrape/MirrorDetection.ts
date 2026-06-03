@@ -70,6 +70,24 @@ function computeFingerprint(account: IMirrorAccount): string {
 }
 
 /**
+ * Compute the unique-fingerprint count and return the mirror-positive
+ * result when duplicates exist. Pulled out so
+ * {@link detectMirroredAccounts} stays a thin guard/branch dispatch.
+ *
+ * @param fingerprints - Non-empty fingerprint list (empties filtered).
+ * @returns Detection result — mirror-positive or `all-unique`.
+ */
+function decideMirrorByFingerprints(fingerprints: readonly string[]): IMirrorResult {
+  const uniqueCount = new Set(fingerprints).size;
+  const totalCount = fingerprints.length;
+  if (uniqueCount === totalCount) return { isMirrored: false, message: 'all-unique' };
+  const dupCount = String(totalCount - uniqueCount + 1);
+  const msg = `MIRROR_SUSPECT: ${dupCount} of ${String(totalCount)} accounts share fingerprint`;
+  LOG.warn({ message: msg });
+  return { isMirrored: true, message: msg };
+}
+
+/**
  * Detect mirrored accounts — multiple accounts with identical fingerprints.
  *
  * <p>Accounts whose fingerprint is the empty string (zero transactions
@@ -87,14 +105,7 @@ function detectMirroredAccounts(accounts: readonly IMirrorAccount[]): IMirrorRes
   if (accounts.length < 2) return { isMirrored: false, message: 'single-account' };
   const fingerprints = accounts.map(computeFingerprint).filter((fp): boolean => fp.length > 0);
   if (fingerprints.length < 2) return { isMirrored: false, message: 'all-unique' };
-  const uniqueCount = new Set(fingerprints).size;
-  const totalCount = fingerprints.length;
-  if (uniqueCount === totalCount) return { isMirrored: false, message: 'all-unique' };
-  const dupCount = String(totalCount - uniqueCount + 1);
-  const totalStr = String(totalCount);
-  const msg = `MIRROR_SUSPECT: ${dupCount} of ${totalStr} accounts share fingerprint`;
-  LOG.warn({ message: msg });
-  return { isMirrored: true, message: msg };
+  return decideMirrorByFingerprints(fingerprints);
 }
 
 export type { IMirrorResult };

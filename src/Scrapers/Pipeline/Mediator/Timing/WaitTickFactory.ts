@@ -123,6 +123,27 @@ function buildWaitCallbacks<T>(
   return { resolve: wrapResolve<T>(resolve), reject: wrapReject(reject) };
 }
 
+/** Bundled args for {@link runWaitTickExecutor} — keeps params ≤ 3. */
+interface IWaitExecutorArgs<T> {
+  readonly asyncTest: () => Promise<T>;
+  readonly interval: number;
+  readonly resolve: (value: NonNullable<T>) => boolean;
+  readonly reject: (reason: Error) => boolean;
+}
+
+/**
+ * Build callbacks + first tick for the poll loop. Hoisted so
+ * {@link buildWaitPromise} stays a single delegation line.
+ * @param args - Bundled executor args (asyncTest + interval + resolve + reject).
+ * @returns Always true (sentinel for the createPromise executor).
+ */
+function runWaitTickExecutor<T>(args: IWaitExecutorArgs<T>): boolean {
+  const cbs = buildWaitCallbacks<T>(args.resolve, args.reject);
+  const tick = createTickFn({ asyncTest: args.asyncTest, interval: args.interval, cbs });
+  tick();
+  return true;
+}
+
 /**
  * Build a promise that polls asyncTest until truthy.
  * @param asyncTest - The async predicate to poll.
@@ -133,12 +154,9 @@ function buildWaitPromise<T>(
   asyncTest: () => Promise<T>,
   interval: number,
 ): Promise<NonNullable<T>> {
-  return createPromise<NonNullable<T>>((resolve, reject): boolean => {
-    const cbs = buildWaitCallbacks<T>(resolve, reject);
-    const tick = createTickFn({ asyncTest, interval, cbs });
-    tick();
-    return true;
-  });
+  return createPromise<NonNullable<T>>((resolve, reject): boolean =>
+    runWaitTickExecutor<T>({ asyncTest, interval, resolve, reject }),
+  );
 }
 
 export default buildWaitPromise;

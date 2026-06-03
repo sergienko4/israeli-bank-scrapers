@@ -62,6 +62,28 @@ interface IBuildResolverArgs<TCreds> {
 }
 
 /**
+ * Curry-bind the resolve+refresh pair over closure deps so the parent
+ * builder body stays under the 10-LoC cap.
+ * @param deps - Closure deps bag.
+ * @returns Pick of ITokenResolver with bound resolve and refresh fns.
+ */
+function bindResolverPair<TCreds>(
+  deps: IBuilderDeps<TCreds>,
+): Pick<ITokenResolver, 'resolve' | 'refresh'> {
+  /**
+   * Resolve curried over closure deps — runs the prime ladder.
+   * @returns Header-value procedure from primeInitial with fresh fallback.
+   */
+  const resolve = (): Promise<Procedure<string>> => runInitial(deps);
+  /**
+   * Refresh curried over closure deps — runs the fresh path directly.
+   * @returns Header-value procedure from primeFresh.
+   */
+  const refresh = (): Promise<Procedure<string>> => runFresh(deps);
+  return { resolve, refresh };
+}
+
+/**
  * Wire a token strategy + deps into a bound ITokenResolver.
  * @param args - Strategy + bus + ctx + creds bundle.
  * @returns Bound token resolver.
@@ -73,21 +95,7 @@ function buildResolverFromStrategy<TCreds>(args: IBuildResolverArgs<TCreds>): IT
     ctx: args.ctx,
     creds: args.creds,
   };
-  /**
-   * Bound resolve — runs the prime ladder.
-   * @returns Header-value procedure.
-   */
-  function boundResolve(): Promise<Procedure<string>> {
-    return runInitial(deps);
-  }
-  /**
-   * Bound refresh — runs the fresh path directly.
-   * @returns Header-value procedure.
-   */
-  function boundRefresh(): Promise<Procedure<string>> {
-    return runFresh(deps);
-  }
-  return { name: args.strategy.name, resolve: boundResolve, refresh: boundRefresh };
+  return { name: args.strategy.name, ...bindResolverPair(deps) };
 }
 
 export default buildResolverFromStrategy;

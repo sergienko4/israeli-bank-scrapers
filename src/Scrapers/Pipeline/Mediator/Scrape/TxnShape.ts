@@ -56,6 +56,38 @@ function recordCarriesTxnArray(record: JsonObject): boolean {
 }
 
 /**
+ * True iff the head record exposes any amount alias (debit, credit, or
+ * generic). Splitting the OR-chain out keeps {@link recordCarriesShapedArray}
+ * within the per-function LoC budget and makes the alias source explicit.
+ *
+ * @param head - First record of a candidate nested array.
+ * @returns True when at least one amount alias is present.
+ */
+function headHasAmountAlias(head: JsonObject): boolean {
+  if (WK_FIELDS.amount.some((key): boolean => head[key] !== undefined)) return true;
+  if (WK_FIELDS.creditAmount.some((key): boolean => head[key] !== undefined)) return true;
+  return WK_FIELDS.debitAmount.some((key): boolean => head[key] !== undefined);
+}
+
+/**
+ * Inspect one nested value for the "shaped txn list" gate — non-empty
+ * array of plain records whose head carries both a date alias and any
+ * amount alias. Pulled out so the parent `Object.values(...).some(...)`
+ * fits inside the LoC budget.
+ *
+ * @param value - Candidate nested value (any JsonValue).
+ * @returns True when value is a shaped txn list.
+ */
+function isShapedNestedArray(value: JsonValue): boolean {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  const items = value as readonly JsonValue[];
+  const first = items[0];
+  if (!isPlainRecord(first)) return false;
+  const hasDate = WK_FIELDS.date.some((key): boolean => first[key] !== undefined);
+  return hasDate && headHasAmountAlias(first);
+}
+
+/**
  * Phase 7f deepened gate: returns true when the record carries any
  * non-empty array whose first element exposes BOTH a date alias and
  * an amount alias from `WK_FIELDS`. Recognises bank-specific shapes
@@ -69,19 +101,7 @@ function recordCarriesTxnArray(record: JsonObject): boolean {
  *   amount aliases.
  */
 function recordCarriesShapedArray(record: JsonObject): boolean {
-  return Object.values(record).some((value): boolean => {
-    if (!Array.isArray(value) || value.length === 0) return false;
-    const items = value as readonly JsonValue[];
-    const first = items[0];
-    if (!isPlainRecord(first)) return false;
-    const head = first;
-    const hasDate = WK_FIELDS.date.some((key): boolean => head[key] !== undefined);
-    const hasAmount =
-      WK_FIELDS.amount.some((key): boolean => head[key] !== undefined) ||
-      WK_FIELDS.creditAmount.some((key): boolean => head[key] !== undefined) ||
-      WK_FIELDS.debitAmount.some((key): boolean => head[key] !== undefined);
-    return hasDate && hasAmount;
-  });
+  return Object.values(record).some(isShapedNestedArray);
 }
 
 /**

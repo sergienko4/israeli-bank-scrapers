@@ -202,11 +202,7 @@ function perBankAccountPlan(
   identities: ReadonlyMap<string, IAccountIdentity>,
   template: IBalanceFetchTemplate,
 ): readonly IBalanceFetchPlanEntry[] {
-  const acc: IAppendAccumulator = {
-    template,
-    seen: new Set<string>(),
-    out: [],
-  };
+  const acc: IAppendAccumulator = { template, seen: new Set<string>(), out: [] };
   for (const id of identities.values()) appendIfNew(id, acc);
   return acc.out;
 }

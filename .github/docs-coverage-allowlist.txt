@@ -337,3 +337,17 @@ PhaseEmitSlotKey
 BalanceSlotKey
 # Reason: ResultSlotKey — internal union-of-the-four-sub-key-types fed to Pick<IPipelineContext, ResultSlotKey> to derive IResultSlots inside PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
 ResultSlotKey
+
+# --- Phase 2c-strict / Dashboard split (DashboardPhaseActions / TxnParser) ---
+# Reason: IDashboardTargets — internal target-resolver bundle used by DashboardPhaseActions.sequential.ts + .targets.ts + .action.ts siblings after the 1991-line monolith was split to satisfy the 150-line file cap. Pure cross-sibling type plumbing; not part of the @[REDACTED-USER]/israeli-bank-scrapers public surface.
+IDashboardTargets
+# Reason: JsonScopeValue — internal JSON-value alias used by the TxnParser.scope.ts / .accountId.ts / .harvest.ts siblings after TxnParser.ts was split to satisfy the per-file LoC budget. Same architectural role as TxnParser.ts (DASHBOARD-side harvest scope); pure cross-sibling type plumbing, not part of the public API.
+JsonScopeValue
+
+# --- Phase 2d-strict / Login cycle break (LoginFieldDiscovery <-> LoginSubmitResolve) ---
+# Reason: IDiscoverFieldsArgs — internal bundled-arguments interface shared by LoginFieldDiscovery.ts (producer of executeDiscoverFields) and LoginSubmitResolve.ts (consumer of resolveSubmitTarget). Extracted to LoginFieldDiscovery.types.ts to break the type-only madge cycle introduced by the Phase 2d split (LoginFieldDiscovery imports resolveSubmitTarget at runtime while LoginSubmitResolve imported the type back). Pure cross-sibling type plumbing; not part of the public API surface.
+IDiscoverFieldsArgs
+
+# --- Phase 2 / CR fix (EndpointUrlHelpers — WK constant for pending/clearance-requests URL) ---
+# Reason: PIPELINE_WELL_KNOWN_PENDING — internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @[REDACTED-USER]/israeli-bank-scrapers public surface — Pipeline is internal to the scrapers, not exported via src/index.ts.
+PIPELINE_WELL_KNOWN_PENDING

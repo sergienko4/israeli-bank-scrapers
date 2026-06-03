@@ -41,18 +41,39 @@ async function waitForFormGate(mediator: IElementMediator): Promise<boolean> {
   return result.found;
 }
 
+/** Cast WK_PRELOGIN.SUBMIT_GATE to SelectorCandidate[]. */
+const SUBMIT_GATE = WK_PRELOGIN.SUBMIT_GATE as unknown as readonly SelectorCandidate[];
+
 /**
- * Quick probe: is the login form already visible?
- * Used by PRE to skip reveal when form is already rendered.
+ * Quick visibility probe for a single PRE-LOGIN gate (password or submit).
+ * Swallows resolver rejections by returning `false` so the caller can
+ * stay inside the depth ceiling without an outer try/catch.
  * @param mediator - Element mediator (black box).
- * @returns True if password field found.
+ * @param candidates - WK gate candidate list to race.
+ * @returns True when the resolver reported a visible match.
  */
+async function probeGateVisible(
+  mediator: IElementMediator,
+  candidates: readonly SelectorCandidate[],
+): Promise<boolean> {
+  const result = await mediator
+    .resolveVisible(candidates, FORM_PROBE_TIMEOUT)
+    .catch((): false => false);
+  if (result === false) return false;
+  return result.found;
+}
+
 /**
- * Guard: is the login form already visible AND interactable?
- * Checks: 1) password input visible 2) submit button visible 3) both truly visible (no ng-hide).
- * @param mediator - Element mediator (black box).
- * @returns True ONLY if both are truly interactable.
+ * Log a not-visible form-gate outcome and return false. Extracted so
+ * {@link isFormAlreadyVisible} stays inside the 10-LoC ceiling.
+ * @param logger - Pipeline logger.
+ * @returns Always false.
  */
+function logNoPasswordVisible(logger: ScraperLogger): false {
+  logger.debug({ hasPwd: false, hasSubmit: false });
+  return false;
+}
+
 /**
  * Guard: is the login form already visible AND interactable?
  * Checks BOTH password input AND submit button are truly visible.
@@ -66,27 +87,11 @@ async function isFormAlreadyVisible(
   mediator: IElementMediator,
   logger: ScraperLogger,
 ): Promise<boolean> {
-  const pwdResult = await mediator
-    .resolveVisible(FORM_GATE, FORM_PROBE_TIMEOUT)
-    .catch((): false => false);
-  if (pwdResult === false) {
-    logger.debug({ hasPwd: false, hasSubmit: false });
-    return false;
-  }
-  if (!pwdResult.found) {
-    logger.debug({ hasPwd: false, hasSubmit: false });
-    return false;
-  }
-  const submitGate = WK_PRELOGIN.SUBMIT_GATE as unknown as readonly SelectorCandidate[];
-  const submitResult = await mediator
-    .resolveVisible(submitGate, FORM_PROBE_TIMEOUT)
-    .catch((): false => false);
-  if (!submitResult) {
-    logger.debug({ hasPwd: true, hasSubmit: false });
-    return false;
-  }
-  logger.debug({ hasPwd: true, hasSubmit: submitResult.found });
-  return submitResult.found;
+  const hasPwd = await probeGateVisible(mediator, FORM_GATE);
+  if (!hasPwd) return logNoPasswordVisible(logger);
+  const hasSubmit = await probeGateVisible(mediator, SUBMIT_GATE);
+  logger.debug({ hasPwd: true, hasSubmit });
+  return hasSubmit;
 }
 
 /**
@@ -136,6 +141,45 @@ interface IDiagnoseArgs {
 }
 
 /**
+ * Translate a reveal-click `Procedure` into a short status string for
+ * pure logging. Single-purpose so {@link diagnoseRevealClick} stays
+ * within the per-function ceiling without a try/else cascade.
+ *
+ * @param clickResult - Procedure returned by the reveal click attempt.
+ * @returns `'FAIL'` on procedure failure, `'NOT FOUND'` when no candidate
+ *   matched, otherwise the masked visible-text label.
+ */
+function describeRevealClick(clickResult: Procedure<IRaceResult>): string {
+  if (!clickResult.success) return 'FAIL';
+  if (!clickResult.value.found) return 'NOT FOUND';
+  return maskVisibleText(clickResult.value.value);
+}
+
+/**
+ * Run the post-click `waitForURL → waitForFormGate` sequence and emit
+ * the FORM_GATE diagnostic for a successful reveal click. Side-effect
+ * only — extracted so {@link diagnoseRevealClick} keeps the procedure
+ * branch + the form-gate branch each within the depth ceiling.
+ *
+ * @param args - Bundled diagnostic arguments shared with the caller.
+ * @param label - Masked label of the clicked candidate (for logging).
+ * @returns True after the wait sequence completes.
+ */
+async function waitAndLogFormGate(args: IDiagnoseArgs, label: string): Promise<boolean> {
+  const navOpts = { timeout: args.navTimeout, waitUntil: 'domcontentloaded' as const };
+  await args.browserPage.waitForURL('**/login**', navOpts).catch((): false => false);
+  const hasForm = await waitForFormGate(args.mediator);
+  args.logger.debug({ text: label, formGate: hasForm });
+  return true;
+}
+
+/** Static log payload for non-hit reveal-click outcomes. */
+const REVEAL_CLICK_OUTCOME_MSG: Record<string, string> = {
+  FAIL: 'reveal click: FAIL',
+  'NOT FOUND': 'reveal click: NOT FOUND',
+};
+
+/**
  * Log the reveal-click outcome and run the post-click form-gate wait
  * when the click landed on a real candidate. Pure side-effect — the
  * caller still returns the original click Procedure verbatim.
@@ -145,22 +189,62 @@ interface IDiagnoseArgs {
  * log line was emitted.
  */
 async function diagnoseRevealClick(args: IDiagnoseArgs): Promise<boolean> {
-  const { clickResult, mediator, browserPage, navTimeout, logger } = args;
-  if (!clickResult.success) {
-    logger.debug({ message: 'reveal click: FAIL' });
+  const status = describeRevealClick(args.clickResult);
+  const nonHitMsg = REVEAL_CLICK_OUTCOME_MSG[status];
+  if (nonHitMsg) {
+    args.logger.debug({ message: nonHitMsg });
     return false;
   }
-  if (!clickResult.value.found) {
-    logger.debug({ message: 'reveal click: NOT FOUND' });
-    return false;
-  }
-  const label = clickResult.value.value;
-  logger.debug({ text: maskVisibleText(label), formGate: false });
-  const navOpts = { timeout: navTimeout, waitUntil: 'domcontentloaded' as const };
-  await browserPage.waitForURL('**/login**', navOpts).catch((): false => false);
+  args.logger.debug({ text: status, formGate: false });
+  return waitAndLogFormGate(args, status);
+}
+
+/**
+ * Side-effect logging branch for a successful `credentialArea` reveal
+ * click: emits the masked label, runs the form-gate wait and logs the
+ * outcome. Returns the form-gate boolean so callers can chain.
+ *
+ * @param result - Successful race result from the click.
+ * @param mediator - Element mediator for the post-click form-gate wait.
+ * @param logger - Pipeline logger.
+ * @returns Form-gate readiness flag.
+ */
+/**
+ * Run the post-log form-gate wait for a credentialArea hit and emit
+ * the matched-text + form-gate outcome.
+ * @param text - Pre-masked label of the matched candidate.
+ * @param mediator - Element mediator for the form-gate wait.
+ * @param logger - Pipeline logger.
+ * @returns Form-gate readiness flag.
+ */
+async function probeFormAfterCredentialLog(
+  text: string,
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<boolean> {
   const hasForm = await waitForFormGate(mediator);
-  logger.debug({ text: maskVisibleText(label), formGate: hasForm });
-  return true;
+  logger.debug({ text, formGate: hasForm });
+  return hasForm;
+}
+
+/**
+ * Side-effect logging branch for a successful `credentialArea` reveal
+ * click: emits the masked label, runs the form-gate wait and logs the
+ * outcome. Returns the form-gate boolean so callers can chain.
+ *
+ * @param result - Successful race result from the click.
+ * @param mediator - Element mediator for the post-click form-gate wait.
+ * @param logger - Pipeline logger.
+ * @returns Form-gate readiness flag.
+ */
+async function logCredentialAreaHit(
+  result: IRaceResult,
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<boolean> {
+  const text = maskVisibleText(result.value);
+  logger.debug({ text, formGate: false });
+  return probeFormAfterCredentialLog(text, mediator, logger);
 }
 
 /**
@@ -174,17 +258,9 @@ async function tryClickCredentialArea(
   logger: ScraperLogger,
 ): Promise<Procedure<IRaceResult>> {
   const result = await mediator.resolveAndClick(WK_PRELOGIN.REVEAL, CRED_AREA_TIMEOUT);
-  if (result.success && result.value.found) {
-    const label = result.value.value;
-    logger.debug({ text: maskVisibleText(label), formGate: false });
-    const hasForm = await waitForFormGate(mediator);
-    logger.debug({ text: maskVisibleText(label), formGate: hasForm });
-  }
-  if (result.success && !result.value.found) {
-    logger.debug({
-      message: 'credentialArea: NOT FOUND',
-    });
-  }
+  if (!result.success) return result;
+  if (result.value.found) await logCredentialAreaHit(result.value, mediator, logger);
+  else logger.debug({ message: 'credentialArea: NOT FOUND' });
   return result;
 }
 

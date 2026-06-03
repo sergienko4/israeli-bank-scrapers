@@ -71,6 +71,14 @@ describe('api-direct-call RunStep createSimpleCookieJar', () => {
     expect(n).toBe(1);
     expect(header).toBe('valid=1');
   });
+
+  it('skips cookie lines with an empty name (e.g., "=value")', (): void => {
+    const jar = createSimpleCookieJar();
+    const n = jar.add(['=ghost', 'valid=1']);
+    const header = jar.header();
+    expect(n).toBe(1);
+    expect(header).toBe('valid=1');
+  });
 });
 
 describe('api-direct-call RunStep queryTemplate branches', () => {
@@ -213,6 +221,62 @@ describe('api-direct-call RunStep buildPathAndQuery branches', () => {
     if (!result.success) throw new ScraperError('runStep should succeed');
     expect(captures).toHaveLength(1);
   });
+
+  it('stringifies number + boolean scalar query values', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed({ ok: true })];
+    const bus = makeStubMediator({ responses, captures });
+    const step: IStepConfig = {
+      name: 'bind',
+      urlTag: CLEAN_URL_TAG,
+      body: { shape: {} },
+      queryTemplate: { n: { $literal: 42 }, b: { $literal: true } },
+      extractsToCarry: {},
+    };
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new ScraperError('runStep should succeed');
+    expect(captures).toHaveLength(1);
+  });
+
+  it('passes canonical { n: "42", b: "true" } to apiPost opts.query', async (): Promise<void> => {
+    const queryCaptures: (Record<string, string> | undefined)[] = [];
+    const base = makeStubMediator({ responses: [succeed({ ok: true })], captures: [] });
+    const bus = {
+      ...base,
+      /**
+       * Local fake apiPost — captures `opts.query` so the test can
+       * assert the canonical Record<string, string> serialization
+       * produced by RunStep's `coerceQueryRecord`.
+       * @param _url - WK URL tag (unused — runStep resolves it).
+       * @param _body - Outbound body (unused for this assertion).
+       * @param opts - Optional bundle carrying `query`.
+       * @param opts.query - The serialized canonical query record.
+       * @returns Synthetic success Procedure.
+       */
+      apiPost: async <T>(
+        _url: WKUrlGroup,
+        _body: Record<string, unknown>,
+        opts?: { readonly query?: Record<string, string> },
+      ): Promise<ReturnType<typeof succeed<T>>> => {
+        await Promise.resolve();
+        queryCaptures.push(opts?.query);
+        return succeed({ ok: true } as unknown as T);
+      },
+    };
+    const step: IStepConfig = {
+      name: 'bind',
+      urlTag: CLEAN_URL_TAG,
+      body: { shape: {} },
+      queryTemplate: { n: { $literal: 42 }, b: { $literal: true } },
+      extractsToCarry: {},
+    };
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new ScraperError('runStep should succeed');
+    expect(queryCaptures).toHaveLength(1);
+    expect(queryCaptures[0]).toEqual({ n: '42', b: 'true' });
+  });
 });
 
 describe('api-direct-call RunStep apiPost failure propagation', () => {
@@ -229,5 +293,49 @@ describe('api-direct-call RunStep apiPost failure propagation', () => {
     const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe('net boom');
+  });
+});
+
+describe('api-direct-call RunStep describeResponse branches', () => {
+  it('logs a null response without throwing', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed(null)];
+    const bus = makeStubMediator({ responses, captures });
+    const step: IStepConfig = {
+      name: 'bind',
+      urlTag: CLEAN_URL_TAG,
+      body: { shape: {} },
+      extractsToCarry: {},
+    };
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result.success).toBe(true);
+  });
+
+  it('logs an array response without throwing', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed([1, 2, 3])];
+    const bus = makeStubMediator({ responses, captures });
+    const step: IStepConfig = {
+      name: 'bind',
+      urlTag: CLEAN_URL_TAG,
+      body: { shape: {} },
+      extractsToCarry: {},
+    };
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result.success).toBe(true);
+  });
+
+  it('stringifies a numeric error_code in the log envelope', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed({ error_code: 42 })];
+    const bus = makeStubMediator({ responses, captures });
+    const step: IStepConfig = {
+      name: 'bind',
+      urlTag: CLEAN_URL_TAG,
+      body: { shape: {} },
+      extractsToCarry: {},
+    };
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result.success).toBe(true);
   });
 });

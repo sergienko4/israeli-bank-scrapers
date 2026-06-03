@@ -71,23 +71,27 @@ function hydrateRef(node: JsonValueTemplate, scope: ITemplateScope): Procedure<J
   return resolveRef(asRef.$ref, scope);
 }
 
+/** Bundle for absorbEntry — avoids inflating signature LoC. */
+interface IAbsorbEntryArgs {
+  /** Template scope. */
+  scope: ITemplateScope;
+  /** Accumulated record (success so far). */
+  acc: Procedure<Record<string, JsonValue>>;
+  /** [key, child-template] pair. */
+  entry: readonly [string, JsonValueTemplate];
+}
+
 /**
  * Absorb one record-entry hydration into the accumulator.
- * @param scope - Template scope.
- * @param acc - Accumulated record (success so far).
- * @param entry - [key, child-template] pair.
+ * @param args - {@link IAbsorbEntryArgs} bundle.
  * @returns Updated accumulator.
  */
-function absorbEntry(
-  scope: ITemplateScope,
-  acc: Procedure<Record<string, JsonValue>>,
-  entry: readonly [string, JsonValueTemplate],
-): Procedure<Record<string, JsonValue>> {
-  if (!isOk(acc)) return acc;
-  const [key, child] = entry;
-  const hydrated = hydrate(child, scope);
+function absorbEntry(args: IAbsorbEntryArgs): Procedure<Record<string, JsonValue>> {
+  if (!isOk(args.acc)) return args.acc;
+  const [key, child] = args.entry;
+  const hydrated = hydrate(child, args.scope);
   if (!isOk(hydrated)) return hydrated;
-  return succeed({ ...acc.value, [key]: hydrated.value });
+  return succeed({ ...args.acc.value, [key]: hydrated.value });
 }
 
 /**
@@ -100,7 +104,7 @@ function hydrateRecord(node: JsonValueTemplate, scope: ITemplateScope): Procedur
   const entries = Object.entries(node as Record<string, JsonValueTemplate>);
   const seed: Procedure<Record<string, JsonValue>> = succeed({});
   const outcome = entries.reduce<Procedure<Record<string, JsonValue>>>(
-    (acc, entry) => absorbEntry(scope, acc, entry),
+    (acc, entry) => absorbEntry({ scope, acc, entry }),
     seed,
   );
   if (!outcome.success) return outcome;

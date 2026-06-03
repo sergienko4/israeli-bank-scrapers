@@ -34,6 +34,24 @@ function dsaEncodingFor(encoding: SignerEncoding): Procedure<'der' | 'ieee-p1363
 }
 
 /**
+ * Run the underlying createSign over the bytes and return base64.
+ * @param bytes - Canonical bytes to sign.
+ * @param keypair - IGenericKeypair carrying the private key.
+ * @param dsaEnc - Node DSA encoding name.
+ * @returns Base64 signature string.
+ */
+function runSha256Sign(
+  bytes: Buffer,
+  keypair: IGenericKeypair,
+  dsaEnc: 'der' | 'ieee-p1363',
+): string {
+  const signer = createSign('SHA256');
+  signer.update(bytes);
+  const sig = signer.sign({ key: keypair.privateKey, dsaEncoding: dsaEnc });
+  return sig.toString('base64');
+}
+
+/**
  * Run SHA-256 sign over the canonical bytes with the configured
  * encoding, returning base64 of the signature.
  * @param bytes - Canonical bytes to sign.
@@ -48,11 +66,24 @@ function signBytes(
 ): Procedure<string> {
   const dsaEnc = dsaEncodingFor(encoding);
   if (!dsaEnc.success) return dsaEnc;
-  const signer = createSign('SHA256');
-  signer.update(bytes);
-  const sig = signer.sign({ key: keypair.privateKey, dsaEncoding: dsaEnc.value });
-  const sigBase64 = sig.toString('base64');
+  const sigBase64 = runSha256Sign(bytes, keypair, dsaEnc.value);
   return succeed(sigBase64);
+}
+
+/**
+ * Assemble the asymmetric header value from the base64 signature.
+ * @param sigB64 - Base64-encoded signature.
+ * @param keypair - IGenericKeypair carrying the key-id.
+ * @param config - Asymmetric signer config (for schemeTag).
+ * @returns Assembled header value string.
+ */
+function assembleHeaderValue(
+  sigB64: string,
+  keypair: IGenericKeypair,
+  config: IAsymmetricSignerConfig,
+): string {
+  const schemeStr = String(config.schemeTag);
+  return `data:${sigB64};key-id:${keypair.keyIdHex};scheme:${schemeStr}`;
 }
 
 /**
@@ -74,9 +105,8 @@ function signCanonical(
 ): Procedure<string> {
   const sigB64 = signBytes(bytes, keypair, config.encoding);
   if (!sigB64.success) return sigB64;
-  const schemeStr = String(config.schemeTag);
-  const value = `data:${sigB64.value};key-id:${keypair.keyIdHex};scheme:${schemeStr}`;
-  return succeed(value);
+  const headerValue = assembleHeaderValue(sigB64.value, keypair, config);
+  return succeed(headerValue);
 }
 
 export default signCanonical;

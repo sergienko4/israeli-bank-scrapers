@@ -135,6 +135,28 @@ function applyClaimAttempts(args: IApplyArgs): Record<string, ApiRecord[]> {
   return args.assigned;
 }
 
+/** Bundled args for {@link probeAndApplyForWk} — keeps params ≤ 3. */
+interface IProbeAndApplyArgs {
+  readonly record: ApiRecord;
+  readonly keys: ReturnType<typeof indexRecordKeys>;
+  readonly wkName: string;
+  readonly assigned: Record<string, ApiRecord[]>;
+  readonly claimed: Set<string>;
+}
+
+/**
+ * Probe + apply one WK name in a single hop so {@link assignContainersInRecord}
+ * stays under the per-function LoC budget.
+ * @param args - Bundled probe + apply args.
+ * @returns The same `assigned` map (chain-friendly).
+ */
+function probeAndApplyForWk(args: IProbeAndApplyArgs): Record<string, ApiRecord[]> {
+  const { record, keys, assigned, claimed, wkName } = args;
+  const wantedLower = wkName.toLowerCase();
+  const attempts = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
+  return applyClaimAttempts({ attempts, wkName, assigned, claimed });
+}
+
 /**
  * Walks `record` once and assigns each PHYSICAL key to the LONGEST
  * WK name that suffix-matches it. Returns the mutated `assigned`
@@ -151,11 +173,7 @@ function assignContainersInRecord(
 ): Record<string, ApiRecord[]> {
   const keys = indexRecordKeys(record);
   const claimed = new Set<string>();
-  for (const wkName of wkNames) {
-    const wantedLower = wkName.toLowerCase();
-    const attempts = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
-    applyClaimAttempts({ attempts, wkName, assigned, claimed });
-  }
+  for (const wkName of wkNames) probeAndApplyForWk({ record, keys, wkName, assigned, claimed });
   return assigned;
 }
 
@@ -179,6 +197,26 @@ function extractAllContainers(
 }
 
 /**
+ * Build the structured debug diagnostic line for
+ * {@link flattenContainersForLog}. Pulled out so the flatten helper
+ * stays within the per-function LoC budget.
+ *
+ * @param names - Pre-computed container name list (shared with caller
+ *   so we don't recompute `Object.keys(containers)` here — CR PR #298
+ *   outside-diff finding).
+ * @param concatenated - Flattened record list.
+ * @returns Diagnostic message ready for `LOG.debug`.
+ */
+function buildFlattenDebugMessage(
+  names: readonly string[],
+  concatenated: readonly ApiRecord[],
+): string {
+  const items = String(concatenated.length);
+  const count = String(names.length);
+  return `extractAccountRecords: ${items} items (${count} named containers: ${names.join(',')})`;
+}
+
+/**
  * Concatenate every container's records and emit the per-container
  * trace line. Extracted helper so {@link extractAccountRecords}
  * stays inside the project's cognitive-complexity ceiling.
@@ -191,11 +229,8 @@ function flattenContainersForLog(
   const containerNames = Object.keys(containers);
   const concatenated: ApiRecord[] = [];
   for (const name of containerNames) concatenated.push(...containers[name]);
-  LOG.debug({
-    message:
-      `extractAccountRecords: ${String(concatenated.length)} items ` +
-      `(${String(containerNames.length)} named containers: ${containerNames.join(',')})`,
-  });
+  const message = buildFlattenDebugMessage(containerNames, concatenated);
+  LOG.debug({ message });
   return concatenated;
 }
 

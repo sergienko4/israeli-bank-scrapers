@@ -59,6 +59,38 @@ function cleanupTimeoutGuard(ms: number): Promise<Procedure<void>> {
 }
 
 /**
+ * Execute a single cleanup with the wall-clock guard race. Extracted so
+ * the surrounding {@link runCleanup} stays within the per-function cap.
+ *
+ * @param cleanup - Cleanup function returning Procedure<void>.
+ * @param logger - Logger for error reporting.
+ * @returns The cleanup result (or the timeout fail Procedure).
+ */
+async function runCleanupGuarded(
+  cleanup: CleanupFn,
+  logger: IPipelineContext['logger'],
+): Promise<Procedure<void>> {
+  const cleanupCall = cleanup();
+  const guard = cleanupTimeoutGuard(TERMINATE_CLEANUP_BUDGET_MS);
+  const result = await Promise.race([cleanupCall, guard]);
+  return logCleanupResult(result, logger);
+}
+
+/**
+ * Translate a thrown cleanup error into a fail Procedure, capping the
+ * message length so logs remain bounded.
+ *
+ * @param error - Caught error from the cleanup call.
+ * @param logger - Logger for debug emission.
+ * @returns Fail Procedure with the truncated message.
+ */
+function handleCleanupError(error: unknown, logger: IPipelineContext['logger']): Procedure<void> {
+  const msg = toErrorMessage(error as Error).slice(0, 80);
+  logger.debug({ message: msg });
+  return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
+}
+
+/**
  * Run a single cleanup handler with a wall-clock budget. Swallows any
  * error. The budget protects against a hung cleanup blocking the
  * pipeline (live Isracard regression — see `TERMINATE_CLEANUP_BUDGET_MS`).
@@ -72,35 +104,45 @@ async function runCleanup(
   logger: IPipelineContext['logger'],
 ): Promise<Procedure<void>> {
   try {
-    const cleanupCall = cleanup();
-    const guard = cleanupTimeoutGuard(TERMINATE_CLEANUP_BUDGET_MS);
-    const result = await Promise.race([cleanupCall, guard]);
-    return logCleanupResult(result, logger);
+    return await runCleanupGuarded(cleanup, logger);
   } catch (error) {
-    const msg = toErrorMessage(error as Error).slice(0, 80);
-    logger.debug({ message: msg });
-    return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
+    return handleCleanupError(error, logger);
   }
+}
+
+/** Logger alias used by the recursive cleanup driver. */
+type CleanupLogger = IPipelineContext['logger'];
+
+/**
+ * Tally the cleanup outcome for one cleanup call. Pulled out so
+ * {@link runCleanupsRecursive} stays under the per-function LoC budget.
+ * @param didSucceed - Result of the cleanup at this index.
+ * @param restCount - Successful-cleanup count for the rest of the stack.
+ * @returns Updated successful-cleanup count.
+ */
+function tallyCleanup(didSucceed: boolean, restCount: number): number {
+  if (!didSucceed) return restCount;
+  return restCount + 1;
+}
+
+/** Bundled args for the recursive cleanup driver — keeps params ≤ 3. */
+interface IRecursiveCleanupArgs {
+  readonly cleanups: readonly CleanupFn[];
+  readonly logger: CleanupLogger;
+  readonly index: number;
 }
 
 /**
  * Run cleanups recursively in LIFO order (index decreasing).
- * @param cleanups - Cleanup functions registered during init.
- * @param logger - Logger for error reporting.
- * @param index - Current index (starts at last element).
+ * @param args - Bundled cleanups + logger + index.
  * @returns Count of successful cleanups.
  */
-async function runCleanupsRecursive(
-  cleanups: readonly CleanupFn[],
-  logger: IPipelineContext['logger'],
-  index: number,
-): Promise<number> {
-  if (index < 0) return 0;
-  const result = await runCleanup(cleanups[index], logger);
-  const didSucceed: boolean = isOk(result);
-  const restCount = await runCleanupsRecursive(cleanups, logger, index - 1);
-  if (!didSucceed) return restCount;
-  return restCount + 1;
+async function runCleanupsRecursive(args: IRecursiveCleanupArgs): Promise<number> {
+  if (args.index < 0) return 0;
+  const result = await runCleanup(args.cleanups[args.index], args.logger);
+  const didSucceed = isOk(result);
+  const restCount = await runCleanupsRecursive({ ...args, index: args.index - 1 });
+  return tallyCleanup(didSucceed, restCount);
 }
 
 /**
@@ -114,7 +156,7 @@ async function runAllCleanups(
   logger: IPipelineContext['logger'],
 ): Promise<number> {
   const lastIndex = cleanups.length - 1;
-  return runCleanupsRecursive(cleanups, logger, lastIndex);
+  return runCleanupsRecursive({ cleanups, logger, index: lastIndex });
 }
 
 /**
@@ -139,7 +181,7 @@ async function executeRunCleanups(input: IActionContext): Promise<Procedure<IAct
   if (!ctx.browser.has) return succeed(input);
   const cleanups = ctx.browser.value.cleanups;
   const lastIndex = cleanups.length - 1;
-  await runCleanupsRecursive(cleanups, ctx.logger, lastIndex);
+  await runCleanupsRecursive({ cleanups, logger: ctx.logger, index: lastIndex });
   return succeed(input);
 }
 
@@ -155,7 +197,7 @@ async function executeRunCleanupsFromContext(
   if (!input.browser.has) return succeed(input);
   const cleanups = input.browser.value.cleanups;
   const lastIndex = cleanups.length - 1;
-  await runCleanupsRecursive(cleanups, input.logger, lastIndex);
+  await runCleanupsRecursive({ cleanups, logger: input.logger, index: lastIndex });
   return succeed(input);
 }
 
