@@ -85,6 +85,22 @@ function pinnedWindow(): [number, number] {
 }
 
 /**
+ * Resolve the three anti-detect knobs from {@link CAMOUFOX_KNOBS} into a
+ * concrete options patch. Extracted so {@link buildLaunchOptions}
+ * stays a thin assembler under the per-function cap.
+ *
+ * @returns Patch of `{ humanize, disable_coop, block_webrtc }` flags
+ *   resolved against their CI bisect env-vars + production defaults.
+ */
+function resolveKnobs(): Pick<CamoufoxLaunchOptions, 'humanize' | 'disable_coop' | 'block_webrtc'> {
+  return {
+    humanize: envFlag(CAMOUFOX_KNOBS.humanize.envVar, CAMOUFOX_KNOBS.humanize.default),
+    disable_coop: envFlag(CAMOUFOX_KNOBS.disable_coop.envVar, CAMOUFOX_KNOBS.disable_coop.default),
+    block_webrtc: envFlag(CAMOUFOX_KNOBS.block_webrtc.envVar, CAMOUFOX_KNOBS.block_webrtc.default),
+  };
+}
+
+/**
  * Build the Camoufox launch options bundle. Centralised so the
  * `humanize` + `disable_coop` anti-detect knobs and the pinned
  * Windows 1920x1080 fingerprint stay in ONE place, locked-in by
@@ -108,9 +124,7 @@ export function buildLaunchOptions(headless: boolean): CamoufoxLaunchOptions {
     headless,
     ...CAMOUFOX_PINNED,
     window: pinnedWindow(),
-    humanize: envFlag(CAMOUFOX_KNOBS.humanize.envVar, CAMOUFOX_KNOBS.humanize.default),
-    disable_coop: envFlag(CAMOUFOX_KNOBS.disable_coop.envVar, CAMOUFOX_KNOBS.disable_coop.default),
-    block_webrtc: envFlag(CAMOUFOX_KNOBS.block_webrtc.envVar, CAMOUFOX_KNOBS.block_webrtc.default),
+    ...resolveKnobs(),
     screen: PINNED_SCREEN_CONSTRAINT,
   };
 }

@@ -19,26 +19,38 @@ import { walkPointer } from './JsonPointer.js';
 /** Plucked record — arbitrary JSON-value shape, indexed by selector name. */
 type ExtractedFields = Record<string, JsonValue>;
 
+/** Pluck-input bundle (avoids a 4-positional signature inflating LoC). */
+interface IAbsorbArgs {
+  /** Response envelope. */
+  doc: JsonValue;
+  /** Accumulator passed through reduction. */
+  acc: Record<string, JsonValue>;
+  /** [selectorName, pointer] tuple to resolve. */
+  entry: readonly [string, string];
+}
+
 /**
- * Absorb one selector into the accumulator. Extracted to satisfy
- * max-depth 1; propagates the first miss as the final failure.
- * @param doc - Response envelope.
- * @param acc - Accumulated record so far.
- * @param entry - [selectorName, pointer] pair to resolve.
+ * Build the deterministic miss-failure for a selector entry.
+ * @param entry - [selectorName, pointer] tuple that failed.
+ * @returns ScraperError-shaped failure procedure.
+ */
+function missFailure(entry: readonly [string, string]): Procedure<Record<string, JsonValue>> {
+  const [name, pointer] = entry;
+  return fail(ScraperErrorTypes.Generic, `envelope selector miss: ${name} at ${pointer}`);
+}
+
+/**
+ * Absorb one selector into the accumulator. Propagates the first miss
+ * as the final failure (deterministic).
+ * @param args - {@link IAbsorbArgs} bundle (doc/acc/entry).
  * @returns Updated accumulator, or the first miss failure.
  */
-function absorbSelector(
-  doc: JsonValue,
-  acc: Record<string, JsonValue>,
-  entry: readonly [string, string],
-): Procedure<Record<string, JsonValue>> {
-  const [name, pointer] = entry;
-  const walked = walkPointer(doc, pointer);
-  if (!isOk(walked)) {
-    return fail(ScraperErrorTypes.Generic, `envelope selector miss: ${name} at ${pointer}`);
-  }
-  acc[name] = walked.value;
-  return succeed(acc);
+function absorbSelector(args: IAbsorbArgs): Procedure<Record<string, JsonValue>> {
+  const [name, pointer] = args.entry;
+  const walked = walkPointer(args.doc, pointer);
+  if (!isOk(walked)) return missFailure(args.entry);
+  args.acc[name] = walked.value;
+  return succeed(args.acc);
 }
 
 /**
@@ -54,7 +66,7 @@ function reduceStep(
   entry: readonly [string, string],
 ): Procedure<Record<string, JsonValue>> {
   if (!isOk(stepOutcome)) return stepOutcome;
-  return absorbSelector(doc, stepOutcome.value, entry);
+  return absorbSelector({ doc, acc: stepOutcome.value, entry });
 }
 
 /**

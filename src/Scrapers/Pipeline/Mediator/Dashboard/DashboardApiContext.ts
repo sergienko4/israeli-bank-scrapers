@@ -57,6 +57,70 @@ function urlOrFalse(hit: { url: string } | false): string | false {
 /** Discovered URL fields in API context (transactions / balance / pending). */
 type DiscoveredUrls = Pick<IApiFetchContext, 'transactionsUrl' | 'balanceUrl' | 'pendingUrl'>;
 
+/** Bundled txn-side endpoint discovery hits. */
+interface IRawDiscoveryHits {
+  readonly txnHit: IDiscoveredEndpoint | false;
+  readonly balHit: IDiscoveredEndpoint | false;
+  readonly pendHit: IDiscoveredEndpoint | false;
+}
+
+/**
+ * Probe the network discovery for the three txn-side endpoints.
+ * Extracted so {@link discoverUrls} stays inside the LoC cap.
+ * @param network - Network discovery.
+ * @returns Raw discovery hits for transactions / balance / pending.
+ */
+function probeDiscoveryHits(network: INetworkDiscovery): IRawDiscoveryHits {
+  return {
+    txnHit: network.discoverTransactionsEndpoint(),
+    balHit: network.discoverBalanceEndpoint(),
+    pendHit: network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending),
+  };
+}
+
+/**
+ * Build the URL-hint slice of the `api.context` log line.
+ * @param urls - URLs derived from discovery hits.
+ * @returns Logged URL fields.
+ */
+function buildUrlHintFields(urls: DiscoveredUrls): Record<string, string> {
+  return {
+    transactionsUrl: urlHint(urls.transactionsUrl),
+    balanceUrl: urlHint(urls.balanceUrl),
+    pendingUrl: urlHint(urls.pendingUrl),
+  };
+}
+
+/**
+ * Build the capture-index slice of the `api.context` log line.
+ * @param hits - Raw discovery hits.
+ * @returns Logged capture-index fields.
+ */
+function buildCaptureIndexFields(hits: IRawDiscoveryHits): Record<string, number> {
+  return {
+    transactionsCapture: captureIndexOf(hits.txnHit),
+    balanceCapture: captureIndexOf(hits.balHit),
+    pendingCapture: captureIndexOf(hits.pendHit),
+  };
+}
+
+/**
+ * Emit the structured `api.context` log line for a set of raw hits +
+ * the URLs they resolved to. Pulled out so {@link discoverUrls} keeps
+ * to the ≤10 LoC body cap.
+ * @param hits - Raw discovery hits.
+ * @param urls - URLs (or false) derived from those hits.
+ * @returns Always true — the log call returns void.
+ */
+function logApiContextDiscovery(hits: IRawDiscoveryHits, urls: DiscoveredUrls): true {
+  LOG.debug({
+    event: 'api.context',
+    ...buildUrlHintFields(urls),
+    ...buildCaptureIndexFields(hits),
+  });
+  return true;
+}
+
 /**
  * Discovers transaction-side endpoint URLs from captured traffic.
  *
@@ -70,23 +134,13 @@ type DiscoveredUrls = Pick<IApiFetchContext, 'transactionsUrl' | 'balanceUrl' | 
  * @returns Discovered URLs object.
  */
 function discoverUrls(network: INetworkDiscovery): DiscoveredUrls {
-  const txnHit = network.discoverTransactionsEndpoint();
-  const balHit = network.discoverBalanceEndpoint();
-  const pendHit = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.pending);
+  const hits = probeDiscoveryHits(network);
   const urls: DiscoveredUrls = {
-    transactionsUrl: urlOrFalse(txnHit),
-    balanceUrl: urlOrFalse(balHit),
-    pendingUrl: urlOrFalse(pendHit),
+    transactionsUrl: urlOrFalse(hits.txnHit),
+    balanceUrl: urlOrFalse(hits.balHit),
+    pendingUrl: urlOrFalse(hits.pendHit),
   };
-  LOG.debug({
-    event: 'api.context',
-    transactionsUrl: urlHint(urls.transactionsUrl),
-    balanceUrl: urlHint(urls.balanceUrl),
-    pendingUrl: urlHint(urls.pendingUrl),
-    transactionsCapture: captureIndexOf(txnHit),
-    balanceCapture: captureIndexOf(balHit),
-    pendingCapture: captureIndexOf(pendHit),
-  });
+  logApiContextDiscovery(hits, urls);
   return urls;
 }
 
@@ -160,6 +214,57 @@ function createHeaderProvider(network: INetworkDiscovery): HeaderProvider {
 }
 
 /**
+ * Resolve the optional config-fallback transactions URL from an
+ * {@link IConfigOverride}. Returns `false` when no override is
+ * provided or `transactionsPath` is empty.
+ * @param configOverride - Optional config fallback.
+ * @returns Resolved URL or false.
+ */
+function resolveConfigTxnUrl(configOverride?: IConfigOverride): string | false {
+  if (!configOverride?.transactionsPath) return false;
+  return resolveConfigTxnPath(configOverride.baseUrl, configOverride.transactionsPath);
+}
+
+/**
+ * Compose the bound fetcher pair (GET + POST) that share the
+ * supplied late-binding header provider.
+ * @param strategy - Fetch strategy.
+ * @param headerProvider - Late-binding header provider.
+ * @returns Pair of bound fetcher functions for the API context.
+ */
+function composeBoundFetchers(
+  strategy: IFetchStrategy,
+  headerProvider: HeaderProvider,
+): Pick<IApiFetchContext, 'fetchGet' | 'fetchPost'> {
+  return {
+    fetchPost: createBoundPost(strategy, headerProvider),
+    fetchGet: createBoundGet(strategy, headerProvider),
+  };
+}
+
+/** Bundle for {@link assembleApiContextSync}. */
+interface IAssembleApiContextArgs {
+  readonly network: INetworkDiscovery;
+  readonly strategy: IFetchStrategy;
+  readonly configOverride?: IConfigOverride;
+}
+
+/**
+ * Assemble the API fetch context value synchronously from the
+ * bundled discovery inputs. Pulled out so {@link buildApiContext}
+ * stays under the LoC cap.
+ * @param args - Bundled discovery inputs.
+ * @returns API fetch context literal.
+ */
+function assembleApiContextSync(args: IAssembleApiContextArgs): IApiFetchContext {
+  const headerProvider = createHeaderProvider(args.network);
+  const urls = discoverUrls(args.network);
+  const fetchers = composeBoundFetchers(args.strategy, headerProvider);
+  const configTxnUrl = resolveConfigTxnUrl(args.configOverride);
+  return { ...fetchers, ...urls, configTransactionsUrl: configTxnUrl };
+}
+
+/**
  * Build auto-discovered API fetch context from network traffic.
  * @param network - Network discovery.
  * @param strategy - Base fetch strategy.
@@ -171,26 +276,7 @@ function buildApiContext(
   strategy: IFetchStrategy,
   configOverride?: IConfigOverride,
 ): Promise<IApiFetchContext> {
-  const headerProvider = createHeaderProvider(network);
-  const urls = discoverUrls(network);
-  const fetchPost = createBoundPost(strategy, headerProvider);
-  const fetchGet = createBoundGet(strategy, headerProvider);
-  const hasConfigPath = Boolean(configOverride?.transactionsPath);
-  const resolvedPath = resolveConfigTxnPath(
-    configOverride?.baseUrl ?? '',
-    configOverride?.transactionsPath ?? '',
-  );
-  const configUrlMap: Record<string, string | false> = {
-    true: resolvedPath,
-    false: false as const,
-  };
-  const configTxnUrl = configUrlMap[String(hasConfigPath)];
-  const ctx: IApiFetchContext = {
-    fetchPost,
-    fetchGet,
-    ...urls,
-    configTransactionsUrl: configTxnUrl,
-  };
+  const ctx = assembleApiContextSync({ network, strategy, configOverride });
   return Promise.resolve(ctx);
 }
 

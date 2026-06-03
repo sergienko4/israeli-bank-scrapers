@@ -25,31 +25,8 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import type { ICookieSnapshot } from '../Elements/ElementMediator.js';
 import { LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS } from '../Timing/TimingConfig.js';
 
-/**
- * LOGIN.FINAL: cookie-only audit. Succeeds when ≥ 1 session
- * cookie is present; fails loud `LOGIN_SESSION_INVALID` otherwise.
- *
- * @param input - Pipeline context.
- * @returns Updated context with cookie diagnostic, or fail-loud.
- */
-async function executeLoginSignal(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'LOGIN final: no login state');
-  if (!input.mediator.has) return succeed(input);
-  const mediator = input.mediator.value;
-  await mediator.waitForNetworkIdle(LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS).catch((): false => false);
-  const cookies = await mediator.getCookies();
-  const cookieCount = cookies.length;
-  logCookieAudit(input, cookies);
-  if (cookieCount === 0) {
-    return fail(ScraperErrorTypes.Generic, 'LOGIN SIGNAL: AUTH_SESSION_INVALID — 0 cookies');
-  }
-  const diag = {
-    ...input.diagnostics,
-    lastAction: `login-signal (cookies=${String(cookieCount)})`,
-    apiStrategy: API_STRATEGY.DIRECT,
-  };
-  return succeed({ ...input, diagnostics: diag });
-}
+/** Fail-loud message emitted when the cookie audit observes zero session cookies. */
+const COOKIE_AUDIT_EMPTY_MSG = 'LOGIN SIGNAL: AUTH_SESSION_INVALID — 0 cookies';
 
 /**
  * Emit a PII-safe cookie summary into the run log. Cookie names
@@ -64,6 +41,42 @@ function logCookieAudit(input: IPipelineContext, cookies: readonly ICookieSnapsh
   const summary = names.join(', ');
   input.logger.debug({ message: `cookies=${String(cookies.length)} [${summary}]` });
   return cookies.length;
+}
+
+/**
+ * Build the LOGIN.FINAL success-path Procedure: clones the input
+ * with a refreshed diagnostics block that records the cookie count
+ * and pins the API strategy to DIRECT.
+ *
+ * @param input - Pipeline context entering LOGIN.FINAL.
+ * @param cookieCount - Number of cookies observed.
+ * @returns Success Procedure wrapping the updated context.
+ */
+function buildLoginSignalSuccess(
+  input: IPipelineContext,
+  cookieCount: number,
+): Procedure<IPipelineContext> {
+  const lastAction = `login-signal (cookies=${String(cookieCount)})`;
+  const diag = { ...input.diagnostics, lastAction, apiStrategy: API_STRATEGY.DIRECT };
+  return succeed({ ...input, diagnostics: diag });
+}
+
+/**
+ * LOGIN.FINAL: cookie-only audit. Succeeds when ≥ 1 session
+ * cookie is present; fails loud `LOGIN_SESSION_INVALID` otherwise.
+ *
+ * @param input - Pipeline context.
+ * @returns Updated context with cookie diagnostic, or fail-loud.
+ */
+async function executeLoginSignal(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
+  if (!input.login.has) return fail(ScraperErrorTypes.Generic, 'LOGIN final: no login state');
+  if (!input.mediator.has) return succeed(input);
+  const mediator = input.mediator.value;
+  await mediator.waitForNetworkIdle(LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS).catch((): false => false);
+  const cookies = await mediator.getCookies();
+  const cookieCount = logCookieAudit(input, cookies);
+  if (cookieCount === 0) return fail(ScraperErrorTypes.Generic, COOKIE_AUDIT_EMPTY_MSG);
+  return buildLoginSignalSuccess(input, cookieCount);
 }
 
 export default executeLoginSignal;

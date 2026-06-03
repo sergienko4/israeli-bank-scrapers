@@ -88,6 +88,17 @@ function stepArrayPick(arr: JsonArray, propName: string, path: string): Procedur
 }
 
 /**
+ * Build a predicate matching plain-object entries whose `k` property equals `v`.
+ * Closure-free factory so callers can compose it directly into Array.find.
+ * @param k - Property name to probe.
+ * @param v - Expected string value at `entry[k]`.
+ * @returns Predicate suitable for Array.find on JsonArray entries.
+ */
+function makeKvPredicate(k: string, v: string): (entry: JsonValue) => boolean {
+  return (entry): boolean => isPlainObject(entry) && Object.hasOwn(entry, k) && entry[k] === v;
+}
+
+/**
  * Extended: filter an array down to the first element whose named
  * property equals the given string. Encoded as segment `?k=v`.
  * @param arr - Current array cursor.
@@ -100,13 +111,9 @@ function stepArrayFilter(arr: JsonArray, expr: string, path: string): Procedure<
   if (eq <= 0) return missFail(path);
   const k = expr.slice(0, eq);
   const v = expr.slice(eq + 1);
-  const matched = arr.find((entry): boolean => {
-    if (!isPlainObject(entry)) return false;
-    if (!Object.hasOwn(entry, k)) return false;
-    return entry[k] === v;
-  });
-  if (matched === undefined) return missFail(path);
-  return succeed(matched);
+  const predicate = makeKvPredicate(k, v);
+  const matched = arr.find(predicate);
+  return matched === undefined ? missFail(path) : succeed(matched);
 }
 
 /**
@@ -176,16 +183,28 @@ function stepInto(cursor: JsonValue, key: string, path: string): Procedure<JsonV
  * @param pointer - Original pointer (for diagnostics).
  * @returns Procedure with the final cursor, or miss failure.
  */
-function reduceParts(
-  cursor: JsonValue,
-  parts: readonly string[],
-  pointer: string,
-): Procedure<JsonValue> {
-  if (parts.length === 0) return succeed(cursor);
-  const [head, ...rest] = parts;
-  const stepped = stepInto(cursor, head, pointer);
+/** Args bundle for reduceParts (avoids long signature line). */
+interface IReduceArgs {
+  /** Current cursor (doc initially). */
+  cursor: JsonValue;
+  /** Remaining segments to walk. */
+  parts: readonly string[];
+  /** Original pointer (for diagnostics). */
+  pointer: string;
+}
+
+/**
+ * Reduce parts through stepInto, short-circuiting on the first miss.
+ * Flattened out of walkPointer to satisfy max-depth 1.
+ * @param args - {@link IReduceArgs} bundle (cursor/parts/pointer).
+ * @returns Procedure with the final cursor, or miss failure.
+ */
+function reduceParts(args: IReduceArgs): Procedure<JsonValue> {
+  if (args.parts.length === 0) return succeed(args.cursor);
+  const [head, ...rest] = args.parts;
+  const stepped = stepInto(args.cursor, head, args.pointer);
   if (!isOk(stepped)) return stepped;
-  return reduceParts(stepped.value, rest, pointer);
+  return reduceParts({ cursor: stepped.value, parts: rest, pointer: args.pointer });
 }
 
 /**
@@ -209,7 +228,7 @@ function walkPointer(doc: JsonValue, pointer: string): Procedure<JsonValue> {
   const split = pointer.split('/');
   const rawParts = split.slice(1);
   const parts = rawParts.map(decodeSegment);
-  return reduceParts(doc, parts, pointer);
+  return reduceParts({ cursor: doc, parts, pointer });
 }
 
 export type { IJsonObject, JsonArray, JsonPrimitive, JsonValue };

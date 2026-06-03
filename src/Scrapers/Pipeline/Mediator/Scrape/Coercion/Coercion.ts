@@ -13,6 +13,17 @@ import { KNOWN_DATE_FORMATS } from '../../../Registry/WK/ScrapeWK.js';
 import type { ScalarFieldHit } from '../AutoMapperFacade/AutoMapperTypes.js';
 
 /**
+ * Pick the raw string from a {@link ScalarFieldHit}, stringifying numbers.
+ * @param val - Raw field value.
+ * @returns Empty string when not stringifiable.
+ */
+function pickRawString(val: ScalarFieldHit): string {
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  return '';
+}
+
+/**
  * Coerce a field value to string, applying optional transform.
  * Numeric inputs are stringified so numeric YYYYMMDD dates survive.
  * @param val - Raw field value from findFieldValue.
@@ -26,12 +37,9 @@ function coerceString(
   fallback = '',
 ): string {
   if (val === false) return fallback;
-  let s = '';
-  if (typeof val === 'string') s = val;
-  if (typeof val === 'number') s = String(val);
+  const s = pickRawString(val);
   if (s === '') return fallback;
-  if (transform) return transform(s);
-  return s;
+  return transform ? transform(s) : s;
 }
 
 /**

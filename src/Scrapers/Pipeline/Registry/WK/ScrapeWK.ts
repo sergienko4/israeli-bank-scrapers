@@ -128,6 +128,19 @@ export const PIPELINE_WELL_KNOWN_BILLING = {
   apiPrefix: '/Transactions/api',
 } as const;
 
+/** WellKnown path fragments for the shared "pending / clearance-requests"
+ *  API on the same card-family backbone as {@link PIPELINE_WELL_KNOWN_BILLING}.
+ *  Used by {@link resolvePendingUrl} when no pending URL was captured —
+ *  combined with the discovered API origin so no hostname is hardcoded. */
+export const PIPELINE_WELL_KNOWN_PENDING = {
+  /** API prefix under the bank's origin (shared with billing). */
+  apiPrefix: '/Transactions/api',
+  /** Parent path segment of the pending-transactions API. */
+  pathFragment: 'approvals',
+  /** Leaf action returning the pending/clearance request list. */
+  actionName: 'getClearanceRequests',
+} as const;
+
 /** WellKnown header name patterns for network discovery. */
 export const PIPELINE_WELL_KNOWN_HEADERS = {
   /** Request header names that carry the API origin. */

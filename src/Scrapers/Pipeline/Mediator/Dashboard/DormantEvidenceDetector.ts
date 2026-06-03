@@ -121,6 +121,17 @@ function scanForEmptyContainer(node: IDormantJsonObject, depth: number): boolean
 }
 
 /**
+ * True when any own-key of `node` is present in `aliasKeys`.
+ * Pulled out so {@link scanForAlias} stays under the LoC cap.
+ * @param node - Inspected object node.
+ * @param aliasKeys - WK alias set to look for.
+ * @returns True on first matching key on `node`.
+ */
+function nodeHasAliasKey(node: IDormantJsonObject, aliasKeys: ReadonlySet<string>): boolean {
+  return Object.keys(node).some((key): boolean => aliasKeys.has(key));
+}
+
+/**
  * Recursive DFS — true when any reachable object node carries a key
  * matching the supplied alias set. Descends into BOTH nested objects
  * and object-typed elements of arrays. Bounded by
@@ -135,8 +146,7 @@ function scanForAlias(
   aliasKeys: ReadonlySet<string>,
   depth: number,
 ): boolean {
-  const nodeKeys = Object.keys(node);
-  if (nodeKeys.some((key): boolean => aliasKeys.has(key))) return true;
+  if (nodeHasAliasKey(node, aliasKeys)) return true;
   if (depth >= MAX_SCAN_DEPTH) return false;
   const children = Object.values(node).flatMap(collectDescendables);
   return children.some((child): boolean => scanForAlias(child, aliasKeys, depth + 1));

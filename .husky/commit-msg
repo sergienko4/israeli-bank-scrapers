@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# Husky commit-msg hook — T1 enrichment: test-body freeze for prod-refactor phases.
+#
+# Per `agent-contract.md` §Test safety net: production-refactor phases
+# (Phase 1, 2, 3, 4, 5, 6, 8) MUST NOT reshape test bodies; only Phase 7
+# and Phase 9 are test-reshape phases. Adding NEW it()/describe() blocks
+# is allowed (Option A exception per plan.md); reshaping or deleting
+# EXISTING test code is forbidden.
+#
+# This gate runs at commit-msg time (after pre-commit, before the commit
+# is recorded) so we can parse the subject line to detect the phase.
+#
+# Why a separate gate (not folded into pre-commit): pre-commit fires
+# before the commit message exists. commit-msg gives us the subject so
+# we can pick the right phase contract.
+#
+# Detection:
+#   1. Read $1 (commit-msg file path) — extract subject line.
+#   2. If subject matches `^(refactor|fix|feat|chore)\((phase-[123468]|chore-phase-[123468])`,
+#      treat as PROD-REFACTOR phase → test-body-frozen rule applies.
+#   3. If subject matches `^(refactor|test|chore)\(phase-[79]` → SKIP (test-reshape OK).
+#   4. Otherwise → SKIP (not a numbered phase commit).
+#
+# Frozen check (only when applicable):
+#   - For every staged `src/Tests/**/*.ts` file, count `-` lines via
+#     `git diff --cached --no-color -- src/Tests/**.ts`. ALL minus lines
+#     are forbidden (additive-only commits should never have minus lines
+#     on test files). Whole-file deletions (status D) are rejected outright.
+#     Exception: pure rename / pure whitespace —
+#     `--ignore-all-space --diff-filter=M` detects only meaningful deletes.
+
+set -o pipefail
+
+MSG_FILE="$1"
+if [[ -z "$MSG_FILE" || ! -f "$MSG_FILE" ]]; then
+  echo "❌ T1 test-body-freeze: missing commit-msg file" >&2
+  exit 1
+fi
+
+SUBJECT=$(head -n 1 "$MSG_FILE")
+
+# Skip if this is NOT a prod-refactor phase commit.
+# Includes `chore` (LOW #5 from rubber-duck) since some prod-phase commits
+# legitimately use the chore type (e.g. chore(phase-2e): when the change
+# is config-only but tied to a phase).
+if ! echo "$SUBJECT" | grep -qE '^(refactor|fix|feat|chore)\((phase-[123468]|chore-phase-[123468])'; then
+  exit 0
+fi
+
+# Bypass for explicit Phase 7 / Phase 9 commits (test-reshape phases).
+if echo "$SUBJECT" | grep -qE '^(refactor|test|chore)\(phase-[79]'; then
+  exit 0
+fi
+
+# Collect staged test files including DELETIONS (D). T1 rejects whole-file
+# test deletions as well as in-file body shrinks (per rubber-duck HIGH #1).
+# Use -M for rename detection so R-status doesn't masquerade as A+D pair.
+STAGED_TESTS=$(git diff --cached -M --name-only --diff-filter=ACMRD -- 'src/Tests/**/*.ts' 'src/Tests/**/*.tsx' 2>/dev/null)
+if [[ -z "$STAGED_TESTS" ]]; then
+  exit 0
+fi
+
+# Count meaningful minus lines per file (ignore whitespace, only modified files).
+# Whole-file deletions (status D) are rejected outright with a clear message.
+VIOLATIONS=""
+DELETED_FILES=""
+for f in $STAGED_TESTS; do
+  # Re-query status WITH rename detection so renames count as R, not D+A.
+  STATUS=$(git diff --cached -M --name-status -- "$f" | awk '{print $1}' | head -n1)
+  case "$STATUS" in
+    A|R*)
+      # Newly-added or renamed: skip body-diff check (no shrink possible
+      # for A; renames preserve content + body-diff check would fire on
+      # the rename hunk noise).
+      continue
+      ;;
+    D)
+      DELETED_FILES="$DELETED_FILES $f"
+      continue
+      ;;
+  esac
+  MINUS_COUNT=$(git diff --cached --no-color --ignore-all-space -U0 -- "$f" 2>/dev/null \
+    | grep -E '^-[^-]' | wc -l | tr -d ' ')
+  if [[ "$MINUS_COUNT" -gt 0 ]]; then
+    VIOLATIONS="$VIOLATIONS $f($MINUS_COUNT)"
+  fi
+done
+
+if [[ -n "$DELETED_FILES" ]]; then
+  echo "" >&2
+  echo "❌ T1 TEST-BODY FREEZE VIOLATION — whole-file deletion" >&2
+  echo "" >&2
+  echo "Commit subject: $SUBJECT" >&2
+  echo "Subject implies a PROD-REFACTOR phase (Phase 1/2/3/4/5/6/8)." >&2
+  echo "Deleting an entire test file during a prod-refactor phase is" >&2
+  echo "ALWAYS a freeze violation — there is no additive interpretation." >&2
+  echo "" >&2
+  echo "Deleted test files:" >&2
+  for d in $DELETED_FILES; do
+    echo "  - $d" >&2
+  done
+  echo "" >&2
+  echo "Options:" >&2
+  echo "  1. Restore the deleted file." >&2
+  echo "  2. Split the commit: move the deletion to a separate" >&2
+  echo "     'refactor(phase-9):' or 'test:' commit." >&2
+  echo "" >&2
+  exit 1
+fi
+
+if [[ -n "$VIOLATIONS" ]]; then
+  echo "" >&2
+  echo "❌ T1 TEST-BODY FREEZE VIOLATION" >&2
+  echo "" >&2
+  echo "Commit subject: $SUBJECT" >&2
+  echo "Subject implies a PROD-REFACTOR phase (Phase 1/2/3/4/5/6/8)." >&2
+  echo "Per agent-contract.md §Test safety net, test BODIES are FROZEN" >&2
+  echo "during prod-refactor phases. Only Phase 7 + Phase 9 may reshape" >&2
+  echo "tests; otherwise tests may only be ADDED to (no - lines)." >&2
+  echo "" >&2
+  echo "Test files with meaningful deletions:" >&2
+  for v in $VIOLATIONS; do
+    echo "  - $v" >&2
+  done
+  echo "" >&2
+  echo "Options:" >&2
+  echo "  1. Revert the test deletions (most common fix)." >&2
+  echo "  2. Split the commit: move test reshape to a separate" >&2
+  echo "     'refactor(phase-9):' or 'test:' commit." >&2
+  echo "  3. If this is legitimately a test-reshape phase, rename the" >&2
+  echo "     commit subject to 'refactor(phase-7):' or 'refactor(phase-9):'." >&2
+  echo "" >&2
+  exit 1
+fi
+
+exit 0

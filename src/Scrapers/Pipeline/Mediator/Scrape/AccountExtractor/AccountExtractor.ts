@@ -42,6 +42,53 @@ function rootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
   return arr.filter(looksLikeAccountRecord).map((v): ApiRecord => v as ApiRecord);
 }
 
+/** Sentinel for `tryFindFirstArrayItems` — returns the empty list. */
+const EMPTY_API_LIST: readonly ApiRecord[] = [];
+
+/**
+ * Try the BFS findFirstArray + trace-log path. Logs the item count
+ * at debug when a hit lands; returns the empty sentinel otherwise.
+ *
+ * @param responseBody - Parsed JSON response body.
+ * @returns Cast records, or {@link EMPTY_API_LIST} on miss.
+ */
+function tryFindFirstArrayItems(responseBody: ApiRecord): readonly ApiRecord[] {
+  const items = findFirstArray(responseBody);
+  if (items.length === 0) return EMPTY_API_LIST;
+  LOG.debug({ message: `extractAccountRecords: ${String(items.length)} items` });
+  return castSearchable(items);
+}
+
+/**
+ * Try the root-level array fallback. Logs the item count with the
+ * `(root-array fallback)` suffix; returns the empty sentinel on miss.
+ *
+ * @param responseBody - Parsed JSON response body.
+ * @returns Root-level accounts, or {@link EMPTY_API_LIST} on miss.
+ */
+function tryRootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
+  const rootAccts = rootAccountArray(responseBody);
+  if (rootAccts.length === 0) return EMPTY_API_LIST;
+  const message = `extractAccountRecords: ${String(rootAccts.length)} items (root-array fallback)`;
+  LOG.debug({ message });
+  return rootAccts;
+}
+
+/**
+ * Emit the zero-items debug + raw shape trace fired when none of the
+ * three extractors landed a hit. Pulled out so
+ * {@link extractAccountRecords} stays within the per-function LoC
+ * budget.
+ *
+ * @param responseBody - Parsed JSON response body for the trace.
+ * @returns Always true (sentinel for callers).
+ */
+function emitZeroItemsTrace(responseBody: ApiRecord): true {
+  LOG.debug({ message: 'extractAccountRecords: 0 items' });
+  traceRawShape(responseBody);
+  return true;
+}
+
 /**
  * Extract account records from API response. Logs the response shape
  * at trace level when zero items are found — exposes per-bank mapper
@@ -54,20 +101,11 @@ function rootAccountArray(responseBody: ApiRecord): readonly ApiRecord[] {
 function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
   const containers = extractAllContainers(responseBody);
   if (Object.keys(containers).length > 0) return flattenContainersForLog(containers);
-  const items = findFirstArray(responseBody);
-  if (items.length > 0) {
-    LOG.debug({ message: `extractAccountRecords: ${String(items.length)} items` });
-    return castSearchable(items);
-  }
-  const rootAccts = rootAccountArray(responseBody);
-  if (rootAccts.length > 0) {
-    LOG.debug({
-      message: `extractAccountRecords: ${String(rootAccts.length)} items (root-array fallback)`,
-    });
-    return rootAccts;
-  }
-  LOG.debug({ message: 'extractAccountRecords: 0 items' });
-  traceRawShape(responseBody);
+  const fromArray = tryFindFirstArrayItems(responseBody);
+  if (fromArray.length > 0) return fromArray;
+  const fromRoot = tryRootAccountArray(responseBody);
+  if (fromRoot.length > 0) return fromRoot;
+  emitZeroItemsTrace(responseBody);
   return [];
 }
 

@@ -55,6 +55,27 @@ function hasStrongAuthCorroboration(snap: IAuthDiscovery): boolean {
 }
 
 /**
+ * URL-only branch of {@link dashboardGateReason}: assumes REVEAL has
+ * already matched. Returns `'open'` when any URL-side signal (change,
+ * empty pre-auth, strong auth corroboration) clears the gate.
+ *
+ * @param snap - Slim auth-discovery snapshot.
+ * @param currentUrl - Page URL at AUTH-DISCOVERY.FINAL entry.
+ * @param preAuthUrl - URL emitted by LOGIN.PRE.
+ * @returns Reason enum value.
+ */
+function urlBasedGateReason(
+  snap: IAuthDiscovery,
+  currentUrl: string,
+  preAuthUrl: string,
+): DashboardGateReason {
+  if (preAuthUrl === '') return 'open';
+  if (currentUrl !== preAuthUrl) return 'open';
+  if (hasStrongAuthCorroboration(snap)) return 'open';
+  return 'url-stuck';
+}
+
+/**
  * Diagnostic version of {@link passesDashboardGate}. Returns the
  * specific reason the gate decided open / closed so the FINAL
  * orchestrator can log a targeted telemetry line without a second
@@ -71,10 +92,7 @@ function dashboardGateReason(
   preAuthUrl: string,
 ): DashboardGateReason {
   if (!snap.dashboardReady) return 'reveal-missing';
-  if (preAuthUrl === '') return 'open';
-  if (currentUrl !== preAuthUrl) return 'open';
-  if (hasStrongAuthCorroboration(snap)) return 'open';
-  return 'url-stuck';
+  return urlBasedGateReason(snap, currentUrl, preAuthUrl);
 }
 
 /**
