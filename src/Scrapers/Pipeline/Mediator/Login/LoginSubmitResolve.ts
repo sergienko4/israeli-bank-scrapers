@@ -13,7 +13,7 @@ import { type IPipelineContext, type IResolvedTarget } from '../../Types/Pipelin
 import { computeContextId } from '../Elements/ActionExecutors.js';
 import type { IRaceResult } from '../Elements/ElementMediator.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
-import type { IDiscoverFieldsArgs } from './LoginFieldDiscovery.js';
+import type { IDiscoverFieldsArgs } from './LoginFieldDiscovery.types.js';
 import {
   buildSubmitSelector,
   extractCandidateKind,

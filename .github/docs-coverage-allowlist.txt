@@ -343,3 +343,7 @@ ResultSlotKey
 IDashboardTargets
 # Reason: JsonScopeValue — internal JSON-value alias used by the TxnParser.scope.ts / .accountId.ts / .harvest.ts siblings after TxnParser.ts was split to satisfy the per-file LoC budget. Same architectural role as TxnParser.ts (DASHBOARD-side harvest scope); pure cross-sibling type plumbing, not part of the public API.
 JsonScopeValue
+
+# --- Phase 2d-strict / Login cycle break (LoginFieldDiscovery <-> LoginSubmitResolve) ---
+# Reason: IDiscoverFieldsArgs — internal bundled-arguments interface shared by LoginFieldDiscovery.ts (producer of executeDiscoverFields) and LoginSubmitResolve.ts (consumer of resolveSubmitTarget). Extracted to LoginFieldDiscovery.types.ts to break the type-only madge cycle introduced by the Phase 2d split (LoginFieldDiscovery imports resolveSubmitTarget at runtime while LoginSubmitResolve imported the type back). Pure cross-sibling type plumbing; not part of the public API surface.
+IDiscoverFieldsArgs

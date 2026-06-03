@@ -5,10 +5,9 @@
  * {@link ./LoginPhaseActions.ts}.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
 
 import type { IFieldConfig } from '../../../Base/Interfaces/Config/FieldConfig.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { none, type Option } from '../../Types/Option.js';
 import {
@@ -19,20 +18,11 @@ import {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { computeContextId } from '../Elements/ActionExecutors.js';
-import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
 import { passwordFirst } from '../Form/LoginScopeResolver.js';
 import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
+import type { IDiscoverFieldsArgs } from './LoginFieldDiscovery.types.js';
 import { resolveSubmitTarget } from './LoginSubmitResolve.js';
-
-/** Bundled arguments for discovering all login fields. */
-interface IDiscoverFieldsArgs {
-  readonly mediator: IElementMediator;
-  readonly config: ILoginConfig;
-  readonly activeFrame: Page | Frame;
-  readonly page: Page;
-  readonly logger: IPipelineContext['logger'];
-}
 
 /** Accumulator for field discovery reduce. */
 interface IFieldAccum {
