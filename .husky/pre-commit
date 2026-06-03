@@ -11,6 +11,39 @@ if [ -z "$CODE_FILES" ]; then
     exit 0
 fi
 
+# ── T1-INVERSE: test-only branch lockdown ─────────────────────────────
+# Symmetric to the existing T1 test-body-freeze guard (commit-msg hook).
+# Blocks production-code changes on test-only branches so test-refactor
+# PRs cannot silently smuggle behaviour changes.
+#
+# Activates when branch matches: refactor/phase-7-*, refactor/phase-9-*,
+# or chore/test-*. Production-code = anything under src/ that is NOT
+# under src/Tests/ or src/Scrapers/Pipeline/EslintCanaries/.
+#
+# If you discovered a production bug while doing test-only work, open
+# a separate fix(prod): PR FIRST, merge it, rebase this branch on the
+# new main, then resume the test-only work. Test-only PRs must stay
+# behaviour-preserving for review reliability.
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+case "$BRANCH" in
+    refactor/phase-7-*|refactor/phase-9-*|chore/test-*)
+        PROD_DIFF=$(echo "$STAGED_FILES" | grep -E '^src/' \
+            | grep -v -E '^src/Tests/' \
+            | grep -v -E '^src/Scrapers/Pipeline/EslintCanaries/' \
+            || true)
+        if [ -n "$PROD_DIFF" ]; then
+            echo "❌ T1-INVERSE: test-only branch '$BRANCH' contains production-code changes:" | tee -a "$LOG_FILE"
+            echo "$PROD_DIFF" | sed 's/^/   /' | tee -a "$LOG_FILE"
+            echo "" | tee -a "$LOG_FILE"
+            echo "Test-only branches forbid src/Scrapers/** diffs (canaries excepted)." | tee -a "$LOG_FILE"
+            echo "If you discovered a production bug, open a separate fix(prod): PR" | tee -a "$LOG_FILE"
+            echo "FIRST, merge it, rebase this branch, then resume the test-only work." | tee -a "$LOG_FILE"
+            exit 1
+        fi
+        echo "✅ T1-INVERSE: zero production-code diff on test-only branch '$BRANCH'" | tee -a "$LOG_FILE"
+        ;;
+esac
+
 log() { echo "$1" | tee -a "$LOG_FILE"; }
 FAIL_COUNT=0
 FAIL_NAMES=""
