@@ -15,6 +15,13 @@
 #   0  all assertions passed
 #   1  any assertion failed
 
+# `-e` is intentionally OMITTED here. This is an assertion harness that
+# MUST keep running past failing setup steps and negative-test commands
+# (e.g. the "wrong key must exit non-zero" test below `set +e`s its way
+# through the failure on purpose) so it can tally PASS/FAIL totals.
+# Adding `-e` would short-circuit the suite on the first expected
+# failure and silently skip the rest of the assertions. Per CR review
+# on PR #300: keep this deviation explicit.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,9 +43,9 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/4: shellcheck ──"
+echo "── 1/2: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in cooldown-wait.sh decrypt-token-cache.sh encrypt-token-cache.sh; do
+  for script in decrypt-token-cache.sh encrypt-token-cache.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"
@@ -51,32 +58,13 @@ else
   echo "  ! shellcheck not installed — skipping (install on CI runner)"
 fi
 
-# ── 2. cooldown cold start ──
-echo "── 2/4: cooldown cold start ──"
-COLD_TS="/tmp/cooldown-CooldownTestBank.txt"
-rm -f "$COLD_TS"
-START=$(date +%s)
-bash "$SCRIPT_DIR/cooldown-wait.sh" "CooldownTestBank" 5 >/dev/null
-ELAPSED=$(($(date +%s) - START))
-if [ "$ELAPSED" -le 1 ]; then cold_ok=1; else cold_ok=0; fi
-assert_eq "cold start exits immediately (elapsed=${ELAPSED}s)" "1" "$cold_ok"
-if [ -f "$COLD_TS" ]; then file_ok=1; else file_ok=0; fi
-assert_eq "timestamp file is created" "1" "$file_ok"
-rm -f "$COLD_TS"
-
-# ── 3. cooldown warm path ──
-echo "── 3/4: cooldown warm path enforces gap ──"
-WARM_TS="/tmp/cooldown-WarmTestBank.txt"
-echo "$(($(date +%s) - 1))" > "$WARM_TS"
-START=$(date +%s)
-bash "$SCRIPT_DIR/cooldown-wait.sh" "WarmTestBank" 3 >/dev/null
-ELAPSED=$(($(date +%s) - START))
-if [ "$ELAPSED" -ge 1 ] && [ "$ELAPSED" -le 4 ]; then warm_ok=1; else warm_ok=0; fi
-assert_eq "warm path sleeps ~2s (got ${ELAPSED}s)" "1" "$warm_ok"
-rm -f "$WARM_TS"
-
-# ── 4. encrypt → decrypt roundtrip ──
-echo "── 4/4: token cache encrypt/decrypt roundtrip ──"
+# ── 2. encrypt → decrypt roundtrip ──
+# Cooldown enforcement is no longer script-based — see pr.yml
+# `Cooldown hold` post-run step which simply `sleep`s 600 s to
+# hold the job's concurrency.group slot (per CR review on PR #300;
+# `actions/cache`-backed timestamps were PR-branch scoped and could
+# not enforce repo-wide cross-PR cooldown).
+echo "── 2/2: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
