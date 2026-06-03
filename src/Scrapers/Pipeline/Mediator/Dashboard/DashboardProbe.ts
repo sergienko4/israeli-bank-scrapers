@@ -10,7 +10,7 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import type { IElementMediator } from '../Elements/ElementMediator.js';
+import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 
 /** Timeout for change-password probe (ms). */
 const CHANGE_PWD_TIMEOUT = 3000;
@@ -54,6 +54,18 @@ async function extractAuthFromContext(input: IPipelineContext): Promise<string |
 export { extractAuthFromContext, extractDashboardAuth };
 
 /**
+ * Race the change-password probe candidates with a short timeout.
+ * Catches resolveVisible failures (closed page, mock errors) so the
+ * caller treats them as "no prompt found".
+ * @param mediator - Element mediator.
+ * @returns Race result or false on probe error.
+ */
+async function probeChangePwdRace(mediator: IElementMediator): Promise<IRaceResult | false> {
+  const candidates = WK_DASHBOARD.CHANGE_PWD as unknown as readonly SelectorCandidate[];
+  return mediator.resolveVisible(candidates, CHANGE_PWD_TIMEOUT).catch((): false => false);
+}
+
+/**
  * Check change-password prompt via mediator using WK_DASHBOARD.
  * @param mediator - Element mediator.
  * @returns Failure if password change required, false otherwise.
@@ -61,10 +73,7 @@ export { extractAuthFromContext, extractDashboardAuth };
 export default async function checkChangePassword(
   mediator: IElementMediator,
 ): Promise<Procedure<IPipelineContext> | false> {
-  const candidates = WK_DASHBOARD.CHANGE_PWD as unknown as readonly SelectorCandidate[];
-  const changePwd = await mediator
-    .resolveVisible(candidates, CHANGE_PWD_TIMEOUT)
-    .catch((): false => false);
+  const changePwd = await probeChangePwdRace(mediator);
   if (!changePwd) return false;
   if (changePwd.found) {
     return fail(ScraperErrorTypes.ChangePassword, 'Password change required');

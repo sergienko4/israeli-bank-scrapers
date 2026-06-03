@@ -33,6 +33,23 @@ export function createPromise<T>(
 }
 
 /**
+ * Build a promise that rejects with the supplied error after `ms`.
+ * Extracted so {@link timeoutPromise} stays under the per-function cap.
+ * @param ms - Delay in milliseconds before the rejection fires.
+ * @param error - Error instance used to reject the returned promise.
+ * @returns A promise that never resolves and rejects with `error`.
+ */
+function createTimeoutRejector<T>(ms: number, error: TimeoutError): Promise<T> {
+  return createPromise<T>((_resolve, reject): boolean => {
+    const id = globalThis.setTimeout((): boolean => {
+      clearTimeout(id);
+      return reject(error);
+    }, ms);
+    return true;
+  });
+}
+
+/**
  * Race a promise against a timeout, rejecting with TimeoutError if the timeout fires first.
  * @param ms - The timeout duration in milliseconds.
  * @param promise - The promise to race against the timeout.
@@ -45,13 +62,7 @@ export function timeoutPromise<T>(
   description: string,
 ): Promise<T> {
   const error = createTimeoutError(description);
-  const timeout = createPromise<T>((_resolve, reject): boolean => {
-    const id = globalThis.setTimeout((): boolean => {
-      clearTimeout(id);
-      return reject(error);
-    }, ms);
-    return true;
-  });
+  const timeout = createTimeoutRejector<T>(ms, error);
   return Promise.race([promise, timeout]);
 }
 
@@ -126,6 +137,19 @@ function pickHumanDelay(minMs: number, maxMs: number): number {
 }
 
 /**
+ * Schedule the human-delay resolver — pulled out so {@link humanDelay}
+ * stays under the per-function LoC budget.
+ * @param delay - Milliseconds before the resolver fires.
+ * @param resolve - Promise resolver from the outer {@link createPromise}.
+ * @returns Always true (sentinel for the executor).
+ */
+function scheduleHumanDelay(delay: number, resolve: (v: Procedure<void>) => boolean): boolean {
+  const done = succeed(undefined);
+  globalThis.setTimeout((): boolean => resolve(done), delay);
+  return true;
+}
+
+/**
  * Random delay that mimics human interaction timing.
  * Default range: 300-1200ms (realistic for clicks and navigation).
  * @param minMs - The minimum delay in milliseconds.
@@ -137,9 +161,5 @@ export function humanDelay(
   maxMs = HUMAN_DELAY_MAX_MS,
 ): Promise<Procedure<void>> {
   const delay = pickHumanDelay(minMs, maxMs);
-  return createPromise<Procedure<void>>((resolve): boolean => {
-    const done = succeed(undefined);
-    globalThis.setTimeout((): boolean => resolve(done), delay);
-    return true;
-  });
+  return createPromise<Procedure<void>>((resolve): boolean => scheduleHumanDelay(delay, resolve));
 }

@@ -20,6 +20,23 @@ import { autoMapTransaction, isVoidedTransaction } from '../TxnMapper/TxnMapper.
 const LOG = getDebug(import.meta.url);
 
 /**
+ * Build the structured debug summary fired after
+ * {@link extractTransactions} maps the hunt output. Pulled out so
+ * the orchestrator stays a thin filter+map pipeline.
+ *
+ * @param totalFound - Total hunt-collected records.
+ * @param validCount - Records passing the voided filter.
+ * @param keptCount - Records successfully mapped to ITransaction.
+ * @returns Diagnostic line ready for `LOG.debug`.
+ */
+function buildHuntSummary(totalFound: number, validCount: number, keptCount: number): string {
+  return (
+    `huntTransactions: ${String(totalFound)} found, ` +
+    `${String(validCount)} valid, ${String(keptCount)} mapped`
+  );
+}
+
+/**
  * Extract transactions from an API response using stack-based
  * iterative hunt. Filters voided/summary rows. Maps to ITransaction.
  * @param responseBody - Parsed JSON response body.
@@ -30,11 +47,8 @@ function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
   const valid = items.filter((r): boolean => !isVoidedTransaction(r));
   const mapped = valid.map(autoMapTransaction);
   const kept = mapped.filter((t): t is ITransaction => t !== false);
-  const count = String(items.length);
-  const validCount = String(valid.length);
-  const keptCount = String(kept.length);
-  const msg = `huntTransactions: ${count} found, ${validCount} valid, ${keptCount} mapped`;
-  LOG.debug({ message: msg });
+  const message = buildHuntSummary(items.length, valid.length, kept.length);
+  LOG.debug({ message });
   return kept;
 }
 
@@ -81,6 +95,40 @@ function filterByCardIndex(body: ApiRecord, cardId: string): readonly ITransacti
 }
 
 /**
+ * Apply the cardIndex value-BFS extraction step and emit the matching
+ * debug log. Pulled out so {@link extractTransactionsForCard} stays
+ * within the per-function LoC budget.
+ *
+ * @param body - API response body.
+ * @param cardId - Card index for scoping.
+ * @returns Filtered transaction items (empty when no match).
+ */
+function extractByValueBfs(body: ApiRecord, cardId: string): readonly ITransaction[] {
+  const byValue = filterByCardIndex(body, cardId);
+  if (byValue.length === 0) return [];
+  const count = String(byValue.length);
+  LOG.debug({ message: `extractForCard: cardIndex=${cardId} → value BFS (${count} txns)` });
+  return byValue;
+}
+
+/**
+ * Apply the indexed-subtree key-lookup step. Emits the matching
+ * debug log when a subtree is found and delegates the extraction to
+ * {@link extractTransactions}; returns `false` so the orchestrator
+ * can fall through to the next chain step.
+ *
+ * @param body - API response body.
+ * @param cardId - Card index for scoping.
+ * @returns Extracted transactions, or `false` on miss.
+ */
+function extractByIndexedSubtree(body: ApiRecord, cardId: string): readonly ITransaction[] | false {
+  const subtree = findIndexedSubtree(body, cardId);
+  if (!subtree) return false;
+  LOG.debug({ message: `extractForCard: Index${cardId} → key lookup` });
+  return extractTransactions(subtree);
+}
+
+/**
  * Card-aware extraction — 3-step resolution chain.
  * 1. Key lookup: `Index{cardId}` subtree (Isracard/Amex)
  * 2. Value BFS: filter by `cardIndex` field value
@@ -92,20 +140,12 @@ function filterByCardIndex(body: ApiRecord, cardId: string): readonly ITransacti
  * @returns Transactions for the specified card only.
  */
 function extractTransactionsForCard(body: ApiRecord, cardId: string): readonly ITransaction[] {
-  const subtree = findIndexedSubtree(body, cardId);
-  if (subtree) {
-    LOG.debug({ message: `extractForCard: Index${cardId} → key lookup` });
-    return extractTransactions(subtree);
-  }
-  const byValue = filterByCardIndex(body, cardId);
-  if (byValue.length > 0) {
-    const count = String(byValue.length);
-    LOG.debug({ message: `extractForCard: cardIndex=${cardId} → value BFS (${count} txns)` });
-    return byValue;
-  }
-  LOG.warn({
-    message: `STRICT_SCOPE: no data for Card ${cardId} — returning empty (no fallback)`,
-  });
+  const byKey = extractByIndexedSubtree(body, cardId);
+  if (byKey !== false) return byKey;
+  const byValue = extractByValueBfs(body, cardId);
+  if (byValue.length > 0) return byValue;
+  const message = `STRICT_SCOPE: no data for Card ${cardId} — returning empty (no fallback)`;
+  LOG.warn({ message });
   return [];
 }
 

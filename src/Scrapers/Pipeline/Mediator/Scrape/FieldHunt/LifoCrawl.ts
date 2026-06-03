@@ -45,9 +45,7 @@ function pushArrayChildren(
   depth: number,
 ): number {
   const objects = items.filter((item): boolean => typeof item === 'object' && item !== null);
-  for (const obj of objects) {
-    stack.push({ node: obj, depth: depth + 1 });
-  }
+  for (const obj of objects) stack.push({ node: obj, depth: depth + 1 });
   return objects.length;
 }
 
@@ -64,10 +62,21 @@ function pushObjectChildren(
   depth: number,
 ): number {
   const values = Object.values(obj);
-  for (const value of values) {
-    stack.push({ node: value, depth: depth + 1 });
-  }
+  for (const value of values) stack.push({ node: value, depth: depth + 1 });
   return values.length;
+}
+
+/**
+ * Commit a txn-shaped array onto the LIFO collector. Pulled out so
+ * {@link handleArrayNode} stays a single guard + dispatch.
+ *
+ * @param node - Array of txn-like items already scored above threshold.
+ * @param collected - Mutable accumulator.
+ * @returns Always true (sentinel for callers).
+ */
+function commitArrayNode(node: readonly UntypedValue[], collected: UntypedValue[]): true {
+  for (const item of node) collected.push(item);
+  return true;
 }
 
 /**
@@ -77,13 +86,46 @@ function pushObjectChildren(
  */
 function handleArrayNode(ctx: IArrayNodeCtx): boolean {
   if (ctx.node.length === 0) return false;
-  const firstNode = ctx.node[0];
-  const score = scoreTxnSignature(firstNode);
+  const score = scoreTxnSignature(ctx.node[0]);
   if (score < MIN_TXN_SCORE) {
     pushArrayChildren(ctx.stack, ctx.node, ctx.depth);
     return false;
   }
-  for (const item of ctx.node) ctx.collected.push(item);
+  return commitArrayNode(ctx.node, ctx.collected);
+}
+
+/**
+ * Dispatch a LIFO array entry — bundles the args into an
+ * {@link IArrayNodeCtx} and forwards to {@link handleArrayNode}.
+ * Pulled out so {@link processStackEntry} stays a flat dispatcher.
+ *
+ * @param entry - Stack entry with `node: readonly UntypedValue[]`.
+ * @param collected - Mutable accumulator.
+ * @param stack - Exploration stack.
+ * @returns True if items were collected.
+ */
+function dispatchArrayStackEntry(
+  entry: IStackEntry,
+  collected: UntypedValue[],
+  stack: IStackEntry[],
+): boolean {
+  const node = entry.node as unknown[];
+  const ctx: IArrayNodeCtx = { collected, stack, node, depth: entry.depth };
+  return handleArrayNode(ctx);
+}
+
+/**
+ * Push object children onto the stack and report progress flag.
+ * Pulled out so {@link processStackEntry} stays under the LoC budget.
+ * Returns false when the node is not a plain object.
+ * @param entry - Stack entry whose node may be a plain object.
+ * @param stack - Exploration stack.
+ * @returns True when children were pushed, false otherwise.
+ */
+function processObjectStackEntry(entry: IStackEntry, stack: IStackEntry[]): boolean {
+  const isObj = typeof entry.node === 'object' && entry.node !== null;
+  if (!isObj) return false;
+  pushObjectChildren(stack, entry.node as Record<string, unknown>, entry.depth);
   return true;
 }
 
@@ -100,19 +142,8 @@ function processStackEntry(
   stack: IStackEntry[],
 ): boolean {
   if (entry.depth > MAX_ARRAY_DEPTH) return false;
-  if (Array.isArray(entry.node)) {
-    return handleArrayNode({
-      collected,
-      stack,
-      node: entry.node,
-      depth: entry.depth,
-    });
-  }
-  const isObj = typeof entry.node === 'object' && entry.node !== null;
-  if (!isObj) return false;
-  const record = entry.node as Record<string, unknown>;
-  pushObjectChildren(stack, record, entry.depth);
-  return true;
+  if (Array.isArray(entry.node)) return dispatchArrayStackEntry(entry, collected, stack);
+  return processObjectStackEntry(entry, stack);
 }
 
 /**
@@ -192,19 +223,31 @@ function findArrayByBfsFallback(obj: ApiRecord): readonly UntypedValue[] {
 }
 
 /**
+ * Drain the LIFO stack and return the collected items when the
+ * primary scan landed any hits. Pulled out so {@link findFirstArray}
+ * stays a thin guard/branch.
+ *
+ * @param root - Root API record to scan.
+ * @returns Collected items, or `false` to signal a primary-scan miss.
+ */
+function runLifoScan(root: ApiRecord): readonly UntypedValue[] | false {
+  const initial: IStackEntry = { node: root, depth: 0 };
+  const stack: IStackEntry[] = [initial];
+  const collected: UntypedValue[] = [];
+  drainLifoStack(stack, collected);
+  if (collected.length === 0) return false;
+  LOG.debug({ message: `findFirstArray: collected ${String(collected.length)} items` });
+  return collected;
+}
+
+/**
  * Find the first array of objects in a nested structure via LIFO traversal.
  * @param obj - Root API record to search.
  * @returns First array of searchable items found.
  */
 function findFirstArray(obj: ApiRecord): readonly UntypedValue[] {
-  const initial: IStackEntry = { node: obj, depth: 0 };
-  const stack: IStackEntry[] = [initial];
-  const collected: UntypedValue[] = [];
-  drainLifoStack(stack, collected);
-  if (collected.length > 0) {
-    LOG.debug({ message: `findFirstArray: collected ${String(collected.length)} items` });
-    return collected;
-  }
+  const lifoHit = runLifoScan(obj);
+  if (lifoHit !== false) return lifoHit;
   LOG.debug({ message: 'findFirstArray: falling back to BFS' });
   return findArrayByBfsFallback(obj);
 }

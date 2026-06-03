@@ -38,31 +38,82 @@ const IL_COUNTRY_CODE = '972';
 const MIN_DIGITS = 10;
 
 /**
+ * Check that the raw string meets the minimum digit count.
+ * @param raw - Caller-supplied digit-form phone string.
+ * @returns Succeed with `raw` if length is ≥ {@link MIN_DIGITS}; fail Procedure otherwise.
+ */
+function checkDigitsLength(raw: string): Procedure<string> {
+  if (raw.length >= MIN_DIGITS) return succeed(raw);
+  return fail(
+    ScraperErrorTypes.Generic,
+    `phoneNumber: expected ≥${String(MIN_DIGITS)} digits, got ${String(raw.length)}`,
+  );
+}
+
+/**
+ * Check that the raw string contains digits only (no separators or `+`).
+ * @param raw - Caller-supplied digit-form phone string.
+ * @returns Succeed with `raw` when fully numeric; fail Procedure otherwise.
+ */
+function checkDigitsOnly(raw: string): Procedure<string> {
+  if (/^\d+$/.test(raw)) return succeed(raw);
+  return fail(
+    ScraperErrorTypes.Generic,
+    'phoneNumber: must be digits-only international form (no +, -, spaces)',
+  );
+}
+
+/**
+ * Check that the raw string starts with the Israeli country-code prefix.
+ * @param raw - Caller-supplied digit-form phone string.
+ * @returns Succeed with `raw` when prefixed with {@link IL_COUNTRY_CODE}; fail Procedure otherwise.
+ */
+function checkCountryCode(raw: string): Procedure<string> {
+  if (raw.startsWith(IL_COUNTRY_CODE)) return succeed(raw);
+  return fail(
+    ScraperErrorTypes.Generic,
+    `phoneNumber: must start with country code ${IL_COUNTRY_CODE}`,
+  );
+}
+
+/** Ordered list of digit-form checks — short-circuits on first failure. */
+const DIGIT_CHECKS: readonly ((raw: string) => Procedure<string>)[] = [
+  checkDigitsLength,
+  checkDigitsOnly,
+  checkCountryCode,
+];
+
+/**
+ * Reducer step for {@link validateInternationalDigits}. Skips further
+ * checks once a previous one has failed, otherwise runs the next check.
+ *
+ * @param acc - Procedure accumulated so far (`succeed` until first failure).
+ * @param check - Next digit-form check to apply.
+ * @param raw - Caller-supplied digit-form phone string.
+ * @returns Existing failure on short-circuit, else the next check result.
+ */
+function reduceDigitCheck(
+  acc: Procedure<string>,
+  check: (raw: string) => Procedure<string>,
+  raw: string,
+): Procedure<string> {
+  if (!isOk(acc)) return acc;
+  return check(raw);
+}
+
+/**
  * Validate the caller's digits-only international form. Returns the
- * unchanged digits string on success.
+ * unchanged digits string on success, or the first failing check's
+ * fail Procedure (short-circuits via reduce).
  * @param raw - Caller-supplied phone string.
  * @returns Procedure with the validated digits.
  */
 function validateInternationalDigits(raw: string): Procedure<string> {
-  if (raw.length < MIN_DIGITS) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `phoneNumber: expected ≥${String(MIN_DIGITS)} digits, got ${String(raw.length)}`,
-    );
-  }
-  if (!/^\d+$/.test(raw)) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      'phoneNumber: must be digits-only international form (no +, -, spaces)',
-    );
-  }
-  if (!raw.startsWith(IL_COUNTRY_CODE)) {
-    return fail(
-      ScraperErrorTypes.Generic,
-      `phoneNumber: must start with country code ${IL_COUNTRY_CODE}`,
-    );
-  }
-  return succeed(raw);
+  const seed = succeed(raw);
+  return DIGIT_CHECKS.reduce<Procedure<string>>(
+    (acc, check): Procedure<string> => reduceDigitCheck(acc, check, raw),
+    seed,
+  );
 }
 
 /** Args bundle for {@link applyPhoneFormat} — keeps params ≤3. */

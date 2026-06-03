@@ -222,9 +222,7 @@ function resolveRef(token: RefToken, scope: ITemplateScope): Procedure<JsonValue
   if (token === 'now') return handleNow();
   if (token === 'nowMs') return handleNowMs();
   const handler = pickPrefixHandler(token);
-  if (handler === false) {
-    return fail(ScraperErrorTypes.Generic, `unknown ref token: ${token}`);
-  }
+  if (handler === false) return fail(ScraperErrorTypes.Generic, `unknown ref token: ${token}`);
   return handler(token, scope);
 }
 

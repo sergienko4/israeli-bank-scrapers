@@ -81,6 +81,34 @@ function scrubPaths(input: string): string {
 type CaughtValue = Error | string | number | boolean | object | null | undefined;
 
 /**
+ * Describe a thrown {@link Error} — preserves the class name verbatim
+ * and path-scrubs the message.
+ *
+ * @param err - Thrown `Error` instance.
+ * @returns Composite `"{name}: {scrubbed message}"` string.
+ */
+function describeErrorInstance(err: Error): string {
+  const scrubbed = scrubPaths(err.message);
+  return `${err.name}: ${scrubbed}`;
+}
+
+/**
+ * Describe a non-`Error`, non-string caught value via {@link JSON.stringify},
+ * falling back to a fixed sentinel when the value is not JSON-serialisable.
+ *
+ * @param err - Caught value of unknown shape.
+ * @returns Scrubbed JSON description or `'unknown error'` on serialise failure.
+ */
+function describeNonStringError(err: CaughtValue): string {
+  try {
+    const json = JSON.stringify(err);
+    return scrubPaths(json);
+  } catch {
+    return 'unknown error';
+  }
+}
+
+/**
  * Extract a printable error reason without leaking caller-supplied paths.
  * Error class name is preserved verbatim (bounded enum-like surface);
  * the message is path-scrubbed and length-capped.
@@ -91,17 +119,42 @@ type CaughtValue = Error | string | number | boolean | object | null | undefined
  * @returns A short string suitable for debug logging.
  */
 function describeError(err: CaughtValue): string {
-  if (err instanceof Error) {
-    const scrubbed = scrubPaths(err.message);
-    return `${err.name}: ${scrubbed}`;
-  }
+  if (err instanceof Error) return describeErrorInstance(err);
   if (typeof err === 'string') return scrubPaths(err);
+  return describeNonStringError(err);
+}
+
+/**
+ * Attempt the underlying Playwright `page.screenshot()` call, swallowing
+ * any error so failures stay diagnostic-only. Extracted so
+ * {@link safeScreenshot} keeps the CI-gating guard as its sole top-level
+ * branch under the per-function cap.
+ *
+ * @param page - Playwright page to capture.
+ * @param options - Target path and optional fullPage flag.
+ * @returns True if a PNG was written; false on error.
+ */
+async function captureScreenshot(page: Page, options: ISafeScreenshotOptions): Promise<boolean> {
   try {
-    const json = JSON.stringify(err);
-    return scrubPaths(json);
-  } catch {
-    return 'unknown error';
+    await page.screenshot({ path: options.path, fullPage: options.fullPage ?? false });
+    return true;
+  } catch (error) {
+    LOG.debug({ reason: describeError(error as CaughtValue) }, 'screenshot capture failed');
+    return false;
   }
+}
+
+/**
+ * Decide whether the CI guard should suppress the requested screenshot.
+ * Pulled out so {@link safeScreenshot} stays under the per-function LoC budget.
+ * @param file - Basename of the target path (already scrubbed for logging).
+ * @returns True iff the capture should be skipped.
+ */
+function shouldSuppressInCi(file: string): boolean {
+  if (!process.env.CI) return false;
+  if (isPreAuthScreenshot(file)) return false;
+  LOG.debug({ file }, 'screenshot suppressed in CI');
+  return true;
 }
 
 /**
@@ -129,15 +182,6 @@ export async function safeScreenshot(
   options: ISafeScreenshotOptions,
 ): Promise<boolean> {
   const file = basename(options.path);
-  if (process.env.CI && !isPreAuthScreenshot(file)) {
-    LOG.debug({ file }, 'screenshot suppressed in CI');
-    return false;
-  }
-  try {
-    await page.screenshot({ path: options.path, fullPage: options.fullPage ?? false });
-    return true;
-  } catch (error) {
-    LOG.debug({ reason: describeError(error as CaughtValue) }, 'screenshot capture failed');
-    return false;
-  }
+  if (shouldSuppressInCi(file)) return false;
+  return captureScreenshot(page, options);
 }

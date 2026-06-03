@@ -47,6 +47,61 @@ function filterByTxnPattern(href: string): string {
   return NO_HREF;
 }
 
+/** Outcome of a layered href race. */
+interface IHrefRaceOutcome {
+  readonly href: string;
+  readonly rawHref: string;
+  readonly found: boolean;
+}
+
+/**
+ * Race a list of href-target candidates against the mediator, then
+ * filter the winning href through the TXN-page pattern guard.
+ *
+ * @param mediator - Element mediator.
+ * @param hrefCandidates - Candidates with target:'href' already applied.
+ * @returns Filtered href, raw winner snapshot, and found bit.
+ */
+async function raceHrefCandidates(
+  mediator: IElementMediator,
+  hrefCandidates: readonly SelectorCandidate[],
+): Promise<IHrefRaceOutcome> {
+  const timeout = DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS;
+  const race = await mediator.resolveVisible(hrefCandidates, timeout);
+  const rawHref = (race.found && race.value) || NO_HREF;
+  return { href: filterByTxnPattern(rawHref), rawHref, found: race.found };
+}
+
+/**
+ * Emit the structured layer-result debug line. The masked rawHref keeps
+ * the log PII-safe and the `kept` bit shows whether the TXN-pattern
+ * guard rejected the winner.
+ *
+ * @param label - Layer label (e.g. 'L1 ariaLabel').
+ * @param outcome - Filtered race outcome.
+ * @returns Always true so the layer functions stay expression-shaped.
+ */
+function logHrefLayer(label: string, outcome: IHrefRaceOutcome): true {
+  const masked = maskVisibleText(outcome.rawHref);
+  const isKept = Boolean(outcome.href);
+  const kept = String(isKept);
+  LOG.debug({ message: `${label}: found=${String(outcome.found)} href="${masked}" kept=${kept}` });
+  return true;
+}
+
+/**
+ * Project the WK candidate list onto its ariaLabel-only href subset.
+ * Pulled out so {@link extractHrefLayer1} stays under the LoC cap.
+ * @param candidates - Full WK candidate list.
+ * @returns Candidates filtered to `kind === 'ariaLabel'` with href target applied.
+ */
+function selectAriaHrefCandidates(
+  candidates: readonly SelectorCandidate[],
+): readonly SelectorCandidate[] {
+  const ariaOnly = candidates.filter((c): boolean => c.kind === 'ariaLabel');
+  return ariaOnly.map(withHrefTarget);
+}
+
 /**
  * Layer 1: ariaLabel-only href extraction, filtered to txn pages.
  * @param mediator - Element mediator.
@@ -57,20 +112,11 @@ async function extractHrefLayer1(
   mediator: IElementMediator,
   candidates: readonly SelectorCandidate[],
 ): Promise<string> {
-  const ariaOnly = candidates.filter((c): boolean => c.kind === 'ariaLabel');
-  if (ariaOnly.length === 0) return NO_HREF;
-  const hrefCandidates = ariaOnly.map(withHrefTarget);
-  const timeout = DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS;
-  const race = await mediator.resolveVisible(hrefCandidates, timeout);
-  const rawHref = (race.found && race.value) || NO_HREF;
-  const href = filterByTxnPattern(rawHref);
-  const masked = maskVisibleText(rawHref);
-  const isKept = Boolean(href);
-  const kept = String(isKept);
-  LOG.debug({
-    message: `L1 ariaLabel: found=${String(race.found)} href="${masked}" kept=${kept}`,
-  });
-  return href;
+  const hrefCandidates = selectAriaHrefCandidates(candidates);
+  if (hrefCandidates.length === 0) return NO_HREF;
+  const outcome = await raceHrefCandidates(mediator, hrefCandidates);
+  logHrefLayer('L1 ariaLabel', outcome);
+  return outcome.href;
 }
 
 /**
@@ -84,17 +130,9 @@ async function extractHrefLayer2(
   candidates: readonly SelectorCandidate[],
 ): Promise<string> {
   const hrefCandidates = candidates.map(withHrefTarget);
-  const timeout = DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS;
-  const race = await mediator.resolveVisible(hrefCandidates, timeout);
-  const rawHref = (race.found && race.value) || NO_HREF;
-  const href = filterByTxnPattern(rawHref);
-  const masked = maskVisibleText(rawHref);
-  const isKept = Boolean(href);
-  const kept = String(isKept);
-  LOG.debug({
-    message: `L2 textContent: found=${String(race.found)} href="${masked}" kept=${kept}`,
-  });
-  return href;
+  const outcome = await raceHrefCandidates(mediator, hrefCandidates);
+  logHrefLayer('L2 textContent', outcome);
+  return outcome.href;
 }
 
 /**

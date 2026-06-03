@@ -48,6 +48,22 @@ interface INodeResult {
 }
 
 /**
+ * Build the {@link INodeResult} for an object node — match scan first,
+ * then either return the found sentinel or queue the record's
+ * object-valued children for BFS. Pulled out so {@link processNode}
+ * stays a flat two-branch dispatch.
+ *
+ * @param node - Record node from the BFS frontier.
+ * @param pattern - Signature regex.
+ * @returns Found/not-found result with the next BFS level seeded.
+ */
+function processObjectNode(node: Record<string, unknown>, pattern: RegExp): INodeResult {
+  const isFound = objectKeysMatch(node, pattern);
+  if (isFound) return { isFound, children: [] };
+  return { isFound: false, children: objectChildren(node) };
+}
+
+/**
  * Process one BFS node — check signature and collect children.
  * @param node - Current node.
  * @param pattern - Signature pattern.
@@ -59,10 +75,45 @@ function processNode(node: JsonNode, pattern: RegExp): INodeResult {
     return { isFound: false, children: first };
   }
   if (!node || typeof node !== 'object') return { isFound: false, children: [] };
-  const record = node as Record<string, unknown>;
-  const isFound = objectKeysMatch(record, pattern);
-  if (isFound) return { isFound, children: [] };
-  return { isFound: false, children: objectChildren(record) };
+  return processObjectNode(node as Record<string, unknown>, pattern);
+}
+
+/** Bundled args for {@link reduceSearchStep} — keeps params ≤ 3. */
+interface IReduceSearchArgs {
+  readonly node: JsonNode;
+  readonly nextLevel: JsonNode[];
+  readonly pattern: RegExp;
+}
+
+/**
+ * Single-step reduction body for {@link buildSearchReducer}.
+ * Hoisted so the reducer factory stays under the per-function LoC budget.
+ * @param wasFound - Previous accumulator (short-circuits when true).
+ * @param args - Bundled current node + frontier + pattern.
+ * @returns Updated accumulator.
+ */
+function reduceSearchStep(wasFound: boolean, args: IReduceSearchArgs): boolean {
+  if (wasFound) return true;
+  const result = processNode(args.node, args.pattern);
+  if (result.isFound) return true;
+  args.nextLevel.push(...result.children);
+  return false;
+}
+
+/**
+ * Reducer for {@link searchLevel} — accumulates the "found" sentinel
+ * across the frontier while pushing children onto the next level.
+ * Pulled out so the orchestrator stays a thin reduce + recurse.
+ *
+ * @param nextLevel - Mutable next-frontier accumulator.
+ * @param pattern - Signature regex.
+ * @returns A reducer suitable for `Array.reduce<boolean>`.
+ */
+function buildSearchReducer(
+  nextLevel: JsonNode[],
+  pattern: RegExp,
+): (wasFound: boolean, node: JsonNode) => boolean {
+  return (wasFound, node): boolean => reduceSearchStep(wasFound, { node, nextLevel, pattern });
 }
 
 /**
@@ -74,13 +125,8 @@ function processNode(node: JsonNode, pattern: RegExp): INodeResult {
 function searchLevel(level: readonly JsonNode[], pattern: RegExp): boolean {
   if (level.length === 0) return false;
   const nextLevel: JsonNode[] = [];
-  const isMatchedInLevel = level.reduce((wasFound: boolean, node): boolean => {
-    if (wasFound) return true;
-    const result = processNode(node, pattern);
-    if (result.isFound) return true;
-    nextLevel.push(...result.children);
-    return false;
-  }, false);
+  const reducer = buildSearchReducer(nextLevel, pattern);
+  const isMatchedInLevel = level.reduce<boolean>((acc, node) => reducer(acc, node), false);
   if (isMatchedInLevel) return true;
   return searchLevel(nextLevel, pattern);
 }
@@ -96,23 +142,59 @@ function bodyHasSignature(body: JsonNode, pattern: RegExp): boolean {
   return searchLevel([body], pattern);
 }
 
+/** Result type for {@link collectFromNode} — keys collected + next-level children. */
+interface INodeKeyCollect {
+  readonly keys: readonly string[];
+  readonly children: readonly JsonNode[];
+}
+
+/**
+ * Collect matching keys from a plain-object node.
+ * Pulled out so {@link collectFromNode} stays under the LoC budget.
+ * @param record - Record at the current node.
+ * @param pattern - Key pattern.
+ * @returns Matched keys and children to enqueue.
+ */
+function collectFromObjectNode(record: Record<string, unknown>, pattern: RegExp): INodeKeyCollect {
+  const keys = Object.keys(record).filter((k): boolean => pattern.test(k));
+  return { keys, children: objectChildren(record) };
+}
+
 /**
  * Collect matching keys from one BFS node.
  * @param node - Current node.
  * @param pattern - Key pattern.
  * @returns Matched keys and children to enqueue.
  */
-function collectFromNode(
-  node: JsonNode,
-  pattern: RegExp,
-): { keys: readonly string[]; children: readonly JsonNode[] } {
-  if (Array.isArray(node)) {
-    return { keys: [], children: arrayFirstElement(node) };
-  }
+function collectFromNode(node: JsonNode, pattern: RegExp): INodeKeyCollect {
+  if (Array.isArray(node)) return { keys: [], children: arrayFirstElement(node) };
   if (!node || typeof node !== 'object') return { keys: [], children: [] };
-  const record = node as Record<string, unknown>;
-  const keys = Object.keys(record).filter((k): boolean => pattern.test(k));
-  return { keys, children: objectChildren(record) };
+  return collectFromObjectNode(node as Record<string, unknown>, pattern);
+}
+
+/** Frontier accumulators consumed by the {@link collectKeysLevel} BFS. */
+interface IKeysFrontier {
+  readonly keys: string[];
+  readonly nextLevel: JsonNode[];
+}
+
+/**
+ * Walk one BFS frontier in-place — append matches to `keys` and
+ * children to `nextLevel`. Pulled out so the recursive orchestrator
+ * stays flat.
+ *
+ * @param level - Current BFS frontier (input).
+ * @param pattern - Key pattern.
+ * @param acc - Mutable accumulators (output).
+ * @returns Always true (sentinel for callers).
+ */
+function fillKeysFrontier(level: readonly JsonNode[], pattern: RegExp, acc: IKeysFrontier): true {
+  for (const node of level) {
+    const result = collectFromNode(node, pattern);
+    acc.keys.push(...result.keys);
+    acc.nextLevel.push(...result.children);
+  }
+  return true;
 }
 
 /**
@@ -123,15 +205,10 @@ function collectFromNode(
  */
 function collectKeysLevel(level: readonly JsonNode[], pattern: RegExp): readonly string[] {
   if (level.length === 0) return [];
-  const nextLevel: JsonNode[] = [];
-  const levelKeys: string[] = [];
-  for (const node of level) {
-    const result = collectFromNode(node, pattern);
-    levelKeys.push(...result.keys);
-    nextLevel.push(...result.children);
-  }
-  const deeper = collectKeysLevel(nextLevel, pattern);
-  return [...levelKeys, ...deeper];
+  const acc: IKeysFrontier = { keys: [], nextLevel: [] };
+  fillKeysFrontier(level, pattern, acc);
+  const deeper = collectKeysLevel(acc.nextLevel, pattern);
+  return [...acc.keys, ...deeper];
 }
 
 /**
@@ -167,6 +244,22 @@ function generateBillingMonths(startMs: number, futureMonths = 0): readonly stri
 }
 
 /**
+ * Format a single month entry as the canonical `01/MM/YYYY` cycle
+ * label. Pulled out so {@link buildMonthList} stays a small
+ * recursion driver.
+ *
+ * @param current - Date pointing at the first of the cycle's month.
+ * @returns Stringified `01/MM/YYYY` entry.
+ */
+function formatBillingMonthEntry(current: Date): string {
+  const rawMonth = current.getMonth() + 1;
+  const monthStr = String(rawMonth).padStart(2, '0');
+  const year = current.getFullYear();
+  const yearStr = String(year);
+  return `01/${monthStr}/${yearStr}`;
+}
+
+/**
  * Recursively build month list until current date.
  * @param current - Current month date.
  * @param endMs - End epoch ms.
@@ -174,15 +267,9 @@ function generateBillingMonths(startMs: number, futureMonths = 0): readonly stri
  * @returns Complete month list.
  */
 function buildMonthList(current: Date, endMs: number, accumulated: string[]): readonly string[] {
-  const currentMs = current.getTime();
-  if (currentMs > endMs) return accumulated;
-  const rawMonth = current.getMonth() + 1;
-  const monthStr = String(rawMonth).padStart(2, '0');
-  const fullYear = current.getFullYear();
-  const yearStr = String(fullYear);
-  const entry = `01/${monthStr}/${yearStr}`;
-  const nextMonth = current.getMonth() + 1;
-  const next = new Date(fullYear, nextMonth, 1);
+  if (current.getTime() > endMs) return accumulated;
+  const entry = formatBillingMonthEntry(current);
+  const next = new Date(current.getFullYear(), current.getMonth() + 1, 1);
   return buildMonthList(next, endMs, [...accumulated, entry]);
 }
 

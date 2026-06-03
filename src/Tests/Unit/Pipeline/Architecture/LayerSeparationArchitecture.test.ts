@@ -59,6 +59,13 @@ const RULES: readonly ILayerRule[] = [
       // travels as `IDashboardTxnHarvest` (clean value type), not as
       // any ACCOUNT-RESOLVE structure.
       path.join('Mediator', 'Dashboard', 'TxnParser.ts'),
+      // Phase 2c (2026-…): TxnParser.ts split into co-located siblings
+      // to satisfy the per-file LoC budget. `.accountId.ts` and
+      // `.scope.ts` carry the surface-id lines that originally lived
+      // in TxnParser.ts — same allowance, just relocated under the
+      // strict-LoC-cluster lockdown.
+      path.join('Mediator', 'Dashboard', 'TxnParser.accountId.ts'),
+      path.join('Mediator', 'Dashboard', 'TxnParser.scope.ts'),
       // Strategy/Scrape/Account/* still surface account ids to display
       // alongside transactions — bounded scope, kept under R-ACCOUNT.
       path.join('Strategy', 'Scrape', 'Account', 'ScrapeIdExtraction.ts'),
@@ -441,6 +448,11 @@ const NET_SCRAPE_ALLOWLIST: readonly string[] = [
   // network surface; resolveTxnEndpoint runs here.
   path.join('Mediator', 'Scrape', 'ScrapeAutoMapper.ts'),
   path.join('Mediator', 'Scrape', 'EndpointResolver', 'EndpointResolver.ts'),
+  // URL/body helpers extracted from EndpointResolver.ts under the
+  // same architectural rationale — consumes `IDiscoveredEndpoint` /
+  // `INetworkDiscovery` purely to build pending/billing URLs from
+  // captured traffic on behalf of the parser. No SCRAPE consumer.
+  path.join('Mediator', 'Scrape', 'EndpointResolver', 'EndpointUrlHelpers.ts'),
   // Generic shape predicate consumed by the network picker; not a
   // SCRAPE consumer.
   path.join('Mediator', 'Scrape', 'TxnShape.ts'),

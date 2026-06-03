@@ -13,153 +13,11 @@ import type { Frame, Page } from 'playwright-core';
 
 import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
+import { heuristicResolveInFrame, toHeuristicContext } from './HeuristicResolver.context.js';
 import { isPage } from './SelectorResolver.js';
-import type { IFieldContext, IFieldMatch } from './SelectorResolverPipeline.js';
+import type { IFieldContext } from './SelectorResolverPipeline.js';
 
 const LOG = getDebug(import.meta.url);
-
-/** Strategy for resolving a password-type field. */
-interface IPasswordStrategy {
-  readonly type: 'password';
-}
-
-/** Strategy for resolving a text-type field by positional index. */
-interface ITextStrategy {
-  readonly type: 'text';
-  readonly index: number;
-}
-
-/** Union of heuristic resolution strategies. */
-type HeuristicStrategy = IPasswordStrategy | ITextStrategy;
-
-/** Map credential keys to their heuristic resolution strategy. */
-const HEURISTIC_MAP: Readonly<Partial<Record<string, HeuristicStrategy>>> = {
-  password: { type: 'password' },
-  id: { type: 'text', index: 0 },
-  username: { type: 'text', index: 0 },
-  nationalID: { type: 'text', index: 0 },
-  userCode: { type: 'text', index: 0 },
-  num: { type: 'text', index: 1 },
-  card6Digits: { type: 'text', index: 2 },
-};
-
-/** CSS selector for password inputs. */
-const PASSWORD_SELECTOR = 'input[type="password"]';
-
-/** CSS selector for visible text-like inputs (excludes password and hidden). */
-const TEXT_INPUT_SELECTOR =
-  'input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"])';
-
-/**
- * Try to resolve a password field in the given frame.
- * @param frame - The iframe to search in.
- * @returns Field match with selector, or empty if not found.
- */
-async function resolvePasswordInFrame(frame: Frame): Promise<IFieldMatch> {
-  const locator = frame.locator(PASSWORD_SELECTOR).first();
-  const count = await locator.count().catch((): number => 0);
-  const resultMap: Record<string, 'FOUND' | 'NOT_FOUND'> = { true: 'FOUND', false: 'NOT_FOUND' };
-  const pwdResult = resultMap[String(count > 0)];
-  LOG.trace({
-    field: 'password',
-    result: pwdResult,
-  });
-  if (count === 0) return { selector: '', context: frame };
-  const isVis: boolean = await locator.isVisible().catch((): boolean => false);
-  LOG.trace({
-    message: `password visible=${String(isVis)}`,
-  });
-  if (!isVis) return { selector: '', context: frame };
-  const elemId = await locator.getAttribute('id').catch((): string => '');
-  let selector = PASSWORD_SELECTOR;
-  if (elemId) {
-    selector = `#${elemId}`;
-  }
-  LOG.trace({
-    field: 'password',
-    result: 'FOUND',
-  });
-  return { selector, context: frame, kind: 'css' };
-}
-
-/**
- * Try to resolve a text input field by positional index.
- * @param frame - The iframe to search in.
- * @param index - The 0-based index among visible text inputs.
- * @param fieldKey - Credential key for logging.
- * @returns Field match with selector, or empty if not found.
- */
-async function resolveTextByIndex(
-  frame: Frame,
-  index: number,
-  fieldKey: string,
-): Promise<IFieldMatch> {
-  const all = frame.locator(TEXT_INPUT_SELECTOR);
-  const total = await all.count().catch((): number => 0);
-  if (index >= total) return { selector: '', context: frame };
-  const target = all.nth(index);
-  const isVis: boolean = await target.isVisible().catch((): boolean => false);
-  if (!isVis) return { selector: '', context: frame };
-  const isEnabled: boolean = await target.isEnabled().catch((): boolean => false);
-  if (!isEnabled) return { selector: '', context: frame };
-  const elemId = await target.getAttribute('id').catch((): string => '');
-  let selector = `${TEXT_INPUT_SELECTOR} >> nth=${String(index)}`;
-  if (elemId) {
-    selector = `#${elemId}`;
-  }
-  LOG.debug({
-    field: `heuristic:${fieldKey}`,
-    result: 'FOUND',
-  });
-  return { selector, context: frame, kind: 'css' };
-}
-
-/**
- * Resolve a field using heuristics within a specific frame.
- * Wraps in try/catch so mock frames without .locator() fail gracefully.
- * @param frame - The page or frame to search.
- * @param fieldKey - The field type (id, password, etc).
- * @returns Field match with selector, or empty if not found.
- */
-async function heuristicResolveInFrame(
-  frame: Page | Frame,
-  fieldKey: string,
-): Promise<IFieldMatch> {
-  const strategy = HEURISTIC_MAP[fieldKey];
-  if (!strategy) return { selector: '', context: frame };
-  if (strategy.type === 'password')
-    return resolvePasswordInFrame(frame as Frame).catch(
-      (): IFieldMatch => ({ selector: '', context: frame }),
-    );
-  const empty: IFieldMatch = { selector: '', context: frame };
-  try {
-    const result = await resolveTextByIndex(frame as Frame, strategy.index, fieldKey);
-    return result;
-  } catch {
-    return empty;
-  }
-}
-
-/**
- * Convert a heuristic match to IFieldContext.
- * @param match - The field match from heuristic resolution.
- * @param fieldKey - Credential key for logging.
- * @returns IFieldContext with heuristic metadata.
- */
-function toHeuristicContext(match: IFieldMatch, fieldKey: string): IFieldContext {
-  LOG.debug({
-    field: `heuristic:${fieldKey}`,
-    result: 'FOUND',
-  });
-  return {
-    isResolved: true,
-    selector: match.selector,
-    context: match.context,
-    resolvedVia: 'heuristic',
-    round: 'heuristic',
-    resolvedKind: 'css',
-  };
-}
 
 /**
  * Probe frames recursively — first match wins.
@@ -189,22 +47,12 @@ async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFie
   const mainFrame = page.mainFrame();
   const childFrames = page.frames().filter(f => f !== mainFrame);
   if (childFrames.length === 0) return false;
-  LOG.debug({
-    message:
-      `Round 3: searching ${String(childFrames.length)} iframe(s)` +
-      ` for "${maskVisibleText(fieldKey)}"`,
-  });
+  const count = String(childFrames.length);
+  const masked = maskVisibleText(fieldKey);
+  LOG.debug({ message: `Round 3: searching ${count} iframe(s) for "${masked}"` });
   return probeFrameAt(childFrames, fieldKey, 0);
 }
 
-/**
- * Try heuristic resolution — entry point called by PipelineFieldResolver.
- * When pageOrFrame is a Page: searches all child iframes.
- * When pageOrFrame is a Frame (scoped): probes THAT frame directly (sticky frame).
- * @param pageOrFrame - The Playwright page or frame.
- * @param fieldKey - The credential key to resolve.
- * @returns IFieldContext if found, or false if heuristic failed.
- */
 /**
  * Probe iframes first, then fall back to main frame.
  * @param page - The Playwright page.
@@ -214,9 +62,8 @@ async function heuristicProbeIframes(page: Page, fieldKey: string): Promise<IFie
 async function probePageHeuristic(page: Page, fieldKey: string): Promise<IFieldContext | false> {
   const iframeResult = await heuristicProbeIframes(page, fieldKey);
   if (iframeResult) return iframeResult;
-  LOG.debug({
-    message: `Round 3 (heuristic): trying main page for "${maskVisibleText(fieldKey)}"`,
-  });
+  const masked = maskVisibleText(fieldKey);
+  LOG.debug({ message: `Round 3 (heuristic): trying main page for "${masked}"` });
   const mainFrame = page.mainFrame();
   const mainMatch = await heuristicResolveInFrame(mainFrame, fieldKey);
   if (mainMatch.selector) return toHeuristicContext(mainMatch, fieldKey);
