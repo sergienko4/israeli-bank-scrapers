@@ -28,6 +28,13 @@ const ENUM_VALUES = Object.values(CompanyTypes);
  * (one line in `src/Definitions.ts`) automatically appears in this list, and
  * every `it.each(BANKS)` test exercises it.
  *
+ * Note: `ENUM_VALUES` is kept as a named intermediate even though it is used
+ * only once, because the repo's `no-restricted-syntax FORBIDDEN NESTED CALL`
+ * rule (`eslint.config.mjs`) requires nested function results to be assigned
+ * to a descriptive variable for debugging clarity. Inlining
+ * `Object.freeze(Object.values(...))` into a single expression triggers
+ * that lint error.
+ *
  * @example
  * ```ts
  * import { BANKS } from '../../Helpers/banks.js';

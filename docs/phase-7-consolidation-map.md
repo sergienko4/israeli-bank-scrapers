@@ -154,8 +154,9 @@ Verification at commit-time:
 
 - `npm run lint:canaries` → 65 TS canaries all pass (was 64 + this 1 new)
 - `npx eslint src/Tests src/Scrapers` PHASE-7-DIAMOND hit-count outside the canary: **0** (no false positives)
-- Rule selector: `CallExpression[callee.name='describe'] > Literal[value=/^[A-Z][A-Za-z0-9]*\\.(hapoalim|discount|max|visacal|isracard|amex|beinleumi|onezero|pepper|mizrahi|mercantile|otsarHahayal|yahav|leumi|massad|pagi|behatsdaa|beyahadBishvilha|payBox)$/]`
-- Allowed (NOT flagged): bank-as-feature-name describes like `describe('Hapoalim WAF challenge', ...)` — selector requires the `<Word>.<bank>` shape (capitalised prefix + dot + lowercase bank token).
+- Rule selector: `CallExpression[callee.name='describe'] > Literal[value=/^[A-Z][A-Za-z0-9]*\\.(hapoalim|discount|max|visaCal|isracard|amex|beinleumi|oneZero|pepper|mizrahi|mercantile|otsarHahayal|yahav|leumi|massad|pagi|behatsdaa|beyahadBishvilha|payBox)$/]`
+- The `<bank>` token matches one of the 19 CompanyTypes enum values with their EXACT casing (most lowercase, but `visaCal`, `oneZero`, `otsarHahayal`, `payBox`, `beyahadBishvilha` are camelCase per `src/Definitions.ts`). Canary covers both lowercase + camelCase paths.
+- Allowed (NOT flagged): bank-as-feature-name describes like `describe('Hapoalim WAF challenge', ...)` — selector requires the `<Word>.<bank>` shape (capitalised prefix + dot + enum-cased bank token).
 
 Phase-9 deferrals: max-lines-per-test, max-asserts-per-it, no-skip-without-justification, no-conditional-it, no-shared-mutable-state.
 
