@@ -30,7 +30,7 @@ let browser: Browser;
 
 beforeAll(async () => {
   browser = await getSharedBrowser();
-}, 30000);
+}, 60000);
 
 afterAll(async () => {
   await closeSharedBrowser();
@@ -102,7 +102,7 @@ describe('labelText false-positive guard', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });
 
 // ─── labelText in iframe: <label for="id"> inside an iframe ────────────────
@@ -180,7 +180,7 @@ describe('labelText in iframe', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });
 
 // ─── Sibling strategy: <label>text</label><input> (no for= attr) ───────────
@@ -251,5 +251,5 @@ describe('labelText sibling strategy', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });

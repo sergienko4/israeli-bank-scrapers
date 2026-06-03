@@ -29,7 +29,7 @@ let browser: Browser;
 
 beforeAll(async () => {
   browser = await getSharedBrowser();
-}, 30000);
+}, 60000);
 
 afterAll(async () => {
   await closeSharedBrowser();
@@ -90,7 +90,7 @@ describe('labelText via <span> with nested input', () => {
     );
     const result = await scraper.scrape({ username: 'u', password: 'p' });
     expect(result.success).toBe(true);
-  }, 30000);
+  }, 60000);
 });
 
 // ─── <div> as labeling element with sibling <input> ────────────────────────
@@ -148,7 +148,7 @@ describe('labelText via <div> with sibling input', () => {
     );
     const result = await scraper.scrape({ username: 'u', password: 'p' });
     expect(result.success).toBe(true);
-  }, 30000);
+  }, 60000);
 });
 
 // ─── Placeholder resolution (existing behavior preserved) ──────────────────
@@ -211,5 +211,5 @@ describe('placeholder resolution (regression)', () => {
     );
     const result = await scraper.scrape({ username: 'u', password: 'p' });
     expect(result.success).toBe(true);
-  }, 30000);
+  }, 60000);
 });

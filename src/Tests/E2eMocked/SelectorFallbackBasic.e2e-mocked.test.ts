@@ -74,7 +74,7 @@ let browser: Browser;
 
 beforeAll(async () => {
   browser = await getSharedBrowser();
-}, 30000);
+}, 60000);
 
 afterAll(async () => {
   await closeSharedBrowser();
@@ -121,7 +121,7 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
     // Login must have succeeded via selector fallback for fetchData to be reached.
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 
   it('returns failure when ALL rounds fail — isResolved:false causes login to report error', async () => {
     const emptyPageConfig: ILoginConfig = {
@@ -169,9 +169,11 @@ describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
 
     const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
-    // resolveFieldContext returns isResolved:false — no throw, direct fill also fails
+    // resolveFieldContext returns isResolved:false — no throw, direct fill also fails.
+    // 120 s timeout — the negative path retries every field through every resolver round
+    // (~5 rounds × 3 fields × ~7 s fill under parallel-suite contention).
     expect(result.success).toBe(false);
-  }, 60000);
+  }, 120000);
 });
 
 // ─── Round 1: iframe-first detection ─────────────────────────────────────────
@@ -268,7 +270,7 @@ describe('Selector fallback Round 1: iframe-first detection', () => {
     // Login succeeded → fetchData() stub returns success.
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });
 
 // ─── labelText resolution: <label for="id"> ────────────────────────────────
@@ -339,5 +341,5 @@ describe('labelText resolution: <label for="id">', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });

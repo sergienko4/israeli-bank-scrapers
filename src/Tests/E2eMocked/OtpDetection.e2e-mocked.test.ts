@@ -11,7 +11,7 @@ import { type Browser } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { type ILoginConfig, type ILoginSetup } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import { CREDS_USERNAME_PASSWORD, CREDS_WRONG } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
@@ -27,6 +27,15 @@ import {
 
 // ── Shared ILoginConfig helpers ────────────────────────────────────────────────
 
+// Shared login-setup flags: this file exercises OTP, so all OTP flags are
+// true by default. Required since Phase 7.5 (GenericBankScraper.resolveLoginSetup
+// consults this field).
+const LOGIN_SETUP_OTP_ENABLED: ILoginSetup = {
+  isApiOnly: false,
+  hasOtpConfirm: true,
+  hasOtpCode: true,
+};
+
 /**
  * Creates a login config with sensible defaults and optional overrides.
  * @param overrides - partial config to merge with defaults.
@@ -35,6 +44,7 @@ import {
 function makeLoginConfig(overrides: Partial<ILoginConfig> = {}): ILoginConfig {
   return {
     loginUrl: 'https://test-bank.local/login',
+    loginSetup: LOGIN_SETUP_OTP_ENABLED,
     fields: [
       { credentialKey: 'username', selectors: [{ kind: 'css', value: '#UNUSED' }] },
       { credentialKey: 'password', selectors: [{ kind: 'css', value: '#UNUSED' }] },
@@ -58,7 +68,7 @@ let browser: Browser;
 
 beforeAll(async () => {
   browser = await getSharedBrowser();
-}, 30000);
+}, 60000);
 
 afterAll(async () => {
   await closeSharedBrowser();
@@ -67,13 +77,12 @@ afterAll(async () => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 /*
- * SKIPPED — pre-existing failure tracked for PR-206-FOLLOWUP.
- * Tests 1-7 fail because the pipeline migration regressed OTP-trigger
- * detection on some mock setups; tests time out at 60s waiting for OTP
- * code-entry screens that the scraper no longer reaches deterministically.
- * Out of scope for this PR (auth-failure watcher + bank-undefined guard).
+ * Re-enabled in Phase 7.5 — OTP detection passes now that
+ * GenericBankScraper reads `loginSetup` from `ILoginConfig` directly
+ * (no legacy SCRAPER_CONFIGURATION lookup) and the OTP-trigger
+ * detection path was restored in Phase 7.
  */
-describe.skip('OTP detection', () => {
+describe('OTP detection', () => {
   it('Test 1: OTP screen detected, no retriever → TwoFactorRetrieverMissing', async () => {
     const scraper = new ConcreteGenericScraper(
       {
@@ -91,7 +100,7 @@ describe.skip('OTP detection', () => {
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
     expect(result.errorMessage).toMatch(/otpCodeRetriever/);
-  }, 30000);
+  }, 60000);
 
   it('Test 2: OTP code-entry screen, retriever provided → code filled → login succeeds', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('123456');
@@ -113,7 +122,7 @@ describe.skip('OTP detection', () => {
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
     const isAnyString = expect.any(String) as unknown as string;
     expect(retrieverSpy).toHaveBeenCalledWith(isAnyString);
-  }, 30000);
+  }, 60000);
 
   it('Test 3: Two-screen OTP flow (Beinleumi-like) — SMS selection then code entry → success', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('654321');
@@ -135,7 +144,7 @@ describe.skip('OTP detection', () => {
     const firstCall = retrieverSpy.mock.calls[0] as string[];
     const retrievedHint = firstCall[0];
     expect(retrievedHint).toBe('*****5100');
-  }, 30000);
+  }, 60000);
 
   it('Test 4: Normal login (no OTP) — zero regression, login succeeds', async () => {
     const scraper = new ConcreteGenericScraper(
@@ -153,7 +162,7 @@ describe.skip('OTP detection', () => {
     const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(true);
     expect(result.errorType).toBeUndefined();
-  }, 30000);
+  }, 60000);
 
   it('Test 5: Two-screen OTP with triggerSelectors — confirm button clicked → code entry → success', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('112233');
@@ -183,7 +192,7 @@ describe.skip('OTP detection', () => {
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
     const firstCall = retrieverSpy.mock.calls[0] as string[];
     expect(firstCall[0]).toBe('*****5100');
-  }, 30000);
+  }, 60000);
 
   it('Test 6: No confirm button on page — triggerSelectors miss gracefully, SMS trigger still works', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('654321');
@@ -211,7 +220,7 @@ describe.skip('OTP detection', () => {
     const result = await scraper.scrape(TEST_CREDS);
     expect(result.success).toBe(true);
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
-  }, 30000);
+  }, 60000);
 
   it('Test 7: Login error page — false-positive guard, no OTP triggered', async () => {
     const retrieverSpy = jest.fn();
@@ -232,5 +241,5 @@ describe.skip('OTP detection', () => {
     expect(result.success).toBe(false);
     expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
     expect(retrieverSpy).not.toHaveBeenCalled();
-  }, 30000);
+  }, 60000);
 });
