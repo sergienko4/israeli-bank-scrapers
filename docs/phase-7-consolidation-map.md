@@ -20,40 +20,43 @@ The CodeRabbit 150-file PR cap is canonical (`pr-guidlines.md §12`); a 185-file
 
 ### Per-component breakdown (post-PR-301)
 
-| Task             | Component                                                        | Files       | Bucket      |
-| ---------------- | ---------------------------------------------------------------- | ----------- | ----------- |
-| T7.1             | NEW factories + per-bank test runners                            | 27          | **7a**      |
-| T7.2             | MOD `src/Tests/Integration/**` reshape to `it.each(BANKS)`       | 1           | **7a**      |
-| T7.3             | MOD `src/Tests/MockE2E/**` reshape                               | 0           | **7a**      |
-| T7.4             | MOD `src/Tests/Phases/**` reshape                                | 35          | **7a**      |
-| (infra)          | NEW infra extras (`src/Tests/Helpers/`, fixtures, ESLint canary) | 35          | **7a**      |
-| **7a sub-total** |                                                                  | **~98**     | **<150 ✅** |
-| T7.5             | MOD `src/Tests/Flow/**` reshape                                  | 15          | **7b**      |
-| T7.6             | MOD `src/Tests/Strategy/**` reshape                              | 29          | **7b**      |
-| T7.6             | MOD per-bank `src/Tests/Banks/**` reshape                        | 13          | **7b**      |
-| T7.7             | NEW Contracts                                                    | 3           | **7b**      |
-| T7.8             | RES Mediator / Types / Core residue (of 197 in tree)             | 15..30      | **7b**      |
-| T7.9             | MOD canary + ESLint rule wire-up                                 | 3           | **7b**      |
-| (docs)           | DOCS updates (this file + README)                                | 2           | **7b**      |
-| **7b sub-total** |                                                                  | **~80..95** | **<150 ✅** |
+| Task             | Component                                                                 | Files        | Bucket      |
+| ---------------- | ------------------------------------------------------------------------- | ------------ | ----------- |
+| T7.1             | NEW factories + per-bank test runners                                     | 2 SHIPPED    | **7a**      |
+| T7.2             | MOD `src/Tests/Integration/**` reshape to `it.each(BANKS)`                | 0 (NO-OP)    | **7a**      |
+| ~~T7.3~~         | ~~MOD `src/Tests/E2eMocked/**` consolidation (5→2 files)~~ — **DROPPED**  | —            | —           |
+| T7.4             | MOD `src/Tests/Phases/**` reshape                                         | ~35          | **7a**      |
+| T7.5 **(NEW)**   | FIX `describe.skip` in 5 `src/Tests/E2eMocked/**` files → working tests   | 5            | **7a**      |
+| (infra)          | NEW infra extras (`src/Tests/Helpers/`, fixtures, ESLint canary)          | ~30          | **7a**      |
+| **7a sub-total** |                                                                           | **~72..77**  | **<150 ✅** |
+| T7.6             | MOD `src/Tests/Flow/**` reshape                                           | 15           | **7b**      |
+| T7.7             | MOD `src/Tests/Strategy/**` reshape                                       | 29           | **7b**      |
+| T7.7             | MOD per-bank `src/Tests/Banks/**` reshape                                 | 13           | **7b**      |
+| T7.8             | NEW Contracts                                                             | 3            | **7b**      |
+| T7.9             | RES Mediator / Types / Core residue (of 197 in tree)                      | 15..30       | **7b**      |
+| T7.10            | MOD canary + ESLint rule wire-up                                          | 3            | **7b**      |
+| (docs)           | DOCS updates (this file + README)                                         | 2            | **7b**      |
+| **7b sub-total** |                                                                           | **~80..95**  | **<150 ✅** |
 
 Reference total of `*.test.ts` under `src/Tests/`: **474**. Both PRs land well under the 150 cap.
 
 ### Boundary justification
 
-7a is the **foundation + Integration + Phases** bucket:
+7a is the **foundation + Integration + Phases + E2eMocked-fix** bucket:
 
-- T7.1 builds the factories every later commit consumes.
-- T7.2–T7.3 prove the factory pattern on the easiest two clusters (Integration mostly empty already; MockE2E has zero touch needed).
-- T7.4 applies it to the Phases cluster (35 files — the largest single 7a contribution but still under the cap).
+- T7.1 builds the factories every later commit consumes. **SHIPPED** as `bed4e26d`.
+- T7.2 verified NO-OP — Integration cluster already cross-bank. **SHIPPED** as docs in `c02f8adb`.
+- T7.3 **DROPPED**: the 5 `src/Tests/E2eMocked/**` per-bank files are all `describe.skip`'d (PR-206-FOLLOWUP) with non-trivial root causes (Amex/Isracard `amexRoutes()` shared route table reauthor; Discount/Max/VisaCal `fixtures.json` URL globs do not match real bank topology). Consolidating skipped tests adds no value — they would be `describe.skip`'d in the new file too. Replaced by T7.5 (FIX, below).
+- T7.4 applies the factory pattern to the Phases cluster (~35 files — the largest single 7a contribution but still under the cap).
+- T7.5 (NEW) **FIXES** the 5 `describe.skip` files by repairing/authoring the route fixtures so the tests actually run and pass. Honours user directive: "no skip we want to have working tests".
 - Adding the infra extras (test helpers, fixtures, new canary) here keeps all "framework code" in one PR.
 
 7b is the **application + clean-up** bucket:
 
-- T7.5 → T7.6 reshape the larger Flow / Strategy / Banks clusters.
-- T7.7 adds the small Contracts cluster.
-- T7.8 prunes the residue inside Mediator / Types / Core (only the duplicated cross-bank parts; the 167..182 genuine edge-case tests in those directories stay).
-- T7.9 wires up the canary so future per-bank-only tests are blocked.
+- T7.6 → T7.7 reshape the larger Flow / Strategy / Banks clusters.
+- T7.8 adds the small Contracts cluster.
+- T7.9 prunes the residue inside Mediator / Types / Core (only the duplicated cross-bank parts; the 167..182 genuine edge-case tests in those directories stay).
+- T7.10 wires up the canary so future per-bank-only tests are blocked.
 
 The boundary is along **commit-plan sub-clusters**, not a random file-count slice. Zero file overlap: any file touched in 7a is not touched in 7b, and vice versa.
 
@@ -120,9 +123,9 @@ These stay verbatim; only the **truly-duplicated** per-bank tests collapse.
 
 Per the master plan and the locked canary count of **1 new in Phase 7** (the other 5 candidates I drafted in session/files/ are deferred to Phase 9):
 
-| Canary                                | Target rule                                                     | Land in   |
-| ------------------------------------- | --------------------------------------------------------------- | --------- |
-| `test-per-bank-duplication.canary.ts` | Bans `describe('Login.<bank>',` style; demands `it.each(BANKS)` | T7.9 (7b) |
+| Canary                                | Target rule                                                     | Land in    |
+| ------------------------------------- | --------------------------------------------------------------- | ---------- |
+| `test-per-bank-duplication.canary.ts` | Bans `describe('Login.<bank>',` style; demands `it.each(BANKS)` | T7.10 (7b) |
 
 Phase-9 deferrals: max-lines-per-test, max-asserts-per-it, no-skip-without-justification, no-conditional-it, no-shared-mutable-state.
 
@@ -156,21 +159,22 @@ Per `pr-guidlines.md §11` and the new T1-INVERSE husky hook (PR #301, landed `a
 
 | Commit                                   | Branch | Files       | Cluster                                                                                     |
 | ---------------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------- |
-| **T7.0** (this doc + initial spec stubs) | 7a     | 1           | docs                                                                                        |
-| T7.1                                     | 7a     | 27          | NEW factories + per-bank test runners (`src/Tests/Helpers/banks.ts`, `factory.ts`, runners) |
-| T7.2                                     | 7a     | 1           | MOD `src/Tests/Integration/**` (1 test reshape needed; rest already cross-bank)             |
-| T7.3                                     | 7a     | 0           | MOD `src/Tests/MockE2E/**` (already cross-bank — verify only, no diff expected)             |
-| T7.4                                     | 7a     | 35          | MOD `src/Tests/Phases/**` (login/dashboard/scrape phase tests → `it.each(BANKS)`)           |
-| (infra)                                  | 7a     | 35          | NEW `src/Tests/Helpers/`, fixtures, ESLint canary stub                                      |
-| **7a TOTAL**                             |        | **~98**     | **<150 ✅**                                                                                 |
-| T7.5                                     | 7b     | 15          | MOD `src/Tests/Flow/**`                                                                     |
-| T7.6 (Strategy)                          | 7b     | 29          | MOD `src/Tests/Strategy/**`                                                                 |
-| T7.6 (per-bank)                          | 7b     | 13          | MOD per-bank `src/Tests/Banks/**` (excluding the 3 preserved edge-case suites above)        |
-| T7.7                                     | 7b     | 3           | NEW Contracts (`src/Tests/Contracts/**`)                                                    |
-| T7.8                                     | 7b     | 15..30      | RES Mediator/Types/Core residue (only duplicated cross-bank parts; edge cases stay)         |
-| T7.9                                     | 7b     | 3           | MOD canary wire-up + ESLint rule registration                                               |
-| (docs)                                   | 7b     | 2           | DOCS updates (this file's 7b-relevant amendments + README "running tests" section)          |
-| **7b TOTAL**                             |        | **~80..95** | **<150 ✅**                                                                                 |
+| **T7.0** (this doc + initial spec stubs) | 7a     | 1           | docs                                                                                                          |
+| T7.1 **SHIPPED** (`bed4e26d`)            | 7a     | 2           | NEW `src/Tests/Helpers/banks.ts` + `banks.test.ts` (canonical BANKS list)                                     |
+| T7.2 **SHIPPED-NOOP** (`c02f8adb`)       | 7a     | 0 (docs)    | MOD `src/Tests/Integration/**` — verified already canonical, no diff needed                                   |
+| ~~T7.3~~ **DROPPED**                     | —      | —           | ~~MOD `src/Tests/E2eMocked/**`~~ — 5 originals are all `describe.skip` (PR-206-FOLLOWUP); replaced by **T7.5** |
+| T7.4 (NEXT)                              | 7a     | ~29         | MOD `src/Tests/Unit/Pipeline/Phases/**` + Infrastructure helper-coverage tests → `it.each(BANKS)`             |
+| T7.5 **(NEW)**                           | 7a     | 5           | FIX 5 `describe.skip` E2eMocked files — repair/author route fixtures so tests actually run + pass             |
+| (infra)                                  | 7a     | ~30         | NEW `src/Tests/Helpers/`, fixtures, ESLint canary supporting code                                             |
+| **7a TOTAL**                             |        | **~72..77** | **<150 ✅**                                                                                                   |
+| T7.6                                     | 7b     | 15          | MOD `src/Tests/Flow/**`                                                                                       |
+| T7.7 (Strategy)                          | 7b     | 29          | MOD `src/Tests/Strategy/**`                                                                                   |
+| T7.7 (per-bank)                          | 7b     | 13          | MOD per-bank `src/Tests/Banks/**` (excluding the preserved edge-case suites above)                            |
+| T7.8                                     | 7b     | 3           | NEW Contracts (`src/Tests/Contracts/**`)                                                                      |
+| T7.9                                     | 7b     | 15..30      | RES Mediator/Types/Core residue (only duplicated cross-bank parts; edge cases stay)                           |
+| T7.10                                    | 7b     | 3           | MOD canary wire-up + ESLint rule registration                                                                 |
+| (docs)                                   | 7b     | 2           | DOCS updates (this file's 7b-relevant amendments + README "running tests" section)                            |
+| **7b TOTAL**                             |        | **~80..95** | **<150 ✅**                                                                                                   |
 
 ---
 
@@ -209,13 +213,40 @@ Inventory pass identified 2 files matching `*.integration.test.ts` under `src/Te
 
 **T7.2 file count: 0** (vs forecast 1). The forecast counted file matches; verification reduced this to NO-OP.
 
-### T7.3 — MOD MockE2E (NEXT) — ~15 files forecast (vs original 0)
+### T7.3 — **DROPPED** (was: MOD MockE2E)
 
-Heavy-OBSERVE inventory revised the original T7.0 forecast (which expected 0 reshape files under `src/Tests/E2eMocked/`) to **15 candidate files**. Per zero-trust policy, every candidate gets a per-file spot-check before reshape (inventory classification accuracy measured at ~80%).
+Heavy-OBSERVE inventory enumerated 15 files under `src/Tests/E2eMocked/**`. Of the 5 that looked like per-bank consolidation candidates (Amex, Isracard, Discount, Max, VisaCal), **ALL 5 were already `describe.skip`'d** with documented root-cause headers (PR-206-FOLLOWUP debt):
 
-### T7.4 — MOD Phases + Infrastructure — ~29 files forecast (vs 35)
+| File                                       | Skip reason (verbatim from header)                                                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E2eMocked/Amex.e2e-mocked.test.ts`        | Tests **time out (~256s wall)** on the mocked scrape lifecycle. Shared `amexRoutes()` needs reauthoring.                                                              |
+| `E2eMocked/Isracard.e2e-mocked.test.ts`    | Same root cause family as Amex.                                                                                                                                       |
+| `E2eMocked/Discount/Discount...test.ts`    | Auto-generated `fixtures.json` is a scaffold whose URL globs do NOT match Discount's real URL topology. Scraper hangs on unmocked routes; times out at 90s.           |
+| `E2eMocked/Max/Max...test.ts`              | Same fixture-scaffold root cause.                                                                                                                                     |
+| `E2eMocked/VisaCal/VisaCal...test.ts`      | Same fixture-scaffold root cause.                                                                                                                                     |
+
+Consolidating skipped tests into a "shared" file simply moves dead code — they would still be `describe.skip`'d in the new file, producing zero behaviour. T7.3 is therefore **DROPPED**. The user's directive ("no skip we want to have working tests") is addressed by the new **T7.5 (FIX)** task below.
+
+### T7.4 — MOD Phases + Infrastructure (NEXT) — ~29 files forecast (vs 35)
 
 Per Q3 decision: reshape covers BOTH `Pipeline/Phases/**` canonical phase tests AND `Pipeline/Infrastructure/**` helper-coverage tests, since the helper-coverage layer is the consumption point for `BANK_SCENARIOS`. Forecast revised down from 35 to 29 by inventory.
+
+### T7.5 — **NEW** — FIX 5 `describe.skip` E2eMocked files
+
+Replaces dropped T7.3. **Goal: make the 5 skipped tests actually run and pass.**
+
+| Sub-task | File(s) | Approach |
+| --- | --- | --- |
+| 5a | `Amex.e2e-mocked.test.ts` + `Isracard.e2e-mocked.test.ts` | Reauthor `Helpers/AmexRoutes.ts` (shared by both): align route matchers to current production URL topology (`Login` page, `ValidateIdData` POST, dashboard/account API). Profile the 256s timeout — fix the missing route(s). |
+| 5b | `Discount/Discount...test.ts` | Author `fixtures.json` manually with routes matching `start.telebank.co.il` + `/Lobby/gatewayAPI/...`. Use offline interceptor to verify zero escapes. |
+| 5c | `Max/Max...test.ts` | Author `fixtures.json` for Max's real URL topology. |
+| 5d | `VisaCal/VisaCal...test.ts` | Author `fixtures.json` for VisaCal's real URL topology. |
+| 5e | Remove `describe.skip` → `describe`, remove PR-206-FOLLOWUP headers, verify all 5 tests pass in `test:e2e:mock`. |
+
+T7.5 risks (managed):
+
+- Real bank topology may have shifted since the original capture; route authoring may need re-capture (`npm run capture:invalid-login -- <bank>` may be needed).
+- If any sub-task cannot be completed within reasonable effort, file gets **deleted** (cleaner than leaving `.skip`) — and replaced by an integration test at the Pipeline-mocked layer that exercises the same flow without real-network fixtures.
 
 ---
 
