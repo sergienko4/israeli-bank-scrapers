@@ -105,7 +105,7 @@ async function dispatchSealedReveal(
 /** Static log payload for early-exit sealed-reveal branches. */
 const SEALED_REVEAL_EXIT_MSG: Partial<Record<string, string>> = {
   'no-discovery': 'sealed-reveal: no discovery',
-  NONE: 'sealed-reveal: NONE (form already visible)',
+  NONE: 'sealed-reveal: NONE — no reveal target discovered; POST gate will verify form (PR #299: prior wording falsely implied the form had rendered, masking target=_blank popup failures)',
 };
 
 /**

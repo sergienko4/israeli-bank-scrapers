@@ -19,6 +19,13 @@ interface IDirectNavArgs {
   readonly target: IResolvedTarget;
   readonly isSequential: boolean;
   readonly logger: ScraperLogger;
+  /**
+   * When set, ACTION calls `executor.navigateTo(navHrefOverride)`
+   * instead of clicking. Captured at PRE time for `<a target="_blank">`
+   * triggers; prevents Playwright from opening a new BrowserContext
+   * page and stranding the scraper on the marketing tab.
+   */
+  readonly navHrefOverride?: string;
 }
 
 /**
@@ -88,6 +95,24 @@ async function preSettleIdle(executor: IActionMediator): Promise<void> {
 }
 
 /**
+ * Fire the trigger action: when {@link IDirectNavArgs.navHrefOverride}
+ * is set, navigate to that URL directly; otherwise click the pre-
+ * resolved target. The override path is taken for
+ * `<a target="_blank">` triggers so Playwright does not open a new
+ * tab (which would strand the scraper on the original page).
+ *
+ * @param args - Bundled executor + target + override.
+ */
+async function fireTriggerAction(args: IDirectNavArgs): Promise<void> {
+  const override = args.navHrefOverride;
+  if (override) {
+    await args.executor.navigateTo(override).catch((): false => false);
+  } else {
+    await clickResolvedTarget(args.executor, args.target, args.isSequential);
+  }
+}
+
+/**
  * Perform the direct/sequential click + settle + URL probe path that
  * both NAV_STRATEGY.DIRECT and NAV_STRATEGY.SEQUENTIAL share.
  * @param args - Bundle of executor, target, sequencing flag, logger.
@@ -95,7 +120,7 @@ async function preSettleIdle(executor: IActionMediator): Promise<void> {
  */
 async function executeDirectNavigation(args: IDirectNavArgs): Promise<boolean> {
   const urlBefore = args.executor.getCurrentUrl();
-  await clickResolvedTarget(args.executor, args.target, args.isSequential);
+  await fireTriggerAction(args);
   await settleAfterClick(args.executor, args.isSequential);
   const currentUrl = args.executor.getCurrentUrl();
   const didNavigate = didReallyNavigate(urlBefore, currentUrl);
@@ -123,7 +148,8 @@ async function dispatchNavStrategy(args: IDispatchNavArgs): Promise<boolean> {
     return executeModalClick(executor, discovery, logger);
   }
   const isSequential = discovery.strategy === NAV_STRATEGY.SEQUENTIAL;
-  return executeDirectNavigation({ executor, target, isSequential, logger });
+  const navHrefOverride = discovery.navHrefOverride;
+  return executeDirectNavigation({ executor, target, isSequential, logger, navHrefOverride });
 }
 
 /**
