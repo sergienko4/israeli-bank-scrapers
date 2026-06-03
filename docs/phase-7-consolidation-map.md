@@ -1,9 +1,37 @@
 # Phase 7 — Cross-Bank Test Diamond Consolidation Map
 
-> **Status:** T7.0 — split-lock + scope boundary draft (per-assertion-ID inventory to be filled in by T7.1+ as commits land).
+> **Status:** T7.0-T7.2 SHIPPED; T7.3 DROPPED; T7.4 VERIFIED NO-OP (snapshot drift); T7.5 SCOPED + DEFERRED to follow-up PR; T7.10 canary in progress.
 > **Authority:** Master pipeline-decoupling plan (`C:\tmp\plans\israeli-bank-scrapers-fork\pipeline-decoupling-master-2026-05-28\`).
 > **Branch:** `refactor/phase-7-foundation-integration-phases` (Phase 7a — first of two).
 > **Companion canon:** `phase-7/spec.txt §1d`, `phase-7/status.txt` D8 (split-lock entry).
+
+---
+
+## Snapshot drift reconciliation (OBSERVE evidence)
+
+The master plan's target ("reduce ~3233 it/test → ≤2200 fn via cross-bank `it.each(BANKS)`") was valid for its source-snapshot SHA. On current base `914201fb`, **the structural duplication class Phase 7 targeted has already been consumed by prior merged work** (Phase 2 mediator decoupling, the CrossValidation factory layer, BANK_SCENARIOS + ALL_BANK_CASES adoption).
+
+### Evidence (reproducible against current SHA)
+
+| Probe                                                                                                                                                                                                | Command                                                                                                                                                              | Result            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| Per-bank `describe(...)` duplication anti-pattern                                                                                                                                                    | `Get-ChildItem -Recurse src\Tests -Filter *.test.ts \| Select-String -Pattern "describe\s*\(\s*['""].*\.(hapoalim\|discount\|max\|visacal\|isracard\|amex\|...)"` | **0 matches**     |
+| `CompanyTypes.<Bank>` in Phases/                                                                                                                                                                     | grep for `CompanyTypes\.\w+` under `src/Tests/Unit/Pipeline/Phases`                                                                                                  | 1 hit (OneZero URL registration in `ApiDirectCallPhase.test.ts`)         |
+| `CompanyTypes.<Bank>` in Infrastructure/                                                                                                                                                             | grep under `src/Tests/Unit/Pipeline/Infrastructure`                                                                                                                  | 14 hits (all in `BankLoginFixtures.ts` — shared per-bank data table, NOT duplicated test code) |
+| `it.each` adoption                                                                                                                                                                                   | `Select-String -Pattern "it\.each\|describe\.each"`                                                                                                                  | 114 calls in 57 files |
+| Total `it/test` calls                                                                                                                                                                                | `Select-String -Pattern "^\s*(it\|test)\s*[\(\.]"`                                                                                                                   | 4370 (vs master baseline 3233)         |
+
+### What the 4370 tests actually are
+
+The 4370 count is the genuine working size of the test suite, NOT inflated by per-bank duplication:
+
+- **Phase tests** (`Phases/**`): bank-agnostic phase machinery (`createXFromConfig`, `pre/action/post/final` lifecycle).
+- **Infrastructure tests** (`Infrastructure/**`): helper-coverage tests; bank-agnostic OR using shared fixture tables.
+- **CrossValidation/Phases factory tests**: already cross-bank via `it.each(BANK_SCENARIOS)`.
+- **Mediator tests** (`Mediator/**`, 165 files): unit tests for mediator helpers; bank-agnostic.
+- **Bank-named files** (49 total): all are GENUINE per-bank cases — E2eFull/E2eMocked/E2eReal (per-bank by design), non-Pipeline legacy scrapers (Leumi/Mizrahi/Yahav/etc.), bank-specific Pipeline configs (OneZero/Pepper/PayBox), or documented EDGE CASE preserves (HapoalimDashboardEntry, BeinleumiCrossEndpointScan, SelectorFallbackXxx).
+
+The master target was consumed by upstream work; Phase 7 therefore records **verification/no-op decisions** instead of manufacturing churn.
 
 ---
 
@@ -227,30 +255,60 @@ Heavy-OBSERVE inventory enumerated 15 files under `src/Tests/E2eMocked/**`. Of t
 
 Consolidating skipped tests into a "shared" file simply moves dead code — they would still be `describe.skip`'d in the new file, producing zero behaviour. T7.3 is therefore **DROPPED**. The user's directive ("no skip we want to have working tests") is addressed by the new **T7.5 (FIX)** task below.
 
-### T7.4 — MOD Phases + Infrastructure (NEXT) — ~29 files forecast (vs 35)
+### T7.4 — VERIFIED NO-OP (snapshot drift)
 
-Per Q3 decision: reshape covers BOTH `Pipeline/Phases/**` canonical phase tests AND `Pipeline/Infrastructure/**` helper-coverage tests, since the helper-coverage layer is the consumption point for `BANK_SCENARIOS`. Forecast revised down from 35 to 29 by inventory.
+Per the OBSERVE evidence at the top of this document:
 
-### T7.5 — **NEW** — FIX 5 `describe.skip` E2eMocked files
+- **0 per-bank `describe(...)` duplication** found anywhere in `src/Tests/`
+- Phases/ tests (15 files): bank-agnostic phase machinery
+- Infrastructure/ tests (74 files): bank-agnostic OR using `BankLoginFixtures.ts` shared data table
+- CrossValidation/Phases factory tests (10 files): already canonical `it.each(BANK_SCENARIOS)`
 
-Replaces dropped T7.3. **Goal: make the 5 skipped tests actually run and pass.**
+The structural duplication class T7.4 was scoped to address has already been consumed by prior merged work. T7.4 ships as a VERIFIED-NO-OP decision (recorded in this document; no code commit).
 
-| Sub-task | File(s) | Approach |
+If a future regression introduces the anti-pattern, the **T7.10 canary** will block it at lint-time.
+
+### T7.5 — SCOPED + DEFERRED — FIX 5 PR-206-FOLLOWUP bank fixture skips
+
+**Precise scope** (NOT "all describe.skip"):
+
+| File | Skip reason | Required fix |
 | --- | --- | --- |
-| 5a | `Amex.e2e-mocked.test.ts` + `Isracard.e2e-mocked.test.ts` | Reauthor `Helpers/AmexRoutes.ts` (shared by both): align route matchers to current production URL topology (`Login` page, `ValidateIdData` POST, dashboard/account API). Profile the 256s timeout — fix the missing route(s). |
-| 5b | `Discount/Discount...test.ts` | Author `fixtures.json` manually with routes matching `start.telebank.co.il` + `/Lobby/gatewayAPI/...`. Use offline interceptor to verify zero escapes. |
-| 5c | `Max/Max...test.ts` | Author `fixtures.json` for Max's real URL topology. |
-| 5d | `VisaCal/VisaCal...test.ts` | Author `fixtures.json` for VisaCal's real URL topology. |
-| 5e | Remove `describe.skip` → `describe`, remove PR-206-FOLLOWUP headers, verify all 5 tests pass in `test:e2e:mock`. |
+| `E2eMocked/Amex.e2e-mocked.test.ts` | `amexRoutes()` shared route table needs reauthoring | reauthor `Helpers/AmexRoutes.ts` |
+| `E2eMocked/Isracard.e2e-mocked.test.ts` | Same root cause family as Amex | same route table fix |
+| `E2eMocked/Discount/Discount.e2e-mocked.test.ts` | `fixtures.json` URL globs do NOT match Discount's real URL topology | author `fixtures.json` + capture HTML |
+| `E2eMocked/Max/Max.e2e-mocked.test.ts` | Same fixture-scaffold root cause | author `fixtures.json` + capture HTML |
+| `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts` | Same fixture-scaffold root cause | author `fixtures.json` + capture HTML |
 
-T7.5 risks (managed):
+**OUT OF SCOPE for T7.5** (other `describe.skip` exists but is NOT this PR's responsibility):
 
-- Real bank topology may have shifted since the original capture; route authoring may need re-capture (`npm run capture:invalid-login -- <bank>` may be needed).
-- If any sub-task cannot be completed within reasonable effort, file gets **deleted** (cleaner than leaving `.skip`) — and replaced by an integration test at the Pipeline-mocked layer that exercises the same flow without real-network fixtures.
+- `ErrorScenarios.e2e-mocked.test.ts` — different infrastructure debt
+- `ExternalBrowser.e2e-mocked.test.ts` — same
+- `OtpDetection.e2e-mocked.test.ts` — same
+- `SelectorFallbackAdvanced.e2e-mocked.test.ts` — 3 `describe.skip` blocks
+- `SelectorFallbackBasic.e2e-mocked.test.ts` — 3 `describe.skip` blocks
+- `SelectorFallbackElements.e2e-mocked.test.ts` — 3 `describe.skip` blocks
+- All `DESCRIBE_IF = hasCredentials ? describe : describe.skip` conditional-skip patterns (these are CORRECT — only skip when env credentials missing)
+- All `it.skip` blocks
+
+**T7.5 DEFERRED to follow-up PR** because:
+
+1. `C:/tmp/bank-html/{discount,max,visacal}/` (the fixture root) is MISSING on current dev machine. The capture script (`npm run capture:invalid-login -- <bank>`) requires real bank credentials + IL-residential network — environment I do not control.
+2. Manually inferring route tables from production scraper code (without real captures) would produce tests that pass locally but are not reviewable — violates "tests we can rely on".
+3. Authoring repo-local safe fixtures (synthetic HTML responding with bank-recognizable error markup) is feasible (~4-8h per bank) but is fixture engineering, NOT structural refactor.
+4. Per rubber-duck recommendation: "Split T7.5 out of Phase 7 structural work and track it as fixture debt."
+
+**T7.5 follow-up PR scope** (separate from this Phase 7 PR):
+
+- Open `fix/e2e-mocked-fixture-debt` branch
+- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/{discount,max,visacal,amex,isracard}/` (committed, synthetic HTML)
+- Reauthor `Helpers/AmexRoutes.ts` against current `digital.{amex,isracard}` topology
+- Un-`skip` the 5 files; verify all pass in `test:e2e:mock`
+- Document the fixture authoring pattern for future banks
 
 ---
 
-## Per-bank EDGE CASE preserve list (verified)
+## Per-commit forecast (REVISED post-OBSERVE)
 
 These per-bank tests stay UNCHANGED (preserve specific bank behaviour the cross-bank pattern would erase):
 
