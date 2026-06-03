@@ -1,6 +1,6 @@
 # Phase 7 — Cross-Bank Test Diamond Consolidation Map
 
-> **Status:** T7.0-T7.2 SHIPPED; T7.3 DROPPED; T7.4 VERIFIED NO-OP (snapshot drift); T7.5 SCOPED + DEFERRED to follow-up PR; T7.10 canary in progress.
+> **Status:** T7.0-T7.2 SHIPPED; T7.3 DROPPED; T7.4 VERIFIED NO-OP (snapshot drift); T7.5 SCOPED + DEFERRED to follow-up PR; T7.10 SHIPPED (per-bank-describe canary + RESTRICTED_SYNTAX_RULES entry).
 > **Authority:** Master pipeline-decoupling plan (`C:\tmp\plans\israeli-bank-scrapers-fork\pipeline-decoupling-master-2026-05-28\`).
 > **Branch:** `refactor/phase-7-foundation-integration-phases` (Phase 7a — first of two).
 > **Companion canon:** `phase-7/spec.txt §1d`, `phase-7/status.txt` D8 (split-lock entry).
@@ -13,13 +13,13 @@ The master plan's target ("reduce ~3233 it/test → ≤2200 fn via cross-bank `i
 
 ### Evidence (reproducible against current SHA)
 
-| Probe                                                                                                                                                                                                | Command                                                                                                                                                              | Result            |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| Per-bank `describe(...)` duplication anti-pattern                                                                                                                                                    | `Get-ChildItem -Recurse src\Tests -Filter *.test.ts \| Select-String -Pattern "describe\s*\(\s*['""].*\.(hapoalim\|discount\|max\|visacal\|isracard\|amex\|...)"` | **0 matches**     |
-| `CompanyTypes.<Bank>` in Phases/                                                                                                                                                                     | grep for `CompanyTypes\.\w+` under `src/Tests/Unit/Pipeline/Phases`                                                                                                  | 1 hit (OneZero URL registration in `ApiDirectCallPhase.test.ts`)         |
-| `CompanyTypes.<Bank>` in Infrastructure/                                                                                                                                                             | grep under `src/Tests/Unit/Pipeline/Infrastructure`                                                                                                                  | 14 hits (all in `BankLoginFixtures.ts` — shared per-bank data table, NOT duplicated test code) |
-| `it.each` adoption                                                                                                                                                                                   | `Select-String -Pattern "it\.each\|describe\.each"`                                                                                                                  | 114 calls in 57 files |
-| Total `it/test` calls                                                                                                                                                                                | `Select-String -Pattern "^\s*(it\|test)\s*[\(\.]"`                                                                                                                   | 4370 (vs master baseline 3233)         |
+| Probe                                             | Command                                                                                                                                                           | Result                                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Per-bank `describe(...)` duplication anti-pattern | `Get-ChildItem -Recurse src\Tests -Filter *.test.ts \| Select-String -Pattern "describe\s*\(\s*['""].*\.(hapoalim\|discount\|max\|visacal\|isracard\|amex\|...)"` | **0 matches**                                                                                  |
+| `CompanyTypes.<Bank>` in Phases/                  | grep for `CompanyTypes\.\w+` under `src/Tests/Unit/Pipeline/Phases`                                                                                               | 1 hit (OneZero URL registration in `ApiDirectCallPhase.test.ts`)                               |
+| `CompanyTypes.<Bank>` in Infrastructure/          | grep under `src/Tests/Unit/Pipeline/Infrastructure`                                                                                                               | 14 hits (all in `BankLoginFixtures.ts` — shared per-bank data table, NOT duplicated test code) |
+| `it.each` adoption                                | `Select-String -Pattern "it\.each\|describe\.each"`                                                                                                               | 114 calls in 57 files                                                                          |
+| Total `it/test` calls                             | `Select-String -Pattern "^\s*(it\|test)\s*[\(\.]"`                                                                                                                | 4370 (vs master baseline 3233)                                                                 |
 
 ### What the 4370 tests actually are
 
@@ -48,23 +48,23 @@ The CodeRabbit 150-file PR cap is canonical (`pr-guidlines.md §12`); a 185-file
 
 ### Per-component breakdown (post-PR-301)
 
-| Task             | Component                                                                 | Files        | Bucket      |
-| ---------------- | ------------------------------------------------------------------------- | ------------ | ----------- |
-| T7.1             | NEW factories + per-bank test runners                                     | 2 SHIPPED    | **7a**      |
-| T7.2             | MOD `src/Tests/Integration/**` reshape to `it.each(BANKS)`                | 0 (NO-OP)    | **7a**      |
-| ~~T7.3~~         | ~~MOD `src/Tests/E2eMocked/**` consolidation (5→2 files)~~ — **DROPPED**  | —            | —           |
-| T7.4             | MOD `src/Tests/Phases/**` reshape                                         | ~35          | **7a**      |
-| T7.5 **(NEW)**   | FIX `describe.skip` in 5 `src/Tests/E2eMocked/**` files → working tests   | 5            | **7a**      |
-| (infra)          | NEW infra extras (`src/Tests/Helpers/`, fixtures, ESLint canary)          | ~30          | **7a**      |
-| **7a sub-total** |                                                                           | **~72..77**  | **<150 ✅** |
-| T7.6             | MOD `src/Tests/Flow/**` reshape                                           | 15           | **7b**      |
-| T7.7             | MOD `src/Tests/Strategy/**` reshape                                       | 29           | **7b**      |
-| T7.7             | MOD per-bank `src/Tests/Banks/**` reshape                                 | 13           | **7b**      |
-| T7.8             | NEW Contracts                                                             | 3            | **7b**      |
-| T7.9             | RES Mediator / Types / Core residue (of 197 in tree)                      | 15..30       | **7b**      |
-| T7.10            | MOD canary + ESLint rule wire-up                                          | 3            | **7b**      |
-| (docs)           | DOCS updates (this file + README)                                         | 2            | **7b**      |
-| **7b sub-total** |                                                                           | **~80..95**  | **<150 ✅** |
+| Task             | Component                                                                | Files       | Bucket      |
+| ---------------- | ------------------------------------------------------------------------ | ----------- | ----------- |
+| T7.1             | NEW factories + per-bank test runners                                    | 2 SHIPPED   | **7a**      |
+| T7.2             | MOD `src/Tests/Integration/**` reshape to `it.each(BANKS)`               | 0 (NO-OP)   | **7a**      |
+| ~~T7.3~~         | ~~MOD `src/Tests/E2eMocked/**` consolidation (5→2 files)~~ — **DROPPED** | —           | —           |
+| T7.4             | MOD `src/Tests/Phases/**` reshape                                        | ~35         | **7a**      |
+| T7.5 **(NEW)**   | FIX `describe.skip` in 5 `src/Tests/E2eMocked/**` files → working tests  | 5           | **7a**      |
+| (infra)          | NEW infra extras (`src/Tests/Helpers/`, fixtures, ESLint canary)         | ~30         | **7a**      |
+| **7a sub-total** |                                                                          | **~72..77** | **<150 ✅** |
+| T7.6             | MOD `src/Tests/Flow/**` reshape                                          | 15          | **7b**      |
+| T7.7             | MOD `src/Tests/Strategy/**` reshape                                      | 29          | **7b**      |
+| T7.7             | MOD per-bank `src/Tests/Banks/**` reshape                                | 13          | **7b**      |
+| T7.8             | NEW Contracts                                                            | 3           | **7b**      |
+| T7.9             | RES Mediator / Types / Core residue (of 197 in tree)                     | 15..30      | **7b**      |
+| T7.10            | MOD canary + ESLint rule wire-up                                         | 3           | **7b**      |
+| (docs)           | DOCS updates (this file + README)                                        | 2           | **7b**      |
+| **7b sub-total** |                                                                          | **~80..95** | **<150 ✅** |
 
 Reference total of `*.test.ts` under `src/Tests/`: **474**. Both PRs land well under the 150 cap.
 
@@ -129,7 +129,7 @@ describe('Login.flow', () => {
 });
 ```
 
-The ESLint canary `test-per-bank-duplication.canary.ts` (T7.9) makes regressions a build-time error.
+The ESLint canary `test-per-bank-duplication.canary.ts` (T7.10 — SHIPPED) makes regressions a build-time error. The rule lives in the shared `RESTRICTED_SYNTAX_RULES` array in `eslint.config.mjs` (next to the existing generic-name `describe('test|run|batch|...')` restriction) so it covers every `src/**/*.ts` scope including the canary file itself. Verified 0 false-positives across `src/Tests` + `src/Scrapers` on commit-time sweep.
 
 ---
 
@@ -151,9 +151,16 @@ These stay verbatim; only the **truly-duplicated** per-bank tests collapse.
 
 Per the master plan and the locked canary count of **1 new in Phase 7** (the other 5 candidates I drafted in session/files/ are deferred to Phase 9):
 
-| Canary                                | Target rule                                                     | Land in    |
-| ------------------------------------- | --------------------------------------------------------------- | ---------- |
-| `test-per-bank-duplication.canary.ts` | Bans `describe('Login.<bank>',` style; demands `it.each(BANKS)` | T7.10 (7b) |
+| Canary                                | Target rule                                                       | Status                           | Lands via                                                                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test-per-bank-duplication.canary.ts` | Bans `describe('<Phase>.<bank>',` style; demands `it.each(BANKS)` | **SHIPPED** (T7.10, this branch) | New entry in `RESTRICTED_SYNTAX_RULES` (`eslint.config.mjs`) — applies globally to `src/**/*.ts`; canary file under `src/Scrapers/Pipeline/EslintCanaries/` triggers it 3× |
+
+Verification at commit-time:
+
+- `npm run lint:canaries` → 65 TS canaries all pass (was 64 + this 1 new)
+- `npx eslint src/Tests src/Scrapers` PHASE-7-DIAMOND hit-count outside the canary: **0** (no false positives)
+- Rule selector: `CallExpression[callee.name='describe'] > Literal[value=/^[A-Z][A-Za-z0-9]*\\.(hapoalim|discount|max|visacal|isracard|amex|beinleumi|onezero|pepper|mizrahi|mercantile|otsarHahayal|yahav|leumi|massad|pagi|behatsdaa|beyahadBishvilha|payBox)$/]`
+- Allowed (NOT flagged): bank-as-feature-name describes like `describe('Hapoalim WAF challenge', ...)` — selector requires the `<Word>.<bank>` shape (capitalised prefix + dot + lowercase bank token).
 
 Phase-9 deferrals: max-lines-per-test, max-asserts-per-it, no-skip-without-justification, no-conditional-it, no-shared-mutable-state.
 
@@ -185,24 +192,24 @@ Per `pr-guidlines.md §11` and the new T1-INVERSE husky hook (PR #301, landed `a
 
 ## Per-commit forecast (7a + 7b)
 
-| Commit                                   | Branch | Files       | Cluster                                                                                     |
-| ---------------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------- |
-| **T7.0** (this doc + initial spec stubs) | 7a     | 1           | docs                                                                                                          |
-| T7.1 **SHIPPED** (`bed4e26d`)            | 7a     | 2           | NEW `src/Tests/Helpers/banks.ts` + `banks.test.ts` (canonical BANKS list)                                     |
-| T7.2 **SHIPPED-NOOP** (`c02f8adb`)       | 7a     | 0 (docs)    | MOD `src/Tests/Integration/**` — verified already canonical, no diff needed                                   |
-| ~~T7.3~~ **DROPPED**                     | —      | —           | ~~MOD `src/Tests/E2eMocked/**`~~ — 5 originals are all `describe.skip` (PR-206-FOLLOWUP); replaced by **T7.5** |
-| T7.4 (NEXT)                              | 7a     | ~29         | MOD `src/Tests/Unit/Pipeline/Phases/**` + Infrastructure helper-coverage tests → `it.each(BANKS)`             |
-| T7.5 **(NEW)**                           | 7a     | 5           | FIX 5 `describe.skip` E2eMocked files — repair/author route fixtures so tests actually run + pass             |
-| (infra)                                  | 7a     | ~30         | NEW `src/Tests/Helpers/`, fixtures, ESLint canary supporting code                                             |
-| **7a TOTAL**                             |        | **~72..77** | **<150 ✅**                                                                                                   |
-| T7.6                                     | 7b     | 15          | MOD `src/Tests/Flow/**`                                                                                       |
-| T7.7 (Strategy)                          | 7b     | 29          | MOD `src/Tests/Strategy/**`                                                                                   |
-| T7.7 (per-bank)                          | 7b     | 13          | MOD per-bank `src/Tests/Banks/**` (excluding the preserved edge-case suites above)                            |
-| T7.8                                     | 7b     | 3           | NEW Contracts (`src/Tests/Contracts/**`)                                                                      |
-| T7.9                                     | 7b     | 15..30      | RES Mediator/Types/Core residue (only duplicated cross-bank parts; edge cases stay)                           |
-| T7.10                                    | 7b     | 3           | MOD canary wire-up + ESLint rule registration                                                                 |
-| (docs)                                   | 7b     | 2           | DOCS updates (this file's 7b-relevant amendments + README "running tests" section)                            |
-| **7b TOTAL**                             |        | **~80..95** | **<150 ✅**                                                                                                   |
+| Commit                                   | Branch | Files       | Cluster                                                                                                                                          |
+| ---------------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **T7.0** (this doc + initial spec stubs) | 7a     | 1           | docs                                                                                                                                             |
+| T7.1 **SHIPPED** (`bed4e26d`)            | 7a     | 2           | NEW `src/Tests/Helpers/banks.ts` + `banks.test.ts` (canonical BANKS list)                                                                        |
+| T7.2 **SHIPPED-NOOP** (`c02f8adb`)       | 7a     | 0 (docs)    | MOD `src/Tests/Integration/**` — verified already canonical, no diff needed                                                                      |
+| ~~T7.3~~ **DROPPED**                     | —      | —           | ~~MOD `src/Tests/E2eMocked/**`~~ — 5 originals are all `describe.skip` (PR-206-FOLLOWUP); replaced by **T7.5**                                   |
+| T7.4 (NEXT)                              | 7a     | ~29         | MOD `src/Tests/Unit/Pipeline/Phases/**` + Infrastructure helper-coverage tests → `it.each(BANKS)`                                                |
+| T7.5 **(NEW)**                           | 7a     | 5           | FIX 5 `describe.skip` E2eMocked files — repair/author route fixtures so tests actually run + pass                                                |
+| T7.10 **SHIPPED** (this commit)          | 7a     | 2           | NEW canary `src/Scrapers/Pipeline/EslintCanaries/test-per-bank-duplication.canary.ts` + entry in `RESTRICTED_SYNTAX_RULES` (`eslint.config.mjs`) |
+| (infra)                                  | 7a     | ~30         | NEW `src/Tests/Helpers/`, fixtures, ESLint canary supporting code                                                                                |
+| **7a TOTAL**                             |        | **~72..77** | **<150 ✅**                                                                                                                                      |
+| T7.6                                     | 7b     | 15          | MOD `src/Tests/Flow/**`                                                                                                                          |
+| T7.7 (Strategy)                          | 7b     | 29          | MOD `src/Tests/Strategy/**`                                                                                                                      |
+| T7.7 (per-bank)                          | 7b     | 13          | MOD per-bank `src/Tests/Banks/**` (excluding the preserved edge-case suites above)                                                               |
+| T7.8                                     | 7b     | 3           | NEW Contracts (`src/Tests/Contracts/**`)                                                                                                         |
+| T7.9                                     | 7b     | 15..30      | RES Mediator/Types/Core residue (only duplicated cross-bank parts; edge cases stay)                                                              |
+| (docs)                                   | 7b     | 2           | DOCS updates (this file's 7b-relevant amendments + README "running tests" section)                                                               |
+| **7b TOTAL**                             |        | **~80..95** | **<150 ✅**                                                                                                                                      |
 
 ---
 
@@ -245,13 +252,13 @@ Inventory pass identified 2 files matching `*.integration.test.ts` under `src/Te
 
 Heavy-OBSERVE inventory enumerated 15 files under `src/Tests/E2eMocked/**`. Of the 5 that looked like per-bank consolidation candidates (Amex, Isracard, Discount, Max, VisaCal), **ALL 5 were already `describe.skip`'d** with documented root-cause headers (PR-206-FOLLOWUP debt):
 
-| File                                       | Skip reason (verbatim from header)                                                                                                                                    |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E2eMocked/Amex.e2e-mocked.test.ts`        | Tests **time out (~256s wall)** on the mocked scrape lifecycle. Shared `amexRoutes()` needs reauthoring.                                                              |
-| `E2eMocked/Isracard.e2e-mocked.test.ts`    | Same root cause family as Amex.                                                                                                                                       |
-| `E2eMocked/Discount/Discount...test.ts`    | Auto-generated `fixtures.json` is a scaffold whose URL globs do NOT match Discount's real URL topology. Scraper hangs on unmocked routes; times out at 90s.           |
-| `E2eMocked/Max/Max...test.ts`              | Same fixture-scaffold root cause.                                                                                                                                     |
-| `E2eMocked/VisaCal/VisaCal...test.ts`      | Same fixture-scaffold root cause.                                                                                                                                     |
+| File                                    | Skip reason (verbatim from header)                                                                                                                          |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E2eMocked/Amex.e2e-mocked.test.ts`     | Tests **time out (~256s wall)** on the mocked scrape lifecycle. Shared `amexRoutes()` needs reauthoring.                                                    |
+| `E2eMocked/Isracard.e2e-mocked.test.ts` | Same root cause family as Amex.                                                                                                                             |
+| `E2eMocked/Discount/Discount...test.ts` | Auto-generated `fixtures.json` is a scaffold whose URL globs do NOT match Discount's real URL topology. Scraper hangs on unmocked routes; times out at 90s. |
+| `E2eMocked/Max/Max...test.ts`           | Same fixture-scaffold root cause.                                                                                                                           |
+| `E2eMocked/VisaCal/VisaCal...test.ts`   | Same fixture-scaffold root cause.                                                                                                                           |
 
 Consolidating skipped tests into a "shared" file simply moves dead code — they would still be `describe.skip`'d in the new file, producing zero behaviour. T7.3 is therefore **DROPPED**. The user's directive ("no skip we want to have working tests") is addressed by the new **T7.5 (FIX)** task below.
 
@@ -272,13 +279,13 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 
 **Precise scope** (NOT "all describe.skip"):
 
-| File | Skip reason | Required fix |
-| --- | --- | --- |
-| `E2eMocked/Amex.e2e-mocked.test.ts` | `amexRoutes()` shared route table needs reauthoring | reauthor `Helpers/AmexRoutes.ts` |
-| `E2eMocked/Isracard.e2e-mocked.test.ts` | Same root cause family as Amex | same route table fix |
+| File                                             | Skip reason                                                         | Required fix                          |
+| ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------- |
+| `E2eMocked/Amex.e2e-mocked.test.ts`              | `amexRoutes()` shared route table needs reauthoring                 | reauthor `Helpers/AmexRoutes.ts`      |
+| `E2eMocked/Isracard.e2e-mocked.test.ts`          | Same root cause family as Amex                                      | same route table fix                  |
 | `E2eMocked/Discount/Discount.e2e-mocked.test.ts` | `fixtures.json` URL globs do NOT match Discount's real URL topology | author `fixtures.json` + capture HTML |
-| `E2eMocked/Max/Max.e2e-mocked.test.ts` | Same fixture-scaffold root cause | author `fixtures.json` + capture HTML |
-| `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts` | Same fixture-scaffold root cause | author `fixtures.json` + capture HTML |
+| `E2eMocked/Max/Max.e2e-mocked.test.ts`           | Same fixture-scaffold root cause                                    | author `fixtures.json` + capture HTML |
+| `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts`   | Same fixture-scaffold root cause                                    | author `fixtures.json` + capture HTML |
 
 **OUT OF SCOPE for T7.5** (other `describe.skip` exists but is NOT this PR's responsibility):
 

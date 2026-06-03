@@ -136,6 +136,18 @@ const RESTRICTED_SYNTAX_RULES = [
     selector: "CallExpression[callee.name='describe'] > Literal[value=/^(test|run|batch|suite)/i]",
     message: '🚫 GENERIC DESCRIPTION: Use the Feature Name in the describe block.',
   },
+  {
+    // Phase 7 — T7.10: per-bank `describe('<Phase>.<bank>')` duplication anti-pattern.
+    // Matches a literal of shape `<Word>.<bank>` where <bank> is one of the 19
+    // CompanyTypes enum bank names (lowercase). Forces consolidation via
+    // `it.each(BANKS)` (from `src/Tests/Helpers/banks.ts`). Does NOT block
+    // bank-as-feature-name describes (e.g. `describe('Hapoalim WAF challenge')`)
+    // because they start with the bank name itself, not `<Phase>.<bank>`.
+    selector:
+      "CallExpression[callee.name='describe'] > Literal[value=/^[A-Z][A-Za-z0-9]*\\.(hapoalim|discount|max|visacal|isracard|amex|beinleumi|onezero|pepper|mizrahi|mercantile|otsarHahayal|yahav|leumi|massad|pagi|behatsdaa|beyahadBishvilha|payBox)$/]",
+    message:
+      "🚫 PHASE-7 DIAMOND: per-bank duplication detected. Use it.each(BANKS) from 'src/Tests/Helpers/banks.ts' instead of describe('<Phase>.<bank>'). Bank is an input row, not a suite name.",
+  },
 
   // 10. PII Log Bypass Prevention (T09 + T16) — belt-and-suspenders to PiiRedactor.
   //     T09: PII identifier interpolated into LOG.* template literal.
