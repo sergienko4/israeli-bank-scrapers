@@ -14,6 +14,8 @@
 #                 was modified (drives the mkdocs strict-build step)
 #   pipeline_ts — `src/Scrapers/Pipeline/**/*.ts` was modified
 #                 (drives the docs-coverage canary)
+#   ci_scripts  — `.github/scripts/ci/**` or `.github/workflows/**`
+#                 was modified (drives the CI scripts smoke test)
 #
 # Why one detector instead of `paths:` filters per workflow:
 # Workflow-level `paths:` filters skip the WHOLE workflow on path
@@ -39,6 +41,7 @@ if [ -z "${BASE_SHA:-}" ] || [ "${BASE_SHA}" = "${ZERO_SHA}" ]; then
     echo "md=true"
     echo "docs=true"
     echo "pipeline_ts=true"
+    echo "ci_scripts=true"
   } >> "$GITHUB_OUTPUT"
   exit 0
 fi
@@ -66,6 +69,7 @@ if [ -z "${changed_files}" ]; then
     echo "md=false"
     echo "docs=false"
     echo "pipeline_ts=false"
+    echo "ci_scripts=false"
   } >> "$GITHUB_OUTPUT"
   exit 0
 fi
@@ -87,17 +91,20 @@ src=false
 md=false
 docs=false
 pipeline_ts=false
+ci_scripts=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
 if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
+if has '^\.github/scripts/ci/|^\.github/workflows/'; then ci_scripts=true; fi
 
 {
   echo "src=${src}"
   echo "md=${md}"
   echo "docs=${docs}"
   echo "pipeline_ts=${pipeline_ts}"
+  echo "ci_scripts=${ci_scripts}"
 } >> "$GITHUB_OUTPUT"
 
 echo "[detect-changes] decisions:"
@@ -105,3 +112,4 @@ echo "  src=${src}"
 echo "  md=${md}"
 echo "  docs=${docs}"
 echo "  pipeline_ts=${pipeline_ts}"
+echo "  ci_scripts=${ci_scripts}"
