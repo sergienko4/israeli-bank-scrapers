@@ -84,20 +84,46 @@ function joinedMessageText(cap: ICapturingLogger): string {
     .join(' | ');
 }
 
+/**
+ * Captures the canonical NONE-branch fixture shared by every test below.
+ * Keeps the it() blocks additive and removes setup duplication (CR PR #299).
+ */
+interface INoneCaseSetup {
+  readonly cap: ICapturingLogger;
+  readonly ctx: ReturnType<typeof toActionCtx>;
+}
+
+/**
+ * Build the IPreLoginDiscovery payload used by every NONE-branch case.
+ * @returns Discovery shaped for NONE dispatch.
+ */
+function makeNoneDiscovery(): IPreLoginDiscovery {
+  return {
+    privateCustomers: 'READY',
+    credentialArea: 'NOT_FOUND',
+    revealAction: 'NONE',
+    revealTarget: MOCK_TARGET,
+  };
+}
+
+/**
+ * Arrange the capturing logger + sealed action context for a NONE case.
+ * @returns Capturing logger and ready-to-dispatch sealed action context.
+ */
+function arrangeNoneCase(): INoneCaseSetup {
+  const cap = makeCapturingLogger();
+  const disc = makeNoneDiscovery();
+  const base = makeMockContext({
+    preLoginDiscovery: some(disc),
+    logger: cap.logger,
+  });
+  const ctx = toActionCtx(base, false);
+  return { cap, ctx };
+}
+
 describe('PreLoginSealedReveal — NONE branch diagnostic (PR #299)', () => {
   it('emits the honest "no reveal target discovered" message on NONE', async () => {
-    const disc: IPreLoginDiscovery = {
-      privateCustomers: 'READY',
-      credentialArea: 'NOT_FOUND',
-      revealAction: 'NONE',
-      revealTarget: MOCK_TARGET,
-    };
-    const cap = makeCapturingLogger();
-    const base = makeMockContext({
-      preLoginDiscovery: some(disc),
-      logger: cap.logger,
-    });
-    const ctx = toActionCtx(base, false);
+    const { cap, ctx } = arrangeNoneCase();
     const result = await executeFireRevealClicksSealed(ctx);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
@@ -107,18 +133,7 @@ describe('PreLoginSealedReveal — NONE branch diagnostic (PR #299)', () => {
   });
 
   it('NO LONGER emits the misleading "form already visible" claim on NONE', async () => {
-    const disc: IPreLoginDiscovery = {
-      privateCustomers: 'READY',
-      credentialArea: 'NOT_FOUND',
-      revealAction: 'NONE',
-      revealTarget: MOCK_TARGET,
-    };
-    const cap = makeCapturingLogger();
-    const base = makeMockContext({
-      preLoginDiscovery: some(disc),
-      logger: cap.logger,
-    });
-    const ctx = toActionCtx(base, false);
+    const { cap, ctx } = arrangeNoneCase();
     await executeFireRevealClicksSealed(ctx);
     const joined = joinedMessageText(cap);
     expect(joined).not.toContain('form already visible');
