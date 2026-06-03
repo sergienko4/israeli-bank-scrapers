@@ -50,18 +50,37 @@ interface IClassifyAndBuildArgs {
 }
 
 /**
+ * Build the `.catch()` handler — logs the rejection cause then coerces
+ * the rejection into `false` so the caller can branch without try/catch.
+ * @param logger - Pipeline logger for reporting the swallowed error.
+ * @returns A `.catch()` callback returning `false`.
+ */
+function buildRaceCatchHandler(logger: ScraperLogger): (error: unknown) => false {
+  return (error: unknown): false => {
+    logger.debug({ event: 'home.trigger.resolve.failed', error: String(error) });
+    return false;
+  };
+}
+
+/**
  * Race the WK_HOME.ENTRY candidates to locate a visible trigger.
- * Swallows the underlying race rejection into `false` so the caller
- * can short-circuit with a fail Procedure rather than try/catch.
+ * Coerces the underlying race rejection into `false` (logging the
+ * cause at debug level so the silent fallback remains observable)
+ * so the caller can short-circuit with a fail Procedure rather than
+ * try/catch.
  *
  * @param mediator - Element mediator providing the visibility race.
+ * @param logger - Pipeline logger for reporting the swallowed error.
  * @returns Race result on success, `false` when nothing visible.
  */
-async function resolveHomeTrigger(mediator: IElementMediator): Promise<false | IRaceResult> {
+async function resolveHomeTrigger(
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<false | IRaceResult> {
   const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
-  return mediator
-    .resolveVisible(candidates, HOME_RESOLVER_ENTRY_TIMEOUT_MS)
-    .catch((): false => false);
+  const race = mediator.resolveVisible(candidates, HOME_RESOLVER_ENTRY_TIMEOUT_MS);
+  const handler = buildRaceCatchHandler(logger);
+  return race.catch(handler);
 }
 
 /**
@@ -100,7 +119,7 @@ async function resolveHomeStrategy(
   logger: ScraperLogger,
   page: Page,
 ): Promise<Procedure<IHomeDiscovery>> {
-  const visible = await resolveHomeTrigger(mediator);
+  const visible = await resolveHomeTrigger(mediator, logger);
   if (visible === false || !visible.found) return NO_LOGIN_LINK_FAIL;
   const discovery = await classifyAndBuild({ mediator, visible, page, logger });
   return succeed(discovery);

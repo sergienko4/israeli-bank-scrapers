@@ -50,7 +50,7 @@ async function reduceProbeStep(
  */
 function reduceProbeActions(actions: (() => Promise<IProbeResult>)[]): Promise<IProbeResult> {
   const seed = Promise.resolve(EMPTY_PROBE);
-  return actions.reduce<Promise<IProbeResult>>(reduceProbeStep, seed);
+  return actions.reduce<Promise<IProbeResult>>((acc, action) => reduceProbeStep(acc, action), seed);
 }
 
 /**

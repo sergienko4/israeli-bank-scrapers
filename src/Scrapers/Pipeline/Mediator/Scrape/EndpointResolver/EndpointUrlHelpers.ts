@@ -8,6 +8,7 @@ import {
   PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT,
   PIPELINE_WELL_KNOWN_API as WK_API,
   PIPELINE_WELL_KNOWN_BILLING as WK_BILLING,
+  PIPELINE_WELL_KNOWN_PENDING as WK_PENDING,
 } from '../../../Registry/WK/ScrapeWK.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../../Network/NetworkDiscovery.js';
 
@@ -41,8 +42,8 @@ function resolveTemplatePostData(method: 'GET' | 'POST', postData: string): stri
 /**
  * Resolve the pending-transactions API URL from captured traffic,
  * or fall back to constructing it under the discovered API origin
- * using the canonical
- * `Transactions/api/approvals/getClearanceRequests` path.
+ * using the {@link WK_PENDING} path fragments (no hostname is
+ * hardcoded; path lives in `ScrapeWK.PIPELINE_WELL_KNOWN_PENDING`).
  * @param network - Network surface exposing the captured pool.
  * @returns Pending URL string or `false`.
  */
@@ -51,7 +52,7 @@ function resolvePendingUrl(network: INetworkDiscovery): string | false {
   if (ep) return ep.url;
   const origin = network.discoverApiOrigin();
   if (!origin) return false;
-  return `${origin}/Transactions/api/approvals/getClearanceRequests`;
+  return `${origin}${WK_PENDING.apiPrefix}/${WK_PENDING.pathFragment}/${WK_PENDING.actionName}`;
 }
 
 /**

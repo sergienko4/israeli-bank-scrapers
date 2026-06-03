@@ -12,11 +12,7 @@ import type { ICryptoFieldConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
 import { resolveIvBytes, resolveKeyBytes } from './RunStepBodySigning.refs.js';
-import type {
-  DocObj,
-  IApplyCryptoFieldArgs,
-  ICryptoFieldResult,
-} from './RunStepBodySigning.types.js';
+import type { IApplyCryptoFieldArgs, ICryptoFieldResult } from './RunStepBodySigning.types.js';
 
 /** Resolved bytes for the cryptoField AES key. */
 interface IResolvedKeyAndIv {
@@ -175,4 +171,4 @@ function applyCryptoField(args: IApplyCryptoFieldArgs): Procedure<ICryptoFieldRe
 /** Re-export of the doc-object alias to keep the cryptofield surface self-contained. */
 
 export { applyCryptoField };
-export type { DocObj };
+export type { DocObj } from './RunStepBodySigning.types.js';

@@ -1,12 +1,13 @@
-// Canary: Phase 2e lockdown per-function size guard — asserts
-// `max-lines-per-function: 10` fires on all 11 residue Mediator
-// sub-clusters: BalanceResolve/, AccountResolve/, OtpFill/,
-// OtpTrigger/, Scrape/, Otp/, Browser/, Home/, Credentials/,
-// Terminate/, Timing/. Phase 2e extracted 64 over-cap functions
-// across 26 files in these clusters down to ≤10 LoC bodies; this
-// canary + the eslint.config.mjs override block guarantees no
-// regression can reintroduce a > 10-LoC function in any of the 11
-// residue sub-clusters.
+// Canary: Phase 2e lockdown per-function size guard — asserts the
+// §14b.4 full three-rule lock (`max-statements: 10` +
+// `max-lines-per-function: 10` + `max-lines: 150`) fires on all
+// 11 residue Mediator sub-clusters: BalanceResolve/, AccountResolve/,
+// OtpFill/, OtpTrigger/, Scrape/, Otp/, Browser/, Home/, Credentials/,
+// Terminate/, Timing/. Phase 2e extracted 64 over-cap functions across
+// 26 files in these clusters down to ≤10 statement/LoC bodies; this
+// canary + the eslint.config.mjs §14b.4 override block guarantees no
+// regression can reintroduce a >10-statement / >10-LoC function in
+// any of the 11 residue sub-clusters.
 
 function canaryResidueFunctionOverCap(): number {
   const s1 = 1;

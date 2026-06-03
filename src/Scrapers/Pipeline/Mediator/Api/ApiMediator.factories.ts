@@ -1,6 +1,17 @@
 /**
  * Higher-level factories: headless + browser-backed-headless ApiMediators.
  * Construct the underlying fetch strategies and wire them into createApiMediator.
+ *
+ * Why `Reflect.construct(...)` instead of `new`: this file IS the DI boundary
+ * where concrete fetch-strategy implementations are injected into the mediator.
+ * The project-wide `no-direct-new` lint rule forbids `new Foo()` inside business
+ * logic so that production code receives strategy *instances* rather than
+ * coupling to a constructor reference. A factory module is the legitimate
+ * exception — it is the single place where the construction happens, and the
+ * resulting instance is then handed downstream as an interface (`IApiMediator`
+ * / `IFetchStrategy`). `Reflect.construct` preserves correct `new.target`
+ * semantics and signals lint-intent: "yes, this is a real construction call,
+ * placed in the factory by design."
  */
 
 import { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';

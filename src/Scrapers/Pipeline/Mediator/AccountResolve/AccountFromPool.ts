@@ -20,11 +20,7 @@
  */
 
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
-import {
-  buildDiscoveryFromEndpoint,
-  pickAccountEndpoint,
-  poolMaxContainer,
-} from './AccountFromPool.Picker.js';
+import { buildDiscoveryFromEndpoint, pickAccountEndpoint } from './AccountFromPool.Picker.js';
 import { discoverAccountFromRequest } from './AccountFromPool.Request.js';
 import type { IAccountDiscoveryResult } from './AccountFromPool.Types.js';
 
@@ -42,4 +38,5 @@ function discoverAccountsInPool(pool: readonly IDiscoveredEndpoint[]): IAccountD
 }
 
 export type { IAccountDiscoveryResult };
-export { discoverAccountsInPool, poolMaxContainer };
+export { discoverAccountsInPool };
+export { poolMaxContainer } from './AccountFromPool.Picker.js';

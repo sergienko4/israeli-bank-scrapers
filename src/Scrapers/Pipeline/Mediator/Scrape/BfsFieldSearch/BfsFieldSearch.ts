@@ -10,8 +10,8 @@
  */
 
 import type { ScalarFieldHit } from '../AutoMapperFacade/AutoMapperTypes.js';
-import { flattenObjectTree, type ISearchItem } from './BfsFieldSearch.Flatten.js';
-import { isSearchableObject, matchField, matchFieldInRecord } from './BfsFieldSearch.Match.js';
+import { flattenObjectTree } from './BfsFieldSearch.Flatten.js';
+import { matchFieldInRecord } from './BfsFieldSearch.Match.js';
 
 /**
  * Find first scalar hit across the flattened object tree.
@@ -122,12 +122,6 @@ function findAllFieldValues(
   return hits.filter((h): h is string | number => h !== false);
 }
 
-export type { ISearchItem };
-export {
-  findAllFieldValues,
-  findFieldValue,
-  flattenObjectTree,
-  isSearchableObject,
-  matchField,
-  matchFieldInRecord,
-};
+export type { ISearchItem } from './BfsFieldSearch.Flatten.js';
+export { isSearchableObject, matchField } from './BfsFieldSearch.Match.js';
+export { findAllFieldValues, findFieldValue, flattenObjectTree, matchFieldInRecord };

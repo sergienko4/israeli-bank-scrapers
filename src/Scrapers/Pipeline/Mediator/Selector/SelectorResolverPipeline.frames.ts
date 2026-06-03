@@ -68,7 +68,10 @@ function reduceFrameActions(
   emptyMatch: IFieldMatch,
 ): Promise<IFieldMatch> {
   const initialValue: Promise<IFieldMatch> = Promise.resolve(emptyMatch);
-  return actions.reduce<Promise<IFieldMatch>>(reduceFrameStep, initialValue);
+  return actions.reduce<Promise<IFieldMatch>>(
+    (acc, action) => reduceFrameStep(acc, action),
+    initialValue,
+  );
 }
 
 /**

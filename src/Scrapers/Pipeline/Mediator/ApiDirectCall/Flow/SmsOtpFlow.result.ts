@@ -6,6 +6,7 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
+import type { AsymmetricSignerAlgorithm } from '../ConfigContracts/SignerTypes.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
@@ -14,12 +15,14 @@ import { seedScope } from './SmsOtpFlow.prep.js';
 import { reduceSteps } from './SmsOtpFlow.reduce.js';
 import type {
   IFlowResult,
+  IKeypairBundle,
   IMakeReduceStepsArgs,
   IReduceStepsArgs,
   IRunSmsOtpArgs,
   ISeedArgs,
   ISmsOtpPrep,
   IStepReduceArgs,
+  SigningKeypair,
 } from './SmsOtpFlow.types.js';
 
 /**
@@ -69,6 +72,34 @@ function makeSeedArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): ISeedArgs {
 }
 
 /**
+ * Asymmetric-algorithm → keypair-slot lookup. AES is intentionally
+ * absent: it is symmetric and has no asymmetric pair to select.
+ */
+const KEYPAIR_SLOT_BY_ALGORITHM: Readonly<Record<AsymmetricSignerAlgorithm, keyof IKeypairBundle>> =
+  {
+    'ECDSA-P256': 'ec',
+    'RSA-2048': 'rsa',
+  };
+
+/**
+ * Select the signing keypair RunStep must use, driven by
+ * `config.signer.algorithm`. Returns `keypairs.ec` (typically undefined)
+ * when the config has no signer or uses AES (no asymmetric pair).
+ * @param config - API-direct-call config.
+ * @param keypairs - Prep-built keypair bundle (may be empty).
+ * @returns Selected keypair (may be undefined).
+ */
+function selectSigningKeypair(
+  config: IApiDirectCallConfig,
+  keypairs: IKeypairBundle,
+): SigningKeypair {
+  const signer = config.signer;
+  if (signer === undefined) return keypairs.ec;
+  if (signer.algorithm === 'AES-CBC-PKCS7') return keypairs.ec;
+  return keypairs[KEYPAIR_SLOT_BY_ALGORITHM[signer.algorithm]];
+}
+
+/**
  * Build the IStepReduceArgs payload from flow args + prep.
  * @param args - Flow run args.
  * @param prep - Prepared inputs.
@@ -78,7 +109,7 @@ function buildReduceArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): IStepReduceAr
   return {
     bus: args.bus,
     companyId: args.companyId,
-    keypair: prep.keypairs.ec,
+    keypair: selectSigningKeypair(args.config, prep.keypairs),
     creds: args.creds,
     cookieJar: createSimpleCookieJar(),
   };

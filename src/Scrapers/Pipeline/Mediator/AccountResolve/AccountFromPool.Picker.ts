@@ -205,7 +205,7 @@ function buildDiscoveryFromEndpoint(endpoint: IDiscoveredEndpoint): IAccountDisc
   const ids = extractAccountIds(body);
   const records = extractAccountRecords(body);
   const containers = extractAllContainers(body);
-  return { endpoint, ids: [...ids], records: [...records], containers };
+  return { endpoint, ids, records, containers };
 }
 
 export { buildDiscoveryFromEndpoint, pickAccountEndpoint, poolMaxContainer };
