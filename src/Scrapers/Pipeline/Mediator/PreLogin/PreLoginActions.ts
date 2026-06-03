@@ -64,17 +64,16 @@ async function probeGateVisible(
 }
 
 /**
- * Quick probe: is the login form already visible?
- * Used by PRE to skip reveal when form is already rendered.
- * @param mediator - Element mediator (black box).
- * @returns True if password field found.
+ * Log a not-visible form-gate outcome and return false. Extracted so
+ * {@link isFormAlreadyVisible} stays inside the 10-LoC ceiling.
+ * @param logger - Pipeline logger.
+ * @returns Always false.
  */
-/**
- * Guard: is the login form already visible AND interactable?
- * Checks: 1) password input visible 2) submit button visible 3) both truly visible (no ng-hide).
- * @param mediator - Element mediator (black box).
- * @returns True ONLY if both are truly interactable.
- */
+function logNoPasswordVisible(logger: ScraperLogger): false {
+  logger.debug({ hasPwd: false, hasSubmit: false });
+  return false;
+}
+
 /**
  * Guard: is the login form already visible AND interactable?
  * Checks BOTH password input AND submit button are truly visible.
@@ -89,10 +88,7 @@ async function isFormAlreadyVisible(
   logger: ScraperLogger,
 ): Promise<boolean> {
   const hasPwd = await probeGateVisible(mediator, FORM_GATE);
-  if (!hasPwd) {
-    logger.debug({ hasPwd: false, hasSubmit: false });
-    return false;
-  }
+  if (!hasPwd) return logNoPasswordVisible(logger);
   const hasSubmit = await probeGateVisible(mediator, SUBMIT_GATE);
   logger.debug({ hasPwd: true, hasSubmit });
   return hasSubmit;
@@ -213,16 +209,42 @@ async function diagnoseRevealClick(args: IDiagnoseArgs): Promise<boolean> {
  * @param logger - Pipeline logger.
  * @returns Form-gate readiness flag.
  */
+/**
+ * Run the post-log form-gate wait for a credentialArea hit and emit
+ * the matched-text + form-gate outcome.
+ * @param text - Pre-masked label of the matched candidate.
+ * @param mediator - Element mediator for the form-gate wait.
+ * @param logger - Pipeline logger.
+ * @returns Form-gate readiness flag.
+ */
+async function probeFormAfterCredentialLog(
+  text: string,
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<boolean> {
+  const hasForm = await waitForFormGate(mediator);
+  logger.debug({ text, formGate: hasForm });
+  return hasForm;
+}
+
+/**
+ * Side-effect logging branch for a successful `credentialArea` reveal
+ * click: emits the masked label, runs the form-gate wait and logs the
+ * outcome. Returns the form-gate boolean so callers can chain.
+ *
+ * @param result - Successful race result from the click.
+ * @param mediator - Element mediator for the post-click form-gate wait.
+ * @param logger - Pipeline logger.
+ * @returns Form-gate readiness flag.
+ */
 async function logCredentialAreaHit(
   result: IRaceResult,
   mediator: IElementMediator,
   logger: ScraperLogger,
 ): Promise<boolean> {
-  const label = result.value;
-  logger.debug({ text: maskVisibleText(label), formGate: false });
-  const hasForm = await waitForFormGate(mediator);
-  logger.debug({ text: maskVisibleText(label), formGate: hasForm });
-  return hasForm;
+  const text = maskVisibleText(result.value);
+  logger.debug({ text, formGate: false });
+  return probeFormAfterCredentialLog(text, mediator, logger);
 }
 
 /**

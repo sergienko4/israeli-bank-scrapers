@@ -56,11 +56,8 @@ function buildLoginSignalSuccess(
   input: IPipelineContext,
   cookieCount: number,
 ): Procedure<IPipelineContext> {
-  const diag = {
-    ...input.diagnostics,
-    lastAction: `login-signal (cookies=${String(cookieCount)})`,
-    apiStrategy: API_STRATEGY.DIRECT,
-  };
+  const lastAction = `login-signal (cookies=${String(cookieCount)})`;
+  const diag = { ...input.diagnostics, lastAction, apiStrategy: API_STRATEGY.DIRECT };
   return succeed({ ...input, diagnostics: diag });
 }
 

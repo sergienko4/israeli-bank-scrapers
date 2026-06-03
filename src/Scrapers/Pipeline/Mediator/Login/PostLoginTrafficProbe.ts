@@ -8,6 +8,7 @@ import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 
 /**
@@ -36,6 +37,17 @@ function logPostLoginTraffic(
 }
 
 /**
+ * Probe network traffic for post-login API patterns.
+ * @param mediator - Element mediator with network discovery.
+ * @returns First traffic hit or false.
+ */
+async function probePostLoginTraffic(
+  mediator: IElementMediator,
+): Promise<IDiscoveredEndpoint | false> {
+  return mediator.network.waitForTraffic(POST_LOGIN_PATTERNS, LOGIN_TRAFFIC_WAIT_TIMEOUT_MS);
+}
+
+/**
  * Wait for organic SPA traffic after login submit.
  * SSO redirect fires transaction APIs from iframe — Patient Observer.
  * @param mediator - Element mediator with network discovery.
@@ -46,10 +58,7 @@ async function waitForPostLoginTraffic(
   mediator: IElementMediator,
   logger?: ScraperLogger,
 ): Promise<boolean> {
-  const hit = await mediator.network.waitForTraffic(
-    POST_LOGIN_PATTERNS,
-    LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
-  );
+  const hit = await probePostLoginTraffic(mediator);
   const sink: ScraperLogger | false = logger ?? false;
   if (hit) return logPostLoginTraffic(sink, true, hit.url);
   const missUrl = mediator.getCurrentUrl();

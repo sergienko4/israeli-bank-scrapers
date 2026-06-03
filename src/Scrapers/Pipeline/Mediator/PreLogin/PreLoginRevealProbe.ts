@@ -60,6 +60,18 @@ function logReadyReveal(logger: ScraperLogger, matchedText: string): 'READY' {
 }
 
 /**
+ * Fallback branch when {@link tryResolveVisibleReveal} returned no
+ * visible hit — probe attach surface and translate into RevealStatus.
+ * @param mediator - Active mediator.
+ * @returns OBSCURED if attached but not visible, otherwise NOT_FOUND.
+ */
+async function probeAttachedFallback(mediator: IElementMediator): Promise<RevealStatus> {
+  const attachResult = await isRevealAttached(mediator);
+  if (attachResult.success && attachResult.value) return 'OBSCURED';
+  return 'NOT_FOUND';
+}
+
+/**
  * Probe WK_PRELOGIN.REVEAL and return RevealStatus.
  * @param mediator - Active mediator.
  * @param timeout - Race timeout ms.
@@ -73,9 +85,7 @@ export async function probeRevealStatus(
 ): Promise<RevealStatus> {
   const visibleResult = await tryResolveVisibleReveal(mediator, timeout);
   if (visibleResult !== false) return logReadyReveal(logger, visibleResult.value);
-  const attachResult = await isRevealAttached(mediator);
-  if (attachResult.success && attachResult.value) return 'OBSCURED';
-  return 'NOT_FOUND';
+  return probeAttachedFallback(mediator);
 }
 
 export default probeRevealStatus;
