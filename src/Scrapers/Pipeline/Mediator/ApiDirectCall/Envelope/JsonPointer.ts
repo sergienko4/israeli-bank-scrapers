@@ -183,16 +183,28 @@ function stepInto(cursor: JsonValue, key: string, path: string): Procedure<JsonV
  * @param pointer - Original pointer (for diagnostics).
  * @returns Procedure with the final cursor, or miss failure.
  */
-function reduceParts(
-  cursor: JsonValue,
-  parts: readonly string[],
-  pointer: string,
-): Procedure<JsonValue> {
-  if (parts.length === 0) return succeed(cursor);
-  const [head, ...rest] = parts;
-  const stepped = stepInto(cursor, head, pointer);
+/** Args bundle for reduceParts (avoids long signature line). */
+interface IReduceArgs {
+  /** Current cursor (doc initially). */
+  cursor: JsonValue;
+  /** Remaining segments to walk. */
+  parts: readonly string[];
+  /** Original pointer (for diagnostics). */
+  pointer: string;
+}
+
+/**
+ * Reduce parts through stepInto, short-circuiting on the first miss.
+ * Flattened out of walkPointer to satisfy max-depth 1.
+ * @param args - {@link IReduceArgs} bundle (cursor/parts/pointer).
+ * @returns Procedure with the final cursor, or miss failure.
+ */
+function reduceParts(args: IReduceArgs): Procedure<JsonValue> {
+  if (args.parts.length === 0) return succeed(args.cursor);
+  const [head, ...rest] = args.parts;
+  const stepped = stepInto(args.cursor, head, args.pointer);
   if (!isOk(stepped)) return stepped;
-  return reduceParts(stepped.value, rest, pointer);
+  return reduceParts({ cursor: stepped.value, parts: rest, pointer: args.pointer });
 }
 
 /**
@@ -216,7 +228,7 @@ function walkPointer(doc: JsonValue, pointer: string): Procedure<JsonValue> {
   const split = pointer.split('/');
   const rawParts = split.slice(1);
   const parts = rawParts.map(decodeSegment);
-  return reduceParts(doc, parts, pointer);
+  return reduceParts({ cursor: doc, parts, pointer });
 }
 
 export type { IJsonObject, JsonArray, JsonPrimitive, JsonValue };

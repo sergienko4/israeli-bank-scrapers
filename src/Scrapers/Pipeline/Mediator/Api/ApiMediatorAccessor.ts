@@ -7,6 +7,8 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { Option } from '../../Types/Option.js';
+import { isSome, none, some } from '../../Types/Option.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -16,6 +18,30 @@ import type { IApiMediator } from './ApiMediator.js';
 interface IMediatorSlot {
   readonly has?: boolean;
   readonly value?: IApiMediator;
+}
+
+/**
+ * Narrow a populated mediator slot to `Option<IApiMediator>`.
+ * @param slot - Slot read from the context.
+ * @returns Option with the slot's value if `has===true` and present.
+ */
+function pickPresent(slot: IMediatorSlot): Option<IApiMediator> {
+  if (slot.has !== true) return none();
+  const v = slot.value;
+  if (v === undefined) return none();
+  return some(v);
+}
+
+/**
+ * Read the mediator slot from a context as Option.
+ * @param ctx - Pipeline or action context.
+ * @returns Option carrying the present mediator.
+ */
+function readSlot(ctx: IPipelineContext | IActionContext): Option<IApiMediator> {
+  const asPipeline = ctx as unknown as IPipelineContext;
+  const slot = asPipeline.apiMediator as unknown as IMediatorSlot | undefined;
+  if (slot === undefined) return none();
+  return pickPresent(slot);
 }
 
 /**
@@ -32,14 +58,9 @@ function resolveApiMediator(
   ctx: IPipelineContext | IActionContext,
   label: string,
 ): Procedure<IApiMediator> {
-  const asPipeline = ctx as unknown as IPipelineContext;
-  const slot = asPipeline.apiMediator as unknown as IMediatorSlot | undefined;
-  const has = slot?.has === true;
-  const value = slot?.value;
-  if (!has || !value) {
-    return fail(ScraperErrorTypes.Generic, `${label}: ApiMediator missing on context`);
-  }
-  return succeed(value);
+  const present = readSlot(ctx);
+  if (!isSome(present)) return fail(ScraperErrorTypes.Generic, `${label}: ApiMediator missing`);
+  return succeed(present.value);
 }
 
 export default resolveApiMediator;
