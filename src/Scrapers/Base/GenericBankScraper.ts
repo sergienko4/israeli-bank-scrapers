@@ -11,12 +11,14 @@ import { runSerial } from '../../Common/Waiting.js';
 import {
   BaseScraperWithBrowser,
   type ILoginOptions,
+  type LegacyBankLookup,
   LOGIN_RESULTS,
   type PossibleLoginResults,
 } from './BaseScraperWithBrowser.js';
 import {
   type IFieldConfig,
   type ILoginConfig,
+  type ILoginSetup,
   type SelectorCandidate,
 } from './Config/LoginConfig.js';
 import { type ScraperCredentials, type ScraperOptions } from './Interface.js';
@@ -186,6 +188,18 @@ function toErrorMessage(caught: unknown): string {
 export default class GenericBankScraper<
   TCredentials extends ScraperCredentials,
 > extends BaseScraperWithBrowser<TCredentials> {
+  /**
+   * Default `loginSetup` capability flags used when an `ILoginConfig`
+   * does not declare its own. Matches the legacy registry's
+   * `SIMPLE_LOGIN` constant — every selector-fallback test scenario
+   * is a non-OTP, browser-driven login.
+   */
+  private static readonly _defaultLoginSetup: ILoginSetup = {
+    isApiOnly: false,
+    hasOtpConfirm: false,
+    hasOtpCode: false,
+  };
+
   private _fieldConfigs: IFieldConfig[] = [];
   private _formAnchor: IFormAnchor | null = null;
 
@@ -250,6 +264,20 @@ export default class GenericBankScraper<
     });
     await runSerial(actions);
     return true;
+  }
+
+  /**
+   * Override the legacy-registry lookup. `GenericBankScraper` is the
+   * synthetic test scraper — its `companyId` is metadata only and
+   * may point at a pipeline-only bank (Discount, Beinleumi, …) that
+   * is not present in `SCRAPER_CONFIGURATION.banks`. Resolve the
+   * login-setup flags from the supplied `ILoginConfig` instead.
+   * @returns Login-setup flags from `loginConfig.loginSetup` or
+   *   the SIMPLE_LOGIN default.
+   */
+  protected override resolveLoginSetup(): LegacyBankLookup {
+    const loginSetup = this.loginConfig.loginSetup ?? GenericBankScraper._defaultLoginSetup;
+    return { loginSetup };
   }
 
   /**

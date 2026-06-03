@@ -63,10 +63,10 @@ type LegacyBanksMap = typeof SCRAPER_CONFIGURATION.banks;
 /** Bank entry value type from the legacy SCRAPER_CONFIGURATION.banks map. */
 type LegacyBankConfig = LegacyBanksMap[keyof LegacyBanksMap];
 /** loginSetup field type extracted from a legacy bank config row. */
-type LegacyLoginSetup = LegacyBankConfig['loginSetup'];
+export type LegacyLoginSetup = LegacyBankConfig['loginSetup'];
 
 /** Discriminated result of resolveLegacyBank: either loginSetup or a failure. */
-type LegacyBankLookup =
+export type LegacyBankLookup =
   | { readonly loginSetup: LegacyLoginSetup }
   | { readonly failure: IScraperScrapingResult };
 
@@ -241,19 +241,9 @@ class BaseScraperWithBrowser<
   public async login(credentials: ScraperCredentials): Promise<IScraperScrapingResult> {
     this.activeLoginContext = null;
     const loginOptions = this.getLoginOptions(credentials);
-    const lookup = resolveLegacyBank(this.options.companyId);
+    const lookup = this.resolveLoginSetup();
     if ('failure' in lookup) return lookup.failure;
-    const ctx: ILoginContext = {
-      page: this.page,
-      activeFrame: this.page,
-      loginSetup: lookup.loginSetup,
-    };
-    const stepCtx = this.buildStepContext();
-    const steps: INamedLoginStep[] = buildLoginChain(stepCtx, loginOptions, ctx);
-    const chainResult = await runLoggedChain(steps, ctx, this.bankLog);
-    if (chainResult !== null) return chainResult;
-    const resultCtx = this.loginResultCtx();
-    return resolveAndBuildLoginResult(resultCtx, loginOptions.possibleResults);
+    return this.runLoginChain(loginOptions, lookup.loginSetup);
   }
 
   /**
@@ -270,6 +260,41 @@ class BaseScraperWithBrowser<
     await Promise.all(cleanupPromises);
     this._cleanups = [];
     return true;
+  }
+
+  /**
+   * Resolve the login-setup capability flags for this scraper.
+   * Default — consult the legacy `SCRAPER_CONFIGURATION.banks` registry
+   * keyed by `options.companyId`. Subclasses (notably
+   * `GenericBankScraper`) override this to return their own flags so
+   * pipeline-only banks referenced from synthetic test scrapers do not
+   * fail the registry lookup.
+   * @returns Either the login-setup flags or a structured failure
+   *   Result when the bank is not in the legacy registry.
+   */
+  protected resolveLoginSetup(): LegacyBankLookup {
+    return resolveLegacyBank(this.options.companyId);
+  }
+
+  /**
+   * Build the login context, run the chain, and return the result.
+   * Extracted helper so `login()` stays within the project's 10-line
+   * function cap.
+   * @param loginOptions - Bank-resolved login options (URL, fields, …).
+   * @param loginSetup - Resolved login-setup capability flags.
+   * @returns The scraping result after the login chain completes.
+   */
+  private async runLoginChain(
+    loginOptions: ILoginOptions,
+    loginSetup: LegacyLoginSetup,
+  ): Promise<IScraperScrapingResult> {
+    const ctx: ILoginContext = { page: this.page, activeFrame: this.page, loginSetup };
+    const stepCtx = this.buildStepContext();
+    const steps: INamedLoginStep[] = buildLoginChain(stepCtx, loginOptions, ctx);
+    const chainResult = await runLoggedChain(steps, ctx, this.bankLog);
+    if (chainResult !== null) return chainResult;
+    const resultCtx = this.loginResultCtx();
+    return resolveAndBuildLoginResult(resultCtx, loginOptions.possibleResults);
   }
 
   /**
