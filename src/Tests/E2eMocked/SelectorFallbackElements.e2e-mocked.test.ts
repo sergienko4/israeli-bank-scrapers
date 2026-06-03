@@ -3,18 +3,27 @@
  *
  * Tests span nested input, div sibling input, and placeholder regression.
  *
- * SKIPPED — pre-existing failure tracked for PR-206-FOLLOWUP.
- * Same root cause as SelectorFallbackAdvanced — pipeline migration regressed
- * the labelText/placeholder/span/div resolver paths. Out of scope for this PR.
+ * Re-enabled in Phase 7.5 — Phase 7 restored the labelText/placeholder/
+ * span/div resolver paths, and GenericBankScraper reads `loginSetup` from
+ * `ILoginConfig` directly (no legacy registry lookup).
  */
 import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
+import { type ILoginSetup } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const HOME_HTML = '<!DOCTYPE html><html><body><h1>Welcome</h1></body></html>';
+
+// Shared login-setup flags: standard username/password flow, no OTP.
+// Required since Phase 7.5 (GenericBankScraper.resolveLoginSetup consults this field).
+const LOGIN_SETUP_DEFAULT: ILoginSetup = {
+  isApiOnly: false,
+  hasOtpConfirm: false,
+  hasOtpCode: false,
+};
 
 let browser: Browser;
 
@@ -36,10 +45,8 @@ const SPAN_NESTED_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed labelText
-// resolution when the label is a <span> wrapping the input. Tracked under
-// PR-206-FOLLOWUP. Body preserved for the regression diagnosis.
-describe.skip('labelText via <span> with nested input', () => {
+// Re-enabled in Phase 7.5.
+describe('labelText via <span> with nested input', () => {
   it('resolves <span>סיסמה<input></span> via nested strategy', async () => {
     /**
      * Intercept requests with span nested HTML fixtures.
@@ -72,6 +79,7 @@ describe.skip('labelText via <span> with nested input', () => {
       },
       {
         loginUrl: 'https://test-bank.local/login',
+        loginSetup: LOGIN_SETUP_DEFAULT,
         fields: [
           { credentialKey: 'username', selectors: [] },
           { credentialKey: 'password', selectors: [] },
@@ -95,10 +103,8 @@ const DIV_SIBLING_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed labelText
-// resolution when the label is a sibling <div>. Tracked under
-// PR-206-FOLLOWUP. Body preserved for the regression diagnosis.
-describe.skip('labelText via <div> with sibling input', () => {
+// Re-enabled in Phase 7.5.
+describe('labelText via <div> with sibling input', () => {
   it('resolves <div>סיסמה</div><input> via sibling strategy', async () => {
     /**
      * Intercept requests with div sibling HTML fixtures.
@@ -131,6 +137,7 @@ describe.skip('labelText via <div> with sibling input', () => {
       },
       {
         loginUrl: 'https://test-bank.local/login',
+        loginSetup: LOGIN_SETUP_DEFAULT,
         fields: [
           { credentialKey: 'username', selectors: [] },
           { credentialKey: 'password', selectors: [] },
@@ -159,10 +166,8 @@ const PLACEHOLDER_ONLY_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </script>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed placeholder
-// resolution. Tracked under PR-206-FOLLOWUP. Body preserved for the
-// regression diagnosis.
-describe.skip('placeholder resolution (regression)', () => {
+// Re-enabled in Phase 7.5.
+describe('placeholder resolution (regression)', () => {
   it('resolves fields via placeholder when no label/div/span/CSS exists', async () => {
     /**
      * Intercept requests with placeholder-only HTML fixtures.
@@ -195,6 +200,7 @@ describe.skip('placeholder resolution (regression)', () => {
       },
       {
         loginUrl: 'https://test-bank.local/login',
+        loginSetup: LOGIN_SETUP_DEFAULT,
         fields: [
           { credentialKey: 'username', selectors: [] },
           { credentialKey: 'password', selectors: [] },
