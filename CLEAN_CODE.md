@@ -53,6 +53,15 @@ Scrape, Otp, Browser, Home, Credentials, Terminate, Timing}/**`)
 > single-line-signature `max-lines-per-function: 10` because Init/
 > uses single-line typed signatures so the function-level metrics
 > coincide.
+>
+> **Parameter count.** The Phase 2 multi-line typed signature pattern
+> does NOT relax the global ≤ 3-parameter cap (`@typescript-eslint/max-params`,
+> row 5 of the table above). Multi-line signatures exist only because
+> the typed parameter list of a 3-arg function exceeds the 100-char
+> line cap; functions that need more than three inputs MUST bundle
+> the extras into a `Readonly<{...}>` options object (the `IFooArgs`
+> pattern used throughout `Mediator/**`). This applies to every Pipeline
+> cluster — Phase 2 included.
 
 > **Footnote — historical "ideal vs hard" terminology.** Earlier
 > phases of this codebase used "10 ideal / 20 hard" language. That

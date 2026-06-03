@@ -201,15 +201,16 @@ function extractAllContainers(
  * {@link flattenContainersForLog}. Pulled out so the flatten helper
  * stays within the per-function LoC budget.
  *
- * @param containers - Per-WK-name container split.
+ * @param names - Pre-computed container name list (shared with caller
+ *   so we don't recompute `Object.keys(containers)` here — CR PR #298
+ *   outside-diff finding).
  * @param concatenated - Flattened record list.
  * @returns Diagnostic message ready for `LOG.debug`.
  */
 function buildFlattenDebugMessage(
-  containers: Readonly<Record<string, readonly ApiRecord[]>>,
+  names: readonly string[],
   concatenated: readonly ApiRecord[],
 ): string {
-  const names = Object.keys(containers);
   const items = String(concatenated.length);
   const count = String(names.length);
   return `extractAccountRecords: ${items} items (${count} named containers: ${names.join(',')})`;
@@ -228,7 +229,7 @@ function flattenContainersForLog(
   const containerNames = Object.keys(containers);
   const concatenated: ApiRecord[] = [];
   for (const name of containerNames) concatenated.push(...containers[name]);
-  const message = buildFlattenDebugMessage(containers, concatenated);
+  const message = buildFlattenDebugMessage(containerNames, concatenated);
   LOG.debug({ message });
   return concatenated;
 }

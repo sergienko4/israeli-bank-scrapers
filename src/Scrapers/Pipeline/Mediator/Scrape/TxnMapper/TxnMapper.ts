@@ -171,8 +171,13 @@ interface IDateStrings {
  * WK lookup → field name dispatch map used by {@link extractRawTxnFields}.
  * OCP-style: add a new raw field by appending its WK list here instead
  * of adding a hand-written assignment in the orchestrator.
+ *
+ * Uses `as const satisfies …` so the per-WK literal tuple shapes are
+ * preserved (TypeScript coding-guideline §`as const`) while still
+ * enforcing the `keyof IRawTxnFields` key set at compile time — CR
+ * PR #298 outside-diff finding.
  */
-const RAW_FIELD_LOOKUPS: Readonly<Record<keyof IRawTxnFields, readonly string[]>> = {
+const RAW_FIELD_LOOKUPS = {
   date: WK.date,
   processedDate: WK.processedDate,
   amount: WK.amount,
@@ -181,7 +186,7 @@ const RAW_FIELD_LOOKUPS: Readonly<Record<keyof IRawTxnFields, readonly string[]>
   identifier: WK.identifier,
   currency: WK.currency,
   voidField: WK.voidIndicators,
-};
+} as const satisfies Readonly<Record<keyof IRawTxnFields, readonly string[]>>;
 
 /** Tuple shape produced by `Object.entries(RAW_FIELD_LOOKUPS)` for {@link extractRawTxnFields}. */
 type RawLookupEntry = readonly [keyof IRawTxnFields, readonly string[]];
