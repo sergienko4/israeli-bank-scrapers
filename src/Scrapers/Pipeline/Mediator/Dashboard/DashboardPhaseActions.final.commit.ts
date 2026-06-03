@@ -32,12 +32,6 @@ interface ITxnCommitOutcome {
 const EMPTY_COMMIT_FAILURE = fail(ScraperErrorTypes.Generic, '');
 
 /**
- * MOCK_MODE active flag — mirrors the ACCOUNT-RESOLVE.POST valve.
- */
-const isMockModeDashboardFinalActive =
-  process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-
-/**
  * Read the count of accounts ACCOUNT-RESOLVE.POST committed onto
  * `ctx.accountDiscovery.ids`.
  * @param ctx - Pipeline context.
@@ -263,7 +257,6 @@ function commitResolvedEndpoint(
 async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutcome> {
   await Promise.resolve();
   if (!ctx.mediator.has) return buildBypassOutcome(ctx);
-  if (isMockModeDashboardFinalActive) return buildBypassOutcome(ctx);
   const network = ctx.mediator.value.network;
   const internal = resolveTxnEndpoint(network);
   if (internal === false) return handleNoTxnEndpoint(ctx, network);

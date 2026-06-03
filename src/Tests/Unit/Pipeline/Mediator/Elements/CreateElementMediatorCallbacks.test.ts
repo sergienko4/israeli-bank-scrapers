@@ -1,8 +1,7 @@
 /**
  * Wave 6 — Agent P: branch coverage for CreateElementMediator by invoking
  * the evaluate-callback bodies locally. Targets:
- * - isTrulyVisible (L408-427): mockMode scrollIntoView, elementFromPoint hit,
- *   contains fallback, MOCK_MODE null relaxation with positive bbox.
+ * - isTrulyVisible (L408-427): elementFromPoint hit + contains fallback.
  * - walkUpToAnchorHref (L531-534): closest('a') present/absent.
  * - traceElementInfo (L558-572): textContent null/present, href/aria nullish,
  *   closestA null/present branches.
@@ -32,11 +31,10 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
    * on our mock element. Then re-invoke with varied elements to hit branches.
    * @returns Result.
    */
-  it('captures isTrulyVisible callback — mockMode=false skips scrollIntoView', async () => {
+  it('captures isTrulyVisible callback — branches: self-hit, contains, miss', async () => {
     const rec: ICallbackRecorder = { callbacks: [] };
     const el = makeMockElement({
       rect: { left: 0, top: 0, width: 20, height: 20 },
-      scrollCount: { calls: 0 },
     });
     // Patch document.elementFromPoint to return the element itself → hit branch
     const origDoc = (globalThis as { document?: Document }).document;
@@ -54,16 +52,14 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
       const m = createElementMediator(page);
       await m.resolveVisible([{ kind: 'textContent', value: 'x' }], 200);
       // The isTrulyVisible callback was dispatched. Exercise its branches:
-      type HitCb = (e: Element, mockMode: boolean) => boolean;
+      type HitCb = (e: Element) => boolean;
       const hitCb = rec.callbacks.find(
         (c): c is HitCb => typeof c === 'function' && String(c).includes('elementFromPoint'),
       );
       if (hitCb) {
-        // Invoke branch 1: mockMode=false, hit=el → returns true
-        const scroll = { calls: 0 };
+        // Branch 1: hit=el → returns true
         const el2 = makeMockElement({
           rect: { left: 0, top: 0, width: 20, height: 20 },
-          scrollCount: scroll,
         });
         (globalThis as { document: unknown }).document = {
           /**
@@ -73,28 +69,23 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
            */
           elementFromPoint: (): Element => el2,
         };
-        const didRun1 = hitCb(el2, false);
+        const didRun1 = hitCb(el2);
         expect(didRun1).toBe(true);
-        expect(scroll.calls).toBe(0);
-        // Invoke branch 2: mockMode=true → scrollIntoView called
-        const didRun2 = hitCb(el2, true);
-        expect(didRun2).toBe(true);
-        expect(scroll.calls).toBe(1);
-        // Invoke branch 3: hit=child (el.contains path) — use a child node
-        const child = { parent: el2 } as unknown as Element;
+        // Branch 2: hit=other element not contained → returns false
+        const otherEl = makeMockElement({
+          rect: { left: 0, top: 0, width: 20, height: 20 },
+        });
         (globalThis as { document: unknown }).document = {
           /**
            * Test helper.
            *
            * @returns Result.
            */
-          elementFromPoint: (): Element => child,
+          elementFromPoint: (): Element => otherEl,
         };
-        // contains(child) returns false (our mock only matches self) → triggers mockMode null relaxation path only when hit===null
-        const didRun3 = hitCb(el2, false);
-        // hit!==el and !el.contains(child) → fallthrough to final return false
-        expect(didRun3).toBe(false);
-        // Invoke branch 4: MOCK_MODE relaxation — hit=null, bbox>0
+        const didRun2 = hitCb(el2);
+        expect(didRun2).toBe(false);
+        // Branch 3: hit=null → returns false
         (globalThis as { document: unknown }).document = {
           /**
            * Test helper.
@@ -103,18 +94,8 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
            */
           elementFromPoint: (): null => null,
         };
-        const didRun4 = hitCb(el2, true);
-        expect(didRun4).toBe(true);
-        // Invoke branch 5: MOCK_MODE + hit=null + zero-width → false
-        const elZero = makeMockElement({
-          rect: { left: 0, top: 0, width: 0, height: 0 },
-          scrollCount: { calls: 0 },
-        });
-        const didRun5 = hitCb(elZero, true);
-        expect(didRun5).toBe(false);
-        // Invoke branch 6: NOT mockMode + hit=null → false
-        const didRun6 = hitCb(el2, false);
-        expect(didRun6).toBe(false);
+        const didRun3 = hitCb(el2);
+        expect(didRun3).toBe(false);
       }
     } finally {
       if (origDoc) (globalThis as { document: unknown }).document = origDoc;

@@ -6,9 +6,9 @@
  * cross-origin iframe (MatafLoginServlet), so the PIN cluster lives in a
  * separate document Playwright stores as a child Frame.
  *
- * To let MockInterceptor replay the full DOM we capture each child frame's
- * content() separately and store it under a filename derived from the
- * frame URL. MockInterceptor hashes the request URL the same way and
+ * To let downstream replay tools serve the full DOM we capture each child
+ * frame's content() separately and store it under a filename derived from
+ * the frame URL. The replay layer hashes the request URL the same way and
  * serves the matching file when the browser asks the iframe src.
  */
 
