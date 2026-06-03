@@ -113,6 +113,28 @@ function buildTrackedPoll<T>(
   return { promise, state };
 }
 
+/** Bundled args for {@link awaitTrackedPoll} — keeps params ≤ 3. */
+interface IAwaitTrackedPollArgs<T> {
+  readonly promise: Promise<NonNullable<T>>;
+  readonly state: ITrackingState;
+  readonly timeout: number;
+  readonly description: string;
+}
+
+/**
+ * Await the tracked poll with timeout enrichment. Pulled out so
+ * {@link executeWaitUntil} stays under the per-function LoC budget.
+ * @param args - Bundled poll/state/timeout/description.
+ * @returns First truthy value from the tracked poll.
+ */
+async function awaitTrackedPoll<T>(args: IAwaitTrackedPollArgs<T>): Promise<NonNullable<T>> {
+  try {
+    return await timeoutPromise(args.timeout, args.promise, args.description);
+  } catch (error_) {
+    rethrowWithContext(error_ as Error, args.state);
+  }
+}
+
 /**
  * Execute the wait-until pipeline: poll, timeout, enrich error.
  * @param asyncTest - The async predicate to poll.
@@ -127,11 +149,7 @@ async function executeWaitUntil<T>(
 ): Promise<NonNullable<T>> {
   const timeout = opts.timeout ?? DEFAULT_WAIT_TIMEOUT_MS;
   const { promise, state } = buildTrackedPoll(asyncTest, opts);
-  try {
-    return await timeoutPromise(timeout, promise, description);
-  } catch (error_) {
-    rethrowWithContext(error_ as Error, state);
-  }
+  return awaitTrackedPoll<T>({ promise, state, timeout, description });
 }
 
 /**

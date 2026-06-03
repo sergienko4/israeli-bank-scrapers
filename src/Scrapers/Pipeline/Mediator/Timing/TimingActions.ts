@@ -137,6 +137,19 @@ function pickHumanDelay(minMs: number, maxMs: number): number {
 }
 
 /**
+ * Schedule the human-delay resolver — pulled out so {@link humanDelay}
+ * stays under the per-function LoC budget.
+ * @param delay - Milliseconds before the resolver fires.
+ * @param resolve - Promise resolver from the outer {@link createPromise}.
+ * @returns Always true (sentinel for the executor).
+ */
+function scheduleHumanDelay(delay: number, resolve: (v: Procedure<void>) => boolean): boolean {
+  const done = succeed(undefined);
+  globalThis.setTimeout((): boolean => resolve(done), delay);
+  return true;
+}
+
+/**
  * Random delay that mimics human interaction timing.
  * Default range: 300-1200ms (realistic for clicks and navigation).
  * @param minMs - The minimum delay in milliseconds.
@@ -148,9 +161,5 @@ export function humanDelay(
   maxMs = HUMAN_DELAY_MAX_MS,
 ): Promise<Procedure<void>> {
   const delay = pickHumanDelay(minMs, maxMs);
-  return createPromise<Procedure<void>>((resolve): boolean => {
-    const done = succeed(undefined);
-    globalThis.setTimeout((): boolean => resolve(done), delay);
-    return true;
-  });
+  return createPromise<Procedure<void>>((resolve): boolean => scheduleHumanDelay(delay, resolve));
 }

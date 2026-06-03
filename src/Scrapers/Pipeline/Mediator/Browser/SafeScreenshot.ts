@@ -145,6 +145,19 @@ async function captureScreenshot(page: Page, options: ISafeScreenshotOptions): P
 }
 
 /**
+ * Decide whether the CI guard should suppress the requested screenshot.
+ * Pulled out so {@link safeScreenshot} stays under the per-function LoC budget.
+ * @param file - Basename of the target path (already scrubbed for logging).
+ * @returns True iff the capture should be skipped.
+ */
+function shouldSuppressInCi(file: string): boolean {
+  if (!process.env.CI) return false;
+  if (isPreAuthScreenshot(file)) return false;
+  LOG.debug({ file }, 'screenshot suppressed in CI');
+  return true;
+}
+
+/**
  * Captures a Playwright page screenshot. Under CI, capture is restricted
  * to the pre-auth phase allowlist published in `.github/workflows/pr.yml`
  * (lines 549-552 / 616-618 — see `PRE_AUTH_SCREENSHOT_PHASES`) so that
@@ -169,9 +182,6 @@ export async function safeScreenshot(
   options: ISafeScreenshotOptions,
 ): Promise<boolean> {
   const file = basename(options.path);
-  if (process.env.CI && !isPreAuthScreenshot(file)) {
-    LOG.debug({ file }, 'screenshot suppressed in CI');
-    return false;
-  }
+  if (shouldSuppressInCi(file)) return false;
   return captureScreenshot(page, options);
 }

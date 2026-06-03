@@ -293,6 +293,18 @@ function logForensicAudit(input: IPipelineContext): boolean {
 }
 
 /**
+ * Stamp the scrape-post diagnostics line onto the pipeline context.
+ * Pulled out so {@link scrapePostDiagnostics} stays under the LoC budget.
+ * @param input - Pipeline context after scraping.
+ * @returns Procedure with updated diagnostics.
+ */
+function stampScrapePostDiag(input: IPipelineContext): Procedure<IPipelineContext> {
+  const accountCount = (input.scrape.has && input.scrape.value.accounts.length) || 0;
+  const lastAction = `scrape-post (${String(accountCount)} accounts)`;
+  return succeed({ ...input, diagnostics: { ...input.diagnostics, lastAction } });
+}
+
+/**
  * SCRAPE POST step — diagnostics + forensic audit table.
  * Audit fires whenever scrape produced an accounts array (any path).
  * @param _ctx - Pipeline context (unused).
@@ -303,12 +315,9 @@ function scrapePostDiagnostics(
   _ctx: IPipelineContext,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext>> {
-  const accountCount = (input.scrape.has && input.scrape.value.accounts.length) || 0;
-  const countStr = String(accountCount);
   if (input.scrape.has) logForensicAudit(input);
-  const updatedDiag = { ...input.diagnostics, lastAction: `scrape-post (${countStr} accounts)` };
-  const result = succeed({ ...input, diagnostics: updatedDiag });
-  return Promise.resolve(result);
+  const stamped = stampScrapePostDiag(input);
+  return Promise.resolve(stamped);
 }
 
 /** SCRAPE POST step. */

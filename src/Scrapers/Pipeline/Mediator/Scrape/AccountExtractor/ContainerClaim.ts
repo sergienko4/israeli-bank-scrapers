@@ -135,6 +135,28 @@ function applyClaimAttempts(args: IApplyArgs): Record<string, ApiRecord[]> {
   return args.assigned;
 }
 
+/** Bundled args for {@link probeAndApplyForWk} — keeps params ≤ 3. */
+interface IProbeAndApplyArgs {
+  readonly record: ApiRecord;
+  readonly keys: ReturnType<typeof indexRecordKeys>;
+  readonly wkName: string;
+  readonly assigned: Record<string, ApiRecord[]>;
+  readonly claimed: Set<string>;
+}
+
+/**
+ * Probe + apply one WK name in a single hop so {@link assignContainersInRecord}
+ * stays under the per-function LoC budget.
+ * @param args - Bundled probe + apply args.
+ * @returns The same `assigned` map (chain-friendly).
+ */
+function probeAndApplyForWk(args: IProbeAndApplyArgs): Record<string, ApiRecord[]> {
+  const { record, keys, assigned, claimed, wkName } = args;
+  const wantedLower = wkName.toLowerCase();
+  const attempts = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
+  return applyClaimAttempts({ attempts, wkName, assigned, claimed });
+}
+
 /**
  * Walks `record` once and assigns each PHYSICAL key to the LONGEST
  * WK name that suffix-matches it. Returns the mutated `assigned`
@@ -151,11 +173,7 @@ function assignContainersInRecord(
 ): Record<string, ApiRecord[]> {
   const keys = indexRecordKeys(record);
   const claimed = new Set<string>();
-  for (const wkName of wkNames) {
-    const wantedLower = wkName.toLowerCase();
-    const attempts = probeContainerForWk({ record, keys, wantedLower, claimedLower: claimed });
-    applyClaimAttempts({ attempts, wkName, assigned, claimed });
-  }
+  for (const wkName of wkNames) probeAndApplyForWk({ record, keys, wkName, assigned, claimed });
   return assigned;
 }
 
@@ -191,13 +209,10 @@ function buildFlattenDebugMessage(
   containers: Readonly<Record<string, readonly ApiRecord[]>>,
   concatenated: readonly ApiRecord[],
 ): string {
-  const containerNames = Object.keys(containers);
-  const joined = containerNames.join(',');
-  const count = String(containerNames.length);
-  return (
-    `extractAccountRecords: ${String(concatenated.length)} items ` +
-    `(${count} named containers: ${joined})`
-  );
+  const names = Object.keys(containers);
+  const items = String(concatenated.length);
+  const count = String(names.length);
+  return `extractAccountRecords: ${items} items (${count} named containers: ${names.join(',')})`;
 }
 
 /**

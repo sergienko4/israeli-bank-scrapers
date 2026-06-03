@@ -78,6 +78,28 @@ function processNode(node: JsonNode, pattern: RegExp): INodeResult {
   return processObjectNode(node as Record<string, unknown>, pattern);
 }
 
+/** Bundled args for {@link reduceSearchStep} — keeps params ≤ 3. */
+interface IReduceSearchArgs {
+  readonly node: JsonNode;
+  readonly nextLevel: JsonNode[];
+  readonly pattern: RegExp;
+}
+
+/**
+ * Single-step reduction body for {@link buildSearchReducer}.
+ * Hoisted so the reducer factory stays under the per-function LoC budget.
+ * @param wasFound - Previous accumulator (short-circuits when true).
+ * @param args - Bundled current node + frontier + pattern.
+ * @returns Updated accumulator.
+ */
+function reduceSearchStep(wasFound: boolean, args: IReduceSearchArgs): boolean {
+  if (wasFound) return true;
+  const result = processNode(args.node, args.pattern);
+  if (result.isFound) return true;
+  args.nextLevel.push(...result.children);
+  return false;
+}
+
 /**
  * Reducer for {@link searchLevel} — accumulates the "found" sentinel
  * across the frontier while pushing children onto the next level.
@@ -91,13 +113,7 @@ function buildSearchReducer(
   nextLevel: JsonNode[],
   pattern: RegExp,
 ): (wasFound: boolean, node: JsonNode) => boolean {
-  return (wasFound, node): boolean => {
-    if (wasFound) return true;
-    const result = processNode(node, pattern);
-    if (result.isFound) return true;
-    nextLevel.push(...result.children);
-    return false;
-  };
+  return (wasFound, node): boolean => reduceSearchStep(wasFound, { node, nextLevel, pattern });
 }
 
 /**
@@ -126,23 +142,34 @@ function bodyHasSignature(body: JsonNode, pattern: RegExp): boolean {
   return searchLevel([body], pattern);
 }
 
+/** Result type for {@link collectFromNode} — keys collected + next-level children. */
+interface INodeKeyCollect {
+  readonly keys: readonly string[];
+  readonly children: readonly JsonNode[];
+}
+
+/**
+ * Collect matching keys from a plain-object node.
+ * Pulled out so {@link collectFromNode} stays under the LoC budget.
+ * @param record - Record at the current node.
+ * @param pattern - Key pattern.
+ * @returns Matched keys and children to enqueue.
+ */
+function collectFromObjectNode(record: Record<string, unknown>, pattern: RegExp): INodeKeyCollect {
+  const keys = Object.keys(record).filter((k): boolean => pattern.test(k));
+  return { keys, children: objectChildren(record) };
+}
+
 /**
  * Collect matching keys from one BFS node.
  * @param node - Current node.
  * @param pattern - Key pattern.
  * @returns Matched keys and children to enqueue.
  */
-function collectFromNode(
-  node: JsonNode,
-  pattern: RegExp,
-): { keys: readonly string[]; children: readonly JsonNode[] } {
-  if (Array.isArray(node)) {
-    return { keys: [], children: arrayFirstElement(node) };
-  }
+function collectFromNode(node: JsonNode, pattern: RegExp): INodeKeyCollect {
+  if (Array.isArray(node)) return { keys: [], children: arrayFirstElement(node) };
   if (!node || typeof node !== 'object') return { keys: [], children: [] };
-  const record = node as Record<string, unknown>;
-  const keys = Object.keys(record).filter((k): boolean => pattern.test(k));
-  return { keys, children: objectChildren(record) };
+  return collectFromObjectNode(node as Record<string, unknown>, pattern);
 }
 
 /** Frontier accumulators consumed by the {@link collectKeysLevel} BFS. */

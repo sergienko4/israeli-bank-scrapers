@@ -110,24 +110,39 @@ async function runCleanup(
   }
 }
 
+/** Logger alias used by the recursive cleanup driver. */
+type CleanupLogger = IPipelineContext['logger'];
+
 /**
- * Run cleanups recursively in LIFO order (index decreasing).
- * @param cleanups - Cleanup functions registered during init.
- * @param logger - Logger for error reporting.
- * @param index - Current index (starts at last element).
- * @returns Count of successful cleanups.
+ * Tally the cleanup outcome for one cleanup call. Pulled out so
+ * {@link runCleanupsRecursive} stays under the per-function LoC budget.
+ * @param didSucceed - Result of the cleanup at this index.
+ * @param restCount - Successful-cleanup count for the rest of the stack.
+ * @returns Updated successful-cleanup count.
  */
-async function runCleanupsRecursive(
-  cleanups: readonly CleanupFn[],
-  logger: IPipelineContext['logger'],
-  index: number,
-): Promise<number> {
-  if (index < 0) return 0;
-  const result = await runCleanup(cleanups[index], logger);
-  const didSucceed: boolean = isOk(result);
-  const restCount = await runCleanupsRecursive(cleanups, logger, index - 1);
+function tallyCleanup(didSucceed: boolean, restCount: number): number {
   if (!didSucceed) return restCount;
   return restCount + 1;
+}
+
+/** Bundled args for the recursive cleanup driver — keeps params ≤ 3. */
+interface IRecursiveCleanupArgs {
+  readonly cleanups: readonly CleanupFn[];
+  readonly logger: CleanupLogger;
+  readonly index: number;
+}
+
+/**
+ * Run cleanups recursively in LIFO order (index decreasing).
+ * @param args - Bundled cleanups + logger + index.
+ * @returns Count of successful cleanups.
+ */
+async function runCleanupsRecursive(args: IRecursiveCleanupArgs): Promise<number> {
+  if (args.index < 0) return 0;
+  const result = await runCleanup(args.cleanups[args.index], args.logger);
+  const didSucceed = isOk(result);
+  const restCount = await runCleanupsRecursive({ ...args, index: args.index - 1 });
+  return tallyCleanup(didSucceed, restCount);
 }
 
 /**
@@ -141,7 +156,7 @@ async function runAllCleanups(
   logger: IPipelineContext['logger'],
 ): Promise<number> {
   const lastIndex = cleanups.length - 1;
-  return runCleanupsRecursive(cleanups, logger, lastIndex);
+  return runCleanupsRecursive({ cleanups, logger, index: lastIndex });
 }
 
 /**
@@ -166,7 +181,7 @@ async function executeRunCleanups(input: IActionContext): Promise<Procedure<IAct
   if (!ctx.browser.has) return succeed(input);
   const cleanups = ctx.browser.value.cleanups;
   const lastIndex = cleanups.length - 1;
-  await runCleanupsRecursive(cleanups, ctx.logger, lastIndex);
+  await runCleanupsRecursive({ cleanups, logger: ctx.logger, index: lastIndex });
   return succeed(input);
 }
 
@@ -182,7 +197,7 @@ async function executeRunCleanupsFromContext(
   if (!input.browser.has) return succeed(input);
   const cleanups = input.browser.value.cleanups;
   const lastIndex = cleanups.length - 1;
-  await runCleanupsRecursive(cleanups, input.logger, lastIndex);
+  await runCleanupsRecursive({ cleanups, logger: input.logger, index: lastIndex });
   return succeed(input);
 }
 

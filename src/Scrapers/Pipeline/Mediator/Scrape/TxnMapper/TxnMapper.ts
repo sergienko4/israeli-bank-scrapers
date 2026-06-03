@@ -248,27 +248,31 @@ function resolveTxnSuffix(
   return { originalCurrency: normalizeCurrency(rawCurr), identifier: rawId || undefined };
 }
 
+/** Bundled args for {@link buildTxnBase} and {@link buildMappedTxn}. */
+interface IBuildTxnInput {
+  readonly dates: IDateStrings;
+  readonly amounts: IResolvedAmounts;
+  readonly fields: IRawTxnFields;
+}
+
+/** Transaction shape minus the fields {@link resolveTxnSuffix} owns. */
+type ITxnBase = Omit<ITransaction, 'originalCurrency' | 'identifier'>;
+
 /**
  * Build the {@link ITransaction} base without the currency normalisation
  * + identifier sanitisation. Pulled out so {@link buildMappedTxn} stays
  * a thin compose helper.
  *
- * @param dates - Pre-coerced date strings.
- * @param amounts - Signed charged + original amounts.
- * @param fields - Raw scalar hits (description, identifier, currency).
+ * @param input - Bundled dates + amounts + raw fields.
  * @returns Transaction shape minus `originalCurrency` and `identifier`.
  */
-function buildTxnBase(
-  dates: IDateStrings,
-  amounts: IResolvedAmounts,
-  fields: IRawTxnFields,
-): Omit<ITransaction, 'originalCurrency' | 'identifier'> {
+function buildTxnBase(input: IBuildTxnInput): ITxnBase {
   return {
     type: TransactionTypes.Normal,
-    ...dates,
-    originalAmount: amounts.origNum,
-    chargedAmount: amounts.amtNum,
-    description: coerceString(fields.description),
+    ...input.dates,
+    originalAmount: input.amounts.origNum,
+    chargedAmount: input.amounts.amtNum,
+    description: coerceString(input.fields.description),
     status: TransactionStatuses.Completed,
   };
 }
@@ -278,18 +282,12 @@ function buildTxnBase(
  * primitives. Pure mapping — no coercion or validation beyond
  * the currency normalisation + identifier sanitisation already
  * performed upstream.
- * @param dates - Pre-coerced date strings.
- * @param amounts - Signed charged + original amounts.
- * @param fields - Raw scalar hits (description, identifier, currency).
+ * @param input - Bundled dates + amounts + raw fields.
  * @returns Mapped transaction.
  */
-function buildMappedTxn(
-  dates: IDateStrings,
-  amounts: IResolvedAmounts,
-  fields: IRawTxnFields,
-): ITransaction {
-  const base = buildTxnBase(dates, amounts, fields);
-  return { ...base, ...resolveTxnSuffix(fields) };
+function buildMappedTxn(input: IBuildTxnInput): ITransaction {
+  const base = buildTxnBase(input);
+  return { ...base, ...resolveTxnSuffix(input.fields) };
 }
 
 /**
@@ -322,7 +320,7 @@ function autoMapTransaction(raw: ApiRecord): ITransaction | false {
   const isCard = Boolean(fields.voidField);
   const amounts = computeAmounts(raw, fields, isCard);
   if (!isMappableTxn(dateStr, amounts.amtNum)) return rejectMappedTxn(dateStr, amounts.amtNum);
-  return buildMappedTxn({ date: dateStr, processedDate: procStr }, amounts, fields);
+  return buildMappedTxn({ dates: { date: dateStr, processedDate: procStr }, amounts, fields });
 }
 
 export { autoMapTransaction, isVoidedTransaction };

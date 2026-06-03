@@ -45,9 +45,7 @@ function pushArrayChildren(
   depth: number,
 ): number {
   const objects = items.filter((item): boolean => typeof item === 'object' && item !== null);
-  for (const obj of objects) {
-    stack.push({ node: obj, depth: depth + 1 });
-  }
+  for (const obj of objects) stack.push({ node: obj, depth: depth + 1 });
   return objects.length;
 }
 
@@ -64,9 +62,7 @@ function pushObjectChildren(
   depth: number,
 ): number {
   const values = Object.values(obj);
-  for (const value of values) {
-    stack.push({ node: value, depth: depth + 1 });
-  }
+  for (const value of values) stack.push({ node: value, depth: depth + 1 });
   return values.length;
 }
 
@@ -119,6 +115,21 @@ function dispatchArrayStackEntry(
 }
 
 /**
+ * Push object children onto the stack and report progress flag.
+ * Pulled out so {@link processStackEntry} stays under the LoC budget.
+ * Returns false when the node is not a plain object.
+ * @param entry - Stack entry whose node may be a plain object.
+ * @param stack - Exploration stack.
+ * @returns True when children were pushed, false otherwise.
+ */
+function processObjectStackEntry(entry: IStackEntry, stack: IStackEntry[]): boolean {
+  const isObj = typeof entry.node === 'object' && entry.node !== null;
+  if (!isObj) return false;
+  pushObjectChildren(stack, entry.node as Record<string, unknown>, entry.depth);
+  return true;
+}
+
+/**
  * Process one stack entry: dispatch array vs object.
  * @param entry - Stack entry to process.
  * @param collected - Accumulator for items.
@@ -132,10 +143,7 @@ function processStackEntry(
 ): boolean {
   if (entry.depth > MAX_ARRAY_DEPTH) return false;
   if (Array.isArray(entry.node)) return dispatchArrayStackEntry(entry, collected, stack);
-  const isObj = typeof entry.node === 'object' && entry.node !== null;
-  if (!isObj) return false;
-  pushObjectChildren(stack, entry.node as Record<string, unknown>, entry.depth);
-  return true;
+  return processObjectStackEntry(entry, stack);
 }
 
 /**

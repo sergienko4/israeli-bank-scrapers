@@ -79,6 +79,19 @@ function buildBillingUrlFromOrigin(anyCapturedUrl: string): string {
 }
 
 /**
+ * Test whether one capture qualifies as a shaped billing endpoint.
+ * Pulled out so {@link findShapedBillingEndpoint} stays under the LoC budget.
+ * @param ep - Capture to test.
+ * @param txnPatterns - WK_API transaction URL patterns.
+ * @returns True iff URL matches AND body carries a card-id alias.
+ */
+function isShapedBillingCapture(ep: IDiscoveredEndpoint, txnPatterns: readonly RegExp[]): boolean {
+  const isUrlMatch = txnPatterns.some((p): boolean => p.test(ep.url));
+  if (!isUrlMatch) return false;
+  return billingBodyCarriesCardId(ep.postData);
+}
+
+/**
  * Locate a captured txn endpoint whose POST body carries a card-id
  * alias — proves the request is per-card and therefore eligible for
  * billing-fallback URL synthesis.
@@ -90,11 +103,7 @@ function findShapedBillingEndpoint(
   captured: readonly IDiscoveredEndpoint[],
 ): IDiscoveredEndpoint | false {
   const txnPatterns = WK_API.transactions;
-  const shaped = captured.find((ep): boolean => {
-    const isUrlMatch = txnPatterns.some((p): boolean => p.test(ep.url));
-    if (!isUrlMatch) return false;
-    return billingBodyCarriesCardId(ep.postData);
-  });
+  const shaped = captured.find((ep): boolean => isShapedBillingCapture(ep, txnPatterns));
   return shaped ?? false;
 }
 

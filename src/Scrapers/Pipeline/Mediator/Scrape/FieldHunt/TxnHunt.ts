@@ -73,6 +73,19 @@ function processHuntArray(args: IHuntArrayArgs): boolean {
 }
 
 /**
+ * Build the next-depth child hunt entries from a record's values.
+ * Pulled out so {@link processHuntObject} stays under the LoC budget.
+ * @param record - Object to expand.
+ * @param depth - Current depth (children get depth+1).
+ * @returns Hunt entries with non-null object children.
+ */
+function buildHuntChildren(record: Record<string, unknown>, depth: number): readonly IHuntEntry[] {
+  return Object.values(record)
+    .filter((v): boolean => typeof v === 'object' && v !== null)
+    .map((v): IHuntEntry => ({ val: v, depth: depth + 1 }));
+}
+
+/**
  * Process one object node — push child values onto stack.
  * @param record - Object to expand.
  * @param depth - Current depth.
@@ -84,9 +97,7 @@ function processHuntObject(
   depth: number,
   stack: IHuntEntry[],
 ): boolean {
-  const children = Object.values(record)
-    .filter((v): boolean => typeof v === 'object' && v !== null)
-    .map((v): IHuntEntry => ({ val: v, depth: depth + 1 }));
+  const children = buildHuntChildren(record, depth);
   stack.push(...children);
   return true;
 }
@@ -114,6 +125,23 @@ function processArrayEntry(args: IArrayEntryArgs): boolean {
 }
 
 /**
+ * Dispatch an array value to {@link processArrayEntry}.
+ * Pulled out so {@link dispatchHuntValue} stays under the LoC budget.
+ * @param entry - Stack entry whose value is an array.
+ * @param collected - Mutable collector.
+ * @param stack - Mutable hunt stack.
+ * @returns True if the array was collected as a txn list.
+ */
+function dispatchHuntArray(
+  entry: IHuntEntry,
+  collected: ApiRecord[],
+  stack: IHuntEntry[],
+): boolean {
+  const val = entry.val as readonly unknown[];
+  return processArrayEntry({ val, depth: entry.depth, collected, stack });
+}
+
+/**
  * Dispatch a stack value to the array or object handler. Returns
  * `false` for primitives / null / depth-overflow so the parent can
  * surface a single "no progress" sentinel.
@@ -129,9 +157,7 @@ function dispatchHuntValue(
   stack: IHuntEntry[],
 ): boolean {
   const { val, depth } = entry;
-  if (Array.isArray(val)) {
-    return processArrayEntry({ val: val as readonly unknown[], depth, collected, stack });
-  }
+  if (Array.isArray(val)) return dispatchHuntArray(entry, collected, stack);
   if (typeof val !== 'object' || val === null) return false;
   return processHuntObject(val as Record<string, unknown>, depth, stack);
 }

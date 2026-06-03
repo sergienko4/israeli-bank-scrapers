@@ -84,6 +84,9 @@ async function classifyAndBuild(args: IClassifyAndBuildArgs): Promise<IHomeDisco
   return buildDiscoveryByStrategy(strategy, triggerText, triggerTarget);
 }
 
+/** Failure used by {@link resolveHomeStrategy} when no login link is found. */
+const NO_LOGIN_LINK_FAIL = fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');
+
 /**
  * Passive discovery — find login entry and detect navigation strategy.
  * Zero clicks. Zero DOM mutation. Only reads attributes.
@@ -98,12 +101,20 @@ async function resolveHomeStrategy(
   page: Page,
 ): Promise<Procedure<IHomeDiscovery>> {
   const visible = await resolveHomeTrigger(mediator);
-  if (visible === false || !visible.found) {
-    return fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');
-  }
+  if (visible === false || !visible.found) return NO_LOGIN_LINK_FAIL;
   const discovery = await classifyAndBuild({ mediator, visible, page, logger });
   return succeed(discovery);
 }
+
+/** Builder lookup for {@link buildDiscoveryByStrategy} — keeps it a thin dispatcher. */
+const DISCOVERY_BUILDERS: Record<
+  NavStrategy,
+  (text: string, target: IResolvedTarget | false) => IHomeDiscovery
+> = {
+  [NAV_STRATEGY.DIRECT]: buildDirect,
+  [NAV_STRATEGY.MODAL]: buildModal,
+  [NAV_STRATEGY.SEQUENTIAL]: buildSequential,
+};
 
 /**
  * Build discovery by strategy type (OCP dispatch).
@@ -117,12 +128,7 @@ function buildDiscoveryByStrategy(
   text: string,
   target: IResolvedTarget | false,
 ): IHomeDiscovery {
-  const buildMap: Record<NavStrategy, IHomeDiscovery> = {
-    [NAV_STRATEGY.DIRECT]: buildDirect(text, target),
-    [NAV_STRATEGY.MODAL]: buildModal(text, target),
-    [NAV_STRATEGY.SEQUENTIAL]: buildSequential(text, target),
-  };
-  return buildMap[strategy];
+  return DISCOVERY_BUILDERS[strategy](text, target);
 }
 
 /** Non-navigation href patterns — modal triggers, SPA anchors. */

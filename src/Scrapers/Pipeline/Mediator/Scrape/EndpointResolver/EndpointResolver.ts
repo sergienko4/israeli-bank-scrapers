@@ -43,6 +43,31 @@ interface IResolvedRequestParts {
   fieldMap: ITxnFieldMap;
 }
 
+/** Bundled args for {@link buildEndpointUrlTriple} — keeps params ≤ 3. */
+interface IUrlTripleArgs {
+  readonly network: INetworkDiscovery;
+  readonly ep: IDiscoveredEndpoint;
+  readonly method: 'GET' | 'POST';
+}
+
+/** Subset of {@link ITxnEndpoint} produced by {@link buildEndpointUrlTriple}. */
+type UrlTriple = Pick<ITxnEndpoint, 'templatePostData' | 'pendingUrl' | 'billingUrl'>;
+
+/**
+ * Build the URL trio (templatePostData, pendingUrl, billingUrl)
+ * for an outgoing {@link ITxnEndpoint}. Pulled out so
+ * {@link buildTxnEndpoint} stays under the per-function LoC budget.
+ * @param args - Bundled network + capture + method.
+ * @returns templatePostData + pendingUrl + billingUrl fragment.
+ */
+function buildEndpointUrlTriple(args: IUrlTripleArgs): UrlTriple {
+  return {
+    templatePostData: resolveTemplatePostData(args.method, args.ep.postData),
+    pendingUrl: resolvePendingUrl(args.network),
+    billingUrl: resolveBillingUrl(args.network),
+  };
+}
+
 /**
  * Build the slim {@link ITxnEndpoint} that DASHBOARD commits to
  * `ctx.txnEndpoint`. Pulls templatePostData / pendingUrl /
@@ -58,13 +83,23 @@ function buildTxnEndpoint(
   ep: IDiscoveredEndpoint,
   parts: IResolvedRequestParts,
 ): ITxnEndpoint {
+  const urls = buildEndpointUrlTriple({ network, ep, method: parts.method });
+  return { url: ep.url, method: parts.method, fieldMap: parts.fieldMap, ...urls };
+}
+
+/**
+ * Build the picker-diagnostics trio surfaced by {@link buildInternalResult}.
+ * Pulled out so the wrapper stays under the per-function LoC budget.
+ * @param ep - Raw endpoint capture lifted from {@link INetworkDiscovery}.
+ * @returns captureIndex + pickerTier + capturedPreClick triple.
+ */
+function buildPickerDiagnostics(
+  ep: IDiscoveredEndpoint,
+): Pick<ITxnEndpointInternal, 'captureIndex' | 'pickerTier' | 'capturedPreClick'> {
   return {
-    url: ep.url,
-    method: parts.method,
-    templatePostData: resolveTemplatePostData(parts.method, ep.postData),
-    fieldMap: parts.fieldMap,
-    pendingUrl: resolvePendingUrl(network),
-    billingUrl: resolveBillingUrl(network),
+    captureIndex: ep.captureIndex ?? 0,
+    pickerTier: ep.pickerTier ?? 'shapePassing',
+    capturedPreClick: ep.capturedPreClick ?? false,
   };
 }
 
@@ -82,14 +117,9 @@ function buildInternalResult(
   endpoint: ITxnEndpoint,
   responseBody: ApiRecord,
 ): ITxnEndpointInternal {
-  return {
-    endpoint,
-    captureIndex: ep.captureIndex ?? 0,
-    responseBodySample: responseBody,
-    normalizedRecords: extractTransactions(responseBody),
-    pickerTier: ep.pickerTier ?? 'shapePassing',
-    capturedPreClick: ep.capturedPreClick ?? false,
-  };
+  const normalizedRecords = extractTransactions(responseBody);
+  const responseBodySample = responseBody;
+  return { endpoint, responseBodySample, normalizedRecords, ...buildPickerDiagnostics(ep) };
 }
 
 /**
@@ -115,6 +145,23 @@ interface ICommitArtifacts {
 }
 
 /**
+ * Resolve method + fieldMap from a shape-passing capture body.
+ * Pulled out so {@link buildCommitArtifacts} stays under the LoC budget.
+ * @param ep - Capture returned by `discoverTransactionsEndpoint`.
+ * @returns Resolved request parts (method + fieldMap) + parsed body.
+ */
+function resolveRequestParts(ep: IDiscoveredEndpoint): {
+  parts: IResolvedRequestParts;
+  responseBody: ApiRecord;
+} {
+  const method = ep.method as 'GET' | 'POST';
+  const responseBody = (ep.responseBody ?? {}) as ApiRecord;
+  const huntedRecords = huntTransactions(responseBody);
+  const fieldMap = resolveFieldMapOrEmpty(huntedRecords);
+  return { parts: { method, fieldMap }, responseBody };
+}
+
+/**
  * Build the committable endpoint + parsed body sample from a
  * shape-passing capture. Pulled out so {@link resolveTxnEndpoint}
  * stays a thin guard + delegate.
@@ -127,11 +174,8 @@ function buildCommitArtifacts(
   network: INetworkDiscovery,
   ep: IDiscoveredEndpoint,
 ): ICommitArtifacts {
-  const method = ep.method as 'GET' | 'POST';
-  const responseBody = (ep.responseBody ?? {}) as ApiRecord;
-  const records = huntTransactions(responseBody);
-  const fieldMap = resolveFieldMapOrEmpty(records);
-  const endpoint = buildTxnEndpoint(network, ep, { method, fieldMap });
+  const { parts, responseBody } = resolveRequestParts(ep);
+  const endpoint = buildTxnEndpoint(network, ep, parts);
   return { endpoint, responseBody };
 }
 
