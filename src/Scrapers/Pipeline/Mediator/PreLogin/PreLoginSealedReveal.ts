@@ -102,10 +102,17 @@ async function dispatchSealedReveal(
   return dispatcher(input, disc.revealTarget, input.executor.value);
 }
 
-/** Static log payload for early-exit sealed-reveal branches. */
+/**
+ * Static log payload for early-exit sealed-reveal branches.
+ *
+ * NONE-branch history: prior wording (`form already visible`) falsely implied
+ * the form had rendered, masking `target="_blank"` popup failures where the
+ * scraper was stranded on the marketing tab. The POST gate is the real
+ * authority that verifies the form — see PR #299 for root-cause analysis.
+ */
 const SEALED_REVEAL_EXIT_MSG: Partial<Record<string, string>> = {
   'no-discovery': 'sealed-reveal: no discovery',
-  NONE: 'sealed-reveal: NONE (form already visible)',
+  NONE: 'sealed-reveal: NONE — no reveal target discovered; POST gate will verify form',
 };
 
 /**
