@@ -208,6 +208,18 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash .github/scripts/ci/docs-staleness.sh
 
+      # ── CI scripts smoke test ──
+      # Validates the per-bank cooldown + encrypted token-cache scripts
+      # under `.github/scripts/ci/` (added 2026-06-03 to address the
+      # Hapoalim WAF risk-score escalation observed during PR #298 +
+      # PR #299 testing). Runs whenever those scripts or any workflow
+      # YAML changed. 9 assertions covering cold/warm cooldown paths,
+      # GPG encrypt/decrypt roundtrip, wrong-key non-zero exit, and
+      # graceful no-key skip. See `.github/scripts/ci/tests/scripts-smoke.sh`.
+      - name: CI scripts smoke test
+        if: steps.changes.outputs.ci_scripts == 'true'
+        run: bash .github/scripts/ci/tests/scripts-smoke.sh
+
       # ── Type Check ──
       - name: Type check
         if: steps.changes.outputs.src == 'true'
@@ -481,7 +493,15 @@ jobs:
     # (`e2e-real-group-a-amex` below) under the SAME gate-A approval
     # but with `needs: e2e-real-group-a` so Rule #16 is enforced:
     # Amex never co-runs with Isracard.
-    timeout-minutes: 20
+    timeout-minutes: 30
+    # Serialize same-bank runs across the entire repo (all PRs, all
+    # branches). cancel-in-progress: false → newer queued runs wait
+    # for the current one to finish instead of cancelling it. NOTE:
+    # GitHub only queues ONE pending job per group; a 3rd queued job
+    # for the same bank is cancelled (see PR body for rationale).
+    concurrency:
+      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
@@ -571,6 +591,24 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      # ── Cooldown hold (post-run slot retention) ──
+      # Holds the job's repo-wide concurrency.group slot
+      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
+      # run — across ANY PR or workflow — starts at least 10 min after
+      # this run completed. WAF risk-score decay window observed: 15-60
+      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
+      # that meaningfully reduces repeat-trigger probability without
+      # over-burning runner time. Always runs (success OR failure) so
+      # repeated failures (which often indicate WAF heat) also throttle.
+      # Replaces the actions/cache-backed timestamp dance per CR review
+      # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
+      # unreliable; concurrency.group + post-run sleep is reliable).
+      - name: Cooldown hold (${{ matrix.bank }})
+        if: always()
+        run: |
+          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
+          sleep 600
+          echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # Amex follow-on under gate-A approval. Rule #16: Amex never
   # co-runs with Isracard, so we `needs: e2e-real-group-a` to make
@@ -582,7 +620,11 @@ jobs:
     needs: e2e-real-group-a
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
+    concurrency:
+      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
@@ -637,6 +679,24 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      # ── Cooldown hold (post-run slot retention) ──
+      # Holds the job's repo-wide concurrency.group slot
+      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
+      # run — across ANY PR or workflow — starts at least 10 min after
+      # this run completed. WAF risk-score decay window observed: 15-60
+      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
+      # that meaningfully reduces repeat-trigger probability without
+      # over-burning runner time. Always runs (success OR failure) so
+      # repeated failures (which often indicate WAF heat) also throttle.
+      # Replaces the actions/cache-backed timestamp dance per CR review
+      # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
+      # unreliable; concurrency.group + post-run sleep is reliable).
+      - name: Cooldown hold (${{ matrix.bank }})
+        if: always()
+        run: |
+          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
+          sleep 600
+          echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
   # Group B — OTP browser-form banks (Hapoalim, Beinleumi).
@@ -671,7 +731,15 @@ jobs:
     needs: e2e-real-group-b-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    # Serialize same-bank runs repo-wide. Critical for Hapoalim:
+    # WAF risk-score escalation observed 2026-06-03 (PR #298 +
+    # PR #299 testing window hit Hapoalim 5+ times in 3h → hCaptcha
+    # image-puzzle blocked HOME PRE). cancel-in-progress: false +
+    # the per-bank cooldown step below keep new runs ≥10 min apart.
+    concurrency:
+      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
@@ -724,6 +792,24 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      # ── Cooldown hold (post-run slot retention) ──
+      # Holds the job's repo-wide concurrency.group slot
+      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
+      # run — across ANY PR or workflow — starts at least 10 min after
+      # this run completed. WAF risk-score decay window observed: 15-60
+      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
+      # that meaningfully reduces repeat-trigger probability without
+      # over-burning runner time. Always runs (success OR failure) so
+      # repeated failures (which often indicate WAF heat) also throttle.
+      # Replaces the actions/cache-backed timestamp dance per CR review
+      # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
+      # unreliable; concurrency.group + post-run sleep is reliable).
+      - name: Cooldown hold (${{ matrix.bank }})
+        if: always()
+        run: |
+          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
+          sleep 600
+          echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
   # Group C — api-direct banks (OneZero, Pepper, PayBox). No
@@ -756,7 +842,14 @@ jobs:
     needs: e2e-real-group-c-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    # Serialize same-bank runs repo-wide. Cooldown step below adds a
+    # 10-min minimum gap. Encrypted JWT-cache restore-then-decrypt
+    # warms the OTP long-term token (~95 % of runs skip the full SMS
+    # flow). Save step encrypts the fresh post-scrape token.
+    concurrency:
+      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
@@ -779,6 +872,25 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # ── Warm-token cache: encrypted long-term OTP JWT persistence.
+      # On the FIRST run for a branch (or after TOKEN_CACHE_KEY
+      # rotation), no cache exists → cold-start (full OTP flow). The
+      # fresh token is then encrypted + saved post-scrape; subsequent
+      # runs restore + decrypt + skip the SMS-OTP dance.
+      # NOTE: cache is branch-scoped. Branches inherit main's last
+      # cache via the default-branch fallback rule, so a brand-new PR
+      # gets a warm start as long as main has run recently.
+      - name: Restore encrypted token cache (${{ matrix.bank }})
+        uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.4
+        with:
+          path: /tmp/tokens-encrypted
+          key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}-restore
+          restore-keys: |
+            tokens-${{ matrix.bank }}-
+      - name: Decrypt token cache (${{ matrix.bank }})
+        env:
+          CACHE_KEY: ${{ secrets.TOKEN_CACHE_KEY }}
+        run: bash .github/scripts/ci/decrypt-token-cache.sh "${{ matrix.bank }}"
       - name: E2E real (${{ matrix.bank }})
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
@@ -786,7 +898,10 @@ jobs:
           # api-direct banks. PayBox derives deviceId16Hex from
           # PAYBOX_PHONE_NUMBER via the sha256-prefix-16 bootstrap
           # (see PayBoxCreds.ts JSDoc) — no PAYBOX_DEVICE_ID16HEX
-          # secret needed.
+          # secret needed. The *_OTP_LONG_TERM env vars are
+          # PRESENCE-FLAGS (any nonempty value enables warm-cache
+          # mode in src/Tests/E2eReal/TokenCache.ts); the actual JWT
+          # comes from the decrypted /tmp/<bank>-token.cache file.
           ONEZERO_EMAIL: ${{ secrets.ONEZERO_EMAIL }}
           ONEZERO_PASSWORD: ${{ secrets.ONEZERO_PASSWORD }}
           ONEZERO_PHONE_NUMBER: ${{ secrets.ONEZERO_PHONE_NUMBER }}
@@ -795,7 +910,13 @@ jobs:
           PEPPER_PASSWORD: ${{ secrets.PEPPER_PASSWORD }}
           PEPPER_OTP_LONG_TERM: ${{ secrets.PEPPER_OTP_LONG_TERM }}
           PAYBOX_PHONE_NUMBER: ${{ secrets.PAYBOX_PHONE_NUMBER }}
-          PAYBOX_OTP_LONG_TERM: ${{ secrets.PAYBOX_OTP_LONG_TERM }}
+          # PAYBOX_OTP_LONG_TERM presence-flag enables the warm-cache
+          # path for PayBox. Defaults to "1" so the cache is enabled
+          # even when the optional secret is not configured by the
+          # repo owner — the actual JWT still comes from the
+          # decrypted /tmp file (cold path runs the full OTP flow
+          # the first time, then warm-caches the token).
+          PAYBOX_OTP_LONG_TERM: ${{ secrets.PAYBOX_OTP_LONG_TERM || '1' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -817,6 +938,35 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      - name: Encrypt token cache for save (${{ matrix.bank }})
+        if: always()
+        env:
+          CACHE_KEY: ${{ secrets.TOKEN_CACHE_KEY }}
+        run: bash .github/scripts/ci/encrypt-token-cache.sh "${{ matrix.bank }}"
+      - name: Save encrypted token cache (${{ matrix.bank }})
+        if: always()
+        uses: actions/cache/save@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.4
+        with:
+          path: /tmp/tokens-encrypted
+          key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}
+      # ── Cooldown hold (post-run slot retention) ──
+      # Holds the job's repo-wide concurrency.group slot
+      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
+      # run — across ANY PR or workflow — starts at least 10 min after
+      # this run completed. WAF risk-score decay window observed: 15-60
+      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
+      # that meaningfully reduces repeat-trigger probability without
+      # over-burning runner time. Always runs (success OR failure) so
+      # repeated failures (which often indicate WAF heat) also throttle.
+      # Replaces the actions/cache-backed timestamp dance per CR review
+      # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
+      # unreliable; concurrency.group + post-run sleep is reliable).
+      - name: Cooldown hold (${{ matrix.bank }})
+        if: always()
+        run: |
+          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
+          sleep 600
+          echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   dependency-review:
     name: Dependency Review
