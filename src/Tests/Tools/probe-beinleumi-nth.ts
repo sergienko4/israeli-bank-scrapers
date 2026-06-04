@@ -135,16 +135,46 @@ async function runProbeAssertions(page: Page, browser: Browser): Promise<0 | 1> 
 }
 
 /**
- * Close the browser if it is still open. Swallows the late-close error
- * because helpers like failAndClose may have already closed it.
+ * Playwright error-message fragments emitted when a Browser/Context/Page
+ * has already been closed by an earlier teardown call (e.g.
+ * `failAndClose`). All lower-case for case-insensitive matching.
+ * Source: Playwright's `lib/protocol/serializers.js` + connection.ts
+ * throw sites; verified empirically against Playwright 1.x.
+ */
+const ALREADY_CLOSED_FRAGMENTS = [
+  'browser closed',
+  'browser has been closed',
+  'browser has disconnected',
+  'target closed',
+  'target page, context or browser has been closed',
+  'connection closed',
+] as const;
+
+/**
+ * True iff `err` looks like a late-close error from Playwright.
+ * Used by closeIfOpen to swallow only the expected "already closed"
+ * path and re-throw any other teardown failure.
+ * @param err - Caught error from `await browser.close()`.
+ * @returns True when `err.message` matches a known already-closed fragment.
+ */
+function isAlreadyClosedError(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err);
+  const msg = raw.toLowerCase();
+  return ALREADY_CLOSED_FRAGMENTS.some((p): boolean => msg.includes(p));
+}
+
+/**
+ * Close the browser if it is still open. Swallows ONLY the late-close
+ * error path (helpers like failAndClose may have already closed it) —
+ * any other teardown failure is re-thrown so real bugs aren't masked.
  * @param browser - Browser handle that may already be closed.
  * @returns Always true so callers can return it directly (no `void`).
  */
 async function closeIfOpen(browser: Browser): Promise<true> {
   try {
     await browser.close();
-  } catch {
-    // Browser was already closed by failAndClose — late-close throws "Browser closed".
+  } catch (err) {
+    if (!isAlreadyClosedError(err)) throw err;
   }
   return true;
 }
