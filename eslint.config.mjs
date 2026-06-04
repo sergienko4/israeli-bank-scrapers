@@ -228,6 +228,24 @@ const NO_DIRECT_SCREENSHOT_RULE = {
     'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The src/Common/SafeScreenshot.ts shim is deprecated since v8.5; new imports MUST use the canonical Pipeline path.',
 };
 
+// §19.9 TEST-HELPER STATEMENT CAP — fires on any `function foo() { ...11+ stmts }`
+// inside `src/Tests/**`. Scoped to `FunctionDeclaration` so legitimate
+// `describe('...', () => { ... })` / `it('...', () => { ... })` /
+// `it.each(cases)('...', (...) => { ... })` arrow callbacks stay
+// excluded (their bodies are ArrowFunctionExpression nodes). Drives
+// helper extraction without touching natural test-block length.
+//
+// Why a separate const (not embedded in RESTRICTED_SYNTAX_RULES):
+// the shared set is also used by production scopes, where this rule
+// would double-fire alongside `max-statements:10` (and over-fire vs
+// grandfather caps in §19.1-§19.5). Keeping it test-only avoids
+// redundant noise in production lint output.
+const TEST_HELPER_OVER_10_STMTS_RULE = {
+  selector: 'FunctionDeclaration[body.body.length>10]',
+  message:
+    '🚫 §19.9 TEST HELPER CAP: Named test helper functions cannot exceed 10 statements. Extract focused sub-helpers (Extract Function) so each helper does one thing. Arrow callbacks of describe/it/it.each are exempt (only FunctionDeclaration fires).',
+};
+
 const RESTRICTED_SYNTAX_RULES_NEW = [
   // 1. Coverage Bypasses
   {
@@ -770,8 +788,8 @@ export default tseslint.config(
       // jsdoc/check-tag-names does not reject it.
       'jsdoc/check-tag-names': ['error', { definedTags: ['jest-environment'] }],
 
-      //🚨 Prevent the 'as never' / 'as any' bypass in mocks
-      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
+      //🚨 Prevent the 'as never' / 'as any' bypass in mocks + §19.9 test-helper cap
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, TEST_HELPER_OVER_10_STMTS_RULE],
     },
   },
 
@@ -835,6 +853,7 @@ export default tseslint.config(
           selector: "CallExpression[callee.object.name='page']",
           message: "🚫 Rule #10: Direct calls to 'page' are forbidden. Use ctx.mediator instead.",
         },
+        TEST_HELPER_OVER_10_STMTS_RULE,
       ],
     },
   },
@@ -2342,6 +2361,20 @@ export default tseslint.config(
     files: ['src/Tests/**/*.ts'],
     rules: {
       'max-statements': ['error', 30],
+    },
+  },
+
+  // 19.9 CANARY — TEST-HELPER FUNCTION-DECLARATION ≤10-STMT CAP.
+  //
+  // The §19.9 rule (defined inline in §4 + §5) bans
+  // FunctionDeclaration bodies > 10 stmts inside `src/Tests/**`.
+  // This canary-only block re-enables the rule on a single fixture
+  // under `EslintCanaries/` (globally ignored at line 539) so
+  // `verify.sh` can confirm the guardrail stays armed.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/test-helper-over-10-stmts.canary.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', TEST_HELPER_OVER_10_STMTS_RULE],
     },
   },
 );
