@@ -110,16 +110,8 @@ type AncestorTuple = [string, string, boolean, number, number, number, string, s
  * @returns Typed ancestor metadata.
  */
 function tupleToMeta(t: AncestorTuple): IAncestorMeta {
-  return {
-    tag: t[0],
-    id: t[1],
-    isForm: t[2],
-    fillCount: t[3],
-    sibIndex: t[4],
-    sibCount: t[5],
-    name: t[6],
-    stableClass: t[7],
-  };
+  const [tag, id, isForm, fillCount, sibIndex, sibCount, name, stableClass] = t;
+  return { tag, id, isForm, fillCount, sibIndex, sibCount, name, stableClass };
 }
 
 /** XPath expression for ancestors, excluding html and body. */
@@ -143,7 +135,12 @@ async function collectAncestorMeta(ctx: Page | Frame, selector: string): Promise
 
 /**
  * Browser-context: map ancestor elements to metadata tuples.
- * Self-contained — Playwright serializes only this function.
+ * Self-contained — Playwright serializes only this function. The inline
+ * arrow handles per-element DOM extraction (parent/siblings/className);
+ * its 17-LoC count is irreducible without sacrificing the single-evaluate
+ * round-trip. Per Phase-2a-B, the §19.4a per-file grandfather is the
+ * documented mitigation for browser-eval callbacks (alternative: N
+ * round-trips — unacceptable perf regression for 5-15 ancestors).
  * @param els - Array of ancestor DOM elements.
  * @returns Array of ancestor tuples.
  */
@@ -151,8 +148,6 @@ function mapAncestorTuples(els: Element[]): AncestorTuple[] {
   return els.map((el): AncestorTuple => {
     const p = el.parentElement;
     const sibs = p ? [...p.children].filter((c): boolean => c.tagName === el.tagName) : null;
-    // `String()` is the empty-string sentinel for "absent" attributes;
-    // downstream `extractFormAnchorSelector` treats zero-length values as "not present".
     const absent = String();
     const filtered = el.className.split(/\s+/).filter((c): boolean => c.length > 0);
     const stableClass = filtered.find((c): boolean => !c.startsWith('ng-')) ?? absent;
@@ -210,9 +205,7 @@ export async function discoverFormAnchor(
 ): Promise<Nullable<IFormAnchor>> {
   const formSelector = await evaluateFormWalk(ctx, resolvedSelector);
   if (!formSelector) return EMPTY_RESULT;
-  LOG.debug({
-    message: `discovered form anchor: ${maskVisibleText(formSelector)}`,
-  });
+  LOG.debug({ message: `discovered form anchor: ${maskVisibleText(formSelector)}` });
   return { selector: formSelector, context: ctx };
 }
 

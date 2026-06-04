@@ -86,7 +86,11 @@ interface IEvalArg {
  * Browser-context callback for `queryDomErrors` — must be self-contained
  * (no captured closures). Playwright serializes the function source for
  * transport into the page context — any module-scope reference would be
- * `undefined` at runtime.
+ * `undefined` at runtime. The 16-LoC body covers DOM filtering + per-element
+ * raw extraction (tag/class/text/visibility); irreducible without an N-call
+ * round-trip refactor (perf regression). Per Phase-2a-B, the §19.4a
+ * per-file grandfather is the documented mitigation for browser-eval
+ * callbacks.
  * @param arg - Selector + sentinel bundle passed from Node side.
  * @param arg.sel - CSS selector for the error candidates.
  * @param arg.noClass - Sentinel string for elements with no `class` attribute.
