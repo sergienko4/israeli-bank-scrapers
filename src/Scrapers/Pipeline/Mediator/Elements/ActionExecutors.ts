@@ -60,6 +60,14 @@ const UNKNOWN_FORENSICS: IClickForensics = {
  * context. Must be self-contained (no captured closures) — Playwright
  * serializes the function source for transport. `preClickUrl` is set
  * by the caller after the evaluate resolves.
+ *
+ * **Phase-2a-B grandfather:** the 16-LoC body covers DOM attribute
+ * extraction plus outerHTML truncation; irreducible because nested
+ * helpers inside a `locator.evaluate()` callback are serialized along
+ * with the outer function and still count toward its LoC tally. Repo
+ * §15 bans inline lint-suppression comments — the §19.4a per-file
+ * grandfather block (added in the final activation commit) is the
+ * documented mitigation.
  * @param el - Element captured by the locator.
  * @param max - Max chars to retain from outerHTML.
  * @returns Forensic snapshot with `preClickUrl` left as empty string.
@@ -81,6 +89,9 @@ function snapshotClickedInBrowser(el: Element, max: number): IClickForensics {
   return { preClickUrl: '', ...ids, clickedAttrs, clickedOuterHtml };
 }
 
+/** Default `.evaluate()` options for forensic snapshots — module-scope const. */
+const FORENSICS_EVAL_OPTS = { timeout: ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS };
+
 /**
  * Capture pre-click forensics: page URL + clicked element identity + outerHTML.
  * Always runs (never gated by env) so CI-vs-LOCAL diffs can prove same-element
@@ -96,9 +107,8 @@ async function captureClickForensics(
   frame: Page | Frame,
 ): Promise<IClickForensics> {
   const preClickUrl = frameUrl(frame);
-  const opts = { timeout: ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS };
   return locator
-    .evaluate(snapshotClickedInBrowser, CLICK_OUTER_HTML_MAX, opts)
+    .evaluate(snapshotClickedInBrowser, CLICK_OUTER_HTML_MAX, FORENSICS_EVAL_OPTS)
     .then((dom): IClickForensics => ({ ...dom, preClickUrl }))
     .catch((): IClickForensics => ({ ...UNKNOWN_FORENSICS, preClickUrl }));
 }
@@ -129,6 +139,27 @@ interface IEmitForensicsArgs {
   readonly forensics: IClickForensics;
 }
 
+/** Shape of the forensic log payload emitted on each click outcome. */
+interface IClickLogPayload extends IClickForensics {
+  readonly message: string;
+  readonly tier: TierLabel;
+  readonly selector: string;
+  readonly postClickUrl: string;
+}
+
+/**
+ * Build the structured payload for a successful click outcome — spreads
+ * the captured forensics under the message envelope. Pure builder; no I/O.
+ * @param args - Bundled forensics emit args (tier/selector/frame/forensics).
+ * @param postClickUrl - URL captured AFTER the click resolved.
+ * @returns Structured payload for `LOG.debug`.
+ */
+function buildClickPayload(args: IEmitForensicsArgs, postClickUrl: string): IClickLogPayload {
+  const { tier, selector, forensics } = args;
+  const header = { message: `Tier ${tier}: OK — ${selector}`, tier, selector, postClickUrl };
+  return { ...header, ...forensics };
+}
+
 /**
  * Emit a single forensic log line for a click outcome — all the data needed
  * to compare CI vs LOCAL: pre/post URL, tier, selector, clicked DOM
@@ -138,20 +169,8 @@ interface IEmitForensicsArgs {
  * @returns True after emit.
  */
 function emitClickForensics(args: IEmitForensicsArgs): true {
-  const { tier, selector, frame, forensics } = args;
-  const postClickUrl = frameUrl(frame);
-  const payload = {
-    message: `Tier ${tier}: OK — ${selector}`,
-    tier,
-    selector,
-    preClickUrl: forensics.preClickUrl,
-    postClickUrl,
-    clickedTag: forensics.clickedTag,
-    clickedDomId: forensics.clickedDomId,
-    clickedClasses: forensics.clickedClasses,
-    clickedAttrs: forensics.clickedAttrs,
-    clickedOuterHtml: forensics.clickedOuterHtml,
-  };
+  const postClickUrl = frameUrl(args.frame);
+  const payload = buildClickPayload(args, postClickUrl);
   LOG.debug(payload);
   return true;
 }
@@ -221,6 +240,47 @@ interface IForceCascadeArgs {
   readonly frame: Page | Frame;
 }
 
+/** Default `.click()` options for the force tier. */
+const FORCE_CLICK_OPTS = { force: true, timeout: ELEMENTS_CLICK_TIMEOUT_MS };
+
+/**
+ * Run Tier 1 (force click). On success, emits the `force-1` forensics
+ * payload and returns true; on failure, logs the tier-fail line and
+ * returns false so the cascade can try the next tier.
+ * @param args - Cascade args (locator/selector/frame).
+ * @param forensics - Pre-click forensics snapshot shared across tiers.
+ * @returns True iff the force-click succeeded.
+ */
+async function tryForceClickTier(
+  args: IForceCascadeArgs,
+  forensics: IClickForensics,
+): Promise<boolean> {
+  const { locator, selector, frame } = args;
+  const didForce = await locator.click(FORCE_CLICK_OPTS).then(alwaysTrue).catch(alwaysFalse);
+  if (didForce) return emitClickForensics({ tier: 'force-1', selector, frame, forensics });
+  LOG.debug({ message: `Tier 1 (force): FAIL — ${selector}` });
+  return false;
+}
+
+/**
+ * Run Tier 2 (dispatchEvent click). On success, emits the `dispatch-2`
+ * forensics payload and returns true; on failure, logs the tier-fail
+ * line and returns false so the cascade can fall through to Tier 3.
+ * @param args - Cascade args (locator/selector/frame).
+ * @param forensics - Pre-click forensics snapshot shared across tiers.
+ * @returns True iff the dispatch-click succeeded.
+ */
+async function tryDispatchClickTier(
+  args: IForceCascadeArgs,
+  forensics: IClickForensics,
+): Promise<boolean> {
+  const { locator, selector, frame } = args;
+  const didDispatch = await locator.dispatchEvent('click').then(alwaysTrue).catch(alwaysFalse);
+  if (didDispatch) return emitClickForensics({ tier: 'dispatch-2', selector, frame, forensics });
+  LOG.debug({ message: `Tier 2 (dispatch): FAIL — ${selector}` });
+  return false;
+}
+
 /**
  * Force-click cascade: Tier 1 (force) → Tier 2 (dispatchEvent) → Tier 3
  * (JS evaluate via `evaluateJsClick`). Each tier captures forensics and
@@ -229,16 +289,10 @@ interface IForceCascadeArgs {
  * @returns True after a tier succeeds (Tier 3 always returns true).
  */
 async function clickForceCascade(args: IForceCascadeArgs): Promise<true> {
-  const { locator, selector, frame } = args;
-  const forensics = await captureClickForensics(locator, frame);
-  const opts = { force: true, timeout: ELEMENTS_CLICK_TIMEOUT_MS };
-  const didForce = await locator.click(opts).then(alwaysTrue).catch(alwaysFalse);
-  if (didForce) return emitClickForensics({ tier: 'force-1', selector, frame, forensics });
-  LOG.debug({ message: `Tier 1 (force): FAIL — ${selector}` });
-  const didDispatch = await locator.dispatchEvent('click').then(alwaysTrue).catch(alwaysFalse);
-  if (didDispatch) return emitClickForensics({ tier: 'dispatch-2', selector, frame, forensics });
-  LOG.debug({ message: `Tier 2 (dispatch): FAIL — ${selector}` });
-  return evaluateJsClick(locator, selector, frame);
+  const forensics = await captureClickForensics(args.locator, args.frame);
+  if (await tryForceClickTier(args, forensics)) return true;
+  if (await tryDispatchClickTier(args, forensics)) return true;
+  return evaluateJsClick(args);
 }
 
 /**
@@ -288,26 +342,34 @@ function browserClickElement(el: HTMLElement): true {
   return true;
 }
 
+/** Default `.evaluate()` options for Tier-3 JS click. */
+const JS_CLICK_OPTS = { timeout: ELEMENTS_EVALUATE_TIMEOUT_MS };
+
+/**
+ * Attempt the JS `el.click()` evaluation — returns boolean success without
+ * emitting forensics. Centralised so `evaluateJsClick` reads as a linear
+ * try / emit / fall-through.
+ * @param locator - Playwright locator.
+ * @returns True iff the browser-side click promise resolved without throwing.
+ */
+async function tryJsEvalSuccess(locator: ReturnType<Page['locator']>): Promise<boolean> {
+  const ev = locator.evaluate(browserClickElement, null, JS_CLICK_OPTS);
+  return ev.then(alwaysTrue).catch(alwaysFalse);
+}
+
 /**
  * Tier 3: JS-level el.click() — bypasses coordinates entirely.
  * Always called with a frame from `clickElementImpl`; emits full click
  * forensics on success and falls through to Tier 4 (DOM query) on locator
  * timeout.
- * @param locator - Playwright locator.
- * @param selector - Selector string.
- * @param frame - Page or Frame the click runs in.
+ * @param args - Bundled click cascade args (locator/selector/frame).
  * @returns True after JS click.
  */
-async function evaluateJsClick(
-  locator: ReturnType<Page['locator']>,
-  selector: string,
-  frame: Page | Frame,
-): Promise<true> {
+async function evaluateJsClick(args: IForceCascadeArgs): Promise<true> {
+  const { locator, selector, frame } = args;
   LOG.debug({ message: `Tier 3 (JS evaluate): attempting — ${selector}` });
   const forensics = await captureClickForensics(locator, frame);
-  const opts = { timeout: ELEMENTS_EVALUATE_TIMEOUT_MS };
-  const ev = locator.evaluate(browserClickElement, null, opts);
-  const didEval = await ev.then(alwaysTrue).catch(alwaysFalse);
+  const didEval = await tryJsEvalSuccess(locator);
   if (didEval) return emitClickForensics({ tier: 'evaluate-3', selector, frame, forensics });
   LOG.debug({ message: 'Tier 3 (JS evaluate): locator timeout — trying DOM query' });
   await clickViaAriaLabel(frame, selector);
@@ -333,6 +395,16 @@ function browserClickLastAriaLabel(label: string): true {
 }
 
 /**
+ * Emit the no-aria fallback debug line and short-circuit Tier 4.
+ * Extracted so `clickViaAriaLabel` stays under the §19.4 line cap.
+ * @returns Always `true`.
+ */
+function logNoAriaLabelMatch(): true {
+  LOG.debug({ message: 'Tier 4 (DOM query): no aria-label in selector' });
+  return true;
+}
+
+/**
  * Tier 4: Direct DOM query by aria-label — no Playwright selector.
  * Parses the `[aria-label="…"]` token emitted by `buildAria()` and
  * `buildIdentitySelector()` (NOT Playwright's `name="…"` role-locator
@@ -345,14 +417,28 @@ function browserClickLastAriaLabel(label: string): true {
  */
 async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise<true> {
   const ariaMatch = /\[aria-label="([^"]+)"\]/.exec(selector);
-  if (!ariaMatch) {
-    LOG.debug({ message: 'Tier 4 (DOM query): no aria-label in selector' });
-    return true;
-  }
+  if (!ariaMatch) return logNoAriaLabelMatch();
   const ariaLabel = ariaMatch[1];
   LOG.debug({ message: `Tier 4 (DOM query): clicking aria-label="${ariaLabel}"` });
   await frame.evaluate(browserClickLastAriaLabel, ariaLabel).catch(alwaysFalse);
   return true;
+}
+
+/**
+ * Resolve the Page that owns the keyboard for an arbitrary frame target.
+ * Page instances expose `keyboard` directly; child Frame instances must
+ * resolve their parent Page via `.page()`. Centralised so `pressEnterImpl`
+ * stays under the §19.4 line cap.
+ * @param frame - Page or Frame the action targets.
+ * @returns The owning Page.
+ */
+function resolvePageWithKeyboard(frame: Page | Frame): Page {
+  const hasKeyboard = 'keyboard' in frame;
+  const pageMap: Record<string, Page> = {
+    true: frame as Page,
+    false: (frame as Frame).page(),
+  };
+  return pageMap[String(hasKeyboard)];
 }
 
 /**
@@ -362,13 +448,8 @@ async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise
  */
 async function pressEnterImpl(frame: Page | Frame): Promise<true> {
   await humanDelay(100, 300);
-  const hasKeyboard = 'keyboard' in frame;
-  const pageMap: Record<string, Page> = {
-    true: frame as Page,
-    false: (frame as Frame).page(),
-  };
-  const kb = pageMap[String(hasKeyboard)].keyboard;
-  await kb.press('Enter');
+  const page = resolvePageWithKeyboard(frame);
+  await page.keyboard.press('Enter');
   return true;
 }
 
