@@ -45,6 +45,23 @@ function isPlaywrightAddPageErrorFalsePositive(err: Error): boolean {
 }
 
 /**
+ * The uncaughtException listener body for the Playwright filter.
+ * Swallows the known false-positive teardown TypeError; re-throws others
+ * so jest still fails the run.
+ * @param err - Uncaught error.
+ * @returns True when the error was the known Playwright false positive.
+ */
+function handlePlaywrightUncaught(err: Error): boolean {
+  if (isPlaywrightAddPageErrorFalsePositive(err)) {
+    // Known Playwright-internal teardown TypeError — scrape already
+    // completed; let the test's assertions decide pass/fail.
+    return true;
+  }
+  // Any other uncaught error — re-emit so jest still fails the run.
+  throw err;
+}
+
+/**
  * Install the Playwright `addPageError` uncaughtException filter.
  * Idempotent — safe to call from every test file's import surface.
  * @returns True once installed (or already installed).
@@ -52,15 +69,7 @@ function isPlaywrightAddPageErrorFalsePositive(err: Error): boolean {
 function installPlaywrightAddPageErrorFilter(): boolean {
   if (isPlaywrightFilterInstalled) return true;
   isPlaywrightFilterInstalled = true;
-  process.on('uncaughtException', (err: Error): boolean => {
-    if (isPlaywrightAddPageErrorFalsePositive(err)) {
-      // Known Playwright-internal teardown TypeError — scrape already
-      // completed; let the test's assertions decide pass/fail.
-      return true;
-    }
-    // Any other uncaught error — re-emit so jest still fails the run.
-    throw err;
-  });
+  process.on('uncaughtException', handlePlaywrightUncaught);
   return true;
 }
 
