@@ -45,6 +45,105 @@ const MOCK_EP = {
   responseHeaders: {},
 };
 
+/** Shape of the makeDashCtx opts (shared with extracted helpers). */
+interface IMakeDashCtxOpts {
+  clickFound?: boolean;
+  resolveVisible?: IRaceResult;
+  hasFetchStrategy?: boolean;
+  withEndpoints?: boolean;
+}
+
+/**
+ * Build the resolveAndClick + resolveVisible race-result mocks from
+ * the opts. Centralises the "found vs not-found" mapping so the
+ * orchestrator stays within the test-helper statement cap.
+ * @param opts - makeDashCtx opts.
+ * @returns Click result + visible-race default.
+ */
+function buildClickAndVisibleMocks(opts: IMakeDashCtxOpts): {
+  clickResult: Procedure<IRaceResult>;
+  visibleResolved: IRaceResult;
+} {
+  const foundRace = { ...NOT_FOUND_RESULT, found: true } as IRaceResult;
+  const clickRace = opts.clickFound ? foundRace : NOT_FOUND_RESULT;
+  const clickResult = succeed(clickRace);
+  const visibleResolved = opts.resolveVisible ?? (opts.clickFound ? foundRace : NOT_FOUND_RESULT);
+  return { clickResult, visibleResolved };
+}
+
+/**
+ * Wrap the mock mediator's network surface with the endpoint stubs
+ * required by the POST gate (`getAllEndpoints` + the new
+ * `discoverTransactionsEndpoint` lookup).
+ * @param base - Mediator returned from makeMockMediator.
+ * @param withEndpoints - Seed-endpoints flag.
+ * @returns Same mediator shape with `network` overrides applied.
+ */
+function buildMediatorWithEndpoints(
+  base: ReturnType<typeof makeMockMediator>,
+  withEndpoints: boolean,
+): ReturnType<typeof makeMockMediator> {
+  const eps = withEndpoints ? [MOCK_EP] : [];
+  const network = { ...base.network, ...buildEndpointOverrides(eps, withEndpoints) };
+  return { ...base, network };
+}
+
+/** Endpoint stubs spread into `base.network` to seed POST-gate. */
+interface IEndpointOverrides {
+  getAllEndpoints: () => readonly (typeof MOCK_EP)[];
+  discoverTransactionsEndpoint: () => typeof MOCK_EP | false;
+}
+
+/**
+ * Build the network-surface overrides for `buildMediatorWithEndpoints`.
+ * Split out from the parent helper to comply with §19.10 (≤10 lines).
+ * @param eps - Seeded endpoints array (empty when withEndpoints false).
+ * @param withEndpoints - Whether to expose the seeded txn endpoint.
+ * @returns Object spread into `base.network` to seed POST-gate stubs.
+ */
+function buildEndpointOverrides(
+  eps: readonly (typeof MOCK_EP)[],
+  withEndpoints: boolean,
+): IEndpointOverrides {
+  const getAllEndpoints = makeEndpointGetter(eps);
+  const discoverTransactionsEndpoint = makeTxnEndpointGetter(withEndpoints);
+  return { getAllEndpoints, discoverTransactionsEndpoint };
+}
+
+/**
+ * Higher-order helper for the POST-gate `getAllEndpoints` stub.
+ * Returns a closure-over-eps thunk so `buildEndpointOverrides` stays ≤10 lines.
+ * @param eps - Seeded endpoints array.
+ * @returns Thunk that returns the array on each call.
+ */
+function makeEndpointGetter(eps: readonly (typeof MOCK_EP)[]): () => readonly (typeof MOCK_EP)[] {
+  return (): readonly (typeof MOCK_EP)[] => eps;
+}
+
+/**
+ * Higher-order helper for the POST-gate `discoverTransactionsEndpoint` stub.
+ * Returns the seeded endpoint when present, false otherwise.
+ * @param withEndpoints - Whether the test seeded a txn endpoint.
+ * @returns Thunk returning the seeded endpoint or false.
+ */
+function makeTxnEndpointGetter(withEndpoints: boolean): () => typeof MOCK_EP | false {
+  return (): typeof MOCK_EP | false => (withEndpoints ? MOCK_EP : false);
+}
+
+/**
+ * Build the fetch-strategy override block consumed by makeMockContext.
+ * Returns an empty object when fetch is intentionally disabled.
+ * @param hasFetchStrategy - Whether to include a fetch strategy mock.
+ * @returns Partial context overrides for fetchStrategy.
+ */
+function buildFetchOverrides(hasFetchStrategy: boolean): {
+  fetchStrategy?: ReturnType<typeof some<ReturnType<typeof makeMockFetchStrategy>>>;
+} {
+  if (!hasFetchStrategy) return {};
+  const fetchStrategy = makeMockFetchStrategy();
+  return { fetchStrategy: some(fetchStrategy) };
+}
+
 /**
  * Build a context with browser + mediator for dashboard tests.
  * @param opts - Mock configuration.
@@ -54,53 +153,48 @@ const MOCK_EP = {
  * @param opts.withEndpoints - Seed mock endpoints for POST gate.
  * @returns Pipeline context.
  */
-function makeDashCtx(opts: {
-  clickFound?: boolean;
-  resolveVisible?: IRaceResult;
-  hasFetchStrategy?: boolean;
-  withEndpoints?: boolean;
-}): IPipelineContext {
-  const foundRace = { ...NOT_FOUND_RESULT, found: true } as IRaceResult;
-  const clickRace = opts.clickFound ? foundRace : NOT_FOUND_RESULT;
-  const clickResult = succeed(clickRace);
-  const visibleDefault = opts.clickFound ? foundRace : NOT_FOUND_RESULT;
+function makeDashCtx(opts: IMakeDashCtxOpts): IPipelineContext {
   const browserState = makeMockBrowserState();
-  const base = makeMockMediator({
-    /**
-     * Return configured resolveAndClick Procedure.
-     * @returns Procedure with IRaceResult.
-     */
-    resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(clickResult),
-    /**
-     * Return configured resolveVisible result.
-     * @returns IRaceResult.
-     */
-    resolveVisible: (): Promise<IRaceResult> =>
-      Promise.resolve(opts.resolveVisible ?? visibleDefault),
+  const browser = some(browserState);
+  const baseMediator = buildBaseMediator(opts);
+  const mediatorImpl = buildMediatorWithEndpoints(baseMediator, opts.withEndpoints ?? false);
+  const mediator = some(mediatorImpl);
+  const fetchOverrides = buildFetchOverrides(opts.hasFetchStrategy !== false);
+  return makeMockContext({ browser, mediator, ...fetchOverrides });
+}
+
+/**
+ * Build the base mock mediator with resolveAndClick / resolveVisible stubs
+ * configured from the test opts. Split from makeDashCtx for §19.10.
+ * @param opts - makeDashCtx opts (clickFound / resolveVisible).
+ * @returns Mock mediator before endpoint overrides apply.
+ */
+function buildBaseMediator(opts: IMakeDashCtxOpts): ReturnType<typeof makeMockMediator> {
+  const { clickResult, visibleResolved } = buildClickAndVisibleMocks(opts);
+  return makeMockMediator({
+    resolveAndClick: makeClickStub(clickResult),
+    resolveVisible: makeVisibleStub(visibleResolved),
   });
-  const eps = opts.withEndpoints ? [MOCK_EP] : [];
-  /**
-   * Return seeded endpoints for traffic gate.
-   * @returns Mock endpoints array.
-   */
-  const getAllEndpoints = (): typeof eps => eps;
-  /**
-   * Return the seeded txn endpoint when present (matches the new POST gate
-   * that uses `discoverTransactionsEndpoint` instead of any-endpoint count).
-   * @returns Seeded endpoint or false.
-   */
-  const discoverTransactionsEndpoint = (): typeof MOCK_EP | false =>
-    opts.withEndpoints ? MOCK_EP : false;
-  const network = { ...base.network, getAllEndpoints, discoverTransactionsEndpoint };
-  const mediator = { ...base, network };
-  const hasFetch = opts.hasFetchStrategy !== false;
-  const fetchStrategy = makeMockFetchStrategy();
-  const fetchOverrides = hasFetch ? { fetchStrategy: some(fetchStrategy) } : {};
-  return makeMockContext({
-    browser: some(browserState),
-    mediator: some(mediator),
-    ...fetchOverrides,
-  });
+}
+
+/**
+ * Higher-order helper that wraps a fixed click result in a Promise-returning
+ * stub matching the resolveAndClick mediator signature.
+ * @param clickResult - The fixed Procedure to resolve.
+ * @returns Mediator-shaped resolveAndClick stub.
+ */
+function makeClickStub(clickResult: Procedure<IRaceResult>): () => Promise<Procedure<IRaceResult>> {
+  return (): Promise<Procedure<IRaceResult>> => Promise.resolve(clickResult);
+}
+
+/**
+ * Higher-order helper that wraps a fixed race result in a Promise-returning
+ * stub matching the resolveVisible mediator signature.
+ * @param visibleResolved - The fixed IRaceResult to resolve.
+ * @returns Mediator-shaped resolveVisible stub.
+ */
+function makeVisibleStub(visibleResolved: IRaceResult): () => Promise<IRaceResult> {
+  return (): Promise<IRaceResult> => Promise.resolve(visibleResolved);
 }
 
 // -- PRE step --
