@@ -128,7 +128,7 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
  * @param url - Target URL (for error-message prefixing).
  * @returns Procedure failure annotated with the underlying reason.
  */
-function toNetworkFailure(error: Error | string, verb: HttpVerb, url: string): Procedure<Response> {
+function toNetworkFailure(error: unknown, verb: HttpVerb, url: string): Procedure<Response> {
   const reason = toErrorMessage(error);
   return fail(ScraperErrorTypes.Generic, `${verb} ${url} network error: ${reason}`);
 }
@@ -149,7 +149,7 @@ async function invokeFetch(
     const response = await globalThis.fetch(url, init);
     return succeed(response);
   } catch (error) {
-    return toNetworkFailure(error as Error, verb, url);
+    return toNetworkFailure(error, verb, url);
   }
 }
 

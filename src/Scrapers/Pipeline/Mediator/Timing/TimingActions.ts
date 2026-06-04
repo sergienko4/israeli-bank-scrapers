@@ -77,7 +77,7 @@ type RaceTimeoutResult<T> = Promise<T | typeof RACE_TIMED_OUT>;
  * @param err - The caught error.
  * @returns RACE_TIMED_OUT sentinel for timeout errors.
  */
-function handleRaceError(err: Error): typeof RACE_TIMED_OUT {
+function handleRaceError(err: unknown): typeof RACE_TIMED_OUT {
   if (err instanceof TimeoutError) return RACE_TIMED_OUT;
   throw err;
 }
@@ -92,7 +92,7 @@ export async function raceTimeout<T>(ms: number, promise: Promise<T>): RaceTimeo
   try {
     return await timeoutPromise(ms, promise, 'timeout');
   } catch (error) {
-    return handleRaceError(error as Error);
+    return handleRaceError(error);
   }
 }
 

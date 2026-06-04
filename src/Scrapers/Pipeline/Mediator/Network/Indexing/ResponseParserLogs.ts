@@ -90,7 +90,7 @@ function logTextRead(meta: IRequestMeta, status: number, textLen: number): true 
  * @param error - Caught error.
  * @returns False (caller short-circuits to the no-record branch).
  */
-function logParseCatch(meta: IRequestMeta, status: number, error: Error): false {
+function logParseCatch(meta: IRequestMeta, status: number, error: unknown): false {
   LOG.debug({
     event: 'parseResponse.catch',
     status,

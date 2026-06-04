@@ -60,7 +60,7 @@ interface ITimeoutDiagArgs {
  * @param error - The caught timeout error.
  * @returns Never — always rethrows.
  */
-async function logTimeoutDiagnostics(args: ITimeoutDiagArgs, error: Error): Promise<never> {
+async function logTimeoutDiagnostics(args: ITimeoutDiagArgs, error: unknown): Promise<never> {
   const elapsedStr = String(Date.now() - args.startMs);
   LOG.debug({
     message: `waitForSelector ${maskVisibleText(args.selector)} → TIMEOUT (${elapsedStr}ms)`,
@@ -107,7 +107,7 @@ async function waitUntilElementFound(
     await ctx.waitForSelector(selector, { state, timeout: opts.timeout });
     return await logFoundDiagnostics(ctx, selector, startMs);
   } catch (error) {
-    return logTimeoutDiagnostics({ ctx, selector, startMs }, error as Error);
+    return logTimeoutDiagnostics({ ctx, selector, startMs }, error);
   }
 }
 

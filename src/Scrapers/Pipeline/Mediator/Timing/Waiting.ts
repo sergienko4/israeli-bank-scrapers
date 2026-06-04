@@ -91,7 +91,7 @@ function enrichTimeoutError(caught: TimeoutError, state: ITrackingState): Timeou
  * @param state - Tracking state with the last seen value.
  * @returns Never — always throws.
  */
-function rethrowWithContext(caught: Error, state: ITrackingState): never {
+function rethrowWithContext(caught: unknown, state: ITrackingState): never {
   if (caught instanceof TimeoutError) throw enrichTimeoutError(caught, state);
   throw caught;
 }
@@ -131,7 +131,7 @@ async function awaitTrackedPoll<T>(args: IAwaitTrackedPollArgs<T>): Promise<NonN
   try {
     return await timeoutPromise(args.timeout, args.promise, args.description);
   } catch (error_) {
-    rethrowWithContext(error_ as Error, args.state);
+    rethrowWithContext(error_, args.state);
   }
 }
 

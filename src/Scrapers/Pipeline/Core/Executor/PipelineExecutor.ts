@@ -56,7 +56,7 @@ async function runWithCleanup(
   try {
     return await reducePhases(tracker, initialCtx, 0);
   } catch (error) {
-    return wrapError(error as Error);
+    return wrapError(error);
   } finally {
     await runAfterPipeline(tracker.interceptors, tracker.lastCtx);
     await ensureBrowserCleanup(tracker, initialCtx.logger);

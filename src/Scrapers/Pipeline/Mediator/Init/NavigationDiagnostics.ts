@@ -21,6 +21,7 @@
 import type { Page, Request } from 'playwright-core';
 
 import type { ScraperLogger } from '../../Types/Debug.js';
+import { toError } from '../../Types/ErrorUtils.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { INavInFlightRequest } from './NavigationRequestLifecycle.js';
@@ -202,7 +203,7 @@ function makeCollectorDetach(page: Page, handler: (request: Request) => boolean)
  * (empty list / zero count / `none()` Option).
  */
 export interface INavFailureInput {
-  readonly error: Error;
+  readonly error: unknown;
   readonly attemptDurationMs: number;
   readonly finalUrl: string;
   readonly failedRequests: readonly INavFailedRequest[];
@@ -228,19 +229,21 @@ type L7Fields = Pick<INavFailureSnapshot, 'frameTree' | 'consoleErrors' | 'landi
 type ErrorFields = Pick<INavFailureSnapshot, 'errorName' | 'errorMessage' | 'category'>;
 
 /**
- * Map the raw {@link Error} onto the snapshot's derived error fields
+ * Map the raw thrown value onto the snapshot's derived error fields
  * (`errorName`, `errorMessage`, `category`). Pure read; classifier is
- * memoised by message text. Pulled out so {@link buildNavFailureSnapshot}
- * fits the 10-LoC cap.
+ * memoised by message text. Coerces non-Error throws (null, undef,
+ * primitives, plain objects) to a real Error via {@link toError} so
+ * downstream consumers always see a stable `.name`/`.message` shape.
  *
- * @param error - Raw error from the goto rejection.
+ * @param error - Raw error from the goto rejection (unknown).
  * @returns Three derived snapshot fields.
  */
-function projectErrorFields(error: Error): ErrorFields {
+function projectErrorFields(error: unknown): ErrorFields {
+  const err = toError(error);
   return {
-    errorName: error.name,
-    errorMessage: error.message,
-    category: classifyNavError(error.message),
+    errorName: err.name,
+    errorMessage: err.message,
+    category: classifyNavError(err.message),
   };
 }
 

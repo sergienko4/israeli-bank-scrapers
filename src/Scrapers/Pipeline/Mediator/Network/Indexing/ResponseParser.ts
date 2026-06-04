@@ -188,7 +188,7 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
   try {
     return await readAndParseBody(meta, response);
   } catch (error) {
-    return logParseCatch(meta, status, error as Error);
+    return logParseCatch(meta, status, error);
   }
 }
 

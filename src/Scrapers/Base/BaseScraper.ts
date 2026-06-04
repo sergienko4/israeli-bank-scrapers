@@ -47,7 +47,7 @@ const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
  * @param error - The caught error value.
  * @returns A string error message.
  */
-function extractErrorMessage(error: Error | string): string {
+function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   return String(error);
@@ -58,7 +58,7 @@ function extractErrorMessage(error: Error | string): string {
  * @param error - The caught error value.
  * @returns A structured error result for the scraper.
  */
-function categorizeError(error: Error | string): IErrorResult {
+function categorizeError(error: unknown): IErrorResult {
   if (error instanceof TimeoutError) return createTimeoutError(error.message);
   if (error instanceof WafBlockError) return createWafBlockedError(error.message, error.details);
   const message = extractErrorMessage(error);
@@ -245,7 +245,7 @@ export default class BaseScraper<
     try {
       return await this.login(credentials);
     } catch (error) {
-      const errorResult = categorizeError(error as Error);
+      const errorResult = categorizeError(error);
       return { ...errorResult, diagnostics: this.buildDiagnostics() };
     }
   }
@@ -281,7 +281,7 @@ export default class BaseScraper<
       }
       return scrapeResult;
     } catch (error) {
-      const errorResult = categorizeError(error as Error);
+      const errorResult = categorizeError(error);
       return { ...errorResult, diagnostics: this.buildDiagnostics() };
     }
   }

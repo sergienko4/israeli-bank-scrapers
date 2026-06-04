@@ -85,7 +85,7 @@ async function executeLaunchBrowser(input: IPipelineContext): Promise<Procedure<
     browser = await launchBrowser(input.options);
     return await buildSuccessfulLaunch(input, browser);
   } catch (error) {
-    return failLaunch(browser, error as Error);
+    return failLaunch(browser, error);
   }
 }
 
@@ -141,7 +141,7 @@ async function buildSuccessfulLaunch(
  * @param error - Error caught from `launchBrowser` or subsequent setup.
  * @returns `Procedure` failure with `ScraperErrorTypes.Generic`.
  */
-async function failLaunch(browser: Browser | false, error: Error): Promise<IProcedureFailure> {
+async function failLaunch(browser: Browser | false, error: unknown): Promise<IProcedureFailure> {
   await closeBrowserSafe(browser);
   const msg = toErrorMessage(error);
   return fail(ScraperErrorTypes.Generic, `INIT PRE: browser launch failed — ${msg}`);
@@ -194,7 +194,7 @@ async function runNavigationAttempt(bundle: INavCommitInput): Promise<Procedure<
   try {
     return await navigateAndCommit(bundle);
   } catch (error) {
-    return await handleGotoRejection({ ...bundle, observers, error: error as Error });
+    return await handleGotoRejection({ ...bundle, observers, error });
   } finally {
     detachNavObservers(observers);
   }
@@ -275,7 +275,7 @@ interface IGotoRejectionInput {
   readonly page: Page;
   readonly targetUrl: string;
   readonly observers: INavObservers;
-  readonly error: Error;
+  readonly error: unknown;
 }
 
 /**
@@ -385,7 +385,7 @@ function assembleFailureInput(
 interface ICollectFailureContextInput {
   readonly input: IPipelineContext;
   readonly page: Page;
-  readonly error: Error;
+  readonly error: unknown;
   readonly startMs: number;
   readonly failedRequests: readonly INavFailedRequest[];
   readonly lifecycle: { readonly snapshot: () => INavInFlightSnapshot };
@@ -402,7 +402,7 @@ interface ICollectFailureContextInput {
 interface IHandleNavFailureInput {
   readonly input: IPipelineContext;
   readonly page: Page;
-  readonly error: Error;
+  readonly error: unknown;
   readonly attemptDurationMs: number;
   readonly failedRequests: readonly INavFailedRequest[];
   readonly inFlightSnapshot: INavInFlightSnapshot;

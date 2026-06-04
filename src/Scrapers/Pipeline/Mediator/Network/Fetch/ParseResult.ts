@@ -16,7 +16,7 @@ export const EMPTY_RESULT: Nullable<never> = JSON.parse('null') as Nullable<neve
 
 /** Options for handling a JSON parse error. */
 export interface IParseErrorOpts {
-  readonly err: Error;
+  readonly err: unknown;
   readonly shouldIgnore: boolean;
   readonly url: string;
   readonly status: number;
@@ -57,7 +57,7 @@ function tryParseOrHandle(body: string, opts: Omit<IParseErrorOpts, 'err'>): Nul
   try {
     return JSON.parse(body) as JsonValue;
   } catch (error) {
-    return handleParseError({ ...opts, err: error as Error });
+    return handleParseError({ ...opts, err: error });
   }
 }
 

@@ -93,7 +93,7 @@ function formatDumpBody(args: IDumpArgs): string {
  * @param error - Caught I/O error.
  * @returns Sequence number (unchanged from input).
  */
-function logDumpWriteError(payload: IWriteArgs, error: Error): number {
+function logDumpWriteError(payload: IWriteArgs, error: unknown): number {
   LOG.trace({
     event: 'NetworkDump.write.error',
     dumpCounter: payload.sequence,
@@ -116,7 +116,7 @@ function tryWriteDump(payload: IWriteArgs): number {
     fs.writeFileSync(filePath, body);
     return payload.sequence;
   } catch (error) {
-    return logDumpWriteError(payload, error as Error);
+    return logDumpWriteError(payload, error);
   }
 }
 

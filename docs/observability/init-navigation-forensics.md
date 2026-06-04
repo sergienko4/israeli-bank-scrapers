@@ -277,6 +277,15 @@ Use this to decide what to investigate first when a log line lands:
 - The error type returned to callers is unchanged: still
   `ScraperErrorTypes.Generic` with the same message format. Callers do not
   need to branch on the new telemetry.
+- The captured error field is typed `unknown` end-to-end
+  (`IGotoRejectionInput.error` → `ICollectFailureContextInput.error` →
+  `IHandleNavFailureInput.error` → `INavFailureInput.error`); the L7
+  envelope's `projectErrorFields` coerces non-`Error` throws (null,
+  undefined, primitives, plain objects, cross-realm `Error`,
+  throwing-`toString`) via `toError` from `Types/ErrorUtils.ts` so
+  `errorName` / `errorMessage` / `category` always have stable
+  `.name` / `.message` shapes — diagnostic output never depends on
+  whether the underlying throw was a real `Error` subclass.
 
 ## Diagnostic scope (what L4 forensics does — and does NOT — explain)
 
