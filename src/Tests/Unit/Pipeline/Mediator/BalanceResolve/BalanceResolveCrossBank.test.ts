@@ -68,6 +68,61 @@ function makeFakeApi(scripts: ReadonlyMap<string, unknown>): IApiFetchContext {
 }
 
 /**
+ * Build the initial PipelineContext consumed by the BALANCE-RESOLVE chain
+ * (scrape + api options pre-seeded with identities + a scripted fake api).
+ * @param identities - Per-card identities (SCRAPE.post emission).
+ * @param template - Fetch template (SCRAPE.post emission).
+ * @param scripts - API response scripts.
+ * @returns Pipeline context ready for executeBalanceResolvePre.
+ */
+function buildInitialCtx(
+  identities: ReadonlyMap<string, IAccountIdentity>,
+  template: IBalanceFetchTemplate,
+  scripts: ReadonlyMap<string, unknown>,
+): ReturnType<typeof makeMockContext> {
+  const accounts = [...identities.keys()].map(
+    (id): { accountNumber: string; balance: number; txns: never[] } => ({
+      accountNumber: id,
+      balance: 0,
+      txns: [],
+    }),
+  );
+  const scrape = some({ accounts, accountIdentities: identities, balanceFetchTemplate: template });
+  const fakeApi = makeFakeApi(scripts);
+  const api = some(fakeApi);
+  return makeMockContext({ scrape, api });
+}
+
+/** Action-stage Ok value (kept narrow for downstream type discrimination). */
+type ActionOkValue = Extract<
+  Awaited<ReturnType<typeof executeBalanceResolveAction>>,
+  { success: true }
+>['value'];
+
+/** Discriminated stage outcome — fail-loud sentinel without null/undefined. */
+type StageOutcome = { kind: 'ok'; value: ActionOkValue } | { kind: 'fail' };
+
+/**
+ * Run pre → action → post and return the action-stage Ok value, or a
+ * fail sentinel when any stage failed. Centralises the isOk-guard +
+ * as-unknown-as recast pattern so the orchestrator stays branch-free
+ * inside the test-helper statement cap.
+ * @param ctx - Initial pipeline context.
+ * @returns Discriminated stage outcome.
+ */
+async function runPreActionPost(ctx: ReturnType<typeof makeMockContext>): Promise<StageOutcome> {
+  const preResult = await executeBalanceResolvePre(ctx);
+  if (!isOk(preResult)) return { kind: 'fail' };
+  const actionCtx = preResult.value as unknown as Parameters<typeof executeBalanceResolveAction>[0];
+  const actionResult = await executeBalanceResolveAction(actionCtx);
+  if (!isOk(actionResult)) return { kind: 'fail' };
+  const postCtx = actionResult.value as unknown as Parameters<typeof executeBalanceResolvePost>[0];
+  const postResult = await executeBalanceResolvePost(postCtx);
+  if (!isOk(postResult)) return { kind: 'fail' };
+  return { kind: 'ok', value: actionResult.value };
+}
+
+/**
  * Run pre → action → post end-to-end with a fake api and given inputs.
  * Returns {@link RUNCHAIN_FAILED} when any stage fails so the caller
  * stays branch-free (no null/undefined returns).
@@ -82,27 +137,11 @@ async function runChain(
   template: IBalanceFetchTemplate,
   scripts: ReadonlyMap<string, unknown>,
 ): Promise<ReadonlyMap<string, number | 'MISS'>> {
-  const accounts = [...identities.keys()].map(
-    (id): { accountNumber: string; balance: number; txns: never[] } => ({
-      accountNumber: id,
-      balance: 0,
-      txns: [],
-    }),
-  );
-  const scrape = some({ accounts, accountIdentities: identities, balanceFetchTemplate: template });
-  const fakeApi = makeFakeApi(scripts);
-  const api = some(fakeApi);
-  const ctx = makeMockContext({ scrape, api });
-  const preResult = await executeBalanceResolvePre(ctx);
-  if (!isOk(preResult)) return RUNCHAIN_FAILED;
-  const actionCtx = preResult.value as unknown as Parameters<typeof executeBalanceResolveAction>[0];
-  const actionResult = await executeBalanceResolveAction(actionCtx);
-  if (!isOk(actionResult)) return RUNCHAIN_FAILED;
-  const postCtx = actionResult.value as unknown as Parameters<typeof executeBalanceResolvePost>[0];
-  const postResult = await executeBalanceResolvePost(postCtx);
-  if (!isOk(postResult)) return RUNCHAIN_FAILED;
-  if (!actionResult.value.balanceExtracted.has) return RUNCHAIN_FAILED;
-  return actionResult.value.balanceExtracted.value;
+  const ctx = buildInitialCtx(identities, template, scripts);
+  const outcome = await runPreActionPost(ctx);
+  if (outcome.kind === 'fail') return RUNCHAIN_FAILED;
+  if (!outcome.value.balanceExtracted.has) return RUNCHAIN_FAILED;
+  return outcome.value.balanceExtracted.value;
 }
 
 const HAPOALIM_TEMPLATE: IBalanceFetchTemplate = {
