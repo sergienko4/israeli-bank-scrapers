@@ -268,6 +268,27 @@ function makeFixtureMediator(fixture: IBankFixture): IElementMediator {
 }
 
 /**
+ * Execute one AUTH-DISCOVERY phase step and assert the result was Ok.
+ * Centralises the isOk + ok-expect + Ok-unwrap pattern so the chain
+ * orchestrator stays within the test-helper statement cap.
+ * @param label - Phase step label ('PRE' | 'POST' | 'FINAL') for jest output.
+ * @param result - Procedure returned by the phase executor.
+ * @param fallback - Context to return when result wasn't Ok (unreachable
+ * in green path; satisfies type narrowing).
+ * @returns Unwrapped context.
+ */
+function expectOkAndUnwrap(
+  label: string,
+  result: Awaited<ReturnType<typeof executeAuthDiscoveryPre>>,
+  fallback: IPipelineContext,
+): IPipelineContext {
+  const isStepOk = isOk(result);
+  // jest's expect carries the label in the diff so the failing phase is obvious.
+  expect({ label, isOk: isStepOk }).toEqual({ label, isOk: true });
+  return result.success ? result.value : fallback;
+}
+
+/**
  * Run AUTH-DISCOVERY's full PRE → POST → FINAL chain against a
  * per-bank fixture and return the resulting context.
  * @param fixture - Per-bank fixture.
@@ -276,22 +297,13 @@ function makeFixtureMediator(fixture: IBankFixture): IElementMediator {
 async function runAuthDiscoveryChain(fixture: IBankFixture): Promise<IPipelineContext> {
   const baseCtx = makeMockContext();
   const mediator = makeFixtureMediator(fixture);
-  const ctx: IPipelineContext = {
-    ...baseCtx,
-    mediator: { has: true, value: mediator },
-  };
+  const ctx: IPipelineContext = { ...baseCtx, mediator: { has: true, value: mediator } };
   const preResult = await executeAuthDiscoveryPre(ctx);
-  const isPreOk = isOk(preResult);
-  expect(isPreOk).toBe(true);
-  const preCtx = preResult.success ? preResult.value : ctx;
+  const preCtx = expectOkAndUnwrap('PRE', preResult, ctx);
   const postResult = await executeAuthDiscoveryPost(preCtx);
-  const isPostOk = isOk(postResult);
-  expect(isPostOk).toBe(true);
-  const postCtx = postResult.success ? postResult.value : ctx;
+  const postCtx = expectOkAndUnwrap('POST', postResult, ctx);
   const finalResult = await executeAuthDiscoveryFinal(postCtx);
-  const isFinalOk = isOk(finalResult);
-  expect(isFinalOk).toBe(true);
-  return finalResult.success ? finalResult.value : ctx;
+  return expectOkAndUnwrap('FINAL', finalResult, ctx);
 }
 
 describe('Mission 1 — AuthDiscoveryFactoryTest cross-bank coverage', () => {
