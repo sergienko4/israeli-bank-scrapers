@@ -13,6 +13,21 @@ import type { IRaceResult } from './ElementMediator.js';
 /** Prefix map: Page has 'context' property, Frame does not. */
 const CTX_PREFIX: Record<string, string> = { true: 'main', false: 'iframe' };
 
+/** Maximum URL length before truncation in trace logs. */
+const URL_TRACE_MAX_LEN = 60;
+
+/**
+ * Truncate a URL for trace display when over {@link URL_TRACE_MAX_LEN}.
+ * @param url - Raw URL.
+ * @returns Truncated URL with ellipsis or original string.
+ */
+function truncateUrl(url: string): string {
+  const isLong = url.length > URL_TRACE_MAX_LEN;
+  const truncated = `${url.slice(0, URL_TRACE_MAX_LEN - 3)}...`;
+  const truncMap: Record<string, string> = { true: truncated, false: url };
+  return truncMap[String(isLong)];
+}
+
 /**
  * Describe a Page or Frame context for trace logging.
  * @param ctx - Playwright Page or Frame, or false.
@@ -23,10 +38,7 @@ function describeContext(ctx: Page | Frame | false): string {
   const url = ctx.url();
   const isMain = 'context' in ctx;
   const prefix = CTX_PREFIX[String(isMain)];
-  const maxLen = 60;
-  const isLong = url.length > maxLen;
-  const truncMap: Record<string, string> = { true: `${url.slice(0, 57)}...`, false: url };
-  const short = truncMap[String(isLong)];
+  const short = truncateUrl(url);
   return `${prefix}:${short}`;
 }
 

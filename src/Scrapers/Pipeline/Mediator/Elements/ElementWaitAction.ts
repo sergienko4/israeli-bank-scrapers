@@ -25,33 +25,48 @@ function resolveWaitState(visible?: boolean): 'visible' | 'attached' {
 }
 
 /**
- * Log success diagnostics after element found.
- * @param ctx - Page or frame.
+ * Format the success diagnostic line.
  * @param selector - Matched selector.
- * @param startMs - Timing start.
- * @returns True after logging.
+ * @param elapsedMs - Elapsed wall-clock since wait started.
+ * @returns Structured log message.
  */
-async function logFoundDiagnostics(
-  ctx: Page | Frame,
-  selector: string,
-  startMs: number,
-): Promise<boolean> {
-  const elapsedStr = String(Date.now() - startMs);
-  LOG.debug({
-    message: `waitForSelector ${maskVisibleText(selector)} → found (${elapsedStr}ms)`,
-  });
-  const html = await captureElementHtml(ctx, selector);
-  LOG.debug({
-    message: `element html: ${maskVisibleText(html)}`,
-  });
-  return true;
+function buildFoundMessage(selector: string, elapsedMs: number): { message: string } {
+  const elapsedStr = String(elapsedMs);
+  const masked = maskVisibleText(selector);
+  return { message: `waitForSelector ${masked} → found (${elapsedStr}ms)` };
 }
 
-/** Bundled args for timeout diagnostics. */
-interface ITimeoutDiagArgs {
+/** Bundled args for wait diagnostics — used by both success + timeout helpers. */
+interface IWaitDiagArgs {
   readonly ctx: Page | Frame;
   readonly selector: string;
   readonly startMs: number;
+}
+
+/**
+ * Log success diagnostics after element found.
+ * @param args - Bundled context + selector + startMs.
+ * @returns True after logging.
+ */
+async function logFoundDiagnostics(args: IWaitDiagArgs): Promise<boolean> {
+  const found = buildFoundMessage(args.selector, Date.now() - args.startMs);
+  LOG.debug(found);
+  const html = await captureElementHtml(args.ctx, args.selector);
+  const masked = maskVisibleText(html);
+  LOG.debug({ message: `element html: ${masked}` });
+  return true;
+}
+
+/**
+ * Format the timeout diagnostic line.
+ * @param selector - Matched selector.
+ * @param elapsedMs - Elapsed wall-clock at timeout.
+ * @returns Structured log message.
+ */
+function buildTimeoutMessage(selector: string, elapsedMs: number): { message: string } {
+  const elapsedStr = String(elapsedMs);
+  const masked = maskVisibleText(selector);
+  return { message: `waitForSelector ${masked} → TIMEOUT (${elapsedStr}ms)` };
 }
 
 /**
@@ -60,15 +75,11 @@ interface ITimeoutDiagArgs {
  * @param error - The caught timeout error.
  * @returns Never — always rethrows.
  */
-async function logTimeoutDiagnostics(args: ITimeoutDiagArgs, error: unknown): Promise<never> {
-  const elapsedStr = String(Date.now() - args.startMs);
-  LOG.debug({
-    message: `waitForSelector ${maskVisibleText(args.selector)} → TIMEOUT (${elapsedStr}ms)`,
-  });
+async function logTimeoutDiagnostics(args: IWaitDiagArgs, error: unknown): Promise<never> {
+  const timeoutPayload = buildTimeoutMessage(args.selector, Date.now() - args.startMs);
+  LOG.debug(timeoutPayload);
   const text = await capturePageText(args.ctx);
-  LOG.debug({
-    message: `page text: ${maskVisibleText(text)}`,
-  });
+  LOG.debug({ message: `page text: ${maskVisibleText(text)}` });
   throw error;
 }
 
@@ -89,6 +100,37 @@ async function captureElementHtml(ctx: Page | Frame, selector: string): Promise<
     .catch((): string => '(context unavailable)');
 }
 
+/** Bundled args for the diagnostic-bearing waitForSelector helper. */
+interface IWaitDiagSpec {
+  readonly state: 'visible' | 'attached';
+  readonly timeout?: number;
+  readonly startMs: number;
+}
+
+/** Args bundle for runWaitWithDiagnostics to satisfy ≤10-line cap. */
+interface IRunWaitDiagArgs {
+  readonly ctx: Page | Frame;
+  readonly selector: string;
+  readonly spec: IWaitDiagSpec;
+}
+
+/**
+ * Drive the `waitForSelector` call and surface success or timeout
+ * via the diagnostic helpers — extracted Phase-2a-B helper so the
+ * orchestrator stays ≤10 lines.
+ * @param a - Bundled ctx + selector + spec.
+ * @returns True on found; never on timeout (rethrows).
+ */
+async function runWaitWithDiagnostics(a: IRunWaitDiagArgs): Promise<boolean> {
+  const da = { ctx: a.ctx, selector: a.selector, startMs: a.spec.startMs };
+  try {
+    await a.ctx.waitForSelector(a.selector, { state: a.spec.state, timeout: a.spec.timeout });
+    return await logFoundDiagnostics(da);
+  } catch (error) {
+    return logTimeoutDiagnostics(da, error);
+  }
+}
+
 /**
  * Wait until a selector is present (or visible).
  * @param ctx - Page or frame.
@@ -103,12 +145,7 @@ async function waitUntilElementFound(
 ): Promise<boolean> {
   const state = resolveWaitState(opts.visible);
   const startMs = Date.now();
-  try {
-    await ctx.waitForSelector(selector, { state, timeout: opts.timeout });
-    return await logFoundDiagnostics(ctx, selector, startMs);
-  } catch (error) {
-    return logTimeoutDiagnostics({ ctx, selector, startMs }, error);
-  }
+  return runWaitWithDiagnostics({ ctx, selector, spec: { state, timeout: opts.timeout, startMs } });
 }
 
 /**
@@ -127,27 +164,30 @@ async function waitUntilElementDisappear(
   return true;
 }
 
+/** Args bundle for waitForIframe to satisfy ≤10-line cap. */
+interface IWaitForIframeArgs {
+  readonly ctx: Page;
+  readonly framePredicate: (frame: Frame) => boolean;
+  readonly timeout: number;
+}
+
 /**
  * Wait for a matching iframe to appear.
- * @param ctx - Page.
- * @param framePredicate - Returns true for target frame.
- * @param timeout - Max wait time.
+ * @param a - Bundled page + frame predicate + timeout.
  * @returns Matched frame, or false.
  */
-async function waitForIframe(
-  ctx: Page,
-  framePredicate: (frame: Frame) => boolean,
-  timeout: number,
-): Promise<Frame | false> {
+async function waitForIframe(a: IWaitForIframeArgs): Promise<Frame | false> {
   let frame: Frame | false = false;
-  await waitUntil(
-    (): Promise<boolean> => {
-      frame = ctx.frames().find(framePredicate) ?? false;
-      return Promise.resolve(frame !== false);
-    },
-    'waiting for iframe',
-    { timeout, interval: IFRAME_POLL_INTERVAL_MS },
-  );
+  /**
+   * Poll-step closure capturing the outer `frame` slot.
+   * @returns True once the predicate matches an attached frame.
+   */
+  const checkOnce = (): Promise<boolean> => {
+    frame = a.ctx.frames().find(a.framePredicate) ?? false;
+    return Promise.resolve(frame !== false);
+  };
+  const wopts = { timeout: a.timeout, interval: IFRAME_POLL_INTERVAL_MS };
+  await waitUntil(checkOnce, 'waiting for iframe', wopts);
   return frame;
 }
 
@@ -164,7 +204,7 @@ async function waitUntilIframeFound(
   opts: IWaitOptions & { description?: string } = {},
 ): Promise<Frame> {
   const { timeout = IFRAME_DEFAULT_TIMEOUT_MS, description = '' } = opts;
-  const frame = await waitForIframe(ctx, framePredicate, timeout);
+  const frame = await waitForIframe({ ctx, framePredicate, timeout });
   if (frame === false) throw new ScraperError(`failed to find iframe: ${description}`);
   return frame;
 }

@@ -78,6 +78,22 @@ function browserCallNgSync(el: Element, val: string): boolean {
 }
 
 /**
+ * Best-effort attempt at the AngularJS sync — swallows any locator/eval
+ * exception (opportunistic helper, never the source of truth).
+ * @param ctx - Page or Frame.
+ * @param selector - Playwright selector.
+ * @param value - Value to sync.
+ * @returns Resolves regardless of inner failure.
+ */
+async function tryAngularSync(ctx: Page | Frame, selector: string, value: string): Promise<void> {
+  try {
+    await ctx.locator(selector).first().evaluate(browserCallNgSync, value);
+  } catch {
+    // Locator-chain or evaluate threw synchronously — opportunistic noop.
+  }
+}
+
+/**
  * Call the injected AngularJS helper on a specific element.
  * The element IS passed because we use a function reference (not string).
  * @param ctx - Page or Frame.
@@ -90,11 +106,7 @@ async function syncAngularModel(
   selector: string,
   value: string,
 ): Promise<boolean> {
-  try {
-    await ctx.locator(selector).first().evaluate(browserCallNgSync, value);
-  } catch {
-    // Locator-chain or evaluate threw synchronously — opportunistic noop.
-  }
+  await tryAngularSync(ctx, selector, value);
   return true;
 }
 
@@ -263,6 +275,18 @@ async function deepFillInput(ctx: Page | Frame, selector: string, value: string)
 }
 
 /**
+ * Browser-side: assign the value directly without firing events.
+ * Self-contained — Playwright serializes ONLY this function.
+ * @param input - DOM input element handed in by `locator.evaluate`.
+ * @param val - Value to assign to `input.value`.
+ * @returns True after assignment.
+ */
+function assignValueInBrowser(input: Element, val: string): boolean {
+  (input as HTMLInputElement).value = val;
+  return true;
+}
+
+/**
  * Set a form input value directly via DOM evaluation (no events).
  * @param pageOrFrame - Page or frame.
  * @param inputSelector - CSS selector.
@@ -274,13 +298,8 @@ async function setValue(
   inputSelector: string,
   inputValue: string,
 ): Promise<boolean> {
-  await pageOrFrame
-    .locator(inputSelector)
-    .first()
-    .evaluate((input: Element, val: string): boolean => {
-      (input as HTMLInputElement).value = val;
-      return true;
-    }, inputValue);
+  const locator = pageOrFrame.locator(inputSelector).first();
+  await locator.evaluate(assignValueInBrowser, inputValue);
   return true;
 }
 

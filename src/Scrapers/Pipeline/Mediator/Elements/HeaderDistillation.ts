@@ -98,24 +98,27 @@ function shouldKeepHeader(lower: string): IHeaderDecision {
 }
 
 /**
+ * Accumulate kept headers by filtering noise — Phase-2a-B nested-helper
+ * extracted out of `distillHeaders` so the orchestrator stays ≤10 lines.
+ * @param acc - Accumulated distilled headers.
+ * @param entry - One [key, value] pair to evaluate.
+ * @returns Updated accumulated headers.
+ */
+function reduceKeptHeader(acc: DistilledHeaders, entry: [string, string]): DistilledHeaders {
+  const lowerKey = entry[0].toLowerCase();
+  if (!shouldKeepHeader(lowerKey).shouldKeep) return acc;
+  return { ...acc, [entry[0]]: entry[1] };
+}
+
+/**
  * Distill captured request headers to only security-relevant ones.
  * @param headers - Raw captured headers.
  * @returns Procedure with filtered headers (auth tokens, origin, site ID).
  */
 function distillHeaders(headers: Record<string, string>): Procedure<DistilledHeaders> {
-  /**
-   * Accumulate kept headers by filtering noise.
-   * @param acc - Accumulated distilled headers.
-   * @param entry - One [key, value] pair to evaluate.
-   * @returns Updated accumulated headers.
-   */
-  const buildKept = (acc: DistilledHeaders, entry: [string, string]): DistilledHeaders => {
-    const lowerKey = entry[0].toLowerCase();
-    if (!shouldKeepHeader(lowerKey).shouldKeep) return acc;
-    return { ...acc, [entry[0]]: entry[1] };
-  };
-  const kept = Object.entries(headers).reduce<DistilledHeaders>(
-    (acc, entry): DistilledHeaders => buildKept(acc, entry),
+  const entries = Object.entries(headers);
+  const kept = entries.reduce<DistilledHeaders>(
+    (acc, entry): DistilledHeaders => reduceKeptHeader(acc, entry),
     {},
   );
   return succeed(kept);

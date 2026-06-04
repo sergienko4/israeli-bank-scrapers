@@ -192,6 +192,23 @@ interface IReadinessRun {
 }
 
 /**
+ * Build the `IPreludeTelemetry` args object — extracted Phase-2a-B
+ * helper so {@link runReadinessWithTelemetry} stays under the 10-line
+ * cap.
+ * @param run - Bundled run args carrying the source input + level.
+ * @param wasReady - Outcome of the level handler.
+ * @param elapsedMs - Wall-clock duration of the readiness probe.
+ * @returns Telemetry args accepted by {@link emitPreludeEvent}.
+ */
+function buildPreludeArgs(
+  run: IReadinessRun,
+  wasReady: boolean,
+  elapsedMs: number,
+): IPreludeTelemetry {
+  return { input: run.input, level: run.spec.level, wasReady, elapsedMs };
+}
+
+/**
  * Shared core — dispatches to the right primitive, measures elapsed,
  * emits telemetry. Used by both {@link awaitPagePrelude} (page-level)
  * and {@link awaitFramePrelude} (frame-level) so the telemetry shape
@@ -203,12 +220,8 @@ interface IReadinessRun {
 async function runReadinessWithTelemetry(run: IReadinessRun): Promise<boolean> {
   const startMs = Date.now();
   const wasReady = await LEVEL_HANDLERS[run.spec.level](run.target, run.spec.timeoutMs);
-  emitPreludeEvent({
-    input: run.input,
-    level: run.spec.level,
-    wasReady,
-    elapsedMs: Date.now() - startMs,
-  });
+  const args = buildPreludeArgs(run, wasReady, Date.now() - startMs);
+  emitPreludeEvent(args);
   return wasReady;
 }
 

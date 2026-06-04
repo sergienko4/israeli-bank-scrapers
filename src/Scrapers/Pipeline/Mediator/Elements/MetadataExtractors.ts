@@ -97,6 +97,16 @@ async function extractDomProps(ctx: Page | Frame, selector: string): Promise<IRa
 }
 
 /**
+ * Catch-handler for {@link extractMetadata} visibility probe — Playwright
+ * `Locator.isVisible()` rejects when the underlying element vanishes
+ * mid-probe; treat that as not-visible rather than propagate.
+ * @returns False.
+ */
+function visibilityProbeFailed(): boolean {
+  return false;
+}
+
+/**
  * Extract full metadata from a resolved DOM element.
  * Called by the Mediator after a text-based resolution succeeds.
  * @param ctx - Page or Frame containing the element.
@@ -109,12 +119,7 @@ export async function extractMetadata(
 ): Promise<IElementMetadata> {
   const raw = await extractDomProps(ctx, selector);
   const locator = ctx.locator(selector).first();
-  /**
-   * Catch visibility check failure.
-   * @returns False.
-   */
-  const catchFalse = (): boolean => false;
-  const isVisible = await locator.isVisible().catch(catchFalse);
+  const isVisible = await locator.isVisible().catch(visibilityProbeFailed);
   const result: IElementMetadata = { ...raw, isVisible };
   return result;
 }

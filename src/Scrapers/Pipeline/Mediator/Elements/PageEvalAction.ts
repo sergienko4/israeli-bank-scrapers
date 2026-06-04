@@ -3,7 +3,7 @@
  * Extracted from ElementsInteractions.ts to respect max-lines.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { toError } from '../../Types/ErrorUtils.js';
@@ -46,6 +46,45 @@ function logEvalError(label: string, selector: string, error: unknown): true {
 }
 
 /**
+ * Resolve a `Locator` for the selector when it has matches, else
+ * the supplied default. Phase-2a-B helper used by both
+ * {@link pageEvalAll} and {@link pageEval} to keep them ≤10 lines.
+ * @param ctx - Playwright page or frame.
+ * @param selector - CSS selector to resolve.
+ * @returns Locator on hit; `false` on zero matches.
+ */
+async function resolveLocatorOrFalse(
+  ctx: Page | Frame,
+  selector: string,
+): Promise<Locator | false> {
+  if (!(await waitForReadyState(ctx))) return false;
+  const locator = ctx.locator(selector);
+  if ((await locator.count()) === 0) return false;
+  return locator;
+}
+
+/** Args bundle for runEvalAllSafe to satisfy ≤10-line cap. */
+interface IRunEvalAllSafeArgs<TResult> {
+  readonly locator: Locator;
+  readonly opts: IPageEvalAllOpts<TResult>;
+}
+
+/**
+ * Run `locator.evaluateAll` with a structured logged fallback —
+ * Phase-2a-B extracted so {@link pageEvalAll} fits ≤10 lines.
+ * @param args - Bundled locator + opts.
+ * @returns Callback result; defaultResult on caught failure.
+ */
+async function runEvalAllSafe<TResult>(args: IRunEvalAllSafeArgs<TResult>): Promise<TResult> {
+  try {
+    return await args.locator.evaluateAll(args.opts.callback);
+  } catch (error) {
+    logEvalError('pageEvalAll', args.opts.selector, error);
+    return args.opts.defaultResult;
+  }
+}
+
+/**
  * Evaluate a callback on all matching elements.
  * @param ctx - The Playwright page or frame.
  * @param opts - Selector, default result, and callback options.
@@ -55,15 +94,29 @@ async function pageEvalAll<TResult>(
   ctx: Page | Frame,
   opts: IPageEvalAllOpts<TResult>,
 ): Promise<TResult> {
-  const { selector, defaultResult, callback } = opts;
-  if (!(await waitForReadyState(ctx))) return defaultResult;
-  const locator = ctx.locator(selector);
-  if ((await locator.count()) === 0) return defaultResult;
+  const locator = await resolveLocatorOrFalse(ctx, opts.selector);
+  if (locator === false) return opts.defaultResult;
+  return runEvalAllSafe({ locator, opts });
+}
+
+/** Args bundle for runEvalSafe to satisfy ≤10-line cap. */
+interface IRunEvalSafeArgs<TResult> {
+  readonly locator: Locator;
+  readonly opts: IPageEvalOpts<TResult>;
+}
+
+/**
+ * Run `locator.first().evaluate` with a structured logged fallback —
+ * Phase-2a-B extracted so {@link pageEval} fits ≤10 lines.
+ * @param args - Bundled locator + opts.
+ * @returns Callback result; defaultResult on caught failure.
+ */
+async function runEvalSafe<TResult>(args: IRunEvalSafeArgs<TResult>): Promise<TResult> {
   try {
-    return await locator.evaluateAll(callback);
+    return await args.locator.first().evaluate(args.opts.callback);
   } catch (error) {
-    logEvalError('pageEvalAll', selector, error);
-    return defaultResult;
+    logEvalError('pageEval', args.opts.selector, error);
+    return args.opts.defaultResult;
   }
 }
 
@@ -77,16 +130,9 @@ async function pageEval<TResult>(
   ctx: Page | Frame,
   opts: IPageEvalOpts<TResult>,
 ): Promise<TResult> {
-  const { selector, defaultResult, callback } = opts;
-  if (!(await waitForReadyState(ctx))) return defaultResult;
-  const locator = ctx.locator(selector);
-  if ((await locator.count()) === 0) return defaultResult;
-  try {
-    return await locator.first().evaluate(callback);
-  } catch (error) {
-    logEvalError('pageEval', selector, error);
-    return defaultResult;
-  }
+  const locator = await resolveLocatorOrFalse(ctx, opts.selector);
+  if (locator === false) return opts.defaultResult;
+  return runEvalSafe({ locator, opts });
 }
 
 /**
