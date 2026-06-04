@@ -11,20 +11,12 @@ import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type ILoginConfig, type ILoginSetup } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { type ILoginConfig, LOGIN_SETUP_DEFAULT } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
 
 const HOME_HTML = '<!DOCTYPE html><html><body><h1>Welcome</h1></body></html>';
-
-// Shared login-setup flags: standard username/password flow, no OTP.
-// Required since Phase 7.5 (GenericBankScraper.resolveLoginSetup consults this field).
-const LOGIN_SETUP_DEFAULT: ILoginSetup = {
-  isApiOnly: false,
-  hasOtpConfirm: false,
-  hasOtpCode: false,
-};
 
 let browser: Browser;
 

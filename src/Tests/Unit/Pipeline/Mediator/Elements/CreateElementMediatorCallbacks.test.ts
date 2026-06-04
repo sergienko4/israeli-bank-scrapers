@@ -31,7 +31,7 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
    * on our mock element. Then re-invoke with varied elements to hit branches.
    * @returns Result.
    */
-  it('captures isTrulyVisible callback — branches: self-hit, contains, miss', async () => {
+  it('captures isTrulyVisible callback — branches: self-hit, contains, miss, null', async () => {
     const rec: ICallbackRecorder = { callbacks: [] };
     const el = makeMockElement({
       rect: { left: 0, top: 0, width: 20, height: 20 },
@@ -85,6 +85,33 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
         };
         const didRun2 = hitCb(el2);
         expect(didRun2).toBe(false);
+        // Branch 2b: hit=childEl, parent.contains(child)=true → returns true.
+        // Exercises the positive `el.contains(hit)` clause distinct from
+        // the self-hit fast path (`el === hit`) above.
+        const childEl = makeMockElement({
+          rect: { left: 0, top: 0, width: 20, height: 20 },
+        });
+        const parentEl = makeMockElement({
+          rect: { left: 0, top: 0, width: 20, height: 20 },
+        });
+        /**
+         * Stub contains() to return true only for the synthetic child,
+         * isolating the `el.contains(hit)` clause from the self-hit fast path.
+         * @param n - Candidate node passed by production code.
+         * @returns True only when `n` is the synthetic child element.
+         */
+        const containsChild = (n: unknown): boolean => n === childEl;
+        (parentEl as unknown as { contains: (n: unknown) => boolean }).contains = containsChild;
+        (globalThis as { document: unknown }).document = {
+          /**
+           * Test helper.
+           *
+           * @returns Result.
+           */
+          elementFromPoint: (): Element => childEl,
+        };
+        const didRunContains = hitCb(parentEl);
+        expect(didRunContains).toBe(true);
         // Branch 3: hit=null → returns false
         (globalThis as { document: unknown }).document = {
           /**

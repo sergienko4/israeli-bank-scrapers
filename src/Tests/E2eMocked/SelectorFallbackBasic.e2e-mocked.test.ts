@@ -16,18 +16,10 @@ import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type ILoginConfig, type ILoginSetup } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { type ILoginConfig, LOGIN_SETUP_DEFAULT } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
-
-// Shared login-setup flags: standard username/password flow, no OTP, not API-only.
-// Required since Phase 7.5 (GenericBankScraper.resolveLoginSetup consults this field).
-const LOGIN_SETUP_DEFAULT: ILoginSetup = {
-  isApiOnly: false,
-  hasOtpConfirm: false,
-  hasOtpCode: false,
-};
 
 // ── Login page: inputs have Hebrew placeholders but NO matching CSS ids ────────
 // The button triggers JS navigation on click (no form POST needed).

@@ -11,7 +11,11 @@ import { type Browser } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type ILoginConfig, type ILoginSetup } from '../../Scrapers/Base/Config/LoginConfig.js';
+import {
+  type ILoginConfig,
+  LOGIN_SETUP_DEFAULT,
+  LOGIN_SETUP_OTP_ENABLED,
+} from '../../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import { CREDS_USERNAME_PASSWORD, CREDS_WRONG } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
@@ -27,17 +31,10 @@ import {
 
 // ── Shared ILoginConfig helpers ────────────────────────────────────────────────
 
-// Shared login-setup flags: this file exercises OTP, so all OTP flags are
-// true by default. Required since Phase 7.5 (GenericBankScraper.resolveLoginSetup
-// consults this field).
-const LOGIN_SETUP_OTP_ENABLED: ILoginSetup = {
-  isApiOnly: false,
-  hasOtpConfirm: true,
-  hasOtpCode: true,
-};
-
 /**
  * Creates a login config with sensible defaults and optional overrides.
+ * Defaults to OTP-enabled flags; pass `loginSetup: LOGIN_SETUP_DEFAULT`
+ * in overrides to exercise the non-OTP regression path.
  * @param overrides - partial config to merge with defaults.
  * @returns complete login config for tests.
  */
@@ -156,7 +153,7 @@ describe('OTP detection', () => {
         defaultTimeout: 3000,
         preparePage: buildLoginDashboardPage(NORMAL_LOGIN_HTML),
       },
-      makeLoginConfig(),
+      makeLoginConfig({ loginSetup: LOGIN_SETUP_DEFAULT }),
     );
 
     const result = await scraper.scrape(TEST_CREDS);

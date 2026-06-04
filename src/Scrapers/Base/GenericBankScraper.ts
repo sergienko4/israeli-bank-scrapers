@@ -18,7 +18,7 @@ import {
 import {
   type IFieldConfig,
   type ILoginConfig,
-  type ILoginSetup,
+  LOGIN_SETUP_DEFAULT,
   type SelectorCandidate,
 } from './Config/LoginConfig.js';
 import { type ScraperCredentials, type ScraperOptions } from './Interface.js';
@@ -188,18 +188,6 @@ function toErrorMessage(caught: unknown): string {
 export default class GenericBankScraper<
   TCredentials extends ScraperCredentials,
 > extends BaseScraperWithBrowser<TCredentials> {
-  /**
-   * Default `loginSetup` capability flags used when an `ILoginConfig`
-   * does not declare its own. Matches the legacy registry's
-   * `SIMPLE_LOGIN` constant — every selector-fallback test scenario
-   * is a non-OTP, browser-driven login.
-   */
-  private static readonly _defaultLoginSetup: ILoginSetup = {
-    isApiOnly: false,
-    hasOtpConfirm: false,
-    hasOtpCode: false,
-  };
-
   private _fieldConfigs: IFieldConfig[] = [];
   private _formAnchor: IFormAnchor | null = null;
 
@@ -273,10 +261,10 @@ export default class GenericBankScraper<
    * is not present in `SCRAPER_CONFIGURATION.banks`. Resolve the
    * login-setup flags from the supplied `ILoginConfig` instead.
    * @returns Login-setup flags from `loginConfig.loginSetup` or
-   *   the SIMPLE_LOGIN default.
+   *   the shared `LOGIN_SETUP_DEFAULT` constant.
    */
   protected override resolveLoginSetup(): LegacyBankLookup {
-    const loginSetup = this.loginConfig.loginSetup ?? GenericBankScraper._defaultLoginSetup;
+    const loginSetup = this.loginConfig.loginSetup ?? LOGIN_SETUP_DEFAULT;
     return { loginSetup };
   }
 

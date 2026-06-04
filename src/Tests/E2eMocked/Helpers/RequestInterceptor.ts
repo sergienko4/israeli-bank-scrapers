@@ -83,6 +83,24 @@ interface IDispatchArgs {
 }
 
 /**
+ * Settle an unmatched route: abort with `'failed'` when the
+ * catch-all guard is enabled, otherwise pass-through.
+ * Extracted from {@link dispatchRoute} to keep that body within the
+ * project's ≤10-LoC cap.
+ * @param route - Playwright route handle.
+ * @param shouldAbortUnmatched - True to abort, false to continue.
+ * @returns True after the route is settled.
+ */
+async function handleUnmatchedRoute(route: Route, shouldAbortUnmatched: boolean): Promise<boolean> {
+  if (shouldAbortUnmatched) {
+    await route.abort('failed');
+    return true;
+  }
+  await route.continue();
+  return true;
+}
+
+/**
  * Dispatch a single intercepted request to abort / fulfil / catch-all.
  * @param args - Bundled handler args.
  * @param args.route - Playwright route handle.
@@ -97,15 +115,8 @@ async function dispatchRoute(args: IDispatchArgs): Promise<boolean> {
     await route.abort('failed');
     return true;
   }
-  if (matched) {
-    return fulfilMatchedRoute(route, request, matched);
-  }
-  if (shouldAbortUnmatched) {
-    await route.abort('failed');
-    return true;
-  }
-  await route.continue();
-  return true;
+  if (matched) return fulfilMatchedRoute(route, request, matched);
+  return handleUnmatchedRoute(route, shouldAbortUnmatched);
 }
 
 /**
