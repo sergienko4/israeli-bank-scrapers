@@ -260,22 +260,24 @@ async function probeIframes(page: Page, probeOpts: IProbeOpts): Promise<IFieldCo
 }
 
 /**
- * Probe the main page context for a field.
+ * Probe the main page context for a field. Tries the bank-config
+ * candidate set first, then well-known candidates. Explicit
+ * sequential branches (not a loop) so the project's `no-await-in-loop`
+ * rule stays clean.
  * @param probeOpts - The probe options.
  * @returns A resolved IFieldContext, or a not-found sentinel.
  */
 async function probeMainPage(probeOpts: IProbeOpts): Promise<IFieldContext> {
   const { opts, deps } = probeOpts;
-  const { pageOrFrame: ctx, field } = opts;
-  const { bankCandidates, wellKnownCandidates } = opts;
-  const key = field.credentialKey;
+  const { pageOrFrame: ctx, field, bankCandidates, wellKnownCandidates } = opts;
+  const credentialKey = field.credentialKey;
   if (bankCandidates.length > 0) {
-    const mainOpts = { ctx, allCandidates: bankCandidates, credentialKey: key, deps };
+    const mainOpts = { ctx, allCandidates: bankCandidates, credentialKey, deps };
     const result = await resolveInMainContext(mainOpts);
     if (result.selector) return toFieldContext(result, 'bankConfig', 'mainPage');
   }
   if (wellKnownCandidates.length > 0) {
-    const mainOpts = { ctx, allCandidates: wellKnownCandidates, credentialKey: key, deps };
+    const mainOpts = { ctx, allCandidates: wellKnownCandidates, credentialKey, deps };
     const result = await resolveInMainContext(mainOpts);
     if (result.selector) return toFieldContext(result, 'wellKnown', 'mainPage');
   }

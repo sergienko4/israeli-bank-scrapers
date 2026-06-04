@@ -46,19 +46,6 @@ describe('executeTriggerPre', () => {
     expect(isOkResult2).toBe(true);
   });
 
-  it('skips fail in MOCK_MODE even when trigger not detected', async () => {
-    process.env.MOCK_MODE = '1';
-    try {
-      const page = makeScreenshotPage();
-      const ctx = makeContextWithBrowser(page);
-      const result = await executeTriggerPre(ctx);
-      const isOkResult = isOk(result);
-      expect(isOkResult).toBe(true);
-    } finally {
-      delete process.env.MOCK_MODE;
-    }
-  });
-
   it('hard-fails when OTP trigger not detected (non-mock mode)', async () => {
     // After the .withOtpTrigger() opt-in refactor, the trigger phase only
     // runs for banks that explicitly enabled it. A missing trigger element
@@ -642,22 +629,16 @@ describe('executeTriggerPre — phone hint extraction', () => {
     expect(isOkResult21).toBe(false);
   });
 
-  it('fails when OTP enabled + no trigger detected (not mock mode)', async () => {
-    const originalMode = process.env.MOCK_MODE;
-    delete process.env.MOCK_MODE;
-    try {
-      const makeScreenshotPageResult22 = makeScreenshotPage();
-      const base = makeContextWithBrowser(makeScreenshotPageResult22);
-      const ctx = {
-        ...base,
-        config: { ...base.config, otp: { enabled: true } },
-      };
-      const result = await executeTriggerPre(ctx);
-      // Default mediator returns NOT_FOUND for resolveVisible — trigger absent.
-      const isOkResult23 = isOk(result);
-      expect(isOkResult23).toBe(false);
-    } finally {
-      if (originalMode !== undefined) process.env.MOCK_MODE = originalMode;
-    }
+  it('fails when OTP enabled + no trigger detected', async () => {
+    const makeScreenshotPageResult22 = makeScreenshotPage();
+    const base = makeContextWithBrowser(makeScreenshotPageResult22);
+    const ctx = {
+      ...base,
+      config: { ...base.config, otp: { enabled: true } },
+    };
+    const result = await executeTriggerPre(ctx);
+    // Default mediator returns NOT_FOUND for resolveVisible — trigger absent.
+    const isOkResult23 = isOk(result);
+    expect(isOkResult23).toBe(false);
   });
 });

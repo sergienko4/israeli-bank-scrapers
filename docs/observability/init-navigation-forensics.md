@@ -39,6 +39,13 @@ All three are wired into `InitActions.ts` via ≤10-LoC private helpers
 `maybeRunTransportProbe`). Public exports unchanged — every new symbol is
 internal to the `Mediator/Init` cluster.
 
+Sibling helpers in `InitActions.ts` (`applyPostLaunchSetup`,
+`coldStartIfDumping`) handle pre-navigation context setup; Phase 7.5
+removed the obsolete `MOCK_MODE` route-install branch from
+`applyPostLaunchSetup` (the mock-replay pipeline was orphaned), so the
+post-launch path now runs only the DUMP_SNAPSHOTS cold-start scrub
+and `setupPage`. None of the navigation forensics surface changed.
+
 ## Log envelope
 
 The warn log carries an `INavFailureSnapshot`. Fields are stable across

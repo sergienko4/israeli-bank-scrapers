@@ -250,12 +250,3 @@ describe('LoginPhaseFactory', () => {
     expect(phase.name).toBe('login');
   });
 });
-
-// ── MockRouteHandler — error branch ──────────────────────
-
-describe('MockRouteHandler error branches', () => {
-  it('exports buildHandler', async () => {
-    const mod = await import('../../../../Scrapers/Pipeline/Interceptors/MockRouteHandler.js');
-    expect(typeof mod.buildHandler).toBe('function');
-  });
-});

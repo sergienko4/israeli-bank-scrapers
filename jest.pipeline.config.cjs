@@ -39,6 +39,15 @@ module.exports = {
     // without pulling in the rest of `src/Scrapers/Base/` (legacy base
     // classes with deliberately lower coverage thresholds).
     '**/Scrapers/Base/BaseScraperHelpers.ts',
+    // Phase 7.5 (PR #304) added new code paths to these two files
+    // (`resolveLegacyBank`, `resolveLoginSetup`, `runLoginChain`,
+    // `GenericBankScraper.resolveLoginSetup` override). Without including
+    // them here Jest emits no lcov data → SonarCloud reports the new
+    // lines as uncovered and fails `new_coverage < 80%`. Global gates
+    // would naturally fail on the legacy unhit bodies, so per-path
+    // thresholds are pinned to current real coverage with a safety margin.
+    '**/Scrapers/Base/BaseScraperWithBrowser.ts',
+    '**/Scrapers/Base/GenericBankScraper.ts',
     '!**/*.test.ts',
     '!**/Tests/**',
   ],
@@ -50,6 +59,25 @@ module.exports = {
       functions: 97,
       lines: 98,
       statements: 97,
+    },
+    // Legacy base classes — Phase 7.5 only added a handful of new
+    // methods; legacy code paths (selector resolution, form-anchor
+    // scoping, label-text fallback in GenericBankScraper; legacy login
+    // chain in BaseScraperWithBrowser) remain at the pre-existing
+    // coverage level. Pinned below current real value with safety
+    // margin so accidental regressions still fire. Bring these up in a
+    // dedicated coverage PR rather than blocking Phase 7.5.
+    '**/Scrapers/Base/BaseScraperWithBrowser.ts': {
+      branches: 70,
+      functions: 85,
+      lines: 85,
+      statements: 85,
+    },
+    '**/Scrapers/Base/GenericBankScraper.ts': {
+      branches: 0,
+      functions: 5,
+      lines: 5,
+      statements: 5,
     },
   },
 };

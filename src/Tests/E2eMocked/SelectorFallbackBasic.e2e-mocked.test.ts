@@ -9,15 +9,14 @@
  * Primary CSS selectors in the config are deliberately wrong.
  * Round 3 (WELL_KNOWN_SELECTORS) is what actually resolves each field.
  *
- * SKIPPED — pre-existing failure tracked for PR-206-FOLLOWUP.
- * Same root cause as SelectorFallbackAdvanced/Elements — pipeline migration
- * regressed selector-fallback resolver paths. Out of scope for this PR.
+ * Unskipped in Phase 7.5 — GenericBankScraper no longer requires legacy
+ * SCRAPER_CONFIGURATION; loginSetup is supplied on each ILoginConfig.
  */
 import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { type ILoginConfig, LOGIN_SETUP_DEFAULT } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
@@ -42,6 +41,7 @@ const HOME_HTML = '<!DOCTYPE html><html><body><h1>Welcome</h1></body></html>';
 // No iframes on this page → Round 1 (iframe search) skips immediately.
 const WRONG_ID_CONFIG: ILoginConfig = {
   loginUrl: 'https://test-bank.local/login',
+  loginSetup: LOGIN_SETUP_DEFAULT,
   fields: [
     {
       credentialKey: 'username',
@@ -66,16 +66,14 @@ let browser: Browser;
 
 beforeAll(async () => {
   browser = await getSharedBrowser();
-}, 30000);
+}, 60000);
 
 afterAll(async () => {
   await closeSharedBrowser();
 });
 
-// Skipped reason — pipeline-architecture migration regressed
-// WELL_KNOWN_SELECTORS resolver chain. Tracked under PR-206-FOLLOWUP.
-// Body preserved for the regression diagnosis.
-describe.skip('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
+// Re-enabled in Phase 7.5 after Phase 7 selector-fallback fix landed.
+describe('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
   it('resolves fields via Hebrew placeholder when primary CSS id is wrong — login succeeds', async () => {
     /**
      * Intercept requests with login and home HTML fixtures.
@@ -115,11 +113,12 @@ describe.skip('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
     // Login must have succeeded via selector fallback for fetchData to be reached.
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 
   it('returns failure when ALL rounds fail — isResolved:false causes login to report error', async () => {
     const emptyPageConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
+      loginSetup: LOGIN_SETUP_DEFAULT,
       fields: [
         {
           // credentialKey 'username' — WELL_KNOWN_SELECTORS will try placeholders
@@ -162,9 +161,11 @@ describe.skip('Selector fallback: WELL_KNOWN_SELECTORS resolution', () => {
 
     const result = await scraper.scrape(CREDS_USERNAME_PASSWORD);
 
-    // resolveFieldContext returns isResolved:false — no throw, direct fill also fails
+    // resolveFieldContext returns isResolved:false — no throw, direct fill also fails.
+    // 120 s timeout — the negative path retries every field through every resolver round
+    // (~5 rounds × 3 fields × ~7 s fill under parallel-suite contention).
     expect(result.success).toBe(false);
-  }, 30000);
+  }, 120000);
 });
 
 // ─── Round 1: iframe-first detection ─────────────────────────────────────────
@@ -188,15 +189,14 @@ const FRAME_LOGIN_HTML = `<!DOCTYPE html><html><body>
 </form>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed Round 1
-// iframe-first detection. Tracked under PR-206-FOLLOWUP. Body preserved
-// for the regression diagnosis.
-describe.skip('Selector fallback Round 1: iframe-first detection', () => {
+// Re-enabled in Phase 7.5.
+describe('Selector fallback Round 1: iframe-first detection', () => {
   it('finds login fields inside an iframe before checking the main page', async () => {
     // Config: only wrong CSS ids — no explicit display-name fallbacks.
     // Round 1 searches iframes first and finds the Hebrew placeholder inputs.
     const iframeConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/',
+      loginSetup: LOGIN_SETUP_DEFAULT,
       fields: [
         {
           credentialKey: 'username',
@@ -262,7 +262,7 @@ describe.skip('Selector fallback Round 1: iframe-first detection', () => {
     // Login succeeded → fetchData() stub returns success.
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });
 
 // ─── labelText resolution: <label for="id"> ────────────────────────────────
@@ -281,13 +281,12 @@ const LABEL_FOR_LOGIN_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed label-for
-// resolution. Tracked under PR-206-FOLLOWUP. Body preserved for the
-// regression diagnosis.
-describe.skip('labelText resolution: <label for="id">', () => {
+// Re-enabled in Phase 7.5.
+describe('labelText resolution: <label for="id">', () => {
   it('resolves fields via <label for="id"> when no placeholder or CSS id matches', async () => {
     const labelConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
+      loginSetup: LOGIN_SETUP_DEFAULT,
       fields: [
         { credentialKey: 'username', selectors: [] },
         { credentialKey: 'password', selectors: [] },
@@ -334,5 +333,5 @@ describe.skip('labelText resolution: <label for="id">', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });

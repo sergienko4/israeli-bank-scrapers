@@ -43,15 +43,6 @@ function failCookiesEmpty(): Procedure<IPipelineContext> {
 }
 
 /**
- * MOCK_MODE safety valve — lets AUTH-DISCOVERY skip its network-
- * driven probes for the offline snapshot suite.
- * @returns True when MOCK_MODE selects the offline snapshot bypass.
- */
-function isMockModeAuthDiscoveryActive(): boolean {
-  return process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-}
-
-/**
  * Wait up to {@link AUTH_DISCOVERY_PRE_SETTLE_MS} for the SPA's
  * network to go idle. Event-driven via `waitForNetworkIdle`.
  * @param mediator - Element mediator (provides the wait primitive).
@@ -146,15 +137,14 @@ type PostGate =
 
 /**
  * Gate AUTH-DISCOVERY POST entry: short-circuits with pass-through
- * success when no mediator is attached or MOCK_MODE is active;
- * otherwise yields the live mediator for the POST workflow.
+ * success when no mediator is attached; otherwise yields the live
+ * mediator for the POST workflow.
  * @param input - Pipeline context.
  * @returns Tagged result — `'go'` carries the mediator, `'short'`
  *   carries the Procedure the caller should return verbatim.
  */
 function gateAuthDiscoveryPost(input: IPipelineContext): PostGate {
   if (!input.mediator.has) return { tag: 'short', proc: succeed(input) };
-  if (isMockModeAuthDiscoveryActive()) return { tag: 'short', proc: succeed(input) };
   return { tag: 'go', mediator: input.mediator.value };
 }
 

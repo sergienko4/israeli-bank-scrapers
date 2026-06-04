@@ -3,7 +3,6 @@
  * Extracted from PipelineExecutor to respect 150-line Core/ limit.
  */
 
-import { createMockInterceptor } from '../../Interceptors/MockInterceptor.js';
 import { createSnapshotInterceptor } from '../../Interceptors/SnapshotInterceptor.js';
 import { runAllCleanups } from '../../Phases/Terminate/TerminatePhase.js';
 import type { BasePhase } from '../../Types/BasePhase.js';
@@ -78,19 +77,18 @@ async function runInterceptors(
 }
 
 /**
- * Assemble the interceptor chain — prepend env-gated interceptors (mock +
- * snapshot) ahead of the bank's descriptor interceptors so those modes work
- * for any bank. Each env-gated factory returns an inert interceptor when its
- * env flag is unset, so cost is near-zero when disabled.
+ * Assemble the interceptor chain — prepend the env-gated snapshot interceptor
+ * ahead of the bank's descriptor interceptors so the DUMP_SNAPSHOTS mode
+ * works for any bank. The snapshot factory returns an inert interceptor when
+ * its env flag is unset, so cost is near-zero when disabled.
  * @param base - Interceptors registered by the bank's pipeline builder.
  * @returns Combined, ordered interceptor list.
  */
 export function assembleInterceptors(
   base: readonly IPipelineInterceptor[],
 ): readonly IPipelineInterceptor[] {
-  const mock = createMockInterceptor();
   const snapshot = createSnapshotInterceptor();
-  return [mock, snapshot, ...base];
+  return [snapshot, ...base];
 }
 
 /**

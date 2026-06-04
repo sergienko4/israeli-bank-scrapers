@@ -567,9 +567,6 @@ async function raceLocators(
  * @param locator - The Playwright locator to test.
  * @returns True if the element is hit-testable at its center.
  */
-/** True when MOCK_MODE is active — relaxes hit-test to DOM presence on null. */
-const isMockModeActive = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-
 /**
  * Browser-evaluated hit-test predicate. MUST be a top-level pure function
  * (no captured closures) so Playwright's evaluate serialization can
@@ -577,32 +574,24 @@ const isMockModeActive = process.env.MOCK_MODE === '1' || process.env.MOCK_MODE 
  *
  * Rejects disabled placeholders BEFORE hit-test (Wix renders a disabled
  * `<button role="link">` over the real link on some bank templates).
- * Scrolls into viewport ONLY under MOCK_MODE (live pages position via CSS,
- * per-hit-test scroll would multiply hundreds of Playwright round-trips).
- * MOCK_MODE relaxation: if elementFromPoint returns null, accept DOM
- * presence with a positive bounding box.
  * @param el - Target element under test.
- * @param mockMode - True under mock E2E; enables scroll + bbox fallback.
  * @returns True when the element is hit-testable at its center point.
  */
-function isElementHitTestable(el: Element, mockMode: boolean): boolean {
+function isElementHitTestable(el: Element): boolean {
   if (el.hasAttribute('disabled')) return false;
   if (el.getAttribute('aria-disabled') === 'true') return false;
-  if (mockMode) el.scrollIntoView({ block: 'center', inline: 'center' });
   const rect = el.getBoundingClientRect();
   const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-  if (el === hit || el.contains(hit)) return true;
-  return mockMode && hit === null && rect.width > 0 && rect.height > 0;
+  return el === hit || el.contains(hit);
 }
 
 /**
- * Hit-test — scroll into viewport then check elementFromPoint at center.
- * MOCK_MODE bypass: accept bbox-positive elements when hit returns null.
+ * Hit-test — check elementFromPoint at element center.
  * @param locator - The Playwright locator to test.
  * @returns True when the element is hit-testable.
  */
 async function isTrulyVisible(locator: Locator): Promise<boolean> {
-  return locator.evaluate(isElementHitTestable, isMockModeActive).catch((): boolean => false);
+  return locator.evaluate(isElementHitTestable).catch((): boolean => false);
 }
 
 /**

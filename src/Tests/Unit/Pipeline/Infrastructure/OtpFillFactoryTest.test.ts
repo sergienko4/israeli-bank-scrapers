@@ -160,7 +160,7 @@ const MOCK_SUBMIT: IResolvedTarget = {
   candidateValue: 'Send',
 };
 
-describe('executeFillPre — pre-condition guards + MOCK_MODE bypass', () => {
+describe('executeFillPre — pre-condition guards', () => {
   it('succeeds when mediator is missing', async () => {
     const ctx = makeMockContext();
     const result = await executeFillPre(ctx);
@@ -186,25 +186,6 @@ describe('executeFillPre — pre-condition guards + MOCK_MODE bypass', () => {
     const result = await executeFillPre(ctx);
     const wasOk = isOk(result);
     expect(wasOk).toBe(false);
-  });
-
-  it('emits the mock-bypass diagnostic when MOCK_MODE=1 and OTP form not found', async () => {
-    const original = process.env.MOCK_MODE;
-    process.env.MOCK_MODE = '1';
-    try {
-      const page = makeScreenshotPage();
-      const ctx = makeContextWithBrowser(page);
-      const result = await executeFillPre(ctx);
-      const wasOk = isOk(result);
-      expect(wasOk).toBe(true);
-      if (wasOk) expect(result.value.diagnostics.lastAction).toContain('mock-bypass');
-      // M4.F1: even on MOCK bypass, OTP-FILL must emit `ctx.otpFill`
-      // so AUTH-DISCOVERY's precedence walk has a populated slot.
-      if (wasOk) expect(result.value.otpFill.has).toBe(true);
-    } finally {
-      if (original === undefined) delete process.env.MOCK_MODE;
-      else process.env.MOCK_MODE = original;
-    }
   });
 
   it('M4.F1 carry-forward: soft-skip OTP-FILL inherits the URL from ctx.otpTrigger when present', async () => {
