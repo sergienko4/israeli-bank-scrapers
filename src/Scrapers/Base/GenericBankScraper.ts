@@ -11,12 +11,14 @@ import { runSerial } from '../../Common/Waiting.js';
 import {
   BaseScraperWithBrowser,
   type ILoginOptions,
+  type LegacyBankLookup,
   LOGIN_RESULTS,
   type PossibleLoginResults,
 } from './BaseScraperWithBrowser.js';
 import {
   type IFieldConfig,
   type ILoginConfig,
+  LOGIN_SETUP_DEFAULT,
   type SelectorCandidate,
 } from './Config/LoginConfig.js';
 import { type ScraperCredentials, type ScraperOptions } from './Interface.js';
@@ -250,6 +252,20 @@ export default class GenericBankScraper<
     });
     await runSerial(actions);
     return true;
+  }
+
+  /**
+   * Override the legacy-registry lookup. `GenericBankScraper` is the
+   * synthetic test scraper — its `companyId` is metadata only and
+   * may point at a pipeline-only bank (Discount, Beinleumi, …) that
+   * is not present in `SCRAPER_CONFIGURATION.banks`. Resolve the
+   * login-setup flags from the supplied `ILoginConfig` instead.
+   * @returns Login-setup flags from `loginConfig.loginSetup` or
+   *   the shared `LOGIN_SETUP_DEFAULT` constant.
+   */
+  protected override resolveLoginSetup(): LegacyBankLookup {
+    const loginSetup = this.loginConfig.loginSetup ?? LOGIN_SETUP_DEFAULT;
+    return { loginSetup };
   }
 
   /**

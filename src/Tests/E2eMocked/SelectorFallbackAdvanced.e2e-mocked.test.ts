@@ -3,18 +3,15 @@
  *
  * Tests labelText false-positive guard, iframe labelText, and sibling strategy.
  *
- * SKIPPED — pre-existing failure tracked for PR-206-FOLLOWUP.
- * The pipeline migration (~2026-04-13 onward) regressed selector-fallback
- * resolution: tests assert success=true but receive false because the new
- * resolver chain no longer finds fields via labelText/iframe walk paths.
- * Diagnosis + fix is a separate body of work — outside this PR's scope
- * (auth-failure watcher + bank-undefined guard + local-validation gap).
+ * Re-enabled in Phase 7.5 — GenericBankScraper now reads `loginSetup` from
+ * `ILoginConfig` directly (no legacy SCRAPER_CONFIGURATION lookup), and the
+ * selector-fallback resolver chain is restored.
  */
 import { type Browser, type Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
-import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { type ILoginConfig, LOGIN_SETUP_DEFAULT } from '../../Scrapers/Base/Config/LoginConfig.js';
 import { CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
 import { setupRequestInterception } from './Helpers/RequestInterceptor.js';
@@ -25,7 +22,7 @@ let browser: Browser;
 
 beforeAll(async () => {
   browser = await getSharedBrowser();
-}, 30000);
+}, 60000);
 
 afterAll(async () => {
   await closeSharedBrowser();
@@ -45,15 +42,12 @@ const FALSE_POSITIVE_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </div>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed the labelText
-// false-positive guard. Selector resolver no longer descends through nested
-// <p> children before checking <input placeholder>. Tracked under PR-206-FOLLOWUP.
-// Body preserved so the regression diagnosis can re-run the assertions once
-// the resolver chain is restored.
-describe.skip('labelText false-positive guard', () => {
+// Re-enabled in Phase 7.5.
+describe('labelText false-positive guard', () => {
   it('does NOT resolve <div> containing "סיסמה" in nested <p> — uses placeholder instead', async () => {
     const fpConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
+      loginSetup: LOGIN_SETUP_DEFAULT,
       fields: [
         { credentialKey: 'username', selectors: [] },
         { credentialKey: 'password', selectors: [] },
@@ -100,7 +94,7 @@ describe.skip('labelText false-positive guard', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });
 
 // ─── labelText in iframe: <label for="id"> inside an iframe ────────────────
@@ -121,13 +115,12 @@ const FRAME_LABEL_LOGIN_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed labelText
-// resolution inside cross-frame contexts. Tracked under PR-206-FOLLOWUP.
-// Body preserved for the regression diagnosis.
-describe.skip('labelText in iframe', () => {
+// Re-enabled in Phase 7.5.
+describe('labelText in iframe', () => {
   it('resolves <label for="id"> inside an iframe (Round 1)', async () => {
     const iframeLabelConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/',
+      loginSetup: LOGIN_SETUP_DEFAULT,
       fields: [
         { credentialKey: 'username', selectors: [] },
         { credentialKey: 'password', selectors: [] },
@@ -179,7 +172,7 @@ describe.skip('labelText in iframe', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });
 
 // ─── Sibling strategy: <label>text</label><input> (no for= attr) ───────────
@@ -198,13 +191,12 @@ const LABEL_SIBLING_HTML = `<!DOCTYPE html><html><body dir="rtl">
 </form>
 </body></html>`;
 
-// Skipped reason — pipeline-architecture migration regressed sibling-label
-// resolution (label without `for=` attr). Tracked under PR-206-FOLLOWUP.
-// Body preserved for the regression diagnosis.
-describe.skip('labelText sibling strategy', () => {
+// Re-enabled in Phase 7.5.
+describe('labelText sibling strategy', () => {
   it('resolves <label>text</label><input> (no for= attr) via sibling strategy', async () => {
     const siblingConfig: ILoginConfig = {
       loginUrl: 'https://test-bank.local/login',
+      loginSetup: LOGIN_SETUP_DEFAULT,
       fields: [
         { credentialKey: 'username', selectors: [] },
         { credentialKey: 'password', selectors: [] },
@@ -251,5 +243,5 @@ describe.skip('labelText sibling strategy', () => {
 
     expect(result.success).toBe(true);
     expect(result.errorMessage).toBeUndefined();
-  }, 30000);
+  }, 60000);
 });

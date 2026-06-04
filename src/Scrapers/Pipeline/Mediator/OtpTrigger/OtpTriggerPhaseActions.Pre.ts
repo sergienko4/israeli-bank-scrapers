@@ -82,19 +82,6 @@ async function probeTriggerForPre(args: IProbeTriggerArgs): Promise<ITriggerProb
   return { hasTrigger: triggerResult.found, triggerTarget };
 }
 
-/** Truthy MOCK_MODE values accepted at PRE for skipping the no-trigger fail. */
-const MOCK_MODE_TRUTHY: ReadonlySet<string> = new Set(['1', 'true']);
-
-/**
- * Returns true when the MOCK_MODE env-var is set to a truthy value.
- * @returns Whether mock-mode short-circuits the no-trigger fail.
- */
-function isMockModeEnabled(): boolean {
-  const raw = process.env.MOCK_MODE;
-  if (raw === undefined) return false;
-  return MOCK_MODE_TRUTHY.has(raw);
-}
-
 /** Bundled args for {@link buildTriggerPreDiag}. */
 interface IPreDiagArgs {
   readonly triggerTarget: IResolvedTarget | false;
@@ -137,12 +124,11 @@ type PreProc = Procedure<IPipelineContext>;
 
 /**
  * Stamp PRE diagnostics or fail loudly when no trigger was detected.
- * Mock-mode short-circuits the fail so unit harnesses can drive ACTION.
  * @param args - Bundle of context + mediator + PRE outputs.
  * @returns Failure when no trigger, otherwise context with PRE diag.
  */
 function finalizeTriggerPre(args: IFinalizePreArgs): PreProc {
-  if (!args.hasTrigger && !isMockModeEnabled()) {
+  if (!args.hasTrigger) {
     return fail(ScraperErrorTypes.Generic, 'OTP trigger not detected');
   }
   const otpTriggerPreUrl = args.mediator.getCurrentUrl();

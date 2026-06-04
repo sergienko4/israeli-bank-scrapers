@@ -6,7 +6,6 @@
  *     scored higher than the resolved ids.
  *   - F1 fail-loud message format with empty pool.
  *   - The no-mediator early-return branch (defensive guard).
- *   - The MOCK_MODE bypass valve when MOCK_MODE=1.
  *   - The PRE/ACTION/FINAL stage handlers' edge cases.
  */
 

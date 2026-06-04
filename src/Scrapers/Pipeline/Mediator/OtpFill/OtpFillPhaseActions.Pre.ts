@@ -19,14 +19,6 @@ import { OTP_FALLBACK, unwrapProbe } from '../Otp/OtpShared.js';
 import extractDeepPhoneHint from './OtpFillPhaseActions.PhoneHint.js';
 
 /**
- * True when MOCK_MODE is active — lets OTP-PRE short-circuit.
- * @returns Whether MOCK_MODE selects the offline snapshot bypass.
- */
-function isMockModeOtpActive(): boolean {
-  return process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-}
-
-/**
  * Build the OTP-FILL emit by COPYING the predecessor's
  * {@link IOtpFill.urlBeforeSubmit} forward (Mission M4.F1 baton).
  * @param input - Pipeline context (carries the predecessor emit).
@@ -72,7 +64,6 @@ function emitOptionalSkipFillPre(input: IPipelineContext): PreProc {
  * @returns Procedure with the appropriate diagnostic stamp.
  */
 function handleMissingOtpInput(input: IPipelineContext, required: boolean): PreProc {
-  if (isMockModeOtpActive()) return emitSoftSkipFillPre(input, 'otp-fill-pre (mock-bypass)');
   if (!required) return emitOptionalSkipFillPre(input);
   return fail(ScraperErrorTypes.Generic, 'OTP code input not found');
 }

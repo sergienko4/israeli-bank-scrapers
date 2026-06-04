@@ -6,8 +6,8 @@
  *   tests/snapshots/{companyId}/{previousPhase}.html
  *
  * Purpose: build a local corpus of real DOM state after each phase so
- * MockInterceptor can replay them offline. Best-effort: failures never
- * break the pipeline — a missed snapshot is not a scrape failure.
+ * downstream replay tooling can serve them offline. Best-effort: failures
+ * never break the pipeline — a missed snapshot is not a scrape failure.
  *
  * IO helpers live in SnapshotInterceptorIO.ts to keep this file under the
  * 150-line Pipeline limit.
