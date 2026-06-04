@@ -10,12 +10,23 @@ type ErrorMessageString = Brand<string, 'ErrorMessageString'>;
 
 /**
  * Safely extract a message string from an unknown thrown value.
+ *
+ * Funnels every catch-block message extraction through one helper so call
+ * sites never need a brittle `(caught as Error).message` cast.
+ * Cross-realm Errors (Node `vm`, jest VM modules, iframes) are
+ * detected via {@link isErrorLike}; non-Error / non-string values fall
+ * back to {@link safeStringify} so the contract holds even for
+ * pathological inputs whose coercion itself throws.
+ *
  * @param error - The unknown caught value.
- * @returns A string message: Error.message for Error instances, the string itself for strings, or `String(error)` for other values.
+ * @returns A string message: `Error.message` for Error-shaped values
+ *   (any realm), the original string for string inputs, or the safely
+ *   stringified form for any other value.
  */
-function toErrorMessage(error: Error | string): ErrorMessageString {
-  if (error instanceof Error) return error.message as ErrorMessageString;
-  return error as ErrorMessageString;
+function toErrorMessage(error: unknown): ErrorMessageString {
+  if (isErrorLike(error)) return error.message as ErrorMessageString;
+  if (typeof error === 'string') return error as ErrorMessageString;
+  return safeStringify(error) as ErrorMessageString;
 }
 
 /**
@@ -41,23 +52,6 @@ function safeStringify(value: unknown): string {
   }
 }
 
-/**
- * Normalise any caught value into a real `Error` instance so
- * downstream classifiers can safely read `.message`. JavaScript
- * permits `throw 'string'` / `throw 42` / `throw {…}`; a naive
- * `(caught as Error).message.includes(…)` then crashes with a
- * `TypeError`. Modules that contract "always resolves; never
- * throws" (e.g. `NavigationTransportProbe`) must funnel every
- * `catch` through this helper. Coercion failures fall back to
- * {@link UNREPRESENTABLE_ERROR} so the contract holds even for
- * pathological values whose `toString` throws.
- *
- * @param error - The unknown caught value.
- * @returns An `Error` whose `.message` reflects the original throw:
- *   the original error if already an Error, the string itself when
- *   thrown directly, or the safely-stringified form for any other
- *   value (including pathological objects whose toString throws).
- */
 /**
  * Cross-realm-safe `Error` check. `instanceof Error` returns `false`
  * for Errors created in another JS realm (Node `vm` contexts, browser

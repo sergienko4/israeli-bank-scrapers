@@ -71,7 +71,7 @@ async function parseJsonResponse<T>(
     const parsed = JSON.parse(rawText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
+    const reason = toErrorMessage(error);
     return fail(ScraperErrorTypes.Generic, `${verb} ${url} parse error: ${reason}`);
   }
 }

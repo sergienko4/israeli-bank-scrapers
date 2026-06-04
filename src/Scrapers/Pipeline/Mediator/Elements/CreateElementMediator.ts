@@ -1734,7 +1734,7 @@ function buildNavigateTo(page: Page): IElementMediator['navigateTo'] {
       await page.goto(url, opts);
       return succeed(undefined);
     } catch (error) {
-      const msg = toErrorMessage(error as Error);
+      const msg = toErrorMessage(error);
       return fail(ScraperErrorTypes.Generic, `Navigation failed: ${msg}`);
     }
   };

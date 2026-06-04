@@ -54,6 +54,47 @@ describe('toErrorMessage', () => {
     const msg = toErrorMessage(err);
     expect(msg).toBe('bad type');
   });
+
+  it('safely stringifies non-Error / non-string values', () => {
+    const nullMsg = toErrorMessage(null);
+    const undefMsg = toErrorMessage(undefined);
+    const numMsg = toErrorMessage(42);
+    const boolMsg = toErrorMessage(true);
+    const objMsg = toErrorMessage({ foo: 'bar' });
+    expect(nullMsg).toBe('null');
+    expect(undefMsg).toBe('undefined');
+    expect(numMsg).toBe('42');
+    expect(boolMsg).toBe('true');
+    expect(objMsg).toBe('[object Object]');
+  });
+
+  it('returns sentinel when value coercion throws', () => {
+    const evil = {
+      /**
+       * Pathological `toString` override — mirrors the toError sentinel
+       * tests below. `safeStringify` (called by `toErrorMessage` for
+       * non-Error / non-string inputs) must swallow this and return
+       * {@link UNREPRESENTABLE_ERROR}.
+       *
+       * @returns Never; always throws {@link FixtureBoomError}.
+       */
+      toString(): string {
+        throw new FixtureBoomError('boom');
+      },
+    };
+    const msg = toErrorMessage(evil);
+    expect(msg).toBe(UNREPRESENTABLE_ERROR);
+  });
+
+  it('detects cross-realm Errors via [[Class]] brand', () => {
+    const crossRealmError = Object.create(null) as Record<string, unknown> & {
+      [Symbol.toStringTag]?: string;
+    };
+    crossRealmError.message = 'cross-realm boom';
+    crossRealmError[Symbol.toStringTag] = 'Error';
+    const msg = toErrorMessage(crossRealmError);
+    expect(msg).toBe('cross-realm boom');
+  });
 });
 
 describe('toError — never-throws contract', () => {

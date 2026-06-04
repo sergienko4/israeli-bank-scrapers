@@ -28,7 +28,7 @@ interface IInvocationBundle {
  * @returns false sentinel for caller propagation.
  */
 function logCallbackThrow(ctx: IPipelineContext, error: unknown): boolean {
-  const message = toErrorMessage(error as Error);
+  const message = toErrorMessage(error);
   ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${message}` });
   return false;
 }

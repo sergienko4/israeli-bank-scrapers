@@ -50,7 +50,7 @@ async function invokePreHookFn(args: IInvokePreHookArgs): Promise<Procedure<stri
     const raw = (await args.fn()) as JsonValue;
     return coercePreHookResult({ raw, hook: args.hook });
   } catch (error) {
-    const message = toErrorMessage(error as Error);
+    const message = toErrorMessage(error);
     return preHookThrowFail(args.hook, message);
   }
 }

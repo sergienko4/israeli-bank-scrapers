@@ -85,7 +85,7 @@ async function runCleanupGuarded(
  * @returns Fail Procedure with the truncated message.
  */
 function handleCleanupError(error: unknown, logger: IPipelineContext['logger']): Procedure<void> {
-  const msg = toErrorMessage(error as Error).slice(0, 80);
+  const msg = toErrorMessage(error).slice(0, 80);
   logger.debug({ message: msg });
   return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
 }

@@ -22,7 +22,7 @@ type IAuthFlowCallback = (info: IAuthFlowInfo) => void | Promise<void>;
  * @returns Procedure failure wrapping the thrown error.
  */
 function buildThrowFailure<T>(label: string, error: unknown): Procedure<T> {
-  const message = toErrorMessage(error as Error);
+  const message = toErrorMessage(error);
   return fail(ScraperErrorTypes.Generic, `${PHASE_LABEL} ${label} threw: ${message}`);
 }
 

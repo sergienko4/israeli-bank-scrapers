@@ -42,7 +42,7 @@ const LOGIN_PRE_FRAME_PRELUDE: IPreludeSpec = {
  * @returns Failure procedure tagged Generic.
  */
 function failCheckReadiness(error: unknown): IProcedureFailure {
-  const msg = toErrorMessage(error as Error);
+  const msg = toErrorMessage(error);
   return fail(ScraperErrorTypes.Generic, `LOGIN PRE: checkReadiness — ${msg}`);
 }
 
@@ -101,7 +101,7 @@ async function runPreAction(config: ILoginConfig, page: Page): Promise<Procedure
     const activeFrame = await performPreAction(config.preAction, page);
     return succeed(activeFrame);
   } catch (error) {
-    const msg = toErrorMessage(error as Error);
+    const msg = toErrorMessage(error);
     return fail(ScraperErrorTypes.Generic, `LOGIN PRE: preAction — ${msg}`);
   }
 }

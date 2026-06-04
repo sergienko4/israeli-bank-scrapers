@@ -151,7 +151,7 @@ function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: stri
     const parsed = JSON.parse(env.bodyText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
+    const reason = toErrorMessage(error);
     return fail(ScraperErrorTypes.Generic, `${verb} ${url} parse error: ${reason}`);
   }
 }
@@ -232,7 +232,7 @@ async function closeOrSwallow(browser: Browser): LifecyclePromise {
     LOG.debug({ message: '[camoufox-identity] dispose' });
   } catch (error) {
     LOG.debug({
-      errorMessage: toErrorMessage(error as Error),
+      errorMessage: toErrorMessage(error),
       message: '[camoufox-identity] dispose IGNORED',
     });
   }
@@ -258,7 +258,7 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
   try {
     env = await runFetchInPage(page, fetchArgs);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
+    const reason = toErrorMessage(error);
     return fail(ScraperErrorTypes.Generic, `${args.verb} ${args.url} network error: ${reason}`);
   }
   LOG.debug({
@@ -365,7 +365,7 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
     try {
       browser = await launchCamoufox(true);
     } catch (error) {
-      const reason = toErrorMessage(error as Error);
+      const reason = toErrorMessage(error);
       LOG.debug({
         origin: safeOrigin,
         errorMessage: reason,
@@ -393,7 +393,7 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
       this._page = page;
       return succeed(page);
     } catch (error) {
-      const reason = toErrorMessage(error as Error);
+      const reason = toErrorMessage(error);
       return fail(ScraperErrorTypes.Generic, `camoufox nav failed: ${reason}`);
     }
   }

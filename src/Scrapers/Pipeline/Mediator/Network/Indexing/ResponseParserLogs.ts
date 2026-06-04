@@ -142,7 +142,7 @@ function logHandleResponseError(url: string, error: unknown): boolean {
   LOG.debug({
     event: 'handleResponse.error',
     url: maskVisibleText(url),
-    error: toErrorMessage(error as Error),
+    error: toErrorMessage(error),
   });
   return false;
 }

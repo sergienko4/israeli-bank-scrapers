@@ -29,7 +29,7 @@ async function safeRefreshOp(state: IMediatorState): Promise<Procedure<string>> 
   try {
     return await state.resolver.refresh();
   } catch (error) {
-    const message = toErrorMessage(error as Error);
+    const message = toErrorMessage(error);
     return fail(ScraperErrorTypes.Generic, `token resolver threw: ${message}`);
   }
 }
