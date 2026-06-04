@@ -508,6 +508,21 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
     selector: "CatchClause MemberExpression[property.name='message']",
     message: '🚫 ARCHITECTURE: Use toErrorMessage(error) instead of manual .message access.',
   },
+  {
+    // Phase 2 close-out — C4 catch-as-Error ban (Bucket A/B/C drained
+    // in C1-C3). TypeScript's catch parameter is `unknown` in strict
+    // mode; `error as Error` silently mislabels non-Error throws
+    // (null, undefined, primitives, plain objects, cross-realm Error,
+    // throwing toString). Use `toErrorMessage(error)` for messages or
+    // `toError(error)` for an Error handle — both from
+    // `src/Scrapers/Pipeline/Types/ErrorUtils.ts`.
+    selector: "CatchClause TSAsExpression > TSTypeReference > Identifier[name='Error']",
+    message:
+      '🚫 ARCHITECTURE: `error as Error` is banned inside catch clauses. ' +
+      'Use `toErrorMessage(error)` (for messages) or `toError(error)` (for an Error handle) ' +
+      'from `src/Scrapers/Pipeline/Types/ErrorUtils.ts` — `unknown` catch parameters can be ' +
+      'non-Error throws and the cast hides those bugs.',
+  },
 
   // Hardcoded Values Bypassing DI
   {
