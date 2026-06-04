@@ -31,6 +31,47 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 const RUNCHAIN_FAILED: ReadonlyMap<string, number | 'MISS'> = new Map();
 
 /**
+ * Look up a scripted response by composite key (`url#bodyJson`).
+ * Missing keys resolve to `null` so the extractor sees an empty body
+ * and yields MISS. Shared by both POST and GET scripted fetches.
+ * @param scripts - Map of (url+'#'+body) → response.
+ * @param key - Composite key built from url + body.
+ * @returns Procedure that always succeeds (null on miss).
+ */
+function lookupScripted(
+  scripts: ReadonlyMap<string, unknown>,
+  key: string,
+): Promise<Procedure<unknown>> {
+  const found = scripts.get(key) ?? null;
+  const procedure = succeed(found);
+  return Promise.resolve(procedure);
+}
+
+/**
+ * Build the scripted `fetchPost` for `makeFakeApi`. Splits per §19.10
+ * so the parent helper stays ≤10 lines.
+ * @param scripts - Response scripts.
+ * @returns POST fetch keyed by `url + '#' + JSON.stringify(body)`.
+ */
+function makeScriptedPost(
+  scripts: ReadonlyMap<string, unknown>,
+): (url: string, body: Record<string, unknown>) => Promise<Procedure<unknown>> {
+  return (url: string, body: Record<string, unknown>): Promise<Procedure<unknown>> =>
+    lookupScripted(scripts, `${url}#${JSON.stringify(body)}`);
+}
+
+/**
+ * Build the scripted `fetchGet` for `makeFakeApi`. Splits per §19.10.
+ * @param scripts - Response scripts.
+ * @returns GET fetch keyed by `url + '#'`.
+ */
+function makeScriptedGet(
+  scripts: ReadonlyMap<string, unknown>,
+): (url: string) => Promise<Procedure<unknown>> {
+  return (url: string): Promise<Procedure<unknown>> => lookupScripted(scripts, `${url}#`);
+}
+
+/**
  * Build a fake `IApiFetchContext` that returns scripted bodies keyed
  * by (url + '#' + JSON.stringify(body)). Missing keys resolve to
  * `succeed(null)` so the extractor sees an empty body and yields MISS.
@@ -39,32 +80,158 @@ const RUNCHAIN_FAILED: ReadonlyMap<string, number | 'MISS'> = new Map();
  * @returns Fake api context.
  */
 function makeFakeApi(scripts: ReadonlyMap<string, unknown>): IApiFetchContext {
-  /**
-   * Scripted POST fetch — looks up by url + JSON body.
-   *
-   * @param url - URL.
-   * @param body - JSON-encoded body.
-   * @returns Scripted procedure (always succeed; null on miss).
-   */
-  const fetchPost = (url: string, body: Record<string, unknown>): Promise<Procedure<unknown>> => {
-    const key = `${url}#${JSON.stringify(body)}`;
-    const found = scripts.get(key) ?? null;
-    const procedure = succeed(found);
-    return Promise.resolve(procedure);
-  };
-  /**
-   * Scripted GET fetch — looks up by url only.
-   *
-   * @param url - URL.
-   * @returns Scripted procedure (always succeed; null on miss).
-   */
-  const fetchGet = (url: string): Promise<Procedure<unknown>> => {
-    const key = `${url}#`;
-    const found = scripts.get(key) ?? null;
-    const procedure = succeed(found);
-    return Promise.resolve(procedure);
-  };
+  const fetchPost = makeScriptedPost(scripts);
+  const fetchGet = makeScriptedGet(scripts);
   return { fetchPost, fetchGet, transactionsUrl: false, balanceUrl: false } as IApiFetchContext;
+}
+
+/** Account stub shape consumed by the SCRAPE option. */
+interface IAccountStub {
+  accountNumber: string;
+  balance: number;
+  txns: never[];
+}
+
+/**
+ * Build a single zero-balance, zero-txn account stub for a given identity.
+ * @param id - Account identifier (map key).
+ * @returns Placeholder account.
+ */
+function makeIAccountStub(id: string): IAccountStub {
+  return { accountNumber: id, balance: 0, txns: [] };
+}
+
+/**
+ * Build the zero-balance account stubs consumed by the SCRAPE option.
+ * Split from buildInitialCtx per §19.10 (≤10 lines).
+ * @param identities - Per-card identities (SCRAPE.post emission).
+ * @returns One placeholder account per identity (balance 0, no txns).
+ */
+function buildAccountsFromIdentities(
+  identities: ReadonlyMap<string, IAccountIdentity>,
+): readonly IAccountStub[] {
+  return [...identities.keys()].map(makeIAccountStub);
+}
+
+/** Payload bundled by SCRAPE for the PRE → ACTION accounts handoff. */
+interface IScrapeOptionPayload {
+  accounts: readonly IAccountStub[];
+  accountIdentities: ReadonlyMap<string, IAccountIdentity>;
+  balanceFetchTemplate: IBalanceFetchTemplate;
+}
+
+/**
+ * Inner-payload builder for buildScrapeOption. Split out so the parent
+ * stays ≤10 lines once prettier expands the explicit-typed literal.
+ * @param identities - Per-card identities.
+ * @param template - Fetch template.
+ * @returns Payload to wrap in some().
+ */
+function buildScrapePayload(
+  identities: ReadonlyMap<string, IAccountIdentity>,
+  template: IBalanceFetchTemplate,
+): IScrapeOptionPayload {
+  const accounts = buildAccountsFromIdentities(identities);
+  return { accounts, accountIdentities: identities, balanceFetchTemplate: template };
+}
+
+/**
+ * Build the SCRAPE option that pre-seeds identities + template for PRE.
+ * Split from buildInitialCtx per §19.10 (≤10 lines).
+ * @param identities - Per-card identities (SCRAPE.post emission).
+ * @param template - Fetch template (SCRAPE.post emission).
+ * @returns Option<IScrapeOptionPayload> threaded into the initial context.
+ */
+function buildScrapeOption(
+  identities: ReadonlyMap<string, IAccountIdentity>,
+  template: IBalanceFetchTemplate,
+): ReturnType<typeof some<IScrapeOptionPayload>> {
+  const payload = buildScrapePayload(identities, template);
+  return some(payload);
+}
+
+/**
+ * Build the API option (scripted fake api wrapped in some()).
+ * Split from buildInitialCtx per §19.10 (≤10 lines) and to dodge the
+ * FORBIDDEN-NESTED-CALL rule.
+ * @param scripts - Response scripts.
+ * @returns Option<IApiFetchContext>.
+ */
+function buildApiOption(
+  scripts: ReadonlyMap<string, unknown>,
+): ReturnType<typeof some<IApiFetchContext>> {
+  const fakeApi = makeFakeApi(scripts);
+  return some(fakeApi);
+}
+
+/**
+ * Build the initial PipelineContext consumed by the BALANCE-RESOLVE chain
+ * (scrape + api options pre-seeded with identities + a scripted fake api).
+ * @param identities - Per-card identities (SCRAPE.post emission).
+ * @param template - Fetch template (SCRAPE.post emission).
+ * @param scripts - API response scripts.
+ * @returns Pipeline context ready for executeBalanceResolvePre.
+ */
+function buildInitialCtx(
+  identities: ReadonlyMap<string, IAccountIdentity>,
+  template: IBalanceFetchTemplate,
+  scripts: ReadonlyMap<string, unknown>,
+): ReturnType<typeof makeMockContext> {
+  const scrape = buildScrapeOption(identities, template);
+  const api = buildApiOption(scripts);
+  return makeMockContext({ scrape, api });
+}
+
+/** Action-stage Ok value (kept narrow for downstream type discrimination). */
+type ActionOkValue = Extract<
+  Awaited<ReturnType<typeof executeBalanceResolveAction>>,
+  { success: true }
+>['value'];
+
+/** Discriminated stage outcome — fail-loud sentinel without null/undefined. */
+type StageOutcome = { kind: 'ok'; value: ActionOkValue } | { kind: 'fail' };
+
+/**
+ * Run the ACTION → POST tail of the chain starting from a PRE-stage success.
+ * Threads `actionResult.value` into POST and returns the POST-stage value
+ * (CR cycle 2 fix — consumers read the post-stage shape).
+ * @param preValue - The IPipelineContext returned by executeBalanceResolvePre.
+ * @returns Discriminated stage outcome carrying the post-stage value.
+ */
+async function runActionPost(preValue: ActionOkValue): Promise<StageOutcome> {
+  const actionResult = await executeBalanceResolveAction(preValue);
+  if (!isOk(actionResult)) return { kind: 'fail' };
+  const postCtx = actionResult.value as unknown as Parameters<typeof executeBalanceResolvePost>[0];
+  const postResult = await executeBalanceResolvePost(postCtx);
+  if (!isOk(postResult)) return { kind: 'fail' };
+  return { kind: 'ok', value: postResult.value as unknown as ActionOkValue };
+}
+
+/**
+ * Run pre → action → post and return the post-stage Ok value, or a
+ * fail sentinel when any stage failed. Centralises the isOk-guard +
+ * as-unknown-as recast pattern so the orchestrator stays branch-free
+ * inside the test-helper statement cap.
+ * @param ctx - Initial pipeline context.
+ * @returns Discriminated stage outcome.
+ */
+async function runPreActionPost(ctx: ReturnType<typeof makeMockContext>): Promise<StageOutcome> {
+  const preResult = await executeBalanceResolvePre(ctx);
+  if (!isOk(preResult)) return { kind: 'fail' };
+  return runActionPost(preResult.value as unknown as ActionOkValue);
+}
+
+/**
+ * Extract the final `balanceExtracted` map from a successful pipeline
+ * outcome. Returns the failure sentinel when the option is empty so
+ * the caller stays branch-free.
+ * @param outcome - Outcome from runPreActionPost.
+ * @returns Extracted balance map or RUNCHAIN_FAILED.
+ */
+function extractBalanceMap(outcome: StageOutcome): ReadonlyMap<string, number | 'MISS'> {
+  if (outcome.kind === 'fail') return RUNCHAIN_FAILED;
+  if (!outcome.value.balanceExtracted.has) return RUNCHAIN_FAILED;
+  return outcome.value.balanceExtracted.value;
 }
 
 /**
@@ -82,27 +249,9 @@ async function runChain(
   template: IBalanceFetchTemplate,
   scripts: ReadonlyMap<string, unknown>,
 ): Promise<ReadonlyMap<string, number | 'MISS'>> {
-  const accounts = [...identities.keys()].map(
-    (id): { accountNumber: string; balance: number; txns: never[] } => ({
-      accountNumber: id,
-      balance: 0,
-      txns: [],
-    }),
-  );
-  const scrape = some({ accounts, accountIdentities: identities, balanceFetchTemplate: template });
-  const fakeApi = makeFakeApi(scripts);
-  const api = some(fakeApi);
-  const ctx = makeMockContext({ scrape, api });
-  const preResult = await executeBalanceResolvePre(ctx);
-  if (!isOk(preResult)) return RUNCHAIN_FAILED;
-  const actionCtx = preResult.value as unknown as Parameters<typeof executeBalanceResolveAction>[0];
-  const actionResult = await executeBalanceResolveAction(actionCtx);
-  if (!isOk(actionResult)) return RUNCHAIN_FAILED;
-  const postCtx = actionResult.value as unknown as Parameters<typeof executeBalanceResolvePost>[0];
-  const postResult = await executeBalanceResolvePost(postCtx);
-  if (!isOk(postResult)) return RUNCHAIN_FAILED;
-  if (!actionResult.value.balanceExtracted.has) return RUNCHAIN_FAILED;
-  return actionResult.value.balanceExtracted.value;
+  const ctx = buildInitialCtx(identities, template, scripts);
+  const outcome = await runPreActionPost(ctx);
+  return extractBalanceMap(outcome);
 }
 
 const HAPOALIM_TEMPLATE: IBalanceFetchTemplate = {
