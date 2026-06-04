@@ -277,9 +277,47 @@ class BaseScraperWithBrowser<
   }
 
   /**
+   * Build the login context capturing page/frame/setup for the chain.
+   * @param loginSetup - Resolved login-setup capability flags.
+   * @returns The login context shared across all chain steps.
+   */
+  private createLoginContext(loginSetup: LegacyLoginSetup): ILoginContext {
+    return { page: this.page, activeFrame: this.page, loginSetup };
+  }
+
+  /**
+   * Compose the ordered login-chain steps for the given options + ctx.
+   * @param loginOptions - Bank-resolved login options.
+   * @param ctx - Shared login context.
+   * @returns Named steps ready for sequential execution.
+   */
+  private buildLoginSteps(loginOptions: ILoginOptions, ctx: ILoginContext): INamedLoginStep[] {
+    const stepCtx = this.buildStepContext();
+    return buildLoginChain(stepCtx, loginOptions, ctx);
+  }
+
+  /**
+   * Run the chain; if it short-circuits with a result return that,
+   * otherwise resolve via the post-chain result-context fallback.
+   * @param steps - Ordered chain steps.
+   * @param ctx - Shared login context.
+   * @param loginOptions - Bank-resolved login options (for possibleResults).
+   * @returns The scraping result after chain + fallback resolution.
+   */
+  private async resolveLoginResult(
+    steps: INamedLoginStep[],
+    ctx: ILoginContext,
+    loginOptions: ILoginOptions,
+  ): Promise<IScraperScrapingResult> {
+    const chainResult = await runLoggedChain(steps, ctx, this.bankLog);
+    if (chainResult !== null) return chainResult;
+    const resultCtx = this.loginResultCtx();
+    return resolveAndBuildLoginResult(resultCtx, loginOptions.possibleResults);
+  }
+
+  /**
    * Build the login context, run the chain, and return the result.
-   * Extracted helper so `login()` stays within the project's 10-line
-   * function cap.
+   * Three-helper split per the project's ≤10-line cap.
    * @param loginOptions - Bank-resolved login options (URL, fields, …).
    * @param loginSetup - Resolved login-setup capability flags.
    * @returns The scraping result after the login chain completes.
@@ -288,13 +326,9 @@ class BaseScraperWithBrowser<
     loginOptions: ILoginOptions,
     loginSetup: LegacyLoginSetup,
   ): Promise<IScraperScrapingResult> {
-    const ctx: ILoginContext = { page: this.page, activeFrame: this.page, loginSetup };
-    const stepCtx = this.buildStepContext();
-    const steps: INamedLoginStep[] = buildLoginChain(stepCtx, loginOptions, ctx);
-    const chainResult = await runLoggedChain(steps, ctx, this.bankLog);
-    if (chainResult !== null) return chainResult;
-    const resultCtx = this.loginResultCtx();
-    return resolveAndBuildLoginResult(resultCtx, loginOptions.possibleResults);
+    const ctx = this.createLoginContext(loginSetup);
+    const steps = this.buildLoginSteps(loginOptions, ctx);
+    return this.resolveLoginResult(steps, ctx, loginOptions);
   }
 
   /**
