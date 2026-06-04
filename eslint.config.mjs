@@ -228,6 +228,96 @@ const NO_DIRECT_SCREENSHOT_RULE = {
     'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The src/Common/SafeScreenshot.ts shim is deprecated since v8.5; new imports MUST use the canonical Pipeline path.',
 };
 
+// §19.9 TEST-HELPER STATEMENT CAP — fires on any `function foo() { ...11+ stmts }`
+// inside `src/Tests/**`. Scoped to `FunctionDeclaration` so legitimate
+// `describe('...', () => { ... })` / `it('...', () => { ... })` /
+// `it.each(cases)('...', (...) => { ... })` arrow callbacks stay
+// excluded (their bodies are ArrowFunctionExpression nodes). Drives
+// helper extraction without touching natural test-block length.
+//
+// Selector `[id.name]` constraint: only named FunctionDeclarations
+// trigger. Anonymous `export default function() {}` form (rare) is
+// excluded per CR cycle 2 finding — defaults are caught by §6 default-
+// export ban anyway.
+//
+// Why a separate const (not embedded in RESTRICTED_SYNTAX_RULES):
+// the shared set is also used by production scopes, where this rule
+// would double-fire alongside `max-statements:10` (and over-fire vs
+// grandfather caps in §19.1-§19.5). Keeping it test-only avoids
+// redundant noise in production lint output.
+const TEST_HELPER_OVER_10_STMTS_RULE = {
+  selector: 'FunctionDeclaration[id.name][body.body.length>10]',
+  message:
+    '🚫 §19.9 TEST HELPER CAP: Named test helper functions cannot exceed 10 statements. Extract focused sub-helpers (Extract Function) so each helper does one thing. Arrow callbacks of describe/it/it.each are exempt (only FunctionDeclaration fires).',
+};
+
+// §19.10 TEST-HELPER LINE CAP — fires on any
+// `function foo() { ...12+ lines }` inside the Phase 9 files. Complements
+// §19.9 (which counts statements only). CR cycle 2 exposed the gap:
+// a helper of 21 lines / 5 statements slipped through §19.9 because the
+// AST selector grammar cannot compute `loc.end.line - loc.start.line`.
+//
+// Implemented as a tiny inline plugin (ESLint v9 flat-config supports
+// this via `plugins: { 'phase9-local': ... }`) because the built-in
+// `max-lines-per-function` rule cannot filter by AST node type, and
+// enabling it globally on `src/Tests/**` would fire on every long
+// `describe`/`it` arrow callback (3,049 violators per AST audit).
+//
+// Scope: Phase 9's 6 touched files only. A future "Phase 10 — Tests
+// strict 10/10" master plan extends the `files:` glob in waves
+// (analogous to §19.1→§19.5 grandfather drains in production).
+const phase9LocalPlugin = {
+  meta: { name: 'phase9-local', version: '1.0.0' },
+  rules: {
+    'fn-declaration-max-lines': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Cap named FunctionDeclaration bodies by total line count (excludes arrow callbacks of describe/it/it.each).',
+        },
+        messages: {
+          tooLong:
+            "🚫 §19.10 TEST HELPER LINE CAP: Named test helper '{{name}}' is {{lines}} lines (max {{max}}). Extract focused sub-helpers (Extract Function). Arrow callbacks of describe/it/it.each are exempt (only FunctionDeclaration fires).",
+        },
+        schema: [
+          {
+            type: 'object',
+            properties: { max: { type: 'integer', minimum: 1 } },
+            additionalProperties: false,
+          },
+        ],
+      },
+      create(context) {
+        const max = (context.options[0] && context.options[0].max) || 10;
+        return {
+          FunctionDeclaration(node) {
+            if (!node.id || !node.loc) return;
+            const lines = node.loc.end.line - node.loc.start.line + 1;
+            if (lines > max) {
+              context.report({
+                node,
+                messageId: 'tooLong',
+                data: { name: node.id.name, lines: String(lines), max: String(max) },
+              });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
+// §19.10 enforcement scope — Phase 9 6 files. Extend in Phase 10.
+const PHASE_9_TEST_FILES = [
+  'src/Tests/E2eReal/Helpers.ts',
+  'src/Tests/E2eReal/Tools/CaptureInvalidLogin.ts',
+  'src/Tests/Tools/probe-beinleumi-nth.ts',
+  'src/Tests/Unit/Pipeline/Infrastructure/DashboardPhase.test.ts',
+  'src/Tests/Unit/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryFactoryTest.test.ts',
+  'src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts',
+];
+
 const RESTRICTED_SYNTAX_RULES_NEW = [
   // 1. Coverage Bypasses
   {
@@ -770,8 +860,8 @@ export default tseslint.config(
       // jsdoc/check-tag-names does not reject it.
       'jsdoc/check-tag-names': ['error', { definedTags: ['jest-environment'] }],
 
-      //🚨 Prevent the 'as never' / 'as any' bypass in mocks
-      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES],
+      //🚨 Prevent the 'as never' / 'as any' bypass in mocks + §19.9 test-helper cap
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, TEST_HELPER_OVER_10_STMTS_RULE],
     },
   },
 
@@ -835,6 +925,7 @@ export default tseslint.config(
           selector: "CallExpression[callee.object.name='page']",
           message: "🚫 Rule #10: Direct calls to 'page' are forbidden. Use ctx.mediator instead.",
         },
+        TEST_HELPER_OVER_10_STMTS_RULE,
       ],
     },
   },
@@ -2342,6 +2433,45 @@ export default tseslint.config(
     files: ['src/Tests/**/*.ts'],
     rules: {
       'max-statements': ['error', 30],
+    },
+  },
+
+  // 19.9 CANARY — TEST-HELPER FUNCTION-DECLARATION ≤10-STMT CAP.
+  //
+  // The §19.9 rule (defined inline in §4 + §5) bans
+  // FunctionDeclaration bodies > 10 stmts inside `src/Tests/**`.
+  // This canary-only block re-enables the rule on a single fixture
+  // under `EslintCanaries/` (globally ignored at line 539) so
+  // `verify.sh` can confirm the guardrail stays armed.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/test-helper-over-10-stmts.canary.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', TEST_HELPER_OVER_10_STMTS_RULE],
+    },
+  },
+
+  // 19.10 TEST-HELPER LINE CAP — `fn-declaration-max-lines:10` on the
+  // 6 Phase 9 files. Closes the lines-vs-statements gap CR cycle 2
+  // exposed (named helpers of 21 lines / 5 stmts slipped through §19.9
+  // because AST selectors cannot compute line counts). Phase 10 master
+  // plan extends the `files:` glob to all `src/Tests/**` in waves.
+  {
+    files: PHASE_9_TEST_FILES,
+    plugins: { 'phase9-local': phase9LocalPlugin },
+    rules: {
+      'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
+    },
+  },
+
+  // 19.10 CANARY — re-enable the rule on a single fixture under
+  // `EslintCanaries/` (globally ignored at line 539) so `verify.sh` can
+  // confirm the guardrail stays armed. Fixture is 12 lines / 5 stmts —
+  // proves §19.10 fires on a function §19.9 would miss.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/test-helper-over-10-lines.canary.ts'],
+    plugins: { 'phase9-local': phase9LocalPlugin },
+    rules: {
+      'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
     },
   },
 );

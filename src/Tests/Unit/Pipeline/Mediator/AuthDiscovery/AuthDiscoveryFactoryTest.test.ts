@@ -170,6 +170,196 @@ const BANK_FIXTURES: readonly IBankFixture[] = [
   },
 ];
 
+/** Default cookie metadata applied uniformly to every fixture cookie. */
+const COOKIE_DEFAULTS = {
+  value: 'redacted',
+  domain: 'example.bank',
+  path: '/',
+  expires: -1,
+  httpOnly: true,
+  secure: true,
+  sameSite: 'None',
+} as const;
+
+/**
+ * Build a single cookie snapshot from a fixture cookie name. Mock
+ * metadata is sourced from COOKIE_DEFAULTS. Extracted per §19.10.
+ * @param name - Cookie name from the fixture.
+ * @returns Cookie snapshot with default mock metadata applied.
+ */
+function cookieFromName(name: string): ICookieSnapshot {
+  return { name, ...COOKIE_DEFAULTS };
+}
+
+/**
+ * Build the per-bank cookie snapshots consumed by `makeFixtureMediator`.
+ * Extracted per §19.10 (≤10 lines) so the parent helper stays short.
+ * @param cookieNames - Fixture cookie names (only the name matters here).
+ * @returns Cookie snapshot array with mock metadata applied uniformly.
+ */
+function buildCookieSnapshots(cookieNames: readonly string[]): readonly ICookieSnapshot[] {
+  return cookieNames.map(cookieFromName);
+}
+
+/** Synthetic dashboard candidate emitted by the reveal stub. */
+const REVEALED_RESULT = {
+  found: true,
+  candidate: { kind: 'textContent', value: 'יתרה' },
+} as const;
+
+/** Sentinel emitted when the fixture has no dashboard reveal. */
+const NOT_REVEALED_RESULT = { found: false, candidate: false } as const;
+
+/**
+ * Build the `resolveVisible` stub for `makeFixtureMediator`. Returns a
+ * positive resolve when the fixture advertises a dashboard reveal, the
+ * not-found sentinel otherwise. Extracted per §19.10.
+ * @param fixture - Per-bank fixture (only `dashboardRevealed` is read).
+ * @returns Mediator-shaped resolveVisible stub.
+ */
+function buildResolveVisibleStub(fixture: IBankFixture): () => Promise<unknown> {
+  return (): Promise<unknown> =>
+    Promise.resolve(fixture.dashboardRevealed ? REVEALED_RESULT : NOT_REVEALED_RESULT);
+}
+
+/** Shape of the `network` sub-object on the fixture mediator. */
+interface IAuthDiscoveryNetworkStub {
+  getAllEndpoints: () => readonly [];
+  discoverAuthToken: () => Promise<string | false>;
+  discoverOrigin: () => string | false;
+  discoverSiteId: () => string | false;
+  buildDiscoveredHeaders: () => Promise<IFetchOpts>;
+}
+
+/**
+ * Empty endpoint pool stub — PRE counts captures only.
+ * Extracted per §19.10 so `buildNetworkStub` stays compact.
+ * @returns Thunk that returns the empty tuple.
+ */
+function makeEmptyEndpointsGetter(): () => readonly [] {
+  return (): readonly [] => [];
+}
+
+/**
+ * Fixture-scoped auth-token discovery stub.
+ * @param fixture - Per-bank fixture (only `authToken` is read).
+ * @returns Thunk that resolves to the fixture token.
+ */
+function makeAuthTokenGetter(fixture: IBankFixture): () => Promise<string | false> {
+  return (): Promise<string | false> => Promise.resolve(fixture.authToken);
+}
+
+/**
+ * Fixture-scoped origin discovery stub.
+ * @param fixture - Per-bank fixture (only `origin` is read).
+ * @returns Thunk that returns the fixture origin.
+ */
+function makeOriginGetter(fixture: IBankFixture): () => string | false {
+  return (): string | false => fixture.origin;
+}
+
+/**
+ * Fixture-scoped site-id discovery stub.
+ * @param fixture - Per-bank fixture (only `siteId` is read).
+ * @returns Thunk that returns the fixture siteId.
+ */
+function makeSiteIdGetter(fixture: IBankFixture): () => string | false {
+  return (): string | false => fixture.siteId;
+}
+
+/**
+ * Fixture-scoped fetch-header builder stub.
+ * @param fetchOpts - Pre-built fetch opts (headers merged in).
+ * @returns Thunk that resolves to the fetch opts.
+ */
+function makeDiscoveredHeadersBuilder(fetchOpts: IFetchOpts): () => Promise<IFetchOpts> {
+  return (): Promise<IFetchOpts> => Promise.resolve(fetchOpts);
+}
+
+/**
+ * Build the `network` sub-object for `makeFixtureMediator`. Implements
+ * only the surface AUTH-DISCOVERY touches. Extracted per §19.10.
+ * @param fixture - Per-bank fixture.
+ * @param fetchOpts - Pre-built fetch opts for buildDiscoveredHeaders.
+ * @returns Network helper bundle (5 stubs).
+ */
+function buildNetworkStub(fixture: IBankFixture, fetchOpts: IFetchOpts): IAuthDiscoveryNetworkStub {
+  return {
+    getAllEndpoints: makeEmptyEndpointsGetter(),
+    discoverAuthToken: makeAuthTokenGetter(fixture),
+    discoverOrigin: makeOriginGetter(fixture),
+    discoverSiteId: makeSiteIdGetter(fixture),
+    buildDiscoveredHeaders: makeDiscoveredHeadersBuilder(fetchOpts),
+  };
+}
+
+/** Settle sentinel emitted by buildSettleStub (avoids returning undefined). */
+const SETTLE_OK_SENTINEL = { success: true as const, value: 'settled' as const };
+
+/**
+ * Build a no-op `waitForNetworkIdle` stub. AUTH-DISCOVERY.PRE awaits it
+ * before inventorying the capture pool — instant resolve dodges the
+ * real timer cost in unit-test land. Extracted per §19.10.
+ * @returns Mediator-shaped waitForNetworkIdle stub.
+ */
+function buildSettleStub(): () => Promise<typeof SETTLE_OK_SENTINEL> {
+  return (): Promise<typeof SETTLE_OK_SENTINEL> => Promise.resolve(SETTLE_OK_SENTINEL);
+}
+
+/**
+ * Build a `getCurrentUrl` stub returning the empty-string "test path"
+ * sentinel — the FINAL gate disables the URL-change check when either
+ * side is `''` so the gate decides on REVEAL alone. Extracted per §19.10.
+ * @returns Mediator-shaped getCurrentUrl stub.
+ */
+function buildUrlStub(): () => string {
+  return (): string => '';
+}
+
+/**
+ * Build the `getCookies` stub for `makeFixtureMediator`. Extracted per
+ * §19.10 so the parent factory stays under the line cap.
+ * @param cookieSnapshots - Pre-built cookie snapshots from the fixture.
+ * @returns Mediator-shaped getCookies stub.
+ */
+function buildGetCookiesStub(
+  cookieSnapshots: readonly ICookieSnapshot[],
+): () => Promise<readonly ICookieSnapshot[]> {
+  return (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookieSnapshots);
+}
+
+/** Internal shape of the assembled mediator stub before IElementMediator cast. */
+interface IFixtureMediatorStub {
+  getCookies: () => Promise<readonly ICookieSnapshot[]>;
+  resolveVisible: () => Promise<unknown>;
+  network: IAuthDiscoveryNetworkStub;
+  waitForNetworkIdle: () => Promise<typeof SETTLE_OK_SENTINEL>;
+  getCurrentUrl: () => string;
+}
+
+/** Params bundle for `assembleMediatorStub`. */
+interface IAssembleStubParams {
+  cookieSnapshots: readonly ICookieSnapshot[];
+  fixture: IBankFixture;
+  fetchOpts: IFetchOpts;
+}
+
+/**
+ * Assemble the fixture-mediator stub from its 5 component sub-builders.
+ * Extracted per §19.10 so `makeFixtureMediator` stays ≤10 lines.
+ * @param params - Pre-built inputs (cookies, fixture, fetch opts).
+ * @returns Stub object ready for the final IElementMediator cast.
+ */
+function assembleMediatorStub(params: IAssembleStubParams): IFixtureMediatorStub {
+  return {
+    getCookies: buildGetCookiesStub(params.cookieSnapshots),
+    resolveVisible: buildResolveVisibleStub(params.fixture),
+    network: buildNetworkStub(params.fixture, params.fetchOpts),
+    waitForNetworkIdle: buildSettleStub(),
+    getCurrentUrl: buildUrlStub(),
+  };
+}
+
 /**
  * Build a per-bank mock mediator that returns the fixture's
  * cookies + network helper outputs + dashboard reveal result. Type
@@ -185,86 +375,44 @@ const BANK_FIXTURES: readonly IBankFixture[] = [
  * @returns Mediator stub.
  */
 function makeFixtureMediator(fixture: IBankFixture): IElementMediator {
-  const cookieSnapshots: readonly ICookieSnapshot[] = fixture.cookieNames.map(
-    (name): ICookieSnapshot =>
-      ({
-        name,
-        value: 'redacted',
-        domain: 'example.bank',
-        path: '/',
-        expires: -1,
-        httpOnly: true,
-        secure: true,
-        sameSite: 'None',
-      }) as ICookieSnapshot,
-  );
+  const cookieSnapshots = buildCookieSnapshots(fixture.cookieNames);
   const fetchOpts: IFetchOpts = { extraHeaders: fixture.headers };
-  return {
-    /**
-     * Return the fixture cookies.
-     * @returns Cookie snapshots.
-     */
-    getCookies: (): Promise<readonly ICookieSnapshot[]> => Promise.resolve(cookieSnapshots),
-    /**
-     * Reveal probe — returns a found result with a synthetic
-     * dashboard candidate when `dashboardRevealed=true`, else a
-     * not-found shape (probeDashboardReveal returns 'no reveal'
-     * for the not-found case).
-     * @returns Resolve-visible result.
-     */
-    resolveVisible: (): Promise<unknown> => {
-      if (!fixture.dashboardRevealed) {
-        return Promise.resolve({ found: false, candidate: false });
-      }
-      return Promise.resolve({
-        found: true,
-        candidate: { kind: 'textContent', value: 'יתרה' },
-      });
-    },
-    network: {
-      /**
-       * Empty endpoint pool — PRE counts captures only.
-       * @returns Empty array.
-       */
-      getAllEndpoints: (): readonly [] => [],
-      /**
-       * Fixture-scoped auth-token discovery stub.
-       * @returns Fixture token (string | false).
-       */
-      discoverAuthToken: (): Promise<string | false> => Promise.resolve(fixture.authToken),
-      /**
-       * Fixture-scoped origin discovery stub.
-       * @returns Fixture origin (string | false).
-       */
-      discoverOrigin: (): string | false => fixture.origin,
-      /**
-       * Fixture-scoped site-id discovery stub.
-       * @returns Fixture siteId (string | false).
-       */
-      discoverSiteId: (): string | false => fixture.siteId,
-      /**
-       * Fixture-scoped fetch-header builder stub.
-       * @returns Fixture headers wrapped in IFetchOpts.
-       */
-      buildDiscoveredHeaders: (): Promise<IFetchOpts> => Promise.resolve(fetchOpts),
-    },
-    /**
-     * No-op settle wait — AUTH-DISCOVERY.PRE awaits this before
-     * inventorying the capture pool. Resolves immediately so the
-     * factory test does not pay a real timer in unit-test land.
-     * @returns Resolved succeed.
-     */
-    waitForNetworkIdle: () => Promise.resolve({ success: true as const, value: undefined }),
-    /**
-     * Synchronous URL probe — AUTH-DISCOVERY.FINAL reads it during
-     * the M4.F1 dashboard gate. Empty string is the "test path"
-     * sentinel: the predicate disables the URL-change check when
-     * either side is `''`, so the gate decides on REVEAL alone here.
-     *
-     * @returns Empty string — opts the fixture out of the URL gate.
-     */
-    getCurrentUrl: (): string => '',
-  } as unknown as IElementMediator;
+  const stub = assembleMediatorStub({ cookieSnapshots, fixture, fetchOpts });
+  return stub as unknown as IElementMediator;
+}
+
+/**
+ * Execute one AUTH-DISCOVERY phase step and assert the result was Ok.
+ * Centralises the isOk + ok-expect + Ok-unwrap pattern so the chain
+ * orchestrator stays within the test-helper statement cap.
+ * @param label - Phase step label ('PRE' | 'POST' | 'FINAL') for jest output.
+ * @param result - Procedure returned by the phase executor.
+ * @param fallback - Context to return when result wasn't Ok (unreachable
+ * in green path; satisfies type narrowing).
+ * @returns Unwrapped context.
+ */
+function expectOkAndUnwrap(
+  label: string,
+  result: Awaited<ReturnType<typeof executeAuthDiscoveryPre>>,
+  fallback: IPipelineContext,
+): IPipelineContext {
+  const isStepOk = isOk(result);
+  // jest's expect carries the label in the diff so the failing phase is obvious.
+  expect({ label, isOk: isStepOk }).toEqual({ label, isOk: true });
+  return result.success ? result.value : fallback;
+}
+
+/**
+ * Build the initial AUTH-DISCOVERY pipeline context wired to the
+ * fixture mediator. Extracted per §19.10 so runAuthDiscoveryChain
+ * stays ≤10 lines.
+ * @param fixture - Per-bank fixture.
+ * @returns Pipeline context with the mediator option populated.
+ */
+function buildAuthDiscoveryCtx(fixture: IBankFixture): IPipelineContext {
+  const baseCtx = makeMockContext();
+  const mediator = makeFixtureMediator(fixture);
+  return { ...baseCtx, mediator: { has: true, value: mediator } };
 }
 
 /**
@@ -274,24 +422,13 @@ function makeFixtureMediator(fixture: IBankFixture): IElementMediator {
  * @returns Final pipeline context after FINAL.
  */
 async function runAuthDiscoveryChain(fixture: IBankFixture): Promise<IPipelineContext> {
-  const baseCtx = makeMockContext();
-  const mediator = makeFixtureMediator(fixture);
-  const ctx: IPipelineContext = {
-    ...baseCtx,
-    mediator: { has: true, value: mediator },
-  };
+  const ctx = buildAuthDiscoveryCtx(fixture);
   const preResult = await executeAuthDiscoveryPre(ctx);
-  const isPreOk = isOk(preResult);
-  expect(isPreOk).toBe(true);
-  const preCtx = preResult.success ? preResult.value : ctx;
+  const preCtx = expectOkAndUnwrap('PRE', preResult, ctx);
   const postResult = await executeAuthDiscoveryPost(preCtx);
-  const isPostOk = isOk(postResult);
-  expect(isPostOk).toBe(true);
-  const postCtx = postResult.success ? postResult.value : ctx;
+  const postCtx = expectOkAndUnwrap('POST', postResult, ctx);
   const finalResult = await executeAuthDiscoveryFinal(postCtx);
-  const isFinalOk = isOk(finalResult);
-  expect(isFinalOk).toBe(true);
-  return finalResult.success ? finalResult.value : ctx;
+  return expectOkAndUnwrap('FINAL', finalResult, ctx);
 }
 
 describe('Mission 1 — AuthDiscoveryFactoryTest cross-bank coverage', () => {

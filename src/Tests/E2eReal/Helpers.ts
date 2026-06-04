@@ -45,6 +45,23 @@ function isPlaywrightAddPageErrorFalsePositive(err: Error): boolean {
 }
 
 /**
+ * The uncaughtException listener body for the Playwright filter.
+ * Swallows the known false-positive teardown TypeError; re-throws others
+ * so jest still fails the run.
+ * @param err - Uncaught error.
+ * @returns True when the error was the known Playwright false positive.
+ */
+function handlePlaywrightUncaught(err: Error): boolean {
+  if (isPlaywrightAddPageErrorFalsePositive(err)) {
+    // Known Playwright-internal teardown TypeError — scrape already
+    // completed; let the test's assertions decide pass/fail.
+    return true;
+  }
+  // Any other uncaught error — re-emit so jest still fails the run.
+  throw err;
+}
+
+/**
  * Install the Playwright `addPageError` uncaughtException filter.
  * Idempotent — safe to call from every test file's import surface.
  * @returns True once installed (or already installed).
@@ -52,15 +69,7 @@ function isPlaywrightAddPageErrorFalsePositive(err: Error): boolean {
 function installPlaywrightAddPageErrorFilter(): boolean {
   if (isPlaywrightFilterInstalled) return true;
   isPlaywrightFilterInstalled = true;
-  process.on('uncaughtException', (err: Error): boolean => {
-    if (isPlaywrightAddPageErrorFalsePositive(err)) {
-      // Known Playwright-internal teardown TypeError — scrape already
-      // completed; let the test's assertions decide pass/fail.
-      return true;
-    }
-    // Any other uncaught error — re-emit so jest still fails the run.
-    throw err;
-  });
+  process.on('uncaughtException', handlePlaywrightUncaught);
   return true;
 }
 
@@ -82,6 +91,65 @@ const FAILED_LOGIN_TYPES: string[] = [
 ];
 
 /**
+ * Assert that a result reports no error (typed result.errorType +
+ * errorMessage both empty). Extracted from assertSuccessfulScrape to
+ * keep the orchestrator within the test-helper statement cap.
+ * @param result - the scraper result to validate
+ * @returns true when no error reported
+ */
+function assertNoErrorReported(result: IScraperScrapingResult): true {
+  const errorType = result.errorType ?? '';
+  const errorMessage = result.errorMessage ?? '';
+  const error = `${errorType} ${errorMessage}`.trim();
+  expect(error).toBe('');
+  return true;
+}
+
+/**
+ * Synthetic fallback `accountNumber` value the SCRAPE phase emits when
+ * no record carries a display id. Mirrored from the production
+ * constant `DEFAULT_ACCOUNT_NUMBER` in
+ * `src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts:402`
+ * (file-private over there; test-only PR cannot export it without
+ * touching production). Any account that lands in CI with this id
+ * means account-resolution leaked the fallback and the scrape is a
+ * regression — `redactAccount` masks it as `***fault` in production
+ * traces.
+ */
+const BEINLEUMI_DEFAULT_FALLBACK_ID = 'default' as const;
+
+/**
+ * Assert that one account has a usable accountNumber and a txns array.
+ * Rejects the Beinleumi-class fallback id explicitly — see
+ * {@link BEINLEUMI_DEFAULT_FALLBACK_ID}.
+ * @param account - one transactions-account from the scrape result
+ * @returns true when the account passes per-account assertions
+ */
+function assertAccountValid(account: ITransactionsAccount): true {
+  expect(account.accountNumber).toBeTruthy();
+  expect(account.accountNumber).not.toBe(BEINLEUMI_DEFAULT_FALLBACK_ID);
+  const isArray = Array.isArray(account.txns);
+  expect(isArray).toBe(true);
+  return true;
+}
+
+/**
+ * Assert that the bank reported at least one transaction across all
+ * accounts in the 180-day window. Extractor regressions (e.g. Discount
+ * returning 6 txns from the API but reporting 0 to the pipeline)
+ * silently passed before this stricter assertion was added — every CI
+ * bank is known to have activity in the default look-back window, so
+ * total === 0 means data is being lost downstream of the scrape.
+ * @param accounts - non-empty accounts slice from the scraper result
+ * @returns true when total txn count is positive
+ */
+function assertNonZeroTotalTxns(accounts: readonly ITransactionsAccount[]): true {
+  const totalTxns = accounts.reduce((acc, a): number => acc + a.txns.length, 0);
+  expect(totalTxns).toBeGreaterThan(0);
+  return true;
+}
+
+/**
  * Asserts that a scrape result indicates successful login AND meaningful
  * data retrieval per the project rule: a bank with zero accounts, an
  * account with no usable identifier, or a result with zero transactions
@@ -92,33 +160,13 @@ const FAILED_LOGIN_TYPES: string[] = [
  * @returns true when all assertions pass
  */
 export function assertSuccessfulScrape(result: IScraperScrapingResult): boolean {
-  const errorType = result.errorType ?? '';
-  const errorMessage = result.errorMessage ?? '';
-  const error = `${errorType} ${errorMessage}`.trim();
-  expect(error).toBe('');
+  assertNoErrorReported(result);
   expect(result.success).toBe(true);
   expect(result.accounts).toBeDefined();
   const accounts = result.accounts ?? [];
-  // Non-zero accounts: a bank with no accounts is always a regression.
   expect(accounts.length).toBeGreaterThan(0);
-  for (const account of accounts) {
-    expect(account.accountNumber).toBeTruthy();
-    // 'default' is the Beinleumi-class fallback id leaked by an early
-    // account-discovery path that scraped without resolving the real
-    // account number — redactAccount turns it into '***fault' which
-    // showed up in production traces. Reject it explicitly.
-    expect(account.accountNumber).not.toBe('default');
-    const isArray = Array.isArray(account.txns);
-    expect(isArray).toBe(true);
-  }
-  // Non-zero total txns across the bank: extractor regressions (e.g.
-  // Discount returning 6 txns from the API but reporting 0 to the
-  // pipeline) silently passed before this stricter assertion was
-  // added — every CI bank is known to have activity in the 180-day
-  // window, so total === 0 means data is being lost downstream of
-  // the scrape.
-  const totalTxns = accounts.reduce((acc, a): number => acc + a.txns.length, 0);
-  expect(totalTxns).toBeGreaterThan(0);
+  for (const account of accounts) assertAccountValid(account);
+  assertNonZeroTotalTxns(accounts);
   return true;
 }
 
