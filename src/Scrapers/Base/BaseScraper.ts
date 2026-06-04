@@ -7,6 +7,7 @@ import { getDebug, runWithBankContext, type ScraperLogger } from '../../Common/D
 import { formatResultSummary } from '../../Common/ResultFormatter.js';
 import { TimeoutError } from '../../Common/Waiting.js';
 import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
+import { toErrorMessage } from '../Pipeline/Types/ErrorUtils.js';
 import {
   createGenericError,
   createTimeoutError,
@@ -320,7 +321,8 @@ export default class BaseScraper<
     try {
       await this.terminate(scrapeResult.success);
     } catch (error) {
-      return createGenericError((error as Error).message);
+      const errorMessage = toErrorMessage(error);
+      return createGenericError(errorMessage);
     }
     return scrapeResult;
   }

@@ -7,6 +7,7 @@ import { jest } from '@jest/globals';
 import { Parser } from '@json2csv/plainjs';
 import moment from 'moment';
 
+import { toErrorMessage } from '../Scrapers/Pipeline/Types/ErrorUtils.js';
 import { type ITransactionsAccount } from '../Transactions.js';
 import { ASYNC_TIMEOUT } from './Config/TestTimingConfig.js';
 
@@ -69,7 +70,7 @@ export function getTestsConfig(): ITestsConfig {
       return testsConfig;
     }
   } catch (error) {
-    const errorMessage = (error as Error).message;
+    const errorMessage = toErrorMessage(error);
     throw new TestConfigError(
       `failed to parse environment variable 'TESTS_CONFIG' with error '${errorMessage}'`,
       { cause: error },

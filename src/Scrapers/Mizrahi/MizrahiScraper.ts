@@ -14,6 +14,7 @@ import { ScraperErrorTypes } from '../Base/Errors.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import type { IScraperScrapingResult, ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
+import { toErrorMessage } from '../Pipeline/Types/ErrorUtils.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../Registry/WellKnownSelectors.js';
 import { MIZRAHI_CONFIG } from './Config/MizrahiLoginConfig.js';
@@ -128,7 +129,7 @@ class MizrahiScraper extends GenericBankScraper<IScraperSpecificCredentials> {
       return {
         success: false,
         errorType: ScraperErrorTypes.Generic,
-        errorMessage: (error as Error).message,
+        errorMessage: toErrorMessage(error),
       };
     }
   }

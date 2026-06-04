@@ -4,6 +4,7 @@ import { getDebug } from '../../Common/Debug.js';
 import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';
 import { runSerial } from '../../Common/Waiting.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import { toErrorMessage } from '../Pipeline/Types/ErrorUtils.js';
 import { redactUrl } from '../Pipeline/Types/PiiRedactor.js';
 import { createChangePasswordError, ScraperErrorTypes } from './Errors.js';
 import { type IScraperScrapingResult } from './Interface.js';
@@ -128,7 +129,7 @@ export async function safeCleanup(cleanup: () => Promise<boolean>): Promise<bool
   try {
     await cleanup();
   } catch (error) {
-    LOG.debug(`Cleanup function failed: ${(error as Error).message}`);
+    LOG.debug(`Cleanup function failed: ${toErrorMessage(error)}`);
   }
   return true;
 }

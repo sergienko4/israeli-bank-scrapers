@@ -110,7 +110,7 @@ async function runCleanup(fn: () => Promise<boolean>): Promise<boolean> {
   try {
     await fn();
   } catch (error) {
-    LOG.debug(`Cleanup function failed: ${(error as Error).message}`);
+    LOG.debug(`Cleanup function failed: ${error instanceof Error ? error.message : String(error)}`);
   }
   return true;
 }
