@@ -31,7 +31,7 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
    * on our mock element. Then re-invoke with varied elements to hit branches.
    * @returns Result.
    */
-  it('captures isTrulyVisible callback — branches: self-hit, contains, miss, null', async () => {
+  it('captures isTrulyVisible callback — branches: self-hit, contains miss, null', async () => {
     const rec: ICallbackRecorder = { callbacks: [] };
     const el = makeMockElement({
       rect: { left: 0, top: 0, width: 20, height: 20 },
@@ -85,9 +85,56 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
         };
         const didRun2 = hitCb(el2);
         expect(didRun2).toBe(false);
-        // Branch 2b: hit=childEl, parent.contains(child)=true → returns true.
-        // Exercises the positive `el.contains(hit)` clause distinct from
-        // the self-hit fast path (`el === hit`) above.
+        // Branch 3: hit=null → returns false
+        (globalThis as { document: unknown }).document = {
+          /**
+           * Test helper.
+           *
+           * @returns Result.
+           */
+          elementFromPoint: (): null => null,
+        };
+        const didRun3 = hitCb(el2);
+        expect(didRun3).toBe(false);
+      }
+    } finally {
+      if (origDoc) (globalThis as { document: unknown }).document = origDoc;
+      else delete (globalThis as { document?: unknown }).document;
+    }
+  }, 5000);
+
+  /**
+   * Branch 2b — `parent.contains(child) === true` path. Isolated in its
+   * own `it()` so the multi-branch test above stays under the project's
+   * `max-statements: 30` test cap. Covers the same `isTrulyVisible`
+   * callback but stubs `parent.contains` to return true for a synthetic
+   * child element, distinct from the `el === hit` self-hit fast path.
+   * @returns Result.
+   */
+  it('captures isTrulyVisible callback — branch 2b: parent.contains(child) returns true', async () => {
+    const rec: ICallbackRecorder = { callbacks: [] };
+    const el = makeMockElement({
+      rect: { left: 0, top: 0, width: 20, height: 20 },
+    });
+    const origDoc = (globalThis as { document?: Document }).document;
+    (globalThis as { document: unknown }).document = {
+      /**
+       * Test helper.
+       *
+       * @returns Result.
+       */
+      elementFromPoint: (): Element => el,
+    };
+    try {
+      const locator = makeInvokingLocator(el, rec);
+      const page = makePage(locator);
+      const m = createElementMediator(page);
+      await m.resolveVisible([{ kind: 'textContent', value: 'x' }], 200);
+      type HitCb = (e: Element) => boolean;
+      const hitCb = rec.callbacks.find(
+        (c): c is HitCb => typeof c === 'function' && String(c).includes('elementFromPoint'),
+      );
+      if (hitCb) {
         const childEl = makeMockElement({
           rect: { left: 0, top: 0, width: 20, height: 20 },
         });
@@ -112,17 +159,6 @@ describe('CreateElementMediator — isTrulyVisible evaluate callback (invoked lo
         };
         const didRunContains = hitCb(parentEl);
         expect(didRunContains).toBe(true);
-        // Branch 3: hit=null → returns false
-        (globalThis as { document: unknown }).document = {
-          /**
-           * Test helper.
-           *
-           * @returns Result.
-           */
-          elementFromPoint: (): null => null,
-        };
-        const didRun3 = hitCb(el2);
-        expect(didRun3).toBe(false);
       }
     } finally {
       if (origDoc) (globalThis as { document: unknown }).document = origDoc;

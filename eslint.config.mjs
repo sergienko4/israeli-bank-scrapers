@@ -2187,4 +2187,161 @@ export default tseslint.config(
       'no-restricted-imports': ['error', { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] }],
     },
   },
+
+  // 19. ZERO-DRIFT GLOBAL BASELINE — PR #304 CR follow-up.
+  //
+  // Phase H §8a + Mediator §14b.* locked `max-lines-per-function:10`,
+  // `max-statements:10` for Pipeline/{Mediator,Phases,Network,Init,…}.
+  // PR #304 CR finding #1 caught a 12-LoC method in
+  // `src/Scrapers/Base/BaseScraperWithBrowser.ts` — outside that scope,
+  // so ESLint stayed silent and the bad code shipped. This section
+  // extends the strict cap to ALL `src/Scrapers/**` + `src/Common/**`
+  // (the only remaining first-party production trees), then
+  // grandfathers known existing debt via per-directory caps locked at
+  // current state (commit 838de339).
+  //
+  // CONTRACT — NEW code MUST be ≤10/10. Modifying an existing function
+  // beyond its directory's grandfather cap fails the pre-commit hook.
+  // Refactoring should LOWER the caps in §19.grandfather; never raise.
+  // Phase 9 target: drive every grandfather cap down to 10/10.
+  //
+  // Test files (`src/Tests/**`) keep their `max-lines-per-function:'off'`
+  // exception (section 7) — tests are naturally long.
+
+  // 19.0 BASELINE — strict 10/10 across all first-party production trees.
+  {
+    files: ['src/Scrapers/**/*.ts', 'src/Common/**/*.ts'],
+    ignores: [
+      'src/scrapers/**',
+      'src/Scrapers/Pipeline/EslintCanaries/**',
+      'src/Scrapers/Registry/**',
+    ],
+    rules: {
+      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // 19.1 GRANDFATHER — Pipeline/Strategy (heaviest debt: 16 files, 57+14).
+  // TODO(phase-9): refactor Strategy/Scrape clusters to ≤10 LoC.
+  {
+    files: ['src/Scrapers/Pipeline/Strategy/**/*.ts'],
+    rules: {
+      'max-lines-per-function': ['error', { max: 40, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 20],
+    },
+  },
+
+  // 19.2 GRANDFATHER — Pipeline/Types (6 files, 24+4).
+  //   EXCLUDES `Pipeline/Types/PiiRedactor/**` — that cluster is
+  //   locked at canonical 10/10 by §13 and the guideline-coverage
+  //   gate (`lint-guideline-coverage.ts`) actively enforces it.
+  //   Flat-config is last-wins, so a broad block here would silently
+  //   regress §13's PII security cap.
+  {
+    files: ['src/Scrapers/Pipeline/Types/**/*.ts'],
+    ignores: ['src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts'],
+    rules: {
+      'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 20],
+    },
+  },
+
+  // 19.3 GRANDFATHER — Pipeline/Core + Phases + Interceptors + Banks + Registry.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Core/**/*.ts',
+      'src/Scrapers/Pipeline/Phases/**/*.ts',
+      'src/Scrapers/Pipeline/Interceptors/**/*.ts',
+      'src/Scrapers/Pipeline/Banks/**/*.ts',
+      'src/Scrapers/Pipeline/Registry/**/*.ts',
+    ],
+    rules: {
+      'max-lines-per-function': ['error', { max: 15, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // 19.4 GRANDFATHER — Pipeline/Mediator/{Elements,Form} (not covered by
+  // existing §14b.* cluster blocks; Network already passes 10/10).
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Elements/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Form/**/*.ts',
+    ],
+    rules: {
+      'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 12],
+    },
+  },
+
+  // 19.5 GRANDFATHER — legacy bank scrapers + Base + Common.
+  // The base classes + bank-specific scrapers carry the deepest debt.
+  // Phase 9 plans a per-bank refactor pass to bring each ≤10/10.
+  {
+    files: [
+      'src/Scrapers/Base/**/*.ts',
+      'src/Scrapers/Leumi/**/*.ts',
+      'src/Scrapers/Yahav/**/*.ts',
+      'src/Scrapers/Mizrahi/**/*.ts',
+      'src/Scrapers/BeyahadBishvilha/**/*.ts',
+      'src/Scrapers/Behatsdaa/**/*.ts',
+      'src/Common/**/*.ts',
+    ],
+    rules: {
+      'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 12],
+    },
+  },
+
+  // 19.6 SKIPPED-TEST BAN — extend `sonarjs/no-skipped-tests` (S1607)
+  // to ALL `src/Tests/**`. Previously scoped out (§11 ignores) so
+  // `describe.skip(...)` could silently land. Probe confirmed S1607
+  // fires on UNCONDITIONAL `describe.skip('...')` only — the
+  // creds-gated `hasCreds ? describe : describe.skip` pattern used in
+  // E2eReal/E2eFull tests is NOT caught (it accesses `.skip` as a
+  // property reference, not a call), so legitimate creds-gating
+  // stays allowed without exceptions.
+  {
+    files: ['src/Tests/**/*.ts'],
+    plugins: { sonarjs },
+    rules: {
+      'sonarjs/no-skipped-tests': 'error',
+    },
+  },
+
+  // 19.7 PHASE 7.5 SKIP ALLOW-LIST — 7 e2e-mocked tests with
+  // unconditional `describe.skip(...)` awaiting fixture capture
+  // (tasks/phase-7-5-T8-T12). Each entry MUST be removed from this
+  // list when its test is unskipped (the rule then fires if any
+  // `.skip` remains, blocking the merge).
+  {
+    files: [
+      'src/Tests/E2eMocked/Amex.e2e-mocked.test.ts',
+      'src/Tests/E2eMocked/Isracard.e2e-mocked.test.ts',
+      'src/Tests/E2eMocked/ErrorScenarios.e2e-mocked.test.ts',
+      'src/Tests/E2eMocked/ExternalBrowser.e2e-mocked.test.ts',
+      'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts',
+      'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts',
+      'src/Tests/E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts',
+    ],
+    rules: {
+      'sonarjs/no-skipped-tests': 'off',
+    },
+  },
+
+  // 19.8 TEST STATEMENT CAP — extend `max-statements` to `src/Tests/**`.
+  // Tests legitimately have long `describe(...)` / `it(...)` arrow
+  // callbacks (setup + multiple assertions), so we keep
+  // `max-lines-per-function: 'off'` from §7. But `max-statements: 30`
+  // is a meaningful cap: it catches truly bloated test functions
+  // (a single test with 30+ statements is doing too much) without
+  // touching the natural arrow-callback length of describe-blocks.
+  // Phase 9 should drive this cap down to 15.
+  {
+    files: ['src/Tests/**/*.ts'],
+    rules: {
+      'max-statements': ['error', 30],
+    },
+  },
 );
