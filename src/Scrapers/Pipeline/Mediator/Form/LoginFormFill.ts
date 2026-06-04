@@ -58,6 +58,21 @@ function logResolveResult(log: ScraperLogger, key: string, success: boolean): bo
 }
 
 /**
+ * Call mediator.resolveField with full arity — extracted Phase-2a-B
+ * helper so {@link resolveCredentialField} stays ≤10 lines.
+ * @param opts - Fill field opts.
+ * @param key - Credential key.
+ * @returns Field-context procedure.
+ */
+async function callResolveField(
+  opts: IFillFieldOpts,
+  key: string,
+): Promise<Procedure<IFieldContext>> {
+  const { selectors } = opts.fill;
+  return opts.mediator.resolveField(key, selectors, opts.scopeContext, opts.formSelector);
+}
+
+/**
  * Resolve a credential field via mediator, logging the outcome.
  * @param opts - Bundled fill options.
  * @returns Resolve result from the mediator.
@@ -65,12 +80,7 @@ function logResolveResult(log: ScraperLogger, key: string, success: boolean): bo
 async function resolveCredentialField(opts: IFillFieldOpts): Promise<Procedure<IFieldContext>> {
   const key = opts.fill.credentialKey;
   opts.logger.debug({ message: `resolving ${maskVisibleText(key)}` });
-  const result = await opts.mediator.resolveField(
-    key,
-    opts.fill.selectors,
-    opts.scopeContext,
-    opts.formSelector,
-  );
+  const result = await callResolveField(opts, key);
   logResolveResult(opts.logger, key, result.success);
   return result;
 }
@@ -101,6 +111,17 @@ function findMissingKeys(
 }
 
 /**
+ * Build a Generic-failure Procedure for missing credentials —
+ * extracted Phase-2a-B helper so {@link validateCredentials} stays ≤10 lines.
+ * @param missing - Missing credential keys.
+ * @returns Generic failure Procedure with joined keys.
+ */
+function failMissingCredentials(missing: readonly string[]): Procedure<boolean> {
+  const keys = missing.join(', ');
+  return fail(ScraperErrorTypes.Generic, `Missing credentials: ${keys}`);
+}
+
+/**
  * Validate all required credentials are present.
  * @param fields - Field configs.
  * @param creds - Credentials map.
@@ -111,10 +132,7 @@ function validateCredentials(
   creds: Record<string, string>,
 ): Procedure<boolean> {
   const missing = findMissingKeys(fields, creds);
-  if (missing.length > 0) {
-    const keys = missing.join(', ');
-    return fail(ScraperErrorTypes.Generic, `Missing credentials: ${keys}`);
-  }
+  if (missing.length > 0) return failMissingCredentials(missing);
   return succeed(true);
 }
 

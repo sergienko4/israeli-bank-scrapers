@@ -42,6 +42,24 @@ async function detectOtpTrigger(mediator: IElementMediator): Promise<Procedure<I
 }
 
 /**
+ * Resolve the OTP submit race against the active mediator —
+ * extracted Phase-2a-B helper so {@link detectOtpSubmit} stays ≤10 lines.
+ * @param mediator - Active mediator.
+ * @param candidates - Submit selector candidates.
+ * @param inputContext - Optional frame scope (skip → search all frames).
+ * @returns Raw race result.
+ */
+async function resolveOtpSubmitRace(
+  mediator: IElementMediator,
+  candidates: readonly SelectorCandidate[],
+  inputContext?: Page | Frame,
+): Promise<IRaceResult> {
+  const timeout = OTP_SUBMIT_PROBE_TIMEOUT_MS;
+  if (inputContext) return mediator.resolveVisibleInContext(candidates, inputContext, timeout);
+  return mediator.resolveVisible(candidates, timeout);
+}
+
+/**
  * Detect OTP submit button — scoped to the same context as the OTP input.
  * When inputContext is provided, searches ONLY that frame (prevents cookie banner false matches).
  * @param mediator - Active mediator.
@@ -53,12 +71,7 @@ async function detectOtpSubmit(
   inputContext?: Page | Frame,
 ): Promise<Procedure<IRaceResult>> {
   const candidates = WK_OTP_SUBMIT as unknown as readonly SelectorCandidate[];
-  if (inputContext) {
-    return succeed(
-      await mediator.resolveVisibleInContext(candidates, inputContext, OTP_SUBMIT_PROBE_TIMEOUT_MS),
-    );
-  }
-  const result = await mediator.resolveVisible(candidates, OTP_SUBMIT_PROBE_TIMEOUT_MS);
+  const result = await resolveOtpSubmitRace(mediator, candidates, inputContext);
   return succeed(result);
 }
 

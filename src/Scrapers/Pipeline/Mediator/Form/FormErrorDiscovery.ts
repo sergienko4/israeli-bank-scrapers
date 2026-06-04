@@ -221,18 +221,30 @@ async function probeWellKnownText(
   frameOrPage: Page | Frame,
   value: string,
 ): Promise<IFormErrorScanResult> {
-  const locator = frameOrPage.getByText(value);
-  const first = locator.first();
-  /**
-   * Element not visible or detached.
-   * @returns False.
-   */
-  const catchFalse = (): boolean => false;
-  const isErrorVisible = await first.isVisible().catch(catchFalse);
-  if (!isErrorVisible) return NO_ERRORS;
-  const error: IFormError = { selector: 'wellKnown', text: value, kind: 'authError' };
-  const result: IFormErrorScanResult = { hasErrors: true, errors: [error], summary: value };
-  return result;
+  const first = frameOrPage.getByText(value).first();
+  const isVisible = await first.isVisible().catch((): boolean => false);
+  if (!isVisible) return NO_ERRORS;
+  const err: IFormError = { selector: 'wellKnown', text: value, kind: 'authError' };
+  return { hasErrors: true, errors: [err], summary: value };
+}
+
+/**
+ * Reduce one WK candidate into the accumulating scan result —
+ * extracted Phase-2a-B helper so {@link checkFrameForErrors} stays ≤10 lines.
+ * @param prev - Previous accumulator promise.
+ * @param candidate - WK error pattern.
+ * @param candidate.value - The error text to look for.
+ * @param frameOrPage - Page or frame to query.
+ * @returns Updated accumulator.
+ */
+async function reduceErrorProbe(
+  prev: Promise<IFormErrorScanResult>,
+  candidate: { value: string },
+  frameOrPage: Page | Frame,
+): Promise<IFormErrorScanResult> {
+  const result = await prev;
+  if (result.hasErrors) return result;
+  return probeWellKnownText(frameOrPage, candidate.value);
 }
 
 /**
@@ -245,12 +257,6 @@ async function probeWellKnownText(
 export async function checkFrameForErrors(
   frameOrPage: Page | Frame,
 ): Promise<IFormErrorScanResult> {
-  const candidates = WK_LOGIN_ERROR;
   const initial: Promise<IFormErrorScanResult> = Promise.resolve(NO_ERRORS);
-  type TReduce = Promise<IFormErrorScanResult>;
-  return candidates.reduce<TReduce>(async (prev, candidate): TReduce => {
-    const result = await prev;
-    if (result.hasErrors) return result;
-    return probeWellKnownText(frameOrPage, candidate.value);
-  }, initial);
+  return WK_LOGIN_ERROR.reduce(async (prev, c) => reduceErrorProbe(prev, c, frameOrPage), initial);
 }

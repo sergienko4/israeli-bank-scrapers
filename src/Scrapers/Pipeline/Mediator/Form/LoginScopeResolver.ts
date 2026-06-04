@@ -40,6 +40,18 @@ interface IScopeUpdateArgs {
 }
 
 /**
+ * Build the IFillOpts bundle from a single field config —
+ * extracted Phase-2a-B helper so {@link buildFieldOpts} stays ≤10 lines.
+ * @param field - Field config.
+ * @param creds - Credentials map.
+ * @returns Fill opts ready for fillOneField.
+ */
+function makeFill(field: IFieldConfig, creds: Record<string, string>): IFillOpts {
+  const key = field.credentialKey;
+  return { credentialKey: key, value: creds[key], selectors: field.selectors };
+}
+
+/**
  * Build full fill-field options from config and scope.
  * @param ctx - Fill context.
  * @param field - Field config.
@@ -51,15 +63,10 @@ function buildFieldOpts(
   field: IFieldConfig,
   scope: IFieldScope,
 ): IFillFieldOpts {
-  const key = field.credentialKey;
-  const fill: IFillOpts = { credentialKey: key, value: ctx.creds[key], selectors: field.selectors };
-  return {
-    mediator: ctx.mediator,
-    fill,
-    scopeContext: scope.ctx,
-    formSelector: scope.formSelector,
-    logger: ctx.logger,
-  };
+  const fill = makeFill(field, ctx.creds);
+  const { mediator, logger } = ctx;
+  const { ctx: scopeContext, formSelector } = scope;
+  return { mediator, fill, scopeContext, formSelector, logger };
 }
 
 /**
@@ -77,8 +84,7 @@ async function discoverScope(
   const resolved = await ctx.mediator.resolveField(field.credentialKey, field.selectors, scope.ctx);
   if (!resolved.success) return scope;
   const anchor = await ctx.mediator.discoverForm(resolved.value);
-  if (!anchor.has) return scope;
-  return { ...scope, formSelector: anchor.value.selector };
+  return anchor.has ? { ...scope, formSelector: anchor.value.selector } : scope;
 }
 
 /**

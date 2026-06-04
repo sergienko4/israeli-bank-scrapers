@@ -62,23 +62,24 @@ function wrapLegacy(
   };
 }
 
+/** Args bundle for resolvePostAction to satisfy ≤10-line cap. */
+interface IResolvePostActionArgs {
+  readonly browserPage: Page;
+  readonly config: ILoginConfig;
+  readonly ctx: IPipelineContext;
+}
+
 /**
  * Resolve pipeline-aware post-action or legacy postAction callback.
- * @param browserPage - Browser page.
- * @param config - Login config.
- * @param ctx - Pipeline context.
+ * @param args - Bundled browserPage + config + ctx.
  * @returns Async callback or false.
  */
-function resolvePostAction(
-  browserPage: Page,
-  config: ILoginConfig,
-  ctx: IPipelineContext,
-): (() => Promise<void>) | false {
-  if (hasPipelinePostAction(config) && config.postActionWithCtx) {
-    return wrapWithCtx(config.postActionWithCtx, browserPage, ctx);
+function resolvePostAction(args: IResolvePostActionArgs): (() => Promise<void>) | false {
+  if (hasPipelinePostAction(args.config) && args.config.postActionWithCtx) {
+    return wrapWithCtx(args.config.postActionWithCtx, args.browserPage, args.ctx);
   }
-  if (!config.postAction) return false;
-  return wrapLegacy(config.postAction, browserPage);
+  if (!args.config.postAction) return false;
+  return wrapLegacy(args.config.postAction, args.browserPage);
 }
 
 /**
@@ -93,7 +94,7 @@ async function runPostCallback(
   config: ILoginConfig,
   ctx: IPipelineContext,
 ): Promise<Procedure<void>> {
-  const action = resolvePostAction(browserPage, config, ctx);
+  const action = resolvePostAction({ browserPage, config, ctx });
   if (!action) return succeed(undefined);
   return safeAction(action);
 }
