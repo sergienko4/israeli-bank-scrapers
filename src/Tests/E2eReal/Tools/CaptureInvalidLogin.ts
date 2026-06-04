@@ -139,6 +139,44 @@ function pickTimeout(argv: readonly string[]): number {
   return Number.parseInt(raw, 10);
 }
 
+/** Resolved bank-config row from PIPELINE_BANK_CONFIG. */
+type ResolvedBankCfg = NonNullable<(typeof PIPELINE_BANK_CONFIG)[CompanyTypes]>;
+
+/**
+ * Look up the per-bank capture row + the production PIPELINE_BANK_CONFIG
+ * row for the chosen bank key, throwing when the production row is missing.
+ * @param bankKey - Validated CLI bank key.
+ * @returns Capture + production bank-config pair.
+ */
+function lookupBankConfig(bankKey: BankKey): {
+  cfg: IBankCaptureConfig;
+  bankCfg: ResolvedBankCfg;
+} {
+  const cfg = CAPTURES[bankKey];
+  const bankCfg = PIPELINE_BANK_CONFIG[cfg.companyId];
+  if (bankCfg === undefined) {
+    throw new ScraperError(`PIPELINE_BANK_CONFIG entry missing for ${cfg.companyId}`);
+  }
+  return { cfg, bankCfg };
+}
+
+/**
+ * Pick base + entry URLs from the resolved bank rows. `entryUrl` wins
+ * over `baseUrl` when the CAPTURES row sets a `directLoginUrl` (banks
+ * whose login lives on a separate host).
+ * @param cfg - Capture config row.
+ * @param bankCfg - Production bank-config row.
+ * @returns Resolved URL pair.
+ */
+function resolveBankUrls(
+  cfg: IBankCaptureConfig,
+  bankCfg: ResolvedBankCfg,
+): { baseUrl: string; entryUrl: string } {
+  const baseUrl = bankCfg.urls.base;
+  const entryUrl = cfg.directLoginUrl ?? baseUrl;
+  return { baseUrl, entryUrl };
+}
+
 /**
  * Parse process.argv into a validated options bundle.
  * @returns CLI options.
@@ -150,18 +188,11 @@ function parseCli(): ICliOptions {
     const keys = Object.keys(CAPTURES).join(', ');
     throw new ScraperError(`Usage: CaptureInvalidLogin <bankKey>. Valid keys: ${keys}`);
   }
-  const cfg = CAPTURES[bankKey];
-  const bankCfg = PIPELINE_BANK_CONFIG[cfg.companyId];
-  if (bankCfg === undefined) {
-    throw new ScraperError(`PIPELINE_BANK_CONFIG entry missing for ${cfg.companyId}`);
-  }
+  const { cfg, bankCfg } = lookupBankConfig(bankKey);
   const isHeadless = argv.includes('--headless');
   const timeoutMs = pickTimeout(argv);
   const outputRoot = path.join('C:', 'tmp', 'bank-html', bankKey);
-  const baseUrl = bankCfg.urls.base;
-  // entryUrl wins over baseUrl when the CAPTURES row sets a
-  // directLoginUrl (banks whose login lives on a separate host).
-  const entryUrl = cfg.directLoginUrl ?? baseUrl;
+  const { baseUrl, entryUrl } = resolveBankUrls(cfg, bankCfg);
   return {
     bankKey,
     isHeadless,
@@ -360,6 +391,19 @@ interface IWriteFrameArgs {
 }
 
 /**
+ * Build the on-disk filename + path for one captured iframe. Filename
+ * carries an index + url-hash slug so re-captures stay stable across runs.
+ * @param args - Index + frame + CLI options bundle.
+ * @param slug - URL hash slug for filename stability.
+ * @returns Absolute output path.
+ */
+function buildFramePath(args: IWriteFrameArgs, slug: string): string {
+  const indexStr = String(args.index);
+  const fileName = `login-post-invalid-iframe-${indexStr}-${slug}.html`;
+  return path.join(args.opts.outputRoot, fileName);
+}
+
+/**
  * Write a single iframe's HTML to disk.
  * @param args - Index + frame + CLI options bundle.
  * @returns True when bytes were written.
@@ -367,15 +411,37 @@ interface IWriteFrameArgs {
 async function writeOneFrame(args: IWriteFrameArgs): Promise<boolean> {
   const frameUrl = args.frame.url();
   const slug = urlHash(frameUrl);
-  const indexStr = String(args.index);
-  const fileName = `login-post-invalid-iframe-${indexStr}-${slug}.html`;
-  const framePath = path.join(args.opts.outputRoot, fileName);
+  const framePath = buildFramePath(args, slug);
   const html = await args.frame.content().catch((): string => '');
   if (html.length === 0) return false;
   await writeUtf8(framePath, html);
   const bytes = html.length;
   LOG.info({ path: framePath, url: frameUrl, bytes }, 'captured iframe');
   return true;
+}
+
+/**
+ * Persist the main frame to its canonical filename under opts.outputRoot.
+ * @param page - Playwright page.
+ * @param opts - CLI options.
+ * @returns Void promise.
+ */
+async function writeMainFrame(page: Page, opts: ICliOptions): Promise<void> {
+  const mainContent = await page.content();
+  const mainPath = path.join(opts.outputRoot, 'login-post-invalid.html');
+  await writeUtf8(mainPath, mainContent);
+  LOG.info({ path: mainPath, bytes: mainContent.length }, 'captured main frame');
+}
+
+/**
+ * Collect every child iframe under the page (excludes the main frame).
+ * @param page - Playwright page.
+ * @returns Read-only frames array.
+ */
+function collectChildFrames(page: Page): readonly Frame[] {
+  const mainFrame = page.mainFrame();
+  const allFrames = page.frames();
+  return allFrames.filter((f): boolean => f !== mainFrame);
 }
 
 /**
@@ -392,13 +458,8 @@ async function saveFramesToDisk(
   page: Page,
   opts: ICliOptions,
 ): Promise<number> {
-  const mainContent = await page.content();
-  const mainPath = path.join(opts.outputRoot, 'login-post-invalid.html');
-  await writeUtf8(mainPath, mainContent);
-  LOG.info({ path: mainPath, bytes: mainContent.length }, 'captured main frame');
-  const mainFrame = page.mainFrame();
-  const allFrames = page.frames();
-  const childFrames: readonly Frame[] = allFrames.filter((f): boolean => f !== mainFrame);
+  await writeMainFrame(page, opts);
+  const childFrames = collectChildFrames(page);
   const tasks = childFrames.map(
     (frame, index): Promise<boolean> => writeOneFrame({ index, frame, opts }),
   );
@@ -442,32 +503,120 @@ async function writeFixturesJson(opts: ICliOptions, finalUrl: string): Promise<v
   LOG.info({ path: fixturesPath }, 'wrote fixtures.json scaffold');
 }
 
+/** Browser + context + page tuple kept together for the capture flow. */
+interface IBrowserSession {
+  readonly browser: Browser;
+  readonly context: BrowserContext;
+  readonly page: Page;
+}
+
+/**
+ * Launch Camoufox + open a fresh context + page configured with the
+ * CLI default timeout.
+ * @param opts - CLI options.
+ * @returns Browser/context/page tuple.
+ */
+async function bootBrowserSession(opts: ICliOptions): Promise<IBrowserSession> {
+  const browser: Browser = await launchCamoufox(opts.isHeadless);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  page.setDefaultTimeout(opts.timeoutMs);
+  return { browser, context, page };
+}
+
+/**
+ * Navigate to opts.entryUrl + wait for networkidle. Navigation errors
+ * propagate (a `page.goto` failure means we never reached the bank's
+ * login surface — the capture has nothing to record, so fail fast).
+ * The subsequent `waitForLoadState('networkidle')` IS swallowed
+ * because bank login pages frequently never reach idle (long-poll
+ * trackers, telemetry beacons) and that is not a capture-blocking
+ * condition.
+ * @param page - Playwright page.
+ * @param opts - CLI options.
+ * @returns Void promise.
+ */
+async function navigateToLoginPage(page: Page, opts: ICliOptions): Promise<void> {
+  await page.goto(opts.entryUrl);
+  const idlePromise = page.waitForLoadState('networkidle');
+  await swallowPromise(idlePromise);
+}
+
+/**
+ * Fill invalid creds + click submit + wait the per-bank settle window.
+ * @param page - Playwright page.
+ * @param bankCfg - Capture config row.
+ * @returns Void promise.
+ */
+async function performLoginAttempt(page: Page, bankCfg: IBankCaptureConfig): Promise<void> {
+  await fillInvalidCreds(page);
+  await submitForm(page);
+  await page.waitForTimeout(bankCfg.postSubmitWaitMs);
+}
+
+/**
+ * Emit the two pre-flight log lines (CLI options + Camoufox launch).
+ * Single helper keeps main() within the test-helper statement cap.
+ * @param opts - CLI options.
+ * @param bankCfg - Capture config row.
+ * @returns True after both log lines emit.
+ */
+function logCaptureStart(opts: ICliOptions, bankCfg: IBankCaptureConfig): true {
+  LOG.info({ opts }, 'CaptureInvalidLogin starting');
+  LOG.info({ bank: bankCfg.bankKey, url: opts.entryUrl }, 'launching Camoufox');
+  return true;
+}
+
+/**
+ * Run the navigate → log → login sequence in one composite step.
+ * @param page - Playwright page.
+ * @param opts - CLI options.
+ * @param bankCfg - Capture config row.
+ * @returns Void promise.
+ */
+async function executeLoginInteraction(
+  page: Page,
+  opts: ICliOptions,
+  bankCfg: IBankCaptureConfig,
+): Promise<void> {
+  await navigateToLoginPage(page, opts);
+  LOG.info({ url: page.url() }, 'initial page ready — filling + submitting');
+  await performLoginAttempt(page, bankCfg);
+}
+
+/**
+ * Save HTML for the main frame + every child iframe AND emit the
+ * scaffold fixtures.json. Combined into one step so main() stays
+ * within the helper-statement cap.
+ * @param session - Browser session tuple.
+ * @param opts - CLI options.
+ * @param finalUrl - Post-submit URL.
+ * @returns Number of HTML files written.
+ */
+async function persistCaptureArtifacts(
+  session: IBrowserSession,
+  opts: ICliOptions,
+  finalUrl: string,
+): Promise<number> {
+  const written = await saveFramesToDisk(session.context, session.page, opts);
+  await writeFixturesJson(opts, finalUrl);
+  return written;
+}
+
 /**
  * Entry — orchestrates the capture end-to-end.
  * @returns Exit code (0 OK, 1 error).
  */
 async function main(): Promise<number> {
   const opts = parseCli();
-  LOG.info({ opts }, 'CaptureInvalidLogin starting');
   const bankCfg = CAPTURES[opts.bankKey];
-  LOG.info({ bank: bankCfg.bankKey, url: opts.entryUrl }, 'launching Camoufox');
-  const browser: Browser = await launchCamoufox(opts.isHeadless);
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  page.setDefaultTimeout(opts.timeoutMs);
-  const gotoPromise = page.goto(opts.entryUrl);
-  await swallowPromise(gotoPromise);
-  const idlePromise = page.waitForLoadState('networkidle');
-  await swallowPromise(idlePromise);
-  LOG.info({ url: page.url() }, 'initial page ready — filling + submitting');
-  await fillInvalidCreds(page);
-  await submitForm(page);
-  await page.waitForTimeout(bankCfg.postSubmitWaitMs);
-  const finalUrl = page.url();
-  const written = await saveFramesToDisk(context, page, opts);
-  await writeFixturesJson(opts, finalUrl);
+  logCaptureStart(opts, bankCfg);
+  const session = await bootBrowserSession(opts);
+  await executeLoginInteraction(session.page, opts, bankCfg);
+  const finalUrl = session.page.url();
+  const written = await persistCaptureArtifacts(session, opts, finalUrl);
   LOG.info({ finalUrl, framesWritten: written }, 'capture complete');
-  await browser.close();
+  await session.browser.close();
   return 0;
 }
 
