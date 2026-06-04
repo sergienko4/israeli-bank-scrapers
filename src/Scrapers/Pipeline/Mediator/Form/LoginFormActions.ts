@@ -106,29 +106,31 @@ async function tryEnterSubmit(
   return true;
 }
 
+/** Bundled args for `tryClickSubmit` — fits the 3-param ceiling. */
+interface ITryClickSubmitArgs {
+  readonly mediator: IElementMediator;
+  readonly config: ILoginConfig;
+  readonly logger: ScraperLogger;
+}
+
 /**
  * Try clicking the submit button scoped to the discovered form.
- * @param mediator - Element mediator.
- * @param config - Login config.
- * @param logger - Pipeline logger.
+ *
+ * **Form-membership scoping via Locator chaining:** ALL candidate kinds
+ * (xpath, textContent, regex, ariaLabel, ...) are scoped to descendants
+ * of the discovered form. Discriminates co-resident submit buttons on
+ * flip-card pages (e.g. Amex/Isracard SMS-form vs password-form).
+ * @param args - Bundled try-click submit args (mediator/config/logger).
  * @returns Procedure succeed(true) if clicked, succeed(false) if not found, fail on error.
  */
-async function tryClickSubmit(
-  mediator: IElementMediator,
-  config: ILoginConfig,
-  logger: ScraperLogger,
-): Promise<Procedure<boolean>> {
+async function tryClickSubmit(args: ITryClickSubmitArgs): Promise<Procedure<boolean>> {
+  const { mediator, config, logger } = args;
   const candidates = normalizeSubmit(config.submit);
-  // Form-membership scoping via Locator chaining: ALL candidate kinds
-  // (xpath, textContent, regex, ariaLabel, ...) are scoped to descendants
-  // of the discovered form. Discriminates co-resident submit buttons on
-  // flip-card pages (e.g. Amex/Isracard SMS-form vs password-form).
   const formAnchor = mediator.getFormAnchor();
   const result = await mediator.resolveAndClick(candidates, undefined, formAnchor);
   if (!result.success) return result;
   if (!result.value.found) return succeed(false);
-  const masked = maskVisibleText(result.value.value);
-  logger.debug({ method: 'click', url: masked });
+  logger.debug({ method: 'click', url: maskVisibleText(result.value.value) });
   return succeed(true);
 }
 
@@ -192,7 +194,12 @@ interface ISubmitPhaseArgs {
  */
 async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResult> {
   const didEnter = await tryEnterSubmit(args.enterCtx, args.logger);
-  const clickResult = await tryClickSubmit(args.mediator, args.config, args.logger);
+  const clickArgs: ITryClickSubmitArgs = {
+    mediator: args.mediator,
+    config: args.config,
+    logger: args.logger,
+  };
+  const clickResult = await tryClickSubmit(clickArgs);
   return { didEnter, clickResult };
 }
 
@@ -204,6 +211,31 @@ async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResul
 function resolveSubmitFromPhase(submit: ISubmitPhaseResult): SubmitMethod {
   const didClick = submit.clickResult.success && submit.clickResult.value;
   return resolveSubmitMethod(submit.didEnter, didClick);
+}
+
+/** Bundled args for `finalizeSubmit` — used by both fill paths. */
+interface IFinalizeSubmitArgs {
+  readonly submit: ISubmitPhaseResult;
+  readonly logger: ScraperLogger;
+  readonly source: { readonly getCurrentUrl: () => string };
+}
+
+/**
+ * Finalize a submit phase into the `Procedure<ISubmitResult>` callers expect:
+ * propagate click failure when Enter never fired, gate the phantom-success
+ * branch, then resolve the submit method and emit the success log line.
+ * Extracted so `fillAndSubmit` and `fillFromDiscovery` share the tail logic.
+ * @param args - Bundled finalize args (submit/logger/source).
+ * @returns Procedure with ISubmitResult.
+ */
+function finalizeSubmit(args: IFinalizeSubmitArgs): Procedure<ISubmitResult> {
+  const { submit, logger, source } = args;
+  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
+  const gate = gateNoSubmitSignal(submit);
+  if (!gate.success) return gate;
+  const method = resolveSubmitFromPhase(submit);
+  logSubmitResult(logger, source, method);
+  return succeed({ success: true, method });
 }
 
 /**
@@ -219,12 +251,7 @@ async function fillAndSubmit(args: IFillAndSubmitArgs): Promise<Procedure<ISubmi
   if (!fillResult.procedure.success) return fillResult.procedure;
   const enterCtx = fillResult.frameContext ?? false;
   const submit = await runSubmitPhase({ mediator, config, enterCtx, logger });
-  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
-  const gate = gateNoSubmitSignal(submit);
-  if (!gate.success) return gate;
-  const method = resolveSubmitFromPhase(submit);
-  logSubmitResult(logger, mediator, method);
-  return succeed({ success: true, method });
+  return finalizeSubmit({ submit, logger, source: mediator });
 }
 
 /** Submit method lookup: [didEnter][didClick] → method. */
@@ -288,6 +315,26 @@ async function fillOneDiscoveryField(args: IFillOneArgs): Promise<Procedure<bool
   return succeed(true);
 }
 
+/** Discovery entry tuple — alias used by reducer/validator helpers. */
+type IDiscoveryEntry = readonly [string, IResolvedTarget];
+
+/**
+ * Find the first credential key that's missing from the creds map.
+ * Returns `false` when all entries have matching credentials.
+ * Extracted to keep `validateDiscoveryCredentials` under the §19.4 cap.
+ * @param entries - Discovery entries with credential keys and targets.
+ * @param creds - Credential map keyed by field name.
+ * @returns The missing key, or false when none missing.
+ */
+function findMissingDiscoveryKey(
+  entries: readonly IDiscoveryEntry[],
+  creds: Record<string, string>,
+): string | false {
+  const missing = entries.filter(([key]): boolean => !creds[key]);
+  if (missing.length === 0) return false;
+  return missing[0][0];
+}
+
 /**
  * Validate all credentials exist before filling.
  * @param entries - Discovery entries with keys and targets.
@@ -295,36 +342,62 @@ async function fillOneDiscoveryField(args: IFillOneArgs): Promise<Procedure<bool
  * @returns Failure if any missing, succeed(true) if all present.
  */
 function validateDiscoveryCredentials(
-  entries: readonly (readonly [string, IResolvedTarget])[],
+  entries: readonly IDiscoveryEntry[],
   creds: Record<string, string>,
 ): Procedure<boolean> {
-  const missing = entries.filter(([key]) => !creds[key]);
-  const missingKeys = missing.map(([key]) => key);
-  if (missingKeys.length > 0) {
-    const msg = `Missing credential: ${missingKeys[0]}`;
-    return fail(ScraperErrorTypes.Generic, msg);
-  }
-  return succeed(true);
+  const missingKey = findMissingDiscoveryKey(entries, creds);
+  if (missingKey === false) return succeed(true);
+  return fail(ScraperErrorTypes.Generic, `Missing credential: ${missingKey}`);
+}
+
+/** Bundled args for `reduceDiscoveryFill` — fits the 3-param ceiling. */
+interface IReduceDiscoveryFillArgs {
+  readonly args: IFillFromDiscoveryArgs;
+  readonly acc: Promise<Procedure<boolean>>;
+  readonly entry: IDiscoveryEntry;
+}
+
+/**
+ * Apply a single reduced fill against the previous accumulator value.
+ * Short-circuits on prior failure; otherwise fills the discovery target.
+ * @param rargs - Bundled reduce-fill args.
+ * @param prev - Procedure value awaited from the accumulator.
+ * @returns Updated procedure.
+ */
+function applyReducedFill(
+  rargs: IReduceDiscoveryFillArgs,
+  prev: Procedure<boolean>,
+): Promise<Procedure<boolean>> {
+  if (!prev.success) return Promise.resolve(prev);
+  const [key, target] = rargs.entry;
+  const value = rargs.args.creds[key];
+  const { executor, logger } = rargs.args;
+  return fillOneDiscoveryField({ executor, target, value, logger });
 }
 
 /**
  * Reduce one field fill onto the accumulator promise.
- * @param args - Bundled fill-from-discovery arguments.
- * @param acc - Running accumulator promise.
- * @param entry - Map entry [key, target].
+ * @param rargs - Bundled reduce-fill args.
  * @returns Updated accumulator.
  */
-function reduceDiscoveryFill(
-  args: IFillFromDiscoveryArgs,
+function reduceDiscoveryFill(rargs: IReduceDiscoveryFillArgs): Promise<Procedure<boolean>> {
+  return rargs.acc.then((prev): Promise<Procedure<boolean>> => applyReducedFill(rargs, prev));
+}
+
+/** Reducer signature for the discovery-fill chain. */
+type IDiscoveryFillReducer = (
   acc: Promise<Procedure<boolean>>,
-  entry: readonly [string, IResolvedTarget],
-): Promise<Procedure<boolean>> {
-  const [key, target] = entry;
-  return acc.then(prev => {
-    if (!prev.success) return prev;
-    const value = args.creds[key];
-    return fillOneDiscoveryField({ executor: args.executor, target, value, logger: args.logger });
-  });
+  entry: IDiscoveryEntry,
+) => Promise<Procedure<boolean>>;
+
+/**
+ * Build a reducer closure bound to a single fill-from-discovery args bundle.
+ * Extracted so `fillFieldsFromDiscovery` stays under the §19.4 line cap.
+ * @param args - Bundled fill-from-discovery arguments.
+ * @returns Reducer suitable for `entries.reduce(...)`.
+ */
+function makeDiscoveryFillReducer(args: IFillFromDiscoveryArgs): IDiscoveryFillReducer {
+  return (acc, entry): Promise<Procedure<boolean>> => reduceDiscoveryFill({ args, acc, entry });
 }
 
 /**
@@ -337,28 +410,27 @@ async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Pr
   const entries = [...args.discovery.targets.entries()];
   const validation = validateDiscoveryCredentials(entries, args.creds);
   if (!validation.success) return validation;
-  const initialResult = succeed(true);
-  const seed: Promise<Procedure<boolean>> = Promise.resolve(initialResult);
-  return entries.reduce(
-    (acc: Promise<Procedure<boolean>>, entry): Promise<Procedure<boolean>> =>
-      reduceDiscoveryFill(args, acc, entry),
-    seed,
-  );
+  const initial = succeed(true);
+  const seed: Promise<Procedure<boolean>> = Promise.resolve(initial);
+  const reducer = makeDiscoveryFillReducer(args);
+  return entries.reduce(reducer, seed);
+}
+
+/** Bundled args for `tryEnterFromDiscovery` — fits the 3-param ceiling. */
+interface ITryEnterDiscoveryArgs {
+  readonly executor: IActionMediator;
+  readonly activeFrameId: string;
+  readonly logger: ScraperLogger;
 }
 
 /**
  * Try pressing Enter via sealed executor.
- * @param executor - Sealed action mediator.
- * @param activeFrameId - Opaque contextId of the frame with fields.
- * @param logger - Pipeline logger.
+ * @param args - Bundled try-enter discovery args (executor/activeFrameId/logger).
  * @returns True only when pressEnter resolved against a non-empty
  *   frame ID; false when the ID is empty OR pressEnter rejected.
  */
-async function tryEnterFromDiscovery(
-  executor: IActionMediator,
-  activeFrameId: string,
-  logger: ScraperLogger,
-): Promise<boolean> {
+async function tryEnterFromDiscovery(args: ITryEnterDiscoveryArgs): Promise<boolean> {
+  const { executor, activeFrameId, logger } = args;
   if (!activeFrameId) return false;
   logger.debug({ method: 'enter', url: maskVisibleText(activeFrameId) });
   return executor
@@ -378,28 +450,67 @@ function mapClickRejection(error: unknown): Procedure<boolean> {
   return fail(ScraperErrorTypes.Generic, `click rejected: ${msg}`);
 }
 
+/** Bundled args for `tryClickSubmitFromDiscovery` — fits the 3-param ceiling. */
+interface ITryClickDiscoveryArgs {
+  readonly executor: IActionMediator;
+  readonly discovery: ILoginFieldDiscovery;
+  readonly logger: ScraperLogger;
+}
+
+/**
+ * Run the discovery-mode click against a pre-resolved target, mapping
+ * resolve→succeed(true) and reject→`mapClickRejection`. Extracted so
+ * `tryClickSubmitFromDiscovery` stays under the §19.4 line cap.
+ * @param executor - Sealed action mediator.
+ * @param target - Pre-resolved click target.
+ * @returns succeed(true) on click, fail on rejection.
+ */
+function runDiscoveryClick(
+  executor: IActionMediator,
+  target: IResolvedTarget,
+): Promise<Procedure<boolean>> {
+  const clickArgs = { contextId: target.contextId, selector: target.selector };
+  /**
+   * Promise.then sentinel — wraps the click resolution in `succeed(true)`.
+   * @returns Always succeed(true).
+   */
+  const succeeded = (): Procedure<boolean> => succeed(true);
+  return executor.clickElement(clickArgs).then(succeeded).catch(mapClickRejection);
+}
+
 /**
  * Try clicking the submit button from a PRE-resolved discovery target.
  * Mirrors `tryClickSubmit` shape so the discovery path reports real
  * click outcomes instead of swallowing errors silently.
- * @param executor - Sealed action mediator.
- * @param discovery - Login field discovery with optional submit target.
- * @param logger - Pipeline logger.
+ * @param args - Bundled try-click discovery args (executor/discovery/logger).
  * @returns succeed(true) on click, succeed(false) when no submit target,
  *   fail when the click rejected.
  */
 async function tryClickSubmitFromDiscovery(
-  executor: IActionMediator,
-  discovery: ILoginFieldDiscovery,
-  logger: ScraperLogger,
+  args: ITryClickDiscoveryArgs,
 ): Promise<Procedure<boolean>> {
+  const { executor, discovery, logger } = args;
   if (!discovery.submitTarget.has) return succeed(false);
   const target = discovery.submitTarget.value;
   logger.debug({ method: 'click', url: maskVisibleText(target.candidateValue) });
-  return executor
-    .clickElement({ contextId: target.contextId, selector: target.selector })
-    .then((): Procedure<boolean> => succeed(true))
-    .catch(mapClickRejection);
+  return runDiscoveryClick(executor, target);
+}
+
+/**
+ * Run the discovery-mode submit attempts (Enter + Click) and capture
+ * both outcomes. Mirrors `runSubmitPhase` so the caller can decide.
+ * @param args - Bundled fill-from-discovery arguments.
+ * @returns Bundle of `didEnter` + `clickResult`.
+ */
+/**
+ * Build the bundled args for `tryEnterFromDiscovery`. Extracted so
+ * `submitViaDiscovery` stays under the §19.4 line cap.
+ * @param args - Bundled fill-from-discovery arguments.
+ * @returns Try-enter discovery args bundle.
+ */
+function buildEnterDiscoveryArgs(args: IFillFromDiscoveryArgs): ITryEnterDiscoveryArgs {
+  const { executor, logger, discovery } = args;
+  return { executor, activeFrameId: discovery.activeFrameId, logger };
 }
 
 /**
@@ -410,8 +521,9 @@ async function tryClickSubmitFromDiscovery(
  */
 async function submitViaDiscovery(args: IFillFromDiscoveryArgs): Promise<ISubmitPhaseResult> {
   const { executor, logger, discovery } = args;
-  const didEnter = await tryEnterFromDiscovery(executor, discovery.activeFrameId, logger);
-  const clickResult = await tryClickSubmitFromDiscovery(executor, discovery, logger);
+  const enterArgs = buildEnterDiscoveryArgs(args);
+  const didEnter = await tryEnterFromDiscovery(enterArgs);
+  const clickResult = await tryClickSubmitFromDiscovery({ executor, discovery, logger });
   return { didEnter, clickResult };
 }
 
@@ -465,12 +577,7 @@ async function fillFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Procedur
   const prereqs = await runDiscoveryPrereqs(args);
   if (!prereqs.success) return prereqs;
   const submit = await submitViaDiscovery(args);
-  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
-  const gate = gateNoSubmitSignal(submit);
-  if (!gate.success) return gate;
-  const method = resolveSubmitFromPhase(submit);
-  logSubmitResult(args.logger, args.executor, method);
-  return succeed({ success: true, method });
+  return finalizeSubmit({ submit, logger: args.logger, source: args.executor });
 }
 
 export type { IFillFromDiscoveryArgs, ISubmitResult, SubmitMethod };
