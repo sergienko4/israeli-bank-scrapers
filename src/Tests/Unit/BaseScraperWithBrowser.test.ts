@@ -347,6 +347,16 @@ describe('login', () => {
     expect(checkReadiness).toHaveBeenCalled();
     expect(WAIT_FOR_ELEMENT).not.toHaveBeenCalled();
   });
+
+  it('returns structured failure when companyId is pipeline-only (not in legacy registry)', async () => {
+    const scraper = createScraper({ companyId: 'pipeline-only-bank-not-in-registry' as never });
+    const result = await scraper.scrape(TEST_CREDS);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(SCRAPER_ERROR_TYPES.Generic);
+    expect(result.errorMessage).toMatch(/Pipeline-only bank/);
+    expect(CLICK_BUTTON).not.toHaveBeenCalled();
+    expect(FILL_INPUT).not.toHaveBeenCalled();
+  });
 });
 
 describe('terminate', () => {

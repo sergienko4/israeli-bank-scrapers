@@ -93,28 +93,6 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     expect(wasOk).toBe(true);
   });
 
-  it('POST honors MOCK_MODE safety valve and skips the live probe', async () => {
-    const original = process.env.MOCK_MODE;
-    process.env.MOCK_MODE = '1';
-    try {
-      const baseCtx = makeMockContext();
-      const fakeMediator = {} as IElementMediator;
-      const ctx = {
-        ...baseCtx,
-        mediator: { has: true as const, value: fakeMediator },
-      };
-      const result = await executeAuthDiscoveryPost(ctx);
-      const wasOk = isOk(result);
-      expect(wasOk).toBe(true);
-    } finally {
-      if (original === undefined) {
-        delete process.env.MOCK_MODE;
-      } else {
-        process.env.MOCK_MODE = original;
-      }
-    }
-  });
-
   it('FINAL passes through when authDiscovery is none (test path)', async () => {
     const ctx = makeMockContext();
     const result = await executeAuthDiscoveryFinal(ctx);

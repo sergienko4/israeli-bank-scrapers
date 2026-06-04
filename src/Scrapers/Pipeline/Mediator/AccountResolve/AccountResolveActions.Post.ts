@@ -16,7 +16,6 @@ import {
   failAccountResolutionFailed,
   failAccountResolutionIncomplete,
 } from './AccountResolveActions.Failures.js';
-import { isMockModeAccountResolveActive } from './AccountResolveActions.Wait.js';
 
 /** Handler map for {@link ResolveClassification} kinds — OCP-style. */
 type ResolveDispatchMap = {
@@ -104,7 +103,7 @@ function buildAccountResolvePostResult(
  *   one of the two fail-loud procedures.
  */
 function executeAccountResolvePost(input: IPipelineContext): Promise<Procedure<IPipelineContext>> {
-  if (!input.mediator.has || isMockModeAccountResolveActive) {
+  if (!input.mediator.has) {
     const passThrough = succeed(input);
     return Promise.resolve(passThrough);
   }

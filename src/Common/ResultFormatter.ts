@@ -88,6 +88,24 @@ function formatTransaction(txn: ITransaction): string {
 }
 
 /**
+ * Append the per-transaction preview lines (up to `MAX_TXN_PREVIEW`)
+ * and an overflow tail when more transactions exist beyond the cap.
+ * @param account - The account whose transactions to format.
+ * @param lines - Mutable output buffer that receives the formatted lines.
+ * @returns True after the preview lines have been appended.
+ */
+function appendTxnPreview(account: ITransactionsAccount, lines: string[]): boolean {
+  const preview = account.txns.slice(0, MAX_TXN_PREVIEW);
+  for (const txn of preview) {
+    const formatted = formatTransaction(txn);
+    lines.push(formatted);
+  }
+  const remaining = account.txns.length - MAX_TXN_PREVIEW;
+  if (remaining > 0) lines.push(`    ... +${String(remaining)} more`);
+  return true;
+}
+
+/**
  * Format an account's transactions for the result summary log.
  * @param account - The account with transactions to format.
  * @returns An array of formatted log lines.
@@ -96,16 +114,8 @@ function formatAccount(account: ITransactionsAccount): string[] {
   const acct = maskAccount(account.accountNumber);
   const balance = maskAmount(account.balance);
   const txnCount = String(account.txns.length);
-  const lines: string[] = [];
-  lines.push(`  Account: ${acct} | Balance:${balance} | Transactions: ${txnCount}`);
-  const preview = account.txns.slice(0, MAX_TXN_PREVIEW);
-  for (const txn of preview) {
-    const formatted = formatTransaction(txn);
-    lines.push(formatted);
-  }
-  const remaining = account.txns.length - MAX_TXN_PREVIEW;
-  const remainingStr = String(remaining);
-  if (remaining > 0) lines.push(`    ... +${remainingStr} more`);
+  const lines: string[] = [`  Account: ${acct} | Balance:${balance} | Transactions: ${txnCount}`];
+  appendTxnPreview(account, lines);
   return lines;
 }
 

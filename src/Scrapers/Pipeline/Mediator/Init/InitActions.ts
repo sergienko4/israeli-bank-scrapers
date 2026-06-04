@@ -6,7 +6,6 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { installMockContextRoute } from '../../Interceptors/MockInterceptorIO.js';
 import {
   buildBrowserState,
   closeBrowserSafe,
@@ -97,9 +96,9 @@ interface ILaunchedPage {
 }
 
 /**
- * Apply the post-launch Cold-Start scrub, mock route install, and
- * page-level setup in one call. Pulled out of
- * {@link buildSuccessfulLaunch} so the success-path stays ≤10 LoC.
+ * Apply the post-launch Cold-Start scrub and page-level setup in one
+ * call. Pulled out of {@link buildSuccessfulLaunch} so the success-path
+ * stays ≤10 LoC.
  *
  * @param launched - Context + page returned from {@link createContextAndPage}.
  * @param input - Pipeline context (carries companyId + options).
@@ -110,7 +109,6 @@ async function applyPostLaunchSetup(
   input: IPipelineContext,
 ): Promise<boolean> {
   await coldStartIfDumping(launched.context);
-  await installMockContextRoute(launched.context, input.companyId);
   await setupPage(launched.page, input.options);
   return true;
 }

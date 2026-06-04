@@ -14,10 +14,6 @@ import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/TimingConfig.js';
 import { discoverAccountsInPool } from './AccountFromPool.js';
 
-/** True when MOCK_MODE is active — skips the fail-loud invariant for the snapshot suite. */
-const isMockModeAccountResolveActive =
-  process.env.MOCK_MODE === '1' || process.env.MOCK_MODE === 'true';
-
 /** Outcome label lookup for the wait result. */
 const WAIT_OUTCOME: Record<'true' | 'false', 'matched' | 'timeout'> = {
   true: 'matched',
@@ -141,4 +137,4 @@ function executeAccountResolveAction(input: IActionContext): Promise<Procedure<I
   return Promise.resolve(passThrough);
 }
 
-export { executeAccountResolveAction, executeAccountResolvePre, isMockModeAccountResolveActive };
+export { executeAccountResolveAction, executeAccountResolvePre };
