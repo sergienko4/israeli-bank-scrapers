@@ -35,6 +35,6 @@ function canaryTestHelperOverTenStatements(): number {
 }
 
 /** Second named export — keeps `import-x/prefer-default-export` quiet. */
-const CANARY_LABEL = '§19.9-test-helper-over-10';
+const CANARY_LABEL = '§19.9-test-helper-over-10' as const;
 
 export { CANARY_LABEL, canaryTestHelperOverTenStatements };
