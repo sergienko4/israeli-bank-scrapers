@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
 import { type ILoginConfig, type ILoginSetup } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { LOGIN_SETUP_DEFAULT } from '../../Scrapers/Base/Config/LoginSetupDefaults.js';
 import {
   type IScraperScrapingResult,
   type ScraperCredentials,
@@ -51,12 +52,6 @@ const CUSTOM_SETUP: ILoginSetup = {
   hasOtpCode: false,
 };
 
-const DEFAULT_SETUP: ILoginSetup = {
-  isApiOnly: false,
-  hasOtpConfirm: false,
-  hasOtpCode: false,
-};
-
 /**
  * Test subclass exposing the protected `resolveLoginSetup()` hook so
  * unit tests can assert both branches without driving the full login chain.
@@ -101,7 +96,7 @@ describe('GenericBankScraper.resolveLoginSetup', () => {
     const lookup = scraper.exposeResolveLoginSetup();
     expect('loginSetup' in lookup).toBe(true);
     if ('loginSetup' in lookup) {
-      expect(lookup.loginSetup).toEqual(DEFAULT_SETUP);
+      expect(lookup.loginSetup).toEqual(LOGIN_SETUP_DEFAULT);
     }
   });
 
