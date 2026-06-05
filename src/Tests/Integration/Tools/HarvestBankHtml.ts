@@ -206,6 +206,7 @@ async function ensureFixtureRoot(bankId: string): Promise<string> {
 interface IFrameSnapshot {
   readonly html: string;
   readonly url: string;
+  readonly name: string;
 }
 
 /** Bundle returned by {@link captureFrames}. */
@@ -221,11 +222,12 @@ interface ICapturedSnapshot {
  */
 async function captureOneFrame(frame: Frame): Promise<IFrameSnapshot> {
   const url = frame.url();
+  const name = frame.name();
   try {
     const html = await frame.content();
-    return { html, url };
+    return { html, url, name };
   } catch {
-    return { html: FRAME_UNAVAILABLE_HTML, url };
+    return { html: FRAME_UNAVAILABLE_HTML, url, name };
   }
 }
 
@@ -245,6 +247,7 @@ async function captureFrames(page: Page): Promise<ICapturedSnapshot> {
 /** Metadata row written to `frames.json`. */
 interface IFrameMetaRow {
   readonly index: number;
+  readonly name: string;
   readonly url: string;
   readonly file: string;
 }
@@ -261,7 +264,7 @@ function buildFrameWriteTask(
 ): readonly [string, string, IFrameMetaRow] {
   const fileName = `frame-${String(index)}.html`;
   const content = redactPii(snapshot.html);
-  const meta: IFrameMetaRow = { index, url: snapshot.url, file: fileName };
+  const meta: IFrameMetaRow = { index, name: snapshot.name, url: snapshot.url, file: fileName };
   return [fileName, content, meta] as const;
 }
 
@@ -303,19 +306,19 @@ function buildFrameWrites(
 }
 
 /**
- * Build the `frames.json` index write for the step.
+ * Build the `frames.json` index write for the step. Emits a flat array
+ * of `{ index, name, url, file }` rows — matches the on-disk schema
+ * already used by the fixture corpus so re-harvest is idempotent.
  * @param tasks - Pre-built frame write tasks (to extract meta from).
- * @param args - Write bundle (for stepName).
  * @param stepDir - Per-step directory under the fixture root.
  * @returns Pending write promise.
  */
 function buildFramesIndexWrite(
   tasks: readonly (readonly [string, string, IFrameMetaRow])[],
-  args: IWriteStepArgs,
   stepDir: string,
 ): Promise<void> {
   const meta = tasks.map(([, , row]) => row);
-  const indexJson = JSON.stringify({ stepName: args.stepName, frames: meta }, null, 2);
+  const indexJson = JSON.stringify(meta, null, 2);
   const indexPath = join(stepDir, 'frames.json');
   return writeFile(indexPath, indexJson, 'utf8');
 }
@@ -331,7 +334,7 @@ async function writeStepArtifacts(args: IWriteStepArgs): Promise<number> {
   const frameTasks = args.snapshot.frames.map((snap, idx) => buildFrameWriteTask(snap, idx));
   const mainWrites = buildMainHtmlWrites(args, stepDir);
   const frameWrites = buildFrameWrites(frameTasks, stepDir);
-  const indexWrite = buildFramesIndexWrite(frameTasks, args, stepDir);
+  const indexWrite = buildFramesIndexWrite(frameTasks, stepDir);
   const writes = [...mainWrites, ...frameWrites, indexWrite];
   await Promise.all(writes);
   return writes.length;
@@ -410,6 +413,26 @@ async function navigateRevealCapture(args: IStepExecutionArgs): Promise<ICapture
 }
 
 /**
+ * Strip query + fragment from a captured URL before persisting it.
+ * MirrorInterceptor only consumes the host portion, but the steps.json
+ * manifest is committed to the repo so any tracking ids, session
+ * tokens, or one-shot grant params attached to the page URL are PII /
+ * data-leak risks — drop them at capture time, not after the fact.
+ * @param rawUrl - URL string as reported by `page.url()`.
+ * @returns Origin + pathname (search and hash removed); passthrough on parse failure.
+ */
+function sanitizeFinalUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+/**
  * Navigate (if URL set), reveal (if text set), settle, then capture
  * and write artifacts for one step. Returns both the file count AND
  * the page's final URL (consumed by the steps.json manifest writer).
@@ -421,7 +444,8 @@ async function executeRecipeStep(args: IStepExecutionArgs): Promise<IStepExecuti
   const stepArgs = buildStepArtifactsArgs(args.fixtureRoot, args.step, snapshot);
   const written = await writeStepArtifacts(stepArgs);
   console.log(`  step ${args.step.stepName}: wrote ${String(written)} files`);
-  const finalUrl = args.page.url();
+  const rawUrl = args.page.url();
+  const finalUrl = sanitizeFinalUrl(rawUrl);
   return { written, finalUrl };
 }
 

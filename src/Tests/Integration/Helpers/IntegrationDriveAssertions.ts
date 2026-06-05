@@ -70,8 +70,6 @@ function assertAllFieldsResolved(cfg: ILoginConfig, resolved: ReadonlyMap<string
     if (!resolved.has(field.credentialKey)) {
       throw new ScraperError(`field ${field.credentialKey} was not resolved by drive`);
     }
-    const wasResolved = resolved.has(field.credentialKey);
-    expect(wasResolved).toBe(true);
   }
   return cfg.fields.length;
 }
