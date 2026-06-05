@@ -1,4 +1,4 @@
-# Bank Integration Tests (Mode A — static HTML)
+# Bank Integration Tests (Mode A — static HTML + Mode B — mirror origin)
 
 Cross-bank integration coverage that fills the gap between unit tests
 (mocked DOM) and live E2E (real credentials).
@@ -22,8 +22,14 @@ src/Tests/Integration/
 ├── Banks/
 │   ├── BankFixtureExpectations.ts   # structural invariants per bank
 │   ├── FixtureExpectations.ts       # row schema
-│   ├── LoginFormDiscovery.integration.test.ts
+│   ├── LoginFormDiscovery.integration.test.ts   # Mode A drive
 │   └── ...
+├── Mirror/
+│   └── LoginNavigation.mirror.test.ts           # Mode B drive
+├── Helpers/
+│   ├── FixturePage.ts
+│   ├── IntegrationBrowserFixture.ts
+│   └── MirrorInterceptor.ts                     # Mode B route handler
 ├── fixtures/
 │   └── banks/
 │       ├── isracard/
@@ -31,7 +37,7 @@ src/Tests/Integration/
 │       │   ├── 02-pre-login/ …
 │       │   └── 03-after-flip/ …
 │       └── <bank>/<step>/main.html …
-├── tools/
+├── Tools/
 │   ├── CheckBankIntegrationCoverage.ts   # the gate
 │   └── HarvestBankHtml.ts                # the harvester
 └── README.md (this file)
@@ -39,13 +45,15 @@ src/Tests/Integration/
 
 ## Two modes
 
-| Mode                                  | Source                                                                    | Use case                                                                            |
-| ------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| **A — static HTML** (default, CI-run) | `fixtures/banks/<id>/<step>/main.html` loaded into a real Playwright page | Fast, deterministic, runs on every PR. Guards #307-class regressions.               |
-| **B — mirror** (planned, follow-up)   | A local mock origin that **replays** the captured HTML on its real URL    | Validates the production navigation chain end-to-end without hitting the live bank. |
+| Mode                  | Source                                                                        | Use case                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **A — static HTML**   | `fixtures/banks/<id>/<step>/main.html` loaded into a real Playwright page     | Fast, deterministic. Guards #307-class regressions inside the resolver chain.                   |
+| **B — mirror origin** | Local route handler that **replays** the captured HTML at the bank's real URL | Exercises the production `page.goto(originUrl)` navigation chain without hitting the live bank. |
 
-Mode B is a follow-up; the gate is already wired so onboarding a bank
-forces Mode A coverage before merge.
+Both modes are wired into the gate and run sequentially after every
+other test phase, immediately before the real-bank e2e happy path.
+Onboarding a new pipeline bank requires fixtures + drive coverage in
+**both** modes (the gate rejects half-coverage).
 
 ## How to add a new pipeline bank
 
@@ -59,7 +67,7 @@ forces Mode A coverage before merge.
 5. Harvest the fixture:
 
    ```
-   npx tsx src/Tests/Integration/tools/HarvestBankHtml.ts <bankId>
+   npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts <bankId>
    ```
 
 6. Verify the gate passes:
@@ -71,7 +79,8 @@ forces Mode A coverage before merge.
 7. Run the integration tests:
 
    ```
-   npm run test:integration
+   npm run test:integration:mode-a
+   npm run test:integration:mode-b
    ```
 
 ## SPA banks (`requiresHydration: true`)
@@ -80,16 +89,16 @@ A few banks (Discount, Max, VisaCal, Mercantile, OtsarHahayal) render
 the login form post-JS. The captured HTML alone is **not** sufficient
 to drive `LoginFieldDiscovery`, so those expectation rows have
 `requiresHydration: true` and the production-drive assertions are
-skipped for them in Mode A. The harvested HTML still gates the
-**structural** invariants (origin URL, page title, anchor markup
-present in the shell) so we catch shell-level regressions.
+skipped for them in both Mode A and Mode B. The harvested HTML still
+gates the **structural** invariants (origin URL, page title, anchor
+markup present in the shell) so we catch shell-level regressions.
 
-Mode B will unblock production-drive coverage for SPA banks once
-asset capture lands.
+Asset capture (CSS / JS / fonts) under `Mode B` is a follow-up so the
+SPA banks can hydrate inside the mirror and DRIVE the full chain.
 
 ## The gate (pre-commit + CI)
 
-`tools/CheckBankIntegrationCoverage.ts` walks every pipeline-bank
+`Tools/CheckBankIntegrationCoverage.ts` walks every pipeline-bank
 directory under `src/Scrapers/Pipeline/Banks/` and verifies:
 
 - The pipeline file exports `*_LOGIN: ILoginConfig`.

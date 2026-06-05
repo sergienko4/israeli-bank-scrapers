@@ -187,54 +187,59 @@ interface IAuditArgs {
   readonly pendingReharvest: ReadonlySet<string>;
 }
 
+/** Bundle for {@link checkModeADriveReadiness} — keeps params ≤3. */
+interface IModeReadinessArgs {
+  readonly bankId: string;
+  readonly expectations: ReadonlyMap<string, IBankFixtureExpectations>;
+  readonly pendingReharvest: ReadonlySet<string>;
+}
+
+/**
+ * Build a "Mode A drive-readiness" failure message for the given step.
+ * @param loginStep - The login step name lacking credential input.
+ * @returns Failure message.
+ */
+function buildModeAFailureMessage(loginStep: string): string {
+  return `Mode A drive-readiness: loginStep "${loginStep}" HTML lacks credential input`;
+}
+
 /**
  * Check Mode A drive-readiness: loginStep HTML present + has credential
- * input. Pending-reharvest entries are tracked but downgrade FAIL → WARN.
- * @param bankId - Canonical bankId.
- * @param expectations - Lookup map from buildExpectationIndex.
- * @param pendingReharvest - Allow-list set.
+ * input. Pending-reharvest entries are skipped silently.
+ * @param args - Args bundle.
  * @returns Failure message or `''` when Mode A is drive-ready.
  */
-function checkModeADriveReadiness(
-  bankId: string,
-  expectations: ReadonlyMap<string, IBankFixtureExpectations>,
-  pendingReharvest: ReadonlySet<string>,
-): string {
-  const row = expectations.get(bankId);
+function checkModeADriveReadiness(args: IModeReadinessArgs): string {
+  const row = args.expectations.get(args.bankId);
   if (row === undefined) return '';
-  if (pendingReharvest.has(bankId)) return '';
-  const html = loadLoginStepHtml(bankId, row.loginStep);
-  if (!hasCredentialInput(html)) {
-    const step = row.loginStep;
-    return `Mode A drive-readiness: loginStep "${step}" HTML lacks credential input`;
-  }
+  if (args.pendingReharvest.has(args.bankId)) return '';
+  const html = loadLoginStepHtml(args.bankId, row.loginStep);
+  if (!hasCredentialInput(html)) return buildModeAFailureMessage(row.loginStep);
   return '';
 }
 
 /**
+ * Build a "Mode B mirror-readiness" failure message for the given step.
+ * @param loginStep - The login step name lacking credential input.
+ * @returns Failure message.
+ */
+function buildModeBFailureMessage(loginStep: string): string {
+  return `Mode B mirror-readiness: loginStep "${loginStep}" HTML lacks credential input for mirror replay`;
+}
+
+/**
  * Check Mode B mirror-readiness: same loginStep HTML is reused via the
- * MirrorInterceptor route, so the check is identical to Mode A. The
- * separate function makes future divergence (asset capture, API stubs)
- * a one-line edit.
- * @param bankId - Canonical bankId.
- * @param expectations - Lookup map from buildExpectationIndex.
- * @param pendingReharvest - Allow-list set.
+ * MirrorInterceptor route, so the check is identical to Mode A.
+ * @param args - Args bundle.
  * @returns Failure message or `''` when Mode B is mirror-ready.
  */
-function checkModeBMirrorReadiness(
-  bankId: string,
-  expectations: ReadonlyMap<string, IBankFixtureExpectations>,
-  pendingReharvest: ReadonlySet<string>,
-): string {
-  const row = expectations.get(bankId);
+function checkModeBMirrorReadiness(args: IModeReadinessArgs): string {
+  const row = args.expectations.get(args.bankId);
   if (row === undefined) return '';
-  if (pendingReharvest.has(bankId)) return '';
+  if (args.pendingReharvest.has(args.bankId)) return '';
   if (row.originUrl === '') return 'Mode B mirror-readiness: originUrl is empty';
-  const html = loadLoginStepHtml(bankId, row.loginStep);
-  if (!hasCredentialInput(html)) {
-    const step = row.loginStep;
-    return `Mode B mirror-readiness: loginStep "${step}" HTML lacks credential input for mirror replay`;
-  }
+  const html = loadLoginStepHtml(args.bankId, row.loginStep);
+  if (!hasCredentialInput(html)) return buildModeBFailureMessage(row.loginStep);
   return '';
 }
 
@@ -250,9 +255,14 @@ function appendModeReadinessFailures(
   args: IAuditArgs,
   missing: string[],
 ): string[] {
-  const modeA = checkModeADriveReadiness(bankId, args.expectations, args.pendingReharvest);
+  const readinessArgs: IModeReadinessArgs = {
+    bankId,
+    expectations: args.expectations,
+    pendingReharvest: args.pendingReharvest,
+  };
+  const modeA = checkModeADriveReadiness(readinessArgs);
   if (modeA !== '') missing.push(modeA);
-  const modeB = checkModeBMirrorReadiness(bankId, args.expectations, args.pendingReharvest);
+  const modeB = checkModeBMirrorReadiness(readinessArgs);
   if (modeB !== '') missing.push(modeB);
   return missing;
 }
@@ -304,6 +314,33 @@ function printFinding(finding: IBankFinding): IBankFinding {
 }
 
 /**
+ * Print the bank coverage tally line.
+ * @param okCount - Number of banks that passed.
+ * @param total - Total banks audited.
+ * @param failureCount - Number of banks that failed.
+ * @returns The okCount for chaining.
+ */
+function printCoverageTally(okCount: number, total: number, failureCount: number): number {
+  console.log(
+    `\nBank coverage: ${String(okCount)}/${String(total)} OK, ` +
+      `${String(failureCount)} failing.`,
+  );
+  return okCount;
+}
+
+/**
+ * Print the failure footer and exit with non-zero status.
+ * @returns Never returns; throws process.exit(1).
+ */
+function exitWithFailure(): never {
+  console.error(
+    '\n❌ Bank integration coverage gate FAILED. ' +
+      'Every pipeline bank (non-API-direct) must have a fixture + expectations row.',
+  );
+  process.exit(1);
+}
+
+/**
  * Summarise + exit with non-zero code when any bank failed.
  * @param findings - The per-bank findings.
  * @returns Number of failing banks (0 on success).
@@ -311,17 +348,8 @@ function printFinding(finding: IBankFinding): IBankFinding {
 function summarizeAndExit(findings: readonly IBankFinding[]): number {
   const failures = findings.filter(f => f.missing.length > 0);
   const okCount = findings.length - failures.length;
-  console.log(
-    `\nBank coverage: ${String(okCount)}/${String(findings.length)} OK, ` +
-      `${String(failures.length)} failing.`,
-  );
-  if (failures.length > 0) {
-    console.error(
-      '\n❌ Bank integration coverage gate FAILED. ' +
-        'Every pipeline bank (non-API-direct) must have a fixture + expectations row.',
-    );
-    process.exit(1);
-  }
+  printCoverageTally(okCount, findings.length, failures.length);
+  if (failures.length > 0) exitWithFailure();
   console.log('\n✅ Bank integration coverage gate PASSED.');
   return failures.length;
 }

@@ -74,6 +74,21 @@ function shouldServeHtml(req: Request, originHost: string): boolean {
 }
 
 /**
+ * Fulfill the route with the cached HTML payload.
+ * @param route - Playwright route.
+ * @param cachedHtml - The cached HTML body to serve.
+ * @returns True after fulfillment.
+ */
+async function fulfillHtml(route: Route, cachedHtml: string): Promise<true> {
+  await route.fulfill({
+    status: STEP_HTML_STATUS,
+    contentType: HTML_CONTENT_TYPE,
+    body: cachedHtml,
+  });
+  return true;
+}
+
+/**
  * Route handler — fulfills document navigations with cached HTML and
  * aborts every other request so subresources never escape.
  * @param route - Playwright route.
@@ -82,14 +97,7 @@ function shouldServeHtml(req: Request, originHost: string): boolean {
  * @returns True after the route is handled.
  */
 async function routeHandler(route: Route, req: Request, ctx: IRouteCtx): Promise<true> {
-  if (shouldServeHtml(req, ctx.originHost)) {
-    await route.fulfill({
-      status: STEP_HTML_STATUS,
-      contentType: HTML_CONTENT_TYPE,
-      body: ctx.cachedHtml,
-    });
-    return true;
-  }
+  if (shouldServeHtml(req, ctx.originHost)) return fulfillHtml(route, ctx.cachedHtml);
   const abortPromise = route.abort('blockedbyclient');
   await swallow(abortPromise);
   return true;
@@ -107,6 +115,19 @@ async function readStepHtml(bankId: string, stepName: string): Promise<string> {
 }
 
 /**
+ * Build the dispose callback that unroutes the mirror on teardown.
+ * @param page - Playwright page the mirror is installed on.
+ * @returns Async dispose returning true after teardown.
+ */
+function makeDispose(page: Page): () => Promise<boolean> {
+  return async (): Promise<boolean> => {
+    const unroutePromise = page.unroute('**/*');
+    await swallow(unroutePromise);
+    return true;
+  };
+}
+
+/**
  * Install the mirror on the page. The HTML fixture is cached once;
  * every same-origin document request gets the cached bytes; every
  * subresource is aborted at the network layer.
@@ -120,16 +141,7 @@ async function installMirror(args: IInstallMirrorArgs): Promise<IMirrorHandle> {
   await args.page.route('**/*', (route: Route, req: Request): Promise<true> => {
     return routeHandler(route, req, ctx);
   });
-  /**
-   * Remove the route handler — swallows races on page close.
-   * @returns True after teardown.
-   */
-  const dispose = async (): Promise<boolean> => {
-    const unroutePromise = args.page.unroute('**/*');
-    await swallow(unroutePromise);
-    return true;
-  };
-  return { escapes: [], dispose };
+  return { escapes: [], dispose: makeDispose(args.page) };
 }
 
 export type { IInstallMirrorArgs, IMirrorHandle };

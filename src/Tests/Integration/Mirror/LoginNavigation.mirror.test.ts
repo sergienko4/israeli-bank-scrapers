@@ -94,16 +94,42 @@ interface IDriveArgs {
 }
 
 /**
- * Spin up a page with the mirror installed, navigate to the bank's real
- * origin (intercepted by the mirror), then drive LOGIN PRE discovery.
- * @param args - Drive arguments.
- * @returns Page + resolved selectors + discovered form-anchor selector.
+ * Close the page's context, swallowing teardown races so the cleanup
+ * path never masks the original error from the caller.
+ * @param page - Playwright page to clean up.
+ * @returns True after teardown.
  */
-async function runMirrorDrive(args: IDriveArgs): Promise<{
-  readonly page: Page;
-  readonly resolved: ReadonlyMap<string, string>;
-  readonly anchorSelector: string;
-}> {
+async function closeQuietly(page: Page): Promise<true> {
+  try {
+    await page.context().close();
+  } catch {
+    // swallow: context may already be closing from a parallel afterAll
+  }
+  return true;
+}
+
+/**
+ * Build the result map keyed by credentialKey from the discovery output.
+ * @param result - Discovery result containing target selectors.
+ * @returns Read-only map of credentialKey → resolved selector.
+ */
+function buildResolvedMap(
+  result: Awaited<ReturnType<typeof executeDiscoverFields>>,
+): ReadonlyMap<string, string> {
+  const resolved = new Map<string, string>();
+  for (const [key, target] of result.targets.entries()) {
+    resolved.set(key, target.selector);
+  }
+  return resolved;
+}
+
+/**
+ * Boot a fresh page, install the mirror, and navigate to the bank's
+ * real URL (intercepted by the mirror).
+ * @param args - Drive arguments.
+ * @returns The prepared page.
+ */
+async function setupMirrorPage(args: IDriveArgs): Promise<Page> {
   const page = await newFixturePage(args.browser);
   await installMirror({
     page,
@@ -115,24 +141,58 @@ async function runMirrorDrive(args: IDriveArgs): Promise<{
     waitUntil: 'domcontentloaded',
     timeout: MIRROR_GOTO_TIMEOUT_MS,
   });
+  return page;
+}
+
+/**
+ * Drive production LOGIN PRE discovery against the page and return
+ * the resolved selectors + the discovered form-anchor selector.
+ * @param page - Page after mirror install + navigation.
+ * @param cfg - Bank LOGIN config.
+ * @returns Resolved map + anchor selector.
+ */
+async function discoverAndResolveTargets(
+  page: Page,
+  cfg: ILoginConfig,
+): Promise<{ resolved: ReadonlyMap<string, string>; anchorSelector: string }> {
   const mediator = createElementMediator(page);
   const result = await executeDiscoverFields({
     mediator,
-    config: args.config,
+    config: cfg,
     activeFrame: page,
     page,
     logger: makeSilentLogger(),
   });
-  const resolved = new Map<string, string>();
-  for (const [key, target] of result.targets.entries()) {
-    resolved.set(key, target.selector);
-  }
+  const resolved = buildResolvedMap(result);
   const anchorSelector = result.formAnchor.has ? result.formAnchor.value.selector : '';
-  return { page, resolved, anchorSelector };
+  return { resolved, anchorSelector };
+}
+
+/**
+ * Spin up a page with the mirror installed, navigate to the bank's real
+ * origin (intercepted by the mirror), then drive LOGIN PRE discovery.
+ * Closes the page on any error so browser resources never leak.
+ * @param args - Drive arguments.
+ * @returns Page + resolved selectors + discovered form-anchor selector.
+ */
+async function runMirrorDrive(args: IDriveArgs): Promise<{
+  readonly page: Page;
+  readonly resolved: ReadonlyMap<string, string>;
+  readonly anchorSelector: string;
+}> {
+  const page = await setupMirrorPage(args);
+  try {
+    const { resolved, anchorSelector } = await discoverAndResolveTargets(page, args.config);
+    return { page, resolved, anchorSelector };
+  } catch (err) {
+    await closeQuietly(page);
+    throw err;
+  }
 }
 
 /**
  * Assert every credential field from the config was resolved by drive.
+ * Pure map-presence check — does NOT touch the page.
  * @param cfg - Bank LOGIN config.
  * @param resolved - Resolved selectors by credentialKey.
  * @returns Number of fields verified.
@@ -148,6 +208,61 @@ function assertAllFieldsResolved(cfg: ILoginConfig, resolved: ReadonlyMap<string
   return cfg.fields.length;
 }
 
+/** Args bundle for {@link assertFieldsContainedInAnchor} — keeps params ≤3. */
+interface IContainmentArgs {
+  readonly page: Page;
+  readonly resolved: ReadonlyMap<string, string>;
+  readonly anchorSelector: string;
+}
+
+/**
+ * Probe one resolved field and check whether it is contained inside
+ * the discovered anchor DOM node (uses `Node.contains` browser-side).
+ * @param page - Playwright page.
+ * @param selector - Resolved field selector.
+ * @param anchorSelector - The discovered form-anchor selector.
+ * @returns True when the field is inside the anchor.
+ */
+async function probeFieldInsideAnchor(
+  page: Page,
+  selector: string,
+  anchorSelector: string,
+): Promise<boolean> {
+  const fieldLoc = page.locator(selector).first();
+  const anchorLoc = page.locator(anchorSelector).first();
+  const anchorHandle = await anchorLoc.elementHandle();
+  if (anchorHandle === null) return false;
+  const isInside = await fieldLoc.evaluate(
+    (el: Element, anchor: Element): boolean => anchor.contains(el),
+    anchorHandle,
+  );
+  await anchorHandle.dispose();
+  return isInside;
+}
+
+/**
+ * Assert every resolved field is contained inside the discovered form
+ * anchor element — same invariant Mode A asserts via `closest('form')`
+ * but using `Node.contains()` so it works for non-`<form>` anchors too
+ * (some banks anchor on `<div>` wrappers when the live form is absent).
+ * @param args - Page + resolved selectors + anchor selector.
+ * @returns Number of fields verified.
+ */
+async function assertFieldsContainedInAnchor(args: IContainmentArgs): Promise<number> {
+  const probes: Promise<boolean>[] = [];
+  for (const [key, selector] of args.resolved.entries()) {
+    const probe = probeFieldInsideAnchor(args.page, selector, args.anchorSelector).then(
+      (inside): boolean => {
+        if (!inside) throw new ScraperError(`field ${key} resolved OUTSIDE anchor`);
+        return inside;
+      },
+    );
+    probes.push(probe);
+  }
+  const results = await Promise.all(probes);
+  return results.length;
+}
+
 describe('LoginNavigation cross-bank integration (Mode B — mirror origin)', () => {
   beforeAll(async () => {
     await getIntegrationBrowser();
@@ -160,22 +275,30 @@ describe('LoginNavigation cross-bank integration (Mode B — mirror origin)', ()
   describe.each(BANK_FIXTURE_EXPECTATIONS)('$bankId', (bank: IBankFixtureExpectations) => {
     const hasFixtures = fixtureRootExistsSync(bank.bankId);
     const isPending = PENDING_REHARVEST.has(bank.bankId);
-    const canDrive = !bank.requiresHydration && hasFixtures && !isPending;
+    const cfgForBank = BANK_LOGIN_CONFIGS[bank.bankId];
+    const canDrive =
+      !bank.requiresHydration && hasFixtures && !isPending && cfgForBank !== undefined;
     const maybeIt = canDrive ? it : it.skip;
 
     maybeIt(
-      'mirror replays loginStep HTML at real origin and DRIVE resolves every field',
+      'mirror replays loginStep HTML at real origin and DRIVE resolves every field INSIDE anchor',
       async () => {
+        if (cfgForBank === undefined) {
+          throw new ScraperError(`no LOGIN config for ${bank.bankId}`);
+        }
         const browser = await getIntegrationBrowser();
-        const cfg = BANK_LOGIN_CONFIGS[bank.bankId] as ILoginConfig | undefined;
-        if (cfg === undefined) throw new ScraperError(`no LOGIN config for ${bank.bankId}`);
-        const drive = await runMirrorDrive({ browser, bank, config: cfg });
+        const drive = await runMirrorDrive({ browser, bank, config: cfgForBank });
         try {
           if (drive.anchorSelector === '') throw new ScraperError('form anchor not discovered');
           expect(drive.anchorSelector).not.toBe('');
-          assertAllFieldsResolved(cfg, drive.resolved);
+          assertAllFieldsResolved(cfgForBank, drive.resolved);
+          await assertFieldsContainedInAnchor({
+            page: drive.page,
+            resolved: drive.resolved,
+            anchorSelector: drive.anchorSelector,
+          });
         } finally {
-          await drive.page.context().close();
+          await closeQuietly(drive.page);
         }
       },
       DRIVE_TIMEOUT_MS,

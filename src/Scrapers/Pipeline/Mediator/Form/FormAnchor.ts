@@ -348,6 +348,22 @@ export async function discoverFormAnchor(
 }
 
 /**
+ * Build the CSS branch of a scoped candidate via {@link SCOPE_BUILDERS}.
+ * Returns the candidate unchanged when no builder is registered for
+ * the candidate kind.
+ * @param formSelector - The CSS selector for the form anchor.
+ * @param candidate - Candidate to scope (non-xpath, non-text kinds).
+ * @returns Scoped CSS candidate or the input candidate untouched.
+ */
+function scopeCssCandidate(formSelector: string, candidate: SelectorCandidate): SelectorCandidate {
+  const builder = SCOPE_BUILDERS[candidate.kind] as
+    | ((form: string, val: string) => string)
+    | undefined;
+  if (!builder) return candidate;
+  return { ...candidate, kind: 'css', value: builder(formSelector, candidate.value) };
+}
+
+/**
  * Scope a selector candidate to search within a form element.
  *
  * <p>Dispatch order:
@@ -371,14 +387,8 @@ export function scopeCandidate(
   if (candidate.kind === 'xpath') {
     return { ...candidate, kind: 'xpath', value: scopeXpath(formSelector, candidate.value) };
   }
-  if (TEXT_SCOPE_BUILDERS[candidate.kind]) {
-    return scopeTextCandidate(formSelector, candidate);
-  }
-  const builder = SCOPE_BUILDERS[candidate.kind] as
-    | ((form: string, val: string) => string)
-    | undefined;
-  if (!builder) return candidate;
-  return { ...candidate, kind: 'css', value: builder(formSelector, candidate.value) };
+  if (TEXT_SCOPE_BUILDERS[candidate.kind]) return scopeTextCandidate(formSelector, candidate);
+  return scopeCssCandidate(formSelector, candidate);
 }
 
 /**

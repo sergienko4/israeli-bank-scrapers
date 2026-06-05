@@ -66,25 +66,27 @@ function makeSilentLogger(): ScraperLogger {
 }
 
 /**
- * Assert every declared element id is present in the page DOM via the
- * provided CSS pattern. Counts run concurrently — a single missing id
- * fails the whole batch.
+ * Assert every declared element id is present in the page DOM using a
+ * safe attribute selector (`tag[id="..."]`) so ids containing CSS
+ * special characters (`.`, `:`, `[`, etc.) are matched correctly.
+ * Counts run concurrently — a single missing id fails the whole batch.
  * @param page - Playwright page with the step HTML loaded.
  * @param ids - Element ids the fixture must contain.
- * @param tagSelector - CSS prefix taking `${id}` — e.g. `form#` or `input#`.
+ * @param tagName - Tag name to anchor the attribute match (e.g. `form`, `input`).
  */
 async function assertIdsPresent(
   page: Page,
   ids: readonly string[],
-  tagSelector: string,
+  tagName: string,
 ): Promise<void> {
   const probes = ids.map((id): Promise<{ id: string; count: number }> => {
-    const loc = page.locator(`${tagSelector}${id}`);
+    const selector = `${tagName}[id="${id.replace(/"/g, '\\"')}"]`;
+    const loc = page.locator(selector);
     return loc.count().then((count): { id: string; count: number } => ({ id, count }));
   });
   const results = await Promise.all(probes);
   for (const result of results) {
-    if (result.count === 0) throw new ScraperError(`fixture missing ${tagSelector}${result.id}`);
+    if (result.count === 0) throw new ScraperError(`fixture missing ${tagName}[id="${result.id}"]`);
     expect(result.count).toBeGreaterThan(0);
   }
 }
@@ -95,8 +97,8 @@ async function assertIdsPresent(
  * @param step - Step expectations.
  */
 async function assertStepStructure(page: Page, step: IStepExpectations): Promise<void> {
-  await assertIdsPresent(page, step.requiredFormIds ?? [], 'form#');
-  await assertIdsPresent(page, step.requiredInputIds ?? [], 'input#');
+  await assertIdsPresent(page, step.requiredFormIds ?? [], 'form');
+  await assertIdsPresent(page, step.requiredInputIds ?? [], 'input');
 }
 
 /**
@@ -120,11 +122,61 @@ interface IDriveArgs {
 }
 
 /**
+ * Build the result map keyed by credentialKey from the discovery output.
+ * @param result - Discovery result containing target selectors.
+ * @returns Read-only map of credentialKey → resolved selector.
+ */
+function buildResolvedMap(
+  result: Awaited<ReturnType<typeof executeDiscoverFields>>,
+): ReadonlyMap<string, string> {
+  const resolved = new Map<string, string>();
+  for (const [key, target] of result.targets.entries()) {
+    resolved.set(key, target.selector);
+  }
+  return resolved;
+}
+
+/**
+ * Close the page's context, swallowing teardown races so the cleanup
+ * path never masks the original error from the caller.
+ * @param page - Playwright page to clean up.
+ * @returns True after teardown.
+ */
+async function closeQuietly(page: Page): Promise<true> {
+  try {
+    await page.context().close();
+  } catch {
+    // swallow: context may already be closing from a parallel afterAll
+  }
+  return true;
+}
+
+/**
+ * Run production discovery against the loaded page.
+ * @param page - Playwright page with the step HTML loaded.
+ * @param cfg - Bank LOGIN config to drive against.
+ * @returns Discovery result.
+ */
+async function runDiscoveryOnPage(
+  page: Page,
+  cfg: ILoginConfig,
+): Promise<Awaited<ReturnType<typeof executeDiscoverFields>>> {
+  const mediator = createElementMediator(page);
+  return executeDiscoverFields({
+    mediator,
+    config: cfg,
+    activeFrame: page,
+    page,
+    logger: makeSilentLogger(),
+  });
+}
+
+/**
  * Drive {@link executeDiscoverFields} once on a fresh page and return the
  * resolved selectors keyed by credentialKey + the discovered form anchor.
+ * Closes the page's context on any error so browser resources never leak.
  * @param args - Drive arguments.
- * @returns Map of credentialKey → resolved selector AND the form-anchor
- *   selector reported by discovery.
+ * @returns Page + resolved selectors + form-anchor selector.
  */
 async function runDriveOnce(args: IDriveArgs): Promise<{
   readonly page: Page;
@@ -132,22 +184,17 @@ async function runDriveOnce(args: IDriveArgs): Promise<{
   readonly anchorSelector: string;
 }> {
   const page = await newFixturePage(args.browser);
-  const paths = await loadBankFixturePaths(args.bank.bankId);
-  await loadStep(page, paths, args.bank.loginStep);
-  const mediator = createElementMediator(page);
-  const result = await executeDiscoverFields({
-    mediator,
-    config: args.config,
-    activeFrame: page,
-    page,
-    logger: makeSilentLogger(),
-  });
-  const resolved = new Map<string, string>();
-  for (const [key, target] of result.targets.entries()) {
-    resolved.set(key, target.selector);
+  try {
+    const paths = await loadBankFixturePaths(args.bank.bankId);
+    await loadStep(page, paths, args.bank.loginStep);
+    const result = await runDiscoveryOnPage(page, args.config);
+    const resolved = buildResolvedMap(result);
+    const anchorSelector = result.formAnchor.has ? result.formAnchor.value.selector : '';
+    return { page, resolved, anchorSelector };
+  } catch (err) {
+    await closeQuietly(page);
+    throw err;
   }
-  const anchorSelector = result.formAnchor.has ? result.formAnchor.value.selector : '';
-  return { page, resolved, anchorSelector };
 }
 
 /**
@@ -252,12 +299,13 @@ describe('LoginFieldDiscovery cross-bank integration (Mode A — static HTML)', 
     });
 
     const cfg = BANK_LOGIN_CONFIGS[bank.bankId];
-    const canDrive = !bank.requiresHydration && hasFixtures;
+    const canDrive = !bank.requiresHydration && hasFixtures && cfg !== undefined;
     const maybeIt = canDrive ? it : it.skip;
 
     maybeIt(
       'LOGIN PRE discovers form anchor and every field lives INSIDE it',
       async () => {
+        if (cfg === undefined) throw new ScraperError(`no LOGIN config for ${bank.bankId}`);
         const browser = await getIntegrationBrowser();
         const drive = await runDriveOnce({ browser, bank, config: cfg });
         try {
@@ -273,7 +321,7 @@ describe('LoginFieldDiscovery cross-bank integration (Mode A — static HTML)', 
             });
           }
         } finally {
-          await drive.page.context().close();
+          await closeQuietly(drive.page);
         }
       },
       DRIVE_TIMEOUT_MS,

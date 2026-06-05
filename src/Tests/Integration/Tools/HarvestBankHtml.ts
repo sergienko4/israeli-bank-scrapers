@@ -52,11 +52,19 @@ const FRAME_UNAVAILABLE_HTML = '<!-- frame content unavailable -->';
 /**
  * PII redaction rules — each pair is `[pattern, replacement]`. Order
  * matters: narrower patterns must come before broader ones.
+ *
+ * <p>reCAPTCHA-token entries are NOT user PII per se, but the upstream
+ * payloads are session-bound and we never want them in committed
+ * fixtures (they're effectively short-lived secrets that bind to a
+ * captured IP). They are scrubbed at write time so re-harvest stays
+ * automatic.
  */
 const PII_REPLACEMENTS: readonly (readonly [RegExp, string])[] = [
   [/\b\d{9}\b/g, '[redacted-id]'],
   [/\b05\d[-\s]?\d{7}\b/g, '[redacted-phone]'],
   [/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[redacted-email]'],
+  [/(<input[^>]*id="recaptcha-token"[^>]*value=")[^"]+(")/gi, '$1REDACTED_RECAPTCHA_TOKEN$2'],
+  [/(recaptcha\.anchor\.Main\.init\(\s*)"[^"]+"/g, '$1"REDACTED_RECAPTCHA_PAYLOAD"'],
 ];
 
 /** One step in a bank recipe. */
@@ -68,75 +76,75 @@ interface IRecipeStep {
   readonly revealText?: string;
 }
 
-/** Per-bank capture recipe. */
+/**
+ * Per-bank capture recipe (steps only). `bankId` is NOT duplicated
+ * here — it is derived from the {@link BANK_RECIPES} map key by
+ * {@link toRecipe} so there is one source of truth.
+ */
+interface IRecipeBody {
+  readonly steps: readonly IRecipeStep[];
+}
+
+/** Fully-resolved recipe used by the driver — bankId + steps. */
 interface IBankRecipe {
   readonly bankId: string;
   readonly steps: readonly IRecipeStep[];
 }
 
 /**
- * Per-bank recipes — banks not listed here cannot be auto-harvested;
- * fixtures must be captured manually and committed.
+ * Per-bank recipes — the map key IS the bankId. Adding a new bank
+ * means adding a key + steps; no duplicate bankId field.
  */
-const BANK_RECIPES: Readonly<Partial<Record<string, IBankRecipe>>> = {
+const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
   isracard: {
-    bankId: 'isracard',
     steps: [
       { stepName: '02-pre-login', url: 'https://digital.isracard.co.il' },
       { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
     ],
   },
   amex: {
-    bankId: 'amex',
     steps: [
       { stepName: '02-pre-login', url: 'https://digital.americanexpress.co.il' },
       { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
     ],
   },
   hapoalim: {
-    bankId: 'hapoalim',
     steps: [
       { stepName: '01-home', url: 'https://www.bankhapoalim.co.il' },
       { stepName: '02-pre-login', url: 'https://login.bankhapoalim.co.il' },
     ],
   },
   discount: {
-    bankId: 'discount',
     steps: [
       { stepName: '01-home', url: 'https://www.discountbank.co.il' },
       { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
     ],
   },
   mercantile: {
-    bankId: 'mercantile',
     steps: [
       { stepName: '01-home', url: 'https://www.mercantile.co.il' },
       { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
     ],
   },
   massad: {
-    bankId: 'massad',
     steps: [
       { stepName: '01-home', url: 'https://www.bankmassad.co.il' },
       { stepName: '02-pre-login', url: 'https://online.bankmassad.co.il' },
     ],
   },
   pagi: {
-    bankId: 'pagi',
     steps: [
       { stepName: '01-home', url: 'https://www.pagi.co.il' },
       { stepName: '02-pre-login', url: 'https://onlinepagi.bankpoalim.co.il' },
     ],
   },
   otsarHahayal: {
-    bankId: 'otsarHahayal',
     steps: [
       { stepName: '01-home', url: 'https://www.bankotsar.co.il' },
       { stepName: '02-pre-login', url: 'https://digital.otsarh.co.il' },
     ],
   },
   beinleumi: {
-    bankId: 'beinleumi',
     steps: [
       { stepName: '01-home', url: 'https://www.fibi.co.il' },
       { stepName: '02-modal-opened', revealText: 'כניסה לחשבון' },
@@ -144,7 +152,6 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IBankRecipe>>> = {
     ],
   },
   max: {
-    bankId: 'max',
     steps: [
       { stepName: '01-home', url: 'https://www.max.co.il' },
       { stepName: '02-after-entry', revealText: 'כניסה לחשבון' },
@@ -153,13 +160,23 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IBankRecipe>>> = {
     ],
   },
   visaCal: {
-    bankId: 'visaCal',
     steps: [
       { stepName: '01-home', url: 'https://www.cal-online.co.il' },
       { stepName: '02-pre-login', revealText: 'כניסה לחשבונך' },
     ],
   },
 };
+
+/**
+ * Build the resolved recipe — bundles map key (the bankId) with the
+ * steps body, removing the duplicate-bankId smell.
+ * @param bankId - The map key (canonical bankId).
+ * @param body - The recipe body from {@link BANK_RECIPES}.
+ * @returns Fully resolved {@link IBankRecipe}.
+ */
+function toRecipe(bankId: string, body: IRecipeBody): IBankRecipe {
+  return { bankId, steps: body.steps };
+}
 
 /**
  * Redact PII patterns in HTML before writing to disk.
@@ -440,19 +457,19 @@ async function driveRecipe(browser: Browser, recipe: IBankRecipe): Promise<numbe
 }
 
 /**
- * Parse `bankId` from `process.argv` and look up the recipe.
- * @returns The recipe for the requested bank.
+ * Parse `bankId` from `process.argv` and look up the recipe body.
+ * @returns The resolved recipe for the requested bank.
  */
 function resolveRecipeFromCli(): IBankRecipe {
   const bankId = process.argv.at(2);
   if (bankId === undefined || bankId.trim() === '') {
     throw new ScraperError('usage: HarvestBankHtml.ts <bankId>');
   }
-  const recipe = BANK_RECIPES[bankId];
-  if (recipe === undefined) {
+  const body = BANK_RECIPES[bankId];
+  if (body === undefined) {
     throw new ScraperError(`no recipe registered for bankId "${bankId}"`);
   }
-  return recipe;
+  return toRecipe(bankId, body);
 }
 
 /**

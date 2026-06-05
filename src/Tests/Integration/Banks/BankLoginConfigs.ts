@@ -23,8 +23,13 @@ import { OTSAR_HAHAYAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/OtsarHahay
 import { PAGI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 import { VISACAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 
-/** Map of bankId → exported LoginConfig — used by Mode A drive. */
-const BANK_LOGIN_CONFIGS: Readonly<Record<string, ILoginConfig>> = {
+/**
+ * Map of bankId → exported LoginConfig — used by both Mode A and
+ * Mode B drive tests. Declared as `Partial` so consumers MUST check
+ * for `undefined` before dereferencing (no implicit assumption that
+ * every bank in {@link BankFixtureExpectations} has a config entry).
+ */
+const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
   amex: AMEX_LOGIN,
   beinleumi: BEINLEUMI_LOGIN,
   discount: DISCOUNT_LOGIN,
