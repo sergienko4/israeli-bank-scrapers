@@ -264,7 +264,8 @@ function buildFrameWriteTask(
 ): readonly [string, string, IFrameMetaRow] {
   const fileName = `frame-${String(index)}.html`;
   const content = redactPii(snapshot.html);
-  const meta: IFrameMetaRow = { index, name: snapshot.name, url: snapshot.url, file: fileName };
+  const sanitizedUrl = sanitizeFinalUrl(snapshot.url);
+  const meta: IFrameMetaRow = { index, name: snapshot.name, url: sanitizedUrl, file: fileName };
   return [fileName, content, meta] as const;
 }
 

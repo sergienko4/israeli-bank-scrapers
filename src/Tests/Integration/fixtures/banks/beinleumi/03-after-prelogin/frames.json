@@ -32,7 +32,7 @@
   {
     "index": 5,
     "name": "loginWithQrCodeIframe",
-    "url": "https://online.fibi.co.il/MatafLoginService/MatafMobileApproveServlet?bankId=FIBIPORTAL&site=Private&KODSAFA=HE",
+    "url": "https://online.fibi.co.il/MatafLoginService/MatafMobileApproveServlet",
     "file": "frame-5.html"
   }
 ]

@@ -9,10 +9,10 @@
   },
   {
     "name": "03-after-private",
-    "finalUrl": "https://www.max.co.il/login?ReturnURL=https:%2F%2Fwww.max.co.il%2Fhomepage%3FSourceGA%3DAnonymousHeaderCH"
+    "finalUrl": "https://www.max.co.il/login"
   },
   {
     "name": "04-reveal-password",
-    "finalUrl": "https://www.max.co.il/login?ReturnURL=https:%2F%2Fwww.max.co.il%2Fhomepage%3FSourceGA%3DAnonymousHeaderCH"
+    "finalUrl": "https://www.max.co.il/login"
   }
 ]

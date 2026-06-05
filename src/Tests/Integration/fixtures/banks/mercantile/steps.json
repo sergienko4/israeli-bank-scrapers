@@ -5,6 +5,6 @@
   },
   {
     "name": "02-pre-login",
-    "finalUrl": "https://start.telebank.co.il/login/#/LOGIN_PAGE"
+    "finalUrl": "https://start.telebank.co.il/login/"
   }
 ]
