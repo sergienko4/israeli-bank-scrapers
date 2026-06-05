@@ -413,7 +413,7 @@ async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Pr
   const initial = succeed(true);
   const seed: Promise<Procedure<boolean>> = Promise.resolve(initial);
   const reducer = makeDiscoveryFillReducer(args);
-  return entries.reduce(reducer, seed);
+  return entries.reduce((acc, entry) => reducer(acc, entry), seed);
 }
 
 /** Bundled args for `tryEnterFromDiscovery` — fits the 3-param ceiling. */

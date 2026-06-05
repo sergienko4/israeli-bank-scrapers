@@ -8,6 +8,7 @@ import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddlewar
 import type { WaitUntilState } from '../../Common/Navigation.js';
 import { safeScreenshot } from '../../Common/SafeScreenshot.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import { toErrorMessage } from '../Pipeline/Types/ErrorUtils.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import BaseScraper from './BaseScraper.js';
 import {
@@ -23,8 +24,7 @@ import type {
   ScraperCredentials,
 } from './Interface.js';
 import buildLoginChain from './LoginChainBuilder.js';
-import type { ILoginStepContext } from './LoginSteps.js';
-import { fillOneInput } from './LoginSteps.js';
+import { fillOneInput, type ILoginStepContext } from './LoginSteps.js';
 import { handleNavigationFailure } from './NavigationRetry.js';
 import ScraperError from './ScraperError.js';
 
@@ -110,7 +110,7 @@ async function runCleanup(fn: () => Promise<boolean>): Promise<boolean> {
   try {
     await fn();
   } catch (error) {
-    LOG.debug(`Cleanup function failed: ${error instanceof Error ? error.message : String(error)}`);
+    LOG.debug(`Cleanup function failed: ${toErrorMessage(error)}`);
   }
   return true;
 }

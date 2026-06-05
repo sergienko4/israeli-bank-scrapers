@@ -435,18 +435,14 @@ async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise
 /**
  * Resolve the Page that owns the keyboard for an arbitrary frame target.
  * Page instances expose `keyboard` directly; child Frame instances must
- * resolve their parent Page via `.page()`. Centralised so `pressEnterImpl`
- * stays under the §19.4 line cap.
+ * resolve their parent Page via `.page()`. Ternary defers the `.page()`
+ * call so it never fires against a Page (CR cycle-1 — eager-eval bug fix).
  * @param frame - Page or Frame the action targets.
  * @returns The owning Page.
  */
 function resolvePageWithKeyboard(frame: Page | Frame): Page {
-  const hasKeyboard = 'keyboard' in frame;
-  const pageMap: Record<string, Page> = {
-    true: frame as Page,
-    false: (frame as Frame).page(),
-  };
-  return pageMap[String(hasKeyboard)];
+  if ('keyboard' in frame) return frame;
+  return frame.page();
 }
 
 /**

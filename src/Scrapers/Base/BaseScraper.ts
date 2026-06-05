@@ -44,13 +44,14 @@ const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
 /**
  * Extract a human-readable message from an unknown error value.
+ * Delegates to `toErrorMessage` so a throwing `toString` on a custom
+ * caught value cannot escape the login/fetch catch-to-result path
+ * (CR cycle-1 — defends against secondary throws).
  * @param error - The caught error value.
  * @returns A string error message.
  */
 function extractErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return String(error);
+  return toErrorMessage(error);
 }
 
 /**

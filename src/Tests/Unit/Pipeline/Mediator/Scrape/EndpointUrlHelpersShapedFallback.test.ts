@@ -38,6 +38,15 @@ const SHAPED_TXN_URL = `${BANK_ORIGIN}/Some/api/TransactionsAndGraphs/getTxns?id
 const DIRECT_BILLING_URL = `${BANK_ORIGIN}/Transactions/api/transactionsDetails/getCardTransactionsDetails`;
 const EXPECTED_BUILT_URL = `${BANK_ORIGIN}/Transactions/api/transactionsDetails/getCardTransactionsDetails`;
 
+const DEFAULT_DISCOVERED_ENDPOINT = {
+  responseBody: {},
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 0,
+  dumpCounter: 0,
+} as const;
+
 /**
  * Build a minimal `IDiscoveredEndpoint` stub for the tests below.
  * @param url - URL the capture should expose.
@@ -46,16 +55,11 @@ const EXPECTED_BUILT_URL = `${BANK_ORIGIN}/Transactions/api/transactionsDetails/
  */
 function makeEndpoint(url: string, postData: string): IDiscoveredEndpoint {
   return {
+    ...DEFAULT_DISCOVERED_ENDPOINT,
     url,
     method: postData ? 'POST' : 'GET',
     postData,
-    responseBody: {},
-    contentType: 'application/json',
-    requestHeaders: {},
-    responseHeaders: {},
-    timestamp: 0,
-    dumpCounter: 0,
-  } as IDiscoveredEndpoint;
+  };
 }
 
 /**
