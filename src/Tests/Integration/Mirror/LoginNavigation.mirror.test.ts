@@ -50,6 +50,7 @@ import { installMirror } from '../Helpers/MirrorInterceptor.js';
 const BROWSER_BOOT_TIMEOUT_MS = 120000;
 const DRIVE_TIMEOUT_MS = 240000;
 const MIRROR_GOTO_TIMEOUT_MS = 30000;
+const MIRROR_LOCATOR_TIMEOUT_MS = 60000;
 const HERE_URL = import.meta.url;
 const HERE_PATH = fileURLToPath(HERE_URL);
 const HERE = dirname(HERE_PATH);
@@ -144,6 +145,7 @@ async function installAndNavigate(page: Page, args: IDriveArgs): Promise<true> {
  */
 async function setupMirrorPage(args: IDriveArgs): Promise<Page> {
   const page = await newFixturePage(args.browser);
+  page.setDefaultTimeout(MIRROR_LOCATOR_TIMEOUT_MS);
   await installAndNavigate(page, args);
   return page;
 }
