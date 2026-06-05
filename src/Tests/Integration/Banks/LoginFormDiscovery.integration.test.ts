@@ -184,6 +184,24 @@ async function runDiscoveryOnPage(
 }
 
 /**
+ * Load the step HTML and run discovery in one shot.
+ * @param page - Pre-created Playwright page.
+ * @param args - Drive arguments (bank + config).
+ * @returns Resolved selectors + form anchor selector.
+ */
+async function loadAndDiscover(
+  page: Page,
+  args: IDriveArgs,
+): Promise<{ resolved: ReadonlyMap<string, string>; anchorSelector: string }> {
+  const paths = await loadBankFixturePaths(args.bank.bankId);
+  await loadStep(page, paths, args.bank.loginStep);
+  const result = await runDiscoveryOnPage(page, args.config);
+  const resolved = buildResolvedMap(result);
+  const anchorSelector = result.formAnchor.has ? result.formAnchor.value.selector : '';
+  return { resolved, anchorSelector };
+}
+
+/**
  * Drive {@link executeDiscoverFields} once on a fresh page and return the
  * resolved selectors keyed by credentialKey + the discovered form anchor.
  * Closes the page's context on any error so browser resources never leak.
@@ -197,11 +215,7 @@ async function runDriveOnce(args: IDriveArgs): Promise<{
 }> {
   const page = await newFixturePage(args.browser);
   try {
-    const paths = await loadBankFixturePaths(args.bank.bankId);
-    await loadStep(page, paths, args.bank.loginStep);
-    const result = await runDiscoveryOnPage(page, args.config);
-    const resolved = buildResolvedMap(result);
-    const anchorSelector = result.formAnchor.has ? result.formAnchor.value.selector : '';
+    const { resolved, anchorSelector } = await loadAndDiscover(page, args);
     return { page, resolved, anchorSelector };
   } catch (err) {
     await closeQuietly(page);
@@ -260,12 +274,12 @@ async function probeOneFieldAnchor(args: IFieldAnchorProbeArgs): Promise<string>
 }
 
 /**
- * Assert every resolved selector's closest `<form>` matches the expected
- * anchor id. Form lookups run concurrently per credential field.
+ * Build a probe per credential field whose selector resolved. Fields
+ * with no resolved selector are skipped.
  * @param args - Page + resolved selectors + config + expected anchor id.
- * @returns Number of fields whose anchor was verified.
+ * @returns Promises probing each field's form id.
  */
-async function assertFieldsInsideFormAnchor(args: IFieldAnchorAssertArgs): Promise<number> {
+function buildAnchorProbes(args: IFieldAnchorAssertArgs): Promise<string>[] {
   const probes: Promise<string>[] = [];
   for (const field of args.cfg.fields) {
     const sel = args.resolved.get(field.credentialKey);
@@ -279,6 +293,17 @@ async function assertFieldsInsideFormAnchor(args: IFieldAnchorAssertArgs): Promi
     const probe = probeOneFieldAnchor(probeArgs);
     probes.push(probe);
   }
+  return probes;
+}
+
+/**
+ * Assert every resolved selector's closest `<form>` matches the expected
+ * anchor id. Form lookups run concurrently per credential field.
+ * @param args - Page + resolved selectors + config + expected anchor id.
+ * @returns Number of fields whose anchor was verified.
+ */
+async function assertFieldsInsideFormAnchor(args: IFieldAnchorAssertArgs): Promise<number> {
+  const probes = buildAnchorProbes(args);
   const matched = await Promise.all(probes);
   return matched.length;
 }

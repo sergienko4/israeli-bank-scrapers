@@ -124,6 +124,34 @@ function buildResolvedMap(
 }
 
 /**
+ * Install the mirror on the page using the bank's identifying triplet.
+ * @param page - Playwright page to attach the mirror to.
+ * @param bank - Bank fixture row (provides bankId, loginStep, originUrl).
+ * @returns Promise that resolves once the mirror is installed.
+ */
+async function installMirrorOnPage(page: Page, bank: IBankFixtureExpectations): Promise<void> {
+  await installMirror({
+    page,
+    bankId: bank.bankId,
+    stepName: bank.loginStep,
+    originUrl: bank.originUrl,
+  });
+}
+
+/**
+ * Navigate the page to the bank origin (intercepted by the mirror).
+ * @param page - Page with mirror already installed.
+ * @param originUrl - The bank's real URL to navigate to.
+ * @returns Promise resolving once domcontentloaded fires.
+ */
+async function navigateToOrigin(page: Page, originUrl: string): Promise<void> {
+  await page.goto(originUrl, {
+    waitUntil: 'domcontentloaded',
+    timeout: MIRROR_GOTO_TIMEOUT_MS,
+  });
+}
+
+/**
  * Boot a fresh page, install the mirror, and navigate to the bank's
  * real URL (intercepted by the mirror).
  * @param args - Drive arguments.
@@ -131,17 +159,24 @@ function buildResolvedMap(
  */
 async function setupMirrorPage(args: IDriveArgs): Promise<Page> {
   const page = await newFixturePage(args.browser);
-  await installMirror({
-    page,
-    bankId: args.bank.bankId,
-    stepName: args.bank.loginStep,
-    originUrl: args.bank.originUrl,
-  });
-  await page.goto(args.bank.originUrl, {
-    waitUntil: 'domcontentloaded',
-    timeout: MIRROR_GOTO_TIMEOUT_MS,
-  });
+  await installMirrorOnPage(page, args.bank);
+  await navigateToOrigin(page, args.bank.originUrl);
   return page;
+}
+
+/**
+ * Package the discovery result into the resolved-selectors + anchor-selector
+ * pair consumed by drive helpers.
+ * @param result - Discovery result from {@link executeDiscoverFields}.
+ * @returns Resolved map + anchor selector.
+ */
+function packageDiscoveryResult(result: Awaited<ReturnType<typeof executeDiscoverFields>>): {
+  resolved: ReadonlyMap<string, string>;
+  anchorSelector: string;
+} {
+  const resolved = buildResolvedMap(result);
+  const anchorSelector = result.formAnchor.has ? result.formAnchor.value.selector : '';
+  return { resolved, anchorSelector };
 }
 
 /**
@@ -163,9 +198,7 @@ async function discoverAndResolveTargets(
     page,
     logger: makeSilentLogger(),
   });
-  const resolved = buildResolvedMap(result);
-  const anchorSelector = result.formAnchor.has ? result.formAnchor.value.selector : '';
-  return { resolved, anchorSelector };
+  return packageDiscoveryResult(result);
 }
 
 /**
@@ -241,6 +274,41 @@ async function probeFieldInsideAnchor(
 }
 
 /**
+ * Build a containment probe for one resolved field. The probe throws
+ * if the field's DOM node is outside the discovered anchor.
+ * @param page - Playwright page.
+ * @param anchorSelector - The discovered form-anchor selector.
+ * @param entry - Tuple of [credentialKey, resolvedSelector] from the map.
+ * @returns Promise resolving to `true` when the field is inside the anchor.
+ */
+function buildOneContainmentProbe(
+  page: Page,
+  anchorSelector: string,
+  entry: readonly [string, string],
+): Promise<boolean> {
+  const [key, selector] = entry;
+  return probeFieldInsideAnchor(page, selector, anchorSelector).then((inside): boolean => {
+    if (!inside) throw new ScraperError(`field ${key} resolved OUTSIDE anchor`);
+    return inside;
+  });
+}
+
+/**
+ * Build a containment probe per resolved field. Each probe runs
+ * concurrently in {@link assertFieldsContainedInAnchor}.
+ * @param args - Page + resolved selectors + anchor selector.
+ * @returns Promises probing each field's containment.
+ */
+function buildContainmentProbes(args: IContainmentArgs): Promise<boolean>[] {
+  const probes: Promise<boolean>[] = [];
+  for (const entry of args.resolved.entries()) {
+    const probe = buildOneContainmentProbe(args.page, args.anchorSelector, entry);
+    probes.push(probe);
+  }
+  return probes;
+}
+
+/**
  * Assert every resolved field is contained inside the discovered form
  * anchor element — same invariant Mode A asserts via `closest('form')`
  * but using `Node.contains()` so it works for non-`<form>` anchors too
@@ -249,16 +317,7 @@ async function probeFieldInsideAnchor(
  * @returns Number of fields verified.
  */
 async function assertFieldsContainedInAnchor(args: IContainmentArgs): Promise<number> {
-  const probes: Promise<boolean>[] = [];
-  for (const [key, selector] of args.resolved.entries()) {
-    const probe = probeFieldInsideAnchor(args.page, selector, args.anchorSelector).then(
-      (inside): boolean => {
-        if (!inside) throw new ScraperError(`field ${key} resolved OUTSIDE anchor`);
-        return inside;
-      },
-    );
-    probes.push(probe);
-  }
+  const probes = buildContainmentProbes(args);
   const results = await Promise.all(probes);
   return results.length;
 }

@@ -33,7 +33,7 @@ import { dirname, join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-import type { Browser, Frame, Page } from 'playwright-core';
+import type { Browser, BrowserContext, Frame, Page } from 'playwright-core';
 
 import { buildContextOptions } from '../../../Common/Browser.js';
 import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
@@ -373,6 +373,23 @@ async function revealIfNeeded(page: Page, revealText: string): Promise<boolean> 
 }
 
 /**
+ * Build the args object passed to {@link writeStepArtifacts}.
+ * Trivial factory — exists to keep {@link executeRecipeStep} within
+ * the 10-line cap.
+ * @param fixtureRoot - Per-bank fixture root.
+ * @param step - The recipe step (provides stepName).
+ * @param snapshot - Captured snapshot.
+ * @returns IWriteStepArgs bundle.
+ */
+function buildStepArtifactsArgs(
+  fixtureRoot: string,
+  step: IRecipeStep,
+  snapshot: ICapturedSnapshot,
+): IWriteStepArgs {
+  return { fixtureRoot, stepName: step.stepName, snapshot };
+}
+
+/**
  * Navigate (if URL set), reveal (if text set), settle, then capture
  * and write artifacts for one step.
  * @param args - Page + step + fixture root.
@@ -384,11 +401,8 @@ async function executeRecipeStep(args: IStepExecutionArgs): Promise<number> {
   await navigateIfNeeded(args.page, stepUrl);
   await revealIfNeeded(args.page, stepReveal);
   const snapshot = await captureFrames(args.page);
-  const written = await writeStepArtifacts({
-    fixtureRoot: args.fixtureRoot,
-    stepName: args.step.stepName,
-    snapshot,
-  });
+  const stepArgs = buildStepArtifactsArgs(args.fixtureRoot, args.step, snapshot);
+  const written = await writeStepArtifacts(stepArgs);
   console.log(`  step ${args.step.stepName}: wrote ${String(written)} files`);
   return written;
 }
@@ -435,6 +449,37 @@ function buildStepReducer(
 }
 
 /**
+ * Iterate the recipe's steps via reducer (sequential, preserving
+ * `no-await-in-loop`), returning the running total.
+ * @param page - Playwright page.
+ * @param fixtureRoot - Per-bank fixture root.
+ * @param steps - The recipe steps to execute.
+ * @returns Total number of files written across all steps.
+ */
+async function driveRecipeSteps(
+  page: Page,
+  fixtureRoot: string,
+  steps: readonly IRecipeStep[],
+): Promise<number> {
+  const helpers: IDriveHelpers = { page, fixtureRoot };
+  const reducer = buildStepReducer(helpers);
+  const initial: Promise<number> = Promise.resolve(0);
+  return steps.reduce(reducer, initial);
+}
+
+/**
+ * Open a fresh browser context with the project's preferred options.
+ * Exists so {@link driveRecipe} doesn't have to nest the {@link buildContextOptions}
+ * call inside `browser.newContext` (forbidden by `no-restricted-syntax`).
+ * @param browser - Shared Camoufox browser.
+ * @returns A fresh context.
+ */
+async function openHarvestContext(browser: Browser): Promise<BrowserContext> {
+  const opts = buildContextOptions();
+  return browser.newContext(opts);
+}
+
+/**
  * Drive every step of a bank recipe end-to-end.
  * @param browser - Shared Camoufox browser.
  * @param recipe - Bank recipe.
@@ -442,15 +487,10 @@ function buildStepReducer(
  */
 async function driveRecipe(browser: Browser, recipe: IBankRecipe): Promise<number> {
   const fixtureRoot = await ensureFixtureRoot(recipe.bankId);
-  const ctxOpts = buildContextOptions();
-  const context = await browser.newContext(ctxOpts);
+  const context = await openHarvestContext(browser);
   const page = await context.newPage();
   try {
-    const helpers: IDriveHelpers = { page, fixtureRoot };
-    const initial: Promise<number> = Promise.resolve(0);
-    const reducer = buildStepReducer(helpers);
-    const total = await recipe.steps.reduce(reducer, initial);
-    return total;
+    return await driveRecipeSteps(page, fixtureRoot, recipe.steps);
   } finally {
     await context.close();
   }
