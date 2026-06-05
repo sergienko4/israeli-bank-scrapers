@@ -62,7 +62,7 @@ Onboarding a new pipeline bank requires fixtures + drive coverage in
 2. Add a row to `Banks/BankFixtureExpectations.ts` keyed by the
    canonical `bankId` (lower-first matching `CompanyTypes`).
 3. Wire the bank into `BANK_LOGIN_CONFIGS` in
-   `Banks/LoginFormDiscovery.integration.test.ts`.
+   `Banks/BankLoginConfigs.ts`.
 4. Add a recipe to `Tools/HarvestBankHtml.ts`.
 5. Harvest the fixture:
 

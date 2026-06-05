@@ -389,22 +389,52 @@ function buildStepArtifactsArgs(
   return { fixtureRoot, stepName: step.stepName, snapshot };
 }
 
+/** Result of {@link executeRecipeStep} — files written + page's final URL. */
+interface IStepExecutionResult {
+  readonly written: number;
+  readonly finalUrl: string;
+}
+
 /**
- * Navigate (if URL set), reveal (if text set), settle, then capture
- * and write artifacts for one step.
- * @param args - Page + step + fixture root.
- * @returns Number of files written for this step.
+ * Navigate + reveal + settle, returning the captured frame snapshot.
+ * Extracted to keep {@link executeRecipeStep} under the 10-line cap.
+ * @param args - Step execution args (page + step + fixture root).
+ * @returns Captured snapshot of all frames at the post-settle state.
  */
-async function executeRecipeStep(args: IStepExecutionArgs): Promise<number> {
+async function navigateRevealCapture(args: IStepExecutionArgs): Promise<ICapturedSnapshot> {
   const stepUrl = args.step.url ?? '';
   const stepReveal = args.step.revealText ?? '';
   await navigateIfNeeded(args.page, stepUrl);
   await revealIfNeeded(args.page, stepReveal);
-  const snapshot = await captureFrames(args.page);
+  return captureFrames(args.page);
+}
+
+/**
+ * Navigate (if URL set), reveal (if text set), settle, then capture
+ * and write artifacts for one step. Returns both the file count AND
+ * the page's final URL (consumed by the steps.json manifest writer).
+ * @param args - Page + step + fixture root.
+ * @returns Files written + final URL for this step.
+ */
+async function executeRecipeStep(args: IStepExecutionArgs): Promise<IStepExecutionResult> {
+  const snapshot = await navigateRevealCapture(args);
   const stepArgs = buildStepArtifactsArgs(args.fixtureRoot, args.step, snapshot);
   const written = await writeStepArtifacts(stepArgs);
   console.log(`  step ${args.step.stepName}: wrote ${String(written)} files`);
-  return written;
+  const finalUrl = args.page.url();
+  return { written, finalUrl };
+}
+
+/** Single captured-step manifest entry — written to `steps.json`. */
+interface ICapturedStepManifest {
+  readonly name: string;
+  readonly finalUrl: string;
+}
+
+/** Accumulator threaded through {@link reduceStepWritten}. */
+interface IDriveAccumulator {
+  readonly totalWritten: number;
+  readonly steps: readonly ICapturedStepManifest[];
 }
 
 /** Shared per-recipe context threaded through the reducer. */
@@ -415,25 +445,26 @@ interface IDriveHelpers {
 
 /**
  * Reducer that processes steps sequentially while keeping a running
- * total. Sequential is required (each step's state depends on the
- * previous), and reduce satisfies `no-await-in-loop`.
+ * total + manifest. Sequential is required (each step's state depends
+ * on the previous), and reduce satisfies `no-await-in-loop`.
  * @param prevPromise - Accumulator promise.
  * @param step - Current step.
  * @param helpers - Shared page + fixture root.
- * @returns Updated running total.
+ * @returns Updated accumulator with totals + manifest entry appended.
  */
 async function reduceStepWritten(
-  prevPromise: Promise<number>,
+  prevPromise: Promise<IDriveAccumulator>,
   step: IRecipeStep,
   helpers: IDriveHelpers,
-): Promise<number> {
+): Promise<IDriveAccumulator> {
   const prev = await prevPromise;
-  const written = await executeRecipeStep({
+  const result = await executeRecipeStep({
     page: helpers.page,
     step,
     fixtureRoot: helpers.fixtureRoot,
   });
-  return prev + written;
+  const entry: ICapturedStepManifest = { name: step.stepName, finalUrl: result.finalUrl };
+  return { totalWritten: prev.totalWritten + result.written, steps: [...prev.steps, entry] };
 }
 
 /**
@@ -444,27 +475,47 @@ async function reduceStepWritten(
  */
 function buildStepReducer(
   helpers: IDriveHelpers,
-): (acc: Promise<number>, step: IRecipeStep) => Promise<number> {
+): (acc: Promise<IDriveAccumulator>, step: IRecipeStep) => Promise<IDriveAccumulator> {
   return (acc, step) => reduceStepWritten(acc, step, helpers);
 }
 
 /**
  * Iterate the recipe's steps via reducer (sequential, preserving
- * `no-await-in-loop`), returning the running total.
+ * `no-await-in-loop`), returning totals + manifest.
  * @param page - Playwright page.
  * @param fixtureRoot - Per-bank fixture root.
  * @param steps - The recipe steps to execute.
- * @returns Total number of files written across all steps.
+ * @returns Accumulator with totalWritten + per-step manifest entries.
  */
 async function driveRecipeSteps(
   page: Page,
   fixtureRoot: string,
   steps: readonly IRecipeStep[],
-): Promise<number> {
+): Promise<IDriveAccumulator> {
   const helpers: IDriveHelpers = { page, fixtureRoot };
   const reducer = buildStepReducer(helpers);
-  const initial: Promise<number> = Promise.resolve(0);
+  const initial: Promise<IDriveAccumulator> = Promise.resolve({ totalWritten: 0, steps: [] });
   return steps.reduce(reducer, initial);
+}
+
+/**
+ * Write the captured-steps manifest (`steps.json`) under the bank
+ * fixture root. Consumed at test time by `MirrorInterceptor` to build
+ * the redirect-host allow-list, so re-harvested fixtures keep Mode B
+ * coverage automatic — no manual post-harvest editing.
+ * @param fixtureRoot - Per-bank fixture root.
+ * @param steps - Captured-step manifest entries (one per recipe step).
+ * @returns True after the manifest is persisted.
+ */
+async function writeStepsManifest(
+  fixtureRoot: string,
+  steps: readonly ICapturedStepManifest[],
+): Promise<true> {
+  const path = join(fixtureRoot, 'steps.json');
+  const json = JSON.stringify(steps, null, 2);
+  await writeFile(path, json, 'utf8');
+  console.log(`  manifest: wrote ${path} (${String(steps.length)} steps)`);
+  return true;
 }
 
 /**
@@ -480,7 +531,8 @@ async function openHarvestContext(browser: Browser): Promise<BrowserContext> {
 }
 
 /**
- * Drive every step of a bank recipe end-to-end.
+ * Drive every step of a bank recipe end-to-end and persist the
+ * captured-step manifest (`steps.json`) at the fixture root.
  * @param browser - Shared Camoufox browser.
  * @param recipe - Bank recipe.
  * @returns Total number of files written across all steps.
@@ -490,7 +542,9 @@ async function driveRecipe(browser: Browser, recipe: IBankRecipe): Promise<numbe
   const context = await openHarvestContext(browser);
   const page = await context.newPage();
   try {
-    return await driveRecipeSteps(page, fixtureRoot, recipe.steps);
+    const result = await driveRecipeSteps(page, fixtureRoot, recipe.steps);
+    await writeStepsManifest(fixtureRoot, result.steps);
+    return result.totalWritten;
   } finally {
     await context.close();
   }

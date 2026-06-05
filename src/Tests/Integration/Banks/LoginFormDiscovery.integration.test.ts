@@ -20,14 +20,12 @@
 
 import * as fsSync from 'node:fs';
 
-import pino from 'pino';
 import type { Browser, Page } from 'playwright-core';
 
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { createElementMediator } from '../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
 import { executeDiscoverFields } from '../../../Scrapers/Pipeline/Mediator/Login/LoginFieldDiscovery.js';
-import type { ScraperLogger } from '../../../Scrapers/Pipeline/Types/Debug.js';
 import {
   loadBankFixturePaths,
   loadStep,
@@ -38,6 +36,12 @@ import {
   closeIntegrationBrowser,
   getIntegrationBrowser,
 } from '../Helpers/IntegrationBrowserFixture.js';
+import {
+  assertAllFieldsResolved,
+  buildResolvedMap,
+  closeQuietly,
+  makeSilentLogger,
+} from '../Helpers/IntegrationDriveAssertions.js';
 import BANK_FIXTURE_EXPECTATIONS from './BankFixtureExpectations.js';
 import BANK_LOGIN_CONFIGS from './BankLoginConfigs.js';
 import type { IBankFixtureExpectations, IStepExpectations } from './FixtureExpectations.js';
@@ -55,14 +59,6 @@ const DRIVE_TIMEOUT_MS = 120000;
 function fixtureRootExistsSync(bankId: string): boolean {
   const root = resolveFixtureRoot(bankId);
   return fsSync.existsSync(root);
-}
-
-/**
- * Silent logger satisfying the ScraperLogger contract.
- * @returns A pino instance with logging disabled.
- */
-function makeSilentLogger(): ScraperLogger {
-  return pino({ enabled: false });
 }
 
 /**
@@ -134,36 +130,6 @@ interface IDriveArgs {
 }
 
 /**
- * Build the result map keyed by credentialKey from the discovery output.
- * @param result - Discovery result containing target selectors.
- * @returns Read-only map of credentialKey → resolved selector.
- */
-function buildResolvedMap(
-  result: Awaited<ReturnType<typeof executeDiscoverFields>>,
-): ReadonlyMap<string, string> {
-  const resolved = new Map<string, string>();
-  for (const [key, target] of result.targets.entries()) {
-    resolved.set(key, target.selector);
-  }
-  return resolved;
-}
-
-/**
- * Close the page's context, swallowing teardown races so the cleanup
- * path never masks the original error from the caller.
- * @param page - Playwright page to clean up.
- * @returns True after teardown.
- */
-async function closeQuietly(page: Page): Promise<true> {
-  try {
-    await page.context().close();
-  } catch {
-    // swallow: context may already be closing from a parallel afterAll
-  }
-  return true;
-}
-
-/**
  * Run production discovery against the loaded page.
  * @param page - Playwright page with the step HTML loaded.
  * @param cfg - Bank LOGIN config to drive against.
@@ -221,23 +187,6 @@ async function runDriveOnce(args: IDriveArgs): Promise<{
     await closeQuietly(page);
     throw err;
   }
-}
-
-/**
- * Assert every credential field from the config was resolved by drive.
- * @param cfg - Bank LOGIN config.
- * @param resolved - Resolved selectors by credentialKey.
- * @returns Number of fields verified (equals `cfg.fields.length` on success).
- */
-function assertAllFieldsResolved(cfg: ILoginConfig, resolved: ReadonlyMap<string, string>): number {
-  for (const field of cfg.fields) {
-    if (!resolved.has(field.credentialKey)) {
-      throw new ScraperError(`field ${field.credentialKey} not resolved`);
-    }
-    const wasResolved = resolved.has(field.credentialKey);
-    expect(wasResolved).toBe(true);
-  }
-  return cfg.fields.length;
 }
 
 /** Bundle passed to {@link assertFieldsInsideFormAnchor}. */

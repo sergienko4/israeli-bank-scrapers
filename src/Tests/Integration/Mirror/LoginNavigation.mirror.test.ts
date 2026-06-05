@@ -25,14 +25,12 @@ import * as fsSync from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import pino from 'pino';
 import type { Browser, Page } from 'playwright-core';
 
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { createElementMediator } from '../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
 import { executeDiscoverFields } from '../../../Scrapers/Pipeline/Mediator/Login/LoginFieldDiscovery.js';
-import type { ScraperLogger } from '../../../Scrapers/Pipeline/Types/Debug.js';
 import BANK_FIXTURE_EXPECTATIONS from '../Banks/BankFixtureExpectations.js';
 import BANK_LOGIN_CONFIGS from '../Banks/BankLoginConfigs.js';
 import type { IBankFixtureExpectations } from '../Banks/FixtureExpectations.js';
@@ -41,6 +39,12 @@ import {
   closeIntegrationBrowser,
   getIntegrationBrowser,
 } from '../Helpers/IntegrationBrowserFixture.js';
+import {
+  assertAllFieldsResolved,
+  buildResolvedMap,
+  closeQuietly,
+  makeSilentLogger,
+} from '../Helpers/IntegrationDriveAssertions.js';
 import { installMirror } from '../Helpers/MirrorInterceptor.js';
 
 const BROWSER_BOOT_TIMEOUT_MS = 120000;
@@ -78,49 +82,11 @@ function fixtureRootExistsSync(bankId: string): boolean {
   return fsSync.existsSync(root);
 }
 
-/**
- * Silent logger satisfying the ScraperLogger contract.
- * @returns A pino instance with logging disabled.
- */
-function makeSilentLogger(): ScraperLogger {
-  return pino({ enabled: false });
-}
-
 /** Bundle for {@link runMirrorDrive} — under the 3-param ceiling. */
 interface IDriveArgs {
   readonly browser: Browser;
   readonly bank: IBankFixtureExpectations;
   readonly config: ILoginConfig;
-}
-
-/**
- * Close the page's context, swallowing teardown races so the cleanup
- * path never masks the original error from the caller.
- * @param page - Playwright page to clean up.
- * @returns True after teardown.
- */
-async function closeQuietly(page: Page): Promise<true> {
-  try {
-    await page.context().close();
-  } catch {
-    // swallow: context may already be closing from a parallel afterAll
-  }
-  return true;
-}
-
-/**
- * Build the result map keyed by credentialKey from the discovery output.
- * @param result - Discovery result containing target selectors.
- * @returns Read-only map of credentialKey → resolved selector.
- */
-function buildResolvedMap(
-  result: Awaited<ReturnType<typeof executeDiscoverFields>>,
-): ReadonlyMap<string, string> {
-  const resolved = new Map<string, string>();
-  for (const [key, target] of result.targets.entries()) {
-    resolved.set(key, target.selector);
-  }
-  return resolved;
 }
 
 /**
@@ -152,15 +118,33 @@ async function navigateToOrigin(page: Page, originUrl: string): Promise<void> {
 }
 
 /**
+ * Install mirror + navigate, closing the page on any failure so the
+ * Playwright context never leaks when setup throws.
+ * @param page - Fresh fixture page.
+ * @param args - Drive arguments (bank + originUrl).
+ * @returns True after install+navigate completes.
+ */
+async function installAndNavigate(page: Page, args: IDriveArgs): Promise<true> {
+  try {
+    await installMirrorOnPage(page, args.bank);
+    await navigateToOrigin(page, args.bank.originUrl);
+    return true;
+  } catch (err) {
+    await closeQuietly(page);
+    throw err;
+  }
+}
+
+/**
  * Boot a fresh page, install the mirror, and navigate to the bank's
- * real URL (intercepted by the mirror).
+ * real URL (intercepted by the mirror). On any setup failure the page
+ * is torn down so the Playwright context never leaks.
  * @param args - Drive arguments.
  * @returns The prepared page.
  */
 async function setupMirrorPage(args: IDriveArgs): Promise<Page> {
   const page = await newFixturePage(args.browser);
-  await installMirrorOnPage(page, args.bank);
-  await navigateToOrigin(page, args.bank.originUrl);
+  await installAndNavigate(page, args);
   return page;
 }
 
@@ -221,24 +205,6 @@ async function runMirrorDrive(args: IDriveArgs): Promise<{
     await closeQuietly(page);
     throw err;
   }
-}
-
-/**
- * Assert every credential field from the config was resolved by drive.
- * Pure map-presence check — does NOT touch the page.
- * @param cfg - Bank LOGIN config.
- * @param resolved - Resolved selectors by credentialKey.
- * @returns Number of fields verified.
- */
-function assertAllFieldsResolved(cfg: ILoginConfig, resolved: ReadonlyMap<string, string>): number {
-  for (const field of cfg.fields) {
-    if (!resolved.has(field.credentialKey)) {
-      throw new ScraperError(`field ${field.credentialKey} not resolved by mirror drive`);
-    }
-    const wasResolved = resolved.has(field.credentialKey);
-    expect(wasResolved).toBe(true);
-  }
-  return cfg.fields.length;
 }
 
 /** Args bundle for {@link assertFieldsContainedInAnchor} — keeps params ≤3. */
