@@ -48,7 +48,7 @@ import {
 import { installMirror } from '../Helpers/MirrorInterceptor.js';
 
 const BROWSER_BOOT_TIMEOUT_MS = 120000;
-const DRIVE_TIMEOUT_MS = 120000;
+const DRIVE_TIMEOUT_MS = 240000;
 const MIRROR_GOTO_TIMEOUT_MS = 30000;
 const HERE_URL = import.meta.url;
 const HERE_PATH = fileURLToPath(HERE_URL);
