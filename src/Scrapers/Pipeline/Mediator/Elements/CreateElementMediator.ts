@@ -65,20 +65,44 @@ interface IResolveOpts {
 }
 
 /**
+ * Run the discovery pipeline scoped to the provided iframe context.
+ * Extracted from `tryScopedResolve` so the parent body stays ≤10 LoC.
+ * @param scopeCtx - Frame/page already established as the scope.
+ * @param opts - Bundled resolution options.
+ * @returns Field context (resolved or not).
+ */
+async function runScopedPipeline(
+  scopeCtx: Page | Frame,
+  opts: IResolveOpts,
+): Promise<IFieldContext> {
+  const { fieldKey, candidates: bankCandidates, formSelector } = opts;
+  return resolveFieldPipeline({ pageOrFrame: scopeCtx, fieldKey, bankCandidates, formSelector });
+}
+
+/**
  * Try scoped resolve in the same iframe — flat, no nesting.
  * @param opts - Bundled resolution options.
  * @returns Resolved field context or null-ish if not found in scope.
  */
 async function tryScopedResolve(opts: IResolveOpts): Promise<IFieldContext | false> {
   if (!opts.scopeContext) return false;
-  const scoped = await resolveFieldPipeline({
-    pageOrFrame: opts.scopeContext,
-    fieldKey: opts.fieldKey,
-    bankCandidates: opts.candidates,
-    formSelector: opts.formSelector,
-  });
+  const scoped = await runScopedPipeline(opts.scopeContext, opts);
   if (scoped.isResolved) return scoped;
   return false;
+}
+
+/**
+ * Run the wide-page pipeline when scoped lookup fails. Extracted so
+ * `resolveFieldImpl` stays ≤10 LoC.
+ * @param opts - Bundled resolution options.
+ * @returns Field context (resolved or not).
+ */
+async function runWidePipeline(opts: IResolveOpts): Promise<IFieldContext> {
+  return resolveFieldPipeline({
+    pageOrFrame: opts.page,
+    fieldKey: opts.fieldKey,
+    bankCandidates: opts.candidates,
+  });
 }
 
 /**
@@ -87,16 +111,11 @@ async function tryScopedResolve(opts: IResolveOpts): Promise<IFieldContext | fal
  * @returns Success or failure Procedure.
  */
 async function resolveFieldImpl(opts: IResolveOpts): Promise<Procedure<IFieldContext>> {
-  const notFoundMsg = `Field not found: ${opts.fieldKey}`;
   const scopeHit = await tryScopedResolve(opts);
   if (scopeHit) return succeed<IFieldContext>(scopeHit);
-  const wide = await resolveFieldPipeline({
-    pageOrFrame: opts.page,
-    fieldKey: opts.fieldKey,
-    bankCandidates: opts.candidates,
-  });
+  const wide = await runWidePipeline(opts);
   if (wide.isResolved) return succeed<IFieldContext>(wide);
-  return fail(ScraperErrorTypes.Generic, notFoundMsg);
+  return fail(ScraperErrorTypes.Generic, `Field not found: ${opts.fieldKey}`);
 }
 
 /**
@@ -180,6 +199,20 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boole
 }
 
 /**
+ * Log a single loading-wait attempt at debug level.
+ * @param attempt - 1-based attempt counter.
+ * @returns Sentinel `true` so the call composes inside meaningful-return helpers.
+ */
+function logLoadingWaitAttempt(attempt: number): true {
+  const delayStr = String(ELEMENTS_LOADING_DELAY_MS);
+  const attemptStr = String(attempt);
+  LOG.debug({
+    message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
+  });
+  return true;
+}
+
+/**
  * Wait once for loading indicators to disappear, then re-check.
  * @param frame - Page or Frame.
  * @param attempt - Current attempt number (for logging).
@@ -191,11 +224,7 @@ async function waitOnceForLoading(
 ): Promise<Procedure<boolean>> {
   const loadingResult = await isAnyLoadingVisible(frame);
   if (isOk(loadingResult) && !loadingResult.value) return succeed(true);
-  const delayStr = String(ELEMENTS_LOADING_DELAY_MS);
-  const attemptStr = String(attempt);
-  LOG.debug({
-    message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
-  });
+  logLoadingWaitAttempt(attempt);
   await frame.waitForTimeout(ELEMENTS_LOADING_DELAY_MS);
   return succeed(false);
 }
@@ -500,10 +529,9 @@ function buildCandidateLocatorsBase(
   formAnchor = NO_FORM_ANCHOR,
 ): Locator[] {
   const scope = applyFormScope(ctx, formAnchor);
-  const isScoped = formAnchor.length > 0;
   const builder = LOCATOR_KIND_BUILDERS[candidate.kind];
   if (!builder) return [scope.getByText(candidate.value)];
-  return builder(scope, candidate.value, isScoped);
+  return builder(scope, candidate.value, formAnchor.length > 0);
 }
 
 /**
@@ -538,6 +566,54 @@ function getAllContexts(page: Page): (Page | Frame)[] {
 /** Playwright element wait state for locator races. */
 type WaitState = 'visible' | 'attached';
 
+/** Bundled args for `waitForLocatorIndex` — keeps the helper inside the 3-param cap. */
+interface IWaiterArgs {
+  readonly locator: Locator;
+  readonly index: number;
+  readonly timeout: number;
+  readonly state: WaitState;
+}
+
+/**
+ * Wait for one locator and resolve with its index. Pure helper extracted
+ * so `buildIndexWaiters` stays inside the 10-LoC cap.
+ * @param args - Bundled waiter inputs.
+ * @returns Promise resolving to the input index.
+ */
+async function waitForLocatorIndex(args: IWaiterArgs): Promise<number> {
+  await args.locator.waitFor({ state: args.state, timeout: args.timeout });
+  return args.index;
+}
+
+/**
+ * Build a per-locator waiter that resolves with its index on success.
+ * Pure factory — extracted so race orchestrators stay ≤10 LoC.
+ * @param locators - Locators to wait on.
+ * @param timeout - Per-locator waitFor timeout (ms).
+ * @param state - Element state to wait for.
+ * @returns Array of waiter promises (one per locator).
+ */
+function buildIndexWaiters(
+  locators: Locator[],
+  timeout: number,
+  state: WaitState,
+): Promise<number>[] {
+  return locators.map(
+    (locator, index): Promise<number> => waitForLocatorIndex({ locator, index, timeout, state }),
+  );
+}
+
+/**
+ * Pick first fulfilled index from settled waiter results.
+ * @param results - Settled waiter results.
+ * @returns First fulfilled index, or -1 if none.
+ */
+function pickFirstFulfilledIndex(results: readonly PromiseSettledResult<number>[]): number {
+  const winner = results.find((r): boolean => r.status === 'fulfilled');
+  if (winner?.status !== 'fulfilled') return -1;
+  return winner.value;
+}
+
 /**
  * Race all locators in parallel — first matching state wins. Returns winning index or -1.
  * @param locators - Array of Playwright locators to race.
@@ -550,14 +626,9 @@ async function raceLocators(
   timeout: number,
   state: WaitState = 'visible',
 ): Promise<number> {
-  const waiters = locators.map(async (loc, i): Promise<number> => {
-    await loc.waitFor({ state, timeout });
-    return i;
-  });
+  const waiters = buildIndexWaiters(locators, timeout, state);
   const results = await Promise.allSettled(waiters);
-  const winner = results.find((r): boolean => r.status === 'fulfilled');
-  if (winner?.status !== 'fulfilled') return -1;
-  return winner.value;
+  return pickFirstFulfilledIndex(results);
 }
 
 /**
@@ -617,6 +688,19 @@ interface IRaceDiagnostic {
  * @returns Diagnostic with winner + fulfilled detail.
  */
 /**
+ * Filter fulfilled indices from settled results.
+ * @param results - Settled waiter results.
+ * @returns Indices that resolved successfully.
+ */
+function collectFulfilledIndices(
+  results: readonly PromiseSettledResult<number>[],
+): readonly number[] {
+  return results
+    .filter((r): boolean => r.status === 'fulfilled')
+    .map((r): number => (r as PromiseFulfilledResult<number>).value);
+}
+
+/**
  * Await waitFor(visible) on all locators; return indices that resolved.
  * @param locators - Locators to race.
  * @param timeout - Per-locator waitFor timeout.
@@ -626,14 +710,20 @@ async function awaitVisibleIndices(
   locators: Locator[],
   timeout: number,
 ): Promise<readonly number[]> {
-  const waiters = locators.map(async (loc, i): Promise<number> => {
-    await loc.waitFor({ state: 'visible', timeout });
-    return i;
-  });
+  const waiters = buildIndexWaiters(locators, timeout, 'visible');
   const results = await Promise.allSettled(waiters);
-  return results
-    .filter((r): boolean => r.status === 'fulfilled')
-    .map((r): number => (r as PromiseFulfilledResult<number>).value);
+  return collectFulfilledIndices(results);
+}
+
+/**
+ * Probe a single fulfilled index for hit-testability.
+ * @param locators - All locators (indexed by fulfilled).
+ * @param idx - Fulfilled index to probe.
+ * @returns The idx if hit-test passed, else -1.
+ */
+async function probeHitTestIndex(locators: Locator[], idx: number): Promise<number> {
+  const isHit = await isTrulyVisible(locators[idx]);
+  return isHit ? idx : -1;
 }
 
 /**
@@ -646,12 +736,25 @@ async function hitTestIndices(
   locators: Locator[],
   fulfilled: readonly number[],
 ): Promise<readonly number[]> {
-  const promises = fulfilled.map(async (idx): Promise<number> => {
-    const isHit = await isTrulyVisible(locators[idx]);
-    return isHit ? idx : -1;
-  });
+  const promises = fulfilled.map((idx): Promise<number> => probeHitTestIndex(locators, idx));
   const tests = await Promise.all(promises);
   return tests.filter((idx): boolean => idx >= 0);
+}
+
+/**
+ * Assemble race diagnostic from awaited + hit-tested index sets.
+ * @param fulfilled - Indices that passed waitFor visibility.
+ * @param hitPassed - Indices that passed elementFromPoint hit-test.
+ * @returns Race diagnostic with winner + counts.
+ */
+function buildRaceDiagnostic(
+  fulfilled: readonly number[],
+  hitPassed: readonly number[],
+): IRaceDiagnostic {
+  const winner = resolveWinner(hitPassed, fulfilled);
+  const fulfilledCount = fulfilled.length;
+  const hitTestPassedCount = hitPassed.length;
+  return { winner, fulfilledCount, hitTestPassedCount, fulfilledIndices: fulfilled };
 }
 
 /**
@@ -668,12 +771,7 @@ async function raceLocatorsWithHitTest(
 ): Promise<IRaceDiagnostic> {
   const fulfilled = await awaitVisibleIndices(locators, timeout);
   const hitPassed = await hitTestIndices(locators, fulfilled);
-  return {
-    winner: resolveWinner(hitPassed, fulfilled),
-    fulfilledCount: fulfilled.length,
-    hitTestPassedCount: hitPassed.length,
-    fulfilledIndices: fulfilled,
-  };
+  return buildRaceDiagnostic(fulfilled, hitPassed);
 }
 
 /**
@@ -697,6 +795,40 @@ interface ILocatorEntry {
 }
 
 /**
+ * Map a candidate to its `.first()`-wrapped locator entries within a context.
+ * @param ctx - Playwright context (Page or Frame).
+ * @param candidate - WK candidate to expand.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
+ * @returns Locator entries for that candidate.
+ */
+function entriesForCandidate(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+  formAnchor: string,
+): ILocatorEntry[] {
+  return buildCandidateLocators(ctx, candidate, formAnchor).map(
+    (locator): ILocatorEntry => ({ locator, candidate, context: ctx }),
+  );
+}
+
+/**
+ * Map all (context × candidate) pairs to their locator entries.
+ * @param contexts - Page/Frame contexts to scan.
+ * @param candidates - WK candidates to enumerate.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
+ * @returns Flat array of locator entries.
+ */
+function entriesForContexts(
+  contexts: readonly (Page | Frame)[],
+  candidates: readonly SelectorCandidate[],
+  formAnchor: string,
+): ILocatorEntry[] {
+  return contexts.flatMap((ctx): ILocatorEntry[] =>
+    candidates.flatMap((c): ILocatorEntry[] => entriesForCandidate(ctx, c, formAnchor)),
+  );
+}
+
+/**
  * Build locator entries with metadata for all contexts × candidates.
  * Preserves which candidate and context produced each locator.
  * @param page - The Playwright page.
@@ -711,13 +843,7 @@ function buildLocatorEntries(
   formAnchor = NO_FORM_ANCHOR,
 ): ILocatorEntry[] {
   const contexts = getAllContexts(page);
-  return contexts.flatMap((ctx): ILocatorEntry[] =>
-    candidates.flatMap((c): ILocatorEntry[] =>
-      buildCandidateLocators(ctx, c, formAnchor).map(
-        (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
-      ),
-    ),
-  );
+  return entriesForContexts(contexts, candidates, formAnchor);
 }
 
 /** Maximum nth-matches enumerated per locator in `resolveAllVisible` —
@@ -740,12 +866,7 @@ async function expandLocatorToNth(base: Locator, max: number): Promise<readonly 
   const total = await base.count().catch((): number => 0);
   if (total <= 0) return [];
   const limit = Math.min(total, max);
-  const out: Locator[] = [];
-  for (let i = 0; i < limit; i = i + 1) {
-    const nthLocator = base.nth(i);
-    out.push(nthLocator);
-  }
-  return out;
+  return Array.from({ length: limit }, (_unused, i): Locator => base.nth(i));
 }
 
 /**
@@ -800,6 +921,23 @@ async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly 
 }
 
 /**
+ * Collect expansion promises per (ctx × candidate) pair without nested calls.
+ * @param contexts - Page/Frame contexts to scan.
+ * @param candidates - WK selector candidates to enumerate.
+ * @param formAnchor - Optional CSS form selector.
+ * @returns Flat array of expansion promises ready for Promise.all.
+ */
+function collectExpansionPromises(
+  contexts: readonly (Page | Frame)[],
+  candidates: readonly SelectorCandidate[],
+  formAnchor: string,
+): Promise<readonly ILocatorEntry[]>[] {
+  return contexts.flatMap((ctx): Promise<readonly ILocatorEntry[]>[] =>
+    mapCandidatesToExpansions(ctx, candidates, formAnchor),
+  );
+}
+
+/**
  * Build locator entries that surface MULTIPLE elements per locator (up to
  * `MAX_NTH_PER_LOCATOR`). Used only by `resolveAllVisible` so other
  * resolvers (login/preLogin/etc.) keep their `.first()`-only semantics —
@@ -816,11 +954,24 @@ async function buildLocatorEntriesAll(
   formAnchor = NO_FORM_ANCHOR,
 ): Promise<readonly ILocatorEntry[]> {
   const contexts = getAllContexts(page);
-  const expansionPromises = contexts.flatMap((ctx): Promise<readonly ILocatorEntry[]>[] =>
-    mapCandidatesToExpansions(ctx, candidates, formAnchor),
-  );
-  const groups = await Promise.all(expansionPromises);
+  const promises = collectExpansionPromises(contexts, candidates, formAnchor);
+  const groups = await Promise.all(promises);
   return groups.flat();
+}
+
+/**
+ * Build the per-candidate `IExpandEntryArgs` bundle without nested calls.
+ * @param ctx - Playwright context (Page or Frame).
+ * @param candidate - WK candidate to enumerate.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
+ * @returns Args bundle for `expandCandidateEntries`.
+ */
+function buildExpandArgs(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+  formAnchor: string,
+): IExpandEntryArgs {
+  return { ctx, candidate, maxPerLocator: MAX_NTH_PER_LOCATOR, formAnchor };
 }
 
 /**
@@ -837,15 +988,10 @@ function mapCandidatesToExpansions(
   candidates: readonly SelectorCandidate[],
   formAnchor = NO_FORM_ANCHOR,
 ): Promise<readonly ILocatorEntry[]>[] {
-  return candidates.map(
-    (c): Promise<readonly ILocatorEntry[]> =>
-      expandCandidateEntries({
-        ctx,
-        candidate: c,
-        maxPerLocator: MAX_NTH_PER_LOCATOR,
-        formAnchor,
-      }),
-  );
+  return candidates.map((c): Promise<readonly ILocatorEntry[]> => {
+    const args = buildExpandArgs(ctx, c, formAnchor);
+    return expandCandidateEntries(args);
+  });
 }
 
 /**
@@ -1025,9 +1171,13 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
 /**
  * Capture the resolved element's identity payload (browser-side eval).
  * Must be a top-level pure function (no captured closures) so Playwright's
- * `evaluate(...)` serialization can transport it. The caller body stays
- * ≤10 LoC by delegating attribute extraction and outerHTML truncation to
- * this helper.
+ * `evaluate(...)` serialization can transport it. Inlines the attribute
+ * extraction (8 keys) so the structured payload survives serialization;
+ * any further extraction would invalidate the closure-free contract.
+ *
+ * Grandfather: covered by the §19.4a per-file Playwright-eval cap (max:20)
+ * because Playwright eval bodies cannot delegate to helpers without the
+ * helper closure being missing inside the page context.
  * @param el - The DOM element under inspection (browser context).
  * @param max - Max length for the outerHTML snippet.
  * @returns Verbose identity payload (identity bundle + bounded outerHTML).
@@ -1062,6 +1212,17 @@ async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVe
 }
 
 /**
+ * Project the per-attribute identity bundle for the log payload. Extracted
+ * so `buildIdentityLogPayload` stays inside the 10-LoC cap.
+ * @param identity - Element identity bundle.
+ * @returns Compact `attrs` object used by Pino payload.
+ */
+function pickIdentityAttrs(identity: IElementIdentity): object {
+  const { name, type, ariaLabel, title, href } = identity;
+  return { name, type, ariaLabel, title, href };
+}
+
+/**
  * Build the LOG.debug payload from the identity bundle. Top-level so the
  * caller (`traceElementIdentity`) stays under cap by delegating both the
  * sub-attrs projection and the outer-shape composition here.
@@ -1070,21 +1231,9 @@ async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVe
  * @returns Pino-shaped object ready for LOG.debug.
  */
 function buildIdentityLogPayload(identity: IElementIdentity, outerHtml: string): object {
-  const attrs = {
-    name: identity.name,
-    type: identity.type,
-    ariaLabel: identity.ariaLabel,
-    title: identity.title,
-    href: identity.href,
-  };
-  return {
-    tag: identity.tag,
-    domId: identity.id,
-    classes: identity.classes,
-    attrs,
-    outerHtml,
-    visibility: 'visible',
-  };
+  const attrs = pickIdentityAttrs(identity);
+  const { tag, id: domId, classes } = identity;
+  return { tag, domId, classes, attrs, outerHtml, visibility: 'visible' };
 }
 
 /**
@@ -1149,8 +1298,27 @@ function traceRaceDiagnostic(entries: readonly ILocatorEntry[], diag: IRaceDiagn
 }
 
 /**
+ * Run the race + diagnostic trace tail. Extracted so `runHitTestRace`
+ * stays under the 10-LoC cap.
+ * @param entries - Locator entries (single-match `.first()` OR nth-enumerated).
+ * @param locators - Locators projected out of `entries` (same length/order).
+ * @param timeout - Race timeout already capped by caller.
+ * @returns Race diagnostic with winner + fulfilled detail.
+ */
+async function raceAndTrace(
+  entries: readonly ILocatorEntry[],
+  locators: Locator[],
+  timeout: number,
+): Promise<IRaceDiagnostic> {
+  const diag = await raceLocatorsWithHitTest(locators, timeout);
+  traceRaceDiagnostic(entries, diag);
+  return diag;
+}
+
+/**
  * Run the hit-test race against an entry list, log diagnostics.
  * Extracted so resolveVisibleImpl + resolveVisibleNthAware share one path.
+ * Uses the canonical `logResolveProbe` so log output stays uniform.
  * @param entries - Locator entries (single-match `.first()` OR nth-enumerated).
  * @param timeout - Race timeout (already capped by caller).
  * @param label - Log prefix identifying the resolver (for diagnostic trace).
@@ -1162,12 +1330,8 @@ async function runHitTestRace(
   label: string,
 ): Promise<IRaceDiagnostic> {
   const locators = entries.map((e): Locator => e.locator);
-  const countStr = String(locators.length);
-  const timeoutStr = String(timeout);
-  LOG.debug({ message: `${label}: ${countStr} locators, timeout=${timeoutStr}ms` });
-  const diag = await raceLocatorsWithHitTest(locators, timeout);
-  traceRaceDiagnostic(entries, diag);
-  return diag;
+  logResolveProbe(label, locators.length, timeout);
+  return raceAndTrace(entries, locators, timeout);
 }
 
 /**
@@ -1493,10 +1657,8 @@ async function resolveAllVisibleImpl(args: IResolveAllArgs): Promise<readonly IR
   if (args.cap < 1) return [];
   const setup = await setupAllVisibleRace(args.page, args.candidates, args.timeout);
   if (setup.entries.length === 0) return [];
-  const probeLabel = `resolveAllVisible (cap=${String(args.cap)})`;
-  logResolveProbe(probeLabel, setup.locators.length, setup.timeout);
-  const diag = await raceLocatorsWithHitTest(setup.locators, setup.timeout);
-  traceRaceDiagnostic(setup.entries, diag);
+  const label = `resolveAllVisible (cap=${String(args.cap)})`;
+  const diag = await runHitTestRace(setup.entries, setup.timeout, label);
   if (diag.fulfilledIndices.length === 0) return [];
   const indices = diag.fulfilledIndices;
   return extractWinnerSequence({ entries: setup.entries, indices, cap: args.cap });
@@ -1549,26 +1711,24 @@ async function enrichWinnerToResult(entry: ILocatorEntry, index: number): Promis
   return buildFoundResult(entry, { index, value, identity });
 }
 
+/** Bundled args for `resolveVisibleInContextImpl` — keeps it inside the 3-param cap. */
+interface IResolveContextArgs {
+  readonly ctx: Page | Frame;
+  readonly candidates: readonly SelectorCandidate[];
+  readonly timeout: number;
+}
+
 /**
  * Resolve the first visible element within a SINGLE frame context.
  * Same logic as resolveVisibleImpl but scoped to one context.
- * @param ctx - The specific Page or Frame to search.
- * @param candidates - WellKnown selector candidates.
- * @param timeout - Race timeout in ms.
+ * @param args - Bundled context + candidates + timeout.
  * @returns IRaceResult scoped to the given context.
  */
-async function resolveVisibleInContextImpl(
-  ctx: Page | Frame,
-  candidates: readonly SelectorCandidate[],
-  timeout: number,
-): Promise<IRaceResult> {
-  const entries = buildContextEntries(ctx, candidates);
+async function resolveVisibleInContextImpl(args: IResolveContextArgs): Promise<IRaceResult> {
+  const entries = buildContextEntries(args.ctx, args.candidates);
   if (entries.length === 0) return NOT_FOUND_RESULT;
-  const locators = entries.map((e): Locator => e.locator);
-  const effectiveTimeout = capTimeout(timeout);
-  logResolveProbe('resolveVisibleInContext', locators.length, effectiveTimeout);
-  const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
-  traceRaceDiagnostic(entries, diag);
+  const effectiveTimeout = capTimeout(args.timeout);
+  const diag = await runHitTestRace(entries, effectiveTimeout, 'resolveVisibleInContext');
   if (diag.winner < 0) return NOT_FOUND_RESULT;
   return enrichWinnerToResult(entries[diag.winner], diag.winner);
 }
@@ -1590,6 +1750,25 @@ async function tryForceClick(locator: Locator, timeoutMs: number): Promise<boole
 }
 
 /**
+ * Attempt force-click at a specific entry index and wrap the resulting
+ * IRaceResult. Extracted so `tryAttachedClickFallback` stays ≤10 LoC.
+ * @param entries - Locator entries from the attached race.
+ * @param winnerIdx - Index returned by the race.
+ * @param timeoutMs - Force-click timeout in milliseconds.
+ * @returns Procedure wrapping the IRaceResult (or NOT_FOUND on click failure).
+ */
+async function clickAttachedWinner(
+  entries: ILocatorEntry[],
+  winnerIdx: number,
+  timeoutMs: number,
+): Promise<Procedure<IRaceResult>> {
+  const didClick = await tryForceClick(entries[winnerIdx].locator, timeoutMs);
+  if (!didClick) return succeed(NOT_FOUND_RESULT);
+  const result = await enrichWinnerToResult(entries[winnerIdx], winnerIdx);
+  return succeed(result);
+}
+
+/**
  * Fallback path for resolveAndClickImpl when no element passed the
  * "visible" hit-test race: try a force-click against the FIRST attached
  * candidate. Extracted so the parent body stays ≤10 LoC.
@@ -1605,9 +1784,7 @@ async function tryAttachedClickFallback(
   const locators = entries.map((e): Locator => e.locator);
   const winnerIdx = await raceLocators(locators, effectiveTimeout, 'attached');
   if (winnerIdx < 0) return succeed(NOT_FOUND_RESULT);
-  const didClick = await tryForceClick(entries[winnerIdx].locator, effectiveTimeout);
-  if (!didClick) return succeed(NOT_FOUND_RESULT);
-  return succeed(await enrichWinnerToResult(entries[winnerIdx], winnerIdx));
+  return clickAttachedWinner(entries, winnerIdx, effectiveTimeout);
 }
 
 /**
@@ -1665,7 +1842,7 @@ function buildResolveVisibleInContext(): IElementMediator['resolveVisibleInConte
   return (candidates, context, timeoutMs?): Promise<IRaceResult> => {
     if (candidates.length === 0) return Promise.resolve(NOT_FOUND_RESULT);
     const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
-    return resolveVisibleInContextImpl(context, candidates, timeout);
+    return resolveVisibleInContextImpl({ ctx: context, candidates, timeout });
   };
 }
 
@@ -1722,6 +1899,29 @@ function buildGetFormAnchor(cache: IFormCache): IElementMediator['getFormAnchor'
 /** Default timeout for network idle wait (matches POST_LOGIN_SETTLE_TIMEOUT). */
 const NETWORK_IDLE_TIMEOUT = 15_000;
 
+/** Bundled args for `executeNavigation` — keeps it inside the 3-param cap. */
+interface INavigateArgs {
+  readonly page: Page;
+  readonly url: string;
+  readonly opts: Parameters<IElementMediator['navigateTo']>[1];
+}
+
+/**
+ * Execute one navigation attempt. Extracted so `buildNavigateTo` stays
+ * inside the 10-LoC cap and the catch tail can use `toErrorMessage`.
+ * @param args - Bundled page + url + opts.
+ * @returns Procedure-wrapped result (succeed on success, fail with msg on error).
+ */
+async function executeNavigation(args: INavigateArgs): Promise<Procedure<void>> {
+  try {
+    await args.page.goto(args.url, args.opts);
+    return succeed(undefined);
+  } catch (error) {
+    const msg = toErrorMessage(error);
+    return fail(ScraperErrorTypes.Generic, `Navigation failed: ${msg}`);
+  }
+}
+
 /**
  * Build navigateTo method bound to a page.
  * Navigation errors are terminal — fail() propagates.
@@ -1729,15 +1929,7 @@ const NETWORK_IDLE_TIMEOUT = 15_000;
  * @returns Mediator navigateTo function.
  */
 function buildNavigateTo(page: Page): IElementMediator['navigateTo'] {
-  return async (url, opts): Promise<Procedure<void>> => {
-    try {
-      await page.goto(url, opts);
-      return succeed(undefined);
-    } catch (error) {
-      const msg = toErrorMessage(error);
-      return fail(ScraperErrorTypes.Generic, `Navigation failed: ${msg}`);
-    }
-  };
+  return (url, opts): Promise<Procedure<void>> => executeNavigation({ page, url, opts });
 }
 
 /**
@@ -1768,6 +1960,29 @@ function buildWaitForNetworkIdle(page: Page): IElementMediator['waitForNetworkId
   };
 }
 
+/** Bundled args for `executeRaceWithNetworkIdle` — keeps it inside the 3-param cap. */
+interface IRaceWithIdleArgs {
+  readonly waitForNetworkIdle: IElementMediator['waitForNetworkIdle'];
+  readonly customWait: Promise<unknown>;
+  readonly budgetMs?: number;
+}
+
+/**
+ * Race the caller's custom wait against the mediator's networkidle. Both
+ * racers are best-effort signals — neither rejection invalidates the pool.
+ * Extracted so `buildRaceWithNetworkIdle` stays under cap.
+ * @param args - Bundled networkidle method + customWait + optional budget.
+ * @returns Sentinel `true` once either racer settles (or both throw).
+ */
+async function executeRaceWithNetworkIdle(args: IRaceWithIdleArgs): Promise<true> {
+  try {
+    await Promise.race([args.customWait, args.waitForNetworkIdle(args.budgetMs)]);
+  } catch {
+    // Observed state below decides outcome — best-effort signals.
+  }
+  return true as const;
+}
+
 /**
  * Build raceWithNetworkIdle method. Composes the caller's custom
  * wait promise with the mediator's own `waitForNetworkIdle` — single
@@ -1780,14 +1995,8 @@ function buildWaitForNetworkIdle(page: Page): IElementMediator['waitForNetworkId
 function buildRaceWithNetworkIdle(
   waitForNetworkIdle: IElementMediator['waitForNetworkIdle'],
 ): IElementMediator['raceWithNetworkIdle'] {
-  return async (customWait, budgetMs): Promise<true> => {
-    try {
-      await Promise.race([customWait, waitForNetworkIdle(budgetMs)]);
-    } catch {
-      // Observed state below decides outcome — both racers are
-      // best-effort signals, neither rejection invalidates the pool.
-    }
-    return true as const;
+  return (customWait, budgetMs): Promise<true> => {
+    return executeRaceWithNetworkIdle({ waitForNetworkIdle, customWait, budgetMs });
   };
 }
 
@@ -2191,16 +2400,30 @@ function buildFillInput(registry: FrameRegistryMap): IActionMediator['fillInput'
  * @param registry - The immutable frame registry.
  * @returns Bound clickElement handler.
  */
+/**
+ * Execute the click for a registry-resolved frame. Extracted so
+ * `buildClickElement` stays inside the 10-LoC cap.
+ * @param registry - Per-page frame registry.
+ * @param args - Action-mediator click args (selector + contextId + opts).
+ * @returns `true` once the click cascade resolves.
+ */
+async function executeClickElement(
+  registry: FrameRegistryMap,
+  args: Parameters<IActionMediator['clickElement']>[0],
+): Promise<true> {
+  const frame = resolveFrame(registry, args.contextId);
+  const { selector, isForce, nth } = args;
+  return clickElementImpl({ frame, selector, isForce, nth });
+}
+
+/**
+ * Build clickElement method bound to the immutable frame registry.
+ * Pass-through wrapper that resolves the frame then defers to the impl.
+ * @param registry - Per-page frame registry.
+ * @returns Action-mediator clickElement function.
+ */
 function buildClickElement(registry: FrameRegistryMap): IActionMediator['clickElement'] {
-  return (args): Promise<true> => {
-    const frame = resolveFrame(registry, args.contextId);
-    return clickElementImpl({
-      frame,
-      selector: args.selector,
-      isForce: args.isForce,
-      nth: args.nth,
-    });
-  };
+  return (args): Promise<true> => executeClickElement(registry, args);
 }
 
 /**
