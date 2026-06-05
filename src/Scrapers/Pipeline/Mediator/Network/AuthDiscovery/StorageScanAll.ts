@@ -11,6 +11,9 @@ import { tryParseJsonToken } from './Tokens.js';
 
 const LOG = getDebug(import.meta.url);
 
+/** Max chars of a frame URL surfaced in token-scan trace diagnostics. */
+const FRAME_URL_PREVIEW_LEN = 40;
+
 /**
  * Read every sessionStorage value in a frame that looks like JSON.
  * @param frame - Playwright frame.
@@ -35,7 +38,8 @@ async function scanFrameForTokens(frame: Frame): Promise<string | false> {
   const allValues = await readAllJsonStorageValues(frame);
   const tokenVal = allValues.find((v): boolean => tryParseJsonToken(v) !== false);
   if (!tokenVal) return false;
-  LOG.trace({ message: maskVisibleText(`Tier3c: token from frame ${frame.url().slice(0, 40)}`) });
+  const framePreview = frame.url().slice(0, FRAME_URL_PREVIEW_LEN);
+  LOG.trace({ message: maskVisibleText(`Tier3c: token from frame ${framePreview}`) });
   return tryParseJsonToken(tokenVal);
 }
 

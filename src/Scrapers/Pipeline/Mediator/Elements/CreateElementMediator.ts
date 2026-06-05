@@ -44,6 +44,22 @@ import {
 
 const LOG = getDebug(import.meta.url);
 
+/** Retry-attempt indices for `waitOnceForLoading` (1 is already ignored by lint). */
+const LOADING_ATTEMPT_SECOND = 2;
+const LOADING_ATTEMPT_THIRD = 3;
+
+/** Max chars of an error message surfaced in non-fatal discover-form logs. */
+const DISCOVER_FORM_ERR_PREVIEW_LEN = 60;
+
+/** Hit-test divisor — picks the center pixel of an element's bounding rect. */
+const HIT_TEST_CENTER_DIVISOR = 2;
+
+/** Max chars of element textContent shown in DOM trace diagnostics. */
+const TRACE_TEXT_MAX_LEN = 30;
+
+/** Specificity for `[aria-label=` CSS attribute-prefix selectors. */
+const ARIA_LABEL_PREFIX_SPECIFICITY = 3;
+
 import {
   setActivePhase as setGlobalPhase,
   setActiveStage as setGlobalStage,
@@ -239,9 +255,9 @@ function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
   return async (frame: Page | Frame): Promise<Procedure<true>> => {
     const done1 = await waitOnceForLoading(frame, 1);
     if (isOk(done1) && done1.value) return succeed(true);
-    const done2 = await waitOnceForLoading(frame, 2);
+    const done2 = await waitOnceForLoading(frame, LOADING_ATTEMPT_SECOND);
     if (isOk(done2) && done2.value) return succeed(true);
-    await waitOnceForLoading(frame, 3);
+    await waitOnceForLoading(frame, LOADING_ATTEMPT_THIRD);
     return succeed(true);
   };
 }
@@ -269,7 +285,7 @@ async function discoverFormCore(
  * @returns None option.
  */
 function handleDiscoverFormError(error: Error): Option<IFormAnchor> {
-  const truncated = toErrorMessage(error).slice(0, 60);
+  const truncated = toErrorMessage(error).slice(0, DISCOVER_FORM_ERR_PREVIEW_LEN);
   LOG.debug({ message: `discoverForm failed (non-fatal): ${truncated}` });
   return none();
 }
@@ -652,7 +668,10 @@ function isElementHitTestable(el: Element): boolean {
   if (el.hasAttribute('disabled')) return false;
   if (el.getAttribute('aria-disabled') === 'true') return false;
   const rect = el.getBoundingClientRect();
-  const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  const hit = document.elementFromPoint(
+    rect.left + rect.width / HIT_TEST_CENTER_DIVISOR,
+    rect.top + rect.height / HIT_TEST_CENTER_DIVISOR,
+  );
   return el === hit || el.contains(hit);
 }
 
@@ -1031,7 +1050,7 @@ const NO_ATTR = '(none)';
  */
 function traceElementInfo(el: Element): string {
   const rawText = el.textContent;
-  const text = rawText ? rawText.slice(0, 30).trim() : NO_ATTR;
+  const text = rawText ? rawText.slice(0, TRACE_TEXT_MAX_LEN).trim() : NO_ATTR;
   const href = el.getAttribute('href') ?? NO_ATTR;
   const aria = el.getAttribute('aria-label') ?? NO_ATTR;
   const closestA = el.closest('a');
@@ -1466,7 +1485,7 @@ const KIND_SPECIFICITY: Readonly<Record<SelectorCandidate['kind'], number>> = {
 const CSS_PREFIX_SPECIFICITY: readonly (readonly [string, number])[] = [
   ['[id=', 0],
   ['[name=', 1],
-  ['[aria-label=', 3],
+  ['[aria-label=', ARIA_LABEL_PREFIX_SPECIFICITY],
 ];
 
 /**

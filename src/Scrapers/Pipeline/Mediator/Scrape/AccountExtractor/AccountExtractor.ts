@@ -26,6 +26,9 @@ import traceRawShape from './RawShapeTrace.js';
 
 const LOG = getDebug(import.meta.url);
 
+/** Minimum string length for a candidate account/card identifier. */
+const MIN_IDENTIFIER_LENGTH = 2;
+
 /**
  * Root-array fallback: if the response body is already an array of
  * account-shaped records, return it directly. Covers responses like
@@ -116,7 +119,7 @@ function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
  * @returns True iff `id` is acceptable as a transaction-API query parameter.
  */
 function isUsableIdentifier(id: string): boolean {
-  if (id.length < 2) return false;
+  if (id.length < MIN_IDENTIFIER_LENGTH) return false;
   if (id === 'default') return false;
   if (id === 'null') return false;
   if (id === 'undefined') return false;

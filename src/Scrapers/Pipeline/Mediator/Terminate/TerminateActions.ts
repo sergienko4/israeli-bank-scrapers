@@ -24,6 +24,9 @@ import { TERMINATE_CLEANUP_BUDGET_MS } from '../Timing/TimingConfig.js';
 /** Type alias for the cleanup function signature from IBrowserState. */
 type CleanupFn = IBrowserState['cleanups'][number];
 
+/** Max chars of a cleanup error message surfaced in bounded debug logs. */
+const CLEANUP_ERROR_PREVIEW_LEN = 80;
+
 /**
  * Log a cleanup failure if the result is not OK.
  * @param result - The cleanup procedure result.
@@ -85,7 +88,7 @@ async function runCleanupGuarded(
  * @returns Fail Procedure with the truncated message.
  */
 function handleCleanupError(error: unknown, logger: IPipelineContext['logger']): Procedure<void> {
-  const msg = toErrorMessage(error).slice(0, 80);
+  const msg = toErrorMessage(error).slice(0, CLEANUP_ERROR_PREVIEW_LEN);
   logger.debug({ message: msg });
   return fail(ScraperErrorTypes.Generic, `cleanup: ${msg}`);
 }

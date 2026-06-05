@@ -20,6 +20,12 @@ import { getSubStepNetworkDumpDir } from '../../../Types/TraceConfig.js';
 
 const LOG = getDebug(import.meta.url);
 
+/** Maximum length of the sanitised filename tail kept on disk (slug suffix). */
+const MAX_DUMP_FILENAME_TAIL_CHARS = 80;
+
+/** Width of the zero-padded sequence prefix prepended to dump filenames. */
+const DUMP_SEQUENCE_PAD_WIDTH = 4;
+
 /**
  * Per-run dump counter — each response body that gets dumped is numbered so
  * the on-disk order matches the order they fired during the run. The dump
@@ -67,8 +73,8 @@ interface IWriteArgs {
 function buildDumpPath(dir: string, sequence: number, args: IDumpArgs): string {
   const redacted = redactUrlFull(args.url);
   const sanitised = redacted.replaceAll(/[^\w.-]/g, '_');
-  const safeStub = sanitised.slice(-80);
-  const prefix = String(sequence).padStart(4, '0');
+  const safeStub = sanitised.slice(-MAX_DUMP_FILENAME_TAIL_CHARS);
+  const prefix = String(sequence).padStart(DUMP_SEQUENCE_PAD_WIDTH, '0');
   const name = `${prefix}-${args.method}-${safeStub}.json`;
   return path.join(dir, name);
 }

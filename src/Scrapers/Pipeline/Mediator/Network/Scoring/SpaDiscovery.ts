@@ -21,6 +21,9 @@ import safeParseWindowUrl from './SafeUrl.js';
 
 const LOG = getDebug(import.meta.url);
 
+/** Number of trailing DNS labels treated as the parent domain (a.b.c → b.c.d). */
+const PARENT_DOMAIN_LABELS = 3;
+
 /** Bundled WK-API patterns considered "API endpoints" for SPA discovery. */
 const SPA_API_PATTERNS = [
   ...PIPELINE_WELL_KNOWN_API.transactions,
@@ -204,7 +207,7 @@ function resolveScanArgs(currentOrigin: string): IScanArgs | false {
   const parsedOrigin = safeParseWindowUrl(currentOrigin);
   if (parsedOrigin === false) return false;
   const currentHost = parsedOrigin.hostname;
-  const parentDomain = currentHost.split('.').slice(-3).join('.');
+  const parentDomain = currentHost.split('.').slice(-PARENT_DOMAIN_LABELS).join('.');
   return { currentHost, parentDomain };
 }
 

@@ -5,6 +5,9 @@
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 
+/** Width for two-digit zero-padding (day/month) and short-year offset (slice(2)). */
+const DATE_TWO_DIGIT = 2;
+
 /** Bundled date parts for format generation. */
 interface IDateParts {
   readonly dayPad: string;
@@ -37,7 +40,7 @@ function getDateNumbers(now: Date): IDateNumbers {
  * @returns Padded + raw day strings.
  */
 function buildDayStrings(dayNum: number): { dayPad: string; dayRaw: string } {
-  return { dayPad: String(dayNum).padStart(2, '0'), dayRaw: String(dayNum) };
+  return { dayPad: String(dayNum).padStart(DATE_TWO_DIGIT, '0'), dayRaw: String(dayNum) };
 }
 
 /**
@@ -46,7 +49,7 @@ function buildDayStrings(dayNum: number): { dayPad: string; dayRaw: string } {
  * @returns Padded + raw month strings.
  */
 function buildMonthStrings(monthNum: number): { monthPad: string; monthRaw: string } {
-  return { monthPad: String(monthNum).padStart(2, '0'), monthRaw: String(monthNum) };
+  return { monthPad: String(monthNum).padStart(DATE_TWO_DIGIT, '0'), monthRaw: String(monthNum) };
 }
 
 /**
@@ -55,7 +58,7 @@ function buildMonthStrings(monthNum: number): { monthPad: string; monthRaw: stri
  * @returns Short + full year strings.
  */
 function buildYearStrings(yearNum: number): { yearShort: string; yearFull: string } {
-  return { yearShort: String(yearNum).slice(2), yearFull: String(yearNum) };
+  return { yearShort: String(yearNum).slice(DATE_TWO_DIGIT), yearFull: String(yearNum) };
 }
 
 /**

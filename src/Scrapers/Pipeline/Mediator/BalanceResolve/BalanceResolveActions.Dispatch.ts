@@ -10,13 +10,16 @@ import { isOk } from '../../Types/Procedure.js';
 import type { IFetchExecCtx } from './BalanceResolveActions.Fetch.js';
 import { safeIssueOneFetch } from './BalanceResolveActions.Fetch.js';
 
+/** Length of the visible suffix in `***NNNN` masked-tail logs. */
+const MASK_TAIL_VISIBLE_CHARS = 4;
+
 /**
  * Last 4 chars of an internal id — used for redacted observability logs.
  * @param id - bankAccountUniqueId / cardUniqueId.
  * @returns `***NNNN` where NNNN is the last 4 chars.
  */
 function maskTail4(id: string): string {
-  return `***${id.slice(-4)}`;
+  return `***${id.slice(-MASK_TAIL_VISIBLE_CHARS)}`;
 }
 
 /** Result wrapper for {@link dispatchEntry}. */

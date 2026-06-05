@@ -6,6 +6,9 @@ import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import { prefixToken, TOKEN_BODY_FIELDS } from './Tokens.js';
 
+/** Minimum length for a string field to be treated as a usable bearer token. */
+const MIN_TOKEN_LENGTH = 5;
+
 /**
  * Find a WellKnown token field in a flat object.
  * @param obj - Object to search.
@@ -13,7 +16,7 @@ import { prefixToken, TOKEN_BODY_FIELDS } from './Tokens.js';
  */
 function findTokenInFlat(obj: Record<string, unknown>): string | false {
   const hit = TOKEN_BODY_FIELDS.find(
-    (f): boolean => typeof obj[f] === 'string' && obj[f].length > 5,
+    (f): boolean => typeof obj[f] === 'string' && obj[f].length > MIN_TOKEN_LENGTH,
   );
   if (!hit) return false;
   return prefixToken(obj[hit] as string);

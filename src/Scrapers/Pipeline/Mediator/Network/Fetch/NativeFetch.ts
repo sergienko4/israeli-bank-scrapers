@@ -8,7 +8,12 @@
 import ScraperError from '../../../../Base/ScraperError.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
-import { BODY_PREVIEW_LIMIT, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
+import {
+  BODY_PREVIEW_LIMIT,
+  HTTP_STATUS_OK,
+  NETWORK_FETCH_TIMEOUT_MS,
+  URL_LOG_TAIL_CHARS,
+} from '../FetchConfig.js';
 import { getJsonHeaders, type JsonValue } from './Headers.js';
 import { LOG, logApiCall } from './Logging.js';
 
@@ -81,25 +86,37 @@ async function readBodyWithPreview(fetchResult: Response): Promise<string> {
  * @returns Always true on 200.
  */
 function assertGetStatusOk(fetchResult: Response): true {
-  if (fetchResult.status !== 200) {
+  if (fetchResult.status !== HTTP_STATUS_OK) {
     throw new ScraperError(`GET request returned status ${String(fetchResult.status)}`);
   }
   return true;
 }
 
 /**
+ * Build the masked-URL tag for native GET-call logs.
+ * @param url - Raw URL.
+ * @returns Tag with redacted URL tail.
+ */
+function buildGetCallTag(url: string): string {
+  return `GET ${redactUrlFull(url).slice(-URL_LOG_TAIL_CHARS)}`;
+}
+
+/** Bundled args for {@link parseFetchGetResponse} — keeps the sig under the LoC cap. */
+interface IParseGetResponseArgs {
+  fetchResult: Response;
+  url: string;
+  startMs: number;
+}
+
+/**
  * Parse and log the response from a native fetch GET request.
- * @param fetchResult - The fetch Response object.
- * @param url - The original request URL for error reporting.
- * @param startMs - The start timestamp for duration calculation.
+ * @param args - Bundled fetch result + url + start timestamp.
  * @returns The parsed JSON response body.
  */
-async function parseFetchGetResponse<TResult>(
-  fetchResult: Response,
-  url: string,
-  startMs: number,
-): Promise<TResult> {
-  logApiCall(`GET ${redactUrlFull(url).slice(-100)}`, fetchResult.status, Date.now() - startMs);
+async function parseFetchGetResponse<TResult>(args: IParseGetResponseArgs): Promise<TResult> {
+  const { fetchResult, url, startMs } = args;
+  const tag = buildGetCallTag(url);
+  logApiCall(tag, fetchResult.status, Date.now() - startMs);
   const text = await readBodyWithPreview(fetchResult);
   assertGetStatusOk(fetchResult);
   return JSON.parse(text) as TResult;
@@ -119,7 +136,7 @@ export async function fetchGet<TResult>(
   const merged = Object.assign(jsonHeaders, extraHeaders);
   const startMs = Date.now();
   const fetchResult = await fetchWithTimeout(url, { method: 'GET', headers: merged });
-  return parseFetchGetResponse<TResult>(fetchResult, url, startMs);
+  return parseFetchGetResponse<TResult>({ fetchResult, url, startMs });
 }
 
 /**
@@ -148,7 +165,8 @@ function buildPostInit(
  */
 async function sendPost(url: string, postInit: RequestInit, startMs: number): Promise<string> {
   const result = await fetchWithTimeout(url, postInit);
-  logApiCall(`POST ${redactUrlFull(url).slice(-100)}`, result.status, Date.now() - startMs);
+  const tag = `POST ${redactUrlFull(url).slice(-URL_LOG_TAIL_CHARS)}`;
+  logApiCall(tag, result.status, Date.now() - startMs);
   return readBodyWithPreview(result);
 }
 

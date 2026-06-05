@@ -26,6 +26,14 @@ import { computeContextId } from './FrameRegistry.js';
 /** Max chars of outerHTML to surface in click forensics (forensic snippet). */
 const CLICK_OUTER_HTML_MAX = 300;
 
+/** Human-delay bounds (ms) for natural-pause before clicks. */
+const HUMAN_DELAY_CLICK_MIN_MS = 200;
+const HUMAN_DELAY_CLICK_MAX_MS = 500;
+
+/** Human-delay bounds (ms) for natural-pause before pressing Enter. */
+const HUMAN_DELAY_ENTER_MIN_MS = 100;
+const HUMAN_DELAY_ENTER_MAX_MS = 300;
+
 /** Tier label identifying which click strategy succeeded/failed. */
 type TierLabel = 'force-1' | 'natural-1' | 'dispatch-2' | 'evaluate-3' | 'aria-4';
 
@@ -304,7 +312,7 @@ async function clickForceCascade(args: IForceCascadeArgs): Promise<true> {
  */
 async function clickElementImpl(args: IClickArgs): Promise<true> {
   const { frame, selector, isForce, nth } = args;
-  await humanDelay(200, 500);
+  await humanDelay(HUMAN_DELAY_CLICK_MIN_MS, HUMAN_DELAY_CLICK_MAX_MS);
   const base = frame.locator(selector);
   const locator = narrowLocator(base, nth);
   if (!isForce) return clickNaturalPath(locator, selector, frame);
@@ -447,7 +455,7 @@ function resolvePageWithKeyboard(frame: Page | Frame): Page {
  * @returns True after pressing.
  */
 async function pressEnterImpl(frame: Page | Frame): Promise<true> {
-  await humanDelay(100, 300);
+  await humanDelay(HUMAN_DELAY_ENTER_MIN_MS, HUMAN_DELAY_ENTER_MAX_MS);
   const page = resolvePageWithKeyboard(frame);
   await page.keyboard.press('Enter');
   return true;

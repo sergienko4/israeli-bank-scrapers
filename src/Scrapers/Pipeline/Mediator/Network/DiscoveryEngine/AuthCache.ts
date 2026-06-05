@@ -16,6 +16,9 @@ import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
 const LOG = getDebug(import.meta.url);
 
+/** Length of the cached-auth token preview emitted to trace logs. */
+const TOKEN_PREVIEW_LENGTH = 20;
+
 /** Auth-cache shared state used by the closure helpers. */
 interface IAuthCacheState {
   cached: string | false;
@@ -68,7 +71,7 @@ async function readAuthState(
  */
 function logCachedAuth(token: string | false): boolean {
   if (!token) return false;
-  const head = token.slice(0, 20);
+  const head = token.slice(0, TOKEN_PREVIEW_LENGTH);
   const preview = maskVisibleText(head);
   LOG.trace({ message: preview });
   return true;

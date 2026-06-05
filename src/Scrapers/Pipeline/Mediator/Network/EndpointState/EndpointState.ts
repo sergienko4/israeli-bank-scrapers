@@ -17,6 +17,9 @@
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
+/** Minimum parts produced when splitting a captured URL on its account-id segment. */
+const MIN_SPLIT_PARTS = 2;
+
 /** WellKnown transaction URL query params for full history. */
 const FULL_TXN_PARAMS = [
   'IsCategoryDescCode=True',
@@ -79,7 +82,7 @@ function findTxnUrlWithAccountId(
  */
 function assembleTxnUrl(hitUrl: string, accountId: string, startDate: string): string | false {
   const parts = hitUrl.split(accountId);
-  if (parts.length < 2) return false;
+  if (parts.length < MIN_SPLIT_PARTS) return false;
   const prefix = parts[0];
   const params = [...FULL_TXN_PARAMS, `FromDate=${startDate}`].join('&');
   return `${prefix}${accountId}/Date?${params}`;

@@ -4,7 +4,6 @@
  * `Indexing.ts` per CR PR #276 #7: the previous 104-LoC
  * `parseResponse` exceeded Section 11's new per-function cap. Split
  * into three helpers:
- *
  *   • `parseResponse` — thin orchestrator (entry-log → gates →
  *     204 fast-path → body read).
  *   • `buildNoContentEndpoint` — 204 No Content fast-path; records
@@ -22,6 +21,7 @@ import type { Response } from 'playwright-core';
 import { getDebug } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { dumpResponseBody } from '../Debug/NetworkDump.js';
+import { HTTP_STATUS_NO_CONTENT } from '../FetchConfig.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import {
   extractRequestMeta,
@@ -184,7 +184,7 @@ function preflightParse(response: Response): IPreflight {
 async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | false> {
   const { meta, status, drop } = preflightParse(response);
   if (drop !== false) return logParseDrop(drop, meta, status);
-  if (status === 204) return buildNoContentEndpoint(meta, response);
+  if (status === HTTP_STATUS_NO_CONTENT) return buildNoContentEndpoint(meta, response);
   try {
     return await readAndParseBody(meta, response);
   } catch (error) {
@@ -201,11 +201,8 @@ async function parseResponse(response: Response): Promise<IDiscoveredEndpoint | 
  */
 function recordHit(captured: IDiscoveredEndpoint[], endpoint: IDiscoveredEndpoint): boolean {
   captured.push(endpoint);
-  LOG.trace({
-    event: 'recordCapture.hit',
-    method: endpoint.method,
-    url: maskVisibleText(endpoint.url),
-  });
+  const url = maskVisibleText(endpoint.url);
+  LOG.trace({ event: 'recordCapture.hit', method: endpoint.method, url });
   return true;
 }
 

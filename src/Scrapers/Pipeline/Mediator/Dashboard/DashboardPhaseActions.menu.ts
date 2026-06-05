@@ -52,6 +52,23 @@ async function buildApiIfAvailable(
 /** CSS selector for "clickable text" elements scanned by the PRE dump. */
 const CLICKABLE_SEL = 'a, button, [role="tab"], [role="link"], [role="button"]';
 
+/** Upper-bound on the length of a clickable-text snippet retained for forensic logging. */
+const CLICKABLE_TEXT_MAX_LEN = 60;
+
+/**
+ * Browser-side projector — deduped, length-filtered visible text of clickable elements.
+ * @param els - Elements matched by {@link CLICKABLE_SEL}.
+ * @param maxLen - Upper-bound on retained snippet length.
+ * @returns Unique visible-text snippets within `[2, maxLen)`.
+ */
+function projectClickableTexts(els: Element[], maxLen: number): string[] {
+  return [
+    ...new Set(
+      els.map(el => (el.textContent || '').trim()).filter(t => t.length > 1 && t.length < maxLen),
+    ),
+  ];
+}
+
 /**
  * Collect deduped, length-filtered visible text of all clickable
  * elements on the page. Used by {@link dumpDashboardText} for WK
@@ -60,11 +77,7 @@ const CLICKABLE_SEL = 'a, button, [role="tab"], [role="link"], [role="button"]';
  * @returns Unique visible-text snippets (length 2..59).
  */
 function collectClickableTexts(page: Page): Promise<string[]> {
-  return page.$$eval(CLICKABLE_SEL, (els: Element[]) => [
-    ...new Set(
-      els.map(el => (el.textContent || '').trim()).filter(t => t.length > 1 && t.length < 60),
-    ),
-  ]);
+  return page.$$eval(CLICKABLE_SEL, projectClickableTexts, CLICKABLE_TEXT_MAX_LEN);
 }
 
 /**

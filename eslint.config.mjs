@@ -2489,4 +2489,47 @@ export default tseslint.config(
       'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
     },
   },
+
+  // 19.11 NO-MAGIC-NUMBERS — Pipeline/Mediator/**. Phase 2 close-out
+  // T3. The C12 commit drained all 73 magic-number sites across 36
+  // Mediator/ files: shared HTTP statuses + URL-log tail moved to
+  // `Network/FetchConfig.ts`; one-off literals (ports, ms delays,
+  // slice tails, parse radixes, slot widths) became named per-file
+  // `const`s. From now on every new literal in `Mediator/**` must
+  // either resolve to an existing named constant or introduce its own
+  // — keeps numerology out of business logic and lets `--fix` /
+  // grep / IDE rename retain semantic context.
+  //
+  // Allowed bare literals: 0, 1, -1 (boundary conditions); array
+  // indexes (semantically self-describing).
+  {
+    files: ['src/Scrapers/Pipeline/Mediator/**/*.ts'],
+    rules: {
+      'no-magic-numbers': [
+        'error',
+        {
+          ignore: [0, 1, -1],
+          ignoreArrayIndexes: true,
+          enforceConst: true,
+        },
+      ],
+    },
+  },
+
+  // 19.11 CANARY — re-enable `no-magic-numbers` on a single fixture
+  // under `EslintCanaries/` so `verify.sh` can confirm the guardrail
+  // stays armed.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/no-magic-numbers-in-mediator.canary.ts'],
+    rules: {
+      'no-magic-numbers': [
+        'error',
+        {
+          ignore: [0, 1, -1],
+          ignoreArrayIndexes: true,
+          enforceConst: true,
+        },
+      ],
+    },
+  },
 );

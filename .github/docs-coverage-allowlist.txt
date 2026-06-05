@@ -351,3 +351,14 @@ IDiscoverFieldsArgs
 # --- Phase 2 / CR fix (EndpointUrlHelpers — WK constant for pending/clearance-requests URL) ---
 # Reason: PIPELINE_WELL_KNOWN_PENDING — internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @sergienko4/israeli-bank-scrapers public surface — Pipeline is internal to the scrapers, not exported via src/index.ts.
 PIPELINE_WELL_KNOWN_PENDING
+# --- Phase 2 / C12 (FetchConfig HTTP status + URL log-tail constants) ---
+# Reason: HTTP_STATUS_OK — Mediator/Network/FetchConfig.ts named constant (200) shared by Logging.ts, ResponseParser.ts, Indexing.ts, AuthFailureWatcher/Inspector.ts so the no-magic-numbers rule (§19.11) can fire without per-file duplication. Pipeline-internal infrastructure; not part of the @sergienko4/israeli-bank-scrapers public surface.
+HTTP_STATUS_OK
+# Reason: HTTP_STATUS_NO_CONTENT — Mediator/Network/FetchConfig.ts named constant (204) shared by PageFetchGet.ts, PageFetchPost.ts, Logging.ts, Indexing.ts, ResponseParser.ts. Plumbed through page.evaluate args bundles in PageFetchGet/Post because module-scope constants cannot reach the browser-serialised callback context. Pipeline-internal; not part of the public API.
+HTTP_STATUS_NO_CONTENT
+# Reason: HTTP_STATUS_RATE_LIMITED — Mediator/Network/FetchConfig.ts named constant (429) consumed by WAF_STATUS_CODES Set and tests asserting on rate-limit detection. Pipeline-internal; not part of the public API.
+HTTP_STATUS_RATE_LIMITED
+# Reason: HTTP_STATUS_SERVICE_UNAVAILABLE — Mediator/Network/FetchConfig.ts named constant (503) consumed by WAF_STATUS_CODES Set. Pipeline-internal; not part of the public API.
+HTTP_STATUS_SERVICE_UNAVAILABLE
+# Reason: URL_LOG_TAIL_CHARS — Mediator/Network/FetchConfig.ts named constant (100) controlling the trailing-chars window used by NativeFetch.ts, PageFetchGet.ts, PageFetchPost.ts when emitting redacted URL logs. Centralised so all four sites stay aligned. Pipeline-internal; not part of the public API.
+URL_LOG_TAIL_CHARS

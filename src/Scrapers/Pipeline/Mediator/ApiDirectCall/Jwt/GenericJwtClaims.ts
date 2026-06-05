@@ -9,6 +9,12 @@
 
 import type { IJwtClaimsConfig } from '../IApiDirectCallConfig.js';
 
+/** Minimum dot-separated JWT segments needed to have a payload (header.payload). */
+const MIN_JWT_PARTS = 2;
+
+/** Conversion factor for ms → s. */
+const MS_PER_SECOND = 1000;
+
 /** Decoded JWT payload — only the configured numeric claim matters. */
 type JwtPayload = Readonly<Record<string, unknown>>;
 
@@ -73,7 +79,7 @@ function parsePayload(payloadB64: string): JwtPayload | false {
  */
 function decodeNumericClaim(jwt: string, field: string): number | false {
   const parts = jwt.split('.');
-  if (parts.length < 2) return false;
+  if (parts.length < MIN_JWT_PARTS) return false;
   const payload = parsePayload(parts[1]);
   if (payload === false) return false;
   const value = payload[field];
@@ -91,7 +97,7 @@ function decodeNumericClaim(jwt: string, field: string): number | false {
 function isJwtFresh(jwt: string, config: IJwtClaimsConfig): boolean {
   const claim = decodeNumericClaim(jwt, config.freshnessField);
   if (claim === false) return false;
-  const nowSec = Math.floor(Date.now() / 1000);
+  const nowSec = Math.floor(Date.now() / MS_PER_SECOND);
   return claim > nowSec + config.skewSeconds;
 }
 

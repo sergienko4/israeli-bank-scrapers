@@ -22,6 +22,9 @@ type AccountRecordShape = Readonly<Record<string, unknown>>;
 /** Scalar value safely substitutable into a JSON body. */
 type ScalarValue = string | number | boolean;
 
+/** Width for two-digit zero-padded month numbers in composite date strings. */
+const MONTH_PAD_WIDTH = 2;
+
 /** Options for building a monthly POST body. */
 interface IMonthBodyOpts {
   readonly template: string;
@@ -196,7 +199,7 @@ interface ICompositeArgs extends IMonthYearArgs {
  * @returns True after apply.
  */
 function applyCompositeDate(args: ICompositeArgs): true {
-  const mm = String(args.month).padStart(2, '0');
+  const mm = String(args.month).padStart(MONTH_PAD_WIDTH, '0');
   const yr = String(args.year);
   args.body[args.key] = `01/${mm}/${yr}`;
   return true;

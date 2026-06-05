@@ -27,6 +27,9 @@ const SHA256_PREFIX_LENGTH = 16;
 /** Index of the JWT payload segment (between header and signature). */
 const JWT_PAYLOAD_SEGMENT_INDEX = 1;
 
+/** Number of dot-separated segments in a compact JWT (header.payload.signature). */
+const JWT_SEGMENT_COUNT = 3;
+
 /**
  * Generate a fresh random-hex string of the configured byte length.
  * @returns Procedure with the generated value.
@@ -131,7 +134,7 @@ function tryParseJwtSegment(payloadB64: string): Procedure<unknown> {
  */
 function decodeJwtPayload(jwt: string): Procedure<unknown> {
   const segments = jwt.split('.');
-  if (segments.length !== 3) {
+  if (segments.length !== JWT_SEGMENT_COUNT) {
     return fail(ScraperErrorTypes.Generic, 'jwt-claim: JWT must have 3 segments');
   }
   const payloadB64 = segments[JWT_PAYLOAD_SEGMENT_INDEX];

@@ -6,6 +6,9 @@ import type { Page } from 'playwright-core';
 
 import { prefixToken, STORAGE_AUTH_KEYS, tryParseJsonToken } from './Tokens.js';
 
+/** Minimum length for a raw sessionStorage value to be treated as a token. */
+const MIN_RAW_TOKEN_LENGTH = 10;
+
 /**
  * Evaluate `sessionStorage.getItem` for each candidate key; return the first non-empty value.
  * @param page - Playwright page.
@@ -30,7 +33,7 @@ function pickTokenFromRaw(raw: string): string | false {
   if (raw === 'NONE') return false;
   const jsonToken = tryParseJsonToken(raw);
   if (jsonToken) return jsonToken;
-  if (raw.length > 10) return prefixToken(raw);
+  if (raw.length > MIN_RAW_TOKEN_LENGTH) return prefixToken(raw);
   return false;
 }
 

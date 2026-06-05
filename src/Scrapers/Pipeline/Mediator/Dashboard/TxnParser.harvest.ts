@@ -22,6 +22,9 @@ import { detectMultiAccountScope } from './TxnParser.scope.js';
  */
 const UNSCOPED_ACCOUNT_KEY = '';
 
+/** Minimum number of detected date-window params (start + end) for a usable map entry. */
+const MIN_DATE_WINDOW_PARAMS = 2;
+
 /**
  * Resolves the lookup key for a harvest's dedup-key map entry —
  * the captured accountId when set, or `UNSCOPED_ACCOUNT_KEY` for
@@ -86,7 +89,7 @@ function buildDateWindowParamsMap(
 ): ReadonlyMap<string, readonly [string, string]> {
   if (shouldSkip) return new Map();
   const params = detectDateWindowParams(pool);
-  if (params.length < 2) return new Map();
+  if (params.length < MIN_DATE_WINDOW_PARAMS) return new Map();
   return makeSingleDateWindowMap(capturedAccountId, params);
 }
 

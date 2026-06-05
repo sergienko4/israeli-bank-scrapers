@@ -8,6 +8,9 @@ import { getDebug as createLogger } from '../../Types/Debug.js';
 
 const LOG = createLogger('scrape-phase');
 
+/** Minimum account count required to begin mirror-duplicate detection. */
+const MIN_ACCOUNTS_FOR_MIRROR = 2;
+
 /** Three-way comparison sentinel returned by {@link compareLocale}. */
 type CompareSign = -1 | 0 | 1;
 
@@ -102,9 +105,11 @@ function decideMirrorByFingerprints(fingerprints: readonly string[]): IMirrorRes
  * @returns Detection result with diagnostic message.
  */
 function detectMirroredAccounts(accounts: readonly IMirrorAccount[]): IMirrorResult {
-  if (accounts.length < 2) return { isMirrored: false, message: 'single-account' };
+  if (accounts.length < MIN_ACCOUNTS_FOR_MIRROR)
+    return { isMirrored: false, message: 'single-account' };
   const fingerprints = accounts.map(computeFingerprint).filter((fp): boolean => fp.length > 0);
-  if (fingerprints.length < 2) return { isMirrored: false, message: 'all-unique' };
+  if (fingerprints.length < MIN_ACCOUNTS_FOR_MIRROR)
+    return { isMirrored: false, message: 'all-unique' };
   return decideMirrorByFingerprints(fingerprints);
 }
 

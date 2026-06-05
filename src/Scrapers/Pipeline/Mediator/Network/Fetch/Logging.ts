@@ -9,7 +9,7 @@
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
-import { BODY_PREVIEW_LIMIT } from '../FetchConfig.js';
+import { BODY_PREVIEW_LIMIT, HTTP_STATUS_NO_CONTENT, HTTP_STATUS_OK } from '../FetchConfig.js';
 import { detectWafBlock } from './WafDetection.js';
 
 /** Branded marker — every log emitter returns this so Rule #15 (no primitive returns) passes. */
@@ -53,7 +53,7 @@ function logBodyPreview(text: string): LogEmitted {
  * @returns Branded marker.
  */
 function logNon200(status: number, url: string): LogEmitted {
-  if (status === 200 || status === 204) return EMITTED;
+  if (status === HTTP_STATUS_OK || status === HTTP_STATUS_NO_CONTENT) return EMITTED;
   LOG.debug({ message: `non-200: status=${String(status)} url=${maskVisibleText(url)}` });
   return EMITTED;
 }

@@ -29,6 +29,11 @@ const AUDIT_LABEL_SUCCESS = 'API Success' as const;
 const AUDIT_LABEL_ERROR = 'API Error' as const;
 type AuditLabel = typeof AUDIT_LABEL_SUCCESS | typeof AUDIT_LABEL_ERROR;
 
+/** Column widths (chars) for the audit-table transaction line. */
+const TXN_DATE_COL_WIDTH = 12;
+const TXN_AMOUNT_COL_WIDTH = 10;
+const TXN_CURRENCY_COL_WIDTH = 4;
+
 /**
  * Log one qualified card's audit entry.
  * @param card - Card ID.
@@ -78,12 +83,12 @@ function resolveTxnDateLabel(raw: string): string {
  * @returns Formatted string: date | amount currency | description.
  */
 function formatTxnLine(txn: IAuditAccount['txns'][number]): string {
-  const date = resolveTxnDateLabel(txn.date);
+  const date = resolveTxnDateLabel(txn.date).padEnd(TXN_DATE_COL_WIDTH);
   const rawAmt = txn.chargedAmount ?? txn.originalAmount ?? 0;
-  const amt = redactAmount(rawAmt);
-  const cur = txn.originalCurrency ?? 'ILS';
+  const amt = redactAmount(rawAmt).padStart(TXN_AMOUNT_COL_WIDTH);
+  const cur = (txn.originalCurrency ?? 'ILS').padEnd(TXN_CURRENCY_COL_WIDTH);
   const desc = redactDesc(txn.description ?? '');
-  return `  ${date.padEnd(12)} ${amt.padStart(10)} ${cur.padEnd(4)} ${desc}`;
+  return `  ${date} ${amt} ${cur} ${desc}`;
 }
 
 /**

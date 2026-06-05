@@ -13,6 +13,12 @@ import { prefixToken, STORAGE_AUTH_KEYS, tryParseJsonToken } from './Tokens.js';
 
 const LOG = getDebug(import.meta.url);
 
+/** Minimum length for a raw storage value to be plausibly a GUID/token. */
+const STORAGE_TOKEN_MIN_LEN = 20;
+
+/** Max chars of a frame URL surfaced in trace diagnostics. */
+const FRAME_URL_PREVIEW_LEN = 50;
+
 /**
  * Try to derive a token from a JSON-shaped storage value.
  * @param raw - Storage value.
@@ -33,8 +39,9 @@ function tokenFromJsonValue(raw: string): string | false {
  * @returns Prefixed token or false.
  */
 function tokenFromLongRaw(raw: string): string | false {
-  if (raw.length <= 20) return false;
-  LOG.trace({ message: maskVisibleText(`iframe raw token: ${raw.slice(0, 20)}`) });
+  if (raw.length <= STORAGE_TOKEN_MIN_LEN) return false;
+  const preview = raw.slice(0, STORAGE_TOKEN_MIN_LEN);
+  LOG.trace({ message: maskVisibleText(`iframe raw token: ${preview}`) });
   return prefixToken(raw);
 }
 
@@ -98,7 +105,7 @@ async function readFrameKeyList(frame: Frame): Promise<string> {
  */
 async function dumpFrameKeys(frame: Frame): Promise<string> {
   const keys = await readFrameKeyList(frame);
-  const url = frame.url().slice(0, 50);
+  const url = frame.url().slice(0, FRAME_URL_PREVIEW_LEN);
   if (keys !== 'EMPTY' && keys !== 'CROSS-ORIGIN') {
     const keyCount = keys.split(', ').length;
     LOG.trace({ url: maskVisibleText(url), keyCount, keysSample: maskVisibleText(keys) });

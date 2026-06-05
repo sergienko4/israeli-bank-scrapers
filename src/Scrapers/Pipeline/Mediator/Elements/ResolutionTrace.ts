@@ -16,6 +16,9 @@ const CTX_PREFIX: Record<string, string> = { true: 'main', false: 'iframe' };
 /** Maximum URL length before truncation in trace logs. */
 const URL_TRACE_MAX_LEN = 60;
 
+/** Length of the trailing ellipsis appended to a truncated URL (`...`). */
+const URL_TRACE_ELLIPSIS_LEN = 3;
+
 /**
  * Truncate a URL for trace display when over {@link URL_TRACE_MAX_LEN}.
  * @param url - Raw URL.
@@ -23,7 +26,7 @@ const URL_TRACE_MAX_LEN = 60;
  */
 function truncateUrl(url: string): string {
   const isLong = url.length > URL_TRACE_MAX_LEN;
-  const truncated = `${url.slice(0, URL_TRACE_MAX_LEN - 3)}...`;
+  const truncated = `${url.slice(0, URL_TRACE_MAX_LEN - URL_TRACE_ELLIPSIS_LEN)}...`;
   const truncMap: Record<string, string> = { true: truncated, false: url };
   return truncMap[String(isLong)];
 }

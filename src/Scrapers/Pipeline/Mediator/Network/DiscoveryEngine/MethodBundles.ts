@@ -7,6 +7,7 @@
 
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
 import type { IDashboardClickState } from '../EndpointState/EndpointState.js';
+import { HTTP_STATUS_OK } from '../FetchConfig.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../NetworkDiscoveryTypes.js';
 import {
   discoverByWellKnown,
@@ -14,6 +15,9 @@ import {
   discoverSpaUrlFromTraffic,
   findCommonServicesUrl,
 } from '../Scoring/Scoring.js';
+
+/** First status code outside the 2xx success window (start of 3xx redirect band). */
+const HTTP_STATUS_REDIRECT_MIN = 300;
 
 /** Type alias for the core discovery method bundle. */
 type CoreMethods = Pick<
@@ -51,7 +55,7 @@ type BucketingMethods = Pick<
  */
 function isSuccessStatus(ep: IDiscoveredEndpoint): boolean {
   const status = ep.status ?? 0;
-  return status >= 200 && status < 300;
+  return status >= HTTP_STATUS_OK && status < HTTP_STATUS_REDIRECT_MIN;
 }
 
 /**

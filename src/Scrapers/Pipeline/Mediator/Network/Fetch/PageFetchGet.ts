@@ -10,8 +10,15 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
+import { HTTP_STATUS_NO_CONTENT, URL_LOG_TAIL_CHARS } from '../FetchConfig.js';
 import { logApiCall, logResponseIssues } from './Logging.js';
 import { parseGetResult } from './ParseResult.js';
+
+/** Args for the inline page-evaluate GET callback. */
+interface IGetArgs {
+  url: string;
+  noContent: number;
+}
 
 /**
  * GET request inside the browser context (cookies + CORS handled by browser).
@@ -20,17 +27,21 @@ import { parseGetResult } from './ParseResult.js';
  * @returns A tuple of [responseBody, httpStatus].
  */
 async function evaluateGet(context: Page | Frame, url: string): Promise<readonly [string, number]> {
-  return context.evaluate(async (innerUrl: string): Promise<readonly [string, number]> => {
-    const response = await fetch(innerUrl, { credentials: 'include' });
-    if (response.status === 204) return ['', response.status] as const;
-    return [await response.text(), response.status] as const;
-  }, url);
+  return context.evaluate(
+    async (args: IGetArgs): Promise<readonly [string, number]> => {
+      const response = await fetch(args.url, { credentials: 'include' });
+      if (response.status === args.noContent) return ['', response.status] as const;
+      return [await response.text(), response.status] as const;
+    },
+    { url, noContent: HTTP_STATUS_NO_CONTENT },
+  );
 }
 
 /** Args for the in-page GET-with-headers evaluate callback. */
 interface IGetWithHeadersArgs {
   url: string;
   headers: Record<string, string>;
+  noContent: number;
 }
 
 /**
@@ -43,14 +54,14 @@ async function evalGetWithHeadersBody(
   args: IGetWithHeadersArgs,
 ): Promise<readonly [string, number]> {
   const response = await fetch(args.url, { credentials: 'include', headers: args.headers });
-  if (response.status === 204) return ['', response.status] as const;
+  if (response.status === args.noContent) return ['', response.status] as const;
   return [await response.text(), response.status] as const;
 }
 
 /**
  * GET request with custom headers inside the browser context.
  * @param context - The Playwright page or frame context.
- * @param url - The URL to fetch.
+ * @param url - Target URL.
  * @param headers - Extra headers to include.
  * @returns [responseText, statusCode].
  */
@@ -59,7 +70,8 @@ async function evaluateGetWithHeaders(
   url: string,
   headers: Record<string, string>,
 ): Promise<readonly [string, number]> {
-  return context.evaluate(evalGetWithHeadersBody, { url, headers });
+  const args: IGetWithHeadersArgs = { url, headers, noContent: HTTP_STATUS_NO_CONTENT };
+  return context.evaluate(evalGetWithHeadersBody, args);
 }
 
 /**
@@ -69,7 +81,8 @@ async function evaluateGetWithHeaders(
  */
 function finalisePageGet<TResult>(args: IFinalisePageGetArgs): Nullable<TResult> {
   const { result, status, url, startMs, shouldIgnoreErrors } = args;
-  logApiCall(`GET(page) ${redactUrlFull(url).slice(-100)}`, status, Date.now() - startMs);
+  const tag = `GET(page) ${redactUrlFull(url).slice(-URL_LOG_TAIL_CHARS)}`;
+  logApiCall(tag, status, Date.now() - startMs);
   logResponseIssues(status, result, url);
   return parseGetResult({ result, status, url, shouldIgnoreErrors }) as TResult;
 }

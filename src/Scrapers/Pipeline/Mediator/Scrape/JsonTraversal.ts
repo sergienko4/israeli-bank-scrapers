@@ -6,6 +6,9 @@
 /** A parsed JSON node — object, array, or primitive. */
 type JsonNode = Record<string, unknown> | readonly unknown[] | string | number | boolean | null;
 
+/** Width for two-digit zero-padded month numbers. */
+const MONTH_PAD_WIDTH = 2;
+
 /**
  * Check if any key of a record matches a regex pattern.
  * @param obj - Object to check keys of.
@@ -253,7 +256,7 @@ function generateBillingMonths(startMs: number, futureMonths = 0): readonly stri
  */
 function formatBillingMonthEntry(current: Date): string {
   const rawMonth = current.getMonth() + 1;
-  const monthStr = String(rawMonth).padStart(2, '0');
+  const monthStr = String(rawMonth).padStart(MONTH_PAD_WIDTH, '0');
   const year = current.getFullYear();
   const yearStr = String(year);
   return `01/${monthStr}/${yearStr}`;

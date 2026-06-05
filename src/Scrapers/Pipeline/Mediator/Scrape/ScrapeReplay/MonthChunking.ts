@@ -9,6 +9,12 @@ interface IMonthChunk {
   readonly end: string;
 }
 
+/** Width for two-digit zero-padded day/month parts. */
+const DATE_PART_PAD_WIDTH = 2;
+
+/** Zero-based index of December (last calendar month, used as wrap boundary). */
+const DECEMBER_INDEX = 11;
+
 /** Bundled state for the recursive chunk builder. */
 interface IChunkBuildState {
   readonly year: number;
@@ -26,8 +32,8 @@ function formatDatePart(d: Date): string {
   const monthIdx = d.getMonth() + 1;
   const dayNum = d.getDate();
   const y = String(fullYear);
-  const m = String(monthIdx).padStart(2, '0');
-  const day = String(dayNum).padStart(2, '0');
+  const m = String(monthIdx).padStart(DATE_PART_PAD_WIDTH, '0');
+  const day = String(dayNum).padStart(DATE_PART_PAD_WIDTH, '0');
   return `${y}-${m}-${day}`;
 }
 
@@ -39,7 +45,7 @@ function formatDatePart(d: Date): string {
  */
 function advanceMonth(year: number, month: number): { year: number; month: number } {
   const next = month + 1;
-  if (next > 11) return { year: year + 1, month: 0 };
+  if (next > DECEMBER_INDEX) return { year: year + 1, month: 0 };
   return { year, month: next };
 }
 
@@ -66,7 +72,7 @@ function computeChunkEndDay(year: number, month: number, endTime: number): strin
  * @returns Month chunk.
  */
 function buildChunk(year: number, month: number, endTime: number): IMonthChunk {
-  const pad = String(month + 1).padStart(2, '0');
+  const pad = String(month + 1).padStart(DATE_PART_PAD_WIDTH, '0');
   const firstDay = `${String(year)}-${pad}-01`;
   const endDay = computeChunkEndDay(year, month, endTime);
   return {

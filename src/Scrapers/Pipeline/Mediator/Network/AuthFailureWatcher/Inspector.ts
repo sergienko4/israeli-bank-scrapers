@@ -7,10 +7,11 @@ import type { Response } from 'playwright-core';
 
 import type { JsonValue } from '../../../Types/JsonValue.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
+import { HTTP_STATUS_OK } from '../FetchConfig.js';
 import classifyBodyAsFailure from './BodyClassifier.js';
 import { safeBodyPreview, safeParsedBody } from './BodyReaders.js';
 import { recordFailure } from './State.js';
-import type { IWatcherState } from './Types.js';
+import type { IAuthFailure, IWatcherState } from './Types.js';
 import { BODY_PREVIEW_LIMIT, NO_PARSED_BODY } from './Types.js';
 import { isAuthEndpointUrl, isFailureStatusCode } from './UrlMatchers.js';
 
@@ -50,6 +51,22 @@ interface IL2FailureArgs {
 }
 
 /**
+ * Build the L2 failure-record bundle. Extracted from
+ * {@link recordLayerTwoFailure} so the parent fits within the 10-LoC cap.
+ * @param response - Auth-URL response.
+ * @param preview - Masked body-error preview text.
+ * @returns Failure record for {@link recordFailure}.
+ */
+function buildL2FailureRecord(response: Response, preview: string): IAuthFailure {
+  return {
+    status: HTTP_STATUS_OK,
+    url: response.url(),
+    bodyPreview: preview,
+    classifier: 'body-error',
+  };
+}
+
+/**
  * Record an L2 (body-error on 200) failure with the matched note.
  * Pulled out so {@link tryLayerTwo} fits the 10-LoC cap.
  * @param args - Bundled state + response + note + body.
@@ -58,8 +75,8 @@ interface IL2FailureArgs {
 function recordLayerTwoFailure(args: IL2FailureArgs): true {
   const { state, response, note, body } = args;
   const preview = buildBodyErrorPreview(note, body);
-  const url = response.url();
-  recordFailure(state, { status: 200, url, bodyPreview: preview, classifier: 'body-error' });
+  const failure = buildL2FailureRecord(response, preview);
+  recordFailure(state, failure);
   return true;
 }
 
@@ -70,7 +87,7 @@ function recordLayerTwoFailure(args: IL2FailureArgs): true {
  * @returns True when L2 captured a failure, false otherwise.
  */
 async function tryLayerTwo(state: IWatcherState, response: Response): Promise<boolean> {
-  if (response.status() !== 200) return false;
+  if (response.status() !== HTTP_STATUS_OK) return false;
   const body = await safeParsedBody(response);
   if (body === NO_PARSED_BODY) return false;
   const note = classifyBodyAsFailure(body);

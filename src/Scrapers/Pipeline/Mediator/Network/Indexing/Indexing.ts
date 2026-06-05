@@ -29,6 +29,7 @@ import {
   PIPELINE_WELL_KNOWN_HEADERS,
 } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../../Types/Debug.js';
+import { HTTP_STATUS_NO_CONTENT } from '../FetchConfig.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
 const LOG = getDebug(import.meta.url);
@@ -155,7 +156,7 @@ function parseTextOrNull(text: string): IParsedBody {
  * @returns True when the response should enter the captured pool.
  */
 function shouldRecordResponse(status: number, contentType: string): ShouldRecordResponseSignal {
-  if (status === 204) return true as ShouldRecordResponseSignal;
+  if (status === HTTP_STATUS_NO_CONTENT) return true as ShouldRecordResponseSignal;
   return isJsonContentType(contentType) as ShouldRecordResponseSignal;
 }
 

@@ -227,6 +227,7 @@ describe('fetchPostWithinPage', () => {
       innerUrl: 'https://bank.co.il/api',
       innerDataJson: '{}',
       innerExtraHeaders: { 'X-Custom': 'val' },
+      noContent: 204,
     });
   });
 });

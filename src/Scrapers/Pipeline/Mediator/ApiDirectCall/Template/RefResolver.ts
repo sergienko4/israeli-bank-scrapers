@@ -17,6 +17,9 @@ import { walkPointer } from '../Envelope/JsonPointer.js';
 import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
 import type { IApiDirectCallConfig, RefToken } from '../IApiDirectCallConfig.js';
 
+/** Conversion factor for ms → s. */
+const MS_PER_SECOND = 1000;
+
 /** Scope passed into every $ref resolution — mediator-populated. */
 interface ITemplateScope {
   readonly carry: Readonly<Record<string, JsonValue>>;
@@ -86,7 +89,7 @@ function handleUuid(): Procedure<JsonValue> {
  */
 function handleNow(): Procedure<JsonValue> {
   const nowMs = Date.now();
-  const seconds = Math.floor(nowMs / 1000);
+  const seconds = Math.floor(nowMs / MS_PER_SECOND);
   return succeed(seconds);
 }
 

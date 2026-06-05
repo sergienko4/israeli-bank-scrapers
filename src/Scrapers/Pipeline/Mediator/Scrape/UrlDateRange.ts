@@ -21,6 +21,9 @@ type DateRangeAppliedUrl = Brand<string, 'DateRangeAppliedUrl'>;
 
 /** Sentinel used when the captured param had no value to probe. */
 const NO_PROBE = 'NO_PROBE';
+
+/** Minimum elements in a detector tuple — expects `[fromAlias, toAlias]`. */
+const MIN_TUPLE_PAIR = 2;
 /** Bundled outcome of the patch operation. */
 interface IPatchOutcome {
   readonly url: string;
@@ -197,7 +200,7 @@ function appendAliasIfMissing(params: URLSearchParams, alias: string, date: Date
  * @returns Count of newly appended params (0, 1, or 2).
  */
 function appendMissingAliases(target: IAppendTarget, tuple: readonly string[]): number {
-  if (tuple.length < 2) return 0;
+  if (tuple.length < MIN_TUPLE_PAIR) return 0;
   const [fromAlias, toAlias] = tuple;
   if (fromAlias === '' || toAlias === '') return 0;
   if (urlAlreadyHasWkRange(target.params)) return 0;

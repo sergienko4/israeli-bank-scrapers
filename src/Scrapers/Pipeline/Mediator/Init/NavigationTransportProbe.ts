@@ -38,6 +38,19 @@ import * as tls from 'node:tls';
 
 import { toError } from '../../Types/ErrorUtils.js';
 
+/** IPv4 address family marker (used as `family` value in DNS results). */
+const IPV4 = 4;
+
+/** Default TCP port for HTTPS scheme. */
+const HTTPS_DEFAULT_PORT = 443;
+/** Default TCP port for plain HTTP scheme. */
+const HTTP_DEFAULT_PORT = 80;
+
+/** Per-phase budget split — DNS, TCP, and TLS each receive 1/N of the total budget. */
+const BUDGET_PHASES = 3;
+/** Floor (ms) below which a per-phase budget cannot fall, so tiny totals still progress. */
+const MIN_PHASE_BUDGET_MS = 500;
+
 /** Outcome of the post-failure transport probe (discriminated union). */
 export type TransportProbeOutcome =
   | 'connected'
@@ -67,7 +80,7 @@ export interface INavTransportProbe {
 /** DNS lookup result wrapper. */
 export interface IDnsLookupResult {
   readonly address: string;
-  readonly family: 4 | 6;
+  readonly family: number;
   readonly dnsLookupMs: number;
 }
 
@@ -134,8 +147,8 @@ interface IUrlParts {
  * @returns 443 when TLS, 80 otherwise.
  */
 function defaultPortForScheme(isTls: boolean): number {
-  if (isTls) return 443;
-  return 80;
+  if (isTls) return HTTPS_DEFAULT_PORT;
+  return HTTP_DEFAULT_PORT;
 }
 
 /**
@@ -172,7 +185,7 @@ function onDnsLookupComplete(bundle: IDnsLookupCompleteInput) {
   return (lookupError: unknown, address: string, family: number): boolean => {
     if (lookupError) return rejectAndAck(bundle.reject, lookupError);
     const dnsLookupMs = Date.now() - bundle.start;
-    bundle.resolve({ address, family: family as 4 | 6, dnsLookupMs });
+    bundle.resolve({ address, family, dnsLookupMs });
     return true;
   };
 }
@@ -626,7 +639,7 @@ function buildDnsFailureProbe(context: IProbeContext, dnsError: unknown): INavTr
  * @returns Synthetic DNS result with zero timing and an empty address.
  */
 function buildDnsResultPlaceholder(): IDnsLookupResult {
-  return { address: EMPTY_ADDRESS, family: 4, dnsLookupMs: ZERO_MS };
+  return { address: EMPTY_ADDRESS, family: IPV4, dnsLookupMs: ZERO_MS };
 }
 
 /**
@@ -930,8 +943,8 @@ async function runTlsPhase(input: IRunTlsInput): Promise<INavTransportProbe> {
  * @returns Per-phase budget in ms.
  */
 function phaseBudget(totalBudgetMs: number): number {
-  const third = Math.floor(totalBudgetMs / 3);
-  return Math.max(500, third);
+  const third = Math.floor(totalBudgetMs / BUDGET_PHASES);
+  return Math.max(MIN_PHASE_BUDGET_MS, third);
 }
 
 /** Empty URL parts used when parsing fails — passed through `buildProbeResult`. */
