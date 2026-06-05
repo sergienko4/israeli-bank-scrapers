@@ -66,9 +66,21 @@ function makeSilentLogger(): ScraperLogger {
 }
 
 /**
+ * CSS-escape an attribute value: backslashes first, then double quotes.
+ * Order matters — escaping `"` before `\\` would double-escape the
+ * inserted backslashes. Closes the CodeQL "Incomplete string escaping"
+ * finding for the `tag[id="..."]` selector builder.
+ * @param value - Raw attribute value.
+ * @returns Value safe to embed inside `"..."` in a CSS attribute selector.
+ */
+function escapeCssAttrValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
  * Assert every declared element id is present in the page DOM using a
  * safe attribute selector (`tag[id="..."]`) so ids containing CSS
- * special characters (`.`, `:`, `[`, etc.) are matched correctly.
+ * special characters (`.`, `:`, `[`, `\`, `"`) are matched correctly.
  * Counts run concurrently — a single missing id fails the whole batch.
  * @param page - Playwright page with the step HTML loaded.
  * @param ids - Element ids the fixture must contain.
@@ -80,7 +92,7 @@ async function assertIdsPresent(
   tagName: string,
 ): Promise<void> {
   const probes = ids.map((id): Promise<{ id: string; count: number }> => {
-    const selector = `${tagName}[id="${id.replace(/"/g, '\\"')}"]`;
+    const selector = `${tagName}[id="${escapeCssAttrValue(id)}"]`;
     const loc = page.locator(selector);
     return loc.count().then((count): { id: string; count: number } => ({ id, count }));
   });
