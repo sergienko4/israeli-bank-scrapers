@@ -2368,12 +2368,35 @@ export default tseslint.config(
     },
   },
 
-  // 19.4 GRANDFATHER — Pipeline/Mediator/{Elements,Form} (not covered by
-  // existing §14b.* cluster blocks; Network already passes 10/10).
+  // 19.4 ACTIVATION — Pipeline/Mediator/{Elements,Form} now enforced
+  // at canonical 10/10 (was grandfathered at 20/12). Phase-2a-B
+  // refactors (C6-C11) drove these clusters down. Files with
+  // surviving over-10 helpers are exempted in §19.4a.
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/Elements/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Form/**/*.ts',
+    ],
+    rules: {
+      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // 19.4a PER-FILE EXCEPTION — specific files retain grandfather at
+  // 20/12 for browser-context helpers that resist further extraction
+  // (page.evaluate serialised closures where extraction would break
+  // the boundary). Tracked separately as v8.5.0 CR-deferred items:
+  //   - Elements/ActionExecutors.ts → snapshotClickedInBrowser (16 LoC)
+  //   - Elements/CreateElementMediator.ts → snapshotIdentityInBrowser (14 LoC)
+  //   - Form/FormAnchor.ts → mapAncestorTuples (20 LoC)
+  //   - Form/FormErrorDiscovery.ts → scanDomErrorsInBrowser (16 LoC)
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Elements/ActionExecutors.ts',
+      'src/Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.ts',
+      'src/Scrapers/Pipeline/Mediator/Form/FormAnchor.ts',
+      'src/Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.ts',
     ],
     rules: {
       'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
