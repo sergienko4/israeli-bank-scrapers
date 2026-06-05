@@ -254,6 +254,33 @@ jobs:
         if: steps.changes.outputs.src == 'true'
         run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
 
+      # ── Bank Integration Coverage Gate ──
+      # Cross-checks every pipeline bank has both a BankFixtureExpectations row
+      # and a fixtures/banks/<id>/ directory. Fails fast on missing coverage so
+      # a new pipeline bank cannot be onboarded without integration tests.
+      - name: Bank integration coverage gate
+        if: steps.changes.outputs.src == 'true'
+        run: npm run lint:bank-coverage
+
+      # ── Integration Mode A — Static HTML (HARD GATE) ──
+      # Drives the real production LoginFieldDiscovery + CreateElementMediator
+      # chain against committed per-bank fixtures (no network). Runs AFTER all
+      # parallel + e2e:mock gates and BEFORE Phase-5 real e2e so a Mode-A
+      # failure blocks before burning real-bank time. Per user directive
+      # 2026-06-06: no relaxation — every pipeline bank must DRIVE green.
+      - name: Integration Mode A — Static HTML drive
+        if: steps.changes.outputs.src == 'true'
+        run: npm run test:integration:mode-a
+
+      # ── Integration Mode B — Mirror Origin (HARD GATE) ──
+      # Spins up a local HTTP server replaying captured HTML + assets at the
+      # bank's real URL, then drives production scraper.scrape() end-to-end
+      # against the mirror. Validates the production navigation chain
+      # without touching live banks. Runs immediately after Mode A.
+      - name: Integration Mode B — Mirror origin drive
+        if: steps.changes.outputs.src == 'true'
+        run: npm run test:integration:mode-b
+
       # ── E2E Real Bank Tests (real credentials) ──
       # Moved out of this job into the dedicated 2-group matrix below
       # (`e2e-real-group-a` → `e2e-real-group-b`). This avoids running

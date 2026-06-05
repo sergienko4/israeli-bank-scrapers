@@ -553,9 +553,10 @@ describe('CreateElementMediator — extractIdentity callback (invoked locally)',
     const m = createElementMediator(page);
     await m.resolveVisible([{ kind: 'textContent', value: 't' }], 200);
     // Find extractIdentity — uses className + tagName but NOT closest.
+    // Tighten filter to exclude isAccessibilitySkipLink (also className-based).
     const idCb = captured.find(c => {
       const src = String(c);
-      return src.includes('className') && !src.includes('closest');
+      return src.includes('className') && src.includes('tagName') && !src.includes('closest');
     });
     expect(idCb).toBeDefined();
     const idCbSafe = idCb as unknown as (

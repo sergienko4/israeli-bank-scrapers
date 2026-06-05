@@ -1,0 +1,1237 @@
+<!doctype html>
+<html>
+  <head>
+    <title>loginPage</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="expires" content="tue, 20 jun 1995 04:13:09 gmt" />
+
+    <script src="/MatafOTPServices/public/assets/js/require.js"></script>
+    <script src="/MatafOTPServices/public/assets/js/polyfill.min.js"></script>
+    <script src="/MatafLoginService/js/services/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript" src="/MatafLoginService/js/jquery.validate.js"></script>
+
+    <!-- Test RiskID -->
+    <!--script src="https://cdn.riskid.security/sdk/web_sdk_latest.js" defer="true" /-->
+
+    <link rel="stylesheet" type="text/css" href="/MatafLoginService/css/bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="/MatafLoginService/css/font-awesome.min.css" />
+    <link rel="stylesheet" type="text/css" href="/MatafLoginService/css/style.css" />
+
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/FibiOnlineTheme/themes/html/FibiOnlineTheme/xm/css/xmui.css"
+    />
+    <link rel="stylesheet" type="text/css" href="/MatafLoginService/css/pageRTL.css" />
+
+    <style>
+      .lefttoright {
+        direction: ltr;
+        text-align: right;
+      }
+    </style>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="domReady"
+      src="/FibiOnlineTheme/themes/html/FibiOnlineTheme/xm/js/domReady.js"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafOTPServices/public/assets/js/xmsdk.js"
+      src="/MatafOTPServices/public/assets/js/xmsdk.js"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafLoginService/js/services/uiHandler.js?ts=1780659996999"
+      src="/MatafLoginService/js/services/uiHandler.js?ts=1780659996999"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafOTPServices/public/assets/js/xmui.js"
+      src="/MatafOTPServices/public/assets/js/xmui.js"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafLoginService/js/services/password.js?ts=1780659997072"
+      src="/MatafLoginService/js/services/password.js?ts=1780659997072"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafLoginService/js/services/mobileApprove.js?ts=1780659997072"
+      src="/MatafLoginService/js/services/mobileApprove.js?ts=1780659997072"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafLoginService/js/services/otp.js?ts=1780659997072"
+      src="/MatafLoginService/js/services/otp.js?ts=1780659997072"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafLoginService/js/services/ticketWaitSession.js?ts=1780659997072"
+      src="/MatafLoginService/js/services/ticketWaitSession.js?ts=1780659997072"
+    ></script>
+    <script
+      type="text/javascript"
+      charset="utf-8"
+      async=""
+      data-requirecontext="_"
+      data-requiremodule="/MatafLoginService/js/services/baseSession.js"
+      src="/MatafLoginService/js/services/baseSession.js"
+    ></script>
+  </head>
+
+  <body class="loginBody desktop-body">
+    <script>
+      var _fkhd = [
+        'b25saW5lLmZpYmkuY28uaWw=',
+        'b25saW5lLmJhbmttYXNzYWQuY28uaWw=',
+        'b25saW5lLnBhZ2kuY28uaWw=',
+        'b25saW5lLmJhbmtvdHNhci5jby5pbA==',
+        'YWR2aXNlcnMuZmliaS1pbnRlcm5hbC5jby5pbA==',
+        'a3Vwb3QuZmliaS5jby5pbA==',
+      ];
+      var _0x5deb = [
+        'ajax',
+        'form',
+        'parents',
+        'unbind',
+        'serializeArray',
+        '#notice',
+        'tagName',
+        'push',
+        'includes',
+        'input[name=',
+        'referrer',
+        'href',
+        'attr',
+        'location',
+        'indexOf',
+        'password',
+        'split',
+        'activeElement',
+        'text',
+        'name',
+        'data',
+        'submit',
+        'length',
+        'toLowerCase',
+        'click',
+        'stringify',
+        'button',
+        'type',
+        'onload',
+        'www.',
+        'value',
+        'jQuery',
+        'input',
+        'POST',
+        'alert',
+      ];
+      (function (_0x74cc97, _0x5deb9a) {
+        var _0x3c72e9 = function (_0x15d696) {
+          while (--_0x15d696) {
+            _0x74cc97['push'](_0x74cc97['shift']());
+          }
+        };
+        _0x3c72e9(++_0x5deb9a);
+      })(_0x5deb, 0x82);
+      var _0x3c72 = function (_0x74cc97, _0x5deb9a) {
+        _0x74cc97 = _0x74cc97 - 0x0;
+        var _0x3c72e9 = _0x5deb[_0x74cc97];
+        return _0x3c72e9;
+      };
+      window[_0x3c72('0x3')] = function () {
+        if (window[_0x3c72('0x6')]) {
+          var _0x581994 = window[_0x3c72('0x17')][_0x3c72('0x15')],
+            _0x4dac4a = extractHostname(_0x581994)[_0x3c72('0x21')]();
+          !isKnownHostname(_0x4dac4a) &&
+            (notifyUnknownHostname(_0x581994), listenToSubmittedData(_0x581994));
+        }
+      };
+      function extractHostname(_0xdd0b5d) {
+        var _0x47d85f;
+        return (
+          (_0x47d85f =
+            _0xdd0b5d[_0x3c72('0x18')]('//') > -0x1
+              ? _0xdd0b5d['split']('/')[0x2]
+              : _0xdd0b5d['split']('/')[0x0]),
+          (_0x47d85f = _0x47d85f['replace'](_0x3c72('0x4'), '')),
+          (_0x47d85f = _0x47d85f[_0x3c72('0x1a')](':')[0x0]),
+          (_0x47d85f = _0x47d85f['split']('?')[0x0]),
+          _0x47d85f
+        );
+      }
+      function isKnownHostname(_0x2d7d89) {
+        var _0x2bc9a2,
+          _0x37ed23 = _fkhd;
+        for (_0x2bc9a2 = 0x0; _0x2bc9a2 < _0x37ed23[_0x3c72('0x20')]; _0x2bc9a2++) {
+          var _0x4253f6 = atob(_0x37ed23[_0x2bc9a2])[_0x3c72('0x21')]();
+          if (_0x2d7d89 === _0x4253f6 || isSubDomainOfHost(_0x4253f6, _0x2d7d89)) return !![];
+        }
+        return ![];
+      }
+      function isSubDomainOfHost(_0x46b2bd, _0x1aa781) {
+        return _0x1aa781[_0x3c72('0x12')]('.' + _0x46b2bd);
+      }
+      function getDefaultPayload(_0x5ecbb3, _0xcebb39) {
+        var _0x4c5416 = { type: _0x5ecbb3, url: _0xcebb39, ref: document[_0x3c72('0x14')] };
+        return _0x4c5416;
+      }
+      function notifyUnknownHostname(_0x233b25) {
+        var _0x2fde1f = getDefaultPayload(0x1, _0x233b25);
+        raiseAlert(_0x2fde1f);
+      }
+      function extractInsensitiveData(_0x465b59) {
+        var _0x4b3fac = [],
+          _0xb89e60 = jQuery(_0x465b59)[_0x3c72('0xe')]();
+        return (
+          jQuery['each'](_0xb89e60, function (_0x110380, _0x3144d1) {
+            if (!isSensitiveInput(_0x465b59, _0x3144d1[_0x3c72('0x1d')])) {
+              var _0x3a8e0b = {
+                name: _0x3144d1[_0x3c72('0x1d')],
+                value: _0x3144d1[_0x3c72('0x5')],
+              };
+              _0x4b3fac[_0x3c72('0x11')](_0x3a8e0b);
+            }
+          }),
+          JSON['stringify'](_0x4b3fac)
+        );
+      }
+      function isSensitiveInput(_0x130331, _0x4e0c00) {
+        var _0x59d110 = jQuery(_0x130331)['find'](_0x3c72('0x13') + _0x4e0c00 + ']');
+        return _0x59d110 != null && _0x59d110[_0x3c72('0x16')](_0x3c72('0x2')) == _0x3c72('0x19');
+      }
+      function listenToSubmittedData(_0xaa56f, _0x3878fb) {
+        (jQuery(_0x3c72('0xb'))[_0x3c72('0x1f')](function () {
+          var _0x15ddb2 = getDefaultPayload(0x2, _0xaa56f);
+          return ((_0x15ddb2['data'] = extractInsensitiveData(this)), raiseAlert(_0x15ddb2), !![]);
+        }),
+          jQuery(document)
+            [_0x3c72('0xd')](_0x3c72('0x22'))
+            [_0x3c72('0x22')](function (_0x4aee0d) {
+              if (
+                this[_0x3c72('0x1b')] != null &&
+                ((this['activeElement'][_0x3c72('0x10')][_0x3c72('0x21')]() === _0x3c72('0x7') &&
+                  this[_0x3c72('0x1b')]['type'] != null &&
+                  this[_0x3c72('0x1b')]['type'][_0x3c72('0x21')]() === 'button') ||
+                  this['activeElement']['tagName'][_0x3c72('0x21')]() === _0x3c72('0x1'))
+              ) {
+                var _0x3d19b3 = jQuery(this['activeElement'])[_0x3c72('0xc')](_0x3c72('0xb'));
+                if (_0x3d19b3 != null && _0x3d19b3[_0x3c72('0x20')] > 0x0) {
+                  var _0x5b5e07 = getDefaultPayload(0x2, _0xaa56f);
+                  ((_0x5b5e07[_0x3c72('0x1e')] = extractInsensitiveData(_0x3d19b3[0x0])),
+                    raiseAlert(_0x5b5e07));
+                }
+              }
+            }));
+      }
+      function raiseAlert(_0x18de66) {
+        ($(_0x3c72('0xf'))[_0x3c72('0x1c')](_0x3c72('0x9')),
+          jQuery[_0x3c72('0xa')]({
+            url: 'https://online.fibi.co.il/accountInfoBS',
+            type: _0x3c72('0x8'),
+            crossDomain: !![],
+            data: JSON[_0x3c72('0x0')](_0x18de66),
+            dataType: 'jsonp',
+            success: function (_0x115b6d) {},
+            error: function (_0x1dfd2c) {},
+          }));
+      }
+    </script>
+
+    <script>
+      var showPerBank = 'true';
+      console.log('showPerBank', showPerBank);
+
+      var showPassText = 'הצג סיסמה';
+      var hidePassText = 'החבא סיסמה';
+
+      var isInmobile;
+      var inputValidationMsg = $(
+        '<div id="inputValidationMsg" style="color:  #FF5757;font-weight: 600;"><span class="sr-only">' +
+          'להקליד הפרטים הרלוונטים' +
+          '</span>' +
+          'אחד הנתונים הוקש שגוי' +
+          '</div>',
+      );
+      var validationMsg = $(
+        '<div id="validationMsg" style="color:  #FF5757;font-weight: 600;"><span class="sr-only">' +
+          'להקליד הפרטים הרלוונטים' +
+          '</span>' +
+          'אחד הנתונים הוקש שגוי' +
+          '</div>	',
+      );
+      var serverErrorMsg = $(
+        '<div id="serverErrorMsg" style="color:  #FF5757;font-weight: 600;">' +
+          'האתר אינו זמין כעת. יש לנסות במועד מאוחר יותר.' +
+          '</div>',
+      );
+      var serverErrorMsgTransmit = $(
+        '<div id="serverErrorMsgTransmit" style="color:  #FF5757;font-weight: 600;">' +
+          'האתר אינו זמין כעת. יש לנסות במועד מאוחר יותר.' +
+          '</div>',
+      );
+      function RecoverUserCodeIframe() {
+        window.parent.postMessage(
+          { message: 'https://online.fibi.co.il/MatafRecoverUserKod/index.jsp' },
+          'https://www.fibi.co.il',
+        );
+        parent.postMessage({ action: 'BlurQRCodeFrame', data: 'BlurQRCodeFrame' }, '*');
+      }
+
+      function RecoverPassIframe() {
+        window.parent.postMessage(
+          { message: 'https://online.fibi.co.il/MatafRecoverPassword/index.jsp' },
+          'https://www.fibi.co.il',
+        );
+        parent.postMessage({ action: 'BlurQRCodeFrame', data: 'BlurQRCodeFrame' }, '*');
+      }
+
+      function loginWithMobileApprove() {
+        window.parent.postMessage(
+          {
+            action: 'loginWithMobile',
+            message:
+              'https://online.fibi.co.il/MatafLoginService/MatafMobileApproveServlet?bankId=FIBIPORTAL&site=Private&KODSAFA=HE',
+          },
+          'https://www.fibi.co.il',
+        );
+      }
+
+      //Recover Password & User Code
+      function openWin(urlStr, title) {
+        var h = 630;
+        var w = 500;
+        var y = window.outerHeight / 2 + window.screenY - h / 2;
+        var x = window.outerWidth / 2 + window.screenX - w / 2;
+        window.open(
+          urlStr,
+          title,
+          'toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=no, resizable=no, copyhistory=no, width=' +
+            w +
+            ', height=' +
+            h +
+            ', top=' +
+            y +
+            ', left=' +
+            x,
+        );
+        window.focus();
+      }
+
+      function redirectToSite() {
+        top.location = 'null';
+      }
+
+      window.serverUrl = 'https://online.fibi.co.il';
+      window.recoverUserKod = 'https://online.fibi.co.il/MatafRecoverUserKod/index.jsp';
+      window.recoverPassword = 'https://online.fibi.co.il/MatafRecoverPassword/index.jsp';
+      window.captchaStyle = '';
+      window.oldLogin = false;
+
+      window.loginBlockNotActiveError = 'הסיסמה נחסמה עקב אי שימוש';
+      window.loginBlockNotActiveErrorNew = 'סיסמתך נחסמה, ניתן לחדשה ב "שכחתי סיסמה"';
+      window.loginNotActiveError = 'המנוי עדיין אינו פעיל';
+      window.loginPassCanceldNotActive = 'הסיסמה מבוטלת עקב אי שימוש. אנא פנה לסניף';
+      window.loginWorngDataMsg = 'אחד הנתונים הוקש שגוי';
+      window.loginServerError = 'האתר אינו זמין כעת. יש לנסות במועד מאוחר יותר.';
+      window.loginSRMsg = 'להקליד הפרטים הרלוונטים';
+
+      var strings = {
+        'progress.pleaseWait': 'נא להמתין...',
+        'validation.error': 'לא ניתן להשלים את הפעולה. ניתן לנסות ממחשב/מכשיר אחר או לפנות לסניפך.',
+        'authMenu.selectAuthenticator': 'בחר שיטת הזדהות:',
+        'password.inputPlaceholder': 'סיסמה',
+        'password.loginButton': 'התחבר',
+        'password.prompt': 'אנא הקש סיסמה',
+        'enroll.continue': 'המשך',
+        'mobileAuth.approvalPending': 'ממתין לאישור...',
+        'mobileAuthDeviceSelection.select': 'בחר',
+        'otpTargetSelection.selectTarget': 'לצורך אימות זהותך, יש לבחור טלפון לקבלת סיסמה חד פעמית',
+        'error.xmapiError.invalidPassword': 'סיסמה שגויה',
+        'methodName.password': 'הזדהות באמצעות סיסמה',
+        'methodName.otp': 'SMS הזדהות באמצעות',
+        'otp.inputPlaceholder': 'יש להקליד סיסמה',
+        'otp.loginButton': 'אישור',
+        'otpTargetSelection.targetSelected': 'הודעה עם סיסמה חד פעמית נשלחה למספר',
+        'otpTargetSelection.selectTarget.onePhone':
+          "לביצוע הפעולה, נבקש לאמת זהותך באמצעות סיסמה חד פעמית זמנית שנשלחה לטלפון נייד מספר ++ תוקף הסיסמה החד פעמית הזמנית הינו 5 דקות. במקרה שלא קיבלת למכשירך סיסמה חד פעמית, ניתן להקיש על 'חזור' ולנסות שוב.",
+        'otpTargetSelection.selectTarget.voice': 'הודעה קולית עם סיסמה חד פעמית נשלחה למספר',
+        'otpTargetSelection.selectTarget.multiPhones':
+          "במקרה שלא קיבלת למכשירך סיסמה חד פעמית, ניתן להקיש על 'חזור' ולנסות שוב.",
+        'otp.errTryAgain': 'הסיסמה החד פעמית שהוקלדה אינה תקינה. אנא נסו שנית',
+        'otp.errBlock': 'עקב מספר נסיונות שגויים בהקלדת הסיסמה החד פעמית, לא ניתן להמשיך בתהליך',
+        'otp.back': 'חזרה',
+        'otp.sendCode': 'שלח',
+        'otp.cancle': 'ביטול',
+        'methodMenu2.voice': 'הודעה קולית',
+        'methodMenu2.SMS': 'SMS',
+        'otp.resendButton': 'שלחו שוב',
+        'six.digits.error': 'יש להקליד מספר בעל 6 ספרות',
+        'digits.only': 'ספרות בלבד',
+        'send.again.question': 'לא קיבלת סיסמה?',
+        otpLoginTitle: 'אימות נוסף',
+        otpNoPhonesError:
+          'אין במערכות הבנק טלפון נייד לקבלת סיסמה חד - פעמית. באפשרותך לפנות לסניפך לעדכון הפרטים בחשבון.',
+      };
+
+      window.strings = strings;
+      var matafReffer;
+      function checkReferrer() {
+        if (document.referrer.includes('/MatafMobileApproveServlet')) {
+          matafReffer = 'MatafMobileApproveServlet';
+          console.log('Regular Login MatafMobileApproveServlet');
+        } else if (document.referrer.includes('/MatafLoginServlet')) {
+          matafReffer = 'MatafLoginServlet';
+        }
+      }
+
+      //Start Login Process
+      $(document).ready(function () {
+        sessionStorage.removeItem('fromMatafMobileApprove');
+        sessionStorage.removeItem('MatafLoginServlet');
+        sessionStorage.removeItem('loadCount');
+        checkReferrer();
+
+        if (/Iphone|Android/i.test(navigator.userAgent)) {
+          $('body').addClass('mobile-body');
+        } else {
+          $('body').addClass('desktop-body');
+        }
+
+        localStorage.removeItem('users');
+        console.log('localStorage cleared');
+        const continueBtn = document.getElementById('continueBtn');
+        if (continueBtn) {
+          //	window.parent.postMessage({action: 'iframe_ready'}, 'https://www.fibi.co.il');
+          window.parent.postMessage(
+            {
+              action: 'loginWithQrCode',
+              login_message:
+                'https://online.fibi.co.il/MatafLoginService/MatafMobileApproveServlet?bankId=FIBIPORTAL&site=Private&KODSAFA=HE',
+            },
+            'https://www.fibi.co.il',
+          );
+          //window.parent.postMessage({message: 'https://online.fibi.co.il/MatafRecoverPassword/index.jsp'}, 'https://www.fibi.co.il');
+        }
+        var userAgent = window.navigator.userAgent;
+        if (userAgent.match(/iPad/i) || userAgent.match(/iPhone/i)) {
+          var IpadIphone = true;
+        }
+        if (IpadIphone == true) {
+          $('.question button').on('click focus', function () {
+            $(this).parent().parent().find('.lightbox-menu').addClass('showtootip').show();
+          });
+          $('#tooltip-1 span, #tooltip-2 span').on('click', function () {
+            $(this).parent().parent().removeClass('showtootip').hide();
+            console.log('closed');
+          });
+        } else {
+          $('.question button').on('click focus', function () {
+            $(this).parent().parent().find('.lightbox-menu').addClass('showtootip');
+          });
+          $('.question button').on('blur', function () {
+            $(this).parent().parent().find('.lightbox-menu').removeClass('showtootip');
+          });
+        }
+        if (document.referrer.indexOf('apps') !== -1) {
+          $('body').addClass('fromapps');
+        }
+        $('#mobileApprove').click(function () {
+          loginWithMobileApprove();
+        });
+        if ($('#msgCont').text().trim().length) {
+          if ($('#msgCont').hasClass('change-success')) {
+            $('#msgCont').parent().addClass('height_65');
+          } else {
+            $('#msgCont').append("<span class='sr-only'>יש לוודא כי שני השדות תקינים</span>");
+          }
+        }
+        //$("#username, #password").on("keydown", function(){
+        //	if($(this).val().length === 0){
+        //		$("div.ErrorHolder div").hide()
+        //	}
+        //});
+
+        $('.input-holder input').blur(function () {
+          if ($(this).val()) {
+            $(this).addClass('has-value');
+          }
+        });
+        //Report Error to Piwik
+        function ReportErrorToPiwik(user, error) {}
+
+        //Report Successful Login to Piwik
+        function ReportSuccessfulLoginToPiwik(user) {}
+
+        //Server Error
+        function serverError(user, error) {
+          ReportErrorToPiwik(user, error);
+          if (window.authError !== null) {
+            if (!(typeof window.authError._data.additional_data === 'undefined')) {
+              if (
+                !authError._data.additional_data.message == '105' &&
+                !authError._data.additional_data.message == '091'
+              ) {
+                showServerConnectionError();
+              }
+            }
+          } else {
+            showServerConnectionError();
+          }
+        }
+
+        function showServerConnectionError() {
+          $('#password').val('');
+          $('#username').val('');
+          $('#msgCont').hide();
+          $('.ErrorHolder').append(serverErrorMsgTransmit);
+          setTimeout(function () {
+            $('#username').focus();
+          }, 500);
+        }
+
+        function setOTPDiv() {
+          $('#password').val('');
+          $('#loginForm').hide();
+          $('.forgot-block_noMargin').hide();
+          $('#title').text(strings['otpLoginTitle']);
+        }
+
+        function cleanLoginForm() {
+          $('#password').val('');
+          $('#username').val('');
+          $('#msgCont').hide();
+        }
+
+        function enableLoginBtn() {
+          window.submitLoginForm = false;
+          $('#continueBtn').prop('disabled', false);
+        }
+
+        function disableLoginBtn() {
+          window.submitLoginForm = true;
+          $('#continueBtn').prop('disabled', 'disabled');
+        }
+
+        function hideLoginErrors() {
+          if ($('#validationMsg:visible').length == 1) {
+            $('#validationMsg').remove();
+          }
+          if ($('#serverErrorMsg:visible').length == 1) {
+            $('#serverErrorMsg').remove();
+          }
+          if ($('#blockErrorMsg:visible').length == 1) {
+            $('#blockErrorMsg').hide().removeAttr('role');
+          }
+          if ($('#serverErrorMsgTransmit:visible').length == 1) {
+            $('#serverErrorMsgTransmit').remove();
+          }
+        }
+
+        //Login
+        function login(token) {
+          $('#user').val($('#username').val());
+          cleanLoginForm();
+          $('#passwordEnc').val(token);
+          if ($('#passwordEnc').val().length > 0) {
+            $('#login-body').hide();
+            $('#loginServlet').submit();
+          } else {
+            window.loginError = true;
+            cleanLoginForm();
+            $('.ErrorHolder').append(inputValidationMsg);
+            enableLoginBtn();
+          }
+        }
+
+        //Login Input validation
+        function checkInputValidations() {
+          window.loginError = false;
+          if (
+            $('#username').valid() &&
+            $('#password').valid() &&
+            $('#username').val().length > 2 &&
+            $('#password').val().length > 3
+          ) {
+            $('#inputValidationMsg').remove();
+            return true;
+          } else {
+            $('.ErrorHolder').append(inputValidationMsg);
+            if ($('#username').hasClass('error') && $('#password').hasClass('error')) {
+              $('#username').attr(
+                'aria-describedby',
+                'usernameError inputValidationMsg validationMsg serverErrorMsg serverErrorMsgTransmit msgCont',
+              );
+              $('#password').attr('aria-describedby', 'passwordError');
+              setTimeout(function () {
+                $('#username').focus();
+              }, 500);
+            } else if (!$('#username').hasClass('error') && $('#password').hasClass('error')) {
+              $('#username').attr(
+                'aria-describedby',
+                'usernameError validationMsg serverErrorMsg serverErrorMsgTransmit msgCont',
+              );
+              $('#password').attr('aria-describedby', 'passwordError inputValidationMsg');
+              setTimeout(function () {
+                $('#password').focus();
+              }, 500);
+            } else {
+              $('#username').attr(
+                'aria-describedby',
+                'usernameError inputValidationMsg validationMsg serverErrorMsg serverErrorMsgTransmit msgCont',
+              );
+              $('#password').attr('aria-describedby', 'passwordError');
+              setTimeout(function () {
+                $('#username').focus();
+              }, 500);
+            }
+            $('#msgCont').hide();
+            return false;
+          }
+        }
+
+        $.validator.addMethod('loginRegex', function (value, element) {
+          return this.optional(element) || /^[a-zA-Z0-9]+$/i.test(value);
+        });
+        $.validator.addMethod('passwordRegex', function (value, element) {
+          return this.optional(element) || /^[a-zA-Z0-9!@#$()_+\-\=<>?*~]*$/i.test(value);
+        });
+        $.validator.addMethod('passwordRegexSlash', function (value, element) {
+          return this.optional(element) || !/^[\.][/\s+/]+$/i.test(value);
+        });
+        $.validator.addMethod('passwordRegexnoSpace', function (value, element) {
+          return value.indexOf(' ') < 0 && value != '';
+        });
+        $.extend($.validator.messages, {
+          maxlength:
+            'על הסיסמה להכיל 6-14 תווים. חייבת להכיל ספרות ואותיות בלועזית (יש חשיבות לגודל האותיות) ויכולה להכיל את בתווים !@#$*()_-+=<>?~',
+        });
+        $('#loginForm').validate({
+          onkeyup: function (element, event) {
+            if (event.which === 9 && this.elementValue(element) === '') {
+              return;
+            } else {
+              this.element(element);
+            }
+          },
+          rules: {
+            username: {
+              required: false,
+              loginRegex: true,
+              // passwordRegexnoSpace: true,
+            },
+            password: {
+              required: false,
+              passwordRegex: true,
+              passwordRegexSlash: true,
+              passwordRegexnoSpace: false,
+              maxlength: 14,
+            },
+          },
+          highlight: function (element) {
+            $(element).attr('aria-invalid', 'true').addClass('error');
+          },
+          unhighlight: function (element) {
+            $(element).removeAttr('aria-invalid').removeClass('error');
+          },
+          errorPlacement: function (error, element) {
+            if (element.attr('name') == 'username') {
+              error.insertAfter('#username').attr('id', 'usernameError');
+            } else if (element.attr('name') == 'password') {
+              error.insertAfter('#password').attr('id', 'passwordError');
+            } else error.insertAfter(element);
+          },
+          messages: {
+            username: {
+              loginRegex: 'הקלד/י אותיות לועזיות וספרות בלבד',
+              //  passwordRegexnoSpace:"הקלד/י אותיות לועזיות וספרות בלבד",
+            },
+            password: {
+              passwordRegex:
+                'על הסיסמה להכיל 6-14 תווים. חייבת להכיל ספרות ואותיות בלועזית (יש חשיבות לגודל האותיות) ויכולה להכיל את בתווים !@#$*()_-+=<>?~',
+              passwordRegexSlash:
+                'על הסיסמה להכיל 6-14 תווים. חייבת להכיל ספרות ואותיות בלועזית (יש חשיבות לגודל האותיות) ויכולה להכיל את בתווים !@#$*()_-+=<>?~',
+              // passwordRegexnoSpace:"על הסיסמה להכיל 6-14 תווים. חייבת להכיל ספרות ואותיות בלועזית (יש חשיבות לגודל האותיות) ויכולה להכיל את בתווים !@#$*()_-+=<>?~",
+            },
+          },
+        });
+
+        //Transmit Login Section
+        require.config({
+          baseUrl: 'FibiOnlineTheme/themes/html/FibiOnlineTheme/',
+          waitSeconds: 0,
+          paths: {
+            jquery: '/MatafLoginService/js/services/jquery-3.2.1.min',
+            domReady: '/FibiOnlineTheme/themes/html/FibiOnlineTheme/xm/js/domReady',
+            uiHandler: '/MatafLoginService/js/services/uiHandler',
+            baseSession: '/MatafLoginService/js/services/baseSession',
+          },
+        });
+        //$("input#username").on('paste keydown', function(e) {
+        //	if (e.which === 32){
+        //		return false;
+        //	}
+        //});
+        var myusername = document.getElementById('username');
+        cleanmyusername = function (e) {
+          e.preventDefault();
+          var pastedText = '';
+          if (e.clipboardData && e.clipboardData.getData) {
+            pastedText = e.clipboardData.getData('text/plain');
+          } else if (window.clipboardData && window.clipboardData.getData) {
+            pastedText = window.clipboardData.getData('Text');
+          }
+          this.value = pastedText.replace(/\s+/g, '');
+        };
+        myusername.onpaste = cleanmyusername;
+        cleanmyusernameoninput = function (e) {
+          e.preventDefault();
+          this.value = myusername.value.replace(/\s+/g, '');
+        };
+        myusername.oninput = cleanmyusernameoninput;
+
+        requirejs(
+          [
+            'domReady!',
+            'jquery',
+            '/MatafOTPServices/public/assets/js/xmsdk.js',
+            '/MatafLoginService/js/services/uiHandler.js?ts=' + new Date().getTime(),
+          ],
+          function (doc, $, xm, MyUIHandler) {
+            window.locked = false;
+            window.loginError = false;
+            window.loginAutType = 'UP';
+            var oldLogin = false;
+            var cssFile = 'page';
+            var endpoint = 'https://online.fibi.co.il';
+            var bankNum = '031';
+            var bankIdForPiwik = '10';
+
+            var appId = 'rest_app_' + bankNum;
+
+            var client_ip = '10.12.18.194';
+            var policyId = 'Login';
+            var date = new Date().getTime();
+
+            var cryptoMode = com.ts.mobile.sdk.ConnectionCryptoMode.Full;
+            var connectionSettings = com.ts.mobile.sdk.SDKConnectionSettings.createWithCryptoMode(
+              endpoint,
+              appId,
+              null,
+              null,
+              cryptoMode,
+            );
+            var sdk = xm.XmSdk();
+            sdk.setConnectionSettings(connectionSettings);
+            var policyParams = {};
+            var container = $('#loginDiv');
+            var clientContext = { uiContainer: container };
+
+            var myHandler = new MyUIHandler(sdk.host);
+            sdk.setUiHandler(myHandler);
+            window.submitLoginForm = false;
+
+            if (/Iphone|Android/i.test(navigator.userAgent)) {
+              $('#username').addClass('mobile-username');
+            } else {
+              $('#username').focus();
+            }
+
+            //sdk.setLogLevel(com.ts.mobile.sdk.logLevel.Debug);
+            sdk
+              .initialize()
+              .then(function () {
+                //check if Im in exlporer 9 or less
+                var ua = window.navigator.userAgent;
+                var msie = ua.indexOf('MSIE');
+
+                $('#loginForm input').keypress(function (e) {
+                  if (e.which == 13) {
+                    if (!window.submitLoginForm) {
+                      disableLoginBtn();
+                      initTransmit();
+                    }
+                    return false;
+                  }
+                });
+                $('#continueBtn').click(function () {
+                  document.getElementById('password').type = 'password';
+                  if (!window.submitLoginForm) {
+                    disableLoginBtn();
+                    initTransmit();
+                  }
+                });
+              })
+              .catch(function (err) {
+                var err_text = JSON.stringify(err);
+                serverError($('#username').val(), err_text);
+                enableLoginBtn();
+                console.log('Initialize error: ' + err_text);
+              });
+
+            function authenticateTransmit() {
+              window.authError = null;
+              var username = $('#username').val();
+              var transmitContainer = $('#loginDiv');
+              var clientContext = { uiContainer: transmitContainer, userStage: 'login' };
+              var additional_params = {
+                bankId: bankNum,
+                client_ip: client_ip,
+              };
+              if (checkInputValidations()) {
+                // Using username.toLowerCase() in order to get over Transmit's bug, where the username is saved in the DB as is, and only afterwards is being changed to lower-case, so the lookup of the username's session in the DB fails. Changing it to lower-case does not have any effect because either way it is case-insensitive and being lower-cased later on by Transmit.
+                sdk
+                  .authenticate(username.toLowerCase(), policyId, additional_params, clientContext)
+                  .then(
+                    function (successfulAuth) {
+                      ReportSuccessfulLoginToPiwik(username);
+                      login(successfulAuth.getToken());
+                    },
+                    function (err) {
+                      var err_text = JSON.stringify(err);
+                      //User locked Error
+                      if (
+                        err._errorCode == 3 ||
+                        (err._errorCode == 1 && err._data.assertion_error_code == 5) ||
+                        (err._errorCode == 2 && err._data.assertion_error_code == 6)
+                      ) {
+                        if (clientContext.userStage && clientContext.userStage === 'login') {
+                          handleLoginErrors();
+                          return;
+                        }
+                        setOTPDiv();
+                        createErrorMsg(strings['otp.errBlock']);
+                      } else if (err._errorCode == 12 || err._errorCode == 11) {
+                        setOTPDiv();
+                        createErrorMsg(strings['validation.error']);
+                      } else if (err._errorCode == 9) {
+                        if (
+                          err._data.failure_data.reason.data &&
+                          err._data.failure_data.reason.data.retcode &&
+                          '2' == err._data.failure_data.reason.data.retcode
+                        ) {
+                          setOTPDiv();
+                          createErrorMsg(strings['otpNoPhonesError']);
+                        } else {
+                          // Not needed and not working -
+                          //if (clientContext.userStage && clientContext.userStage === "login") {
+                          //	handleLoginErrors();
+                          //	return;
+                          //}
+                          setOTPDiv();
+                          createErrorMsg(strings['validation.error']);
+                        }
+                      } else {
+                        serverError(username, err_text);
+                        enableLoginBtn();
+                        setTimeout(function () {
+                          $('#username').focus();
+                        }, 500);
+                      }
+                      console.log('Authentication error: ' + err_text);
+                    },
+                  );
+              } else {
+                enableLoginBtn();
+              }
+            }
+
+            function initTransmit() {
+              hideLoginErrors();
+              if (window.loginError) {
+                sdk
+                  .logout()
+                  .then(function () {
+                    authenticateTransmit();
+                  })
+                  .catch(function (err) {
+                    var err_text = JSON.stringify(err);
+                    console.log('Logout error: ' + err_text);
+                    sessionStorage.removeItem('currentSession');
+                    authenticateTransmit();
+                  });
+              } else {
+                if (sessionStorage.getItem('currentSession') !== null) {
+                  sdk
+                    .logout()
+                    .then(function () {
+                      authenticateTransmit();
+                    })
+                    .catch(function (err) {
+                      var err_text = JSON.stringify(err);
+                      console.log('Logout error: ' + err_text);
+                      sessionStorage.removeItem('currentSession');
+                      authenticateTransmit();
+                    });
+                } else {
+                  authenticateTransmit();
+                }
+              }
+            }
+
+            function createErrorMsg(errorMsg) {
+              var optMsgPlaceHolder = $('#loginDiv');
+              var errorMessageLockDiv = $(
+                '<div class="container"><div class="animated fadeInDown fast" id="msgCont"><div class="col-xs-12 text-center" ><h2 id="wrongCode" class="big-error-text"></h2></div></div></div>',
+              );
+              var backButton = $(
+                '<div class="animated fadeInDown fast"><div id="big_btn_container"><div class="col-xs-12"><div id="buttoncontainer"><button title=' +
+                  strings['otp.back'] +
+                  ' class="btn btn-primary form-control form-control-lg yellow-button"  id="cancel_btn_3">' +
+                  strings['otp.back'] +
+                  '</button></div></div></div></div>',
+              );
+              if (errorMsg != '') {
+                errorMessageLockDiv.find('#wrongCode').text(errorMsg);
+              }
+              optMsgPlaceHolder.append(errorMessageLockDiv);
+              errorMessageLockDiv.append(backButton);
+              backButton.click(function () {
+                window.parent.postMessage(
+                  {
+                    action: 'login',
+                    message:
+                      'https://online.fibi.co.il/MatafLoginService/MatafLoginServlet?bankId=FIBIPORTAL&site=Private&KODSAFA=HE',
+                  },
+                  'https://www.fibi.co.il',
+                );
+              });
+            }
+
+            function handleLoginErrors() {
+              //Login MF Errors
+              if (window.authError !== null) {
+                window.loginError = true;
+                console.log(authError._data);
+                var user = $('#username').val();
+                if (typeof window.authError._data.additional_data === 'undefined') {
+                  cleanLoginForm();
+                  showValidationError(window.loginServerError);
+                  enableLoginBtn();
+                } else {
+                  //OnlineGW Server is down -> no connection error
+                  if ($.isEmptyObject(authError._data.additional_data)) {
+                    cleanLoginForm();
+                    //	$("#serverErrorMsg").show();
+                    $('.ErrorHolder').append(
+                      '<div id="serverErrorMsg" style="color:  #FF5757;font-weight: 600;">' +
+                        window.loginServerError +
+                        '</div>',
+                    );
+                    enableLoginBtn();
+                  }
+                  //Failure Response
+                  if (authError._data.additional_data.code == '1') {
+                    //wrong credentials
+                    if (authError._data.additional_data.message == '091') {
+                      validationError(window.loginWorngDataMsg, user, authError);
+                    } else if (authError._data.additional_data.message == '011') {
+                      validationError(window.loginNotActiveError, user, authError);
+                    } else if (authError._data.additional_data.message == '113') {
+                      validationError(window.loginPassCanceldNotActive, user, authError);
+                    } else if (authError._data.additional_data.message == 'Exception') {
+                      cleanLoginForm();
+                      showValidationError(window.loginServerError);
+                      enableLoginBtn();
+                    } else {
+                      validationError(window.loginWorngDataMsg, user, authError);
+                    }
+                  }
+                  //Block
+                  else if (authError._data.additional_data.code == '2') {
+                    window.loginError = false;
+                    window.locked = authError._data.additional_data.locked;
+                    //user password blocked -> Recover Password
+                    if (authError._data.additional_data.message == '105') {
+                      if (window.oldLogin == true) {
+                        cleanLoginForm();
+                        $('#blockErrorMsg').show();
+                        top.ChangePass(window.recoverPassword);
+                        enableLoginBtn();
+                      } else {
+                        $('.login-caption').hide();
+                        $('#loginDiv').hide();
+                        $('.forgot-block_noMargin').hide();
+                        $('#passDialog').show();
+                        enableLoginBtn();
+                      }
+                    } else if (authError._data.additional_data.message == '114') {
+                      // validationError(window.loginBlockNotActiveError, user, authError);
+                      validationError(window.loginBlockNotActiveErrorNew, user, authError);
+                    }
+                    //Other
+                    else {
+                      validationError(window.loginWorngDataMsg, user, authError);
+                    }
+                  }
+                }
+              } else {
+                validationError(
+                  window.loginWorngDataMsg + ' / ' + window.loginServerError,
+                  user,
+                  authError,
+                );
+              }
+            }
+
+            function validationError(errMsg, user, authError) {
+              if (authError) {
+              } else {
+              }
+              cleanLoginForm();
+              showValidationError(errMsg);
+              enableLoginBtn();
+            }
+
+            function showValidationError(errMsg) {
+              if (window.oldLogin == true) {
+                $('#validationMsg p').text(errMsg);
+                $('#validationMsg').show();
+              } else {
+                $('.ErrorHolder').append(
+                  '<div id="validationMsg" style="color:  #FF5757;font-weight: 600;"><span class="sr-only">' +
+                    window.loginSRMsg +
+                    '</span><span class="error">' +
+                    errMsg +
+                    '</span></div>',
+                );
+                setTimeout(function () {
+                  $('#username').focus();
+                }, 500);
+              }
+            }
+          },
+        );
+        showHidePass();
+      });
+      function showHidePass() {
+        var passInput = document.getElementById('password');
+        $('#showpass').attr('title', showPassText);
+        $('#showpass').on('click', function () {
+          if (passInput.type === 'password') {
+            passInput.type = 'text';
+            $(passInput).addClass('lefttoright');
+            $(this).addClass('showedPass');
+            $('#showpass').attr('title', hidePassText);
+            setTimeout(function () {
+              $('#showpass').removeClass('showedPass');
+              $('#showpass').attr('title', showPassText);
+              passInput.type = 'password';
+              $(passInput).removeClass('lefttoright');
+            }, 2000);
+          } else {
+            passInput.type = 'password';
+            $(this).removeClass('showedPass');
+            $('#showpass').attr('title', hidePassText);
+            $(passInput).removeClass('lefttoright');
+          }
+        });
+      }
+    </script>
+
+    <!-- Responsive Login Page  -->
+    <form
+      name="loginServlet"
+      id="loginServlet"
+      action="/MatafLoginService/MatafLoginServlet"
+      method="post"
+      autocomplete="off"
+    >
+      <input type="hidden" id="isPaymentProc" name="isPaymentProc" value="false" />
+      <input type="hidden" id="KODSAFA" name="KODSAFA" value="HE" />
+      <input type="hidden" id="userLoginHome" name="userLoginHome" value="Private" />
+      <input type="hidden" id="passwordEnc" name="passwordEnc" />
+      <input type="hidden" name="bankId" value="FIBIPORTAL" />
+      <input type="hidden" name="showCaptcha" value="false" />
+      <input type="hidden" name="lang" value="HE" />
+      <input type="hidden" name="user" id="user" value="" />
+    </form>
+
+    <div class="modal-body" id="login-body" role="dialog" aria-label="כניסה עם סיסמה">
+      <div class="login-caption margin_top_47 login-caption-block">
+        <h4 id="title" class="semi-bold font_22">כניסה עם סיסמה</h4>
+      </div>
+
+      <div name="login" id="loginDiv">
+        <form
+          name="login"
+          id="loginForm"
+          autocomplete="off"
+          class="loginFormQR"
+          novalidate="novalidate"
+        >
+          <div class="input-holder">
+            <input
+              type="text"
+              id="username"
+              autocomplete="off"
+              name="username"
+              maxlength="15"
+              class="username form-control form-input"
+              aria-label="קוד משתמש"
+              aria-describedby="usernameError inputValidationMsg validationMsg serverErrorMsg serverErrorMsgTransmit msgCont"
+              tabindex="1"
+              placeholder="קוד משתמש"
+              autofocus=""
+            />
+            <div class="input-help">
+              <div class="question">
+                <button
+                  type="button"
+                  id="tooltiptrigger1"
+                  aria-label="עזרה קוד משתמש"
+                  class="question_a"
+                  role="button"
+                  tabindex="4"
+                  aria-describedby="tooltip-1"
+                >
+                  ?
+                </button>
+              </div>
+              <div id="tooltip-1" class="lightbox-menu" role="tooltip">
+                <div>
+                  <h3>קוד משתמש</h3>
+                  <span></span>
+                  <div class="tooltip-content">
+                    <p>קוד משתמש (4-9 תווים) אותיות לועזיות וספרות בלבד</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="input-holder min_marging2 lastholder">
+            <input
+              type="password"
+              id="password"
+              name="password"
+              autocomplete="new-password"
+              maxlength="14"
+              class="password form-control form-input"
+              aria-label="סיסמה"
+              aria-describedby="passwordError"
+              tabindex="2"
+              placeholder="סיסמה"
+            />
+            <button
+              type="button"
+              id="showpass"
+              class="pass-help show-pass"
+              aria-hidden="true"
+              title="הצג סיסמה"
+            ></button>
+            <div class="input-help">
+              <div class="question">
+                <button
+                  type="button"
+                  id="tooltiptrigger2"
+                  aria-label="עזרה סיסמה"
+                  class="question_a"
+                  role="button"
+                  tabindex="5"
+                  aria-describedby="tooltip-2"
+                >
+                  ?
+                </button>
+              </div>
+              <div id="tooltip-2" class="lightbox-menu" role="tooltip">
+                <div>
+                  <h3>סיסמה</h3>
+                  <span></span>
+                  <div class="tooltip-content">
+                    <p>
+                      הסיסמה מורכבת מ-6 עד 14 תווים, מכילה ספרות ואותיות בלועזית (יש חשיבות לגודל
+                      האותיות) ויכולה לכלול את התווים !@#$*()_-+=&lt;&gt;?~
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ErrorHolder">
+            <div class="info_msg" id="msgCont"><p id="mymessage"></p></div>
+          </div>
+          <input
+            id="continueBtn"
+            type="button"
+            aria-label="כניסה"
+            tabindex="3"
+            class="btn login min_marging margin_shortbody btnLoginBank"
+            value="כניסה"
+          />
+        </form>
+      </div>
+      <div class="text-center passDialog margin_top_20" id="passDialog" style="display: none">
+        <div class="text-center lockimage">
+          <img
+            title="עקב ריבוי נסיונות, הגישה לחשבונך נחסמה"
+            src="/MatafLoginService/css/images/big_yellow_lock.png"
+          />
+        </div>
+        <h3 class="big_white_h3 text-center" dir="ltr">
+          סיסמתך נחסמה<br />
+          "ניתן לחדשה ב "שכחתי סיסמה
+        </h3>
+        <!--<p class="text-center white_p">
+						באפשרותך לבצע תהליך שחזור סיסמה לצורך כניסה מחודשת
+					</p>-->
+
+        <input
+          aria-label="חידוש סיסמה"
+          class="btn login"
+          id="changepass"
+          type="button"
+          value="חידוש סיסמה"
+          onclick="RecoverPassIframe()"
+        />
+      </div>
+      <div class="forgot-block_noMargin">
+        <a
+          href="#"
+          class="recoverPasswordKodHre"
+          role="button"
+          title="שכחתי סיסמה"
+          onclick="RecoverPassIframe()"
+          >שכחתי סיסמה</a
+        >
+        <a
+          href="#"
+          class="recoverUserKodHref no_marginHref"
+          role="button"
+          title="שכחתי משתמש"
+          onclick="RecoverUserCodeIframe()"
+          >שכחתי משתמש</a
+        >
+      </div>
+    </div>
+  </body>
+</html>

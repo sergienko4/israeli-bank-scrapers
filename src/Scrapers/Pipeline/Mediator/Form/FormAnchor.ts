@@ -58,6 +58,137 @@ function scopeName(form: string, val: string): string {
   return `${form} [name="${val}"]`;
 }
 
+/** Regex extracting the form id from a `#id` or `form#id` CSS selector. */
+const FORM_ID_RE = /^[a-z]*#([\w-]+)$/i;
+
+/**
+ * XPath filter excluding non-fillable input types — mirrors the constant
+ * defined in {@link SelectorLabelStrategies.walkUp.ts}. Inlined here to
+ * keep this module self-contained for form-scoped candidate rewrites.
+ */
+const NON_FILLABLE_FILTER =
+  'not(@type="hidden") and not(@type="submit") and not(@type="button") ' +
+  'and not(@type="radio") and not(@type="checkbox")';
+
+/**
+ * Pull the form id from a `#id` / `form#id` CSS selector, returning the
+ * empty string when the selector is not in id-bearing shape.
+ * @param form - Form anchor CSS selector.
+ * @returns Form id, or '' when not parsable.
+ */
+function tryExtractFormId(form: string): string {
+  const m = FORM_ID_RE.exec(form);
+  return m ? m[1] : '';
+}
+
+/**
+ * Build a scoped XPath expression for an xpath-kind candidate.
+ *
+ * <p>Converts the CSS form selector (e.g. `#otpLobbyFormPassword` or
+ * `form#otpLobbyFormPassword`) into an XPath descendant predicate
+ * (`//*[@id="otpLobbyFormPassword"]`) and prepends it so descendant
+ * axes inside `val` are constrained to elements WITHIN the form.
+ * Critical for multi-form lobbies where the same label text appears
+ * in multiple forms (Isracard / Amex OTP vs password — issue #307).
+ *
+ * <p>If the CSS form selector is not an id-bearing shape, returns the
+ * original xpath unchanged (no-op) — caller is responsible for picking
+ * an id-stable form anchor whenever possible.
+ * @param form - The form ancestor CSS selector.
+ * @param val - The original xpath expression.
+ * @returns The scoped xpath expression, or the original when not scopable.
+ */
+function scopeXpath(form: string, val: string): string {
+  const formId = tryExtractFormId(form);
+  if (!formId) return val;
+  if (!val.startsWith('//')) return val;
+  return `//*[@id="${formId}"]${val}`;
+}
+
+/**
+ * Build a form-scoped XPath that mirrors `buildContainerInputXpath` from
+ * {@link SelectorLabelStrategies.walkUp.ts} — searches for visible text
+ * inside the form, then walks up to the closest container, then back
+ * down to the first fillable input inside that container.
+ *
+ * <p>This rewrites a `textContent` candidate into a pre-baked scoped
+ * xpath candidate so the strategy ladder's unscoped walk-up cannot
+ * leak to a sibling form sharing the same label text (issue #307).
+ * @param formId - Form id (already extracted).
+ * @param val - Visible text value to search for.
+ * @returns Scoped xpath string.
+ */
+function buildScopedTextContentXpath(formId: string, val: string): string {
+  const scope = `//*[@id="${formId}"]`;
+  return (
+    `${scope}//*[text()[contains(., "${val}")]]/` +
+    `ancestor::*[.//input[${NON_FILLABLE_FILTER}]][1]//input[${NON_FILLABLE_FILTER}][1]`
+  );
+}
+
+/**
+ * Build a form-scoped XPath that locates a `<label>` (or div/span acting
+ * as a label) inside the form and resolves the nearest fillable input
+ * via nested OR sibling OR proximity walk — three xpath unions in one.
+ *
+ * <p>Mirrors `resolveLabelStrategies` from
+ * {@link SelectorLabelStrategies.xpath.ts} but flattened into a single
+ * xpath for use as a pre-baked scoped candidate (issue #307).
+ * @param formId - Form id (already extracted).
+ * @param val - Visible label text value.
+ * @returns Scoped xpath string.
+ */
+function buildScopedLabelTextXpath(formId: string, val: string): string {
+  const scope = `//*[@id="${formId}"]`;
+  const label = `//label[contains(., "${val}")]`;
+  const nested = `${scope}${label}//input[${NON_FILLABLE_FILTER}][1]`;
+  const sib = `${scope}${label}/following-sibling::input[${NON_FILLABLE_FILTER}][1]`;
+  const proximity = `${scope}${label}/..//input[${NON_FILLABLE_FILTER}][1]`;
+  return `${nested} | ${sib} | ${proximity}`;
+}
+
+/**
+ * Build a form-scoped XPath for clickableText — finds the innermost
+ * element whose own text contains the value, restricted to descendants
+ * of the form.
+ * @param formId - Form id (already extracted).
+ * @param val - Visible text value.
+ * @returns Scoped xpath string.
+ */
+function buildScopedClickableTextXpath(formId: string, val: string): string {
+  const scope = `//*[@id="${formId}"]`;
+  return (
+    `${scope}//*[not(self::script) and not(self::style) ` +
+    `and contains(., "${val}") and not(.//*[contains(., "${val}")])]`
+  );
+}
+
+/** Builder fn for text-kind candidate-to-scoped-xpath conversion. */
+type TextScopeBuilder = (formId: string, val: string) => string;
+
+/** Map from text-kind to its scoped-xpath builder. */
+const TEXT_SCOPE_BUILDERS: Partial<Record<SelectorCandidate['kind'], TextScopeBuilder>> = {
+  textContent: buildScopedTextContentXpath,
+  labelText: buildScopedLabelTextXpath,
+  clickableText: buildScopedClickableTextXpath,
+};
+
+/**
+ * Try to rewrite a text-kind candidate into a pre-baked form-scoped
+ * xpath candidate. Returns the original candidate when the form
+ * selector is not id-bearing (caller's preflight responsibility).
+ * @param form - Form anchor CSS selector.
+ * @param candidate - Original text-kind candidate.
+ * @returns Rewritten xpath candidate, or original on no-op.
+ */
+function scopeTextCandidate(form: string, candidate: SelectorCandidate): SelectorCandidate {
+  const builder = TEXT_SCOPE_BUILDERS[candidate.kind];
+  if (!builder) return candidate;
+  const formId = tryExtractFormId(form);
+  if (!formId) return candidate;
+  return { kind: 'xpath', value: builder(formId, candidate.value) };
+}
+
 /** Map from scopable kind to a function that builds the scoped CSS value. */
 const SCOPE_BUILDERS: Record<string, (form: string, val: string) => string> = {
   css: scopeCss,
@@ -218,8 +349,17 @@ export async function discoverFormAnchor(
 
 /**
  * Scope a selector candidate to search within a form element.
- * CSS-based candidates get the form selector prepended as a descendant.
- * XPath and labelText/textContent candidates are returned unchanged.
+ *
+ * <p>Dispatch order:
+ * 1. `xpath` kind — prepend `//*[@id="X"]` ancestor predicate
+ * 2. `textContent` / `labelText` / `clickableText` — rewrite into
+ *    pre-baked scoped xpath (mirrors strategy walk-up, but pinned
+ *    inside the form anchor) — critical for multi-form lobbies
+ *    where the same visible text exists in OTP + password forms
+ *    (Isracard / Amex — issue #307).
+ * 3. `css` / `placeholder` / `ariaLabel` / `name` — prepend form
+ *    descendant via {@link SCOPE_BUILDERS}.
+ * 4. Anything else — returned unchanged.
  * @param formSelector - The CSS selector for the form anchor.
  * @param candidate - The original selector candidate.
  * @returns A form-scoped copy of the candidate, or the original if not scopable.
@@ -228,11 +368,17 @@ export function scopeCandidate(
   formSelector: string,
   candidate: SelectorCandidate,
 ): SelectorCandidate {
+  if (candidate.kind === 'xpath') {
+    return { ...candidate, kind: 'xpath', value: scopeXpath(formSelector, candidate.value) };
+  }
+  if (TEXT_SCOPE_BUILDERS[candidate.kind]) {
+    return scopeTextCandidate(formSelector, candidate);
+  }
   const builder = SCOPE_BUILDERS[candidate.kind] as
     | ((form: string, val: string) => string)
     | undefined;
   if (!builder) return candidate;
-  return { kind: 'css', value: builder(formSelector, candidate.value) };
+  return { ...candidate, kind: 'css', value: builder(formSelector, candidate.value) };
 }
 
 /**

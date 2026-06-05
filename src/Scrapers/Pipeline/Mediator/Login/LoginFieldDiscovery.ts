@@ -47,20 +47,55 @@ function buildPreTarget(value: IFieldContext, page: Page, key: string): IResolve
 }
 
 /**
- * Resolve one credential field and build an IResolvedTarget.
- * @param args - Discovery bundle.
- * @param field - Field config to resolve.
+ * Pull the discovered form-anchor selector — empty string when no
+ * anchor has been captured yet. Mirrors the `applyFormScope` no-scope
+ * sentinel in {@link PipelineFieldResolver.scope.ts}.
+ * @param anchor - Option wrapping the previously discovered anchor.
+ * @returns Anchor's CSS selector, or '' when no anchor exists.
+ */
+function pickFormSelector(anchor: Option<IFormAnchor>): string {
+  return anchor.has ? anchor.value.selector : '';
+}
+
+/**
+ * Map a field-resolution procedure into the {@link IResolvedTarget} or
+ * the `false` sentinel used by the discovery accumulator.
+ * @param r - Field resolver outcome.
+ * @param args - Discovery bundle (for page/logger context).
+ * @param key - Credential key being resolved.
+ * @returns Resolved target on success, `false` otherwise.
+ */
+function preTargetOrFalse(
+  r: Procedure<IFieldContext>,
+  args: IDiscoverFieldsArgs,
+  key: string,
+): IResolvedTarget | false {
+  return r.success ? buildPreTarget(r.value, args.page, key) : false;
+}
+
+/** Args bundle for {@link resolveOneField} — keeps the body under the 10-line ceiling. */
+interface IResolveOneArgs {
+  readonly args: IDiscoverFieldsArgs;
+  readonly field: IFieldConfig;
+  readonly anchor: Option<IFormAnchor>;
+}
+
+/**
+ * Resolve one credential field and build an IResolvedTarget. Once the
+ * accumulator has captured a form anchor (after the first successful
+ * field resolution), every subsequent `resolveField` call is scoped
+ * INSIDE that anchor — guarantees Isracard's OTP form cannot leak its
+ * inputs into the password-form discovery (issue #307).
+ * @param call - Bundled resolve arguments.
  * @returns Resolved target or false if not found.
  */
-async function resolveOneField(
-  args: IDiscoverFieldsArgs,
-  field: IFieldConfig,
-): Promise<IResolvedTarget | false> {
+async function resolveOneField(call: IResolveOneArgs): Promise<IResolvedTarget | false> {
+  const { args, field, anchor } = call;
   const key = field.credentialKey;
   args.logger.debug({ message: `PRE resolving ${maskVisibleText(key)}` });
-  const r = await args.mediator.resolveField(key, field.selectors, args.activeFrame);
-  if (!r.success) return false;
-  return buildPreTarget(r.value, args.page, key);
+  const scope = pickFormSelector(anchor);
+  const r = await args.mediator.resolveField(key, field.selectors, args.activeFrame, scope);
+  return preTargetOrFalse(r, args, key);
 }
 
 /** Lookup for field resolution trace labels. */
@@ -151,7 +186,7 @@ async function resolveAndAccumulate(
   accum: IFieldAccum,
   field: IFieldConfig,
 ): Promise<IFieldAccum> {
-  const resolved = await resolveOneField(args, field);
+  const resolved = await resolveOneField({ args, field, anchor: accum.formAnchor });
   accumulateField({ accum, field, resolved, logger: args.logger });
   const formAnchor = await maybeDiscoverAnchor(args, { accum, field, resolved });
   return { targets: accum.targets, formAnchor };

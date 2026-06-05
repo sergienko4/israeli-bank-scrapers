@@ -40,9 +40,11 @@ describe('CreateElementMediator — getAttributeValue with null return', () => {
       /**
        * Test helper.
        *
+       * @param fn - Evaluated function.
        * @returns Result.
        */
-      evaluate(): Promise<unknown> {
+      evaluate(fn: unknown): Promise<unknown> {
+        if (String(fn).includes('skip-to-main')) return Promise.resolve(false);
         return Promise.resolve(true);
       },
       /**

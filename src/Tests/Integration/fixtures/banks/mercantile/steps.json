@@ -1,0 +1,10 @@
+[
+  {
+    "name": "01-home",
+    "finalUrl": "https://www.mercantile.co.il/"
+  },
+  {
+    "name": "02-pre-login",
+    "finalUrl": "https://start.telebank.co.il/login/#/LOGIN_PAGE"
+  }
+]
