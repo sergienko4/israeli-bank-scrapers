@@ -414,22 +414,59 @@ async function navigateRevealCapture(args: IStepExecutionArgs): Promise<ICapture
 }
 
 /**
- * Strip query + fragment from a captured URL before persisting it.
- * MirrorInterceptor only consumes the host portion, but the steps.json
- * manifest is committed to the repo so any tracking ids, session
- * tokens, or one-shot grant params attached to the page URL are PII /
- * data-leak risks — drop them at capture time, not after the fact.
- * @param rawUrl - URL string as reported by `page.url()`.
- * @returns Origin + pathname (search and hash removed); passthrough on parse failure.
+ * Strip the `;params` suffix from each pathname segment.
+ * @param pathname - Raw URL pathname (e.g. `/activityi;src=123;type=foo`).
+ * @returns Pathname with semicolon params removed (`/activityi`).
+ */
+function stripPathSemicolons(pathname: string): string {
+  const segments = pathname.split('/').map(seg => seg.split(';')[0]);
+  return segments.join('/');
+}
+
+/**
+ * Apply the full sanitization pipeline to a parsed URL: drop basic-auth
+ * credentials, search, hash, and any path-embedded `;params`.
+ * @param parsed - URL instance (mutated, but only this function uses it).
+ * @returns `origin + sanitizedPathname` (no query, hash, creds, or `;params`).
+ */
+function sanitizeParsedUrl(parsed: URL): string {
+  parsed.username = '';
+  parsed.password = '';
+  parsed.search = '';
+  parsed.hash = '';
+  const sanitizedPath = stripPathSemicolons(parsed.pathname);
+  return `${parsed.origin}${sanitizedPath}`;
+}
+
+/**
+ * Best-effort cleanup for strings the URL parser rejects: drop everything
+ * after `#`, then `?`, then any `;params` runs. Avoids raw passthrough so
+ * malformed URLs cannot smuggle tracking ids into the fixture.
+ * @param raw - URL string that failed `new URL(...)`.
+ * @returns Stripped string (origin + path), never raw.
+ */
+function fallbackSanitize(raw: string): string {
+  const noFragment = raw.split('#')[0];
+  const noQuery = noFragment.split('?')[0];
+  return noQuery.replace(/;[^/]+/g, '');
+}
+
+/**
+ * Strip query, hash, basic-auth credentials, and path-embedded `;params`
+ * from a captured URL before persisting it. MirrorInterceptor only
+ * consumes the host portion, but the steps.json / frames.json manifests
+ * are committed so tracking ids (DoubleClick `auiddc=`, JSESSIONID,
+ * one-shot grant params, semicolon path session tokens) attached to the
+ * page URL are PII / data-leak risks — drop them at capture time.
+ * @param rawUrl - URL string as reported by `page.url()` / frame.url().
+ * @returns Origin + sanitized pathname; safe fallback on parse failure.
  */
 function sanitizeFinalUrl(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
-    parsed.search = '';
-    parsed.hash = '';
-    return parsed.toString();
+    return sanitizeParsedUrl(parsed);
   } catch {
-    return rawUrl;
+    return fallbackSanitize(rawUrl);
   }
 }
 

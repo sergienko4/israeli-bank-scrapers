@@ -8,7 +8,7 @@
   {
     "index": 1,
     "name": "",
-    "url": "about:blank",
+    "url": "nullblank",
     "file": "frame-1.html"
   },
   {
@@ -20,37 +20,37 @@
   {
     "index": 3,
     "name": "",
-    "url": "https://16046083.fls.doubleclick.net/activityi;src=16046083;type=rmrkt;cat=amexi0;rcb=16;ord=9857547701408;npa=0;auiddc=1169787622.1780656125;pscdl=noapi;frm=0;user_data_mode=a;_tu=KFA;gtm=45fe6631v9234171982z872195715za20gzb72195715zd72195715xea;gcd=13l3l3l3l1l1;dma=0;dc_fmt=2;tag_exp=0~115938466~115938468~118228214~119027222;epver=2;em=tv.1;dc_random=1780656156__VYDYyuTh1Ppvu0K4OYTXr2Z31gFH-8hCw;_dc_test=1;~oref=https%3A%2F%2Fhe.americanexpress.co.il%2Fpersonalarea%2Flogin%2F",
+    "url": "https://16046083.fls.doubleclick.net/activityi",
     "file": "frame-3.html"
   },
   {
     "index": 4,
     "name": "",
-    "url": "https://12719877.fls.doubleclick.net/activityi;src=12719877;type=engamex;cat=rmkt-0;rcb=17;ord=1;num=7769221923348;npa=0;auiddc=1169787622.1780656125;u1=url;pscdl=noapi;frm=0;user_data_mode=a;_tu=KJA;gtm=45fe6631v9190167640z872195715za20gzb72195715zd72195715xea;gcd=13l3l3l3l1l1;dma=0;dc_fmt=2;tag_exp=0~115616985~115938466~115938469~118228214~119027222;epver=2;em=tv.1;dc_random=1780656157_Ysr8vW1ea-RQXg5ewCU2RQxxWE0g6NYnmQ;_dc_test=1;~oref=https%3A%2F%2Fhe.americanexpress.co.il%2Fpersonalarea%2Flogin%2F",
+    "url": "https://12719877.fls.doubleclick.net/activityi",
     "file": "frame-4.html"
   },
   {
     "index": 5,
     "name": "",
-    "url": "about:blank",
+    "url": "nullblank",
     "file": "frame-5.html"
   },
   {
     "index": 6,
     "name": "",
-    "url": "about:blank",
+    "url": "nullblank",
     "file": "frame-6.html"
   },
   {
     "index": 7,
     "name": "",
-    "url": "about:blank",
+    "url": "nullblank",
     "file": "frame-7.html"
   },
   {
     "index": 8,
     "name": "userway",
-    "url": "about:blank",
+    "url": "nullblank",
     "file": "frame-8.html"
   }
 ]
