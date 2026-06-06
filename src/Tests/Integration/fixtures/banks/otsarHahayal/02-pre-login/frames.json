@@ -8,13 +8,13 @@
   {
     "index": 1,
     "name": "cookieCleaner",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-1.html"
   },
   {
     "index": 2,
     "name": "loginFrame",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-2.html"
   }
 ]

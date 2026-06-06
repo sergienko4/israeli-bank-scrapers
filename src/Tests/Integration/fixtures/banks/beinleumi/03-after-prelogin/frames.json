@@ -8,25 +8,25 @@
   {
     "index": 1,
     "name": "cookieCleaner",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-1.html"
   },
   {
     "index": 2,
     "name": "loginFrame",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-2.html"
   },
   {
     "index": 3,
     "name": "by_iframe_chat",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-3.html"
   },
   {
     "index": 4,
     "name": "by_iframe_chat_1",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-4.html"
   },
   {

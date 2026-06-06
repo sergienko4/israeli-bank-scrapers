@@ -425,9 +425,12 @@ function stripPathSemicolons(pathname: string): string {
 
 /**
  * Apply the full sanitization pipeline to a parsed URL: drop basic-auth
- * credentials, search, hash, and any path-embedded `;params`.
+ * credentials, search, hash, and any path-embedded `;params`. Handles
+ * non-hierarchical schemes (`about:`, `data:`, `javascript:`) where
+ * `parsed.origin === "null"` — falls back to `protocol + pathname` so
+ * `about:blank` stays `about:blank` (NOT the surprising "nullblank").
  * @param parsed - URL instance (mutated, but only this function uses it).
- * @returns `origin + sanitizedPathname` (no query, hash, creds, or `;params`).
+ * @returns `prefix + sanitizedPathname` (origin for hierarchical, protocol otherwise).
  */
 function sanitizeParsedUrl(parsed: URL): string {
   parsed.username = '';
@@ -435,7 +438,8 @@ function sanitizeParsedUrl(parsed: URL): string {
   parsed.search = '';
   parsed.hash = '';
   const sanitizedPath = stripPathSemicolons(parsed.pathname);
-  return `${parsed.origin}${sanitizedPath}`;
+  const prefix = parsed.origin === 'null' ? parsed.protocol : parsed.origin;
+  return `${prefix}${sanitizedPath}`;
 }
 
 /**

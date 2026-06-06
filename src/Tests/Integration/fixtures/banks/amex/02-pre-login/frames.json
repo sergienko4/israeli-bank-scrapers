@@ -8,7 +8,7 @@
   {
     "index": 1,
     "name": "",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-1.html"
   },
   {
@@ -32,25 +32,25 @@
   {
     "index": 5,
     "name": "",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-5.html"
   },
   {
     "index": 6,
     "name": "",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-6.html"
   },
   {
     "index": 7,
     "name": "",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-7.html"
   },
   {
     "index": 8,
     "name": "userway",
-    "url": "nullblank",
+    "url": "about:blank",
     "file": "frame-8.html"
   }
 ]
