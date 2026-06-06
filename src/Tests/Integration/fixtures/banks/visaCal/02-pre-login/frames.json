@@ -1,0 +1,32 @@
+[
+  {
+    "index": 0,
+    "name": "",
+    "url": "https://www.cal-online.co.il/login",
+    "file": "frame-0.html"
+  },
+  {
+    "index": 1,
+    "name": "u1st-ActivationFrame",
+    "url": "https://accessability.cal-online.co.il/CommFrame/Activation",
+    "file": "frame-1.html"
+  },
+  {
+    "index": 2,
+    "name": "",
+    "url": "about:blank",
+    "file": "frame-2.html"
+  },
+  {
+    "index": 3,
+    "name": "",
+    "url": "",
+    "file": "frame-3.html"
+  },
+  {
+    "index": 4,
+    "name": "",
+    "url": "about:blank",
+    "file": "frame-4.html"
+  }
+]

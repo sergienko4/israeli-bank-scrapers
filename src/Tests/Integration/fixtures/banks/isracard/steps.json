@@ -1,0 +1,14 @@
+[
+  {
+    "name": "01-home",
+    "finalUrl": "https://www.isracard.co.il/"
+  },
+  {
+    "name": "02-pre-login",
+    "finalUrl": "https://digital.isracard.co.il/personalarea/Login/"
+  },
+  {
+    "name": "03-after-flip",
+    "finalUrl": "https://digital.isracard.co.il/personalarea/Login/"
+  }
+]

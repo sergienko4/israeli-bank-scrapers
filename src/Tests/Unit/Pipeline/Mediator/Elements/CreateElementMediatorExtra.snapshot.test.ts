@@ -49,6 +49,7 @@ describe('CreateElementMediator — snapshotValue href target + fallback', () =>
        */
       evaluate(fn: unknown): Promise<unknown> {
         const fnStr = String(fn);
+        if (fnStr.includes('skip-to-main')) return Promise.resolve(false);
         if (fnStr.includes('elementFromPoint')) return Promise.resolve(true);
         if (fnStr.includes('closest')) return Promise.resolve('/from-ancestor');
         return Promise.resolve('(trace)');

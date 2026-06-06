@@ -1,0 +1,14 @@
+[
+  {
+    "name": "01-home",
+    "finalUrl": "https://www.fibi.co.il/private/"
+  },
+  {
+    "name": "02-modal-opened",
+    "finalUrl": "https://www.fibi.co.il/private/"
+  },
+  {
+    "name": "03-after-prelogin",
+    "finalUrl": "https://www.fibi.co.il/private/"
+  }
+]

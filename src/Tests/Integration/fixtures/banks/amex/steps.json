@@ -1,0 +1,14 @@
+[
+  {
+    "name": "01-home",
+    "finalUrl": "https://www.americanexpress.co.il/"
+  },
+  {
+    "name": "02-pre-login",
+    "finalUrl": "https://he.americanexpress.co.il/personalarea/login/"
+  },
+  {
+    "name": "03-after-flip",
+    "finalUrl": "https://he.americanexpress.co.il/personalarea/login/"
+  }
+]

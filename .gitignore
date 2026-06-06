@@ -98,3 +98,6 @@ scripts/**
 # Python bytecode (mkdocs hooks)
 __pycache__/
 *.pyc
+
+.agent-*/*
+.commit*

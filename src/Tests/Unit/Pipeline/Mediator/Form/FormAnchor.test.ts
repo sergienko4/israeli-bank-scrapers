@@ -133,15 +133,43 @@ describe('scopeCandidate', () => {
     const scoped = scopeCandidate('#form', { kind: 'name', value: 'p' });
     expect(scoped.value).toContain('[name="p"]');
   });
-  it('passes through unscopable textContent kind unchanged', () => {
+  it('rewrites textContent candidate into a form-scoped xpath walk-up (#307)', () => {
     const original: SelectorCandidate = { kind: 'textContent', value: 'Submit' };
-    const scopeCandidateResult1 = scopeCandidate('#form', original);
-    expect(scopeCandidateResult1).toEqual(original);
+    const scoped = scopeCandidate('#form', original);
+    expect(scoped.kind).toBe('xpath');
+    expect(scoped.value).toContain('//*[@id="form"]');
+    expect(scoped.value).toContain('Submit');
+    expect(scoped.value).toContain('ancestor::*');
   });
-  it('passes through xpath kind unchanged', () => {
-    const original: SelectorCandidate = { kind: 'xpath', value: '//button' };
-    const scopeCandidateResult2 = scopeCandidate('#form', original);
-    expect(scopeCandidateResult2).toEqual(original);
+  it('rewrites labelText candidate into a form-scoped xpath union (#307)', () => {
+    const scoped = scopeCandidate('#form', { kind: 'labelText', value: 'User' });
+    expect(scoped.kind).toBe('xpath');
+    expect(scoped.value).toContain('//*[@id="form"]//label[contains(., "User")]');
+    expect(scoped.value).toContain(' | ');
+  });
+  it('rewrites clickableText candidate into a form-scoped innermost xpath (#307)', () => {
+    const scoped = scopeCandidate('#form', { kind: 'clickableText', value: 'Go' });
+    expect(scoped.kind).toBe('xpath');
+    expect(scoped.value).toContain('//*[@id="form"]');
+    expect(scoped.value).toContain('Go');
+  });
+  it('returns text candidate unchanged when form selector is not id-bearing', () => {
+    const original: SelectorCandidate = { kind: 'textContent', value: 'Submit' };
+    const scoped = scopeCandidate('form.x', original);
+    expect(scoped).toEqual(original);
+  });
+  it('prepends form-id ancestor predicate to xpath kind (#307)', () => {
+    const scoped = scopeCandidate('#form', { kind: 'xpath', value: '//button' });
+    expect(scoped.kind).toBe('xpath');
+    expect(scoped.value).toBe('//*[@id="form"]//button');
+  });
+  it('leaves xpath unchanged when form selector is not id-bearing', () => {
+    const scoped = scopeCandidate('form.x', { kind: 'xpath', value: '//button' });
+    expect(scoped).toEqual({ kind: 'xpath', value: '//button' });
+  });
+  it('leaves xpath unchanged when value does not start with //', () => {
+    const scoped = scopeCandidate('#form', { kind: 'xpath', value: 'button' });
+    expect(scoped).toEqual({ kind: 'xpath', value: 'button' });
   });
 });
 
@@ -154,7 +182,8 @@ describe('scopeCandidates', () => {
     const out = scopeCandidates('#form', input);
     expect(out.length).toBe(2);
     expect(out[0].value).toBe('#form input');
-    expect(out[1]).toEqual(input[1]);
+    expect(out[1].kind).toBe('xpath');
+    expect(out[1].value).toContain('//*[@id="form"]');
   });
 });
 

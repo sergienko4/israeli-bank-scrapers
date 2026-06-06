@@ -39,9 +39,11 @@ describe('CreateElementMediator — snapshotValue text-path branches', () => {
       /**
        * Test helper.
        *
+       * @param fn - Evaluated function.
        * @returns Result.
        */
-      evaluate(): Promise<unknown> {
+      evaluate(fn: unknown): Promise<unknown> {
+        if (String(fn).includes('skip-to-main')) return Promise.resolve(false);
         return Promise.resolve(true);
       },
       /**
@@ -102,6 +104,7 @@ describe('CreateElementMediator — snapshotValue text-path branches', () => {
        */
       evaluate(fn: unknown): Promise<unknown> {
         const src = String(fn);
+        if (src.includes('skip-to-main')) return Promise.resolve(false);
         if (src.includes('elementFromPoint')) return Promise.resolve(true);
         if (src.includes('closest')) return Promise.resolve('/ancestor-path');
         return Promise.resolve('(trace)');
@@ -164,6 +167,7 @@ describe('CreateElementMediator — snapshotValue text-path branches', () => {
        */
       evaluate(fn: unknown): Promise<unknown> {
         const src = String(fn);
+        if (src.includes('skip-to-main')) return Promise.resolve(false);
         if (src.includes('elementFromPoint')) return Promise.resolve(true);
         if (src.includes('closest')) return Promise.reject(new Error('walkUp boom'));
         return Promise.resolve('(trace)');

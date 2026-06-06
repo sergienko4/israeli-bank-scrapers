@@ -1,0 +1,20 @@
+[
+  {
+    "index": 0,
+    "name": "",
+    "url": "https://www.pagi.co.il/private/",
+    "file": "frame-0.html"
+  },
+  {
+    "index": 1,
+    "name": "cookieCleaner",
+    "url": "about:blank",
+    "file": "frame-1.html"
+  },
+  {
+    "index": 2,
+    "name": "loginFrame",
+    "url": "about:blank",
+    "file": "frame-2.html"
+  }
+]
