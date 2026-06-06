@@ -58,7 +58,7 @@ const MANIFEST_SIMPLE = {
       advanceTo: 'PRE_LOGIN',
     },
   ],
-};
+} as const;
 
 const MANIFEST_OTP = {
   bankId: BANK_ID,
@@ -82,7 +82,7 @@ const MANIFEST_OTP = {
       advanceTo: 'AUTH_DISCOVERY',
     },
   ],
-};
+} as const;
 
 const MANIFEST_AMBIGUOUS = {
   bankId: BANK_ID,
@@ -103,7 +103,7 @@ const MANIFEST_AMBIGUOUS = {
       response: { status: 200, contentType: 'text/html', bodyFile: 'init.html' },
     },
   ],
-};
+} as const;
 
 const MANIFEST_BACKWARD = {
   bankId: BANK_ID,
@@ -119,7 +119,7 @@ const MANIFEST_BACKWARD = {
       advanceTo: 'INIT',
     },
   ],
-};
+} as const;
 
 /** Wrapper handle for the temp fixtures dir + cleanup callback. */
 interface IFixturesHandle {

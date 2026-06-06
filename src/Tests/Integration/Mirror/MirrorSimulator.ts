@@ -52,7 +52,11 @@ import {
   type IOtpChallengeState,
   issueChallenge,
 } from './MirrorOtpChallenge.js';
-import { type IMatchRequest, matchTransition } from './MirrorTransitionMatcher.js';
+import {
+  type IMatchOutcome,
+  type IMatchRequest,
+  matchTransition,
+} from './MirrorTransitionMatcher.js';
 
 /** Sentinel-style status returned by void-replacing functions. */
 type SimulatorStepStatus = 'noop' | 'advanced' | 'recorded';
@@ -130,6 +134,29 @@ interface IOtpEnforcementArgs {
   readonly ctx: IRouteCtx;
 }
 
+/** Bundle for the outcome dispatcher. */
+interface IDispatchArgs {
+  readonly outcome: IMatchOutcome;
+  readonly route: Route;
+  readonly request: IMatchRequest;
+  readonly ctx: IRouteCtx;
+}
+
+/** Resolved fulfil payload (status + headers + body). */
+interface IFulfilPayload {
+  readonly status: number;
+  readonly headers: Record<string, string>;
+  readonly body: Buffer;
+}
+
+/** Bundle passed to {@link verifyOtpSubmission}. */
+interface IVerifyOtpArgs {
+  readonly state: IOtpChallengeState;
+  readonly submittedCode: string;
+  readonly submittedNonce: string;
+  readonly expectedCode: string;
+}
+
 /**
  * Install the simulator on the page.
  *
@@ -139,17 +166,34 @@ interface IOtpEnforcementArgs {
 async function installSimulator(args: IInstallSimulatorArgs): Promise<ISimulatorHandle> {
   const manifest = loadMirrorManifest({ bankId: args.bankId, fixturesRoot: args.fixturesRoot });
   const state: ISimulatorState = buildInitialState(manifest);
-  const ctx: IRouteCtx = {
-    state,
-    manifest,
-    fixturesRoot: args.fixturesRoot,
-    expectedOtpCode: args.expectedOtpCode ?? DEFAULT_TEST_OTP_CODE,
-  };
+  const ctx: IRouteCtx = buildRouteCtx({ manifest, state, args });
   await args.page.route(
     '**/*',
     (route, req): Promise<SimulatorStepStatus> => handleRoute(route, req, ctx),
   );
   return buildHandle(args.page, state);
+}
+
+/** Bundle passed to {@link buildRouteCtx}. */
+interface IRouteCtxSpec {
+  readonly manifest: IMirrorManifest;
+  readonly state: ISimulatorState;
+  readonly args: IInstallSimulatorArgs;
+}
+
+/**
+ * Build the route context bundle that travels with every route event.
+ *
+ * @param spec - Manifest + state + install args.
+ * @returns Frozen route context.
+ */
+function buildRouteCtx(spec: IRouteCtxSpec): IRouteCtx {
+  return {
+    state: spec.state,
+    manifest: spec.manifest,
+    fixturesRoot: spec.args.fixturesRoot,
+    expectedOtpCode: spec.args.expectedOtpCode ?? DEFAULT_TEST_OTP_CODE,
+  };
 }
 
 /**
@@ -177,22 +221,33 @@ function buildInitialState(manifest: IMirrorManifest): ISimulatorState {
  * @returns Handle exposing snapshot + dispose.
  */
 function buildHandle(page: Page, state: ISimulatorState): ISimulatorHandle {
-  /**
-   * Snapshot the current simulator state.
-   *
-   * @returns Frozen snapshot.
-   */
-  const snapshot = (): ISimulatorSnapshot => buildSnapshot(state);
-  /**
-   * Remove the route binding and release simulator resources.
-   *
-   * @returns Resolves once the unroute completes.
-   */
-  async function dispose(): Promise<true> {
+  return {
+    snapshot: createSnapshotFn(state),
+    dispose: createDisposeFn(page),
+  };
+}
+
+/**
+ * Create the snapshot closure bound to mutable state.
+ *
+ * @param state - Mutable simulator state.
+ * @returns Zero-arg snapshot function.
+ */
+function createSnapshotFn(state: ISimulatorState): () => ISimulatorSnapshot {
+  return (): ISimulatorSnapshot => buildSnapshot(state);
+}
+
+/**
+ * Create the dispose closure bound to the page.
+ *
+ * @param page - The page the route was installed on.
+ * @returns Async dispose function returning `true` on completion.
+ */
+function createDisposeFn(page: Page): () => Promise<true> {
+  return async function dispose(): Promise<true> {
     await page.unroute('**/*');
     return true;
-  }
-  return { snapshot, dispose };
+  };
 }
 
 /**
@@ -230,15 +285,35 @@ async function handleRoute(
     currentPhase: ctx.state.currentPhase,
     transitions: ctx.manifest.transitions,
   });
-  if (outcome.kind === 'ambiguous') {
-    throw new ScraperError(
-      `MirrorSimulator: ambiguous manifest match for ${request.method} ${request.url} in phase ${ctx.state.currentPhase}`,
-    );
-  }
-  if (outcome.kind === 'none') return handleEscape(route, request, ctx);
-  if (!isSome(outcome.transition)) return 'noop';
-  await fulfilTransition({ route, transition: outcome.transition.value, request, ctx });
+  return dispatchOutcome({ outcome, route, request, ctx });
+}
+
+/**
+ * Dispatch the matcher outcome to the appropriate side-effect path.
+ *
+ * @param args - Outcome + route + request + context bundle.
+ * @returns Sentinel step status.
+ */
+async function dispatchOutcome(args: IDispatchArgs): Promise<SimulatorStepStatus> {
+  if (args.outcome.kind === 'ambiguous') throwAmbiguous(args.request, args.ctx);
+  if (args.outcome.kind === 'none') return handleEscape(args.route, args.request, args.ctx);
+  if (!isSome(args.outcome.transition)) return 'noop';
+  const transition = args.outcome.transition.value;
+  await fulfilTransition({ route: args.route, transition, request: args.request, ctx: args.ctx });
   return 'advanced';
+}
+
+/**
+ * Throw a ScraperError describing an ambiguous manifest match.
+ *
+ * @param request - Request that triggered ambiguity.
+ * @param ctx - Route context (for current phase).
+ * @returns Never returns — always throws.
+ */
+function throwAmbiguous(request: IMatchRequest, ctx: IRouteCtx): never {
+  throw new ScraperError(
+    `MirrorSimulator: ambiguous manifest match for ${request.method} ${request.url} in phase ${ctx.state.currentPhase}`,
+  );
 }
 
 /**
@@ -249,11 +324,7 @@ async function handleRoute(
  */
 function buildMatchRequest(req: Request): IMatchRequest {
   const rawHeaders = req.headers();
-  const lowered = new Map<string, string>();
-  for (const key of Object.keys(rawHeaders)) {
-    const lowerKey = key.toLowerCase();
-    lowered.set(lowerKey, rawHeaders[key]);
-  }
+  const lowered = normalizeHeaders(rawHeaders);
   const postBody = req.postData() ?? '';
   return {
     method: req.method().toUpperCase(),
@@ -262,6 +333,21 @@ function buildMatchRequest(req: Request): IMatchRequest {
     postBody,
     headers: lowered,
   };
+}
+
+/**
+ * Lowercase header keys into a fresh map for the matcher.
+ *
+ * @param raw - Playwright's header record (mixed-case keys).
+ * @returns Lower-cased header map.
+ */
+function normalizeHeaders(raw: Record<string, string>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const key of Object.keys(raw)) {
+    const lowerKey = key.toLowerCase();
+    out.set(lowerKey, raw[key]);
+  }
+  return out;
 }
 
 /**
@@ -277,14 +363,24 @@ async function handleEscape(
   request: IMatchRequest,
   ctx: IRouteCtx,
 ): Promise<SimulatorStepStatus> {
-  const kind = classifyEscape({
+  const kind = getEscapeKind(request);
+  recordEscape(ctx.state, request, kind);
+  await route.abort();
+  return 'recorded';
+}
+
+/**
+ * Compute the escape kind for one request via {@link classifyEscape}.
+ *
+ * @param request - Matcher input.
+ * @returns Classified escape kind.
+ */
+function getEscapeKind(request: IMatchRequest): EscapeKind {
+  return classifyEscape({
     method: request.method,
     url: request.url,
     resourceType: request.resourceType,
   });
-  recordEscape(ctx.state, request, kind);
-  await route.abort();
-  return 'recorded';
 }
 
 /**
@@ -300,16 +396,46 @@ function recordEscape(
   request: IMatchRequest,
   kind: EscapeKind,
 ): SimulatorStepStatus {
-  if (kind === 'fatal') {
-    state.fatalEscapes.push({
-      method: request.method,
-      url: request.url,
-      resourceType: request.resourceType,
-    });
-    return 'recorded';
-  }
-  if (kind === 'benign') state.benignAbortCount += 1;
-  if (kind === 'noise') state.noiseAbortCount += 1;
+  if (kind === 'fatal') return recordFatalEscape(state, request);
+  if (kind === 'benign') return recordBenignEscape(state);
+  return recordNoiseEscape(state);
+}
+
+/**
+ * Record one fatal escape.
+ *
+ * @param state - Mutable state.
+ * @param request - Request that escaped.
+ * @returns Sentinel 'recorded'.
+ */
+function recordFatalEscape(state: ISimulatorState, request: IMatchRequest): SimulatorStepStatus {
+  state.fatalEscapes.push({
+    method: request.method,
+    url: request.url,
+    resourceType: request.resourceType,
+  });
+  return 'recorded';
+}
+
+/**
+ * Increment the benign abort counter.
+ *
+ * @param state - Mutable state.
+ * @returns Sentinel 'recorded'.
+ */
+function recordBenignEscape(state: ISimulatorState): SimulatorStepStatus {
+  state.benignAbortCount += 1;
+  return 'recorded';
+}
+
+/**
+ * Increment the noise abort counter.
+ *
+ * @param state - Mutable state.
+ * @returns Sentinel 'recorded'.
+ */
+function recordNoiseEscape(state: ISimulatorState): SimulatorStepStatus {
+  state.noiseAbortCount += 1;
   return 'recorded';
 }
 
@@ -321,22 +447,58 @@ function recordEscape(
  * @returns Sentinel 'advanced'.
  */
 async function fulfilTransition(args: IFulfilArgs): Promise<SimulatorStepStatus> {
-  if (args.transition.phase === 'OTP_FILL') {
-    enforceOtpSubmission({ transition: args.transition, request: args.request, ctx: args.ctx });
-  }
-  const body = readFixtureBody(
-    args.ctx.fixturesRoot,
-    args.ctx.manifest.bankId,
-    args.transition.response,
-  );
-  const headers = composeResponseHeaders(args.transition, args.ctx.state.otpChallenge);
+  handleOtpForFulfil(args);
+  const payload = getFulfilPayload(args.ctx, args.transition);
   await args.route.fulfill({
-    status: args.transition.response.status,
-    headers,
-    body,
+    status: payload.status,
+    headers: payload.headers,
+    body: payload.body,
   });
-  args.ctx.state.transitionsFired += 1;
-  applyPhaseAdvance(args.transition, args.ctx.state);
+  return advanceTransitionState(args.transition, args.ctx);
+}
+
+/**
+ * If the fulfilled transition is the OTP_FILL submission, enforce the
+ * submitted code + nonce match the issued challenge.
+ *
+ * @param args - Fulfil bundle.
+ * @returns Sentinel 'advanced' when enforced, 'noop' otherwise.
+ */
+function handleOtpForFulfil(args: IFulfilArgs): SimulatorStepStatus {
+  if (args.transition.phase !== 'OTP_FILL') return 'noop';
+  return enforceOtpSubmission({
+    transition: args.transition,
+    request: args.request,
+    ctx: args.ctx,
+  });
+}
+
+/**
+ * Resolve the fulfil payload (status + headers + body) for a transition.
+ *
+ * @param ctx - Route context (for fixture root + OTP challenge).
+ * @param transition - Matched transition.
+ * @returns Status + composed headers + body bytes.
+ */
+function getFulfilPayload(ctx: IRouteCtx, transition: IMirrorTransition): IFulfilPayload {
+  const body = readFixtureBody(ctx.fixturesRoot, ctx.manifest.bankId, transition.response);
+  const headers = composeResponseHeaders(transition, ctx.state.otpChallenge);
+  return { status: transition.response.status, headers, body };
+}
+
+/**
+ * Increment the transitions counter and advance the phase if applicable.
+ *
+ * @param transition - Matched transition.
+ * @param ctx - Route context (for mutable state).
+ * @returns Sentinel 'advanced'.
+ */
+function advanceTransitionState(
+  transition: IMirrorTransition,
+  ctx: IRouteCtx,
+): SimulatorStepStatus {
+  ctx.state.transitionsFired += 1;
+  applyPhaseAdvance(transition, ctx.state);
   return 'advanced';
 }
 
@@ -348,21 +510,57 @@ async function fulfilTransition(args: IFulfilArgs): Promise<SimulatorStepStatus>
  */
 function enforceOtpSubmission(args: IOtpEnforcementArgs): SimulatorStepStatus {
   const submittedCode = extractSubmittedCode(args.request.postBody, args.transition);
-  const cookieHeader = args.request.headers.get('cookie') ?? '';
-  const headerNonce = args.request.headers.get(CHALLENGE_HEADER);
-  const submittedNonce = headerNonce ?? extractCookieNonce(cookieHeader);
-  const result = assertOtpSubmission({
+  const submittedNonce = extractSubmittedNonce(args.request.headers);
+  return verifyOtpSubmission({
     state: args.ctx.state.otpChallenge,
+    expectedCode: args.ctx.expectedOtpCode,
     submittedCode,
     submittedNonce,
-    expectedCode: args.ctx.expectedOtpCode,
   });
-  if (result !== 'accepted') {
-    throw new ScraperError(
-      `MirrorSimulator OTP_FILL rejected (${result}): submittedCode='${submittedCode}' submittedNonce='${submittedNonce}'`,
-    );
-  }
+}
+
+/**
+ * Extract the submitted nonce from either the challenge header or the
+ * raw `Cookie` header (header takes precedence).
+ *
+ * @param headers - Lower-cased request headers.
+ * @returns Submitted nonce or empty string when missing.
+ */
+function extractSubmittedNonce(headers: ReadonlyMap<string, string>): string {
+  const headerNonce = headers.get(CHALLENGE_HEADER);
+  if (headerNonce !== undefined) return headerNonce;
+  const cookieHeader = headers.get('cookie') ?? '';
+  return extractCookieNonce(cookieHeader);
+}
+
+/**
+ * Assert the OTP submission against the issued challenge — throw on reject.
+ *
+ * @param args - OTP verification args.
+ * @returns Sentinel 'advanced' on accept.
+ */
+function verifyOtpSubmission(args: IVerifyOtpArgs): SimulatorStepStatus {
+  const result = assertOtpSubmission({
+    state: args.state,
+    submittedCode: args.submittedCode,
+    submittedNonce: args.submittedNonce,
+    expectedCode: args.expectedCode,
+  });
+  if (result !== 'accepted') throwOtpRejected(result, args);
   return 'advanced';
+}
+
+/**
+ * Throw a ScraperError describing the OTP rejection reason.
+ *
+ * @param result - Non-accepted assertion result.
+ * @param args - Original verification args (for context strings).
+ * @returns Never returns — always throws.
+ */
+function throwOtpRejected(result: string, args: IVerifyOtpArgs): never {
+  throw new ScraperError(
+    `MirrorSimulator OTP_FILL rejected (${result}): submittedCode='${args.submittedCode}' submittedNonce='${args.submittedNonce}'`,
+  );
 }
 
 /**
@@ -421,14 +619,24 @@ function findValueInForm(body: string, key: string): Option<string> {
 function findValueInJson(body: string, key: string): Option<string> {
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
-    const value = parsed[key];
-    if (typeof value === 'string') return some(value);
-    if (value === undefined) return none();
-    const serialized = JSON.stringify(value);
-    return some(serialized);
+    return serializeJsonValue(parsed[key]);
   } catch {
     return none();
   }
+}
+
+/**
+ * Serialize one JSON value to a string Option. `undefined` becomes none,
+ * strings pass through, everything else is JSON.stringify'd.
+ *
+ * @param value - JSON value (any).
+ * @returns Some(stringified) or none.
+ */
+function serializeJsonValue(value: unknown): Option<string> {
+  if (typeof value === 'string') return some(value);
+  if (value === undefined) return none();
+  const serialized = JSON.stringify(value);
+  return some(serialized);
 }
 
 /**
@@ -497,13 +705,25 @@ function applyPhaseAdvance(
   state: ISimulatorState,
 ): SimulatorStepStatus {
   if (transition.advanceTo === undefined) return 'noop';
-  if (!isForwardTransition(state.currentPhase, transition.advanceTo)) {
-    throw new ScraperError(
-      `MirrorSimulator: backward transition rejected (${state.currentPhase} -> ${transition.advanceTo})`,
-    );
-  }
+  ensureForwardTransition(state.currentPhase, transition.advanceTo);
   state.currentPhase = transition.advanceTo;
   return 'advanced';
+}
+
+/**
+ * Throw if the proposed phase transition is not strictly forward.
+ *
+ * @param current - Current phase.
+ * @param target - Target phase.
+ * @returns `true` after enforcing forward direction.
+ */
+function ensureForwardTransition(current: IntegrationPhase, target: IntegrationPhase): true {
+  if (!isForwardTransition(current, target)) {
+    throw new ScraperError(
+      `MirrorSimulator: backward transition rejected (${current} -> ${target})`,
+    );
+  }
+  return true;
 }
 
 export type {

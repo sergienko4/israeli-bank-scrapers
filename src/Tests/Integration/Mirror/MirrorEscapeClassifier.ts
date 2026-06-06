@@ -32,7 +32,7 @@ interface IClassifyArgs {
  * Hostname suffixes that are ALWAYS benign regardless of resource type.
  * Source: analytics + CDN domains observed during PR #310 mirror sweeps.
  */
-const BENIGN_HOST_SUFFIXES: readonly string[] = [
+const BENIGN_HOST_SUFFIXES = [
   'google-analytics.com',
   'googletagmanager.com',
   'doubleclick.net',
@@ -45,19 +45,19 @@ const BENIGN_HOST_SUFFIXES: readonly string[] = [
   'sentry.io',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
-];
+] as const;
 
 /**
  * URL path patterns that are ALWAYS noise (browser-issued, not by the
  * scraper code). Matched as substring.
  */
-const NOISE_URL_PATTERNS: readonly string[] = [
+const NOISE_URL_PATTERNS = [
   '/favicon.ico',
   '/.well-known/',
   '/safe-browsing/',
   'data:',
   'chrome-extension://',
-];
+] as const;
 
 /** Resource types whose unmatched requests are always benign. */
 const BENIGN_RESOURCE_TYPES: ReadonlySet<MirrorResourceType> = new Set<MirrorResourceType>([

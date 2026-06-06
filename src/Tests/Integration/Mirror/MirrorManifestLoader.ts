@@ -25,7 +25,7 @@ import { join } from 'node:path';
 
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { isSome, none, type Option, some } from '../../../Scrapers/Pipeline/Types/Option.js';
-import { asIntegrationPhase } from '../Phases/IntegrationPhase.js';
+import { asIntegrationPhase, type IntegrationPhase } from '../Phases/IntegrationPhase.js';
 import type {
   ICookiePredicate,
   IHeaderPredicate,
@@ -43,8 +43,8 @@ const STATUS_MIN = 100;
 /** HTTP status code upper bound (exclusive). */
 const STATUS_MAX = 600;
 
-/** Methods the manifest may declare. */
-const ALLOWED_METHODS: ReadonlySet<MirrorMethod> = new Set<MirrorMethod>([
+/** Methods the manifest may declare (narrowed via `as const`). */
+const ALLOWED_METHODS = new Set<MirrorMethod>([
   'GET',
   'POST',
   'PUT',
@@ -52,10 +52,10 @@ const ALLOWED_METHODS: ReadonlySet<MirrorMethod> = new Set<MirrorMethod>([
   'DELETE',
   'OPTIONS',
   'HEAD',
-]);
+] as const);
 
-/** Resource types the manifest may declare. */
-const ALLOWED_RESOURCE_TYPES: ReadonlySet<MirrorResourceType> = new Set<MirrorResourceType>([
+/** Resource types the manifest may declare (narrowed via `as const`). */
+const ALLOWED_RESOURCE_TYPES = new Set<MirrorResourceType>([
   'document',
   'fetch',
   'xhr',
@@ -66,12 +66,34 @@ const ALLOWED_RESOURCE_TYPES: ReadonlySet<MirrorResourceType> = new Set<MirrorRe
   'media',
   'websocket',
   'other',
-]);
+] as const);
 
 /** Arguments for {@link loadMirrorManifest}. */
 interface ILoadArgs {
   readonly bankId: string;
   readonly fixturesRoot: string;
+}
+
+/** Pair of phases parsed from a manifest root object. */
+interface IPhasePair {
+  readonly startPhase: IntegrationPhase;
+  readonly endPhase: IntegrationPhase;
+}
+
+/** Required transition fields after structural extraction. */
+interface IRequiredTransitionFields {
+  readonly phase: IntegrationPhase;
+  readonly method: MirrorMethod;
+  readonly urlPattern: string;
+}
+
+/** Optional transition fields kept as Option so the builder can unwrap once. */
+interface IOptionalTransitionFields {
+  readonly resourceType: Option<MirrorResourceType>;
+  readonly postData: Option<IPostDataPredicate>;
+  readonly headers: Option<readonly IHeaderPredicate[]>;
+  readonly cookies: Option<readonly ICookiePredicate[]>;
+  readonly advanceTo: Option<IntegrationPhase>;
 }
 
 /**
@@ -112,19 +134,47 @@ function parseManifestJson(raw: string, bankId: string): unknown {
  */
 function validateManifest(parsed: unknown, bankId: string): IMirrorManifest {
   const obj = expectObject(parsed, `bank '${bankId}' manifest root`);
-  const startPhase = expectPhase(obj.startPhase, `bank '${bankId}' .startPhase`);
-  const endPhase = expectPhase(obj.endPhase, `bank '${bankId}' .endPhase`);
-  const transitions = expectArray(obj.transitions, `bank '${bankId}' .transitions`).map(
-    (t, i): IMirrorTransition =>
-      validateTransition(t, `bank '${bankId}' .transitions[${String(i)}]`),
-  );
+  const phases = parsePhases(obj, bankId);
+  const transitions = parseTransitions(obj, bankId);
   return {
     bankId: expectString(obj.bankId, `bank '${bankId}' .bankId`),
     originUrl: expectString(obj.originUrl, `bank '${bankId}' .originUrl`),
-    startPhase,
-    endPhase,
+    startPhase: phases.startPhase,
+    endPhase: phases.endPhase,
     transitions,
   };
+}
+
+/**
+ * Extract the start/end phases from the parsed manifest root.
+ *
+ * @param obj - Parsed root object.
+ * @param bankId - For error context.
+ * @returns Validated start/end phase pair.
+ */
+function parsePhases(obj: Record<string, unknown>, bankId: string): IPhasePair {
+  return {
+    startPhase: expectPhase(obj.startPhase, `bank '${bankId}' .startPhase`),
+    endPhase: expectPhase(obj.endPhase, `bank '${bankId}' .endPhase`),
+  };
+}
+
+/**
+ * Extract the transition list from the parsed manifest root.
+ *
+ * @param obj - Parsed root object.
+ * @param bankId - For error context.
+ * @returns Validated transition list.
+ */
+function parseTransitions(
+  obj: Record<string, unknown>,
+  bankId: string,
+): readonly IMirrorTransition[] {
+  const arr = expectArray(obj.transitions, `bank '${bankId}' .transitions`);
+  return arr.map((t, i): IMirrorTransition => {
+    const ptr = `bank '${bankId}' .transitions[${String(i)}]`;
+    return validateTransition(t, ptr);
+  });
 }
 
 /**
@@ -136,25 +186,85 @@ function validateManifest(parsed: unknown, bankId: string): IMirrorManifest {
  */
 function validateTransition(parsed: unknown, ptr: string): IMirrorTransition {
   const obj = expectObject(parsed, ptr);
-  const methodPtr = `${ptr}.method`;
-  const rawMethod = expectString(obj.method, methodPtr);
-  const method = validateMethod(rawMethod, methodPtr);
-  const resourceTypeOpt = optionalResourceType(obj.resourceType, `${ptr}.resourceType`);
-  const postDataOpt = optionalPostData(obj.postData, `${ptr}.postData`);
-  const headersOpt = optionalHeaders(obj.headers, `${ptr}.headers`);
-  const cookiesOpt = optionalCookies(obj.cookies, `${ptr}.cookies`);
-  const advanceToOpt = optionalPhase(obj.advanceTo, `${ptr}.advanceTo`);
+  const required = parseRequiredFields(obj, ptr);
+  const optional = parseOptionalFields(obj, ptr);
+  const response = validateResponse(obj.response, `${ptr}.response`);
+  return buildTransition(required, optional, response);
+}
+
+/**
+ * Extract the three required transition fields.
+ *
+ * @param obj - Parsed transition object.
+ * @param ptr - JSON pointer for diagnostics.
+ * @returns Required fields bundle.
+ */
+function parseRequiredFields(obj: Record<string, unknown>, ptr: string): IRequiredTransitionFields {
+  const rawMethod = expectString(obj.method, `${ptr}.method`);
   return {
     phase: expectPhase(obj.phase, `${ptr}.phase`),
-    method,
+    method: validateMethod(rawMethod, `${ptr}.method`),
     urlPattern: expectString(obj.urlPattern, `${ptr}.urlPattern`),
-    resourceType: isSome(resourceTypeOpt) ? resourceTypeOpt.value : undefined,
-    postData: isSome(postDataOpt) ? postDataOpt.value : undefined,
-    headers: isSome(headersOpt) ? headersOpt.value : undefined,
-    cookies: isSome(cookiesOpt) ? cookiesOpt.value : undefined,
-    response: validateResponse(obj.response, `${ptr}.response`),
-    advanceTo: isSome(advanceToOpt) ? advanceToOpt.value : undefined,
   };
+}
+
+/**
+ * Extract the five optional transition fields as Option wrappers.
+ *
+ * @param obj - Parsed transition object.
+ * @param ptr - JSON pointer for diagnostics.
+ * @returns Optional fields bundle.
+ */
+function parseOptionalFields(obj: Record<string, unknown>, ptr: string): IOptionalTransitionFields {
+  return {
+    resourceType: optionalResourceType(obj.resourceType, `${ptr}.resourceType`),
+    postData: optionalPostData(obj.postData, `${ptr}.postData`),
+    headers: optionalHeaders(obj.headers, `${ptr}.headers`),
+    cookies: optionalCookies(obj.cookies, `${ptr}.cookies`),
+    advanceTo: optionalPhase(obj.advanceTo, `${ptr}.advanceTo`),
+  };
+}
+
+/**
+ * Compose the final transition object from validated parts.
+ *
+ * @param required - Required transition fields.
+ * @param optional - Optional transition fields (Option-wrapped).
+ * @param response - Validated response payload.
+ * @returns Frozen transition.
+ */
+function buildTransition(
+  required: IRequiredTransitionFields,
+  optional: IOptionalTransitionFields,
+  response: IMirrorResponse,
+): IMirrorTransition {
+  return { ...required, ...unwrapOptionalFields(optional), response };
+}
+
+/**
+ * Flatten the Option-wrapped optional fields into a plain object whose
+ * absent fields are `undefined` (matches IMirrorTransition's optional keys).
+ *
+ * @param optional - Optional fields bundle.
+ * @returns Plain object suitable for spread.
+ */
+function unwrapOptionalFields(optional: IOptionalTransitionFields): IUnwrappedOptional {
+  return {
+    resourceType: isSome(optional.resourceType) ? optional.resourceType.value : undefined,
+    postData: isSome(optional.postData) ? optional.postData.value : undefined,
+    headers: isSome(optional.headers) ? optional.headers.value : undefined,
+    cookies: isSome(optional.cookies) ? optional.cookies.value : undefined,
+    advanceTo: isSome(optional.advanceTo) ? optional.advanceTo.value : undefined,
+  };
+}
+
+/** Plain (non-Option) view of optional transition fields. */
+interface IUnwrappedOptional {
+  readonly resourceType: MirrorResourceType | undefined;
+  readonly postData: IPostDataPredicate | undefined;
+  readonly headers: readonly IHeaderPredicate[] | undefined;
+  readonly cookies: readonly ICookiePredicate[] | undefined;
+  readonly advanceTo: IntegrationPhase | undefined;
 }
 
 /**
@@ -199,15 +309,21 @@ function validateResponse(parsed: unknown, ptr: string): IMirrorResponse {
  * @returns The validated status code.
  */
 function expectStatus(value: unknown, ptr: string): number {
-  if (
-    typeof value !== 'number' ||
-    !Number.isInteger(value) ||
-    value < STATUS_MIN ||
-    value >= STATUS_MAX
-  ) {
+  if (!isValidStatus(value)) {
     throw new ScraperError(`MirrorManifest ${ptr} must be a 3-digit integer`);
   }
   return value;
+}
+
+/**
+ * Predicate for a valid 3-digit HTTP status integer.
+ *
+ * @param value - Raw value.
+ * @returns True when `value` is an integer within `[STATUS_MIN, STATUS_MAX)`.
+ */
+function isValidStatus(value: unknown): value is number {
+  if (typeof value !== 'number' || !Number.isInteger(value)) return false;
+  return value >= STATUS_MIN && value < STATUS_MAX;
 }
 
 /**
@@ -252,15 +368,26 @@ function optionalPostData(value: unknown, ptr: string): Option<IPostDataPredicat
  */
 function optionalHeaders(value: unknown, ptr: string): Option<readonly IHeaderPredicate[]> {
   if (value === undefined) return none();
-  const list = expectArray(value, ptr).map((entry, i): IHeaderPredicate => {
-    const obj = expectObject(entry, `${ptr}[${String(i)}]`);
-    const valueOpt = optionalString(obj.value, `${ptr}[${String(i)}].value`);
-    return {
-      name: expectString(obj.name, `${ptr}[${String(i)}].name`),
-      value: isSome(valueOpt) ? valueOpt.value : undefined,
-    };
-  });
+  const list = expectArray(value, ptr).map(
+    (entry, i): IHeaderPredicate => parseHeaderPredicate(entry, `${ptr}[${String(i)}]`),
+  );
   return some(list);
+}
+
+/**
+ * Parse one header predicate entry.
+ *
+ * @param entry - Raw entry value.
+ * @param entryPtr - JSON pointer for this entry.
+ * @returns Validated predicate.
+ */
+function parseHeaderPredicate(entry: unknown, entryPtr: string): IHeaderPredicate {
+  const obj = expectObject(entry, entryPtr);
+  const valueOpt = optionalString(obj.value, `${entryPtr}.value`);
+  return {
+    name: expectString(obj.name, `${entryPtr}.name`),
+    value: isSome(valueOpt) ? valueOpt.value : undefined,
+  };
 }
 
 /**
@@ -272,15 +399,26 @@ function optionalHeaders(value: unknown, ptr: string): Option<readonly IHeaderPr
  */
 function optionalCookies(value: unknown, ptr: string): Option<readonly ICookiePredicate[]> {
   if (value === undefined) return none();
-  const list = expectArray(value, ptr).map((entry, i): ICookiePredicate => {
-    const obj = expectObject(entry, `${ptr}[${String(i)}]`);
-    const valueOpt = optionalString(obj.value, `${ptr}[${String(i)}].value`);
-    return {
-      name: expectString(obj.name, `${ptr}[${String(i)}].name`),
-      value: isSome(valueOpt) ? valueOpt.value : undefined,
-    };
-  });
+  const list = expectArray(value, ptr).map(
+    (entry, i): ICookiePredicate => parseCookiePredicate(entry, `${ptr}[${String(i)}]`),
+  );
   return some(list);
+}
+
+/**
+ * Parse one cookie predicate entry.
+ *
+ * @param entry - Raw entry value.
+ * @param entryPtr - JSON pointer for this entry.
+ * @returns Validated predicate.
+ */
+function parseCookiePredicate(entry: unknown, entryPtr: string): ICookiePredicate {
+  const obj = expectObject(entry, entryPtr);
+  const valueOpt = optionalString(obj.value, `${entryPtr}.value`);
+  return {
+    name: expectString(obj.name, `${entryPtr}.name`),
+    value: isSome(valueOpt) ? valueOpt.value : undefined,
+  };
 }
 
 /**

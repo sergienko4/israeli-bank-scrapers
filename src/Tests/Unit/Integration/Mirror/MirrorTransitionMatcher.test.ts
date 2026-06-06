@@ -266,6 +266,69 @@ describe('matchTransition — header predicates', () => {
   });
 });
 
+describe('matchTransition — cookie predicates', () => {
+  const cookieTransition: IMirrorTransition = {
+    ...BASE_TRANSITION,
+    cookies: [{ name: 'sessionId', value: 'abc123' }],
+  };
+
+  it('matches when cookie is present with the expected value', () => {
+    const headers = new Map<string, string>([['cookie', 'sessionId=abc123; other=x']]);
+    const outcome = matchTransition({
+      request: { ...BASE_REQUEST, headers },
+      currentPhase: 'INIT',
+      transitions: [cookieTransition],
+    });
+    expect(outcome.kind).toBe('matched');
+  });
+
+  it('rejects when cookie is missing entirely', () => {
+    const outcome = matchTransition({
+      request: BASE_REQUEST,
+      currentPhase: 'INIT',
+      transitions: [cookieTransition],
+    });
+    expect(outcome.kind).toBe('none');
+  });
+
+  it('rejects when cookie value differs', () => {
+    const headers = new Map<string, string>([['cookie', 'sessionId=wrong']]);
+    const outcome = matchTransition({
+      request: { ...BASE_REQUEST, headers },
+      currentPhase: 'INIT',
+      transitions: [cookieTransition],
+    });
+    expect(outcome.kind).toBe('none');
+  });
+
+  it('accepts presence-only cookie predicate (no value declared)', () => {
+    const presence: IMirrorTransition = {
+      ...BASE_TRANSITION,
+      cookies: [{ name: 'sessionId' }],
+    };
+    const headers = new Map<string, string>([['cookie', 'sessionId=whatever; other=x']]);
+    const outcome = matchTransition({
+      request: { ...BASE_REQUEST, headers },
+      currentPhase: 'INIT',
+      transitions: [presence],
+    });
+    expect(outcome.kind).toBe('matched');
+  });
+
+  it('rejects when Cookie header is absent altogether', () => {
+    const presence: IMirrorTransition = {
+      ...BASE_TRANSITION,
+      cookies: [{ name: 'sessionId' }],
+    };
+    const outcome = matchTransition({
+      request: BASE_REQUEST,
+      currentPhase: 'INIT',
+      transitions: [presence],
+    });
+    expect(outcome.kind).toBe('none');
+  });
+});
+
 describe('matchTransition — ambiguity detection', () => {
   it('returns ambiguous when two same-phase transitions both fit', () => {
     const a: IMirrorTransition = { ...BASE_TRANSITION };

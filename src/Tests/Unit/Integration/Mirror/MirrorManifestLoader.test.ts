@@ -68,7 +68,7 @@ const VALID_MANIFEST = JSON.stringify({
       advanceTo: 'HOME',
     },
   ],
-});
+} as const);
 
 describe('loadMirrorManifest — happy path', () => {
   it('parses a minimal valid manifest', () => {
