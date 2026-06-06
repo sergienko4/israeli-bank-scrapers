@@ -1,0 +1,10 @@
+[
+  {
+    "name": "01-home",
+    "finalUrl": "https://www.bankhapoalim.co.il/"
+  },
+  {
+    "name": "02-pre-login",
+    "finalUrl": "https://login.bankhapoalim.co.il/ng-portals/auth/he/"
+  }
+]

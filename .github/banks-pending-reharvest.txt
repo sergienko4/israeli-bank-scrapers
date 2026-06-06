@@ -1,0 +1,41 @@
+# Banks pending re-harvest — transitional allow-list
+#
+# Banks listed here have a known harvester recipe gap that prevents
+# the captured static HTML from containing the credential input(s)
+# needed to drive Mode A + Mode B integration tests.
+#
+# The coverage gate (CheckBankIntegrationCoverage.ts) downgrades these
+# banks from FAIL → tracked as pending operator work. Tests for these
+# banks skip with a comment pointing to this file.
+#
+# Operator workflow:
+#   1. Run `npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts <bankId>`
+#   2. Verify the loginStep HTML contains <input type="password"> or
+#      <input id="password|tzPassword|otpLoginPwd">
+#   3. Commit the new fixtures
+#   4. Remove the bankId from this allow-list
+#   5. Re-run pre-commit — the bank should now DRIVE green in both modes
+#
+# Format: one bankId per line. Lines starting with `#` are comments.
+#
+# ── Currently pending (5) ──
+# Beinleumi   recipe gap: Angular form lives in iframe; harvester
+#             needs `wait-iframe-loaded` step + asset capture so the
+#             iframe contents become part of the captured DOM.
+beinleumi
+#
+# VisaCal     recipe gap: SPA hydration not complete at capture time.
+#             Harvester needs `wait-for-selector(input[type=password])`
+#             before dumping HTML so the form is rendered.
+visaCal
+#
+# Massad      recipe gap: login form has a tab/accordion-toggle UI
+#             that reveals the password tab only after click. Harvester
+#             needs `click-password-tab` step before capture.
+massad
+#
+# Pagi        recipe gap: same as Massad — click-password-tab step needed.
+pagi
+#
+# OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
+otsarHahayal

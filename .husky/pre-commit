@@ -194,6 +194,7 @@ bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Commo
 bg_gate "canaries"          "yes" npm run lint:canaries
 bg_gate "dead-code"         "yes" npm run lint:dead-code
 bg_gate "guideline-coverage" "yes" npm run lint:guideline-coverage
+bg_gate "bank-coverage"     "yes" npm run lint:bank-coverage
 
 # docs-strict — fires when docs/** or any root .md file (consumed by
 # mkdocs.yml's nav / referenced via relative link) changed. Catches the
@@ -323,6 +324,47 @@ fi
 #         touch "$(cache_marker "e2e-factory-tests")"
 #     fi
 # fi
+
+# # ── Phase 4: Bank Integration Modes A + B (HARD GATE, sequential) ──
+# # Per user directive 2026-06-06: integration tests are THE gate that
+# # cuts the rate of bug-laden code reaching real-bank runs.
+# # NO RELAXATION — every pipeline bank must DRIVE green in BOTH modes:
+# #   * Mode A: production LoginFieldDiscovery + CreateElementMediator
+# #     against committed static HTML fixture (offline).
+# #   * Mode B: local mirror HTTP origin serving captured HTML + assets
+# #     at the bank's real URL; production scraper.scrape() runs the
+# #     HOME → PRE-LOGIN → LOGIN PRE chain end-to-end without touching
+# #     the live bank.
+# # Runs AFTER all parallel gates + test:e2e:mock so the fast feedback
+# # loop fires first, and BEFORE Phase 5 real e2e so a Mode-A/B failure
+# # blocks before burning real-bank time / WAF / OTP rate-limit budget.
+# # Sequential because Camoufox instances cannot run concurrently
+# # (upstream bug #386).
+run-integration-modes() {
+    log ""
+    log "🧪 Phase 4: Integration Mode A + Mode B (HARD GATE — no relaxation)"
+    if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:integration:mode-a")" ] && [ -f "$(cache_marker "test:integration:mode-b")" ]; then
+        log "  ⚡ Mode A + Mode B cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+        return 0
+    fi
+    log "  → Mode A (static HTML drive)..."
+    npm run test:integration:mode-a 2>&1 | tee -a "$LOG_FILE"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "❌ Integration Mode A FAILED — fix before real e2e"
+        exit 1
+    fi
+    [ -n "$CACHE_KEY" ] && touch "$(cache_marker "test:integration:mode-a")"
+    log "  → Mode B (mirror origin drive)..."
+    npm run test:integration:mode-b 2>&1 | tee -a "$LOG_FILE"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        log "❌ Integration Mode B FAILED — fix before real e2e"
+        exit 1
+    fi
+    [ -n "$CACHE_KEY" ] && touch "$(cache_marker "test:integration:mode-b")"
+    log "  ✅ Mode A + Mode B green for all 11 pipeline banks"
+    log ""
+}
+run-integration-modes
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
 # # This is the last gate — if it passes, the commit proceeds.
