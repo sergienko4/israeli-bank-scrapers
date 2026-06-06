@@ -1,0 +1,10 @@
+[
+  {
+    "name": "01-home",
+    "finalUrl": "https://www.cal-online.co.il/"
+  },
+  {
+    "name": "02-pre-login",
+    "finalUrl": "https://www.cal-online.co.il/login"
+  }
+]

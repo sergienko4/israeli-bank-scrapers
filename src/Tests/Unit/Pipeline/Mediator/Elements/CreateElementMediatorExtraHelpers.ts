@@ -65,6 +65,9 @@ function resolveHitTest(script: ILocatorScript): boolean {
  * @returns Scripted result.
  */
 function dispatchEvaluateSource(src: string, script: ILocatorScript): EvaluateResult {
+  if (src.includes('skip-to-main') && !src.includes('elementFromPoint')) {
+    return false;
+  }
   if (src.includes('elementFromPoint') || src.includes('getBoundingClientRect')) {
     return resolveHitTest(script);
   }

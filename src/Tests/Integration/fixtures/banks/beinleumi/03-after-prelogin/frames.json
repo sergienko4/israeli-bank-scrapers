@@ -1,0 +1,38 @@
+[
+  {
+    "index": 0,
+    "name": "",
+    "url": "https://www.fibi.co.il/private/",
+    "file": "frame-0.html"
+  },
+  {
+    "index": 1,
+    "name": "cookieCleaner",
+    "url": "about:blank",
+    "file": "frame-1.html"
+  },
+  {
+    "index": 2,
+    "name": "loginFrame",
+    "url": "about:blank",
+    "file": "frame-2.html"
+  },
+  {
+    "index": 3,
+    "name": "by_iframe_chat",
+    "url": "about:blank",
+    "file": "frame-3.html"
+  },
+  {
+    "index": 4,
+    "name": "by_iframe_chat_1",
+    "url": "about:blank",
+    "file": "frame-4.html"
+  },
+  {
+    "index": 5,
+    "name": "loginWithQrCodeIframe",
+    "url": "https://online.fibi.co.il/MatafLoginService/MatafMobileApproveServlet",
+    "file": "frame-5.html"
+  }
+]
