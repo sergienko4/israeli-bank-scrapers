@@ -655,18 +655,46 @@ async function raceLocators(
  * @returns True if the element is hit-testable at its center.
  */
 /**
+ * Browser-evaluated predicate: returns true iff the element's className
+ * contains any well-known accessibility skip-link / sr-only marker
+ * (`skip-to-main`, `skip-link`, `sr-only`, `visually-hidden`).
+ *
+ * <p>Top-level pure function (no captured closures) so Playwright's
+ * evaluate serialization can transport it into the page context. The
+ * regex literal is duplicated inline between this predicate and
+ * {@link isElementHitTestable} because Playwright's `evaluate(fn, arg)`
+ * cannot transport a regex argument without an `unknown` cast the
+ * project ban-list rejects, and a captured top-level const is not
+ * serialized into the page context together with the function body.
+ *
+ * @param el - Target element under test.
+ * @returns true iff the element is an a11y skip-link / sr-only wrapper.
+ */
+function isAccessibilitySkipLink(el: Element): boolean {
+  const cls = el.className;
+  return /skip-to-main|skip-link|sr-only|visually-hidden/i.test(cls);
+}
+
+/**
  * Browser-evaluated hit-test predicate. MUST be a top-level pure function
  * (no captured closures) so Playwright's evaluate serialization can
  * transport it into the page context.
  *
  * Rejects disabled placeholders BEFORE hit-test (Wix renders a disabled
  * `<button role="link">` over the real link on some bank templates).
+ * Also rejects accessibility skip-link / sr-only / visually-hidden
+ * wrappers inline (defense in depth for the #309 Discount skip-link
+ * collision — covered upstream by {@link filterOutSkipLinks} but
+ * duplicated here so a regression of either guard alone still rejects
+ * the wrong element).
  * @param el - Target element under test.
  * @returns True when the element is hit-testable at its center point.
  */
 function isElementHitTestable(el: Element): boolean {
   if (el.hasAttribute('disabled')) return false;
   if (el.getAttribute('aria-disabled') === 'true') return false;
+  const cls = el.className;
+  if (/skip-to-main|skip-link|sr-only|visually-hidden/i.test(cls)) return false;
   const rect = el.getBoundingClientRect();
   const hit = document.elementFromPoint(
     rect.left + rect.width / HIT_TEST_CENTER_DIVISOR,
@@ -777,6 +805,39 @@ function buildRaceDiagnostic(
 }
 
 /**
+ * Per-locator skip-link probe. Returns the index when the locator's
+ * element is NOT a skip-link; returns -1 otherwise. Errors are treated
+ * as "not a skip-link" (best-effort filter, do not block on probe
+ * failure).
+ * @param locators - All locators (indexed by `idx`).
+ * @param idx - Index to probe.
+ * @returns `idx` when not a skip-link; `-1` otherwise.
+ */
+async function probeNotSkipLinkIndex(locators: Locator[], idx: number): Promise<number> {
+  const isSkip = await locators[idx].evaluate(isAccessibilitySkipLink).catch((): boolean => false);
+  return isSkip ? -1 : idx;
+}
+
+/**
+ * Filter fulfilled indices to those whose elements are NOT a11y
+ * skip-link / sr-only wrappers. Upstream pre-filter for
+ * {@link raceLocatorsWithHitTest} that defends BOTH the
+ * `hitPassed[0]` primary path AND the `fulfilled[0]` fallback path in
+ * {@link resolveWinner} (#309).
+ * @param locators - All locators (indexed by fulfilled).
+ * @param fulfilled - Indices that passed visibility check.
+ * @returns Indices whose elements are NOT accessibility skip-links.
+ */
+async function filterOutSkipLinks(
+  locators: Locator[],
+  fulfilled: readonly number[],
+): Promise<readonly number[]> {
+  const probes = fulfilled.map((idx): Promise<number> => probeNotSkipLinkIndex(locators, idx));
+  const results = await Promise.all(probes);
+  return results.filter((idx): boolean => idx >= 0);
+}
+
+/**
  * Race locators then validate winner with elementFromPoint hit-test.
  * If winner fails hit-test, check remaining settled results.
  * Falls back to first Playwright-visible if no hit-test passes.
@@ -788,7 +849,8 @@ async function raceLocatorsWithHitTest(
   locators: Locator[],
   timeout: number,
 ): Promise<IRaceDiagnostic> {
-  const fulfilled = await awaitVisibleIndices(locators, timeout);
+  const fulfilledRaw = await awaitVisibleIndices(locators, timeout);
+  const fulfilled = await filterOutSkipLinks(locators, fulfilledRaw);
   const hitPassed = await hitTestIndices(locators, fulfilled);
   return buildRaceDiagnostic(fulfilled, hitPassed);
 }
