@@ -1,0 +1,327 @@
+/**
+ * Network response buffer for the harvester.
+ *
+ * <p>Installs a single `page.on('response')` listener that captures
+ * every response into an in-memory ring buffer. Recipe steps later
+ * call {@link flushMatching} to pull out specific responses and write
+ * them to the bank's fixture directory (PII-redacted).
+ *
+ * <p>Design rationale: arming a listener PER step risks racing the
+ * trigger action — once a response has been processed by the page,
+ * a late `page.on('response')` listener never sees it. A persistent
+ * buffer installed at recipe start eliminates that race.
+ *
+ * <p>Memory safety: only JSON-content responses are kept; bodies are
+ * sized-capped to {@link MAX_BODY_BYTES} and the ring caps at
+ * {@link MAX_BUFFER_ENTRIES} entries (oldest evicted on overflow).
+ *
+ * <p>PII safety: every body written to disk is run through
+ * {@link redactJson}.
+ */
+
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+
+import type { Page, Response } from 'playwright-core';
+
+import { none, type Option, some } from '../../../Scrapers/Pipeline/Types/Option.js';
+import { redactJson } from './PiiRedactor.js';
+
+const MAX_BUFFER_ENTRIES = 200;
+const MAX_BODY_BYTES = 256 * 1024;
+const JSON_CONTENT_RE = /^application\/(?:[\w.+-]+\+)?json\b/i;
+const RESPONSE_LISTENER_EVENT = 'response' as const;
+
+/** One captured response. */
+interface ICapturedResponse {
+  readonly url: string;
+  readonly method: string;
+  readonly status: number;
+  readonly contentType: string;
+  readonly bodyText: string;
+}
+
+/** Status object returned by the buffer dispose hook. */
+interface IDisposeStatus {
+  readonly disposed: true;
+}
+
+/** Status object returned after draining pending captures. */
+interface IDrainStatus {
+  readonly drained: true;
+  readonly pendingAtStart: number;
+}
+
+/** Handle returned by {@link installResponseBuffer}. */
+interface IResponseBufferHandle {
+  readonly dispose: () => IDisposeStatus;
+  readonly drain: () => Promise<IDrainStatus>;
+  readonly snapshot: () => readonly ICapturedResponse[];
+}
+
+/** Arguments accepted by {@link flushMatching}. */
+interface IFlushArgs {
+  readonly urlPattern: string;
+  readonly outDir: string;
+  readonly captureAs: string;
+  readonly methods?: readonly string[];
+}
+
+/**
+ * Decide whether a response body is small + JSON enough to buffer.
+ * @param contentType - Response `content-type` header.
+ * @param bodyText - Stringified body.
+ * @returns True if buffer-eligible.
+ */
+function isBufferableBody(contentType: string, bodyText: string): boolean {
+  if (!JSON_CONTENT_RE.test(contentType)) return false;
+  if (bodyText.length === 0) return false;
+  return Buffer.byteLength(bodyText, 'utf8') <= MAX_BODY_BYTES;
+}
+
+/**
+ * Safely read a response body. Returns `''` on any error — harvester
+ * never throws on missing bodies (some responses have been freed by
+ * the browser between event + read).
+ * @param response - Playwright response.
+ * @returns Body text or empty string.
+ */
+async function readBodyQuietly(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    return '';
+  }
+}
+
+/** Result of pushing one capture into the ring buffer. */
+interface IPushResult {
+  readonly size: number;
+}
+
+/**
+ * Append a capture to the ring buffer and evict overflow entries.
+ * @param buffer - Mutable ring buffer.
+ * @param entry - Captured response to push.
+ * @returns Final buffer size after eviction.
+ */
+function pushAndEvict(buffer: ICapturedResponse[], entry: ICapturedResponse): IPushResult {
+  buffer.push(entry);
+  while (buffer.length > MAX_BUFFER_ENTRIES) buffer.shift();
+  return { size: buffer.length };
+}
+
+/**
+ * Build the in-memory capture entry for a Playwright response.
+ * @param response - Playwright response payload.
+ * @param contentType - Captured `content-type` header value.
+ * @param bodyText - Already-read body text.
+ * @returns Immutable capture entry.
+ */
+function buildCapture(
+  response: Response,
+  contentType: string,
+  bodyText: string,
+): ICapturedResponse {
+  return {
+    url: response.url(),
+    method: response.request().method().toUpperCase(),
+    status: response.status(),
+    contentType,
+    bodyText,
+  };
+}
+
+/**
+ * Pull one response into the buffer if it qualifies. Mutates the
+ * provided buffer array; caller enforces ring eviction. Reads the
+ * body ONLY after the content-type passes the JSON filter so we
+ * skip the bandwidth/memory cost on HTML/binary responses.
+ * @param response - Playwright response event.
+ * @param buffer - Mutable ring buffer.
+ * @returns Resolves when capture + eviction complete.
+ */
+async function captureOne(response: Response, buffer: ICapturedResponse[]): Promise<void> {
+  const contentType = response.headers()['content-type'] ?? '';
+  if (JSON_CONTENT_RE.test(contentType)) {
+    const bodyText = await readBodyQuietly(response);
+    if (isBufferableBody(contentType, bodyText)) {
+      const entry = buildCapture(response, contentType, bodyText);
+      pushAndEvict(buffer, entry);
+    }
+  }
+}
+
+/**
+ * Install a persistent `page.on('response')` listener that fills a
+ * shared ring buffer. The returned handle exposes a non-mutating
+ * snapshot + a dispose that removes the listener + a drain that
+ * settles every in-flight body read so `flushMatching` never races
+ * a pending capture.
+ * @param page - Playwright page.
+ * @returns Handle for the active buffer.
+ */
+function installResponseBuffer(page: Page): IResponseBufferHandle {
+  const buffer: ICapturedResponse[] = [];
+  const pending = new Set<Promise<void>>();
+  /**
+   * Per-response listener that delegates to {@link captureOne} and
+   * tracks the promise so {@link drain} can wait for it.
+   * @param response - Playwright response event payload.
+   * @returns Promise resolved after the capture attempt completes.
+   */
+  const listener = (response: Response): Promise<void> => {
+    const work = captureOne(response, buffer);
+    pending.add(work);
+    return work.finally(() => pending.delete(work));
+  };
+  page.on(RESPONSE_LISTENER_EVENT, listener);
+  return {
+    /**
+     * Remove the listener from the page (idempotent).
+     * @returns Status object confirming disposal.
+     */
+    dispose: (): IDisposeStatus => {
+      page.off(RESPONSE_LISTENER_EVENT, listener);
+      return { disposed: true };
+    },
+    /**
+     * Await every in-flight capture promise so the buffer is
+     * settled before callers call {@link snapshot}.
+     * @returns Status object including the pending-at-start count.
+     */
+    drain: async (): Promise<IDrainStatus> => {
+      const pendingAtStart = pending.size;
+      const inFlight = [...pending];
+      await Promise.allSettled(inFlight);
+      return { drained: true, pendingAtStart };
+    },
+    /**
+     * Return a non-mutating snapshot of the current buffer.
+     * @returns Copy of every captured response in arrival order.
+     */
+    snapshot: (): readonly ICapturedResponse[] => [...buffer],
+  };
+}
+
+/**
+ * Test if a captured response matches a recipe pattern.
+ * @param entry - Captured response.
+ * @param urlPattern - Substring to find in `entry.url`.
+ * @param methods - Optional method allow-list (defaults to any).
+ * @returns True if entry should be flushed for this pattern.
+ */
+function matchesPattern(
+  entry: ICapturedResponse,
+  urlPattern: string,
+  methods?: readonly string[],
+): boolean {
+  if (!entry.url.includes(urlPattern)) return false;
+  if (methods === undefined || methods.length === 0) return true;
+  const upper = methods.map(m => m.toUpperCase());
+  return upper.includes(entry.method);
+}
+
+/**
+ * Find the most recent matching entry in the buffer (LIFO so the
+ * latest navigation's responses win when steps repeat).
+ * @param snapshot - Snapshot from {@link IResponseBufferHandle.snapshot}.
+ * @param urlPattern - URL substring.
+ * @param methods - Optional method allow-list.
+ * @returns Some(entry) for the latest match, otherwise none.
+ */
+function findLatestMatch(
+  snapshot: readonly ICapturedResponse[],
+  urlPattern: string,
+  methods?: readonly string[],
+): Option<ICapturedResponse> {
+  for (let i = snapshot.length - 1; i >= 0; i -= 1) {
+    const entry = snapshot[i];
+    if (matchesPattern(entry, urlPattern, methods)) return some(entry);
+  }
+  return none();
+}
+
+/**
+ * Strip query + fragment from a captured response URL before it
+ * lands on disk. Bank account ids, session tokens, and one-shot
+ * grants live in the search portion — anything past `?` or `#` is
+ * unsafe to commit verbatim. Falls back to the raw string if URL
+ * parsing throws (which would mean the captured URL was already
+ * malformed and not parseable upstream).
+ * @param rawUrl - URL as captured by Playwright.
+ * @returns URL stripped of search + fragment.
+ */
+function sanitizeCapturedUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+/**
+ * Serialize a captured response to a JSON envelope safe to commit.
+ * Body is JSON-parsed (best-effort) then redacted; on parse failure
+ * the raw redacted string is preserved under `bodyText`. The URL is
+ * stripped of query + hash before serialization so account ids and
+ * session tokens never appear in committed fixtures.
+ * @param entry - Captured response.
+ * @returns Two-space JSON ready to write to disk.
+ */
+function toCommittableJson(entry: ICapturedResponse): string {
+  let bodyValue: unknown;
+  try {
+    bodyValue = JSON.parse(entry.bodyText);
+  } catch {
+    bodyValue = { bodyText: entry.bodyText };
+  }
+  const envelope = {
+    url: sanitizeCapturedUrl(entry.url),
+    method: entry.method,
+    status: entry.status,
+    contentType: entry.contentType,
+    body: bodyValue,
+  };
+  return redactJson(envelope);
+}
+
+/**
+ * Locate one matching response in the live buffer + write it.
+ * Returns `none()` when no match is found (caller decides whether to warn).
+ * Drains in-flight captures FIRST so a response that began before the
+ * navigation completed but hasn't finished `response.text()` yet is
+ * still considered for the snapshot.
+ * @param handle - Buffer handle from {@link installResponseBuffer}.
+ * @param args - Pattern + output destination.
+ * @returns Some(absolutePath) when written, otherwise none.
+ */
+async function flushMatching(
+  handle: IResponseBufferHandle,
+  args: IFlushArgs,
+): Promise<Option<string>> {
+  await handle.drain();
+  const snapshot = handle.snapshot();
+  const match = findLatestMatch(snapshot, args.urlPattern, args.methods);
+  if (!match.has) return none();
+  await fs.mkdir(args.outDir, { recursive: true });
+  const outPath = path.join(args.outDir, `${args.captureAs}.response.json`);
+  const payload = toCommittableJson(match.value);
+  await fs.writeFile(outPath, payload, 'utf8');
+  return some(outPath);
+}
+
+export type { ICapturedResponse, IDisposeStatus, IDrainStatus, IFlushArgs, IResponseBufferHandle };
+export {
+  findLatestMatch,
+  flushMatching,
+  installResponseBuffer,
+  isBufferableBody,
+  matchesPattern,
+  MAX_BODY_BYTES,
+  MAX_BUFFER_ENTRIES,
+  toCommittableJson,
+};
