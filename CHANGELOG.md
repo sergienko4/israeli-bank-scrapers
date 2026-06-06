@@ -1,5 +1,21 @@
 # Changelog
 
+## [8.5.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.4.0...v8.5.0) (2026-06-06)
+
+
+### Features
+
+* **init:** add network forensics to executeNavigateToBank failures ([#288](https://github.com/sergienko4/israeli-bank-scrapers/issues/288)) ([726981d](https://github.com/sergienko4/israeli-bank-scrapers/commit/726981d254a82e5d2b9b002c7270d282324f6808))
+* **integration:** hard gate — Mode A static + Mode B mirror, all pipeline banks ([#307](https://github.com/sergienko4/israeli-bank-scrapers/issues/307), [#309](https://github.com/sergienko4/israeli-bank-scrapers/issues/309)) ([#310](https://github.com/sergienko4/israeli-bank-scrapers/issues/310)) ([d944f8b](https://github.com/sergienko4/israeli-bank-scrapers/commit/d944f8b3973abcb37f29d0210cd95d27f9dff44e))
+* **pipeline:** generic background WAF challenge interceptor (hCaptcha/Turnstile checkbox auto-solve) ([#282](https://github.com/sergienko4/israeli-bank-scrapers/issues/282)) ([187bfe6](https://github.com/sergienko4/israeli-bank-scrapers/commit/187bfe662d0e4eca181fefd7313face45abc5272))
+* **test:** Phase 7.5 — unskip 13 e2e-mocked tests + purge MOCK_MODE prod code ([#304](https://github.com/sergienko4/israeli-bank-scrapers/issues/304)) ([8796dc6](https://github.com/sergienko4/israeli-bank-scrapers/commit/8796dc6e6161713810e9198ccd36cc8fbf90eed6))
+
+
+### Bug Fixes
+
+* **build:** restore side-effect query registrations dropped by tree-shaking ([#283](https://github.com/sergienko4/israeli-bank-scrapers/issues/283)) ([d2becf0](https://github.com/sergienko4/israeli-bank-scrapers/commit/d2becf099ac4e80236b69dae642344274a488082))
+* **ci:** exempt bot PRs from §10 body-section check ([#287](https://github.com/sergienko4/israeli-bank-scrapers/issues/287)) ([3e842c5](https://github.com/sergienko4/israeli-bank-scrapers/commit/3e842c502b7a12355319b0616cc9ddd3ac9ce750))
+
 ## [8.4.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.3.2...v8.4.0) (2026-05-28)
 
 
