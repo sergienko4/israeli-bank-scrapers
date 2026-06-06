@@ -82,6 +82,23 @@ function tryExtractFormId(form: string): string {
 }
 
 /**
+ * XPath 1.0 has no string-literal escape syntax, so values that may
+ * contain quotes must be wrapped carefully. Strategy: pick the absent
+ * quote style; fall back to `concat()` when BOTH quote chars appear.
+ * Defends every scoped builder below against label / id values that
+ * contain a `"` (e.g. `Click "here"`), which would otherwise break the
+ * XPath parser or open a literal injection.
+ * @param val - Raw string to embed as an XPath string literal.
+ * @returns A quoted (or `concat(...)`-built) XPath string expression.
+ */
+function escapeXpathString(val: string): string {
+  if (!val.includes('"')) return `"${val}"`;
+  if (!val.includes("'")) return `'${val}'`;
+  const parts = val.split('"').map((p): string => `"${p}"`);
+  return `concat(${parts.join(", '\"', ")})`;
+}
+
+/**
  * Build a scoped XPath expression for an xpath-kind candidate.
  *
  * <p>Converts the CSS form selector (e.g. `#otpLobbyFormPassword` or
@@ -102,7 +119,7 @@ function scopeXpath(form: string, val: string): string {
   const formId = tryExtractFormId(form);
   if (!formId) return val;
   if (!val.startsWith('//')) return val;
-  return `//*[@id="${formId}"]${val}`;
+  return `//*[@id=${escapeXpathString(formId)}]${val}`;
 }
 
 /**
@@ -119,9 +136,10 @@ function scopeXpath(form: string, val: string): string {
  * @returns Scoped xpath string.
  */
 function buildScopedTextContentXpath(formId: string, val: string): string {
-  const scope = `//*[@id="${formId}"]`;
+  const scope = `//*[@id=${escapeXpathString(formId)}]`;
+  const escapedVal = escapeXpathString(val);
   return (
-    `${scope}//*[text()[contains(., "${val}")]]/` +
+    `${scope}//*[text()[contains(., ${escapedVal})]]/` +
     `ancestor::*[.//input[${NON_FILLABLE_FILTER}]][1]//input[${NON_FILLABLE_FILTER}][1]`
   );
 }
@@ -139,8 +157,8 @@ function buildScopedTextContentXpath(formId: string, val: string): string {
  * @returns Scoped xpath string.
  */
 function buildScopedLabelTextXpath(formId: string, val: string): string {
-  const scope = `//*[@id="${formId}"]`;
-  const label = `//label[contains(., "${val}")]`;
+  const scope = `//*[@id=${escapeXpathString(formId)}]`;
+  const label = `//label[contains(., ${escapeXpathString(val)})]`;
   const nested = `${scope}${label}//input[${NON_FILLABLE_FILTER}][1]`;
   const sib = `${scope}${label}/following-sibling::input[${NON_FILLABLE_FILTER}][1]`;
   const proximity = `${scope}${label}/..//input[${NON_FILLABLE_FILTER}][1]`;
@@ -156,10 +174,11 @@ function buildScopedLabelTextXpath(formId: string, val: string): string {
  * @returns Scoped xpath string.
  */
 function buildScopedClickableTextXpath(formId: string, val: string): string {
-  const scope = `//*[@id="${formId}"]`;
+  const scope = `//*[@id=${escapeXpathString(formId)}]`;
+  const escapedVal = escapeXpathString(val);
   return (
     `${scope}//*[not(self::script) and not(self::style) ` +
-    `and contains(., "${val}") and not(.//*[contains(., "${val}")])]`
+    `and contains(., ${escapedVal}) and not(.//*[contains(., ${escapedVal})])]`
   );
 }
 

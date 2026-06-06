@@ -483,3 +483,43 @@ describe('discoverFormAnchor — mapAncestorTuples invocation', () => {
     expect(result?.selector).toBe('form.user-login-form');
   });
 });
+
+describe('scopeCandidate — XPath quote escaping (CR PR #306 cycle-2)', () => {
+  it('wraps val containing only double-quote in single-quote XPath literal', () => {
+    const cand: SelectorCandidate = { kind: 'textContent', value: 'Click "here" now' };
+    const scoped = scopeCandidate('#myForm', cand);
+    // ' wraps the value to avoid breaking the XPath parser on embedded "
+    expect(scoped.value).toContain('\'Click "here" now\'');
+    expect(scoped.value).not.toContain('"Click "');
+  });
+
+  it('uses concat() fallback when val contains BOTH single and double quotes', () => {
+    const cand: SelectorCandidate = { kind: 'labelText', value: 'It\'s "great"' };
+    const scoped = scopeCandidate('#myForm', cand);
+    // XPath-1.0 has no escape syntax — concat is the only safe option here.
+    expect(scoped.value).toContain('concat(');
+    expect(scoped.value).toContain("'\"'");
+  });
+
+  it('keeps the common no-quote val path on the wrap-in-double-quote branch', () => {
+    const cand: SelectorCandidate = { kind: 'clickableText', value: 'כניסה' };
+    const scoped = scopeCandidate('#myForm', cand);
+    expect(scoped.value).toContain('"כניסה"');
+    expect(scoped.value).not.toContain('concat(');
+  });
+
+  it('returns text candidate unchanged when form selector has no extractable id', () => {
+    // form selector with no id pattern → tryExtractFormId returns '' →
+    // scopeTextCandidate early-returns without entering the builder ladder.
+    const cand: SelectorCandidate = { kind: 'textContent', value: 'foo' };
+    const scoped = scopeCandidate('.no-id-form', cand);
+    expect(scoped).toEqual(cand);
+  });
+
+  it('returns CSS candidate unchanged when kind is not in the css scope builders', () => {
+    // 'regex' kind is not in SCOPE_BUILDERS → scopeCssCandidate early-returns.
+    const cand: SelectorCandidate = { kind: 'regex', value: '^foo$' };
+    const scoped = scopeCandidate('#myForm', cand);
+    expect(scoped).toEqual(cand);
+  });
+});
