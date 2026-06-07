@@ -29,7 +29,13 @@ const REDACT_CASES: readonly IRedactCase[] = [
     key: 'israeliPhone',
     positive: 'call 052-1234567 now',
     expected: '[redacted-phone]',
-    negative: 'office 03-1234567 stays',
+    negative: 'office 044 1234567 stays',
+  },
+  {
+    key: 'israeliLandline',
+    positive: 'tel 03-6364554 contact',
+    expected: '[redacted-landline]',
+    negative: 'tel 067-1234567 stays',
   },
   {
     key: 'email',
@@ -62,10 +68,40 @@ const REDACT_CASES: readonly IRedactCase[] = [
     negative: 'plain 1,234.56 stays',
   },
   {
+    key: 'ilsAmountSuffix',
+    positive: 'balance 144.70 ₪ shown',
+    expected: '[redacted-amount]',
+    negative: '144.70 USD stays',
+  },
+  {
     key: 'cookieAuthValue',
     positive: 'Set-Cookie: auth=zxcvbnmasdf1234567890;',
     expected: '[redacted-cookie]',
     negative: 'auth-free cookie',
+  },
+  {
+    key: 'hebrewGreetingName',
+    positive: '<div><h1>שלום</h1><p>[REDACTED-HE-SURNAME] [REDACTED-HE-NAME]</p></div>',
+    expected: '[redacted-name]',
+    negative: '<div><h1>שלום</h1><span>welcome</span></div>',
+  },
+  {
+    key: 'lastLoginText',
+    positive: '<p class="last-login">ביקורך האחרון 07/06/26 | 18:08</p>',
+    expected: '[redacted-last-login]',
+    negative: '<p class="other">ביקורך האחרון לא ידוע</p>',
+  },
+  {
+    key: 'numericBalanceSpan',
+    positive: '<span class="number-strong"> 144.70</span>',
+    expected: '[redacted-amount]',
+    negative: '<span class="other"> 144.70</span>',
+  },
+  {
+    key: 'ilBankAccount',
+    positive: 'account [REDACTED-ACCT] here',
+    expected: '[redacted-account]',
+    negative: 'date 2024-12-26 stays',
   },
 ];
 
@@ -119,6 +155,132 @@ describe('PiiRedactor', () => {
       const html = '<span>זהות 305555555</span><span>305444444</span>';
       const redacted = redactPii(html);
       expect(redacted).toBe('<span>זהות [redacted-id]</span><span>[redacted-id]</span>');
+    });
+  });
+
+  describe('jsonMonetaryField — raw numeric balance fields', () => {
+    it('redacts currentBalance numeric to 0', () => {
+      const json = '"currentBalance": 144.7,';
+      const out = redactPii(json);
+      expect(out).toBe('"currentBalance": 0,');
+    });
+
+    it('redacts negative withdrawalAmount to 0', () => {
+      const json = '"withdrawalAmount": -50.5,';
+      const out = redactPii(json);
+      expect(out).toBe('"withdrawalAmount": 0,');
+    });
+
+    it('leaves percent / code fields untouched', () => {
+      const json = '"creditLimitUtilizationPercent": 0,"messageCode": 107';
+      const out = redactPii(json);
+      expect(out).toBe(json);
+    });
+
+    it('redacts every monetary field in a Hapoalim balance response', () => {
+      const json = JSON.stringify({
+        currentAccountLimitsAmount: 0,
+        withdrawalBalance: 144.7,
+        currentBalance: 144.7,
+        creditLimitUtilizationPercent: 0,
+        creditLimitAmount: 0,
+      });
+      const out = redactPii(json);
+      expect(out).not.toContain('144.7');
+      expect(out).toContain('"creditLimitUtilizationPercent":0');
+    });
+  });
+
+  describe('hebrewGreetingName — bank post-login greeting card', () => {
+    it('redacts customer name inside <h1>שלום</h1><p>NAME</p>', () => {
+      const html = '<div class="mobile-user-title"><h1>שלום</h1><p>[REDACTED-HE-SURNAME] [REDACTED-HE-NAME]</p></div>';
+      const out = redactPii(html);
+      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
+      expect(out).toContain('[redacted-name]');
+    });
+
+    it('redacts name in <h1 id="main-title">שלום</h1><p>NAME</p>', () => {
+      const html =
+        '<section><h1 id="main-title" tabindex="0">שלום</h1><p>[REDACTED-HE-SURNAME] [REDACTED-HE-NAME]</p></section>';
+      const out = redactPii(html);
+      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
+      expect(out).toContain('[redacted-name]');
+    });
+  });
+
+  describe('jsonPersonNameField — bank API response name fields', () => {
+    it('redacts partyFullName in JSON object', () => {
+      const json = '{"partyFullName": "[REDACTED-HE-SURNAME] יוג\'ין", "id": 1}';
+      const out = redactPii(json);
+      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
+      expect(out).toContain('[redacted-name]');
+    });
+
+    it('redacts partyFirstName in escaped NDJSON envelope', () => {
+      const ndjson = '{"envelope":"{\\"partyFirstName\\": \\"יוג\'ין\\"}"}';
+      const out = redactPii(ndjson);
+      expect(out).not.toContain('יוג');
+      expect(out).toContain('[redacted-name]');
+    });
+
+    it('redacts customerName but leaves bank-name field untouched', () => {
+      const json = '{"customerName": "John Doe", "bankName": "Hapoalim"}';
+      const out = redactPii(json);
+      expect(out).toContain('[redacted-name]');
+      expect(out).toContain('"bankName": "Hapoalim"');
+    });
+  });
+
+  describe('operator-known PII literals', () => {
+    it('redacts Hebrew surname literal in transaction descriptions', () => {
+      const html = '<span>העברה מ[REDACTED-HE-NAME] [REDACTED-HE-SURNAME] חשבון</span>';
+      const out = redactPii(html);
+      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
+      expect(out).not.toContain('[REDACTED-HE-NAME]');
+      expect(out).toContain('[redacted-name]');
+    });
+
+    it('redacts English operator names in HTML/JSON', () => {
+      const html = '<span>From [REDACTED-USER], Yevgeny</span>';
+      const out = redactPii(html);
+      expect(out).not.toMatch(/[REDACTED-USER]|Yevgeny/i);
+      expect(out).toContain('[redacted-name]');
+    });
+
+    it('redacts operator username VT75151 anywhere it leaks', () => {
+      const text = '<meta data-user="VT75151"/>';
+      const out = redactPii(text);
+      expect(out).not.toContain('VT75151');
+      expect(out).toContain('[redacted-username]');
+    });
+
+    it('redacts operator account literal [REDACTED-OPER-ACCT]', () => {
+      const html = '<span>account: [REDACTED-OPER-ACCT]</span>';
+      const out = redactPii(html);
+      expect(out).not.toContain('[REDACTED-OPER-ACCT]');
+      expect(out).toContain('[redacted-account]');
+    });
+  });
+
+  describe('urlPathAccountId — REST URL account-id segment', () => {
+    it('redacts account id in Discount Titan gatewayAPI URL', () => {
+      const url = '"url":"/Titan/gatewayAPI/accountDetails/infoAndBalance/[REDACTED-OPER-ACCT]"';
+      const out = redactPii(url);
+      expect(out).not.toContain('[REDACTED-OPER-ACCT]');
+      expect(out).toContain('[redacted-account]');
+    });
+
+    it('redacts account id followed by trailing path segment', () => {
+      const url = '/Titan/gatewayAPI/lastTransactions/transactions/9876543210/forHomePage';
+      const out = redactPii(url);
+      expect(out).not.toContain('9876543210');
+      expect(out).toContain('/[redacted-account]/forHomePage');
+    });
+
+    it('leaves non-REST-path numeric strings untouched', () => {
+      const text = 'OperationNumber: 1125, Date: 20260521';
+      const out = redactPii(text);
+      expect(out).toBe(text);
     });
   });
 });

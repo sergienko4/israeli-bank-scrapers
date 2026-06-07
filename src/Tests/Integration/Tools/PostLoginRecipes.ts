@@ -97,7 +97,7 @@ const DISCOUNT_POST_LOGIN: IExtendedRecipe = {
     {
       kind: 'waitFor',
       stepName: '07-auth-discovery',
-      urlIncludes: '/portalserver/',
+      urlIncludes: 'MY_ACCOUNT_HOMEPAGE',
       timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
     },
     { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
@@ -188,7 +188,7 @@ const HAPOALIM_POST_LOGIN: IExtendedRecipe = {
     {
       kind: 'waitFor',
       stepName: '07-auth-discovery',
-      urlIncludes: '/general/accounts',
+      urlIncludes: '/rb/he/homepage',
       timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
     },
     { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
@@ -268,4 +268,120 @@ function getPostLoginRecipe(bankId: string): Option<IExtendedRecipe> {
   return some(recipe);
 }
 
-export { getPostLoginRecipe, knownPostLoginBanks, POST_LOGIN_RECIPES };
+/** Discrete pre-login recipe step — one URL navigation OR one REVEAL click. */
+interface IRecipeStep {
+  readonly stepName: string;
+  /** Absolute URL to navigate to (only set on steps that change URL). */
+  readonly url?: string;
+  /** Visible text of an element to click after navigation (REVEAL action). */
+  readonly revealText?: string;
+}
+
+/** Pre-login capture recipe (steps only). bankId derived from map key. */
+interface IRecipeBody {
+  readonly steps: readonly IRecipeStep[];
+}
+
+/** Fully-resolved pre-login recipe used by the harvester driver. */
+interface IBankRecipe {
+  readonly bankId: string;
+  readonly steps: readonly IRecipeStep[];
+}
+
+/**
+ * Per-bank pre-login recipes — the map key IS the bankId.
+ * Adding a new bank means adding a key + steps; no duplicate bankId field.
+ */
+const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
+  isracard: {
+    steps: [
+      { stepName: '02-pre-login', url: 'https://digital.isracard.co.il' },
+      { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
+    ],
+  },
+  amex: {
+    steps: [
+      { stepName: '02-pre-login', url: 'https://digital.americanexpress.co.il' },
+      { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
+    ],
+  },
+  hapoalim: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.bankhapoalim.co.il' },
+      { stepName: '02-pre-login', url: 'https://login.bankhapoalim.co.il' },
+    ],
+  },
+  discount: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.discountbank.co.il' },
+      { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
+    ],
+  },
+  mercantile: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.mercantile.co.il' },
+      { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
+    ],
+  },
+  massad: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.bankmassad.co.il' },
+      { stepName: '02-pre-login', url: 'https://online.bankmassad.co.il' },
+    ],
+  },
+  pagi: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.pagi.co.il' },
+      { stepName: '02-pre-login', url: 'https://onlinepagi.bankpoalim.co.il' },
+    ],
+  },
+  otsarHahayal: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.bankotsar.co.il' },
+      { stepName: '02-pre-login', url: 'https://digital.otsarh.co.il' },
+    ],
+  },
+  beinleumi: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.fibi.co.il' },
+      { stepName: '02-modal-opened', revealText: 'כניסה לחשבון' },
+      { stepName: '03-after-prelogin', revealText: 'כניסה עם סיסמה' },
+    ],
+  },
+  max: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.max.co.il' },
+      { stepName: '02-after-entry', revealText: 'כניסה לחשבון' },
+      { stepName: '03-after-private', revealText: 'לקוח פרטי' },
+      { stepName: '04-reveal-password', revealText: 'סיסמה קבועה' },
+    ],
+  },
+  visaCal: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.cal-online.co.il' },
+      { stepName: '02-pre-login', revealText: 'כניסה לחשבונך' },
+    ],
+  },
+};
+
+/**
+ * Build the resolved pre-login recipe — bundles map key with the
+ * steps body, removing the duplicate-bankId smell.
+ * @param bankId - The map key (canonical bankId).
+ * @param body - The recipe body from {@link BANK_RECIPES}.
+ * @returns Fully resolved {@link IBankRecipe}.
+ */
+function toRecipe(bankId: string, body: IRecipeBody): IBankRecipe {
+  return { bankId, steps: body.steps };
+}
+
+export {
+  BANK_RECIPES,
+  getPostLoginRecipe,
+  type IBankRecipe,
+  type IRecipeBody,
+  type IRecipeStep,
+  knownPostLoginBanks,
+  POST_LOGIN_RECIPES,
+  toRecipe,
+};
