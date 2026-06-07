@@ -270,14 +270,17 @@ function createDeferredBody(): IDeferredBody {
 }
 
 /**
- * Helper to make a `tmpdir/nrr-<rand>` path for fixture write tests.
+ * Helper to create a secure per-test fixture directory under the OS temp
+ * root. Uses {@link fs.mkdtemp} so the directory is created atomically
+ * with `0o700` mode (owner-only) and a cryptographically-random suffix —
+ * the pattern Node + CodeQL recognise as safe (`js/insecure-temporary-file`).
  *
- * @returns Absolute temp dir path (not yet created on disk).
+ * @returns Absolute path of the newly created temp dir (caller cleans up).
  */
-function makeTmpDir(): string {
-  const rand = Math.random().toString(36).slice(2);
+async function makeTmpDir(): Promise<string> {
   const tmpRoot = os.tmpdir();
-  return path.join(tmpRoot, `nrr-${rand}`);
+  const prefixPath = path.join(tmpRoot, 'nrr-');
+  return fs.mkdtemp(prefixPath);
 }
 
 /**
@@ -479,7 +482,7 @@ describe('NetworkResponseRecorder', () => {
         body: '{"cycle":42}',
       });
       await stub.trigger(response);
-      const outDir = makeTmpDir();
+      const outDir = await makeTmpDir();
       try {
         const opt = await flushMatching(handle, {
           urlPattern: '/cycle-billing',
@@ -500,14 +503,18 @@ describe('NetworkResponseRecorder', () => {
     it('returns None when no buffered response matches', async () => {
       const stub = makePageStub();
       const handle = installResponseBuffer(stub.page);
-      const outDir = makeTmpDir();
-      const opt = await flushMatching(handle, {
-        urlPattern: '/never-arrives',
-        outDir,
-        captureAs: 'x',
-      });
-      const isPresent = isSome(opt);
-      expect(isPresent).toBe(false);
+      const outDir = await makeTmpDir();
+      try {
+        const opt = await flushMatching(handle, {
+          urlPattern: '/never-arrives',
+          outDir,
+          captureAs: 'x',
+        });
+        const isPresent = isSome(opt);
+        expect(isPresent).toBe(false);
+      } finally {
+        await fs.rm(outDir, { recursive: true, force: true });
+      }
     });
 
     it('drains in-flight captures before snapshotting (race-free)', async () => {
@@ -516,7 +523,7 @@ describe('NetworkResponseRecorder', () => {
       const deferred = createDeferredBody();
       const slowResponse = makeSlowResponseStub(deferred.bodyPromise);
       const dispatched = stub.trigger(slowResponse);
-      const outDir = makeTmpDir();
+      const outDir = await makeTmpDir();
       try {
         const flushed = flushMatching(handle, {
           urlPattern: '/api/slow',
@@ -548,7 +555,7 @@ describe('NetworkResponseRecorder', () => {
         body: '{"ok":true}',
       });
       await stub.trigger(response);
-      const outDir = makeTmpDir();
+      const outDir = await makeTmpDir();
       try {
         const opt = await flushMatching(handle, {
           urlPattern: '/api/account',
