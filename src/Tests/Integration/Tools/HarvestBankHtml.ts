@@ -15,8 +15,9 @@
  * </ol>
  *
  * PII is redacted at write time (Option A — capture + redact) via
- * {@link PII_REPLACEMENTS} which scrubs Hebrew ID, phone, and email
- * patterns before bytes touch disk.
+ * the shared {@link import('./PiiRedactor.js').redactPii} helper, which
+ * scrubs Hebrew ID, phone, email, reCAPTCHA-token, balance, IBAN, and
+ * bearer/JWT/cookie-auth patterns before bytes touch disk.
  *
  * Usage:
  * ```
@@ -38,6 +39,17 @@ import type { Browser, BrowserContext, Frame, Page } from 'playwright-core';
 import { buildContextOptions } from '../../../Common/Browser.js';
 import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import type { BankCredentials } from './CredentialLoader.js';
+import { hasCredentials, loadCredentials } from './CredentialLoader.js';
+import {
+  executeHarvestStep,
+  type IStepExecutorArgs,
+  type IStepExecutorResult,
+} from './HarvestStepExecutors.js';
+import { installResponseBuffer, type IResponseBufferHandle } from './NetworkResponseRecorder.js';
+import { redactPii as sharedRedactPii } from './PiiRedactor.js';
+import { getPostLoginRecipe } from './PostLoginRecipes.js';
+import type { IExtendedRecipe, IHarvestStep } from './RecipeStepTypes.js';
 
 const HERE_PATH = fileURLToPath(import.meta.url);
 const HERE_DIR = dirname(HERE_PATH);
@@ -48,24 +60,6 @@ const SETTLE_AFTER_GOTO_MS = 1500;
 const SETTLE_AFTER_REVEAL_MS = 1500;
 const PAGE_GOTO_TIMEOUT_MS = 45000;
 const FRAME_UNAVAILABLE_HTML = '<!-- frame content unavailable -->';
-
-/**
- * PII redaction rules — each pair is `[pattern, replacement]`. Order
- * matters: narrower patterns must come before broader ones.
- *
- * <p>reCAPTCHA-token entries are NOT user PII per se, but the upstream
- * payloads are session-bound and we never want them in committed
- * fixtures (they're effectively short-lived secrets that bind to a
- * captured IP). They are scrubbed at write time so re-harvest stays
- * automatic.
- */
-const PII_REPLACEMENTS: readonly (readonly [RegExp, string])[] = [
-  [/\b\d{9}\b/g, '[redacted-id]'],
-  [/\b05\d[-\s]?\d{7}\b/g, '[redacted-phone]'],
-  [/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[redacted-email]'],
-  [/(<input[^>]*id="recaptcha-token"[^>]*value=")[^"]+(")/gi, '$1REDACTED_RECAPTCHA_TOKEN$2'],
-  [/(recaptcha\.anchor\.Main\.init\(\s*)"[^"]+"/g, '$1"REDACTED_RECAPTCHA_PAYLOAD"'],
-];
 
 /** One step in a bank recipe. */
 interface IRecipeStep {
@@ -180,15 +174,16 @@ function toRecipe(bankId: string, body: IRecipeBody): IBankRecipe {
 
 /**
  * Redact PII patterns in HTML before writing to disk.
+ *
+ * <p>Thin wrapper around {@link sharedRedactPii} — preserved as a
+ * named local function so existing call-sites stay one symbol away
+ * and the implementation lives in {@link PiiRedactor} alone.
+ *
  * @param html - Raw HTML from the page.
  * @returns Redacted HTML safe to commit.
  */
 function redactPii(html: string): string {
-  let redacted = html;
-  for (const replacement of PII_REPLACEMENTS) {
-    redacted = redacted.replace(replacement[0], replacement[1]);
-  }
-  return redacted;
+  return sharedRedactPii(html);
 }
 
 /**
@@ -324,6 +319,27 @@ function buildFramesIndexWrite(
   return writeFile(indexPath, indexJson, 'utf8');
 }
 
+/** Args used by {@link collectStepWrites} to build per-step write tasks. */
+interface ICollectStepWritesArgs {
+  readonly args: IWriteStepArgs;
+  readonly stepDir: string;
+  readonly frameTasks: readonly (readonly [string, string, IFrameMetaRow])[];
+}
+
+/**
+ * Collect all write promises for one step's artifacts.
+ *
+ * @param spec - Write bundle + step subdir + pre-built frame write tasks.
+ * @returns Array of pending write promises.
+ */
+function collectStepWrites(spec: ICollectStepWritesArgs): readonly Promise<void>[] {
+  return [
+    ...buildMainHtmlWrites(spec.args, spec.stepDir),
+    ...buildFrameWrites(spec.frameTasks, spec.stepDir),
+    buildFramesIndexWrite(spec.frameTasks, spec.stepDir),
+  ];
+}
+
 /**
  * Write captured frames + the flat main-frame snapshot for one step.
  * @param args - Fixture root + step name + captured snapshot.
@@ -333,10 +349,7 @@ async function writeStepArtifacts(args: IWriteStepArgs): Promise<number> {
   const stepDir = join(args.fixtureRoot, args.stepName);
   await mkdir(stepDir, { recursive: true });
   const frameTasks = args.snapshot.frames.map((snap, idx) => buildFrameWriteTask(snap, idx));
-  const mainWrites = buildMainHtmlWrites(args, stepDir);
-  const frameWrites = buildFrameWrites(frameTasks, stepDir);
-  const indexWrite = buildFramesIndexWrite(frameTasks, stepDir);
-  const writes = [...mainWrites, ...frameWrites, indexWrite];
+  const writes = collectStepWrites({ args, stepDir, frameTasks });
   await Promise.all(writes);
   return writes.length;
 }
@@ -510,6 +523,31 @@ interface IDriveHelpers {
 }
 
 /**
+ * Build the step execution args from a helpers bundle + current step.
+ *
+ * @param helpers - Shared page + fixture root.
+ * @param step - The current recipe step.
+ * @returns Args bundle for {@link executeRecipeStep}.
+ */
+function buildStepExecArgs(helpers: IDriveHelpers, step: IRecipeStep): IStepExecutionArgs {
+  return { page: helpers.page, step, fixtureRoot: helpers.fixtureRoot };
+}
+
+/**
+ * Execute one legacy recipe step using the bound helper bundle.
+ * @param helpers - Shared page + fixture root.
+ * @param step - Current recipe step.
+ * @returns Step execution result.
+ */
+async function executeStepWithHelpers(
+  helpers: IDriveHelpers,
+  step: IRecipeStep,
+): Promise<IStepExecutionResult> {
+  const stepArgs = buildStepExecArgs(helpers, step);
+  return executeRecipeStep(stepArgs);
+}
+
+/**
  * Reducer that processes steps sequentially while keeping a running
  * total + manifest. Sequential is required (each step's state depends
  * on the previous), and reduce satisfies `no-await-in-loop`.
@@ -524,11 +562,7 @@ async function reduceStepWritten(
   helpers: IDriveHelpers,
 ): Promise<IDriveAccumulator> {
   const prev = await prevPromise;
-  const result = await executeRecipeStep({
-    page: helpers.page,
-    step,
-    fixtureRoot: helpers.fixtureRoot,
-  });
+  const result = await executeStepWithHelpers(helpers, step);
   const entry: ICapturedStepManifest = { name: step.stepName, finalUrl: result.finalUrl };
   return { totalWritten: prev.totalWritten + result.written, steps: [...prev.steps, entry] };
 }
@@ -597,39 +631,447 @@ async function openHarvestContext(browser: Browser): Promise<BrowserContext> {
 }
 
 /**
- * Drive every step of a bank recipe end-to-end and persist the
- * captured-step manifest (`steps.json`) at the fixture root.
- * @param browser - Shared Camoufox browser.
- * @param recipe - Bank recipe.
+ * Snapshot the page + persist it under `<fixtureRoot>/<stepName>/` —
+ * shared bridge used by both the legacy reducer and the extended
+ * post-login driver so PII redaction + file naming stay in one place.
+ * @param page - Playwright page.
+ * @param fixtureRoot - Per-bank fixture root.
+ * @param stepName - Recipe step name.
+ * @returns Number of files written.
+ */
+async function captureAndWrite(page: Page, fixtureRoot: string, stepName: string): Promise<number> {
+  const snapshot = await captureFrames(page);
+  const stepArgs = buildStepArtifactsArgs(fixtureRoot, { stepName }, snapshot);
+  const written = await writeStepArtifacts(stepArgs);
+  return written;
+}
+
+/**
+ * Bundle threaded through the extended driver — page, fixture root,
+ * optional credentials for the (PR-A2.2) login step.
+ */
+interface IExtendedDriveArgs {
+  readonly page: Page;
+  readonly fixtureRoot: string;
+  readonly recipe: IExtendedRecipe;
+  readonly credentials?: BankCredentials;
+}
+
+/**
+ * Build the snapshot writer closure for the extended driver.
+ *
+ * @param fixtureRoot - Per-bank fixture root path.
+ * @returns Async function that captures + persists a DOM snapshot.
+ */
+function makeExtendedSnapshotWriter(
+  fixtureRoot: string,
+): (page: Page, stepName: string) => Promise<void> {
+  return (page, stepName) => captureAndWrite(page, fixtureRoot, stepName).then(() => undefined);
+}
+
+/** Args used by {@link buildExecutorArgs} to bundle extended drive + buffer. */
+interface IBuildExecutorArgsSpec {
+  readonly args: IExtendedDriveArgs;
+  readonly buffer: IResponseBufferHandle;
+}
+
+/**
+ * Adapt an {@link IExtendedDriveArgs} bundle + live buffer into the
+ * {@link IStepExecutorArgs} struct expected by each executor. Keeps
+ * the buffer / snapshot wiring in ONE place so individual step
+ * executors don't need to know the harvest plumbing details — and
+ * the per-executor calls stay focused on their kind, which holds them
+ * under the 10-line cap.
+ * @param spec - Bundle of extended drive args + live response buffer.
+ * @returns Executor args bundle.
+ */
+function buildExecutorArgs(spec: IBuildExecutorArgsSpec): IStepExecutorArgs {
+  const { args, buffer } = spec;
+  return {
+    page: args.page,
+    outDir: args.fixtureRoot,
+    writeSnapshot: makeExtendedSnapshotWriter(args.fixtureRoot),
+    responseBuffer: buffer,
+    credentials: args.credentials,
+  };
+}
+
+/**
+ * Format the log line for one extended step result.
+ *
+ * @param result - Executor result to describe.
+ * @returns Human-readable log string.
+ */
+function formatStepLog(result: IStepExecutorResult): string {
+  const detail = result.skipped !== undefined ? ` (skipped: ${result.skipped})` : '';
+  return `  step ${result.stepName} [${result.kind}]: snapshot=${String(result.snapshotWritten)}${detail}`;
+}
+
+/**
+ * Log a formatted extended-step result without nesting formatter in console.log.
+ * @param result - Executor result to print.
+ * @returns True after logging.
+ */
+function logExtendedStepResult(result: IStepExecutorResult): true {
+  const line = formatStepLog(result);
+  console.log(line);
+  return true;
+}
+
+/**
+ * Sequential reducer for extended-recipe steps. Logs each step result
+ * so the operator can follow the harvest live, and surfaces skips
+ * (typically: login-step PR-A2.1 stub or unmatched response patterns)
+ * without aborting the rest of the recipe.
+ * @param prevPromise - Previous accumulator promise.
+ * @param step - Current step.
+ * @param executorArgs - Shared executor args.
+ * @returns Updated accumulator.
+ */
+async function reduceExtendedStep(
+  prevPromise: Promise<readonly IStepExecutorResult[]>,
+  step: IHarvestStep,
+  executorArgs: IStepExecutorArgs,
+): Promise<readonly IStepExecutorResult[]> {
+  const prev = await prevPromise;
+  const result = await executeHarvestStep({ step, args: executorArgs });
+  logExtendedStepResult(result);
+  return [...prev, result];
+}
+
+/**
+ * Build the reducer closure for extended steps bound to shared executor args.
+ *
+ * @param executorArgs - Shared per-recipe executor context.
+ * @returns Reducer suitable for `Array.reduce`.
+ */
+function buildExtendedReducer(
+  executorArgs: IStepExecutorArgs,
+): (
+  acc: Promise<readonly IStepExecutorResult[]>,
+  step: IHarvestStep,
+) => Promise<readonly IStepExecutorResult[]> {
+  return (acc, step) => reduceExtendedStep(acc, step, executorArgs);
+}
+
+/**
+ * Run all extended steps sequentially and return the result list.
+ *
+ * @param steps - Recipe steps to execute.
+ * @param executorArgs - Shared executor args.
+ * @returns Per-step executor results in recipe order.
+ */
+async function runExtendedSteps(
+  steps: readonly IHarvestStep[],
+  executorArgs: IStepExecutorArgs,
+): Promise<readonly IStepExecutorResult[]> {
+  const seed: Promise<readonly IStepExecutorResult[]> = Promise.resolve([]);
+  const reducer = buildExtendedReducer(executorArgs);
+  return steps.reduce(reducer, seed);
+}
+
+/**
+ * Run the recipe steps via the executor args under a freshly-installed
+ * response buffer. Extracted so {@link driveExtendedRecipe} stays
+ * under the 10-line cap.
+ *
+ * @param buffer - Live response buffer installed for the recipe.
+ * @param args - Extended drive bundle.
+ * @returns Per-step executor results (in recipe order).
+ */
+async function runStepsWithBuffer(
+  buffer: IResponseBufferHandle,
+  args: IExtendedDriveArgs,
+): Promise<readonly IStepExecutorResult[]> {
+  const executorArgs = buildExecutorArgs({ args, buffer });
+  return runExtendedSteps(args.recipe.steps, executorArgs);
+}
+
+/**
+ * Drive a post-login extended recipe over a page that already
+ * holds the pre-login state. Installs the response buffer for the
+ * lifetime of the recipe + disposes it on the way out.
+ * @param args - Extended drive bundle.
+ * @returns Per-step executor results (in recipe order).
+ */
+async function driveExtendedRecipe(
+  args: IExtendedDriveArgs,
+): Promise<readonly IStepExecutorResult[]> {
+  const buffer = installResponseBuffer(args.page);
+  try {
+    return await runStepsWithBuffer(buffer, args);
+  } finally {
+    buffer.dispose();
+  }
+}
+
+/** Arguments accepted by {@link maybeRunPostLogin} / {@link runPostLoginRecipe}. */
+interface IPostLoginRunArgs {
+  readonly page: Page;
+  readonly fixtureRoot: string;
+  readonly bankId: string;
+  readonly includePostLogin: boolean;
+}
+
+/** Spec bundle for {@link runRecipeInContext} / {@link buildPostLoginRunArgs}. */
+interface IRunRecipeSpec {
+  readonly helpers: IDriveHelpers;
+  readonly recipe: IBankRecipe;
+  readonly includePostLogin: boolean;
+}
+
+/** Spec bundle for {@link driveRecipe} / {@link harvestWithBrowser}. */
+interface IBrowserRecipeSpec {
+  readonly browser: Browser;
+  readonly recipe: IBankRecipe;
+  readonly includePostLogin: boolean;
+}
+
+/**
+ * Run the recipe steps + write manifest inside an already-opened context.
+ *
+ * @param spec - Helpers + recipe + include-post-login flag.
+ * @returns Total files written across all steps.
+ */
+async function runRecipeInContext(spec: IRunRecipeSpec): Promise<number> {
+  const { helpers, recipe } = spec;
+  const result = await driveRecipeSteps(helpers.page, helpers.fixtureRoot, recipe.steps);
+  await writeStepsManifest(helpers.fixtureRoot, result.steps);
+  const postLoginArgs = buildPostLoginRunArgs(spec);
+  const extraWritten = await maybeRunPostLogin(postLoginArgs);
+  return result.totalWritten + extraWritten;
+}
+
+/**
+ * Build the post-login run args bundle from a run-recipe spec.
+ * @param spec - Helpers + recipe + include-post-login flag.
+ * @returns Bundle ready for {@link maybeRunPostLogin}.
+ */
+function buildPostLoginRunArgs(spec: IRunRecipeSpec): IPostLoginRunArgs {
+  return {
+    page: spec.helpers.page,
+    fixtureRoot: spec.helpers.fixtureRoot,
+    bankId: spec.recipe.bankId,
+    includePostLogin: spec.includePostLogin,
+  };
+}
+
+/**
+ * Build the {@link IRunRecipeSpec} bundle for a freshly-opened drive context.
+ *
+ * @param spec - Browser-level spec.
+ * @param helpers - Page + fixture root opened for this drive.
+ * @returns Spec ready for {@link runRecipeInContext}.
+ */
+function buildRunRecipeSpec(spec: IBrowserRecipeSpec, helpers: IDriveHelpers): IRunRecipeSpec {
+  return { helpers, recipe: spec.recipe, includePostLogin: spec.includePostLogin };
+}
+
+/** Spec bundle for {@link runRecipeInContextSafely}. */
+interface IDriveContextSpec {
+  readonly spec: IBrowserRecipeSpec;
+  readonly context: BrowserContext;
+  readonly fixtureRoot: string;
+}
+
+/**
+ * Run the recipe in a fresh context tied to the given spec; close the
+ * context on the way out regardless of outcome.
+ *
+ * @param ctx - Browser spec + open context + fixture root.
  * @returns Total number of files written across all steps.
  */
-async function driveRecipe(browser: Browser, recipe: IBankRecipe): Promise<number> {
-  const fixtureRoot = await ensureFixtureRoot(recipe.bankId);
-  const context = await openHarvestContext(browser);
-  const page = await context.newPage();
+async function runRecipeInContextSafely(ctx: IDriveContextSpec): Promise<number> {
   try {
-    const result = await driveRecipeSteps(page, fixtureRoot, recipe.steps);
-    await writeStepsManifest(fixtureRoot, result.steps);
-    return result.totalWritten;
+    const page = await ctx.context.newPage();
+    const runSpec = buildRunRecipeSpec(ctx.spec, { page, fixtureRoot: ctx.fixtureRoot });
+    return await runRecipeInContext(runSpec);
   } finally {
-    await context.close();
+    await ctx.context.close();
   }
 }
 
 /**
- * Parse `bankId` from `process.argv` and look up the recipe body.
- * @returns The resolved recipe for the requested bank.
+ * Drive every step of a bank recipe end-to-end and persist the
+ * captured-step manifest (`steps.json`) at the fixture root.
+ * @param spec - Browser + recipe + include-post-login flag.
+ * @returns Total number of files written across all steps.
  */
-function resolveRecipeFromCli(): IBankRecipe {
-  const bankId = process.argv.at(2);
-  if (bankId === undefined || bankId.trim() === '') {
+async function driveRecipe(spec: IBrowserRecipeSpec): Promise<number> {
+  const fixtureRoot = await ensureFixtureRoot(spec.recipe.bankId);
+  const context = await openHarvestContext(spec.browser);
+  return runRecipeInContextSafely({ spec, context, fixtureRoot });
+}
+
+/**
+ * Conditionally run the post-login extended recipe for a bank.
+ * Returns the number of files written by the extended driver
+ * (counted as 1-per-step that emitted a snapshot or response file —
+ * approximate, used for reporting only).
+ * @param args - Post-login run bundle.
+ * @returns Count of files written by post-login steps (approximate).
+ */
+async function maybeRunPostLogin(args: IPostLoginRunArgs): Promise<number> {
+  if (!args.includePostLogin) return 0;
+  const recipeOpt = getPostLoginRecipe(args.bankId);
+  if (!recipeOpt.has) {
+    console.warn(`  no post-login recipe registered for bankId="${args.bankId}" — skipping`);
+    return 0;
+  }
+  const spec = buildPostLoginSpec(args, recipeOpt.value);
+  return runPostLoginRecipe(spec);
+}
+
+/**
+ * Build the extended-drive arg bundle for a post-login run.
+ * @param args - Post-login run bundle.
+ * @param recipe - Resolved extended recipe.
+ * @returns Bundle ready for {@link runPostLoginRecipe}.
+ */
+function buildPostLoginSpec(
+  args: IPostLoginRunArgs,
+  recipe: IExtendedDriveArgs['recipe'],
+): IExtendedDriveArgs {
+  const credentials = hasCredentials(args.bankId) ? loadCredentials(args.bankId) : undefined;
+  return { page: args.page, fixtureRoot: args.fixtureRoot, recipe, credentials };
+}
+
+/**
+ * Run an extended recipe + tally an approximate file-count.
+ * Snapshots count 1, response captures count 1; skipped steps count 0.
+ * @param args - Bundle of page + fixture root + recipe + optional credentials.
+ * @returns Approximate file count emitted by extended driver.
+ */
+async function runPostLoginRecipe(args: IExtendedDriveArgs): Promise<number> {
+  const stepCount = String(args.recipe.steps.length);
+  console.log(`  → running post-login extended recipe (${stepCount} steps)`);
+  const results = await driveExtendedRecipe(args);
+  return countWrittenFiles(results);
+}
+
+/**
+ * Count approximate files written by the extended driver — sum
+ * of snapshot + response writes across steps.
+ * @param results - Executor results in order.
+ * @returns Approximate count.
+ */
+function countWrittenFiles(results: readonly IStepExecutorResult[]): number {
+  return results.reduce(
+    (sum, r) => sum + (r.snapshotWritten ? 1 : 0) + (r.responsePath !== undefined ? 1 : 0),
+    0,
+  );
+}
+
+/** CLI parse result — recipe + post-login flag. */
+interface IResolvedCli {
+  readonly recipe: IBankRecipe;
+  readonly includePostLogin: boolean;
+}
+
+/**
+ * Parse the bankId positional argument from argv or throw.
+ *
+ * @param args - Sliced process.argv (flags already included).
+ * @returns The first non-flag argument.
+ */
+function parseBankIdArg(args: string[]): string {
+  const bankId = args.find(a => !a.startsWith('--'));
+  if (bankId === undefined || bankId.trim() === '')
     throw new ScraperError('usage: HarvestBankHtml.ts <bankId>');
-  }
+  return bankId;
+}
+
+/**
+ * Resolve a recipe body from the recipe map or throw.
+ *
+ * @param bankId - The bank identifier to look up.
+ * @returns The recipe body for the bank.
+ */
+function lookupRecipeBody(bankId: string): IRecipeBody {
   const body = BANK_RECIPES[bankId];
-  if (body === undefined) {
-    throw new ScraperError(`no recipe registered for bankId "${bankId}"`);
+  if (body === undefined) throw new ScraperError(`no recipe registered for bankId "${bankId}"`);
+  return body;
+}
+
+/**
+ * Parse `bankId` + optional `--include-post-login` from `process.argv`
+ * and look up the recipe body.
+ *
+ * <p><strong>NOTE (PR-A2.1):</strong> `--include-post-login` is reserved
+ * but NOT yet wired. The accompanying executors (login + post-login
+ * navigation + per-phase capture) land in PR-A2.2. Passing the flag in
+ * PR-A2.1 makes {@link main} fail fast before the browser launches so
+ * operators don't waste time on a partial pipeline.
+ *
+ * @returns The resolved recipe + post-login flag for the requested bank.
+ */
+function resolveRecipeFromCli(): IResolvedCli {
+  const args = process.argv.slice(2);
+  const bankId = parseBankIdArg(args);
+  const body = lookupRecipeBody(bankId);
+  const recipe = toRecipe(bankId, body);
+  const shouldIncludePostLogin = args.includes('--include-post-login');
+  return { recipe, includePostLogin: shouldIncludePostLogin };
+}
+
+/** Status object returned by {@link assertPostLoginNotYetSupported}. */
+interface IPostLoginGateStatus {
+  readonly gateAccepted: true;
+}
+
+/**
+ * Build the not-yet-implemented error for `--include-post-login`.
+ *
+ * @returns ScraperError describing why the flag is reserved.
+ */
+function postLoginReservedError(): ScraperError {
+  return new ScraperError(
+    '--include-post-login is reserved for PR-A2.2 and not yet implemented. ' +
+      'PR-A2.1 ships the harvester infrastructure (post-login recipes, network ' +
+      'recorder, credential loader, step executors) but NOT the wired execution ' +
+      'path. Re-run without the flag to capture pre-login HTML only.',
+  );
+}
+
+/**
+ * Reject `--include-post-login` until PR-A2.2 wires the login + post-login
+ * executors. Without this guard, the flag would silently produce broken
+ * artifacts (login step throws on creds-present banks, or skips on
+ * creds-absent banks while later steps still run + write to post-login
+ * directories).
+ * @param cli - Result of {@link resolveRecipeFromCli}.
+ * @returns Status object confirming the flag set is supported.
+ */
+function assertPostLoginNotYetSupported(cli: IResolvedCli): IPostLoginGateStatus {
+  if (cli.includePostLogin) throw postLoginReservedError();
+  return { gateAccepted: true };
+}
+
+/**
+ * Run the recipe with the browser, log the result, and close the browser.
+ *
+ * @param spec - Browser + recipe + include-post-login flag.
+ * @returns Total files written.
+ */
+async function harvestWithBrowser(spec: IBrowserRecipeSpec): Promise<number> {
+  try {
+    const total = await driveRecipe(spec);
+    console.log(`\n✅ ${spec.recipe.bankId}: wrote ${String(total)} files.`);
+    return total;
+  } finally {
+    await spec.browser.close();
   }
-  return toRecipe(bankId, body);
+}
+
+/**
+ * Build the {@link IBrowserRecipeSpec} bundle for a launched browser + CLI args.
+ *
+ * @param browser - Launched Camoufox browser.
+ * @param cli - Resolved CLI args.
+ * @returns Spec ready for {@link harvestWithBrowser}.
+ */
+function buildBrowserRecipeSpec(browser: Browser, cli: IResolvedCli): IBrowserRecipeSpec {
+  return { browser, recipe: cli.recipe, includePostLogin: cli.includePostLogin };
 }
 
 /**
@@ -637,16 +1079,12 @@ function resolveRecipeFromCli(): IBankRecipe {
  * @returns Total files written for the recipe.
  */
 async function main(): Promise<number> {
-  const recipe = resolveRecipeFromCli();
-  console.log(`Harvesting fixtures for bankId="${recipe.bankId}"…`);
+  const cli = resolveRecipeFromCli();
+  assertPostLoginNotYetSupported(cli);
+  console.log(`Harvesting fixtures for bankId="${cli.recipe.bankId}"…`);
   const browser = await launchCamoufox(true);
-  try {
-    const total = await driveRecipe(browser, recipe);
-    console.log(`\n✅ ${recipe.bankId}: wrote ${String(total)} files.`);
-    return total;
-  } finally {
-    await browser.close();
-  }
+  const browserSpec = buildBrowserRecipeSpec(browser, cli);
+  return harvestWithBrowser(browserSpec);
 }
 
 main().catch((err: unknown) => {
