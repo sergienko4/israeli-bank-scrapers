@@ -308,7 +308,13 @@ const phase9LocalPlugin = {
   },
 };
 
-// §19.10 enforcement scope — Phase 9 6 files. Extend in Phase 10.
+// §19.10 enforcement scope — Phase 9 6 files + Phase 10 wave 1 (Integration).
+// PR-A2.1 cycle 4c (CodeRabbit follow-up): the Mode A/B harvester +
+// simulator landed under `src/Tests/Integration/**`. CR cycle 4b flagged
+// 17 helper functions over the 10-line cap that §19.10 would have
+// caught at lint time — but the directory was not in this allowlist.
+// Extending the glob enforces the cap going forward on every new file
+// under that subtree.
 const PHASE_9_TEST_FILES = [
   'src/Tests/E2eReal/Helpers.ts',
   'src/Tests/E2eReal/Tools/CaptureInvalidLogin.ts',
@@ -316,6 +322,13 @@ const PHASE_9_TEST_FILES = [
   'src/Tests/Unit/Pipeline/Infrastructure/DashboardPhase.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryFactoryTest.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts',
+];
+
+// Phase 10 wave 1 — Mode A/B harvester + simulator tree. Glob form so
+// future Integration files inherit the cap automatically.
+const PHASE_10_INTEGRATION_FILES = [
+  'src/Tests/Integration/**/*.ts',
+  'src/Tests/Unit/Integration/**/*.ts',
 ];
 
 const RESTRICTED_SYNTAX_RULES_NEW = [
@@ -2464,6 +2477,31 @@ export default tseslint.config(
   // plan extends the `files:` glob to all `src/Tests/**` in waves.
   {
     files: PHASE_9_TEST_FILES,
+    plugins: { 'phase9-local': phase9LocalPlugin },
+    rules: {
+      'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
+    },
+  },
+
+  // 19.10 PHASE 10 WAVE 1 — extend `fn-declaration-max-lines:10` to the
+  // Mode A/B harvester + simulator tree under `src/Tests/Integration/**`
+  // and its companion unit tests. Closes the gap CR cycle 4b exposed
+  // (17 helper functions >10 lines slipped through because the directory
+  // was not in the §19.10 allowlist). Future Integration files inherit
+  // automatically via the glob.
+  //
+  // The `ignores:` list grandfathers 4 pre-existing files that were
+  // NOT touched by PR-A2.1 (Banks/, Helpers/, LoginNavigation, Check…
+  // Coverage). Phase 10 wave 2 brings those under the cap in a focused
+  // refactor PR — avoiding scope creep on PR-A2.1.
+  {
+    files: PHASE_10_INTEGRATION_FILES,
+    ignores: [
+      'src/Tests/Integration/Banks/**/*.ts',
+      'src/Tests/Integration/Helpers/**/*.ts',
+      'src/Tests/Integration/Mirror/LoginNavigation.mirror.test.ts',
+      'src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts',
+    ],
     plugins: { 'phase9-local': phase9LocalPlugin },
     rules: {
       'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
