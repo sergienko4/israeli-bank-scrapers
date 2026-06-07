@@ -8,6 +8,14 @@
     "clientKind": "git",
     "useIgnoreFile": true
   },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
