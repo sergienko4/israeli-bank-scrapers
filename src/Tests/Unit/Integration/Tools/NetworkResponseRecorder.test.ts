@@ -3,10 +3,9 @@
  */
 
 import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
-import * as path from 'node:path';
 
 import type { Page, Response } from 'playwright-core';
+import * as tmp from 'tmp';
 
 import { isSome } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import {
@@ -270,17 +269,18 @@ function createDeferredBody(): IDeferredBody {
 }
 
 /**
- * Helper to create a secure per-test fixture directory under the OS temp
- * root. Uses {@link fs.mkdtemp} so the directory is created atomically
- * with `0o700` mode (owner-only) and a cryptographically-random suffix —
- * the pattern Node + CodeQL recognise as safe (`js/insecure-temporary-file`).
+ * Helper to create a secure per-test fixture directory using the `tmp`
+ * library — the canonical fix CodeQL's `js/insecure-temporary-file`
+ * (CWE-377/378) documentation recommends. `tmp.dirSync` creates the dir
+ * with `0o700` mode and a cryptographically-random suffix, and
+ * `unsafeCleanup: true` lets the per-test ``fs.rm`` succeed even when
+ * the directory contains the response.json we just wrote.
  *
  * @returns Absolute path of the newly created temp dir (caller cleans up).
  */
-async function makeTmpDir(): Promise<string> {
-  const tmpRoot = os.tmpdir();
-  const prefixPath = path.join(tmpRoot, 'nrr-');
-  return fs.mkdtemp(prefixPath);
+function makeTmpDir(): string {
+  const handle = tmp.dirSync({ prefix: 'nrr-', unsafeCleanup: true });
+  return handle.name;
 }
 
 /**
@@ -482,7 +482,7 @@ describe('NetworkResponseRecorder', () => {
         body: '{"cycle":42}',
       });
       await stub.trigger(response);
-      const outDir = await makeTmpDir();
+      const outDir = makeTmpDir();
       try {
         const opt = await flushMatching(handle, {
           urlPattern: '/cycle-billing',
@@ -503,7 +503,7 @@ describe('NetworkResponseRecorder', () => {
     it('returns None when no buffered response matches', async () => {
       const stub = makePageStub();
       const handle = installResponseBuffer(stub.page);
-      const outDir = await makeTmpDir();
+      const outDir = makeTmpDir();
       try {
         const opt = await flushMatching(handle, {
           urlPattern: '/never-arrives',
@@ -523,7 +523,7 @@ describe('NetworkResponseRecorder', () => {
       const deferred = createDeferredBody();
       const slowResponse = makeSlowResponseStub(deferred.bodyPromise);
       const dispatched = stub.trigger(slowResponse);
-      const outDir = await makeTmpDir();
+      const outDir = makeTmpDir();
       try {
         const flushed = flushMatching(handle, {
           urlPattern: '/api/slow',
@@ -555,7 +555,7 @@ describe('NetworkResponseRecorder', () => {
         body: '{"ok":true}',
       });
       await stub.trigger(response);
-      const outDir = await makeTmpDir();
+      const outDir = makeTmpDir();
       try {
         const opt = await flushMatching(handle, {
           urlPattern: '/api/account',

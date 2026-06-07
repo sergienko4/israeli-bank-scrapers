@@ -31,6 +31,8 @@ const MAX_BUFFER_ENTRIES = 200;
 const MAX_BODY_BYTES = 256 * 1024;
 const JSON_CONTENT_RE = /^application\/(?:[\w.+-]+\+)?json\b/i;
 const RESPONSE_LISTENER_EVENT = 'response' as const;
+const FIXTURE_FILE_MODE = 0o600;
+const FIXTURE_DIR_MODE = 0o700;
 
 /** One captured response. */
 interface ICapturedResponse {
@@ -295,6 +297,12 @@ function toCommittableJson(entry: ICapturedResponse): string {
  * Drains in-flight captures FIRST so a response that began before the
  * navigation completed but hasn't finished `response.text()` yet is
  * still considered for the snapshot.
+ *
+ * Files are written with mode `0o600` (owner-only read/write) and any
+ * directory we create is mode `0o700`. This satisfies CodeQL's
+ * `js/insecure-temporary-file` (CWE-377/378) rule even when the caller
+ * supplies a path that resolves under `os.tmpdir()` — fixtures must
+ * never leak to other users on shared CI runners.
  * @param handle - Buffer handle from {@link installResponseBuffer}.
  * @param args - Pattern + output destination.
  * @returns Some(absolutePath) when written, otherwise none.
@@ -307,10 +315,10 @@ async function flushMatching(
   const snapshot = handle.snapshot();
   const match = findLatestMatch(snapshot, args.urlPattern, args.methods);
   if (!match.has) return none();
-  await fs.mkdir(args.outDir, { recursive: true });
+  await fs.mkdir(args.outDir, { recursive: true, mode: FIXTURE_DIR_MODE });
   const outPath = path.join(args.outDir, `${args.captureAs}.response.json`);
   const payload = toCommittableJson(match.value);
-  await fs.writeFile(outPath, payload, 'utf8');
+  await fs.writeFile(outPath, payload, { encoding: 'utf8', mode: FIXTURE_FILE_MODE });
   return some(outPath);
 }
 
