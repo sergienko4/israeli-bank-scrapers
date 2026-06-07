@@ -300,6 +300,30 @@ function fitsPostDataPredicate(transition: IMirrorTransition, request: IMatchReq
 }
 
 /**
+ * True when the headers predicate is absent or holds.
+ *
+ * @param transition - Candidate transition.
+ * @param request - Request facts.
+ * @returns True when no headers predicate or it matches.
+ */
+function fitsHeaderPredicate(transition: IMirrorTransition, request: IMatchRequest): boolean {
+  if (transition.headers === undefined) return true;
+  return matchesHeaders(transition.headers, request.headers);
+}
+
+/**
+ * True when the cookies predicate is absent or holds.
+ *
+ * @param transition - Candidate transition.
+ * @param request - Request facts.
+ * @returns True when no cookies predicate or it matches.
+ */
+function fitsCookiePredicate(transition: IMirrorTransition, request: IMatchRequest): boolean {
+  if (transition.cookies === undefined) return true;
+  return matchesCookies(transition.cookies, request.headers);
+}
+
+/**
  * Returns true when headers + cookies predicates both fit (or are absent).
  *
  * @param transition - Candidate transition.
@@ -310,13 +334,7 @@ function fitsHeaderAndCookiePredicates(
   transition: IMirrorTransition,
   request: IMatchRequest,
 ): boolean {
-  if (transition.headers !== undefined && !matchesHeaders(transition.headers, request.headers)) {
-    return false;
-  }
-  if (transition.cookies !== undefined && !matchesCookies(transition.cookies, request.headers)) {
-    return false;
-  }
-  return true;
+  return fitsHeaderPredicate(transition, request) && fitsCookiePredicate(transition, request);
 }
 
 /**

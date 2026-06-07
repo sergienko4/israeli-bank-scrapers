@@ -280,12 +280,23 @@ async function handleRoute(
   ctx: IRouteCtx,
 ): Promise<SimulatorStepStatus> {
   const request = buildMatchRequest(req);
-  const outcome = matchTransition({
+  const outcome = computeMatchOutcome(request, ctx);
+  return dispatchOutcome({ outcome, route, request, ctx });
+}
+
+/**
+ * Run the pure matcher against the current phase + transitions.
+ *
+ * @param request - Matcher input.
+ * @param ctx - Route context (for phase + transitions).
+ * @returns The matcher outcome.
+ */
+function computeMatchOutcome(request: IMatchRequest, ctx: IRouteCtx): IMatchOutcome {
+  return matchTransition({
     request,
     currentPhase: ctx.state.currentPhase,
     transitions: ctx.manifest.transitions,
   });
-  return dispatchOutcome({ outcome, route, request, ctx });
 }
 
 /**
@@ -324,14 +335,24 @@ function throwAmbiguous(request: IMatchRequest, ctx: IRouteCtx): never {
  */
 function buildMatchRequest(req: Request): IMatchRequest {
   const rawHeaders = req.headers();
-  const lowered = normalizeHeaders(rawHeaders);
-  const postBody = req.postData() ?? '';
+  const headers = normalizeHeaders(rawHeaders);
+  return makeRequestRecord(req, headers);
+}
+
+/**
+ * Build the IMatchRequest record from a Playwright request + pre-normalized headers.
+ *
+ * @param req - Playwright request (for method/url/resourceType/postData).
+ * @param headers - Already-lowercased headers map.
+ * @returns Pure matcher input.
+ */
+function makeRequestRecord(req: Request, headers: Map<string, string>): IMatchRequest {
   return {
     method: req.method().toUpperCase(),
     url: req.url(),
     resourceType: req.resourceType() as MirrorResourceType,
-    postBody,
-    headers: lowered,
+    postBody: req.postData() ?? '',
+    headers,
   };
 }
 
@@ -667,15 +688,40 @@ function composeResponseHeaders(
   transition: IMirrorTransition,
   challenge: IOtpChallengeState,
 ): Record<string, string> {
-  const headers: Record<string, string> = {
-    'content-type': transition.response.contentType,
-    ...(transition.response.headers ?? {}),
+  const base = buildBaseResponseHeaders(transition.response);
+  return addOtpChallengeIfNeeded(base, transition.phase, challenge);
+}
+
+/**
+ * Build the base response headers from the manifest's response declaration.
+ *
+ * @param response - Mirror response declaration.
+ * @returns Base headers (content-type + declared headers).
+ */
+function buildBaseResponseHeaders(response: IMirrorResponse): Record<string, string> {
+  return {
+    'content-type': response.contentType,
+    ...(response.headers ?? {}),
   };
-  if (transition.phase === 'OTP_TRIGGER') {
-    const nonce = issueChallenge(challenge);
-    headers['set-cookie'] = `${CHALLENGE_COOKIE}=${nonce}; Path=/`;
-  }
-  return headers;
+}
+
+/**
+ * When the transition is OTP_TRIGGER, append the challenge Set-Cookie; otherwise
+ * pass the headers through unchanged. Returns a fresh record (no mutation).
+ *
+ * @param headers - Base response headers.
+ * @param phase - The transition's phase.
+ * @param challenge - OTP challenge state (used to issue a fresh nonce).
+ * @returns Headers, with `set-cookie` added only for OTP_TRIGGER transitions.
+ */
+function addOtpChallengeIfNeeded(
+  headers: Record<string, string>,
+  phase: IntegrationPhase,
+  challenge: IOtpChallengeState,
+): Record<string, string> {
+  if (phase !== 'OTP_TRIGGER') return headers;
+  const nonce = issueChallenge(challenge);
+  return { ...headers, 'set-cookie': `${CHALLENGE_COOKIE}=${nonce}; Path=/` };
 }
 
 /**
