@@ -158,6 +158,20 @@ const PII_PATTERNS = {
   bearerToken: /(Bearer\s+)[\w.~+/=-]{20,}/g,
   jwtToken: /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/g,
   cookieAuthValue: /((?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=)[^;\s"]+/gi,
+  /** Discount/Telebank session token in marketing-pixel query strings
+   *  (`&LSESSIONID=<opaque>`). Must run BEFORE generic id/jwt patterns
+   *  so the long token isn't shredded into smaller-pattern matches. */
+  lsessionIdParam: /(LSESSIONID=)[^&"'\s>]+/g,
+  /** Google-ads conversion-tracking numeric (`&ti=NNNN`). Must run
+   *  BEFORE `israeliId9` so the 9-digit tracking ID isn't first
+   *  matched as a generic Israeli-ID shape. */
+  trackingIdParam: /([?&;])ti=\d{6,}/g,
+  /** Microsoft Clarity / Bing UET advertiser tag ID baked into asset
+   *  filenames (`..._tag_uet_187049083`, `..._p_action_187049083.js`,
+   *  `..._ti_187049083_Ver_...`). The numeric is an advertiser-bound
+   *  tracking ID — scrub it from the captured asset path while leaving
+   *  the routing context intact. Must precede `israeliId9`. */
+  trackingIdInAssetPath: /(_(?:tag_uet|p_action|action_\d+_ti|ti)_)\d{6,}/g,
   hebrewGreetingName: /(>שלום\s*<\/h1>\s*<p[^>]*>)[^<]+(<\/p>)/g,
   hebrewSurnameLiteral: new RegExp(HE_SURNAME_ESC, 'g'),
   hebrewGivenNameLiteral: new RegExp(HE_GIVEN_NAME_ALT, 'g'),
@@ -181,6 +195,19 @@ const PII_PATTERNS = {
   email: /[\w.+-]+@[\w-]+\.[\w.-]+/g,
   ilsAmount: /(₪|NIS|ILS|ש"ח|ש״ח)\s*[-+]?\d[\d,]*(?:\.\d+)?/g,
   ilsAmountSuffix: /-?\d[\d,]*(?:\.\d+)?\s*(₪|NIS|ILS|ש"ח|ש״ח)/g,
+  /** Sanitize redactor-output `tel:[redacted-id]` (not a valid `tel:`
+   *  URI; trips parsers extracting dialable values) into a deterministic
+   *  zero-numeric placeholder. Runs LAST to clean up `israeliId9`
+   *  outputs that landed inside `tel:` URI hrefs. The all-zeros value
+   *  is chosen so it cannot collide with operator-account literals
+   *  (e.g. example secrets ship a 9999999999 placeholder). */
+  telLinkRedactedIdHref: /\btel:\[redacted-id\]/g,
+  /** Repair prettier-corrupted `[redacted - id]` (with spaces) that
+   *  arose when prettier reformatted `[redacted-id]` inside `<script>`
+   *  array literals as `[<binary-subtraction-expression>]`. Wrap in
+   *  quotes so the JS parses (string literal inside the array). Runs
+   *  LAST so it only ever fires on prettier-mangled prior output. */
+  prettierJsRedactedId: /\[redacted - id\]/g,
 } as const;
 
 /** Replacement applied for each pattern key. */
@@ -218,6 +245,11 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   email: '[redacted-email]',
   ilsAmount: '$1 [redacted-amount]',
   ilsAmountSuffix: '[redacted-amount] $1',
+  lsessionIdParam: '$1REDACTED_SESSION_ID',
+  trackingIdParam: '$1ti=REDACTED_TRACKING_ID',
+  trackingIdInAssetPath: '$1REDACTED_TRACKING_ID',
+  telLinkRedactedIdHref: 'tel:0000000000',
+  prettierJsRedactedId: '"[redacted-id]"',
 };
 
 /**

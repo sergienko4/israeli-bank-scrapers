@@ -86,6 +86,11 @@ const PATTERNS = [
   { id: 'jwt', re: /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/g, severity: 'CRITICAL', desc: 'JWT token' },
   { id: 'cookie-auth', re: /(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=[^;\s"]+/gi, severity: 'CRITICAL', desc: 'Cookie session/auth value' },
   { id: 'recaptcha-token', re: /<input[^>]*id="recaptcha-token"[^>]*value="(?!REDACTED_)[^"]+"/gi, severity: 'HIGH', desc: 'Unredacted recaptcha token' },
+  { id: 'lsessionid-token', re: /LSESSIONID=(?!REDACTED_)[A-Za-z0-9%+/=._-]{12,}/g, severity: 'CRITICAL', desc: 'Telebank session token in URL (LSESSIONID=...)' },
+  { id: 'tracking-id-param', re: /[?&;]ti=\d{6,}/g, severity: 'HIGH', desc: 'Google-ads tracking-conversion ID (&ti=NNN)' },
+  { id: 'tracking-id-asset-path', re: /_(?:tag_uet|p_action|action_\d+_ti|ti)_\d{6,}/g, severity: 'HIGH', desc: 'MS Clarity / Bing UET advertiser tag ID in asset filename' },
+  { id: 'tel-link-redacted-id', re: /\btel:\[redacted-id\]/g, severity: 'HIGH', desc: 'Invalid tel: URI containing redacted-id placeholder' },
+  { id: 'prettier-corrupt-redacted-id', re: /\[redacted - id\]/g, severity: 'CRITICAL', desc: 'JS-breaking [redacted - id] (prettier-corrupted) — would throw ReferenceError' },
 
   // --- Temporal personal info ---
   { id: 'last-login-text', re: /class="last-login"[^>]*>[^<]*?\d{1,2}\/\d{1,2}\/\d{2,4}[^<]*?\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp (Hebrew "ביקורך האחרון")' },

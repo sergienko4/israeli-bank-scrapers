@@ -104,6 +104,37 @@ const REDACT_CASES: readonly IRedactCase[] = [
     expected: '[redacted-account]',
     negative: 'date 2024-12-26 stays',
   },
+  {
+    key: 'lsessionIdParam',
+    positive:
+      'src="/pixel?cid=1&LSESSIONID=eyJlIjoiY01RQXl%3D%3D.2c0079f336bd0090.N2Y%3D%3D&t=jsonp"',
+    expected: 'LSESSIONID=REDACTED_SESSION_ID',
+    negative: 'LSESSIONID-no-equals stays',
+  },
+  {
+    key: 'trackingIdParam',
+    positive: '<iframe src="https://ads.example/?ord=1&ti=187049083&end"/>',
+    expected: 'ti=REDACTED_TRACKING_ID',
+    negative: 'tilde=foo stays',
+  },
+  {
+    key: 'trackingIdInAssetPath',
+    positive: 'src="assets/0384-bat.bing.com_action_0_ti_187049083_Ver_2_mid"',
+    expected: '_ti_REDACTED_TRACKING_ID',
+    negative: 'src="assets/0399-clarity.js" stays',
+  },
+  {
+    key: 'telLinkRedactedIdHref',
+    positive: '<a href="tel:[redacted-id]">call</a>',
+    expected: 'tel:0000000000',
+    negative: '<a href="tel:0000000000">stays</a>',
+  },
+  {
+    key: 'prettierJsRedactedId',
+    positive: "['.baidu.', 3, [redacted - id]],",
+    expected: '"[redacted-id]"',
+    negative: "['.baidu.', 3, [other]],",
+  },
 ];
 
 describe('PiiRedactor', () => {
