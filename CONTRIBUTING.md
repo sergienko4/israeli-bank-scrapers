@@ -1,4 +1,4 @@
-Contributing to @[REDACTED-USER]/israeli-bank-scrapers
+Contributing to @sergienko4/israeli-bank-scrapers
 ========
 
 Hey people, first of all, thanks for taking the time to help improving this project :beers:

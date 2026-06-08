@@ -7,7 +7,7 @@
 | Credentials | `username`, `password` |
 | OTP | — |
 | Phase chain | INIT → HOME → **PRE-LOGIN** → LOGIN → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE → TERMINATE |
-| Source | [`Banks/VisaCal/VisaCalPipeline.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.ts) |
+| Source | [`Banks/VisaCal/VisaCalPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.ts) |
 
 ## Known quirks
 

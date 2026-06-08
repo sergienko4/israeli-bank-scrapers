@@ -6,7 +6,7 @@ Resolve each credential field via the 7-strategy `SelectorResolver`, fill, submi
 |---|---|
 | **Always-on?** | Yes (`ifLoginAlways`) |
 | **Owner slot** | `login: Option<{ activeFrame, persistentOtpToken, urlBeforeSubmit }>` |
-| **Source** | [`LoginPhase.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Login/LoginPhase.ts) + [`LoginPhaseActions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.ts) |
+| **Source** | [`LoginPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Login/LoginPhase.ts) + [`LoginPhaseActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.ts) |
 
 ## 7-strategy SelectorResolver
 

@@ -55,7 +55,7 @@
 | Mizrahi Bank | `Mizrahi` | `username`, `password` | — |
 | Bank Yahav | `Yahav` | `username`, `nationalID`, `password` | — |
 
-Source: [`src/Definitions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
+Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 
 ## How to pick the right page
 
@@ -64,4 +64,4 @@ Source: [`src/Definitions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-s
 | ... just want to scrape with code that works today | The per-bank page for credential fields, then [Quick Start](../quick-start.md) |
 | ... want to know which engine your bank uses (browser vs API) | The per-bank page's "Engine" line |
 | ... hit `INVALID_OTP` or `INVALID_PASSWORD` | The per-bank "Known quirks" section + [Phases → LOGIN](../phases/login.md) / [OTP-FILL](../phases/otp-fill.md) |
-| ... see `WAF_BLOCKED` | The per-bank page (in case of bank-specific quirks) + [Error Types → WAF](https://github.com/[REDACTED-USER]/israeli-bank-scrapers#error-types) |
+| ... see `WAF_BLOCKED` | The per-bank page (in case of bank-specific quirks) + [Error Types → WAF](https://github.com/sergienko4/israeli-bank-scrapers#error-types) |

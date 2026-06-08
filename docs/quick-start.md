@@ -5,7 +5,7 @@ Get the first transaction from Bank Hapoalim in three steps.
 ## 1. Install
 
 ```sh
-npm install @[REDACTED-USER]/israeli-bank-scrapers
+npm install @sergienko4/israeli-bank-scrapers
 ```
 
 Requirements:
@@ -19,7 +19,7 @@ Requirements:
 ## 2. Scrape
 
 ```typescript
-import { CompanyTypes, createScraper } from '@[REDACTED-USER]/israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const scraper = createScraper({
   companyId: CompanyTypes.Hapoalim,
@@ -67,5 +67,5 @@ The `balance` field is populated by [BALANCE-RESOLVE.final](phases/balance-resol
 
 - Bank not Hapoalim? — pick yours in [Banks](banks/index.md); each page lists credentials + OTP behavior + known quirks.
 - Need OTP? — see [Phase → OTP-TRIGGER](phases/otp-trigger.md) and [OTP-FILL](phases/otp-fill.md).
-- WAF block? — [Error Types → WAF Troubleshooting](https://github.com/[REDACTED-USER]/israeli-bank-scrapers#error-types) in the README.
-- Parallel scraping? — [README → Advanced Usage](https://github.com/[REDACTED-USER]/israeli-bank-scrapers#advanced-usage).
+- WAF block? — [Error Types → WAF Troubleshooting](https://github.com/sergienko4/israeli-bank-scrapers#error-types) in the README.
+- Parallel scraping? — [README → Advanced Usage](https://github.com/sergienko4/israeli-bank-scrapers#advanced-usage).

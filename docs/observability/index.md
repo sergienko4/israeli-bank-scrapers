@@ -32,4 +32,4 @@ flowchart LR
 | **Runtime** (`PiiRedactor.ts`) | Inside Pino's `redact.censor` callback — every record runs through it before *any* transport writes | Account / card / Israeli ID / phone numbers, customer names, merchant strings, transaction amounts, auth tokens, OTP codes, URLs with PII query keys, HTML text + value attributes |
 | **Commit-time** (ESLint AST + `lint-and-validate.ts`) | Every pre-commit and CI run | Code that tries to bypass the runtime: PII identifiers interpolated into `LOG.*` template literals, full payload objects passed under `result|accounts|transactions|...` keys |
 
-If you spot something leaking past both layers, [open an issue](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/issues) — it's a load-bearing bug, not cosmetic.
+If you spot something leaking past both layers, [open an issue](https://github.com/sergienko4/israeli-bank-scrapers/issues) — it's a load-bearing bug, not cosmetic.
