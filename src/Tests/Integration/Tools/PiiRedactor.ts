@@ -10,6 +10,13 @@
  * rule (e.g. 9-digit Israeli ID) does not pre-empt a tighter match
  * (e.g. session token embedded inside a script payload).
  *
+ * <p>Operator-specific literals (Hebrew surname/given name, English
+ * operator name, username, account number) are loaded at module-load
+ * time from a gitignored `.pii-secrets.json` file at the repo root.
+ * When that file is absent the loader falls back to
+ * `.pii-secrets.example.json` (committed, placeholder values) so CI
+ * and tests run without operator data on disk.
+ *
  * <p>reCAPTCHA tokens are short-lived secrets bound to the captured
  * IP — scrubbed at write time so re-harvest stays automatic and never
  * commits a working anchor token. Currency amounts (₪/NIS) are
@@ -24,6 +31,121 @@
  * never commit a customer's real name, account number, or balance.
  */
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/** Custom error thrown when operator-specific PII literals cannot be loaded. */
+class PiiSecretsMissingError extends Error {
+  /**
+   * Create a `PiiSecretsMissingError` with a remediation hint.
+   *
+   * @param message - Human-readable explanation including the searched path.
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = 'PiiSecretsMissingError';
+  }
+}
+
+/** Operator-specific PII literals loaded from a gitignored JSON file. */
+interface IPiiSecrets {
+  readonly hebrewSurnameLiteral: string;
+  readonly hebrewGivenNameLiterals: readonly string[];
+  readonly englishOperatorNames: readonly string[];
+  readonly operatorUsernames: readonly string[];
+  readonly operatorAccountLiteral: string;
+}
+
+/**
+ * Escape a literal so it can be embedded inside a `RegExp` source.
+ *
+ * @param s - Raw literal that may contain regex metacharacters.
+ * @returns The same literal with all metacharacters backslash-escaped.
+ */
+function escapeRegexLiteral(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Join several literals into a `RegExp` alternation source.
+ *
+ * @param items - Literals to alternate (each is escaped before joining).
+ * @returns A `|`-separated alternation suitable for `new RegExp(...)`.
+ */
+function regexAlternation(items: readonly string[]): string {
+  const escaped = items.map(escapeRegexLiteral);
+  return escaped.join('|');
+}
+
+/**
+ * Locate the repo root from this file's URL (works under NodeNext ESM).
+ *
+ * @returns Absolute path to the repository root (4 levels above this file).
+ */
+function repoRoot(): string {
+  const fileUrl = import.meta.url;
+  const localPath = fileURLToPath(fileUrl);
+  const here = path.dirname(localPath);
+  return path.resolve(here, '..', '..', '..', '..');
+}
+
+/**
+ * Build the error message shown when neither secrets file exists.
+ *
+ * @param root - Absolute path to the repo root that was searched.
+ * @returns Human-readable error message with remediation hint.
+ */
+function missingSecretsMessage(root: string): string {
+  return (
+    `[PiiRedactor] Missing both .pii-secrets.json and .pii-secrets.example.json under ${root}. ` +
+    'Copy .pii-secrets.example.json to .pii-secrets.json and populate real values, ' +
+    'or restore the committed example template. The real file MUST stay gitignored.'
+  );
+}
+
+/**
+ * Pick the first existing secrets file, preferring real over example.
+ *
+ * @param root - Repo root absolute path.
+ * @returns Absolute path to the chosen secrets file.
+ * @throws {PiiSecretsMissingError} When neither candidate file exists.
+ */
+function pickSecretsFile(root: string): string {
+  const real = path.join(root, '.pii-secrets.json');
+  if (fs.existsSync(real)) return real;
+  const example = path.join(root, '.pii-secrets.example.json');
+  if (fs.existsSync(example)) return example;
+  throw new PiiSecretsMissingError(missingSecretsMessage(root));
+}
+
+/**
+ * Load PII literals from `.pii-secrets.json` (real values, gitignored)
+ * or `.pii-secrets.example.json` (committed fallback with placeholders).
+ *
+ * @returns Parsed `IPiiSecrets` from the chosen file.
+ * @throws {PiiSecretsMissingError} When neither file exists at the repo root.
+ */
+function loadPiiSecrets(): IPiiSecrets {
+  const root = repoRoot();
+  const chosen = pickSecretsFile(root);
+  const raw = fs.readFileSync(chosen, 'utf8');
+  return JSON.parse(raw) as IPiiSecrets;
+}
+
+const SECRETS = loadPiiSecrets();
+
+/** Pre-built alternation source for Hebrew given-name literals. */
+const HE_GIVEN_NAME_ALT = regexAlternation(SECRETS.hebrewGivenNameLiterals);
+/** Pre-built alternation source for English operator-name literals. */
+const EN_OPERATOR_NAME_ALT = regexAlternation(SECRETS.englishOperatorNames);
+/** Pre-built alternation source for operator-username literals. */
+const OPERATOR_USERNAME_ALT = regexAlternation(SECRETS.operatorUsernames);
+/** Escaped form of the operator's account-number literal. */
+const OPERATOR_ACCOUNT_ESC = escapeRegexLiteral(SECRETS.operatorAccountLiteral);
+/** Escaped form of the operator's Hebrew surname literal. */
+const HE_SURNAME_ESC = escapeRegexLiteral(SECRETS.hebrewSurnameLiteral);
+
 /** Replacement string OR replacement function (for patterns whose
  * substitution depends on captured groups in non-trivial ways). */
 type PiiReplacement = string | ((match: string, ...groups: string[]) => string);
@@ -37,11 +159,11 @@ const PII_PATTERNS = {
   jwtToken: /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/g,
   cookieAuthValue: /((?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=)[^;\s"]+/gi,
   hebrewGreetingName: /(>שלום\s*<\/h1>\s*<p[^>]*>)[^<]+(<\/p>)/g,
-  hebrewSurnameLiteral: /[REDACTED-HE-SURNAME]/g,
-  hebrewGivenNameLiteral: /יוג['׳]ין|יבגניה|יבגני|[REDACTED-HE-NAME]/g,
-  englishOperatorName: /\b([REDACTED-USER]|Yevgeny|Eugen|Eugene)\b/gi,
-  operatorUsername: /\b([REDACTED-USER]|esergienko|VT75151)\b/g,
-  operatorAccountLiteral: /\b[REDACTED-OPER-ACCT]\b/g,
+  hebrewSurnameLiteral: new RegExp(HE_SURNAME_ESC, 'g'),
+  hebrewGivenNameLiteral: new RegExp(HE_GIVEN_NAME_ALT, 'g'),
+  englishOperatorName: new RegExp(`\\b(${EN_OPERATOR_NAME_ALT})\\b`, 'gi'),
+  operatorUsername: new RegExp(`\\b(${OPERATOR_USERNAME_ALT})\\b`, 'g'),
+  operatorAccountLiteral: new RegExp(`\\b${OPERATOR_ACCOUNT_ESC}\\b`, 'g'),
   urlPathAccountId:
     /(\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=[/?"]|\\"|$)/g,
   jsonPersonNameField:

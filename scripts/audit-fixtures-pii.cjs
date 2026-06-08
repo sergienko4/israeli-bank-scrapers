@@ -19,14 +19,48 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const FIXTURES = path.join(ROOT, 'src', 'Tests', 'Integration', 'fixtures', 'banks');
 
+/** Escape a literal so it can be embedded in a RegExp source. */
+function escapeRegexLiteral(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Build a regex alternation source from a list of literals. */
+function alternation(items) {
+  return items.map(escapeRegexLiteral).join('|');
+}
+
+/** Load operator-specific PII literals from a gitignored secrets file.
+ *  Prefers .pii-secrets.json (real values) and falls back to
+ *  .pii-secrets.example.json so CI without secrets still runs the
+ *  generic patterns. Hard-errors only when NEITHER file exists. */
+function loadPiiSecrets() {
+  const real = path.join(ROOT, '.pii-secrets.json');
+  const example = path.join(ROOT, '.pii-secrets.example.json');
+  const chosen = fs.existsSync(real) ? real : fs.existsSync(example) ? example : null;
+  if (!chosen) {
+    console.error(
+      `\n❌ Missing .pii-secrets.json AND .pii-secrets.example.json under ${ROOT}.\n` +
+        `   Copy .pii-secrets.example.json (template) to .pii-secrets.json and populate with real operator values.\n` +
+        `   This file is gitignored — never commit it.\n`,
+    );
+    process.exit(3);
+  }
+  if (chosen === example) {
+    console.warn(`⚠️  Using ${path.relative(ROOT, example)} — operator-specific patterns will use placeholder values only.\n`);
+  }
+  return JSON.parse(fs.readFileSync(chosen, 'utf8'));
+}
+
+const SECRETS = loadPiiSecrets();
+
 const PATTERNS = [
-  // --- Customer identity ---
+  // --- Customer identity (operator-specific literals loaded from .pii-secrets.json) ---
   { id: 'hebrew-greeting-name', re: />שלום\s*<\/h1>\s*<p[^>]*>([^<]+)<\/p>/g, severity: 'CRITICAL', desc: 'Hebrew greeting name <h1>שלום</h1><p>NAME</p>' },
-  { id: 'hebrew-name-literal-sergienko', re: /[REDACTED-HE-SURNAME]/g, severity: 'CRITICAL', desc: 'Literal user surname leaked' },
-  { id: 'hebrew-name-literal-yevgeny', re: /יוג['׳]ין|יבגני|יבגניה|[REDACTED-HE-NAME]/g, severity: 'CRITICAL', desc: 'Literal user given name leaked' },
-  { id: 'eng-name-literal', re: /\b([REDACTED-USER]|Yevgeny|Eugen|Eugene)\b/gi, severity: 'CRITICAL', desc: 'Literal user name in English' },
-  { id: 'username-literal', re: /\b([REDACTED-USER]|esergienko|VT75151)\b/g, severity: 'CRITICAL', desc: 'Literal credential/username leaked' },
-  { id: 'operator-account-literal', re: /\b[REDACTED-OPER-ACCT]\b/g, severity: 'CRITICAL', desc: 'Operator account number literal' },
+  { id: 'hebrew-name-literal-surname', re: new RegExp(escapeRegexLiteral(SECRETS.hebrewSurnameLiteral), 'g'), severity: 'CRITICAL', desc: 'Literal operator surname leaked' },
+  { id: 'hebrew-name-literal-given', re: new RegExp(alternation(SECRETS.hebrewGivenNameLiterals), 'g'), severity: 'CRITICAL', desc: 'Literal operator given name leaked' },
+  { id: 'eng-name-literal', re: new RegExp(`\\b(${alternation(SECRETS.englishOperatorNames)})\\b`, 'gi'), severity: 'CRITICAL', desc: 'Literal operator name in English' },
+  { id: 'username-literal', re: new RegExp(`\\b(${alternation(SECRETS.operatorUsernames)})\\b`, 'g'), severity: 'CRITICAL', desc: 'Literal credential/username leaked' },
+  { id: 'operator-account-literal', re: new RegExp(`\\b${escapeRegexLiteral(SECRETS.operatorAccountLiteral)}\\b`, 'g'), severity: 'CRITICAL', desc: 'Operator account number literal' },
   { id: 'bare-account-in-url', re: /(?:\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=\/|\?|$|"|\\")/g, severity: 'CRITICAL', desc: 'Bare account-id in REST URL path' },
 
   // --- Account / IBAN ---
