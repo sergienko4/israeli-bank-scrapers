@@ -4,6 +4,7 @@
 
 import type { Page } from 'playwright-core';
 
+import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { isSome, none, type Option, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { BankCredentials } from '../../../Integration/Tools/CredentialLoader.js';
 import {
@@ -53,6 +54,7 @@ interface IExecArgsParts {
   readonly page: Page;
   readonly responseBuffer?: IResponseBufferHandle;
   readonly credentials?: BankCredentials;
+  readonly loginConfig?: ILoginConfig;
   readonly snapshotsTaken?: string[];
 }
 
@@ -280,13 +282,13 @@ function makeSnapshotRecorder(taken: string[]): SnapshotWriter {
  * @returns Shared executor args struct.
  */
 function makeExecArgs(parts: IExecArgsParts): IStepExecutorArgs {
-  const snapshotsTaken = parts.snapshotsTaken ?? [];
   return {
     page: parts.page,
     outDir: '/tmp/test-fixtures',
-    writeSnapshot: makeSnapshotRecorder(snapshotsTaken),
+    writeSnapshot: makeSnapshotRecorder(parts.snapshotsTaken ?? []),
     responseBuffer: parts.responseBuffer ?? makeBufferHandle(),
     credentials: parts.credentials,
+    loginConfig: parts.loginConfig,
   };
 }
 
@@ -407,18 +409,13 @@ describe('HarvestStepExecutors', () => {
       expect(result.skipped).toMatch(/no credentials loaded/u);
     });
 
-    it('throws ScraperError when credentials are present (PR-A2.2 marker)', async () => {
+    it('returns skip result when credentials are present but no login config registered', async () => {
       const mock = makePageMock();
       const args = makeExecArgs({ page: mock.page, credentials: makeCredentials() });
       const step: ILoginStep = { kind: 'login', stepName: '04-login' };
-      let caughtError: unknown;
-      try {
-        await executeLoginStep(step, args);
-      } catch (err) {
-        caughtError = err;
-      }
-      const errMsg = caughtError instanceof Error ? caughtError.message : '';
-      expect(errMsg).toMatch(/PR-A2\.2/u);
+      const result = await executeLoginStep(step, args);
+      expect(result.snapshotWritten).toBe(false);
+      expect(result.skipped).toMatch(/no login config registered/u);
     });
   });
 

@@ -21,13 +21,19 @@
  *
  * Usage:
  * ```
- *   npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts <bankId>
+ *   npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts <bankId> [--include-post-login]
  * ```
+ *
+ * Credentials for `--include-post-login` are auto-loaded from `.env`
+ * via the `dotenv/config` side-effect import below — operators don't
+ * need a special invocation.
  *
  * The recipe table is intentionally minimal — adding a new bank means
  * adding a {@link IBankRecipe} entry and registering it in
  * {@link BANK_RECIPES}.
  */
+
+import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -38,7 +44,9 @@ import type { Browser, BrowserContext, Frame, Page } from 'playwright-core';
 
 import { buildContextOptions } from '../../../Common/Browser.js';
 import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
+import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import BANK_LOGIN_CONFIGS from '../Banks/BankLoginConfigs.js';
 import type { BankCredentials } from './CredentialLoader.js';
 import { hasCredentials, loadCredentials } from './CredentialLoader.js';
 import {
@@ -46,9 +54,23 @@ import {
   type IStepExecutorArgs,
   type IStepExecutorResult,
 } from './HarvestStepExecutors.js';
+import {
+  dumpManifestTrafficIfMode,
+  filterStepsByMode,
+  type HarvestMode,
+  type IDumpManifestTrafficArgs,
+  parseHarvestMode,
+} from './ManifestRecorder.js';
 import { installResponseBuffer, type IResponseBufferHandle } from './NetworkResponseRecorder.js';
 import { redactPii as sharedRedactPii } from './PiiRedactor.js';
-import { getPostLoginRecipe } from './PostLoginRecipes.js';
+import {
+  BANK_RECIPES,
+  getPostLoginRecipe,
+  type IBankRecipe,
+  type IRecipeBody,
+  type IRecipeStep,
+  toRecipe,
+} from './PostLoginRecipes.js';
 import type { IExtendedRecipe, IHarvestStep } from './RecipeStepTypes.js';
 
 const HERE_PATH = fileURLToPath(import.meta.url);
@@ -60,117 +82,6 @@ const SETTLE_AFTER_GOTO_MS = 1500;
 const SETTLE_AFTER_REVEAL_MS = 1500;
 const PAGE_GOTO_TIMEOUT_MS = 45000;
 const FRAME_UNAVAILABLE_HTML = '<!-- frame content unavailable -->';
-
-/** One step in a bank recipe. */
-interface IRecipeStep {
-  readonly stepName: string;
-  /** Absolute URL to navigate to (only set on steps that change URL). */
-  readonly url?: string;
-  /** Visible text of an element to click after navigation (REVEAL action). */
-  readonly revealText?: string;
-}
-
-/**
- * Per-bank capture recipe (steps only). `bankId` is NOT duplicated
- * here — it is derived from the {@link BANK_RECIPES} map key by
- * {@link toRecipe} so there is one source of truth.
- */
-interface IRecipeBody {
-  readonly steps: readonly IRecipeStep[];
-}
-
-/** Fully-resolved recipe used by the driver — bankId + steps. */
-interface IBankRecipe {
-  readonly bankId: string;
-  readonly steps: readonly IRecipeStep[];
-}
-
-/**
- * Per-bank recipes — the map key IS the bankId. Adding a new bank
- * means adding a key + steps; no duplicate bankId field.
- */
-const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
-  isracard: {
-    steps: [
-      { stepName: '02-pre-login', url: 'https://digital.isracard.co.il' },
-      { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
-    ],
-  },
-  amex: {
-    steps: [
-      { stepName: '02-pre-login', url: 'https://digital.americanexpress.co.il' },
-      { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
-    ],
-  },
-  hapoalim: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.bankhapoalim.co.il' },
-      { stepName: '02-pre-login', url: 'https://login.bankhapoalim.co.il' },
-    ],
-  },
-  discount: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.discountbank.co.il' },
-      { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
-    ],
-  },
-  mercantile: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.mercantile.co.il' },
-      { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
-    ],
-  },
-  massad: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.bankmassad.co.il' },
-      { stepName: '02-pre-login', url: 'https://online.bankmassad.co.il' },
-    ],
-  },
-  pagi: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.pagi.co.il' },
-      { stepName: '02-pre-login', url: 'https://onlinepagi.bankpoalim.co.il' },
-    ],
-  },
-  otsarHahayal: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.bankotsar.co.il' },
-      { stepName: '02-pre-login', url: 'https://digital.otsarh.co.il' },
-    ],
-  },
-  beinleumi: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.fibi.co.il' },
-      { stepName: '02-modal-opened', revealText: 'כניסה לחשבון' },
-      { stepName: '03-after-prelogin', revealText: 'כניסה עם סיסמה' },
-    ],
-  },
-  max: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.max.co.il' },
-      { stepName: '02-after-entry', revealText: 'כניסה לחשבון' },
-      { stepName: '03-after-private', revealText: 'לקוח פרטי' },
-      { stepName: '04-reveal-password', revealText: 'סיסמה קבועה' },
-    ],
-  },
-  visaCal: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.cal-online.co.il' },
-      { stepName: '02-pre-login', revealText: 'כניסה לחשבונך' },
-    ],
-  },
-};
-
-/**
- * Build the resolved recipe — bundles map key (the bankId) with the
- * steps body, removing the duplicate-bankId smell.
- * @param bankId - The map key (canonical bankId).
- * @param body - The recipe body from {@link BANK_RECIPES}.
- * @returns Fully resolved {@link IBankRecipe}.
- */
-function toRecipe(bankId: string, body: IRecipeBody): IBankRecipe {
-  return { bankId, steps: body.steps };
-}
 
 /**
  * Redact PII patterns in HTML before writing to disk.
@@ -648,13 +559,19 @@ async function captureAndWrite(page: Page, fixtureRoot: string, stepName: string
 
 /**
  * Bundle threaded through the extended driver — page, fixture root,
- * optional credentials for the (PR-A2.2) login step.
+ * optional credentials for the login step, optional per-bank
+ * {@link ILoginConfig} consumed by {@link executeLoginStep}, and the
+ * harvest mode (`'a'` skips `recordResponse` steps for the HTML-only
+ * pass; `'b'` runs all steps + dumps the live response buffer to
+ * `manifest-traffic.ndjson`).
  */
 interface IExtendedDriveArgs {
   readonly page: Page;
   readonly fixtureRoot: string;
   readonly recipe: IExtendedRecipe;
   readonly credentials?: BankCredentials;
+  readonly loginConfig?: ILoginConfig;
+  readonly harvestMode: HarvestMode;
 }
 
 /**
@@ -678,21 +595,21 @@ interface IBuildExecutorArgsSpec {
 /**
  * Adapt an {@link IExtendedDriveArgs} bundle + live buffer into the
  * {@link IStepExecutorArgs} struct expected by each executor. Keeps
- * the buffer / snapshot wiring in ONE place so individual step
- * executors don't need to know the harvest plumbing details — and
+ * the buffer / snapshot / login-config wiring in ONE place so individual
+ * step executors don't need to know the harvest plumbing details — and
  * the per-executor calls stay focused on their kind, which holds them
  * under the 10-line cap.
  * @param spec - Bundle of extended drive args + live response buffer.
  * @returns Executor args bundle.
  */
 function buildExecutorArgs(spec: IBuildExecutorArgsSpec): IStepExecutorArgs {
-  const { args, buffer } = spec;
   return {
-    page: args.page,
-    outDir: args.fixtureRoot,
-    writeSnapshot: makeExtendedSnapshotWriter(args.fixtureRoot),
-    responseBuffer: buffer,
-    credentials: args.credentials,
+    page: spec.args.page,
+    outDir: spec.args.fixtureRoot,
+    writeSnapshot: makeExtendedSnapshotWriter(spec.args.fixtureRoot),
+    responseBuffer: spec.buffer,
+    credentials: spec.args.credentials,
+    loginConfig: spec.args.loginConfig,
   };
 }
 
@@ -790,19 +707,84 @@ async function runStepsWithBuffer(
 /**
  * Drive a post-login extended recipe over a page that already
  * holds the pre-login state. Installs the response buffer for the
- * lifetime of the recipe + disposes it on the way out.
+ * lifetime of the recipe + disposes it on the way out. Mode-`'b'`
+ * runs additionally dump the buffer to `manifest-traffic.ndjson`.
  * @param args - Extended drive bundle.
  * @returns Per-step executor results (in recipe order).
+ */
+/**
+ * Run the recipe with a managed response buffer; ensures the buffer
+ * is disposed regardless of whether the inner driver resolves or throws.
+ * @param buffer - Live response buffer to dispose on exit.
+ * @param spec - Run-and-dump spec passed straight to {@link runRecipeThenDump}.
+ * @returns Per-step executor results in recipe order.
+ */
+async function disposeBufferAfter(
+  buffer: IResponseBufferHandle,
+  spec: IRunAndDumpSpec,
+): Promise<readonly IStepExecutorResult[]> {
+  try {
+    return await runRecipeThenDump(spec);
+  } finally {
+    buffer.dispose();
+  }
+}
+
+/**
+ * Drive a post-login recipe with managed response buffer + optional
+ * Mode B traffic dump. Buffer is disposed via {@link disposeBufferAfter}.
+ * @param args - Extended drive bundle.
+ * @returns Per-step executor results in recipe order.
  */
 async function driveExtendedRecipe(
   args: IExtendedDriveArgs,
 ): Promise<readonly IStepExecutorResult[]> {
   const buffer = installResponseBuffer(args.page);
-  try {
-    return await runStepsWithBuffer(buffer, args);
-  } finally {
-    buffer.dispose();
-  }
+  const filteredArgs = withFilteredRecipe(args);
+  return disposeBufferAfter(buffer, { args, filteredArgs, buffer });
+}
+
+/** Inner bundle for {@link runRecipeThenDump}. */
+interface IRunAndDumpSpec {
+  readonly args: IExtendedDriveArgs;
+  readonly filteredArgs: IExtendedDriveArgs;
+  readonly buffer: IResponseBufferHandle;
+}
+
+/**
+ * Execute the step reducer then (mode `'b'` only) dump the live buffer.
+ * @param spec - Filtered recipe + original args + live buffer.
+ * @returns Per-step executor results in recipe order.
+ */
+async function runRecipeThenDump(spec: IRunAndDumpSpec): Promise<readonly IStepExecutorResult[]> {
+  const results = await runStepsWithBuffer(spec.buffer, spec.filteredArgs);
+  const dumpArgs = buildDumpArgs(spec.args, spec.buffer);
+  await dumpManifestTrafficIfMode(dumpArgs);
+  return results;
+}
+
+/**
+ * Replace `args.recipe` with the mode-filtered recipe.
+ * @param args - Extended drive bundle.
+ * @returns Bundle with `recipe.steps` trimmed per harvest mode.
+ */
+function withFilteredRecipe(args: IExtendedDriveArgs): IExtendedDriveArgs {
+  const filteredRecipe = filterStepsByMode(args.recipe, args.harvestMode);
+  return { ...args, recipe: filteredRecipe };
+}
+
+/**
+ * Project the drive bundle onto the {@link dumpManifestTrafficIfMode} arg shape.
+ * @param args - Extended drive bundle.
+ * @param buffer - Live response buffer.
+ * @returns Args bundle for the dump helper.
+ */
+function buildDumpArgs(
+  args: IExtendedDriveArgs,
+  buffer: IResponseBufferHandle,
+): IDumpManifestTrafficArgs {
+  const { harvestMode, recipe, fixtureRoot } = args;
+  return { harvestMode, bankId: recipe.bankId, fixtureRoot, buffer };
 }
 
 /** Arguments accepted by {@link maybeRunPostLogin} / {@link runPostLoginRecipe}. */
@@ -811,6 +793,7 @@ interface IPostLoginRunArgs {
   readonly fixtureRoot: string;
   readonly bankId: string;
   readonly includePostLogin: boolean;
+  readonly harvestMode: HarvestMode;
 }
 
 /** Spec bundle for {@link runRecipeInContext} / {@link buildPostLoginRunArgs}. */
@@ -818,6 +801,7 @@ interface IRunRecipeSpec {
   readonly helpers: IDriveHelpers;
   readonly recipe: IBankRecipe;
   readonly includePostLogin: boolean;
+  readonly harvestMode: HarvestMode;
 }
 
 /** Spec bundle for {@link driveRecipe} / {@link harvestWithBrowser}. */
@@ -825,6 +809,7 @@ interface IBrowserRecipeSpec {
   readonly browser: Browser;
   readonly recipe: IBankRecipe;
   readonly includePostLogin: boolean;
+  readonly harvestMode: HarvestMode;
 }
 
 /**
@@ -853,6 +838,7 @@ function buildPostLoginRunArgs(spec: IRunRecipeSpec): IPostLoginRunArgs {
     fixtureRoot: spec.helpers.fixtureRoot,
     bankId: spec.recipe.bankId,
     includePostLogin: spec.includePostLogin,
+    harvestMode: spec.harvestMode,
   };
 }
 
@@ -864,7 +850,8 @@ function buildPostLoginRunArgs(spec: IRunRecipeSpec): IPostLoginRunArgs {
  * @returns Spec ready for {@link runRecipeInContext}.
  */
 function buildRunRecipeSpec(spec: IBrowserRecipeSpec, helpers: IDriveHelpers): IRunRecipeSpec {
-  return { helpers, recipe: spec.recipe, includePostLogin: spec.includePostLogin };
+  const { recipe, includePostLogin: shouldIncludePostLogin, harvestMode } = spec;
+  return { helpers, recipe, includePostLogin: shouldIncludePostLogin, harvestMode };
 }
 
 /** Spec bundle for {@link runRecipeInContextSafely}. */
@@ -923,7 +910,11 @@ async function maybeRunPostLogin(args: IPostLoginRunArgs): Promise<number> {
 }
 
 /**
- * Build the extended-drive arg bundle for a post-login run.
+ * Build the extended-drive arg bundle for a post-login run. Resolves
+ * the bank's `LoginConfig` from {@link BANK_LOGIN_CONFIGS} so PR-A2.2's
+ * `executeLoginStep` can drive `fillAndSubmit` end-to-end; banks without
+ * a registered config still complete the recipe (LOGIN step skips
+ * cleanly).
  * @param args - Post-login run bundle.
  * @param recipe - Resolved extended recipe.
  * @returns Bundle ready for {@link runPostLoginRecipe}.
@@ -933,7 +924,9 @@ function buildPostLoginSpec(
   recipe: IExtendedDriveArgs['recipe'],
 ): IExtendedDriveArgs {
   const credentials = hasCredentials(args.bankId) ? loadCredentials(args.bankId) : undefined;
-  return { page: args.page, fixtureRoot: args.fixtureRoot, recipe, credentials };
+  const loginConfig = BANK_LOGIN_CONFIGS[args.bankId];
+  const { page, fixtureRoot, harvestMode } = args;
+  return { page, fixtureRoot, recipe, credentials, loginConfig, harvestMode };
 }
 
 /**
@@ -962,10 +955,11 @@ function countWrittenFiles(results: readonly IStepExecutorResult[]): number {
   );
 }
 
-/** CLI parse result — recipe + post-login flag. */
+/** CLI parse result — recipe + post-login flag + harvest mode. */
 interface IResolvedCli {
   readonly recipe: IBankRecipe;
   readonly includePostLogin: boolean;
+  readonly harvestMode: HarvestMode;
 }
 
 /**
@@ -976,8 +970,7 @@ interface IResolvedCli {
  */
 function parseBankIdArg(args: string[]): string {
   const bankId = args.find(a => !a.startsWith('--'));
-  if (bankId === undefined || bankId.trim() === '')
-    throw new ScraperError('usage: HarvestBankHtml.ts <bankId>');
+  if (!bankId?.trim()) throw new ScraperError('usage: HarvestBankHtml.ts <bankId>');
   return bankId;
 }
 
@@ -994,57 +987,17 @@ function lookupRecipeBody(bankId: string): IRecipeBody {
 }
 
 /**
- * Parse `bankId` + optional `--include-post-login` from `process.argv`
- * and look up the recipe body.
- *
- * <p><strong>NOTE (PR-A2.1):</strong> `--include-post-login` is reserved
- * but NOT yet wired. The accompanying executors (login + post-login
- * navigation + per-phase capture) land in PR-A2.2. Passing the flag in
- * PR-A2.1 makes {@link main} fail fast before the browser launches so
- * operators don't waste time on a partial pipeline.
- *
- * @returns The resolved recipe + post-login flag for the requested bank.
+ * Parse `bankId` + `--include-post-login` + mode flag from `process.argv`.
+ * Phase 11 two-pass: exactly one of `--mode-a-harvest` or `--mode-b-harvest` MUST be supplied.
+ * @returns The resolved recipe + post-login flag + mode.
  */
 function resolveRecipeFromCli(): IResolvedCli {
   const args = process.argv.slice(2);
   const bankId = parseBankIdArg(args);
   const body = lookupRecipeBody(bankId);
   const recipe = toRecipe(bankId, body);
-  const shouldIncludePostLogin = args.includes('--include-post-login');
-  return { recipe, includePostLogin: shouldIncludePostLogin };
-}
-
-/** Status object returned by {@link assertPostLoginNotYetSupported}. */
-interface IPostLoginGateStatus {
-  readonly gateAccepted: true;
-}
-
-/**
- * Build the not-yet-implemented error for `--include-post-login`.
- *
- * @returns ScraperError describing why the flag is reserved.
- */
-function postLoginReservedError(): ScraperError {
-  return new ScraperError(
-    '--include-post-login is reserved for PR-A2.2 and not yet implemented. ' +
-      'PR-A2.1 ships the harvester infrastructure (post-login recipes, network ' +
-      'recorder, credential loader, step executors) but NOT the wired execution ' +
-      'path. Re-run without the flag to capture pre-login HTML only.',
-  );
-}
-
-/**
- * Reject `--include-post-login` until PR-A2.2 wires the login + post-login
- * executors. Without this guard, the flag would silently produce broken
- * artifacts (login step throws on creds-present banks, or skips on
- * creds-absent banks while later steps still run + write to post-login
- * directories).
- * @param cli - Result of {@link resolveRecipeFromCli}.
- * @returns Status object confirming the flag set is supported.
- */
-function assertPostLoginNotYetSupported(cli: IResolvedCli): IPostLoginGateStatus {
-  if (cli.includePostLogin) throw postLoginReservedError();
-  return { gateAccepted: true };
+  const harvestMode = parseHarvestMode(args);
+  return { recipe, includePostLogin: args.includes('--include-post-login'), harvestMode };
 }
 
 /**
@@ -1071,7 +1024,7 @@ async function harvestWithBrowser(spec: IBrowserRecipeSpec): Promise<number> {
  * @returns Spec ready for {@link harvestWithBrowser}.
  */
 function buildBrowserRecipeSpec(browser: Browser, cli: IResolvedCli): IBrowserRecipeSpec {
-  return { browser, recipe: cli.recipe, includePostLogin: cli.includePostLogin };
+  return { browser, ...cli };
 }
 
 /**
@@ -1080,8 +1033,7 @@ function buildBrowserRecipeSpec(browser: Browser, cli: IResolvedCli): IBrowserRe
  */
 async function main(): Promise<number> {
   const cli = resolveRecipeFromCli();
-  assertPostLoginNotYetSupported(cli);
-  console.log(`Harvesting fixtures for bankId="${cli.recipe.bankId}"…`);
+  console.log(`Harvesting fixtures for bankId="${cli.recipe.bankId}" mode=${cli.harvestMode}…`);
   const browser = await launchCamoufox(true);
   const browserSpec = buildBrowserRecipeSpec(browser, cli);
   return harvestWithBrowser(browserSpec);

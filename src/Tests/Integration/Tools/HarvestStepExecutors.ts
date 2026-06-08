@@ -9,20 +9,28 @@
  *
  * <p>Snapshots are written by the SAME helpers
  * {@link HarvestBankHtml} already uses, threaded in via the args
- * struct, so PR-A2.1 keeps backward compatibility with the legacy
+ * struct, so PR-A2.2 keeps backward compatibility with the legacy
  * pre-login recipe flow.
  *
- * <p>The `login` executor is intentionally left as an
- * {@link ScraperError} stub in PR-A2.1 — wiring it requires the
- * pipeline `LoginConfig` resolver which lands in PR-A2.2 alongside
- * the live captures. Every other step kind is fully implemented and
- * unit-tested.
+ * <p>PR-A2.2: the `login` executor is now wired through the
+ * production {@link createElementMediator} + {@link fillAndSubmit}
+ * pipeline so the harvester can drive the LOGIN action when both
+ * credentials AND a per-bank {@link ILoginConfig} are passed in. The
+ * legacy "PR-A2.1 stub" error path is gone; absent credentials OR
+ * absent login config produce a clean `skip` result so unattended
+ * runs against creds-less banks still complete the rest of the recipe.
  */
 
+import pino from 'pino';
 import type { Page } from 'playwright-core';
 
+import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import createElementMediator from '../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
+import { fillAndSubmit } from '../../../Scrapers/Pipeline/Mediator/Form/LoginFormActions.js';
+import type { ScraperLogger } from '../../../Scrapers/Pipeline/Types/Debug.js';
 import type { Option } from '../../../Scrapers/Pipeline/Types/Option.js';
+import type { Procedure } from '../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { BankCredentials } from './CredentialLoader.js';
 import {
   flushMatching,
@@ -61,6 +69,8 @@ interface IStepExecutorArgs {
   readonly writeSnapshot: SnapshotWriter;
   readonly responseBuffer: IResponseBufferHandle;
   readonly credentials?: BankCredentials;
+  readonly loginConfig?: ILoginConfig;
+  readonly logger?: ScraperLogger;
 }
 
 /**
@@ -262,24 +272,119 @@ async function executeRecordResponseStep(
   return formatRecordResult(step, flushResult);
 }
 
+/** Discriminated outcome of the login prereq gate. */
+type LoginGate =
+  | { readonly tag: 'skip'; readonly reason: string }
+  | { readonly tag: 'ok'; readonly config: ILoginConfig; readonly creds: BankCredentials };
+
 /**
- * Login executor — PR-A2.1 stub. Wiring requires the production
- * pipeline `LoginConfig` resolver + per-bank field discovery, which
- * lands in PR-A2.2 alongside the live captures.
- * @param step - Login step (unused in stub).
- * @param args - Shared executor args (used for credentials check).
- * @returns Skip result when no credentials are loaded.
- * @throws When credentials are present (stub explicitly fails so the
- *   caller knows PR-A2.2 wiring is required).
+ * Skip-reason builder for the no-login-config branch.
+ * @returns Human-readable skip text.
  */
-function executeLoginStep(step: ILoginStep, args: IStepExecutorArgs): Promise<IStepExecutorResult> {
+function noLoginConfigReason(): string {
+  return 'no login config registered for bank; cannot drive login';
+}
+
+/**
+ * Gate the login prereqs (credentials + per-bank LoginConfig).
+ *
+ * <p>Returns `skip` when either prereq is missing so unattended harvests
+ * (e.g. CI runs against creds-less banks, or banks whose pipeline has
+ * not registered a `LoginConfig`) complete the rest of the recipe
+ * without aborting. Returns `ok` with the resolved config + creds when
+ * the LOGIN ACTION is safe to drive.
+ *
+ * @param args - Shared executor args.
+ * @returns LoginGate discriminating skip vs ok.
+ */
+function gateLoginPrereqs(args: IStepExecutorArgs): LoginGate {
   if (args.credentials === undefined) {
-    const skipResult = skip(step, 'no credentials loaded; cannot drive login');
-    return Promise.resolve(skipResult);
+    return { tag: 'skip', reason: 'no credentials loaded; cannot drive login' };
   }
-  throw new ScraperError(
-    `harvester login step not yet implemented (PR-A2.2); recipe step="${step.stepName}"`,
-  );
+  if (args.loginConfig === undefined) {
+    return { tag: 'skip', reason: noLoginConfigReason() };
+  }
+  return { tag: 'ok', config: args.loginConfig, creds: args.credentials };
+}
+
+/** Resolved login bundle threaded into {@link driveLoginAndSnapshot}. */
+interface IDriveLoginSpec {
+  readonly step: ILoginStep;
+  readonly args: IStepExecutorArgs;
+  readonly config: ILoginConfig;
+  readonly creds: BankCredentials;
+}
+
+/**
+ * Resolve the pipeline logger — caller-provided or silent fallback.
+ * @param args - Shared executor args.
+ * @returns Logger guaranteed non-null.
+ */
+function resolveLogger(args: IStepExecutorArgs): ScraperLogger {
+  return args.logger ?? pino({ enabled: false });
+}
+
+/**
+ * Run `fillAndSubmit` against the current page using the resolved login bundle.
+ * @param spec - Resolved login bundle.
+ * @returns Procedure carrying the submit outcome.
+ */
+async function runFillAndSubmit(spec: IDriveLoginSpec): Promise<Procedure<unknown>> {
+  const mediator = createElementMediator(spec.args.page);
+  const logger = resolveLogger(spec.args);
+  const creds: Record<string, string> = { ...spec.creds };
+  return fillAndSubmit({ mediator, config: spec.config, creds, logger });
+}
+
+/**
+ * Assert the LOGIN fill+submit succeeded — throw with the wrapped
+ * pipeline error message so the harvester operator sees the underlying
+ * cause instead of a generic "failed" sentinel.
+ * @param result - Procedure returned by `fillAndSubmit`.
+ * @param stepName - Step name (recorded in the thrown error).
+ * @returns True after the success branch passes.
+ */
+function assertLoginSuccess(result: Procedure<unknown>, stepName: string): true {
+  if (!result.success) {
+    throw new ScraperError(
+      `harvester login step "${stepName}" failed during fill+submit: ${result.errorMessage}`,
+    );
+  }
+  return true;
+}
+
+/**
+ * Drive the LOGIN ACTION via the production `fillAndSubmit` and
+ * snapshot the post-submit DOM. Extracted so {@link executeLoginStep}
+ * stays under the 10-line cap.
+ * @param spec - Resolved login bundle.
+ * @returns Resolves once the snapshot is persisted.
+ */
+async function driveLoginAndSnapshot(spec: IDriveLoginSpec): Promise<void> {
+  const result = await runFillAndSubmit(spec);
+  assertLoginSuccess(result, spec.step.stepName);
+  await spec.args.writeSnapshot(spec.args.page, spec.step.stepName);
+}
+
+/**
+ * Login executor — PR-A2.2 wires the production
+ * {@link createElementMediator} + {@link fillAndSubmit} pipeline so
+ * the harvester can drive a real LOGIN ACTION when both
+ * credentials AND a per-bank `LoginConfig` are passed in. Returns a
+ * clean `skip` result when either prereq is missing so unattended
+ * recipes still complete the remaining steps.
+ * @param step - Login step (provides stepName for snapshot / error reporting).
+ * @param args - Shared executor args (must include credentials + loginConfig to drive).
+ * @returns Step result with snapshotWritten=true on drive, or skip reason on bypass.
+ */
+async function executeLoginStep(
+  step: ILoginStep,
+  args: IStepExecutorArgs,
+): Promise<IStepExecutorResult> {
+  const gate = gateLoginPrereqs(args);
+  if (gate.tag === 'skip') return skip(step, gate.reason);
+  await driveLoginAndSnapshot({ step, args, config: gate.config, creds: gate.creds });
+  return ok(step, true);
 }
 
 /**
