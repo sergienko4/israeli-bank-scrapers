@@ -6,7 +6,7 @@ Pipeline-first — every new bank lives under `src/Scrapers/Pipeline/Banks/<Name
 
 ### 1. Add the enum entry
 
-Edit [`src/Definitions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts):
+Edit [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts):
 
 ```typescript
 export enum CompanyTypes {
@@ -74,7 +74,7 @@ export function buildNewBankPipeline(options: ScraperOptions): Procedure<IPipeli
 
 ### 5. Register the builder
 
-Edit [`src/Scrapers/Pipeline/Core/PipelineRegistry.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineRegistry.ts):
+Edit [`src/Scrapers/Pipeline/Core/PipelineRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineRegistry.ts):
 
 ```typescript
 import { buildNewBankPipeline } from '../Banks/NewBank/NewBankPipeline.js';
@@ -93,7 +93,7 @@ Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts` that:
 2. Constructs the scraper.
 3. Asserts `result.success === true` + expected account count + sample txn.
 
-The existing [`Amex.e2e-mocked.test.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Amex.e2e-mocked.test.ts) is the template.
+The existing [`Amex.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Amex.e2e-mocked.test.ts) is the template.
 
 ### 7. Verify
 

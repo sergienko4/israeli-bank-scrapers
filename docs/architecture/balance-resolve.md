@@ -50,7 +50,7 @@ Reads `scrape.accountIdentities` + `scrape.balanceFetchTemplate`. **Default-deny
 | GET + `urlPathInterpolation` | One entry per unique BA, `<ID>` replaced in URL path |
 | Bulk (no key) | One entry with `bankAccountUniqueId: '__BULK__'` covering every card |
 
-Source: [`BalanceFetchPlanner.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceFetchPlanner.ts).
+Source: [`BalanceFetchPlanner.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceFetchPlanner.ts).
 
 ### `.action` — fetch + extract
 
@@ -61,7 +61,7 @@ Source: [`BalanceFetchPlanner.ts`](https://github.com/[REDACTED-USER]/israeli-ba
     - Per-card-record banks (Visa Cal — `result.bigNumbers[].cards[]`, Amex/Isracard — `data.cardsList[].cardChargeNext.billingSumSekel`) — find the card by `cardUniqueId` or one of the display-id fields (`last4Digits`, `cardSuffix`, `cardLast4`, `shortCardNumber`, `card4Number`), then run the bulk extractor on its sub-record.
     - Bulk endpoints — `responses.get('__BULK__')` services every card via the same body.
 
-Source: [`BalanceResolveActions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts) (`executeBalanceResolveAction`).
+Source: [`BalanceResolveActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts) (`executeBalanceResolveAction`).
 
 ### `.post` — partition + universal-miss gate
 
@@ -73,7 +73,7 @@ Source: [`BalanceResolveActions.ts`](https://github.com/[REDACTED-USER]/israeli-
 
 ### `.final` — emit `balanceResolution`
 
-Builds `Map<accountNumber, number>` (legitimate `0` preserved; `'MISS'` → `0`). Writes to `ctx.balanceResolution` which [`PipelineResult`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts) reads when assembling the final accounts array.
+Builds `Map<accountNumber, number>` (legitimate `0` preserved; `'MISS'` → `0`). Writes to `ctx.balanceResolution` which [`PipelineResult`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts) reads when assembling the final accounts array.
 
 ## Observability
 
@@ -94,9 +94,9 @@ Three ESLint canaries lock the boundary at commit time:
 
 | Canary | What it rejects |
 |---|---|
-| [`balance-resolve-isolation.canary.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/balance-resolve-isolation.canary.ts) | BALANCE-RESOLVE code reaching outside its own folder |
-| [`no-balance-in-scrape.canary.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts) | SCRAPE-zone code importing balance extractor / planner |
-| [`balance-fetch-only-in-balance-resolve.canary.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/balance-fetch-only-in-balance-resolve.canary.ts) | `BalanceFetchPlanner` imported anywhere outside `BalanceResolve/` |
+| [`balance-resolve-isolation.canary.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/balance-resolve-isolation.canary.ts) | BALANCE-RESOLVE code reaching outside its own folder |
+| [`no-balance-in-scrape.canary.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts) | SCRAPE-zone code importing balance extractor / planner |
+| [`balance-fetch-only-in-balance-resolve.canary.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/EslintCanaries/balance-fetch-only-in-balance-resolve.canary.ts) | `BalanceFetchPlanner` imported anywhere outside `BalanceResolve/` |
 
 A PR that violates any of the three fails the **`canaries`** gate of the pre-commit hook (and the build CI gate).
 
@@ -104,9 +104,9 @@ A PR that violates any of the three fails the **`canaries`** gate of the pre-com
 
 | File | Tests |
 |---|---|
-| [`BalanceResolveActionsV6.test.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveActionsV6.test.ts) | Happy path: PRE → ACTION → POST → FINAL per shape (single, per-BA, bulk) |
-| [`BalanceFetchPlanner.test.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceFetchPlanner.test.ts) | Planner dedup, default-deny, malformed URL |
-| [`BalanceResolveActionsCoverage.test.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveActionsCoverage.test.ts) | Edge branches: null/array/primitive POST body, malformed JSON, extractor-false fall-through |
-| [`BalanceResolveCrossBank.test.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts) | Per-shape cross-bank smoke (Hapoalim / Visa Cal / Amex) |
-| [`BalanceResolvePhase.test.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Phases/BalanceResolvePhase.test.ts) | Phase orchestrator delegates to the right action |
-| [`BalanceExtractor.test.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceExtractor.test.ts) | BFS+ILS depth-5 extractor against every bank shape |
+| [`BalanceResolveActionsV6.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveActionsV6.test.ts) | Happy path: PRE → ACTION → POST → FINAL per shape (single, per-BA, bulk) |
+| [`BalanceFetchPlanner.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceFetchPlanner.test.ts) | Planner dedup, default-deny, malformed URL |
+| [`BalanceResolveActionsCoverage.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveActionsCoverage.test.ts) | Edge branches: null/array/primitive POST body, malformed JSON, extractor-false fall-through |
+| [`BalanceResolveCrossBank.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts) | Per-shape cross-bank smoke (Hapoalim / Visa Cal / Amex) |
+| [`BalanceResolvePhase.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Phases/BalanceResolvePhase.test.ts) | Phase orchestrator delegates to the right action |
+| [`BalanceExtractor.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceExtractor.test.ts) | BFS+ILS depth-5 extractor against every bank shape |

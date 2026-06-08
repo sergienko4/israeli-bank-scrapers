@@ -45,7 +45,7 @@
 # into AutoMapperFacade/AutoMapperTypes.ts as part of the 11-sub-module
 # split. They are CROSS-MODULE INTERNALS — shared types + constants
 # used by BfsFieldSearch, AccountExtractor, ContainerPicker, TxnMapper,
-# etc. — not part of the user-facing @[REDACTED-USER]/israeli-bank-scrapers
+# etc. — not part of the user-facing @sergienko4/israeli-bank-scrapers
 # public surface. They are not re-exported from lib/index.{cjs,mjs}.
 
 # Reason: ApiRecord — internal alias `Record<string, unknown>` for API response shapes (used by AccountExtractor + BfsFieldSearch + TxnMapper). Not a stable public type.
@@ -66,7 +66,7 @@ UntypedValue
 # — the per-strategy classify/redact registry contract, brand types,
 # sentinel constants, and helpers consumed only by Facade.ts and the
 # per-category siblings. Not part of the user-facing
-# @[REDACTED-USER]/israeli-bank-scrapers public surface and not re-exported
+# @sergienko4/israeli-bank-scrapers public surface and not re-exported
 # from lib/index.{cjs,mjs}. (The user-facing `redact()` entry point
 # is documented in docs/ and so is NOT in this allowlist.)
 
@@ -321,13 +321,13 @@ NETWORK_FETCH_TIMEOUT_MS
 JsonRecord
 
 # --- Phase 3 / commit 13 (CR PR #286 finding F7 — OTP click timeouts) ---
-# Reason: OTP_FALLBACK_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (5000 ms) used exclusively by OtpDetector.tryFallbackClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @[REDACTED-USER]/israeli-bank-scrapers public surface.
+# Reason: OTP_FALLBACK_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (5000 ms) used exclusively by OtpDetector.tryFallbackClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
 OTP_FALLBACK_CLICK_TIMEOUT_MS
-# Reason: OTP_FORCE_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (3000 ms) used exclusively by OtpDetector.tryForceClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @[REDACTED-USER]/israeli-bank-scrapers public surface.
+# Reason: OTP_FORCE_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (3000 ms) used exclusively by OtpDetector.tryForceClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
 OTP_FORCE_CLICK_TIMEOUT_MS
 
 # --- Phase 2a / C15 (PipelineContextSlotKeys — extracted from PipelineContextFactory.ts) ---
-# Reason: PhaseStateSlotKey — internal string-literal union 'login' | 'dashboard' | 'scrape' | 'api' used by PipelineContextFactory.ts to type the four top-level phase-state result slots. Pure type-plumbing; not part of the @[REDACTED-USER]/israeli-bank-scrapers public surface.
+# Reason: PhaseStateSlotKey — internal string-literal union 'login' | 'dashboard' | 'scrape' | 'api' used by PipelineContextFactory.ts to type the four top-level phase-state result slots. Pure type-plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
 PhaseStateSlotKey
 # Reason: DiscoverySlotKey — internal string-literal union of the six discovery result-slot names (preLoginDiscovery, loginFieldDiscovery, scrapeDiscovery, accountDiscovery, txnEndpoint, dashboardTxnHarvest) used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
 DiscoverySlotKey
@@ -339,7 +339,7 @@ BalanceSlotKey
 ResultSlotKey
 
 # --- Phase 2c-strict / Dashboard split (DashboardPhaseActions / TxnParser) ---
-# Reason: IDashboardTargets — internal target-resolver bundle used by DashboardPhaseActions.sequential.ts + .targets.ts + .action.ts siblings after the 1991-line monolith was split to satisfy the 150-line file cap. Pure cross-sibling type plumbing; not part of the @[REDACTED-USER]/israeli-bank-scrapers public surface.
+# Reason: IDashboardTargets — internal target-resolver bundle used by DashboardPhaseActions.sequential.ts + .targets.ts + .action.ts siblings after the 1991-line monolith was split to satisfy the 150-line file cap. Pure cross-sibling type plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
 IDashboardTargets
 # Reason: JsonScopeValue — internal JSON-value alias used by the TxnParser.scope.ts / .accountId.ts / .harvest.ts siblings after TxnParser.ts was split to satisfy the per-file LoC budget. Same architectural role as TxnParser.ts (DASHBOARD-side harvest scope); pure cross-sibling type plumbing, not part of the public API.
 JsonScopeValue
@@ -349,5 +349,5 @@ JsonScopeValue
 IDiscoverFieldsArgs
 
 # --- Phase 2 / CR fix (EndpointUrlHelpers — WK constant for pending/clearance-requests URL) ---
-# Reason: PIPELINE_WELL_KNOWN_PENDING — internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @[REDACTED-USER]/israeli-bank-scrapers public surface — Pipeline is internal to the scrapers, not exported via src/index.ts.
+# Reason: PIPELINE_WELL_KNOWN_PENDING — internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @sergienko4/israeli-bank-scrapers public surface — Pipeline is internal to the scrapers, not exported via src/index.ts.
 PIPELINE_WELL_KNOWN_PENDING

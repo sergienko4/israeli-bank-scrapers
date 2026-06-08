@@ -1,5 +1,5 @@
 {
-  "name": "@[REDACTED-USER]/israeli-bank-scrapers",
+  "name": "@sergienko4/israeli-bank-scrapers",
   "version": "8.4.0",
   "description": "Scrape transactions from all 18 Israeli banks with Cloudflare WAF bypass (Camoufox + Playwright)",
   "engines": {
@@ -77,7 +77,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/[REDACTED-USER]/israeli-bank-scrapers.git"
+    "url": "git+https://github.com/sergienko4/israeli-bank-scrapers.git"
   },
   "keywords": [
     "israel",
@@ -96,9 +96,9 @@
   "author": "Elad Shaham",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/[REDACTED-USER]/israeli-bank-scrapers/issues"
+    "url": "https://github.com/sergienko4/israeli-bank-scrapers/issues"
   },
-  "homepage": "https://github.com/[REDACTED-USER]/israeli-bank-scrapers#readme",
+  "homepage": "https://github.com/sergienko4/israeli-bank-scrapers#readme",
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@eslint/js": "^10.0.1",

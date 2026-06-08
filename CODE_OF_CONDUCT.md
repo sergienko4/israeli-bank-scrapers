@@ -7,5 +7,5 @@ By participating in this project, you agree to abide by its terms.
 ## Reporting
 
 If you experience or witness unacceptable behavior, please report it by opening
-a [GitHub issue](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/issues) or
+a [GitHub issue](https://github.com/sergienko4/israeli-bank-scrapers/issues) or
 contacting the maintainer directly via their GitHub profile.

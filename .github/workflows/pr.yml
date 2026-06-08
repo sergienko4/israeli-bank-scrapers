@@ -161,7 +161,7 @@ jobs:
             --cache
             --max-cache-age 1d
             --no-progress
-            --exclude '[REDACTED-USER].github.io/israeli-bank-scrapers/'
+            --exclude 'sergienko4.github.io/israeli-bank-scrapers/'
             --exclude 'npmjs.com/package/'
             'README.md' 'docs/**/*.md'
           fail: true

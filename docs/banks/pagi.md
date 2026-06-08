@@ -7,7 +7,7 @@
 | Credentials | `username`, `password` (plus `otpCodeRetriever` callback in options) |
 | OTP | Required |
 | Phase chain | INIT → HOME → LOGIN → **OTP-TRIGGER → OTP-FILL** → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE → TERMINATE |
-| Source | [`Banks/Pagi/PagiPipeline.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pagi/PagiPipeline.ts) |
+| Source | [`Banks/Pagi/PagiPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pagi/PagiPipeline.ts) |
 
 ## Known quirks
 

@@ -63,4 +63,4 @@ The architecture validator (`lint:architecture`) runs on every commit and reject
 - Imports from layer 1 (Public API) into any legacy implementation
 - Cross-mediator imports within layer 3 (BALANCE-RESOLVE cannot reach into SCRAPE state directly)
 
-Source: [`src/Tests/Tools/lint-and-validate.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Tools/lint-and-validate.ts) + the 3 architecture canaries under `src/Scrapers/Pipeline/EslintCanaries/`.
+Source: [`src/Tests/Tools/lint-and-validate.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Tools/lint-and-validate.ts) + the 3 architecture canaries under `src/Scrapers/Pipeline/EslintCanaries/`.

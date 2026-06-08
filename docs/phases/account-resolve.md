@@ -6,7 +6,7 @@ Discover the list of accounts/cards the user has access to and the billing-cycle
 |---|---|
 | **Always-on?** | Yes (`ifBrowser`) |
 | **Owner slot** | `accountDiscovery: Option<IAccountDiscovery>` |
-| **Source** | [`AccountResolvePhase.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/AccountResolve/AccountResolvePhase.ts) + [`AccountResolveActions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.ts) |
+| **Source** | [`AccountResolvePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/AccountResolve/AccountResolvePhase.ts) + [`AccountResolveActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.ts) |
 
 ## Sub-step contract
 

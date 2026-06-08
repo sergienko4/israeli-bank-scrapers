@@ -6,7 +6,7 @@ Pivot to the dashboard URL, prime the network capture pool by clicking a "show t
 |---|---|
 | **Always-on?** | Yes (`ifBrowser`) |
 | **Owner slots** | `dashboard: Option<IDashboardState>`, `txnEndpoint: Option<ITxnEndpoint>`, `dashboardTxnHarvest: Option<IDashboardTxnHarvest>` |
-| **Source** | [`DashboardPhase.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Dashboard/DashboardPhase.ts) + [`DashboardPhaseActions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Dashboard/DashboardPhaseActions.ts) |
+| **Source** | [`DashboardPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Dashboard/DashboardPhase.ts) + [`DashboardPhaseActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Dashboard/DashboardPhaseActions.ts) |
 
 ## Why a separate phase?
 
