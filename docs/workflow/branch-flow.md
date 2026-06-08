@@ -34,7 +34,7 @@ Every commit subject must follow the Conventional Commits format:
 2. Make the change. Run `npm run test:unit` + `npm run lint` locally.
 3. Commit (the pre-commit hook runs the full 12 gates).
 4. Push + open the PR. CI re-runs the same gates.
-5. Wait for `@[REDACTED-USER]` (CODEOWNER) review.
+5. Wait for `@sergienko4` (CODEOWNER) review.
 6. Squash-merge once approved + CI green. Commit subject must still be Conventional.
 
 ## release-please cadence
@@ -44,7 +44,7 @@ Every commit subject must follow the Conventional Commits format:
     1. Bumps the version in `package.json`
     2. Updates `CHANGELOG.md`
     3. Tags the commit
-    4. Triggers the `npm-publish` workflow → publishes to npm as `@[REDACTED-USER]/israeli-bank-scrapers@<new-version>`
+    4. Triggers the `npm-publish` workflow → publishes to npm as `@sergienko4/israeli-bank-scrapers@<new-version>`
 
 You don't manually edit `CHANGELOG.md` or `package.json` for versions — release-please owns both.
 

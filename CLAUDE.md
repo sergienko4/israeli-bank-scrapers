@@ -4,7 +4,7 @@
 
 Fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) with WAF bypass via Playwright.
 
-Published as `@[REDACTED-USER]/israeli-bank-scrapers` on npm.
+Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Code Quality
 

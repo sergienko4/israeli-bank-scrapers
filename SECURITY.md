@@ -18,7 +18,7 @@ If you discover a security vulnerability in this project, please report it respo
 Instead, please use one of the following methods:
 
 1. **GitHub Security Advisories (preferred):** Navigate to the
-   [Security Advisories](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/security/advisories/new)
+   [Security Advisories](https://github.com/sergienko4/israeli-bank-scrapers/security/advisories/new)
    page and create a new advisory.
 
 2. **Email:** Send details to the repository maintainer via the email

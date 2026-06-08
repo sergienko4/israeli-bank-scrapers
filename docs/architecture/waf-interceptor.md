@@ -11,7 +11,7 @@ The interceptor centralises the recipe in one place: detect the challenge frame,
 
 ## Architecture
 
-Single cluster under [`src/Scrapers/Pipeline/Interceptors/WafChallenge/`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge):
+Single cluster under [`src/Scrapers/Pipeline/Interceptors/WafChallenge/`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge):
 
 | File | Purpose |
 |---|---|
@@ -147,10 +147,10 @@ No PII flows through these events — only the `kind` enum (`hcaptcha-checkbox` 
 
 | File | Role |
 |---|---|
-| [`Interceptors/WafChallenge/WafChallengeInterceptor.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge/WafChallengeInterceptor.ts) | Factory entry point |
-| [`Core/Builder/PipelineBuilderHelpers.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Builder/PipelineBuilderHelpers.ts) | Wires interceptor FIRST in `buildBrowserBaseInterceptors()` |
-| [`Interceptors/WafChallenge/WafChallengeDetector.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge/WafChallengeDetector.ts) | Frame URL classifier |
-| [`Interceptors/WafChallenge/HCaptchaCheckboxSolver.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge/HCaptchaCheckboxSolver.ts) | Solve recipe |
+| [`Interceptors/WafChallenge/WafChallengeInterceptor.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge/WafChallengeInterceptor.ts) | Factory entry point |
+| [`Core/Builder/PipelineBuilderHelpers.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Builder/PipelineBuilderHelpers.ts) | Wires interceptor FIRST in `buildBrowserBaseInterceptors()` |
+| [`Interceptors/WafChallenge/WafChallengeDetector.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge/WafChallengeDetector.ts) | Frame URL classifier |
+| [`Interceptors/WafChallenge/HCaptchaCheckboxSolver.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/WafChallenge/HCaptchaCheckboxSolver.ts) | Solve recipe |
 
 ## Camoufox launcher knob surface
 

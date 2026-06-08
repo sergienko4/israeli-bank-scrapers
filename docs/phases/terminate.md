@@ -6,7 +6,7 @@ Close the browser, dispose interceptors, and produce the final `IScraperScraping
 |---|---|
 | **Always-on?** | Yes (`ifBrowser`) |
 | **Owner slot** | (none — clean-up phase) |
-| **Source** | [`TerminatePhase.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Terminate/TerminatePhase.ts) |
+| **Source** | [`TerminatePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/Terminate/TerminatePhase.ts) |
 
 ## Sub-step contract
 
@@ -24,7 +24,7 @@ Close the browser, dispose interceptors, and produce the final `IScraperScraping
 | `pipeline.log` | Pino transport | ✅ via `PiiRedactor.censor` callback |
 | `network/*.json` | `NetworkDiscovery` capture writer | ✅ pre-write through `PiiRedactor` |
 | `screenshots/*.html` | `SafeScreenshot` DOM serializer | ✅ in-place text + value scrubs |
-| `screenshots/*.png` | `SafeScreenshot` raster | ❌ **not** OCR-redacted — see [Bug Reports](https://github.com/[REDACTED-USER]/israeli-bank-scrapers#filing-a-bug-report) |
+| `screenshots/*.png` | `SafeScreenshot` raster | ❌ **not** OCR-redacted — see [Bug Reports](https://github.com/sergienko4/israeli-bank-scrapers#filing-a-bug-report) |
 
 ## Cleanup invariants
 

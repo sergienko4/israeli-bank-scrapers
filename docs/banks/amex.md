@@ -7,12 +7,12 @@
 | Credentials | `id`, `card6Digits`, `password` |
 | OTP | — |
 | Phase chain | INIT → HOME → **PRE-LOGIN** → LOGIN → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE → TERMINATE |
-| Source | [`Banks/Amex/AmexPipeline.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
+| Source | [`Banks/Amex/AmexPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
 
 ## Quick example
 
 ```typescript
-import { CompanyTypes, createScraper } from '@[REDACTED-USER]/israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const scraper = createScraper({
   companyId: CompanyTypes.Amex,

@@ -6,14 +6,14 @@
 
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[![npm version](https://img.shields.io/npm/v/@[REDACTED-USER]/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@[REDACTED-USER]/israeli-bank-scrapers)
-[![CI](https://img.shields.io/github/actions/workflow/status/[REDACTED-USER]/israeli-bank-scrapers/pr.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/actions)
+[![npm version](https://img.shields.io/npm/v/@sergienko4/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
+[![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/pr.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![License](https://img.shields.io/github/license/[REDACTED-USER]/israeli-bank-scrapers?style=for-the-badge)](./LICENSE)
-[![API Docs](https://img.shields.io/badge/API_Docs-TypeDoc-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://[REDACTED-USER].github.io/israeli-bank-scrapers/api/)
-[![npm downloads](https://img.shields.io/npm/dm/@[REDACTED-USER]/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@[REDACTED-USER]/israeli-bank-scrapers)
-[![SonarCloud](https://img.shields.io/sonar/quality_gate/[REDACTED-USER]_israeli-bank-scrapers?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarcloud&logoColor=white)](https://sonarcloud.io/summary/overall?id=[REDACTED-USER]_israeli-bank-scrapers)
-[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/[REDACTED-USER]/israeli-bank-scrapers?style=for-the-badge&label=OSSF)](https://securityscorecards.dev/viewer/?uri=github.com/[REDACTED-USER]/israeli-bank-scrapers)
+[![License](https://img.shields.io/github/license/sergienko4/israeli-bank-scrapers?style=for-the-badge)](./LICENSE)
+[![API Docs](https://img.shields.io/badge/API_Docs-TypeDoc-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://sergienko4.github.io/israeli-bank-scrapers/api/)
+[![npm downloads](https://img.shields.io/npm/dm/@sergienko4/israeli-bank-scrapers?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
+[![SonarCloud](https://img.shields.io/sonar/quality_gate/sergienko4_israeli-bank-scrapers?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarcloud&logoColor=white)](https://sonarcloud.io/summary/overall?id=sergienko4_israeli-bank-scrapers)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/sergienko4/israeli-bank-scrapers?style=for-the-badge&label=OSSF)](https://securityscorecards.dev/viewer/?uri=github.com/sergienko4/israeli-bank-scrapers)
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A5%2022.14-green?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 
 # Israeli Bank Scrapers
@@ -23,7 +23,7 @@ Scrape transactions from **19 Israeli banks and credit card companies** with bui
 Maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers), rewritten on a typed phase-based pipeline using [Camoufox](https://github.com/daijro/camoufox) (Firefox anti-detect), Playwright, and TypeScript 6.0 strict mode.
 
 ```sh
-npm install @[REDACTED-USER]/israeli-bank-scrapers
+npm install @sergienko4/israeli-bank-scrapers
 ```
 
 ## Architecture at a glance
@@ -54,7 +54,7 @@ flowchart LR
 
 12 phases for browser banks, 2 phases for api-direct banks, **one result shape**. Each phase owns its mediator zone and its own state — phases never reach into each other's data. See [Architecture](#architecture) for the contract that keeps the wiring honest.
 
-> **📚 Full documentation:** [User Guide & Architecture (mkdocs)](https://[REDACTED-USER].github.io/israeli-bank-scrapers/) · [API Reference (TypeDoc)](https://[REDACTED-USER].github.io/israeli-bank-scrapers/api/) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md)
+> **📚 Full documentation:** [User Guide & Architecture (mkdocs)](https://sergienko4.github.io/israeli-bank-scrapers/) · [API Reference (TypeDoc)](https://sergienko4.github.io/israeli-bank-scrapers/api/) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -92,7 +92,7 @@ flowchart LR
 Three steps to get transactions from Bank Hapoalim:
 
 ```typescript
-import { CompanyTypes, createScraper } from '@[REDACTED-USER]/israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const scraper = createScraper({
   companyId: CompanyTypes.Hapoalim,
@@ -147,7 +147,7 @@ Per-phase navigation timeout is controlled by the `defaultTimeout` scraper **opt
 ## Usage
 
 ```typescript
-import { CompanyTypes, createScraper } from '@[REDACTED-USER]/israeli-bank-scrapers';
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
 const scraper = createScraper({
   companyId: CompanyTypes.Amex,
@@ -588,7 +588,7 @@ createScraper({
 
 ```diff
 - npm install israeli-bank-scrapers
-+ npm install @[REDACTED-USER]/israeli-bank-scrapers
++ npm install @sergienko4/israeli-bank-scrapers
 ```
 
 Same `createScraper` + `companyId` + `credentials` API. Both `import` and `require()` work. Types now use `I` prefix (`IScraper`, `IScraperScrapingResult`) — old names still work as aliases.
@@ -636,25 +636,25 @@ Thanks to the original [israeli-bank-scrapers](https://github.com/eshaham/israel
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/[REDACTED-USER]"><img src="https://avatars.githubusercontent.com/u/16467411?v=4?s=80" width="80px;" alt="[REDACTED-USER] Eugune"/><br /><sub><b>[REDACTED-USER] Eugune</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=[REDACTED-USER]" title="Code">💻</a> <a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=[REDACTED-USER]" title="Documentation">📖</a> <a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=[REDACTED-USER]" title="Tests">⚠️</a> <a href="#maintenance-[REDACTED-USER]" title="Maintenance">🚧</a> <a href="#infra-[REDACTED-USER]" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://elad.shaham.net/"><img src="https://avatars.githubusercontent.com/u/7040645?v=4?s=80" width="80px;" alt="Elad Shaham"/><br /><sub><b>Elad Shaham</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=eshaham" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/sebikaplun"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="sebikaplun"/><br /><sub><b>sebikaplun</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=sebikaplun" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/esakal"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="esakal"/><br /><sub><b>esakal</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=esakal" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ezzatq"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="ezzatq"/><br /><sub><b>ezzatq</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=ezzatq" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kfirarad"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="kfirarad"/><br /><sub><b>kfirarad</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=kfirarad" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/baruchiro"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="baruchiro"/><br /><sub><b>baruchiro</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=baruchiro" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/sergienko4"><img src="https://avatars.githubusercontent.com/u/16467411?v=4?s=80" width="80px;" alt="sergienko4 Eugune"/><br /><sub><b>sergienko4 Eugune</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Code">💻</a> <a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Documentation">📖</a> <a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Tests">⚠️</a> <a href="#maintenance-sergienko4" title="Maintenance">🚧</a> <a href="#infra-sergienko4" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://elad.shaham.net/"><img src="https://avatars.githubusercontent.com/u/7040645?v=4?s=80" width="80px;" alt="Elad Shaham"/><br /><sub><b>Elad Shaham</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=eshaham" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/sebikaplun"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="sebikaplun"/><br /><sub><b>sebikaplun</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sebikaplun" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/esakal"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="esakal"/><br /><sub><b>esakal</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=esakal" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ezzatq"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="ezzatq"/><br /><sub><b>ezzatq</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=ezzatq" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kfirarad"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="kfirarad"/><br /><sub><b>kfirarad</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=kfirarad" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/baruchiro"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="baruchiro"/><br /><sub><b>baruchiro</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=baruchiro" title="Code">💻</a></td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/matanelgabsi"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="matanelgabsi"/><br /><sub><b>matanelgabsi</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=matanelgabsi" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dratler"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="dratler"/><br /><sub><b>dratler</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=dratler" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dudiventura"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="dudiventura"/><br /><sub><b>dudiventura</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=dudiventura" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/gczobel"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="gczobel"/><br /><sub><b>gczobel</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=gczobel" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/orzarchi"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="orzarchi"/><br /><sub><b>orzarchi</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=orzarchi" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/erezd"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="erezd"/><br /><sub><b>erezd</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=erezd" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/erikash"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="erikash"/><br /><sub><b>erikash</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=erikash" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/matanelgabsi"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="matanelgabsi"/><br /><sub><b>matanelgabsi</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=matanelgabsi" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dratler"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="dratler"/><br /><sub><b>dratler</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=dratler" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dudiventura"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="dudiventura"/><br /><sub><b>dudiventura</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=dudiventura" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/gczobel"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="gczobel"/><br /><sub><b>gczobel</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=gczobel" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/orzarchi"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="orzarchi"/><br /><sub><b>orzarchi</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=orzarchi" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/erezd"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="erezd"/><br /><sub><b>erezd</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=erezd" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/erikash"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="erikash"/><br /><sub><b>erikash</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=erikash" title="Code">💻</a></td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/daniel-hauser"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="daniel-hauser"/><br /><sub><b>daniel-hauser</b></sub></a><br /><a href="https://github.com/[REDACTED-USER]/israeli-bank-scrapers/commits?author=daniel-hauser" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/daniel-hauser"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="daniel-hauser"/><br /><sub><b>daniel-hauser</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=daniel-hauser" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
@@ -666,22 +666,22 @@ Thanks to the original [israeli-bank-scrapers](https://github.com/eshaham/israel
 
 ## Links
 
-- [API Documentation (TypeDoc)](https://[REDACTED-USER].github.io/israeli-bank-scrapers/api/)
-- [Changelog](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/CHANGELOG.md)
-- [Contributing](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/CONTRIBUTING.md)
-- [Code of Conduct](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/CODE_OF_CONDUCT.md)
-- [Security Policy](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/SECURITY.md)
+- [API Documentation (TypeDoc)](https://sergienko4.github.io/israeli-bank-scrapers/api/)
+- [Changelog](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CHANGELOG.md)
+- [Contributing](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CONTRIBUTING.md)
+- [Code of Conduct](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CODE_OF_CONDUCT.md)
+- [Security Policy](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/SECURITY.md)
 
 ## Known Projects
 
-- [israeli-bank-scrapers-to-actual-budget](https://github.com/[REDACTED-USER]/israeli-bank-scrapers-to-actual-budget) — Sync to Actual Budget
+- [israeli-bank-scrapers-to-actual-budget](https://github.com/sergienko4/israeli-bank-scrapers-to-actual-budget) — Sync to Actual Budget
 - [Caspion](https://github.com/brafdlog/caspion) — Auto-send to budget apps
 - [Moneyman](https://github.com/daniel-hauser/moneyman) — Save via GitHub Actions
 - [Firefly III Importer](https://github.com/itairaz1/israeli-bank-firefly-importer) — Import to Firefly III
 
 ## License
 
-MIT. Maintained by [@[REDACTED-USER]](https://github.com/[REDACTED-USER]). Based on [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers).
+MIT. Maintained by [@sergienko4](https://github.com/sergienko4). Based on [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers).
 
 ---
 

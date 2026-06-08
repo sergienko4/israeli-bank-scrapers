@@ -8,7 +8,7 @@
 | OTP | Required (or `otpLongTermToken` from a previous run) |
 | Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
 | Phone format | `international-plus` (`+972000000000`) |
-| Source | [`Banks/OneZero/OneZeroPipeline.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.ts) |
+| Source | [`Banks/OneZero/OneZeroPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.ts) |
 
 ## Quick example
 

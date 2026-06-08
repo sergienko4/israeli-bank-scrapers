@@ -7,7 +7,7 @@
 | Credentials | `id`, `card6Digits`, `password` |
 | OTP | — |
 | Phase chain | INIT → HOME → **PRE-LOGIN** → LOGIN → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE → TERMINATE |
-| Source | [`Banks/Isracard/IsracardPipeline.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.ts) |
+| Source | [`Banks/Isracard/IsracardPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.ts) |
 
 ## Quick example
 
