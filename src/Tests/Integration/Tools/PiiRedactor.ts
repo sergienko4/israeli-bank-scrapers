@@ -195,19 +195,17 @@ const PII_PATTERNS = {
   email: /[\w.+-]+@[\w-]+\.[\w.-]+/g,
   ilsAmount: /(₪|NIS|ILS|ש"ח|ש״ח)\s*[-+]?\d[\d,]*(?:\.\d+)?/g,
   ilsAmountSuffix: /-?\d[\d,]*(?:\.\d+)?\s*(₪|NIS|ILS|ש"ח|ש״ח)/g,
-  /** Sanitize redactor-output `tel:[redacted-id]` (not a valid `tel:`
-   *  URI; trips parsers extracting dialable values) into a deterministic
-   *  zero-numeric placeholder. Runs LAST to clean up `israeliId9`
+  /** Sanitize redactor-output `tel:[redacted-id]` and `tel:[redacted-landline]`
+   *  (neither is a valid `tel:` URI; trips parsers extracting dialable values)
+   *  into a deterministic zero-numeric placeholder. Runs LAST to clean up
    *  outputs that landed inside `tel:` URI hrefs. The all-zeros value
    *  is chosen so it cannot collide with operator-account literals
-   *  (e.g. example secrets ship a 9999999999 placeholder). */
-  telLinkRedactedIdHref: /\btel:\[redacted-id\]/g,
-  /** Repair prettier-corrupted `[redacted - id]` (with spaces) that
-   *  arose when prettier reformatted `[redacted-id]` inside `<script>`
-   *  array literals as `[<binary-subtraction-expression>]`. Wrap in
-   *  quotes so the JS parses (string literal inside the array). Runs
-   *  LAST so it only ever fires on prettier-mangled prior output. */
-  prettierJsRedactedId: /\[redacted - id\]/g,
+   *  (e.g. example secrets ship a 9999999999 placeholder). Also rewrites
+   *  the visible anchor text so href and text stay digit-formatted and
+   *  consistent (preventing UI-assertion drift). */
+  telLinkRedactedHref:
+    /<a\b([^>]+?href="tel:)(?:\[redacted-(?:id|landline|phone)\]|0000000000)("[^>]*)>\[redacted-(?:id|landline|phone)\]<\/a>/g,
+  telLinkRedactedIdHref: /\btel:\[redacted-(?:id|landline|phone)\]/g,
 } as const;
 
 /** Replacement applied for each pattern key. */
@@ -248,8 +246,22 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   lsessionIdParam: '$1REDACTED_SESSION_ID',
   trackingIdParam: '$1ti=REDACTED_TRACKING_ID',
   trackingIdInAssetPath: '$1REDACTED_TRACKING_ID',
+  /**
+   * Function replacement: $1 captures attribute fragment up to and
+   * including `href="tel:`, $2 captures the closing `"` plus any
+   * remaining attributes. We rebuild the anchor so both href value
+   * AND visible text are the deterministic `0000000000` placeholder.
+   * Avoids `$1` + `0000000000` literal collision (`$10` is ambiguous
+   * in regex replacement strings).
+   *
+   * @param _match - Full anchor element (unused).
+   * @param prefix - Captured leading attribute fragment up to `href="tel:`.
+   * @param suffix - Captured trailing portion starting with closing `"`.
+   * @returns Anchor element with `tel:0000000000` href + matching text.
+   */
+  telLinkRedactedHref: (_match: string, prefix: string, suffix: string): string =>
+    `<a${prefix}0000000000${suffix}>0000000000</a>`,
   telLinkRedactedIdHref: 'tel:0000000000',
-  prettierJsRedactedId: '"[redacted-id]"',
 };
 
 /**
@@ -271,12 +283,47 @@ function applyOnePattern(raw: string, key: keyof typeof PII_PATTERNS): string {
  * Apply every PII pattern to the input string. Order matches
  * {@link PII_PATTERNS} key order (narrowest first).
  *
+ * <p>After all patterns run, a post-pass uniquifies QUOTED
+ * `[redacted-id]` and prettier-corrupted `[redacted - id]` instances
+ * by appending a per-call counter (`'[redacted-id-1]'`, `'[redacted-id-2]'`,
+ * ...). This prevents the duplicate-sibling-key collision that
+ * arises when `israeliId9` collapses multiple distinct 9-digit object
+ * keys (e.g. `'305555555'`, `'305444444'`) into the same `'[redacted-id]'`
+ * token — silently overwriting policy branches in fixture JS.
+ *
+ * <p>The counter is local to each call (per-file in the fixture sweep),
+ * so uniqueness holds within any single JS scope. Unquoted HTML-text
+ * `[redacted-id]` is left untouched — duplicates there are harmless.
+ *
  * @param raw - Untrusted input (HTML, JSON, or any captured string).
  * @returns Sanitized string safe to commit to the fixture corpus.
  */
 function redactPii(raw: string): string {
   const keys = Object.keys(PII_PATTERNS) as readonly (keyof typeof PII_PATTERNS)[];
-  return keys.reduce<string>((acc, key) => applyOnePattern(acc, key), raw);
+  const redacted = keys.reduce<string>((acc, key) => applyOnePattern(acc, key), raw);
+  return uniquifyQuotedRedactedIds(redacted);
+}
+
+/**
+ * Per-call counter post-pass: rewrites quoted `"[redacted-id]"`,
+ * `'[redacted-id]'`, and prettier-corrupted unquoted `[redacted - id]`
+ * forms to unique tokens so JS object literals don't collapse distinct
+ * sibling keys into a single overwriting entry.
+ *
+ * @param input - String AFTER all primary redactor patterns applied.
+ * @returns String with each quoted-or-prettier-corrupted redacted-id
+ *   instance assigned a unique numeric suffix.
+ */
+function uniquifyQuotedRedactedIds(input: string): string {
+  let counter = 0;
+  const quoted = input.replace(/(["'])\[redacted-id\]\1/g, (_m: string, q: string): string => {
+    counter += 1;
+    return `${q}[redacted-id-${String(counter)}]${q}`;
+  });
+  return quoted.replace(/\[redacted - id\]/g, (): string => {
+    counter += 1;
+    return `"[redacted-id-${String(counter)}]"`;
+  });
 }
 
 /**

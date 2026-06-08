@@ -99,7 +99,8 @@ const PATTERNS = [
   { id: 'redacted-marker-name', re: /\[redacted-name\]/g, severity: 'INFO', desc: 'Already redacted name (good)' },
   { id: 'redacted-marker-account', re: /\[redacted-account\]/g, severity: 'INFO', desc: 'Already redacted account (good)' },
   { id: 'redacted-marker-amount', re: /\[redacted-amount\]/g, severity: 'INFO', desc: 'Already redacted amount (good)' },
-  { id: 'redacted-marker-id', re: /\[redacted-id\]/g, severity: 'INFO', desc: 'Already redacted id (good)' },
+  { id: 'redacted-marker-id', re: /\[redacted-id\](?!-\d+)/g, severity: 'INFO', desc: 'Already redacted id (good)' },
+  { id: 'redacted-marker-unique-id', re: /\[redacted-id-\d+\]/g, severity: 'INFO', desc: 'Already redacted + uniquified id (good)' },
 ];
 
 const SEV_ORDER = { CRITICAL: 0, HIGH: 1, INFO: 99 };

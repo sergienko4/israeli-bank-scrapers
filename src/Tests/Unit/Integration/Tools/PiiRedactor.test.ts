@@ -130,10 +130,10 @@ const REDACT_CASES: readonly IRedactCase[] = [
     negative: '<a href="tel:0000000000">stays</a>',
   },
   {
-    key: 'prettierJsRedactedId',
-    positive: "['.baidu.', 3, [redacted - id]],",
-    expected: '"[redacted-id]"',
-    negative: "['.baidu.', 3, [other]],",
+    key: 'telLinkRedactedHref',
+    positive: '<a class="x" href="tel:[redacted-landline]" data-y="z">[redacted-landline]</a>',
+    expected: '>0000000000</a>',
+    negative: '<a class="x" href="tel:0000000000">0000000000</a>',
   },
 ];
 
@@ -187,6 +187,51 @@ describe('PiiRedactor', () => {
       const html = '<span>זהות 305555555</span><span>305444444</span>';
       const redacted = redactPii(html);
       expect(redacted).toBe('<span>זהות [redacted-id]</span><span>[redacted-id]</span>');
+    });
+  });
+
+  describe('uniquifyQuotedRedactedIds post-pass — JS object-literal duplicate-key prevention', () => {
+    it('uniquifies single-quoted JS object keys so distinct entries do not collide', () => {
+      const js = "{'305555555': {a:1}, '305444444': {a:2}, '305333333': {a:3}}";
+      const out = redactPii(js);
+      expect(out).toContain("'[redacted-id-1]'");
+      expect(out).toContain("'[redacted-id-2]'");
+      expect(out).toContain("'[redacted-id-3]'");
+    });
+
+    it('uniquifies double-quoted JSON keys the same way', () => {
+      const json = '{"305555555": 1, "305444444": 2}';
+      const out = redactPii(json);
+      expect(out).toContain('"[redacted-id-1]"');
+      expect(out).toContain('"[redacted-id-2]"');
+    });
+
+    it('repairs prettier-corrupted [redacted - id] (with spaces) by wrapping + uniquifying', () => {
+      const js = "['.baidu.', 3, [redacted - id]],['.yastatic.', 3, [redacted - id]]";
+      const out = redactPii(js);
+      expect(out).toContain('"[redacted-id-1]"');
+      expect(out).toContain('"[redacted-id-2]"');
+    });
+
+    it('leaves unquoted HTML-text [redacted-id] untouched (no JS-collision risk)', () => {
+      const html = '<p>Customer ID: 305555555 / 305444444</p>';
+      const out = redactPii(html);
+      expect(out).toBe('<p>Customer ID: [redacted-id] / [redacted-id]</p>');
+    });
+
+    it('resets counter per call (deterministic per file in sweep)', () => {
+      const first = redactPii("'305555555'");
+      const second = redactPii("'305444444'");
+      expect(first).toContain("'[redacted-id-1]'");
+      expect(second).toContain("'[redacted-id-1]'");
+    });
+  });
+
+  describe('telLinkRedactedHref — anchor text/href consistency', () => {
+    it('rewrites both href and visible text in <a href="tel:...">[redacted-*]</a>', () => {
+      const html = '<a class="x" href="tel:[redacted-landline]">[redacted-landline]</a>';
+      const out = redactPii(html);
+      expect(out).toBe('<a class="x" href="tel:0000000000">0000000000</a>');
     });
   });
 
