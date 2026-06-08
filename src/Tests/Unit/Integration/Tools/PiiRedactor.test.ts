@@ -250,10 +250,11 @@ describe('PiiRedactor', () => {
       expect(out).toContain('[redacted-name]');
     });
 
-    it('redacts operator username VT75151 anywhere it leaks', () => {
-      const text = '<meta data-user="VT75151"/>';
+    it('redacts operator username anywhere it leaks', () => {
+      const username = OPERATOR_LITERALS.operatorUsername;
+      const text = `<meta data-user="${username}"/>`;
       const out = redactPii(text);
-      expect(out).not.toContain('VT75151');
+      expect(out).not.toContain(username);
       expect(out).toContain('[redacted-username]');
     });
 
