@@ -181,8 +181,8 @@ function buildPostCtx(
 /**
  * Returns true when `iterationAccountId` is compatible with the
  * accountId DASHBOARD captured. Banks expose two variants of the same
- * id — display form (`[REDACTED-ACCT-6]`) and the long bank/branch form
- * (`[REDACTED-ACCT]`). A bidirectional `endsWith` check normalizes
+ * id — display form (`991234`) and the long bank/branch form
+ * (`99-999-991234`). A bidirectional `endsWith` check normalizes
  * across both directions without bank-specific branches.
  *
  * @param capturedAccountId - AccountId DASHBOARD parsed from the URL.

@@ -189,7 +189,7 @@ describe('ACCOUNT-RESOLVE.POST — ACCOUNT_RESOLUTION_INCOMPLETE guard (Phase 7b
       url: 'https://login.hapoalim.example/ServerServices/general/accounts',
       method: 'GET',
       responseBody: [
-        { bankNumber: 12, branchNumber: 170, accountNumber: [REDACTED-ACCT-6], productLabel: '[REDACTED-ACCT]' },
+        { bankNumber: 12, branchNumber: 170, accountNumber: 991234, productLabel: '99-999-991234' },
       ],
     });
     const baseCtx = makeMockContext();
@@ -203,7 +203,7 @@ describe('ACCOUNT-RESOLVE.POST — ACCOUNT_RESOLUTION_INCOMPLETE guard (Phase 7b
     if (isOk(result)) {
       expect(result.value.accountDiscovery.has).toBe(true);
       if (result.value.accountDiscovery.has) {
-        expect(result.value.accountDiscovery.value.ids).toContain('[REDACTED-ACCT-6]');
+        expect(result.value.accountDiscovery.value.ids).toContain('991234');
       }
     }
   });

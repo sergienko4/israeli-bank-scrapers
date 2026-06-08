@@ -3,6 +3,7 @@
  */
 
 import {
+  OPERATOR_LITERALS,
   PII_PATTERNS,
   PII_REPLACEMENTS,
   type PiiPatternKey,
@@ -81,7 +82,7 @@ const REDACT_CASES: readonly IRedactCase[] = [
   },
   {
     key: 'hebrewGreetingName',
-    positive: '<div><h1>שלום</h1><p>[REDACTED-HE-SURNAME] [REDACTED-HE-NAME]</p></div>',
+    positive: '<div><h1>שלום</h1><p>John Doe</p></div>',
     expected: '[redacted-name]',
     negative: '<div><h1>שלום</h1><span>welcome</span></div>',
   },
@@ -99,7 +100,7 @@ const REDACT_CASES: readonly IRedactCase[] = [
   },
   {
     key: 'ilBankAccount',
-    positive: 'account [REDACTED-ACCT] here',
+    positive: 'account 99-999-991234 here',
     expected: '[redacted-account]',
     negative: 'date 2024-12-26 stays',
   },
@@ -193,33 +194,32 @@ describe('PiiRedactor', () => {
 
   describe('hebrewGreetingName — bank post-login greeting card', () => {
     it('redacts customer name inside <h1>שלום</h1><p>NAME</p>', () => {
-      const html = '<div class="mobile-user-title"><h1>שלום</h1><p>[REDACTED-HE-SURNAME] [REDACTED-HE-NAME]</p></div>';
+      const html = '<div class="mobile-user-title"><h1>שלום</h1><p>John Doe</p></div>';
       const out = redactPii(html);
-      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
+      expect(out).not.toContain('John Doe');
       expect(out).toContain('[redacted-name]');
     });
 
     it('redacts name in <h1 id="main-title">שלום</h1><p>NAME</p>', () => {
-      const html =
-        '<section><h1 id="main-title" tabindex="0">שלום</h1><p>[REDACTED-HE-SURNAME] [REDACTED-HE-NAME]</p></section>';
+      const html = '<section><h1 id="main-title" tabindex="0">שלום</h1><p>John Doe</p></section>';
       const out = redactPii(html);
-      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
+      expect(out).not.toContain('John Doe');
       expect(out).toContain('[redacted-name]');
     });
   });
 
   describe('jsonPersonNameField — bank API response name fields', () => {
     it('redacts partyFullName in JSON object', () => {
-      const json = '{"partyFullName": "[REDACTED-HE-SURNAME] יוג\'ין", "id": 1}';
+      const json = '{"partyFullName": "John Doe", "id": 1}';
       const out = redactPii(json);
-      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
+      expect(out).not.toContain('John Doe');
       expect(out).toContain('[redacted-name]');
     });
 
     it('redacts partyFirstName in escaped NDJSON envelope', () => {
-      const ndjson = '{"envelope":"{\\"partyFirstName\\": \\"יוג\'ין\\"}"}';
+      const ndjson = '{"envelope":"{\\"partyFirstName\\": \\"Jane\\"}"}';
       const out = redactPii(ndjson);
-      expect(out).not.toContain('יוג');
+      expect(out).not.toContain('Jane');
       expect(out).toContain('[redacted-name]');
     });
 
@@ -233,17 +233,20 @@ describe('PiiRedactor', () => {
 
   describe('operator-known PII literals', () => {
     it('redacts Hebrew surname literal in transaction descriptions', () => {
-      const html = '<span>העברה מ[REDACTED-HE-NAME] [REDACTED-HE-SURNAME] חשבון</span>';
+      const surname = OPERATOR_LITERALS.hebrewSurname;
+      const given = OPERATOR_LITERALS.hebrewGivenName;
+      const html = `<span>העברה מ${given} ${surname} חשבון</span>`;
       const out = redactPii(html);
-      expect(out).not.toContain('[REDACTED-HE-SURNAME]');
-      expect(out).not.toContain('[REDACTED-HE-NAME]');
+      expect(out).not.toContain(surname);
+      expect(out).not.toContain(given);
       expect(out).toContain('[redacted-name]');
     });
 
     it('redacts English operator names in HTML/JSON', () => {
-      const html = '<span>From [REDACTED-USER], Yevgeny</span>';
+      const opName = OPERATOR_LITERALS.englishOperatorName;
+      const html = `<span>From ${opName}, Yevgeny</span>`;
       const out = redactPii(html);
-      expect(out).not.toMatch(/[REDACTED-USER]|Yevgeny/i);
+      expect(out).not.toContain(opName);
       expect(out).toContain('[redacted-name]');
     });
 
@@ -254,19 +257,21 @@ describe('PiiRedactor', () => {
       expect(out).toContain('[redacted-username]');
     });
 
-    it('redacts operator account literal [REDACTED-OPER-ACCT]', () => {
-      const html = '<span>account: [REDACTED-OPER-ACCT]</span>';
+    it('redacts operator account literal anywhere it leaks', () => {
+      const acct = OPERATOR_LITERALS.operatorAccount;
+      const html = `<span>account: ${acct}</span>`;
       const out = redactPii(html);
-      expect(out).not.toContain('[REDACTED-OPER-ACCT]');
+      expect(out).not.toContain(acct);
       expect(out).toContain('[redacted-account]');
     });
   });
 
   describe('urlPathAccountId — REST URL account-id segment', () => {
     it('redacts account id in Discount Titan gatewayAPI URL', () => {
-      const url = '"url":"/Titan/gatewayAPI/accountDetails/infoAndBalance/[REDACTED-OPER-ACCT]"';
+      const acct = OPERATOR_LITERALS.operatorAccount;
+      const url = `"url":"/Titan/gatewayAPI/accountDetails/infoAndBalance/${acct}"`;
       const out = redactPii(url);
-      expect(out).not.toContain('[REDACTED-OPER-ACCT]');
+      expect(out).not.toContain(acct);
       expect(out).toContain('[redacted-account]');
     });
 

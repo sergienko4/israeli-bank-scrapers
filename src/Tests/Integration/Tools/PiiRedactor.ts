@@ -262,4 +262,18 @@ function redactJson(value: unknown): string {
 }
 
 export type PiiPatternKey = keyof typeof PII_PATTERNS;
-export { PII_PATTERNS, PII_REPLACEMENTS, redactJson, redactPii };
+
+/**
+ * Read-only exposure of the operator literals loaded from `.pii-secrets.json`
+ * (or the example fallback). Test files import this to drive operator-known
+ * literal tests at runtime WITHOUT containing the literals in source.
+ */
+const OPERATOR_LITERALS = {
+  hebrewSurname: SECRETS.hebrewSurnameLiteral,
+  hebrewGivenName: SECRETS.hebrewGivenNameLiterals[0] ?? '',
+  englishOperatorName: SECRETS.englishOperatorNames[0] ?? '',
+  operatorUsername: SECRETS.operatorUsernames[0] ?? '',
+  operatorAccount: SECRETS.operatorAccountLiteral,
+} as const;
+
+export { OPERATOR_LITERALS, PII_PATTERNS, PII_REPLACEMENTS, redactJson, redactPii };

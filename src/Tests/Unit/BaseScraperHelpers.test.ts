@@ -172,12 +172,12 @@ describe('formatDiagUrl (CodeQL #28-class diagnostic URL sanitization)', () => {
   });
   it('strips PII query keys but keeps host and path', () => {
     const out = FORMAT_DIAG_URL(
-      'https://x.example/api/login?accountId=[REDACTED-ACCT]&token=eyJsecret&v=1',
+      'https://x.example/api/login?accountId=99-999-991234&token=eyJsecret&v=1',
     );
     expect(out).toContain('x.example');
     expect(out).toContain('/api/login');
-    expect(out).toContain('accountId=[REDACTED-CARD-4]');
-    expect(out).not.toContain('[REDACTED-ACCT]');
+    expect(out).toContain('accountId=***1234');
+    expect(out).not.toContain('99-999-991234');
     expect(out).not.toContain('eyJsecret');
     expect(out).toContain('v=1');
   });
@@ -193,7 +193,7 @@ describe('getKeyByValue no-match path (CodeQL leak fix at line 161)', () => {
     const possibleResults = { [LOGIN_RESULTS.Success]: ['https://x.example/dashboard'] };
     const out = await GET_KEY_BY_VALUE(
       possibleResults,
-      'https://x.example/?accountId=[REDACTED-ACCT]',
+      'https://x.example/?accountId=99-999-991234',
       page,
     );
     expect(out).toBe(LOGIN_RESULTS.UnknownError);
@@ -251,7 +251,7 @@ describe('buildLoginResult', () => {
     // formatDiagUrl → redactUrl, exercising the redaction branch.
     const page = makeMockPage();
     const ctx = makeResultCtx(page);
-    ctx.diagState.finalUrl = 'https://x.example/dashboard?accountId=[REDACTED-ACCT]&token=abc';
+    ctx.diagState.finalUrl = 'https://x.example/dashboard?accountId=99-999-991234&token=abc';
     const out = BUILD_LOGIN_RESULT(ctx, LOGIN_RESULTS.Success);
     expect(out.success).toBe(true);
     expect(ctx.diagState.lastAction).toContain('login result: SUCCESS');

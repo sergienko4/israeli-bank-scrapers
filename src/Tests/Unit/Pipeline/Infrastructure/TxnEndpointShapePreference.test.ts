@@ -51,7 +51,7 @@ describe('hasTxnArray — BFS shape detection (shared helper)', () => {
 
   it('[b] Hapoalim detail body (real shape) → true', () => {
     const body = {
-      retrievalTransactionData: { bankNumber: 12, branchNumber: 170, accountNumber: [REDACTED-ACCT-6] },
+      retrievalTransactionData: { bankNumber: 12, branchNumber: 170, accountNumber: 991234 },
       transactions: [{ eventDate: 20260414, eventAmount: 150.0, currentBalance: 150.0 }],
     };
     const isHit = hasTxnArray(body);

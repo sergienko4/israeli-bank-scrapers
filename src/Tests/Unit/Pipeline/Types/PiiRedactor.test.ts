@@ -24,9 +24,9 @@ import {
 } from '../../../../Scrapers/Pipeline/Types/PiiRedactor.js';
 
 describe('PiiRedactor — redactAccount (TC-AC-01..05)', () => {
-  it('returns ***last4 for Hapoalim account "[REDACTED-ACCT]"', () => {
-    const result = redactAccount('[REDACTED-ACCT]');
-    expect(result).toBe('[REDACTED-CARD-4]');
+  it('returns ***last4 for Hapoalim account "99-999-991234"', () => {
+    const result = redactAccount('99-999-991234');
+    expect(result).toBe('***1234');
   });
   it('returns ***last4 for Discount account "8878787823"', () => {
     const result = redactAccount('8878787823');
@@ -230,8 +230,8 @@ describe('PiiRedactor — classifyKey', () => {
 describe('PiiRedactor — createCensorFn', () => {
   it('routes accountNumber path to redactAccount', () => {
     const censor = createCensorFn();
-    const out = censor('[REDACTED-ACCT]', ['accountNumber']);
-    expect(out).toBe('[REDACTED-CARD-4]');
+    const out = censor('99-999-991234', ['accountNumber']);
+    expect(out).toBe('***1234');
   });
   it('routes balance path to redactAmount', () => {
     const censor = createCensorFn();
@@ -252,8 +252,8 @@ describe('PiiRedactor — createCensorFn', () => {
 
 describe('PiiRedactor — redactUrl', () => {
   it('redacts known PII query keys, keeps non-PII keys', () => {
-    const out = redactUrl('https://x.example/api?accountId=[REDACTED-ACCT]&v=1');
-    expect(out).toContain('accountId=[REDACTED-CARD-4]');
+    const out = redactUrl('https://x.example/api?accountId=99-999-991234&v=1');
+    expect(out).toContain('accountId=***1234');
     expect(out).toContain('v=1');
   });
   it('returns input unchanged when not parseable', () => {
@@ -280,10 +280,10 @@ describe('PiiRedactor — redactUrlFull', () => {
   });
   it('redacts both query and path PII when both are present', () => {
     const out = redactUrlFull(
-      'https://x.example/api/accounts/8878787823/Date?accountId=[REDACTED-ACCT]&v=1',
+      'https://x.example/api/accounts/8878787823/Date?accountId=99-999-991234&v=1',
     );
     expect(out).toContain('accounts/***7823/Date');
-    expect(out).toContain('accountId=[REDACTED-CARD-4]');
+    expect(out).toContain('accountId=***1234');
     expect(out).toContain('v=1');
   });
   it('passes through URLs with no PII identifiers in path or query', () => {
@@ -330,8 +330,8 @@ describe('PiiRedactor — redactJsonBody', () => {
     expect(out).toContain('[1,2,3]');
   });
   it('falls back to regex replacement for non-JSON input', () => {
-    const out = redactJsonBody('Hapoalim [REDACTED-ACCT] client');
-    expect(out).toContain('[REDACTED-CARD-4]');
+    const out = redactJsonBody('Hapoalim 99-999-991234 client');
+    expect(out).toContain('***1234');
   });
   it('collapses arrays whose elements carry nested PII (CR review #6)', () => {
     const body = JSON.stringify({
@@ -354,7 +354,7 @@ describe('PiiRedactor — redactJsonBody', () => {
 
 describe('PiiRedactor — redactHtml', () => {
   it('replaces input @value with grapheme-count tag', () => {
-    const out = redactHtml('<input value="Eugene [REDACTED-USER]"/>');
+    const out = redactHtml('<input value="John Doe Testing"/>');
     expect(out).toContain('<name:16>');
   });
   it('redacts Israeli ID inside text node', () => {
@@ -432,8 +432,8 @@ describe('PiiRedactor — redactJsonBody safety guards', () => {
 
 describe('PiiRedactor — redactUrl multi-query', () => {
   it('redacts multiple PII keys in one URL', () => {
-    const out = redactUrl('https://x.example/a?accountId=[REDACTED-ACCT]&cardId=6440&v=2');
-    expect(out).toContain('accountId=[REDACTED-CARD-4]');
+    const out = redactUrl('https://x.example/a?accountId=99-999-991234&cardId=6440&v=2');
+    expect(out).toContain('accountId=***1234');
     expect(out).toContain('cardId=');
     expect(out).toContain('v=2');
   });
@@ -468,9 +468,9 @@ describe('PiiRedactor — createCensorFn boolean + numeric paths', () => {
 
 describe('PiiRedactor — fallback regex coverage', () => {
   it('redactJsonBody fallback regex catches Hapoalim account in non-JSON', () => {
-    const out = redactJsonBody('Customer [REDACTED-ACCT] contacted support');
-    expect(out).toContain('[REDACTED-CARD-4]');
-    expect(out).not.toContain('[REDACTED-ACCT-6]');
+    const out = redactJsonBody('Customer 99-999-991234 contacted support');
+    expect(out).toContain('***1234');
+    expect(out).not.toContain('991234');
   });
   it('redactJsonBody fallback regex catches Israeli ID in non-JSON', () => {
     const out = redactJsonBody('IL identifier 445577890 not found');
@@ -600,7 +600,7 @@ describe('PiiRedactor — bug-report contract (no raw PII leaks)', () => {
   it('produces zero raw PII patterns when redacting a synthetic record', () => {
     const censor = createCensorFn();
     const fields: readonly (readonly [string, string | number])[] = [
-      ['accountNumber', '[REDACTED-ACCT]'],
+      ['accountNumber', '99-999-991234'],
       ['firstName', 'Eugene'],
       ['description', 'ARMA'],
       ['authorization', 'Bearer eyJhbG.long.jwt'],
@@ -618,7 +618,7 @@ describe('PiiRedactor — bug-report contract (no raw PII leaks)', () => {
     const hasIsraeliId = israeliIdRe.test(blob);
     const hasHapoalim = hapoalimRe.test(blob);
     const hasJwt = jwtRe.test(blob);
-    const hasAccountHint = blob.includes('[REDACTED-CARD-4]');
+    const hasAccountHint = blob.includes('***1234');
     const hasNameHint = blob.includes('<name:6>');
     const hasMerchantHint = blob.includes('<merchant:4>');
     const hasRedacted = blob.includes('[REDACTED]');

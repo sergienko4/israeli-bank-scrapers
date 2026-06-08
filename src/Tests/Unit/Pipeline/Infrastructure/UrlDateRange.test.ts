@@ -19,20 +19,20 @@ describe('applyDateRangeToUrl — Hapoalim YYYYMMDD shape', () => {
   it('rewrites retrievalStartDate / retrievalEndDate', () => {
     const url =
       'https://login.bankhapoalim.co.il/ServerServices/current-account/transactions' +
-      '?accountId=[REDACTED-ACCT]&numItemsPerPage=150' +
+      '?accountId=99-999-991234&numItemsPerPage=150' +
       '&retrievalEndDate=20260420&retrievalStartDate=20260321' +
       '&sortCode=1&lang=he';
     const out = applyDateRangeToUrl(url, FROM, TO);
     expect(out).toContain('retrievalStartDate=20250421');
     expect(out).toContain('retrievalEndDate=20260420');
-    expect(out).toContain('accountId=[REDACTED-ACCT]');
+    expect(out).toContain('accountId=99-999-991234');
     expect(out).toContain('sortCode=1');
   });
 });
 
 describe('applyDateRangeToUrl — Discount FromDate shape', () => {
   it('rewrites FromDate when present', () => {
-    const url = 'https://discount.example/api/lastTransactions/[REDACTED-OPER-ACCT]/Date?FromDate=20260121';
+    const url = 'https://discount.example/api/lastTransactions/9999999999/Date?FromDate=20260121';
     const out = applyDateRangeToUrl(url, FROM, TO);
     expect(out).toContain('FromDate=20250421');
   });
