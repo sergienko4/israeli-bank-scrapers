@@ -7,7 +7,7 @@ updates:
       day: monday
     open-pull-requests-limit: 10
     reviewers:
-      - [REDACTED-USER]
+      - sergienko4
     labels:
       - dependencies
     groups:

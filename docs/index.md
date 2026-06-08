@@ -9,12 +9,12 @@ hide:
 Scrape transactions from **19 Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass** and **end-to-end PII redaction**.
 
 ```sh
-npm install @[REDACTED-USER]/israeli-bank-scrapers
+npm install @sergienko4/israeli-bank-scrapers
 ```
 
 [Quick Start :material-rocket-launch:](quick-start.md){ .md-button .md-button--primary }
 [Architecture overview :material-sitemap:](architecture/index.md){ .md-button }
-[API Reference :material-code-braces:](https://[REDACTED-USER].github.io/israeli-bank-scrapers/api/){ .md-button }
+[API Reference :material-code-braces:](https://sergienko4.github.io/israeli-bank-scrapers/api/){ .md-button }
 
 ---
 
@@ -67,7 +67,7 @@ flowchart LR
     - Unified api-direct primitives across OneZero, Pepper, PayBox (signer config DU, `JsonValueTemplate`, carry derivations).
 - **v8.3.0** — Pipeline architecture v2 (Strategy / Builder / Mediator / Result patterns, phase isolation, PII redaction).
 
-See [README → Version history](https://github.com/[REDACTED-USER]/israeli-bank-scrapers#version-history) for the full timeline.
+See [README → Version history](https://github.com/sergienko4/israeli-bank-scrapers#version-history) for the full timeline.
 
 ## Migration notice
 

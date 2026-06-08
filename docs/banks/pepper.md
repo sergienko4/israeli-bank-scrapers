@@ -8,7 +8,7 @@
 | OTP | Required |
 | Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
 | Phone format | `international-flat` (`972000000000`) |
-| Source | [`Banks/Pepper/PepperPipeline.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/PepperPipeline.ts) |
+| Source | [`Banks/Pepper/PepperPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/PepperPipeline.ts) |
 
 ## Quick example
 

@@ -1,11 +1,11 @@
 site_name: Israeli Bank Scrapers
 site_description: Scrape transactions from 19 Israeli banks and credit card companies with built-in Cloudflare WAF bypass and end-to-end PII redaction.
-site_url: https://[REDACTED-USER].github.io/israeli-bank-scrapers/
-repo_url: https://github.com/[REDACTED-USER]/israeli-bank-scrapers
-repo_name: [REDACTED-USER]/israeli-bank-scrapers
+site_url: https://sergienko4.github.io/israeli-bank-scrapers/
+repo_url: https://github.com/sergienko4/israeli-bank-scrapers
+repo_name: sergienko4/israeli-bank-scrapers
 edit_uri: edit/main/docs/
 copyright: |
-  &copy; <a href="https://github.com/[REDACTED-USER]">[REDACTED-USER]</a> &middot; MIT &middot; based on <a href="https://github.com/eshaham/israeli-bank-scrapers">eshaham/israeli-bank-scrapers</a>
+  &copy; <a href="https://github.com/sergienko4">sergienko4</a> &middot; MIT &middot; based on <a href="https://github.com/eshaham/israeli-bank-scrapers">eshaham/israeli-bank-scrapers</a>
 
 docs_dir: docs
 site_dir: site
@@ -114,9 +114,9 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/[REDACTED-USER]/israeli-bank-scrapers
+      link: https://github.com/sergienko4/israeli-bank-scrapers
     - icon: fontawesome/brands/npm
-      link: https://www.npmjs.com/package/@[REDACTED-USER]/israeli-bank-scrapers
+      link: https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers
   status:
     new: New in v8.4
     deprecated: Legacy — scheduled for migration to Pipeline
@@ -189,4 +189,4 @@ nav:
       - Adding a new bank: contributing/new-bank.md
       - Test surfaces: contributing/testing.md
       - Code style & lint: contributing/lint.md
-  - API Reference: https://[REDACTED-USER].github.io/israeli-bank-scrapers/api/
+  - API Reference: https://sergienko4.github.io/israeli-bank-scrapers/api/

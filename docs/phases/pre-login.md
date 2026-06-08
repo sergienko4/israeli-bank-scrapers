@@ -7,7 +7,7 @@ Opt-in "show login" step for card banks that hide the password field behind a to
 | **Always-on?** | No — opt-in via `ifBrowserAndPreLogin` predicate |
 | **Banks that use it** | Amex, Isracard, Max, VisaCal |
 | **Owner slot** | `preLoginDiscovery: Option<IPreLoginDiscovery>` |
-| **Source** | [`FindLoginAreaPhase.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/PreLogin/FindLoginAreaPhase.ts) + [`PreLoginActions.ts`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/PreLogin/PreLoginActions.ts) |
+| **Source** | [`FindLoginAreaPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/PreLogin/FindLoginAreaPhase.ts) + [`PreLoginActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/PreLogin/PreLoginActions.ts) |
 
 ## Sub-step contract
 

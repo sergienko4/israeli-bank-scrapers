@@ -52,7 +52,7 @@ Five test suites, picked by **what you're testing**.
 
 Captured under `src/Tests/E2eMocked/<Bank>/fixtures/` and `Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/<bank>/`. Always **pre-redacted** via `PiiRedactor` at capture time — committing a fixture should never leak real PII.
 
-If you need to add fixtures, use the [`SnapshotInterceptor`](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/SnapshotFrameCapture.ts) which writes redacted JSON for every captured response, then move the relevant slice into the fixture dir.
+If you need to add fixtures, use the [`SnapshotInterceptor`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/SnapshotFrameCapture.ts) which writes redacted JSON for every captured response, then move the relevant slice into the fixture dir.
 
 ## Where the gates run
 

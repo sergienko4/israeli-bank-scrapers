@@ -9,7 +9,7 @@ This repo runs two automated review tools on every PR:
 | **CodeRabbit** | Walkthrough comment + inline review threads + summary review | `.coderabbit.yaml` (root) — see [config rationale](#coderabbit-config-rationale) below |
 | **SonarCloud Scan** | New-issue list bound to the PR | `sonar-project.properties` + the `SonarCloud Scan` CI job |
 
-Both tools surface findings on PR-open and on every push. The C8 step of the [post-PR checklist](https://github.com/[REDACTED-USER]/israeli-bank-scrapers/blob/main/.github/PULL_REQUEST_TEMPLATE.md) requires the maintainer to **pull every open finding, verify against the current working tree, and either fix or document a disposition before requesting re-review**.
+Both tools surface findings on PR-open and on every push. The C8 step of the [post-PR checklist](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/PULL_REQUEST_TEMPLATE.md) requires the maintainer to **pull every open finding, verify against the current working tree, and either fix or document a disposition before requesting re-review**.
 
 The query commands below are the canonical way to do that pull — they do not depend on the GitHub web UI rendering finished by the time you check.
 
@@ -60,7 +60,7 @@ SonarCloud's web project is public, so its REST search API is reachable without 
 
 ```bash
 curl -sS "https://sonarcloud.io/api/issues/search?\
-componentKeys=[REDACTED-USER]_israeli-bank-scrapers&\
+componentKeys=sergienko4_israeli-bank-scrapers&\
 pullRequest={N}&\
 issueStatuses=OPEN,CONFIRMED&\
 sinceLeakPeriod=true&\
@@ -80,7 +80,7 @@ ps=100" | \
 
 ```bash
 curl -sS "https://sonarcloud.io/api/qualitygates/project_status?\
-projectKey=[REDACTED-USER]_israeli-bank-scrapers&\
+projectKey=sergienko4_israeli-bank-scrapers&\
 pullRequest={N}" | jq '.projectStatus.status'
 ```
 
