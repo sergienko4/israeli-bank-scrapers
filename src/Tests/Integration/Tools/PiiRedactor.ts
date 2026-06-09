@@ -317,6 +317,23 @@ function redactPii(raw: string): string {
 }
 
 /**
+ * Rewrites all `[redacted - id]` (prettier-corrupted, unquoted) tokens
+ * to unique quoted `"[redacted-id-N]"` tokens, using the supplied
+ * counter object so the caller can continue numbering after this pass.
+ *
+ * @param input - String after the quoted-pass.
+ * @param counter - Mutable counter object holding the next sequence value.
+ * @param counter.n - Next numeric suffix to use (incremented in place).
+ * @returns Input with each prettier-corrupted instance replaced.
+ */
+function uniquifyPrettierCorrupted(input: string, counter: { n: number }): string {
+  return input.replace(/\[redacted - id\]/g, (): string => {
+    counter.n += 1;
+    return `"[redacted-id-${String(counter.n)}]"`;
+  });
+}
+
+/**
  * Per-call counter post-pass: rewrites quoted `"[redacted-id]"`,
  * `'[redacted-id]'`, and prettier-corrupted unquoted `[redacted - id]`
  * forms to unique tokens so JS object literals don't collapse distinct
@@ -327,15 +344,12 @@ function redactPii(raw: string): string {
  *   instance assigned a unique numeric suffix.
  */
 function uniquifyQuotedRedactedIds(input: string): string {
-  let counter = 0;
+  const counter = { n: 0 };
   const quoted = input.replace(/(["'])\[redacted-id\]\1/g, (_m: string, q: string): string => {
-    counter += 1;
-    return `${q}[redacted-id-${String(counter)}]${q}`;
+    counter.n += 1;
+    return `${q}[redacted-id-${String(counter.n)}]${q}`;
   });
-  return quoted.replace(/\[redacted - id\]/g, (): string => {
-    counter += 1;
-    return `"[redacted-id-${String(counter)}]"`;
-  });
+  return uniquifyPrettierCorrupted(quoted, counter);
 }
 
 /**

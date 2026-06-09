@@ -1,0 +1,23 @@
+{
+  "DashboarBalances": {
+    "AccountCurrencyCode": "ILS",
+    "LoansBalance": {
+      "IsAccountEntitledToTakeLoan": true,
+      "LoanMaxAmount": 0,
+      "ExistingLoansInfo": {
+        "LoansStatus": "N"
+      }
+    },
+    "SavingsBalance": {
+      "SavingsType": "NONE",
+      "SavingsStatus": "N"
+    },
+    "SecuritiesBalance": {
+      "TotalSecuritiesBalance": 0,
+      "SecuritiesStatus": "Y"
+    },
+    "ForeignAccountsBalance": {
+      "ForeignAccountsStatus": "N"
+    }
+  }
+}

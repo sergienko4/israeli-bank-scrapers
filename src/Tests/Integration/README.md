@@ -85,16 +85,60 @@ Onboarding a new pipeline bank requires fixtures + drive coverage in
 
 ## SPA banks (`requiresHydration: true`)
 
-A few banks (Discount, Max, VisaCal, Mercantile, OtsarHahayal) render
-the login form post-JS. The captured HTML alone is **not** sufficient
-to drive `LoginFieldDiscovery`, so those expectation rows have
-`requiresHydration: true` and the production-drive assertions are
-skipped for them in both Mode A and Mode B. The harvested HTML still
-gates the **structural** invariants (origin URL, page title, anchor
-markup present in the shell) so we catch shell-level regressions.
+The captured PRE-LOGIN HTML for SPA-shell banks does **not** contain
+the credential inputs (the SPA renders them via JS after navigation).
+PR-A2 captures the **post-hydration** DOM snapshot via
+`page.waitForLoadState('networkidle') → page.content()` instead of the
+JS bundle — see `Tools/PostLoginRecipes.ts` for the per-bank
+`{ kind: 'snapshot', waitForLifecycle: 'networkidle' }` steps. Once
+the hydrated snapshot lands, `requiresHydration` flips to `false` in
+`Banks/BankFixtureExpectations.ts` and Mode A + Mode B drive both
+phases without exception.
 
-Asset capture (CSS / JS / fonts) under `Mode B` is a follow-up so the
-SPA banks can hydrate inside the mirror and DRIVE the full chain.
+## Operator workflow — extended capture (forthcoming in PR-A2.2)
+
+> **PR-A2.1 status: infrastructure-only.** The harvester ships with the
+> recipe schema (`Tools/RecipeStepTypes.ts`), per-bank post-login
+> recipes (`Tools/PostLoginRecipes.ts`), the credential loader
+> (`Tools/CredentialLoader.ts`), the network recorder
+> (`Tools/NetworkResponseRecorder.ts`), and the PII redactor
+> (`Tools/PiiRedactor.ts`). The CLI flag `--include-post-login` is
+> **rejected with a clear error** in PR-A2.1 — it lands wired in
+> PR-A2.2 once the login + post-login executors are integrated.
+>
+> Until PR-A2.2 merges, the only supported invocation is the pre-login
+> capture (`npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts <bankId>`).
+> The post-login workflow below is the **target** operator UX once
+> PR-A2.2 ships.
+
+The harvester will support **per-phase capture** (PRE-LOGIN through
+DASHBOARD + first SCRAPE response) using the discriminated-union
+recipe in `Tools/RecipeStepTypes.ts`. Per-bank post-login steps live
+in `Tools/PostLoginRecipes.ts` and will consume credentials from
+`process.env` via `Tools/CredentialLoader.ts`.
+
+To capture the full per-phase fixture set for one bank **(PR-A2.2)**:
+
+1. Load credentials into `process.env` (the harvester reads the
+   exact env-var names already used by `src/Tests/E2eReal/`).
+2. Run:
+
+   ```
+   npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts <bankId> --include-post-login
+   ```
+
+3. Every response captured by `Tools/NetworkResponseRecorder.ts` is
+   PII-redacted via `Tools/PiiRedactor.ts` (Israeli IDs, phones,
+   emails, IBANs, balances, bearer/JWT tokens) **before** bytes hit
+   disk.
+4. Commit the resulting `fixtures/banks/<bankId>/` tree. The new
+   `*.response.json` files are committed alongside the HTML snapshots.
+
+### Beinleumi OTP (PR-A2.2)
+
+OTP banks require interactive operator presence. Set `BEINLEUMI_OTP`
+in `process.env` immediately after the SMS arrives — the harvester's
+`loadOtpFromEnv` helper picks it up and feeds it into the OTP step.
 
 ## The gate (pre-commit + CI)
 

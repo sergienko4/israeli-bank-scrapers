@@ -1,0 +1,23 @@
+{
+  "AccountInfoAndBalance": {
+    "AccountName": "[redacted-name] [redacted-name]",
+    "HandlingBranchID": "0535",
+    "HandlingBranchName": "סניף טאצ'ר",
+    "AccountBalance": 0,
+    "AccountWithheldBalance": 0,
+    "AccountAvailableBalance": 0,
+    "AccountAutomaticAuthorizedOverdraft": 0,
+    "AccountLimit": 0,
+    "TotalAccountLimit": 0,
+    "AccountStatusCode": "A",
+    "AccountCurrencyCode": "ILS",
+    "PrivateBusinessFlag": "P",
+    "AccountTrack": "Private",
+    "SignatureAvailableCode": "I",
+    "NumberOfSignatures": 0,
+    "AccountLegalTreatment": "N",
+    "AccountCurrencyLongName": "שקל",
+    "MobilityRequestRecivingStatus": "N",
+    "MobilityRequestTransferStatus": "N"
+  }
+}
