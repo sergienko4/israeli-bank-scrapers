@@ -164,7 +164,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'SCRAPE',
   },
   {
-    url: 'https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetLatestTransactions',
+    url: 'https://web.isracard.co.il/ocp/transactions/DigitalV3.Transactions/GetTransactionsList',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -391,6 +391,17 @@ function buildScriptedRequest(step: IScriptedStep): Request {
 }
 
 /**
+ * Assert exact route-capture counters and return the observed fulfill count.
+ * @param route - Captured route stub after a scripted step has invoked it.
+ * @returns The fulfill count (always {@link FULFILL_BUMP} on a passing assertion).
+ */
+function assertRouteCounts(route: IRouteStub): number {
+  expect(route.fulfilled.length).toBe(FULFILL_BUMP);
+  expect(route.aborts.count).toBe(ABORT_COUNTER_INIT);
+  return route.fulfilled.length;
+}
+
+/**
  * Fire one scripted step at the simulator and assert phase advance.
  * @param args - Step + invoke + snapshot reader.
  * @returns Promise of the body byte length asserted.
@@ -399,7 +410,7 @@ async function assertScriptedStep(args: IStepAssertArgs): Promise<number> {
   const route = makeRoute();
   const req = buildScriptedRequest(args.step);
   await args.invoke(route.route, req);
-  expect(route.fulfilled.length).toBe(FULFILL_BUMP);
+  assertRouteCounts(route);
   const bytes = assertFulfilled(route.fulfilled[0], args.step);
   const currentPhase = args.snapshotPhase();
   expect(currentPhase).toBe(args.step.expectedPhaseAfter);

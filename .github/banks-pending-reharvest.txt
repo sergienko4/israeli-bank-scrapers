@@ -48,7 +48,7 @@ otsarHahayal
 #             baseline). Locally completes in 49s on 16-core; CI
 #             cannot absorb the iframe load. AMEX retains FULL
 #             coverage via Mode A (static drive) + Mode B SIMULATOR
-#             (state-machine; Tests/Unit/Integration/Banks/Amex/
+#             (state-machine; src/Tests/Unit/Integration/Banks/Amex/
 #             Amex.modeB.test.ts). Mirror cross-bank single-step
 #             replay is the OPTIONAL sanity check; AMEX inclusion
 #             requires MirrorInterceptor iframe support (future PR).

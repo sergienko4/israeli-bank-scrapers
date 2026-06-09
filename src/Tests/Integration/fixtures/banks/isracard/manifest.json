@@ -87,7 +87,7 @@
     {
       "phase": "SCRAPE",
       "method": "POST",
-      "urlPattern": "DigitalV3.StatusPage/GetLatestTransactions",
+      "urlPattern": "DigitalV3.Transactions/GetTransactionsList",
       "response": {
         "status": 200,
         "contentType": "application/json",
