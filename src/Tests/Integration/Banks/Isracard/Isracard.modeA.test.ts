@@ -48,7 +48,11 @@ function isFixtureRootPresent(): boolean {
 }
 
 /**
- * Outcome of a single marker presence check.
+ * Outcome of a single marker presence check. Per
+ * `no-restricted-syntax` ARCHITECTURE rule, helpers return a meaningful
+ * value rather than `void`; this carries the matched marker for upstream
+ * tracing in case test failures need to be correlated with phase
+ * configurations.
  */
 interface IMarkerCheck {
   readonly found: true;
@@ -56,11 +60,13 @@ interface IMarkerCheck {
 }
 
 /**
- * Assert a single marker exists in the page HTML.
+ * Assert a single marker exists in the page HTML. Throws on miss with
+ * the bank+step context attached so real-bank regressions surface the
+ * failing fixture by name.
  * @param html - Full page HTML content.
  * @param marker - Required substring.
  * @param stepName - Step name for the error message.
- * @returns Confirmation that the marker was found (throws otherwise).
+ * @returns Marker confirmation (caller may ignore; throw is contract).
  */
 function assertOneMarker(html: string, marker: string, stepName: string): IMarkerCheck {
   if (!html.includes(marker)) {

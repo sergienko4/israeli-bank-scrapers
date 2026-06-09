@@ -461,28 +461,70 @@ function runFullScript(capture: IRouteCapture, snapshotPhase: () => string): Pro
   return SCRIPT.reduce(reducer, seed);
 }
 
+/** Bundle returned by {@link setupSimulator}. */
+interface ISimContext {
+  readonly capture: IRouteCapture;
+  readonly handle: Awaited<ReturnType<typeof installSimulator>>;
+}
+
+/** Result of the scripted execution phase. */
+interface IRunResult {
+  readonly fired: number;
+  readonly snapshot: ReturnType<ISimContext['handle']['snapshot']>;
+}
+
+/**
+ * Wire up the simulator + page capture for the scripted walk.
+ * @returns Bundle holding the capture and simulator handle.
+ */
+async function setupSimulator(): Promise<ISimContext> {
+  verifyManifestPresent();
+  const capture = makePageCapture();
+  const handle = await installSimulator({
+    page: capture.page,
+    bankId: BANK_ID,
+    fixturesRoot: FIXTURES_ROOT,
+  });
+  return { capture, handle };
+}
+
+/**
+ * Walk every scripted step through the simulator and snapshot final state.
+ * @param ctx - Simulator context from {@link setupSimulator}.
+ * @returns Fire count + final snapshot.
+ */
+async function runScriptedWalk(ctx: ISimContext): Promise<IRunResult> {
+  /**
+   * Read the simulator's current phase from the snapshot.
+   * @returns Current phase name.
+   */
+  const phaseReader = (): string => ctx.handle.snapshot().currentPhase;
+  const fired = await runFullScript(ctx.capture, phaseReader);
+  return { fired, snapshot: ctx.handle.snapshot() };
+}
+
+/**
+ * Assert the simulator drained the script and reached TERMINATE clean.
+ * Returns the asserted fire count to satisfy the `no-restricted-syntax`
+ * ARCHITECTURE rule that forbids `void` returns; callers may ignore it.
+ * @param result - Output of {@link runScriptedWalk}.
+ * @returns Number of scripted transitions that fired.
+ */
+function assertCleanTerminate(result: IRunResult): number {
+  expect(result.fired).toBe(SCRIPT.length);
+  expect(result.snapshot.transitionsFired).toBe(SCRIPT.length);
+  expect(result.snapshot.fatalEscapes.length).toBe(0);
+  return result.fired;
+}
+
 describe('Isracard Mode B — SIMULATOR state-machine drive (Phase 11)', () => {
   it('walks INIT → HOME → ... → TERMINATE through the captured manifest', async () => {
-    verifyManifestPresent();
-    const capture = makePageCapture();
-    const handle = await installSimulator({
-      page: capture.page,
-      bankId: BANK_ID,
-      fixturesRoot: FIXTURES_ROOT,
-    });
+    const ctx = await setupSimulator();
     try {
-      /**
-       * Read the simulator's current phase from the snapshot.
-       * @returns Phase name.
-       */
-      const phaseReader = (): string => handle.snapshot().currentPhase;
-      const fired = await runFullScript(capture, phaseReader);
-      expect(fired).toBe(SCRIPT.length);
-      const snap = handle.snapshot();
-      expect(snap.transitionsFired).toBe(SCRIPT.length);
-      expect(snap.fatalEscapes.length).toBe(0);
+      const result = await runScriptedWalk(ctx);
+      assertCleanTerminate(result);
     } finally {
-      await handle.dispose();
+      await ctx.handle.dispose();
     }
   });
 });

@@ -37,7 +37,8 @@ const DASHBOARD_NETWORKIDLE_TIMEOUT_MS = 30000;
 const ISRACARD_DASHBOARD_TIMEOUT_MS = 120000;
 
 /** Isracard: card-only flow. PRE-LOGIN already captured by legacy recipe.
- *  Post-login uses {@link IWaitForStep.textVisible} (logout link sentinel)
+ *  Post-login uses {@link IWaitForStep.textVisible} (transactions link
+ *  sentinel — Hebrew 'עסקאות וחיובים' / English 'Transactions and charges')
  *  instead of {@link IWaitForStep.urlIncludes} — isracard is a same-URL SPA
  *  per `AuthDiscoveryInterstitial.ts` comments; the URL does not change
  *  after authentication, so `waitForURL` strategies time out forever. */

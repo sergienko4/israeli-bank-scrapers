@@ -69,7 +69,7 @@
       "response": {
         "status": 200,
         "contentType": "text/html; charset=utf-8",
-        "bodyFile": "09-dashboard.html"
+        "bodyFile": "08-account-resolve.html"
       },
       "advanceTo": "DASHBOARD"
     },
