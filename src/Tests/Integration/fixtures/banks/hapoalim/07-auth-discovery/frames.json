@@ -1,0 +1,20 @@
+[
+  {
+    "index": 0,
+    "name": "",
+    "url": "https://login.bankhapoalim.co.il/ng-portals/rb/he/homepage",
+    "file": "frame-0.html"
+  },
+  {
+    "index": 1,
+    "name": "bcodes",
+    "url": "https://bcodes.bankhapoalim.co.il/ng-portals/rb/he/homepage",
+    "file": "frame-1.html"
+  },
+  {
+    "index": 2,
+    "name": "",
+    "url": "https://static.bankhapoalim.co.il/portalserver/mobile/msgs/he.html",
+    "file": "frame-2.html"
+  }
+]

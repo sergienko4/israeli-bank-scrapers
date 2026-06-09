@@ -1,0 +1,26 @@
+{
+  "url": "https://login.bankhapoalim.co.il/ServerServices/current-account/composite/balanceAndCreditLimit",
+  "method": "GET",
+  "status": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "body": {
+    "metadata": {
+      "messages": [
+        {
+          "messageDescription": "בחשבון זה לא הוגדרה מסגרת",
+          "messageCode": 107,
+          "severity": "I"
+        }
+      ],
+      "links": {}
+    },
+    "currentAccountLimitsAmount": 0,
+    "withdrawalBalance": 0,
+    "currentBalance": 0,
+    "creditLimitUtilizationPercent": 0,
+    "creditLimitUtilizationExistanceCode": 2,
+    "creditLimitDescription": null,
+    "creditLimitAmount": 0,
+    "creditLimitUtilizationAmount": 0
+  }
+}

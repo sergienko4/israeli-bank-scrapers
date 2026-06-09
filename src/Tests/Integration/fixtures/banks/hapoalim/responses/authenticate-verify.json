@@ -1,0 +1,16 @@
+{
+  "url": "https://login.bankhapoalim.co.il/authenticate/verify",
+  "method": "POST",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "flow": "AUTHENTICATE",
+    "state": "LANDPAGE",
+    "target": null,
+    "result": {
+      "deviceID": "pODq2UBDGVP8bNue4DeudEY7cMAMW59s0aTvnb2yCv4CiehUKa9g8mIg5sogz1p8",
+      "reason": null
+    },
+    "error": null
+  }
+}
