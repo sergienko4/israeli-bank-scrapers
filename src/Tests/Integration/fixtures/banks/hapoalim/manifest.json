@@ -1,0 +1,98 @@
+{
+  "bankId": "hapoalim",
+  "originUrl": "https://www.bankhapoalim.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.bankhapoalim.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://login.bankhapoalim.co.il/ng-portals/auth/he/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-pre-login.html"
+      },
+      "advanceTo": "PRE_LOGIN"
+    },
+    {
+      "phase": "PRE_LOGIN",
+      "method": "POST",
+      "urlPattern": "/authenticate/init",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/authenticate-init.json"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "POST",
+      "urlPattern": "/authenticate/verify",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/authenticate-verify.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "GET",
+      "urlPattern": "/ServerServices/general/accounts",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=UTF-8",
+        "bodyFile": "responses/general-accounts.json"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "GET",
+      "urlPattern": "/ServerServices/general/accounts/selectedAccount",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=UTF-8",
+        "bodyFile": "responses/selected-account.json"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "GET",
+      "urlPattern": "/ServerServices/general/home-page/composite/myAccount",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=UTF-8",
+        "bodyFile": "responses/home-myAccount.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "GET",
+      "urlPattern": "/ServerServices/current-account/transactions",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=UTF-8",
+        "bodyFile": "responses/current-account-transactions.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

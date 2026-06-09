@@ -319,6 +319,66 @@ describe('PiiRedactor', () => {
     });
   });
 
+  describe('jsonAccountNumberField — raw numeric account-id fields', () => {
+    it('redacts plain accountNumber to 0', () => {
+      const json = '"accountNumber": 999111,';
+      const out = redactPii(json);
+      expect(out).toBe('"accountNumber": 0,');
+    });
+
+    it('redacts escaped accountNumber inside NDJSON envelope', () => {
+      const ndjson = '{"envelope":"{\\"accountNumber\\": 999111}"}';
+      const out = redactPii(ndjson);
+      expect(out).not.toContain('999111');
+      expect(out).toContain('0');
+    });
+
+    it('redacts customerAccountNumber + branchAccountNumber + accountId', () => {
+      const json =
+        '"accountId": 888111,"customerAccountNumber": 222333,"branchAccountNumber": 444555';
+      const out = redactPii(json);
+      expect(out).not.toContain('888111');
+      expect(out).not.toContain('222333');
+      expect(out).not.toContain('444555');
+    });
+
+    it('leaves unrelated numeric JSON fields untouched', () => {
+      const json = '"orderIndex": 7,"messageCode": 107';
+      const out = redactPii(json);
+      expect(out).toBe(json);
+    });
+  });
+
+  describe('hapoalimBranchAccount — 2-segment branch-account composite', () => {
+    it('redacts HTML text with dash separator', () => {
+      const html = '<span>חשבון: 999-111222</span>';
+      const out = redactPii(html);
+      expect(out).not.toContain('999-111222');
+      expect(out).toContain('[redacted-account]');
+    });
+
+    it('redacts JSON string value with space separator', () => {
+      const json = '"productLabel": "999 111222"';
+      const out = redactPii(json);
+      expect(out).not.toContain('999 111222');
+      expect(out).toContain('[redacted-account]');
+    });
+
+    it('redacts label-text variant after closing quote', () => {
+      const html = '>999-111222</label>';
+      const out = redactPii(html);
+      expect(out).not.toContain('999-111222');
+      expect(out).toContain('[redacted-account]');
+    });
+
+    it('leaves 3-segment XX-XXX-XXXXXX form to ilBankAccount (still redacted)', () => {
+      const html = '12-999-111222';
+      const out = redactPii(html);
+      expect(out).not.toContain('12-999-111222');
+      expect(out).toContain('[redacted-account]');
+    });
+  });
+
   describe('operator-known PII literals', () => {
     it('redacts Hebrew surname literal in transaction descriptions', () => {
       const surname = OPERATOR_LITERALS.hebrewSurname;

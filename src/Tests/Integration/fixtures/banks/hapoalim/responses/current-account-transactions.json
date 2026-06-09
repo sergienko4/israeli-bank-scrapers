@@ -1,0 +1,28 @@
+{
+  "url": "https://login.bankhapoalim.co.il/ServerServices/current-account/transactions",
+  "method": "GET",
+  "status": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "body": {
+    "startDate": 20260609,
+    "formattedStartDate": "2026-06-09T00:00:00.000Z",
+    "endDate": 20260630,
+    "formattedEndDate": "2026-06-30T00:00:00.000Z",
+    "validityDate": 20260608,
+    "formattedValidityDate": "2026-06-08T00:00:00.000Z",
+    "incomeAmount": 0,
+    "creditEventCounter": 0,
+    "expenseAmount": 0,
+    "debitEventCounter": 0,
+    "currentBalance": 0,
+    "currentAccountLimitsAmount": 0,
+    "endMonthEstimatedContemporaryBalance": 0,
+    "displayAmountManagmentCode": 1,
+    "messages": [
+      {
+        "messageDescription": "נראה שבסוף החודש ישאר לך כסף פנוי בסך:",
+        "messageCode": 8
+      }
+    ]
+  }
+}

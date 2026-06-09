@@ -66,6 +66,8 @@ const PATTERNS = [
   // --- Account / IBAN ---
   { id: 'il-iban', re: /\bIL\d{2}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{3,7}\b/g, severity: 'CRITICAL', desc: 'Israeli IBAN' },
   { id: 'il-bank-account', re: /\b\d{2,3}-\d{2,3}-\d{4,7}\b/g, severity: 'CRITICAL', desc: 'Hapoalim XX-XXX-XXXXXX account format' },
+  { id: 'hapoalim-branch-account', re: /\b\d{3}[-\s]\d{6}\b/g, severity: 'CRITICAL', desc: 'Hapoalim 2-segment branch-account (XXX-XXXXXX or XXX XXXXXX)' },
+  { id: 'json-account-number', re: /\\?"(?:accountNumber|accountId|customerAccountNumber|branchAccountNumber)\\?"\s*:\s*-?\d*[1-9]\d*/g, severity: 'CRITICAL', desc: 'JSON numeric account-id field with non-zero raw value' },
   { id: 'card-full-16', re: /(?<![\d.])\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}(?![\d.])/g, severity: 'CRITICAL', desc: 'Full 16-digit card number' },
   { id: 'card-masked-last4', re: /(?:\*{2,}|[xX]{2,}|\.{2,})\s*\d{4}\b/g, severity: 'HIGH', desc: 'Masked card last-4 (xxxx 1234)' },
   { id: 'israeli-id-9', re: /\b\d{9}\b/g, severity: 'HIGH', desc: 'Standalone 9-digit number (Israeli ID shape)' },

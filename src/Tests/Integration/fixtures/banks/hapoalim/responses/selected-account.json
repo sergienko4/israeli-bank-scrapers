@@ -1,0 +1,11 @@
+{
+  "url": "https://login.bankhapoalim.co.il/ServerServices/general/accounts/selectedAccount",
+  "method": "GET",
+  "status": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "body": {
+    "accountMarketGroupIndication": 0,
+    "senderNumber": "0768012407",
+    "bankerList": null
+  }
+}
