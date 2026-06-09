@@ -1,0 +1,98 @@
+{
+  "bankId": "discount",
+  "originUrl": "https://www.discountbank.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.discountbank.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://start.telebank.co.il/login/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-pre-login.html"
+      },
+      "advanceTo": "PRE_LOGIN"
+    },
+    {
+      "phase": "PRE_LOGIN",
+      "method": "POST",
+      "urlPattern": "/Lobby/gatewayAPI/verification/getInfo",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/verification-getInfo.json"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "GET",
+      "urlPattern": "/Lobby/gatewayAPI/loginSuccessResponse",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/loginSuccessResponse.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "GET",
+      "urlPattern": "/Titan/gatewayAPI/userAccountsData",
+      "response": {
+        "status": 200,
+        "contentType": "application/json;charset=utf-8",
+        "bodyFile": "responses/userAccountsData.json"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "GET",
+      "urlPattern": "/Titan/gatewayAPI/accountDetails/infoAndBalance/",
+      "response": {
+        "status": 200,
+        "contentType": "application/json;charset=utf-8",
+        "bodyFile": "responses/infoAndBalance.json"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "/Titan/gatewayAPI/dashboard/dashboardBalances",
+      "response": {
+        "status": 200,
+        "contentType": "application/json;charset=utf-8",
+        "bodyFile": "responses/dashboardBalances.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "GET",
+      "urlPattern": "/Titan/gatewayAPI/lastTransactions/transactions/",
+      "response": {
+        "status": 200,
+        "contentType": "application/json;charset=utf-8",
+        "bodyFile": "responses/lastTransactions.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}
