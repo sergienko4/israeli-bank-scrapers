@@ -59,6 +59,7 @@
     "lint:dead-code": "npx tsx src/Tests/Tools/detect-dead-code.ts",
     "lint:guideline-coverage": "npx tsx src/Tests/Tools/lint-guideline-coverage.ts",
     "lint:bank-coverage": "npx tsx src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts",
+    "lint:fixtures-pii": "node scripts/audit-fixtures-pii.cjs",
     "lint:docs-strict": "python -m mkdocs build --strict --site-dir .mkdocs-strict-out",
     "lint:phases:strict": "eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0",
     "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
@@ -146,7 +147,7 @@
     "moment": "^2.30.1",
     "moment-timezone": "^0.6.0",
     "pino": "^10.3.1",
-    "playwright-core": "~1.60.0",
+    "playwright-core": "~1.59.1",
     "utility-types": "^3.11.0"
   },
   "files": [

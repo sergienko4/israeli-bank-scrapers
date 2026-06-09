@@ -1449,7 +1449,7 @@ export default tseslint.config(
       'sonarjs/use-type-alias': 'error', // S4323
       'sonarjs/no-skipped-tests': 'error', // S1607
       // Unicorn — modern-JS rules SonarCloud wraps
-      'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: true }], // S7763
+      'unicorn/prefer-export-from': ['error', { checkUsedVariables: false }], // S7763
       'unicorn/prefer-string-replace-all': 'error', // S7781
       'unicorn/prefer-string-raw': 'error', // S7780
       'unicorn/prefer-at': 'error', // S7755
@@ -1514,9 +1514,10 @@ export default tseslint.config(
   },
 
   // 12e. RE-EXPORT SHORTHAND (Security Hardening 2026-05) — scoped
-  //      flip of `unicorn/prefer-export-from` `ignoreUsedVariables`
+  //      flip of `unicorn/prefer-export-from` `checkUsedVariables`
   //      under `src/Scrapers/Base/**` AND `src/Scrapers/Pipeline/Types/**`.
-  //      Decide §4 RC-8 OPTION-B: keeps the global default at `true`
+  //      Decide §4 RC-8 OPTION-B: keeps the global default at `false`
+  //      (loose — equivalent to legacy `ignoreUsedVariables: true`)
   //      to avoid surfacing the 10 collateral hits as in-scope; flips
   //      locally so the rule fires on `BaseScraperWithBrowser.ts` after
   //      the manual rewrite.
@@ -1524,13 +1525,19 @@ export default tseslint.config(
   //      PR #274 extension — Pipeline/Types covered to match Sonar
   //      `typescript:S7763`. The PR #274 review surfaced 11 instances of
   //      `import type { X } from './Domain/...js'; export type { ..., X }`
-  //      in `PipelineContext.ts`; with `ignoreUsedVariables: true` the
+  //      in `PipelineContext.ts`; with `checkUsedVariables: false` the
   //      global rule treats the barrel-export reference as "used" and
   //      skips. Flipping the flag for `Pipeline/Types/**` makes ESLint
   //      catch the same anti-pattern locally on the next commit so the
   //      Sonar failure cannot recur. Production code base is unchanged
   //      by this extension (the 11 PR #274 sites are converted to direct
   //      `export type ... from` in the same commit).
+  //
+  //      2026-06-08 compat: eslint-plugin-unicorn v65 renamed the legacy
+  //      `ignoreUsedVariables: boolean` option to `checkUsedVariables`
+  //      with inverted semantics. Mapping: `ignoreUsedVariables: true`
+  //      ↔ `checkUsedVariables: false` (loose); `ignoreUsedVariables:
+  //      false` ↔ `checkUsedVariables: true` (strict).
   {
     files: [
       'src/Scrapers/Base/**/*.ts',
@@ -1545,7 +1552,7 @@ export default tseslint.config(
     ],
     plugins: { unicorn },
     rules: {
-      'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: false }],
+      'unicorn/prefer-export-from': ['error', { checkUsedVariables: true }],
     },
   },
 

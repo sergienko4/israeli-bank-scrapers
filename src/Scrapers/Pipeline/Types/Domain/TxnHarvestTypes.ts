@@ -12,7 +12,7 @@ import type { ITransaction } from '../../../../Transactions.js';
  * <ul>
  *   <li>{@link capturedAccountId} = string — the captured request was
  *     scoped to one accountId (e.g. Hapoalim's
- *     `accountId=[REDACTED-ACCT]` URL param). SCRAPE applies the
+ *     `accountId=99-999-991234` URL param). SCRAPE applies the
  *     records only when the iteration's accountId is compatible
  *     (suffix match — handles raw-vs-display id formats).</li>
  *   <li>{@link capturedAccountId} = `false` — the captured request
