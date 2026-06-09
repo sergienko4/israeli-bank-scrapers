@@ -124,6 +124,18 @@ const REDACT_CASES: readonly IRedactCase[] = [
     negative: 'src="assets/0399-clarity.js" stays',
   },
   {
+    key: 'trackingMidInAssetPath',
+    positive: 'src="assets/0384-bat.bing_mid_9d25e645-3325-439f-b273-005722a02d2a_bo_1"',
+    expected: '_mid_REDACTED_SESSION_UUID',
+    negative: 'src="assets/safe.js" stays',
+  },
+  {
+    key: 'trackingSidInAssetPath',
+    positive: 'src="assets/0384-bat.bing_sid_44d8351060cb11f19c27df01aa955"',
+    expected: '_sid_REDACTED_SESSION_HEX',
+    negative: 'src="assets/safe.js" stays',
+  },
+  {
     key: 'telLinkRedactedIdHref',
     positive: '<a href="tel:[redacted-id]">call</a>',
     expected: 'tel:0000000000',

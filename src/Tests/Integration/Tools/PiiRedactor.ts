@@ -172,6 +172,16 @@ const PII_PATTERNS = {
    *  tracking ID — scrub it from the captured asset path while leaving
    *  the routing context intact. Must precede `israeliId9`. */
   trackingIdInAssetPath: /(_(?:tag_uet|p_action|action_\d+_ti|ti)_)\d{6,}/g,
+  /** Microsoft Clarity / Bing UET session-instance UUID embedded in
+   *  BAT beacon asset filenames as `_mid_<uuid>_`. Captures the
+   *  `_mid_` prefix so it can be re-emitted unchanged while the UUID
+   *  body is replaced. Must precede `israeliId9`. */
+  trackingMidInAssetPath: /(_mid_)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+  /** Microsoft Clarity / Bing UET per-session hex blob embedded in
+   *  BAT beacon asset filenames as `_sid_<hex>` (15+ hex chars,
+   *  trailing). Captures the `_sid_` prefix; the hex body is
+   *  replaced with a stable placeholder. Must precede `israeliId9`. */
+  trackingSidInAssetPath: /(_sid_)[0-9a-f]{15,}/gi,
   hebrewGreetingName: /(>שלום\s*<\/h1>\s*<p[^>]*>)[^<]+(<\/p>)/g,
   hebrewSurnameLiteral: new RegExp(HE_SURNAME_ESC, 'g'),
   hebrewGivenNameLiteral: new RegExp(HE_GIVEN_NAME_ALT, 'g'),
@@ -246,6 +256,8 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   lsessionIdParam: '$1REDACTED_SESSION_ID',
   trackingIdParam: '$1ti=REDACTED_TRACKING_ID',
   trackingIdInAssetPath: '$1REDACTED_TRACKING_ID',
+  trackingMidInAssetPath: '$1REDACTED_SESSION_UUID',
+  trackingSidInAssetPath: '$1REDACTED_SESSION_HEX',
   /**
    * Function replacement: $1 captures attribute fragment up to and
    * including `href="tel:`, $2 captures the closing `"` plus any
