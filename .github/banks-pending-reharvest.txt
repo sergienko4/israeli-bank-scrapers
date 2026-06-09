@@ -18,7 +18,7 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (6) ──
+# ── Currently pending (5) ──
 # Beinleumi   recipe gap: Angular form lives in iframe; harvester
 #             needs `wait-iframe-loaded` step + asset capture so the
 #             iframe contents become part of the captured DOM.
@@ -40,14 +40,12 @@ pagi
 # OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
 otsarHahayal
 #
-# Amex        SIMULATOR parity gap: captured login has 9 iframes
-#             (frame-0…frame-8) with cross-origin asset references.
-#             The MirrorInterceptor currently routes only the
-#             top-level page — nested iframes from foreign hosts
-#             trigger long Playwright locator waits (observed
-#             205155 ms / test in PR-3 final CI, right at the 240s
-#             ceiling). Re-harvest with the planned
-#             `mirror-iframe-routes` enhancement so every captured
-#             frame-N.html is served deterministically from the
-#             allowlist instead of hitting per-locator timeouts.
-amex
+# ── Unblocked (kept as documentation) ──
+# Amex        Previously listed for SIMULATOR parity gap (9 iframes,
+#             observed 205155 ms locator waits). Unblocked in
+#             PR #331 — correcting BankFixtureExpectations originUrl
+#             from `digital.americanexpress.co.il` →
+#             `he.americanexpress.co.il` (matches harvested 02/03
+#             finalUrl per steps.json) reduced mirror replay to ~49s,
+#             well under the 240s ceiling. AMEX now drives green in
+#             BOTH Mirror Mode B AND simulator-based Mode B.
