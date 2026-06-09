@@ -66,15 +66,15 @@ describe('buildMonthBody', () => {
         companyCode: 0,
         billingMonth: '01/01/2024',
       });
-      const accountRecord = { cardSuffix: '8912', companyCode: '77' };
+      const accountRecord = { cardSuffix: '1111', companyCode: '77' };
       const result = buildMonthBody({
         template,
-        accountId: '8912',
+        accountId: '1111',
         month: 6,
         year: 2026,
         accountRecord,
       });
-      expect(result.card4Number).toBe('8912');
+      expect(result.card4Number).toBe('1111');
       expect(result.companyCode).toBe(77);
       expect(result.billingMonth).toBe('01/06/2026');
     });

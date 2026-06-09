@@ -231,8 +231,8 @@ describe('executeAccountResolvePost — cross-bank fixtures (PURE GENERIC)', () 
       responseBody: {
         data: {
           cardsList: [
-            { cardSuffix: '0786', accountNumber: '203489' },
-            { cardSuffix: '1314', accountNumber: '228812' },
+            { cardSuffix: '3333', accountNumber: '100003' },
+            { cardSuffix: '4444', accountNumber: '100001' },
           ],
         },
       },
