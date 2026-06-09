@@ -132,15 +132,15 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'LOGIN',
   },
   {
-    url: 'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=getUserData',
-    method: 'POST',
+    url: 'https://web.isracard.co.il/IsLoggedIn',
+    method: 'GET',
     resourceType: 'fetch',
     expectedStatus: 200,
     expectedContentType: 'application/json',
     expectedPhaseAfter: 'AUTH_DISCOVERY',
   },
   {
-    url: 'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=GetCardList',
+    url: 'https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -156,7 +156,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'DASHBOARD',
   },
   {
-    url: 'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=CurrentBillingDate',
+    url: 'https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -164,7 +164,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'SCRAPE',
   },
   {
-    url: 'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=UserAccountsData',
+    url: 'https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetLatestTransactions',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,

@@ -21,10 +21,15 @@
  * touching the real bank.
  *
  * <p>AMEX-distinct from Isracard's Mode B: scripted URLs target
- * `he.americanexpress.co.il` (Hebrew locale), endpoint names use AMEX's
- * SOAP-flavoured `reqName=ValidateIdData / performLogonI / DashboardMonth
- * / CardsTransactionsList` set, and response shapes use AMEX's
- * `Header / <Endpoint>Bean` envelope.
+ * `he.americanexpress.co.il` (Hebrew locale) and modern Pipeline
+ * endpoints (`/personalarea/login/` form action, `/IsLoggedIn`
+ * post-login probe, `/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview`
+ * + `/GetLatestTransactions`). Response shapes use the modern envelope
+ * `{data:{...}, errorCode, errorDescription, isSuccess}`. The legacy
+ * `ProxyRequestHandler.ashx?reqName=*` query-string family is intentionally
+ * NOT exercised — Pipeline `ScrapeWK.ts:78-85` drops `.ashx` URLs as
+ * `unsupportedUrl`, and every migrated bank already uses these modern
+ * `/ocp/...` paths in production captures.
  */
 
 import { readFileSync } from 'node:fs';
@@ -130,7 +135,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'PRE_LOGIN',
   },
   {
-    url: 'https://he.americanexpress.co.il/services/ProxyRequestHandler.ashx?reqName=ValidateIdData',
+    url: 'https://he.americanexpress.co.il/personalarea/login/',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -138,8 +143,8 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'LOGIN',
   },
   {
-    url: 'https://he.americanexpress.co.il/services/ProxyRequestHandler.ashx?reqName=performLogonI',
-    method: 'POST',
+    url: 'https://web.americanexpress.co.il/IsLoggedIn',
+    method: 'GET',
     resourceType: 'fetch',
     expectedStatus: 200,
     expectedContentType: 'application/json',
@@ -162,7 +167,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'DASHBOARD',
   },
   {
-    url: 'https://he.americanexpress.co.il/services/ProxyRequestHandler.ashx?reqName=DashboardMonth',
+    url: 'https://web.americanexpress.co.il/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -170,7 +175,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'SCRAPE',
   },
   {
-    url: 'https://he.americanexpress.co.il/services/ProxyRequestHandler.ashx?reqName=CardsTransactionsList',
+    url: 'https://web.americanexpress.co.il/ocp/statuspage/DigitalV3.StatusPage/GetLatestTransactions',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,

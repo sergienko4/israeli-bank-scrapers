@@ -31,22 +31,22 @@
     {
       "phase": "PRE_LOGIN",
       "method": "POST",
-      "urlPattern": "reqName=ValidateIdData",
+      "urlPattern": "/personalarea/login/",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/validate-id-data.json"
+        "bodyFile": "responses/login-form-action.json"
       },
       "advanceTo": "LOGIN"
     },
     {
       "phase": "LOGIN",
-      "method": "POST",
-      "urlPattern": "reqName=performLogonI",
+      "method": "GET",
+      "urlPattern": "/IsLoggedIn",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/perform-logon-i.json"
+        "bodyFile": "responses/is-logged-in.json"
       },
       "advanceTo": "AUTH_DISCOVERY"
     },
@@ -77,22 +77,22 @@
     {
       "phase": "DASHBOARD",
       "method": "POST",
-      "urlPattern": "reqName=DashboardMonth",
+      "urlPattern": "DigitalV3.StatusPage/GetBillingsForMonthsOverview",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/dashboard-month.json"
+        "bodyFile": "responses/get-billings-for-months-overview.json"
       },
       "advanceTo": "SCRAPE"
     },
     {
       "phase": "SCRAPE",
       "method": "POST",
-      "urlPattern": "reqName=CardsTransactionsList",
+      "urlPattern": "DigitalV3.StatusPage/GetLatestTransactions",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/cards-transactions-list.json"
+        "bodyFile": "responses/get-latest-transactions.json"
       },
       "advanceTo": "TERMINATE"
     }

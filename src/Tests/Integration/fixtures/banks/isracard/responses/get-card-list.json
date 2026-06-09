@@ -2,22 +2,33 @@
   "_fixture": {
     "bank": "isracard",
     "shape": "GetCardList-synthetic",
-    "purpose": "Mode B SIMULATOR AUTH_DISCOVERY→ACCOUNT_RESOLVE transition body. Shape-only, no PII."
+    "purpose": "Mode B SIMULATOR AUTH_DISCOVERY→ACCOUNT_RESOLVE transition body. Modern Isracard account discovery endpoint `POST https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetCardList`. Modern envelope `{data:{...},errorCode,errorDescription,isSuccess}`. cardsList field is string-encoded in production (per real capture); values are synthetic placeholders (no PII). Legacy ProxyRequestHandler.ashx?reqName=GetCardList is dropped at ResponseParser per ScrapeWK.ts:78-85."
   },
-  "Status": "OK-FIXTURE",
-  "DescriptionError": null,
   "data": {
-    "cardsList": [
+    "errorNumber": "",
+    "billingSumSekel": "0.00",
+    "billingSumDollar": "0.00",
+    "billingSumEuro": "0.00",
+    "summaryNextBillingDateInOut": [
       {
-        "cardSuffix": "1010",
-        "accountNumber": "FIXTURE-ISR-A",
-        "cardName": "FIXTURE A"
-      },
-      {
-        "cardSuffix": "2020",
-        "accountNumber": "FIXTURE-ISR-B",
-        "cardName": "FIXTURE B"
+        "nextBillingDateInOut": "01/01/2026",
+        "billingSumSekelInOut": "0.00",
+        "billingSumDollarInOut": "0.00",
+        "billingSumEuroInOut": "0.00"
       }
-    ]
-  }
+    ],
+    "sumaryLastBillingDateInOut": [
+      {
+        "lastBillingDateDB2InOut": "01/12/2025",
+        "billingSumSekelInOut": "0.00",
+        "billingSumDollarInOut": "0.00",
+        "billingSumEuroInOut": "0.00"
+      }
+    ],
+    "codeBilingSMT": "M",
+    "cardsList": "[<FIXTURE redacted items>]"
+  },
+  "errorCode": "0",
+  "errorDescription": null,
+  "isSuccess": true
 }

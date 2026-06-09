@@ -41,19 +41,19 @@
     },
     {
       "phase": "LOGIN",
-      "method": "POST",
-      "urlPattern": "reqName=getUserData",
+      "method": "GET",
+      "urlPattern": "/IsLoggedIn",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/get-user-data.json"
+        "bodyFile": "responses/is-logged-in.json"
       },
       "advanceTo": "AUTH_DISCOVERY"
     },
     {
       "phase": "AUTH_DISCOVERY",
       "method": "POST",
-      "urlPattern": "reqName=GetCardList",
+      "urlPattern": "DigitalV3.StatusPage/GetCardList",
       "response": {
         "status": 200,
         "contentType": "application/json",
@@ -76,22 +76,22 @@
     {
       "phase": "DASHBOARD",
       "method": "POST",
-      "urlPattern": "reqName=CurrentBillingDate",
+      "urlPattern": "DigitalV3.StatusPage/GetBillingsForMonthsOverview",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/current-billing-date.json"
+        "bodyFile": "responses/get-billings-for-months-overview.json"
       },
       "advanceTo": "SCRAPE"
     },
     {
       "phase": "SCRAPE",
       "method": "POST",
-      "urlPattern": "reqName=UserAccountsData",
+      "urlPattern": "DigitalV3.StatusPage/GetLatestTransactions",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/user-accounts-data.json"
+        "bodyFile": "responses/get-latest-transactions.json"
       },
       "advanceTo": "TERMINATE"
     }
