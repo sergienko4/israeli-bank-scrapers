@@ -1,0 +1,13 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "shape": "getUserData-synthetic",
+    "purpose": "Mode B SIMULATOR LOGIN→AUTH_DISCOVERY transition body. Shape-only, no PII."
+  },
+  "Status": "OK-FIXTURE",
+  "DescriptionError": null,
+  "data": {
+    "userName": "[redacted-name]",
+    "lastLoginDate": "[redacted-date]"
+  }
+}

@@ -31,7 +31,16 @@ import type { IExtendedRecipe } from './RecipeStepTypes.js';
 /** Generic dashboard wait — captures hydrated DOM regardless of bank UX. */
 const DASHBOARD_NETWORKIDLE_TIMEOUT_MS = 30000;
 
-/** Isracard: card-only flow. PRE-LOGIN already captured by legacy recipe. */
+/** Isracard SPA hydration: dashboard SPA can take 60-120s to expose the
+ *  Hebrew transactions link after login, especially under slow CI. The
+ *  generic 30s timeout is too tight; widen specifically for isracard. */
+const ISRACARD_DASHBOARD_TIMEOUT_MS = 120000;
+
+/** Isracard: card-only flow. PRE-LOGIN already captured by legacy recipe.
+ *  Post-login uses {@link IWaitForStep.textVisible} (logout link sentinel)
+ *  instead of {@link IWaitForStep.urlIncludes} — isracard is a same-URL SPA
+ *  per `AuthDiscoveryInterstitial.ts` comments; the URL does not change
+ *  after authentication, so `waitForURL` strategies time out forever. */
 const ISRACARD_POST_LOGIN = {
   bankId: 'isracard',
   steps: [
@@ -39,9 +48,10 @@ const ISRACARD_POST_LOGIN = {
     {
       kind: 'waitFor',
       stepName: '07-auth-discovery',
-      urlIncludes: 'NewAccountTransactions',
-      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
+      textVisible: 'עסקאות וחיובים',
+      timeoutMs: ISRACARD_DASHBOARD_TIMEOUT_MS,
     },
+    { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
     { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
     {
       kind: 'recordResponse',
@@ -55,6 +65,13 @@ const ISRACARD_POST_LOGIN = {
       stepName: '10-scrape-transactions',
       urlPattern: '/Transactions',
       captureAs: 'Transactions',
+      methods: ['POST'],
+    },
+    {
+      kind: 'recordResponse',
+      stepName: '11-balance',
+      urlPattern: '/UserAccountsData',
+      captureAs: 'UserAccountsData',
       methods: ['POST'],
     },
   ],
