@@ -1,0 +1,15 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "provider": "americanexpress",
+    "shape": "performLogonI-synthetic",
+    "purpose": "Mode B SIMULATOR LOGIN→AUTH_DISCOVERY transition body. AMEX login establishes the session bridge before DashboardMonth fires. SOAP Header/Bean shape — distinct from Isracard's getUserData payload."
+  },
+  "Header": {
+    "Status": "1"
+  },
+  "PerformLogonIBean": {
+    "returnCode": "1",
+    "sessionEstablished": "true"
+  }
+}
