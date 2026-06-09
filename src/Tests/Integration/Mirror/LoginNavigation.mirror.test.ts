@@ -48,9 +48,7 @@ import {
 import { installMirror } from '../Helpers/MirrorInterceptor.js';
 
 const BROWSER_BOOT_TIMEOUT_MS = 120000;
-// amex mirror drive observed at 205155 ms in PR-3 final CI; bump margin
-// from 240s → 420s so slower CI runners don't false-timeout near the edge.
-const DRIVE_TIMEOUT_MS = 420000;
+const DRIVE_TIMEOUT_MS = 240000;
 const MIRROR_GOTO_TIMEOUT_MS = 30000;
 const MIRROR_LOCATOR_TIMEOUT_MS = 60000;
 const HERE_URL = import.meta.url;
