@@ -101,7 +101,7 @@ describe('ACCOUNT-RESOLVE.POST — ACCOUNT_RESOLUTION_INCOMPLETE guard (Phase 7b
       url: 'https://web.americanexpress.example/ocp/.../GetDirectDebitList',
       method: 'GET',
       captureIndex: 162,
-      responseBody: { data: { cards: [{ cardNumber: '8912' }] } },
+      responseBody: { data: { cards: [{ cardNumber: '1111' }] } },
     });
     const cardList = makeCapture({
       url: 'https://web.americanexpress.example/ocp/.../GetCardList',
@@ -110,14 +110,14 @@ describe('ACCOUNT-RESOLVE.POST — ACCOUNT_RESOLUTION_INCOMPLETE guard (Phase 7b
       responseBody: {
         data: {
           cardsList: [
-            { cardSuffix: '8912', accountNumber: '228812' },
-            { cardSuffix: '9921', accountNumber: '248480' },
-            { cardSuffix: '0786', accountNumber: '203489' },
-            { cardSuffix: '1314', accountNumber: '228812' },
-            { cardSuffix: '6440', accountNumber: '515331' },
-            { cardSuffix: '5290', accountNumber: '228812' },
-            { cardSuffix: '5167', accountNumber: '190691' },
-            { cardSuffix: '0734', accountNumber: '66028' },
+            { cardSuffix: '1111', accountNumber: '100001' },
+            { cardSuffix: '2222', accountNumber: '100002' },
+            { cardSuffix: '3333', accountNumber: '100003' },
+            { cardSuffix: '4444', accountNumber: '100001' },
+            { cardSuffix: '5555', accountNumber: '100004' },
+            { cardSuffix: '6666', accountNumber: '100001' },
+            { cardSuffix: '7777', accountNumber: '100005' },
+            { cardSuffix: '8888', accountNumber: '100006' },
           ],
         },
       },
@@ -145,7 +145,7 @@ describe('ACCOUNT-RESOLVE.POST — ACCOUNT_RESOLUTION_INCOMPLETE guard (Phase 7b
       captureIndex: 187,
       responseBody: {
         data: {
-          cards: [{ cardNumber: '5290' }, { cardNumber: '5167' }, { cardNumber: '1314' }],
+          cards: [{ cardNumber: '6666' }, { cardNumber: '7777' }, { cardNumber: '4444' }],
         },
       },
     });
@@ -156,14 +156,14 @@ describe('ACCOUNT-RESOLVE.POST — ACCOUNT_RESOLUTION_INCOMPLETE guard (Phase 7b
       responseBody: {
         data: {
           cardsList: [
-            { cardSuffix: '0786', accountNumber: '203489' },
-            { cardSuffix: '1314', accountNumber: '228812' },
-            { cardSuffix: '6440', accountNumber: '515331' },
-            { cardSuffix: '5290', accountNumber: '228812' },
-            { cardSuffix: '5167', accountNumber: '190691' },
-            { cardSuffix: '0734', accountNumber: '66028' },
-            { cardSuffix: '8912', accountNumber: '228812' },
-            { cardSuffix: '9921', accountNumber: '248480' },
+            { cardSuffix: '3333', accountNumber: '100003' },
+            { cardSuffix: '4444', accountNumber: '100001' },
+            { cardSuffix: '5555', accountNumber: '100004' },
+            { cardSuffix: '6666', accountNumber: '100001' },
+            { cardSuffix: '7777', accountNumber: '100005' },
+            { cardSuffix: '8888', accountNumber: '100006' },
+            { cardSuffix: '1111', accountNumber: '100001' },
+            { cardSuffix: '2222', accountNumber: '100002' },
           ],
         },
       },

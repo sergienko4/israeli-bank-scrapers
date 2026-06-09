@@ -67,14 +67,14 @@ describe('extractAccountRecords', () => {
         data: {
           summaryNextBillingDateInOut: [{ nextBillingDateInOut: '01/06/2026' }],
           cardsList: [
-            { cardSuffix: '8912', companyCode: '77' },
+            { cardSuffix: '1111', companyCode: '77' },
             { cardSuffix: '4838', companyCode: '77' },
           ],
         },
       };
       const records = extractAccountRecords(body);
       expect(records.length).toBe(2);
-      expect(records[0].cardSuffix).toBe('8912');
+      expect(records[0].cardSuffix).toBe('1111');
       expect(records[1].cardSuffix).toBe('4838');
     });
 
@@ -109,18 +109,18 @@ describe('extractAccountRecords', () => {
           summaryNextBillingDateInOut: [
             { nextBillingDateInOut: '01/06/2026', billingSumSekelInOut: '83.66' },
           ],
-          cardsList: [{ cardSuffix: '8912' }],
+          cardsList: [{ cardSuffix: '1111' }],
         },
       };
       const records = extractAccountRecords(body);
       expect(records.length).toBe(1);
-      expect(records[0].cardSuffix).toBe('8912');
+      expect(records[0].cardSuffix).toBe('1111');
     });
 
     it('Phase 7d: surfaces BOTH `cards` AND `bankAccounts` when both live in the same body', () => {
       // VisaCal's account/init carries both: cards[] are card-level
       // (last4Digits like 3020/3308) and bankAccounts[] are bank-level
-      // (bankAccountNum like 190691). Phase 7d change: the multi-
+      // (bankAccountNum like 100005). Phase 7d change: the multi-
       // container walker concatenates every WK container in the
       // chosen body so `accountDiscovery.records` carries the full
       // graph. Downstream phases see both halves; SCRAPE iterates per-
@@ -128,14 +128,14 @@ describe('extractAccountRecords', () => {
       const body = {
         result: {
           cards: [{ cardUniqueId: '11733...', last4Digits: '3308' }],
-          bankAccounts: [{ bankAccountUniqueId: '31190691003093' }],
+          bankAccounts: [{ bankAccountUniqueId: '31100005003093' }],
         },
       };
       const records = extractAccountRecords(body);
       expect(records.length).toBe(2);
       const ids = records.map((r): unknown => r.last4Digits ?? r.bankAccountUniqueId);
       expect(ids).toContain('3308');
-      expect(ids).toContain('31190691003093');
+      expect(ids).toContain('31100005003093');
     });
   });
 });
@@ -211,7 +211,7 @@ describe('isUsableIdentifier', () => {
     const isSevenDigitOk = isUsableIdentifier('3489986');
     const isUuidLikeOk = isUsableIdentifier('abc-uuid-1234');
     const isShortAcctOk = isUsableIdentifier('A1');
-    const isLongNumOk = isUsableIdentifier('228812');
+    const isLongNumOk = isUsableIdentifier('100001');
     expect(isLast4Ok).toBe(true);
     expect(isSevenDigitOk).toBe(true);
     expect(isUuidLikeOk).toBe(true);
