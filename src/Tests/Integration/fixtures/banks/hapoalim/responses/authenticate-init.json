@@ -1,0 +1,16 @@
+{
+  "url": "https://login.bankhapoalim.co.il/authenticate/init",
+  "method": "POST",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "flow": "AUTHENTICATE",
+    "state": "LOGON",
+    "target": null,
+    "result": {
+      "challenge": "MDAwMDAwNTZkTe6HuwLGN5DcGaBzEgIyaFwziasviZcxiPdyyVcjQfrXzSeutGOFv9M2RJw4TdOC0K6syTV6yg==",
+      "guid": "4de1ba2f-8387-444b-8599-e4a0ccd0f454"
+    },
+    "error": null
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "url": "https://login.bankhapoalim.co.il/ServerServices/general/accounts",
+  "method": "GET",
+  "status": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "body": [
+    {
+      "bankNumber": 12,
+      "extendedBankNumber": 912,
+      "branchNumber": 170,
+      "accountNumber": 0,
+      "partyPreferredIndication": 0,
+      "partyAccountInvolvementCode": 1,
+      "accountDealDate": 0,
+      "accountUpdateDate": 20260414,
+      "metegDoarNet": 1,
+      "kodHarshaatPeilut": 1,
+      "accountClosingReasonCode": 0,
+      "productLabel": "[redacted-account]",
+      "accountAgreementOpeningDate": 0,
+      "serviceAuthorizationDesc": "פעולות ומידע",
+      "branchTypeCode": 2,
+      "mymailEntitlementSwitch": 1
+    }
+  ]
+}

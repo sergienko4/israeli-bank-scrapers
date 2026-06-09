@@ -1,0 +1,107 @@
+{
+  "url": "https://login.bankhapoalim.co.il/ServerServices/general/home-page/composite/myAccount",
+  "method": "GET",
+  "status": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "body": {
+    "metadata": {
+      "messages": [
+        {
+          "messageDescription": "בחשבון זה לא קיימים פיקדונות וחסכונות.",
+          "messageCode": 345,
+          "severity": "E"
+        },
+        {
+          "messageDescription": "לא נמצאו נתונים העונים על תנאי השליפה.",
+          "messageCode": 51,
+          "severity": "E"
+        },
+        {
+          "messageDescription": "לתשומת לבך: לא נמצאו יתרות בחשבון",
+          "messageCode": 1,
+          "severity": "I"
+        },
+        {
+          "messageDescription": "אין נתונים לחשבון זה",
+          "messageCode": 100,
+          "severity": "W"
+        }
+      ],
+      "links": {}
+    },
+    "homePageTiltes": [
+      {
+        "balance": 0,
+        "source": "currentAccount",
+        "data": {
+          "retrievalTransactionData": {
+            "bankNumber": 12,
+            "retrievalMinDate": 20250609,
+            "formattedRetrievalMinDate": "2025-06-09T00:00:00Z",
+            "retrievalMaxDate": 20260609,
+            "formattedRetrievalMaxDate": "2026-06-09T00:00:00Z",
+            "retrievalStartDate": 20260510,
+            "formattedRetrievalStartDate": "2026-05-10T00:00:00Z",
+            "retrievalEndDate": 20260608,
+            "formattedRetrievalEndDate": "2026-06-08T00:00:00Z",
+            "balanceAmountDisplayIndication": "Y",
+            "branchNumber": 170,
+            "accountNumber": 0,
+            "joinPfm": true,
+            "eventCounter": 1
+          },
+          "transactions": [
+            {
+              "eventDate": 20260603,
+              "formattedEventDate": "2026-06-03T00:00:00Z",
+              "serialNumber": 1,
+              "activityTypeCode": 473,
+              "activityDescription": "מינ. דמי נהול",
+              "activityDescriptionIncludeValueDate": "מינ. דמי נהול",
+              "textCode": 602,
+              "referenceNumber": 846,
+              "referenceCatenatedNumber": 0,
+              "valueDate": 20260603,
+              "formattedValueDate": "2026-06-03T00:00:00Z",
+              "eventAmount": 0,
+              "eventActivityTypeCode": 2,
+              "currentBalance": 0,
+              "internalLinkCode": 0,
+              "originalEventCreateDate": 20260603,
+              "formattedOriginalEventCreateDate": "2026-06-03T00:00:00Z",
+              "transactionType": "REGULAR",
+              "dataGroupCode": 14,
+              "beneficiaryDetailsData": null,
+              "expandedEventDate": "2026060300001",
+              "executingBranchNumber": 170,
+              "eventId": 0,
+              "details": null,
+              "pfmDetails": "/ServerServices/pfm/transactions?originalEventCreateDate=20260603&eventSerialNumber=1&dataOrigenCode=1&rejectedDataEventPertainingIndication=N&referenceNumber=846&referenceCatenatedNumber=0&eventAmount=5.3",
+              "differentDateIndication": "Y",
+              "rejectedDataEventPertainingIndication": "N",
+              "tableNumber": 0,
+              "recordNumber": 0,
+              "contraBankNumber": 12,
+              "contraBranchNumber": 170,
+              "contraAccountNumber": 776646,
+              "contraAccountTypeCode": 95,
+              "marketingOfferContext": 0,
+              "commentExistenceSwitch": 0,
+              "englishActionDesc": null,
+              "fieldDescDisplaySwitch": 0,
+              "offerActivityContext": "currentAccountTransaction_602_473",
+              "comment": null,
+              "displayCreditAccountDetails": 0,
+              "institutionName": " "
+            }
+          ],
+          "comments": [],
+          "message": [],
+          "numItemsPerPage": 150,
+          "pdfUrl": null
+        },
+        "dataUrl": null
+      }
+    ]
+  }
+}

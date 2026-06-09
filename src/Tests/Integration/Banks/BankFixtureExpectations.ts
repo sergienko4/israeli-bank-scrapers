@@ -71,7 +71,14 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     originUrl: 'https://login.bankhapoalim.co.il',
     loginStep: '02-pre-login',
     requiresHydration: false,
-    steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
+    steps: [
+      { stepName: '01-home' },
+      { stepName: '02-pre-login' },
+      { stepName: '04-login-action' },
+      { stepName: '07-auth-discovery' },
+      { stepName: '08-account-resolve' },
+      { stepName: '09-dashboard' },
+    ],
   },
   {
     bankId: 'discount',

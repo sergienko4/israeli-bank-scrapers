@@ -197,8 +197,22 @@ const PII_PATTERNS = {
     /(<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*)-?\d[\d,]*(?:\.\d+)?(?=\s*<\/span>)/g,
   jsonMonetaryField:
     /("\w*(?:Balance|Amount|Total|Sum|Withdrawal|Deposit)"\s*:\s*)-?\d+(?:\.\d+)?/g,
+  /** JSON numeric account-id fields. Hapoalim's `/general/accounts` and
+   *  `/home-page/composite/myAccount` responses expose the customer's
+   *  6-7 digit account number as `"accountNumber": NNNNNN` (no quotes).
+   *  Function-replacement returns sentinel `0` so JSON stays parseable.
+   *  `\\?"` tolerates escaped quotes inside NDJSON envelope strings. */
+  jsonAccountNumberField:
+    /(\\?"(?:accountNumber|accountId|customerAccountNumber|branchAccountNumber)\\?"\s*:\s*)-?\d+/g,
   ilIban: /\bIL\d{2}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{3,7}\b/g,
   ilBankAccount: /\b\d{2,3}-\d{2,3}-\d{4,7}\b/g,
+  /** Hapoalim 2-segment branch-account composite (3-digit branch
+   *  + dash OR space + 6-digit account). Catches HTML text like
+   *  `מס' : XXX-NNNNNN` AND JSON string values like
+   *  `"productLabel": "XXX NNNNNN"`. Distinct from `ilBankAccount`
+   *  (which requires the 3-segment XX-XXX-XXXXXX form). Must precede
+   *  `israeliId9` so the composite isn't mis-classified as a 9-digit ID. */
+  hapoalimBranchAccount: /\b\d{3}[-\s]\d{6}\b/g,
   israeliId9: /\b\d{9}\b/g,
   israeliPhone: /\b05\d[-\s]?\d{7}\b/g,
   israeliLandline: /\b0[2-589][-\s]?\d{7}\b/g,
@@ -245,8 +259,19 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
    * @returns The prefix followed by the redacted `0` value.
    */
   jsonMonetaryField: (_match: string, prefix: string): string => `${prefix}0`,
+  /**
+   * Function replacement for `jsonAccountNumberField`: capture group 1
+   * is the field name + colon + whitespace; we substitute sentinel `0`
+   * so the surrounding JSON remains parseable.
+   *
+   * @param _match - Full match including the redactable numeric value.
+   * @param prefix - Captured `"accountNumber": ` (or escaped variant).
+   * @returns Prefix followed by zero sentinel.
+   */
+  jsonAccountNumberField: (_match: string, prefix: string): string => `${prefix}0`,
   ilIban: '[redacted-iban]',
   ilBankAccount: '[redacted-account]',
+  hapoalimBranchAccount: '[redacted-account]',
   israeliId9: '[redacted-id]',
   israeliPhone: '[redacted-phone]',
   israeliLandline: '[redacted-landline]',
