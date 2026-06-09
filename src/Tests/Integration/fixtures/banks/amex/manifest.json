@@ -1,0 +1,100 @@
+{
+  "bankId": "amex",
+  "originUrl": "https://he.americanexpress.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.americanexpress.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://he.americanexpress.co.il/personalarea/login/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-pre-login.html"
+      },
+      "advanceTo": "PRE_LOGIN"
+    },
+    {
+      "phase": "PRE_LOGIN",
+      "method": "POST",
+      "urlPattern": "reqName=ValidateIdData",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/validate-id-data.json"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "POST",
+      "urlPattern": "reqName=performLogonI",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/perform-logon-i.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "GET",
+      "urlPattern": "https://he.americanexpress.co.il/personalarea/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "08-account-resolve.html"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "GET",
+      "urlPattern": "https://he.americanexpress.co.il/personalarea/dashboard/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "09-dashboard.html"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "reqName=DashboardMonth",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/dashboard-month.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "reqName=CardsTransactionsList",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/cards-transactions-list.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}
