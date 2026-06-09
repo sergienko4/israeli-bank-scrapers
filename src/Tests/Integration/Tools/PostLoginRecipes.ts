@@ -310,7 +310,8 @@ interface IBankRecipe {
 const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
   isracard: {
     steps: [
-      { stepName: '02-pre-login', url: 'https://digital.isracard.co.il' },
+      { stepName: '01-home', url: 'https://www.isracard.co.il' },
+      { stepName: '02-pre-login', url: 'https://digital.isracard.co.il/personalarea/Login/' },
       { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
     ],
   },
