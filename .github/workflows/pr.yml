@@ -100,7 +100,7 @@ jobs:
       docs_touched: ${{ steps.changes.outputs.docs }}
       pipeline_ts_touched: ${{ steps.changes.outputs.pipeline_ts }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           # Need base + head reachable so `detect-changes` can diff
           # against the PR base. Also closes zizmor `artipacked`
@@ -357,7 +357,7 @@ jobs:
           - Pagi
           - OneZero
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node-deps
@@ -472,7 +472,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       - name: Force reliable DNS for Israeli bank resolution
@@ -542,7 +542,7 @@ jobs:
           - Discount
           - Max
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       # DNS override + warmup (single source of truth lives in
@@ -662,7 +662,7 @@ jobs:
         bank:
           - Amex
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       # Same DNS-warmup script as preflight and Group A — extracts
@@ -778,7 +778,7 @@ jobs:
           - Hapoalim
           - Beinleumi
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
@@ -889,7 +889,7 @@ jobs:
           - Pepper
           - PayBox
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
@@ -908,7 +908,7 @@ jobs:
       # cache via the default-branch fallback rule, so a brand-new PR
       # gets a warm start as long as main has run recently.
       - name: Restore encrypted token cache (${{ matrix.bank }})
-        uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4.2.4
         with:
           path: /tmp/tokens-encrypted
           key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}-restore
@@ -972,7 +972,7 @@ jobs:
         run: bash .github/scripts/ci/encrypt-token-cache.sh "${{ matrix.bank }}"
       - name: Save encrypted token cache (${{ matrix.bank }})
         if: always()
-        uses: actions/cache/save@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.4
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4.2.4
         with:
           path: /tmp/tokens-encrypted
           key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -1009,7 +1009,7 @@ jobs:
 
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       # v5.0.0 — first stable release on Node.js 24 (published
