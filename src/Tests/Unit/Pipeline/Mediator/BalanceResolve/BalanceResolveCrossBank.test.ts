@@ -332,14 +332,14 @@ describe('BALANCE-RESOLVE cross-bank factory — v6 happy paths', () => {
 
   it('bulk (Amex shape) — single POST → multi-card cardChargeNext.billingSumSekel', async () => {
     const identities = new Map<string, IAccountIdentity>([
-      ['8912', { cardDisplayId: '8912', cardUniqueId: '8912', bankAccountUniqueId: '__BULK__' }],
-      ['1314', { cardDisplayId: '1314', cardUniqueId: '1314', bankAccountUniqueId: '__BULK__' }],
+      ['1111', { cardDisplayId: '1111', cardUniqueId: '1111', bankAccountUniqueId: '__BULK__' }],
+      ['4444', { cardDisplayId: '4444', cardUniqueId: '4444', bankAccountUniqueId: '__BULK__' }],
     ]);
     const bulkBody = {
       data: {
         cardsList: [
-          { cardSuffix: '8912', cardChargeNext: { billingSumSekel: '479.40' } },
-          { cardSuffix: '1314', cardChargeNext: { billingSumSekel: '169.84' } },
+          { cardSuffix: '1111', cardChargeNext: { billingSumSekel: '479.40' } },
+          { cardSuffix: '4444', cardChargeNext: { billingSumSekel: '169.84' } },
         ],
       },
     };
@@ -347,9 +347,9 @@ describe('BALANCE-RESOLVE cross-bank factory — v6 happy paths', () => {
     const bulkKey = `${AMEX_BULK_TEMPLATE.url}#${JSON.stringify({})}`;
     const bulkScripts = new Map<string, unknown>([[bulkKey, bulkBody]]);
     const out = await runChain(identities, AMEX_BULK_TEMPLATE, bulkScripts);
-    const card8912 = out.get('8912');
-    const card1314 = out.get('1314');
-    expect(card8912).toBe(479.4);
-    expect(card1314).toBe(169.84);
+    const card1111 = out.get('1111');
+    const card4444 = out.get('4444');
+    expect(card1111).toBe(479.4);
+    expect(card4444).toBe(169.84);
   });
 });

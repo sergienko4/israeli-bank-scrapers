@@ -1,0 +1,99 @@
+{
+  "bankId": "isracard",
+  "originUrl": "https://digital.isracard.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.isracard.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://digital.isracard.co.il/personalarea/Login/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-pre-login.html"
+      },
+      "advanceTo": "PRE_LOGIN"
+    },
+    {
+      "phase": "PRE_LOGIN",
+      "method": "POST",
+      "urlPattern": "/Login/api/LoginResendOtp",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/login-resend-otp.json"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "POST",
+      "urlPattern": "reqName=getUserData",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/get-user-data.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "POST",
+      "urlPattern": "reqName=GetCardList",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/get-card-list.json"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "GET",
+      "urlPattern": "https://digital.isracard.co.il/personalarea/NewAccountTransactions/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "08-account-resolve.html"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "reqName=CurrentBillingDate",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/current-billing-date.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "reqName=UserAccountsData",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/user-accounts-data.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

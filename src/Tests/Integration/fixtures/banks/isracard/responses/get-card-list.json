@@ -1,0 +1,23 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "shape": "GetCardList-synthetic",
+    "purpose": "Mode B SIMULATOR AUTH_DISCOVERY→ACCOUNT_RESOLVE transition body. Shape-only, no PII."
+  },
+  "Status": "OK-FIXTURE",
+  "DescriptionError": null,
+  "data": {
+    "cardsList": [
+      {
+        "cardSuffix": "1010",
+        "accountNumber": "FIXTURE-ISR-A",
+        "cardName": "FIXTURE A"
+      },
+      {
+        "cardSuffix": "2020",
+        "accountNumber": "FIXTURE-ISR-B",
+        "cardName": "FIXTURE B"
+      }
+    ]
+  }
+}

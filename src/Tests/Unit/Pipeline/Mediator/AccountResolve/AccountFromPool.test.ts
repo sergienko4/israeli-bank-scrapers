@@ -200,7 +200,7 @@ const HAPOALIM_FIXTURE: IBankFixture = {
         {
           bankNumber: 12,
           branchNumber: 170,
-          accountNumber: [REDACTED-ACCT-6],
+          accountNumber: 991234,
           productLabel: '170 FAKE-HAPO-A',
         },
         {
@@ -214,7 +214,7 @@ const HAPOALIM_FIXTURE: IBankFixture = {
   ],
   expectedUrlContains: 'general/accounts',
   expectedIdCount: 2,
-  sampleId: '[REDACTED-ACCT-6]',
+  sampleId: '991234',
   expectedMaxContainer: 0,
 };
 

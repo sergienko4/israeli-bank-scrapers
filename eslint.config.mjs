@@ -308,7 +308,13 @@ const phase9LocalPlugin = {
   },
 };
 
-// §19.10 enforcement scope — Phase 9 6 files. Extend in Phase 10.
+// §19.10 enforcement scope — Phase 9 6 files + Phase 10 wave 1 (Integration).
+// PR-A2.1 cycle 4c (CodeRabbit follow-up): the Mode A/B harvester +
+// simulator landed under `src/Tests/Integration/**`. CR cycle 4b flagged
+// 17 helper functions over the 10-line cap that §19.10 would have
+// caught at lint time — but the directory was not in this allowlist.
+// Extending the glob enforces the cap going forward on every new file
+// under that subtree.
 const PHASE_9_TEST_FILES = [
   'src/Tests/E2eReal/Helpers.ts',
   'src/Tests/E2eReal/Tools/CaptureInvalidLogin.ts',
@@ -316,6 +322,13 @@ const PHASE_9_TEST_FILES = [
   'src/Tests/Unit/Pipeline/Infrastructure/DashboardPhase.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryFactoryTest.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts',
+];
+
+// Phase 10 wave 1 — Mode A/B harvester + simulator tree. Glob form so
+// future Integration files inherit the cap automatically.
+const PHASE_10_INTEGRATION_FILES = [
+  'src/Tests/Integration/**/*.ts',
+  'src/Tests/Unit/Integration/**/*.ts',
 ];
 
 const RESTRICTED_SYNTAX_RULES_NEW = [
@@ -1449,7 +1462,7 @@ export default tseslint.config(
       'sonarjs/use-type-alias': 'error', // S4323
       'sonarjs/no-skipped-tests': 'error', // S1607
       // Unicorn — modern-JS rules SonarCloud wraps
-      'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: true }], // S7763
+      'unicorn/prefer-export-from': ['error', { checkUsedVariables: false }], // S7763
       'unicorn/prefer-string-replace-all': 'error', // S7781
       'unicorn/prefer-string-raw': 'error', // S7780
       'unicorn/prefer-at': 'error', // S7755
@@ -1514,9 +1527,10 @@ export default tseslint.config(
   },
 
   // 12e. RE-EXPORT SHORTHAND (Security Hardening 2026-05) — scoped
-  //      flip of `unicorn/prefer-export-from` `ignoreUsedVariables`
+  //      flip of `unicorn/prefer-export-from` `checkUsedVariables`
   //      under `src/Scrapers/Base/**` AND `src/Scrapers/Pipeline/Types/**`.
-  //      Decide §4 RC-8 OPTION-B: keeps the global default at `true`
+  //      Decide §4 RC-8 OPTION-B: keeps the global default at `false`
+  //      (loose — equivalent to legacy `ignoreUsedVariables: true`)
   //      to avoid surfacing the 10 collateral hits as in-scope; flips
   //      locally so the rule fires on `BaseScraperWithBrowser.ts` after
   //      the manual rewrite.
@@ -1524,13 +1538,19 @@ export default tseslint.config(
   //      PR #274 extension — Pipeline/Types covered to match Sonar
   //      `typescript:S7763`. The PR #274 review surfaced 11 instances of
   //      `import type { X } from './Domain/...js'; export type { ..., X }`
-  //      in `PipelineContext.ts`; with `ignoreUsedVariables: true` the
+  //      in `PipelineContext.ts`; with `checkUsedVariables: false` the
   //      global rule treats the barrel-export reference as "used" and
   //      skips. Flipping the flag for `Pipeline/Types/**` makes ESLint
   //      catch the same anti-pattern locally on the next commit so the
   //      Sonar failure cannot recur. Production code base is unchanged
   //      by this extension (the 11 PR #274 sites are converted to direct
   //      `export type ... from` in the same commit).
+  //
+  //      2026-06-08 compat: eslint-plugin-unicorn v65 renamed the legacy
+  //      `ignoreUsedVariables: boolean` option to `checkUsedVariables`
+  //      with inverted semantics. Mapping: `ignoreUsedVariables: true`
+  //      ↔ `checkUsedVariables: false` (loose); `ignoreUsedVariables:
+  //      false` ↔ `checkUsedVariables: true` (strict).
   {
     files: [
       'src/Scrapers/Base/**/*.ts',
@@ -1545,7 +1565,7 @@ export default tseslint.config(
     ],
     plugins: { unicorn },
     rules: {
-      'unicorn/prefer-export-from': ['error', { ignoreUsedVariables: false }],
+      'unicorn/prefer-export-from': ['error', { checkUsedVariables: true }],
     },
   },
 
@@ -2457,6 +2477,35 @@ export default tseslint.config(
   // plan extends the `files:` glob to all `src/Tests/**` in waves.
   {
     files: PHASE_9_TEST_FILES,
+    plugins: { 'phase9-local': phase9LocalPlugin },
+    rules: {
+      'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
+    },
+  },
+
+  // 19.10 PHASE 10 WAVE 1 — extend `fn-declaration-max-lines:10` to the
+  // Mode A/B harvester + simulator tree under `src/Tests/Integration/**`
+  // and its companion unit tests. Closes the gap CR cycle 4b exposed
+  // (17 helper functions >10 lines slipped through because the directory
+  // was not in the §19.10 allowlist). Future Integration files inherit
+  // automatically via the glob.
+  //
+  // The `ignores:` list grandfathers 4 pre-existing files that were
+  // NOT touched by PR-A2.1 (Banks/, Helpers/, LoginNavigation, Check…
+  // Coverage). Phase 10 wave 2 brings those under the cap in a focused
+  // refactor PR — avoiding scope creep on PR-A2.1.
+  {
+    files: PHASE_10_INTEGRATION_FILES,
+    // PR-321 cycle-1 (CR finding #1): the previous glob
+    // 'src/Tests/Integration/Banks/**/*.ts' was too broad and grandfathered
+    // every NEW Mode A bank test out of §19.10. Narrow to the only legacy
+    // Phase 10 file under Banks/ so Mode A tests are enforced going forward.
+    ignores: [
+      'src/Tests/Integration/Banks/LoginFormDiscovery.integration.test.ts',
+      'src/Tests/Integration/Helpers/**/*.ts',
+      'src/Tests/Integration/Mirror/LoginNavigation.mirror.test.ts',
+      'src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts',
+    ],
     plugins: { 'phase9-local': phase9LocalPlugin },
     rules: {
       'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],

@@ -312,3 +312,7 @@ export function applyDateRangeAndAppendWithCount(
 ): IPatchOutcome {
   return patchUrl({ ...range, input });
 }
+
+// Shared internals exposed for sibling inspection helpers (see
+// UrlDateRangeInspect.ts) — keep this module within its 150-line cap.
+export { FROM_KEYS, ISO_DATE_PATTERN, safeParseUrl, urlAlreadyHasWkRange, YMD_PATTERN };

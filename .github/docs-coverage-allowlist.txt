@@ -351,3 +351,16 @@ IDiscoverFieldsArgs
 # --- Phase 2 / CR fix (EndpointUrlHelpers — WK constant for pending/clearance-requests URL) ---
 # Reason: PIPELINE_WELL_KNOWN_PENDING — internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @sergienko4/israeli-bank-scrapers public surface — Pipeline is internal to the scrapers, not exported via src/index.ts.
 PIPELINE_WELL_KNOWN_PENDING
+
+# Reason: Internal probe-result interface for urlHasWkDateRange (Rule #15
+#         object-typed return). Used only inside AccountScrapeStrategy.
+IUrlWkProbe
+
+# Reason: Internal predicate used only by AccountScrapeStrategy to detect
+#         whether a captured TXN endpoint URL carries WK date-range params.
+urlHasWkDateRange
+
+# Reason: Internal helper used only by AccountScrapeStrategy to extract
+#         the captured fromDate from a TXN endpoint URL (Hapoalim preview
+#         window fix).
+readCapturedFromDate

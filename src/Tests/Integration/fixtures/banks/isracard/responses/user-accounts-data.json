@@ -1,0 +1,20 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "shape": "UserAccountsData-synthetic",
+    "purpose": "Mode B SIMULATOR SCRAPE→TERMINATE transition body. Shape-only, no PII."
+  },
+  "Status": "OK-FIXTURE",
+  "DescriptionError": null,
+  "data": {
+    "accountsList": [
+      {
+        "accountIndex": 0,
+        "accountNumber": "FIXTURE-ISR-A",
+        "currentBalance": 0,
+        "withdrawalBalance": 0,
+        "currentAccountLimitsAmount": 0
+      }
+    ]
+  }
+}

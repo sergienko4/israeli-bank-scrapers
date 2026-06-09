@@ -13,6 +13,10 @@ import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
 import { isRangeIterable } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../../Mediator/Scrape/ScrapeReplayAction.js';
 import { applyDateRangeAndAppendWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
+import {
+  readCapturedFromDate,
+  urlHasWkDateRange,
+} from '../../../Mediator/Scrape/UrlDateRangeInspect.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { getDebug as createLogger } from '../../../Types/Debug.js';
 import { redactAccount } from '../../../Types/PiiRedactor.js';
@@ -181,8 +185,8 @@ function buildPostCtx(
 /**
  * Returns true when `iterationAccountId` is compatible with the
  * accountId DASHBOARD captured. Banks expose two variants of the same
- * id — display form (`[REDACTED-ACCT-6]`) and the long bank/branch form
- * (`[REDACTED-ACCT]`). A bidirectional `endsWith` check normalizes
+ * id — display form (`991234`) and the long bank/branch form
+ * (`99-999-991234`). A bidirectional `endsWith` check normalizes
  * across both directions without bank-specific branches.
  *
  * @param capturedAccountId - AccountId DASHBOARD parsed from the URL.
@@ -230,6 +234,14 @@ function harvestApplies(harvest: IDashboardTxnHarvest, iterationAccountId: strin
  * of SCRAPE to the BALANCE-RESOLVE phase, which consumes
  * `scrape.perAccountResponses` instead.
  *
+ * <p>2026-06-07 Hapoalim billing-cycle fix: when the captured TXN
+ * endpoint URL carries WK date-range params (Hapoalim/Discount-style
+ * windowed POST/GET) AND the captured window's fromDate is AFTER the
+ * user's requested `startDate`, the harvest covers only the SPA's
+ * narrow dashboard view — NOT the user's range — so the fast path
+ * is skipped to force a fresh range-aware re-fetch downstream. See
+ * {@link capturedWindowCoversRequested}.
+ *
  * @param fc - Fetch context (carries the harvest from SCRAPE.PRE).
  * @param post - POST fetch params for the iteration's account.
  * @returns Procedure on hit, false on miss.
@@ -241,19 +253,59 @@ async function tryFirstWave(
   await Promise.resolve();
   const harvest = fc.dashboardTxnHarvest ?? EMPTY_TXN_HARVEST;
   if (!harvestApplies(harvest, post.accountId)) return false;
+  if (!capturedWindowCoversRequested(fc, post)) return false;
   const accountLabel = redactAccount(post.accountId);
   const recordCount = String(harvest.records.length);
   LOG.debug({
     message: `tryFirstWave hit: account=${accountLabel} records=${recordCount}`,
   });
-  const txns: readonly ITransaction[] = harvest.records;
+  return buildFirstWaveResult(fc, post, harvest.records);
+}
+
+/**
+ * True when the captured TXN endpoint URL has no WK date-range params,
+ * or the captured fromDate is at-or-before the user's requested start.
+ * Generic — relies only on WK aliases + the safe URL parser.
+ *
+ * <p>When false, the DASHBOARD-side harvest reflects only the SPA's
+ * narrow dashboard window (e.g. Hapoalim's 1-month preview). Reusing
+ * it would mask the bulk of the user's requested history. The caller
+ * forces fall-through to the chunked re-fetch path instead.
+ *
+ * @param fc - Fetch context (carries `startDate` + `txnEndpoint`).
+ * @param post - POST fetch params (carries the URL to inspect).
+ * @returns True when harvest covers the requested range.
+ */
+function capturedWindowCoversRequested(fc: IAccountFetchCtx, post: IPostFetchCtx): boolean {
+  const wkProbe = urlHasWkDateRange(post.url);
+  if (!wkProbe.hasWkDateRange) return true;
+  const capturedStart = readCapturedFromDate(post.url);
+  if (capturedStart === false) return false;
+  const requestedStartMs = parseStartDate(fc.startDate).getTime();
+  return capturedStart.getTime() <= requestedStartMs;
+}
+
+/**
+ * Build the {@link tryFirstWave} success Procedure from harvest records.
+ * Extracted to keep the orchestrator under the 10-stmt cap and to mirror
+ * the {@link scrapePostDirect} dedup/assembly seam.
+ * @param fc - Fetch context.
+ * @param post - POST fetch params (carries accountId + displayId).
+ * @param records - Records pre-extracted by DASHBOARD.
+ * @returns Procedure carrying the assembled account.
+ */
+function buildFirstWaveResult(
+  fc: IAccountFetchCtx,
+  post: IPostFetchCtx,
+  records: readonly ITransaction[],
+): Procedure<ITransactionsAccount> {
   // Phase F (2026-05-13): the DASHBOARD-side harvest carries the raw
   // records extracted from one or more pre-nav captures. The same
   // pending row can appear across capture boundaries on the
   // card-family banks; dedup here mirrors the matrix-loop guarantee.
   const startMs = parseStartDate(fc.startDate).getTime();
   const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
-  const unique = deduplicateTxns(txns, startMs, keyFields);
+  const unique = deduplicateTxns(records, startMs, keyFields);
   const assembly: IAccountAssemblyCtx = {
     fc,
     accountId: post.accountId,
@@ -268,9 +320,17 @@ async function tryFirstWave(
  * DASHBOARD-side harvest from `fc.dashboardTxnHarvest`. Matrix loops
  * (Amex/Isracard) run first because they iterate every card. When
  * matrix doesn't apply, the harvest fast path consumes DASHBOARD's
- * pre-extracted records before triggering a fresh per-account fetch
- * (which some banks 302 against rapid second-fetches with extended
- * windows — Hapoalim regression).
+ * pre-extracted records before triggering a fresh per-account fetch.
+ *
+ * <p>2026-06-07 Hapoalim billing-cycle fix: endpoints whose captured
+ * URL carries WK date-range params (Hapoalim's
+ * `current-account/transactions?retrievalStartDate=…&retrievalEndDate=…`
+ * POST) route through monthly chunking even when the POST body is
+ * empty — `scrapeWithMonthlyChunking` patches the URL per chunk via
+ * {@link applyDateRangeAndAppend}, rate-limits between fetches (which
+ * mitigates the past 302-on-rapid-second-fetch regression), and
+ * avoids the single-shot `numItemsPerPage` cap that would otherwise
+ * truncate accounts whose requested range exceeds one page.
  *
  * @param fc - Fetch context (carries the slim TXN endpoint + harvest).
  * @param accountRecord - Account record from init.
@@ -293,7 +353,9 @@ async function scrapeOneAccountPost(
   if (firstWave !== false) return firstWave;
   const billing = await tryBillingFallback(fc, post);
   if (isOk(billing) && billing.value.txns.length > 0) return billing;
-  if (isRangeIterable(capturedBody as JsonRecord)) return scrapePostWithRange(fc, post);
+  const isBodyIterable = isRangeIterable(capturedBody as JsonRecord);
+  const isUrlIterable = urlHasWkDateRange(post.url).hasWkDateRange;
+  if (isBodyIterable || isUrlIterable) return scrapePostWithRange(fc, post);
   return scrapePostDirect(fc, post);
 }
 

@@ -30,6 +30,27 @@ const ISRACARD_AMEX_LOBBY_STEPS = [
   },
 ] as const;
 
+const ISRACARD_PHASE_11_STEPS = [
+  { stepName: '01-home' },
+  {
+    stepName: '02-pre-login',
+    requiredFormIds: ['otpLobbyFormSms'],
+    requiredInputIds: ['otpLoginId_SMS'],
+    revealText: 'או כניסה עם סיסמה קבועה',
+  },
+  {
+    stepName: '03-after-flip',
+    requiredFormIds: ['otpLobbyFormSms', 'otpLobbyFormPassword'],
+    requiredInputIds: ['otpLoginId_ID', 'otpLoginPwd'],
+  },
+  { stepName: '04-login-action' },
+  { stepName: '07-auth-discovery' },
+  { stepName: '08-account-resolve' },
+  { stepName: '09-dashboard' },
+  { stepName: '10-scrape-cycle-billing' },
+  { stepName: '11-balance' },
+] as const;
+
 const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'isracard',
@@ -37,7 +58,7 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     loginStep: '03-after-flip',
     loginFormId: 'otpLobbyFormPassword',
     requiresHydration: false,
-    steps: ISRACARD_AMEX_LOBBY_STEPS,
+    steps: ISRACARD_PHASE_11_STEPS,
   },
   {
     bankId: 'amex',
@@ -71,7 +92,14 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     originUrl: 'https://login.bankhapoalim.co.il',
     loginStep: '02-pre-login',
     requiresHydration: false,
-    steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
+    steps: [
+      { stepName: '01-home' },
+      { stepName: '02-pre-login' },
+      { stepName: '04-login-action' },
+      { stepName: '07-auth-discovery' },
+      { stepName: '08-account-resolve' },
+      { stepName: '09-dashboard' },
+    ],
   },
   {
     bankId: 'discount',

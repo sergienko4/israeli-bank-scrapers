@@ -87,6 +87,8 @@ capture/
 tasks/
 
 scripts/**
+!scripts/audit-fixtures-pii.cjs
+!scripts/sweep-fixtures-pii.ts
 
 # Stale lint-output left by an older verify-script version. Current
 # src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),
@@ -101,3 +103,12 @@ __pycache__/
 
 .agent-*/*
 .commit*
+
+# Operator-specific PII literals consumed at runtime by
+# scripts/audit-fixtures-pii.cjs and src/Tests/Integration/Tools/PiiRedactor.ts.
+# Copy .pii-secrets.example.json → .pii-secrets.json and populate with REAL
+# values for your environment. NEVER commit the real file — it contains
+# operator name, account numbers, IDs, emails, etc. The example file with
+# placeholder values IS committed so tests have a default to load from.
+.pii-secrets.json
+.pii-secrets.local.json
