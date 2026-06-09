@@ -2496,8 +2496,12 @@ export default tseslint.config(
   // refactor PR — avoiding scope creep on PR-A2.1.
   {
     files: PHASE_10_INTEGRATION_FILES,
+    // PR-321 cycle-1 (CR finding #1): the previous glob
+    // 'src/Tests/Integration/Banks/**/*.ts' was too broad and grandfathered
+    // every NEW Mode A bank test out of §19.10. Narrow to the only legacy
+    // Phase 10 file under Banks/ so Mode A tests are enforced going forward.
     ignores: [
-      'src/Tests/Integration/Banks/**/*.ts',
+      'src/Tests/Integration/Banks/LoginFormDiscovery.integration.test.ts',
       'src/Tests/Integration/Helpers/**/*.ts',
       'src/Tests/Integration/Mirror/LoginNavigation.mirror.test.ts',
       'src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts',

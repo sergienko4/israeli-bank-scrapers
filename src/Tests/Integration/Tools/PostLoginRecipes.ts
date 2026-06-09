@@ -32,7 +32,7 @@ import type { IExtendedRecipe } from './RecipeStepTypes.js';
 const DASHBOARD_NETWORKIDLE_TIMEOUT_MS = 30000;
 
 /** Isracard: card-only flow. PRE-LOGIN already captured by legacy recipe. */
-const ISRACARD_POST_LOGIN: IExtendedRecipe = {
+const ISRACARD_POST_LOGIN = {
   bankId: 'isracard',
   steps: [
     { kind: 'login', stepName: '04-login-action' },
@@ -58,10 +58,10 @@ const ISRACARD_POST_LOGIN: IExtendedRecipe = {
       methods: ['POST'],
     },
   ],
-};
+} as const satisfies IExtendedRecipe;
 
 /** Amex: same pipeline as Isracard but distinct URLs. */
-const AMEX_POST_LOGIN: IExtendedRecipe = {
+const AMEX_POST_LOGIN = {
   bankId: 'amex',
   steps: [
     { kind: 'login', stepName: '04-login-action' },
@@ -87,10 +87,10 @@ const AMEX_POST_LOGIN: IExtendedRecipe = {
       methods: ['POST'],
     },
   ],
-};
+} as const satisfies IExtendedRecipe;
 
 /** Discount: legacy banking app, no OTP, has account-resolve picker. */
-const DISCOUNT_POST_LOGIN: IExtendedRecipe = {
+const DISCOUNT_POST_LOGIN = {
   bankId: 'discount',
   steps: [
     { kind: 'login', stepName: '04-login-action' },
@@ -115,10 +115,10 @@ const DISCOUNT_POST_LOGIN: IExtendedRecipe = {
       captureAs: 'currentAccount',
     },
   ],
-};
+} as const satisfies IExtendedRecipe;
 
 /** Max: SPA-ish credit card site. */
-const MAX_POST_LOGIN: IExtendedRecipe = {
+const MAX_POST_LOGIN = {
   bankId: 'max',
   steps: [
     { kind: 'login', stepName: '04-login-action' },
@@ -137,10 +137,10 @@ const MAX_POST_LOGIN: IExtendedRecipe = {
       methods: ['POST'],
     },
   ],
-};
+} as const satisfies IExtendedRecipe;
 
 /** VisaCal: pure SPA — hydrated DOM snapshot is the deliverable. */
-const VISACAL_POST_LOGIN: IExtendedRecipe = {
+const VISACAL_POST_LOGIN = {
   bankId: 'visaCal',
   steps: [
     { kind: 'login', stepName: '04-login-action' },
@@ -159,7 +159,7 @@ const VISACAL_POST_LOGIN: IExtendedRecipe = {
       methods: ['POST'],
     },
   ],
-};
+} as const satisfies IExtendedRecipe;
 
 /**
  * Hapoalim post-login recipe with DUAL scrape capture.
@@ -181,7 +181,7 @@ const VISACAL_POST_LOGIN: IExtendedRecipe = {
  * PR-B2 lands the fix, then flip GREEN automatically. Do NOT remove
  * either capture without first auditing PR-B2's mirror assertions.
  */
-const HAPOALIM_POST_LOGIN: IExtendedRecipe = {
+const HAPOALIM_POST_LOGIN = {
   bankId: 'hapoalim',
   steps: [
     { kind: 'login', stepName: '04-login-action' },
@@ -212,10 +212,10 @@ const HAPOALIM_POST_LOGIN: IExtendedRecipe = {
       captureAs: 'balance',
     },
   ],
-};
+} as const satisfies IExtendedRecipe;
 
 /** Beinleumi: OTP bank + Angular SPA shell. */
-const BEINLEUMI_POST_LOGIN: IExtendedRecipe = {
+const BEINLEUMI_POST_LOGIN = {
   bankId: 'beinleumi',
   steps: [
     { kind: 'login', stepName: '04-login-action' },
@@ -235,9 +235,16 @@ const BEINLEUMI_POST_LOGIN: IExtendedRecipe = {
       captureAs: 'AccountTransactions',
     },
   ],
-};
+} as const satisfies IExtendedRecipe;
 
-/** Registry: bankId → post-login recipe. */
+/**
+ * Registry: bankId → post-login recipe.
+ *
+ * <p>Kept as `Readonly<Partial<Record<string, IExtendedRecipe>>>` rather
+ * than `as const` per PR-321 cycle-1 finding #15 (partial deferral): the
+ * registry is indexed dynamically in {@link getPostLoginRecipe}; per-recipe
+ * constants above already carry `as const satisfies IExtendedRecipe`.
+ */
 const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
   isracard: ISRACARD_POST_LOGIN,
   amex: AMEX_POST_LOGIN,
@@ -291,6 +298,14 @@ interface IBankRecipe {
 /**
  * Per-bank pre-login recipes — the map key IS the bankId.
  * Adding a new bank means adding a key + steps; no duplicate bankId field.
+ *
+ * <p>NOTE: Kept as `Readonly<Partial<Record<string, IRecipeBody>>>` rather
+ * than `as const` per PR-321 cycle-1 finding #14 — consumers in
+ * {@link ../../Integration/Tools/HarvestBankHtml.ts} index this map with
+ * dynamic `bankId: string` values; literal-narrowed types would force
+ * `as` casts at every consumer site. Per-step recipe constants below
+ * (and post-login recipes above) DO use `as const satisfies` since they
+ * are referenced by name, not dynamically indexed.
  */
 const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
   isracard: {

@@ -14,15 +14,16 @@
 
 import { resolveCaptureIndex } from '../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.Classify.js';
 import { failAccountResolutionIncomplete } from '../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.Failures.js';
-import { readInitForensicsGate } from '../../../../../Scrapers/Pipeline/Mediator/Init/InitForensicsGate.js';
+import {
+  INIT_FORENSICS_ENV_VAR,
+  readInitForensicsGate,
+} from '../../../../../Scrapers/Pipeline/Mediator/Init/InitForensicsGate.js';
 import { recordFailure } from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/State.js';
 import type {
   IAuthFailure,
   IWatcherState,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/Types.js';
 import { graphemeCount } from '../../../../../Scrapers/Pipeline/Types/PiiRedactor/CommonHelpers.js';
-
-const FORENSICS_ENV_VAR = 'PIPELINE_INIT_FORENSICS';
 
 /**
  * Stub response handler — never marks as failure. Kept top-level so
@@ -55,6 +56,37 @@ function makeAuthFailure(): IAuthFailure {
   return { status: 401, url: 'https://bank.example/auth', bodyPreview: '', classifier: 'http-4xx' };
 }
 
+/**
+ * Status returned by {@link withTempEnv} confirming the temp value was
+ * applied and the prior value restored deterministically.
+ */
+interface IWithTempEnvStatus {
+  readonly applied: true;
+}
+
+/**
+ * Run `cb` with `process.env[varName] = tempValue`, then restore the
+ * prior value (or delete the key if it was previously unset).
+ *
+ * <p>Extracted per PR-321 cycle-1 CR finding #16 so the calling test
+ * body stays ≤10 lines.
+ * @param varName - Env-var key to mutate.
+ * @param tempValue - Value to set for the duration of the callback.
+ * @param cb - Synchronous callback executed while the value is set.
+ * @returns Status confirming the temp value was applied + cleanup ran.
+ */
+function withTempEnv(varName: string, tempValue: string, cb: () => unknown): IWithTempEnvStatus {
+  const prior = process.env[varName];
+  process.env[varName] = tempValue;
+  try {
+    cb();
+  } finally {
+    if (typeof prior === 'string') process.env[varName] = prior;
+    else Reflect.deleteProperty(process.env, varName);
+  }
+  return { applied: true };
+}
+
 describe('PostMergeBaselineLift — narrow coverage backfill', () => {
   it('graphemeCount returns 0 for empty input (early-exit branch)', () => {
     const count = graphemeCount('');
@@ -69,15 +101,10 @@ describe('PostMergeBaselineLift — narrow coverage backfill', () => {
   });
 
   it('readInitForensicsGate returns disabled for env-var value other than 1/true (else branch)', () => {
-    const prior = process.env[FORENSICS_ENV_VAR];
-    process.env[FORENSICS_ENV_VAR] = '0';
-    try {
+    withTempEnv(INIT_FORENSICS_ENV_VAR, '0', () => {
       const state = readInitForensicsGate();
       expect(state.enabled).toBe(false);
-    } finally {
-      if (prior === undefined) Reflect.deleteProperty(process.env, FORENSICS_ENV_VAR);
-      else process.env[FORENSICS_ENV_VAR] = prior;
-    }
+    });
   });
 
   it('recordFailure short-circuits when watcher state is disposed (isDisposed true branch)', () => {

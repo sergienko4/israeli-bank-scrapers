@@ -1,8 +1,8 @@
 /**
  * Canonical 11-phase enum for cross-bank integration coverage matrix.
  *
- * Source of truth: `C:\tmp\guidelines\general-phases-view-guidlines.md`
- * defines the production scraper PHASE_CHAIN:
+ * Source of truth: `docs/general-phases-view-guidelines.md` (internal
+ * guideline) defines the production scraper PHASE_CHAIN:
  * `INIT -> HOME -> PRE_LOGIN -> LOGIN -> OTP_TRIGGER -> OTP_FILL ->
  * AUTH_DISCOVERY -> ACCOUNT_RESOLVE -> DASHBOARD -> SCRAPE -> TERMINATE`.
  *
@@ -14,7 +14,7 @@
  * has no separate OTP_TRIGGER step) is marked `n/a` with justification
  * in the per-bank phase matrix — never silently skipped.
  *
- * @see C:\tmp\guidelines\general-phases-view-guidlines.md
+ * @see docs/general-phases-view-guidelines.md
  */
 
 import { none, type Option, some } from '../../../Scrapers/Pipeline/Types/Option.js';

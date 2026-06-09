@@ -36,9 +36,9 @@ import type { IExtendedRecipe } from './RecipeStepTypes.js';
 
 const FIXTURE_FILE_MODE = 0o600;
 const FIXTURE_DIR_MODE = 0o700;
-const TRAFFIC_FILE_NAME = 'manifest-traffic.ndjson';
-const HARVEST_MODE_A_FLAG = '--mode-a-harvest';
-const HARVEST_MODE_B_FLAG = '--mode-b-harvest';
+const TRAFFIC_FILE_NAME = 'manifest-traffic.ndjson' as const;
+const HARVEST_MODE_A_FLAG = '--mode-a-harvest' as const;
+const HARVEST_MODE_B_FLAG = '--mode-b-harvest' as const;
 
 /**
  * Harvest mode discriminant — mirrors the value parsed by

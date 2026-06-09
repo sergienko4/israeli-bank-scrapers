@@ -10,7 +10,8 @@
  * <p>Companion to {@link ./Discount.modeB.test.ts} which exercises the
  * same phases through the {@link installSimulator} state machine.
  *
- * <p>Per-phase invariants:
+ * <p>Per-phase invariants are declared in
+ * {@link ./DiscountPhaseConfig.PHASE_EXPECTATIONS}:
  * <ul>
  *   <li>HOME: contains the bank landing-page marker (discountbank.co.il).</li>
  *   <li>PRE-LOGIN: contains the login form id-input + bank-account input.</li>
@@ -34,27 +35,11 @@ import {
   getIntegrationBrowser,
 } from '../../Helpers/IntegrationBrowserFixture.js';
 import { closeQuietly } from '../../Helpers/IntegrationDriveAssertions.js';
+import { type IPhaseExpectation, PHASE_EXPECTATIONS } from './DiscountPhaseConfig.js';
 
 const BANK_ID = 'discount';
 const BROWSER_BOOT_TIMEOUT_MS = 120000;
 const STEP_TIMEOUT_MS = 60000;
-
-/** Per-phase contract — what markers MUST appear in the captured HTML. */
-interface IPhaseExpectation {
-  readonly stepName: string;
-  readonly mustContain: readonly string[];
-}
-
-const PHASE_EXPECTATIONS: readonly IPhaseExpectation[] = [
-  { stepName: '01-home', mustContain: ['discountbank.co.il'] },
-  { stepName: '02-pre-login', mustContain: ['tzId', 'aidnum'] },
-  { stepName: '04-login-action', mustContain: ['telebank'] },
-  { stepName: '07-auth-discovery', mustContain: ['telebank'] },
-  { stepName: '08-account-resolve', mustContain: ['telebank'] },
-  { stepName: '09-dashboard', mustContain: ['telebank'] },
-  { stepName: '10-scrape-transactions', mustContain: ['telebank'] },
-  { stepName: '11-balance', mustContain: ['telebank'] },
-];
 
 /**
  * Whether the fixture directory exists; skip the entire test otherwise.
@@ -66,7 +51,34 @@ function isFixtureRootPresent(): boolean {
 }
 
 /**
+ * Outcome of a single marker presence check.
+ */
+interface IMarkerCheck {
+  readonly found: true;
+  readonly marker: string;
+}
+
+/**
+ * Assert a single marker exists in the page HTML.
+ * @param html - Full page HTML content.
+ * @param marker - Required substring.
+ * @param stepName - Step name for the error message.
+ * @returns Confirmation that the marker was found (throws otherwise).
+ */
+function assertOneMarker(html: string, marker: string, stepName: string): IMarkerCheck {
+  if (!html.includes(marker)) {
+    throw new ScraperError(`Discount.modeA: step ${stepName} missing marker "${marker}"`);
+  }
+  return { found: true, marker };
+}
+
+/**
  * Assert the page body contains every required marker substring.
+ *
+ * <p>Throws {@link ScraperError} (NOT Jest's expect) so the failure
+ * carries the bank+step context for debugging real-bank regressions —
+ * CR cycle-1 finding #5 confirmed the prior `expect().toContain()`
+ * after the throw was unreachable dead code.
  * @param page - Playwright page with the step HTML loaded.
  * @param mustContain - Markers that MUST appear in the body text or HTML.
  * @param stepName - Step name for the error message.
@@ -78,10 +90,7 @@ async function assertBodyContains(
 ): Promise<void> {
   const html = await page.content();
   for (const marker of mustContain) {
-    if (!html.includes(marker)) {
-      throw new ScraperError(`Discount.modeA: step ${stepName} missing marker "${marker}"`);
-    }
-    expect(html).toContain(marker);
+    assertOneMarker(html, marker, stepName);
   }
 }
 
@@ -93,14 +102,12 @@ describe('Discount Mode A — static phase drive (Phase 11)', () => {
     if (!shouldSkip) {
       await getIntegrationBrowser();
     }
-    return 0;
   }, BROWSER_BOOT_TIMEOUT_MS);
 
   afterAll(async () => {
     if (!shouldSkip) {
       await closeIntegrationBrowser();
     }
-    return 0;
   });
 
   describe.each(PHASE_EXPECTATIONS)('phase $stepName', (phase: IPhaseExpectation) => {

@@ -25,7 +25,16 @@ import { none, type Option, some } from '../../../Scrapers/Pipeline/Types/Option
 /** Generic credential record — string-keyed, string-valued. */
 type BankCredentials = Readonly<Record<string, string>>;
 
-/** Per-bank env-var map: bankId → { credentialKey: envVarName }. */
+/**
+ * Per-bank env-var map: bankId → { credentialKey: envVarName }.
+ *
+ * <p>NOTE: Kept as wider `Readonly<Partial<Record<string, ...>>>` type
+ * rather than `as const` per PR-321 cycle-1 finding #12 — the map is
+ * indexed with dynamic `bankId: string` values in {@link getBankCredentials}
+ * and {@link listSupportedBankIds}, so a literal-narrowed type would
+ * force `as` casts at every consumer site. Immutability is already
+ * enforced by the `Readonly<>` annotation.
+ */
 const BANK_ENV_MAP: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
   isracard: {
     id: 'ISRACARD_ID',
