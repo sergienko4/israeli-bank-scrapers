@@ -58,7 +58,7 @@
       "response": {
         "status": 200,
         "contentType": "text/html; charset=utf-8",
-        "bodyFile": "08-account-resolve.html"
+        "bodyFile": "07-auth-discovery.html"
       },
       "advanceTo": "ACCOUNT_RESOLVE"
     },
@@ -70,7 +70,7 @@
       "response": {
         "status": 200,
         "contentType": "text/html; charset=utf-8",
-        "bodyFile": "09-dashboard.html"
+        "bodyFile": "08-account-resolve.html"
       },
       "advanceTo": "DASHBOARD"
     },
