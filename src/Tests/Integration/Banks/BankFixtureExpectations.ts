@@ -89,11 +89,12 @@ const VISACAL_PHASE_11_STEPS = [
  *       endpoint, NOT MAX's `getTransactionsAndGraphs` or AMEX's
  *       `CardsTransactionsList`.</li>
  * </ul>
- * Beinleumi retains `requiresHydration: true` because the captured
- * static lobby HTML alone is insufficient to drive LOGIN PRE
- * discovery (form is rendered inside an Angular-driven iframe
- * post-JS). Mode A marker checks + Mode B SIMULATOR state-machine
- * are orthogonal to that harvester gap.
+ * Beinleumi now uses the captured iframe content (`03-after-prelogin/
+ * frame-2.html`, 51KB, with full `<input type="password">` + form
+ * structure) served as the main document for cross-bank Mode B
+ * discovery — so `requiresHydration: false` is correct. Mode A marker
+ * checks + Mode B SIMULATOR state-machine still operate against the
+ * same `BEINLEUMI_PHASE_11_STEPS` chain.
  */
 const BEINLEUMI_PHASE_11_STEPS = [
   { stepName: '01-home' },

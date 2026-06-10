@@ -45,6 +45,7 @@ import {
 import BANK_FIXTURE_EXPECTATIONS from './BankFixtureExpectations.js';
 import BANK_LOGIN_CONFIGS from './BankLoginConfigs.js';
 import type { IBankFixtureExpectations, IStepExpectations } from './FixtureExpectations.js';
+import filterBanksByEnv from './IntegrationBankFilter.js';
 
 const BROWSER_BOOT_TIMEOUT_MS = 120000;
 const DRIVE_TIMEOUT_MS = 120000;
@@ -266,7 +267,8 @@ describe('LoginFieldDiscovery cross-bank integration (Mode A — static HTML)', 
     await closeIntegrationBrowser();
   });
 
-  describe.each(BANK_FIXTURE_EXPECTATIONS)('$bankId', (bank: IBankFixtureExpectations) => {
+  const matrixBanks = filterBanksByEnv(BANK_FIXTURE_EXPECTATIONS);
+  describe.each(matrixBanks)('$bankId', (bank: IBankFixtureExpectations) => {
     const hasFixtures = fixtureRootExistsSync(bank.bankId);
     const itOrSkipStep = hasFixtures ? it : it.skip;
 
