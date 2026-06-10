@@ -105,6 +105,13 @@ jobs:
       docs: ${{ steps.changes.outputs.docs }}
       pipeline_ts: ${{ steps.changes.outputs.pipeline_ts }}
       ci_scripts: ${{ steps.changes.outputs.ci_scripts }}
+      # Single-source-of-truth booleans for downstream `if:` conditions.
+      # `trusted_event` — true unless this is a PR from a fork (untrusted secrets).
+      # `real_gates_enabled` — true only when ALL prerequisites for running real-network /
+      # CPU-heavy gates hold: trusted_event AND non-dependabot author AND src/ touched.
+      # Use `needs.validate.outputs.<name>` from downstream jobs (validate re-emits these).
+      trusted_event: ${{ steps.gate.outputs.trusted_event }}
+      real_gates_enabled: ${{ steps.gate.outputs.real_gates_enabled }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -115,6 +122,15 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bash .github/scripts/ci/detect-changes.sh
+      - name: Compute gate booleans
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          SRC_TOUCHED: ${{ steps.changes.outputs.src }}
+        run: bash .github/scripts/ci/compute-gate-booleans.sh
 
   # ──────────────────────────────────────────────────────────────
   # Lint + types + docs canaries — independent of test jobs.
@@ -431,6 +447,11 @@ jobs:
       md_touched: ${{ needs.changes.outputs.md }}
       docs_touched: ${{ needs.changes.outputs.docs }}
       pipeline_ts_touched: ${{ needs.changes.outputs.pipeline_ts }}
+      # Re-emit the computed gate booleans so downstream jobs that already `needs: validate`
+      # don't have to add `changes` to their needs list. See compute-gate-booleans.sh for
+      # the exact predicate semantics.
+      trusted_event: ${{ needs.changes.outputs.trusted_event }}
+      real_gates_enabled: ${{ needs.changes.outputs.real_gates_enabled }}
     steps:
       - name: Verify all gates green
         env:
@@ -601,11 +622,9 @@ jobs:
     # tier above (lint/types/unit/mocked/integration/build) is sufficient
     # to gate a dependency bump. The real-bank E2E happy-path remains
     # optional (manual approval) on human-authored PRs only.
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
-      needs.validate.outputs.src_touched == 'true'
+    # `real_gates_enabled` = trusted_event AND non-dependabot AND src_touched
+    # (see .github/scripts/ci/compute-gate-booleans.sh for the predicate).
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -625,11 +644,8 @@ jobs:
     # If preflight is RED, this gate sits unclickable so we don't
     # burn the E2E Real matrix on guaranteed-DNS failures.
     needs: [validate, dns-preflight]
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
-      needs.validate.outputs.src_touched == 'true'
+    # See dns-preflight comment for `real_gates_enabled` semantics.
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Per-group environment (2026-05-26): each gate references a
     # DISTINCT GitHub environment so the reviewer must click
@@ -878,11 +894,8 @@ jobs:
     # to finish (and vice-versa); within each group, banks still
     # run in parallel under one approval.
     needs: [validate, dns-preflight]
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
-      needs.validate.outputs.src_touched == 'true'
+    # See dns-preflight comment for `real_gates_enabled` semantics.
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
@@ -990,11 +1003,8 @@ jobs:
     # Independent of Groups A + B — see the gate-B comment for the
     # rationale (per-group approval, no inter-group ordering).
     needs: [validate, dns-preflight]
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      (github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]') &&
-      needs.validate.outputs.src_touched == 'true'
+    # See dns-preflight comment for `real_gates_enabled` semantics.
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
