@@ -1,0 +1,21 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "shape": "GetBillingsForMonthsOverview-synthetic",
+    "purpose": "Mode B SIMULATOR DASHBOARD→SCRAPE transition body. Isracard dashboard month-overview endpoint `POST https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview`. data is an array of {billingDate, isFinalBillingDate, billingAmounts:{billingAmountIls,billingAmountUsd,billingAmountEur}}. Values are zero placeholders. Legacy ProxyRequestHandler.ashx?reqName=CurrentBillingDate is dropped at ResponseParser per ScrapeWK.ts:78-85."
+  },
+  "data": [
+    {
+      "billingDate": "01/2026",
+      "isFinalBillingDate": false,
+      "billingAmounts": {
+        "billingAmountIls": 0,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    }
+  ],
+  "errorCode": "0",
+  "errorDescription": null,
+  "isSuccess": true
+}

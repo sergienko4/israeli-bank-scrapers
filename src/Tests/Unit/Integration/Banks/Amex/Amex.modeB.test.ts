@@ -1,8 +1,8 @@
 /**
- * Isracard — Mode B SIMULATOR integration test (Phase 11).
+ * AMEX — Mode B SIMULATOR integration test (Phase 11).
  *
  * <p>Drives the {@link installSimulator} state machine against the
- * committed Isracard manifest.json. For each phase in the canonical
+ * committed AMEX manifest.json. For each phase in the canonical
  * chain (INIT → HOME → PRE_LOGIN → LOGIN → AUTH_DISCOVERY →
  * ACCOUNT_RESOLVE → DASHBOARD → SCRAPE → TERMINATE) we fire a scripted
  * request shaped like the one the production scraper would issue and
@@ -14,11 +14,26 @@
  *   <li>the final state reaches TERMINATE with zero fatal escapes.</li>
  * </ul>
  *
- * <p>Isracard is password-only (no OTP) — the canonical chain skips
- * OTP_TRIGGER / OTP_FILL phases. This deterministic Mode B suite
- * proves the per-bank manifest is well-formed and the simulator can
- * drive Isracard's full chain end-to-end without touching the real
- * bank.
+ * <p>AMEX is password-only (id + password + card6Digits, no OTP leg) —
+ * the canonical chain skips OTP_TRIGGER / OTP_FILL phases. This
+ * deterministic Mode B suite proves the per-bank manifest is well-formed
+ * and the simulator can drive AMEX's full chain end-to-end without
+ * touching the real bank.
+ *
+ * <p>AMEX-distinct from Isracard's Mode B: scripted URLs target
+ * `he.americanexpress.co.il` (Hebrew locale) and modern Pipeline
+ * endpoints (`/personalarea/login/` form action, `/IsLoggedIn`
+ * post-login probe, `/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview`
+ * for billings, and `/ocp/transactions/DigitalV3.Transactions/GetTransactionsList`
+ * for per-card scrape — the `/ocp/statuspage/` GetLatestTransactions
+ * widget variant is intentionally NOT used: Pipeline `ScrapeWK.ts:65-77`
+ * rejects `/\/statuspage\//i` from transactions URLs to avoid the
+ * 5-record cap). Response shapes use the modern envelope
+ * `{data:{...}, errorCode, errorDescription, isSuccess}`. The legacy
+ * `ProxyRequestHandler.ashx?reqName=*` query-string family is intentionally
+ * NOT exercised — Pipeline `ScrapeWK.ts:78-85` drops `.ashx` URLs as
+ * `unsupportedUrl`, and every migrated bank already uses these modern
+ * `/ocp/...` paths in production captures.
  */
 
 import { readFileSync } from 'node:fs';
@@ -30,7 +45,7 @@ import type { Page, Request, Route } from 'playwright-core';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { installSimulator } from '../../../../Integration/Mirror/MirrorSimulator.js';
 
-const BANK_ID = 'isracard';
+const BANK_ID = 'amex';
 const ABORT_COUNTER_INIT = 0;
 const FULFILL_BUMP = 1;
 
@@ -105,10 +120,10 @@ const REPO_ROOT = join(HERE, '..', '..', '..', '..', '..', '..');
 const FIXTURES_ROOT = join(REPO_ROOT, 'src', 'Tests', 'Integration', 'fixtures', 'banks');
 const MANIFEST_PATH = join(FIXTURES_ROOT, BANK_ID, 'manifest.json');
 
-/** Scripted production-shaped requests covering every Isracard transition. */
+/** Scripted production-shaped requests covering every AMEX transition. */
 const SCRIPT: readonly IScriptedStep[] = [
   {
-    url: 'https://www.isracard.co.il/',
+    url: 'https://www.americanexpress.co.il/',
     method: 'GET',
     resourceType: 'document',
     expectedStatus: 200,
@@ -116,7 +131,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'HOME',
   },
   {
-    url: 'https://digital.isracard.co.il/personalarea/Login/',
+    url: 'https://he.americanexpress.co.il/personalarea/login/',
     method: 'GET',
     resourceType: 'document',
     expectedStatus: 200,
@@ -124,7 +139,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'PRE_LOGIN',
   },
   {
-    url: 'https://digital.isracard.co.il/personalarea/Login/api/LoginResendOtp',
+    url: 'https://he.americanexpress.co.il/personalarea/login/',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -132,7 +147,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'LOGIN',
   },
   {
-    url: 'https://web.isracard.co.il/IsLoggedIn',
+    url: 'https://web.americanexpress.co.il/IsLoggedIn',
     method: 'GET',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -140,15 +155,15 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'AUTH_DISCOVERY',
   },
   {
-    url: 'https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
-    method: 'POST',
-    resourceType: 'fetch',
+    url: 'https://he.americanexpress.co.il/personalarea/',
+    method: 'GET',
+    resourceType: 'document',
     expectedStatus: 200,
-    expectedContentType: 'application/json',
+    expectedContentType: 'text/html; charset=utf-8',
     expectedPhaseAfter: 'ACCOUNT_RESOLVE',
   },
   {
-    url: 'https://digital.isracard.co.il/personalarea/NewAccountTransactions/',
+    url: 'https://he.americanexpress.co.il/personalarea/dashboard/',
     method: 'GET',
     resourceType: 'document',
     expectedStatus: 200,
@@ -156,7 +171,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'DASHBOARD',
   },
   {
-    url: 'https://web.isracard.co.il/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview',
+    url: 'https://web.americanexpress.co.il/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -164,7 +179,7 @@ const SCRIPT: readonly IScriptedStep[] = [
     expectedPhaseAfter: 'SCRAPE',
   },
   {
-    url: 'https://web.isracard.co.il/ocp/transactions/DigitalV3.Transactions/GetTransactionsList',
+    url: 'https://web.americanexpress.co.il/ocp/transactions/DigitalV3.Transactions/GetTransactionsList',
     method: 'POST',
     resourceType: 'fetch',
     expectedStatus: 200,
@@ -528,7 +543,7 @@ function assertCleanTerminate(result: IRunResult): number {
   return result.fired;
 }
 
-describe('Isracard Mode B — SIMULATOR state-machine drive (Phase 11)', () => {
+describe('Amex Mode B — SIMULATOR state-machine drive (Phase 11)', () => {
   it('walks INIT → HOME → ... → TERMINATE through the captured manifest', async () => {
     const ctx = await setupSimulator();
     try {

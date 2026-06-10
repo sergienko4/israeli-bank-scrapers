@@ -40,14 +40,16 @@ pagi
 # OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
 otsarHahayal
 #
-# Amex        SIMULATOR parity gap: captured login has 9 iframes
-#             (frame-0…frame-8) with cross-origin asset references.
-#             The MirrorInterceptor currently routes only the
-#             top-level page — nested iframes from foreign hosts
-#             trigger long Playwright locator waits (observed
-#             205155 ms / test in PR-3 final CI, right at the 240s
-#             ceiling). Re-harvest with the planned
-#             `mirror-iframe-routes` enhancement so every captured
-#             frame-N.html is served deterministically from the
-#             allowlist instead of hitting per-locator timeouts.
+# Amex        Mirror simulator parity gap: 9 cross-origin iframes in
+#             captured 03-after-flip HTML (440KB). MirrorInterceptor
+#             only routes the top-level page. On slower CI runners,
+#             iframe-load cascading causes browser corruption that
+#             timed out 5 other banks in PR #331 (1005s total vs 45s
+#             baseline). Locally completes in 49s on 16-core; CI
+#             cannot absorb the iframe load. AMEX retains FULL
+#             coverage via Mode A (static drive) + Mode B SIMULATOR
+#             (state-machine; src/Tests/Unit/Integration/Banks/Amex/
+#             Amex.modeB.test.ts). Mirror cross-bank single-step
+#             replay is the OPTIONAL sanity check; AMEX inclusion
+#             requires MirrorInterceptor iframe support (future PR).
 amex

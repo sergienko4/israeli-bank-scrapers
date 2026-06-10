@@ -1,0 +1,14 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "provider": "americanexpress",
+    "shape": "login-form-action-synthetic",
+    "purpose": "Mode B SIMULATOR PRE_LOGIN→LOGIN transition body. AMEX submits the login form to '/personalarea/login/' (browser-side POST). Modern envelope shape `{data,errorCode,errorDescription,isSuccess}` matches production captures at /ocp/* and /IsLoggedIn. Legacy ProxyRequestHandler.ashx?reqName=ValidateIdData is dropped at ResponseParser per ScrapeWK.ts:78-85 and never used by the modern pipeline."
+  },
+  "data": {
+    "loginSucceeded": true
+  },
+  "errorCode": "0",
+  "errorDescription": null,
+  "isSuccess": true
+}

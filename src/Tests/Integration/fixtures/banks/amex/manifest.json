@@ -1,13 +1,13 @@
 {
-  "bankId": "isracard",
-  "originUrl": "https://digital.isracard.co.il",
+  "bankId": "amex",
+  "originUrl": "https://he.americanexpress.co.il",
   "startPhase": "INIT",
   "endPhase": "TERMINATE",
   "transitions": [
     {
       "phase": "INIT",
       "method": "GET",
-      "urlPattern": "https://www.isracard.co.il/",
+      "urlPattern": "https://www.americanexpress.co.il/",
       "resourceType": "document",
       "response": {
         "status": 200,
@@ -19,7 +19,7 @@
     {
       "phase": "HOME",
       "method": "GET",
-      "urlPattern": "https://digital.isracard.co.il/personalarea/Login/",
+      "urlPattern": "https://he.americanexpress.co.il/personalarea/login/",
       "resourceType": "document",
       "response": {
         "status": 200,
@@ -31,11 +31,11 @@
     {
       "phase": "PRE_LOGIN",
       "method": "POST",
-      "urlPattern": "/Login/api/LoginResendOtp",
+      "urlPattern": "/personalarea/login/",
       "response": {
         "status": 200,
         "contentType": "application/json",
-        "bodyFile": "responses/login-resend-otp.json"
+        "bodyFile": "responses/login-form-action.json"
       },
       "advanceTo": "LOGIN"
     },
@@ -52,24 +52,25 @@
     },
     {
       "phase": "AUTH_DISCOVERY",
-      "method": "POST",
-      "urlPattern": "DigitalV3.StatusPage/GetCardList",
+      "method": "GET",
+      "urlPattern": "https://he.americanexpress.co.il/personalarea/",
+      "resourceType": "document",
       "response": {
         "status": 200,
-        "contentType": "application/json",
-        "bodyFile": "responses/get-card-list.json"
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "08-account-resolve.html"
       },
       "advanceTo": "ACCOUNT_RESOLVE"
     },
     {
       "phase": "ACCOUNT_RESOLVE",
       "method": "GET",
-      "urlPattern": "https://digital.isracard.co.il/personalarea/NewAccountTransactions/",
+      "urlPattern": "https://he.americanexpress.co.il/personalarea/dashboard/",
       "resourceType": "document",
       "response": {
         "status": 200,
         "contentType": "text/html; charset=utf-8",
-        "bodyFile": "08-account-resolve.html"
+        "bodyFile": "09-dashboard.html"
       },
       "advanceTo": "DASHBOARD"
     },

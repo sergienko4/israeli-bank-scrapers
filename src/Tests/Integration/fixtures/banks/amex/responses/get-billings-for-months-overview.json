@@ -1,0 +1,22 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "provider": "americanexpress",
+    "shape": "GetBillingsForMonthsOverview-synthetic",
+    "purpose": "Mode B SIMULATOR DASHBOARD→SCRAPE transition body. AMEX dashboard month-overview endpoint `POST https://web.americanexpress.co.il/ocp/statuspage/DigitalV3.StatusPage/GetBillingsForMonthsOverview`. data is an array of {billingDate, isFinalBillingDate, billingAmounts:{billingAmountIls,billingAmountUsd,billingAmountEur}}. Values are zero placeholders."
+  },
+  "data": [
+    {
+      "billingDate": "01/2026",
+      "isFinalBillingDate": false,
+      "billingAmounts": {
+        "billingAmountIls": 0,
+        "billingAmountUsd": null,
+        "billingAmountEur": null
+      }
+    }
+  ],
+  "errorCode": "0",
+  "errorDescription": null,
+  "isSuccess": true
+}

@@ -16,20 +16,6 @@
 
 import type { IBankFixtureExpectations } from './FixtureExpectations.js';
 
-const ISRACARD_AMEX_LOBBY_STEPS = [
-  {
-    stepName: '02-pre-login',
-    requiredFormIds: ['otpLobbyFormSms'],
-    requiredInputIds: ['otpLoginId_SMS'],
-    revealText: 'או כניסה עם סיסמה קבועה',
-  },
-  {
-    stepName: '03-after-flip',
-    requiredFormIds: ['otpLobbyFormSms', 'otpLobbyFormPassword'],
-    requiredInputIds: ['otpLoginId_ID', 'otpLoginPwd'],
-  },
-] as const;
-
 const ISRACARD_PHASE_11_STEPS = [
   { stepName: '01-home' },
   {
@@ -51,6 +37,27 @@ const ISRACARD_PHASE_11_STEPS = [
   { stepName: '11-balance' },
 ] as const;
 
+const AMEX_PHASE_11_STEPS = [
+  { stepName: '01-home' },
+  {
+    stepName: '02-pre-login',
+    requiredFormIds: ['otpLobbyFormSms'],
+    requiredInputIds: ['otpLoginId_SMS'],
+    revealText: 'או כניסה עם סיסמה קבועה',
+  },
+  {
+    stepName: '03-after-flip',
+    requiredFormIds: ['otpLobbyFormSms', 'otpLobbyFormPassword'],
+    requiredInputIds: ['otpLoginId_ID', 'otpLoginPwd'],
+  },
+  { stepName: '04-login-action' },
+  { stepName: '07-auth-discovery' },
+  { stepName: '08-account-resolve' },
+  { stepName: '09-dashboard' },
+  { stepName: '10-scrape-transactions' },
+  { stepName: '11-balance' },
+] as const;
+
 const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'isracard',
@@ -62,11 +69,11 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   },
   {
     bankId: 'amex',
-    originUrl: 'https://digital.americanexpress.co.il',
+    originUrl: 'https://he.americanexpress.co.il',
     loginStep: '03-after-flip',
     loginFormId: 'otpLobbyFormPassword',
     requiresHydration: false,
-    steps: ISRACARD_AMEX_LOBBY_STEPS,
+    steps: AMEX_PHASE_11_STEPS,
   },
   {
     bankId: 'beinleumi',

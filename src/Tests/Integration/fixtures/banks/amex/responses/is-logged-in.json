@@ -1,0 +1,17 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "provider": "americanexpress",
+    "shape": "IsLoggedIn-synthetic",
+    "purpose": "Mode B SIMULATOR LOGIN→AUTH_DISCOVERY transition body. AMEX post-login probe `GET https://web.americanexpress.co.il/IsLoggedIn` confirms the session bridge. Values are synthetic placeholders; firstName/lastName/lastLogin are scrubbed shape-only sentinels (no PII)."
+  },
+  "data": {
+    "isLoggedIn": true,
+    "firstName": "FIXTURE-FIRST",
+    "lastName": "FIXTURE-LAST",
+    "lastLogin": "2026-01-01T00:00:00Z"
+  },
+  "errorCode": null,
+  "errorDescription": null,
+  "isSuccess": true
+}

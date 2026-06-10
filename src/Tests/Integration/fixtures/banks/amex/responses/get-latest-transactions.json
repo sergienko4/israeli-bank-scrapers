@@ -1,0 +1,25 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "provider": "americanexpress",
+    "shape": "GetLatestTransactions-synthetic",
+    "purpose": "Mode B SIMULATOR SCRAPE→TERMINATE transition body. AMEX per-card transactions endpoint `POST https://web.americanexpress.co.il/ocp/transactions/DigitalV3.Transactions/GetTransactionsList`. The `/ocp/statuspage/` widget variant is REJECTED by the production picker (ScrapeWK.ts:65-77: `transactionWidgets: [/\\/statuspage\\//i]`) because it truncates to a 5-record cap; only the `/ocp/transactions/` per-card API serves full history. data is an array of transactions; placeholder uses synthetic FIXTURE markers (no PII)."
+  },
+  "data": [
+    {
+      "cardIndex": 0,
+      "cardNumber": "FIXTURE-AMEX-A",
+      "transactions": [
+        {
+          "txnDate": "2026-01-01",
+          "txnAmount": 0,
+          "merchantName": "FIXTURE-MERCHANT",
+          "currency": "ILS"
+        }
+      ]
+    }
+  ],
+  "errorCode": "00",
+  "errorDescription": null,
+  "isSuccess": true
+}
