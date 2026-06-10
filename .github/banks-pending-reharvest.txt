@@ -18,7 +18,7 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (4) ──
+# ── Currently pending (5) ──
 # VisaCal     recipe gap: SPA hydration not complete at capture time.
 #             RESOLVED IN HARVESTER (waitForCredentialInput flag is
 #             wired into BANK_RECIPES.visaCal). Closure pending
@@ -39,3 +39,20 @@ pagi
 #
 # OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
 otsarHahayal
+#
+# Amex        iframe-cascade timeout in CI (NOT a credential-input gap).
+#             Captured 03-after-flip/main.html DOES have <input type="password">
+#             (so PR #335 C1 correctly unskipped it). HOWEVER the captured
+#             frames.json declares 9 cross-origin iframes (digital + delivery
+#             + sso + analytics) that MirrorInterceptor does NOT route.
+#             On a 16-core local box the cascade completes in ~49s; on the
+#             2-vCPU GitHub runner the cascade exceeds the 240s test ceiling
+#             (observed at run 27310470121 / job 80679158069). Same root
+#             cause that originally placed AMEX here in PR #322 + PR #331.
+#             Per operator binding rule "do not bump timeouts to hide
+#             SIMULATOR parity gaps", AMEX stays here until MirrorInterceptor
+#             is extended with per-frame routing (separate PR — significant
+#             work). AMEX still has FULL Phase-11 coverage via Mode A static
+#             drive + Mode B SIMULATOR drive — only the cross-bank
+#             LoginNavigation.mirror.test.ts is skipped.
+amex
