@@ -19,11 +19,6 @@
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
 # ── Currently pending (4) ──
-# Beinleumi   recipe gap: Angular form lives in iframe; harvester
-#             needs `wait-iframe-loaded` step + asset capture so the
-#             iframe contents become part of the captured DOM.
-beinleumi
-#
 # VisaCal     recipe gap: SPA hydration not complete at capture time.
 #             Harvester needs `wait-for-selector(input[type=password])`
 #             before dumping HTML so the form is rendered.

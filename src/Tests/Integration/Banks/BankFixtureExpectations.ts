@@ -133,12 +133,16 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'beinleumi',
     originUrl: 'https://www.fibi.co.il',
-    loginStep: '03-after-prelogin',
+    loginStep: '03-after-prelogin/frame-2',
     // Beinleumi renders the credential form inside an Angular-driven
-    // iframe post-JS — captured static HTML contains only the search
-    // input + sandboxed iframe shell. Drive test is skipped; structural
-    // assertions still gate the lobby shell + reveal-text invariants.
-    requiresHydration: true,
+    // iframe (name="loginFrame"). The harvester captures the iframe
+    // content as 03-after-prelogin/frame-2.html (51KB with full
+    // <input type="password"> + form structure). Point loginStep at
+    // the nested iframe HTML — MirrorInterceptor + FixturePage both
+    // resolve `${stepName}.html` so the iframe content is served as
+    // the main document at fibi.co.il for cross-bank discovery to
+    // operate on.
+    requiresHydration: false,
     steps: BEINLEUMI_PHASE_11_STEPS,
   },
   {
