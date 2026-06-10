@@ -1,0 +1,25 @@
+{
+  "purpose": "Synthetic stub mirroring the real VisaCal Authentication/api/account/init response shape (typed {result, statusDescription, statusTitle, statusCode, groupPid} envelope). Source: real-prod capture 0014-POST-...account_init.json. Endpoint POST https://api.cal-online.co.il/Authentication/api/account/init. All PII redacted to synthetic placeholders; values normalized — no real production names, emails, phone numbers, accounts, or customer IDs.",
+  "_envelope_shape": "VisaCal api.cal-online.co.il endpoints use typed envelope {result, statusDescription:'הצלחה', statusTitle:null, statusCode:1, groupPid:guid}. statusCode=1 means success in VisaCal API protocol.",
+  "result": {
+    "user": {
+      "firstName": "SYNTHETIC",
+      "lastName": "PLACEHOLDER",
+      "custFullName": "SYNTHETIC PLACEHOLDER",
+      "custExtId": "[redacted-id]",
+      "custExtTypeCode": "00",
+      "custIntrId": "0",
+      "is2FAIdentification": false,
+      "email": "[redacted-email]",
+      "cellularPhoneNumber": "000",
+      "custTypeInd": 0,
+      "userType": 0
+    },
+    "cards": [],
+    "bankAccounts": []
+  },
+  "statusDescription": "הצלחה",
+  "statusTitle": null,
+  "statusCode": 1,
+  "groupPid": "00000000-0000-0000-0000-000000000000"
+}

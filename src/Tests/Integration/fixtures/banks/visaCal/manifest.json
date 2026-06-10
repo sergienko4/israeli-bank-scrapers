@@ -1,0 +1,98 @@
+{
+  "bankId": "visaCal",
+  "originUrl": "https://www.cal-online.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.cal-online.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://www.cal-online.co.il/login",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-pre-login.html"
+      },
+      "advanceTo": "PRE_LOGIN"
+    },
+    {
+      "phase": "PRE_LOGIN",
+      "method": "POST",
+      "urlPattern": "https://connect.cal-online.co.il/col-rest/calconnect/authentication/login",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/login.json"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "GET",
+      "urlPattern": "https://connect.cal-online.co.il/col-rest/calconnect/authentication/auth",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/auth.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "POST",
+      "urlPattern": "https://api.cal-online.co.il/Authentication/api/account/init",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/account-init.json"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "POST",
+      "urlPattern": "https://api.cal-online.co.il/CalOnlineMetadata.API/api/Contents/GetCOLMetadata",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/get-col-metadata.json"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "https://api.cal-online.co.il/Transactions/api/financeDashboard/getMonthlyDebitsSummary",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/get-monthly-debits-summary.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/get-card-transactions-details.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

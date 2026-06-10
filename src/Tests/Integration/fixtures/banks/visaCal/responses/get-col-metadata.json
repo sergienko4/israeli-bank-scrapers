@@ -1,0 +1,15 @@
+{
+  "purpose": "Synthetic stub mirroring the real VisaCal CalOnlineMetadata.API/api/Contents/GetCOLMetadata response (typed envelope). Source: real-prod capture 0015-POST-...GetCOLMetadata.json. Endpoint POST https://api.cal-online.co.il/CalOnlineMetadata.API/api/Contents/GetCOLMetadata. Real response is large (~94KB-10KB depending on module). Synthetic stub returns minimal metadata sufficient for SIMULATOR routing — production scraper extracts `result.metadata.webCardLobby.*` shape, here we ship empty arrays to keep PII-free.",
+  "_envelope_shape": "Typed VisaCal API envelope (statusCode=1 means success). Same shape as account-init.json.",
+  "result": {
+    "metadata": {
+      "webCardLobby": {
+        "cardLobbyAction": []
+      }
+    }
+  },
+  "statusDescription": "הצלחה",
+  "statusTitle": null,
+  "statusCode": 1,
+  "groupPid": "00000000-0000-0000-0000-000000000000"
+}

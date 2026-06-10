@@ -137,7 +137,17 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     originUrl: 'https://www.cal-online.co.il',
     loginStep: '02-pre-login',
     requiresHydration: true,
-    steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
+    steps: [
+      { stepName: '01-home' },
+      { stepName: '02-pre-login' },
+      { stepName: '03-after-username' },
+      { stepName: '04-password-entered' },
+      { stepName: '07-auth-discovery' },
+      { stepName: '08-account-resolve' },
+      { stepName: '09-dashboard' },
+      { stepName: '10-scrape-transactions' },
+      { stepName: '11-balance' },
+    ],
   },
   {
     bankId: 'mercantile',
