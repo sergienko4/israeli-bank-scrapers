@@ -1,0 +1,11 @@
+{
+  "purpose": "Synthetic Beinleumi /api/v2/auth/identity response stub (Phase 11 Mode B SIMULATOR cross-validation). AUTH_DISCOVERY → ACCOUNT_RESOLVE transition. Status:'OK' envelope. NO PII — synthetic FIXTURE-BEINLEUMI userId.",
+  "data": {
+    "identity": {
+      "userId": "FIXTURE-BEINLEUMI-A",
+      "displayName": "FIXTURE-DISPLAY",
+      "loggedInAt": "2026-06-10T00:00:00Z"
+    }
+  },
+  "Status": "OK"
+}

@@ -1,0 +1,17 @@
+{
+  "purpose": "Synthetic Beinleumi /appsng/bff-balancetransactions/api/v1/transactions/list response stub (Phase 11 Mode B SIMULATOR cross-validation). SCRAPE → TERMINATE transition. Shape mirrors src/Tests/Unit/Pipeline/Mediator/Dashboard/Fixtures/CrossBank/beinleumi-transactions-list.json. NO PII — synthetic placeholder amounts (zeros), ISO dates, reference='0' (coerced to undefined by DedupKeyFieldsDetector).",
+  "returncode": null,
+  "errorMessage": null,
+  "accountType": 105,
+  "transactions": [
+    {
+      "dateOfRegistration": "2026-06-10T00:00:00Z",
+      "creditAmount": 0,
+      "debitAmount": 0,
+      "openingBalance": 0,
+      "closingBalance": 0,
+      "reference": "0"
+    }
+  ],
+  "pagingContext": null
+}

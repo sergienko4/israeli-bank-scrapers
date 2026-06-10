@@ -1,0 +1,121 @@
+{
+  "bankId": "beinleumi",
+  "originUrl": "https://www.fibi.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.fibi.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://online.fibi.co.il/login",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-modal-opened.html"
+      },
+      "advanceTo": "PRE_LOGIN"
+    },
+    {
+      "phase": "PRE_LOGIN",
+      "method": "POST",
+      "urlPattern": "/api/v2/auth/key_exchange",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/key-exchange.json"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "POST",
+      "urlPattern": "/api/v2/auth/login",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/login.json"
+      },
+      "advanceTo": "OTP_TRIGGER"
+    },
+    {
+      "phase": "OTP_TRIGGER",
+      "method": "POST",
+      "urlPattern": "/api/v2/auth/otp/send_sms",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/otp-trigger.json"
+      },
+      "advanceTo": "OTP_FILL"
+    },
+    {
+      "phase": "OTP_FILL",
+      "method": "POST",
+      "urlPattern": "/api/v2/auth/otp/verify",
+      "postData": { "shape": "json", "expectations": { "code": "123456" } },
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/otp-verify.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "GET",
+      "urlPattern": "/api/v2/auth/identity",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/identity.json"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "GET",
+      "urlPattern": "/api/accounts",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/accounts.json"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "GET",
+      "urlPattern": "/appsng/bff-balancetransactions/api/v1/dashboard/summary",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/dashboard-summary.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "/appsng/bff-balancetransactions/api/v1/transactions/list",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/transactions-list.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

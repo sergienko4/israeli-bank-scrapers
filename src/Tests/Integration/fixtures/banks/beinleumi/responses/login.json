@@ -1,0 +1,13 @@
+{
+  "purpose": "Synthetic Beinleumi /api/v2/auth/login response stub (Phase 11 Mode B SIMULATOR cross-validation). LOGIN → OTP_TRIGGER transition (Beinleumi is OTP-gated per BeinleumiPipeline.ts .withOtpTrigger().withOtpFill()). Envelope mirrors real Beinleumi auth shape. NO PII.",
+  "error_code": 0,
+  "error_message": "",
+  "data": "[ENCRYPTED-OPAQUE-BLOB]",
+  "headers": [
+    {
+      "crypto_session_id": "00000000-0000-0000-0000-000000000000",
+      "type": "encryption",
+      "iv": "[REDACTED-IV-PLACEHOLDER]"
+    }
+  ]
+}
