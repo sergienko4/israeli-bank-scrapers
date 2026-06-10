@@ -125,6 +125,11 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
       { stepName: '02-after-entry' },
       { stepName: '03-after-private' },
       { stepName: '04-reveal-password' },
+      { stepName: '07-auth-discovery' },
+      { stepName: '08-account-resolve' },
+      { stepName: '09-dashboard' },
+      { stepName: '10-scrape-transactions' },
+      { stepName: '11-balance' },
     ],
   },
   {

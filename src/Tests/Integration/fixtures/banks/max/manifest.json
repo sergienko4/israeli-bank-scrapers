@@ -1,0 +1,100 @@
+{
+  "bankId": "max",
+  "originUrl": "https://www.max.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.max.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://www.max.co.il/login",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-after-entry.html"
+      },
+      "advanceTo": "PRE_LOGIN"
+    },
+    {
+      "phase": "PRE_LOGIN",
+      "method": "POST",
+      "urlPattern": "/api/login/login",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/login.json"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "GET",
+      "urlPattern": "/api/configuration/getConfiguration",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/get-configuration.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "GET",
+      "urlPattern": "https://www.max.co.il/homepage/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "08-account-resolve.html"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "GET",
+      "urlPattern": "https://www.max.co.il/homepage/personal",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "09-dashboard.html"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "/api/contents/getCategories",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/get-categories.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "/api/registered/transactionDetails/getTransactionsAndGraphs",
+      "response": {
+        "status": 200,
+        "contentType": "application/json",
+        "bodyFile": "responses/get-transactions-and-graphs.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

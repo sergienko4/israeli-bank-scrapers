@@ -1,0 +1,16 @@
+{
+  "purpose": "MAX LOGIN→AUTH_DISCOVERY — session configuration probe after login form action. Synthetic envelope mirrors the upstream legacy MAX `/api/configuration/getConfiguration` GET, which returns runtime UI flags and locale settings. No branch-local production capture available for MAX (see login.json:purpose); this is a structural placeholder for the SIMULATOR transition contract, not a production parity capture.",
+  "result": {
+    "configuration": {
+      "language": "he",
+      "currency": "ILS",
+      "features": {
+        "transactionDetails": true,
+        "infoAndBalance": true
+      }
+    }
+  },
+  "isSuccess": true,
+  "returnCode": 0,
+  "error": null
+}

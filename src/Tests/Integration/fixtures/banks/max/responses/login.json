@@ -1,0 +1,14 @@
+{
+  "purpose": "MAX PRE_LOGIN→LOGIN — login form POST returns auth envelope. Envelope shape is synthetic and follows the legacy upstream MAX scraper convention (result + returnCode + error fields). No branch-local production network capture is available for MAX (C:/tmp/runs/pipeline/max is empty as of commit 23f4750c), so this fixture is a structural placeholder that exercises the SIMULATOR's transition contract — it is NOT a production parity capture. The URL `/api/login/login` matches PIPELINE_WELL_KNOWN_API.auth at ScrapeWK.ts:105 (the `/login/login` segment is the canonical MAX auth pattern, verified against the upstream legacy max.ts scraper).",
+  "result": {
+    "userInfo": {
+      "firstName": "FIXTURE",
+      "lastName": "USER",
+      "displayName": "FIXTURE USER"
+    },
+    "sessionToken": "FIXTURE-MAX-SESSION-A",
+    "sessionExpires": "2026-01-01T01:00:00Z"
+  },
+  "returnCode": 0,
+  "error": null
+}
