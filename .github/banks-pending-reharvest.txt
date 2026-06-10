@@ -20,8 +20,13 @@
 #
 # ── Currently pending (4) ──
 # VisaCal     recipe gap: SPA hydration not complete at capture time.
-#             Harvester needs `wait-for-selector(input[type=password])`
-#             before dumping HTML so the form is rendered.
+#             RESOLVED IN HARVESTER (waitForCredentialInput flag is
+#             wired into BANK_RECIPES.visaCal). Closure pending
+#             operator re-harvest:
+#               npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts visaCal
+#             After fresh capture has <input type="password"> in
+#             02-pre-login.html, flip BankFixtureExpectations.ts
+#             visaCal requiresHydration → false and remove this entry.
 visaCal
 #
 # Massad      recipe gap: login form has a tab/accordion-toggle UI

@@ -432,3 +432,4 @@ export {
   executeWaitForStep,
   STEP_EXECUTORS,
 };
+export { waitForCredentialInputIfNeeded } from './HarvestWaitHelpers.js';

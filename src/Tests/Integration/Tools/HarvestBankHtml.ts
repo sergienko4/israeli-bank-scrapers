@@ -53,6 +53,7 @@ import {
   executeHarvestStep,
   type IStepExecutorArgs,
   type IStepExecutorResult,
+  waitForCredentialInputIfNeeded,
 } from './HarvestStepExecutors.js';
 import {
   dumpManifestTrafficIfMode,
@@ -324,7 +325,7 @@ interface IStepExecutionResult {
 }
 
 /**
- * Navigate + reveal + settle, returning the captured frame snapshot.
+ * Navigate + reveal + (optional) wait-for-credential-input + capture.
  * Extracted to keep {@link executeRecipeStep} under the 10-line cap.
  * @param args - Step execution args (page + step + fixture root).
  * @returns Captured snapshot of all frames at the post-settle state.
@@ -334,6 +335,7 @@ async function navigateRevealCapture(args: IStepExecutionArgs): Promise<ICapture
   const stepReveal = args.step.revealText ?? '';
   await navigateIfNeeded(args.page, stepUrl);
   await revealIfNeeded(args.page, stepReveal);
+  await waitForCredentialInputIfNeeded(args.page, args.step.waitForCredentialInput);
   return captureFrames(args.page);
 }
 

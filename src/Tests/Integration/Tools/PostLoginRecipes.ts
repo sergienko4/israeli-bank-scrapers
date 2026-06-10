@@ -300,6 +300,17 @@ interface IRecipeStep {
   readonly url?: string;
   /** Visible text of an element to click after navigation (REVEAL action). */
   readonly revealText?: string;
+  /**
+   * Wait for a credential `<input type="password">` to render before
+   * snapshotting. SPA banks (e.g. VisaCal Angular shell) may snapshot
+   * before bootstrap completes — flipping this true makes the
+   * harvester block until the credential form is in the DOM.
+   *
+   * <p>Consumes the structural-selector exception in CLAUDE.md
+   * (frame detection via `input[type="password"]`). Has NO effect at
+   * runtime in production scrapers — harvester-only wiring.
+   */
+  readonly waitForCredentialInput?: true;
 }
 
 /** Pre-login capture recipe (steps only). bankId derived from map key. */
@@ -393,7 +404,7 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
   visaCal: {
     steps: [
       { stepName: '01-home', url: 'https://www.cal-online.co.il' },
-      { stepName: '02-pre-login', revealText: 'כניסה לחשבונך' },
+      { stepName: '02-pre-login', revealText: 'כניסה לחשבונך', waitForCredentialInput: true },
     ],
   },
 };
