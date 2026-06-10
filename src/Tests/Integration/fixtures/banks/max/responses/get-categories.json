@@ -1,0 +1,12 @@
+{
+  "purpose": "MAX DASHBOARD→SCRAPE — categories load. Mirrors the upstream legacy `loadCategories` step (POST `/api/contents/getCategories`) that the MAX dashboard issues to populate transaction filters. Synthetic envelope — no branch-local production capture available for MAX (see login.json:purpose). NOTE: this endpoint is AUXILIARY (categories metadata, not transactions) and is NOT in PIPELINE_WELL_KNOWN_API.transactions — by design. The actual transactions list arrives at the SCRAPE→TERMINATE step via `getTransactionsAndGraphs`, which DOES match the WK pattern `/TransactionsAndGraphs/i` (ScrapeWK.ts:35).",
+  "result": {
+    "categories": [
+      { "id": 1, "name": "FIXTURE-CATEGORY-A" },
+      { "id": 2, "name": "FIXTURE-CATEGORY-B" }
+    ]
+  },
+  "isSuccess": true,
+  "returnCode": 0,
+  "error": null
+}

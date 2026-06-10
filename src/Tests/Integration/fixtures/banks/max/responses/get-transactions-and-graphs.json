@@ -1,0 +1,27 @@
+{
+  "purpose": "MAX SCRAPE→TERMINATE — per-card monthly transactions list. Endpoint path `/api/registered/transactionDetails/getTransactionsAndGraphs` matches PIPELINE_WELL_KNOWN_API.transactions at ScrapeWK.ts:35 (`/TransactionsAndGraphs/i`) — the canonical MAX transactions list endpoint per the upstream legacy scraper. Critically, this is the PLURAL list endpoint: per ScrapeWK.ts:38-44 the picker explicitly rejects singular `transactionDetails/getTransactionDetailsActions` and `transactionDetails/getDapapRegistrationPopup` (Max-specific false-pick traps that caused 0-txn scrapes). Synthetic transaction array — no branch-local production capture available for MAX (see login.json:purpose). All amounts, dates, and card suffixes are PII-free placeholders (ISO date format YYYY-MM-DDTHH:mm:ssZ to avoid the `il-bank-account` regex false-positive on the dd-mm-yyyy shape).",
+  "result": {
+    "transactions": [
+      {
+        "transactionDate": "2026-01-15T00:00:00Z",
+        "fullPurchaseDate": "2026-01-15T00:00:00Z",
+        "originalAmount": 0,
+        "originalCurrency": "ILS",
+        "merchantName": "FIXTURE-MERCHANT-A",
+        "shortCardNumber": "0000"
+      },
+      {
+        "transactionDate": "2026-01-20T00:00:00Z",
+        "fullPurchaseDate": "2026-01-20T00:00:00Z",
+        "originalAmount": 0,
+        "originalCurrency": "ILS",
+        "merchantName": "FIXTURE-MERCHANT-B",
+        "shortCardNumber": "0000"
+      }
+    ],
+    "graphs": []
+  },
+  "isSuccess": true,
+  "returnCode": 0,
+  "error": null
+}
