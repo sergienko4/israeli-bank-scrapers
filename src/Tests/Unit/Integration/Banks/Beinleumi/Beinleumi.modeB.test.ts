@@ -488,16 +488,21 @@ function buildScriptedRequest(step: IScriptedStep, nonce: INonceCarrier): Reques
 
 /**
  * Parse the `integ_otp_challenge` nonce out of a Set-Cookie header line.
+ * Defensively matches the cookie BY NAME rather than positionally so a
+ * header like `foo=bar; integ_otp_challenge=<nonce>` (or comma-merged
+ * multi-cookie shape Playwright sometimes returns) is handled correctly.
  * Returns empty string when no challenge cookie is present.
  * @param setCookieHeader - Raw set-cookie header value.
  * @returns Extracted nonce or empty string.
  */
 function parseChallengeNonce(setCookieHeader: string): string {
-  if (!setCookieHeader.includes(`${OTP_CHALLENGE_COOKIE}=`)) return '';
-  const firstSegment = setCookieHeader.split(';')[0];
-  const eqIdx = firstSegment.indexOf('=');
-  if (eqIdx < 0) return '';
-  return firstSegment.slice(eqIdx + 1);
+  const needle = `${OTP_CHALLENGE_COOKIE}=`;
+  for (const cookie of setCookieHeader.split(/,(?=[^;]+?=)/)) {
+    const firstSegment = cookie.trim().split(';')[0];
+    if (!firstSegment.startsWith(needle)) continue;
+    return firstSegment.slice(needle.length);
+  }
+  return '';
 }
 
 /**
