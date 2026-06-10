@@ -1,0 +1,18 @@
+{
+  "purpose": "Synthetic stub mirroring the real VisaCal Transactions/api/financeDashboard/getMonthlyDebitsSummary response (typed envelope). Source: real-prod capture 0018-POST-...getMonthlyDebitsSummary.json. Endpoint POST https://api.cal-online.co.il/Transactions/api/financeDashboard/getMonthlyDebitsSummary. POST_BODY includes bankAccountUniqueId — synthetic placeholder used. Used during DASHBOARD phase to seed the SIMULATOR's account-summary state before SCRAPE transitions fire. Includes minimal `result.bigNumbers[]` shape since production's BillingCycleCatalogShapes.ts discovers billing cycles from that field — providing realistic envelope structure for production parser cross-validation when this fixture is consumed by future end-to-end Mode B replays.",
+  "_envelope_shape": "Typed VisaCal API envelope (statusCode=1 means success). Same shape as account-init.json. statusDescription='הצלחה' (Hebrew 'success') matches real captured wire format.",
+  "result": {
+    "bankAccounts": [],
+    "bigNumbers": [
+      {
+        "debitDate": "2026-01-01T00:00:00Z",
+        "prevDebitDate": "2025-12-01T00:00:00Z",
+        "totalDebit": 0
+      }
+    ]
+  },
+  "statusDescription": "הצלחה",
+  "statusTitle": null,
+  "statusCode": 1,
+  "groupPid": "00000000-0000-0000-0000-000000000000"
+}
