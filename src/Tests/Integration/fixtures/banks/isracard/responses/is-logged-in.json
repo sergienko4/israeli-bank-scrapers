@@ -1,0 +1,16 @@
+{
+  "_fixture": {
+    "bank": "isracard",
+    "shape": "IsLoggedIn-synthetic",
+    "purpose": "Mode B SIMULATOR LOGIN→AUTH_DISCOVERY transition body. Isracard post-login probe `GET https://web.isracard.co.il/IsLoggedIn` confirms the session bridge. Values are synthetic placeholders (no PII). Legacy ProxyRequestHandler.ashx?reqName=getUserData is dropped at ResponseParser per ScrapeWK.ts:78-85 and never used by the modern pipeline."
+  },
+  "data": {
+    "isLoggedIn": true,
+    "firstName": "FIXTURE-FIRST",
+    "lastName": "FIXTURE-LAST",
+    "lastLogin": "2026-01-01T00:00:00Z"
+  },
+  "errorCode": null,
+  "errorDescription": null,
+  "isSuccess": true
+}
