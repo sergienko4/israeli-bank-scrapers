@@ -1,0 +1,13 @@
+{
+  "purpose": "Synthetic Beinleumi /api/v2/auth/key_exchange response stub (Phase 11 Mode B SIMULATOR cross-validation). PRE_LOGIN → LOGIN transition. Envelope mirrors real Beinleumi auth shape: error_code=0 for success, opaque encrypted data blob, headers array with crypto_session_id placeholder + IV placeholder. NO PII — fully synthetic UUID zero-fill + redacted-iv placeholder.",
+  "error_code": 0,
+  "error_message": "",
+  "data": "[ENCRYPTED-OPAQUE-BLOB]",
+  "headers": [
+    {
+      "crypto_session_id": "00000000-0000-0000-0000-000000000000",
+      "type": "encryption",
+      "iv": "[REDACTED-IV-PLACEHOLDER]"
+    }
+  ]
+}

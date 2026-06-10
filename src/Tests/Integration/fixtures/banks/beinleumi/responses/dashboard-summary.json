@@ -1,0 +1,9 @@
+{
+  "purpose": "Synthetic Beinleumi /appsng/bff-balancetransactions/api/v1/dashboard/summary response stub (Phase 11 Mode B SIMULATOR cross-validation). DASHBOARD → SCRAPE transition. NO PII — zero placeholder amounts.",
+  "returncode": 0,
+  "errorMessage": null,
+  "summary": {
+    "totalBalance": 0,
+    "currency": "ILS"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "purpose": "Synthetic Beinleumi /api/accounts response stub (Phase 11 Mode B SIMULATOR cross-validation). ACCOUNT_RESOLVE → DASHBOARD transition. Shape mirrors src/Tests/Unit/Pipeline/Mediator/AccountResolve/Fixtures/CrossBank/beinleumi-accounts-good.json. NO PII — uses Hapoalim-style 00-00-XXXXXX zero placeholder excluded by audit-fixtures-pii.cjs false-positive guard.",
+  "data": {
+    "accounts": [
+      {
+        "accountId": "FIXTURE-BEINLEUMI-A",
+        "accountNumber": "00-00-000000",
+        "branchNumber": "000",
+        "displayName": "FIXTURE-DISPLAY"
+      }
+    ]
+  },
+  "Status": "OK"
+}

@@ -1,0 +1,13 @@
+{
+  "purpose": "Synthetic Beinleumi /api/v2/auth/otp/verify response stub (Phase 11 Mode B SIMULATOR cross-validation). OTP_FILL → AUTH_DISCOVERY transition. Simulator enforces postData.expectations.code === '123456' (DEFAULT_TEST_OTP_CODE) AND nonce echoed in Cookie or x-integ-otp-challenge header — see MirrorSimulator.enforceOtpSubmission. NO PII.",
+  "error_code": 0,
+  "error_message": "",
+  "data": "[ENCRYPTED-OPAQUE-BLOB]",
+  "headers": [
+    {
+      "crypto_session_id": "00000000-0000-0000-0000-000000000000",
+      "type": "encryption",
+      "iv": "[REDACTED-IV-PLACEHOLDER]"
+    }
+  ]
+}

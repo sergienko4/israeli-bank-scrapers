@@ -70,6 +70,49 @@ const VISACAL_PHASE_11_STEPS = [
   { stepName: '11-balance' },
 ] as const;
 
+/**
+ * Beinleumi Phase-11 step inventory — distinct from MAX / AMEX /
+ * Isracard / VisaCal / Hapoalim:
+ * <ul>
+ *   <li>`02-modal-opened` + `03-after-prelogin` are Beinleumi-distinct
+ *       (real-captured Angular-iframe lobby, NOT the SMS / password
+ *       flip shared by Isracard / AMEX).</li>
+ *   <li>`05-otp-trigger` + `06-otp-fill` are the FIRST occurrence of
+ *       explicit OTP phases in the Phase-11 series — Beinleumi is
+ *       OTP-gated per `BeinleumiPipeline.ts`
+ *       (`.withOtpTrigger().withOtpFill()`); Hapoalim's Mode B
+ *       COLLAPSES OTP into a single LOGIN→AUTH_DISCOVERY transition;
+ *       MAX / AMEX / Isracard / VisaCal / Discount are password-only
+ *       (no OTP leg at all).</li>
+ *   <li>`10-scrape-transactions` is named after Beinleumi's
+ *       `bff-balancetransactions/api/v1/transactions/list` BFF
+ *       endpoint, NOT MAX's `getTransactionsAndGraphs` or AMEX's
+ *       `CardsTransactionsList`.</li>
+ * </ul>
+ * Beinleumi retains `requiresHydration: true` because the captured
+ * static lobby HTML alone is insufficient to drive LOGIN PRE
+ * discovery (form is rendered inside an Angular-driven iframe
+ * post-JS). Mode A marker checks + Mode B SIMULATOR state-machine
+ * are orthogonal to that harvester gap.
+ */
+const BEINLEUMI_PHASE_11_STEPS = [
+  { stepName: '01-home' },
+  { stepName: '02-modal-opened', revealText: 'כניסה עם סיסמה' },
+  {
+    stepName: '03-after-prelogin',
+    requiredInputIds: [],
+    requiredFormIds: [],
+  },
+  { stepName: '04-login-action' },
+  { stepName: '05-otp-trigger' },
+  { stepName: '06-otp-fill' },
+  { stepName: '07-auth-discovery' },
+  { stepName: '08-account-resolve' },
+  { stepName: '09-dashboard' },
+  { stepName: '10-scrape-transactions' },
+  { stepName: '11-balance' },
+] as const;
+
 const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'isracard',
@@ -96,15 +139,7 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     // input + sandboxed iframe shell. Drive test is skipped; structural
     // assertions still gate the lobby shell + reveal-text invariants.
     requiresHydration: true,
-    steps: [
-      { stepName: '01-home' },
-      { stepName: '02-modal-opened', revealText: 'כניסה עם סיסמה' },
-      {
-        stepName: '03-after-prelogin',
-        requiredInputIds: [],
-        requiredFormIds: [],
-      },
-    ],
+    steps: BEINLEUMI_PHASE_11_STEPS,
   },
   {
     bankId: 'hapoalim',
