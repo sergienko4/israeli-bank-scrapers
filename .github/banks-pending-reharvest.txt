@@ -18,16 +18,7 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (5) ──
-# VisaCal     recipe gap: SPA hydration not complete at capture time.
-#             RESOLVED IN HARVESTER (waitForCredentialInput flag is
-#             wired into BANK_RECIPES.visaCal). Closure pending
-#             operator re-harvest:
-#               npx tsx src/Tests/Integration/Tools/HarvestBankHtml.ts visaCal
-#             After fresh capture has <input type="password"> in
-#             02-pre-login.html, flip BankFixtureExpectations.ts
-#             visaCal requiresHydration → false and remove this entry.
-visaCal
+# ── Currently pending (3) ──
 #
 # Massad      recipe gap: login form has a tab/accordion-toggle UI
 #             that reveals the password tab only after click. Harvester
@@ -40,19 +31,16 @@ pagi
 # OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
 otsarHahayal
 #
-# Amex        iframe-cascade timeout in CI (NOT a credential-input gap).
-#             Captured 03-after-flip/main.html DOES have <input type="password">
-#             (so PR #335 C1 correctly unskipped it). HOWEVER the captured
-#             frames.json declares 9 cross-origin iframes (digital + delivery
-#             + sso + analytics) that MirrorInterceptor does NOT route.
-#             On a 16-core local box the cascade completes in ~49s; on the
-#             2-vCPU GitHub runner the cascade exceeds the 240s test ceiling
-#             (observed at run 27310470121 / job 80679158069). Same root
-#             cause that originally placed AMEX here in PR #322 + PR #331.
-#             Per operator binding rule "do not bump timeouts to hide
-#             SIMULATOR parity gaps", AMEX stays here until MirrorInterceptor
-#             is extended with per-frame routing (separate PR — significant
-#             work). AMEX still has FULL Phase-11 coverage via Mode A static
-#             drive + Mode B SIMULATOR drive — only the cross-bank
-#             LoginNavigation.mirror.test.ts is skipped.
-amex
+# ── Resolved (kept for traceability) ──
+# visaCal     RESOLVED in PR #335 C7: harvester gained frame-aware reveal
+#             (clickRevealAnyFrame) + 3-step recipe (01-home + 02-pre-login
+#             + 03-username-tab clicks "כניסה עם שם משתמש" tab); MirrorInterceptor
+#             gained iframe routing (loadFrameRoutes serves per-frame HTML from
+#             frames.json). Password form lives inside the
+#             connect.cal-online.co.il/regular-login iframe.
+#
+# Amex        RESOLVED in PR #335 C8: MirrorInterceptor iframe routing now
+#             serves AMEX's 9 cross-origin iframes from captured frame-N.html
+#             files. Production resolver can reach SSO + personalarea iframes
+#             without crossing into the real network.
+

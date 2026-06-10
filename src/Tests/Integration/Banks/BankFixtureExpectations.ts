@@ -187,8 +187,18 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'visaCal',
     originUrl: 'https://www.cal-online.co.il',
-    loginStep: '02-pre-login',
-    requiresHydration: true,
+    // VisaCal moved to OTP-first UX; password login lives in the
+    // alternative tab "כניסה עם שם משתמש" which renders the form
+    // inside an iframe pointing at connect.cal-online.co.il/regular-login.
+    // The harvester captures that iframe content as
+    // 03-username-tab/frame-9.html (66KB with full <input type="password">
+    // + <input formcontrolname="userName">). Point loginStep at the
+    // nested iframe HTML so MirrorInterceptor + FixturePage serve the
+    // hydrated credential form as the main document at www.cal-online.co.il
+    // for cross-bank discovery to operate on (mirrors the Beinleumi
+    // 03-after-prelogin/frame-2 pattern).
+    loginStep: '03-username-tab/frame-9',
+    requiresHydration: false,
     steps: VISACAL_PHASE_11_STEPS,
   },
   {

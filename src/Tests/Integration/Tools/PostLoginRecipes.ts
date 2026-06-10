@@ -404,7 +404,12 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
   visaCal: {
     steps: [
       { stepName: '01-home', url: 'https://www.cal-online.co.il' },
-      { stepName: '02-pre-login', revealText: 'כניסה לחשבונך', waitForCredentialInput: true },
+      { stepName: '02-pre-login', revealText: 'כניסה לחשבון' },
+      {
+        stepName: '03-username-tab',
+        revealText: 'כניסה עם שם משתמש',
+        waitForCredentialInput: true,
+      },
     ],
   },
 };

@@ -50,6 +50,7 @@ import BANK_LOGIN_CONFIGS from '../Banks/BankLoginConfigs.js';
 import type { BankCredentials } from './CredentialLoader.js';
 import { hasCredentials, loadCredentials } from './CredentialLoader.js';
 import {
+  clickRevealAnyFrame,
   executeHarvestStep,
   type IStepExecutorArgs,
   type IStepExecutorResult,
@@ -295,8 +296,7 @@ async function navigateIfNeeded(page: Page, url: string): Promise<boolean> {
  */
 async function revealIfNeeded(page: Page, revealText: string): Promise<boolean> {
   if (revealText === '') return false;
-  const reveal = page.getByText(revealText, { exact: false }).first();
-  await reveal.click({ timeout: PAGE_GOTO_TIMEOUT_MS });
+  await clickRevealAnyFrame(page, revealText, PAGE_GOTO_TIMEOUT_MS);
   await wait(SETTLE_AFTER_REVEAL_MS);
   return true;
 }
