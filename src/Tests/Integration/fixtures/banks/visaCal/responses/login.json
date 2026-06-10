@@ -1,0 +1,7 @@
+{
+  "purpose": "Synthetic stub mirroring the real VisaCal authentication/login response shape (bare token JSON, NO envelope wrapper). Source: real-prod capture C:/tmp/runs/pipeline/visacal/07-06-2026_18284431/network/login-POST/0001-POST-...login.json. Endpoint POST https://connect.cal-online.co.il/col-rest/calconnect/authentication/login. All values are obviously synthetic placeholders — no production credentials, JWTs, or session data.",
+  "_distinct_from_other_banks": "VisaCal col-rest auth endpoint returns bare {token,hash,innerLoginType} — NOT the typed {result,statusDescription,statusCode,groupPid} envelope used by api.cal-online.co.il endpoints, NOT MAX's {result,isSuccess,returnCode,error}, NOT AMEX SOAP wrapper, NOT Isracard flat {Status,data}.",
+  "token": "SYNTHETIC_PLACEHOLDER_TOKEN_PHASE_11_STUB",
+  "hash": null,
+  "innerLoginType": 0
+}

@@ -1,0 +1,34 @@
+{
+  "purpose": "Synthetic stub mirroring the real VisaCal Transactions/api/transactionsDetails/getCardTransactionsDetails response (typed envelope). Source: real-prod capture 0026-POST-...getCardTransactionsDetails.json (~75 calls in real session — one per card per month). Endpoint POST https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails. This is the canonical SCRAPE endpoint per ScrapeWK.ts:44 /transactionsDetails/i pattern + ScrapeWK.ts:128/137 apiPrefix='/Transactions/api'. Synthetic stub returns ONE single card-month block (single fixture per phase pattern, matching AMEX/Isracard/MAX precedent). All monetary values are 0 (PII-safe per json-monetary-field whitelist), all dates are ISO format.",
+  "_envelope_shape": "Typed VisaCal API envelope (statusCode=1 means success). Same shape as account-init.json.",
+  "_field_signatures_for_scrape_parser": "Includes bankAccountUniqueId per ScrapeIdFields.ts:13-14 lowercase-d convention. Transaction signature: {transactionDate, originalAmount, chargedAmount, merchantName, description}.",
+  "result": {
+    "bankAccounts": [
+      {
+        "bankAccountUniqueId": "synthetic-account-id-00000000",
+        "cards": [
+          {
+            "cardUniqueId": "synthetic-card-id-00000000",
+            "transactions": [
+              {
+                "transactionId": "synthetic-txn-id-00000001",
+                "transactionDate": "2026-01-01T00:00:00Z",
+                "purchaseDate": "2026-01-01T00:00:00Z",
+                "originalAmount": 0,
+                "chargedAmount": 0,
+                "originalCurrencyCode": "ILS",
+                "chargedCurrencyCode": "ILS",
+                "merchantName": "SYNTHETIC PLACEHOLDER MERCHANT",
+                "description": "Phase-11 SIMULATOR synthetic transaction"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "statusDescription": "הצלחה",
+  "statusTitle": null,
+  "statusCode": 1,
+  "groupPid": "00000000-0000-0000-0000-000000000000"
+}
