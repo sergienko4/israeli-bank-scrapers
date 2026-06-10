@@ -18,7 +18,7 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (6) ──
+# ── Currently pending (4) ──
 # Beinleumi   recipe gap: Angular form lives in iframe; harvester
 #             needs `wait-iframe-loaded` step + asset capture so the
 #             iframe contents become part of the captured DOM.
@@ -39,17 +39,3 @@ pagi
 #
 # OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
 otsarHahayal
-#
-# Amex        Mirror simulator parity gap: 9 cross-origin iframes in
-#             captured 03-after-flip HTML (440KB). MirrorInterceptor
-#             only routes the top-level page. On slower CI runners,
-#             iframe-load cascading causes browser corruption that
-#             timed out 5 other banks in PR #331 (1005s total vs 45s
-#             baseline). Locally completes in 49s on 16-core; CI
-#             cannot absorb the iframe load. AMEX retains FULL
-#             coverage via Mode A (static drive) + Mode B SIMULATOR
-#             (state-machine; src/Tests/Unit/Integration/Banks/Amex/
-#             Amex.modeB.test.ts). Mirror cross-bank single-step
-#             replay is the OPTIONAL sanity check; AMEX inclusion
-#             requires MirrorInterceptor iframe support (future PR).
-amex
