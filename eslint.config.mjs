@@ -1121,6 +1121,25 @@ export default tseslint.config(
     },
   },
 
+  // 7d. TIMING DOMAIN MODULES — DEFAULT-EXPORT EXEMPTION (Phase 12b)
+  //
+  // Phase 12b (v8.5) split the former 481-LoC
+  // `Mediator/Timing/TimingConfig.ts` hub into 13 per-phase domain
+  // files (`HomeTimingConfig.ts`, `OtpTimingConfig.ts`, ...). Some
+  // phases own exactly one budget — `TerminateTimingConfig.ts` only
+  // exposes `TERMINATE_CLEANUP_BUDGET_MS`. Forcing those modules to
+  // `export default` would require every importer to bind a local
+  // alias and break the byte-identical public surface that the
+  // {@link "./Mediator/Timing/TimingConfig.js"} barrel preserves for
+  // the v8.5 release window. Narrow scope: timing files only — every
+  // other Mediator module still enforces the global rule.
+  {
+    files: ['src/Scrapers/Pipeline/Mediator/Timing/**/*TimingConfig.ts'],
+    rules: {
+      'import-x/prefer-default-export': 'off',
+    },
+  },
+
   // 8. PHASE ROOT GUARD (THE FINAL CHECK)
   {
     files: ['src/Scrapers/Pipeline/Phases/*.ts'],

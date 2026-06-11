@@ -835,14 +835,19 @@ describe('Mission 3 — R-OTP-FILL-SEAL: OTP-FILL imports nothing from Dashboard
  * <p>Allowlist: `ActionExecutors.ts` (`CLICK_TIMEOUT_MS` — Playwright
  * auto-wait), `SelectorResolverConfig.ts` (`CANDIDATE_TIMEOUT_MS` —
  * per-locator), `ElementsInteractionConfig.ts`
- * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe), and
- * `Timing/TimingConfig.ts` (the centralized owner).
+ * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe), and the entire
+ * `Mediator/Timing/` directory — the centralised timing-budget owner.
+ * Phase 12b (2026-06) split the original monolithic `TimingConfig.ts`
+ * into 13 per-phase domain files; the allowlist now matches the whole
+ * directory so the per-domain split is structural (not a behaviour
+ * change) and the rule remains a tight perimeter around the rest of
+ * `Mediator/`.
  */
 const FIXED_WAIT_15S_ALLOWLIST: readonly string[] = [
   path.join('Mediator', 'Elements', 'ActionExecutors.ts'),
   path.join('Mediator', 'Selector', 'SelectorResolverConfig.ts'),
   path.join('Mediator', 'Elements', 'ElementsInteractionConfig.ts'),
-  path.join('Mediator', 'Timing', 'TimingConfig.ts'),
+  path.join('Mediator', 'Timing'),
 ];
 
 /**
