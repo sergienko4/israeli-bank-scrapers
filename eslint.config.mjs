@@ -1140,23 +1140,6 @@ export default tseslint.config(
     },
   },
 
-  // 7e. PHASES/BASE HELPER MODULES — DEFAULT-EXPORT EXEMPTION (Phase 12b)
-  //
-  // Phase 12b sub-step 3/4 extracted the module-private helpers out
-  // of the 633-LoC `Types/BasePhase.ts` hub into five sibling files
-  // under `Phases/Base/`. `BootstrapContextBuilder.ts` exposes
-  // exactly one symbol (`buildBootstrapContext`); forcing it to a
-  // default export would require its single consumer
-  // (`ActionContextBuilder.ts`) to bind a local alias and obscure
-  // call-site readability for no payoff. Same rationale as §7c and
-  // §7d; same narrow scope.
-  {
-    files: ['src/Scrapers/Pipeline/Phases/Base/**/*.ts'],
-    rules: {
-      'import-x/prefer-default-export': 'off',
-    },
-  },
-
   // 8. PHASE ROOT GUARD (THE FINAL CHECK)
   {
     files: ['src/Scrapers/Pipeline/Phases/*.ts'],
@@ -2436,31 +2419,47 @@ export default tseslint.config(
 
   // 19.3a GRANDFATHER — Pipeline/Phases/Base (Phase 12b — BasePhase migration target).
   //   Phase 12b decoupled the mislabeled 633-LoC `Pipeline/Types/BasePhase.ts`
-  //   hub: the BasePhase abstract class + its 10 helper functions move into
+  //   hub: the BasePhase abstract class + its helper functions move into
   //   their semantically correct sibling location, `Pipeline/Phases/Base/`,
   //   leaving `Types/BasePhase.ts` as a thin re-export shim for the v8.5
-  //   release window. Four helpers — `buildBootstrapContext` (~26 LoC),
-  //   `buildActionContext` (~27 LoC), `runAction` (~23 LoC), and
-  //   `takePhaseScreenshot` (~22 LoC) — exceed §19.3's 15/10 cap because
-  //   they orchestrate multi-slice state (executor + balance + URL +
-  //   forensics) that cannot be split without leaking the class's private
-  //   contract. The temporary 30/20 cap mirrors §19.2 (Pipeline/Types/**)
-  //   so the move is byte-for-byte preserving — Phase 13 will drain the
-  //   helpers back to canonical 10/10 once the post-`extractActionMediator`
-  //   handoff slot lets `buildActionContext` collapse. The whole-file
-  //   `max-lines` cap is OFF because `BasePhase.ts` itself carries
-  //   the abstract Template Method runtime (~220 effective LoC across
-  //   `run` + `runPre`/`runAction`/`runPost`/`runFinal` + `takePhaseScreenshot`)
-  //   — splitting the class body across files would either expose the
-  //   private stage runners as module-level helpers (breaking
-  //   encapsulation) or require a mixin that the TypeScript compiler
-  //   could no longer flow-narrow across stages. Same `max-lines: off`
-  //   precedent that §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
+  //   release window. Three helpers — `buildBootstrapContext` (~26 LoC)
+  //   and `buildActionContext` (~27 LoC) in ActionContextBuilder.ts, plus
+  //   `runAction` (~23 LoC) and `takePhaseScreenshot` (~22 LoC) in
+  //   BasePhase.ts — exceed §19.3's 15/10 cap because they orchestrate
+  //   multi-slice state (executor + balance + URL + forensics) that cannot
+  //   be split without leaking the class's private contract. The temporary
+  //   30/20 cap mirrors §19.2 (Pipeline/Types/**) so the move is
+  //   byte-for-byte preserving.
+  //
+  //   SCOPE NARROWED (CR PR #338): the block ONLY covers the two existing
+  //   debt files (BasePhase.ts + ActionContextBuilder.ts) — not the whole
+  //   `Phases/Base/**` directory — so any FUTURE file added under
+  //   `Phases/Base/` still enforces §19.3's strict 15/10 cap, in keeping
+  //   with the "grandfather existing debt, don't weaken future code" rule.
+  //   Phase 13 will drain `buildActionContext` to ≤10 LoC and remove the
+  //   ActionContextBuilder.ts entry from this block once the
+  //   post-`extractActionMediator` handoff slot lets it collapse;
+  //   BasePhase.ts entry stays until the abstract Template Method runtime
+  //   can be split without exposing private stage runners.
+  //
   //   Flat-config is last-wins, so this block MUST appear after §19.3.
   {
-    files: ['src/Scrapers/Pipeline/Phases/Base/**/*.ts'],
+    files: ['src/Scrapers/Pipeline/Phases/Base/BasePhase.ts'],
     rules: {
+      // BasePhase.ts is 422 LoC — Template Method abstract class. Same
+      // `max-lines: off` precedent that §7 grants to
+      // `Pipeline/{Mediator,Strategy,Types}/**`.
       'max-lines': 'off',
+      'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 20],
+    },
+  },
+  {
+    files: ['src/Scrapers/Pipeline/Phases/Base/ActionContextBuilder.ts'],
+    rules: {
+      // 72 LoC file — `max-lines` already passes the global cap, only the
+      // two ~26-LoC builders need the per-function exemption. Phase 13
+      // target: drain both to ≤10 LoC and remove this block entry.
       'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
       'max-statements': ['error', 20],
     },

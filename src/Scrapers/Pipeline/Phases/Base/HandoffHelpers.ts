@@ -14,6 +14,7 @@
  */
 
 import type { Brand } from '../../Types/Brand.js';
+import { none, type Option, some } from '../../Types/Option.js';
 import type { PhaseName } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 
@@ -80,8 +81,28 @@ const PHASE_KEY_MAP: Record<string, string> = {
 };
 
 /**
- * Phase-scoped HANDOFF log — only logs discoveries for the current phase.
- * @param phaseName - Current phase name.
+ * Resolve the per-phase handoff parts list, or `none` when there is
+ * nothing to summarise. Returns `none` both when no resolver is
+ * registered for the phase and when the resolver yields an empty
+ * parts array — callers should treat both as "no-op skip".
+ * @param phaseName - Phase emitting the handoff.
+ * @param ctx - Context after PRE completed.
+ * @returns Option wrapping the parts list when populated.
+ */
+function resolveHandoffParts(
+  phaseName: PhaseName,
+  ctx: IPipelineContext,
+): Option<readonly string[]> {
+  const key = PHASE_KEY_MAP[phaseName] ?? phaseName;
+  const resolver = HANDOFF_MAP[key];
+  if (!resolver) return none();
+  const parts = resolver(ctx);
+  return parts.length === 0 ? none() : some(parts);
+}
+
+/**
+ * Emit the `[HANDOFF]` log line for the given phase.
+ * @param phaseName - Phase emitting the handoff.
  * @param ctx - Context after PRE completed.
  * @param log - Logger instance.
  * @returns True when a handoff line was emitted, false on no-op skip
@@ -92,14 +113,8 @@ export function logHandoffSummary(
   ctx: IPipelineContext,
   log: IPipelineContext['logger'],
 ): DidEmitHandoff {
-  const key = PHASE_KEY_MAP[phaseName] ?? phaseName;
-  const resolver = HANDOFF_MAP[key];
-  if (!resolver) return false as DidEmitHandoff;
-  const parts = resolver(ctx);
-  if (parts.length === 0) return false as DidEmitHandoff;
-  const summary = parts.join(', ');
-  log.debug({
-    message: `[HANDOFF] { ${summary} }`,
-  });
+  const parts = resolveHandoffParts(phaseName, ctx);
+  if (!parts.has) return false as DidEmitHandoff;
+  log.debug({ message: `[HANDOFF] { ${parts.value.join(', ')} }` });
   return true as DidEmitHandoff;
 }

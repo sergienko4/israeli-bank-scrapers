@@ -1,6 +1,6 @@
 /**
  * BALANCE-RESOLVE slot slice — the five context keys both
- * {@link "./BootstrapContextBuilder.ts" | buildBootstrapContext} and
+ * {@link "./ActionContextBuilder.ts" | buildBootstrapContext} and
  * {@link "./ActionContextBuilder.ts" | buildActionContext} carry forward.
  *
  * <p>Hoisted into its own module during Phase 12b so the two builders

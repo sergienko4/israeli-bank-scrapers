@@ -469,10 +469,10 @@ TERMINATE_CLEANUP_BUDGET_MS
 # --- Phase 12b: BasePhase helper extraction (PR TBD) ---
 # These 12 symbols were previously module-private helpers + brand types
 # defined inside src/Scrapers/Pipeline/Types/BasePhase.ts. Phase 12b
-# sub-step 3/4 hoisted them into five sibling files under
+# sub-step 3/4 hoisted them into four sibling files under
 # src/Scrapers/Pipeline/Phases/Base/ (PhaseTrace.ts,
-# BalanceContextSlice.ts, BootstrapContextBuilder.ts,
-# ActionContextBuilder.ts, HandoffHelpers.ts). They are NOT new public
+# BalanceContextSlice.ts, ActionContextBuilder.ts, HandoffHelpers.ts).
+# They are NOT new public
 # API — they remain Pipeline-internal collaborators of the abstract
 # BasePhase Template Method; lib/index.d.ts SHA-256 stays
 # byte-identical after the move. The docs-coverage scanner sees them
