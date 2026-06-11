@@ -123,3 +123,32 @@ Both helpers route through the same lazy-resolved root logger, so
 `PiiRedactor` always intercepts before any transport writes — see
 [PII redaction](redaction.md) for the censor pipeline.
 
+## Logger cluster anatomy
+
+The pipeline's logger primitives live in `src/Scrapers/Pipeline/Logging/`
+(extracted from the legacy `Types/Debug.ts` blob during Phase 12c). Each
+file owns one concern so the moving parts are independently testable:
+
+- `Logging/Debug.ts` — public facade. Exports `getDebug`,
+  `getDebugByName`, and the `ScraperLogger` type alias used as the
+  return-type shorthand for pino's `Logger` across the pipeline.
+- `Logging/LoggerNaming.ts` — pure `deriveLogName(import.meta.url)`
+  transform that strips the URL down to a kebab-cased module name; the
+  return type is branded as `LoggerNameKebab` so consumers can't pass a
+  raw string back into a slot that expects an already-derived name.
+- `Logging/BankContext.ts` — `runWithBankContext(bank, fn)` opens an
+  async-local scope; `getBankMixin` is the pino `mixin` callback that
+  merges that scope plus the active phase / stage / runId onto every
+  log line; `getActiveLogContext` is a read-only accessor over the same
+  record so tests can assert the mixin contract directly without
+  depending on transport-flush timing.
+- `Logging/RootLogger.ts` — `getRootLogger` builds (or returns the
+  cached) pino root the first time any child logger is read; the
+  companion `isRootLoggerCached` predicate lets the deferred-resolve
+  proxy decide whether the resolved child can be memoised yet or has
+  to keep resolving fresh until `setActiveBank` lands.
+- `Logging/ChildLoggerProxy.ts` — `buildDeferredLogger(name)` returns
+  the lazy-resolve `Proxy` that backs both `getDebug` and
+  `getDebugByName`. The internal `IProxyHandler` type documents the
+  exact `get`-trap shape so the cluster's unit tests can assert
+  property-access semantics without re-deriving it from `Proxy<T>`.
