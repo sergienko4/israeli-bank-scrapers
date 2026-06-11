@@ -432,3 +432,5 @@ export {
   executeWaitForStep,
   STEP_EXECUTORS,
 };
+export { clickRevealAnyFrame } from './HarvestRevealHelpers.js';
+export { waitForCredentialInputIfNeeded } from './HarvestWaitHelpers.js';

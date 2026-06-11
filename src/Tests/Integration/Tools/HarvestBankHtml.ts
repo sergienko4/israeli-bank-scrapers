@@ -50,9 +50,11 @@ import BANK_LOGIN_CONFIGS from '../Banks/BankLoginConfigs.js';
 import type { BankCredentials } from './CredentialLoader.js';
 import { hasCredentials, loadCredentials } from './CredentialLoader.js';
 import {
+  clickRevealAnyFrame,
   executeHarvestStep,
   type IStepExecutorArgs,
   type IStepExecutorResult,
+  waitForCredentialInputIfNeeded,
 } from './HarvestStepExecutors.js';
 import {
   dumpManifestTrafficIfMode,
@@ -294,8 +296,7 @@ async function navigateIfNeeded(page: Page, url: string): Promise<boolean> {
  */
 async function revealIfNeeded(page: Page, revealText: string): Promise<boolean> {
   if (revealText === '') return false;
-  const reveal = page.getByText(revealText, { exact: false }).first();
-  await reveal.click({ timeout: PAGE_GOTO_TIMEOUT_MS });
+  await clickRevealAnyFrame(page, revealText, PAGE_GOTO_TIMEOUT_MS);
   await wait(SETTLE_AFTER_REVEAL_MS);
   return true;
 }
@@ -324,7 +325,7 @@ interface IStepExecutionResult {
 }
 
 /**
- * Navigate + reveal + settle, returning the captured frame snapshot.
+ * Navigate + reveal + (optional) wait-for-credential-input + capture.
  * Extracted to keep {@link executeRecipeStep} under the 10-line cap.
  * @param args - Step execution args (page + step + fixture root).
  * @returns Captured snapshot of all frames at the post-settle state.
@@ -334,6 +335,7 @@ async function navigateRevealCapture(args: IStepExecutionArgs): Promise<ICapture
   const stepReveal = args.step.revealText ?? '';
   await navigateIfNeeded(args.page, stepUrl);
   await revealIfNeeded(args.page, stepReveal);
+  await waitForCredentialInputIfNeeded(args.page, args.step.waitForCredentialInput);
   return captureFrames(args.page);
 }
 

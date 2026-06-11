@@ -34,6 +34,7 @@ import { executeDiscoverFields } from '../../../Scrapers/Pipeline/Mediator/Login
 import BANK_FIXTURE_EXPECTATIONS from '../Banks/BankFixtureExpectations.js';
 import BANK_LOGIN_CONFIGS from '../Banks/BankLoginConfigs.js';
 import type { IBankFixtureExpectations } from '../Banks/FixtureExpectations.js';
+import filterBanksByEnv from '../Banks/IntegrationBankFilter.js';
 import { newFixturePage, resolveFixtureRoot } from '../Helpers/FixturePage.js';
 import {
   closeIntegrationBrowser,
@@ -299,10 +300,11 @@ describe('LoginNavigation cross-bank integration (Mode B — mirror origin)', ()
     await closeIntegrationBrowser();
   });
 
-  describe.each(BANK_FIXTURE_EXPECTATIONS)('$bankId', (bank: IBankFixtureExpectations) => {
+  const matrixBanks = filterBanksByEnv(BANK_FIXTURE_EXPECTATIONS);
+  describe.each(matrixBanks)('$bankId', (bank: IBankFixtureExpectations) => {
+    const cfgForBank = BANK_LOGIN_CONFIGS[bank.bankId];
     const hasFixtures = fixtureRootExistsSync(bank.bankId);
     const isPending = PENDING_REHARVEST.has(bank.bankId);
-    const cfgForBank = BANK_LOGIN_CONFIGS[bank.bankId];
     const canDrive =
       !bank.requiresHydration && hasFixtures && !isPending && cfgForBank !== undefined;
     const maybeIt = canDrive ? it : it.skip;

@@ -18,6 +18,13 @@ import * as fs from 'node:fs/promises';
 import type { Page, Request, Route } from 'playwright-core';
 
 import { resolveFixtureRoot } from './FixturePage.js';
+import {
+  HOST_AMBIGUOUS,
+  type IFrameRouteMaps,
+  loadFrameRoutes,
+  normalizeFrameUrl,
+  safeFrameHost,
+} from './MirrorFrameRoutes.js';
 
 const STEP_HTML_STATUS = 200;
 const HTML_CONTENT_TYPE = 'text/html; charset=utf-8';
@@ -48,6 +55,7 @@ interface IDebugLoggerState {
 interface IRouteCtx {
   readonly cachedHtml: string;
   readonly allowedHosts: ReadonlySet<string>;
+  readonly frameRoutes: IFrameRouteMaps;
   readonly bankId: string;
   readonly debug: IDebugLoggerState;
 }
@@ -156,18 +164,74 @@ async function fulfillHtml(route: Route, cachedHtml: string): Promise<true> {
 }
 
 /**
+ * Sentinel returned by {@link tryServeFrame} when no frame body matched
+ * the request URL. Empty string is unique vs every captured HTML body
+ * (which is always non-empty after harvest validation).
+ */
+const NO_FRAME_BODY = '' as const;
+
+/**
+ * Host-fallback lookup for {@link tryServeFrame}. Returns the captured
+ * body when exactly one frame on that host was harvested; otherwise the
+ * {@link NO_FRAME_BODY} sentinel. Extracted so {@link tryServeFrame}
+ * stays under the 10-line cap (per CLAUDE.md).
+ * @param host - Host portion of the request URL (or empty-string sentinel).
+ * @param frameRoutes - The URL + host route maps.
+ * @returns Captured frame body or {@link NO_FRAME_BODY}.
+ */
+function tryHostFallback(host: string, frameRoutes: IFrameRouteMaps): string {
+  if (host === '') return NO_FRAME_BODY;
+  const byHost = frameRoutes.byHost.get(host);
+  if (byHost === undefined || byHost === HOST_AMBIGUOUS) return NO_FRAME_BODY;
+  return byHost;
+}
+
+/**
+ * Try to serve a captured iframe HTML body. Two-tier match:
+ *   1. exact origin+pathname match (preferred)
+ *   2. host fallback when the harvest URL drifted (SPA replaced
+ *      the initial iframe src with a deeper route, e.g. visaCal
+ *      connect.cal-online.co.il/index.html → /regular-login)
+ * Returns the body when matched, {@link NO_FRAME_BODY} sentinel when
+ * no row matched.
+ * @param req - Playwright request.
+ * @param ctx - Route context with the URL + host route maps.
+ * @returns Captured frame body or {@link NO_FRAME_BODY}.
+ */
+function tryServeFrame(req: Request, ctx: IRouteCtx): string {
+  if (req.resourceType() !== 'document') return NO_FRAME_BODY;
+  const url = req.url();
+  const normalizedUrl = normalizeFrameUrl(url);
+  const exact = ctx.frameRoutes.byUrl.get(normalizedUrl);
+  if (exact !== undefined) return exact;
+  const host = safeFrameHost(url);
+  return tryHostFallback(host, ctx.frameRoutes);
+}
+
+/**
  * Route handler — fulfills document navigations with cached HTML and
- * aborts every other request so subresources never escape.
+ * aborts every other request so subresources never escape. Main-document
+ * navigation gets priority (origin/captured-step host matches). When that
+ * misses, captured iframe URLs from the loginStep `frames.json` (if any)
+ * are served as fallback so cross-origin iframe forms (e.g. visaCal
+ * regular-login, AMEX SSO) become driveable for the production resolver
+ * chains. Everything else is aborted at the network layer.
  * @param route - Playwright route.
  * @param req - The request being routed.
- * @param ctx - Cached HTML + allowed hosts + debug state.
+ * @param ctx - Cached HTML + allowed hosts + frame routes + debug state.
  * @returns True after the route is handled.
  */
 async function routeHandler(route: Route, req: Request, ctx: IRouteCtx): Promise<true> {
   if (shouldServeHtml(req, ctx.allowedHosts)) {
-    const url = req.url();
-    logFirstServed(ctx, url);
+    const reqUrl = req.url();
+    logFirstServed(ctx, reqUrl);
     return fulfillHtml(route, ctx.cachedHtml);
+  }
+  const frameBody = tryServeFrame(req, ctx);
+  if (frameBody !== NO_FRAME_BODY) {
+    const reqUrl = req.url();
+    logFirstServed(ctx, reqUrl);
+    return fulfillHtml(route, frameBody);
   }
   logFirstAborted(ctx, req);
   const abortPromise = route.abort('blockedbyclient');
@@ -277,8 +341,9 @@ function makeDispose(page: Page): () => Promise<boolean> {
 async function installMirror(args: IInstallMirrorArgs): Promise<IMirrorHandle> {
   const cachedHtml = await readStepHtml(args.bankId, args.stepName);
   const allowedHosts = await buildAllowedHosts(args.originUrl, args.bankId);
+  const frameRoutes = await loadFrameRoutes(args.bankId, args.stepName);
   const debug: IDebugLoggerState = { servedLogged: false, abortedLogged: false };
-  const ctx: IRouteCtx = { cachedHtml, allowedHosts, bankId: args.bankId, debug };
+  const ctx: IRouteCtx = { cachedHtml, allowedHosts, frameRoutes, bankId: args.bankId, debug };
   await args.page.route('**/*', (route: Route, req: Request): Promise<true> => {
     return routeHandler(route, req, ctx);
   });

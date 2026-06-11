@@ -135,7 +135,7 @@ function isFalsePositive(hit) {
   if (/\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]/.test(hit.match)) return true;
   if (hit.pat.id === 'hebrew-greeting-name' && /\[redacted-name\]/.test(hit.match)) return true;
   if (hit.pat.id === 'card-full-16') {
-    if (/facebook\.net|facebook\.com\/tr|fbq\(|connect\.facebook|fbevents|googletagmanager|gtag\/js|google-analytics|googleadservices|googletag/.test(ctx)) return true;
+    if (/facebook\.net|facebook\.com\\?\/tr|fbq\(|connect\.facebook|fbevents|googletagmanager|gtag\/js|google-analytics|googleadservices|googletag|vtp_pixelId|"pixelId"|fbPixelId/.test(ctx)) return true;
     if (/__uzdbm|__uzma|__uzmf|__uzmb|__uzmc|__uzmd|__uzme|_rbzid|_rbzsessionid|reblaze/i.test(ctx)) return true;
     if (/runcontext|d-c-id=|v-c-at=|x-c-id=|x-content-id=/i.test(ctx)) return true;
     if (/\\?"cls[sve]\\?"|\\?"clsid\\?"|glassbox|"sessionId"|"requestId"|"correlationId"|"traceId"|"transactionId"/i.test(ctx)) return true;

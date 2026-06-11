@@ -86,67 +86,92 @@ defaults:
 # ──────────────────────────────────────────────────────────────
 
 jobs:
-  validate:
-    name: Validate
+  # ──────────────────────────────────────────────────────────────
+  # Detect-changes fan-out gate. All downstream parallel jobs read
+  # the four boolean outputs to short-circuit when the PR touches
+  # only docs / CI scripts / non-src files. Splitting this from the
+  # heavy jobs lets us declare them parallel without paying the
+  # detect-changes cost N times.
+  # ──────────────────────────────────────────────────────────────
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
-      src_touched: ${{ steps.changes.outputs.src }}
-      md_touched: ${{ steps.changes.outputs.md }}
-      docs_touched: ${{ steps.changes.outputs.docs }}
-      pipeline_ts_touched: ${{ steps.changes.outputs.pipeline_ts }}
+      src: ${{ steps.changes.outputs.src }}
+      md: ${{ steps.changes.outputs.md }}
+      docs: ${{ steps.changes.outputs.docs }}
+      pipeline_ts: ${{ steps.changes.outputs.pipeline_ts }}
+      ci_scripts: ${{ steps.changes.outputs.ci_scripts }}
+      # Single-source-of-truth booleans for downstream `if:` conditions.
+      # `trusted_event` — true unless this is a PR from a fork (untrusted secrets).
+      # `real_gates_enabled` — true only when ALL prerequisites for running real-network /
+      # CPU-heavy gates hold: trusted_event AND non-dependabot author AND src/ touched.
+      # Use `needs.validate.outputs.<name>` from downstream jobs (validate re-emits these).
+      trusted_event: ${{ steps.gate.outputs.trusted_event }}
+      real_gates_enabled: ${{ steps.gate.outputs.real_gates_enabled }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          # Need base + head reachable so `detect-changes` can diff
-          # against the PR base. Also closes zizmor `artipacked`
-          # (does not set persist-credentials).
           fetch-depth: 0
           persist-credentials: false
-
-      # ── Detect which file groups this PR/push changed ──
-      # Single source of truth for which heavy steps run. Replaces the
-      # old `paths: ['src/**']` workflow-level filter so the `Validate`
-      # check context always fires (folds in pr-docs.yml echo-shim).
       - name: Detect changed file groups
         id: changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: bash .github/scripts/ci/detect-changes.sh
+      - name: Compute gate booleans
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          SRC_TOUCHED: ${{ steps.changes.outputs.src }}
+        run: bash .github/scripts/ci/compute-gate-booleans.sh
 
-      - uses: ./.github/actions/setup-node-deps
-        if: steps.changes.outputs.src == 'true'
-      - uses: ./.github/actions/install-camoufox
-        if: steps.changes.outputs.src == 'true'
+  # ──────────────────────────────────────────────────────────────
+  # Lint + types + docs canaries — independent of test jobs.
+  # Runs whenever ANY of the conditionally-gated child steps could
+  # fire, so the umbrella job's status reflects reality.
+  # ──────────────────────────────────────────────────────────────
+  lint-and-types:
+    name: Lint & Types
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - if: steps.changes.outputs.src == 'true'
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-node-deps
+        if: needs.changes.outputs.src == 'true'
+      - if: needs.changes.outputs.src == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
-      # ── Lint & Format ──
       - name: ESLint (warnings as errors)
-        if: steps.changes.outputs.src == 'true'
+        if: needs.changes.outputs.src == 'true'
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Prettier check
-        if: steps.changes.outputs.src == 'true'
+        if: needs.changes.outputs.src == 'true'
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
-        if: steps.changes.outputs.md == 'true' || steps.changes.outputs.src == 'true'
+        if: needs.changes.outputs.md == 'true' || needs.changes.outputs.src == 'true'
         uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23.2.0
         with:
           globs: '*.md docs/**/*.md tasks/**/*.md'
           config: '.markdownlint.json'
 
-      # ── Lychee link check (folded in from former link-check.yml) ──
-      # `{{BRANCH}}` substitution mirrors the mkdocs hook because Lychee
-      # scans raw markdown, not the mkdocs-built site. Sed-escape `\&|`
-      # for defence-in-depth (`&` and `|` are legal in git refs).
       - name: Substitute {{BRANCH}} placeholders for Lychee
-        if: steps.changes.outputs.md == 'true'
+        if: needs.changes.outputs.md == 'true'
         run: |
           set -euo pipefail
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
@@ -154,7 +179,7 @@ jobs:
           find docs README.md -name '*.md' -type f -print0 |
             xargs -0 sed -i "s|{{BRANCH}}|$BRANCH_SED|g"
       - name: Lychee link checker
-        if: steps.changes.outputs.md == 'true'
+        if: needs.changes.outputs.md == 'true'
         uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.4.1
         with:
           args: >-
@@ -166,151 +191,281 @@ jobs:
             'README.md' 'docs/**/*.md'
           fail: true
 
-      # ── mkdocs strict build (PR-time catch for dead nav / undefined refs) ──
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        if: steps.changes.outputs.docs == 'true'
+        if: needs.changes.outputs.docs == 'true'
         with:
           python-version: '3.13'
           cache: pip
           cache-dependency-path: requirements-docs.txt
       - name: Install mkdocs + plugins
-        if: steps.changes.outputs.docs == 'true'
+        if: needs.changes.outputs.docs == 'true'
         run: pip install -r requirements-docs.txt
       - name: mkdocs build --strict (catches dead links / undefined refs)
-        if: steps.changes.outputs.docs == 'true'
+        if: needs.changes.outputs.docs == 'true'
         run: python -m mkdocs build --strict
 
-      # ── Docs coverage canary (folded in from PR #273 draft) ──
-      # Fails when a new public export under src/Scrapers/Pipeline/ ships
-      # without a mention in docs/. Allowlist file at
-      # `.github/docs-coverage-allowlist.txt` covers internal-but-exported
-      # symbols. See `.github/scripts/ci/docs-coverage.sh` for the diff +
-      # grep logic.
       - name: Docs coverage canary
-        if: github.event_name == 'pull_request' && steps.changes.outputs.pipeline_ts == 'true'
+        if: github.event_name == 'pull_request' && needs.changes.outputs.pipeline_ts == 'true'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash .github/scripts/ci/docs-coverage.sh
-
-      # ── Docs staleness canary (Case B counterpart of docs-coverage) ──
-      # Fails when a source file is modified AND a docs page declares
-      # that file in its YAML frontmatter `source-files:` list, BUT the
-      # docs page itself was not modified in the same PR. Opt-in by
-      # design: pages without frontmatter give zero signal. See
-      # `.github/scripts/ci/docs-staleness.sh` for the algorithm and
-      # `docs/observability/init-navigation-forensics.md` for a worked
-      # example of the frontmatter convention.
       - name: Docs staleness canary
-        if: github.event_name == 'pull_request' && steps.changes.outputs.src == 'true'
+        if: github.event_name == 'pull_request' && needs.changes.outputs.src == 'true'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash .github/scripts/ci/docs-staleness.sh
 
-      # ── CI scripts smoke test ──
-      # Validates the per-bank cooldown + encrypted token-cache scripts
-      # under `.github/scripts/ci/` (added 2026-06-03 to address the
-      # Hapoalim WAF risk-score escalation observed during PR #298 +
-      # PR #299 testing). Runs whenever those scripts or any workflow
-      # YAML changed. 9 assertions covering cold/warm cooldown paths,
-      # GPG encrypt/decrypt roundtrip, wrong-key non-zero exit, and
-      # graceful no-key skip. See `.github/scripts/ci/tests/scripts-smoke.sh`.
       - name: CI scripts smoke test
-        if: steps.changes.outputs.ci_scripts == 'true'
+        if: needs.changes.outputs.ci_scripts == 'true'
         run: bash .github/scripts/ci/tests/scripts-smoke.sh
 
-      # ── Type Check ──
       - name: Type check
-        if: steps.changes.outputs.src == 'true'
+        if: needs.changes.outputs.src == 'true'
         run: npx tsc --noEmit
 
-      # ── Audit ──
       - name: Audit production dependencies
-        if: steps.changes.outputs.src == 'true'
+        if: needs.changes.outputs.src == 'true'
         run: npm audit --audit-level=high --omit=dev
       - name: Audit all dependencies (informational)
-        if: steps.changes.outputs.src == 'true'
+        if: needs.changes.outputs.src == 'true'
         run: npm audit --audit-level=high
         continue-on-error: true
 
-      # ── Unit Tests ──
-      - name: Unit tests with coverage
-        if: steps.changes.outputs.src == 'true'
-        run: npm run test:pipeline
-
-      # ── E2E Factory Tests ──
-      - name: E2E factory tests
-        if: steps.changes.outputs.src == 'true'
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\.test' --verbose --forceExit
-
-      # ── E2E Smoke Tests are now a separate matrix job (e2e-smoke). ──
-      # See `e2e-smoke` job below — runs invalid-credential checks for each
-      # bank in its own ubuntu-latest runner in parallel. Wall time drops
-      # from ~25min serial to ~3-5min matrix.
-
-      # ── E2E Mocked Tests ──
-      - name: E2E mocked tests
-        if: steps.changes.outputs.src == 'true'
-        run: node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='E2eMocked' --testPathIgnorePatterns='/node_modules/' --verbose --forceExit
-
-      # ── Bank Integration Coverage Gate ──
-      # Cross-checks every pipeline bank has both a BankFixtureExpectations row
-      # and a fixtures/banks/<id>/ directory. Fails fast on missing coverage so
-      # a new pipeline bank cannot be onboarded without integration tests.
-      - name: Bank integration coverage gate
-        if: steps.changes.outputs.src == 'true'
-        run: npm run lint:bank-coverage
-
-      # ── Integration Mode A — Static HTML (HARD GATE) ──
-      # Drives the real production LoginFieldDiscovery + CreateElementMediator
-      # chain against committed per-bank fixtures (no network). Runs AFTER all
-      # parallel + e2e:mock gates and BEFORE Phase-5 real e2e so a Mode-A
-      # failure blocks before burning real-bank time. Per user directive
-      # 2026-06-06: no relaxation — every pipeline bank must DRIVE green.
-      - name: Integration Mode A — Static HTML drive
-        if: steps.changes.outputs.src == 'true'
-        run: npm run test:integration:mode-a
-
-      # ── Integration Mode B — Mirror Origin (HARD GATE) ──
-      # Spins up a local HTTP server replaying captured HTML + assets at the
-      # bank's real URL, then drives production scraper.scrape() end-to-end
-      # against the mirror. Validates the production navigation chain
-      # without touching live banks. Runs immediately after Mode A.
-      - name: Integration Mode B — Mirror origin drive
-        if: steps.changes.outputs.src == 'true'
-        run: npm run test:integration:mode-b
-
-      # ── E2E Real Bank Tests (real credentials) ──
-      # Moved out of this job into the dedicated 2-group matrix below
-      # (`e2e-real-group-a` → `e2e-real-group-b`). This avoids running
-      # the same real-bank scrapes twice on every PR (was: also a
-      # legacy `E2eFull` step here that overlapped the matrix).
-      # `npm run test:e2e:full` remains available for manual runs of
-      # the residual Mercantile coverage that lives in src/Tests/E2eFull/.
-
-      # ── Build ──
-      - uses: ./.github/actions/build-package
-        if: steps.changes.outputs.src == 'true'
-      - name: Dry-run publish (catch packaging errors early)
-        if: steps.changes.outputs.src == 'true'
-        run: npm pack --dry-run
-
-      # ── Upload Artifacts ──
-      - name: Upload build artifact
-        if: steps.changes.outputs.src == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+  # ──────────────────────────────────────────────────────────────
+  # Unit tests with coverage — parallel with the e2e and integration
+  # jobs. Camoufox is NOT needed here (jest.pipeline.config.cjs
+  # excludes the browser-driven suites).
+  # ──────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit tests
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          name: build-output
-          path: lib/
-          retention-days: 7
+          persist-credentials: false
+      - uses: ./.github/actions/setup-test-runner
+        with:
+          camoufox: 'false'
+      - name: Unit tests with coverage
+        run: npm run test:pipeline
       - name: Upload coverage artifact
-        if: always() && steps.changes.outputs.src == 'true'
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: src/coverage/
           retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
+  # ──────────────────────────────────────────────────────────────
+  e2e-factory:
+    name: E2E factory
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-test-runner
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: E2E factory tests
+        run: npm run test:e2e-factory-tests -- --ci --verbose
+
+  # ──────────────────────────────────────────────────────────────
+  # E2E mocked tests — flake-prone under high worker counts; the
+  # package.json `test:e2e:mock` script pins `--maxWorkers=2` to
+  # avoid CPU-contention timeouts documented in the husky pre-commit
+  # cycle (PRs #331+ cycle-4 cache-marker workaround).
+  # ──────────────────────────────────────────────────────────────
+  e2e-mocked:
+    name: E2E mocked
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-test-runner
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: E2E mocked tests
+        run: npm run test:e2e:mock -- --ci --verbose
+
+  # ──────────────────────────────────────────────────────────────
+  # Bank integration coverage gate — fast structural lint.
+  # ──────────────────────────────────────────────────────────────
+  bank-coverage:
+    name: Bank coverage gate
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-test-runner
+        with:
+          camoufox: 'false'
+          tests-config: 'false'
+      - name: Bank integration coverage gate
+        run: npm run lint:bank-coverage
+
+  # ──────────────────────────────────────────────────────────────
+  # Integration Mode A + Mode B — Static HTML drive + Mirror Origin
+  # (HARD GATE). Unified 7-bank × 2-mode matrix → 14 parallel runners.
+  #
+  # `INTEGRATION_BANK_FILTER` env var narrows the cross-bank
+  # `describe.each(BANK_FIXTURE_EXPECTATIONS)` loops in
+  # LoginFormDiscovery.integration.test.ts (Mode A) and
+  # LoginNavigation.mirror.test.ts (Mode B) to the matrix bank — that
+  # is where the wall-time wins come from (the cross-bank mirror cell
+  # is ~60-90 s per bank vs ~130 s for all banks serial).
+  #
+  # Per-bank simulator tests (`*.modeB.test.ts`) and per-bank Mode A
+  # drives (`*.modeA.test.ts`) run on every matrix cell — they are
+  # individually fast (sub-second simulators, ~5-10 s per Playwright
+  # static drive). The matrix gives fail-isolation (one bank's
+  # regression does not red-block the other six) plus wall-time
+  # reduction from parallelism. See Banks/IntegrationBankFilter.ts
+  # for the filter implementation.
+  # ──────────────────────────────────────────────────────────────
+  integration:
+    name: Integration Mode ${{ matrix.mode }} (${{ matrix.bank }})
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [a, b]
+        bank:
+          - amex
+          - beinleumi
+          - discount
+          - hapoalim
+          - isracard
+          - max
+          - visaCal
+    env:
+      INTEGRATION_BANK_FILTER: ${{ matrix.bank }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-test-runner
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Integration Mode ${{ matrix.mode }} — bank=${{ matrix.bank }}
+        run: npm run test:integration:mode-${{ matrix.mode }}:bank
+
+  # ──────────────────────────────────────────────────────────────
+  # Build + dry-run publish — independent of test jobs (build can
+  # succeed even if tests fail; the `validate` aggregator below
+  # blocks merge when tests are red).
+  # ──────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-test-runner
+        with:
+          camoufox: 'false'
+          tests-config: 'false'
+      - uses: ./.github/actions/build-package
+      - name: Dry-run publish (catch packaging errors early)
+        run: npm pack --dry-run
+      - name: Upload build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-output
+          path: lib/
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────
+  # Validate aggregator — preserves the external `Validate` status
+  # context name AND the outputs that downstream jobs (e2e-smoke,
+  # dns-preflight, e2e-real-group-*, dependency-review) consume.
+  #
+  # Pattern:
+  #   `if: always()` so the aggregator runs even when one of the
+  #   parallel jobs is skipped (e.g. docs-only PR → unit-tests is
+  #   skipped, and `skipped` is an allowed result here).
+  #
+  #   Verify step fails the aggregator when ANY needed job reports
+  #   `failure` or `cancelled`. `skipped` and `success` both pass —
+  #   skipping is the legitimate outcome for src=false short-circuits.
+  # ──────────────────────────────────────────────────────────────
+  validate:
+    name: Validate
+    needs:
+      - changes
+      - lint-and-types
+      - unit-tests
+      - e2e-factory
+      - e2e-mocked
+      - bank-coverage
+      - integration
+      - build
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      src_touched: ${{ needs.changes.outputs.src }}
+      md_touched: ${{ needs.changes.outputs.md }}
+      docs_touched: ${{ needs.changes.outputs.docs }}
+      pipeline_ts_touched: ${{ needs.changes.outputs.pipeline_ts }}
+      # Re-emit the computed gate booleans so downstream jobs that already `needs: validate`
+      # don't have to add `changes` to their needs list. See compute-gate-booleans.sh for
+      # the exact predicate semantics.
+      trusted_event: ${{ needs.changes.outputs.trusted_event }}
+      real_gates_enabled: ${{ needs.changes.outputs.real_gates_enabled }}
+    steps:
+      - name: Verify all gates green
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "Aggregator inputs:"
+          echo "$NEEDS_JSON" | jq -r 'to_entries | map("  \(.key): \(.value.result)") | .[]'
+          FAILED=$(echo "$NEEDS_JSON" | jq -r 'to_entries | map(select(.value.result == "failure" or .value.result == "cancelled")) | map(.key) | join(",")')
+          if [ -n "$FAILED" ]; then
+            echo "::error::Validate gate FAILED — these jobs reported failure or cancelled: $FAILED"
+            exit 1
+          fi
+          echo "✅ All parallel validate gates green (success or skipped)."
 
   # ──────────────────────────────────────────────────────────────
   # E2E Smoke Tests — matrix job, ONE bank per runner.
@@ -463,10 +618,13 @@ jobs:
   dns-preflight:
     name: DNS Preflight (IL bank resolution)
     needs: validate
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      needs.validate.outputs.src_touched == 'true'
+    # Dependabot PRs SKIP the real-bank gate prerequisites — the validate
+    # tier above (lint/types/unit/mocked/integration/build) is sufficient
+    # to gate a dependency bump. The real-bank E2E happy-path remains
+    # optional (manual approval) on human-authored PRs only.
+    # `real_gates_enabled` = trusted_event AND non-dependabot AND src_touched
+    # (see .github/scripts/ci/compute-gate-booleans.sh for the predicate).
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -486,10 +644,8 @@ jobs:
     # If preflight is RED, this gate sits unclickable so we don't
     # burn the E2E Real matrix on guaranteed-DNS failures.
     needs: [validate, dns-preflight]
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      needs.validate.outputs.src_touched == 'true'
+    # See dns-preflight comment for `real_gates_enabled` semantics.
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Per-group environment (2026-05-26): each gate references a
     # DISTINCT GitHub environment so the reviewer must click
@@ -738,10 +894,8 @@ jobs:
     # to finish (and vice-versa); within each group, banks still
     # run in parallel under one approval.
     needs: [validate, dns-preflight]
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      needs.validate.outputs.src_touched == 'true'
+    # See dns-preflight comment for `real_gates_enabled` semantics.
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
@@ -849,10 +1003,8 @@ jobs:
     # Independent of Groups A + B — see the gate-B comment for the
     # rationale (per-group approval, no inter-group ordering).
     needs: [validate, dns-preflight]
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-        github.event.pull_request.head.repo.full_name == github.repository) &&
-      needs.validate.outputs.src_touched == 'true'
+    # See dns-preflight comment for `real_gates_enabled` semantics.
+    if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
