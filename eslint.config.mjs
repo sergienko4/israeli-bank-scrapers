@@ -2447,11 +2447,20 @@ export default tseslint.config(
   //   contract. The temporary 30/20 cap mirrors §19.2 (Pipeline/Types/**)
   //   so the move is byte-for-byte preserving — Phase 13 will drain the
   //   helpers back to canonical 10/10 once the post-`extractActionMediator`
-  //   handoff slot lets `buildActionContext` collapse. Flat-config is
-  //   last-wins, so this block MUST appear after §19.3.
+  //   handoff slot lets `buildActionContext` collapse. The whole-file
+  //   `max-lines` cap is OFF because `BasePhase.ts` itself carries
+  //   the abstract Template Method runtime (~220 effective LoC across
+  //   `run` + `runPre`/`runAction`/`runPost`/`runFinal` + `takePhaseScreenshot`)
+  //   — splitting the class body across files would either expose the
+  //   private stage runners as module-level helpers (breaking
+  //   encapsulation) or require a mixin that the TypeScript compiler
+  //   could no longer flow-narrow across stages. Same `max-lines: off`
+  //   precedent that §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
+  //   Flat-config is last-wins, so this block MUST appear after §19.3.
   {
     files: ['src/Scrapers/Pipeline/Phases/Base/**/*.ts'],
     rules: {
+      'max-lines': 'off',
       'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
       'max-statements': ['error', 20],
     },

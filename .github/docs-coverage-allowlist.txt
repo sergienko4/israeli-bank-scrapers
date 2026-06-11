@@ -492,3 +492,16 @@ extractExecutor
 buildActionContext
 DidEmitHandoff
 logHandoffSummary
+
+# --- Phase 12b sub-step 4/4: BasePhase class relocation (PR TBD) ---
+# `IsPrePayloadValid` is a Brand<boolean> tag the abstract `BasePhase`
+# template method uses internally to confirm the PRE stage produced a
+# well-formed payload before handing off to ACTION. It is exported from
+# src/Scrapers/Pipeline/Phases/Base/BasePhase.ts so the legacy
+# Types/BasePhase.ts shim can re-export it for back-compat. The brand
+# is module-internal — no user-facing scraper code constructs or pattern-
+# matches against it — so dedicated docs coverage would be noise. The
+# user-facing concept ("BasePhase template method") is already
+# documented in docs/architecture/{layers,pipeline}.md and
+# docs/phases/index.md.
+IsPrePayloadValid
