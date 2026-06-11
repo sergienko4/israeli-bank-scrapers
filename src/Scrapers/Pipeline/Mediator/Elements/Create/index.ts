@@ -44,3 +44,9 @@ export {
   type LocatorContext,
   NO_FORM_ANCHOR,
 } from './Scope.js';
+export {
+  buildFoundResult,
+  extractAndTraceIdentity,
+  type IWinnerInfo,
+  snapshotValue,
+} from './Snapshot.js';

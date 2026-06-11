@@ -604,3 +604,23 @@ buildLocatorEntries
 #         (.nth(0..MAX_NTH_PER_LOCATOR-1)) used by resolveAllVisible /
 #         resolveAndClick so legacy + modern sibling pairs both enter the race.
 buildLocatorEntriesAll
+# --- Phase 12a sub-step 3: Snapshot extraction ---
+# Four NEW exports landed by Phase 12a sub-step-3 (Snapshot.ts under
+# Mediator/Elements/Create/). All four are internal mediator plumbing
+# behind the barrel — no public scraper consumes them directly. The
+# parent mediator's public surface (lib/index.d.ts) remains
+# byte-identical to baseline (A3.5.4 verified).
+#
+# Reason: IWinnerInfo — internal {index,value,identity} bundle passed
+#         to buildFoundResult so callers stay under the 3-param ceiling.
+IWinnerInfo
+# Reason: snapshotValue — captures the winning element's text or href
+#         before the next click invalidates it (stale-element protection).
+snapshotValue
+# Reason: extractAndTraceIdentity — snapshots DOM identity + bounded
+#         outerHTML, emits debug trace, returns identity for ACTION-stage
+#         selector building.
+extractAndTraceIdentity
+# Reason: buildFoundResult — packages winner data into the IRaceResult
+#         contract consumed by every resolve* helper.
+buildFoundResult
