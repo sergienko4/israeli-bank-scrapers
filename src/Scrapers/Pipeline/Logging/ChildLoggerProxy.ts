@@ -59,22 +59,37 @@ function reflectChildProperty(
 }
 
 /**
+ * Pure forwarder used as the proxy `get` trap. Extracted so
+ * `makeChildProxyHandler` stays trivially short and the trap logic has
+ * its own ≤10-LoC test target.
+ * @param name - Module name attached to the resolved child.
+ * @param entry - Mutable cache slot for the resolved child.
+ * @param prop - Property name being read on the proxy.
+ * @returns Whatever pino Logger exposes at that key.
+ */
+function handleGetTrap(
+  name: string,
+  entry: IDeferredChildEntry,
+  prop: string | symbol,
+): LoggerProperty {
+  return reflectChildProperty(name, entry, prop);
+}
+
+/**
  * Build the proxy handler that lazily resolves a pino child for `name`.
  * @param name - The module name for the child logger.
  * @param entry - Mutable cache slot for the resolved child.
- * @returns Proxy handler.
+ * @returns Proxy handler whose `get` trap delegates to {@link handleGetTrap}.
  */
 function makeChildProxyHandler(name: string, entry: IDeferredChildEntry): IProxyHandler {
   return {
     /**
-     * Forward property access to the lazily-built child logger.
-     * @param _target - Empty object placeholder (unused).
-     * @param prop - Property name being accessed on the proxy.
-     * @returns Delegated property value from the resolved child.
+     * Proxy `get` trap — delegates to {@link handleGetTrap}.
+     * @param _target - Unused proxy target placeholder.
+     * @param prop - Property name being accessed.
+     * @returns Reflected pino logger property value.
      */
-    get: (_target: object, prop: string | symbol): LoggerProperty => {
-      return reflectChildProperty(name, entry, prop);
-    },
+    get: (_target, prop): LoggerProperty => handleGetTrap(name, entry, prop),
   };
 }
 

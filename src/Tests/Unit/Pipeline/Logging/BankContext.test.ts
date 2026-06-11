@@ -41,10 +41,7 @@ describe('Feature — getBankMixin / getActiveLogContext', () => {
 
   it('omits runId when no bank has been registered (empty runId)', () => {
     const fields = getBankMixin();
-    const runId = fields.runId;
-    if (typeof runId === 'string') {
-      expect(runId.length).toBeGreaterThan(0);
-    }
+    expect(fields.runId).toBeUndefined();
   });
 
   it('exposes the same record shape via getActiveLogContext', () => {
