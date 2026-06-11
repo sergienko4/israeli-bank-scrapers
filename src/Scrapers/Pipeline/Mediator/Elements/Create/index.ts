@@ -6,20 +6,16 @@
  * Re-exports are explicit (not `*`) so dead-code / unused-import gates
  * can still see each symbol and tree-shaking remains accurate.
  *
- * NOTE — ActiveState pass-through: `setActivePhase`/`setActiveStage` and
- * `getActivePhase`/`getActiveStage` are re-exported from this barrel
- * (rather than imported directly by the façade) purely to keep the
- * façade under the 15-dependency cap mid-refactor. The PhaseControls
- * cluster (Commit 6) will own them outright and the pass-through will
- * disappear when the façade trims to ≤150 LoC.
+ * NOTE — ActiveState pass-through is now owned by PhaseControls.ts
+ * (Phase 12a Commit 6 trim). The façade pulls `getActivePhase` /
+ * `getActiveStage` via this barrel which re-exports them from
+ * PhaseControls; `setActivePhase` / `setActiveStage` are consumed
+ * internally by PhaseControls and no longer surface through the barrel.
  */
 
-export {
-  getActivePhase,
-  getActiveStage,
-  setActivePhase,
-  setActiveStage,
-} from '../../../Types/ActiveState.js';
+export { extractActionMediator } from './ActionMediator.js';
+export { assembleElementMediator } from './Assembly.js';
+export { buildCookieCluster, type CookieBundle } from './Cookies.js';
 export { buildDiscoverErrors, buildDiscoverForm, buildScopeToForm } from './Discover.js';
 export { buildLocatorEntries, buildLocatorEntriesAll, type ILocatorEntry } from './Entries.js';
 export { buildResolveClickable, buildResolveField, type IFormCache } from './FieldResolve.js';
@@ -40,6 +36,21 @@ export {
   LOCATOR_KIND_BUILDERS,
   type LocatorKindBuilder,
 } from './Locators.js';
+export { buildNavCluster, type NavBundle } from './Navigation.js';
+export {
+  type AttrBundle,
+  buildAttrCluster,
+  buildCountCluster,
+  type CountBundle,
+} from './Observation.js';
+export {
+  buildPhaseControls,
+  buildStaticCluster,
+  getActivePhase,
+  getActiveStage,
+  type PhaseControlsBundle,
+  type StaticBundle,
+} from './PhaseControls.js';
 export {
   enrichWinnerToResult,
   extractWinnerSequence,
@@ -48,6 +59,12 @@ export {
   setupAllVisibleRace,
   traceRaceDiagnostic,
 } from './Race.js';
+export {
+  buildFormCluster,
+  buildResolveCluster,
+  type FormBundle,
+  type ResolveBundle,
+} from './Resolve.js';
 export {
   applyFormScope,
   CLICK_RACE_TIMEOUT,

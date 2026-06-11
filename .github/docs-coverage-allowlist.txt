@@ -715,3 +715,73 @@ buildWaitForLoadingDone
 #         knob (the constant still lives in ActionExecutors for the
 #         other action callers that share the same delay).
 ELEMENTS_LOADING_DELAY_MS
+# --- Phase 12a sub-step 6: Resolve+Navigation+Observation+Cookies+PhaseControls+Assembly+ActionMediator extraction ---
+# Final Phase 12a landing: trims CreateElementMediator.ts from 915 LoC to
+# ~38 LoC (≤150 target) by relocating seven cohesive clusters into sibling
+# sub-modules under Mediator/Elements/Create/. All new exports are internal
+# mediator plumbing behind the Create/index.ts barrel — no public scraper
+# consumes them directly. lib/index.d.ts byte-identical to baseline.
+#
+# Reason: buildResolveCluster — assembles the 6-method locator/click
+#         resolver bundle (resolveField/resolveClickable/resolveVisible/
+#         resolveAllVisible/resolveVisibleInContext/resolveAndClick).
+buildResolveCluster
+# Reason: ResolveBundle — Pick<IElementMediator, ...> tuple for the
+#         resolver cluster's slice surface.
+ResolveBundle
+# Reason: buildFormCluster — assembles the 3-method form-anchor cluster
+#         (discoverForm/scopeToForm/getFormAnchor) bound to an IFormCache.
+buildFormCluster
+# Reason: FormBundle — Pick<IElementMediator, ...> tuple for the
+#         form-anchor cluster's slice surface.
+FormBundle
+# Reason: buildNavCluster — assembles the 5-method navigation cluster
+#         (navigateTo/getCurrentUrl/waitForNetworkIdle/raceWithNetworkIdle/
+#         waitForURL) with single-source waitForNetworkIdle reuse.
+buildNavCluster
+# Reason: NavBundle — Pick<IElementMediator, ...> tuple for the
+#         navigation cluster's slice surface.
+NavBundle
+# Reason: buildAttrCluster — assembles the 2-method attribute-read
+#         cluster (checkAttribute/getAttributeValue) on locators carried
+#         by IRaceResult winners.
+buildAttrCluster
+# Reason: AttrBundle — Pick<IElementMediator, ...> tuple for the
+#         attribute-read cluster's slice surface.
+AttrBundle
+# Reason: buildCountCluster — assembles the 3-method counting + href
+#         cluster (countByText/countBySelector/collectAllHrefs) bound
+#         to a Page reference.
+buildCountCluster
+# Reason: CountBundle — Pick<IElementMediator, ...> tuple for the
+#         count/href cluster's slice surface.
+CountBundle
+# Reason: buildCookieCluster — assembles the 2-method cookie I/O
+#         cluster (getCookies/addCookies) over the browser context.
+buildCookieCluster
+# Reason: CookieBundle — Pick<IElementMediator, ...> tuple for the
+#         cookie-I/O cluster's slice surface.
+CookieBundle
+# Reason: buildPhaseControls — assembles the 4-method phase/stage/
+#         discovery cluster, owning the ActiveState pass-through that
+#         was previously transient on Create/index.ts.
+buildPhaseControls
+# Reason: buildStaticCluster — fuses PhaseControlsBundle + AttrBundle
+#         so assembleElementMediator's spread count stays ≤ 6.
+buildStaticCluster
+# Reason: PhaseControlsBundle — Pick<IElementMediator, ...> tuple for
+#         the phase/stage/discovery cluster's slice surface.
+PhaseControlsBundle
+# Reason: StaticBundle — intersection (PhaseControlsBundle & AttrBundle)
+#         for the page-independent merged surface.
+StaticBundle
+# Reason: assembleElementMediator — composes the full IElementMediator
+#         method bundle from all six cluster builders (everything
+#         except network, which the façade layers on top).
+assembleElementMediator
+# Reason: extractActionMediator — relocated from the parent
+#         CreateElementMediator.ts façade into Create/ActionMediator.ts
+#         as part of the Phase 12a sub-step-6 trim. The symbol's public
+#         signature is unchanged; the docs-coverage gate flags it as
+#         "introduced" because it now ships from a new file path.
+extractActionMediator
