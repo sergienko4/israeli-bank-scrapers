@@ -8,25 +8,14 @@ import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { WK_LOGIN_FORM } from '../../Registry/WK/LoginWK.js';
 import { capTimeout, getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
-import { none, type Option, some } from '../../Types/Option.js';
-import { fail, isOk, type Procedure, succeed } from '../../Types/Procedure.js';
-import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from '../Form/FormAnchor.js';
-import {
-  checkFrameForErrors,
-  discoverFormErrors,
-  type IFormErrorScanResult,
-} from '../Form/FormErrorDiscovery.js';
+import { fail, type Procedure, succeed } from '../../Types/Procedure.js';
 import { createNetworkDiscovery } from '../Network/NetworkDiscovery.js';
-import { resolveFieldPipeline } from '../Selector/PipelineFieldResolver.js';
-import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
 import {
   buildFrameRegistry,
   clickElementImpl,
-  ELEMENTS_LOADING_DELAY_MS,
   fillInputImpl,
   type FrameRegistryMap,
   pressEnterImpl,
@@ -34,13 +23,20 @@ import {
 } from './ActionExecutors.js';
 import {
   buildCandidateLocators,
+  buildDiscoverErrors,
+  buildDiscoverForm,
   buildLocatorEntries,
   buildLocatorEntriesAll,
+  buildResolveClickable,
+  buildResolveField,
+  buildScopeToForm,
+  buildWaitForLoadingDone,
   CLICK_RACE_TIMEOUT,
   enrichWinnerToResult,
   extractWinnerSequence,
   getActivePhase,
   getActiveStage,
+  type IFormCache,
   type ILocatorEntry,
   NO_FORM_ANCHOR,
   raceEntriesToResult,
@@ -62,225 +58,6 @@ import {
 export { getActivePhase, getActiveStage };
 
 const LOG = getDebug(import.meta.url);
-
-/** Per-instance mutable cache for the form anchor selector. */
-interface IFormCache {
-  selector: string;
-}
-
-/** Options for field resolution — bundled to satisfy max-params. */
-interface IResolveOpts {
-  readonly page: Page;
-  readonly fieldKey: string;
-  readonly candidates: readonly SelectorCandidate[];
-  readonly scopeContext?: Page | Frame;
-  readonly formSelector?: string;
-}
-
-/**
- * Try scoped resolve in the same iframe — flat, no nesting.
- * @param opts - Bundled resolution options.
- * @returns Resolved field context or null-ish if not found in scope.
- */
-async function tryScopedResolve(opts: IResolveOpts): Promise<IFieldContext | false> {
-  if (!opts.scopeContext) return false;
-  const scoped = await resolveFieldPipeline({
-    pageOrFrame: opts.scopeContext,
-    fieldKey: opts.fieldKey,
-    bankCandidates: opts.candidates,
-    formSelector: opts.formSelector,
-  });
-  if (scoped.isResolved) return scoped;
-  return false;
-}
-
-/**
- * Try scoped search first, then full page scan.
- * @param opts - Bundled resolution options.
- * @returns Success or failure Procedure.
- */
-async function resolveFieldImpl(opts: IResolveOpts): Promise<Procedure<IFieldContext>> {
-  const notFoundMsg = `Field not found: ${opts.fieldKey}`;
-  const scopeHit = await tryScopedResolve(opts);
-  if (scopeHit) return succeed<IFieldContext>(scopeHit);
-  const wide = await resolveFieldPipeline({
-    pageOrFrame: opts.page,
-    fieldKey: opts.fieldKey,
-    bankCandidates: opts.candidates,
-  });
-  if (wide.isResolved) return succeed<IFieldContext>(wide);
-  return fail(ScraperErrorTypes.Generic, notFoundMsg);
-}
-
-/**
- * Catch resolution errors and return failure Procedure.
- * @param error - Thrown error.
- * @returns Failure Procedure.
- */
-function handleResolveError(error: Error): Procedure<IFieldContext> {
-  const msg = toErrorMessage(error);
-  return fail(ScraperErrorTypes.Generic, msg);
-}
-
-/**
- * Resolve a field by key — delegates to resolveFieldImpl.
- * @param opts - Bundled resolution options.
- * @returns Procedure with resolved field context.
- */
-function resolveFieldForPage(opts: IResolveOpts): Promise<Procedure<IFieldContext>> {
-  return resolveFieldImpl(opts).catch(handleResolveError);
-}
-
-/**
- * Build resolveField method bound to a page.
- * @param page - The Playwright page.
- * @returns Mediator resolveField function.
- */
-function buildResolveField(page: Page): IElementMediator['resolveField'] {
-  return (
-    ...args: Parameters<IElementMediator['resolveField']>
-  ): Promise<Procedure<IFieldContext>> => {
-    const [fieldKey, candidates, scopeContext, formSelector] = args;
-    const opts: IResolveOpts = { page, fieldKey, candidates, scopeContext, formSelector };
-    return resolveFieldForPage(opts);
-  };
-}
-
-/**
- * Build resolveClickable method bound to a page.
- * Uses '__submit__' as the fieldKey so WellKnown.__submit__ is the automatic fallback.
- * Searches main page + child iframes (via resolveFieldPipeline) — correct for iframe forms.
- * Returns IFieldContext so caller can click in the correct frame/page context.
- * @param page - The Playwright page.
- * @returns Mediator resolveClickable function.
- */
-function buildResolveClickable(page: Page): IElementMediator['resolveClickable'] {
-  return (candidates): Promise<Procedure<IFieldContext>> => {
-    const opts: IResolveOpts = { page, fieldKey: '__submit__', candidates };
-    return resolveFieldImpl(opts).catch(handleResolveError);
-  };
-}
-
-/**
- * Build discoverErrors method.
- * Runs Layer 1 (DOM structural scan) then Layer 2 (WellKnown text) if needed.
- * The frame parameter lets callers target the specific context (e.g., connect iframe).
- * @returns Mediator discoverErrors function.
- */
-function buildDiscoverErrors(): IElementMediator['discoverErrors'] {
-  return async (frame: Page | Frame): Promise<IFormErrorScanResult> => {
-    const layer1 = await discoverFormErrors(frame);
-    if (layer1.hasErrors) return layer1;
-    return checkFrameForErrors(frame);
-  };
-}
-
-/**
- * Check if any WellKnown loading indicator is currently visible.
- * Probes all candidates in parallel via Promise.all.
- * @param frame - Page or Frame to check.
- * @returns succeed(true) if loading visible, succeed(false) if clear.
- */
-async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boolean>> {
-  const candidates = WK_DASHBOARD.LOADING;
-  const checks = candidates.map((c): Promise<boolean> => {
-    const locator = frame.getByText(c.value).first();
-    return locator.isVisible().catch((): boolean => false);
-  });
-  const results = await Promise.all(checks);
-  const hasLoading = results.some(Boolean);
-  return succeed(hasLoading);
-}
-
-/**
- * Wait once for loading indicators to disappear, then re-check.
- * @param frame - Page or Frame.
- * @param attempt - Current attempt number (for logging).
- * @returns succeed(true) if loading gone, succeed(false) if still present.
- */
-async function waitOnceForLoading(
-  frame: Page | Frame,
-  attempt: number,
-): Promise<Procedure<boolean>> {
-  const loadingResult = await isAnyLoadingVisible(frame);
-  if (isOk(loadingResult) && !loadingResult.value) return succeed(true);
-  const delayStr = String(ELEMENTS_LOADING_DELAY_MS);
-  const attemptStr = String(attempt);
-  LOG.debug({
-    message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
-  });
-  await frame.waitForTimeout(ELEMENTS_LOADING_DELAY_MS);
-  return succeed(false);
-}
-
-/**
- * Build waitForLoadingDone method.
- * Checks WellKnown loadingIndicator candidates, waits up to 2×2s for them to disappear.
- * Uses recursive check instead of await-in-loop.
- * @returns Mediator waitForLoadingDone function.
- */
-function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'] {
-  return async (frame: Page | Frame): Promise<Procedure<true>> => {
-    const done1 = await waitOnceForLoading(frame, 1);
-    if (isOk(done1) && done1.value) return succeed(true);
-    const done2 = await waitOnceForLoading(frame, 2);
-    if (isOk(done2) && done2.value) return succeed(true);
-    await waitOnceForLoading(frame, 3);
-    return succeed(true);
-  };
-}
-
-/**
- * Discover form anchor and update cache — no try/catch (caller handles).
- * @param cache - Form cache to update.
- * @param resolvedContext - Resolved field context.
- * @returns Option with form anchor.
- */
-async function discoverFormCore(
-  cache: IFormCache,
-  resolvedContext: IFieldContext,
-): Promise<Option<IFormAnchor>> {
-  const ctx = resolvedContext.context;
-  const anchor = await discoverFormAnchor(ctx, resolvedContext.selector);
-  if (!anchor) return none();
-  cache.selector = anchor.selector;
-  return some(anchor);
-}
-
-/**
- * Catch form discovery errors — non-fatal, returns none.
- * @param error - Thrown error.
- * @returns None option.
- */
-function handleDiscoverFormError(error: Error): Option<IFormAnchor> {
-  const truncated = toErrorMessage(error).slice(0, 60);
-  LOG.debug({ message: `discoverForm failed (non-fatal): ${truncated}` });
-  return none();
-}
-
-/**
- * Build discoverForm method with per-instance cache.
- * Uses resolvedContext.context (not root page) so iframe form anchors are found correctly.
- * @param cache - Mutable form cache owned by this mediator instance.
- * @returns Mediator discoverForm function.
- */
-function buildDiscoverForm(cache: IFormCache): IElementMediator['discoverForm'] {
-  return (resolvedContext: IFieldContext): Promise<Option<IFormAnchor>> =>
-    discoverFormCore(cache, resolvedContext).catch(handleDiscoverFormError);
-}
-
-/**
- * Build scopeToForm method with per-instance cache.
- * @param cache - Mutable form cache owned by this mediator instance.
- * @returns Mediator scopeToForm function.
- */
-function buildScopeToForm(cache: IFormCache): IElementMediator['scopeToForm'] {
-  return (candidates: readonly SelectorCandidate[]): readonly SelectorCandidate[] => {
-    if (!cache.selector) return candidates;
-    const mutable = [...candidates];
-    return scopeCandidates(cache.selector, mutable);
-  };
-}
 
 /**
  * Resolve the first visible element — parallel race across candidates with

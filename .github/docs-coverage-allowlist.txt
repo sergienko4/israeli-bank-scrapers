@@ -677,3 +677,41 @@ getActiveLogContext
 # Reason: runWithBankContext — pre-existing context binder, surfaced as
 #         "new" only because main inlined the re-export shim.
 runWithBankContext
+# --- Phase 12a sub-step 5: FieldResolve+Wait+Discover extraction ---
+# Eight NEW exports landed by Phase 12a sub-step-5 (FieldResolve.ts,
+# Wait.ts, Discover.ts under Mediator/Elements/Create/). All eight are
+# internal mediator plumbing behind the barrel — no public scraper
+# consumes them directly. The parent mediator's public surface
+# (lib/index.d.ts) remains byte-identical to baseline (A3.5.4 verified).
+#
+# Reason: IFormCache — per-instance mutable cache for the form-anchor
+#         selector; threaded through discoverForm + scopeToForm.
+IFormCache
+# Reason: buildResolveField — wraps resolveFieldPipeline with
+#         scoped→wide fallback semantics and error catching;
+#         consumed by buildResolveCluster.
+buildResolveField
+# Reason: buildResolveClickable — clickable-field resolver pinned to
+#         the __submit__ fieldKey for WK.__submit__ fallback;
+#         consumed by buildResolveCluster.
+buildResolveClickable
+# Reason: buildDiscoverErrors — Layer-1 DOM scan + Layer-2 WK text
+#         fallback packaged as the mediator's discoverErrors method.
+buildDiscoverErrors
+# Reason: buildDiscoverForm — caches the discovered form anchor and
+#         catches non-fatal discovery errors; consumed by
+#         buildFormCluster.
+buildDiscoverForm
+# Reason: buildScopeToForm — uses the cached anchor to re-scope a
+#         candidate list (no-op when cache empty); consumed by
+#         buildFormCluster.
+buildScopeToForm
+# Reason: buildWaitForLoadingDone — polls WK_DASHBOARD.LOADING up to
+#         3 attempts (ELEMENTS_LOADING_DELAY_MS between attempts);
+#         consumed by buildResolveCluster.
+buildWaitForLoadingDone
+# Reason: ELEMENTS_LOADING_DELAY_MS — inter-attempt polling delay
+#         re-exported from Wait.ts so the cluster owns its tuning
+#         knob (the constant still lives in ActionExecutors for the
+#         other action callers that share the same delay).
+ELEMENTS_LOADING_DELAY_MS

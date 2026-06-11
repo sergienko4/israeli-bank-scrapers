@@ -20,7 +20,9 @@ export {
   setActivePhase,
   setActiveStage,
 } from '../../../Types/ActiveState.js';
+export { buildDiscoverErrors, buildDiscoverForm, buildScopeToForm } from './Discover.js';
 export { buildLocatorEntries, buildLocatorEntriesAll, type ILocatorEntry } from './Entries.js';
+export { buildResolveClickable, buildResolveField, type IFormCache } from './FieldResolve.js';
 export { type IRaceDiagnostic, raceLocators, raceLocatorsWithHitTest } from './Hittest.js';
 export {
   buildAriaLabelLocators,
@@ -58,3 +60,4 @@ export {
   type IWinnerInfo,
   snapshotValue,
 } from './Snapshot.js';
+export { buildWaitForLoadingDone } from './Wait.js';
