@@ -1,0 +1,34 @@
+name: Setup test runner environment
+description: >-
+  Composite bootstrap consumed by every parallel `validate` child job in
+  pr.yml — collapses the boilerplate of (setup-node-deps + optional
+  install-camoufox + optional tests-config copy) into a single step.
+  The caller MUST run `actions/checkout` BEFORE this action (local `./`
+  action paths cannot resolve otherwise).
+
+inputs:
+  camoufox:
+    description: Install the Camoufox browser (skip for unit-tests / bank-coverage / build / lint-only jobs).
+    required: false
+    default: 'true'
+  tests-config:
+    description: Copy src/Tests/.tests-config.tpl.cjs to .tests-config.cjs (skip for build / lint-only jobs).
+    required: false
+    default: 'true'
+  gh-token:
+    description: GitHub token used by the camoufox install fallback. Defaults to empty (camoufox=false jobs do not need it).
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-node-deps
+    - if: inputs.camoufox == 'true'
+      uses: ./.github/actions/install-camoufox
+      with:
+        gh-token: ${{ inputs.gh-token }}
+    - if: inputs.tests-config == 'true'
+      shell: bash
+      run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+

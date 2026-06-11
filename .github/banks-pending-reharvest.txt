@@ -18,16 +18,7 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (6) ──
-# Beinleumi   recipe gap: Angular form lives in iframe; harvester
-#             needs `wait-iframe-loaded` step + asset capture so the
-#             iframe contents become part of the captured DOM.
-beinleumi
-#
-# VisaCal     recipe gap: SPA hydration not complete at capture time.
-#             Harvester needs `wait-for-selector(input[type=password])`
-#             before dumping HTML so the form is rendered.
-visaCal
+# ── Currently pending (3) ──
 #
 # Massad      recipe gap: login form has a tab/accordion-toggle UI
 #             that reveals the password tab only after click. Harvester
@@ -40,16 +31,23 @@ pagi
 # OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
 otsarHahayal
 #
-# Amex        Mirror simulator parity gap: 9 cross-origin iframes in
-#             captured 03-after-flip HTML (440KB). MirrorInterceptor
-#             only routes the top-level page. On slower CI runners,
-#             iframe-load cascading causes browser corruption that
-#             timed out 5 other banks in PR #331 (1005s total vs 45s
-#             baseline). Locally completes in 49s on 16-core; CI
-#             cannot absorb the iframe load. AMEX retains FULL
-#             coverage via Mode A (static drive) + Mode B SIMULATOR
-#             (state-machine; src/Tests/Unit/Integration/Banks/Amex/
-#             Amex.modeB.test.ts). Mirror cross-bank single-step
-#             replay is the OPTIONAL sanity check; AMEX inclusion
-#             requires MirrorInterceptor iframe support (future PR).
-amex
+# ── Resolved (kept for traceability) ──
+# visaCal     RESOLVED in PR #335 C7: harvester gained frame-aware reveal
+#             (clickRevealAnyFrame) + 3-step recipe (01-home + 02-pre-login
+#             + 03-username-tab clicks "כניסה עם שם משתמש" tab); MirrorInterceptor
+#             gained iframe routing (loadFrameRoutes serves per-frame HTML from
+#             frames.json). Password form lives inside the
+#             connect.cal-online.co.il/regular-login iframe.
+#
+# Amex        RESOLVED in PR #335 C9: loginStep points at the harvested
+#             top-document file (03-after-flip/main.html) — credential
+#             form <form id="otpLobbyFormPassword"> lives there. The
+#             sibling 8 captured iframes describe analytics (reCAPTCHA,
+#             DoubleClick) and have no credentials, so we let
+#             MirrorInterceptor abort them at the network layer instead
+#             of replaying them (replaying made the resolver waste
+#             discovery time probing third-party frames; see PR #335 C9).
+#             C8's MirrorFrameRoutes infra stays in place as opt-in for
+#             future banks whose credential form actually lives in a
+#             multi-iframe cascade (none today).
+

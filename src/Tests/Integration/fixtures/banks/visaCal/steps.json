@@ -5,6 +5,10 @@
   },
   {
     "name": "02-pre-login",
-    "finalUrl": "https://www.cal-online.co.il/login"
+    "finalUrl": "https://www.cal-online.co.il/"
+  },
+  {
+    "name": "03-username-tab",
+    "finalUrl": "https://www.cal-online.co.il/"
   }
 ]

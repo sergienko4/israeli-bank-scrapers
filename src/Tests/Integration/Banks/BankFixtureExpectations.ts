@@ -89,11 +89,12 @@ const VISACAL_PHASE_11_STEPS = [
  *       endpoint, NOT MAX's `getTransactionsAndGraphs` or AMEX's
  *       `CardsTransactionsList`.</li>
  * </ul>
- * Beinleumi retains `requiresHydration: true` because the captured
- * static lobby HTML alone is insufficient to drive LOGIN PRE
- * discovery (form is rendered inside an Angular-driven iframe
- * post-JS). Mode A marker checks + Mode B SIMULATOR state-machine
- * are orthogonal to that harvester gap.
+ * Beinleumi now uses the captured iframe content (`03-after-prelogin/
+ * frame-2.html`, 51KB, with full `<input type="password">` + form
+ * structure) served as the main document for cross-bank Mode B
+ * discovery — so `requiresHydration: false` is correct. Mode A marker
+ * checks + Mode B SIMULATOR state-machine still operate against the
+ * same `BEINLEUMI_PHASE_11_STEPS` chain.
  */
 const BEINLEUMI_PHASE_11_STEPS = [
   { stepName: '01-home' },
@@ -125,7 +126,17 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'amex',
     originUrl: 'https://he.americanexpress.co.il',
-    loginStep: '03-after-flip',
+    // Point at the harvested top-document file (03-after-flip/main.html)
+    // instead of the directory-style step name. The directory siblings
+    // (frames.json + frame-0..8.html) describe analytics/recaptcha
+    // iframes that DO NOT contain the credential form (it lives in the
+    // top document under <form id="otpLobbyFormPassword">). Using the
+    // `<dir>/main` path keeps MirrorInterceptor from loading
+    // `<dir>/frames.json` for replay, so the resolver never wastes
+    // discovery time probing third-party iframes (reCAPTCHA,
+    // DoubleClick) — mirrors the visaCal/beinleumi pattern of pointing
+    // loginStep at the file that actually holds the credential form.
+    loginStep: '03-after-flip/main',
     loginFormId: 'otpLobbyFormPassword',
     requiresHydration: false,
     steps: AMEX_PHASE_11_STEPS,
@@ -133,12 +144,16 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'beinleumi',
     originUrl: 'https://www.fibi.co.il',
-    loginStep: '03-after-prelogin',
+    loginStep: '03-after-prelogin/frame-2',
     // Beinleumi renders the credential form inside an Angular-driven
-    // iframe post-JS — captured static HTML contains only the search
-    // input + sandboxed iframe shell. Drive test is skipped; structural
-    // assertions still gate the lobby shell + reveal-text invariants.
-    requiresHydration: true,
+    // iframe (name="loginFrame"). The harvester captures the iframe
+    // content as 03-after-prelogin/frame-2.html (51KB with full
+    // <input type="password"> + form structure). Point loginStep at
+    // the nested iframe HTML — MirrorInterceptor + FixturePage both
+    // resolve `${stepName}.html` so the iframe content is served as
+    // the main document at fibi.co.il for cross-bank discovery to
+    // operate on.
+    requiresHydration: false,
     steps: BEINLEUMI_PHASE_11_STEPS,
   },
   {
@@ -182,8 +197,18 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'visaCal',
     originUrl: 'https://www.cal-online.co.il',
-    loginStep: '02-pre-login',
-    requiresHydration: true,
+    // VisaCal moved to OTP-first UX; password login lives in the
+    // alternative tab "כניסה עם שם משתמש" which renders the form
+    // inside an iframe pointing at connect.cal-online.co.il/regular-login.
+    // The harvester captures that iframe content as
+    // 03-username-tab/frame-9.html (66KB with full <input type="password">
+    // + <input formcontrolname="userName">). Point loginStep at the
+    // nested iframe HTML so MirrorInterceptor + FixturePage serve the
+    // hydrated credential form as the main document at www.cal-online.co.il
+    // for cross-bank discovery to operate on (mirrors the Beinleumi
+    // 03-after-prelogin/frame-2 pattern).
+    loginStep: '03-username-tab/frame-9',
+    requiresHydration: false,
     steps: VISACAL_PHASE_11_STEPS,
   },
   {

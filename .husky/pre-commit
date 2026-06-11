@@ -343,9 +343,19 @@ fi
 # # (upstream bug #386).
 run-integration-modes() {
     log ""
-    log "🧪 Phase 4: Integration Mode A + Mode B (HARD GATE — no relaxation)"
-    if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:integration:mode-a")" ] && [ -f "$(cache_marker "test:integration:mode-b")" ]; then
-        log "  ⚡ Mode A + Mode B cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+    log "🧪 Phase 4: Integration Mode A (HARD GATE — no relaxation)"
+    # Mode B was REMOVED from pre-commit on 2026-06-10 — it averages
+    # ~3 min wall (mirror test 179s dominates) and is fully covered by
+    # the `integration-mode-b` CI job (pr.yml). Keeping it local meant
+    # 6 min Phase 4 every commit; CI catches the same regressions in
+    # parallel with no operator wait. Mode A stays local because it
+    # IS our primary bank-coverage safety net — LoginFormDiscovery +
+    # 7 bank static drivers — and catches the highest-frequency
+    # regressions during interactive development. Run Mode B manually
+    # via `npm run test:integration:mode-b` when validating mirror
+    # contract changes locally.
+    if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:integration:mode-a")" ]; then
+        log "  ⚡ Mode A cache HIT — skipping (last-passed for tree $CACHE_KEY)"
         return 0
     fi
     log "  → Mode A (static HTML drive)..."
@@ -355,14 +365,7 @@ run-integration-modes() {
         exit 1
     fi
     [ -n "$CACHE_KEY" ] && touch "$(cache_marker "test:integration:mode-a")"
-    log "  → Mode B (mirror origin drive)..."
-    npm run test:integration:mode-b 2>&1 | tee -a "$LOG_FILE"
-    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-        log "❌ Integration Mode B FAILED — fix before real e2e"
-        exit 1
-    fi
-    [ -n "$CACHE_KEY" ] && touch "$(cache_marker "test:integration:mode-b")"
-    log "  ✅ Mode A + Mode B green for all 11 pipeline banks"
+    log "  ✅ Mode A green for all 11 pipeline banks (Mode B runs in CI)"
     log ""
 }
 run-integration-modes
