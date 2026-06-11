@@ -197,26 +197,28 @@ function tryServeFrame(req: Request, ctx: IRouteCtx): string {
 
 /**
  * Route handler — fulfills document navigations with cached HTML and
- * aborts every other request so subresources never escape. Iframe
- * URLs captured at harvest time are served from per-frame HTML files
- * so cross-origin iframe forms (e.g. visaCal regular-login, AMEX SSO)
- * become driveable for the production resolver chains.
+ * aborts every other request so subresources never escape. Main-document
+ * navigation gets priority (origin/captured-step host matches). When that
+ * misses, captured iframe URLs from the loginStep `frames.json` (if any)
+ * are served as fallback so cross-origin iframe forms (e.g. visaCal
+ * regular-login, AMEX SSO) become driveable for the production resolver
+ * chains. Everything else is aborted at the network layer.
  * @param route - Playwright route.
  * @param req - The request being routed.
  * @param ctx - Cached HTML + allowed hosts + frame routes + debug state.
  * @returns True after the route is handled.
  */
 async function routeHandler(route: Route, req: Request, ctx: IRouteCtx): Promise<true> {
+  if (shouldServeHtml(req, ctx.allowedHosts)) {
+    const reqUrl = req.url();
+    logFirstServed(ctx, reqUrl);
+    return fulfillHtml(route, ctx.cachedHtml);
+  }
   const frameBody = tryServeFrame(req, ctx);
   if (frameBody !== NO_FRAME_BODY) {
     const reqUrl = req.url();
     logFirstServed(ctx, reqUrl);
     return fulfillHtml(route, frameBody);
-  }
-  if (shouldServeHtml(req, ctx.allowedHosts)) {
-    const reqUrl = req.url();
-    logFirstServed(ctx, reqUrl);
-    return fulfillHtml(route, ctx.cachedHtml);
   }
   logFirstAborted(ctx, req);
   const abortPromise = route.abort('blockedbyclient');
