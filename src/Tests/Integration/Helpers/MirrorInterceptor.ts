@@ -168,7 +168,23 @@ async function fulfillHtml(route: Route, cachedHtml: string): Promise<true> {
  * the request URL. Empty string is unique vs every captured HTML body
  * (which is always non-empty after harvest validation).
  */
-const NO_FRAME_BODY = '';
+const NO_FRAME_BODY = '' as const;
+
+/**
+ * Host-fallback lookup for {@link tryServeFrame}. Returns the captured
+ * body when exactly one frame on that host was harvested; otherwise the
+ * {@link NO_FRAME_BODY} sentinel. Extracted so {@link tryServeFrame}
+ * stays under the 10-line cap (per CLAUDE.md).
+ * @param host - Host portion of the request URL (or empty-string sentinel).
+ * @param frameRoutes - The URL + host route maps.
+ * @returns Captured frame body or {@link NO_FRAME_BODY}.
+ */
+function tryHostFallback(host: string, frameRoutes: IFrameRouteMaps): string {
+  if (host === '') return NO_FRAME_BODY;
+  const byHost = frameRoutes.byHost.get(host);
+  if (byHost === undefined || byHost === HOST_AMBIGUOUS) return NO_FRAME_BODY;
+  return byHost;
+}
 
 /**
  * Try to serve a captured iframe HTML body. Two-tier match:
@@ -189,10 +205,7 @@ function tryServeFrame(req: Request, ctx: IRouteCtx): string {
   const exact = ctx.frameRoutes.byUrl.get(normalizedUrl);
   if (exact !== undefined) return exact;
   const host = safeFrameHost(url);
-  if (host === '') return NO_FRAME_BODY;
-  const byHost = ctx.frameRoutes.byHost.get(host);
-  if (byHost === undefined || byHost === HOST_AMBIGUOUS) return NO_FRAME_BODY;
-  return byHost;
+  return tryHostFallback(host, ctx.frameRoutes);
 }
 
 /**

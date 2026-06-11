@@ -33,8 +33,11 @@ interface IFrameMetaRow {
   readonly file: string;
 }
 
+/** Frames-manifest row list — alias so signatures fit Prettier's 100-col cap. */
+type IFrameMetaRows = readonly IFrameMetaRow[];
+
 /** Empty-frames singleton — avoids per-call array allocation. */
-const NO_FRAMES: readonly IFrameMetaRow[] = Object.freeze([]);
+const NO_FRAMES: IFrameMetaRows = Object.freeze([]);
 
 /**
  * Type guard for IFrameMetaRow rows parsed from frames.json.
@@ -97,10 +100,7 @@ function isRoutableFrame(frame: IFrameMetaRow): boolean {
  * @param stepName - Step name (matches `<step>/frames.json`).
  * @returns Manifest rows (possibly empty).
  */
-async function readFramesManifest(
-  root: string,
-  stepName: string,
-): Promise<readonly IFrameMetaRow[]> {
+async function readFramesManifest(root: string, stepName: string): Promise<IFrameMetaRows> {
   try {
     const raw = await fs.readFile(`${root}/${stepName}/frames.json`, 'utf8');
     return parseFramesArray(raw);
@@ -115,7 +115,7 @@ async function readFramesManifest(
  * @param raw - UTF-8 file contents.
  * @returns Filtered manifest rows (possibly empty).
  */
-function parseFramesArray(raw: string): readonly IFrameMetaRow[] {
+function parseFramesArray(raw: string): IFrameMetaRows {
   const parsed: unknown = JSON.parse(raw);
   if (!Array.isArray(parsed)) return NO_FRAMES;
   return parsed.filter(isFrameMetaRow);
@@ -167,7 +167,7 @@ function recordRoutes(args: IRecordRoutesArgs): true {
 }
 
 /** Sentinel: host has multiple frames with different bodies — no fallback. */
-const HOST_AMBIGUOUS = '\u0000__AMBIGUOUS__\u0000';
+const HOST_AMBIGUOUS = '\u0000__AMBIGUOUS__\u0000' as const;
 
 /** Args bundle for {@link recordRoutes} — respects the 3-param ceiling. */
 interface IRecordRoutesArgs {
@@ -207,9 +207,27 @@ const NO_FRAME_ROUTE_MAPS: IFrameRouteMaps = {
 interface IPushAllFramesArgs {
   readonly root: string;
   readonly stepName: string;
-  readonly frames: readonly IFrameMetaRow[];
+  readonly frames: IFrameMetaRows;
   readonly urlMap: Map<string, string>;
   readonly hostMap: Map<string, string>;
+}
+
+/**
+ * Build the {@link IPushFrameRouteArgs} bundle for the frame at `idx`.
+ * Extracted from {@link pushAllFramesAtIdx} so the recursive walker
+ * stays under the 10-line cap (per CLAUDE.md).
+ * @param args - Bundle of root + stepName + frames + maps.
+ * @param idx - Frame index to project.
+ * @returns Args bundle ready to pass to {@link pushFrameRoute}.
+ */
+function buildPushArgs(args: IPushAllFramesArgs, idx: number): IPushFrameRouteArgs {
+  return {
+    root: args.root,
+    stepName: args.stepName,
+    frame: args.frames[idx],
+    urlMap: args.urlMap,
+    hostMap: args.hostMap,
+  };
 }
 
 /**
@@ -221,14 +239,8 @@ interface IPushAllFramesArgs {
  */
 async function pushAllFramesAtIdx(args: IPushAllFramesArgs, idx: number): Promise<true> {
   if (idx >= args.frames.length) return true;
-  const frame = args.frames[idx];
-  await pushFrameRoute({
-    root: args.root,
-    stepName: args.stepName,
-    frame,
-    urlMap: args.urlMap,
-    hostMap: args.hostMap,
-  });
+  const pushArgs = buildPushArgs(args, idx);
+  await pushFrameRoute(pushArgs);
   return pushAllFramesAtIdx(args, idx + 1);
 }
 
