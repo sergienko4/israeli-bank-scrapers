@@ -20,6 +20,7 @@ GitHub Actions runs every gate on every PR. The matrix below is the source of tr
 | **Mock suite (orchestrated)** | `test:mock` | `scripts/run-mock-suite.ts` driving all configured banks | Same fixtures |
 | **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
 | **Build** | `build` | `tsup` ESM + CJS bundle | `lib/index.{mjs,cjs,d.ts,d.cts}` produced |
+| **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
 
 ## Coverage thresholds
 

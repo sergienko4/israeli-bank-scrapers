@@ -331,6 +331,31 @@ const PHASE_10_INTEGRATION_FILES = [
   'src/Tests/Unit/Integration/**/*.ts',
 ];
 
+// Phase 10 wave 2 — Pipeline coverage-closeout tests (PR #336 Seq #1).
+// Closes the gap CR cycle PR #336 #1 exposed: `buildEndpoint` shipped
+// at 12 LoC inside `ApiOriginDiscovery.test.ts`, but §7's broad
+// `src/Tests/**` override at line 866 turns `max-lines-per-function`
+// OFF entirely, so the ≤10-LoC cap from CLEAN_CODE.md §1 + CLAUDE.md
+// (Max 10 lines per method) was unenforceable. This wave re-arms the
+// cap on NEW pipeline-mirroring tests via:
+//   • `phase9-local/fn-declaration-max-lines:10` — line-count guard on
+//     `FunctionDeclaration` only. The built-in `max-lines-per-function`
+//     and `max-statements` rules are deliberately NOT added because they
+//     fire on every `describe`/`it`/`beforeEach` arrow callback (see
+//     §19.10 docstring — ~3 049 violators across `src/Tests/**`).
+//   • Statement-count enforcement on named helpers already comes from
+//     `TEST_HELPER_OVER_10_STMTS_RULE` wired into §7's `no-restricted-
+//     syntax` block at line 877 — no new `max-statements` override is
+//     needed here.
+// Globs are deliberately narrow: the touched files + their immediate
+// directories. A future "wave 3" widens to all `src/Tests/Unit/Pipeline/**`
+// after the existing 2 317 violators are drained (Phase 9-style sweep).
+const PHASE_10_WAVE_2_PIPELINE_HARDENING_TESTS = [
+  'src/Tests/Unit/Pipeline/Mediator/Network/MethodBundles.test.ts',
+  'src/Tests/Unit/Pipeline/Mediator/Network/Scoring/**/*.test.ts',
+  'src/Tests/Unit/Pipeline/Types/PiiRedactor/JsonBody.test.ts',
+];
+
 const RESTRICTED_SYNTAX_RULES_NEW = [
   // 1. Coverage Bypasses
   {
@@ -2518,6 +2543,48 @@ export default tseslint.config(
   // proves §19.10 fires on a function §19.9 would miss.
   {
     files: ['src/Scrapers/Pipeline/EslintCanaries/test-helper-over-10-lines.canary.ts'],
+    plugins: { 'phase9-local': phase9LocalPlugin },
+    rules: {
+      'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
+    },
+  },
+
+  // 19.11 PHASE 10 WAVE 2 — Pipeline coverage-closeout tests (PR #336
+  // Seq #1) MUST mirror the production ≤10-LoC cap. CR cycle #1 caught
+  // a 12-LoC `buildEndpoint` helper inside `ApiOriginDiscovery.test.ts`
+  // that ESLint silently allowed — because §7's broad `src/Tests/**`
+  // override at line 866 turns `max-lines-per-function` OFF entirely.
+  //
+  // Why only `phase9-local/fn-declaration-max-lines` here (and NOT the
+  // built-in `max-lines-per-function` / `max-statements`): the built-in
+  // rules fire on EVERY `describe`/`it` arrow callback (per the §19.10
+  // docstring, ~3 049 violators in `src/Tests/**` per AST audit) which
+  // makes them unusable on test files. The phase9-local rule fires
+  // ONLY on named `FunctionDeclaration`s — exactly the slip-class CR
+  // cycle #1 exposed (`function buildEndpoint() {}` over 10 lines).
+  // Statement-count enforcement is already provided by
+  // `TEST_HELPER_OVER_10_STMTS_RULE` wired into §7's `no-restricted-syntax`
+  // at line 877 — so we don't double up here.
+  //
+  // Globs are deliberately narrow: the 3 files PR #336 added + the
+  // Scoring/** glob so future co-located tests inherit. A wave 3
+  // widens to all `src/Tests/Unit/Pipeline/**` after the existing
+  // 2 317 violators are drained (Phase 9-style sweep).
+  {
+    files: PHASE_10_WAVE_2_PIPELINE_HARDENING_TESTS,
+    plugins: { 'phase9-local': phase9LocalPlugin },
+    rules: {
+      'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
+    },
+  },
+
+  // 19.11 CANARY — re-enable §19.11 on a single fixture under
+  // `EslintCanaries/` (globally ignored at line 539) so `verify.sh`
+  // can confirm the wave-2 guardrail stays armed. Fixture is a
+  // 14-line named FunctionDeclaration — proves the wave-2 rule
+  // fires on the slip-class CR cycle PR #336 #1 exposed.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/test-pipeline-hardening-fn-over-cap.canary.ts'],
     plugins: { 'phase9-local': phase9LocalPlugin },
     rules: {
       'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
