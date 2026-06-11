@@ -2417,6 +2417,29 @@ export default tseslint.config(
     },
   },
 
+  // 19.3a GRANDFATHER — Pipeline/Phases/Base (Phase 12b — BasePhase migration target).
+  //   Phase 12b decoupled the mislabeled 633-LoC `Pipeline/Types/BasePhase.ts`
+  //   hub: the BasePhase abstract class + its 10 helper functions move into
+  //   their semantically correct sibling location, `Pipeline/Phases/Base/`,
+  //   leaving `Types/BasePhase.ts` as a thin re-export shim for the v8.5
+  //   release window. Four helpers — `buildBootstrapContext` (~26 LoC),
+  //   `buildActionContext` (~27 LoC), `runAction` (~23 LoC), and
+  //   `takePhaseScreenshot` (~22 LoC) — exceed §19.3's 15/10 cap because
+  //   they orchestrate multi-slice state (executor + balance + URL +
+  //   forensics) that cannot be split without leaking the class's private
+  //   contract. The temporary 30/20 cap mirrors §19.2 (Pipeline/Types/**)
+  //   so the move is byte-for-byte preserving — Phase 13 will drain the
+  //   helpers back to canonical 10/10 once the post-`extractActionMediator`
+  //   handoff slot lets `buildActionContext` collapse. Flat-config is
+  //   last-wins, so this block MUST appear after §19.3.
+  {
+    files: ['src/Scrapers/Pipeline/Phases/Base/**/*.ts'],
+    rules: {
+      'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
+      'max-statements': ['error', 20],
+    },
+  },
+
   // 19.4 GRANDFATHER — Pipeline/Mediator/{Elements,Form} (not covered by
   // existing §14b.* cluster blocks; Network already passes 10/10).
   {
