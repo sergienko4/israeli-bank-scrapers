@@ -89,19 +89,56 @@ function buildRedact(): NonNullable<pino.LoggerOptions['redact']> {
 }
 
 /**
- * Compose pino constructor options around a resolved transport.
- * Accepts `false` because {@link buildTransport} returns it when no
- * transport is needed; the spread inside drops it from the literal.
+ * Common pino-options fields shared between the silent and active branches
+ * of {@link buildPinoOptions}. Extracted so adding a new pino option in the
+ * future updates both branches atomically.
+ * @returns Pino options fields that never depend on the transport choice.
+ */
+function buildCommonOptions(): Pick<pino.LoggerOptions, 'redact' | 'mixin'> {
+  return { redact: buildRedact(), mixin: getBankMixin };
+}
+
+/**
+ * Compose pino options for the explicit "no transport configured" case.
+ * Sets `level: 'silent'` instead of omitting the transport field — without
+ * this branch pino v10 falls back to its default destination (STDOUT),
+ * emitting unintended log noise in CI / production runs that fire before
+ * `setActiveBank` resolves a real log file. Closes CR PR #337 finding 2.
+ *
+ * Exported only so the unit test can pin the silent-level contract without
+ * having to mutate `process.env.CI` mid-test.
+ * @returns Pino options producing a fully silent logger.
+ */
+export function buildSilentOptions(): pino.LoggerOptions {
+  return { level: 'silent', ...buildCommonOptions() };
+}
+
+/**
+ * Compose pino options around a real transport — honours `LOG_LEVEL` env
+ * override so operators can crank verbosity at runtime.
+ *
+ * Exported only so the unit test can pin the env-driven level + transport
+ * pass-through contract without bootstrapping a real pino instance.
+ * @param transport - Non-false transport produced by {@link buildTransport}.
+ * @returns Pino logger options ready for `pino(...)`.
+ */
+export function buildActiveOptions(transport: pino.LoggerOptions['transport']): pino.LoggerOptions {
+  return { level: process.env.LOG_LEVEL ?? 'info', transport, ...buildCommonOptions() };
+}
+
+/**
+ * Compose pino constructor options around a resolved transport. Dispatches
+ * to {@link buildSilentOptions} when {@link buildTransport} returned `false`
+ * (explicit "disabled" signal) or {@link buildActiveOptions} otherwise.
+ *
+ * Exported only so the unit test can pin the dispatch contract.
  * @param transport - Transport produced by {@link buildTransport}.
  * @returns Pino logger options ready for `pino(...)`.
  */
-function buildPinoOptions(transport: pino.LoggerOptions['transport'] | false): pino.LoggerOptions {
-  return {
-    level: process.env.LOG_LEVEL ?? 'info',
-    ...(transport && { transport }),
-    redact: buildRedact(),
-    mixin: getBankMixin,
-  };
+export function buildPinoOptions(
+  transport: pino.LoggerOptions['transport'] | false,
+): pino.LoggerOptions {
+  return transport === false ? buildSilentOptions() : buildActiveOptions(transport);
 }
 
 /**

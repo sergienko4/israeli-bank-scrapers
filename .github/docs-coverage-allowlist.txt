@@ -364,3 +364,14 @@ urlHasWkDateRange
 #         the captured fromDate from a TXN endpoint URL (Hapoalim preview
 #         window fix).
 readCapturedFromDate
+
+# Reason: buildPinoOptions / buildSilentOptions / buildActiveOptions —
+#         internal Logging/RootLogger.ts helpers exported ONLY so unit
+#         tests under Tests/Unit/Pipeline/Logging/RootLogger.test.ts
+#         can pin the silent vs active dispatch contract introduced
+#         by CR PR #337 finding 2 (pino-v10 STDOUT fallthrough closure).
+#         Not consumed by production code outside the module; no
+#         user-facing API surface.
+buildPinoOptions
+buildSilentOptions
+buildActiveOptions
