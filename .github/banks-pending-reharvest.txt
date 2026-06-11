@@ -39,8 +39,15 @@ otsarHahayal
 #             frames.json). Password form lives inside the
 #             connect.cal-online.co.il/regular-login iframe.
 #
-# Amex        RESOLVED in PR #335 C8: MirrorInterceptor iframe routing now
-#             serves AMEX's 9 cross-origin iframes from captured frame-N.html
-#             files. Production resolver can reach SSO + personalarea iframes
-#             without crossing into the real network.
+# Amex        RESOLVED in PR #335 C9: loginStep points at the harvested
+#             top-document file (03-after-flip/main.html) — credential
+#             form <form id="otpLobbyFormPassword"> lives there. The
+#             sibling 8 captured iframes describe analytics (reCAPTCHA,
+#             DoubleClick) and have no credentials, so we let
+#             MirrorInterceptor abort them at the network layer instead
+#             of replaying them (replaying made the resolver waste
+#             discovery time probing third-party frames; see PR #335 C9).
+#             C8's MirrorFrameRoutes infra stays in place as opt-in for
+#             future banks whose credential form actually lives in a
+#             multi-iframe cascade (none today).
 

@@ -126,7 +126,17 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'amex',
     originUrl: 'https://he.americanexpress.co.il',
-    loginStep: '03-after-flip',
+    // Point at the harvested top-document file (03-after-flip/main.html)
+    // instead of the directory-style step name. The directory siblings
+    // (frames.json + frame-0..8.html) describe analytics/recaptcha
+    // iframes that DO NOT contain the credential form (it lives in the
+    // top document under <form id="otpLobbyFormPassword">). Using the
+    // `<dir>/main` path keeps MirrorInterceptor from loading
+    // `<dir>/frames.json` for replay, so the resolver never wastes
+    // discovery time probing third-party iframes (reCAPTCHA,
+    // DoubleClick) — mirrors the visaCal/beinleumi pattern of pointing
+    // loginStep at the file that actually holds the credential form.
+    loginStep: '03-after-flip/main',
     loginFormId: 'otpLobbyFormPassword',
     requiresHydration: false,
     steps: AMEX_PHASE_11_STEPS,
