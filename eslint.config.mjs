@@ -1140,6 +1140,23 @@ export default tseslint.config(
     },
   },
 
+  // 7e. PHASES/BASE HELPER MODULES — DEFAULT-EXPORT EXEMPTION (Phase 12b)
+  //
+  // Phase 12b sub-step 3/4 extracted the module-private helpers out
+  // of the 633-LoC `Types/BasePhase.ts` hub into five sibling files
+  // under `Phases/Base/`. `BootstrapContextBuilder.ts` exposes
+  // exactly one symbol (`buildBootstrapContext`); forcing it to a
+  // default export would require its single consumer
+  // (`ActionContextBuilder.ts`) to bind a local alias and obscure
+  // call-site readability for no payoff. Same rationale as §7c and
+  // §7d; same narrow scope.
+  {
+    files: ['src/Scrapers/Pipeline/Phases/Base/**/*.ts'],
+    rules: {
+      'import-x/prefer-default-export': 'off',
+    },
+  },
+
   // 8. PHASE ROOT GUARD (THE FINAL CHECK)
   {
     files: ['src/Scrapers/Pipeline/Phases/*.ts'],

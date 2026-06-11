@@ -5,247 +5,36 @@
  * run() is the ONLY entry point — bakes in Guard Clauses (Rule #15).
  * ACTION receives IActionContext (sealed — no discovery methods).
  * TypeScript compiler refuses resolveField/resolveVisible in action().
+ *
+ * <p>Phase 12b sub-step 3/4 (2026-06): the pure helpers that used to
+ * live in this file now sit beside their semantically correct phase
+ * neighbours under `Pipeline/Phases/Base/`. The class body still lives
+ * here for one more sub-step so existing imports of `BasePhase` /
+ * `IsPrePayloadValid` from this path keep working unchanged; the
+ * class itself moves in Commit 4. See the per-helper file headers for
+ * the rationale behind each split.
  */
 
 import { ScraperErrorTypes } from '../../Base/ErrorTypes.js';
 import { safeScreenshot } from '../Mediator/Browser/SafeScreenshot.js';
-import { extractActionMediator } from '../Mediator/Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Mediator/Elements/PagePrelude.js';
 import { awaitPagePrelude, PRELUDE_NONE } from '../Mediator/Elements/PagePrelude.js';
+import { buildActionContext } from '../Phases/Base/ActionContextBuilder.js';
+import { logHandoffSummary } from '../Phases/Base/HandoffHelpers.js';
+import { PHASE_STAGE_EVENT, RESULT_TAG, traceTag } from '../Phases/Base/PhaseTrace.js';
 import { setActivePhase, setActiveStage } from './ActiveState.js';
 import type { Brand } from './Brand.js';
 import { isMockTimingActive } from './Debug.js';
 import { dumpFixtureHtml } from './FixtureCapture.js';
-import type { PipelineLogEvent } from './LogEvent.js';
 import { mockPolicyFor } from './MockPhasePolicy.js';
-import { none, some } from './Option.js';
 import type { PhaseName } from './Phase.js';
-import type { IActionContext, IBootstrapContext, IPipelineContext } from './PipelineContext.js';
+import type { IActionContext, IPipelineContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';
 import { fail, succeed } from './Procedure.js';
 import { screenshotPath } from './RunLabel.js';
 
-/** Trace tag — 'OK' or 'FAIL'. */
-type TraceTagStr = Brand<string, 'TraceTagStr'>;
-/** Handoff emit outcome — branded for Rule #15. */
-type DidEmitHandoff = Brand<boolean, 'DidEmitHandoff'>;
 /** PRE-payload validation outcome — branded for Rule #15. */
 export type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
-
-/** Lookup for success/fail trace tags. */
-/** Pino log-event discriminator emitted by every phase-stage debug line. */
-const PHASE_STAGE_EVENT = 'phase-stage' as const;
-
-const RESULT_TAG: Record<string, PipelineLogEvent['event'] extends string ? string : never> = {
-  true: 'OK',
-  false: 'FAIL',
-};
-
-/**
- * Map Procedure success to trace tag.
- * @param r - Procedure result (any payload type).
- * @returns 'OK' or 'FAIL'.
- */
-function traceTag<T>(r: Procedure<T>): TraceTagStr {
-  return RESULT_TAG[String(r.success)] as TraceTagStr;
-}
-
-/**
- * Build sealed IActionContext from full context.
- * Strips browser/page/frame access. Only executor remains.
- * @param ctx - Full pipeline context after PRE.
- * @returns Sealed action context.
- */
-/**
- * Extract sealed executor from full context.
- * Requires both mediator AND browser (for frame registry).
- * @param ctx - Full pipeline context.
- * @returns Option wrapping the action mediator.
- */
-function extractExecutor(ctx: IPipelineContext): IActionContext['executor'] {
-  if (!ctx.mediator.has) return none();
-  if (!ctx.browser.has) return none();
-  const page = ctx.browser.value.page;
-  const sealed = extractActionMediator(ctx.mediator.value, page);
-  return some(sealed);
-}
-
-/**
- * Build bootstrap context for INIT/TERMINATE — explicit object literal, NO spread.
- * Has browser (for launch/teardown) but NO mediator, NO executor.
- * @param ctx - Full pipeline context.
- * @returns IBootstrapContext with browser access.
- */
-function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
-  return {
-    options: ctx.options,
-    credentials: ctx.credentials,
-    companyId: ctx.companyId,
-    logger: ctx.logger,
-    diagnostics: ctx.diagnostics,
-    config: ctx.config,
-    fetchStrategy: ctx.fetchStrategy,
-    executor: none(),
-    apiMediator: ctx.apiMediator,
-    loginFieldDiscovery: ctx.loginFieldDiscovery,
-    preLoginDiscovery: ctx.preLoginDiscovery,
-    dashboard: ctx.dashboard,
-    scrapeDiscovery: ctx.scrapeDiscovery,
-    accountDiscovery: ctx.accountDiscovery,
-    txnEndpoint: ctx.txnEndpoint,
-    dashboardTxnHarvest: ctx.dashboardTxnHarvest,
-    authDiscovery: ctx.authDiscovery,
-    otpTrigger: ctx.otpTrigger,
-    api: ctx.api,
-    loginAreaReady: ctx.loginAreaReady,
-    ...balanceContextSlice(ctx),
-    browser: ctx.browser,
-  };
-}
-
-/** The five BALANCE-RESOLVE slot keys both bootstrap and sealed action contexts carry. */
-const BALANCE_SLOT_KEYS = [
-  'balanceFetchPlan',
-  'balanceResponsesByBankAccount',
-  'balanceExtracted',
-  'balanceValidation',
-  'balanceResolution',
-] as const;
-
-/** Pick-typed alias for the five BALANCE-RESOLVE slots. */
-type BalanceContextSlice = Pick<IPipelineContext, (typeof BALANCE_SLOT_KEYS)[number]>;
-
-/**
- * The five BALANCE-RESOLVE slots that both bootstrap and sealed action
- * contexts carry. Hoisted so the two builders don't drift; matches the
- * "Generic over duplication" project rule.
- *
- * @param ctx - Full pipeline context.
- * @returns Slice of the five balance slots.
- */
-function balanceContextSlice(ctx: IPipelineContext): BalanceContextSlice {
-  const entries = BALANCE_SLOT_KEYS.map(k => [k, ctx[k]] as const);
-  return Object.fromEntries(entries) as BalanceContextSlice;
-}
-
-/**
- * Build sealed IActionContext — NEW object literal, NO spread.
- * If mediator exists: sealed (no browser, no mediator, no raw Page).
- * If no mediator (INIT/TERMINATE): returns IBootstrapContext (has browser).
- * @param ctx - Full pipeline context after PRE.
- * @returns Sealed action context.
- */
-function buildActionContext(ctx: IPipelineContext): IActionContext {
-  if (!ctx.mediator.has) return buildBootstrapContext(ctx);
-  const executor = extractExecutor(ctx);
-  return {
-    options: ctx.options,
-    credentials: ctx.credentials,
-    companyId: ctx.companyId,
-    logger: ctx.logger,
-    diagnostics: ctx.diagnostics,
-    config: ctx.config,
-    fetchStrategy: ctx.fetchStrategy,
-    executor,
-    apiMediator: ctx.apiMediator,
-    loginFieldDiscovery: ctx.loginFieldDiscovery,
-    preLoginDiscovery: ctx.preLoginDiscovery,
-    dashboard: ctx.dashboard,
-    scrapeDiscovery: ctx.scrapeDiscovery,
-    accountDiscovery: ctx.accountDiscovery,
-    txnEndpoint: ctx.txnEndpoint,
-    dashboardTxnHarvest: ctx.dashboardTxnHarvest,
-    authDiscovery: ctx.authDiscovery,
-    otpTrigger: ctx.otpTrigger,
-    api: ctx.api,
-    loginAreaReady: ctx.loginAreaReady,
-    ...balanceContextSlice(ctx),
-  };
-}
-
-/**
- * Extract login field discoveries for HANDOFF.
- * @param ctx - Pipeline context.
- * @returns Field summary strings.
- */
-function handoffLogin(ctx: IPipelineContext): readonly string[] {
-  if (!ctx.loginFieldDiscovery.has) return [];
-  const entries = [...ctx.loginFieldDiscovery.value.targets];
-  return entries.map(([k, t]) => `${k}: '${t.contextId} > ${t.selector}'`);
-}
-
-/**
- * Extract pre-login discoveries for HANDOFF.
- * @param ctx - Pipeline context.
- * @returns Reveal status strings.
- */
-function handoffPreLogin(ctx: IPipelineContext): readonly string[] {
-  if (!ctx.preLoginDiscovery.has) return [];
-  return [`reveal: ${ctx.preLoginDiscovery.value.privateCustomers}`];
-}
-
-/**
- * Extract dashboard discoveries for HANDOFF.
- * @param ctx - Pipeline context.
- * @returns Target summary strings.
- */
-function handoffDashboard(ctx: IPipelineContext): readonly string[] {
-  const target = ctx.diagnostics.dashboardTarget;
-  if (!target) return [];
-  return [`target: ${target.contextId} > ${target.selector}`];
-}
-
-/**
- * Extract scrape discoveries for HANDOFF.
- * @param ctx - Pipeline context.
- * @returns Card list strings.
- */
-function handoffScrape(ctx: IPipelineContext): readonly string[] {
-  if (!ctx.scrapeDiscovery.has) return [];
-  const cardStr = ctx.scrapeDiscovery.value.qualifiedCards.join(',');
-  return [`cards: [${cardStr}]`];
-}
-
-/** Phase-to-handler map for scoped HANDOFF. */
-type HandoffFn = (ctx: IPipelineContext) => readonly string[];
-
-/** OCP map — add entry for new phase. */
-const HANDOFF_MAP: Partial<Record<string, HandoffFn>> = {
-  login: handoffLogin,
-  preLogin: handoffPreLogin,
-  dashboard: handoffDashboard,
-  scrape: handoffScrape,
-};
-
-/** Normalize phase name for lookup (pre-login → preLogin). */
-const PHASE_KEY_MAP: Record<string, string> = {
-  'pre-login': 'preLogin',
-};
-
-/**
- * Phase-scoped HANDOFF log — only logs discoveries for the current phase.
- * @param phaseName - Current phase name.
- * @param ctx - Context after PRE completed.
- * @param log - Logger instance.
- * @returns True when a handoff line was emitted, false on no-op skip
- * (no resolver for this phase, or no discoveries to summarise).
- */
-function logHandoffSummary(
-  phaseName: PhaseName,
-  ctx: IPipelineContext,
-  log: IPipelineContext['logger'],
-): DidEmitHandoff {
-  const key = PHASE_KEY_MAP[phaseName] ?? phaseName;
-  const resolver = HANDOFF_MAP[key];
-  if (!resolver) return false as DidEmitHandoff;
-  const parts = resolver(ctx);
-  if (parts.length === 0) return false as DidEmitHandoff;
-  const summary = parts.join(', ');
-  log.debug({
-    message: `[HANDOFF] { ${summary} }`,
-  });
-  return true as DidEmitHandoff;
-}
 
 /** Abstract base for all pipeline phases. */
 abstract class BasePhase {
