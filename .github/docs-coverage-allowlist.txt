@@ -575,3 +575,32 @@ buildWalkUpLocatorsBase
 # Reason: buildXpathLocators — internal per-kind builder for xpath candidates
 #         (prepends xpath= and relativizes under form scope); dispatch-table row.
 buildXpathLocators
+# --- Phase 12a sub-step 2: Hittest + Entries extraction ---
+# These six symbols are NEW exports landed by the Phase 12a refactor of
+# CreateElementMediator.ts. They live in Mediator/Elements/Create/
+# behind the barrel and are internal mediator plumbing only — no public
+# scraper consumes them directly. They will be re-homed (Hittest /
+# Entries) without API change in later Phase 12a commits, so adding
+# docs pages now would be churn. The parent mediator's public surface
+# (lib/index.d.ts) is byte-identical to baseline (A3.5.4 gate verified).
+#
+# Reason: IRaceDiagnostic — internal trace payload for
+#         raceLocatorsWithHitTest (winner + fulfilled + hit-pass counts).
+IRaceDiagnostic
+# Reason: raceLocators — internal locator race primitive; first locator to
+#         reach the requested state wins.
+raceLocators
+# Reason: raceLocatorsWithHitTest — internal race+elementFromPoint hit-test
+#         + skip-link filter pipeline; primary path for resolve-visible
+#         helpers in the mediator.
+raceLocatorsWithHitTest
+# Reason: ILocatorEntry — internal carrier pairing a Playwright Locator with
+#         the candidate descriptor and browsing-context that produced it.
+ILocatorEntry
+# Reason: buildLocatorEntries — internal single-shot entry expander
+#         (.first() semantics) used by resolveVisible-style helpers.
+buildLocatorEntries
+# Reason: buildLocatorEntriesAll — internal multi-match expander
+#         (.nth(0..MAX_NTH_PER_LOCATOR-1)) used by resolveAllVisible /
+#         resolveAndClick so legacy + modern sibling pairs both enter the race.
+buildLocatorEntriesAll

@@ -20,6 +20,8 @@ export {
   setActivePhase,
   setActiveStage,
 } from '../../../Types/ActiveState.js';
+export { buildLocatorEntries, buildLocatorEntriesAll, type ILocatorEntry } from './Entries.js';
+export { type IRaceDiagnostic, raceLocators, raceLocatorsWithHitTest } from './Hittest.js';
 export {
   buildAriaLabelLocators,
   buildCandidateLocators,
