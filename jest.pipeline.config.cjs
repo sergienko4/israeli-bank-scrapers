@@ -55,7 +55,11 @@ module.exports = {
   coverageReporters: ['text-summary', 'lcov', 'json-summary'],
   coverageThreshold: {
     global: {
-      branches: 95,
+      // Phase 2 closeout (Seq #1): bumped from 95 -> 95.1 after adding
+      // MethodBundles / ApiOriginDiscovery / JsonBody coverage tests
+      // lifted measured branches from 94.98% -> 95.14% (effective
+      // global excluding per-glob overrides: 95.11% -> 95.28%).
+      branches: 95.1,
       functions: 97,
       lines: 98,
       statements: 97,

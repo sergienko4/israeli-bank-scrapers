@@ -89,6 +89,7 @@ tasks/
 scripts/**
 !scripts/audit-fixtures-pii.cjs
 !scripts/sweep-fixtures-pii.ts
+!scripts/validate-pr-body.mjs
 
 # Stale lint-output left by an older verify-script version. Current
 # src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),

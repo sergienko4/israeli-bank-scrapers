@@ -61,6 +61,16 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - Only attempt full commit when targeted tests pass
 - If commit hook gate 7 (real E2E) fails: READ THE LOG, investigate, don't retry blindly
 
+### Pre-Push / PR Protocol
+- Write the PR body to `.git/PR_BODY.md` (gitignored) **before** running `gh pr create`
+- Validate locally with `npm run lint:pr-body -- --file .git/PR_BODY.md`
+  (mirrors the CI `Validate PR body sections` gate — checks for `## Why`,
+  `## What`, `## Guideline compliance` per `pr-guidlines.md` §7 + §10)
+- The `.husky/pre-push` hook auto-runs the same validation when it finds
+  `PR_BODY_FILE`, `.git/PR_BODY.md`, or `.github/PR_BODY.md`
+- Open the PR with `gh pr create --body-file .git/PR_BODY.md`
+- See [docs/workflow/pre-push.md](./docs/workflow/pre-push.md) for the full workflow
+
 ## Workflow
 
 1. Branch from `main`: `git checkout -b fix/description`
