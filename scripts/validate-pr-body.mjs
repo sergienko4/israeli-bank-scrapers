@@ -30,7 +30,7 @@
  * always validate.
  */
 import { readFileSync } from 'node:fs';
-import { argv, exit, stderr, stdin, stdout } from 'node:process';
+import { argv, env, exit, stderr, stdin, stdout } from 'node:process';
 
 const REQUIRED_SECTIONS = [
   { header: '## Guideline compliance', cite: 'pr-guidlines.md §10' },
@@ -50,7 +50,7 @@ function parseArgs() {
   if (fileIdx !== -1 && args[fileIdx + 1]) return { kind: 'file', path: args[fileIdx + 1] };
   const positional = args.filter((a) => !a.startsWith('--'));
   if (positional[0]) return { kind: 'file', path: positional[0] };
-  if (process.env.PR_BODY_FILE) return { kind: 'file', path: process.env.PR_BODY_FILE };
+  if (env.PR_BODY_FILE) return { kind: 'file', path: env.PR_BODY_FILE };
   return { kind: 'error' };
 }
 

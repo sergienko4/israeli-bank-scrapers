@@ -337,10 +337,16 @@ const PHASE_10_INTEGRATION_FILES = [
 // `src/Tests/**` override at line 866 turns `max-lines-per-function`
 // OFF entirely, so the ≤10-LoC cap from CLEAN_CODE.md §1 + CLAUDE.md
 // (Max 10 lines per method) was unenforceable. This wave re-arms the
-// cap on NEW pipeline-mirroring tests using BOTH:
-//   • `phase9-local/fn-declaration-max-lines:10` — line-count guard
-//   • `max-lines-per-function:10` + `max-statements:10` — built-in
-//     guards (overrides the §7 OFF on these specific paths).
+// cap on NEW pipeline-mirroring tests via:
+//   • `phase9-local/fn-declaration-max-lines:10` — line-count guard on
+//     `FunctionDeclaration` only. The built-in `max-lines-per-function`
+//     and `max-statements` rules are deliberately NOT added because they
+//     fire on every `describe`/`it`/`beforeEach` arrow callback (see
+//     §19.10 docstring — ~3 049 violators across `src/Tests/**`).
+//   • Statement-count enforcement on named helpers already comes from
+//     `TEST_HELPER_OVER_10_STMTS_RULE` wired into §7's `no-restricted-
+//     syntax` block at line 877 — no new `max-statements` override is
+//     needed here.
 // Globs are deliberately narrow: the touched files + their immediate
 // directories. A future "wave 3" widens to all `src/Tests/Unit/Pipeline/**`
 // after the existing 2 317 violators are drained (Phase 9-style sweep).
