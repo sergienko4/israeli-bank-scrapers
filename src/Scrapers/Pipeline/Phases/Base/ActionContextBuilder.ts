@@ -8,11 +8,16 @@
  * exemption needed, no extra file).
  *
  * <p>Extracted from `Pipeline/Types/BasePhase.ts` during Phase 12b.
- * Both builders use explicit object literals (NO spread) for audit
- * reasons: silently inheriting future IPipelineContext fields would
- * defeat the seal-by-construction contract that the TypeScript
- * compiler relies on to reject `resolveField` / `resolveVisible`
- * from inside `action()`.
+ * Both builders compose THREE typed slices ({@link coreContextSlice},
+ * {@link discoveryContextSlice}, and {@link "./BalanceContextSlice.ts" | balanceContextSlice})
+ * so the public IBootstrapContext / IActionContext object literal
+ * stays declarative without inflating either builder past the project's
+ * 10-LoC method cap. Spreading TYPED `Pick<>` slices is safe — TypeScript
+ * still rejects unknown IPipelineContext fields because each slice's
+ * compile-time shape is closed by the keys array `as const`. Direct
+ * `...ctx` spreads remain forbidden (would silently inherit future fields
+ * and defeat the seal-by-construction contract that the compiler relies
+ * on to reject `resolveField` / `resolveVisible` from inside `action()`).
  *
  * @see "../../Mediator/Elements/CreateElementMediator.ts" —
  *   {@link extractActionMediator} produces the executor surface.
@@ -26,6 +31,37 @@ import type {
   IPipelineContext,
 } from '../../Types/PipelineContext.js';
 import { balanceContextSlice } from './BalanceContextSlice.js';
+
+/** Cross-cutting infra keys both bootstrap and sealed contexts always carry. */
+const CORE_SLOT_KEYS = [
+  'options',
+  'credentials',
+  'companyId',
+  'logger',
+  'diagnostics',
+  'config',
+  'fetchStrategy',
+] as const;
+
+type CoreContextSlice = Pick<IPipelineContext, (typeof CORE_SLOT_KEYS)[number]>;
+
+/** Pre-ACTION discovery + handoff outputs visible to every phase context. */
+const DISCOVERY_SLOT_KEYS = [
+  'apiMediator',
+  'loginFieldDiscovery',
+  'preLoginDiscovery',
+  'dashboard',
+  'scrapeDiscovery',
+  'accountDiscovery',
+  'txnEndpoint',
+  'dashboardTxnHarvest',
+  'authDiscovery',
+  'otpTrigger',
+  'api',
+  'loginAreaReady',
+] as const;
+
+type DiscoveryContextSlice = Pick<IPipelineContext, (typeof DISCOVERY_SLOT_KEYS)[number]>;
 
 /**
  * Extract sealed executor from full context.
@@ -42,7 +78,27 @@ export function extractExecutor(ctx: IPipelineContext): IActionContext['executor
 }
 
 /**
- * Build bootstrap context for INIT/TERMINATE — explicit object literal, NO spread.
+ * Pick the cross-cutting infra slot keys from a full pipeline context.
+ * @param ctx - Full pipeline context.
+ * @returns The seven cross-cutting infra slots as a typed Pick<>.
+ */
+function coreContextSlice(ctx: IPipelineContext): CoreContextSlice {
+  const entries = CORE_SLOT_KEYS.map(k => [k, ctx[k]] as const);
+  return Object.fromEntries(entries) as CoreContextSlice;
+}
+
+/**
+ * Pick the post-discovery handoff slot keys from a full pipeline context.
+ * @param ctx - Full pipeline context.
+ * @returns The twelve post-discovery handoff slots as a typed Pick<>.
+ */
+function discoveryContextSlice(ctx: IPipelineContext): DiscoveryContextSlice {
+  const entries = DISCOVERY_SLOT_KEYS.map(k => [k, ctx[k]] as const);
+  return Object.fromEntries(entries) as DiscoveryContextSlice;
+}
+
+/**
+ * Build bootstrap context for INIT/TERMINATE — composes typed slices, NO `...ctx`.
  * Has browser (for launch/teardown) but NO mediator, NO executor.
  * Co-located with {@link buildActionContext} (the only consumer) so the
  * pair share a single audit point.
@@ -51,33 +107,16 @@ export function extractExecutor(ctx: IPipelineContext): IActionContext['executor
  */
 export function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext {
   return {
-    options: ctx.options,
-    credentials: ctx.credentials,
-    companyId: ctx.companyId,
-    logger: ctx.logger,
-    diagnostics: ctx.diagnostics,
-    config: ctx.config,
-    fetchStrategy: ctx.fetchStrategy,
+    ...coreContextSlice(ctx),
     executor: none(),
-    apiMediator: ctx.apiMediator,
-    loginFieldDiscovery: ctx.loginFieldDiscovery,
-    preLoginDiscovery: ctx.preLoginDiscovery,
-    dashboard: ctx.dashboard,
-    scrapeDiscovery: ctx.scrapeDiscovery,
-    accountDiscovery: ctx.accountDiscovery,
-    txnEndpoint: ctx.txnEndpoint,
-    dashboardTxnHarvest: ctx.dashboardTxnHarvest,
-    authDiscovery: ctx.authDiscovery,
-    otpTrigger: ctx.otpTrigger,
-    api: ctx.api,
-    loginAreaReady: ctx.loginAreaReady,
+    ...discoveryContextSlice(ctx),
     ...balanceContextSlice(ctx),
     browser: ctx.browser,
   };
 }
 
 /**
- * Build sealed IActionContext — NEW object literal, NO spread.
+ * Build sealed IActionContext — composes typed slices, NO `...ctx`.
  * If mediator exists: sealed (no browser, no mediator, no raw Page).
  * If no mediator (INIT/TERMINATE): returns IBootstrapContext (has browser).
  * @param ctx - Full pipeline context after PRE.
@@ -85,28 +124,10 @@ export function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext 
  */
 export function buildActionContext(ctx: IPipelineContext): IActionContext {
   if (!ctx.mediator.has) return buildBootstrapContext(ctx);
-  const executor = extractExecutor(ctx);
   return {
-    options: ctx.options,
-    credentials: ctx.credentials,
-    companyId: ctx.companyId,
-    logger: ctx.logger,
-    diagnostics: ctx.diagnostics,
-    config: ctx.config,
-    fetchStrategy: ctx.fetchStrategy,
-    executor,
-    apiMediator: ctx.apiMediator,
-    loginFieldDiscovery: ctx.loginFieldDiscovery,
-    preLoginDiscovery: ctx.preLoginDiscovery,
-    dashboard: ctx.dashboard,
-    scrapeDiscovery: ctx.scrapeDiscovery,
-    accountDiscovery: ctx.accountDiscovery,
-    txnEndpoint: ctx.txnEndpoint,
-    dashboardTxnHarvest: ctx.dashboardTxnHarvest,
-    authDiscovery: ctx.authDiscovery,
-    otpTrigger: ctx.otpTrigger,
-    api: ctx.api,
-    loginAreaReady: ctx.loginAreaReady,
+    ...coreContextSlice(ctx),
+    executor: extractExecutor(ctx),
+    ...discoveryContextSlice(ctx),
     ...balanceContextSlice(ctx),
   };
 }

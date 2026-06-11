@@ -1,4 +1,4 @@
-# Docs coverage allowlist
+﻿# Docs coverage allowlist
 # =======================
 # Symbol names listed here are exempt from the docs-coverage CI gate
 # (the `Docs coverage canary` step inside .github/workflows/pr.yml's
@@ -382,12 +382,12 @@ buildActiveOptions
 # public API. Phase 12b decomposed that 481-LoC hub into 13 per-phase
 # domain files (HomeTimingConfig.ts, OtpTimingConfig.ts, etc.) plus a
 # shared cross-cutting module. The original TimingConfig.ts now re-exports
-# every name verbatim via xport * from for one release window, so the
+# every name verbatim via export * from for one release window, so the
 # external symbol surface emitted into lib/index.{cjs,mjs} is unchanged
 # (lib/index.d.ts hash byte-identical: 14819 bytes).
 #
 # The docs-coverage scanner cannot distinguish "moved to a new file"
-# from "newly introduced" via xport * from barrels, so it sees every
+# from "newly introduced" via export * from barrels, so it sees every
 # constant as + ACCOUNT_RESOLVE_BUDGET_MS (introduced in
 # .../AccountResolveTimingConfig.ts) and demands docs coverage. These
 # names were never user-facing in the first place — they are

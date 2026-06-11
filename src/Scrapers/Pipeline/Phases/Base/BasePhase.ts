@@ -193,7 +193,9 @@ abstract class BasePhase {
 
   /**
    * Drive ACTION → POST → FINAL with a screenshot after each stage success.
-   * Split out so runStages stays inside the 10-line method ceiling.
+   * Split out so runStages stays inside the 10-line method ceiling. Each
+   * stage routes through {@link handleStage} so failure ⇒ snapshot return,
+   * success ⇒ `<stage>-done` bookend screenshot.
    * @param ctx - Original phase-entry context (for stages that need it).
    * @param input - Context produced by PRE (validated payload).
    * @param log - Logger instance.
@@ -204,16 +206,36 @@ abstract class BasePhase {
     input: IPipelineContext,
     log: IPipelineContext['logger'],
   ): Promise<Procedure<IPipelineContext>> {
-    const action = await this.runAction(input, log);
-    if (!action.success) return this.snapshotAndReturn(input, action, 'action-fail');
-    await this.takePhaseScreenshot(action.value, 'action-done');
-    const post = await this.runPost(ctx, action.value, log);
-    if (!post.success) return this.snapshotAndReturn(action.value, post, 'post-fail');
-    await this.takePhaseScreenshot(post.value, 'post-done');
-    const finalResult = await this.runFinal(ctx, post.value, log);
-    if (!finalResult.success) return this.snapshotAndReturn(post.value, finalResult, 'final-fail');
-    await this.takePhaseScreenshot(finalResult.value, 'final-done');
-    return finalResult;
+    const action = await this.handleStage(input, () => this.runAction(input, log), 'action');
+    if (!action.success) return action;
+    const post = await this.handleStage(
+      action.value,
+      () => this.runPost(ctx, action.value, log),
+      'post',
+    );
+    if (!post.success) return post;
+    return this.handleStage(post.value, () => this.runFinal(ctx, post.value, log), 'final');
+  }
+
+  /**
+   * Stage envelope — run one of ACTION/POST/FINAL through the
+   * snapshot-on-failure / screenshot-on-success bookend pattern.
+   * Extracted so `runStagesAfterPre` fits the 10-line method cap;
+   * the three call sites previously inlined the same 3-line pattern.
+   * @param prevCtx - Context to snapshot on failure (caller's stage output).
+   * @param runner - Stage runner (closure capturing `runAction`/`runPost`/`runFinal`).
+   * @param tag - Stage tag for the success/fail screenshot label.
+   * @returns Stage result — bookend side-effects already performed.
+   */
+  private async handleStage(
+    prevCtx: IPipelineContext,
+    runner: () => Promise<Procedure<IPipelineContext>>,
+    tag: 'action' | 'post' | 'final',
+  ): Promise<Procedure<IPipelineContext>> {
+    const result = await runner();
+    if (!result.success) return this.snapshotAndReturn(prevCtx, result, `${tag}-fail`);
+    await this.takePhaseScreenshot(result.value, `${tag}-done`);
+    return result;
   }
 
   /**
