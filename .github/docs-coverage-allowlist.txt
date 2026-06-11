@@ -505,3 +505,73 @@ logHandoffSummary
 # documented in docs/architecture/{layers,pipeline}.md and
 # docs/phases/index.md.
 IsPrePayloadValid
+# --- Phase 12a: CreateElementMediator god-module split (sub-step 1 — Scope + Locators) ---
+# These symbols moved out of CreateElementMediator.ts into focused sub-modules
+# under src/Scrapers/Pipeline/Mediator/Elements/Create/. They are CROSS-MODULE
+# INTERNALS — used by the façade plus the upcoming Hittest/Entries/Race extraction
+# clusters. None are part of the @sergienko4/israeli-bank-scrapers public API
+# (Pipeline is internal — public surface is src/index.ts, not the Pipeline tree).
+
+# Reason: CLICK_RACE_TIMEOUT — internal default-timeout constant (3000 ms) for the
+#         parallel resolveAndClick race; tuning knob, not a consumer-facing API.
+CLICK_RACE_TIMEOUT
+# Reason: NO_FORM_ANCHOR — empty-string sentinel meaning "no form scoping"; internal
+#         to the SelectorCandidate→Locator dispatch, never crosses a public boundary.
+NO_FORM_ANCHOR
+# Reason: LocatorContext — internal type alias (Page | Frame | Locator) used by the
+#         per-kind locator builders so form-scoping can be applied uniformly via
+#         Locator chaining. Implementation detail of the dispatch table.
+LocatorContext
+# Reason: applyFormScope — helper that promotes a Page/Frame to a form-scoped
+#         Locator (or returns ctx unchanged when no form anchor is set). Internal
+#         to Create/Locators.ts; reused by upcoming Race/Hittest extractions.
+applyFormScope
+# Reason: buildCandidateLocators — internal factory producing first-match locators
+#         from a SelectorCandidate for legacy resolvers (login/preLogin/OTP/scrape).
+#         Used by the façade plus the next-commit Hittest/Entries sub-modules.
+buildCandidateLocators
+# Reason: buildCandidateLocatorsBase — internal factory producing BASE (no .first())
+#         locators consumed by the multi-match nth-enumeration race path. Internal
+#         counterpart of buildCandidateLocators.
+buildCandidateLocatorsBase
+# Reason: LOCATOR_KIND_BUILDERS — internal OCP dispatch table mapping each
+#         SelectorCandidate.kind to its locator builder. Pure dispatch table; not
+#         a public extension point.
+LOCATOR_KIND_BUILDERS
+# Reason: LocatorKindBuilder — internal function signature for entries of
+#         LOCATOR_KIND_BUILDERS. Implementation detail of the dispatch table.
+LocatorKindBuilder
+# Reason: buildAriaLabelLocators — internal per-kind builder for ariaLabel
+#         candidates (fans across getByLabel + 3 ARIA roles). Used only by the
+#         LOCATOR_KIND_BUILDERS dispatch table.
+buildAriaLabelLocators
+# Reason: buildClickableTextLocatorsBase — internal per-kind builder for the
+#         clickableText kind (innermost element containing text). Dispatch-table
+#         row, not a public API.
+buildClickableTextLocatorsBase
+# Reason: buildCssLocators — internal per-kind builder for raw CSS candidates;
+#         row in the LOCATOR_KIND_BUILDERS dispatch table.
+buildCssLocators
+# Reason: buildExactTextLocators — internal per-kind builder for exactText
+#         candidates (getByText with exact:true); dispatch-table row.
+buildExactTextLocators
+# Reason: buildLabelTextLocators — internal per-kind builder for labelText
+#         candidates (Playwright getByLabel resolves to the bound form control);
+#         dispatch-table row.
+buildLabelTextLocators
+# Reason: buildNameLocators — internal per-kind builder for HTML 
+ame
+#         attribute candidates (CSS attribute selector); dispatch-table row.
+buildNameLocators
+# Reason: buildPlaceholderLocators — internal per-kind builder for placeholder
+#         candidates (getByPlaceholder); dispatch-table row.
+buildPlaceholderLocators
+# Reason: buildRegexLocators — internal per-kind builder for regex candidates
+#         (getByText with RegExp); dispatch-table row.
+buildRegexLocators
+# Reason: buildWalkUpLocatorsBase — internal per-kind builder for textContent
+#         candidates (walk-up XPath across CLICK_ANCESTORS tags); dispatch-table row.
+buildWalkUpLocatorsBase
+# Reason: buildXpathLocators — internal per-kind builder for xpath candidates
+#         (prepends xpath= and relativizes under form scope); dispatch-table row.
+buildXpathLocators
