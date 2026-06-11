@@ -89,6 +89,26 @@ The two paths converge on `balanceResolution` — that's the single source of tr
 
 Source: [`src/Scrapers/Pipeline/Interceptors/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors).
 
+### Network-discovery contract types
+
+The `NetworkDiscovery` interceptor exposes two type-only contracts that
+downstream phases (DASHBOARD, SCRAPE, BALANCE-RESOLVE) import to
+consume the capture pool without coupling to the live implementation:
+
+- `INetworkDiscovery` — the mediator-side contract: capture-lifecycle
+  flags, `markDashboardClickAt` / `getPreNavCaptures` /
+  `getPostNavCaptures` partitioning, pattern-based `findEndpoints` /
+  `discoverByPatterns` lookups, plus the auth-failure watcher slot.
+- `IDiscoveredEndpoint` — the per-capture record: URL, method, body,
+  headers, `captureIndex` (the same `NNNN-METHOD` prefix used by the
+  on-disk `network/` dumps so a log line can be joined to its dump
+  file via `runId` + `captureIndex`), and the `PickerTier` annotation
+  produced by `discoverShapeAware` to record *which* tier of the
+  shape-aware picker selected the endpoint (ordered cleanest →
+  loosest: `postWithShape` → `replayablePost` → `shapePassing` →
+  `preClickFallback` → `urlOnlyMatch` → `windowParamsMatch` →
+  `none`).
+
 ## Source pointers
 
 - [`PipelineAssembly.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts) — `PHASE_CHAIN` slot declarations
