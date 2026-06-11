@@ -182,6 +182,7 @@ nav:
       - Overview: workflow/index.md
       - CI gates: workflow/ci.md
       - Pre-commit hook: workflow/pre-commit.md
+      - Pre-push hook: workflow/pre-push.md
       - Branch flow & release-please: workflow/branch-flow.md
       - Code-review tooling (CodeRabbit + SonarCloud): workflow/code-review-tooling.md
   - Contributing:

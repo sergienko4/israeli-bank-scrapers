@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Pre-push PR-body validator.
+#
+# Mirrors `.github/workflows/pr-body-check.yml` locally. CR cycle PR
+# #336 #1 paired a CR finding with a CI failure on `Validate PR body
+# sections` — the PR was opened without the mandatory headers because
+# nothing validated the body locally. This hook closes that gap.
+#
+# Activation: opt-in. The hook validates ONLY when a PR-body file is
+# discoverable via one of:
+#
+#   1. `PR_BODY_FILE` environment variable  — explicit path
+#   2. `.git/PR_BODY.md`                    — standard local artifact
+#   3. `.github/PR_BODY.md`                 — alternate location
+#
+# Otherwise the hook prints a hint and exits 0 — most pushes (work-in-
+# progress + branch syncing) happen BEFORE the PR body exists, so the
+# default must be non-blocking. The agent / contributor writes the body
+# file before `gh pr create` to get local validation.
+#
+# Skip with `--no-verify` only in emergencies (the CI check still
+# blocks merges).
+set -o pipefail
+
+PR_BODY_PATH=""
+if [ -n "${PR_BODY_FILE:-}" ] && [ -f "${PR_BODY_FILE}" ]; then
+    PR_BODY_PATH="${PR_BODY_FILE}"
+elif [ -f ".git/PR_BODY.md" ]; then
+    PR_BODY_PATH=".git/PR_BODY.md"
+elif [ -f ".github/PR_BODY.md" ]; then
+    PR_BODY_PATH=".github/PR_BODY.md"
+fi
+
+if [ -z "${PR_BODY_PATH}" ]; then
+    echo "ℹ️  pre-push: no PR_BODY_FILE / .git/PR_BODY.md / .github/PR_BODY.md found — skipping PR-body validation"
+    echo "   (CI 'Validate PR body sections' still enforces the gate on PR open/edit)"
+    exit 0
+fi
+
+echo "🔍 pre-push: validating PR body at ${PR_BODY_PATH}"
+if ! node scripts/validate-pr-body.mjs --file "${PR_BODY_PATH}"; then
+    echo ""
+    echo "❌ pre-push: PR body validation failed. Fix ${PR_BODY_PATH} or unset PR_BODY_FILE."
+    echo "   See .github/PULL_REQUEST_TEMPLATE.md for the canonical layout."
+    exit 1
+fi
+
+echo "✅ pre-push: PR body OK"

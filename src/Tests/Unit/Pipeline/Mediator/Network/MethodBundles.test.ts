@@ -21,22 +21,22 @@ import type { IDashboardClickState } from '../../../../../Scrapers/Pipeline/Medi
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 
 /**
- * Shared base for endpoint fixtures — every field except `status` is
- * constant so tests only vary the status window.
- * @returns Captured endpoint base without a `status` field.
+ * Module-scope endpoint-base fixture (no `status` field). Hoisting
+ * out of a helper function keeps the surrounding `buildEndpoint*`
+ * factories under the §19.11 ≤10-line cap — the inline-object
+ * variant ran 12 lines and would trip `phase9-local/fn-declaration
+ * -max-lines:10`.
  */
-function buildEndpointBase(): Omit<IDiscoveredEndpoint, 'status'> {
-  return {
-    url: 'https://bank.example/api/x',
-    method: 'GET',
-    postData: '',
-    contentType: 'application/json',
-    requestHeaders: {},
-    responseHeaders: {},
-    responseBody: {},
-    timestamp: 1,
-  };
-}
+const ENDPOINT_BASE_NO_STATUS: Omit<IDiscoveredEndpoint, 'status'> = {
+  url: 'https://bank.example/api/x',
+  method: 'GET',
+  postData: '',
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  responseBody: {},
+  timestamp: 1,
+};
 
 /**
  * Build a captured endpoint fixture with the provided HTTP status.
@@ -44,7 +44,7 @@ function buildEndpointBase(): Omit<IDiscoveredEndpoint, 'status'> {
  * @returns Captured endpoint matching the `IDiscoveredEndpoint` shape.
  */
 function buildEndpoint(status: number): IDiscoveredEndpoint {
-  return { ...buildEndpointBase(), status };
+  return { ...ENDPOINT_BASE_NO_STATUS, status };
 }
 
 /**
@@ -54,7 +54,7 @@ function buildEndpoint(status: number): IDiscoveredEndpoint {
  * @returns Captured endpoint with `status` left undefined.
  */
 function buildEndpointWithoutStatus(): IDiscoveredEndpoint {
-  return buildEndpointBase();
+  return { ...ENDPOINT_BASE_NO_STATUS };
 }
 
 /**

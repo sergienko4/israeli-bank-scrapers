@@ -19,25 +19,30 @@ import type { IDiscoveredEndpoint } from '../../../../../../Scrapers/Pipeline/Me
 import discoverApiOriginFromTraffic from '../../../../../../Scrapers/Pipeline/Mediator/Network/Scoring/ApiOriginDiscovery.js';
 
 /**
+ * Module-scope endpoint fixture base. Hoisting out of the helper
+ * function keeps `buildEndpoint` under the §19.11 ≤10-line cap
+ * (CR PR #336 #1 — the inline-object variant ran 13 lines and
+ * tripped `phase9-local/fn-declaration-max-lines`).
+ */
+const ENDPOINT_BASE: IDiscoveredEndpoint = {
+  url: 'https://bank.example/static/style.css',
+  method: 'GET',
+  postData: '',
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  responseBody: {},
+  timestamp: 1,
+  status: 200,
+};
+
+/**
  * Build a captured endpoint with controllable URL + body + method.
- * Defaults match a benign GET capture so each test only overrides
- * the field under test.
  * @param overrides - Per-test endpoint overrides.
  * @returns Captured endpoint matching the `IDiscoveredEndpoint` shape.
  */
 function buildEndpoint(overrides: Partial<IDiscoveredEndpoint> = {}): IDiscoveredEndpoint {
-  return {
-    url: 'https://bank.example/static/style.css',
-    method: 'GET',
-    postData: '',
-    contentType: 'application/json',
-    requestHeaders: {},
-    responseHeaders: {},
-    responseBody: {},
-    timestamp: 1,
-    status: 200,
-    ...overrides,
-  };
+  return { ...ENDPOINT_BASE, ...overrides };
 }
 
 describe('ApiOriginDiscovery — Tier 1 (config body)', () => {
