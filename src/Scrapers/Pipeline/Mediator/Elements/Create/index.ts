@@ -39,6 +39,14 @@ export {
   type LocatorKindBuilder,
 } from './Locators.js';
 export {
+  enrichWinnerToResult,
+  extractWinnerSequence,
+  type IRaceSetup,
+  raceEntriesToResult,
+  setupAllVisibleRace,
+  traceRaceDiagnostic,
+} from './Race.js';
+export {
   applyFormScope,
   CLICK_RACE_TIMEOUT,
   type LocatorContext,

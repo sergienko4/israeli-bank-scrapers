@@ -624,3 +624,56 @@ extractAndTraceIdentity
 # Reason: buildFoundResult — packages winner data into the IRaceResult
 #         contract consumed by every resolve* helper.
 buildFoundResult
+# --- Phase 12a sub-step 4: Race extraction ---
+# Six NEW exports landed by Phase 12a sub-step-4 (Race.ts under
+# Mediator/Elements/Create/). All six are internal mediator plumbing
+# behind the barrel — no public scraper consumes them directly. The
+# parent mediator's public surface (lib/index.d.ts) remains
+# byte-identical to baseline (A3.5.4 verified).
+#
+# Reason: IRaceSetup — return shape of setupAllVisibleRace
+#         ({entries, locators, timeout}); needed by resolveAllVisibleImpl
+#         to destructure race inputs.
+IRaceSetup
+# Reason: traceRaceDiagnostic — debug-level race-outcome log emitter
+#         (winner index + per-locator detail) shared by every race caller.
+traceRaceDiagnostic
+# Reason: raceEntriesToResult — race entries through hit-test, return
+#         found-result for the winner or NOT_FOUND_RESULT; the shared
+#         single-winner body for resolveVisibleImpl + resolveVisibleNthAware.
+raceEntriesToResult
+# Reason: extractWinnerSequence — turn race-winner indices into IRaceResults
+#         with DOM-element dedup + selector-specificity ranking + cap;
+#         consumed by resolveAllVisibleImpl.
+extractWinnerSequence
+# Reason: setupAllVisibleRace — prepare race inputs (nth-expanded entries +
+#         locator array + capped timeout) for the multi-winner path.
+setupAllVisibleRace
+# Reason: enrichWinnerToResult — capture identity + value from one winning
+#         entry and wrap as IRaceResult; shared by raceEntriesToResult,
+#         resolveVisibleInContextImpl, and tryAttachedClickFallback.
+enrichWinnerToResult
+# --- Phase 12a sub-step 4 (transitional): Debug.ts shim lag ---
+# Main has advanced to Phase 12c which migrated the logger cluster from
+# src/Scrapers/Pipeline/Types/Debug.ts into src/Scrapers/Pipeline/Logging/Debug.ts,
+# leaving Types/Debug.ts as a re-export shim. This branch is based off
+# pre-12c main (017eb7e2) so Types/Debug.ts still carries the inline
+# xport function … declarations. The docs-coverage gate diffs us against
+# CURRENT main (post-12c shim) and sees these three symbols as "introduced
+# in HEAD" because the extractor treats inline xport function as a new
+# symbol distinct from the shim's xport { … } from '../Logging/Debug.js'.
+#
+# These three entries unblock the Phase 12a CreateElementMediator refactor
+# from a Phase 12c side effect that the orchestrator will resolve by
+# rebasing this branch onto post-12c main before merge. They should be
+# REMOVED in the rebase commit alongside the inline declarations.
+#
+# Reason: ScraperLogger — pre-existing logger type alias, surfaced as
+#         "new" only because main inlined the re-export shim.
+ScraperLogger
+# Reason: getActiveLogContext — pre-existing context accessor, surfaced as
+#         "new" only because main inlined the re-export shim.
+getActiveLogContext
+# Reason: runWithBankContext — pre-existing context binder, surfaced as
+#         "new" only because main inlined the re-export shim.
+runWithBankContext
