@@ -1121,6 +1121,25 @@ export default tseslint.config(
     },
   },
 
+  // 7d. TIMING DOMAIN MODULES — DEFAULT-EXPORT EXEMPTION (Phase 12b)
+  //
+  // Phase 12b (v8.5) split the former 481-LoC
+  // `Mediator/Timing/TimingConfig.ts` hub into 13 per-phase domain
+  // files (`HomeTimingConfig.ts`, `OtpTimingConfig.ts`, ...). Some
+  // phases own exactly one budget — `TerminateTimingConfig.ts` only
+  // exposes `TERMINATE_CLEANUP_BUDGET_MS`. Forcing those modules to
+  // `export default` would require every importer to bind a local
+  // alias and break the byte-identical public surface that the
+  // {@link "./Mediator/Timing/TimingConfig.js"} barrel preserves for
+  // the v8.5 release window. Narrow scope: timing files only — every
+  // other Mediator module still enforces the global rule.
+  {
+    files: ['src/Scrapers/Pipeline/Mediator/Timing/**/*TimingConfig.ts'],
+    rules: {
+      'import-x/prefer-default-export': 'off',
+    },
+  },
+
   // 8. PHASE ROOT GUARD (THE FINAL CHECK)
   {
     files: ['src/Scrapers/Pipeline/Phases/*.ts'],
@@ -2395,6 +2414,43 @@ export default tseslint.config(
     rules: {
       'max-lines-per-function': ['error', { max: 15, skipBlankLines: true, skipComments: true }],
       'max-statements': ['error', 10],
+    },
+  },
+
+  // 19.3a GRANDFATHER — Pipeline/Phases/Base/BasePhase.ts (Phase 12b — BasePhase migration target).
+  //   Phase 12b decoupled the mislabeled 633-LoC `Pipeline/Types/BasePhase.ts`
+  //   hub: the BasePhase abstract class + its helper functions move into
+  //   their semantically correct sibling location, `Pipeline/Phases/Base/`,
+  //   leaving `Types/BasePhase.ts` as a thin re-export shim for the v8.5
+  //   release window.
+  //
+  //   SCOPE NARROWED + DRAINED (CR PR #338 iteration 2): all six stage
+  //   orchestrators (`runStages`, `runStagesAfterPre`, `handleStage`,
+  //   `takePhaseScreenshot`, `runPre`, `runAction`, `runPost`, `runFinal`)
+  //   have been refactored to ≤10 LoC each by extracting six new helpers:
+  //     • `wrapStageThrow<T>`     — try/catch envelope (CR F3 — promotes
+  //       thrown stage exceptions into structured Procedure failures so
+  //       the runtime contract is uniform across happy + sad paths)
+  //     • `snapshotPreFail`       — PRE-fail screenshot extraction
+  //     • `capturePageScreenshot` — split from takePhaseScreenshot
+  //     • `logStage<T>`           — central phase-stage debug emit
+  //     • `mockShortCircuit<T>`   — MOCK_MODE Option<Procedure<T>> short-circuit
+  //     • `mergeActionResult`     — ACTION's IActionContext → IPipelineContext merge
+  //   The per-function (`max-lines-per-function`) + per-method
+  //   (`max-statements`) overrides have been DELETED entirely — global
+  //   §19.3 (10/10) now applies. Only `max-lines: 'off'` remains because
+  //   the abstract Template Method file legitimately exceeds the 300-LoC
+  //   global cap (~520 LoC after all six extractions + their typedoc) —
+  //   same precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
+  //
+  //   Flat-config is last-wins, so this block MUST appear after §19.3.
+  {
+    files: ['src/Scrapers/Pipeline/Phases/Base/BasePhase.ts'],
+    rules: {
+      // ~520 LoC Template Method abstract class. Same `max-lines: off`
+      // precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
+      // Per-function caps (10/10) inherited from §19.3 — no override.
+      'max-lines': 'off',
     },
   },
 
