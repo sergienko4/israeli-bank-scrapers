@@ -15,8 +15,6 @@
  */
 
 import {
-  getActivePhase,
-  getActiveStage,
   setActivePhase as setGlobalPhase,
   setActiveStage as setGlobalStage,
 } from '../../../Types/ActiveState.js';
@@ -25,7 +23,7 @@ import { buildDiscoverErrors } from './Discover.js';
 import { type AttrBundle, buildAttrCluster } from './Observation.js';
 import { buildWaitForLoadingDone } from './Wait.js';
 
-export { getActivePhase, getActiveStage };
+export { getActivePhase, getActiveStage } from '../../../Types/ActiveState.js';
 
 /** Phase / stage / discovery primitives — page-independent state hooks. */
 export type PhaseControlsBundle = Pick<

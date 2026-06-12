@@ -12,16 +12,10 @@
 import type { Page } from 'playwright-core';
 
 import { createNetworkDiscovery } from '../Network/NetworkDiscovery.js';
-import {
-  assembleElementMediator,
-  extractActionMediator,
-  getActivePhase,
-  getActiveStage,
-  type IFormCache,
-} from './Create/index.js';
+import { assembleElementMediator, type IFormCache } from './Create/index.js';
 import { type IElementMediator } from './ElementMediator.js';
 
-export { getActivePhase, getActiveStage };
+export { getActivePhase, getActiveStage } from './Create/index.js';
 
 /**
  * Create an ElementMediator for the given page.
@@ -40,4 +34,5 @@ function createElementMediator(page: Page): IElementMediator {
 }
 
 export default createElementMediator;
-export { createElementMediator, extractActionMediator };
+export { createElementMediator };
+export { extractActionMediator } from './Create/index.js';
