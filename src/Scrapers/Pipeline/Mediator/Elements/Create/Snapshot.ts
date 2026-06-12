@@ -11,10 +11,12 @@
  *     outerHTML and emit the debug trace; returns the identity bundle.
  *   - `buildFoundResult` — package winner data into the `IRaceResult`
  *     contract consumed by every resolve* helper.
- *   - `formatLocatorDetail` — render a single fulfilled-index line for
- *     the race diagnostic trace (kind:value @ url).
  *   - `IWinnerInfo` — the {index,value,identity} bundle passed to
  *     `buildFoundResult` so callers stay under the 3-param ceiling.
+ *
+ * Note: `formatLocatorDetail` (race diagnostic line renderer) lives in
+ * sibling `Race.ts` — not here — because it consumes locator + identity
+ * inputs already in race scope.
  *
  * All other helpers (browser-side evaluate callbacks, partial-payload
  * normalisation, log shaping) stay private — they have no callers
@@ -200,6 +202,9 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
  * @returns Verbose identity payload (identity bundle + bounded outerHTML).
  */
 function snapshotIdentityInBrowser(el: Element, max: number): IIdentityVerbose {
+  // Line count exception: browser-evaluated, cannot call external helpers
+  // (Playwright `evaluate()` serialises only the function body — free
+  // references to module-scope helpers would `ReferenceError` at runtime).
   const identity = {
     tag: el.tagName,
     id: el.id || '(none)',

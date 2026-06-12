@@ -11,6 +11,15 @@ import { type ICookieSnapshot, type IElementMediator } from '../ElementMediator.
 
 /**
  * Build getCookies — extract cookies from browser context.
+ *
+ * <p><strong>Type-asymmetry note:</strong> the returned `ICookieSnapshot`
+ * shape is intentionally a 3-field projection (name/domain/value) — it is
+ * NOT round-trip compatible with {@link buildAddCookies}'s
+ * `ICookieInjection` input, which requires the full Playwright cookie
+ * shape (path, secure, httpOnly, sameSite, expires, …). Snapshots are for
+ * audit/observability only; cross-domain session promotion must build a
+ * fresh `ICookieInjection[]` carrying the security-relevant fields.
+ *
  * @param page - The Playwright page.
  * @returns Async function returning cookie array.
  */
@@ -25,6 +34,13 @@ function buildGetCookies(page: Page): () => Promise<readonly ICookieSnapshot[]> 
  * Build addCookies — inject cookies into the browser context for
  * cross-domain session promotion. Extracted from the historic inline
  * arrow inside `createElementMediator` so the factory body stays ≤10 LoC.
+ *
+ * <p><strong>Type-asymmetry note:</strong> accepts `ICookieInjection` (the
+ * full Playwright cookie shape) — NOT the 3-field `ICookieSnapshot`
+ * produced by {@link buildGetCookies}. To round-trip a snapshot back into
+ * the context, callers must reconstruct the missing security fields
+ * (path, secure, httpOnly, sameSite, expires) explicitly.
+ *
  * @param page - The Playwright page (provides the context).
  * @returns Async function that accepts a cookie array.
  */

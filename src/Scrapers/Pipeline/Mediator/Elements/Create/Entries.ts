@@ -167,12 +167,28 @@ export async function buildLocatorEntriesAll(
   candidates: readonly SelectorCandidate[],
   formAnchor = NO_FORM_ANCHOR,
 ): Promise<readonly ILocatorEntry[]> {
-  const contexts = getAllContexts(page);
-  const expansionPromises = contexts.flatMap((ctx): Promise<readonly ILocatorEntry[]>[] =>
+  const promises = collectExpansionPromises(page, candidates, formAnchor);
+  const groups = await Promise.all(promises);
+  return groups.flat();
+}
+
+/**
+ * Walk all contexts and gather per-(ctx,candidate) expansion promises in
+ * a single flat array. Extracted from `buildLocatorEntriesAll` so the
+ * parent's body fits inside the 10-LoC cap.
+ * @param page - Playwright page.
+ * @param candidates - WK selector candidates.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
+ * @returns Flat array of per-(ctx,candidate) expansion promises.
+ */
+function collectExpansionPromises(
+  page: Page,
+  candidates: readonly SelectorCandidate[],
+  formAnchor: string,
+): Promise<readonly ILocatorEntry[]>[] {
+  return getAllContexts(page).flatMap((ctx): Promise<readonly ILocatorEntry[]>[] =>
     mapCandidatesToExpansions(ctx, candidates, formAnchor),
   );
-  const groups = await Promise.all(expansionPromises);
-  return groups.flat();
 }
 
 /**
@@ -190,12 +206,24 @@ function mapCandidatesToExpansions(
   formAnchor = NO_FORM_ANCHOR,
 ): Promise<readonly ILocatorEntry[]>[] {
   return candidates.map(
-    (c): Promise<readonly ILocatorEntry[]> =>
-      expandCandidateEntries({
-        ctx,
-        candidate: c,
-        maxPerLocator: MAX_NTH_PER_LOCATOR,
-        formAnchor,
-      }),
+    (c): Promise<readonly ILocatorEntry[]> => expandOneCandidate(ctx, c, formAnchor),
   );
+}
+
+/**
+ * Run `expandCandidateEntries` for a single (ctx,candidate) pair.
+ * Extracted so {@link mapCandidatesToExpansions} stays inside the 10-LoC
+ * cap without resorting to a nested arrow that the function-jsdoc gate
+ * would flag.
+ * @param ctx - Playwright context (Page or Frame).
+ * @param candidate - Single WK selector candidate to enumerate.
+ * @param formAnchor - Optional CSS form selector for descendant scoping.
+ * @returns Promise of locator entries for this candidate.
+ */
+function expandOneCandidate(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+  formAnchor: string,
+): Promise<readonly ILocatorEntry[]> {
+  return expandCandidateEntries({ ctx, candidate, maxPerLocator: MAX_NTH_PER_LOCATOR, formAnchor });
 }

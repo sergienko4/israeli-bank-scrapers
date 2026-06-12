@@ -130,6 +130,29 @@ export async function raceEntriesToResult(
 }
 
 /**
+ * Serialize an element identity into a deterministic, '|'-joined string
+ * key for set-based dedup. Frame URL leads the tuple so cross-iframe
+ * collisions cannot occur when downstream callers use the same identity
+ * fields. Extracted from {@link buildDedupKey} to keep that function
+ * within the 10-LoC cap.
+ * @param frameUrl - URL of the locator entry's owning frame.
+ * @param identity - DOM identity captured by `extractAndTraceIdentity`.
+ * @returns Deterministic `'|'`-joined identity tuple.
+ */
+function serializeIdentity(frameUrl: string, identity: IElementIdentity): string {
+  return [
+    frameUrl,
+    identity.tag,
+    identity.classes,
+    identity.name,
+    identity.type,
+    identity.ariaLabel,
+    identity.title,
+    identity.href,
+  ].join('|');
+}
+
+/**
  * Build a dedup key for a winning element. Both branches incorporate the
  * frame URL so two distinct iframes with the same DOM id do NOT collapse
  * into a single dedup group (cross-iframe collision protection). When the
@@ -151,16 +174,7 @@ function buildDedupKey(entry: ILocatorEntry, identity: IElementIdentity): string
   if (identity.id !== '(none)' && identity.id.length > 0) {
     return `id:${frameUrl}:${identity.id}`;
   }
-  return [
-    frameUrl,
-    identity.tag,
-    identity.classes,
-    identity.name,
-    identity.type,
-    identity.ariaLabel,
-    identity.title,
-    identity.href,
-  ].join('|');
+  return serializeIdentity(frameUrl, identity);
 }
 
 /**

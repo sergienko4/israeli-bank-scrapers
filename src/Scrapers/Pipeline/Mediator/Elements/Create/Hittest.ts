@@ -203,6 +203,18 @@ async function filterOutSkipLinks(
  * Race locators then validate winner with elementFromPoint hit-test.
  * If winner fails hit-test, check remaining settled results.
  * Falls back to first Playwright-visible if no hit-test passes.
+ *
+ * <p><strong>Intentional multi-winner flow:</strong> unlike
+ * {@link raceLocators} (which uses `Promise.any` for a first-fulfilled
+ * race), this function collects ALL locators that become visible via
+ * {@link awaitVisibleIndices} — a `Promise.allSettled` wait that blocks
+ * until each `waitFor` either resolves OR hits its per-locator timeout.
+ * The post-race {@link resolveWinner} then picks the deterministic
+ * lowest-index winner from the hit-test-passing set (with a Playwright-
+ * visible fallback for overlay-occluded layouts). This guarantees stable
+ * ranking across cookie banners + lazy-rendered dropdowns where a true
+ * wall-clock race would be timing-dependent.
+ *
  * @param locators - Locators to race.
  * @param timeout - Timeout in ms.
  * @returns Diagnostic with winner + fulfilled detail.

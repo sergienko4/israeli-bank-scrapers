@@ -85,6 +85,20 @@ function relativizeXpath(value: string, isScoped: boolean): string {
 }
 
 /**
+ * Build the xpath selector that walks up from a text node to the
+ * nearest interactive ancestor of `tag` whose subtree contains `text`.
+ * Extracted from `buildWalkUpLocatorsBase` so the parent function fits
+ * under the 10-LoC cap.
+ * @param tag - Click-ancestor tag (one of `CLICK_ANCESTORS`).
+ * @param prefix - XPATH_PREFIX_BY_SCOPE entry (`.//` when scoped, `//` otherwise).
+ * @param textExpr - Pre-escaped XPath string literal of the visible text.
+ * @returns Playwright-compatible `xpath=` selector string.
+ */
+function buildClickAncestorSelector(tag: string, prefix: string, textExpr: string): string {
+  return `xpath=${prefix}${tag}[.//text()[contains(., ${textExpr})]]`;
+}
+
+/**
  * Build xpath BASE locators (no `.first()`) for a textContent candidate.
  * Walk-up to each interactive ancestor — same logic as resolveByAncestorWalkUp.
  * Callers that want first-match-only wrap with `.first()`; callers that
@@ -101,9 +115,10 @@ export function buildWalkUpLocatorsBase(
 ): Locator[] {
   const prefix = XPATH_PREFIX_BY_SCOPE[String(isScoped)];
   const textExpr = escapeXPathString(text);
-  return CLICK_ANCESTORS.map(
-    (tag): Locator => scope.locator(`xpath=${prefix}${tag}[.//text()[contains(., ${textExpr})]]`),
-  );
+  return CLICK_ANCESTORS.map((tag): Locator => {
+    const selector = buildClickAncestorSelector(tag, prefix, textExpr);
+    return scope.locator(selector);
+  });
 }
 
 /**
