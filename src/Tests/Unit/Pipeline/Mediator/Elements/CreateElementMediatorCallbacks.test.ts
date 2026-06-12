@@ -237,9 +237,11 @@ describe('CreateElementMediator — walkUpToAnchorHref callback (invoked locally
     expect(walkCb).toBeDefined();
     const walkCbSafe = walkCb as (e: Element) => unknown;
 
-    // Branch 1: anchor present → returns href
+    // Branch 1: anchor present → returns RAW href attribute (matches direct-branch
+    // snapshot in resolveHrefSnapshot; previously returned anchor.href which is
+    // resolved via document.baseURI and diverged from the direct-branch value).
     const r1 = walkCbSafe(el);
-    expect(r1).toBe('https://bank.co.il/deep');
+    expect(r1).toBe('/deep-stub');
 
     // Branch 2: no anchor → returns empty string
     const elNo = makeMockElement({ closestAnchor: null });
