@@ -69,6 +69,27 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boole
 }
 
 /**
+ * Log retry and pause one inter-attempt cycle while a loading
+ * indicator is visible. Extracted so {@link waitOnceForLoading} keeps
+ * the early-return short-circuit and stays inside the LoC cap.
+ * Emits the structured `pipeline.wait.loading.retry` event so log
+ * consumers can filter/aggregate without parsing the human message.
+ * @param frame - Page or Frame currently showing a loading indicator.
+ * @param attempt - Current attempt number (for logging).
+ */
+async function logLoadingAndDelay(frame: Page | Frame, attempt: number): Promise<void> {
+  const delayStr = String(ELEMENTS_LOADING_DELAY_MS);
+  const attemptStr = String(attempt);
+  LOG.debug({
+    event: 'pipeline.wait.loading.retry',
+    attempt,
+    delayMs: ELEMENTS_LOADING_DELAY_MS,
+    message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
+  });
+  await frame.waitForTimeout(ELEMENTS_LOADING_DELAY_MS);
+}
+
+/**
  * Wait once for loading indicators to disappear, then re-check.
  * @param frame - Page or Frame.
  * @param attempt - Current attempt number (for logging).
@@ -80,12 +101,7 @@ async function waitOnceForLoading(
 ): Promise<Procedure<boolean>> {
   const loadingResult = await isAnyLoadingVisible(frame);
   if (isOk(loadingResult) && !loadingResult.value) return succeed(true);
-  const delayStr = String(ELEMENTS_LOADING_DELAY_MS);
-  const attemptStr = String(attempt);
-  LOG.debug({
-    message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
-  });
-  await frame.waitForTimeout(ELEMENTS_LOADING_DELAY_MS);
+  await logLoadingAndDelay(frame, attempt);
   return succeed(false);
 }
 

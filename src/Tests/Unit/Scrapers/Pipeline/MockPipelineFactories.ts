@@ -157,6 +157,27 @@ const MOCK_GET_BY_TEXT = {
 };
 
 /**
+ * Build the two ARIA-locator overrides (`getByLabel` + `getByRole`)
+ * with both returning the same target. Lets `makeMockFullPage` and
+ * `makeMockLoadingPage` share the override shape without re-declaring
+ * the JSDoc'd arrow pair on each call site.
+ * @param target - The mock locator (MOCK_LOCATOR or a controllable mock).
+ * @returns Object with `getByLabel` and `getByRole` both returning `target`.
+ * @template T - The locator-like mock type.
+ */
+function makeAriaLocatorOverrides<T>(target: T): { getByLabel: () => T; getByRole: () => T } {
+  /**
+   * Return the shared target locator mock.
+   * @returns Bound target.
+   */
+  const returnTarget = (): T => target;
+  return {
+    getByLabel: returnTarget,
+    getByRole: returnTarget,
+  };
+}
+
+/**
  * Create a mock Page with extended lifecycle methods for pipeline tests.
  * @param initialUrl - Starting URL.
  * @returns Extended mock page with close, setDefaultTimeout, waitForLoadState.
@@ -190,18 +211,7 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * @returns GetByText with first().
      */
     getByText: (): typeof MOCK_GET_BY_TEXT => MOCK_GET_BY_TEXT,
-    /**
-     * Return a minimal getByLabel mock (matches Playwright `getByLabel`).
-     * Used by ARIA_LABEL candidates via `buildAriaLabelLocators`.
-     * @returns Locator with click, fill, isVisible (=false), waitFor, evaluate.
-     */
-    getByLabel: (): typeof MOCK_LOCATOR => MOCK_LOCATOR,
-    /**
-     * Return a minimal getByRole mock (matches Playwright `getByRole`).
-     * Used by ARIA_LABEL candidates via `buildAriaLabelLocators`.
-     * @returns Locator with click, fill, isVisible (=false), waitFor, evaluate.
-     */
-    getByRole: (): typeof MOCK_LOCATOR => MOCK_LOCATOR,
+    ...makeAriaLocatorOverrides(MOCK_LOCATOR),
     /**
      * No-op fill mock.
      * @returns Resolved true.
@@ -275,18 +285,7 @@ export function makeMockLoadingPage(isVisibleFn: () => boolean): Page {
      * @returns GetByText mock with controllable visibility.
      */
     getByText: (): object => controllable,
-    /**
-     * Return locator whose isVisible delegates to isVisibleFn.
-     * Used by ARIA_LABEL candidates via `buildAriaLabelLocators`.
-     * @returns GetByLabel mock with controllable visibility.
-     */
-    getByLabel: (): object => controllable,
-    /**
-     * Return locator whose isVisible delegates to isVisibleFn.
-     * Used by ARIA_LABEL candidates via `buildAriaLabelLocators`.
-     * @returns GetByRole mock with controllable visibility.
-     */
-    getByRole: (): object => controllable,
+    ...makeAriaLocatorOverrides(controllable),
     /**
      * Return locator whose isVisible delegates to isVisibleFn.
      * Used by TEXT_CONTENT candidates via the walk-up XPath in

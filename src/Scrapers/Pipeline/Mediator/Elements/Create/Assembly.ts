@@ -25,6 +25,13 @@ export type { IFormCache };
  * except `network`, which the factory inserts directly). Each spread
  * preserves function identity — methods are the same references the
  * underlying `buildXxx(page)` helpers returned.
+ *
+ * Structural composition under §19.4 cap=20 (Mediator/Elements/**) — the
+ * 6 disjoint cluster spreads are the function's natural shape. CR cycle 5
+ * suggested extracting a `CLUSTER_BUILDERS` array, but that requires inline
+ * arrows which violate `jsdoc/require-jsdoc` (`ArrowFunctionExpression: true`).
+ * Trade-off rejected per A3.5.7: refactor for cosmetic 13→10 line reduction
+ * would add dispatch indirection without behavior change.
  * @param page - The Playwright page.
  * @param cache - The per-instance form-anchor cache.
  * @returns Method bundle covering every IElementMediator surface except `network`.

@@ -657,10 +657,10 @@ enrichWinnerToResult
 # src/Scrapers/Pipeline/Types/Debug.ts into src/Scrapers/Pipeline/Logging/Debug.ts,
 # leaving Types/Debug.ts as a re-export shim. This branch is based off
 # pre-12c main (017eb7e2) so Types/Debug.ts still carries the inline
-# xport function … declarations. The docs-coverage gate diffs us against
+# export function … declarations. The docs-coverage gate diffs us against
 # CURRENT main (post-12c shim) and sees these three symbols as "introduced
-# in HEAD" because the extractor treats inline xport function as a new
-# symbol distinct from the shim's xport { … } from '../Logging/Debug.js'.
+# in HEAD" because the extractor treats inline export function as a new
+# symbol distinct from the shim's export { … } from '../Logging/Debug.js'.
 #
 # These three entries unblock the Phase 12a CreateElementMediator refactor
 # from a Phase 12c side effect that the orchestrator will resolve by
