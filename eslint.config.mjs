@@ -2422,52 +2422,35 @@ export default tseslint.config(
   //   hub: the BasePhase abstract class + its helper functions move into
   //   their semantically correct sibling location, `Pipeline/Phases/Base/`,
   //   leaving `Types/BasePhase.ts` as a thin re-export shim for the v8.5
-  //   release window. The abstract class still owns six stage
-  //   orchestrators — `runStages` (~14 LoC), `takePhaseScreenshot`
-  //   (~22 LoC), `runPre` (~21 LoC), `runAction` (~24 LoC), `runPost`
-  //   (~21 LoC), `runFinal` (~21 LoC) — that exceed §19.3's 15/10 cap
-  //   because each one wires Template-Method-private telemetry
-  //   (set-active-stage + payload validation + screenshot bookend +
-  //   structured log emit) around the protected `action()`/`post()`/
-  //   `final()` subclass hooks. They cannot be split without exposing
-  //   the private contract to subclasses or shipping per-orchestrator
-  //   helper classes the Pipeline does not need yet. The temporary
-  //   30/20 cap mirrors §19.2 (Pipeline/Types/**) so the move is
-  //   byte-for-byte preserving.
+  //   release window.
   //
-  //   SCOPE NARROWED (CR PR #338): the block is FILE-SCOPED to
-  //   `BasePhase.ts` ONLY — not the whole `Phases/Base/**` directory
-  //   — so any FUTURE file added under `Phases/Base/` still enforces
-  //   §19.3's strict 15/10 cap, in keeping with the "grandfather
-  //   existing debt, don't weaken future code" rule.
-  //
-  //   POST-CR-FOLLOWUP (PR #338 iteration): the sibling
-  //   `ActionContextBuilder.ts` exemption was deleted entirely in this
-  //   commit — its `buildBootstrapContext` + `buildActionContext`
-  //   builders now compose three typed `Pick<>` slices
-  //   (`coreContextSlice` / `discoveryContextSlice` / existing
-  //   `balanceContextSlice`) which collapse both builders to ≤10 LoC.
-  //   `runStagesAfterPre` in this file also collapsed to ≤10 LoC via
-  //   a `handleStage` helper that envelopes each stage runner with the
-  //   snapshot-on-fail / screenshot-on-success bookend pattern.
-  //
-  //   PHASE 13 DRAIN COMMITMENT: the six remaining over-cap methods
-  //   listed above stay grandfathered until v8.6.0 issue #339 (filed
-  //   alongside the CR-deferred F3 try/catch promotion) which will
-  //   re-evaluate whether Template-Method-private telemetry can move
-  //   into a dedicated `PhaseTelemetryEnvelope` collaborator without
-  //   shipping a runtime cost to every phase invocation.
+  //   SCOPE NARROWED + DRAINED (CR PR #338 iteration 2): all six stage
+  //   orchestrators (`runStages`, `runStagesAfterPre`, `handleStage`,
+  //   `takePhaseScreenshot`, `runPre`, `runAction`, `runPost`, `runFinal`)
+  //   have been refactored to ≤10 LoC each by extracting six new helpers:
+  //     • `wrapStageThrow<T>`     — try/catch envelope (CR F3 — promotes
+  //       thrown stage exceptions into structured Procedure failures so
+  //       the runtime contract is uniform across happy + sad paths)
+  //     • `snapshotPreFail`       — PRE-fail screenshot extraction
+  //     • `capturePageScreenshot` — split from takePhaseScreenshot
+  //     • `logStage<T>`           — central phase-stage debug emit
+  //     • `mockShortCircuit<T>`   — MOCK_MODE Option<Procedure<T>> short-circuit
+  //     • `mergeActionResult`     — ACTION's IActionContext → IPipelineContext merge
+  //   The per-function (`max-lines-per-function`) + per-method
+  //   (`max-statements`) overrides have been DELETED entirely — global
+  //   §19.3 (10/10) now applies. Only `max-lines: 'off'` remains because
+  //   the abstract Template Method file legitimately exceeds the 300-LoC
+  //   global cap (~520 LoC after all six extractions + their typedoc) —
+  //   same precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
   //
   //   Flat-config is last-wins, so this block MUST appear after §19.3.
   {
     files: ['src/Scrapers/Pipeline/Phases/Base/BasePhase.ts'],
     rules: {
-      // BasePhase.ts is ~410 LoC — Template Method abstract class. Same
-      // `max-lines: off` precedent that §7 grants to
-      // `Pipeline/{Mediator,Strategy,Types}/**`.
+      // ~520 LoC Template Method abstract class. Same `max-lines: off`
+      // precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
+      // Per-function caps (10/10) inherited from §19.3 — no override.
       'max-lines': 'off',
-      'max-lines-per-function': ['error', { max: 30, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 20],
     },
   },
 

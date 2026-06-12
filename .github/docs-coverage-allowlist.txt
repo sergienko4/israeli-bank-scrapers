@@ -1,4 +1,4 @@
-﻿# Docs coverage allowlist
+# Docs coverage allowlist
 # =======================
 # Symbol names listed here are exempt from the docs-coverage CI gate
 # (the `Docs coverage canary` step inside .github/workflows/pr.yml's
