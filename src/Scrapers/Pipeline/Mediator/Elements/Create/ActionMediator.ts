@@ -91,14 +91,9 @@ function buildFillInput(registry: FrameRegistryMap): IActionMediator['fillInput'
  * @returns Bound clickElement handler.
  */
 function buildClickElement(registry: FrameRegistryMap): IActionMediator['clickElement'] {
-  return (args): Promise<true> => {
-    const frame = resolveFrame(registry, args.contextId);
-    return clickElementImpl({
-      frame,
-      selector: args.selector,
-      isForce: args.isForce,
-      nth: args.nth,
-    });
+  return ({ contextId, selector, isForce, nth }): Promise<true> => {
+    const frame = resolveFrame(registry, contextId);
+    return clickElementImpl({ frame, selector, isForce, nth });
   };
 }
 

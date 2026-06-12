@@ -94,6 +94,27 @@ async function resolveVisibleNthAware(args: IClickResolveArgs): Promise<IRaceRes
 }
 
 /**
+ * Run the hit-test race + diagnostic + winner-sequence phase for
+ * `resolveAllVisibleImpl`. Extracted so the orchestrator stays within
+ * the 10-LoC cap; matches the `runHitTestRaceLike` extraction for the
+ * single-visible variant.
+ * @param setup - Pre-built race setup (entries + locators + timeout).
+ * @param cap - Maximum winner entries to return.
+ * @returns Up to `cap` race-result entries; empty when none fulfill.
+ */
+async function runAllVisibleRace(
+  setup: Awaited<ReturnType<typeof setupAllVisibleRace>>,
+  cap: number,
+): Promise<readonly IRaceResult[]> {
+  const probeLabel = `resolveAllVisible (cap=${String(cap)})`;
+  logResolveProbe(probeLabel, setup.locators.length, setup.timeout);
+  const diag = await raceLocatorsWithHitTest(setup.locators, setup.timeout);
+  traceRaceDiagnostic(setup.entries, diag);
+  if (diag.fulfilledIndices.length === 0) return [];
+  return extractWinnerSequence({ entries: setup.entries, indices: diag.fulfilledIndices, cap });
+}
+
+/**
  * Resolve all visible elements matching any of the candidate selectors —
  * enumerates `.nth(0..MAX_NTH_PER_LOCATOR-1)` per base locator so multi-match
  * elements (legacy + modern nav buttons sharing the same aria-label) BOTH
@@ -106,13 +127,7 @@ async function resolveAllVisibleImpl(args: IResolveAllArgs): Promise<readonly IR
   if (args.cap < 1) return [];
   const setup = await setupAllVisibleRace(args.page, args.candidates, args.timeout);
   if (setup.entries.length === 0) return [];
-  const probeLabel = `resolveAllVisible (cap=${String(args.cap)})`;
-  logResolveProbe(probeLabel, setup.locators.length, setup.timeout);
-  const diag = await raceLocatorsWithHitTest(setup.locators, setup.timeout);
-  traceRaceDiagnostic(setup.entries, diag);
-  if (diag.fulfilledIndices.length === 0) return [];
-  const indices = diag.fulfilledIndices;
-  return extractWinnerSequence({ entries: setup.entries, indices, cap: args.cap });
+  return runAllVisibleRace(setup, args.cap);
 }
 
 /**
