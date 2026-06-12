@@ -12,7 +12,7 @@
 import type { Page } from 'playwright-core';
 
 import { createNetworkDiscovery } from '../Network/NetworkDiscovery.js';
-import { assembleElementMediator, type IFormCache } from './Create/index.js';
+import { assembleElementMediator, type IFormCache, NO_FORM_ANCHOR } from './Create/index.js';
 import { type IElementMediator } from './ElementMediator.js';
 
 export { getActivePhase, getActiveStage } from './Create/index.js';
@@ -28,7 +28,7 @@ export { getActivePhase, getActiveStage } from './Create/index.js';
  * @returns An IElementMediator with real implementations.
  */
 function createElementMediator(page: Page): IElementMediator {
-  const cache: IFormCache = { selector: '' };
+  const cache: IFormCache = { selector: NO_FORM_ANCHOR };
   const network = createNetworkDiscovery(page, { isDeferAttach: true });
   return { ...assembleElementMediator(page, cache), network };
 }

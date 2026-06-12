@@ -30,6 +30,44 @@ const XPATH_PREFIX_BY_SCOPE: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Escape an arbitrary string for safe interpolation into an XPath
+ * double-quoted literal. Returns one of three encodings:
+ *   - `"..."` when the input contains no `"`.
+ *   - `'...'` when the input contains no `'`.
+ *   - `concat(...)` decomposition when both quote characters appear.
+ *
+ * XPath 1.0 (§3.7) does NOT support backslash escaping inside string
+ * literals, so `concat()` is the only portable encoding for arbitrary
+ * input. The return value INCLUDES the quote delimiters (or
+ * `concat(...)`) — callers splice it directly into the surrounding
+ * predicate without re-quoting. Defends against accidental selector
+ * breakage when WellKnown text content carries quote characters.
+ * @param s - Arbitrary string to encode.
+ * @returns XPath literal expression equivalent to `s`.
+ */
+function escapeXPathString(s: string): string {
+  if (!s.includes('"')) return `"${s}"`;
+  if (!s.includes("'")) return `'${s}'`;
+  const parts = s.split('"').map((p): string => `"${p}"`);
+  const sep = ", '\"', ";
+  return `concat(${parts.join(sep)})`;
+}
+
+/**
+ * Escape an arbitrary string for safe interpolation into a CSS
+ * attribute-selector double-quoted literal: backslash-escapes `\` and
+ * `"` per the CSS Syntax specification (§4.3.5). Returns the raw
+ * escaped content WITHOUT the enclosing `"..."` — callers wrap.
+ * Defends against selector breakage when WellKnown name attribute
+ * values carry quote characters.
+ * @param s - Arbitrary string to encode.
+ * @returns Backslash-escaped CSS-safe attribute-value content.
+ */
+function escapeCssAttrValue(s: string): string {
+  return s.replaceAll('\\', String.raw`\\`).replaceAll('"', String.raw`\"`);
+}
+
+/**
  * Convert absolute "//pattern" XPath to descendant-relative ".//pattern"
  * when scoped under a form Locator. Playwright's chained `Locator.locator()`
  * treats "//..." as document-absolute (NOT relative to the locator), which
@@ -62,8 +100,9 @@ export function buildWalkUpLocatorsBase(
   isScoped: boolean,
 ): Locator[] {
   const prefix = XPATH_PREFIX_BY_SCOPE[String(isScoped)];
+  const textExpr = escapeXPathString(text);
   return CLICK_ANCESTORS.map(
-    (tag): Locator => scope.locator(`xpath=${prefix}${tag}[.//text()[contains(., "${text}")]]`),
+    (tag): Locator => scope.locator(`xpath=${prefix}${tag}[.//text()[contains(., ${textExpr})]]`),
   );
 }
 
@@ -82,7 +121,8 @@ export function buildClickableTextLocatorsBase(
   isScoped: boolean,
 ): Locator[] {
   const prefix = XPATH_PREFIX_BY_SCOPE[String(isScoped)];
-  const innermost = `${prefix}*[contains(., "${text}") and not(.//*[contains(., "${text}")])]`;
+  const textExpr = escapeXPathString(text);
+  const innermost = `${prefix}*[contains(., ${textExpr}) and not(.//*[contains(., ${textExpr})])]`;
   return [scope.locator(`xpath=${innermost}`)];
 }
 
@@ -135,7 +175,7 @@ export function buildPlaceholderLocators(scope: LocatorContext, value: string): 
  * @returns Single-element locator array.
  */
 export function buildNameLocators(scope: LocatorContext, value: string): Locator[] {
-  return [scope.locator(`[name="${value}"]`)];
+  return [scope.locator(`[name="${escapeCssAttrValue(value)}"]`)];
 }
 
 /**
@@ -212,6 +252,26 @@ export const LOCATOR_KIND_BUILDERS: Readonly<
 };
 
 /**
+ * Look up the per-kind builder in `LOCATOR_KIND_BUILDERS` and run it,
+ * or fall back to the generic `getByText(value)` when no builder is
+ * registered for the candidate kind. Pure dispatch: no scoping logic
+ * (caller already produced the scoped `scope` argument).
+ * @param scope - Pre-scoped Page / Frame / form-Locator context.
+ * @param candidate - The selector candidate driving the dispatch.
+ * @param isScoped - True when `scope` is a form-Locator descendant.
+ * @returns Base locators for the candidate (without `.first()`).
+ */
+function getLocatorBuilderOrFallback(
+  scope: LocatorContext,
+  candidate: SelectorCandidate,
+  isScoped: boolean,
+): Locator[] {
+  const builder = LOCATOR_KIND_BUILDERS[candidate.kind];
+  if (!builder) return [scope.getByText(candidate.value)];
+  return builder(scope, candidate.value, isScoped);
+}
+
+/**
  * Build BASE Playwright locators from a SelectorCandidate — without `.first()`
  * applied. Two callers wrap the output:
  *   - `buildCandidateLocators`: applies `.first()` for first-match-only
@@ -232,10 +292,7 @@ export function buildCandidateLocatorsBase(
   formAnchor = NO_FORM_ANCHOR,
 ): Locator[] {
   const scope = applyFormScope(ctx, formAnchor);
-  const isScoped = formAnchor.length > 0;
-  const builder = LOCATOR_KIND_BUILDERS[candidate.kind];
-  if (!builder) return [scope.getByText(candidate.value)];
-  return builder(scope, candidate.value, isScoped);
+  return getLocatorBuilderOrFallback(scope, candidate, formAnchor.length > 0);
 }
 
 /**

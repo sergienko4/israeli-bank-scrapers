@@ -23,7 +23,7 @@ import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from '../El
 import { buildDiscoverForm, buildScopeToForm } from './Discover.js';
 import { buildLocatorEntries, buildLocatorEntriesAll, type ILocatorEntry } from './Entries.js';
 import { buildResolveClickable, buildResolveField, type IFormCache } from './FieldResolve.js';
-import { raceLocators, raceLocatorsWithHitTest } from './Hittest.js';
+import { type IRaceDiagnostic, raceLocators, raceLocatorsWithHitTest } from './Hittest.js';
 import { buildCandidateLocators } from './Locators.js';
 import {
   enrichWinnerToResult,
@@ -149,6 +149,30 @@ function logResolveProbe(label: string, count: number, timeoutMs: number): true 
 }
 
 /**
+ * Run the hit-test race against a pre-built entry list. Encapsulates
+ * the cap-timeout + probe log + hit-test race + diagnostic trace
+ * sequence shared by `resolveVisibleInContextImpl` (and other
+ * single-context resolvers) so the parent body stays at the
+ * "build entries → race → translate winner" rhythm.
+ * @param label - Caller label for the probe log line.
+ * @param entries - Locator entries (one Locator per entry).
+ * @param timeout - Per-locator race timeout in ms (pre-capTimeout).
+ * @returns Race diagnostic with winner + fulfilled indices.
+ */
+async function runHitTestRaceLike(
+  label: string,
+  entries: readonly ILocatorEntry[],
+  timeout: number,
+): Promise<IRaceDiagnostic> {
+  const locators = entries.map((e): Locator => e.locator);
+  const effectiveTimeout = capTimeout(timeout);
+  logResolveProbe(label, locators.length, effectiveTimeout);
+  const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
+  traceRaceDiagnostic(entries, diag);
+  return diag;
+}
+
+/**
  * Resolve the first visible element within a SINGLE frame context.
  * Same logic as resolveVisibleImpl but scoped to one context.
  * @param ctx - The specific Page or Frame to search.
@@ -163,11 +187,7 @@ async function resolveVisibleInContextImpl(
 ): Promise<IRaceResult> {
   const entries = buildContextEntries(ctx, candidates);
   if (entries.length === 0) return NOT_FOUND_RESULT;
-  const locators = entries.map((e): Locator => e.locator);
-  const effectiveTimeout = capTimeout(timeout);
-  logResolveProbe('resolveVisibleInContext', locators.length, effectiveTimeout);
-  const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
-  traceRaceDiagnostic(entries, diag);
+  const diag = await runHitTestRaceLike('resolveVisibleInContext', entries, timeout);
   if (diag.winner < 0) return NOT_FOUND_RESULT;
   return enrichWinnerToResult(entries[diag.winner], diag.winner);
 }
@@ -269,19 +289,17 @@ function buildResolveVisibleInContext(): IElementMediator['resolveVisibleInConte
 }
 
 /**
- * Pick the WK_LOGIN_FORM.submit fallback when caller passes empty candidates.
- * Keys: 'true' = empty array (fallback to WK), 'false' = caller's candidates.
+ * Pick the WK_LOGIN_FORM.submit fallback when caller passes empty
+ * candidates; otherwise return the caller's candidates as-is. Plain
+ * ternary on a binary input — no dispatch table needed for a single
+ * truth-valued switch.
  * @param callerCandidates - Candidates passed by the caller (possibly empty).
  * @returns Effective candidates for the click race.
  */
 function pickClickCandidates(
   callerCandidates: readonly SelectorCandidate[],
 ): readonly SelectorCandidate[] {
-  const sourceByEmpty: Readonly<Record<string, readonly SelectorCandidate[]>> = {
-    true: WK_LOGIN_FORM.submit,
-    false: callerCandidates,
-  };
-  return sourceByEmpty[String(callerCandidates.length === 0)];
+  return callerCandidates.length === 0 ? WK_LOGIN_FORM.submit : callerCandidates;
 }
 
 /**

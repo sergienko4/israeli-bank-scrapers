@@ -173,10 +173,20 @@ function normalizeVerbose(obj: Partial<IIdentityVerbose>): IIdentityVerbose {
 
 /**
  * Capture the resolved element's identity payload (browser-side eval).
- * Must be a top-level pure function (no captured closures) so Playwright's
- * `evaluate(...)` serialization can transport it. The caller body stays
- * ≤10 LoC by delegating attribute extraction and outerHTML truncation to
- * this helper.
+ *
+ * <p>MUST be a top-level pure function (no captured closures) so
+ * Playwright's `evaluate(...)` serialisation can transport it into the
+ * page context. The attribute construction is INTENTIONALLY inlined
+ * (not delegated to a sibling helper like `extractIdentityAttrs`)
+ * because the page context would not have the helper symbol available
+ * — Playwright `evaluate(fn, arg)` transports only the function body
+ * source plus the serialisable `arg`. A free reference to a module-
+ * scope helper would crash at runtime with `ReferenceError`. Passing
+ * the helper as `arg` requires non-serialisable JS / an `unknown` cast
+ * the project ban-list rejects.
+ *
+ * The body therefore enumerates the attribute reads explicitly, which
+ * also keeps the attribute → identity-field mapping locally auditable.
  * @param el - The DOM element under inspection (browser context).
  * @param max - Max length for the outerHTML snippet.
  * @returns Verbose identity payload (identity bundle + bounded outerHTML).

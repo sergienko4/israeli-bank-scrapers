@@ -4,9 +4,11 @@
  * `IElementMediator`. Holds the cluster builders for the four
  * action-side bundles plus the sessionStorage snapshot helper.
  *
- * The pass-through wrappers (`buildActionNavCluster`,
- * `buildActionDataCluster`) use destructuring shorthand which
- * preserves function identity against the backing IElementMediator.
+ * Pass-through wrappers (`buildActionNavCluster`,
+ * `buildActionDataCluster`) use arrow forwarders rather than
+ * property-value shorthand. This is intentional — see each builder's
+ * JSDoc for the project lint interaction (unbound-method +
+ * no-warning-comments) that prevents the shorter shorthand form.
  *
  * NO setActivePhase, NO setActiveStage, NO network, NO raw Frame —
  * the IActionMediator surface is intentionally sealed to prevent
@@ -129,41 +131,59 @@ function buildFrameActionCluster(registry: FrameRegistryMap): FrameActionBundle 
 /**
  * Build the 4-method navigation pass-through cluster. Wraps the matching
  * methods on `full` so the cluster shape stays a flat property table.
+ *
+ * NOTE on identity preservation: this cluster intentionally uses arrow
+ * forwarders — not property-value shorthand — because every method on
+ * `IElementMediator` is declared with method-shorthand syntax (see
+ * Mediator/ElementMediator.ts:220+), which causes the project-wide
+ * unbound-method rule to flag every direct method reference (e.g.
+ * `navigateTo: full.navigateTo`). The project also forbids inline rule
+ * suppression directives via the no-warning-comments rule, so a
+ * tightly scoped exception is not available either. True identity
+ * preservation would require either a sweeping refactor of
+ * `IElementMediator` to arrow-property shape (out of scope for this
+ * PR) or a project-wide relaxation of the unbound-method rule for
+ * object-literal mediators.
  * @param full - The backing full IElementMediator.
  * @returns Navigation pass-through bundle.
  */
 function buildActionNavCluster(full: IElementMediator): ActionNavBundle {
   return {
     /** @inheritdoc */
-    navigateTo: (...args) => full.navigateTo(...args),
+    navigateTo: (...args): ReturnType<IElementMediator['navigateTo']> => full.navigateTo(...args),
     /** @inheritdoc */
-    waitForNetworkIdle: (...args) => full.waitForNetworkIdle(...args),
+    waitForNetworkIdle: (timeoutMs?): ReturnType<IElementMediator['waitForNetworkIdle']> =>
+      full.waitForNetworkIdle(timeoutMs),
     /** @inheritdoc */
-    waitForURL: (...args) => full.waitForURL(...args),
+    waitForURL: (...args): ReturnType<IElementMediator['waitForURL']> => full.waitForURL(...args),
     /** @inheritdoc */
-    getCurrentUrl: () => full.getCurrentUrl(),
+    getCurrentUrl: (): string => full.getCurrentUrl(),
   };
 }
 
 /**
  * Build the 5-method cookie + count + href pass-through cluster.
- * Wraps the matching methods on `full` so the cluster shape stays a flat
- * property table.
+ * Wraps the matching methods on `full` for the same reason
+ * `buildActionNavCluster` does — see that function's JSDoc for the
+ * project lint interaction that prevents identity-preserving shorthand
+ * here.
  * @param full - The backing full IElementMediator.
  * @returns Data-surface pass-through bundle.
  */
 function buildActionDataCluster(full: IElementMediator): ActionDataBundle {
   return {
     /** @inheritdoc */
-    getCookies: () => full.getCookies(),
+    getCookies: (): ReturnType<IElementMediator['getCookies']> => full.getCookies(),
     /** @inheritdoc */
-    addCookies: (...args) => full.addCookies(...args),
+    addCookies: (...args): ReturnType<IElementMediator['addCookies']> => full.addCookies(...args),
     /** @inheritdoc */
-    countByText: (...args) => full.countByText(...args),
+    countByText: (...args): ReturnType<IElementMediator['countByText']> =>
+      full.countByText(...args),
     /** @inheritdoc */
-    countBySelector: (...args) => full.countBySelector(...args),
+    countBySelector: (...args): ReturnType<IElementMediator['countBySelector']> =>
+      full.countBySelector(...args),
     /** @inheritdoc */
-    collectAllHrefs: () => full.collectAllHrefs(),
+    collectAllHrefs: (): ReturnType<IElementMediator['collectAllHrefs']> => full.collectAllHrefs(),
   };
 }
 

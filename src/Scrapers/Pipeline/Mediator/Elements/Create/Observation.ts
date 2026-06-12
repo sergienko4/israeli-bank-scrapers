@@ -43,7 +43,11 @@ function buildCheckAttribute(): IElementMediator['checkAttribute'] {
 }
 
 /**
- * Build countByText method bound to a page.
+ * Build countByText method bound to a page. Returns the TOTAL number of
+ * elements whose visible text matches — Playwright `Locator.count()`
+ * already enumerates every match in the page, so `.first()` is omitted
+ * (it would narrow the locator to a single element and ceiling the
+ * returned count at 1, defeating the public contract of "how many").
  * Returns 0 on any error (element not found = valid 0-count).
  * @param page - The Playwright page.
  * @returns Mediator countByText function.
@@ -52,7 +56,6 @@ function buildCountByText(page: Page): IElementMediator['countByText'] {
   return (text: string): Promise<number> =>
     page
       .getByText(text)
-      .first()
       .count()
       .catch((): number => 0);
 }

@@ -24,25 +24,36 @@ import type { Locator } from 'playwright-core';
 type WaitState = 'visible' | 'attached';
 
 /**
- * Race all locators in parallel — first matching state wins. Returns winning index or -1.
+ * Race all locators in parallel — first matching state wins in wall-clock
+ * time. Returns the index of the first locator to settle on `state`, or
+ * `-1` when none reach the state inside `timeout`.
+ *
+ * Implementation uses `Promise.any` over a per-locator
+ * `loc.waitFor({state,timeout}).then(() => i)` so the result reflects
+ * actual settle order — NOT input-array order. (The previous
+ * `Promise.allSettled` + `find` pattern silently picked the lowest
+ * input-array index that eventually fulfilled, defeating the race
+ * contract documented in the attached-click fallback caller.)
+ *
+ * Rejection path: `Promise.any` rejects with `AggregateError` only when
+ * EVERY waiter rejects (typical timeout). We catch that and return `-1`
+ * so the caller can fall through to its NOT_FOUND branch.
  * @param locators - Array of Playwright locators to race.
  * @param timeout - Timeout in ms for each locator.
  * @param state - Element state to wait for (default: 'visible').
- * @returns Index of first matching locator, or -1 if none.
+ * @returns Index of first matching locator (wall-clock), or -1 if none.
  */
 export async function raceLocators(
   locators: Locator[],
   timeout: number,
   state: WaitState = 'visible',
 ): Promise<number> {
+  if (locators.length === 0) return -1;
   const waiters = locators.map(async (loc, i): Promise<number> => {
     await loc.waitFor({ state, timeout });
     return i;
   });
-  const results = await Promise.allSettled(waiters);
-  const winner = results.find((r): boolean => r.status === 'fulfilled');
-  if (winner?.status !== 'fulfilled') return -1;
-  return winner.value;
+  return Promise.any(waiters).catch((): number => -1);
 }
 
 /**
@@ -78,6 +89,15 @@ function isAccessibilitySkipLink(el: Element): boolean {
  * collision — covered upstream by {@link filterOutSkipLinks} but
  * duplicated here so a regression of either guard alone still rejects
  * the wrong element).
+ *
+ * NOTE: the skip-link regex literal is INTENTIONALLY duplicated from
+ * {@link isAccessibilitySkipLink} (line ~66). Both functions are
+ * Playwright `evaluate(...)` payloads — their bodies travel to the
+ * page context as serialised source, so a captured `const
+ * SKIP_LINK_PATTERN = ...` at module scope is NOT available. Passing
+ * the pattern as an `evaluate(fn, arg)` arg requires an `unknown` cast
+ * that the project ban-list rejects. If you tighten the pattern in one
+ * site, update BOTH inline literals.
  * @param el - Target element under test.
  * @returns True when the element is hit-testable at its center point.
  */

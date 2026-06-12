@@ -18,13 +18,15 @@
  * Extracted from CreateElementMediator.ts (Phase 12a §7).
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import { WK_DASHBOARD } from '../../../Registry/WK/DashboardWK.js';
 import { getDebug } from '../../../Types/Debug.js';
 import { isOk, type Procedure, succeed } from '../../../Types/Procedure.js';
 import { ELEMENTS_LOADING_DELAY_MS } from '../ActionExecutors.js';
 import type { IElementMediator } from '../ElementMediator.js';
+import { buildCandidateLocators } from './Locators.js';
+import { NO_FORM_ANCHOR } from './Scope.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -37,18 +39,31 @@ const LOG = getDebug(import.meta.url);
 export { ELEMENTS_LOADING_DELAY_MS };
 
 /**
+ * Map a single locator to a non-rejecting "is visible" probe.
+ * Returns `false` on every error so Promise.all never rejects.
+ * @param locator - Playwright locator under test.
+ * @returns Visibility flag (false when the probe throws).
+ */
+function probeLocatorVisible(locator: Locator): Promise<boolean> {
+  return locator.isVisible().catch((): boolean => false);
+}
+
+/**
  * Check if any WellKnown loading indicator is currently visible.
- * Probes all candidates in parallel via Promise.all.
+ * Expands every WK_DASHBOARD.LOADING candidate through `buildCandidateLocators`
+ * so BOTH `KIND_TEXT_CONTENT` AND `KIND_ARIA_LABEL` entries are honoured —
+ * the previous direct `getByText(c.value)` skipped ARIA-labelled spinners
+ * entirely, leaving the post-click drainer racing against a still-visible
+ * "טוען" indicator on banks that ship aria-labelled loaders.
  * @param frame - Page or Frame to check.
- * @returns succeed(true) if loading visible, succeed(false) if clear.
+ * @returns succeed(true) if any candidate visible, succeed(false) if clear.
  */
 async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boolean>> {
-  const candidates = WK_DASHBOARD.LOADING;
-  const checks = candidates.map((c): Promise<boolean> => {
-    const locator = frame.getByText(c.value).first();
-    return locator.isVisible().catch((): boolean => false);
-  });
-  const results = await Promise.all(checks);
+  const locators = WK_DASHBOARD.LOADING.flatMap((c): Locator[] =>
+    buildCandidateLocators(frame, c, NO_FORM_ANCHOR),
+  );
+  const probes = locators.map(probeLocatorVisible);
+  const results = await Promise.all(probes);
   const hasLoading = results.some(Boolean);
   return succeed(hasLoading);
 }

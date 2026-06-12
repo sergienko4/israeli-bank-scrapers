@@ -559,8 +559,7 @@ buildExactTextLocators
 #         candidates (Playwright getByLabel resolves to the bound form control);
 #         dispatch-table row.
 buildLabelTextLocators
-# Reason: buildNameLocators — internal per-kind builder for HTML 
-ame
+# Reason: buildNameLocators — internal per-kind builder for HTML name
 #         attribute candidates (CSS attribute selector); dispatch-table row.
 buildNameLocators
 # Reason: buildPlaceholderLocators — internal per-kind builder for placeholder

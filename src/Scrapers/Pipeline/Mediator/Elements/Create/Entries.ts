@@ -47,6 +47,25 @@ export interface ILocatorEntry {
 }
 
 /**
+ * Build a single `ILocatorEntry` array for one (context, candidate)
+ * pair. Extracted from `buildLocatorEntries` so the public entry stays
+ * a thin context-fanout composition.
+ * @param ctx - Page or Frame producing the locators.
+ * @param candidate - WellKnown selector candidate.
+ * @param formAnchor - CSS form selector (or NO_FORM_ANCHOR).
+ * @returns Locator entries (one per base locator produced by `buildCandidateLocators`).
+ */
+function entriesForCandidate(
+  ctx: Page | Frame,
+  candidate: SelectorCandidate,
+  formAnchor: string,
+): ILocatorEntry[] {
+  return buildCandidateLocators(ctx, candidate, formAnchor).map(
+    (locator): ILocatorEntry => ({ locator, candidate, context: ctx }),
+  );
+}
+
+/**
  * Build locator entries with metadata for all contexts × candidates.
  * Preserves which candidate and context produced each locator.
  * @param page - The Playwright page.
@@ -62,11 +81,7 @@ export function buildLocatorEntries(
 ): ILocatorEntry[] {
   const contexts = getAllContexts(page);
   return contexts.flatMap((ctx): ILocatorEntry[] =>
-    candidates.flatMap((c): ILocatorEntry[] =>
-      buildCandidateLocators(ctx, c, formAnchor).map(
-        (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
-      ),
-    ),
+    candidates.flatMap((c): ILocatorEntry[] => entriesForCandidate(ctx, c, formAnchor)),
   );
 }
 
@@ -90,12 +105,7 @@ async function expandLocatorToNth(base: Locator, max: number): Promise<readonly 
   const total = await base.count().catch((): number => 0);
   if (total <= 0) return [];
   const limit = Math.min(total, max);
-  const out: Locator[] = [];
-  for (let i = 0; i < limit; i = i + 1) {
-    const nthLocator = base.nth(i);
-    out.push(nthLocator);
-  }
-  return out;
+  return Array.from({ length: limit }, (_v, i): Locator => base.nth(i));
 }
 
 /**
