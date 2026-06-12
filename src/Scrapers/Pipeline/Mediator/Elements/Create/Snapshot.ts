@@ -34,12 +34,20 @@ const LOG = getDebug(import.meta.url);
  * Walk up DOM from element to nearest `<a>` ancestor and return its href.
  * Structural CSS for extraction — allowed per CLAUDE.md exceptions.
  * Uses `closest('a')` for flat, null-safe ancestor traversal.
+ *
+ * <p>Returns the RAW `href` attribute (not `.href` which resolves via
+ * `document.baseURI`) so this fallback branch matches the direct-branch
+ * snapshot in {@link resolveHrefSnapshot} byte-for-byte. Without this,
+ * downstream selector building behaves differently depending on which
+ * branch ran — the direct-branch returns `/account/123` while the
+ * ancestor-walk used to return `https://bank.example/account/123`.
+ *
  * @param el - Starting DOM element.
- * @returns href string from the nearest anchor ancestor, or empty string.
+ * @returns Raw href attribute from the nearest anchor ancestor, or empty string.
  */
 function walkUpToAnchorHref(el: Element): string {
   const anchor = el.closest('a');
-  if (anchor) return anchor.href;
+  if (anchor) return anchor.getAttribute('href') ?? '';
   return '';
 }
 
@@ -221,27 +229,49 @@ async function extractIdentityVerbose(entry: ILocatorEntry): Promise<IIdentityVe
 }
 
 /**
+ * Build the attribute sub-payload with PII masking applied to free-text
+ * fields. `name` and `type` are HTML form-control attributes (structural,
+ * not PII). `ariaLabel`, `title`, and `href` can carry banking text such
+ * as account labels, balances, or transaction-scoped URLs on the
+ * post-login surface — those flow through {@link maskVisibleText} so the
+ * 30-char cap and PII_REDACTION env knob both apply to debug logs.
+ * @param identity - Element identity bundle.
+ * @returns Masked attribute payload ready to embed under `attrs`.
+ */
+function buildAttrsPayload(identity: IElementIdentity): object {
+  return {
+    name: identity.name,
+    type: identity.type,
+    ariaLabel: maskVisibleText(identity.ariaLabel),
+    title: maskVisibleText(identity.title),
+    href: maskVisibleText(identity.href),
+  };
+}
+
+/**
  * Build the LOG.debug payload from the identity bundle. Top-level so the
  * caller (`traceElementIdentity`) stays under cap by delegating both the
  * sub-attrs projection and the outer-shape composition here.
+ *
+ * <p>Free-text fields are masked via {@link maskVisibleText} so the
+ * post-login DOM trace cannot accidentally surface customer-scoped HTML
+ * (account labels, balances, last-4 card suffixes) at debug level. The
+ * `outerHtml` snippet is 300 chars wide and is the most likely vector
+ * for unintended PII leakage on banking surfaces — masking it caps the
+ * surfaced slice at {@link MAX_VISIBLE_TEXT_LENGTH} (30 chars) in
+ * production / CI and leaves it untouched only when
+ * `PII_REDACTION=off` is explicitly set for local debug.
  * @param identity - Element identity bundle.
  * @param outerHtml - Bounded outerHTML snippet.
- * @returns Pino-shaped object ready for LOG.debug.
+ * @returns Pino-shaped object ready for LOG.debug (PII-masked).
  */
 function buildIdentityLogPayload(identity: IElementIdentity, outerHtml: string): object {
-  const attrs = {
-    name: identity.name,
-    type: identity.type,
-    ariaLabel: identity.ariaLabel,
-    title: identity.title,
-    href: identity.href,
-  };
   return {
     tag: identity.tag,
     domId: identity.id,
     classes: identity.classes,
-    attrs,
-    outerHtml,
+    attrs: buildAttrsPayload(identity),
+    outerHtml: maskVisibleText(outerHtml),
     visibility: 'visible',
   };
 }

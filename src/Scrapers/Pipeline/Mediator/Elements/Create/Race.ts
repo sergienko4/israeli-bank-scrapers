@@ -130,17 +130,37 @@ export async function raceEntriesToResult(
 }
 
 /**
- * Build a dedup key for a winning element. Prefers the resolved element's
- * `id` attribute (a stable, human-meaningful handle); falls back to a
- * selector + frame-url composite when id is absent.
+ * Build a dedup key for a winning element. Both branches incorporate the
+ * frame URL so two distinct iframes with the same DOM id do NOT collapse
+ * into a single dedup group (cross-iframe collision protection). When the
+ * resolved element has no DOM id, the fallback concatenates the full
+ * identity tuple (tag/classes/name/type/ariaLabel/title/href) instead of
+ * the selector that found it — so two distinct elements in the same frame
+ * that happen to match the same selector also do NOT collapse into one.
+ *
+ * Prior shape used `id:${identity.id}` without frame context which merged
+ * same-id elements across iframes, and a `kind=value@frameUrl` fallback
+ * which merged distinct elements that the same WK selector pointed at.
+ *
  * @param entry - The fulfilling locator entry (carries candidate + frame).
  * @param identity - DOM identity captured by `extractAndTraceIdentity`.
  * @returns A string key safe to insert into a Set for dedup.
  */
 function buildDedupKey(entry: ILocatorEntry, identity: IElementIdentity): string {
-  if (identity.id !== '(none)' && identity.id.length > 0) return `id:${identity.id}`;
   const frameUrl = entry.context.url();
-  return `sel:${entry.candidate.kind}=${entry.candidate.value}@${frameUrl}`;
+  if (identity.id !== '(none)' && identity.id.length > 0) {
+    return `id:${frameUrl}:${identity.id}`;
+  }
+  return [
+    frameUrl,
+    identity.tag,
+    identity.classes,
+    identity.name,
+    identity.type,
+    identity.ariaLabel,
+    identity.title,
+    identity.href,
+  ].join('|');
 }
 
 /**

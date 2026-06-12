@@ -1,8 +1,10 @@
 /**
  * Navigation cluster — URL / networkidle gating methods plus the
- * `buildNavCluster` aggregator. Owns the two navigation-budget
- * constants (`NETWORK_IDLE_TIMEOUT`, `URL_WAIT_TIMEOUT`) so any
- * future tuning lives next to the consumers, not in the façade.
+ * `buildNavCluster` aggregator. The networkidle budget is reused from
+ * `ElementsTimingConfig` (`ELEMENTS_NETWORK_IDLE_TIMEOUT_MS`) so the
+ * R-NO-FIXED-WAIT-15S architecture rule only has one owner for that
+ * constant — duplicating it here as a private `NETWORK_IDLE_TIMEOUT`
+ * bypassed the `_TIMEOUT_MS` guard regex via the missing `_MS` suffix.
  *
  * Notes:
  *   - `buildNavCluster` constructs `waitForNetworkIdle` once and
@@ -16,13 +18,23 @@ import type { Page } from 'playwright-core';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { fail, type Procedure, succeed } from '../../../Types/Procedure.js';
+import { ELEMENTS_NETWORK_IDLE_TIMEOUT_MS } from '../../Timing/ElementsTimingConfig.js';
 import { type IElementMediator } from '../ElementMediator.js';
 
-/** Default timeout for network idle wait (matches POST_LOGIN_SETTLE_TIMEOUT). */
-const NETWORK_IDLE_TIMEOUT = 15_000;
-
 /** Default timeout for SPA URL wait. */
-const URL_WAIT_TIMEOUT = 10_000;
+const URL_WAIT_TIMEOUT_MS = 10_000;
+
+/**
+ * Map a thrown navigation error to a Generic-typed `fail()` procedure so
+ * the caller's body stays at the goto-then-succeed rhythm and the LoC cap
+ * stays satisfied.
+ * @param error - Caught error from `page.goto`.
+ * @returns `fail()` procedure carrying the navigation message.
+ */
+function makeNavigationFailure(error: unknown): Procedure<void> {
+  const msg = toErrorMessage(error as Error);
+  return fail(ScraperErrorTypes.Generic, `Navigation failed: ${msg}`);
+}
 
 /**
  * Build navigateTo method bound to a page.
@@ -36,8 +48,7 @@ function buildNavigateTo(page: Page): IElementMediator['navigateTo'] {
       await page.goto(url, opts);
       return succeed(undefined);
     } catch (error) {
-      const msg = toErrorMessage(error as Error);
-      return fail(ScraperErrorTypes.Generic, `Navigation failed: ${msg}`);
+      return makeNavigationFailure(error);
     }
   };
 }
@@ -53,6 +64,21 @@ function buildGetCurrentUrl(page: Page): IElementMediator['getCurrentUrl'] {
 }
 
 /**
+ * Wait for `networkidle` and swallow timeouts — slow analytics ≠ broken
+ * scraper. Extracted so {@link buildWaitForNetworkIdle} stays at the
+ * "default-timeout-then-await-then-succeed" rhythm and the LoC cap holds.
+ * @param page - The Playwright page.
+ * @param timeout - Wait budget in ms.
+ */
+async function awaitNetworkIdleNonFatal(page: Page, timeout: number): Promise<void> {
+  try {
+    await page.waitForLoadState('networkidle', { timeout });
+  } catch {
+    // Timeout is non-fatal — SPA may stay "loading"
+  }
+}
+
+/**
  * Build waitForNetworkIdle method bound to a page.
  * Timeout is non-fatal — slow analytics ≠ broken scraper.
  * @param page - The Playwright page.
@@ -60,14 +86,26 @@ function buildGetCurrentUrl(page: Page): IElementMediator['getCurrentUrl'] {
  */
 function buildWaitForNetworkIdle(page: Page): IElementMediator['waitForNetworkIdle'] {
   return async (timeoutMs?): Promise<Procedure<void>> => {
-    const timeout = timeoutMs ?? NETWORK_IDLE_TIMEOUT;
-    try {
-      await page.waitForLoadState('networkidle', { timeout });
-    } catch {
-      // Timeout is non-fatal — SPA may stay "loading"
-    }
+    const timeout = timeoutMs ?? ELEMENTS_NETWORK_IDLE_TIMEOUT_MS;
+    await awaitNetworkIdleNonFatal(page, timeout);
     return succeed(undefined);
   };
+}
+
+/**
+ * Race promises and swallow rejection. Observed state above decides
+ * outcome — both racers are best-effort signals, neither rejection
+ * invalidates the pool. Extracted so {@link buildRaceWithNetworkIdle}
+ * stays inside the LoC cap.
+ * @param racers - Pair of best-effort settle signals.
+ */
+async function raceWithCatch(racers: readonly Promise<unknown>[]): Promise<void> {
+  try {
+    await Promise.race(racers);
+  } catch {
+    // Observed state below decides outcome — both racers are
+    // best-effort signals, neither rejection invalidates the pool.
+  }
 }
 
 /**
@@ -83,12 +121,7 @@ function buildRaceWithNetworkIdle(
   waitForNetworkIdle: IElementMediator['waitForNetworkIdle'],
 ): IElementMediator['raceWithNetworkIdle'] {
   return async (customWait, budgetMs): Promise<true> => {
-    try {
-      await Promise.race([customWait, waitForNetworkIdle(budgetMs)]);
-    } catch {
-      // Observed state below decides outcome — both racers are
-      // best-effort signals, neither rejection invalidates the pool.
-    }
+    await raceWithCatch([customWait, waitForNetworkIdle(budgetMs)]);
     return true as const;
   };
 }
@@ -100,7 +133,7 @@ function buildRaceWithNetworkIdle(
  * @returns Async function returning Procedure with match result.
  */
 function buildWaitForURL(page: Page): IElementMediator['waitForURL'] {
-  return async (pattern, timeoutMs = URL_WAIT_TIMEOUT) => {
+  return async (pattern, timeoutMs = URL_WAIT_TIMEOUT_MS) => {
     const didMatch: boolean = await page
       .waitForURL(pattern, { timeout: timeoutMs })
       .then((): boolean => true)

@@ -18,6 +18,7 @@ import type { Frame, Locator, Page } from 'playwright-core';
 import type { SelectorCandidate } from '../../../../Base/Config/LoginConfigTypes.js';
 import { WK_LOGIN_FORM } from '../../../Registry/WK/LoginWK.js';
 import { capTimeout, getDebug } from '../../../Types/Debug.js';
+import { isSome, none, type Option, some } from '../../../Types/Option.js';
 import { type Procedure, succeed } from '../../../Types/Procedure.js';
 import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from '../ElementMediator.js';
 import { buildDiscoverForm, buildScopeToForm } from './Discover.js';
@@ -245,7 +246,56 @@ async function tryAttachedClickFallback(
 }
 
 /**
- * Resolve and click — tries visible elements first; falls back to attached (force click).
+ * Try a non-force click on the visible-race winner. Returns whether the
+ * click actually fired — the caller falls through to the attached-force
+ * fallback when this is false instead of silently claiming success.
+ * Extracted so the parent body stays ≤10 LoC while keeping the
+ * click-outcome check explicit.
+ * @param locator - Winner locator from the visible hit-test race.
+ * @param timeoutMs - Click timeout in milliseconds (already capped).
+ * @returns True when the click resolved without throwing.
+ */
+async function tryVisibleClick(locator: Locator, timeoutMs: number): Promise<boolean> {
+  return locator
+    .click({ timeout: timeoutMs })
+    .then((): true => true)
+    .catch((): false => false);
+}
+
+/**
+ * Try the visible-race click path: pick the winning locator, run a
+ * non-force click, and wrap the success as `succeed(result)`. Returns
+ * `none()` when either the visible race produced no winner or the winner
+ * failed to click — the caller then falls through to the attached-force
+ * fallback instead of silently claiming success.
+ *
+ * Extracted so {@link resolveAndClickImpl} flattens to a single
+ * sequential composition (`race → maybe visible → attached fallback`)
+ * and the max-depth ceiling stays honored. Uses `Option<Procedure<…>>`
+ * instead of nullable returns per the no-nullable-returns architecture
+ * rule.
+ * @param result - Winner of the visible hit-test race (may be NOT_FOUND).
+ * @param effectiveTimeout - Already-capped click timeout (ms).
+ * @returns `some(succeed(result))` on visible-click success, `none()` otherwise.
+ */
+async function tryVisibleClickPath(
+  result: IRaceResult,
+  effectiveTimeout: number,
+): Promise<Option<Procedure<IRaceResult>>> {
+  if (!result.found || !result.locator) return none();
+  const didClick = await tryVisibleClick(result.locator, effectiveTimeout);
+  if (!didClick) return none();
+  const successProc = succeed(result);
+  return some(successProc);
+}
+
+/**
+ * Resolve and click — tries visible elements first; falls back to attached (force click)
+ * when either the visible-race finds no winner OR the visible winner fails to click
+ * (the previous shape silently returned succeed(result) when click() rejected, masking
+ * a missed-click as success and skipping the attached-force fallback that exists
+ * precisely for that case).
+ *
  * Fallback handles elements hidden by accessibility overlays (e.g. UserWay) that are
  * in the DOM but have zero bounding box or are offset off-screen.
  * When `args.formAnchor` is set, ALL candidate kinds are scoped to descendants of
@@ -257,10 +307,8 @@ async function resolveAndClickImpl(args: IClickResolveArgs): Promise<Procedure<I
   const effectiveTimeout = capTimeout(args.timeout);
   const raceArgs: IClickResolveArgs = { ...args, timeout: effectiveTimeout };
   const result = await resolveVisibleNthAware(raceArgs);
-  if (result.found && result.locator) {
-    await result.locator.click({ timeout: effectiveTimeout }).catch((): false => false);
-    return succeed(result);
-  }
+  const visiblePath = await tryVisibleClickPath(result, effectiveTimeout);
+  if (isSome(visiblePath)) return visiblePath.value;
   return tryAttachedClickFallback(args, effectiveTimeout);
 }
 
