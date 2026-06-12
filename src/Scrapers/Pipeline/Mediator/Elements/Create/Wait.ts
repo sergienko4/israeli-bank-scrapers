@@ -69,15 +69,14 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boole
 }
 
 /**
- * Log retry and pause one inter-attempt cycle while a loading
- * indicator is visible. Extracted so {@link waitOnceForLoading} keeps
- * the early-return short-circuit and stays inside the LoC cap.
- * Emits the structured `pipeline.wait.loading.retry` event so log
- * consumers can filter/aggregate without parsing the human message.
- * @param frame - Page or Frame currently showing a loading indicator.
+ * Emit the structured `pipeline.wait.loading.retry` debug event. Stays
+ * inside the CLAUDE.md 10-LoC hard cap so the orchestrator
+ * {@link logLoadingAndDelay} can remain a thin two-call composition
+ * (CR #339 cycle 6 N3 follow-up — was 11 LoC inline).
  * @param attempt - Current attempt number (for logging).
+ * @returns `true` once the structured event is enqueued (no-void contract).
  */
-async function logLoadingAndDelay(frame: Page | Frame, attempt: number): Promise<void> {
+function logLoadingRetry(attempt: number): boolean {
   const delayStr = String(ELEMENTS_LOADING_DELAY_MS);
   const attemptStr = String(attempt);
   LOG.debug({
@@ -86,7 +85,22 @@ async function logLoadingAndDelay(frame: Page | Frame, attempt: number): Promise
     delayMs: ELEMENTS_LOADING_DELAY_MS,
     message: `loading indicator visible, waiting ${delayStr}ms (attempt ${attemptStr})`,
   });
+  return true;
+}
+
+/**
+ * Log retry and pause one inter-attempt cycle while a loading
+ * indicator is visible. Extracted so {@link waitOnceForLoading} keeps
+ * the early-return short-circuit and stays inside the LoC cap.
+ * Delegates the LOG.debug payload to {@link logLoadingRetry}.
+ * @param frame - Page or Frame currently showing a loading indicator.
+ * @param attempt - Current attempt number (for logging).
+ * @returns `true` after the inter-attempt delay completes (no-void contract).
+ */
+async function logLoadingAndDelay(frame: Page | Frame, attempt: number): Promise<boolean> {
+  logLoadingRetry(attempt);
   await frame.waitForTimeout(ELEMENTS_LOADING_DELAY_MS);
+  return true;
 }
 
 /**
