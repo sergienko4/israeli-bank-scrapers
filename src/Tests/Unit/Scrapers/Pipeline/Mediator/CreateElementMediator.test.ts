@@ -94,6 +94,23 @@ describe('createElementMediator/structure', () => {
     expect(typeof mediator.discoverForm).toBe('function');
     expect(typeof mediator.scopeToForm).toBe('function');
   });
+
+  // Belt-and-braces regression guard for PR #339 / CR cycle 3 F21 (false positive).
+  // The Phase 12a split moves `discoverErrors` and `waitForLoadingDone` from the
+  // god module into Discover.ts + Wait.ts, then re-bundles them through
+  // `buildPhaseControls()` → `buildStaticCluster()` → `assembleElementMediator()`
+  // spread. CR's full-review claimed both methods were dropped from the assembled
+  // mediator because they're absent from ResolveBundle/FormBundle Pick<>s — this
+  // test pins the wiring through PhaseControls so a future refactor cannot silently
+  // re-introduce that regression.
+  it('exposes discoverErrors AND waitForLoadingDone via PhaseControls wiring', () => {
+    const page = FACTORY.makeMockFullPage();
+    const mediator = MED_MOD.createElementMediator(page);
+    expect(typeof mediator.discoverErrors).toBe('function');
+    expect(typeof mediator.waitForLoadingDone).toBe('function');
+    expect(typeof mediator.setActivePhase).toBe('function');
+    expect(typeof mediator.setActiveStage).toBe('function');
+  });
 });
 
 // ── resolveField ──────────────────────────────────────────
@@ -272,9 +289,10 @@ describe('createElementMediator/scopeToForm', () => {
 
 // ── waitForLoadingDone ───────────────────────────────────
 
-/** Predicate return — whether the mock loading indicator is still visible. */
-type IsStillLoading = boolean;
-
+// Note: the `isStillLoading` predicate returns `boolean` directly (no type
+// alias) — S6564-Canary bans bare-primitive type aliases like
+// `type IsStillLoading = boolean;` because they add no extra safety over the
+// raw primitive while obscuring the predicate signature.
 describe('createElementMediator/waitForLoadingDone', () => {
   it('returns succeed(true) when no loading indicator is visible', async () => {
     const page = FACTORY.makeMockFullPage();
@@ -286,7 +304,7 @@ describe('createElementMediator/waitForLoadingDone', () => {
 
   it('returns succeed(true) after retry clears loading', async () => {
     let callCount = 0;
-    const page = FACTORY.makeMockLoadingPage((): IsStillLoading => {
+    const page = FACTORY.makeMockLoadingPage((): boolean => {
       callCount++;
       return callCount <= 2;
     });
@@ -297,7 +315,7 @@ describe('createElementMediator/waitForLoadingDone', () => {
 
   it('returns succeed(true) even after max retries (best-effort)', async () => {
     let callCount = 0;
-    const page = FACTORY.makeMockLoadingPage((): IsStillLoading => {
+    const page = FACTORY.makeMockLoadingPage((): boolean => {
       callCount++;
       return callCount <= 999;
     });

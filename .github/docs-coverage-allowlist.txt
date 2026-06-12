@@ -505,3 +505,282 @@ logHandoffSummary
 # documented in docs/architecture/{layers,pipeline}.md and
 # docs/phases/index.md.
 IsPrePayloadValid
+# --- Phase 12a: CreateElementMediator god-module split (sub-step 1 — Scope + Locators) ---
+# These symbols moved out of CreateElementMediator.ts into focused sub-modules
+# under src/Scrapers/Pipeline/Mediator/Elements/Create/. They are CROSS-MODULE
+# INTERNALS — used by the façade plus the upcoming Hittest/Entries/Race extraction
+# clusters. None are part of the @sergienko4/israeli-bank-scrapers public API
+# (Pipeline is internal — public surface is src/index.ts, not the Pipeline tree).
+
+# Reason: CLICK_RACE_TIMEOUT — internal default-timeout constant (3000 ms) for the
+#         parallel resolveAndClick race; tuning knob, not a consumer-facing API.
+CLICK_RACE_TIMEOUT
+# Reason: NO_FORM_ANCHOR — empty-string sentinel meaning "no form scoping"; internal
+#         to the SelectorCandidate→Locator dispatch, never crosses a public boundary.
+NO_FORM_ANCHOR
+# Reason: LocatorContext — internal type alias (Page | Frame | Locator) used by the
+#         per-kind locator builders so form-scoping can be applied uniformly via
+#         Locator chaining. Implementation detail of the dispatch table.
+LocatorContext
+# Reason: applyFormScope — helper that promotes a Page/Frame to a form-scoped
+#         Locator (or returns ctx unchanged when no form anchor is set). Internal
+#         to Create/Locators.ts; reused by upcoming Race/Hittest extractions.
+applyFormScope
+# Reason: buildCandidateLocators — internal factory producing first-match locators
+#         from a SelectorCandidate for legacy resolvers (login/preLogin/OTP/scrape).
+#         Used by the façade plus the next-commit Hittest/Entries sub-modules.
+buildCandidateLocators
+# Reason: buildCandidateLocatorsBase — internal factory producing BASE (no .first())
+#         locators consumed by the multi-match nth-enumeration race path. Internal
+#         counterpart of buildCandidateLocators.
+buildCandidateLocatorsBase
+# Reason: LOCATOR_KIND_BUILDERS — internal OCP dispatch table mapping each
+#         SelectorCandidate.kind to its locator builder. Pure dispatch table; not
+#         a public extension point.
+LOCATOR_KIND_BUILDERS
+# Reason: LocatorKindBuilder — internal function signature for entries of
+#         LOCATOR_KIND_BUILDERS. Implementation detail of the dispatch table.
+LocatorKindBuilder
+# Reason: buildAriaLabelLocators — internal per-kind builder for ariaLabel
+#         candidates (fans across getByLabel + 3 ARIA roles). Used only by the
+#         LOCATOR_KIND_BUILDERS dispatch table.
+buildAriaLabelLocators
+# Reason: buildClickableTextLocatorsBase — internal per-kind builder for the
+#         clickableText kind (innermost element containing text). Dispatch-table
+#         row, not a public API.
+buildClickableTextLocatorsBase
+# Reason: buildCssLocators — internal per-kind builder for raw CSS candidates;
+#         row in the LOCATOR_KIND_BUILDERS dispatch table.
+buildCssLocators
+# Reason: buildExactTextLocators — internal per-kind builder for exactText
+#         candidates (getByText with exact:true); dispatch-table row.
+buildExactTextLocators
+# Reason: buildLabelTextLocators — internal per-kind builder for labelText
+#         candidates (Playwright getByLabel resolves to the bound form control);
+#         dispatch-table row.
+buildLabelTextLocators
+# Reason: buildNameLocators — internal per-kind builder for HTML name
+#         attribute candidates (CSS attribute selector); dispatch-table row.
+buildNameLocators
+# Reason: buildPlaceholderLocators — internal per-kind builder for placeholder
+#         candidates (getByPlaceholder); dispatch-table row.
+buildPlaceholderLocators
+# Reason: buildRegexLocators — internal per-kind builder for regex candidates
+#         (getByText with RegExp); dispatch-table row.
+buildRegexLocators
+# Reason: buildWalkUpLocatorsBase — internal per-kind builder for textContent
+#         candidates (walk-up XPath across CLICK_ANCESTORS tags); dispatch-table row.
+buildWalkUpLocatorsBase
+# Reason: buildXpathLocators — internal per-kind builder for xpath candidates
+#         (prepends xpath= and relativizes under form scope); dispatch-table row.
+buildXpathLocators
+# --- Phase 12a sub-step 2: Hittest + Entries extraction ---
+# These six symbols are NEW exports landed by the Phase 12a refactor of
+# CreateElementMediator.ts. They live in Mediator/Elements/Create/
+# behind the barrel and are internal mediator plumbing only — no public
+# scraper consumes them directly. They will be re-homed (Hittest /
+# Entries) without API change in later Phase 12a commits, so adding
+# docs pages now would be churn. The parent mediator's public surface
+# (lib/index.d.ts) is byte-identical to baseline (A3.5.4 gate verified).
+#
+# Reason: IRaceDiagnostic — internal trace payload for
+#         raceLocatorsWithHitTest (winner + fulfilled + hit-pass counts).
+IRaceDiagnostic
+# Reason: raceLocators — internal locator race primitive; first locator to
+#         reach the requested state wins.
+raceLocators
+# Reason: raceLocatorsWithHitTest — internal race+elementFromPoint hit-test
+#         + skip-link filter pipeline; primary path for resolve-visible
+#         helpers in the mediator.
+raceLocatorsWithHitTest
+# Reason: ILocatorEntry — internal carrier pairing a Playwright Locator with
+#         the candidate descriptor and browsing-context that produced it.
+ILocatorEntry
+# Reason: buildLocatorEntries — internal single-shot entry expander
+#         (.first() semantics) used by resolveVisible-style helpers.
+buildLocatorEntries
+# Reason: buildLocatorEntriesAll — internal multi-match expander
+#         (.nth(0..MAX_NTH_PER_LOCATOR-1)) used by resolveAllVisible /
+#         resolveAndClick so legacy + modern sibling pairs both enter the race.
+buildLocatorEntriesAll
+# --- Phase 12a sub-step 3: Snapshot extraction ---
+# Four NEW exports landed by Phase 12a sub-step-3 (Snapshot.ts under
+# Mediator/Elements/Create/). All four are internal mediator plumbing
+# behind the barrel — no public scraper consumes them directly. The
+# parent mediator's public surface (lib/index.d.ts) remains
+# byte-identical to baseline (A3.5.4 verified).
+#
+# Reason: IWinnerInfo — internal {index,value,identity} bundle passed
+#         to buildFoundResult so callers stay under the 3-param ceiling.
+IWinnerInfo
+# Reason: snapshotValue — captures the winning element's text or href
+#         before the next click invalidates it (stale-element protection).
+snapshotValue
+# Reason: extractAndTraceIdentity — snapshots DOM identity + bounded
+#         outerHTML, emits debug trace, returns identity for ACTION-stage
+#         selector building.
+extractAndTraceIdentity
+# Reason: buildFoundResult — packages winner data into the IRaceResult
+#         contract consumed by every resolve* helper.
+buildFoundResult
+# --- Phase 12a sub-step 4: Race extraction ---
+# Six NEW exports landed by Phase 12a sub-step-4 (Race.ts under
+# Mediator/Elements/Create/). All six are internal mediator plumbing
+# behind the barrel — no public scraper consumes them directly. The
+# parent mediator's public surface (lib/index.d.ts) remains
+# byte-identical to baseline (A3.5.4 verified).
+#
+# Reason: IRaceSetup — return shape of setupAllVisibleRace
+#         ({entries, locators, timeout}); needed by resolveAllVisibleImpl
+#         to destructure race inputs.
+IRaceSetup
+# Reason: traceRaceDiagnostic — debug-level race-outcome log emitter
+#         (winner index + per-locator detail) shared by every race caller.
+traceRaceDiagnostic
+# Reason: raceEntriesToResult — race entries through hit-test, return
+#         found-result for the winner or NOT_FOUND_RESULT; the shared
+#         single-winner body for resolveVisibleImpl + resolveVisibleNthAware.
+raceEntriesToResult
+# Reason: extractWinnerSequence — turn race-winner indices into IRaceResults
+#         with DOM-element dedup + selector-specificity ranking + cap;
+#         consumed by resolveAllVisibleImpl.
+extractWinnerSequence
+# Reason: setupAllVisibleRace — prepare race inputs (nth-expanded entries +
+#         locator array + capped timeout) for the multi-winner path.
+setupAllVisibleRace
+# Reason: enrichWinnerToResult — capture identity + value from one winning
+#         entry and wrap as IRaceResult; shared by raceEntriesToResult,
+#         resolveVisibleInContextImpl, and tryAttachedClickFallback.
+enrichWinnerToResult
+# --- Phase 12a sub-step 4 (transitional): Debug.ts shim lag ---
+# Main has advanced to Phase 12c which migrated the logger cluster from
+# src/Scrapers/Pipeline/Types/Debug.ts into src/Scrapers/Pipeline/Logging/Debug.ts,
+# leaving Types/Debug.ts as a re-export shim. This branch is based off
+# pre-12c main (017eb7e2) so Types/Debug.ts still carries the inline
+# export function … declarations. The docs-coverage gate diffs us against
+# CURRENT main (post-12c shim) and sees these three symbols as "introduced
+# in HEAD" because the extractor treats inline export function as a new
+# symbol distinct from the shim's export { … } from '../Logging/Debug.js'.
+#
+# These three entries unblock the Phase 12a CreateElementMediator refactor
+# from a Phase 12c side effect that the orchestrator will resolve by
+# rebasing this branch onto post-12c main before merge. They should be
+# REMOVED in the rebase commit alongside the inline declarations.
+#
+# Reason: ScraperLogger — pre-existing logger type alias, surfaced as
+#         "new" only because main inlined the re-export shim.
+ScraperLogger
+# Reason: getActiveLogContext — pre-existing context accessor, surfaced as
+#         "new" only because main inlined the re-export shim.
+getActiveLogContext
+# Reason: runWithBankContext — pre-existing context binder, surfaced as
+#         "new" only because main inlined the re-export shim.
+runWithBankContext
+# --- Phase 12a sub-step 5: FieldResolve+Wait+Discover extraction ---
+# Eight NEW exports landed by Phase 12a sub-step-5 (FieldResolve.ts,
+# Wait.ts, Discover.ts under Mediator/Elements/Create/). All eight are
+# internal mediator plumbing behind the barrel — no public scraper
+# consumes them directly. The parent mediator's public surface
+# (lib/index.d.ts) remains byte-identical to baseline (A3.5.4 verified).
+#
+# Reason: IFormCache — per-instance mutable cache for the form-anchor
+#         selector; threaded through discoverForm + scopeToForm.
+IFormCache
+# Reason: buildResolveField — wraps resolveFieldPipeline with
+#         scoped→wide fallback semantics and error catching;
+#         consumed by buildResolveCluster.
+buildResolveField
+# Reason: buildResolveClickable — clickable-field resolver pinned to
+#         the __submit__ fieldKey for WK.__submit__ fallback;
+#         consumed by buildResolveCluster.
+buildResolveClickable
+# Reason: buildDiscoverErrors — Layer-1 DOM scan + Layer-2 WK text
+#         fallback packaged as the mediator's discoverErrors method.
+buildDiscoverErrors
+# Reason: buildDiscoverForm — caches the discovered form anchor and
+#         catches non-fatal discovery errors; consumed by
+#         buildFormCluster.
+buildDiscoverForm
+# Reason: buildScopeToForm — uses the cached anchor to re-scope a
+#         candidate list (no-op when cache empty); consumed by
+#         buildFormCluster.
+buildScopeToForm
+# Reason: buildWaitForLoadingDone — polls WK_DASHBOARD.LOADING up to
+#         3 attempts (ELEMENTS_LOADING_DELAY_MS between attempts);
+#         consumed by buildResolveCluster.
+buildWaitForLoadingDone
+# Reason: ELEMENTS_LOADING_DELAY_MS — inter-attempt polling delay
+#         re-exported from Wait.ts so the cluster owns its tuning
+#         knob (the constant still lives in ActionExecutors for the
+#         other action callers that share the same delay).
+ELEMENTS_LOADING_DELAY_MS
+# --- Phase 12a sub-step 6: Resolve+Navigation+Observation+Cookies+PhaseControls+Assembly+ActionMediator extraction ---
+# Final Phase 12a landing: trims CreateElementMediator.ts from 915 LoC to
+# ~38 LoC (≤150 target) by relocating seven cohesive clusters into sibling
+# sub-modules under Mediator/Elements/Create/. All new exports are internal
+# mediator plumbing behind the Create/index.ts barrel — no public scraper
+# consumes them directly. lib/index.d.ts byte-identical to baseline.
+#
+# Reason: buildResolveCluster — assembles the 6-method locator/click
+#         resolver bundle (resolveField/resolveClickable/resolveVisible/
+#         resolveAllVisible/resolveVisibleInContext/resolveAndClick).
+buildResolveCluster
+# Reason: ResolveBundle — Pick<IElementMediator, ...> tuple for the
+#         resolver cluster's slice surface.
+ResolveBundle
+# Reason: buildFormCluster — assembles the 3-method form-anchor cluster
+#         (discoverForm/scopeToForm/getFormAnchor) bound to an IFormCache.
+buildFormCluster
+# Reason: FormBundle — Pick<IElementMediator, ...> tuple for the
+#         form-anchor cluster's slice surface.
+FormBundle
+# Reason: buildNavCluster — assembles the 5-method navigation cluster
+#         (navigateTo/getCurrentUrl/waitForNetworkIdle/raceWithNetworkIdle/
+#         waitForURL) with single-source waitForNetworkIdle reuse.
+buildNavCluster
+# Reason: NavBundle — Pick<IElementMediator, ...> tuple for the
+#         navigation cluster's slice surface.
+NavBundle
+# Reason: buildAttrCluster — assembles the 2-method attribute-read
+#         cluster (checkAttribute/getAttributeValue) on locators carried
+#         by IRaceResult winners.
+buildAttrCluster
+# Reason: AttrBundle — Pick<IElementMediator, ...> tuple for the
+#         attribute-read cluster's slice surface.
+AttrBundle
+# Reason: buildCountCluster — assembles the 3-method counting + href
+#         cluster (countByText/countBySelector/collectAllHrefs) bound
+#         to a Page reference.
+buildCountCluster
+# Reason: CountBundle — Pick<IElementMediator, ...> tuple for the
+#         count/href cluster's slice surface.
+CountBundle
+# Reason: buildCookieCluster — assembles the 2-method cookie I/O
+#         cluster (getCookies/addCookies) over the browser context.
+buildCookieCluster
+# Reason: CookieBundle — Pick<IElementMediator, ...> tuple for the
+#         cookie-I/O cluster's slice surface.
+CookieBundle
+# Reason: buildPhaseControls — assembles the 4-method phase/stage/
+#         discovery cluster, owning the ActiveState pass-through that
+#         was previously transient on Create/index.ts.
+buildPhaseControls
+# Reason: buildStaticCluster — fuses PhaseControlsBundle + AttrBundle
+#         so assembleElementMediator's spread count stays ≤ 6.
+buildStaticCluster
+# Reason: PhaseControlsBundle — Pick<IElementMediator, ...> tuple for
+#         the phase/stage/discovery cluster's slice surface.
+PhaseControlsBundle
+# Reason: StaticBundle — intersection (PhaseControlsBundle & AttrBundle)
+#         for the page-independent merged surface.
+StaticBundle
+# Reason: assembleElementMediator — composes the full IElementMediator
+#         method bundle from all six cluster builders (everything
+#         except network, which the façade layers on top).
+assembleElementMediator
+# Reason: extractActionMediator — relocated from the parent
+#         CreateElementMediator.ts façade into Create/ActionMediator.ts
+#         as part of the Phase 12a sub-step-6 trim. The symbol's public
+#         signature is unchanged; the docs-coverage gate flags it as
+#         "introduced" because it now ships from a new file path.
+extractActionMediator

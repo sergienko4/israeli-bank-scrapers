@@ -157,6 +157,27 @@ const MOCK_GET_BY_TEXT = {
 };
 
 /**
+ * Build the two ARIA-locator overrides (`getByLabel` + `getByRole`)
+ * with both returning the same target. Lets `makeMockFullPage` and
+ * `makeMockLoadingPage` share the override shape without re-declaring
+ * the JSDoc'd arrow pair on each call site.
+ * @param target - The mock locator (MOCK_LOCATOR or a controllable mock).
+ * @returns Object with `getByLabel` and `getByRole` both returning `target`.
+ * @template T - The locator-like mock type.
+ */
+function makeAriaLocatorOverrides<T>(target: T): { getByLabel: () => T; getByRole: () => T } {
+  /**
+   * Return the shared target locator mock.
+   * @returns Bound target.
+   */
+  const returnTarget = (): T => target;
+  return {
+    getByLabel: returnTarget,
+    getByRole: returnTarget,
+  };
+}
+
+/**
  * Create a mock Page with extended lifecycle methods for pipeline tests.
  * @param initialUrl - Starting URL.
  * @returns Extended mock page with close, setDefaultTimeout, waitForLoadState.
@@ -190,6 +211,7 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
      * @returns GetByText with first().
      */
     getByText: (): typeof MOCK_GET_BY_TEXT => MOCK_GET_BY_TEXT,
+    ...makeAriaLocatorOverrides(MOCK_LOCATOR),
     /**
      * No-op fill mock.
      * @returns Resolved true.
@@ -214,35 +236,63 @@ export function makeMockFullPage(initialUrl = 'https://bank.example.com'): Page 
 }
 
 /**
- * Create a mock Page where getByText().isVisible() is controlled by a callback.
- * Used for testing waitForLoadingDone retry logic.
+ * Build a one-shot locator-like object whose `first().isVisible()`
+ * delegates to the provided callback. Used by `makeMockLoadingPage` to
+ * surface the controllable loading-visibility predicate through every
+ * locator-construction path (`getByText`, `getByLabel`, `getByRole`,
+ * `locator(xpath=...)`).
+ * @param isVisibleFn - Returns true while loading indicator is visible.
+ * @returns Locator mock with `first().isVisible()` bound to `isVisibleFn`.
+ */
+function makeControllableLocator(isVisibleFn: () => boolean): object {
+  return {
+    /**
+     * Return first locator with controllable isVisible.
+     * @returns Locator mock.
+     */
+    first: (): object => ({
+      /**
+       * Delegate visibility to the provided callback.
+       * @returns Whether loading indicator should appear visible.
+       */
+      isVisible: (): Promise<boolean> => {
+        const isVisible = isVisibleFn();
+        return Promise.resolve(isVisible);
+      },
+    }),
+  };
+}
+
+/**
+ * Create a mock Page where loading-indicator visibility is controlled
+ * by a callback across every locator-construction path. Wires the
+ * controllable visibility through `getByText`, `getByLabel`,
+ * `getByRole`, AND `locator(xpath=...)` so the post-Phase-12a
+ * `buildCandidateLocators` expansion (which routes ARIA_LABEL via
+ * getByLabel/getByRole and TEXT_CONTENT via walk-up XPath through
+ * `locator()`) all surface the controllable predicate. Used for testing
+ * waitForLoadingDone retry logic.
  * @param isVisibleFn - Returns true when loading indicator should appear visible.
- * @returns Mock Page with controllable loading visibility.
+ * @returns Mock Page with controllable loading visibility on every path.
  */
 export function makeMockLoadingPage(isVisibleFn: () => boolean): Page {
   const base = makeMockFullPage();
+  const controllable = makeControllableLocator(isVisibleFn);
   return {
     ...base,
     /**
      * Return locator whose isVisible delegates to isVisibleFn.
      * @returns GetByText mock with controllable visibility.
      */
-    getByText: (): typeof MOCK_GET_BY_TEXT => ({
-      /**
-       * Return first locator with controllable isVisible.
-       * @returns Locator mock.
-       */
-      first: (): object => ({
-        /**
-         * Delegate visibility to the provided callback.
-         * @returns Whether loading indicator should appear visible.
-         */
-        isVisible: (): Promise<boolean> => {
-          const isVisible = isVisibleFn();
-          return Promise.resolve(isVisible);
-        },
-      }),
-    }),
+    getByText: (): object => controllable,
+    ...makeAriaLocatorOverrides(controllable),
+    /**
+     * Return locator whose isVisible delegates to isVisibleFn.
+     * Used by TEXT_CONTENT candidates via the walk-up XPath in
+     * `buildWalkUpLocatorsBase` (which calls `scope.locator('xpath=…')`).
+     * @returns Locator mock with controllable visibility.
+     */
+    locator: (): object => controllable,
     /**
      * No-op timeout mock for retry delays.
      * @returns Resolved true.

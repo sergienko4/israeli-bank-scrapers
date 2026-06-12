@@ -925,8 +925,9 @@ describe('TIMING mission — R-NO-FIXED-WAIT-15S: no new 15s fixed-wait constant
  * <ul>
  *   <li>`Mediator/Elements/PageReadiness.ts` — the primitive itself
  *       (`waitForDomReady`, `waitForSpaReady`).</li>
- *   <li>`Mediator/Elements/CreateElementMediator.ts` — internal
- *       mediator's `waitForNetworkIdle` wrapper.</li>
+ *   <li>`Mediator/Elements/Create/Navigation.ts` — internal
+ *       mediator's `waitForNetworkIdle` wrapper (moved out of the
+ *       parent `CreateElementMediator.ts` façade in Phase 12a).</li>
  *   <li>`Interceptors/SnapshotFrameCapture.ts` /
  *       `Interceptors/SnapshotInterceptorIO.ts` — snapshot-capture
  *       infrastructure outside the phase pipeline.</li>
@@ -937,7 +938,7 @@ describe('TIMING mission — R-NO-FIXED-WAIT-15S: no new 15s fixed-wait constant
  */
 const DIRECT_LOAD_STATE_ALLOWLIST: readonly string[] = [
   path.join('Mediator', 'Elements', 'PageReadiness.ts'),
-  path.join('Mediator', 'Elements', 'CreateElementMediator.ts'),
+  path.join('Mediator', 'Elements', 'Create', 'Navigation.ts'),
   path.join('Interceptors', 'SnapshotFrameCapture.ts'),
   path.join('Interceptors', 'SnapshotInterceptorIO.ts'),
   path.join('Interceptors', 'WafChallenge', 'HCaptchaCheckboxSolver.ts'),
