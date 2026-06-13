@@ -1028,3 +1028,30 @@ probeNeterrorAndFail
 runDiscoverFormPreamble
 # Reason: Sub-module function — runs the post-preamble DOM-ready wait + field discovery + commit.
 runPostPreamble
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — FormAnchor.ts → Anchor/{Types,Walk,Scope}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module type — form anchor result (selector + Playwright context).
+IFormAnchor
+# Reason: Sub-module ancestor metadata interface — typed view of a single DOM ancestor.
+IAncestorMeta
+# Reason: Sub-module ancestor tuple type — wire-format from browser evaluate to Node.
+AncestorTuple
+# Reason: Sub-module sentinel — typed null for Nullable return types.
+EMPTY_RESULT
+# Reason: Sub-module constant — regex matching id-bearing form CSS selectors.
+FORM_ID_RE
+# Reason: Sub-module constant — XPath filter excluding non-fillable input types.
+NON_FILLABLE_FILTER
+# Reason: Sub-module constant — XPath expression for ancestor walk (excludes html/body).
+ANCESTOR_XPATH
+# Reason: Sub-module constant — minimum fillable input count for form-like detection.
+MIN_FILLABLE_INPUTS
+# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+discoverFormAnchor
+# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+scopeCandidate
+# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+scopeCandidates
