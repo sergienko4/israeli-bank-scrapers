@@ -1008,3 +1008,23 @@ NO_ERRORS
 discoverFormErrors
 # Reason: Sub-module Layer 2 entry — WellKnown error-text probe for form errors.
 checkFrameForErrors
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginPreOrchestrator.ts → PreOrchestrator/{Types,Readiness,Discovery}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module constant — failure message for the LOGIN PRE missing-browser early gate.
+LOGIN_PRE_NO_BROWSER
+# Reason: Sub-module constant — failure message for the LOGIN PRE missing-mediator early gate.
+LOGIN_PRE_NO_MEDIATOR
+# Reason: Sub-module constant — LOGIN.PRE prelude spec for the iframe-hosted login form.
+LOGIN_PRE_FRAME_PRELUDE
+# Reason: Sub-module tagged-union outcome of runDiscoverFormPreamble (fail/frame variants).
+DiscoverFormPreamble
+# Reason: Sub-module DTO — bundled discover-form resources (config + context + page + mediator).
+IDiscoverFormResources
+# Reason: Sub-module function — probes the page for a Firefox-style network-error chrome.
+probeNeterrorAndFail
+# Reason: Sub-module function — runs LOGIN.PRE checkReadiness + preAction preamble.
+runDiscoverFormPreamble
+# Reason: Sub-module function — runs the post-preamble DOM-ready wait + field discovery + commit.
+runPostPreamble
