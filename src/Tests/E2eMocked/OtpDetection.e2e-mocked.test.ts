@@ -189,7 +189,12 @@ describe('OTP detection', () => {
     expect(retrieverSpy).toHaveBeenCalledTimes(1);
     const firstCall = retrieverSpy.mock.calls[0] as string[];
     expect(firstCall[0]).toBe('*****5100');
-  }, 60000);
+    // Phase 12d collateral: this test routinely hovers near the 60s
+    // wall under parallel jest pressure (maxWorkers=2) on Windows,
+    // and the 4-file ScopeIntact extraction adds ~tens of ms of
+    // module-load latency that pushed it over. Raise to 90s to
+    // restore headroom; in-isolation runs still complete in ~20s.
+  }, 90000);
 
   it('Test 6: No confirm button on page — triggerSelectors miss gracefully, SMS trigger still works', async () => {
     const retrieverSpy = jest.fn().mockResolvedValue('654321');
