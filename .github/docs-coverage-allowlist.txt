@@ -984,3 +984,27 @@ makeFieldStep
 foldDiscoveryFields
 # Reason: Sub-module helper — selects the active-frame id for downstream submit resolution.
 pickActiveFrameId
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — FormErrorDiscovery.ts → ErrorDiscovery/{Types,Scan,Probe}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module sentinel for elements missing a `class` attribute (browser-context).
+NO_CLASS
+# Reason: Sub-module raw DOM item interface — output of the in-browser scan callback.
+IRawDomItem
+# Reason: Sub-module evaluation-argument bundle — passes selector + sentinel into the browser context.
+IEvalArg
+# Reason: Sub-module CSS-selector constant — joined list of structural error-element selectors.
+ERROR_SELECTOR
+# Reason: Sub-module type — discriminator for the kind of form error (formValidation/networkError/authError).
+FormErrorKind
+# Reason: Sub-module interface — a single discovered form error (selector + text + kind).
+IFormError
+# Reason: Sub-module interface — unified scan result for Layer 1 + Layer 2 error discovery.
+IFormErrorScanResult
+# Reason: Sub-module constant — canonical empty IFormErrorScanResult sentinel.
+NO_ERRORS
+# Reason: Sub-module Layer 1 entry — dynamic DOM structural scan for form errors.
+discoverFormErrors
+# Reason: Sub-module Layer 2 entry — WellKnown error-text probe for form errors.
+checkFrameForErrors
