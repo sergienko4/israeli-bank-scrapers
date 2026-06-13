@@ -950,3 +950,37 @@ failReady
 runPostFormScanAndCallback
 # Reason: Sub-module helper running the loading-gate wait + early auth-API watcher.
 runPostLoadingGate
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginFieldDiscovery.ts → FieldDiscovery/{Types,ResolveOne,Accumulate,Fold}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module accumulator type — passes target map + form anchor through the fold; internal only.
+IFieldAccum
+# Reason: Sub-module bundle for resolveOneField — keeps the body under the 10-line ceiling.
+IResolveOneArgs
+# Reason: Sub-module bundle for accumulateField — under the 3-param ceiling.
+IAccumulateCallArgs
+# Reason: Sub-module bundle for maybeDiscoverAnchor.
+IAnchorCheckArgs
+# Reason: Sub-module trace-tag lookup — internal logging helper.
+FIELD_RESULT_TAG
+# Reason: Sub-module helper — assembles an IResolvedTarget from a resolved field context.
+buildPreTarget
+# Reason: Sub-module helper — picks the form anchor's CSS selector, or '' when absent.
+pickFormSelector
+# Reason: Sub-module helper — maps a field-resolution Procedure into the IResolvedTarget sentinel.
+preTargetOrFalse
+# Reason: Sub-module helper — resolves one credential field and returns its IResolvedTarget or false.
+resolveOneField
+# Reason: Sub-module helper — accumulates one resolved field into the targets map + emits trace log.
+accumulateField
+# Reason: Sub-module helper — lazily discovers a form anchor only on the first successful field resolution.
+maybeDiscoverAnchor
+# Reason: Sub-module helper — composes resolveOneField + accumulateField + maybeDiscoverAnchor into one step.
+resolveAndAccumulate
+# Reason: Sub-module factory — builds the single-step reducer used by foldDiscoveryFields.
+makeFieldStep
+# Reason: Sub-module helper — sequentially folds the ordered field list into the discovery accumulator.
+foldDiscoveryFields
+# Reason: Sub-module helper — selects the active-frame id for downstream submit resolution.
+pickActiveFrameId
