@@ -1055,3 +1055,42 @@ discoverFormAnchor
 scopeCandidate
 # Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
 scopeCandidates
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginFormActions.ts → Actions/{Types,Fill,Discovery}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+fillAllFields
+# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+fillAndSubmit
+# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+fillFromDiscovery
+# Reason: Re-exported from facade LoginFormActions.ts — public type used by ActionMediator consumers.
+IFillFromDiscoveryArgs
+# Reason: Re-exported from facade LoginFormActions.ts — public type returned by fillAndSubmit / fillFromDiscovery.
+ISubmitResult
+# Reason: Re-exported from facade LoginFormActions.ts — public union 'enter'|'click'|'both'.
+SubmitMethod
+# Reason: Sub-module type — bundled args for fillAllFields (mediator + fields + creds + logger).
+IFillAllArgs
+# Reason: Sub-module type — fill result with frame context for downstream submit targeting.
+IFillAllResult
+# Reason: Sub-module type — bundled args for fillAndSubmit.
+IFillAndSubmitArgs
+# Reason: Sub-module type — bundled args for runSubmitPhase (3-param ceiling shim).
+ISubmitPhaseArgs
+# Reason: Sub-module type — bundle of (didEnter, clickResult) returned by submit-phase runners.
+ISubmitPhaseResult
+# Reason: Sub-module helper — normalize ILoginConfig['submit'] to readonly candidate array.
+normalizeSubmit
+# Reason: Sub-module helper — boolean-pair → 'enter'|'click'|'both' lookup.
+resolveSubmitMethod
+# Reason: Sub-module helper — convert ISubmitPhaseResult into the final SubmitMethod label.
+resolveSubmitFromPhase
+# Reason: Sub-module helper — phantom-success guard returning a failure when no submit signal fired.
+gateNoSubmitSignal
+# Reason: Sub-module helper — emit the "filling N fields" debug line.
+logFillCount
+# Reason: Sub-module helper — emit the post-submit debug line (method + masked URL).
+logSubmitResult
