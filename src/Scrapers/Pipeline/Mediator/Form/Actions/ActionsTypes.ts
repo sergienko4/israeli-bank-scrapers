@@ -133,13 +133,13 @@ export function gateNoSubmitSignal(submit: ISubmitPhaseResult): Procedure<true> 
 }
 
 /**
- * Emit a "filling N fields" debug line.
+ * Emit a structured "fill" debug line carrying the field count.
  * @param logger - Pipeline logger.
  * @param count - Number of fields about to be filled.
  * @returns True after emit (callers discard).
  */
 export function logFillCount(logger: ScraperLogger, count: number): true {
-  logger.debug({ message: `filling ${String(count)} fields` });
+  logger.debug({ event: 'login.form.fill', fieldCount: count });
   return true;
 }
 

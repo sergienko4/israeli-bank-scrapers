@@ -790,7 +790,7 @@ extractActionMediator
 # Disambiguate,Probe}.ts. The parent file shrunk from a 222-line
 # mixed-concern module to a 33-line thin facade composing the four
 # sub-modules. All 20 symbols below were previously module-private
-# helpers; the xport keyword exists only to let the sub-modules
+# helpers; the export keyword exists only to let the sub-modules
 # import each other across the new file boundary. The facade
 # (validateActionScopeIntact) remains the sole user-facing surface
 # and is already documented under docs/architecture/login-pipeline.md.
@@ -862,7 +862,7 @@ makeScopeArgs
 # FrameMatch,Build,Core}.ts. The parent file shrunk from a 224-line
 # mixed-concern module to a 41-line thin facade composing the four
 # sub-modules. All 15 symbols below were previously module-private
-# helpers; the xport keyword exists only to let the sub-modules
+# helpers; the export keyword exists only to let the sub-modules
 # import each other across the new file boundary. The facade
 # (resolveSubmitTarget) remains the sole user-facing surface.
 # ─────────────────────────────────────────────────────────────────────

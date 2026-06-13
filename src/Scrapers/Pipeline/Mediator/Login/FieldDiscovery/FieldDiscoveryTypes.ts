@@ -7,7 +7,6 @@
 import type { IFieldConfig } from '../../../../Base/Interfaces/Config/FieldConfig.js';
 import type { Option } from '../../../Types/Option.js';
 import type {
-  ILoginFieldDiscovery,
   IPipelineContext,
   IResolvedTarget,
   LoginFieldKey,
@@ -16,7 +15,7 @@ import type { IFormAnchor } from '../../Form/FormAnchor.js';
 import type { IDiscoverFieldsArgs } from '../LoginFieldDiscovery.types.js';
 
 /** Re-export to keep the public `ILoginFieldDiscovery` reachable from sub-modules. */
-export type { ILoginFieldDiscovery };
+export type { ILoginFieldDiscovery } from '../../../Types/PipelineContext.js';
 
 /** Accumulator for the field-discovery reduce. */
 export interface IFieldAccum {
