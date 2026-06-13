@@ -856,3 +856,56 @@ probeScopeIntact
 # Reason: makeScopeArgs — IScopeIntactArgs builder; framework-internal
 #         helper composed by the façade.
 makeScopeArgs
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginSubmitResolve.ts → SubmitResolve/{Types,
+# FrameMatch,Build,Core}.ts. The parent file shrunk from a 224-line
+# mixed-concern module to a 41-line thin facade composing the four
+# sub-modules. All 15 symbols below were previously module-private
+# helpers; the xport keyword exists only to let the sub-modules
+# import each other across the new file boundary. The facade
+# (resolveSubmitTarget) remains the sole user-facing surface.
+# ─────────────────────────────────────────────────────────────────────
+# Reason: STRUCTURAL_SUBMIT_WK — WK structural submit candidate list;
+#         sub-module-internal constant.
+STRUCTURAL_SUBMIT_WK
+# Reason: IFrameMatchArgs — frame-match bundle alias; sub-module-internal.
+IFrameMatchArgs
+# Reason: IFrameScope — frame scope bundle alias; sub-module-internal.
+IFrameScope
+# Reason: IResolveInFrameArgs — resolve-in-frame args bundle alias;
+#         sub-module-internal.
+IResolveInFrameArgs
+# Reason: frameMatchExtras — partial match bundle builder; framework-
+#         internal helper for buildFrameMatchArgs.
+frameMatchExtras
+# Reason: buildFrameMatchArgs — match bundle builder; framework-
+#         internal helper for resolveInFrame.
+buildFrameMatchArgs
+# Reason: logFrameMismatch — wrong-frame telemetry helper; framework-
+#         internal helper for resolveInFrame.
+logFrameMismatch
+# Reason: logFrameMatch — matched-frame telemetry helper; framework-
+#         internal helper for resolveInFrame.
+logFrameMatch
+# Reason: buildSuccessTarget — success Option builder; framework-
+#         internal helper for resolveInFrame.
+buildSuccessTarget
+# Reason: buildResolveArgs — resolve-in-frame args bundle builder;
+#         framework-internal helper.
+buildResolveArgs
+# Reason: buildScope — frame scope bundle builder; framework-internal
+#         helper composed by the façade.
+buildScope
+# Reason: resolveVisibleCandidates — mediator.resolveVisible bridge;
+#         framework-internal helper for resolveInFrame.
+resolveVisibleCandidates
+# Reason: resolveInFrame — frame-scoped race resolver; framework-
+#         internal helper composed by try*Submit helpers.
+resolveInFrame
+# Reason: tryStructuralSubmit — WK structural submit race; framework-
+#         internal helper composed by the façade.
+tryStructuralSubmit
+# Reason: tryConfiguredSubmit — bank-configured submit race; framework-
+#         internal helper composed by the façade.
+tryConfiguredSubmit
