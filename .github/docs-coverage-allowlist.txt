@@ -909,3 +909,44 @@ tryStructuralSubmit
 # Reason: tryConfiguredSubmit — bank-configured submit race; framework-
 #         internal helper composed by the façade.
 tryConfiguredSubmit
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginPostValidate.ts → PostValidate/{Detect,Gates,Flow}.ts
+# Sub-modules are framework-internal helpers behind the LoginPostValidate.ts
+# facade. The facade keeps its 2 public exports (default executeValidateLogin
+# + named detectAsyncLoginErrors); these symbols cross-talk between the
+# 3 sub-modules and are not part of the consumer-facing API.
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module lookup table mapping auth-failure classifier → human-readable layer label (PostValidateDetect).
+AUTH_FAILURE_LAYER_LABELS
+# Reason: Sub-module re-export of the async login-error detector consumed by the facade and PostValidateFlow.
+detectAsyncLoginErrors
+# Reason: Sub-module helper that scans a page for async error banners — used internally by detectAsyncLoginErrors.
+detectAsyncOnPage
+# Reason: Sub-module probe for the auth-API failure watcher result — used by PostValidateGates + Flow.
+detectAuthApiFailure
+# Reason: Sub-module DTO bundling validate-login flow args (config/mediator/input/page/activeFrame).
+IValidateLoginArgs
+# Reason: Sub-module helper that runs scope-intact + bounce detectors after the post-redirect form scan.
+runLatePostChecks
+# Reason: Sub-module helper composing the form-scan + late-checks half of LOGIN.POST.
+runPostFormAndLateChecks
+# Reason: Sub-module helper running the late-fire auth-failure + async DOM detectors before scope-intact.
+runPostLateChecks
+# Reason: Sub-module DTO bundling form-scan args (mediator/config/input/page).
+IPostFormScanArgs
+# Reason: Sub-module failure message constant for the missing-browser early gate.
+LOGIN_POST_NO_BROWSER
+# Reason: Sub-module failure message constant for the missing-login-state early gate.
+LOGIN_POST_NO_LOGIN_STATE
+# Reason: Sub-module tagged-union outcome of checkLoginPostGates (fail/ok variants).
+LoginPostReady
+# Reason: Sub-module function that runs the LOGIN.POST early gates (login + browser presence checks).
+checkLoginPostGates
+# Reason: Sub-module helper wrapping a failure procedure in the LoginPostReady fail tag.
+failReady
+# Reason: Sub-module helper running the main-frame error scan + SPA-traffic wait + POST callback.
+runPostFormScanAndCallback
+# Reason: Sub-module helper running the loading-gate wait + early auth-API watcher.
+runPostLoadingGate
