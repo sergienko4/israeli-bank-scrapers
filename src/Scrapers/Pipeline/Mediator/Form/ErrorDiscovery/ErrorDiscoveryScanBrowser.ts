@@ -64,7 +64,7 @@ export function getErrorClasses(arg: IErrorClassesArg): string[] {
   const els = Array.from(nodes);
   return els.map((e): string => {
     const attr = e.getAttribute('class');
-    if (attr === null) return arg.noClass;
+    if (attr === null || attr.trim().length === 0) return arg.noClass;
     return attr;
   });
 }

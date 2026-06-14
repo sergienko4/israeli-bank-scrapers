@@ -25,7 +25,7 @@
  * <p>Exported so the dedicated unit-test fixture can assert each
  * pattern is still matched after future Playwright upgrades.
  */
-export const BENIGN_PRESS_PATTERNS: readonly string[] = [
+export const BENIGN_PRESS_PATTERNS = [
   'Target page, context or browser has been closed',
   'Execution context was destroyed',
   'has been detached',
@@ -34,7 +34,7 @@ export const BENIGN_PRESS_PATTERNS: readonly string[] = [
   'no element matches selector',
   'waiting for selector',
   'strict mode violation',
-];
+] as const;
 
 /**
  * Nominal brand for the press-rejection classification — satisfies

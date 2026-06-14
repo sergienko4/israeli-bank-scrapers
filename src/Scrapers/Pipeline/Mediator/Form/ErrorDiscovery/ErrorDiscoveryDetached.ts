@@ -17,17 +17,26 @@
  * Matching is case-sensitive and uses `includes` so version drift
  * in Playwright's error prose stays best-effort tolerant.
  *
+ * <p>The `Navigation failed because …` entries are the SPECIFIC
+ * page/frame/browser-gone variants, NOT the bare prefix — a broad
+ * `'Navigation failed because'` substring could swallow an unrelated
+ * navigation failure and mask a real bug (coding-principle §9;
+ * CR PR #345 round-4 finding).
+ *
  * <p>Exported so the dedicated unit-test fixture can assert each
  * pattern is still matched after future Playwright upgrades.
  */
-export const DETACHED_PATTERNS: readonly string[] = [
+export const DETACHED_PATTERNS = [
   'Target page, context or browser has been closed',
   'Execution context was destroyed',
   'has been detached',
   'Frame was detached',
   'Frame detached',
-  'Navigation failed because',
-];
+  'Navigation failed because page was closed',
+  'Navigation failed because page crashed',
+  'Navigation failed because browser has disconnected',
+  'Navigation failed because frame was detached',
+] as const;
 
 /**
  * Nominal brand for the "is this Playwright error a benign element-gone

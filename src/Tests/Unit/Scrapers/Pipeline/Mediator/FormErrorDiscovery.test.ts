@@ -7,59 +7,15 @@
 
 import type { Page } from 'playwright-core';
 
-import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import { NO_CLASS } from '../../../../../Scrapers/Pipeline/Mediator/Form/ErrorDiscovery/ErrorDiscoveryTypes.js';
 import {
   checkFrameForErrors,
   discoverFormErrors,
   NO_ERRORS,
 } from '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
-
-// ── DOM item type ──────────────────────────────────────────
-
-/** Mirrors the internal IRawDomItem used by discoverFormErrors. */
-interface IDomItem {
-  tag: string;
-  cls: string;
-  text: string;
-  isHidden: boolean;
-}
-
-/**
- * Build a mock ctx/page whose `evaluate` dispatches on the browser
- * closure's function name and returns ONE column extracted from the
- * pre-baked IDomItem rows. Phase 12d split the single compound
- * evaluate into 4 parallel single-column evaluates (column-array
- * data contract) — each invocation matches one of the names below.
- * @param items - Pre-baked DOM items to derive each column from.
- * @returns Mock Page that satisfies the 4-call column contract.
- */
-const MAKE_CTX_L1 = (items: readonly IDomItem[]): Page =>
-  ({
-    /**
-     * Dispatch on `fn.name` to return the matching column for `items`.
-     * @param fn - Browser closure (one of get*Tags|Classes|Texts|Hidden).
-     * @param fn.name - Closure function name used for dispatch.
-     * @returns Resolved column array, typed as the closure's return.
-     */
-    evaluate: <T>(fn: { readonly name: string }): Promise<T> => {
-      if (fn.name === 'getErrorTags') {
-        return Promise.resolve(items.map((i): string => i.tag) as unknown as T);
-      }
-      if (fn.name === 'getErrorClasses') {
-        return Promise.resolve(
-          items.map((i): string => (i.cls.length === 0 ? NO_CLASS : i.cls)) as unknown as T,
-        );
-      }
-      if (fn.name === 'getErrorTexts') {
-        return Promise.resolve(items.map((i): string => i.text) as unknown as T);
-      }
-      if (fn.name === 'getErrorHidden') {
-        return Promise.resolve(items.map((i): boolean => i.isHidden) as unknown as T);
-      }
-      throw new ScraperError('MAKE_CTX_L1: unexpected closure name: ' + fn.name);
-    },
-  }) as unknown as Page;
+import {
+  type IErrorColumnItem,
+  makeErrorColumnCtx,
+} from '../../../../Mocks/ErrorColumnCtxFactory.js';
 
 /**
  * Build a mock ctx whose evaluate rejects with a Playwright-style
@@ -83,7 +39,7 @@ const MAKE_CTX_THROWS = (): Page =>
  * @param text - Error text content.
  * @returns Visible mat-error DOM item.
  */
-const MAT_ERROR_ITEM = (text: string): IDomItem => ({
+const MAT_ERROR_ITEM = (text: string): IErrorColumnItem => ({
   tag: 'mat-error',
   cls: '',
   text,
@@ -95,7 +51,7 @@ const MAT_ERROR_ITEM = (text: string): IDomItem => ({
  * @param text - Error text content.
  * @returns Hidden mat-error DOM item.
  */
-const HIDDEN_ERROR_ITEM = (text: string): IDomItem => ({
+const HIDDEN_ERROR_ITEM = (text: string): IErrorColumnItem => ({
   tag: 'mat-error',
   cls: '',
   text,
@@ -107,10 +63,20 @@ const HIDDEN_ERROR_ITEM = (text: string): IDomItem => ({
  * @param text - Alert text content.
  * @returns Visible alert DOM item.
  */
-const ALERT_ITEM = (text: string): IDomItem => ({ tag: 'div', cls: '', text, isHidden: false });
+const ALERT_ITEM = (text: string): IErrorColumnItem => ({
+  tag: 'div',
+  cls: '',
+  text,
+  isHidden: false,
+});
 
 /** Visible but empty item (no text content). */
-const EMPTY_VISIBLE_ITEM: IDomItem = { tag: 'div', cls: 'error', text: '', isHidden: false };
+const EMPTY_VISIBLE_ITEM: IErrorColumnItem = {
+  tag: 'div',
+  cls: 'error',
+  text: '',
+  isHidden: false,
+};
 
 /**
  * Build a mock page where getByText returns isVisible based on visibleTexts.
@@ -181,20 +147,20 @@ describe('NO_ERRORS', () => {
 
 describe('discoverFormErrors/no-errors', () => {
   it('returns hasErrors=false for empty DOM', async () => {
-    const ctx = MAKE_CTX_L1([]);
+    const ctx = makeErrorColumnCtx([]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(false);
   });
 
   it('returns hasErrors=false when all items are hidden', async () => {
     const hiddenItem = HIDDEN_ERROR_ITEM('שגיאה');
-    const ctx = MAKE_CTX_L1([hiddenItem]);
+    const ctx = makeErrorColumnCtx([hiddenItem]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(false);
   });
 
   it('returns hasErrors=false when visible items have empty text', async () => {
-    const ctx = MAKE_CTX_L1([EMPTY_VISIBLE_ITEM]);
+    const ctx = makeErrorColumnCtx([EMPTY_VISIBLE_ITEM]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(false);
   });
@@ -209,7 +175,7 @@ describe('discoverFormErrors/no-errors', () => {
 describe('discoverFormErrors/found', () => {
   it('returns hasErrors=true for visible mat-error', async () => {
     const item = MAT_ERROR_ITEM('שם משתמש לא נכון');
-    const ctx = MAKE_CTX_L1([item]);
+    const ctx = makeErrorColumnCtx([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(true);
     expect(scan.errors[0].text).toBe('שם משתמש לא נכון');
@@ -217,7 +183,7 @@ describe('discoverFormErrors/found', () => {
 
   it('returns hasErrors=true for visible role=alert', async () => {
     const item = ALERT_ITEM('שגיאה בכניסה');
-    const ctx = MAKE_CTX_L1([item]);
+    const ctx = makeErrorColumnCtx([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(true);
     expect(scan.errors[0].text).toBe('שגיאה בכניסה');
@@ -226,7 +192,7 @@ describe('discoverFormErrors/found', () => {
   it('collects multiple visible errors', async () => {
     const item1 = MAT_ERROR_ITEM('שם משתמש לא נכון');
     const item2 = MAT_ERROR_ITEM('סיסמה לא נכונה');
-    const ctx = MAKE_CTX_L1([item1, item2]);
+    const ctx = makeErrorColumnCtx([item1, item2]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors).toHaveLength(2);
   });
@@ -234,7 +200,7 @@ describe('discoverFormErrors/found', () => {
   it('skips hidden errors, includes visible', async () => {
     const hidden = HIDDEN_ERROR_ITEM('hidden error');
     const visible = MAT_ERROR_ITEM('visible error');
-    const ctx = MAKE_CTX_L1([hidden, visible]);
+    const ctx = makeErrorColumnCtx([hidden, visible]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors).toHaveLength(1);
     expect(scan.errors[0].text).toBe('visible error');
@@ -242,21 +208,21 @@ describe('discoverFormErrors/found', () => {
 
   it('summary = first error text', async () => {
     const item = MAT_ERROR_ITEM('first error');
-    const ctx = MAKE_CTX_L1([item]);
+    const ctx = makeErrorColumnCtx([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.summary).toBe('first error');
   });
 
   it('classifies mat-error as formValidation', async () => {
     const item = MAT_ERROR_ITEM('error');
-    const ctx = MAKE_CTX_L1([item]);
+    const ctx = makeErrorColumnCtx([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors[0].kind).toBe('formValidation');
   });
 
   it('classifies non-mat-error tag as authError', async () => {
     const item = ALERT_ITEM('פרטים שגויים');
-    const ctx = MAKE_CTX_L1([item]);
+    const ctx = makeErrorColumnCtx([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors[0].kind).toBe('authError');
   });
@@ -328,13 +294,13 @@ describe('checkFrameForErrors/found', () => {
 
 describe('discoverFormErrors/selector-building', () => {
   it('builds selector with first CSS class from cls', async () => {
-    const item: IDomItem = {
+    const item: IErrorColumnItem = {
       tag: 'div',
       cls: 'error-msg other',
       text: 'פרטים שגויים',
       isHidden: false,
     };
-    const ctx = MAKE_CTX_L1([item]);
+    const ctx = makeErrorColumnCtx([item]);
     const scan = await discoverFormErrors(ctx);
     expect(scan.errors[0].selector).toBe('div.error-msg');
   });
