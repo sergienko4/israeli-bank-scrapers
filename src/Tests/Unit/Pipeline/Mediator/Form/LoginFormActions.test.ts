@@ -364,7 +364,7 @@ describe('fillFromDiscovery', () => {
     expect(result.success).toBe(false);
   });
 
-  it('fillFromDiscovery returns fail when pressEnter rejects AND submitTarget is absent (no signal fired)', async () => {
+  it('fillFromDiscovery returns fail when a benign pressEnter rejection fires AND submitTarget is absent', async () => {
     const target: IResolvedTarget = {
       selector: '#u',
       contextId: 'main',
@@ -378,10 +378,12 @@ describe('fillFromDiscovery', () => {
     } as unknown as ILoginFieldDiscovery;
     const executor = makeActionExecutor({
       /**
-       * Per-test override: pressEnter rejects to exercise empty-signal fail path.
-       * @returns Rejected promise.
+       * Per-test override: pressEnter rejects with a BENIGN signal
+       * ("no element matches selector") so the Enter-fallback returns
+       * false → empty-signal fail path (CR PR #345 round-2 narrowed catch).
+       * @returns Rejected promise carrying a benign press signal.
        */
-      pressEnter: (): Promise<never> => Promise.reject(new Error('press fail')),
+      pressEnter: (): Promise<never> => Promise.reject(new Error('no element matches selector')),
     });
     const result = await fillFromDiscovery({
       discovery,
@@ -391,6 +393,38 @@ describe('fillFromDiscovery', () => {
       logger: LOG,
     });
     expect(result.success).toBe(false);
+  });
+
+  it('fillFromDiscovery propagates a non-benign pressEnter rejection (real bug surfaces)', async () => {
+    const target: IResolvedTarget = {
+      selector: '#u',
+      contextId: 'main',
+      kind: 'css',
+      candidateValue: '#u',
+    };
+    const discovery: ILoginFieldDiscovery = {
+      activeFrameId: 'main',
+      targets: new Map([['username', target]]),
+      submitTarget: { has: false },
+    } as unknown as ILoginFieldDiscovery;
+    const executor = makeActionExecutor({
+      /**
+       * Per-test override: pressEnter rejects with an UNEXPECTED error
+       * that must NOT be swallowed — the narrowed catch rethrows it so
+       * a real mediator/frame bug surfaces instead of degrading to a
+       * silent no-signal fail (CR PR #345 round-2 finding).
+       * @returns Rejected promise carrying a non-benign error.
+       */
+      pressEnter: (): Promise<never> => Promise.reject(new Error('mediator boom: unexpected')),
+    });
+    const fillPromise = fillFromDiscovery({
+      discovery,
+      executor,
+      config: CONFIG,
+      creds: { username: 'u' },
+      logger: LOG,
+    });
+    await expect(fillPromise).rejects.toThrow('mediator boom: unexpected');
   });
 
   it('tryClickSubmitFromDiscovery swallows clickElement rejection (.catch line 306)', async () => {

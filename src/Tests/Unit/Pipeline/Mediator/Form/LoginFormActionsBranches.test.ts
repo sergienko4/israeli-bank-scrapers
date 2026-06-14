@@ -371,14 +371,14 @@ describe('LoginFormActions.tryEnterSubmit — frameCtx + press branch coverage',
        */
       getCurrentUrl: (): string => 'https://login.bankhapoalim.co.il/dashboard',
     } as unknown as IElementMediator;
-    const passwordOnlyConfig: ILoginConfig = {
+    const singleFieldConfig: ILoginConfig = {
       ...HAPOALIM_CONFIG,
       fields: [PASSWORD_FIELD],
     };
     const logger = makeSilentLogger();
     const result = await fillAndSubmit({
       mediator,
-      config: passwordOnlyConfig,
+      config: singleFieldConfig,
       creds: { password: 'Hapoalim!2026' },
       logger,
     });

@@ -784,3 +784,324 @@ assembleElementMediator
 #         signature is unchanged; the docs-coverage gate flags it as
 #         "introduced" because it now ships from a new file path.
 extractActionMediator
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginScopeIntact.ts → ScopeIntact/{Types,Otp,
+# Disambiguate,Probe}.ts. The parent file shrunk from a 222-line
+# mixed-concern module to a 33-line thin facade composing the four
+# sub-modules. All 20 symbols below were previously module-private
+# helpers; the export keyword exists only to let the sub-modules
+# import each other across the new file boundary. The facade
+# (validateActionScopeIntact) remains the sole user-facing surface
+# and is already documented under docs/architecture/login-pipeline.md.
+# Pattern matches the Phase 12a Create/ allowlist entries above.
+# ─────────────────────────────────────────────────────────────────────
+# Reason: SCOPE_OTP_VISIBLE_LOG — diagnostic log constant consumed by
+#         ScopeIntactDisambiguate; not user-visible.
+SCOPE_OTP_VISIBLE_LOG
+# Reason: SCOPE_OTP_UNKNOWN_LOG — diagnostic log constant consumed by
+#         ScopeIntactDisambiguate; not user-visible.
+SCOPE_OTP_UNKNOWN_LOG
+# Reason: SCOPE_INTACT_FAIL_MSG — diagnostic message constant consumed
+#         by ScopeIntactDisambiguate; not user-visible.
+SCOPE_INTACT_FAIL_MSG
+# Reason: SCOPE_OTP_FALLTHROUGH_LOGS — lookup map from OtpScreenVisibility
+#         keys to fall-through trace logs; sub-module-internal.
+SCOPE_OTP_FALLTHROUGH_LOGS
+# Reason: PROBE_FAILED — sentinel for runOtpDetect's catch arm;
+#         sub-module-internal.
+PROBE_FAILED
+# Reason: IScopeIntactArgs — bundled state for emitScopeIntactFailure;
+#         purely framework-internal type alias.
+IScopeIntactArgs
+# Reason: OtpScreenVisibility — tri-state outcome alias for
+#         otpScreenVisible; purely framework-internal.
+OtpScreenVisibility
+# Reason: ProbeOutcome — flat probe outcome alias used by runOtpDetect
+#         and unwrapOtpProcedure; purely framework-internal.
+ProbeOutcome
+# Reason: ScopeProbe — pre-check probe result alias for probeScopeIntact;
+#         purely framework-internal.
+ScopeProbe
+# Reason: unwrapOtpProcedure — Procedure→ProbeOutcome translator;
+#         framework-internal helper for runOtpDetect.
+unwrapOtpProcedure
+# Reason: runOtpDetect — single OTP detect probe runner; framework-
+#         internal helper for otpScreenVisible.
+runOtpDetect
+# Reason: otpScreenVisible — composite OTP visibility probe; framework-
+#         internal helper for disambiguateScopeIntact.
+otpScreenVisible
+# Reason: pickOtpFallthroughLog — visibility verdict→log resolver;
+#         framework-internal helper for disambiguateScopeIntact.
+pickOtpFallthroughLog
+# Reason: emitScopeIntactFailure — structured failure emitter;
+#         framework-internal helper for disambiguateScopeIntact.
+emitScopeIntactFailure
+# Reason: emitFallthroughLog — fall-through log emitter; framework-
+#         internal helper for disambiguateScopeIntact.
+emitFallthroughLog
+# Reason: disambiguateScopeIntact — OTP-vs-invalid-creds disambiguator;
+#         framework-internal helper composed by the façade.
+disambiguateScopeIntact
+# Reason: getPasswordTarget — password target lookup; framework-
+#         internal helper for probeScopeIntact.
+getPasswordTarget
+# Reason: probeCountTarget — selector count probe; framework-internal
+#         helper for probeScopeIntact.
+probeCountTarget
+# Reason: probeScopeIntact — composite pre-check probe; framework-
+#         internal helper composed by the façade.
+probeScopeIntact
+# Reason: makeScopeArgs — IScopeIntactArgs builder; framework-internal
+#         helper composed by the façade.
+makeScopeArgs
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginSubmitResolve.ts → SubmitResolve/{Types,
+# FrameMatch,Build,Core}.ts. The parent file shrunk from a 224-line
+# mixed-concern module to a 41-line thin facade composing the four
+# sub-modules. All 15 symbols below were previously module-private
+# helpers; the export keyword exists only to let the sub-modules
+# import each other across the new file boundary. The facade
+# (resolveSubmitTarget) remains the sole user-facing surface.
+# ─────────────────────────────────────────────────────────────────────
+# Reason: STRUCTURAL_SUBMIT_WK — WK structural submit candidate list;
+#         sub-module-internal constant.
+STRUCTURAL_SUBMIT_WK
+# Reason: IFrameMatchArgs — frame-match bundle alias; sub-module-internal.
+IFrameMatchArgs
+# Reason: IFrameScope — frame scope bundle alias; sub-module-internal.
+IFrameScope
+# Reason: IResolveInFrameArgs — resolve-in-frame args bundle alias;
+#         sub-module-internal.
+IResolveInFrameArgs
+# Reason: frameMatchExtras — partial match bundle builder; framework-
+#         internal helper for buildFrameMatchArgs.
+frameMatchExtras
+# Reason: buildFrameMatchArgs — match bundle builder; framework-
+#         internal helper for resolveInFrame.
+buildFrameMatchArgs
+# Reason: logFrameMismatch — wrong-frame telemetry helper; framework-
+#         internal helper for resolveInFrame.
+logFrameMismatch
+# Reason: logFrameMatch — matched-frame telemetry helper; framework-
+#         internal helper for resolveInFrame.
+logFrameMatch
+# Reason: buildSuccessTarget — success Option builder; framework-
+#         internal helper for resolveInFrame.
+buildSuccessTarget
+# Reason: buildResolveArgs — resolve-in-frame args bundle builder;
+#         framework-internal helper.
+buildResolveArgs
+# Reason: buildScope — frame scope bundle builder; framework-internal
+#         helper composed by the façade.
+buildScope
+# Reason: resolveVisibleCandidates — mediator.resolveVisible bridge;
+#         framework-internal helper for resolveInFrame.
+resolveVisibleCandidates
+# Reason: resolveInFrame — frame-scoped race resolver; framework-
+#         internal helper composed by try*Submit helpers.
+resolveInFrame
+# Reason: tryStructuralSubmit — WK structural submit race; framework-
+#         internal helper composed by the façade.
+tryStructuralSubmit
+# Reason: tryConfiguredSubmit — bank-configured submit race; framework-
+#         internal helper composed by the façade.
+tryConfiguredSubmit
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginPostValidate.ts → PostValidate/{Detect,Gates,Flow}.ts
+# Sub-modules are framework-internal helpers behind the LoginPostValidate.ts
+# facade. The facade keeps its 2 public exports (default executeValidateLogin
+# + named detectAsyncLoginErrors); these symbols cross-talk between the
+# 3 sub-modules and are not part of the consumer-facing API.
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module lookup table mapping auth-failure classifier → human-readable layer label (PostValidateDetect).
+AUTH_FAILURE_LAYER_LABELS
+# Reason: Sub-module re-export of the async login-error detector consumed by the facade and PostValidateFlow.
+detectAsyncLoginErrors
+# Reason: Sub-module helper that scans a page for async error banners — used internally by detectAsyncLoginErrors.
+detectAsyncOnPage
+# Reason: Sub-module probe for the auth-API failure watcher result — used by PostValidateGates + Flow.
+detectAuthApiFailure
+# Reason: Sub-module DTO bundling validate-login flow args (config/mediator/input/page/activeFrame).
+IValidateLoginArgs
+# Reason: Sub-module helper that runs scope-intact + bounce detectors after the post-redirect form scan.
+runLatePostChecks
+# Reason: Sub-module helper composing the form-scan + late-checks half of LOGIN.POST.
+runPostFormAndLateChecks
+# Reason: Sub-module helper running the late-fire auth-failure + async DOM detectors before scope-intact.
+runPostLateChecks
+# Reason: Sub-module DTO bundling form-scan args (mediator/config/input/page).
+IPostFormScanArgs
+# Reason: Sub-module failure message constant for the missing-browser early gate.
+LOGIN_POST_NO_BROWSER
+# Reason: Sub-module failure message constant for the missing-login-state early gate.
+LOGIN_POST_NO_LOGIN_STATE
+# Reason: Sub-module tagged-union outcome of checkLoginPostGates (fail/ok variants).
+LoginPostReady
+# Reason: Sub-module function that runs the LOGIN.POST early gates (login + browser presence checks).
+checkLoginPostGates
+# Reason: Sub-module helper wrapping a failure procedure in the LoginPostReady fail tag.
+failReady
+# Reason: Sub-module helper running the main-frame error scan + SPA-traffic wait + POST callback.
+runPostFormScanAndCallback
+# Reason: Sub-module helper running the loading-gate wait + early auth-API watcher.
+runPostLoadingGate
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginFieldDiscovery.ts → FieldDiscovery/{Types,ResolveOne,Accumulate,Fold}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module accumulator type — passes target map + form anchor through the fold; internal only.
+IFieldAccum
+# Reason: Sub-module bundle for resolveOneField — keeps the body under the 10-line ceiling.
+IResolveOneArgs
+# Reason: Sub-module bundle for accumulateField — under the 3-param ceiling.
+IAccumulateCallArgs
+# Reason: Sub-module bundle for maybeDiscoverAnchor.
+IAnchorCheckArgs
+# Reason: Sub-module trace-tag lookup — internal logging helper.
+FIELD_RESULT_TAG
+# Reason: Sub-module helper — assembles an IResolvedTarget from a resolved field context.
+buildPreTarget
+# Reason: Sub-module helper — picks the form anchor's CSS selector, or '' when absent.
+pickFormSelector
+# Reason: Sub-module helper — maps a field-resolution Procedure into the IResolvedTarget sentinel.
+preTargetOrFalse
+# Reason: Sub-module helper — resolves one credential field and returns its IResolvedTarget or false.
+resolveOneField
+# Reason: Sub-module helper — accumulates one resolved field into the targets map + emits trace log.
+accumulateField
+# Reason: Sub-module helper — lazily discovers a form anchor only on the first successful field resolution.
+maybeDiscoverAnchor
+# Reason: Sub-module helper — composes resolveOneField + accumulateField + maybeDiscoverAnchor into one step.
+resolveAndAccumulate
+# Reason: Sub-module factory — builds the single-step reducer used by foldDiscoveryFields.
+makeFieldStep
+# Reason: Sub-module helper — sequentially folds the ordered field list into the discovery accumulator.
+foldDiscoveryFields
+# Reason: Sub-module helper — selects the active-frame id for downstream submit resolution.
+pickActiveFrameId
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — FormErrorDiscovery.ts → ErrorDiscovery/{Types,Scan,Probe}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module sentinel for elements missing a `class` attribute (browser-context).
+NO_CLASS
+# Reason: Sub-module raw DOM item interface — output of the in-browser scan callback.
+IRawDomItem
+# Reason: Sub-module evaluation-argument bundle — passes selector + sentinel into the browser context.
+IEvalArg
+# Reason: Sub-module CSS-selector constant — joined list of structural error-element selectors.
+ERROR_SELECTOR
+# Reason: Sub-module type — discriminator for the kind of form error (formValidation/networkError/authError).
+FormErrorKind
+# Reason: Sub-module interface — a single discovered form error (selector + text + kind).
+IFormError
+# Reason: Sub-module interface — unified scan result for Layer 1 + Layer 2 error discovery.
+IFormErrorScanResult
+# Reason: Sub-module constant — canonical empty IFormErrorScanResult sentinel.
+NO_ERRORS
+# Reason: Sub-module Layer 1 entry — dynamic DOM structural scan for form errors.
+discoverFormErrors
+# Reason: Sub-module Layer 2 entry — WellKnown error-text probe for form errors.
+checkFrameForErrors
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginPreOrchestrator.ts → PreOrchestrator/{Types,Readiness,Discovery}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module constant — failure message for the LOGIN PRE missing-browser early gate.
+LOGIN_PRE_NO_BROWSER
+# Reason: Sub-module constant — failure message for the LOGIN PRE missing-mediator early gate.
+LOGIN_PRE_NO_MEDIATOR
+# Reason: Sub-module constant — LOGIN.PRE prelude spec for the iframe-hosted login form.
+LOGIN_PRE_FRAME_PRELUDE
+# Reason: Sub-module tagged-union outcome of runDiscoverFormPreamble (fail/frame variants).
+DiscoverFormPreamble
+# Reason: Sub-module DTO — bundled discover-form resources (config + context + page + mediator).
+IDiscoverFormResources
+# Reason: Sub-module function — probes the page for a Firefox-style network-error chrome.
+probeNeterrorAndFail
+# Reason: Sub-module function — runs LOGIN.PRE checkReadiness + preAction preamble.
+runDiscoverFormPreamble
+# Reason: Sub-module function — runs the post-preamble DOM-ready wait + field discovery + commit.
+runPostPreamble
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — FormAnchor.ts → Anchor/{Types,Walk,Scope}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module type — form anchor result (selector + Playwright context).
+IFormAnchor
+# Reason: Sub-module ancestor metadata interface — typed view of a single DOM ancestor.
+IAncestorMeta
+# Reason: Sub-module ancestor tuple type — wire-format from browser evaluate to Node.
+AncestorTuple
+# Reason: Sub-module sentinel — typed null for Nullable return types.
+EMPTY_RESULT
+# Reason: Sub-module constant — regex matching id-bearing form CSS selectors.
+FORM_ID_RE
+# Reason: Sub-module constant — XPath filter excluding non-fillable input types.
+NON_FILLABLE_FILTER
+# Reason: Sub-module constant — XPath expression for ancestor walk (excludes html/body).
+ANCESTOR_XPATH
+# Reason: Sub-module constant — minimum fillable input count for form-like detection.
+MIN_FILLABLE_INPUTS
+# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+discoverFormAnchor
+# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+scopeCandidate
+# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+scopeCandidates
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12d split — LoginFormActions.ts → Actions/{Types,Fill,Discovery}.ts
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+fillAllFields
+# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+fillAndSubmit
+# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+fillFromDiscovery
+# Reason: Re-exported from facade LoginFormActions.ts — public type used by ActionMediator consumers.
+IFillFromDiscoveryArgs
+# Reason: Re-exported from facade LoginFormActions.ts — public type returned by fillAndSubmit / fillFromDiscovery.
+ISubmitResult
+# Reason: Re-exported from facade LoginFormActions.ts — public union 'enter'|'click'|'both'.
+SubmitMethod
+# Reason: Sub-module type — bundled args for fillAllFields (mediator + fields + creds + logger).
+IFillAllArgs
+# Reason: Sub-module type — fill result with frame context for downstream submit targeting.
+IFillAllResult
+# Reason: Sub-module type — bundled args for fillAndSubmit.
+IFillAndSubmitArgs
+# Reason: Sub-module type — bundled args for runSubmitPhase (3-param ceiling shim).
+ISubmitPhaseArgs
+# Reason: Sub-module type — bundle of (didEnter, clickResult) returned by submit-phase runners.
+ISubmitPhaseResult
+# Reason: Sub-module helper — normalize ILoginConfig['submit'] to readonly candidate array.
+normalizeSubmit
+# Reason: Sub-module helper — boolean-pair → 'enter'|'click'|'both' lookup.
+resolveSubmitMethod
+# Reason: Sub-module helper — convert ISubmitPhaseResult into the final SubmitMethod label.
+resolveSubmitFromPhase
+# Reason: Sub-module helper — phantom-success guard returning a failure when no submit signal fired.
+gateNoSubmitSignal
+# Reason: Sub-module helper — emit the "filling N fields" debug line.
+logFillCount
+# Reason: Sub-module helper — emit the post-submit debug line (method + masked URL).
+logSubmitResult
+
+# ─────────────────────────────────────────────────────────────────────
+# PR #345 CR round-2 — narrowed Enter-press catch (Actions/ActionsBenignReject.ts)
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module constant — benign-signal substrings for the Enter-fallback press path.
+BENIGN_PRESS_PATTERNS
+# Reason: Sub-module type — nominal brand for the press-rejection classification boolean.
+BenignPressSignal
+# Reason: Sub-module helper — benign-vs-real predicate narrowing the pressEnter catch.
+isBenignPressReject

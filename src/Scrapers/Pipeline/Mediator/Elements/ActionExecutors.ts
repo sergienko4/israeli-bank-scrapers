@@ -357,18 +357,21 @@ async function clickViaAriaLabel(frame: Page | Frame, selector: string): Promise
 
 /**
  * Press Enter in a frame context with human-like delay.
- * @param frame - Resolved Page or Frame (keyboard via page).
+ *
+ * <p>The owning {@link Page} is resolved LAZILY: a real Playwright
+ * `Page` exposes `keyboard` but NO `page()`, while a `Frame` exposes
+ * `page()` but no `keyboard`. An eager `{ true: frame, false:
+ * frame.page() }` map evaluated BOTH arms and called `frame.page()`
+ * on the Page branch — throwing `frame.page is not a function` at
+ * runtime (real banks only; the unit mock hid it). The `'keyboard' in
+ * frame` guard narrows the union and reaches `page()` only for frames.
+ * @param frame - Resolved Page or Frame to press Enter in.
  * @returns True after pressing.
  */
 async function pressEnterImpl(frame: Page | Frame): Promise<true> {
   await humanDelay(100, 300);
-  const hasKeyboard = 'keyboard' in frame;
-  const pageMap: Record<string, Page> = {
-    true: frame as Page,
-    false: (frame as Frame).page(),
-  };
-  const kb = pageMap[String(hasKeyboard)].keyboard;
-  await kb.press('Enter');
+  const page = 'keyboard' in frame ? frame : frame.page();
+  await page.keyboard.press('Enter');
   return true;
 }
 

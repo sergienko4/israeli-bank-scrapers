@@ -57,59 +57,42 @@ describe('discoverFormAnchor', () => {
   });
 
   it('returns form selector when FORM ancestor discovered', async () => {
-    const ancestors = [
-      // [tag, id, isForm, fillCount, sibIndex, sibCount, name, stableClass]
-      ['DIV', '', false, 0, 0, 1, '', ''],
-      ['FORM', 'loginForm', true, 3, 0, 1, '', ''],
-    ];
-    const page = {
-      /**
-       * locator returns anchor-heavy locator.
-       * @returns Mock locator.
-       */
-      locator: (): Locator => makeLocator(1, ancestors),
-    } as unknown as Page;
+    // Two ancestors: a DIV wrapper and a FORM with id=loginForm. Browser
+    // closures fan out 7 evaluateAll calls (column-array contract); the
+    // makeExecPage stub feeds the SAME fake-element array into each
+    // closure so production-shaped DOM access exercises every column.
+    const div = makeFakeElement({ tagName: 'DIV' });
+    const form = makeFakeElement({ tagName: 'FORM', id: 'loginForm', inputCount: 3 });
+    const page = makeExecPage([div, form]);
     const result = await discoverFormAnchor(page, '#username');
     expect(result).not.toBeNull();
     if (result) expect(result.selector).toBe('#loginForm');
   });
 
   it('returns null when no form ancestor detected', async () => {
-    const ancestors = [['DIV', '', false, 0, 0, 1, '', '']];
-    const page = {
-      /**
-       * locator.
-       * @returns Mock locator.
-       */
-      locator: (): Locator => makeLocator(1, ancestors),
-    } as unknown as Page;
+    const div = makeFakeElement({ tagName: 'DIV' });
+    const page = makeExecPage([div]);
     const result = await discoverFormAnchor(page, '#username');
     expect(result).toBeNull();
   });
 
   it('treats 2-input div as form-like', async () => {
-    const ancestors = [['DIV', 'frm', false, 2, 0, 1, '', '']];
-    const page = {
-      /**
-       * locator.
-       * @returns Mock locator.
-       */
-      locator: (): Locator => makeLocator(1, ancestors),
-    } as unknown as Page;
+    const div = makeFakeElement({ tagName: 'DIV', id: 'frm', inputCount: 2 });
+    const page = makeExecPage([div]);
     const result = await discoverFormAnchor(page, '#username');
     expect(result).not.toBeNull();
     if (result) expect(result.selector).toBe('#frm');
   });
 
   it('uses tag:nth-of-type when no id but sibCount > 1', async () => {
-    const ancestors = [['FORM', '', true, 2, 1, 2, '', '']];
-    const page = {
-      /**
-       * locator.
-       * @returns Mock locator.
-       */
-      locator: (): Locator => makeLocator(1, ancestors),
-    } as unknown as Page;
+    // Two FORM siblings → sibIndex=1, sibCount=2 → form:nth-of-type(1).
+    const form = makeFakeElement({
+      tagName: 'FORM',
+      id: '',
+      inputCount: 2,
+      siblings: [{ tagName: 'FORM' }],
+    });
+    const page = makeExecPage([form]);
     const result = await discoverFormAnchor(page, '#u');
     expect(result?.selector).toBe('form:nth-of-type(1)');
   });
