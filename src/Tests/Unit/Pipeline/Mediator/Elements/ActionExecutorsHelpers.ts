@@ -73,9 +73,14 @@ export function makeLocator(script: ILocatorScript = {}): Locator {
 }
 
 /**
- * Build a mock Frame/Page that returns scripted locators + keyboard.
+ * Build a mock Playwright Page (keyboard + scripted locators).
+ *
+ * <p>Deliberately exposes NO `page()` accessor — a real Playwright
+ * `Page` has none (only `Frame` does). Keeping the mock faithful to
+ * the real contract turns the `pressEnterImpl` Page-branch test into a
+ * genuine regression guard against eager `frame.page()` evaluation.
  * @param loc - Locator to return for any selector.
- * @returns Mock frame.
+ * @returns Mock Page.
  */
 export function makeFrame(loc: Locator): Page {
   const self = {
@@ -96,11 +101,6 @@ export function makeFrame(loc: Locator): Page {
        */
       press: (): Promise<boolean> => Promise.resolve(true),
     },
-    /**
-     * page accessor for Frame-style calls.
-     * @returns Self.
-     */
-    page: (): Page => self as unknown as Page,
   };
   return self as unknown as Page;
 }
