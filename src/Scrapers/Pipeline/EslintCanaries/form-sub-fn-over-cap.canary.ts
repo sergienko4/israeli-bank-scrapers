@@ -8,14 +8,6 @@
 // this canary + the eslint.config.mjs §19.4a override block
 // guarantees no regression can reintroduce a >10-statement /
 // >10-LoC function in any of the three Form sub-clusters.
-//
-// §19.4b carves out exactly two files (AnchorWalk.ts,
-// ErrorDiscoveryScan.ts) at cap 20 because they ship Playwright
-// `evaluate` payloads whose source is serialized via `.toString()`
-// and runs in browser context where module-scope helpers are
-// unresolved. Every OTHER function in those files still has to fit
-// cap 10 (the rule applies per-function, so co-located Node-side
-// helpers gain no exemption).
 
 function canaryFormSubFunctionOverCap(): number {
   const s1 = 1;

@@ -46,6 +46,19 @@ export type XPathLiteral = string & { readonly __brand: 'XPathLiteral' };
  * + Playwright contexts both ship it); falls back to a regex-based
  * `\` + hex escape for the unsafe characters when running under a
  * stripped runtime (Jest unit harness without DOM polyfill).
+ *
+ * <p>**Fallback limitation (CR PR #345 finding):** the regex
+ * fallback covers `[^\w-]` metacharacters but does NOT enforce the
+ * CSS spec's *position-dependent* identifier rules — namely (a) an
+ * identifier cannot start with a digit, (b) cannot start with a
+ * hyphen followed by a digit, and (c) cannot be a single hyphen
+ * alone. Those rules require position-aware escaping (escape the
+ * leading digit / second-char digit as `\HH `). We accept the
+ * limitation because the fallback path only fires in the Jest unit
+ * harness — every Node-side production path runs under Playwright,
+ * which ships `CSS.escape` and handles the position rules natively.
+ * Page-walk identifiers (`AnchorWalk.mapAncestorTuples`) also flow
+ * through `CSS.escape` because they execute inside `page.evaluate`.
  * @param raw - Untrusted identifier string (e.g. DOM `id` attribute).
  * @returns CSS-safe identifier (every non-ident char becomes `\HH`).
  */

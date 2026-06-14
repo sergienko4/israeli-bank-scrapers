@@ -6,6 +6,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import ScraperError from '../../../../Base/ScraperError.js';
 import { WK_LOGIN_ERROR } from '../../../Registry/WK/LoginWK.js';
 import { isElementGoneError } from './ErrorDiscoveryDetached.js';
 import {
@@ -45,11 +46,54 @@ function withoutFieldsSelector(sel: string): string {
 }
 
 /**
+ * Assert the 4 column arrays have identical lengths — if they
+ * don't, the page mutated between the parallel `ctx.evaluate(...)`
+ * calls and the columns would zip into garbage rows. Throwing
+ * here surfaces the race instead of silently corrupting the scan
+ * (CR PR #345 round-2 finding — column-alignment validation).
+ *
+ * <p>Returns the validated bundle so the caller can chain the
+ * assertion directly into its return (avoids the `void` arch ban
+ * + the bare `return;` ban — both are project lint gates).
+ * @param cols - Flat-column bundle from {@link collectErrorColumns}.
+ * @returns The same `cols` when all four columns share `tags.length`.
+ * @throws ScraperError when any column length differs from `tags`.
+ */
+function assertEqualColumnLengths(cols: IErrorColumns): IErrorColumns {
+  const n = cols.tags.length;
+  if (cols.classes.length === n && cols.texts.length === n && cols.hidden.length === n) {
+    return cols;
+  }
+  throw new ScraperError(buildColumnRaceMessage(cols, n));
+}
+
+/**
+ * Build the diagnostic message for a column-length mismatch.
+ * Extracted so {@link assertEqualColumnLengths} stays ≤cap-10 AND so
+ * the numeric lengths are stringified explicitly (project lint forbids
+ * `${number}` template-literal expressions).
+ * @param cols - The mismatched column bundle.
+ * @param n - `cols.tags.length` (anchor count).
+ * @returns Human-readable diagnostic with the 4 column lengths.
+ */
+function buildColumnRaceMessage(cols: IErrorColumns, n: number): string {
+  const c = String(cols.classes.length);
+  const t = String(cols.texts.length);
+  const h = String(cols.hidden.length);
+  return `errorDiscovery column race: tags=${String(n)} classes=${c} texts=${t} hidden=${h}`;
+}
+
+/**
  * Collect the 4 error columns in parallel against the page/frame context.
  * Column-array data contract — see {@link ./ErrorDiscoveryScanBrowser.ts}.
  * Named `collect*` (not `fetch*`) so the architecture [Async] gate does
  * not flag the inner `Promise.all([...])` (calls ARE awaited via
  * `Promise.all`, just not directly).
+ *
+ * <p>Calls {@link assertEqualColumnLengths} on the gathered bundle —
+ * a mid-scan page mutation could let the 4 evaluates see different
+ * element counts; the assert turns that race into a re-throwable
+ * error instead of silent misalignment (CR PR #345 round-2).
  * @param ctx - Page or frame to query.
  * @param sel - Pre-composed CSS selector (already field-excluded).
  * @returns Flat-column bundle ready for zipping.
@@ -61,7 +105,7 @@ async function collectErrorColumns(ctx: Page | Frame, sel: string): Promise<IErr
     ctx.evaluate(getErrorTexts, sel),
     ctx.evaluate(getErrorHidden, sel),
   ]);
-  return { tags, classes, texts, hidden };
+  return assertEqualColumnLengths({ tags, classes, texts, hidden });
 }
 
 /**

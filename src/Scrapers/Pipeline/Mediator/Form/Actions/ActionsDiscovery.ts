@@ -15,6 +15,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { IActionMediator } from '../../Elements/ElementMediator.js';
 import { validateCredentials } from '../LoginFormFill.js';
+import { isBenignPressReject } from './ActionsBenignReject.js';
 import {
   gateNoSubmitSignal,
   type IFillFromDiscoveryArgs,
@@ -189,8 +190,11 @@ async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Pr
 }
 
 /**
- * Press Enter via the sealed executor; return `false` on rejection.
- * Extracted from {@link tryEnterFromDiscovery} for cap drain.
+ * Press Enter via the sealed executor; return `false` on benign
+ * rejection (TimeoutError / locator miss / frame gone) and rethrow
+ * unexpected errors so real mediator bugs surface (CR PR #345
+ * round-2 finding — narrowed from catch-all to
+ * {@link isBenignPressReject}).
  * @param executor - Sealed action mediator.
  * @param frameId - Opaque contextId of the frame with fields.
  * @returns True only when pressEnter resolved.
@@ -199,9 +203,23 @@ async function pressEnterByIdOrFalse(executor: IActionMediator, frameId: string)
   try {
     await executor.pressEnter(frameId);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return handlePressReject(error);
   }
+}
+
+/**
+ * Flat catch-handler for {@link pressEnterByIdOrFalse} — keeps the
+ * `catch` body at `max-depth: 1` (CR PR #345 round-2: project cap-10
+ * forbids nested `if` inside `catch`). Returns `false` on benign
+ * rejection and rethrows everything else.
+ * @param error - Caught rejection from `executor.pressEnter`.
+ * @returns Literal `false` when {@link isBenignPressReject} matches.
+ * @throws Original error when the rejection is non-benign.
+ */
+function handlePressReject(error: unknown): false {
+  if (isBenignPressReject(error)) return false;
+  throw error;
 }
 
 /**

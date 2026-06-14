@@ -9,6 +9,7 @@
 import type { Page } from 'playwright-core';
 
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
+import { NO_CLASS } from '../../../../Scrapers/Pipeline/Mediator/Form/ErrorDiscovery/ErrorDiscoveryTypes.js';
 import { discoverFormErrors } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 
 // ── DOM item shapes ────────────────────────────────────────
@@ -20,9 +21,6 @@ interface IDomItem {
   text: string;
   isHidden: boolean;
 }
-
-/** Sentinel emitted by `getErrorClasses` when an element has no `class` attribute. */
-const NO_CLASS_VALUE = 'no-class';
 
 /**
  * Build a mock Page whose `evaluate` dispatches on the browser closure's
@@ -47,7 +45,7 @@ function makeMockCtx(items: readonly IDomItem[]): Page {
       }
       if (fn.name === 'getErrorClasses') {
         return Promise.resolve(
-          items.map((i): string => (i.cls.length === 0 ? NO_CLASS_VALUE : i.cls)) as unknown as T,
+          items.map((i): string => (i.cls.length === 0 ? NO_CLASS : i.cls)) as unknown as T,
         );
       }
       if (fn.name === 'getErrorTexts') {

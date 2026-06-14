@@ -33,6 +33,22 @@ const STUB_CONFIG: ILoginConfig = {
   possibleResults: {},
 } as unknown as ILoginConfig;
 
+/** Args shared by every resolveInFrame fixture; only `args` + `requiredFrameId` vary per test. */
+const STATIC_RESOLVE_ARGS: Pick<IResolveInFrameArgs, 'candidates' | 'formAnchor'> = {
+  candidates: CANDIDATES,
+  formAnchor: ANCHOR,
+};
+
+/** Static fields of a found main-frame race; only `context` varies per test. */
+const BASE_MAIN_FRAME_RACE: Omit<IRaceResult, 'context'> = {
+  found: true,
+  locator: false,
+  candidate: CANDIDATE,
+  index: 0,
+  value: 'submit',
+  identity: false,
+};
+
 /**
  * Build a minimal IDiscoverFieldsArgs bundle around a mediator + page.
  * @param page - Mock Page used as activeFrame.
@@ -61,12 +77,7 @@ function buildArgs(
   mediator: IElementMediator,
   requiredFrameId: string,
 ): IResolveInFrameArgs {
-  return {
-    args: buildDiscoverArgs(page, mediator),
-    candidates: CANDIDATES,
-    requiredFrameId,
-    formAnchor: ANCHOR,
-  };
+  return { ...STATIC_RESOLVE_ARGS, args: buildDiscoverArgs(page, mediator), requiredFrameId };
 }
 
 /**
@@ -90,15 +101,7 @@ function makeRacingMediator(race: IRaceResult): IElementMediator {
  * @returns IRaceResult marked found with context = page.
  */
 function makeMainFrameRace(page: Page): IRaceResult {
-  return {
-    found: true,
-    locator: false,
-    candidate: CANDIDATE,
-    context: page,
-    index: 0,
-    value: 'submit',
-    identity: false,
-  };
+  return { ...BASE_MAIN_FRAME_RACE, context: page };
 }
 
 describe('SubmitResolveCore.resolveInFrame', () => {

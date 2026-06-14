@@ -167,7 +167,10 @@ function scopeTextCandidate(form: string, candidate: SelectorCandidate): Selecto
   if (!builder) return candidate;
   const formId = tryExtractFormId(form);
   if (!formId) return candidate;
-  return { kind: 'xpath', value: builder(formId, candidate.value) };
+  // Spread `candidate` first so `target` / `match` hints carry through the
+  // text→xpath rewrite (parity with `scopeCssCandidate` / xpath branches —
+  // CR PR #345 outside-diff finding).
+  return { ...candidate, kind: 'xpath', value: builder(formId, candidate.value) };
 }
 
 /** Map from scopable kind to a function that builds the scoped CSS value. */

@@ -8,13 +8,14 @@
 import type { Page } from 'playwright-core';
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+import { NO_CLASS } from '../../../../../Scrapers/Pipeline/Mediator/Form/ErrorDiscovery/ErrorDiscoveryTypes.js';
 import {
   checkFrameForErrors,
   discoverFormErrors,
   NO_ERRORS,
 } from '../../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 
-// ── DOM item type ─────────────────────────────────────────
+// ── DOM item type ──────────────────────────────────────────
 
 /** Mirrors the internal IRawDomItem used by discoverFormErrors. */
 interface IDomItem {
@@ -23,9 +24,6 @@ interface IDomItem {
   text: string;
   isHidden: boolean;
 }
-
-/** Sentinel emitted by `getErrorClasses` when an element has no `class` attribute. */
-const NO_CLASS_VALUE = 'no-class';
 
 /**
  * Build a mock ctx/page whose `evaluate` dispatches on the browser
@@ -50,7 +48,7 @@ const MAKE_CTX_L1 = (items: readonly IDomItem[]): Page =>
       }
       if (fn.name === 'getErrorClasses') {
         return Promise.resolve(
-          items.map((i): string => (i.cls.length === 0 ? NO_CLASS_VALUE : i.cls)) as unknown as T,
+          items.map((i): string => (i.cls.length === 0 ? NO_CLASS : i.cls)) as unknown as T,
         );
       }
       if (fn.name === 'getErrorTexts') {

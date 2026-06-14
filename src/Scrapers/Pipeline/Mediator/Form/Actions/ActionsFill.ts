@@ -15,6 +15,7 @@ import { succeed } from '../../../Types/Procedure.js';
 import type { IElementMediator } from '../../Elements/ElementMediator.js';
 import { reduceField, validateCredentials } from '../LoginFormFill.js';
 import { type IFillAccum, type IFillContext, passwordFirst } from '../LoginScopeResolver.js';
+import { isBenignPressReject } from './ActionsBenignReject.js';
 import {
   gateNoSubmitSignal,
   type IFillAllArgs,
@@ -64,19 +65,43 @@ export async function fillAllFields(args: IFillAllArgs): Promise<IFillAllResult>
 }
 
 /**
- * Press Enter via the frame; return `false` when Playwright rejects.
- * Extracted from {@link tryEnterSubmit} so a rejected `press()` no
- * longer falsely signals success (CR PR #345 finding #167).
+ * Press Enter on an input inside the discovered form; return `false`
+ * on benign rejection (TimeoutError / no element matches / frame
+ * gone) and rethrow unexpected errors so real bugs surface.
+ *
+ * <p>Form-scope the selector via the discovered form anchor — a
+ * literal `'input'` would hit the first input ANYWHERE on the page,
+ * which is non-deterministic on flip-card layouts (Amex / Isracard
+ * SMS-form + password-form coresident). When no form anchor is
+ * cached (config without an id-bearing form), we fall back to
+ * `'input'` so the legacy Enter behaviour is preserved (CR PR #345
+ * round-2 finding on {@link pressEnterOrFalse}; mirrors the
+ * {@link tryClickSubmit} form-anchor chaining pattern).
  * @param frameCtx - Frame or Page where the form was filled.
+ * @param formAnchor - Discovered form selector, empty when none.
  * @returns True only when Enter was successfully dispatched.
  */
-async function pressEnterOrFalse(frameCtx: Page | Frame): Promise<boolean> {
+async function pressEnterOrFalse(frameCtx: Page | Frame, formAnchor: string): Promise<boolean> {
+  const selector = formAnchor ? `${formAnchor} input` : 'input';
   try {
-    await frameCtx.press('input', 'Enter');
+    await frameCtx.press(selector, 'Enter');
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return handlePressReject(error);
   }
+}
+
+/**
+ * Flat catch-handler for {@link pressEnterOrFalse} — keeps the
+ * `catch` body at `max-depth: 1` (CR PR #345 round-2: project cap-10
+ * forbids nested `if` inside `catch`).
+ * @param error - Caught rejection from `frameCtx.press`.
+ * @returns Literal `false` when {@link isBenignPressReject} matches.
+ * @throws Original error when the rejection is non-benign.
+ */
+function handlePressReject(error: unknown): false {
+  if (isBenignPressReject(error)) return false;
+  throw error;
 }
 
 /**
@@ -84,18 +109,36 @@ async function pressEnterOrFalse(frameCtx: Page | Frame): Promise<boolean> {
  * Enter fires first (native form submit), Click fires second (Angular ng-click).
  * Both are safe — fillWithFrameworkDetection updates Angular model before either fires.
  * @param frameCtx - Page or Frame where fields were filled (false if none).
+ * @param formAnchor - Discovered form selector, empty when none.
  * @param logger - Pipeline logger.
  * @returns True only when Enter actually dispatched (no false-positive on rejection).
  */
 async function tryEnterSubmit(
   frameCtx: Page | Frame | false,
+  formAnchor: string,
   logger: ScraperLogger,
 ): Promise<boolean> {
   if (!frameCtx || !('press' in frameCtx)) return false;
+  logEnterAttempt(logger, frameCtx);
+  return pressEnterOrFalse(frameCtx, formAnchor);
+}
+
+/**
+ * Emit the masked `method=enter` debug line and return the masked
+ * URL for callers that want it. Extracted from {@link tryEnterSubmit}
+ * so the parent stays ≤cap-10 AND so the nested
+ * `maskVisibleText(frameCtx.url())` call sits behind a named
+ * intermediate (project lint forbids inline nested calls + bans
+ * `void` return types; CR PR #345 round-2).
+ * @param logger - Pipeline logger.
+ * @param frameCtx - Frame or Page that holds the focused form.
+ * @returns The PII-masked URL string that was logged.
+ */
+function logEnterAttempt(logger: ScraperLogger, frameCtx: Page | Frame): string {
   const rawUrl = frameCtx.url();
   const url = maskVisibleText(rawUrl);
   logger.debug({ method: 'enter', url });
-  return pressEnterOrFalse(frameCtx);
+  return url;
 }
 
 /**
@@ -134,7 +177,8 @@ async function tryClickSubmit(args: ISubmitPhaseArgs): Promise<Procedure<boolean
  * @returns Bundle of `didEnter` + `clickResult`.
  */
 async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResult> {
-  const didEnter = await tryEnterSubmit(args.enterCtx, args.logger);
+  const formAnchor = args.mediator.getFormAnchor();
+  const didEnter = await tryEnterSubmit(args.enterCtx, formAnchor, args.logger);
   const clickResult = await tryClickSubmit(args);
   return { didEnter, clickResult };
 }

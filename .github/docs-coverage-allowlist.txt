@@ -1094,3 +1094,14 @@ gateNoSubmitSignal
 logFillCount
 # Reason: Sub-module helper — emit the post-submit debug line (method + masked URL).
 logSubmitResult
+
+# ─────────────────────────────────────────────────────────────────────
+# PR #345 CR round-2 — narrowed Enter-press catch (Actions/ActionsBenignReject.ts)
+# ─────────────────────────────────────────────────────────────────────
+
+# Reason: Sub-module constant — benign-signal substrings for the Enter-fallback press path.
+BENIGN_PRESS_PATTERNS
+# Reason: Sub-module type — nominal brand for the press-rejection classification boolean.
+BenignPressSignal
+# Reason: Sub-module helper — benign-vs-real predicate narrowing the pressEnter catch.
+isBenignPressReject
