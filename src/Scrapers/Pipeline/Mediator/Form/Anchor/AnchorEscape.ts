@@ -52,10 +52,10 @@ export type XPathLiteral = string & { readonly __brand: 'XPathLiteral' };
 export function escapeCssIdent(raw: string): CssIdent {
   const cssEscape = (globalThis as { CSS?: { escape?: (s: string) => string } }).CSS?.escape;
   if (cssEscape) return cssEscape(raw) as CssIdent;
-  const replaced = raw.replaceAll(
-    CSS_IDENT_UNSAFE,
-    (ch): string => `\\${ch.charCodeAt(0).toString(16)} `,
-  );
+  const replaced = raw.replaceAll(CSS_IDENT_UNSAFE, (ch): string => {
+    const cp = ch.codePointAt(0) ?? 0;
+    return `\\${cp.toString(16)} `;
+  });
   return replaced as CssIdent;
 }
 
