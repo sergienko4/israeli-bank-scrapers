@@ -57,7 +57,12 @@ interface IRecoveryScript {
   readonly hrefValue?: string;
   /** Attribute presence map for checkAttribute. */
   readonly attrsByName?: Record<string, boolean>;
+  /** When true, navigateTo (the reload) resolves to a failure Procedure. */
+  readonly navigateFails?: boolean;
 }
+
+/** Reload failure returned when a script sets `navigateFails`. */
+const RELOAD_FAIL: Procedure<void> = fail(ScraperErrorTypes.Generic, 'reload failed');
 
 /**
  * Build a scripted mediator stub for recovery tests.
@@ -85,8 +90,8 @@ function makeRecoveryMediator(script: IRecoveryScript, calls: IRecoveryCalls): I
      */
     navigateTo: (): Promise<Procedure<void>> => {
       calls.navigateTo += 1;
-      const ok = succeed(undefined);
-      return Promise.resolve(ok);
+      const outcome = script.navigateFails ? RELOAD_FAIL : succeed(undefined);
+      return Promise.resolve(outcome);
     },
     /**
      * checkAttribute — scripted attribute presence.
@@ -196,6 +201,18 @@ describe('recoverFromClientCrash', () => {
     expect(result.success).toBe(false);
     expect(calls.navigateTo).toBe(1);
   });
+
+  it('returns the original failure when the reload itself fails', async () => {
+    const calls: IRecoveryCalls = { navigateTo: 0 };
+    const mediator = makeRecoveryMediator(
+      { crashCount: 1, visibleQueue: [DIRECT_TRIGGER], navigateFails: true },
+      calls,
+    );
+    const args = makeArgs(mediator);
+    const result = await recoverFromClientCrash(args, ORIGINAL_FAIL);
+    expect(result).toBe(ORIGINAL_FAIL);
+    expect(calls.navigateTo).toBe(1);
+  });
 });
 
 describe('resolveHomeWithRecovery', () => {
@@ -203,7 +220,7 @@ describe('resolveHomeWithRecovery', () => {
     const calls: IRecoveryCalls = { navigateTo: 0 };
     const mediator = makeRecoveryMediator(
       {
-        crashCount: 1,
+        crashCount: 0,
         visibleQueue: [DIRECT_TRIGGER],
         attrsByName: { ...DIRECT_ATTRS },
         hrefValue: 'https://test.bank/login',

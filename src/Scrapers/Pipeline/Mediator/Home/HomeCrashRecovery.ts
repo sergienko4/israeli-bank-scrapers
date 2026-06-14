@@ -64,33 +64,46 @@ async function detectClientCrash(mediator: IElementMediator): Promise<boolean> {
 
 /**
  * Reload the homepage so a crashed SPA re-mounts from a clean document.
- * Best-effort: the underlying navigateTo returns a Procedure (never
- * throws), so a failed reload simply yields a still-broken page and the
- * caller falls back to the original discovery failure.
  * @param args - Bundled mediator, logger, page, baseUrl.
- * @returns Resolves once the reload settles or fails.
+ * @returns Navigation Procedure — `success:false` when the homepage is
+ *   unreachable, so the caller can skip a doomed discovery retry.
  */
-async function reloadHomepage(args: IHomeRecoveryArgs): Promise<void> {
+async function reloadHomepage(args: IHomeRecoveryArgs): Promise<Procedure<void>> {
   args.logger.debug({ event: 'home.client_crash.reload', url: args.baseUrl });
-  await args.mediator.navigateTo(args.baseUrl, {
+  return args.mediator.navigateTo(args.baseUrl, {
     waitUntil: 'networkidle',
     timeout: HOME_PRELUDE_TIMEOUT_MS,
   });
 }
 
 /**
- * Reload the homepage then re-run passive discovery on the fresh mount.
- * Emits the crash-detected warning and the recovery outcome so the heal
- * is observable in pipeline.log.
+ * Re-run passive discovery after a reload and log the recovery outcome.
  * @param args - Bundled mediator, logger, page, baseUrl.
- * @returns Discovery from the post-reload retry.
+ * @returns Discovery Procedure from the post-reload pass.
  */
-async function reloadAndRetry(args: IHomeRecoveryArgs): Promise<Procedure<IHomeDiscovery>> {
-  args.logger.warn({ event: 'home.client_crash.detected', url: args.baseUrl });
-  await reloadHomepage(args);
+async function retryDiscovery(args: IHomeRecoveryArgs): Promise<Procedure<IHomeDiscovery>> {
   const retry = await resolveHomeStrategy(args.mediator, args.logger, args.page);
   args.logger.debug({ event: 'home.client_crash.retry', recovered: retry.success });
   return retry;
+}
+
+/**
+ * Warn, reload the crashed homepage, then retry discovery on the fresh
+ * mount. When the reload itself fails (homepage unreachable) the
+ * caller's `original` failure is returned unchanged — retrying on a
+ * still-broken page would only repeat the same failure.
+ * @param args - Bundled mediator, logger, page, baseUrl.
+ * @param original - Failure from the first discovery pass.
+ * @returns Recovered discovery, or `original` when the reload failed.
+ */
+async function reloadAndRetry(
+  args: IHomeRecoveryArgs,
+  original: Procedure<IHomeDiscovery>,
+): Promise<Procedure<IHomeDiscovery>> {
+  args.logger.warn({ event: 'home.client_crash.detected', url: args.baseUrl });
+  const reloaded = await reloadHomepage(args);
+  if (!reloaded.success) return original;
+  return retryDiscovery(args);
 }
 
 /**
@@ -109,7 +122,7 @@ async function recoverFromClientCrash(
 ): Promise<Procedure<IHomeDiscovery>> {
   const hasCrashed = await detectClientCrash(args.mediator);
   if (!hasCrashed) return original;
-  return reloadAndRetry(args);
+  return reloadAndRetry(args, original);
 }
 
 /**
