@@ -2467,6 +2467,51 @@ export default tseslint.config(
     },
   },
 
+  // 19.4a PHASE 12d TIGHTENING — Form sub-folders to canonical 10/10.
+  //
+  // Phase 12d split the three HIGH-tier Form blobs
+  // (`LoginFormActions.ts`, `FormAnchor.ts`, `FormErrorDiscovery.ts`)
+  // into focused sub-folders under `Mediator/Form/{Actions,Anchor,
+  // ErrorDiscovery}/`. Per eslint-rules-guidlines §1 ("Always tighten
+  // the ceiling in the same PR so the next blob cannot grow back to
+  // the old budget") + §4 ("never revert, only narrow"), this block
+  // narrows §19.4's grandfather `max: 20` down to the canonical
+  // `max: 10` for the three NEW sub-folders only. The legacy
+  // `Mediator/Form/*.ts` files (LoginFormFill.ts, LoginScopeResolver.ts,
+  // OtpProbe.ts, PostActionResolver.ts) keep §19.4's cap-20 until
+  // their own dedicated drain phase.
+  //
+  // Flat-config last-wins: this block MUST appear after §19.4.
+  //
+  // Companion canary: `form-sub-fn-over-cap.canary.ts` exhibits the
+  // banned shape so `verify.sh` asserts the rule fires on every
+  // commit (eslint-rules §2 "every numeric rule MUST have one").
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Form/Actions/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Form/Anchor/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Form/ErrorDiscovery/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/form-sub-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // §19.4b REMOVED (CR PR #345 hardening):
+  // The previous browser-eval cap-20 grandfather for `AnchorWalk.ts` +
+  // `ErrorDiscoveryScan.ts` is no longer needed. Phase 12d-final
+  // decoupled the in-browser closures into sibling files
+  // (`AnchorWalkBrowser.ts`, `ErrorDiscoveryScanBrowser.ts`) under a
+  // column-array data contract — each closure is now self-contained
+  // and ≤10 LoC, and the Node-side zip helpers fit cap-10 too.
+  // The OCP/SRP-compliant decoupling supersedes the carve-out per
+  // CLEAN_CODE.md + guidelines (no permanent exceptions for cap-10).
+
   // 19.5 GRANDFATHER — legacy bank scrapers + Base + Common.
   // The base classes + bank-specific scrapers carry the deepest debt.
   // Phase 9 plans a per-bank refactor pass to bring each ≤10/10.

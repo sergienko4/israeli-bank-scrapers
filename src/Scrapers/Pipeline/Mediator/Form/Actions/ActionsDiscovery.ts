@@ -33,6 +33,43 @@ interface IFillOneArgs {
   readonly logger: ScraperLogger;
 }
 
+/** Shorthand for a single map entry [credKey, resolvedTarget]. */
+type DiscoveryEntry = readonly [string, IResolvedTarget];
+/** Shorthand for the readonly array of discovery entries. */
+type DiscoveryEntries = readonly DiscoveryEntry[];
+
+/** Bundled args for credential-set validation. */
+interface IValidateArgs {
+  readonly entries: DiscoveryEntries;
+  readonly creds: Record<string, string>;
+}
+
+/** Bundled args for one reducer step in the discovery fill chain. */
+interface IProcessEntryArgs {
+  readonly args: IFillFromDiscoveryArgs;
+  readonly prev: Procedure<boolean>;
+  readonly entry: DiscoveryEntry;
+}
+
+/** Bundled args for the discovery-mode finalize chain. */
+interface IFinalizeArgs {
+  readonly submit: ISubmitPhaseResult;
+  readonly fill: IFillFromDiscoveryArgs;
+}
+
+/** Bundled args for one reducer step (per-entry fill). */
+interface IReduceArgs {
+  readonly args: IFillFromDiscoveryArgs;
+  readonly acc: Promise<Procedure<boolean>>;
+  readonly entry: DiscoveryEntry;
+}
+
+/** Bundled args for the reducer driver `runDiscoveryReducer`. */
+interface IRunReducerArgs {
+  readonly args: IFillFromDiscoveryArgs;
+  readonly entries: DiscoveryEntries;
+}
+
 /**
  * Log a field fill from discovery target.
  * @param target - Pre-resolved target.
@@ -56,43 +93,86 @@ async function fillOneDiscoveryField(args: IFillOneArgs): Promise<Procedure<bool
   return succeed(true);
 }
 
+/** Sentinel returned when no missing credential is found. Avoids `string | undefined`. */
+const NO_MISSING_KEY = '';
+
+/**
+ * Find the first credential key for which no value is provided.
+ * Extracted from {@link validateDiscoveryCredentials} for cap drain.
+ * Returns {@link NO_MISSING_KEY} (`''`) when every key is satisfied —
+ * field keys are non-empty identifiers (`username`, `password`, …),
+ * so an empty-string sentinel is unambiguous.
+ * @param p - Bundled `entries` + `creds`.
+ * @returns Key of the first missing credential, or `''` if all present.
+ */
+function findMissingCredKey(p: IValidateArgs): string {
+  const missing = p.entries.find(([key]): boolean => !p.creds[key]);
+  if (!missing) return NO_MISSING_KEY;
+  return missing[0];
+}
+
 /**
  * Validate all credentials exist before filling.
- * @param entries - Discovery entries with keys and targets.
- * @param creds - Credential map.
+ * @param p - Bundled `entries` + `creds`.
  * @returns Failure if any missing, succeed(true) if all present.
  */
-function validateDiscoveryCredentials(
-  entries: readonly (readonly [string, IResolvedTarget])[],
-  creds: Record<string, string>,
-): Procedure<boolean> {
-  const missing = entries.filter(([key]) => !creds[key]);
-  const missingKeys = missing.map(([key]) => key);
-  if (missingKeys.length > 0) {
-    const msg = `Missing credential: ${missingKeys[0]}`;
-    return fail(ScraperErrorTypes.Generic, msg);
-  }
-  return succeed(true);
+function validateDiscoveryCredentials(p: IValidateArgs): Procedure<boolean> {
+  const missingKey = findMissingCredKey(p);
+  if (missingKey === NO_MISSING_KEY) return succeed(true);
+  return fail(ScraperErrorTypes.Generic, `Missing credential: ${missingKey}`);
+}
+
+/**
+ * Build the per-field bundle for one discovery entry. Extracted from
+ * {@link processDiscoveryEntry} to keep that function ≤10 LoC by
+ * lifting the object-literal construction (cap-10 tightening).
+ * @param args - Bundled fill-from-discovery arguments.
+ * @param entry - Map entry [key, target].
+ * @returns Single-field args bundle ready for fillOneDiscoveryField.
+ */
+function buildOneFieldArgs(args: IFillFromDiscoveryArgs, entry: DiscoveryEntry): IFillOneArgs {
+  const [key, target] = entry;
+  return { executor: args.executor, target, value: args.creds[key], logger: args.logger };
+}
+
+/**
+ * Run the fill for a single map entry once the previous step succeeded.
+ * Extracted from {@link reduceDiscoveryFill} for cap drain.
+ * @param p - Bundled fill args, prior step result, and current entry.
+ * @returns Procedure: prev when failed; new fill result otherwise.
+ */
+async function processDiscoveryEntry(p: IProcessEntryArgs): Promise<Procedure<boolean>> {
+  if (!p.prev.success) return p.prev;
+  const oneArgs = buildOneFieldArgs(p.args, p.entry);
+  return fillOneDiscoveryField(oneArgs);
 }
 
 /**
  * Reduce one field fill onto the accumulator promise.
- * @param args - Bundled fill-from-discovery arguments.
- * @param acc - Running accumulator promise.
- * @param entry - Map entry [key, target].
+ * @param r - Bundled reducer args (`args`, `acc`, `entry`).
  * @returns Updated accumulator.
  */
-function reduceDiscoveryFill(
-  args: IFillFromDiscoveryArgs,
-  acc: Promise<Procedure<boolean>>,
-  entry: readonly [string, IResolvedTarget],
-): Promise<Procedure<boolean>> {
-  const [key, target] = entry;
-  return acc.then(prev => {
-    if (!prev.success) return prev;
-    const value = args.creds[key];
-    return fillOneDiscoveryField({ executor: args.executor, target, value, logger: args.logger });
-  });
+function reduceDiscoveryFill(r: IReduceArgs): Promise<Procedure<boolean>> {
+  const { args, acc, entry } = r;
+  return acc.then(
+    (prev): Promise<Procedure<boolean>> => processDiscoveryEntry({ args, prev, entry }),
+  );
+}
+
+/**
+ * Drive the per-entry fill reducer. Extracted from
+ * {@link fillFieldsFromDiscovery} to keep that body ≤10 LoC by
+ * lifting the multi-line `entries.reduce` invocation.
+ * @param p - Bundled fill args + entries snapshot.
+ * @returns Procedure succeed(true) on full success; failure propagated.
+ */
+async function runDiscoveryReducer(p: IRunReducerArgs): Promise<Procedure<boolean>> {
+  const initial = succeed(true);
+  const seed: Promise<Procedure<boolean>> = Promise.resolve(initial);
+  return p.entries.reduce(
+    (acc, entry): Promise<Procedure<boolean>> => reduceDiscoveryFill({ args: p.args, acc, entry }),
+    seed,
+  );
 }
 
 /**
@@ -103,15 +183,25 @@ function reduceDiscoveryFill(
  */
 async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Procedure<boolean>> {
   const entries = [...args.discovery.targets.entries()];
-  const validation = validateDiscoveryCredentials(entries, args.creds);
+  const validation = validateDiscoveryCredentials({ entries, creds: args.creds });
   if (!validation.success) return validation;
-  const initialResult = succeed(true);
-  const seed: Promise<Procedure<boolean>> = Promise.resolve(initialResult);
-  return entries.reduce(
-    (acc: Promise<Procedure<boolean>>, entry): Promise<Procedure<boolean>> =>
-      reduceDiscoveryFill(args, acc, entry),
-    seed,
-  );
+  return runDiscoveryReducer({ args, entries });
+}
+
+/**
+ * Press Enter via the sealed executor; return `false` on rejection.
+ * Extracted from {@link tryEnterFromDiscovery} for cap drain.
+ * @param executor - Sealed action mediator.
+ * @param frameId - Opaque contextId of the frame with fields.
+ * @returns True only when pressEnter resolved.
+ */
+async function pressEnterByIdOrFalse(executor: IActionMediator, frameId: string): Promise<boolean> {
+  try {
+    await executor.pressEnter(frameId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -129,10 +219,7 @@ async function tryEnterFromDiscovery(
 ): Promise<boolean> {
   if (!activeFrameId) return false;
   logger.debug({ method: 'enter', url: maskVisibleText(activeFrameId) });
-  return executor
-    .pressEnter(activeFrameId)
-    .then((): true => true)
-    .catch((): false => false);
+  return pressEnterByIdOrFalse(executor, activeFrameId);
 }
 
 /**
@@ -144,6 +231,23 @@ async function tryEnterFromDiscovery(
 function mapClickRejection(error: unknown): Procedure<boolean> {
   const msg = error instanceof Error ? error.message : String(error);
   return fail(ScraperErrorTypes.Generic, `click rejected: ${msg}`);
+}
+
+/**
+ * Click a pre-resolved discovery target; map rejections to Procedure.
+ * Extracted from {@link tryClickSubmitFromDiscovery} for cap drain.
+ * @param executor - Sealed action mediator.
+ * @param target - Pre-resolved submit target.
+ * @returns Succeed(true) on click; fail with normalized message otherwise.
+ */
+async function clickDiscoveryTarget(
+  executor: IActionMediator,
+  target: IResolvedTarget,
+): Promise<Procedure<boolean>> {
+  return executor
+    .clickElement({ contextId: target.contextId, selector: target.selector })
+    .then((): Procedure<boolean> => succeed(true))
+    .catch(mapClickRejection);
 }
 
 /**
@@ -164,10 +268,7 @@ async function tryClickSubmitFromDiscovery(
   if (!discovery.submitTarget.has) return succeed(false);
   const target = discovery.submitTarget.value;
   logger.debug({ method: 'click', url: maskVisibleText(target.candidateValue) });
-  return executor
-    .clickElement({ contextId: target.contextId, selector: target.selector })
-    .then((): Procedure<boolean> => succeed(true))
-    .catch(mapClickRejection);
+  return clickDiscoveryTarget(executor, target);
 }
 
 /**
@@ -202,6 +303,32 @@ async function runDiscoveryPrereqs(args: IFillFromDiscoveryArgs): Promise<Proced
 export { type IFillFromDiscoveryArgs } from './ActionsTypes.js';
 
 /**
+ * Resolve the fired method, log it, and return the success Procedure.
+ * Extracted from {@link finalizeDiscoverySubmit} for cap-10 conformance.
+ * @param p - Bundled submit-phase result + fill args.
+ * @returns `succeed({ success: true, method })`.
+ */
+function logAndSucceedDiscovery(p: IFinalizeArgs): Procedure<ISubmitResult> {
+  const method = resolveSubmitFromPhase(p.submit);
+  logSubmitResult(p.fill.logger, p.fill.executor, method);
+  return succeed({ success: true, method });
+}
+
+/**
+ * Finalize the discovery-mode submit phase: gate phantom-success,
+ * resolve the method that fired, and emit the post-submit debug line.
+ * Extracted from {@link fillFromDiscovery} to keep it ≤7 statements.
+ * @param p - Bundled submit-phase result + fill args.
+ * @returns Procedure carrying the final ISubmitResult.
+ */
+function finalizeDiscoverySubmit(p: IFinalizeArgs): Procedure<ISubmitResult> {
+  if (!p.submit.clickResult.success && !p.submit.didEnter) return p.submit.clickResult;
+  const gate = gateNoSubmitSignal(p.submit);
+  if (!gate.success) return gate;
+  return logAndSucceedDiscovery(p);
+}
+
+/**
  * Fill from PRE-resolved field discovery + submit via sealed executor.
  * No field resolution in ACTION — all targets come from PRE discovery.
  * Mirrors `fillAndSubmit` shape: propagates click-failure when Enter
@@ -215,10 +342,5 @@ export async function fillFromDiscovery(
   const prereqs = await runDiscoveryPrereqs(args);
   if (!prereqs.success) return prereqs;
   const submit = await submitViaDiscovery(args);
-  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
-  const gate = gateNoSubmitSignal(submit);
-  if (!gate.success) return gate;
-  const method = resolveSubmitFromPhase(submit);
-  logSubmitResult(args.logger, args.executor, method);
-  return succeed({ success: true, method });
+  return finalizeDiscoverySubmit({ submit, fill: args });
 }

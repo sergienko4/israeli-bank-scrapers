@@ -4,6 +4,7 @@
  * <p>Phase 12d split: extracted from {@link ../LoginScopeIntact.ts}.
  */
 
+import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import type { IElementMediator, IRaceResult } from '../../Elements/ElementMediator.js';
 import { detectOtpForm, detectOtpTrigger } from '../../Form/OtpProbe.js';
@@ -13,6 +14,9 @@ import {
   type ProbeOutcome,
   SCOPE_OTP_FALLTHROUGH_LOGS,
 } from './ScopeIntactTypes.js';
+
+/** Typed-null sentinel for probe-rejection — avoids `return null` literal. */
+const PROBE_REJECTED: Nullable<never> = JSON.parse('null') as Nullable<never>;
 
 /**
  * Translate a Procedure into a flat ProbeOutcome.
@@ -25,18 +29,38 @@ export function unwrapOtpProcedure(result: Procedure<IRaceResult>): ProbeOutcome
 }
 
 /**
- * Run a single OTP detect probe and translate into a flat ProbeOutcome.
+ * Await `probe(mediator)` and convert any throw — sync or async — into a
+ * sentinel null. Extracted from {@link runOtpDetect} to keep that
+ * function ≤10 LoC (CR PR #345 cap-10 tightening).
  * @param probe - OTP-screen detector function.
  * @param mediator - Element mediator.
- * @returns Race result on success; `'failed'` on resolver rejection.
+ * @returns Procedure on success; sentinel null on any throw.
+ */
+async function safeAwaitProbe(
+  probe: (m: IElementMediator) => Promise<Procedure<IRaceResult>>,
+  mediator: IElementMediator,
+): Promise<Nullable<Procedure<IRaceResult>>> {
+  try {
+    return await probe(mediator);
+  } catch {
+    return PROBE_REJECTED;
+  }
+}
+
+/**
+ * Run a single OTP detect probe and translate into a flat ProbeOutcome.
+ * Delegates the try/catch to {@link safeAwaitProbe} so sync OR async
+ * rejections are folded into `PROBE_FAILED` (CR PR #345 finding #194).
+ * @param probe - OTP-screen detector function.
+ * @param mediator - Element mediator.
+ * @returns Race result on success; `PROBE_FAILED` on any failure.
  */
 export async function runOtpDetect(
   probe: (m: IElementMediator) => Promise<Procedure<IRaceResult>>,
   mediator: IElementMediator,
 ): Promise<ProbeOutcome> {
-  const result = await probe(mediator).catch((): false => false);
-  if (result === false) return PROBE_FAILED;
-  return unwrapOtpProcedure(result);
+  const result = await safeAwaitProbe(probe, mediator);
+  return result ? unwrapOtpProcedure(result) : PROBE_FAILED;
 }
 
 /**

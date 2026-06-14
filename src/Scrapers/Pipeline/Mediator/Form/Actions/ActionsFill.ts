@@ -8,7 +8,6 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { IFieldConfig } from '../../../../Base/Interfaces/Config/FieldConfig.js';
-import type { ILoginConfig } from '../../../../Base/Interfaces/Config/LoginConfig.js';
 import type { ScraperLogger } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import type { Procedure } from '../../../Types/Procedure.js';
@@ -65,48 +64,67 @@ export async function fillAllFields(args: IFillAllArgs): Promise<IFillAllResult>
 }
 
 /**
+ * Press Enter via the frame; return `false` when Playwright rejects.
+ * Extracted from {@link tryEnterSubmit} so a rejected `press()` no
+ * longer falsely signals success (CR PR #345 finding #167).
+ * @param frameCtx - Frame or Page where the form was filled.
+ * @returns True only when Enter was successfully dispatched.
+ */
+async function pressEnterOrFalse(frameCtx: Page | Frame): Promise<boolean> {
+  try {
+    await frameCtx.press('input', 'Enter');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Try pressing Enter in the frame context to submit the form.
  * Enter fires first (native form submit), Click fires second (Angular ng-click).
  * Both are safe — fillWithFrameworkDetection updates Angular model before either fires.
  * @param frameCtx - Page or Frame where fields were filled (false if none).
  * @param logger - Pipeline logger.
- * @returns True if Enter was pressed.
+ * @returns True only when Enter actually dispatched (no false-positive on rejection).
  */
 async function tryEnterSubmit(
   frameCtx: Page | Frame | false,
   logger: ScraperLogger,
 ): Promise<boolean> {
   if (!frameCtx || !('press' in frameCtx)) return false;
-  const url = frameCtx.url();
-  logger.debug({ method: 'enter', url: maskVisibleText(url) });
-  await frameCtx.press('input', 'Enter').catch((): false => false);
-  return true;
+  const rawUrl = frameCtx.url();
+  const url = maskVisibleText(rawUrl);
+  logger.debug({ method: 'enter', url });
+  return pressEnterOrFalse(frameCtx);
+}
+
+/**
+ * Log a successful click and return `succeed(true)` for the chain.
+ * Extracted from {@link tryClickSubmit} to keep that function ≤10 LoC.
+ * @param logger - Pipeline logger.
+ * @param value - The selector value that was clicked (will be masked).
+ * @returns `succeed(true)` after logging.
+ */
+function logClickHit(logger: ScraperLogger, value: string): Procedure<boolean> {
+  const masked = maskVisibleText(value);
+  logger.debug({ method: 'click', url: masked });
+  return succeed(true);
 }
 
 /**
  * Try clicking the submit button scoped to the discovered form.
- * @param mediator - Element mediator.
- * @param config - Login config.
- * @param logger - Pipeline logger.
+ * @param args - Bundled submit-phase args (`mediator`, `config`, `logger`).
  * @returns Procedure succeed(true) if clicked, succeed(false) if not found, fail on error.
  */
-async function tryClickSubmit(
-  mediator: IElementMediator,
-  config: ILoginConfig,
-  logger: ScraperLogger,
-): Promise<Procedure<boolean>> {
-  const candidates = normalizeSubmit(config.submit);
-  // Form-membership scoping via Locator chaining: ALL candidate kinds
-  // (xpath, textContent, regex, ariaLabel, ...) are scoped to descendants
-  // of the discovered form. Discriminates co-resident submit buttons on
-  // flip-card pages (e.g. Amex/Isracard SMS-form vs password-form).
-  const formAnchor = mediator.getFormAnchor();
-  const result = await mediator.resolveAndClick(candidates, undefined, formAnchor);
+async function tryClickSubmit(args: ISubmitPhaseArgs): Promise<Procedure<boolean>> {
+  // Form-membership scoping via Locator chaining discriminates co-resident
+  // submit buttons on flip-card pages (e.g. Amex/Isracard SMS-form vs password-form).
+  const candidates = normalizeSubmit(args.config.submit);
+  const formAnchor = args.mediator.getFormAnchor();
+  const result = await args.mediator.resolveAndClick(candidates, undefined, formAnchor);
   if (!result.success) return result;
   if (!result.value.found) return succeed(false);
-  const masked = maskVisibleText(result.value.value);
-  logger.debug({ method: 'click', url: masked });
-  return succeed(true);
+  return logClickHit(args.logger, result.value.value);
 }
 
 /**
@@ -117,8 +135,46 @@ async function tryClickSubmit(
  */
 async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResult> {
   const didEnter = await tryEnterSubmit(args.enterCtx, args.logger);
-  const clickResult = await tryClickSubmit(args.mediator, args.config, args.logger);
+  const clickResult = await tryClickSubmit(args);
   return { didEnter, clickResult };
+}
+
+/**
+ * Resolve the fired method, log it, and return the success Procedure.
+ * Extracted from {@link finalizeSubmit} for cap-10 conformance.
+ * @param submit - Submit-phase bundle.
+ * @param mediator - Element mediator (used for URL probe in log).
+ * @param logger - Pipeline logger.
+ * @returns `succeed({ success: true, method })`.
+ */
+function logAndSucceed(
+  submit: ISubmitPhaseResult,
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Procedure<ISubmitResult> {
+  const method = resolveSubmitFromPhase(submit);
+  logSubmitResult(logger, mediator, method);
+  return succeed({ success: true, method });
+}
+
+/**
+ * Finalize the submit phase: gate phantom-success, resolve the
+ * method that fired, and emit the post-submit debug line.
+ * Extracted from {@link fillAndSubmit} to keep it ≤7 statements.
+ * @param submit - Submit-phase bundle returned by `runSubmitPhase`.
+ * @param mediator - Element mediator (used for URL probe in log).
+ * @param logger - Pipeline logger.
+ * @returns Procedure carrying the final ISubmitResult.
+ */
+function finalizeSubmit(
+  submit: ISubmitPhaseResult,
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Procedure<ISubmitResult> {
+  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
+  const gate = gateNoSubmitSignal(submit);
+  if (!gate.success) return gate;
+  return logAndSucceed(submit, mediator, logger);
 }
 
 /**
@@ -130,14 +186,9 @@ async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResul
 export async function fillAndSubmit(args: IFillAndSubmitArgs): Promise<Procedure<ISubmitResult>> {
   const { mediator, config, creds, logger } = args;
   logFillCount(logger, config.fields.length);
-  const fillResult = await fillAllFields({ mediator, fields: config.fields, creds, logger });
-  if (!fillResult.procedure.success) return fillResult.procedure;
-  const enterCtx = fillResult.frameContext ?? false;
+  const fill = await fillAllFields({ mediator, fields: config.fields, creds, logger });
+  if (!fill.procedure.success) return fill.procedure;
+  const enterCtx = fill.frameContext ?? false;
   const submit = await runSubmitPhase({ mediator, config, enterCtx, logger });
-  if (!submit.clickResult.success && !submit.didEnter) return submit.clickResult;
-  const gate = gateNoSubmitSignal(submit);
-  if (!gate.success) return gate;
-  const method = resolveSubmitFromPhase(submit);
-  logSubmitResult(logger, mediator, method);
-  return succeed({ success: true, method });
+  return finalizeSubmit(submit, mediator, logger);
 }

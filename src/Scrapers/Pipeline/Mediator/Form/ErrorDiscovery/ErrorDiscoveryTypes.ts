@@ -56,9 +56,3 @@ export const ERROR_SELECTOR = [
 
 /** Empty scan result — no errors found. */
 export const NO_ERRORS: IFormErrorScanResult = { hasErrors: false, errors: [], summary: '' };
-
-/** Evaluation argument — passes the selector + sentinel into the browser context. */
-export interface IEvalArg {
-  readonly sel: string;
-  readonly noClass: string;
-}

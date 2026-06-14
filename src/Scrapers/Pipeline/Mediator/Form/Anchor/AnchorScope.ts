@@ -6,6 +6,7 @@
  */
 
 import { type SelectorCandidate } from '../../../../Base/Config/LoginConfig.js';
+import { escapeCssAttr, toXpathLiteral } from './AnchorEscape.js';
 import { FORM_ID_RE, NON_FILLABLE_FILTER } from './AnchorTypes.js';
 
 /**
@@ -25,7 +26,7 @@ function scopeCss(form: string, val: string): string {
  * @returns The scoped CSS selector string.
  */
 function scopePlaceholder(form: string, val: string): string {
-  return `${form} input[placeholder*="${val}"]`;
+  return `${form} input[placeholder*="${escapeCssAttr(val)}"]`;
 }
 
 /**
@@ -35,7 +36,7 @@ function scopePlaceholder(form: string, val: string): string {
  * @returns The scoped CSS selector string.
  */
 function scopeAriaLabel(form: string, val: string): string {
-  return `${form} input[aria-label="${val}"]`;
+  return `${form} input[aria-label="${escapeCssAttr(val)}"]`;
 }
 
 /**
@@ -45,7 +46,7 @@ function scopeAriaLabel(form: string, val: string): string {
  * @returns The scoped CSS selector string.
  */
 function scopeName(form: string, val: string): string {
-  return `${form} [name="${val}"]`;
+  return `${form} [name="${escapeCssAttr(val)}"]`;
 }
 
 /**
@@ -98,8 +99,9 @@ function scopeXpath(form: string, val: string): string {
  */
 function buildScopedTextContentXpath(formId: string, val: string): string {
   const scope = `//*[@id="${formId}"]`;
+  const literal = toXpathLiteral(val);
   return (
-    `${scope}//*[text()[contains(., "${val}")]]/` +
+    `${scope}//*[text()[contains(., ${literal})]]/` +
     `ancestor::*[.//input[${NON_FILLABLE_FILTER}]][1]//input[${NON_FILLABLE_FILTER}][1]`
   );
 }
@@ -118,7 +120,7 @@ function buildScopedTextContentXpath(formId: string, val: string): string {
  */
 function buildScopedLabelTextXpath(formId: string, val: string): string {
   const scope = `//*[@id="${formId}"]`;
-  const label = `//label[contains(., "${val}")]`;
+  const label = `//label[contains(., ${toXpathLiteral(val)})]`;
   const nested = `${scope}${label}//input[${NON_FILLABLE_FILTER}][1]`;
   const sib = `${scope}${label}/following-sibling::input[${NON_FILLABLE_FILTER}][1]`;
   const proximity = `${scope}${label}/..//input[${NON_FILLABLE_FILTER}][1]`;
@@ -135,9 +137,10 @@ function buildScopedLabelTextXpath(formId: string, val: string): string {
  */
 function buildScopedClickableTextXpath(formId: string, val: string): string {
   const scope = `//*[@id="${formId}"]`;
+  const literal = toXpathLiteral(val);
   return (
     `${scope}//*[not(self::script) and not(self::style) ` +
-    `and contains(., "${val}") and not(.//*[contains(., "${val}")])]`
+    `and contains(., ${literal}) and not(.//*[contains(., ${literal})])]`
   );
 }
 
@@ -168,7 +171,9 @@ function scopeTextCandidate(form: string, candidate: SelectorCandidate): Selecto
 }
 
 /** Map from scopable kind to a function that builds the scoped CSS value. */
-const SCOPE_BUILDERS: Record<string, (form: string, val: string) => string> = {
+const SCOPE_BUILDERS: Partial<
+  Record<SelectorCandidate['kind'], (form: string, val: string) => string>
+> = {
   css: scopeCss,
   placeholder: scopePlaceholder,
   ariaLabel: scopeAriaLabel,
@@ -184,9 +189,7 @@ const SCOPE_BUILDERS: Record<string, (form: string, val: string) => string> = {
  * @returns Scoped CSS candidate or the input candidate untouched.
  */
 function scopeCssCandidate(formSelector: string, candidate: SelectorCandidate): SelectorCandidate {
-  const builder = SCOPE_BUILDERS[candidate.kind] as
-    | ((form: string, val: string) => string)
-    | undefined;
+  const builder = SCOPE_BUILDERS[candidate.kind];
   if (!builder) return candidate;
   return { ...candidate, kind: 'css', value: builder(formSelector, candidate.value) };
 }

@@ -8,6 +8,7 @@
 
 import type { Page } from 'playwright-core';
 
+import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import { discoverFormErrors } from '../../../../Scrapers/Pipeline/Mediator/Form/FormErrorDiscovery.js';
 
 // ── DOM item shapes ────────────────────────────────────────
@@ -20,18 +21,43 @@ interface IDomItem {
   isHidden: boolean;
 }
 
+/** Sentinel emitted by `getErrorClasses` when an element has no `class` attribute. */
+const NO_CLASS_VALUE = 'no-class';
+
 /**
- * Build a mock Page whose evaluate() returns the given DOM items.
- * @param items - Pre-built DOM item array to simulate page.evaluate result.
- * @returns Mock Page for discoverFormErrors.
+ * Build a mock Page whose `evaluate` dispatches on the browser closure's
+ * function name and returns ONE column extracted from the pre-baked
+ * IDomItem rows. Phase 12d split the single compound evaluate into 4
+ * parallel single-column evaluates (column-array data contract) — each
+ * invocation matches one of the names below.
+ * @param items - Pre-built DOM item array to derive each column from.
+ * @returns Mock Page that satisfies the 4-call column contract.
  */
 function makeMockCtx(items: readonly IDomItem[]): Page {
   return {
     /**
-     * Ignore the fn and arg — return pre-built items directly.
-     * @returns Promise resolving to the mock items.
+     * Dispatch on `fn.name` to return the matching column for `items`.
+     * @param fn - Browser closure (one of get*Tags|Classes|Texts|Hidden).
+     * @param fn.name - Closure function name used for dispatch.
+     * @returns Resolved column array, typed as the closure's return.
      */
-    evaluate: (): Promise<readonly IDomItem[]> => Promise.resolve(items),
+    evaluate: <T>(fn: { readonly name: string }): Promise<T> => {
+      if (fn.name === 'getErrorTags') {
+        return Promise.resolve(items.map((i): string => i.tag) as unknown as T);
+      }
+      if (fn.name === 'getErrorClasses') {
+        return Promise.resolve(
+          items.map((i): string => (i.cls.length === 0 ? NO_CLASS_VALUE : i.cls)) as unknown as T,
+        );
+      }
+      if (fn.name === 'getErrorTexts') {
+        return Promise.resolve(items.map((i): string => i.text) as unknown as T);
+      }
+      if (fn.name === 'getErrorHidden') {
+        return Promise.resolve(items.map((i): boolean => i.isHidden) as unknown as T);
+      }
+      throw new ScraperError('makeMockCtx: unexpected closure name: ' + fn.name);
+    },
   } as unknown as Page;
 }
 

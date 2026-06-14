@@ -7,9 +7,7 @@
 
 import type { Page } from 'playwright-core';
 
-type MockStr = string;
-type MockBool = boolean;
-
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   checkFrameForErrors,
   discoverFormErrors,
@@ -20,37 +18,66 @@ import {
 
 /** Mirrors the internal IRawDomItem used by discoverFormErrors. */
 interface IDomItem {
-  tag: MockStr;
-  cls: MockStr;
-  text: MockStr;
-  isHidden: MockBool;
+  tag: string;
+  cls: string;
+  text: string;
+  isHidden: boolean;
 }
 
+/** Sentinel emitted by `getErrorClasses` when an element has no `class` attribute. */
+const NO_CLASS_VALUE = 'no-class';
+
 /**
- * Build a mock ctx/page whose evaluate returns given DOM items.
- * @param items - DOM items to simulate in the page evaluate call.
- * @returns Mock Page with evaluate returning items.
+ * Build a mock ctx/page whose `evaluate` dispatches on the browser
+ * closure's function name and returns ONE column extracted from the
+ * pre-baked IDomItem rows. Phase 12d split the single compound
+ * evaluate into 4 parallel single-column evaluates (column-array
+ * data contract) — each invocation matches one of the names below.
+ * @param items - Pre-baked DOM items to derive each column from.
+ * @returns Mock Page that satisfies the 4-call column contract.
  */
 const MAKE_CTX_L1 = (items: readonly IDomItem[]): Page =>
   ({
     /**
-     * Return the provided items from evaluate.
-     * @returns Resolved items array.
+     * Dispatch on `fn.name` to return the matching column for `items`.
+     * @param fn - Browser closure (one of get*Tags|Classes|Texts|Hidden).
+     * @param fn.name - Closure function name used for dispatch.
+     * @returns Resolved column array, typed as the closure's return.
      */
-    evaluate: (): Promise<readonly IDomItem[]> => Promise.resolve(items),
+    evaluate: <T>(fn: { readonly name: string }): Promise<T> => {
+      if (fn.name === 'getErrorTags') {
+        return Promise.resolve(items.map((i): string => i.tag) as unknown as T);
+      }
+      if (fn.name === 'getErrorClasses') {
+        return Promise.resolve(
+          items.map((i): string => (i.cls.length === 0 ? NO_CLASS_VALUE : i.cls)) as unknown as T,
+        );
+      }
+      if (fn.name === 'getErrorTexts') {
+        return Promise.resolve(items.map((i): string => i.text) as unknown as T);
+      }
+      if (fn.name === 'getErrorHidden') {
+        return Promise.resolve(items.map((i): boolean => i.isHidden) as unknown as T);
+      }
+      throw new ScraperError('MAKE_CTX_L1: unexpected closure name: ' + fn.name);
+    },
   }) as unknown as Page;
 
 /**
- * Build a mock ctx that throws in evaluate (detached or broken page).
- * @returns Mock Page whose evaluate always rejects.
+ * Build a mock ctx whose evaluate rejects with a Playwright-style
+ * detach signal (matches {@link DETACHED_PATTERNS}). The narrow
+ * catch in {@link queryDomErrors} should swallow these as benign
+ * "frame went away" events — real bugs (non-detach rejections) MUST
+ * still surface (CR PR #345 finding #186, coding-principle §9).
+ * @returns Mock Page whose evaluate always rejects with a detach signal.
  */
 const MAKE_CTX_THROWS = (): Page =>
   ({
     /**
-     * Always rejects to simulate a broken evaluate.
-     * @returns Rejected promise.
+     * Always rejects with a benign detach signal.
+     * @returns Rejected promise (detach pattern).
      */
-    evaluate: (): Promise<never> => Promise.reject(new Error('evaluate failed')),
+    evaluate: (): Promise<never> => Promise.reject(new Error('Frame detached')),
   }) as unknown as Page;
 
 /**
@@ -174,7 +201,7 @@ describe('discoverFormErrors/no-errors', () => {
     expect(scan.hasErrors).toBe(false);
   });
 
-  it('returns hasErrors=false when evaluate throws (graceful catch)', async () => {
+  it('returns hasErrors=false when evaluate rejects with detach signal (narrow catch)', async () => {
     const ctx = MAKE_CTX_THROWS();
     const scan = await discoverFormErrors(ctx);
     expect(scan.hasErrors).toBe(false);
