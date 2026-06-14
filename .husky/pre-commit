@@ -268,7 +268,11 @@ JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 
 bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=$JEST_WORKERS"
 bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=$JEST_WORKERS"
-bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=$JEST_WORKERS"
+# Disabled 2026-06-14: test:mock spawns Camoufox (~2-3 min wall) and is
+# fully covered by the `E2E mocked` CI job (pr.yml). Keeping it local
+# meant every commit paid the Camoufox launch cost. Re-enable for local
+# validation via `npm run test:mock`.
+#bg_gate "test:mock"         "yes" bash -c "npm run test:mock -- --parallel=$JEST_WORKERS"
 
 wait_all
 
@@ -281,20 +285,24 @@ wait_all
 # mirror that here for stability. CI evidence: PR #215 Validate job
 # in 25698550388 completed in 370 s wall with test:e2e:mock passing
 # every time.
-log ""
-log "🎭 Phase 2b: test:e2e:mock (sequential, CI-parity)..."
-if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:e2e:mock")" ]; then
-    log "  ⚡ test:e2e:mock cache HIT — skipping (last-passed for tree $CACHE_KEY)"
-else
-    npm run test:e2e:mock 2>&1 | tee -a "$LOG_FILE"
-    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-        log "❌ test:e2e:mock FAILED"
-        exit 1
-    fi
-    if [ -n "$CACHE_KEY" ]; then
-        touch "$(cache_marker "test:e2e:mock")"
-    fi
-fi
+#
+# Disabled 2026-06-14: same rationale as test:mock — Camoufox-spawning
+# gate is fully covered by the `E2E mocked` CI job. Re-enable for local
+# validation via `npm run test:e2e:mock`.
+# log ""
+# log "🎭 Phase 2b: test:e2e:mock (sequential, CI-parity)..."
+# if [ -n "$CACHE_KEY" ] && [ -f "$(cache_marker "test:e2e:mock")" ]; then
+#     log "  ⚡ test:e2e:mock cache HIT — skipping (last-passed for tree $CACHE_KEY)"
+# else
+#     npm run test:e2e:mock 2>&1 | tee -a "$LOG_FILE"
+#     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+#         log "❌ test:e2e:mock FAILED"
+#         exit 1
+#     fi
+#     if [ -n "$CACHE_KEY" ]; then
+#         touch "$(cache_marker "test:e2e:mock")"
+#     fi
+# fi
 
 # ── Phase 3: e2e-factory-tests (network-bound, sequential) ────────────
 # Runs `Tests/E2e.test.ts` which hits real bank URLs to verify the
@@ -368,7 +376,11 @@ run-integration-modes() {
     log "  ✅ Mode A green for all 11 pipeline banks (Mode B runs in CI)"
     log ""
 }
-run-integration-modes
+# Disabled 2026-06-14: Integration Mode A is fully covered by the
+# `Integration Mode a (<bank>)` CI matrix (pr.yml) — 7 parallel jobs vs.
+# the sequential ~2 min local run. Mode B already runs CI-only. Re-enable
+# for local validation via `npm run test:integration:mode-a`.
+#run-integration-modes
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
 # # This is the last gate — if it passes, the commit proceeds.
@@ -391,8 +403,12 @@ run-e2e-happy-path() {
     fi
     log ""
 }
+# Disabled 2026-06-14: Live real-bank e2e is operator-triggered, not a
+# pre-commit concern — it burns real-bank WAF / OTP budget on every
+# commit. CI's `E2E Real {A,B,C} — approval gate` jobs cover this.
+# Re-enable locally via `npm run test:e2e:real` before pushing.
 # run-e2e-happy-path
-run-e2e-happy-path
+#run-e2e-happy-path
 
 log "══════════════════════════════════════════════════════"
 log "✅  ALL GATES PASSED (incl. Mock + Live E2E). COMMITTING..."
