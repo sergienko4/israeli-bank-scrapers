@@ -39,3 +39,60 @@ Once the first field is resolved, **FormAnchor** scopes the remaining fields to 
 | `WAF_BLOCKED` | Cloudflare challenge after submit — see `errorDetails.suggestions` |
 | `TIMEOUT` | Submit succeeded but post-login navigation didn't complete |
 | `CHANGE_PASSWORD` | Bank requires password change before continuing |
+
+## Phase 12d — `Form/Anchor/` & `Form/ErrorDiscovery/` sub-modules
+
+Phase 12d split `FormAnchor.ts` and `FormErrorDiscovery.ts` into focused sub-modules under
+`src/Scrapers/Pipeline/Mediator/Form/`. Each sub-module fits the canonical `CLEAN_CODE.md`
+cap-10 ESLint ceiling (no new `§19.4b` grandfathers per `pr-guidlines.md` A3.5.2). Browser-context
+work is decoupled into dedicated `*Browser.ts` files so every closure can be a single
+`querySelectorAll(sel).map(...)` while Node-side bridges fan out parallel `evaluateAll` /
+`evaluate` calls and zip the resulting columns back into typed records.
+
+### Anchor (`Form/Anchor/`)
+
+Selector-safe primitives used when emitting CSS / XPath strings from DOM-derived values
+(CR PR #345 findings #175 + #179, OWASP A03 — selector injection):
+
+- `escapeCssIdent` — escape a CSS identifier (id / class).
+- `escapeCssAttr` — escape a CSS attribute-value (between `"…"`).
+- `toXpathLiteral` — turn arbitrary text into a quoted XPath literal (handles `'` and `"` via `concat()`).
+
+Each helper returns a nominal **brand type** (Rule #15 — no raw primitive returns at module
+boundaries). The brand carries the same runtime string; the tag prevents accidentally feeding
+an unescaped string back into a selector composition:
+
+- `CssIdent` — branded return of `escapeCssIdent`.
+- `CssAttr` — branded return of `escapeCssAttr`.
+- `XPathLiteral` — branded return of `toXpathLiteral`.
+
+Browser closures + column transport (consumed by `AnchorWalk.ts`):
+
+- `getAncestorTags` — column of `Element.tagName` per ancestor.
+- `getAncestorIds` — column of `Element.id`.
+- `getAncestorFormFlags` — boolean column (`tagName === 'FORM'`).
+- `getAncestorInputCounts` — numeric column of `<input>` descendants.
+- `getAncestorNames` — column of `name` attributes.
+- `getAncestorStableClasses` — first non-`ng-*` class per ancestor.
+- `getAncestorSibInfos` — `{index, count}` of same-tag siblings.
+- `IAncestorColumns` — flat-column transport shape from browser to Node.
+- `ISibInfo` — single-sibling positional info record.
+
+### ErrorDiscovery (`Form/ErrorDiscovery/`)
+
+Detach-tolerance helper used by every error-discovery probe so benign Playwright detach /
+context-destroyed rejections fall through to "no errors" while real bugs still surface
+(CR PR #345 findings #183, #186):
+
+- `DETACHED_PATTERNS` — substring catalogue of Playwright detach prose (incl. `Frame detached`).
+- `isElementGoneError` — predicate over `unknown` rejections; returns `true` for benign signals.
+- `DetachedSignal` — branded boolean returned by `isElementGoneError` (Rule #15 — no raw `boolean` return at module boundaries).
+
+Browser closures + column transport (consumed by `ErrorDiscoveryScan.ts`):
+
+- `getErrorTags` — lowercase tag column of every matched error element.
+- `getErrorClasses` — class-attribute column (or `noClass` sentinel).
+- `getErrorTexts` — trimmed `textContent` column.
+- `getErrorHidden` — boolean column derived from computed style.
+- `IErrorColumns` — flat-column transport shape from browser to Node.
+- `IErrorClassesArg` — `{sel, noClass}` bundle accepted by `getErrorClasses`.
