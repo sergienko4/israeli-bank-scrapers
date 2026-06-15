@@ -14,7 +14,8 @@ import {
   executeStoreLoginSignal,
   executeValidateLoginArea,
 } from '../../Mediator/Home/HomeActions.js';
-import { type IHomeDiscovery, resolveHomeStrategy } from '../../Mediator/Home/HomeResolver.js';
+import { resolveHomeWithRecovery, toRecoveryArgs } from '../../Mediator/Home/HomeCrashRecovery.js';
+import type { IHomeDiscovery } from '../../Mediator/Home/HomeResolver.js';
 import { HOME_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
@@ -45,8 +46,8 @@ class HomePhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     if (!input.mediator.has) return fail(ScraperErrorTypes.Generic, 'HOME PRE: no mediator');
     if (!input.browser.has) return fail(ScraperErrorTypes.Generic, 'HOME PRE: no browser');
-    const page = input.browser.value.page;
-    const result = await resolveHomeStrategy(input.mediator.value, input.logger, page);
+    const args = toRecoveryArgs(input, input.mediator.value, input.browser.value.page);
+    const result = await resolveHomeWithRecovery(args);
     if (!result.success) return result;
     this._discovery = result.value;
     return succeed(input);
