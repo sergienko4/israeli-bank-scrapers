@@ -1,29 +1,29 @@
 /**
- * POST/GET scrape strategies — matrix loop, billing fallback, range
- * chunking, direct fetch. Phase 7f: SCRAPE consumes the slim
- * `ITxnEndpoint` DASHBOARD.FINAL committed; the buffered-response
- * shortcut that depended on `IDiscoveredEndpoint.responseBody` is
- * removed (R-NET-SCRAPE: SCRAPE has zero IDiscoveredEndpoint surface).
- * One extra fetch per account is the perf cost of strict separation.
+ * Per-account scrape orchestrators. The two public entry points —
+ * {@link scrapeOneAccountPost} (POST/body strategy) and
+ * {@link scrapeOneAccountViaUrl} (GET/URL strategy) — sequence the
+ * sub-strategies that were drained into co-located siblings during the
+ * Phase 12e file-size split:
+ *
+ * - {@link ./AccountScrapeShared.ts | AccountScrapeShared} — URL/field
+ *   leaf helpers (`patchUrlRange`, `txnEpForParse`).
+ * - {@link ./AccountScrapePost.ts | AccountScrapePost} — POST context
+ *   build + range/direct fetch (`buildPostCtx`, `scrapePostWithRange`,
+ *   `scrapePostDirect`).
+ * - {@link ./AccountScrapeFirstWave.ts | AccountScrapeFirstWave} — the
+ *   DASHBOARD-harvest fast path (`tryFirstWave`).
+ *
+ * The public surface (`scrapeOneAccountPost`, `scrapeOneAccountViaUrl`)
+ * is unchanged — consumers import it from this module verbatim.
  */
 
-import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
+import type { ITransactionsAccount } from '../../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
 import { isRangeIterable } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../../Mediator/Scrape/ScrapeReplayAction.js';
-import { applyDateRangeAndAppendWithCount } from '../../../Mediator/Scrape/UrlDateRange.js';
-import {
-  readCapturedFromDate,
-  urlHasWkDateRange,
-} from '../../../Mediator/Scrape/UrlDateRangeInspect.js';
-import type { Brand } from '../../../Types/Brand.js';
-import { getDebug as createLogger } from '../../../Types/Debug.js';
-import { redactAccount } from '../../../Types/PiiRedactor.js';
-import type { IDashboardTxnHarvest, ITxnEndpoint } from '../../../Types/PipelineContext.js';
-import { EMPTY_TXN_HARVEST } from '../../../Types/PipelineContext.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk } from '../../../Types/Procedure.js';
+import { urlHasWkDateRange } from '../../../Mediator/Scrape/UrlDateRangeInspect.js';
+import { fail, isOk, type Procedure } from '../../../Types/Procedure.js';
 import { tryBillingFallback } from '../BillingFallbackStrategy.js';
 import { tryMatrixLoop } from '../MatrixLoopStrategy.js';
 import {
@@ -32,309 +32,27 @@ import {
   FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   resolveTxnUrl,
-  scrapeWithMonthlyChunking,
-  templatePostBody,
 } from '../ScrapeDataActions.js';
-import {
-  type ApiPayload,
-  EMPTY_TXN_ENDPOINT,
-  type IAccountAssemblyCtx,
-  type IAccountFetchCtx,
-  type IChunkingCtx,
-  type IPostFetchCtx,
-} from '../ScrapeTypes.js';
+import { EMPTY_TXN_ENDPOINT, type IAccountFetchCtx } from '../ScrapeTypes.js';
+import tryFirstWave from './AccountScrapeFirstWave.js';
+import { buildPostCtx, scrapePostDirect, scrapePostWithRange } from './AccountScrapePost.js';
+import { patchUrlRange, txnEpForParse } from './AccountScrapeShared.js';
 import { isFilterDataUrl, scrapeViaFilterData } from './FilterDataStrategy.js';
-import { extractCardId, extractIds } from './ScrapeIdExtraction.js';
-
-type PatchedUrlStr = Brand<string, 'PatchedUrlStr'>;
-
-const LOG = createLogger('scrape-post');
-const CARD_SOURCE_LABELS: Record<string, string> = { true: 'from cards[]', false: 'from record' };
-
-/**
- * Resolve the slim ITxnEndpoint to its fieldMap for parseFreshResponse.
- * Returns the EMPTY default's fieldMap when DASHBOARD didn't commit one
- * — `parseFreshResponse` then falls back to auto-discovery.
- *
- * @param fc - Fetch context.
- * @returns FieldMap aliases for the per-account fresh-response parse.
- */
-function txnEpForParse(fc: IAccountFetchCtx): ITxnEndpoint['fieldMap'] {
-  return (fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT).fieldMap;
-}
-
-/**
- * Patch URL query-string date params from fc.startDate → today.
- * No-op when no WK.fromDate / WK.toDate keys are present.
- * @param url - Captured URL.
- * @param fc - Fetch context.
- * @returns Patched URL.
- */
-function patchUrlRange(url: string, fc: IAccountFetchCtx): PatchedUrlStr {
-  const fromDate = parseStartDate(fc.startDate);
-  const toDate = new Date();
-  const outcome = applyDateRangeAndAppendWithCount(url, {
-    fromDate,
-    toDate,
-    windowParams: fc.dateWindowParams ?? [],
-  });
-  if (outcome.swapped > 0) {
-    LOG.debug({ message: `URL date-range patched (${String(outcome.swapped)} params)` });
-  }
-  return outcome.url as PatchedUrlStr;
-}
-
-/**
- * POST with date range: chunks then billing fallback.
- * @param fc - Fetch context.
- * @param postCtx - POST fetch params.
- * @returns Account with transactions.
- */
-async function scrapePostWithRange(
-  fc: IAccountFetchCtx,
-  postCtx: IPostFetchCtx,
-): Promise<Procedure<ITransactionsAccount>> {
-  const ctx: IChunkingCtx = { fc, ...postCtx };
-  const rangeResult = await scrapeWithMonthlyChunking(ctx);
-  const hasResults = isOk(rangeResult) && rangeResult.value.txns.length > 0;
-  if (hasResults) return rangeResult;
-  LOG.debug({
-    message: 'range=0 txns, trying billing fallback',
-  });
-  return tryBillingFallback(fc, postCtx);
-}
-
-/**
- * POST without date range: direct single request.
- *
- * <p>v4 (2026-05-27): `rawRecord` parameter dropped. SCRAPE's account
- * assembly no longer resolves balance — that moved to the
- * BALANCE-RESOLVE phase. The captured response body is still
- * attributed to this accountId via SCRAPE.final's URL/postData
- * mention walk over `mediator.network.getAllEndpoints()`.
- *
- * @param fc - Fetch context.
- * @param postCtx - POST fetch params.
- * @returns Account with transactions.
- */
-async function scrapePostDirect(
-  fc: IAccountFetchCtx,
-  postCtx: IPostFetchCtx,
-): Promise<Procedure<ITransactionsAccount>> {
-  const patchedUrl = patchUrlRange(postCtx.url, fc);
-  const raw = await fc.api.fetchPost<Record<string, unknown>>(
-    patchedUrl,
-    postCtx.baseBody as Record<string, string | object>,
-  );
-  if (!isOk(raw)) return raw;
-  const fieldMap = txnEpForParse(fc);
-  const txns = parseFreshResponse(raw.value, fieldMap);
-  // Phase F (2026-05-13): single-response bodies still ship the same
-  // pending row in multiple txn-array sections (Isracard `approvals`
-  // + `outOfStatementChargeDateVouchers`). Route every assembly path
-  // through the dedup factory so consumers always receive a canonical
-  // unique-by-identifier list.
-  const startMs = parseStartDate(fc.startDate).getTime();
-  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
-  const unique = deduplicateTxns(txns, startMs, keyFields);
-  const assembly: IAccountAssemblyCtx = {
-    fc,
-    accountId: postCtx.accountId,
-    displayId: postCtx.displayId,
-  };
-  return buildAccountResult(assembly, unique);
-}
-
-/**
- * Build POST fetch context from account record + slim TXN endpoint.
- * Phase 7f: takes the typed `ITxnEndpoint`; reads `templatePostData`
- * (false for GET) and `url` directly. No `IDiscoveredEndpoint`.
- *
- * @param accountRecord - Account record from init.
- * @param txnEndpoint - Slim TXN endpoint committed by DASHBOARD.FINAL.
- * @returns POST context and captured-template body.
- */
-function buildPostCtx(
-  accountRecord: Record<string, unknown>,
-  txnEndpoint: ITxnEndpoint,
-): { readonly post: IPostFetchCtx; readonly capturedBody: ApiPayload } {
-  const { displayId, accountId } = extractIds(accountRecord);
-  const cardId = extractCardId(accountRecord) || accountId;
-  const rawPost = ((): string => {
-    if (txnEndpoint.templatePostData === false) return '{}';
-    return txnEndpoint.templatePostData || '{}';
-  })();
-  const capturedBody = JSON.parse(rawPost) as ApiPayload;
-  const baseBody = templatePostBody(rawPost, accountRecord, cardId);
-  const isLookupCard = cardId !== accountId;
-  const cardLabel = redactAccount(cardId);
-  LOG.debug({
-    message:
-      `buildPostCtx: cardUniqueId=${cardLabel} ` +
-      `source=${CARD_SOURCE_LABELS[String(isLookupCard)]}`,
-  });
-  const post: IPostFetchCtx = {
-    baseBody,
-    url: txnEndpoint.url,
-    displayId: displayId || cardId,
-    accountId: cardId,
-  };
-  return { post, capturedBody };
-}
-
-/**
- * Returns true when `iterationAccountId` is compatible with the
- * accountId DASHBOARD captured. Banks expose two variants of the same
- * id — display form (`991234`) and the long bank/branch form
- * (`99-999-991234`). A bidirectional `endsWith` check normalizes
- * across both directions without bank-specific branches.
- *
- * @param capturedAccountId - AccountId DASHBOARD parsed from the URL.
- * @param iterationAccountId - AccountId SCRAPE iterates against.
- * @returns True when the two ids are compatible.
- */
-function accountIdsCompatible(capturedAccountId: string, iterationAccountId: string): boolean {
-  if (capturedAccountId === iterationAccountId) return true;
-  if (capturedAccountId === '' || iterationAccountId === '') return false;
-  return (
-    capturedAccountId.endsWith(iterationAccountId) || iterationAccountId.endsWith(capturedAccountId)
-  );
-}
-
-/**
- * Decide whether the DASHBOARD-side harvest is reusable for one
- * iteration's accountId. Returns true only when the harvest carries
- * records, is not multi-account scope, and the captured accountId
- * is compatible (or absent — single-account banks).
- *
- * @param harvest - DASHBOARD-side harvest snapshot.
- * @param iterationAccountId - AccountId currently iterating.
- * @returns True when harvest is reusable.
- */
-function harvestApplies(harvest: IDashboardTxnHarvest, iterationAccountId: string): boolean {
-  if (harvest.records.length === 0) return false;
-  if (harvest.multiAccountScope) return false;
-  if (harvest.capturedAccountId === false) return true;
-  return accountIdsCompatible(harvest.capturedAccountId, iterationAccountId);
-}
-
-/**
- * Phase 7f follow-up: try the DASHBOARD-side harvest before issuing a
- * fresh per-account fetch. Recovers the per-account fast path that
- * pre-Phase-7f's `tryBufferedResponse` provided, but as a typed
- * value-pass instead of a network-surface back door — SCRAPE consumes
- * the pre-extracted `readonly ITransaction[]` DASHBOARD already saw.
- *
- * <p>Mirrors {@link tryMatrixLoop}'s contract: returns a Procedure on
- * success, `false` on miss so the caller can fall through to billing
- * / range / direct strategies.
- *
- * <p>v4 (2026-05-27): the `accountRecord` parameter is no longer
- * threaded into the assembly context — balance resolution moved out
- * of SCRAPE to the BALANCE-RESOLVE phase, which consumes
- * `scrape.perAccountResponses` instead.
- *
- * <p>2026-06-07 Hapoalim billing-cycle fix: when the captured TXN
- * endpoint URL carries WK date-range params (Hapoalim/Discount-style
- * windowed POST/GET) AND the captured window's fromDate is AFTER the
- * user's requested `startDate`, the harvest covers only the SPA's
- * narrow dashboard view — NOT the user's range — so the fast path
- * is skipped to force a fresh range-aware re-fetch downstream. See
- * {@link capturedWindowCoversRequested}.
- *
- * @param fc - Fetch context (carries the harvest from SCRAPE.PRE).
- * @param post - POST fetch params for the iteration's account.
- * @returns Procedure on hit, false on miss.
- */
-async function tryFirstWave(
-  fc: IAccountFetchCtx,
-  post: IPostFetchCtx,
-): Promise<Procedure<ITransactionsAccount> | false> {
-  await Promise.resolve();
-  const harvest = fc.dashboardTxnHarvest ?? EMPTY_TXN_HARVEST;
-  if (!harvestApplies(harvest, post.accountId)) return false;
-  if (!capturedWindowCoversRequested(fc, post)) return false;
-  const accountLabel = redactAccount(post.accountId);
-  const recordCount = String(harvest.records.length);
-  LOG.debug({
-    message: `tryFirstWave hit: account=${accountLabel} records=${recordCount}`,
-  });
-  return buildFirstWaveResult(fc, post, harvest.records);
-}
-
-/**
- * True when the captured TXN endpoint URL has no WK date-range params,
- * or the captured fromDate is at-or-before the user's requested start.
- * Generic — relies only on WK aliases + the safe URL parser.
- *
- * <p>When false, the DASHBOARD-side harvest reflects only the SPA's
- * narrow dashboard window (e.g. Hapoalim's 1-month preview). Reusing
- * it would mask the bulk of the user's requested history. The caller
- * forces fall-through to the chunked re-fetch path instead.
- *
- * @param fc - Fetch context (carries `startDate` + `txnEndpoint`).
- * @param post - POST fetch params (carries the URL to inspect).
- * @returns True when harvest covers the requested range.
- */
-function capturedWindowCoversRequested(fc: IAccountFetchCtx, post: IPostFetchCtx): boolean {
-  const wkProbe = urlHasWkDateRange(post.url);
-  if (!wkProbe.hasWkDateRange) return true;
-  const capturedStart = readCapturedFromDate(post.url);
-  if (capturedStart === false) return false;
-  const requestedStartMs = parseStartDate(fc.startDate).getTime();
-  return capturedStart.getTime() <= requestedStartMs;
-}
-
-/**
- * Build the {@link tryFirstWave} success Procedure from harvest records.
- * Extracted to keep the orchestrator under the 10-stmt cap and to mirror
- * the {@link scrapePostDirect} dedup/assembly seam.
- * @param fc - Fetch context.
- * @param post - POST fetch params (carries accountId + displayId).
- * @param records - Records pre-extracted by DASHBOARD.
- * @returns Procedure carrying the assembled account.
- */
-function buildFirstWaveResult(
-  fc: IAccountFetchCtx,
-  post: IPostFetchCtx,
-  records: readonly ITransaction[],
-): Procedure<ITransactionsAccount> {
-  // Phase F (2026-05-13): the DASHBOARD-side harvest carries the raw
-  // records extracted from one or more pre-nav captures. The same
-  // pending row can appear across capture boundaries on the
-  // card-family banks; dedup here mirrors the matrix-loop guarantee.
-  const startMs = parseStartDate(fc.startDate).getTime();
-  const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
-  const unique = deduplicateTxns(records, startMs, keyFields);
-  const assembly: IAccountAssemblyCtx = {
-    fc,
-    accountId: post.accountId,
-    displayId: post.displayId,
-  };
-  return buildAccountResult(assembly, unique);
-}
 
 /**
  * POST strategy: matrix → first-wave harvest → billing → range → direct.
- * Phase 7f: reads the slim `ITxnEndpoint` from `fc.txnEndpoint` and the
- * DASHBOARD-side harvest from `fc.dashboardTxnHarvest`. Matrix loops
- * (Amex/Isracard) run first because they iterate every card. When
- * matrix doesn't apply, the harvest fast path consumes DASHBOARD's
- * pre-extracted records before triggering a fresh per-account fetch.
  *
- * <p>2026-06-07 Hapoalim billing-cycle fix: endpoints whose captured
- * URL carries WK date-range params (Hapoalim's
- * `current-account/transactions?retrievalStartDate=…&retrievalEndDate=…`
- * POST) route through monthly chunking even when the POST body is
- * empty — `scrapeWithMonthlyChunking` patches the URL per chunk via
- * {@link applyDateRangeAndAppend}, rate-limits between fetches (which
- * mitigates the past 302-on-rapid-second-fetch regression), and
- * avoids the single-shot `numItemsPerPage` cap that would otherwise
- * truncate accounts whose requested range exceeds one page.
+ * <p>Sequences the per-account sub-strategies in priority order. The
+ * matrix loop and DASHBOARD-side first-wave harvest are the fast paths
+ * (no fresh fetch); billing fallback recovers card-family windows; the
+ * range vs direct split handles windowed (WK date-range) endpoints vs
+ * single-shot fetches. Each helper returns `false` on miss so this
+ * orchestrator can fall through to the next strategy without
+ * bank-specific branches.
  *
- * @param fc - Fetch context (carries the slim TXN endpoint + harvest).
- * @param accountRecord - Account record from init.
- * @returns Account with transactions.
+ * @param fc - Fetch context (api, network, harvest, dedup config).
+ * @param accountRecord - Raw per-account record DASHBOARD captured.
+ * @returns Procedure carrying the assembled account.
  */
 async function scrapeOneAccountPost(
   fc: IAccountFetchCtx,
@@ -360,30 +78,22 @@ async function scrapeOneAccountPost(
 }
 
 /**
- * GET strategy: resolve URL template and fetch.
- * If URL contains TransactionsAndGraphs → monthly iteration with filterData.
- * Otherwise → single GET.
- * @param fc - Fetch context (carries the slim TXN endpoint).
- * @param accountId - Account ID.
- * @returns Account with transactions.
+ * GET strategy: resolve a per-account TXN URL, patch its date range,
+ * fetch, parse, dedup, and assemble. Used by banks that expose a
+ * GET-style transaction endpoint (vs the POST/body path above).
+ *
+ * <p>Falls back to FilterData scraping when the captured URL is a
+ * FilterData endpoint, and to an empty result when no URL was captured.
+ *
+ * @param fc - Fetch context (api, network, dedup config).
+ * @param accountId - AccountId currently iterating.
+ * @returns Procedure carrying the assembled account.
  */
 async function scrapeOneAccountViaUrl(
   fc: IAccountFetchCtx,
   accountId: string,
 ): Promise<Procedure<ITransactionsAccount>> {
-  // Phase 7f: read the slim ITxnEndpoint plumbed onto fc by SCRAPE.PRE.
-  // SCRAPE never calls network.discoverTransactionsEndpoint() —
-  // DASHBOARD owns discovery and the slim contract is the only source.
   const txnEp = fc.txnEndpoint ?? EMPTY_TXN_ENDPOINT;
-  // Phase H'' (2026-05-15): DASHBOARD.FINAL committed EMPTY_TXN_ENDPOINT
-  // when the captured pool carried dormant-account evidence — there is
-  // no real txn URL for this account. Short-circuit BEFORE the
-  // network-template fallback (`resolveTxnUrl`), which would otherwise
-  // pull a synthesised URL from a sibling capture and try to fetch
-  // against a non-txn endpoint — surfacing as "API Error" in the audit.
-  // Per spec.txt:162 / spec.txt:717 (A.fix-2.r4): individual dormant
-  // accounts succeed with txns:[]; only the ALL-empty case triggers
-  // the loud signal via `isAllAccountsEmpty` in SCRAPE.POST.
   if (txnEp.url === '') {
     return buildAccountResult({ fc, accountId, displayId: accountId }, []);
   }
@@ -398,10 +108,6 @@ async function scrapeOneAccountViaUrl(
   if (!isOk(raw)) return raw;
   const fieldMap = txnEpForParse(fc);
   const txns = parseFreshResponse(raw.value, fieldMap);
-  // Phase F (2026-05-13): the GET path covers single-account banks
-  // (Beinleumi 38-row response, Hapoalim, Discount). Their flat `transactions[]`
-  // arrays still carry cross-page echoes when the bank paginates;
-  // dedup at the assembly boundary collapses them.
   const startMs = parseStartDate(fc.startDate).getTime();
   const keyFields = fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;
   const unique = deduplicateTxns(txns, startMs, keyFields);
