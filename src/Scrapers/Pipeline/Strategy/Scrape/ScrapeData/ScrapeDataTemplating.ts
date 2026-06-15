@@ -66,7 +66,7 @@ function scalarEntries(record: Record<string, unknown>): readonly [string, strin
 }
 
 /** Plural-array WK keys identifying multi-card request scopes. */
-const PLURAL_CARDS_KEYS: readonly string[] = ['cards', 'accounts', 'bankAccounts'];
+const PLURAL_CARDS_KEYS = ['cards', 'accounts', 'bankAccounts'] as const;
 
 /** Per-txn WK card-id alias union — same union used by the partition. */
 const PER_TXN_CARD_FIELDS: readonly string[] = [
@@ -80,6 +80,9 @@ type CardEntry = Record<string, unknown> | string | number | boolean | null;
 
 /** Did-filter outcome — branded so Rule #15 accepts the boolean return. */
 type DidFilter = Brand<boolean, 'DidFilter'>;
+
+/** Mutable POST body — local alias to keep helper signatures terse. */
+type MutBody = Record<string, unknown>;
 
 /**
  * Returns true when one card-array entry's WK card-id field matches
@@ -101,25 +104,20 @@ function entryMatchesAccountId(entry: CardEntry, accountId: string): boolean {
 
 /**
  * Filters the array under one plural key to entries matching
- * `accountId`. Returns true when a filter actually narrowed the
- * array. Hoisted so {@link filterPluralCardArrays} stays at depth 1.
+ * `accountId`. Returns true only when the filter actually narrowed the
+ * array (some — but not all — entries matched). Hoisted so
+ * {@link filterPluralCardArrays} stays at depth 1.
  *
  * @param body - Mutable POST body.
  * @param key - Plural key to inspect.
  * @param accountId - Iteration card identifier.
  * @returns true when the array under `key` was rewritten.
  */
-function filterOnePluralKey(
-  body: Record<string, unknown>,
-  key: string,
-  accountId: string,
-): DidFilter {
+function filterOnePluralKey(body: MutBody, key: string, accountId: string): DidFilter {
   const arr = body[key];
   if (!Array.isArray(arr)) return false as DidFilter;
-  const entries = arr as readonly CardEntry[];
-  const matched = entries.filter((entry): boolean => entryMatchesAccountId(entry, accountId));
-  if (matched.length === 0) return false as DidFilter;
-  if (matched.length === arr.length) return false as DidFilter;
+  const matched = arr.filter((e): boolean => entryMatchesAccountId(e as CardEntry, accountId));
+  if (matched.length === 0 || matched.length === arr.length) return false as DidFilter;
   body[key] = matched;
   return true as DidFilter;
 }
@@ -150,6 +148,23 @@ function filterPluralCardArrays(body: Record<string, unknown>, accountId: string
 }
 
 /**
+ * Substitute scalar WK identifier fields from `accountRecord` into the
+ * POST `body` via the replaceField walker, then return the same body.
+ * @param body - Mutable POST body to substitute into.
+ * @param accountRecord - Account record supplying scalar field values.
+ * @returns The same `body`, with scalar WK fields substituted.
+ */
+function applyScalarFields(
+  body: Record<string, string | object>,
+  accountRecord: Record<string, unknown>,
+): Record<string, string | object> {
+  for (const [key, value] of scalarEntries(accountRecord)) {
+    applyTemplateField(body, key, value);
+  }
+  return body;
+}
+
+/**
  * Build POST body from captured template.
  *
  * <p>Two-step rewrite: first filter any plural cards/accounts array
@@ -171,13 +186,9 @@ function templatePostBody(
   accountRecord: Record<string, unknown>,
   accountId = '',
 ): Record<string, string | object> {
-  const raw = postData || '{}';
-  const body = JSON.parse(raw) as Record<string, unknown>;
+  const body = JSON.parse(postData || '{}') as Record<string, unknown>;
   filterPluralCardArrays(body, accountId);
-  for (const [key, value] of scalarEntries(accountRecord)) {
-    applyTemplateField(body as Record<string, string | object>, key, value);
-  }
-  return body as Record<string, string | object>;
+  return applyScalarFields(body as Record<string, string | object>, accountRecord);
 }
 
 export default templatePostBody;
