@@ -252,15 +252,40 @@ function compareCycles(left: Cycle, right: Cycle): number {
 }
 
 /**
- * Extract every true dependency cycle (SCC of size ≥ 2) from the graph.
+ * True when a lone node imports itself — a self-loop Tarjan reports as a
+ * singleton SCC but which is still a real dependency cycle.
+ * @param node - Absolute node id to inspect.
+ * @param graph - Forward import graph (to read the node's edges).
+ * @returns True when the node has an edge back to itself.
+ */
+function hasSelfEdge(node: string, graph: ImportGraph): boolean {
+  const edges = graph.get(node) ?? [];
+  return edges.includes(node);
+}
+
+/**
+ * A component is a true cycle when it has ≥ 2 members, or a single member
+ * with a self-loop edge.
+ * @param component - One SCC's absolute node ids.
+ * @param graph - Forward import graph (to detect self-edges).
+ * @returns True when the component represents a dependency cycle.
+ */
+function isCyclicComponent(component: readonly string[], graph: ImportGraph): boolean {
+  if (component.length > 1) return true;
+  return component.some((node): boolean => hasSelfEdge(node, graph));
+}
+
+/**
+ * Extract every true dependency cycle from the graph — every multi-node SCC
+ * plus any single-node SCC that imports itself.
  * @param graph - Forward import graph.
  * @returns Deterministically ordered cycles.
  */
 export function extractCycles(graph: ImportGraph): Cycle[] {
   const solver = new TarjanScc(graph);
   const components = solver.compute();
-  const multi = components.filter((c): boolean => c.length > 1);
-  const cycles = multi.map((c): Cycle => normalizeComponent(c));
+  const cyclic = components.filter((c): boolean => isCyclicComponent(c, graph));
+  const cycles = cyclic.map((c): Cycle => normalizeComponent(c));
   return cycles.sort(compareCycles);
 }
 

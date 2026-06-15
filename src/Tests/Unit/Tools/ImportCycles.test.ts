@@ -3,8 +3,8 @@
  *
  * These pin two behaviours so a future refactor cannot silently weaken the
  * gate:
- *   1. {@link extractCycles} finds true cycles (Tarjan SCCs of size ≥ 2)
- *      and ignores acyclic chains.
+ *   1. {@link extractCycles} finds true cycles (Tarjan SCCs of size ≥ 2,
+ *      plus single-node self-loops) and ignores acyclic chains.
  *   2. {@link findRegressions} treats a cycle as a regression unless the
  *      committed baseline already contains a SUPERSET of it — so new and
  *      grown cycles fail while burn-down (subset) shrinks pass.
@@ -56,6 +56,12 @@ describe('extractCycles — Tarjan SCC detection', () => {
     const cycles = extractCycles(graph);
     expect(cycles).toEqual([]);
   });
+
+  it('detects a single-node self-loop as a cycle', () => {
+    const graph = makeGraph([['a', ['a']]]);
+    const cycles = extractCycles(graph);
+    expect(cycles).toEqual([['a']]);
+  });
 });
 
 describe('findRegressions — baseline ratchet', () => {
@@ -76,6 +82,16 @@ describe('findRegressions — baseline ratchet', () => {
   it('fails when a baseline cycle grows beyond its frozen members', () => {
     const current = [['a', 'b', 'c', 'd']];
     const regressions = findRegressions(current, baseline);
+    expect(regressions).toEqual([['a', 'b', 'c', 'd']]);
+  });
+
+  it('fails when two separate baseline cycles merge into one bigger SCC', () => {
+    const splitBaseline = [
+      ['a', 'b'],
+      ['c', 'd'],
+    ];
+    const merged = [['a', 'b', 'c', 'd']];
+    const regressions = findRegressions(merged, splitBaseline);
     expect(regressions).toEqual([['a', 'b', 'c', 'd']]);
   });
 
