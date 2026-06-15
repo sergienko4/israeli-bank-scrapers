@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import moment from 'moment';
 
 import { type IMockPage } from './MockPage.js';
 
@@ -78,6 +79,20 @@ export interface IMizrahiScrapedTxn {
 }
 
 /**
+ * Recent date string inside the scraper's rolling 1-year window.
+ *
+ * The Mizrahi scraper drops transactions older than one year before now,
+ * so a hardcoded fixture date silently falls out of range once the
+ * calendar passes it. Deriving the date from the current time keeps the
+ * fixtures evergreen.
+ * @param daysAgo - How many days before now to anchor the date.
+ * @returns A DATETIME_LOCAL_SECONDS-formatted date string.
+ */
+function recentDate(daysAgo: number): string {
+  return moment().subtract(daysAgo, 'days').format(moment.HTML5_FMT.DATETIME_LOCAL_SECONDS);
+}
+
+/**
  * Builds a scraped transaction with sensible defaults.
  * @param overrides - partial transaction fields to merge with defaults.
  * @returns complete scraped transaction object.
@@ -85,12 +100,12 @@ export interface IMizrahiScrapedTxn {
 export function scrapedTxn(overrides: Partial<IMizrahiScrapedTxn> = {}): IMizrahiScrapedTxn {
   return {
     RecTypeSpecified: true,
-    MC02PeulaTaaEZ: '2025-06-15T10:00:00',
+    MC02PeulaTaaEZ: recentDate(30),
     MC02SchumEZ: -150,
     MC02AsmahtaMekoritEZ: '12345',
     MC02TnuaTeurEZ: 'העברה בנקאית',
     IsTodayTransaction: false,
-    MC02ErehTaaEZ: '2025-06-16T00:00:00',
+    MC02ErehTaaEZ: recentDate(29),
     MC02ShowDetailsEZ: '0',
     TransactionNumber: null,
     ...overrides,
