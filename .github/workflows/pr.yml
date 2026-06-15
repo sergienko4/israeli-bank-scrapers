@@ -105,6 +105,7 @@ jobs:
       docs: ${{ steps.changes.outputs.docs }}
       pipeline_ts: ${{ steps.changes.outputs.pipeline_ts }}
       ci_scripts: ${{ steps.changes.outputs.ci_scripts }}
+      deps: ${{ steps.changes.outputs.deps }}
       # Single-source-of-truth booleans for downstream `if:` conditions.
       # `trusted_event` — true unless this is a PR from a fork (untrusted secrets).
       # `real_gates_enabled` — true only when ALL prerequisites for running real-network /
@@ -265,11 +266,14 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────
   # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
+  # Also runs on dependency-only PRs (`deps`) so runtime-dep bumps that
+  # touch no `src/` file are still validated against the real Camoufox
+  # browser launch. See detect-changes.sh `deps` output.
   # ──────────────────────────────────────────────────────────────
   e2e-factory:
     name: E2E factory
     needs: changes
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -289,11 +293,16 @@ jobs:
   # package.json `test:e2e:mock` script pins `--maxWorkers=2` to
   # avoid CPU-contention timeouts documented in the husky pre-commit
   # cycle (PRs #331+ cycle-4 cache-marker workaround).
+  # Also runs on dependency-only PRs (`deps`): this is the gate that
+  # exercises `browser.newContext` against the pinned Camoufox build,
+  # so a playwright-core bump can no longer land UNvalidated (the
+  # 1.61.0 `setDefaultViewport` regression slipped onto main because a
+  # dependency-only PR skipped this job).
   # ──────────────────────────────────────────────────────────────
   e2e-mocked:
     name: E2E mocked
     needs: changes
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
