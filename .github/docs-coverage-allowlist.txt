@@ -1105,3 +1105,68 @@ BENIGN_PRESS_PATTERNS
 BenignPressSignal
 # Reason: Sub-module helper — benign-vs-real predicate narrowing the pressEnter catch.
 isBenignPressReject
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 12e — NavigationTransportProbe split (Mediator/Init/TransportProbe/**)
+# ─────────────────────────────────────────────────────────────────────
+# These symbols moved from the (formerly 1036-LoC) NavigationTransportProbe.ts
+# into a focused TransportProbe/ sub-cluster (Types / Reject / Result / Url /
+# Dns / Tcp / Tls / Probe) as part of a behavior-preserving facade split. They
+# are CROSS-MODULE INTERNALS — phase runners, default dep implementations,
+# per-phase input/outcome bundles, and shared sentinels consumed only by the
+# sibling sub-modules and the Probe orchestrator. The user-facing surface
+# (probeTransport, probeTransportWithDeps, and the I* envelope types) is
+# unchanged and still re-exported byte-for-byte through the
+# NavigationTransportProbe.ts barrel facade — those public symbols stay
+# documented in docs/observability/init-navigation-forensics.md and are NOT
+# in this allowlist. None of the symbols below are re-exported from
+# lib/index.{cjs,mjs}.
+
+# Reason: Types — input bundle for the injectable tcpConnect dep (host/port/budget). Cross-module internal.
+ITcpConnectInput
+# Reason: Types — input bundle for the injectable tlsUpgrade dep (socket/host/budget). Cross-module internal.
+ITlsUpgradeInput
+# Reason: Types — parsed target-URL parts (host/port/isTls) threaded from Url.ts into the phase runners.
+IUrlParts
+# Reason: Types — per-run probe context carried across the DNS/TCP/TLS phases. Implementation detail.
+IProbeContext
+# Reason: Types — accumulating timing/result envelope assembled into the final INavTransportProbe.
+IProbeEnvelope
+# Reason: Types — '' sentinel for an unresolved address before the DNS phase runs.
+EMPTY_ADDRESS
+# Reason: Types — 0-ms sentinel for any phase that did not run. Shared by Result/Dns/Tcp/Tls.
+ZERO_MS
+# Reason: Types — 'other-error' outcome literal constant for the catch-all phase failure path.
+OUTCOME_OTHER_ERROR
+# Reason: Types — zeroed IProbeEnvelope seed used to start every probe run.
+EMPTY_ENVELOPE
+# Reason: Types — zeroed IUrlParts fallback returned when target-URL parsing fails.
+EMPTY_URL
+# Reason: Url — discriminated parse result for tryParseTargetUrl (ok parts vs failure outcome).
+IParseUrlOutcome
+# Reason: Url — internal target-URL parser consumed by the Probe orchestrator. Not user-facing.
+tryParseTargetUrl
+# Reason: Result — input bundle for buildProbeResult (envelope + outcome + timing). Cross-module internal.
+IBuildProbeInput
+# Reason: Result — assembles the final INavTransportProbe from phase outputs. Internal helper.
+buildProbeResult
+# Reason: Dns — production dns.lookup dep implementation injected as the default lookup. Test seam internal.
+defaultDnsLookup
+# Reason: Dns — discriminated DNS-phase result (resolved address vs failure outcome). Internal.
+IDnsPhaseOutcome
+# Reason: Dns — DNS-phase input bundle (host/budget/deps). Cross-module internal.
+IRunDnsInput
+# Reason: Dns — runs the DNS phase within budget; consumed only by the Probe orchestrator.
+runDnsPhase
+# Reason: Tcp — production net.connect dep implementation injected as the default tcpConnect. Test seam internal.
+defaultTcpConnect
+# Reason: Tcp — TCP-phase input bundle (address/port/budget/deps). Cross-module internal.
+IRunTcpInput
+# Reason: Tcp — runs the TCP phase within budget; consumed only by the Probe orchestrator.
+runTcpPhase
+# Reason: Tls — production tls.connect dep implementation injected as the default tlsUpgrade. Test seam internal.
+defaultTlsUpgrade
+# Reason: Tls — TLS-phase input bundle (socket/host/budget/deps). Cross-module internal.
+IRunTlsInput
+# Reason: Tls — runs the TLS phase within budget; consumed only by the Probe orchestrator.
+runTlsPhase
