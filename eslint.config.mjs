@@ -2334,6 +2334,40 @@ export default tseslint.config(
     },
   },
 
+  // 14d. PHASE 12e — Scrape Executor file-size lock.
+  //
+  // `Strategy/Scrape/ScrapeExecutor.ts` was a 167-LoC generic scrape
+  // orchestrator (fetch + per-account iteration + assembly). §19.1
+  // (below) pins Strategy/Scrape to per-function caps (40 lines / 20
+  // statements) but leaves the file-size (`max-lines`) guard off.
+  // Phase 12e drains the file: it is now a barrel facade re-exporting
+  // focused co-located modules under `Strategy/Scrape/Executor/`
+  // (Types / Fetch / Account / Execute).
+  //
+  // Per `eslint-rules-guidlines.md` §1 (tighten when you split) this
+  // block turns on the missing `max-lines` guard for the new
+  // sub-cluster + the facade, pinning them to the canonical 150-line
+  // Pipeline ceiling. §4 (narrow, never revert): scope is the Executor
+  // sub-tree + facade only — the remaining over-cap Strategy/Scrape
+  // files (AccountScrapeStrategy, ScrapeDataActions, MatrixLoopStrategy)
+  // get their own file caps as they are drained in subsequent Phase 12e
+  // PRs. 150 is justified: the largest drained sub-module (Fetch.ts)
+  // measures well under 150 effective lines (skipBlankLines +
+  // skipComments), comfortably inside the shared ceiling.
+  //
+  // Canary: `scrape-executor-file-over-cap.canary.ts` over-sizes a file
+  // so verify.sh confirms `max-lines` fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Strategy/Scrape/Executor/**/*.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-executor-file-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
   // 15. PHASE 3 COMMON ↔ PIPELINE UNIFICATION GUARD — Commit 11 (refactor/phase-3-common-unify).
   //
   // Closes Phase 3 Probe 3.4 (Pipeline → Common runtime imports = 0). Phase 3
