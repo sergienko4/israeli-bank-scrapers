@@ -292,6 +292,14 @@ describe('buildFilterDataUrl', () => {
     expect(hasRawPrefix).toBe(true);
     expect(url).toContain('firstCallCardIndex=-1');
   });
+
+  it('uses "&" in the fallback when a non-parseable base already has a query', () => {
+    const url = buildFilterDataUrl('/api/transactions?v=1', 2026, 4);
+    const questionMatches = url.match(/\?/g) ?? [];
+    expect(questionMatches).toHaveLength(1);
+    expect(url).toContain('?v=1&filterData=');
+    expect(url).toContain('firstCallCardIndex=-1');
+  });
 });
 
 describe('templatePostBody', () => {
