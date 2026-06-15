@@ -226,6 +226,10 @@ jobs:
         if: needs.changes.outputs.src == 'true'
         run: npx tsc --noEmit
 
+      - name: Acyclic-dependencies gate
+        if: needs.changes.outputs.src == 'true'
+        run: npm run lint:cycles
+
       - name: Audit production dependencies
         if: needs.changes.outputs.src == 'true'
         run: npm audit --audit-level=high --omit=dev
