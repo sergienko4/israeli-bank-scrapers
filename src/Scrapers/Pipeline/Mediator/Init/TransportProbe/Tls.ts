@@ -233,36 +233,39 @@ function makeTlsUpgradeInput(input: IRunTlsInput): ITlsUpgradeInput {
 }
 
 /**
- * Attempt the TLS handshake; on success return the connected probe,
- * on failure destroy the underlying socket and return the categorized
- * failure probe. Extracted from {@link runTlsPhase} to stay ≤ 10 LoC.
+ * Resolve the TLS-phase probe: short-circuit to a `'connected'`
+ * envelope for plain-HTTP targets, else run the handshake and map the
+ * result (success timing or categorized failure). Socket teardown is
+ * owned by {@link runTlsPhase}, so this stays pure decision + mapping.
  *
  * @param input - TLS-phase bundle (context + deps + DNS + TCP + budget).
- * @returns Final probe envelope (success or failure).
+ * @returns Final probe envelope (connected, success, or failure).
  */
-async function attemptTlsUpgrade(input: IRunTlsInput): Promise<INavTransportProbe> {
+async function resolveTlsProbe(input: IRunTlsInput): Promise<INavTransportProbe> {
+  if (!input.context.url.isTls) return buildSuccessProbe(input, ZERO_MS);
   const tlsInput = makeTlsUpgradeInput(input);
   try {
     const tlsMs = await input.deps.tlsUpgrade(tlsInput);
     return buildSuccessProbe(input, tlsMs);
   } catch (tlsError) {
-    input.tcp.socket.destroy();
     return buildTlsFailureProbe(input, tlsError);
   }
 }
 
 /**
- * TLS phase: optional handshake when isTls, else destroy the TCP
- * socket and return a `'connected'` envelope. Always builds a probe
- * envelope — this is the terminal phase of the probe.
+ * TLS phase (terminal): delegate to {@link resolveTlsProbe}, then
+ * destroy the TCP socket in a `finally` so it is torn down exactly
+ * once on every branch (success, failure, or plain-HTTP short-circuit)
+ * — no leak even when an injected `tlsUpgrade` dep resolves without
+ * closing the socket itself.
  *
  * @param input - Context + deps + DNS + open TCP + per-phase budget.
  * @returns The final probe envelope.
  */
 export async function runTlsPhase(input: IRunTlsInput): Promise<INavTransportProbe> {
-  if (!input.context.url.isTls) {
+  try {
+    return await resolveTlsProbe(input);
+  } finally {
     input.tcp.socket.destroy();
-    return buildSuccessProbe(input, ZERO_MS);
   }
-  return attemptTlsUpgrade(input);
 }

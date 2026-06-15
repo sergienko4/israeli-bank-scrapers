@@ -25,19 +25,30 @@ import {
   ZERO_MS,
 } from './Types.js';
 
+/** Sentinel message a budget-exceeded TCP connect is destroyed with. */
+const TCP_CONNECT_TIMEOUT = 'TCP_CONNECT_TIMEOUT';
+
 /**
- * Map a Node ErrnoException code to a probe outcome category. Pulled
- * out so the TCP-phase handler stays small and the mapping table is
- * a single audit point.
+ * Node `ErrnoException.code` -> discriminated `tcp-*` outcome. Single
+ * audit point for TCP error reclassification; `Partial` so an unmapped
+ * code falls through to {@link OUTCOME_OTHER_ERROR}.
+ */
+const TCP_OUTCOME_BY_ERRNO: Partial<Record<string, TransportProbeOutcome>> = {
+  ECONNREFUSED: 'tcp-refused',
+  ECONNRESET: 'tcp-reset',
+  ETIMEDOUT: 'tcp-timeout',
+};
+
+/**
+ * Map a Node ErrnoException code to a probe outcome category via the
+ * {@link TCP_OUTCOME_BY_ERRNO} lookup. Pulled out so the TCP-phase
+ * handler stays small and the mapping has a single audit point.
  *
  * @param code - The `code` field of a NodeJS.ErrnoException.
  * @returns Outcome to assign when this code is the failure cause.
  */
 function categorizeTcpError(code: string): TransportProbeOutcome {
-  if (code === 'ECONNREFUSED') return 'tcp-refused';
-  if (code === 'ECONNRESET') return 'tcp-reset';
-  if (code === 'ETIMEDOUT') return 'tcp-timeout';
-  return OUTCOME_OTHER_ERROR;
+  return TCP_OUTCOME_BY_ERRNO[code] ?? OUTCOME_OTHER_ERROR;
 }
 
 /**
@@ -49,7 +60,7 @@ function categorizeTcpError(code: string): TransportProbeOutcome {
  */
 function makeTcpTimeoutHandler(socket: net.Socket): () => boolean {
   return (): boolean => {
-    socket.destroy(new Error('TCP_CONNECT_TIMEOUT'));
+    socket.destroy(new Error(TCP_CONNECT_TIMEOUT));
     return true;
   };
 }
@@ -140,7 +151,7 @@ export interface IRunTcpInput {
  * @returns Outcome to assign for the failed-probe envelope.
  */
 function tcpFailureOutcome(tcpError: Error): TransportProbeOutcome {
-  if (tcpError.message.includes('TCP_CONNECT_TIMEOUT')) return 'tcp-timeout';
+  if (tcpError.message.includes(TCP_CONNECT_TIMEOUT)) return 'tcp-timeout';
   const errno = tcpError as NodeJS.ErrnoException;
   const code = errno.code ?? '';
   return categorizeTcpError(code);
