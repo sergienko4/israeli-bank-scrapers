@@ -2294,6 +2294,46 @@ export default tseslint.config(
     },
   },
 
+  // 14c. PHASE 12e — Init TransportProbe file-size lock.
+  //
+  // PR #288 landed the L4 transport-forensics probe as a single
+  // 1036-LoC `Mediator/Init/NavigationTransportProbe.ts` god-module.
+  // §14 (above) pinned Init/ to the 10-LoC per-function cap but
+  // deferred the file-size (`max-lines`) hardening "once the helpers
+  // are stable". Phase 12e drains that file: the probe is now a barrel
+  // facade re-exporting focused co-located modules under
+  // `Mediator/Init/TransportProbe/` (Types / Reject / Result / Url /
+  // Dns / Tcp / Tls / Probe).
+  //
+  // Per `eslint-rules-guidlines.md` §1 (tighten when you split) this
+  // block pins the new sub-cluster + the facade to the canonical
+  // three-rule lock shared by every other Pipeline cluster. §4
+  // (narrow, never revert): scope is the TransportProbe sub-tree +
+  // facade only — the cluster-wide `Mediator/Init/**` file cap lands
+  // once the remaining Init files (InitActions, PageObservers,
+  // EnvSnapshot, NavigationDiagnostics, NavigationRequestLifecycle)
+  // are drained too. 150 is justified: the largest drained sub-module
+  // (Tls.ts) measures ~129 effective lines (skipBlankLines +
+  // skipComments), comfortably under the shared 150 ceiling.
+  //
+  // Canary: `init-transport-probe-file-over-cap.canary.ts` over-sizes
+  // a file so verify.sh confirms `max-lines` fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Init/TransportProbe/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Init/NavigationTransportProbe.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/init-transport-probe-file-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-statements': ['error', 10],
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
   // 15. PHASE 3 COMMON ↔ PIPELINE UNIFICATION GUARD — Commit 11 (refactor/phase-3-common-unify).
   //
   // Closes Phase 3 Probe 3.4 (Pipeline → Common runtime imports = 0). Phase 3

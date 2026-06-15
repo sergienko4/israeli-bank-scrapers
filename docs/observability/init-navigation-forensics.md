@@ -32,7 +32,14 @@ The forensics layer is split across three small files in
 - `NavigationRequestLifecycle.ts` — Playwright `Page` request lifecycle
   observer (records every request that started but never finished).
 - `NavigationTransportProbe.ts` — Node-level `dns.lookup` / `net.connect` /
-  `tls.connect` probe, runnable post-failure with a hard budget.
+  `tls.connect` probe, runnable post-failure with a hard budget. As of the
+  Phase 12e split this file is a thin **barrel facade**: the former 1036-LoC
+  monolith was decomposed (behavior-preserving) into a focused
+  `TransportProbe/` sub-cluster — one module per concern (`Types`, `Reject`,
+  `Result`, `Url`, `Dns`, `Tcp`, `Tls`, `Probe`). The public surface
+  (`probeTransport`, `probeTransportWithDeps`, and the `I*` envelope types)
+  is re-exported byte-for-byte through the facade, so consumers and the log
+  envelope are unchanged.
 
 All three are wired into `InitActions.ts` via ≤10-LoC private helpers
 (`runNavigationAttempt`, `collectFailureContext`, `handleNavFailure`,
