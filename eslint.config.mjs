@@ -2402,6 +2402,40 @@ export default tseslint.config(
     },
   },
 
+  // 14f. PHASE 12e — ScrapeData file-size lock.
+  //
+  // `Strategy/Scrape/ScrapeDataActions.ts` was a 467-LoC (≈200 effective)
+  // grab-bag helper module (rate limiting + date parsing + txn hashing +
+  // dedup + POST-body templating + txn-URL build/resolve + account
+  // assembly). §19.1 (below) pins Strategy/Scrape to per-function caps
+  // (40 lines / 20 statements) but leaves the file-size (`max-lines`)
+  // guard off. Phase 12e drains the file into co-located focused modules
+  // under `Strategy/Scrape/ScrapeData/` (Dedup / Templating / Url /
+  // Assembly) behind an unchanged barrel facade.
+  //
+  // Per `eslint-rules-guidlines.md` §1 (tighten when you split) this
+  // block turns on the missing `max-lines` guard for the ScrapeData
+  // sub-cluster + the barrel facade, pinning them to the canonical
+  // 150-line Pipeline ceiling. §4 (narrow, never revert): scope is the
+  // ScrapeData/ sub-tree + facade only — the last remaining over-cap
+  // Strategy/Scrape file (MatrixLoopStrategy) gets its own file cap as it
+  // is drained in the next Phase 12e PR. 150 is justified: the largest
+  // drained sub-module (Templating) measures well under 150 effective
+  // lines (skipBlankLines + skipComments), comfortably inside the ceiling.
+  //
+  // Canary: `scrape-data-file-over-cap.canary.ts` over-sizes a file so
+  // verify.sh confirms `max-lines` fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData/**/*.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-data-file-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
   // 15. PHASE 3 COMMON ↔ PIPELINE UNIFICATION GUARD — Commit 11 (refactor/phase-3-common-unify).
   //
   // Closes Phase 3 Probe 3.4 (Pipeline → Common runtime imports = 0). Phase 3

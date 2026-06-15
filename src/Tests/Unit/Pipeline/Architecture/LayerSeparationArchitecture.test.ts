@@ -475,6 +475,13 @@ const NET_SCRAPE_ALLOWLIST: readonly string[] = [
   path.join('Strategy', 'Scrape', 'GenericAutoScrapeStrategy.ts'),
   path.join('Strategy', 'Scrape', 'ScrapeTypes.ts'),
   path.join('Strategy', 'Scrape', 'ScrapeDataActions.ts'),
+  // Phase 12e: the txn-URL resolver was drained out of
+  // ScrapeDataActions.ts into a focused leaf module. It consumes
+  // `INetworkDiscovery` purely to build a per-account transaction URL
+  // from captured traffic (ITxnUrlCtx.network.buildTransactionUrl) on
+  // behalf of the SCRAPE strategies — inherits the allowlist rationale
+  // of its former host (ScrapeDataActions.ts above).
+  path.join('Strategy', 'Scrape', 'ScrapeData', 'ScrapeDataUrl.ts'),
   path.join('Strategy', 'Scrape', 'Account', 'AccountScrapeStrategy.ts'),
   path.join('Strategy', 'Scrape', 'Account', 'BalanceExtractor.ts'),
   path.join('Strategy', 'Scrape', 'Account', 'ScrapeIdExtraction.ts'),
