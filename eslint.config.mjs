@@ -2424,7 +2424,11 @@ export default tseslint.config(
   // lines (skipBlankLines + skipComments), comfortably inside the ceiling.
   //
   // Canary: `scrape-data-file-over-cap.canary.ts` over-sizes a file so
-  // verify.sh confirms `max-lines` fires.
+  // verify.sh confirms `max-lines` fires. NOTE: this block locks the
+  // file-size (`max-lines`) guard only; the matching per-function
+  // (`max-lines-per-function` / `max-statements`) 10/10 lock for the
+  // same sub-tree lives in §19.1b (after the §19.1 Strategy grandfather,
+  // which would otherwise override it under flat-config last-wins).
   {
     files: [
       'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData/**/*.ts',
@@ -2552,6 +2556,42 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Strategy/Scrape/Executor/**/*.ts',
       'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
       'src/Scrapers/Pipeline/EslintCanaries/scrape-executor-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-statements': ['error', 10],
+    },
+  },
+
+  // 19.1b PHASE 12e — ScrapeData per-function lock (drained sub-cluster).
+  //
+  // §19.1 (above) grandfathers ALL of `Strategy/**` to a loose 40-line /
+  // 20-statement per-function cap. The Phase 12e drain split the
+  // `ScrapeDataActions.ts` god-module into focused co-located modules
+  // under `Strategy/Scrape/ScrapeData/` (Dedup / Templating / Url /
+  // Assembly) whose functions were authored fresh to the canonical
+  // 10-LoC ceiling — so per `eslint-rules-guidlines.md` §1 (tighten when
+  // you split) this block pins the drained sub-tree + barrel facade back
+  // to the strict 10/10 cap that §19.0 sets for all new first-party code.
+  // Flat-config is last-wins and this block sits AFTER §19.1, so the
+  // strict cap deterministically wins for these paths while the rest of
+  // Strategy/** keeps its grandfather. §4 (narrow, never revert): scope
+  // is the ScrapeData sub-tree + facade only — the remaining over-cap
+  // Strategy/Scrape file (MatrixLoopStrategy) keeps §19.1's cap until it
+  // is drained in the next Phase 12e PR.
+  //
+  // CodeRabbit PR #358 caught this gap: §14f added the file-size cap but
+  // left the per-function cap at §19.1's loose 40, so oversized drained
+  // functions shipped. This block + `scrape-data-fn-over-cap.canary.ts`
+  // close it (verify.sh confirms `max-lines-per-function` fires).
+  {
+    files: [
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData/**/*.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-data-fn-over-cap.canary.ts',
     ],
     rules: {
       'max-lines-per-function': [
