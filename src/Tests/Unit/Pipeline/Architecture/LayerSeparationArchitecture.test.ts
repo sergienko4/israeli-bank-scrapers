@@ -474,7 +474,16 @@ const NET_SCRAPE_ALLOWLIST: readonly string[] = [
   // through unchanged inherit the import.
   path.join('Strategy', 'Scrape', 'GenericAutoScrapeStrategy.ts'),
   path.join('Strategy', 'Scrape', 'ScrapeTypes.ts'),
-  path.join('Strategy', 'Scrape', 'ScrapeDataActions.ts'),
+  // Phase 12e: the txn-URL resolver was drained out of the former
+  // ScrapeDataActions.ts god-module into a focused leaf module. It
+  // consumes `INetworkDiscovery` purely to build a per-account
+  // transaction URL from captured traffic
+  // (ITxnUrlCtx.network.buildTransactionUrl) on behalf of the SCRAPE
+  // strategies. The barrel facade (ScrapeDataActions.ts) is now pure
+  // re-exports and no longer imports the network type, so it was
+  // dropped from this allowlist (CodeRabbit PR #358) — tightening the
+  // guard back to the single file that actually consumes it.
+  path.join('Strategy', 'Scrape', 'ScrapeData', 'ScrapeDataUrl.ts'),
   path.join('Strategy', 'Scrape', 'Account', 'AccountScrapeStrategy.ts'),
   path.join('Strategy', 'Scrape', 'Account', 'BalanceExtractor.ts'),
   path.join('Strategy', 'Scrape', 'Account', 'ScrapeIdExtraction.ts'),
