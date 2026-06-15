@@ -2461,6 +2461,39 @@ export default tseslint.config(
     },
   },
 
+  // 19.1a PHASE 12e — Scrape Executor per-function lock (drained sub-cluster).
+  //
+  // §19.1 (above) grandfathers ALL of `Strategy/**` to a loose 40-line /
+  // 20-statement per-function cap. The Phase 12e drain split the
+  // `ScrapeExecutor.ts` god-module into focused co-located modules under
+  // `Strategy/Scrape/Executor/` (Types / Fetch / Account / Execute) whose
+  // functions were authored fresh to the canonical 10-LoC ceiling — so
+  // per `eslint-rules-guidlines.md` §1 (tighten when you split) this block
+  // pins the drained sub-tree + facade back to the strict 10/10 cap that
+  // §19.0 sets for all new first-party code. Flat-config is last-wins and
+  // this block sits AFTER §19.1, so the strict cap deterministically wins
+  // for these paths while the rest of Strategy/** keeps its grandfather.
+  // §4 (narrow, never revert): scope is the Executor sub-tree + facade
+  // only — the remaining over-cap Strategy/Scrape files keep §19.1's cap
+  // until they are drained in subsequent Phase 12e PRs.
+  //
+  // Canary: `scrape-executor-fn-over-cap.canary.ts` over-sizes one
+  // function so verify.sh confirms `max-lines-per-function` fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Strategy/Scrape/Executor/**/*.ts',
+      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-executor-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-statements': ['error', 10],
+    },
+  },
+
   // 19.2 GRANDFATHER — Pipeline/Types (6 files, 24+4).
   //   EXCLUDES `Pipeline/Types/PiiRedactor/**` — that cluster is
   //   locked at canonical 10/10 by §13 and the guideline-coverage
