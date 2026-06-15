@@ -266,8 +266,18 @@ JEST_WORKERS="$(( (TOTAL_CORES + 2) / 3 ))"
 
 JEST_BIN="node --experimental-vm-modules node_modules/jest/bin/jest.js"
 
-bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=$JEST_WORKERS"
-bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=$JEST_WORKERS"
+# Disabled 2026-06-15: test:pipeline + bank-tests were the last heavy Jest
+# gates in pre-commit (~10 min wall every commit) and are fully covered in
+# CI. `npm run test:pipeline` runs as the `Validate` job (pr.yml) and again
+# under sonarcloud.yml; that jest.pipeline.config.cjs already includes the
+# Unit/Pipeline/bank/ suite the standalone bank-tests gate re-ran, so the
+# bank gate is a strict subset — relocating both loses zero coverage. This
+# keeps the local commit flow fast (static gates: tsc / eslint / biome /
+# architecture / canaries / build) while CI stays the hard gate for the
+# Jest suites. Re-enable locally via `npm run test:pipeline` or the bank
+# pattern below when validating pipeline changes before pushing.
+#bg_gate "test:pipeline"     "yes" bash -c "npm run test:pipeline -- --maxWorkers=$JEST_WORKERS"
+#bg_gate "bank-tests"        "yes" bash -c "$JEST_BIN --testPathPatterns='Unit/Pipeline/bank/' --maxWorkers=$JEST_WORKERS"
 # Disabled 2026-06-14: test:mock spawns Camoufox (~2-3 min wall) and is
 # fully covered by the `E2E mocked` CI job (pr.yml). Keeping it local
 # meant every commit paid the Camoufox launch cost. Re-enable for local
