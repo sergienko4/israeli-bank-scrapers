@@ -32,7 +32,7 @@ import { patchUrlRange, txnEpForParse } from './AccountScrapeShared.js';
 import { extractCardId, extractIds } from './ScrapeIdExtraction.js';
 
 const LOG = createLogger('scrape-post');
-const CARD_SOURCE_LABELS: Record<string, string> = { true: 'from cards[]', false: 'from record' };
+const CARD_SOURCE_LABELS = { true: 'from cards[]', false: 'from record' } as const;
 
 /**
  * POST with date range: chunks then billing fallback.
@@ -118,10 +118,9 @@ function buildPostCtx(
   const baseBody = templatePostBody(rawPost, accountRecord, cardId);
   const isLookupCard = cardId !== accountId;
   const cardLabel = redactAccount(cardId);
+  const cardSource = CARD_SOURCE_LABELS[isLookupCard ? 'true' : 'false'];
   LOG.debug({
-    message:
-      `buildPostCtx: cardUniqueId=${cardLabel} ` +
-      `source=${CARD_SOURCE_LABELS[String(isLookupCard)]}`,
+    message: `buildPostCtx: cardUniqueId=${cardLabel} ` + `source=${cardSource}`,
   });
   const post: IPostFetchCtx = {
     baseBody,
