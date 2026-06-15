@@ -10,7 +10,7 @@
  * cannot regress silently.
  */
 
-import { parseImportSpecifiers } from '../../../Tests/Tools/detect-dead-code.js';
+import { parseImportSpecifiers } from '../../../Tests/Tools/ImportGraphScan.js';
 
 /**
  * Mixed source — every variant the canary must recognise:
