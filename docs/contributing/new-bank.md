@@ -74,16 +74,24 @@ export function buildNewBankPipeline(options: ScraperOptions): Procedure<IPipeli
 
 ### 5. Register the builder
 
-Edit [`src/Scrapers/Pipeline/Core/PipelineRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineRegistry.ts):
+Add the entry to the matching alphabetical-half registry in the **Banks**
+layer (never Core) — [`Banks/PipelineRegistryAmexToMax.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PipelineRegistryAmexToMax.ts)
+for banks Amex–Max, or [`Banks/PipelineRegistryMercantileToVisaCal.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PipelineRegistryMercantileToVisaCal.ts)
+for banks Mercantile–VisaCal:
 
 ```typescript
-import { buildNewBankPipeline } from '../Banks/NewBank/NewBankPipeline.js';
+import { buildNewBankPipeline } from './NewBank/NewBankPipeline.js';
 
-const PIPELINE_REGISTRY: Partial<Record<CompanyTypes, PipelineFactory>> = {
+const PIPELINE_REGISTRY_AMEX_TO_MAX: Partial<Record<CompanyTypes, PipelineFactory>> = {
   // ... existing entries ...
-  [CT.NewBank]: buildNewBankPipeline,
+  [CompanyTypes.NewBank]: buildNewBankPipeline,
 };
 ```
+
+> The Core layer never enumerates banks — `Core/PipelineDescriptor.ts` only
+> declares the `PipelineFactory` type, and `Banks/PipelineRegistry.ts` merges
+> the two halves into `PIPELINE_REGISTRY`. The `CoreBankIndependence`
+> architecture test fails if a bank import leaks into `Core/**`.
 
 ### 6. Add the mocked-E2E test
 

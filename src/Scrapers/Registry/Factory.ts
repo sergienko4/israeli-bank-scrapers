@@ -1,7 +1,7 @@
 import { type CompanyTypes } from '../../Definitions.js';
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
-import { PIPELINE_REGISTRY } from '../Pipeline/Core/PipelineRegistry.js';
+import PIPELINE_REGISTRY from '../Pipeline/Banks/PipelineRegistry.js';
 import { PipelineScraper } from '../Pipeline/Core/PipelineScraper.js';
 import SCRAPER_REGISTRY_AMEX_TO_ISRACARD, {
   type ScraperFactory,

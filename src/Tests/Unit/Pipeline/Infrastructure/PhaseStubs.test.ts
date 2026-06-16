@@ -1,10 +1,10 @@
+import PIPELINE_REGISTRY from '../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
 import {
   createLoginStep,
   DECLARATIVE_LOGIN_STEP,
 } from '../../../../Scrapers/Pipeline/Core/LoginSteps/DeclarativeLoginStep.js';
 import { DIRECT_POST_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Core/LoginSteps/DirectPostLoginStep.js';
 import { NATIVE_LOGIN_STEP } from '../../../../Scrapers/Pipeline/Core/LoginSteps/NativeLoginStep.js';
-import { PIPELINE_REGISTRY } from '../../../../Scrapers/Pipeline/Core/PipelineRegistry.js';
 import { OTP_FILL_STEP } from '../../../../Scrapers/Pipeline/Phases/OtpFill/OtpFillPhase.js';
 import { OTP_TRIGGER_STEP } from '../../../../Scrapers/Pipeline/Phases/OtpTrigger/OtpTriggerPhase.js';
 import { SCRAPE_STEP } from '../../../../Scrapers/Pipeline/Phases/Scrape/ScrapePhase.js';
