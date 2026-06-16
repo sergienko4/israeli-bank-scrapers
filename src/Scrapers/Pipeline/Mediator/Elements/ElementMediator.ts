@@ -21,7 +21,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import type { IFormAnchor } from '../Form/Anchor/AnchorTypes.js';
 import type { IFormErrorScanResult } from '../Form/FormErrorDiscovery.js';
 import type { INetworkDiscovery } from '../Network/Types/Discovery.js';
-import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
+import type { IFieldContext } from '../Selector/SelectorResolverPipeline.types.js';
 
 /**
  * Structured DOM identity captured during PRE resolution.
