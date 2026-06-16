@@ -39,7 +39,7 @@ import {
   readDateWindowParams,
   readDedupKeyFields,
   readPreDiscoveredTxn,
-} from './ScrapePhaseActions.js';
+} from './ScrapePhase/PreDiscovery.js';
 
 const LOG = createLogger('frozen-scrape');
 
