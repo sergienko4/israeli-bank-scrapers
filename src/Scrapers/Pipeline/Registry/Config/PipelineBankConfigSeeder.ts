@@ -9,7 +9,7 @@ import type { CompanyTypes } from '../../../../Definitions.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { WKUrlGroup } from '../WK/UrlsWK.js';
 import { registerWkUrl } from '../WK/UrlsWK.js';
-import type { IHeadlessUrlsConfig, IPipelineBankConfig } from './PipelineBankConfig.js';
+import type { IHeadlessUrlsConfig, IPipelineBankConfig } from './PipelineBankConfigTypes.js';
 
 /** WK seeder per-call result — branded so Rule #15 accepts the boolean return. */
 type DidSeed = Brand<boolean, 'DidSeed'>;

@@ -26,7 +26,7 @@ import { createAuthDiscoveryPhase } from '../../Phases/AuthDiscovery/AuthDiscove
 import { createBalanceResolvePhase } from '../../Phases/BalanceResolve/BalanceResolvePhase.js';
 import { createDashboardPhase } from '../../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../Phases/Home/HomePhase.js';
-import { createInitPhase } from '../../Phases/Init/InitPhase.js';
+import { createInitPhase } from '../../Phases/Init/InitPhaseFactory.js';
 import { createOtpFillPhase } from '../../Phases/OtpFill/OtpFillPhase.js';
 import { createOtpTriggerPhase } from '../../Phases/OtpTrigger/OtpTriggerPhase.js';
 import { createPreLoginPhase } from '../../Phases/PreLogin/FindLoginAreaPhase.js';
