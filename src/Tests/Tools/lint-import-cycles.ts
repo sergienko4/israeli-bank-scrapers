@@ -19,6 +19,12 @@
  *
  * Run `npm run lint:cycles` to check; `npm run lint:cycles -- --update-baseline`
  * to re-freeze after a deliberate, reviewed burn-down.
+ *
+ * TAMPER-GUARD: the working-tree baseline is itself trusted by the ratchet, so
+ * a PR could add a cycle AND widen `import-cycles.baseline.json` in one diff to
+ * hide it. Running with `--guard-against <base-baseline.json>` (CI passes the
+ * PR's base-branch copy) asserts the committed baseline only SHRINKS — it may
+ * never gain or grow a frozen cycle — closing that loophole.
  */
 
 import * as fs from 'node:fs';
@@ -30,6 +36,7 @@ const REPO_ROOT = process.cwd();
 const SRC_ROOT = path.join(REPO_ROOT, 'src');
 const BASELINE_PATH = path.join(SRC_ROOT, 'Tests', 'Tools', 'import-cycles.baseline.json');
 const UPDATE_FLAG = '--update-baseline';
+const GUARD_FLAG = '--guard-against';
 
 /** Sentinel returned by side-effecting helpers (no-void rule). */
 type Done = true;
@@ -323,16 +330,26 @@ export function findRegressions(current: readonly Cycle[], baseline: readonly Cy
 }
 
 /**
- * Read the committed cycle baseline, tolerating a missing file (treated
- * as "zero cycles allowed" so a fresh repo starts fully ratcheted).
+ * Read a cycle baseline payload's cycles from an explicit path, tolerating a
+ * missing file (treated as "zero cycles" so the most-ratcheted state wins).
+ * @param file - Absolute path to a baseline JSON file.
+ * @returns Frozen baseline cycles.
+ */
+function loadBaselineFrom(file: string): readonly Cycle[] {
+  const hasBaseline = fs.existsSync(file);
+  if (!hasBaseline) return [];
+  const raw = fs.readFileSync(file, 'utf8');
+  const parsed = JSON.parse(raw) as ICycleBaseline;
+  return parsed.cycles;
+}
+
+/**
+ * Read the committed cycle baseline from the working tree (tolerating a
+ * missing file so a fresh repo starts fully ratcheted).
  * @returns Frozen baseline cycles.
  */
 function loadBaseline(): readonly Cycle[] {
-  const hasBaseline = fs.existsSync(BASELINE_PATH);
-  if (!hasBaseline) return [];
-  const raw = fs.readFileSync(BASELINE_PATH, 'utf8');
-  const parsed = JSON.parse(raw) as ICycleBaseline;
-  return parsed.cycles;
+  return loadBaselineFrom(BASELINE_PATH);
 }
 
 /**
@@ -424,10 +441,91 @@ function evaluateGate(cycles: readonly Cycle[], baseline: readonly Cycle[]): Don
 }
 
 /**
+ * Read the `--guard-against <path>` flag value — the base-branch baseline the
+ * working-tree baseline must not have widened beyond.
+ * @returns The base baseline path, or '' when the flag is absent.
+ */
+function readGuardPath(): string {
+  const flagAt = process.argv.indexOf(GUARD_FLAG);
+  if (flagAt < 0) return '';
+  return process.argv[flagAt + 1] ?? '';
+}
+
+/**
+ * Whether the tamper-guard flag was supplied on the command line.
+ * @returns True when `--guard-against` is present in argv.
+ */
+function hasGuardFlag(): boolean {
+  return process.argv.includes(GUARD_FLAG);
+}
+
+/**
+ * Report a `--guard-against` flag supplied without a base baseline path and
+ * exit non-zero (never returns) so a mis-invocation fails loud instead of
+ * silently disabling the guard.
+ * @returns Completion sentinel (unreachable — the process exits first).
+ */
+function reportMissingGuardPath(): Done {
+  console.error(`❌ ${GUARD_FLAG} requires a base baseline file path.`);
+  process.exit(1);
+}
+
+/**
+ * Report a baseline that WIDENED versus the base branch and exit non-zero
+ * (never returns).
+ * @param widened - Baseline cycles new or grown relative to the base.
+ * @returns Completion sentinel (unreachable — the process exits first).
+ */
+function reportWidening(widened: readonly Cycle[]): Done {
+  console.error('❌ ACYCLIC-DEPENDENCIES — committed cycle baseline WIDENED vs. the base branch:');
+  for (const cycle of widened) printCycle(cycle);
+  console.error('');
+  console.error('   The baseline may only SHRINK (burn-down). A new or grown frozen entry');
+  console.error('   usually hides a freshly introduced import cycle. Revert the baseline');
+  console.error('   edit and break the back-edge instead of widening the ratchet.');
+  process.exit(1);
+}
+
+/**
+ * Assert the working-tree baseline did not widen against the base baseline.
+ * Widening is exactly a {@link findRegressions} of the PR baseline against the
+ * base baseline (a frozen entry that is neither absent nor a subset).
+ * @param prBaseline - Baseline committed on this branch.
+ * @param baseBaseline - Baseline on the PR's target branch.
+ * @returns Completion sentinel (only reached when the baseline did not widen).
+ */
+function evaluateGuard(prBaseline: readonly Cycle[], baseBaseline: readonly Cycle[]): Done {
+  const widened = findRegressions(prBaseline, baseBaseline);
+  if (widened.length > 0) return reportWidening(widened);
+  console.log(
+    '✅ Cycle baseline tamper-guard clean — baseline did not widen ' +
+      `(${String(prBaseline.length)} cycle(s) frozen)`,
+  );
+  return true;
+}
+
+/**
+ * Run the tamper-guard: compare the working-tree baseline against the base
+ * branch's baseline so a PR cannot loosen the ratchet to hide a new cycle.
+ * @param basePath - Path to the base branch's baseline JSON.
+ * @returns Completion sentinel.
+ */
+function runGuard(basePath: string): Done {
+  if (basePath === '') return reportMissingGuardPath();
+  const prBaseline = loadBaseline();
+  const baseBaseline = loadBaselineFrom(basePath);
+  return evaluateGuard(prBaseline, baseBaseline);
+}
+
+/**
  * Drive the gate: scan, then either re-freeze the baseline or evaluate it.
  * @returns Completion sentinel.
  */
 function runCycleGate(): Done {
+  if (hasGuardFlag()) {
+    const guardPath = readGuardPath();
+    return runGuard(guardPath);
+  }
   const cycles = currentCycles();
   const isUpdating = process.argv.includes(UPDATE_FLAG);
   if (isUpdating) return writeBaseline(cycles);
