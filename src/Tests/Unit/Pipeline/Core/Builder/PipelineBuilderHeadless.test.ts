@@ -6,7 +6,7 @@
  */
 
 import type { ScraperOptions } from '../../../../../Scrapers/Base/Interface.js';
-import { createPipelineBuilder } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilder.js';
+import { createPipelineBuilder } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type {
   IActionContext,
