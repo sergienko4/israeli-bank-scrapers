@@ -15,7 +15,7 @@ import {
   type IFillFieldOpts,
   type IFillOpts,
   type IFillResult,
-} from './LoginFormFill.js';
+} from './LoginFieldFill.js';
 
 interface IFieldScope {
   readonly ctx?: Page | Frame;

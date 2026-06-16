@@ -8,7 +8,7 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilder.js';
+import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { PAYBOX_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigPayBox.js';
 import type { Procedure } from '../../Types/Procedure.js';
