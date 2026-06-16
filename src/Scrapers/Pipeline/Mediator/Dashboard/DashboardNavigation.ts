@@ -14,7 +14,7 @@ import {
   DASHBOARD_DATE_FILTER_TIMEOUT_MS,
   DASHBOARD_ORGANIC_IDLE_MS,
 } from '../Timing/TimingConfig.js';
-import { resolveAbsoluteHref } from './DashboardDiscovery.js';
+import { resolveAbsoluteHref } from './DashboardHref.js';
 import { extractTransactionHref } from './DashboardHrefExtraction.js';
 
 export { buildApiContext } from '../Dashboard/DashboardApiContext.js';

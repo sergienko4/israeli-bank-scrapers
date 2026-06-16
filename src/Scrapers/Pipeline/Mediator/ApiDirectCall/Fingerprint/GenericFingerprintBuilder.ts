@@ -6,13 +6,9 @@
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IApiDirectCallConfig, IFingerprintConfig } from '../IApiDirectCallConfig.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
-
-/** Alias preserved for callers — the fingerprint is an opaque JsonValue. */
-type ICollectionResult = JsonValue;
+import type { ICollectionResult, ITemplateScope } from '../Template/RefResolver.js';
 
 /**
  * Build a synthetic scope for fingerprint hydration — empty carry,

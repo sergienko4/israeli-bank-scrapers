@@ -9,10 +9,28 @@ import ScraperError from '../../../Base/ScraperError.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { waitUntil } from '../Timing/Waiting.js';
-import { IFRAME_DEFAULT_TIMEOUT_MS, IFRAME_POLL_INTERVAL_MS } from './ElementsInteractionConfig.js';
-import { capturePageText, type IWaitOptions } from './ElementsInteractions.js';
+import type { IWaitOptions } from './ElementsActionTypes.js';
+import {
+  IFRAME_DEFAULT_TIMEOUT_MS,
+  IFRAME_POLL_INTERVAL_MS,
+  PAGE_TEXT_CAPTURE_LIMIT,
+} from './ElementsInteractionConfig.js';
 
 const LOG = createLogger('elements-wait');
+
+/**
+ * Capture visible text from the page body for diagnostics.
+ * @param pageOrFrame - Page or frame.
+ * @returns First N chars of body text.
+ */
+async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
+  return pageOrFrame
+    .evaluate(
+      (limit: number): string => document.body.innerText.replaceAll(/\s+/g, ' ').slice(0, limit),
+      PAGE_TEXT_CAPTURE_LIMIT,
+    )
+    .catch((): string => '(context unavailable)');
+}
 
 /**
  * Resolve the Playwright wait state from the visibility flag.
@@ -169,4 +187,4 @@ async function waitUntilIframeFound(
   return frame;
 }
 
-export { waitUntilElementDisappear, waitUntilElementFound, waitUntilIframeFound };
+export { capturePageText, waitUntilElementDisappear, waitUntilElementFound, waitUntilIframeFound };

@@ -8,7 +8,7 @@ import type { Frame, Page } from 'playwright-core';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { toError } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import type { IPageEvalAllOpts, IPageEvalOpts } from './ElementsInteractions.js';
+import type { IPageEvalAllOpts, IPageEvalOpts } from './ElementsActionTypes.js';
 
 const LOG = createLogger('elements-eval');
 
