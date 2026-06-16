@@ -6,10 +6,9 @@
 export type { LoginFn, ScrapeFn } from './Core/Builder/PipelineBuilder.js';
 export { PipelineBuilder } from './Core/Builder/PipelineBuilder.js';
 export { executePipeline } from './Core/Executor/PipelineExecutor.js';
-export type { IPipelineDescriptor } from './Core/PipelineDescriptor.js';
+export type { IPipelineDescriptor, PipelineFactory } from './Core/PipelineDescriptor.js';
 // Registry
-export type { PipelineFactory } from './Core/PipelineRegistry.js';
-export { PIPELINE_REGISTRY } from './Core/PipelineRegistry.js';
+export { default as PIPELINE_REGISTRY } from './Banks/PipelineRegistry.js';
 export type { PipelineBuildFn } from './Core/PipelineScraper.js';
 export { PipelineScraper } from './Core/PipelineScraper.js';
 // Mediator
