@@ -10,7 +10,7 @@
 import './graphql/PepperQueries.js';
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilder.js';
+import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { PEPPER_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigPepper.js';
 import type { Procedure } from '../../Types/Procedure.js';

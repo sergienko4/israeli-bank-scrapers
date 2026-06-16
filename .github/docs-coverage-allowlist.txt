@@ -1174,3 +1174,11 @@ runTlsPhase
 ApiDirectScrapeResult
 # Reason: ApiDirectScrape — bound phase-action fn type; framework-internal, relocated to a leaf in the 12g cycle-break (was already exported from ApiDirectScrapePhase.ts). Not user-facing.
 ApiDirectScrapeFn
+# Reason: Form — credential field-fill fn; framework-internal, relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts, still re-exported there). Not user-facing.
+fillOneField
+# Reason: Form — single-field fill options; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
+IFillOpts
+# Reason: Form — bundled fill-field options; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
+IFillFieldOpts
+# Reason: Form — field-fill result; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
+IFillResult

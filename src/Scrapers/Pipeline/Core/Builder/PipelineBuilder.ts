@@ -142,4 +142,3 @@ class PipelineBuilder {
 export type { LoginFn } from './PipelineAssembly.js';
 export type { ScrapeFn } from './PipelineBuilderHelpers.js';
 export { PipelineBuilder };
-export { createPipelineBuilder } from './PipelineBuilderFactory.js';
