@@ -18,6 +18,7 @@ import {
 } from '../Timing/TimingConfig.js';
 import { buildDateCandidates } from './DashboardDateCandidates.js';
 
+export { resolveAbsoluteHref } from './DashboardHref.js';
 export { extractTransactionHref, NO_HREF } from './DashboardHrefExtraction.js';
 
 /**
@@ -53,44 +54,10 @@ function countTxnTraffic(network: INetworkDiscovery, sinceMs: number): number {
   return withBody.filter((ep): boolean => hasTxnArray(ep.responseBody)).length;
 }
 
-/** Lowercased URL schemes rejected by `resolveAbsoluteHref` —
- *  `javascript:` / `data:` / `vbscript:` / `file:` / `ws[s]:` are unsafe
- *  or unsupported targets for a dashboard navigation step (CodeQL
- *  js/incomplete-url-substring-sanitization). */
-const REJECTED_HREF_SCHEMES: readonly string[] = [
-  'javascript:',
-  'data:',
-  'vbscript:',
-  'file:',
-  'ws:',
-  'wss:',
-];
-
-/**
- * Test whether an href starts with a rejected URL scheme. Case-insensitive
- * because the WHATWG URL parser also normalises scheme to lower-case.
- * @param href - Trimmed href string.
- * @returns True iff href begins with any rejected scheme.
- */
-function startsWithRejectedScheme(href: string): boolean {
-  const lower = href.toLowerCase().trim();
-  return REJECTED_HREF_SCHEMES.some((scheme): boolean => lower.startsWith(scheme));
-}
-
-/**
- * Build absolute URL from a relative href.
- * @param href - Relative or absolute href.
- * @param pageUrl - Current page URL for resolution.
- * @returns Absolute URL string, or empty if malformed.
- */
-function resolveAbsoluteHref(href: string, pageUrl: string): string {
-  if (!href || href.startsWith('#') || startsWithRejectedScheme(href)) return '';
-  try {
-    return new URL(href, pageUrl).href;
-  } catch {
-    return '';
-  }
-}
+/** Lowercased URL schemes rejected by `resolveAbsoluteHref` and the
+ *  absolute-href builder now live in the dependency-free leaf
+ *  DashboardHref.ts (imported below) so DashboardNavigation can reuse
+ *  them without forming an import cycle back to this module. */
 
 /**
  * Probe WK.LOGIN.POST.SUCCESS indicators.
@@ -160,10 +127,4 @@ function validateTrafficGate(network: INetworkDiscovery, logger?: ScraperLogger)
 
 export { buildApiContext, triggerOrganicDashboard } from './DashboardNavigation.js';
 
-export {
-  countTxnTraffic,
-  probeDashboardReveal,
-  probeSuccessIndicators,
-  resolveAbsoluteHref,
-  validateTrafficGate,
-};
+export { countTxnTraffic, probeDashboardReveal, probeSuccessIndicators, validateTrafficGate };

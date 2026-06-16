@@ -14,44 +14,9 @@ import {
   CLICK_BUTTON_DELAY_MAX_MS,
   CLICK_BUTTON_DELAY_MIN_MS,
   ELEMENT_HTML_CAPTURE_LIMIT,
-  PAGE_TEXT_CAPTURE_LIMIT,
 } from './ElementsInteractionConfig.js';
 
 const LOG = createLogger('elements');
-
-/** Options for waiting on element visibility or attachment. */
-export interface IWaitOptions {
-  visible?: boolean;
-  timeout?: number;
-}
-
-/** Options for evaluating a single element. */
-export interface IPageEvalOpts<TResult> {
-  selector: string;
-  defaultResult: TResult;
-  callback: (element: Element, ...args: unknown[]) => TResult;
-}
-
-/** Options for evaluating multiple elements. */
-export interface IPageEvalAllOpts<TResult> {
-  selector: string;
-  defaultResult: TResult;
-  callback: (elements: Element[], ...args: unknown[]) => TResult;
-}
-
-/**
- * Capture visible text from the page body for diagnostics.
- * @param pageOrFrame - Page or frame.
- * @returns First 400 chars of body text.
- */
-export async function capturePageText(pageOrFrame: Page | Frame): Promise<string> {
-  return pageOrFrame
-    .evaluate(
-      (limit: number): string => document.body.innerText.replaceAll(/\s+/g, ' ').slice(0, limit),
-      PAGE_TEXT_CAPTURE_LIMIT,
-    )
-    .catch((): string => '(context unavailable)');
-}
 
 /**
  * Capture outer HTML of a matched element for diagnostics.
@@ -105,8 +70,10 @@ async function elementPresentOnPage(pageOrFrame: Page | Frame, selector: string)
   return (await pageOrFrame.locator(selector).count()) > 0;
 }
 
+export type { IPageEvalAllOpts, IPageEvalOpts, IWaitOptions } from './ElementsActionTypes.js';
 export { deepFillInput, fillInput, setValue } from './ElementsInputActions.js';
 export {
+  capturePageText,
   waitUntilElementDisappear,
   waitUntilElementFound,
   waitUntilIframeFound,

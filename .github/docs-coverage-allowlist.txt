@@ -1182,3 +1182,9 @@ IFillOpts
 IFillFieldOpts
 # Reason: Form — field-fill result; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
 IFillResult
+# Reason: Elements — element wait options (visibility/timeout); framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
+IWaitOptions
+# Reason: Elements — single-element page-eval options; framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
+IPageEvalOpts
+# Reason: Elements — multi-element page-eval options; framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
+IPageEvalAllOpts
