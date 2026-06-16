@@ -10,7 +10,7 @@
  */
 
 import type { IFetchOpts } from '../../../Strategy/Fetch/FetchStrategy.js';
-import type { IAuthFailureWatcher } from '../AuthFailureWatcher.js';
+import type { IAuthFailureWatcher } from '../AuthFailureWatcher/Types.js';
 import type { IDiscoveredEndpoint } from './Endpoint.js';
 
 /** Network discovery interface — captures and queries API traffic. */
