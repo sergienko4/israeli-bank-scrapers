@@ -10,7 +10,7 @@
  * generic architecture (spec.txt §B.7).
  */
 
-import type { IPipelineContext } from '../../Types/PipelineContext.js';
+import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IApiMediator } from './ApiMediator.js';
 
@@ -30,8 +30,8 @@ type TokenPrimeProcedure = Promise<Procedure<string>>;
  */
 interface ITokenStrategy<TCreds> {
   readonly name: string;
-  primeInitial(bus: IApiMediator, ctx: IPipelineContext, creds: TCreds): TokenPrimeProcedure;
-  primeFresh(bus: IApiMediator, ctx: IPipelineContext, creds: TCreds): TokenPrimeProcedure;
+  primeInitial(bus: IApiMediator, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
+  primeFresh(bus: IApiMediator, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
   hasWarmState(creds: TCreds): boolean;
 }
 

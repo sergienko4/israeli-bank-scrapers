@@ -11,7 +11,7 @@
 
 import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
-import type { IPipelineContext } from '../../Types/PipelineContext.js';
+import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { apiGetOp, apiPostOp, apiQueryOp } from './ApiMediator.ops.js';
 import {
@@ -108,7 +108,7 @@ function bindWithTokenStrategy(
 ): IResolverMethods['withTokenStrategy'] {
   return <TCreds>(
     strategy: ITokenStrategy<TCreds>,
-    ctx: IPipelineContext,
+    ctx: ITokenContext,
     creds: TCreds,
   ): WasResolverSet => withTokenStrategyOp({ state, self, strategy, ctx, creds });
 }
