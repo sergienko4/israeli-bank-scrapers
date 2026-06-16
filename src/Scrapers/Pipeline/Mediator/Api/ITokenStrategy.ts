@@ -10,9 +10,9 @@
  * generic architecture (spec.txt §B.7).
  */
 
+import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import type { IApiMediator } from './ApiMediator.js';
 
 /**
  * Generic-parameter helper alias for ITokenStrategy callers — a synonym
@@ -30,8 +30,8 @@ type TokenPrimeProcedure = Promise<Procedure<string>>;
  */
 interface ITokenStrategy<TCreds> {
   readonly name: string;
-  primeInitial(bus: IApiMediator, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
-  primeFresh(bus: IApiMediator, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
+  primeInitial(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
+  primeFresh(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
   hasWarmState(creds: TCreds): boolean;
 }
 

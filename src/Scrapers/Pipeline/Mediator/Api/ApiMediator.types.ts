@@ -7,6 +7,7 @@ import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
+import type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
@@ -27,11 +28,7 @@ interface IGraphQLEnvelope<T> {
 }
 
 /** Per-call options — extraHeaders + optional URL query params + optional Set-Cookie hook. */
-interface IApiQueryOpts {
-  readonly extraHeaders?: Record<string, string>;
-  readonly query?: Record<string, string>;
-  readonly onSetCookie?: (setCookies: readonly string[]) => number;
-}
+// (definition lives in ../../Types/Domain/ApiQueryOpts.ts; re-exported below)
 
 /** Bus-level session-context snapshot. */
 type SessionContext = Readonly<Record<string, unknown>>;
