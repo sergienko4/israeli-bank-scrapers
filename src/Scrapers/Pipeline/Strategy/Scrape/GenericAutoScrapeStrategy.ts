@@ -15,7 +15,7 @@ import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.
 import {
   readDateWindowParams,
   readDedupKeyFields,
-} from '../../Mediator/Scrape/ScrapePhaseActions.js';
+} from '../../Mediator/Scrape/ScrapePhase/PreDiscovery.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
