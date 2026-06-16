@@ -4,6 +4,12 @@
  * Does NOT modify the legacy billing fallback used by Discount/VisaCal.
  *
  * SOLID (OCP): extends scrape capabilities without modifying existing code.
+ *
+ * <p>Pulls its dedup/assembly helpers from the concrete `ScrapeData/*`
+ * siblings, NOT from the `ScrapeDataActions` barrel — that barrel re-exports
+ * `ScrapeChunking`, so routing helper imports through it would couple this
+ * strategy to the chunking module (and its transitive graph) for no reason.
+ * Keep these imports direct.
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
@@ -19,13 +25,13 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IBillingCycle } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
+import buildAccountResult from './ScrapeData/ScrapeDataAssembly.js';
 import {
-  buildAccountResult,
   deduplicateTxns,
   FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   rateLimitPause,
-} from './ScrapeDataActions.js';
+} from './ScrapeData/ScrapeDataDedup.js';
 import { withTrace } from './ScrapeTraceWrapper.js';
 import {
   EMPTY_TXN_ENDPOINT,
