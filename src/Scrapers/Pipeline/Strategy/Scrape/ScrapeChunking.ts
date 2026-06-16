@@ -1,6 +1,12 @@
 /**
  * Scrape chunking — monthly chunk fetch, dedup, date filter, assembly.
  * Extracted from ScrapeFetchHelpers.ts to respect max-lines.
+ *
+ * <p>Imports its dedup/assembly helpers from the concrete `ScrapeData/*`
+ * siblings, NOT from the `ScrapeDataActions` barrel — the barrel re-exports
+ * {@link scrapeWithMonthlyChunking} from this file, so importing back through
+ * it would close a leaky-barrel dependency cycle. Keep these direct; the
+ * acyclic-dependencies gate fails if they are routed via the barrel again.
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
@@ -10,16 +16,16 @@ import { generateMonthChunks, replaceField } from '../../Mediator/Scrape/ScrapeA
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
 import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
+import type { Brand } from '../../Types/Brand.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { isOk } from '../../Types/Procedure.js';
+import buildAccountResult from './ScrapeData/ScrapeDataAssembly.js';
 import {
-  buildAccountResult,
   deduplicateTxns,
   FALLBACK_DEDUP_KEY_FIELDS,
   parseStartDate,
   rateLimitPause,
-} from '../../Strategy/Scrape/ScrapeDataActions.js';
-import type { Brand } from '../../Types/Brand.js';
-import type { Procedure } from '../../Types/Procedure.js';
-import { isOk } from '../../Types/Procedure.js';
+} from './ScrapeData/ScrapeDataDedup.js';
 import { EMPTY_TXN_ENDPOINT, type IAccountAssemblyCtx, type IChunkingCtx } from './ScrapeTypes.js';
 
 type IsAfterStart = Brand<boolean, 'IsAfterStart'>;
