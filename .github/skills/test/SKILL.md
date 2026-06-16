@@ -23,7 +23,7 @@ first, then fix.
 
 ## Defer to (canonical, do not restate)
 
-- `C:\tmp\guidelines\test-guidlines.md`, `test-cases-guidlines.md`,
+- `test-guidlines.md`, `test-cases-guidlines.md`,
   `mocking-test-guidlines.md`, `testing-organization-guidlines.md`,
   `test-integration-testing.md`
 - In-repo command: `validate` (runs type-check + lint + test + build).

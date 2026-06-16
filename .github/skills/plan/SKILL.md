@@ -20,7 +20,7 @@ each its own commit/PR.
 
 ## Defer to (canonical, do not restate)
 
-- `C:\tmp\guidelines\plan-ooda-loop-guidlines.md`,
+- `plan-ooda-loop-guidlines.md`,
   `general-phases-view-guidlines.md`,
   `ooda-agent-invocation-contract-exmplate.md`
 - In-repo workflow: [`CLAUDE.md`](../../../CLAUDE.md) §Workflow.

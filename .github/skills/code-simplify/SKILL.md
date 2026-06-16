@@ -21,7 +21,7 @@ behavior-preserving pass — keep tests green throughout.
 
 ## Defer to (canonical, do not restate)
 
-- `C:\tmp\guidelines\code-simplification-guidlines.md`
+- `code-simplification-guidlines.md`
 - In-repo: [`CLEAN_CODE.md`](../../../CLEAN_CODE.md); the `improve` command.
 
 ## Exit gate → SHIP

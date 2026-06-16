@@ -31,7 +31,7 @@ Categorize: **Critical** (block) / **Important** (fix before merge) /
 
 ## Defer to (canonical, do not restate)
 
-- `C:\tmp\guidelines\pr-guidlines.md`, `coding-principle-guidlines.md`
+- `pr-guidlines.md`, `coding-principle-guidlines.md`
 - In-repo: [`CLEAN_CODE.md`](../../../CLEAN_CODE.md), [`CLAUDE.md`](../../../CLAUDE.md).
 
 ## Exit gate → SIMPLIFY / SHIP

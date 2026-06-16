@@ -13,7 +13,9 @@ shortcuts.
 ## Do
 
 1. **Stage selectively** — name each file; never `git add .`.
-2. **Commit** with a Conventional Commit (`fix|feat|refactor|chore(scope):`),
+2. **Commit** with a Conventional Commit — `type(scope):` where `type` is one
+   of `feat fix perf refactor docs chore ci test build` (the types in
+   `release-please-config.json`);
    subject ≤ ~50 chars, body wrapped ≤72, and the trailer
    `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
    All 21 husky pre-commit gates must pass — **never `--no-verify`**, never
@@ -28,7 +30,7 @@ shortcuts.
 
 ## Defer to (canonical, do not restate)
 
-- `C:\tmp\guidelines\before-commit-guidlines.md`, `commit-guidlines.md`,
+- `before-commit-guidlines.md`, `commit-guidlines.md`,
   `pr-guidlines.md`, `post-pr-checklist.md`
 - In-repo: `.husky/` gates, [`CLAUDE.md`](../../../CLAUDE.md) §Pre-Commit /
   Pre-Push protocols.

@@ -23,7 +23,7 @@ under [`tasks/`](../../../tasks/) (use the `new-task` command to scaffold it).
 
 ## Defer to (canonical, do not restate)
 
-- `C:\tmp\guidelines\plan-guidlines.md`,
+- `plan-guidlines.md`,
   `doubt-driven-development-guidlines.md`,
   `context-engineering-guidlines.md`
 - In-repo: [`CLAUDE.md`](../../../CLAUDE.md) for architecture constraints.

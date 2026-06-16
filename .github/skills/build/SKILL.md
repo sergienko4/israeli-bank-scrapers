@@ -25,7 +25,7 @@ Implement the current task as a thin vertical slice: implement → verify locall
 
 - In-repo: [`CLEAN_CODE.md`](../../../CLEAN_CODE.md) (the caps),
   [`CLAUDE.md`](../../../CLAUDE.md) (architecture, zero-CSS-selector rule).
-- `C:\tmp\guidelines\coding-principle-guidlines.md`,
+- `coding-principle-guidlines.md`,
   `design-patterns-guidlines.md`, `comments-in-code-guidlines.md`,
   `j-doc-guidlines.md`.
 

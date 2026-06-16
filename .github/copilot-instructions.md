@@ -9,6 +9,13 @@ published as `@sergienko4/israeli-bank-scrapers`.
 > are the single source of truth. The lifecycle skills in
 > [`.github/skills/`](skills/) are thin phase entry points that **point back**
 > to these and to the enforcing gates — they never restate the rules.
+>
+> Files named `*-guidlines.md` (the maintainer's spelling) are that local
+> guideline set, cited **by name** as a named-contract reference — the same
+> convention already used in
+> [`PULL_REQUEST_TEMPLATE.md`](PULL_REQUEST_TEMPLATE.md). They are deliberately
+> not repo-relative links; the portable, in-repo anchors are `CLAUDE.md`,
+> `CLEAN_CODE.md`, the `npm` scripts, and the `.husky/` gates.
 
 ## Development lifecycle (phase map)
 
