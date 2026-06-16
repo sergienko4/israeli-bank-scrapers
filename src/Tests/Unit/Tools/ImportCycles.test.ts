@@ -100,3 +100,53 @@ describe('findRegressions — baseline ratchet', () => {
     expect(regressions).toEqual([]);
   });
 });
+
+describe('baseline tamper-guard — widening detection (PR-vs-base framing)', () => {
+  it('passes when the PR baseline equals the base baseline', () => {
+    const base = [['a', 'b']];
+    const pr = [['a', 'b']];
+    const regressions = findRegressions(pr, base);
+    expect(regressions).toEqual([]);
+  });
+
+  it('passes when the PR baseline shrinks a base cycle (burn-down)', () => {
+    const base = [['a', 'b', 'c']];
+    const pr = [['a', 'b']];
+    const regressions = findRegressions(pr, base);
+    expect(regressions).toEqual([]);
+  });
+
+  it('passes when the PR baseline drops a base cycle entirely', () => {
+    const base = [
+      ['a', 'b'],
+      ['c', 'd'],
+    ];
+    const pr = [['a', 'b']];
+    const regressions = findRegressions(pr, base);
+    expect(regressions).toEqual([]);
+  });
+
+  it('fails when the PR baseline adds a brand-new frozen cycle', () => {
+    const base = [['a', 'b']];
+    const pr = [
+      ['a', 'b'],
+      ['x', 'y'],
+    ];
+    const regressions = findRegressions(pr, base);
+    expect(regressions).toEqual([['x', 'y']]);
+  });
+
+  it('fails when the PR widens an empty base baseline (post-campaign lock)', () => {
+    const base: string[][] = [];
+    const pr = [['x', 'y']];
+    const regressions = findRegressions(pr, base);
+    expect(regressions).toEqual([['x', 'y']]);
+  });
+
+  it('fails when the PR grows a frozen cycle beyond the base members', () => {
+    const base = [['a', 'b']];
+    const pr = [['a', 'b', 'c']];
+    const regressions = findRegressions(pr, base);
+    expect(regressions).toEqual([['a', 'b', 'c']]);
+  });
+});

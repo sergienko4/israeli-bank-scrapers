@@ -230,6 +230,23 @@ jobs:
         if: needs.changes.outputs.src == 'true'
         run: npm run lint:cycles
 
+      # Tamper-guard: the ratchet above trusts the working-tree baseline, so a
+      # PR could add a cycle AND widen import-cycles.baseline.json in one diff.
+      # Assert the committed baseline only SHRINKS vs. the PR's base branch.
+      - name: Cycle baseline tamper-guard
+        if: github.event_name == 'pull_request' && needs.changes.outputs.src == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          base_file="${RUNNER_TEMP}/base-cycles-baseline.json"
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "${BASE_REF}" || true
+          fi
+          git show "${BASE_SHA}:src/Tests/Tools/import-cycles.baseline.json" > "${base_file}" 2>/dev/null \
+            || echo '{"note":"absent on base","cycleCount":0,"cycles":[]}' > "${base_file}"
+          npx tsx src/Tests/Tools/lint-import-cycles.ts --guard-against "${base_file}"
+
       - name: Audit production dependencies
         if: needs.changes.outputs.src == 'true'
         run: npm audit --audit-level=high --omit=dev
