@@ -94,5 +94,4 @@ class InitPhase extends BasePhase {
   }
 }
 
-export { createInitPhase, INIT_STEP } from './InitPhaseFactory.js';
-export { InitPhase };
+export default InitPhase;

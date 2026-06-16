@@ -15,7 +15,6 @@ import { some } from '../../Types/Option.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
-import type { ApiDirectScrapeResult } from './ApiDirectScrapePhase.js';
 import {
   buildPageFetcher,
   buildStop,
@@ -24,6 +23,7 @@ import {
   type IAcctCtx,
   type IDriverCtx,
 } from './ApiDirectScrapeSteps.js';
+import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
 /** Accumulator for per-account scrape results. */

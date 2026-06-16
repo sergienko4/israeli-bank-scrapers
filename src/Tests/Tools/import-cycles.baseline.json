@@ -1,6 +1,6 @@
 {
   "note": "Frozen dependency cycles (Tarjan SCCs, size ≥ 2). A current cycle passes only when it is a subset of one listed here. Burn down toward [].",
-  "cycleCount": 10,
+  "cycleCount": 7,
   "cycles": [
     [
       "src/Scrapers/Pipeline/Core/Builder/PipelineBuilder.ts",
@@ -102,18 +102,6 @@
       "src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/PhaseActions.ts",
       "src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhaseActions.ts",
       "src/Scrapers/Pipeline/Strategy/Scrape/GenericAutoScrapeStrategy.ts"
-    ],
-    [
-      "src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.ts",
-      "src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts"
-    ],
-    [
-      "src/Scrapers/Pipeline/Phases/Init/InitPhase.ts",
-      "src/Scrapers/Pipeline/Phases/Init/InitPhaseFactory.ts"
-    ],
-    [
-      "src/Scrapers/Pipeline/Registry/Config/PipelineBankConfig.ts",
-      "src/Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.ts"
     ]
   ]
 }

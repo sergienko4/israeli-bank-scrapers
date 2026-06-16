@@ -49,7 +49,7 @@ jest.unstable_mockModule(
 
 const CAMOUFOX_MOD =
   await import('../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
-const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/InitPhase.js');
+const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/InitPhaseFactory.js');
 
 // ── Helpers ────────────────────────────────────────────────
 

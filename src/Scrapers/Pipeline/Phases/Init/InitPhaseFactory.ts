@@ -5,7 +5,7 @@
 
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { InitPhase } from './InitPhase.js';
+import InitPhase from './InitPhase.js';
 
 /**
  * Create the INIT phase instance.
