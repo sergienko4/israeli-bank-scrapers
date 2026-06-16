@@ -12,17 +12,17 @@
  *              retryOn401 wrapper on any 401 mid-session).
  */
 
+import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
-import type { IApiMediator } from './ApiMediator.js';
 import type { ITokenResolver } from './ITokenResolver.js';
 import type { ITokenStrategy } from './ITokenStrategy.js';
 
 /** Closure-only deps packed by the builder — never exported. */
 interface IBuilderDeps<TCreds> {
   readonly strategy: ITokenStrategy<TCreds>;
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly ctx: ITokenContext;
   readonly creds: TCreds;
 }
@@ -56,7 +56,7 @@ async function runInitial<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure
 /** Args bundle for buildResolverFromStrategy — satisfies the 3-param cap. */
 interface IBuildResolverArgs<TCreds> {
   readonly strategy: ITokenStrategy<TCreds>;
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly ctx: ITokenContext;
   readonly creds: TCreds;
 }

@@ -2,8 +2,8 @@
  * Type aliases + interfaces for the TokenStrategyFromConfig cluster.
  */
 
+import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../Types/Domain/TokenContext.js';
-import type { IApiMediator } from '../../Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../Api/ITokenStrategy.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
@@ -23,7 +23,7 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
 /** Args for runConfiguredFlow — respects 3-param ceiling. */
 interface IRunFlowArgs {
   readonly config: IApiDirectCallConfig;
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly creds: GenericCreds;
   readonly companyId: ITokenContext['companyId'];
   readonly initialCarry?: Readonly<Record<string, JsonValue>>;
@@ -45,7 +45,7 @@ interface IFlowCapture {
 /** Args for makeWarmArgs — respects 3-param ceiling. */
 interface IMakeWarmArgs {
   readonly config: IApiDirectCallConfig;
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly creds: GenericCreds;
   readonly stored: string;
   readonly companyId: ITokenContext['companyId'];
@@ -54,7 +54,7 @@ interface IMakeWarmArgs {
 /** Args bundle for primeInitialImpl / primeFreshImpl. */
 interface IPrimeArgs {
   readonly config: IApiDirectCallConfig;
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly ctx: ITokenContext;
   readonly creds: GenericCreds;
   readonly slot: ILongTermTokenSlot;

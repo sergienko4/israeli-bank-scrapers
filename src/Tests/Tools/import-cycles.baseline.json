@@ -1,19 +1,5 @@
 {
   "note": "Frozen dependency cycles (Tarjan SCCs, size ≥ 2). A current cycle passes only when it is a subset of one listed here. Burn down toward [].",
-  "cycleCount": 1,
-  "cycles": [
-    [
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.builders.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.factories.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.factory.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.ops.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.retry.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.state.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.types.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/ITokenStrategy.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.ts"
-    ]
-  ]
+  "cycleCount": 0,
+  "cycles": []
 }
