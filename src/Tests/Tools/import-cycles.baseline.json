@@ -1,6 +1,6 @@
 {
   "note": "Frozen dependency cycles (Tarjan SCCs, size ≥ 2). A current cycle passes only when it is a subset of one listed here. Burn down toward [].",
-  "cycleCount": 5,
+  "cycleCount": 2,
   "cycles": [
     [
       "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.builders.ts",
@@ -72,20 +72,6 @@
       "src/Scrapers/Pipeline/Types/LogEvent.ts",
       "src/Scrapers/Pipeline/Types/Phase.ts",
       "src/Scrapers/Pipeline/Types/PipelineContext.ts"
-    ],
-    [
-      "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Fingerprint/GenericFingerprintBuilder.ts",
-      "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.ts",
-      "src/Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.ts"
-    ],
-    [
-      "src/Scrapers/Pipeline/Mediator/Dashboard/DashboardDiscovery.ts",
-      "src/Scrapers/Pipeline/Mediator/Dashboard/DashboardNavigation.ts"
-    ],
-    [
-      "src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.ts",
-      "src/Scrapers/Pipeline/Mediator/Elements/ElementWaitAction.ts",
-      "src/Scrapers/Pipeline/Mediator/Elements/PageEvalAction.ts"
     ],
     [
       "src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts",

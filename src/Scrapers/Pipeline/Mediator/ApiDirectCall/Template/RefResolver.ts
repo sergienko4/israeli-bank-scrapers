@@ -14,8 +14,12 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { walkPointer } from '../Envelope/JsonPointer.js';
-import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
 import type { IApiDirectCallConfig, RefToken } from '../IApiDirectCallConfig.js';
+
+/** Hydrated fingerprint payload — an opaque JsonValue. Defined here (where
+ *  ITemplateScope lives) so the fingerprint builder depends on this leaf,
+ *  not the reverse — breaks the Template↔Fingerprint import cycle. */
+type ICollectionResult = JsonValue;
 
 /** Scope passed into every $ref resolution — mediator-populated. */
 interface ITemplateScope {
@@ -226,6 +230,6 @@ function resolveRef(token: RefToken, scope: ITemplateScope): Procedure<JsonValue
   return handler(token, scope);
 }
 
-export type { ITemplateScope };
+export type { ICollectionResult, ITemplateScope };
 export { resolveRef };
 export default resolveRef;
