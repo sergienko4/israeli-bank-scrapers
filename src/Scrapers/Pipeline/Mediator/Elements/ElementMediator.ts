@@ -20,7 +20,7 @@ import type { Option } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IFormAnchor } from '../Form/FormAnchor.js';
 import type { IFormErrorScanResult } from '../Form/FormErrorDiscovery.js';
-import type { INetworkDiscovery } from '../Network/NetworkDiscovery.js';
+import type { INetworkDiscovery } from '../Network/Types/Discovery.js';
 import type { IFieldContext } from '../Selector/SelectorResolverPipeline.js';
 
 /**

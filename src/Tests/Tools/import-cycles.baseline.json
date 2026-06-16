@@ -1,6 +1,6 @@
 {
   "note": "Frozen dependency cycles (Tarjan SCCs, size ≥ 2). A current cycle passes only when it is a subset of one listed here. Burn down toward [].",
-  "cycleCount": 1,
+  "cycleCount": 2,
   "cycles": [
     [
       "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.builders.ts",
@@ -17,33 +17,6 @@
       "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
       "src/Scrapers/Pipeline/Mediator/Form/Anchor/AnchorWalk.ts",
       "src/Scrapers/Pipeline/Mediator/Form/FormAnchor.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery/index.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery/Orchestrator.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery/StorageFrames.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery/StorageScanAll.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/BodyReaders.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/Factory.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/index.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/Inspector.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/State.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/Waiter.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/DiscoveryEngine/AuthCache.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/DiscoveryEngine/DiscoveryEngine.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/DiscoveryEngine/Lifecycle.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/DiscoveryEngine/MetaBuilders.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/DiscoveryEngine/MethodBundles.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/DiscoveryEngine/PostInterceptor.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/DiscoveryHeaders/DiscoveryHeaders.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/FrozenReplay/FrozenReplay.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/FrozenReplay/FrozenSlices.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/Indexing/Indexing.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/Indexing/ResponseParser.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/Indexing/ResponseParserLogs.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/Scoring/Scoring.ts",
-      "src/Scrapers/Pipeline/Mediator/Network/Scoring/ShapeAware.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.forAttr.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.walkUp.ts",
@@ -61,6 +34,11 @@
       "src/Scrapers/Pipeline/Types/LogEvent.ts",
       "src/Scrapers/Pipeline/Types/Phase.ts",
       "src/Scrapers/Pipeline/Types/PipelineContext.ts"
+    ],
+    [
+      "src/Scrapers/Pipeline/Mediator/Network/Indexing/Indexing.ts",
+      "src/Scrapers/Pipeline/Mediator/Network/Indexing/ResponseParser.ts",
+      "src/Scrapers/Pipeline/Mediator/Network/Indexing/ResponseParserLogs.ts"
     ]
   ]
 }
