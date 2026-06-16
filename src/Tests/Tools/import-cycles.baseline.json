@@ -15,8 +15,6 @@
       "src/Scrapers/Pipeline/Mediator/Api/ITokenStrategy.ts",
       "src/Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.ts",
       "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
-      "src/Scrapers/Pipeline/Mediator/Form/Anchor/AnchorWalk.ts",
-      "src/Scrapers/Pipeline/Mediator/Form/FormAnchor.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.forAttr.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.walkUp.ts",
