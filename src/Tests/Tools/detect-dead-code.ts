@@ -22,8 +22,9 @@
  * gate ladder so a dead file cannot reach `origin`.
  */
 
-import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+import { parseImports, resolveImport, UNRESOLVED, walkProdFiles } from './ImportGraphScan.js';
 
 const REPO_ROOT = process.cwd();
 const SRC_ROOT = path.join(REPO_ROOT, 'src');
@@ -38,108 +39,6 @@ const ENTRY_POINTS: ReadonlySet<string> = new Set([
   // Public barrel export — consumed via the npm package's entry.
   path.join(PIPELINE_ROOT, 'index.ts'),
 ]);
-
-/** Sentinel returned by {@link resolveImport} for unresolved specifiers. */
-const UNRESOLVED = '' as const;
-/** Sentinel returned by {@link walk} once recursion completes. */
-type WalkDone = true;
-
-/**
- * Decide whether a file counts as production source for the gate.
- * @param file - Absolute file path.
- * @returns True when the file is .ts source we should analyse.
- */
-function isProdFile(file: string): boolean {
-  if (!file.endsWith('.ts')) return false;
-  if (file.endsWith('.d.ts')) return false;
-  if (file.endsWith('.test.ts')) return false;
-  if (file.endsWith('.canary.ts')) return false;
-  if (file.includes(`${path.sep}EslintCanaries${path.sep}fixtures${path.sep}`)) return false;
-  if (file.includes(`${path.sep}Tests${path.sep}`)) return false;
-  if (file.includes(`${path.sep}coverage${path.sep}`)) return false;
-  return true;
-}
-
-/**
- * Recursively collect all production `.ts` files under `dir`.
- * @param dir - Directory to walk.
- * @param out - Accumulator (mutated).
- * @returns Sentinel true once recursion completes (no-void rule).
- */
-function walk(dir: string, out: string[]): WalkDone {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walk(full, out);
-    } else if (isProdFile(full)) {
-      out.push(full);
-    }
-  }
-  return true;
-}
-
-/**
- * Matches static `from '...'` / `import '...'` AND dynamic
- * `import('...')`. The three alternation branches are split so each
- * sub-expression has a single `\s*` anchored against a literal, which
- * keeps the regex free of the polynomial-backtracking pattern the
- * `regexp/no-super-linear-backtracking` rule guards against.
- */
-const IMPORT_RE_SOURCE = String.raw`(?:from\s+|import\s+|import\s*\(\s*)['"]([^'"]+)['"]`;
-
-/**
- * Sentinel returned by {@link parseImportSpecifiers} when the regex
- * exposed by this module is used elsewhere. Exported so callers can
- * keep their own regex copy in lock-step.
- */
-export const IMPORT_REGEX_SOURCE = IMPORT_RE_SOURCE;
-
-/**
- * Parses every static and dynamic import specifier from a TypeScript source.
- *
- * Exported so the dead-code regex can be unit-tested in isolation without
- * spinning up the full canary walker.
- *
- * @param src - Raw TypeScript source text.
- * @returns Specifiers in source order (relative or external, unresolved).
- */
-export function parseImportSpecifiers(src: string): readonly string[] {
-  // Construct a fresh regex per call so concurrent callers cannot
-  // collide on the shared `lastIndex` of a global flag.
-  const re = new RegExp(IMPORT_RE_SOURCE, 'g');
-  const matches = [...src.matchAll(re)];
-  return matches.map((m): string => m[1]);
-}
-
-/**
- * Parse `from '...'` and `import '...'` specifiers from one file.
- * @param file - Absolute file path.
- * @returns Raw specifiers (relative or external).
- */
-function parseImports(file: string): readonly string[] {
-  const src = fs.readFileSync(file, 'utf8');
-  return parseImportSpecifiers(src);
-}
-
-/**
- * Resolve a relative `.js` import (TS/ESM convention) to an absolute
- * `.ts` file on disk. External / unresolved specifiers return the
- * UNRESOLVED sentinel — the empty string can never match a real path
- * so the caller's import-count lookup safely no-ops.
- * @param fromFile - Importer absolute path.
- * @param spec - Raw specifier.
- * @returns Absolute path of the .ts source, or UNRESOLVED.
- */
-function resolveImport(fromFile: string, spec: string): string {
-  if (!spec.startsWith('.')) return UNRESOLVED;
-  const baseDir = path.dirname(fromFile);
-  const stripped = spec.endsWith('.js') ? spec.slice(0, -3) : spec;
-  const tsPath = path.resolve(baseDir, `${stripped}.ts`);
-  if (fs.existsSync(tsPath)) return tsPath;
-  const indexPath = path.resolve(baseDir, stripped, 'index.ts');
-  if (fs.existsSync(indexPath)) return indexPath;
-  return UNRESOLVED;
-}
 
 /**
  * Builds the importer-count map for every production file.
@@ -180,7 +79,7 @@ function collectDeadFiles(counts: ReadonlyMap<string, number>): readonly string[
   return dead;
 }
 
-/** Sentinel returned by side-effecting helpers (parity with {@link walk}). */
+/** Sentinel returned by side-effecting helpers (parity with {@link walkProdFiles}). */
 type Done = true;
 
 /**
@@ -209,7 +108,7 @@ function reportDeadAndExit(dead: readonly string[]): Done {
  */
 function runDeadCodeCanary(): Done {
   const prodFiles: string[] = [];
-  walk(SRC_ROOT, prodFiles);
+  walkProdFiles(SRC_ROOT, prodFiles);
   const counts = countImporters(prodFiles, new Set(prodFiles));
   const dead = collectDeadFiles(counts);
   if (dead.length > 0) return reportDeadAndExit(dead);
