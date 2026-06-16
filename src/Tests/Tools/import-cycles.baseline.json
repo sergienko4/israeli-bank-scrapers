@@ -67,8 +67,6 @@
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.main.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.notFound.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.ts",
-      "src/Scrapers/Pipeline/Types/Domain/LoginTypes.ts",
-      "src/Scrapers/Pipeline/Types/Domain/ScrapeDiscoveryTypes.ts",
       "src/Scrapers/Pipeline/Types/LogEvent.ts",
       "src/Scrapers/Pipeline/Types/Phase.ts",
       "src/Scrapers/Pipeline/Types/PipelineContext.ts"

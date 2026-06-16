@@ -1,4 +1,4 @@
-import type { IDiscoveredEndpoint } from '../../Mediator/Network/NetworkDiscoveryTypes.js';
+import type { IDiscoveredEndpoint } from '../../Mediator/Network/Types/Endpoint.js';
 import type { ITxnEndpoint } from './TxnEndpointTypes.js';
 
 /** Scrape phase discovery — qualification results from PRE step. */

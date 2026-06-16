@@ -1,4 +1,4 @@
-import type { IFormAnchor } from '../../Mediator/Form/FormAnchor.js';
+import type { IFormAnchor } from '../../Mediator/Form/Anchor/AnchorTypes.js';
 import type { Option } from '../Option.js';
 import type { IResolvedTarget } from './PreLoginTypes.js';
 
