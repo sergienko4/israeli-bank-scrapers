@@ -1170,3 +1170,7 @@ defaultTlsUpgrade
 IRunTlsInput
 # Reason: Tls — runs the TLS phase within budget; consumed only by the Probe orchestrator.
 runTlsPhase
+# Reason: ApiDirectScrape — action-context payload type for the shape-driven scrape fn; framework-internal phase type relocated to a leaf in the 12g cycle-break (was already exported from ApiDirectScrapePhase.ts). Not user-facing.
+ApiDirectScrapeResult
+# Reason: ApiDirectScrape — bound phase-action fn type; framework-internal, relocated to a leaf in the 12g cycle-break (was already exported from ApiDirectScrapePhase.ts). Not user-facing.
+ApiDirectScrapeFn
