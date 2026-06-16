@@ -3,7 +3,7 @@
  */
 
 import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
-import type { IApiMediator } from '../../Api/ApiMediator.js';
+import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IAsymmetricSignerConfig, IStepConfig } from '../IApiDirectCallConfig.js';
@@ -40,7 +40,7 @@ interface IStepCookieJar {
 /** Run-step args bundle — respects the 3-param ceiling. */
 interface IRunStepArgs {
   readonly step: IStepConfig;
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly scope: ITemplateScope;
   readonly companyId: Parameters<typeof resolveWkUrl>[1];
   readonly signingKeypair?: IGenericKeypair;

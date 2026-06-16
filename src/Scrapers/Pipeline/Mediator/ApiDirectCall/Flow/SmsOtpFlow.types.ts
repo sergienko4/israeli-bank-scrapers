@@ -3,7 +3,7 @@
  */
 
 import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
-import type { IApiMediator } from '../../Api/ApiMediator.js';
+import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
@@ -14,7 +14,7 @@ import type { IStepCookieJar } from './RunStep.js';
 /** Args bundle for runSmsOtpFlow — respects the 3-param ceiling. */
 interface IRunSmsOtpArgs {
   readonly config: IApiDirectCallConfig;
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly creds: Readonly<Record<string, unknown>>;
   readonly companyId: Parameters<typeof resolveWkUrl>[1];
   /** Optional initial carry — used by warm-start short-circuit. */
@@ -62,7 +62,7 @@ interface IApplyPreHookArgs {
 
 /** Args-reducer bundle — passed through every step. */
 interface IStepReduceArgs {
-  readonly bus: IApiMediator;
+  readonly bus: ITokenBus;
   readonly companyId: Parameters<typeof resolveWkUrl>[1];
   readonly keypair: SigningKeypair;
   readonly creds: Readonly<Record<string, unknown>>;
