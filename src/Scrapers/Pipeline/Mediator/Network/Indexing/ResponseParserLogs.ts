@@ -9,7 +9,7 @@ import { getDebug } from '../../../Types/Debug.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
-import type { IRequestMeta } from './Indexing.js';
+import type { IRequestMeta } from './ResponsePrimitives.js';
 
 const LOG = getDebug(import.meta.url);
 

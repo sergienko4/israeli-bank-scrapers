@@ -24,13 +24,6 @@ import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { dumpResponseBody } from '../Debug/NetworkDump.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import {
-  extractRequestMeta,
-  type IRequestMeta,
-  isUnsupportedUrl,
-  parseTextOrNull,
-  shouldRecordResponse,
-} from './Indexing.js';
-import {
   type DropReason,
   type IResponseMeta,
   logCaptureMiss,
@@ -40,6 +33,13 @@ import {
   logParseEntry,
   logTextRead,
 } from './ResponseParserLogs.js';
+import {
+  extractRequestMeta,
+  type IRequestMeta,
+  isUnsupportedUrl,
+  parseTextOrNull,
+  shouldRecordResponse,
+} from './ResponsePrimitives.js';
 
 const LOG = getDebug(import.meta.url);
 
