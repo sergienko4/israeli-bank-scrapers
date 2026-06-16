@@ -23,7 +23,7 @@ For each legacy bank, the porting PR does:
 |---|---|
 | 1 | Write `src/Scrapers/Pipeline/Banks/<Bank>/<Bank>LoginConfig.ts` — declarative `LoginConfig` (visible-text selectors, field list, submit anchor) |
 | 2 | Write `src/Scrapers/Pipeline/Banks/<Bank>/<Bank>Pipeline.ts` — `buildXxxPipeline(options)` returns a `Procedure<IPipelineDescriptor>` |
-| 3 | Register in `src/Scrapers/Pipeline/Core/PipelineRegistry.ts` — `[CT.<Bank>]: buildXxxPipeline` |
+| 3 | Register in the matching `src/Scrapers/Pipeline/Banks/PipelineRegistry{AmexToMax,MercantileToVisaCal}.ts` half — `[CT.<Bank>]: buildXxxPipeline` (never edit `Core/**`) |
 | 4 | Write fixtures under `src/Tests/E2eMocked/<Bank>/fixtures/` from a captured real-bank run |
 | 5 | Verify with `npm run test:e2e:mock --testPathPatterns=<Bank>` and `npm run test:e2e:real:single -- --testPathPatterns=<Bank>` |
 | 6 | Once green, delete `src/Scrapers/<Bank>/` and remove from `SCRAPER_REGISTRY_LEUMI_TO_YAHAV.ts` or its sibling |
