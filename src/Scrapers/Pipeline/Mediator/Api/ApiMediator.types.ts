@@ -7,7 +7,7 @@ import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
-import type { IPipelineContext } from '../../Types/PipelineContext.js';
+import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
 import type { ITokenStrategy } from './ITokenStrategy.js';
@@ -45,7 +45,7 @@ interface IApiMediator {
   withTokenResolver: (r: ITokenResolver) => WasResolverSet;
   withTokenStrategy: <TCreds>(
     strategy: ITokenStrategy<TCreds>,
-    ctx: IPipelineContext,
+    ctx: ITokenContext,
     creds: TCreds,
   ) => WasResolverSet;
   primeSession: () => Promise<Procedure<string>>;
@@ -109,7 +109,7 @@ interface IWithTokenStrategyOpArgs<TCreds> {
   readonly state: IMediatorState;
   readonly self: IApiMediator;
   readonly strategy: ITokenStrategy<TCreds>;
-  readonly ctx: IPipelineContext;
+  readonly ctx: ITokenContext;
   readonly creds: TCreds;
 }
 
