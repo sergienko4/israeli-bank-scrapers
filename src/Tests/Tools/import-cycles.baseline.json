@@ -1,6 +1,6 @@
 {
   "note": "Frozen dependency cycles (Tarjan SCCs, size ≥ 2). A current cycle passes only when it is a subset of one listed here. Burn down toward [].",
-  "cycleCount": 1,
+  "cycleCount": 2,
   "cycles": [
     [
       "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.builders.ts",
@@ -14,24 +14,14 @@
       "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.types.ts",
       "src/Scrapers/Pipeline/Mediator/Api/ITokenStrategy.ts",
       "src/Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.ts",
-      "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.forAttr.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.walkUp.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorLabelStrategies.xpath.ts",
+      "src/Scrapers/Pipeline/Types/PipelineContext.ts"
+    ],
+    [
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolver.entries.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolver.probe.log.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolver.probe.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolver.try.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolver.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.context.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.frames.ts",
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.main.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.notFound.ts",
-      "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.ts",
-      "src/Scrapers/Pipeline/Types/LogEvent.ts",
-      "src/Scrapers/Pipeline/Types/Phase.ts",
-      "src/Scrapers/Pipeline/Types/PipelineContext.ts"
+      "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.ts"
     ]
   ]
 }
