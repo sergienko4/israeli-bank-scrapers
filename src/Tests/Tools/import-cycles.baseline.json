@@ -13,8 +13,7 @@
       "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.ts",
       "src/Scrapers/Pipeline/Mediator/Api/ApiMediator.types.ts",
       "src/Scrapers/Pipeline/Mediator/Api/ITokenStrategy.ts",
-      "src/Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.ts",
-      "src/Scrapers/Pipeline/Types/PipelineContext.ts"
+      "src/Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.ts"
     ],
     [
       "src/Scrapers/Pipeline/Mediator/Selector/SelectorResolver.entries.ts",

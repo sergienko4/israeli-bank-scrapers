@@ -2,7 +2,7 @@
  * Type aliases + interfaces for the TokenStrategyFromConfig cluster.
  */
 
-import type { IPipelineContext } from '../../../Types/PipelineContext.js';
+import type { ITokenContext } from '../../../Types/Domain/TokenContext.js';
 import type { IApiMediator } from '../../Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../Api/ITokenStrategy.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
@@ -25,7 +25,7 @@ interface IRunFlowArgs {
   readonly config: IApiDirectCallConfig;
   readonly bus: IApiMediator;
   readonly creds: GenericCreds;
-  readonly companyId: IPipelineContext['companyId'];
+  readonly companyId: ITokenContext['companyId'];
   readonly initialCarry?: Readonly<Record<string, JsonValue>>;
   readonly startStepIndex?: number;
 }
@@ -48,14 +48,14 @@ interface IMakeWarmArgs {
   readonly bus: IApiMediator;
   readonly creds: GenericCreds;
   readonly stored: string;
-  readonly companyId: IPipelineContext['companyId'];
+  readonly companyId: ITokenContext['companyId'];
 }
 
 /** Args bundle for primeInitialImpl / primeFreshImpl. */
 interface IPrimeArgs {
   readonly config: IApiDirectCallConfig;
   readonly bus: IApiMediator;
-  readonly ctx: IPipelineContext;
+  readonly ctx: ITokenContext;
   readonly creds: GenericCreds;
   readonly slot: ILongTermTokenSlot;
 }
