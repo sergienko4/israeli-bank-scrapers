@@ -19,7 +19,10 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 /** Overrides for mock mediator. */
 interface IMediatorScript {
-  readonly visibleResult?: IRaceResult;
+  /** Result for the FIRST resolveVisible call (the change-pwd probe). */
+  readonly changePwdResult?: IRaceResult;
+  /** Result for the SECOND resolveVisible call (the dashboard-ready probe). */
+  readonly dashboardReadyResult?: IRaceResult;
   readonly visibleThrows?: boolean;
   readonly authToken?: string | false;
 }
@@ -30,14 +33,18 @@ interface IMediatorScript {
  * @returns IElementMediator mock.
  */
 function makeMediator(script: IMediatorScript = {}): IElementMediator {
+  let calls = 0;
   return {
     /**
-     * resolveVisible — returns scripted race result or throws.
+     * resolveVisible — returns the change-pwd result on the first call
+     * and the dashboard-ready result on the second, or throws.
      * @returns Scripted behaviour.
      */
     resolveVisible: (): Promise<IRaceResult> => {
       if (script.visibleThrows) return Promise.reject(new Error('boom'));
-      return Promise.resolve(script.visibleResult ?? NOT_FOUND_RESULT);
+      calls += 1;
+      if (calls === 1) return Promise.resolve(script.changePwdResult ?? NOT_FOUND_RESULT);
+      return Promise.resolve(script.dashboardReadyResult ?? NOT_FOUND_RESULT);
     },
     network: {
       /**
@@ -56,15 +63,22 @@ describe('checkChangePassword', () => {
     expect(result).toBe(false);
   });
 
-  it('fails with ChangePassword when probe finds password change prompt', async () => {
+  it('fails with ChangePassword when a marker is found and the dashboard is NOT ready', async () => {
     const found: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const };
-    const mediator = makeMediator({ visibleResult: found });
+    const mediator = makeMediator({ changePwdResult: found });
     const result = await checkChangePassword(mediator);
     expect(result).not.toBe(false);
     if (result && typeof result === 'object') {
       expect(result.success).toBe(false);
       if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.ChangePassword);
     }
+  });
+
+  it('returns false when a change-pwd marker COEXISTS with a ready dashboard (benign menu link)', async () => {
+    const found: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const };
+    const mediator = makeMediator({ changePwdResult: found, dashboardReadyResult: found });
+    const result = await checkChangePassword(mediator);
+    expect(result).toBe(false);
   });
 
   it('returns false when resolveVisible throws (defensive catch)', async () => {
@@ -74,7 +88,7 @@ describe('checkChangePassword', () => {
   });
 
   it('returns false when found=false is returned', async () => {
-    const mediator = makeMediator({ visibleResult: NOT_FOUND_RESULT });
+    const mediator = makeMediator({ changePwdResult: NOT_FOUND_RESULT });
     const result = await checkChangePassword(mediator);
     expect(result).toBe(false);
   });

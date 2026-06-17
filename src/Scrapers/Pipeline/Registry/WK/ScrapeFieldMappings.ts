@@ -31,9 +31,13 @@ export const PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS = {
    * bankAccountUniqueId). VisaCal regressed when `bankAccounts`
    * was matched before `cards` — replays then targeted bank
    * accounts and returned 0 txns. Bank-account-level containers stay
-   * last.
+   * last. `accountsItems` is Leumi's WCF `UC_SO_GetAccounts` container
+   * (`{AccountsItems:[{AccountIndex,MaskedNumber,…}]}` after the
+   * `jsonResp` envelope is unwrapped) — bank-account level, so it is
+   * appended last. Matching is suffix-based (`key.endsWith(wkName)`),
+   * and `accountsItems` is not a suffix of any other bank's key.
    */
-  containers: ['cardsList', 'cards', 'accounts', 'bankAccounts'],
+  containers: ['cardsList', 'cards', 'accounts', 'bankAccounts', 'accountsItems'],
   /** Combined identifier list — query-style first, display-style second. */
   id: [...QUERY_ID_FIELDS, ...DISPLAY_ID_FIELDS],
   /** Display identifiers (last-4 / short forms shown on the card). */

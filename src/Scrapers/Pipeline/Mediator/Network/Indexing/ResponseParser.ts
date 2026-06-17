@@ -23,6 +23,7 @@ import { getDebug } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { dumpResponseBody } from '../Debug/NetworkDump.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
+import { unwrapWcfEnvelope } from './ResponseEnvelope.js';
 import {
   type DropReason,
   type IResponseMeta,
@@ -108,8 +109,7 @@ interface IAssembleBodyArgs {
  * @returns Discovered endpoint.
  */
 function assembleBody(args: IAssembleBodyArgs): IDiscoveredEndpoint {
-  const parsed = parseTextOrNull(args.text);
-  const responseBody = parsed.value;
+  const responseBody = unwrapWcfEnvelope(parseTextOrNull(args.text).value);
   return buildBodyEndpoint({ ...args, responseBody });
 }
 

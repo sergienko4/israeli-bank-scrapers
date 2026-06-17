@@ -132,6 +132,10 @@ export const WK_DASHBOARD = {
     /\/current-account\/transactions/i,
     /\/transactionlist/i,
     /\/ocp\/transactions/i,
+    // Leumi SPA hash-route for the business-account transactions view
+    // (`SPA.aspx#/ts/BusinessAccountTrx`). Distinctive route name — no
+    // overlap with any other bank's transactions URL.
+    /BusinessAccountTrx/i,
   ] as readonly RegExp[],
   /** Filter trigger buttons — opens the date filter panel on transactions pages. */
   FILTER_TRIGGER: [

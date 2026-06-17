@@ -85,6 +85,11 @@ function makePopupMediator(responses: IAttrResponses): IElementMediator {
      */
     resolveVisible: (): Promise<IRaceResult> => Promise.resolve(visible),
     /**
+     * resolveAllVisible — array form consumed by resolveHomeTrigger.
+     * @returns Single-element list holding the visible trigger.
+     */
+    resolveAllVisible: (): Promise<readonly IRaceResult[]> => Promise.resolve([visible]),
+    /**
      * checkAttribute returns true only for `href` (force DIRECT path).
      * @param _r - Race result.
      * @param attr - Attribute name.
@@ -152,8 +157,15 @@ describe('HomeResolver — popup-follow override (PR #299)', () => {
     expect(discovery.navHrefOverride).toBe(REAL_HREF);
   });
 
-  it('does NOT attach navHrefOverride when target attribute is missing (target !== "_blank")', async () => {
+  it('attaches navHrefOverride when DIRECT trigger has an absolute href (no _blank) — Leumi enter_account fix', async () => {
     const discovery = await runResolveExpectingOk({ target: '', href: REAL_HREF });
+    expect(discovery.strategy).toBe(NAV_STRATEGY.DIRECT);
+    expect(discovery.navHrefOverride).toBe(REAL_HREF);
+  });
+
+  it('does NOT attach navHrefOverride for a relative href (no _blank) — click path preserved', async () => {
+    const discovery = await runResolveExpectingOk({ target: '', href: '/personalarea/Login/' });
+    expect(discovery.strategy).toBe(NAV_STRATEGY.DIRECT);
     expect(discovery.navHrefOverride).toBeUndefined();
   });
 

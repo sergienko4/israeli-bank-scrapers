@@ -66,7 +66,26 @@ async function probeChangePwdRace(mediator: IElementMediator): Promise<IRaceResu
 }
 
 /**
- * Check change-password prompt via mediator using WK_DASHBOARD.
+ * Probe the dashboard-success markers (balance / logout / last login).
+ * A visible change-password marker that COEXISTS with a fully-loaded
+ * dashboard is a benign settings/menu link, not a forced-change
+ * interstitial — which replaces the dashboard entirely. Shape rule, not
+ * bank identity, so it stays decoupled across every pipeline bank.
+ * @param mediator - Element mediator.
+ * @returns True iff a dashboard-success marker is currently visible.
+ */
+async function probeDashboardReady(mediator: IElementMediator): Promise<boolean> {
+  const candidates = WK_DASHBOARD.SUCCESS as unknown as readonly SelectorCandidate[];
+  const result = await mediator
+    .resolveVisible(candidates, CHANGE_PWD_TIMEOUT)
+    .catch((): false => false);
+  return result !== false && result.found;
+}
+
+/**
+ * Check change-password prompt via mediator using WK_DASHBOARD. A marker
+ * is only treated as a forced change when the dashboard-success markers
+ * are absent (a real forced-change page replaces the dashboard).
  * @param mediator - Element mediator.
  * @returns Failure if password change required, false otherwise.
  */
@@ -74,9 +93,8 @@ export default async function checkChangePassword(
   mediator: IElementMediator,
 ): Promise<Procedure<IPipelineContext> | false> {
   const changePwd = await probeChangePwdRace(mediator);
-  if (!changePwd) return false;
-  if (changePwd.found) {
-    return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
-  }
-  return false;
+  if (!changePwd || !changePwd.found) return false;
+  const isDashboardReady = await probeDashboardReady(mediator);
+  if (isDashboardReady) return false;
+  return fail(ScraperErrorTypes.ChangePassword, 'Password change required');
 }

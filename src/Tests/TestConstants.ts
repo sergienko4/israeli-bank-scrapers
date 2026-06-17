@@ -4,24 +4,6 @@
  * Centralises hardcoded URLs used across integration tests so they
  * stay in sync with the production login configs.
  */
-import { CompanyTypes } from '../Definitions.js';
-import { SCRAPER_CONFIGURATION } from '../Scrapers/Registry/Config/ScraperConfig.js';
-
-const CFG = SCRAPER_CONFIGURATION.banks;
-
-// ---- Leumi ----
-
-/** Leumi base URL from scraper configuration. */
-export const LEUMI_BASE_URL = CFG[CompanyTypes.Leumi].urls.base;
-
-/** Leumi API base URL. */
-export const LEUMI_API_URL = CFG[CompanyTypes.Leumi].api.base;
-
-/** Leumi success URL matching the `/ebanking/SO/SPA.aspx` pattern. */
-export const LEUMI_SUCCESS_URL = `${CFG[CompanyTypes.Leumi].api.base}/ebanking/SO/SPA.aspx`;
-
-/** Leumi login URL for invalid login tests. */
-export const LEUMI_LOGIN_URL = `${CFG[CompanyTypes.Leumi].api.base}/login`;
 
 // ---- Test Credentials ----
 // Centralized opaque placeholders for tests. Values are random hex prefixes so

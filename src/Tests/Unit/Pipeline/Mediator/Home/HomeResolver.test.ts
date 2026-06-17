@@ -70,6 +70,15 @@ function makeMediator(script: IMediatorScript = {}): IElementMediator {
       return Promise.resolve(script.visibleResult ?? NOT_FOUND_RESULT);
     },
     /**
+     * resolveAllVisible — array form consumed by resolveHomeTrigger.
+     * @returns Single-element list when found, else empty.
+     */
+    resolveAllVisible: (): Promise<readonly IRaceResult[]> => {
+      if (script.visibleRejects) return Promise.reject(new Error('boom'));
+      const r = script.visibleResult;
+      return Promise.resolve(r?.found ? [r] : []);
+    },
+    /**
      * checkAttribute — returns attr present/absent per script.
      * @param _r - IRaceResult (unused).
      * @param attr - Attribute name.

@@ -14,6 +14,7 @@ import {
   createDashboardPhase,
   DashboardPhase,
 } from '../../../../Scrapers/Pipeline/Phases/Dashboard/DashboardPhase.js';
+import { WK_DASHBOARD } from '../../../../Scrapers/Pipeline/Registry/WK/DashboardWK.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -189,12 +190,19 @@ function makeClickStub(clickResult: Procedure<IRaceResult>): () => Promise<Proce
 
 /**
  * Higher-order helper that wraps a fixed race result in a Promise-returning
- * stub matching the resolveVisible mediator signature.
+ * stub matching the resolveVisible mediator signature. The dashboard-success
+ * group resolves NOT_FOUND so a change-password probe models a real
+ * forced-change page (which replaces the dashboard) rather than the benign
+ * settings-menu link that coexists with a ready dashboard.
  * @param visibleResolved - The fixed IRaceResult to resolve.
  * @returns Mediator-shaped resolveVisible stub.
  */
-function makeVisibleStub(visibleResolved: IRaceResult): () => Promise<IRaceResult> {
-  return (): Promise<IRaceResult> => Promise.resolve(visibleResolved);
+function makeVisibleStub(
+  visibleResolved: IRaceResult,
+): (candidates: readonly SelectorCandidate[]) => Promise<IRaceResult> {
+  const successGroup = WK_DASHBOARD.SUCCESS as unknown as readonly SelectorCandidate[];
+  return (candidates: readonly SelectorCandidate[]): Promise<IRaceResult> =>
+    Promise.resolve(candidates === successGroup ? NOT_FOUND_RESULT : visibleResolved);
 }
 
 // -- PRE step --

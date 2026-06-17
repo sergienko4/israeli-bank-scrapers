@@ -17,8 +17,8 @@
  *
  * <p>The Common-side import surface is preserved verbatim by exporting
  * Pipeline's `getDebugByName` under the legacy name `getDebug`. The
- * existing 9 Common-side callers (BaseScraper, BaseScraperHelpers,
- * BaseScraperWithBrowser, LeumiScraper, BeyahadBishvilhaScraper,
+ * existing 8 Common-side callers (BaseScraper, BaseScraperHelpers,
+ * BaseScraperWithBrowser, BeyahadBishvilhaScraper,
  * MizrahiHelpers, NavigationRetry, plus the two Debug.test +
  * DebugCensor.test suites) keep using `getDebug('manual-name')` /
  * `getDebug(options.companyId)` unchanged — Pipeline's

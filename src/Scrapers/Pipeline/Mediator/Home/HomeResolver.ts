@@ -9,9 +9,7 @@
 
 import type { Page } from 'playwright-core';
 
-import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { WK_HOME } from '../../Registry/WK/HomeWK.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
@@ -19,7 +17,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
-import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { resolveHomeTrigger } from './HomeResolver.trigger.js';
 
 /** Navigation strategy const — single source of truth. */
 const NAV_STRATEGY = {
@@ -55,40 +53,6 @@ interface IClassifyAndBuildArgs {
   readonly visible: IRaceResult;
   readonly page: Page;
   readonly logger: ScraperLogger;
-}
-
-/**
- * Build the `.catch()` handler — logs the rejection cause then coerces
- * the rejection into `false` so the caller can branch without try/catch.
- * @param logger - Pipeline logger for reporting the swallowed error.
- * @returns A `.catch()` callback returning `false`.
- */
-function buildRaceCatchHandler(logger: ScraperLogger): (error: unknown) => false {
-  return (error: unknown): false => {
-    logger.debug({ event: 'home.trigger.resolve.failed', error: String(error) });
-    return false;
-  };
-}
-
-/**
- * Race the WK_HOME.ENTRY candidates to locate a visible trigger.
- * Coerces the underlying race rejection into `false` (logging the
- * cause at debug level so the silent fallback remains observable)
- * so the caller can short-circuit with a fail Procedure rather than
- * try/catch.
- *
- * @param mediator - Element mediator providing the visibility race.
- * @param logger - Pipeline logger for reporting the swallowed error.
- * @returns Race result on success, `false` when nothing visible.
- */
-async function resolveHomeTrigger(
-  mediator: IElementMediator,
-  logger: ScraperLogger,
-): Promise<false | IRaceResult> {
-  const candidates = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
-  const race = mediator.resolveVisible(candidates, HOME_RESOLVER_ENTRY_TIMEOUT_MS);
-  const handler = buildRaceCatchHandler(logger);
-  return race.catch(handler);
 }
 
 /**
@@ -240,24 +204,51 @@ interface IAttachPopupArgs {
 }
 
 /**
- * When the resolved DIRECT trigger is an `<a target="_blank">` link,
- * capture its `href` so HOME.ACTION can `navigateTo(href)` instead of
- * clicking. Clicking such a link causes Playwright to open a new
- * BrowserContext page; the scraper's bound `Page` reference would
- * stay on the original tab — see PR #299 root-cause analysis.
- *
- * Non-DIRECT strategies and links without `target="_blank"` pass
- * through unchanged (returns the input discovery untouched).
- *
+ * True when the href is an absolute http(s) URL — safe to navigate to
+ * directly rather than clicking the (possibly ambiguous) selector.
+ * @param href - The element's raw href attribute value.
+ * @returns Whether the href is an absolute http(s) URL.
+ */
+function isAbsoluteHref(href: string): boolean {
+  return href.startsWith('https://') || href.startsWith('http://');
+}
+
+/**
+ * Decide the href HOME.ACTION should navigate to directly instead of
+ * clicking the resolved identity selector. Fires for `target="_blank"`
+ * (new-tab stranding, PR #299) AND for any DIRECT trigger exposing an
+ * absolute href — the latter dodges ambiguous accessible-name selectors
+ * that collide with a hidden decoy (Bank Leumi: a 0×0 `<a href="#"
+ * aria-label="כניסה לחשבון">` shares the accessible name with the real
+ * `enter_account` login anchor, so the re-resolved `[aria-label]`
+ * selector clicks the decoy and never leaves the marketing page).
+ * @param mediator - Element mediator (reads target + href attributes).
+ * @param result - Resolved DIRECT race result.
+ * @returns The href to navigate to, or false to keep click behaviour.
+ */
+async function resolveNavOverrideHref(
+  mediator: IElementMediator,
+  result: IRaceResult,
+): Promise<string | false> {
+  const href = await mediator.getAttributeValue(result, 'href');
+  if (!href) return false;
+  const targetAttr = await mediator.getAttributeValue(result, 'target');
+  if (targetAttr === '_blank') return href;
+  return isAbsoluteHref(href) ? href : false;
+}
+
+/**
+ * Augment a DIRECT discovery with `navHrefOverride` so HOME.ACTION
+ * navigates to the href instead of clicking (see
+ * {@link resolveNavOverrideHref} for the `_blank` + absolute-href
+ * rationale). Non-DIRECT strategies pass through unchanged.
  * @param args - Bundled base discovery + mediator + race result.
  * @returns Discovery, optionally augmented with `navHrefOverride`.
  */
 async function attachPopupNavOverride(args: IAttachPopupArgs): Promise<IHomeDiscovery> {
   const { base, mediator, result } = args;
   if (base.strategy !== NAV_STRATEGY.DIRECT) return base;
-  const targetAttr = await mediator.getAttributeValue(result, 'target');
-  if (targetAttr !== '_blank') return base;
-  const href = await mediator.getAttributeValue(result, 'href');
+  const href = await resolveNavOverrideHref(mediator, result);
   if (!href) return base;
   return { ...base, navHrefOverride: href };
 }
