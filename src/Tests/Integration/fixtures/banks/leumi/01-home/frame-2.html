@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title></title>
+    <link rel="stylesheet" href="Style/style_shaarim.css" />
+    <script async="" src="https://cdn.perfdrive.com/aperture/aperture.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const widthParam = urlParams.get('w');
+
+        if (widthParam && parseInt(widthParam) < 820) {
+          const elementsToChange = document.querySelectorAll(
+            '.stockName, .shaar, .update_date_text',
+          );
+          elementsToChange.forEach(el => {
+            el.classList.add('small-font');
+          });
+        }
+      });
+    </script>
+
+    <script>
+      var __uzdbm_1 = 'c455514c-7180-4d72-93d1-423f940332a6';
+      var __uzdbm_2 = 'NjUyZGM4MTgtY2U2ei00MjIyLWFmYTQtNDA3NmY3MDllZmM0JDg1LjY0LjIzMC4xNzY=';
+      var __uzdbm_3 =
+        '7f9000c455514c-7180-4d72-93d1-423f940332a61-17817038225240-00377a8d2a6a62e200910';
+      var __uzdbm_4 = 'false';
+      var __uzdbm_5 = 'uzmx';
+      var __uzdbm_6 =
+        '7f9000d94066b8-b58f-4a17-b371-2313e1a549fb1-17817038225240-29045e0235a8e93610';
+      var __uzdbm_7 = 'bankleumi.co.il';
+    </script>
+    <script>
+      (function (w, d, e, u, c, g, a, b) {
+        w['SSJSConnectorObj'] = { ss_cid: c, domain_info: 'auto' };
+        a = d.createElement(e);
+        a.async = true;
+        a.src = u;
+        b = d.getElementsByTagName(e)[0];
+        b.parentNode.insertBefore(a, b);
+      })(
+        window,
+        document,
+        'script',
+        'https://cdn.perfdrive.com/aperture/aperture.js',
+        'ce71',
+        'ssConf',
+      );
+    </script>
+  </head>
+  <body>
+    <div class="capital_market_widget">
+      <div class="indices_tab">
+        <div class="tab_data">
+          <img
+            class="graph_bursa"
+            src="../TACharts/graph_bursa_drupal.png"
+            aria-label="גרף בורסת תל אביב"
+            loading="eager"
+          />
+
+          <div class="latest_indices" role="list">
+            <div role="listitem">
+              <div class="rightData">
+                <span class="stockImage icon_TA35"></span>
+                <span class="stockName" aria-label="ת״א 35">ת״א 35</span>
+              </div>
+              <div class="leftData">
+                <span class="shaar" id="TA35">4155.76</span>
+              </div>
+            </div>
+
+            <div role="listitem">
+              <div class="rightData">
+                <span class="stockImage icon_TA125"></span>
+                <span class="stockName" aria-label="ת״א 125">ת״א 125</span>
+              </div>
+              <div class="leftData">
+                <span class="shaar" id="TA125">4088.96</span>
+              </div>
+            </div>
+
+            <div role="listitem">
+              <div class="rightData">
+                <span class="stockImage icon_BlueTec"></span>
+                <span class="stockName" aria-label="ת״א גלובל בלוטק">ת״א גלובל בלוטק</span>
+              </div>
+              <div class="leftData">
+                <span class="shaar" id="BlueTec">660.94</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="update_date_text" id="last-updated">עודכן לאחרונה ב-17 ביוני, 2026 16:41</div>
+        </div>
+      </div>
+    </div>
+    <script>
+      fetch('/Api/StockExchange/LatestCapitalTAIndices')
+        .then(response => response.json())
+        .then(data => {
+          const value125 = data.Stock.TA.TA125.value;
+          document.getElementById('TA125').textContent = value125;
+          const value35 = data.Stock.TA.TA35.value;
+          document.getElementById('TA35').textContent = value35;
+          const valueBlueTec = data.Stock.TA.BlueTec.value;
+          document.getElementById('BlueTec').textContent = valueBlueTec;
+          const apiDateString = data.Stock.TA.BlueTec.updateDate;
+          function parseCustomDateTime(str) {
+            const [datePart, timePart] = str.split(' ');
+            const [day, month, year] = datePart.split('/');
+
+            const isoString = `${year}-${month}-${day}T${timePart}:00`;
+            return new Date(isoString);
+          }
+
+          function formatDateTimeToHebrew(date) {
+            const months = [
+              'ינואר',
+              'פברואר',
+              'מרץ',
+              'אפריל',
+              'מאי',
+              'יוני',
+              'יולי',
+              'אוגוסט',
+              'ספטמבר',
+              'אוקטובר',
+              'נובמבר',
+              'דצמבר',
+            ];
+            const day = date.getDate();
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            const timeFormatted = `${hours}:${minutes}`;
+
+            return `עודכן לאחרונה ב-${day} ב${month}, ${year} ${timeFormatted}`;
+          }
+
+          const parsedDate = parseCustomDateTime(apiDateString);
+          const formatted = formatDateTimeToHebrew(parsedDate);
+          document.getElementById('last-updated').textContent = formatted;
+        })
+        .catch(error => {
+          console.error('error', error);
+        });
+    </script>
+  </body>
+</html>

@@ -196,7 +196,7 @@ const PII_PATTERNS = {
   numericBalanceSpan:
     /(<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*)-?\d[\d,]*(?:\.\d+)?(?=\s*<\/span>)/g,
   jsonMonetaryField:
-    /("\w*(?:Balance|Amount|Total|Sum|Withdrawal|Deposit)"\s*:\s*)-?\d+(?:\.\d+)?/g,
+    /(\\?"\w*(?:Balance|Amount|Total|Sum|Withdrawal|Deposit|Credit|Debit|Charge|Payment|Cost|Price|Fee)\\?"\s*:\s*)-?\d+(?:\.\d+)?/g,
   /** JSON numeric account-id fields. Hapoalim's `/general/accounts` and
    *  `/home-page/composite/myAccount` responses expose the customer's
    *  6-7 digit account number as `"accountNumber": NNNNNN` (no quotes).

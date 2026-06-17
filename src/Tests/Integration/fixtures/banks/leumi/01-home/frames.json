@@ -1,0 +1,44 @@
+[
+  {
+    "index": 0,
+    "name": "",
+    "url": "https://www.leumi.co.il/he",
+    "file": "frame-0.html"
+  },
+  {
+    "index": 1,
+    "name": "foreignExchange",
+    "url": "https://www.bankleumi.co.il/Rates/CapitalMarket/CapitalMarketIfr/rates.html",
+    "file": "frame-1.html"
+  },
+  {
+    "index": 2,
+    "name": "stockExchange",
+    "url": "https://www.bankleumi.co.il/Rates/CapitalMarket/CapitalMarketIfr/shaarim.html",
+    "file": "frame-2.html"
+  },
+  {
+    "index": 3,
+    "name": "cross-domain-store-server-iframe",
+    "url": "https://cache.bankleumi.co.il/adrum-xd.686372e97eae8d992d3f1df53d051927.html",
+    "file": "frame-3.html"
+  },
+  {
+    "index": 4,
+    "name": "",
+    "url": "about:blank",
+    "file": "frame-4.html"
+  },
+  {
+    "index": 5,
+    "name": "",
+    "url": "",
+    "file": "frame-5.html"
+  },
+  {
+    "index": 6,
+    "name": "",
+    "url": "https://8083177.fls.doubleclick.net/activityi",
+    "file": "frame-6.html"
+  }
+]

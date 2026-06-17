@@ -1,0 +1,44 @@
+[
+  {
+    "index": 0,
+    "name": "",
+    "url": "https://hb2.bankleumi.co.il/eBanking/SO/SPA.aspx",
+    "file": "frame-0.html"
+  },
+  {
+    "index": 1,
+    "name": "frmExportData",
+    "url": "about:blank",
+    "file": "frame-1.html"
+  },
+  {
+    "index": 2,
+    "name": "SESSIONTIMEOUT_ctl00_iFrameTimeoutWarning",
+    "url": "about:blank",
+    "file": "frame-2.html"
+  },
+  {
+    "index": 3,
+    "name": "frmExportData",
+    "url": "about:blank",
+    "file": "frame-3.html"
+  },
+  {
+    "index": 4,
+    "name": "IFRAMEKEEPALIVEWEB",
+    "url": "about:blank",
+    "file": "frame-4.html"
+  },
+  {
+    "index": 5,
+    "name": "iframeGTM",
+    "url": "https://www.googletagmanager.com/ns.html",
+    "file": "frame-5.html"
+  },
+  {
+    "index": 6,
+    "name": "u1st-ActivationFrame",
+    "url": "https://accessibilitys.bankleumi.co.il/CommFrame/Activation",
+    "file": "frame-6.html"
+  }
+]
