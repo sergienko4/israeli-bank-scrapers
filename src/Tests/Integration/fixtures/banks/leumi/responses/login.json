@@ -1,0 +1,4 @@
+{
+  "ProcessRequestResult": 0,
+  "jsonResp": "{\"LoginData\":{\"IsLoginSuccess\":true,\"SessionId\":\"SIMULATED-SESSION\",\"RedirectUrl\":\"/eBanking/SO/SPA.aspx\"}}"
+}

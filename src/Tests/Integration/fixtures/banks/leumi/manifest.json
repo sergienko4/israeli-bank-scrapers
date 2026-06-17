@@ -1,0 +1,87 @@
+{
+  "bankId": "leumi",
+  "originUrl": "https://www.leumi.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.leumi.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://hb2.bankleumi.co.il/H/Login.html",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "04-login-action.html"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "POST",
+      "urlPattern": "Broker.svc/ProcessRequest?moduleName=UC_GE_01_02_BuildLoginData",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/login.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "POST",
+      "urlPattern": "Broker.svc/ProcessRequest?moduleName=UC_SO_SpaConfiguration",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/spa-configuration.json"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "POST",
+      "urlPattern": "Broker.svc/ProcessRequest?moduleName=UC_SO_GetAccounts",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/accounts.json"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "Broker.svc/ProcessRequest?moduleName=UC_SO_010_02_GetDefaultAccountIndex",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/default-account-index.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "Broker.svc/ProcessRequest?moduleName=UC_SO_27_GetBusinessAccountTrx",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/business-account-trx.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

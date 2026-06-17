@@ -1,0 +1,4 @@
+{
+  "ProcessRequestResult": 0,
+  "jsonResp": "{\"BusinessAccountTrx\":{\"TodayTransactionsItems\":[],\"HistoryTransactionsItems\":[{\"OperationDate\":\"2026-01-01\",\"Description\":\"[redacted-merchant]\",\"Amount\":0.0}]}}"
+}
