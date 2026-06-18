@@ -71,15 +71,20 @@ async function probeChangePwdRace(mediator: IElementMediator): Promise<IRaceResu
  * dashboard is a benign settings/menu link, not a forced-change
  * interstitial — which replaces the dashboard entirely. Shape rule, not
  * bank identity, so it stays decoupled across every pipeline bank.
+ *
+ * <p>A probe error (closed page, mock rejection) is treated as "ready"
+ * (fail-safe): a genuine forced-change page resolves to found=false
+ * after timeout, never throws — so a throw must not be coerced into a
+ * spurious forced-change escalation.
  * @param mediator - Element mediator.
- * @returns True iff a dashboard-success marker is currently visible.
+ * @returns True iff a dashboard-success marker is visible OR the probe errored.
  */
 async function probeDashboardReady(mediator: IElementMediator): Promise<boolean> {
   const candidates = WK_DASHBOARD.SUCCESS as unknown as readonly SelectorCandidate[];
   const result = await mediator
     .resolveVisible(candidates, CHANGE_PWD_TIMEOUT)
-    .catch((): false => false);
-  return result !== false && result.found;
+    .catch((): true => true);
+  return result === true || result.found;
 }
 
 /**

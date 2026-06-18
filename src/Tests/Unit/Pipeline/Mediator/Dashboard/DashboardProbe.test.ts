@@ -24,6 +24,8 @@ interface IMediatorScript {
   /** Result for the SECOND resolveVisible call (the dashboard-ready probe). */
   readonly dashboardReadyResult?: IRaceResult;
   readonly visibleThrows?: boolean;
+  /** When true, ONLY the second (dashboard-ready) probe rejects. */
+  readonly dashboardReadyThrows?: boolean;
   readonly authToken?: string | false;
 }
 
@@ -44,6 +46,7 @@ function makeMediator(script: IMediatorScript = {}): IElementMediator {
       if (script.visibleThrows) return Promise.reject(new Error('boom'));
       calls += 1;
       if (calls === 1) return Promise.resolve(script.changePwdResult ?? NOT_FOUND_RESULT);
+      if (script.dashboardReadyThrows) return Promise.reject(new Error('boom-ready'));
       return Promise.resolve(script.dashboardReadyResult ?? NOT_FOUND_RESULT);
     },
     network: {
@@ -77,6 +80,13 @@ describe('checkChangePassword', () => {
   it('returns false when a change-pwd marker COEXISTS with a ready dashboard (benign menu link)', async () => {
     const found: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const };
     const mediator = makeMediator({ changePwdResult: found, dashboardReadyResult: found });
+    const result = await checkChangePassword(mediator);
+    expect(result).toBe(false);
+  });
+
+  it('returns false when a marker is found but the dashboard-ready probe throws (fail-safe)', async () => {
+    const found: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const };
+    const mediator = makeMediator({ changePwdResult: found, dashboardReadyThrows: true });
     const result = await checkChangePassword(mediator);
     expect(result).toBe(false);
   });
