@@ -215,13 +215,14 @@ function isAbsoluteHref(href: string): boolean {
 
 /**
  * Decide the href HOME.ACTION should navigate to directly instead of
- * clicking the resolved identity selector. Fires for `target="_blank"`
- * (new-tab stranding, PR #299) AND for any DIRECT trigger exposing an
- * absolute href — the latter dodges ambiguous accessible-name selectors
- * that collide with a hidden decoy (Bank Leumi: a 0×0 `<a href="#"
- * aria-label="כניסה לחשבון">` shares the accessible name with the real
- * `enter_account` login anchor, so the re-resolved `[aria-label]`
- * selector clicks the decoy and never leaves the marketing page).
+ * clicking the resolved identity selector. A DIRECT trigger is, by
+ * definition, an anchor with a real navigable href, so navigating to that
+ * href IS the click's intent — done directly it is robust against
+ * `target="_blank"` new-tab stranding (PR #299) and against accessible-name
+ * selectors that collide with a hidden decoy sharing the login name (Bank
+ * Leumi's 0×0 `<a href="#" aria-label="כניסה לחשבון">`). Fires for any
+ * absolute href (or `target="_blank"`); a relative href keeps click
+ * behaviour (no base URL to navigate to).
  * @param mediator - Element mediator (reads target + href attributes).
  * @param result - Resolved DIRECT race result.
  * @returns The href to navigate to, or false to keep click behaviour.

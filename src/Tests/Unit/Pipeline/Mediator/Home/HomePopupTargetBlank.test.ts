@@ -157,7 +157,7 @@ describe('HomeResolver — popup-follow override (PR #299)', () => {
     expect(discovery.navHrefOverride).toBe(REAL_HREF);
   });
 
-  it('attaches navHrefOverride when DIRECT trigger has an absolute href (no _blank) — Leumi enter_account fix', async () => {
+  it('attaches navHrefOverride for any absolute href (no _blank) — DIRECT navigates to the login URL (provider-agnostic, e.g. Leumi enter_account)', async () => {
     const discovery = await runResolveExpectingOk({ target: '', href: REAL_HREF });
     expect(discovery.strategy).toBe(NAV_STRATEGY.DIRECT);
     expect(discovery.navHrefOverride).toBe(REAL_HREF);

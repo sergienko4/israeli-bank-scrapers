@@ -1,22 +1,37 @@
 /**
- * HOME trigger resolution — prefer the real-href login link.
+ * HOME trigger resolution — provider-agnostic, accessible-name first.
  *
  * Extracted from {@link "./HomeResolver.ts"} to stay within the Home
  * cluster's 150-line / 10-line-per-function caps.
  *
- * WHY this exists (Bank Leumi root-cause, proven by live-DOM probe):
- * the marketing home exposes the visible text "כניסה לחשבון" on THREE
- * nodes — a 0×0 hidden help `<a href="#">`, the real login button
- * `<a class="enter_account" href=".../H/Login.html">`, and that anchor's
- * inner `<span>`. A single-winner `resolveVisible` race returned the
- * bare `<span>` (matched by the textContent candidate); the span has no
- * href, so HOME classified it SEQUENTIAL (menu toggle) and navigated to
- * the site search results instead of the login page.
+ * THE RULE (one path for every bank — no per-bank flags): enumerate ALL
+ * visible WK_HOME.ENTRY matches and PREFER the one matched by a precise
+ * accessible-name candidate (`kind: 'ariaLabel'`). That candidate resolves
+ * via getByRole/getByLabel, so it matches ONLY the element whose accessible
+ * name IS the login text — the genuine interactive login control — never a
+ * text-bearing ancestor wrapper. Classification then keys off THAT control's
+ * own href (see {@link "./HomeResolver.ts"} classifyStrategy).
  *
- * FIX: enumerate the visible matches (resolveAllVisible) and PREFER the
- * one that exposes a real navigable href. Fake-href banks (MODAL /
- * SEQUENTIAL menu toggles, e.g. Visacal) have no real-href match and
- * fall back to the first visible result — identical to prior behaviour.
+ * WHY enumerate instead of single-winner (the cross-bank HOME regression
+ * proven offline against faithful, CSS-inlined fixtures):
+ *  · Bank Leumi exposes the visible text "כניסה לחשבון" on THREE nodes — a
+ *    hidden nav `<a href="#">` (0×0, inside a `display:none` menu), the real
+ *    login button `<a class="enter_account" href=".../H/Login.html">`, and
+ *    that anchor's inner `<span>`. A single-winner race lets the lower-
+ *    priority `textContent` candidate walk up to `//div[.//text()=…]` and win
+ *    on a no-href PAGE WRAPPER before the precise accessible-name candidate is
+ *    considered → HOME classifies a no-href node and mis-navigates. Preferring
+ *    the accessible-name match picks the real anchor → DIRECT.
+ *  · Banks whose real login link is a JS-driven `href="#"` (Beinleumi, Max)
+ *    carry absolute hrefs only on MARKETING links (a YouTube embed, a partner
+ *    site). Those marketing links have a DIFFERENT accessible name, so the
+ *    accessible-name preference never selects them — login stays on the bank's
+ *    own toggle → MODAL/SEQUENTIAL, no marketing-link stranding.
+ *
+ * Fallback: when no candidate matched by accessible name is visible, return
+ * the first visible match — identical to the pre-Leumi single-winner pick for
+ * text-only banks (hapoalim/discount/isracard/max/visacal/amex), so their
+ * behavior is unchanged.
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
@@ -25,45 +40,33 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 
-/** Max visible trigger matches to enumerate before preferring a real href. */
+/** Max visible trigger matches to enumerate before applying the preference. */
 const TRIGGER_MATCH_CAP = 8;
 
 /** WK_HOME.ENTRY widened to the resolver's candidate shape (cast once). */
 const TRIGGER_CANDIDATES = WK_HOME.ENTRY as unknown as readonly SelectorCandidate[];
 
-/** Element-identity sentinel emitted when an element has no href attribute. */
-const NO_HREF_SENTINEL = '(none)';
-
-/** Non-navigation href values — modal/menu toggles, SPA anchors, no href. */
-const NON_NAV_HREFS: ReadonlySet<string> = new Set([
-  NO_HREF_SENTINEL,
-  '#',
-  'javascript:void(0)',
-  'javascript:;',
-  '',
-]);
-
 /**
- * True when the race result resolved to an element exposing a real,
- * navigable href (e.g. Leumi's `<a class="enter_account">`) rather than
- * a bare text node, container, or menu toggle.
- * @param result - One visible trigger match from resolveAllVisible.
- * @returns Whether the match carries a real navigation href.
+ * True when the match was produced by a precise accessible-name candidate
+ * (`kind: 'ariaLabel'`) — i.e. the element whose accessible name IS the login
+ * text (the genuine interactive control), not a text-bearing ancestor wrapper.
+ * @param result - One visible trigger match.
+ * @returns Whether an accessible-name candidate produced the match.
  */
-function hasRealHref(result: IRaceResult): boolean {
-  if (result.identity === false) return false;
-  return !NON_NAV_HREFS.has(result.identity.href);
+function isAccessibleNameMatch(result: IRaceResult): boolean {
+  return result.candidate !== false && result.candidate.kind === 'ariaLabel';
 }
 
 /**
- * Prefer the first visible match exposing a real href; otherwise fall
- * back to the first visible match (fake-href MODAL/SEQUENTIAL banks).
- * @param results - Visible trigger matches in DOM order.
+ * Prefer the visible match found by accessible name (the real login control);
+ * otherwise fall back to the first visible match (text-only banks — identical
+ * to the pre-Leumi single-winner pick).
+ * @param results - Visible trigger matches in candidate/DOM order.
  * @returns The chosen race result, or false when none are visible.
  */
-function pickRealHrefOrFirst(results: readonly IRaceResult[]): false | IRaceResult {
+function pickByAccessibleName(results: readonly IRaceResult[]): false | IRaceResult {
   if (results.length === 0) return false;
-  return results.find(hasRealHref) ?? results[0];
+  return results.find(isAccessibleNameMatch) ?? results[0];
 }
 
 /**
@@ -85,7 +88,7 @@ function buildRaceCatchHandler(logger: ScraperLogger): (error: unknown) => reado
  * visible matches. Isolated so {@link resolveHomeTrigger} stays within
  * the per-function line cap despite the wrapped multi-arg call.
  * @param mediator - Element mediator providing the visibility race.
- * @returns Visible trigger matches in DOM order (possibly empty).
+ * @returns Visible trigger matches in candidate/DOM order (possibly empty).
  */
 function raceVisibleTriggers(mediator: IElementMediator): Promise<readonly IRaceResult[]> {
   return mediator.resolveAllVisible(
@@ -96,8 +99,9 @@ function raceVisibleTriggers(mediator: IElementMediator): Promise<readonly IRace
 }
 
 /**
- * Resolve the HOME login trigger, preferring a real-href link over an
- * ambiguous bare-text match (see file header for the Leumi root-cause).
+ * Resolve the HOME login trigger: enumerate the visible WK_HOME.ENTRY matches
+ * and prefer the one matched by accessible name (see file header for the
+ * cross-bank root cause this provider-agnostic rule fixes).
  * @param mediator - Element mediator providing the visibility race.
  * @param logger - Pipeline logger for reporting a swallowed error.
  * @returns Race result on success, `false` when nothing visible.
@@ -107,9 +111,8 @@ async function resolveHomeTrigger(
   logger: ScraperLogger,
 ): Promise<false | IRaceResult> {
   const onReject = buildRaceCatchHandler(logger);
-  const race = raceVisibleTriggers(mediator);
-  const results = await race.catch(onReject);
-  return pickRealHrefOrFirst(results);
+  const results = await raceVisibleTriggers(mediator).catch(onReject);
+  return pickByAccessibleName(results);
 }
 
 export { resolveHomeTrigger };
