@@ -362,7 +362,7 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────
   # Integration Mode A + Mode B — Static HTML drive + Mirror Origin
-  # (HARD GATE). Unified 7-bank × 2-mode matrix → 14 parallel runners.
+  # (HARD GATE). Unified 8-bank × 2-mode matrix → 16 parallel runners.
   #
   # `INTEGRATION_BANK_FILTER` env var narrows the cross-bank
   # `describe.each(BANK_FIXTURE_EXPECTATIONS)` loops in
@@ -375,7 +375,7 @@ jobs:
   # drives (`*.modeA.test.ts`) run on every matrix cell — they are
   # individually fast (sub-second simulators, ~5-10 s per Playwright
   # static drive). The matrix gives fail-isolation (one bank's
-  # regression does not red-block the other six) plus wall-time
+  # regression does not red-block the other seven) plus wall-time
   # reduction from parallelism. See Banks/IntegrationBankFilter.ts
   # for the filter implementation.
   # ──────────────────────────────────────────────────────────────
@@ -397,6 +397,7 @@ jobs:
           - discount
           - hapoalim
           - isracard
+          - leumi
           - max
           - visaCal
     env:
