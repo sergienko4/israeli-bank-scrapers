@@ -29,7 +29,16 @@ function requireRecipe(bankId: string): IExtendedRecipe {
 describe('PostLoginRecipes', () => {
   it('knownPostLoginBanks lists every onboarded pipeline bank', () => {
     const banks = knownPostLoginBanks();
-    const expected = ['amex', 'beinleumi', 'discount', 'hapoalim', 'isracard', 'max', 'visaCal'];
+    const expected = [
+      'amex',
+      'beinleumi',
+      'discount',
+      'hapoalim',
+      'isracard',
+      'leumi',
+      'max',
+      'visaCal',
+    ];
     expect(banks).toEqual(expected);
   });
 

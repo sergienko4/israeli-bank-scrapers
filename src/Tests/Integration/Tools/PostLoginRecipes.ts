@@ -272,7 +272,7 @@ const LEUMI_POST_LOGIN = {
     },
     { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
     { kind: 'reveal', stepName: '09-dashboard', revealText: 'עובר ושב' },
-    { kind: 'reveal', stepName: '10-scrape-transactions', revealText: 'תנועות בחשבון' },
+    { kind: 'reveal', stepName: '10-reveal-transactions', revealText: 'תנועות בחשבון' },
     { kind: 'snapshot', stepName: '11-balance', waitForLifecycle: 'networkidle' },
     {
       kind: 'recordResponse',
