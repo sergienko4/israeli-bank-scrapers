@@ -206,7 +206,7 @@ function buildDeepLoginMediatorStubs(
 /** Page-scoped mediator stub bundle returned by {@link buildPageStubs}. */
 type PageStubsBundle = Pick<
   NonNullable<Parameters<typeof makeMockMediator>[0]>,
-  'resolveField' | 'discoverForm' | 'resolveVisible'
+  'resolveField' | 'discoverForm' | 'resolveVisible' | 'resolveAllVisible'
 >;
 
 /**
@@ -222,6 +222,7 @@ function buildPageStubs(page: Page): PageStubsBundle {
     resolveField: buildResolveFieldStub(page),
     discoverForm: buildDiscoverFormStub(page),
     resolveVisible: buildResolveVisibleStub(page),
+    resolveAllVisible: buildResolveAllVisibleStub(page),
   };
 }
 
@@ -350,5 +351,22 @@ function makeFoundRaceResult(page: Page): IRaceResult {
     context: page,
     value: 'submit',
     identity: false,
+  };
+}
+
+/**
+ * Build a `resolveAllVisible` stub returning the single found
+ * {@link IRaceResult} so HOME.PRE (`resolveHomeTrigger` races
+ * `resolveAllVisible`, not `resolveVisible`) locates a login trigger.
+ * Without this the mediator default returns `[]` and PRE fails with
+ * "no login nav link found".
+ *
+ * @param page - Shared page reused as the race result's context.
+ * @returns Stub function compatible with {@link IElementMediator.resolveAllVisible}.
+ */
+function buildResolveAllVisibleStub(page: Page): IElementMediator['resolveAllVisible'] {
+  return (): Promise<readonly IRaceResult[]> => {
+    const result = makeFoundRaceResult(page);
+    return Promise.resolve([result]);
   };
 }
