@@ -1,4 +1,4 @@
 {
   "ProcessRequestResult": 0,
-  "jsonResp": "{\"BusinessAccountTrx\":{\"TodayTransactionsItems\":[],\"HistoryTransactionsItems\":[{\"OperationDate\":\"2026-01-01\",\"Description\":\"[redacted-merchant]\",\"Amount\":0.0}]}}"
+  "jsonResp": "{\"HistoryTransactionsItems\":[{\"DateUTC\":\"2026-01-10T00:00:00Z\",\"Description\":\"[redacted-merchant]\",\"ReferenceNumberLong\":1000001,\"Amount\":0,\"Credit\":0,\"Debit\":0,\"RunningBalance\":0},{\"DateUTC\":\"2026-01-20T00:00:00Z\",\"Description\":\"[redacted-merchant]\",\"ReferenceNumberLong\":1000002,\"Amount\":0,\"Credit\":0,\"Debit\":0,\"RunningBalance\":0}],\"TodayTransactionsItems\":null,\"SOStatus\":{\"Status\":true,\"SOStatusItem\":null},\"TodayFlag\":false,\"BalanceDisplay\":0,\"BalanceIncludingToday\":0,\"TotalCredit\":0,\"AsOfDateUTC\":\"2026-01-20T10:40:55Z\",\"RequestType\":\"\"}"
 }
