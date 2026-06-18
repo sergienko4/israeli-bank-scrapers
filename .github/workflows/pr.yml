@@ -913,9 +913,11 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group B — OTP browser-form banks (Hapoalim, Beinleumi).
-  # Requires gate-B approval AFTER Group A + Amex have completed.
-  # Telegram OTP secrets exposed here for the SMS OTP dance.
+  # Group B — browser-form banks (Hapoalim, Beinleumi, Leumi).
+  # Hapoalim + Beinleumi are OTP (Telegram secrets deliver the SMS
+  # OTP dance); Leumi is username/password (two-step nav, no OTP — it
+  # simply ignores the Telegram secrets). Requires gate-B approval
+  # AFTER Group A + Amex have completed.
   # ──────────────────────────────────────────────────────────────
   e2e-real-group-b-gate:
     name: E2E Real B — approval gate
@@ -962,6 +964,7 @@ jobs:
         bank:
           - Hapoalim
           - Beinleumi
+          - Leumi
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -983,6 +986,9 @@ jobs:
           HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
           BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
           BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
+          # Leumi is username/password (no OTP — Telegram secrets unused).
+          LEUMI_USERNAME: ${{ secrets.LEUMI_USERNAME }}
+          LEUMI_PASSWORD: ${{ secrets.LEUMI_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
