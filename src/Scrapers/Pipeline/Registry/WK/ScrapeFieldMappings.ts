@@ -68,6 +68,13 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'movementTimestamp',
     'bookingDate',
     'effectiveDate',
+    // Leumi WCF `UC_SO_27_GetBusinessAccountTrx` rows carry the txn
+    // date as `DateUTC` (ISO). Appended LAST so banks with an earlier
+    // alias keep matching theirs first; only Leumi's rows (which have
+    // no other WK.date alias) resolve to it. Without it autoMapTransaction
+    // rejects every Leumi txn as empty-date. Exact case-insensitive match
+    // so it never collides with `EffectiveDateUTC`/`AsOfDateUTC`.
+    'DateUTC',
   ],
   processedDate: ['ValueDate', 'debCrdDate', 'processedDate', 'billingDate', 'settlementDate'],
   amount: [
@@ -134,6 +141,7 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'authorizationNumber', // Max — bank authorization id
     'Urn', // Discount — operation-record URN
     'runtimeReferenceId', // Max — runtimeReference.id top-level alias
+    'ReferenceNumberLong', // Leumi — UC_SO_27 per-txn reference (numeric)
   ],
   currency: [
     'trnCurrencySymbol',
