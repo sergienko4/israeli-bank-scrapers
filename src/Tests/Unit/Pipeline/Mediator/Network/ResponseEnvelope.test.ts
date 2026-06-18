@@ -87,6 +87,14 @@ describe('unwrapWcfEnvelope — WCF Broker.svc double-encoding', () => {
 
     expect(unwrapped).toBe(body);
   });
+
+  it('ENV-NEARMISS-EXTRAKEY-001 passes through when an extra key is present', (): void => {
+    const body = { ProcessRequestResult: 0, jsonResp: '{"a":1}', extra: true };
+
+    const unwrapped = unwrapWcfEnvelope(body);
+
+    expect(unwrapped).toBe(body);
+  });
 });
 
 describe('isWcfEnvelope — strict shape guard', () => {

@@ -22,16 +22,21 @@
 const ENVELOPE_RESULT_KEY = 'ProcessRequestResult';
 /** Envelope key carrying the stringified inner JSON payload. */
 const ENVELOPE_PAYLOAD_KEY = 'jsonResp';
+/** Exact own-key count of the envelope — extra keys break the match. */
+const ENVELOPE_KEY_COUNT = 2;
 
 /**
  * True iff `body` is exactly the WCF
- * `{ ProcessRequestResult: number, jsonResp: string }` envelope.
+ * `{ ProcessRequestResult: number, jsonResp: string }` envelope. Extra
+ * keys disqualify it so a non-envelope payload that merely carries both
+ * fields is never unwrapped (default-deny).
  * @param body - Parsed response body.
  * @returns True iff the strict envelope shape matches.
  */
 function isWcfEnvelope(body: unknown): body is Record<string, unknown> {
   if (body === null || typeof body !== 'object' || Array.isArray(body)) return false;
   const rec = body as Record<string, unknown>;
+  if (Object.keys(rec).length !== ENVELOPE_KEY_COUNT) return false;
   return (
     typeof rec[ENVELOPE_RESULT_KEY] === 'number' && typeof rec[ENVELOPE_PAYLOAD_KEY] === 'string'
   );
