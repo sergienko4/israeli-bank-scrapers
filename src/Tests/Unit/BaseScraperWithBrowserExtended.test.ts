@@ -89,7 +89,8 @@ const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxL
 const { fillInput: FILL_INPUT } = await import('../../Common/ElementsInteractions.js');
 const { getCurrentUrl: GET_CURRENT_URL, waitForNavigation: WAIT_NAV } =
   await import('../../Common/Navigation.js');
-const { ScraperProgressTypes: PROGRESS_TYPES } = await import('../../Definitions.js');
+const { ScraperProgressTypes: PROGRESS_TYPES, CompanyTypes: COMPANY_TYPES } =
+  await import('../../Definitions.js');
 const { BaseScraperWithBrowser: BASE_SCRAPER_WITH_BROWSER, LOGIN_RESULTS } =
   await import('../../Scrapers/Base/BaseScraperWithBrowser.js');
 const { ScraperErrorTypes: ERROR_TYPES } = await import('../../Scrapers/Base/Errors.js');
@@ -156,7 +157,7 @@ class TestBrowserScraper extends BASE_SCRAPER_WITH_BROWSER<ScraperCredentials> {
  * @returns Test scraper instance.
  */
 function createScraper(overrides: Partial<ScraperOptions> = {}): TestBrowserScraper {
-  return new TestBrowserScraper(CREATE_OPTS(overrides));
+  return new TestBrowserScraper(CREATE_OPTS({ companyId: COMPANY_TYPES.Mizrahi, ...overrides }));
 }
 
 const TEST_CREDS = { userCode: 'test', password: 'test' };

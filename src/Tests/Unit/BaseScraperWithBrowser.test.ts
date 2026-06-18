@@ -95,6 +95,7 @@ const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation
 const { BaseScraperWithBrowser: BASE_SCRAPER_WITH_BROWSER, LOGIN_RESULTS } =
   await import('../../Scrapers/Base/BaseScraperWithBrowser.js');
 const { ScraperErrorTypes: SCRAPER_ERROR_TYPES } = await import('../../Scrapers/Base/Errors.js');
+const { CompanyTypes: COMPANY_TYPES } = await import('../../Definitions.js');
 const {
   createMockBrowser: CREATE_MOCK_BROWSER,
   createMockContext: CREATE_MOCK_CONTEXT,
@@ -157,7 +158,7 @@ class TestBrowserScraper extends BASE_SCRAPER_WITH_BROWSER<ScraperCredentials> {
  * @returns Test scraper instance.
  */
 function createScraper(overrides: Partial<ScraperOptions> = {}): TestBrowserScraper {
-  return new TestBrowserScraper(CREATE_OPTS(overrides));
+  return new TestBrowserScraper(CREATE_OPTS({ companyId: COMPANY_TYPES.Mizrahi, ...overrides }));
 }
 
 const TEST_CREDS = { userCode: 'test', password: 'test' };
