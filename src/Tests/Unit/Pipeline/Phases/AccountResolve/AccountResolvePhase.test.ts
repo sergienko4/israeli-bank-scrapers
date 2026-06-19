@@ -6,15 +6,24 @@
  * lives in `AccountResolveActions.test.ts`.
  */
 
-import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import {
+  type IElementMediator,
+  type IRaceResult,
+  NOT_FOUND_RESULT,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import {
   AccountResolvePhase,
   createAccountResolvePhase,
 } from '../../../../../Scrapers/Pipeline/Phases/AccountResolve/AccountResolvePhase.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+
+/** Shared no-op nudge result — a `found:false` success matching the real
+ *  `resolveAndClick` contract (`Promise<Procedure<IRaceResult>>`) without
+ *  driving an id into the pool. */
+const NUDGE_NOOP_RESULT = succeed(NOT_FOUND_RESULT);
 
 /**
  * Build a stub mediator whose pre-nav pool yields the given account
@@ -59,7 +68,7 @@ function makeStubMediator(idCapture: IDiscoveredEndpoint | false): IElementMedia
      * loud — exactly the honest-failure path this phase test asserts.
      * @returns Resolved click sentinel.
      */
-    resolveAndClick: (): Promise<unknown> => Promise.resolve(true),
+    resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(NUDGE_NOOP_RESULT),
   } as unknown as IElementMediator;
 }
 

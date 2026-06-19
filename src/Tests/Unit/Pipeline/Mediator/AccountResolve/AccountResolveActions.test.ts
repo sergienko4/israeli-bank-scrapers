@@ -15,11 +15,20 @@ import {
   executeAccountResolvePost,
   executeAccountResolvePre,
 } from '../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.js';
-import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import {
+  type IElementMediator,
+  type IRaceResult,
+  NOT_FOUND_RESULT,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+
+/** Shared no-op nudge result — a `found:false` success matching the real
+ *  `resolveAndClick` contract (`Promise<Procedure<IRaceResult>>`) without
+ *  driving an id into the pool. */
+const NUDGE_NOOP_RESULT = succeed(NOT_FOUND_RESULT);
 
 /** Args bundle for the synthetic-pool mediator factory. */
 interface IPoolMediatorArgs {
@@ -85,9 +94,9 @@ function makePoolMediator(args: IPoolMediatorArgs): IElementMediator {
      * fetches the accounts API once the transactions link is clicked.
      * @returns Resolved best-effort click sentinel.
      */
-    resolveAndClick: (): Promise<unknown> => {
+    resolveAndClick: (): Promise<Procedure<IRaceResult>> => {
       if (args.onClickCaptures) pool = args.onClickCaptures;
-      return Promise.resolve(true);
+      return Promise.resolve(NUDGE_NOOP_RESULT);
     },
   } as unknown as IElementMediator;
 }
@@ -514,7 +523,7 @@ describe('executeAccountResolvePre — wait outcome telemetry', () => {
        * nudge, which re-waits (and re-rejects, still caught) → success.
        * @returns Resolved click sentinel.
        */
-      resolveAndClick: (): Promise<unknown> => Promise.resolve(true),
+      resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(NUDGE_NOOP_RESULT),
     } as unknown as IElementMediator;
     const baseCtx = makeMockContext();
     const ctx = {
