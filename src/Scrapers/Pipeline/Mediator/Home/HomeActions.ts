@@ -12,6 +12,10 @@
  */
 
 export { executeModalClick, tryClickLoginLink, waitForAnyLoginLink } from './HomeActions.Modal.js';
-export { didReallyNavigate, executeHomeNavigation } from './HomeActions.Navigate.js';
+export {
+  didReallyNavigate,
+  executeHomeNavigation,
+  isHashFallthrough,
+} from './HomeActions.Navigate.js';
 export { executeStoreLoginSignal } from './HomeActions.Signal.js';
 export { executeValidateLoginArea } from './HomeActions.Validate.js';
