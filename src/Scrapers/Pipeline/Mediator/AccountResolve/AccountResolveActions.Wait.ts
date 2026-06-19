@@ -3,9 +3,16 @@
  * `awaitAndLog` race/telemetry helpers. Extracted from the
  * AccountResolveActions barrel so the per-file LoC cap is honoured
  * (phase-2e-residue).
+ *
+ * <p>PRE is passive-first: it waits for an id-bearing capture, and only
+ * when none arrives does it actively nudge a same-URL SPA to its cards
+ * view (clicking the well-known transactions link) so a navigation-gated
+ * accounts API such as Isracard `GetCardList` fires, then re-resolves.
  */
 
+import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -13,6 +20,9 @@ import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/TimingConfig.js';
 import { discoverAccountsInPool } from './AccountFromPool.js';
+
+/** Click timeout (ms) for the cards-view nudge — link is already visible post-login. */
+const NUDGE_CLICK_TIMEOUT_MS = 5000;
 
 /** Outcome label lookup for the wait result. */
 const WAIT_OUTCOME: Record<'true' | 'false', 'matched' | 'timeout'> = {
@@ -111,6 +121,49 @@ async function awaitAndLog(args: IAwaitArgs): Promise<true> {
 }
 
 /**
+ * Drive a same-URL SPA to its cards/transactions view by clicking the
+ * well-known transactions link, so an accounts API that only fires on
+ * navigation (e.g. Isracard `GetCardList`) finally fires, then re-runs
+ * the id-capture wait. The nudge click does NOT mark a dashboard click,
+ * so its capture lands in `getPreNavCaptures()` for POST to read.
+ * @param args - Bundled mediator + logger.
+ * @returns Always true once the click + re-wait completed.
+ */
+async function nudgeCardsViewAndReWait(args: IAwaitArgs): Promise<true> {
+  const candidates = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  args.log.debug({ message: 'account-resolve.pre nudge → click transactions link' });
+  await args.mediator.resolveAndClick(candidates, NUDGE_CLICK_TIMEOUT_MS);
+  await awaitAndLog(args);
+  return true;
+}
+
+/**
+ * Nudge the SPA only when the passive wait produced no id-bearing
+ * capture. No-op for banks that already capture passively, so the
+ * behaviour stays generic and additive (zero blast radius elsewhere).
+ * @param args - Bundled mediator + logger.
+ * @returns Always true (sentinel for the chained call site).
+ */
+async function nudgeIfNoId(args: IAwaitArgs): Promise<true> {
+  const pool = args.mediator.network.getPreNavCaptures();
+  if (findFirstIdInPool(pool) !== false) return true;
+  return nudgeCardsViewAndReWait(args);
+}
+
+/**
+ * Passive-first pool resolution: wait for an id-bearing capture, then
+ * nudge the SPA only if none arrived. Keeps {@link executeAccountResolvePre}
+ * under the per-function LoC cap.
+ * @param args - Bundled mediator + logger.
+ * @returns Always true once the wait (+ optional nudge) completed.
+ */
+async function resolvePoolWithNudge(args: IAwaitArgs): Promise<true> {
+  await awaitAndLog(args);
+  await nudgeIfNoId(args);
+  return true;
+}
+
+/**
  * PRE — block on `waitForFirstId` so late-arriving auth-side id
  * captures make it into the pool before POST extracts.
  * @param input - Pipeline context.
@@ -123,7 +176,7 @@ async function executeAccountResolvePre(
   const mediator = input.mediator.value;
   const initialPool = mediator.network.getPreNavCaptures();
   input.logger.debug({ message: `account-resolve.pre pool=${String(initialPool.length)}` });
-  await awaitAndLog({ mediator, log: input.logger });
+  await resolvePoolWithNudge({ mediator, log: input.logger });
   return succeed(input);
 }
 

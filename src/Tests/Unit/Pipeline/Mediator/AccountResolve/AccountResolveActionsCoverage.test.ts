@@ -80,6 +80,13 @@ function makeMediatorStub(
       }
       return true as const;
     },
+    /**
+     * Best-effort PRE nudge click stub (no pool mutation) — present so
+     * the no-id path's nudge resolves; these edge-case tests assert only
+     * that PRE succeeds, not that the nudge yields an id.
+     * @returns Resolved click sentinel.
+     */
+    resolveAndClick: (): Promise<unknown> => Promise.resolve(true),
   } as unknown as IElementMediator;
 }
 

@@ -53,6 +53,13 @@ function makeStubMediator(idCapture: IDiscoveredEndpoint | false): IElementMedia
       }
       return true as const;
     },
+    /**
+     * Best-effort PRE nudge click stub (no pool mutation). On the empty
+     * pool the nudge fires, finds no id on re-wait, and POST then fails
+     * loud — exactly the honest-failure path this phase test asserts.
+     * @returns Resolved click sentinel.
+     */
+    resolveAndClick: (): Promise<unknown> => Promise.resolve(true),
   } as unknown as IElementMediator;
 }
 
