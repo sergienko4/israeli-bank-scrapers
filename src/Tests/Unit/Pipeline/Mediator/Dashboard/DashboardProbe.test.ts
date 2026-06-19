@@ -49,6 +49,34 @@ function makeMediator(script: IMediatorScript = {}): IElementMediator {
   } as unknown as IElementMediator;
 }
 
+/**
+ * Build a logger that captures WARN entries.
+ * @param capture - WARN entry sink.
+ * @returns Scraper logger.
+ */
+function makeWarnLogger(capture: (entry: unknown) => boolean): ScraperLogger {
+  return { warn: capture } as unknown as ScraperLogger;
+}
+
+/**
+ * Assert the forced-password warning contains only approved fields.
+ * @param entry - Captured WARN entry.
+ * @returns True after assertions.
+ */
+function assertForcedWarning(entry: unknown): true {
+  const event = entry as {
+    readonly companyId?: unknown;
+    readonly correlationId?: unknown;
+    readonly marker?: unknown;
+  };
+  expect(event.companyId).toBe('amex');
+  expect(typeof event.correlationId).toBe('string');
+  expect(event.marker).toBe(true);
+  const serialized = JSON.stringify(entry);
+  expect(serialized).not.toContain('fixt-p');
+  return true;
+}
+
 describe('checkChangePassword', () => {
   it('returns false when nothing found', async () => {
     const mediator = makeMediator();
@@ -67,16 +95,34 @@ describe('checkChangePassword', () => {
     }
   });
 
-  it('returns false when resolveVisible throws (defensive catch)', async () => {
+  it('fails with a typed probe error when resolveVisible throws', async () => {
     const mediator = makeMediator({ visibleThrows: true });
     const result = await checkChangePassword(mediator);
-    expect(result).toBe(false);
+    expect(result).not.toBe(false);
+    if (result && typeof result === 'object') {
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      if (!result.success) expect(result.errorMessage).toContain('DASHBOARD_PROBE_ERROR');
+    }
   });
 
   it('returns false when found=false is returned', async () => {
     const mediator = makeMediator({ visibleResult: NOT_FOUND_RESULT });
     const result = await checkChangePassword(mediator);
     expect(result).toBe(false);
+  });
+
+  it('logs a PII-safe warning when the forced-pwd marker is present', async () => {
+    const entries: unknown[] = [];
+    const found: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const };
+    const logger = makeWarnLogger(entry => {
+      entries.push(entry);
+      return true;
+    });
+    const mediator = makeMediator({ visibleResult: found });
+    await checkChangePassword(mediator, { logger, companyId: 'amex' });
+    expect(entries).toHaveLength(1);
+    assertForcedWarning(entries[0]);
   });
 });
 
