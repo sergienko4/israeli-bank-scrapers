@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>בנק לדוגמה — דף הבית</title>
+    <style>
+      /* Off-canvas nav: present in the DOM with a REAL bounding box, so
+         Playwright's waitFor({state:'visible'}) reports it visible — but it
+         is shifted far off-screen, so a human never sees or reaches it and
+         document.elementFromPoint at its centre returns nothing (fails the
+         hit-test). This mirrors a real bank's off-canvas burger menu. It is
+         deliberately NOT display:none — Playwright would EXCLUDE a
+         display:none node from the visible set, and then neither the old
+         nor the new resolver could ever pick it. */
+      .offcanvas-nav {
+        position: absolute;
+        left: -10000px;
+        top: 0;
+        width: 280px;
+      }
+      .offcanvas-nav a {
+        display: inline-block;
+        width: 260px;
+        height: 44px;
+        line-height: 44px;
+      }
+      .primary-login {
+        display: inline-block;
+        padding: 12px 28px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>בנק לדוגמה</h1>
+      <!-- DOM-FIRST twin: same visible text + accessible name "כניסה לחשבון",
+           but this is the off-canvas "how to log in / open an account" HELP
+           link. Shifted off-screen — a human never sees it; Playwright still
+           reports it visible (non-empty bbox, not display:none). It targets
+           the help page, which has NO login form. -->
+      <nav class="offcanvas-nav" aria-label="תפריט נייד">
+        <a
+          class="offcanvas-help-login"
+          aria-label="כניסה לחשבון"
+          href="https://www.example-bank.local/help/how-to-login"
+          >כניסה לחשבון</a
+        >
+      </nav>
+    </header>
+    <main>
+      <p>ברוכים הבאים. להתחברות לחשבון הפרטי לחצו על הכפתור.</p>
+      <!-- DOM-SECOND twin: the GENUINE, on-screen login control the user
+           actually clicks. Identical visible text + accessible name as the
+           off-canvas help link above; this one passes the hit-test and
+           targets the real login page. -->
+      <a
+        class="primary-login enter_account"
+        aria-label="כניסה לחשבון"
+        href="https://digital.example-bank.local/personalarea/Login/"
+        >כניסה לחשבון</a
+      >
+    </main>
+  </body>
+</html>
