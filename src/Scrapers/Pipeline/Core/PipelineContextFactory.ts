@@ -48,7 +48,7 @@ function resolveCoreDeps(
   const companyId = descriptor.options.companyId;
   const logger = createLogger(`pipeline-${companyId}`);
   const resolved = resolvePipelineBankConfig(companyId);
-  const config = resolved || { urls: { base: '' } };
+  const config = resolved || { urls: { base: '' }, balanceKind: 'card-cycle' as const };
   return { options: descriptor.options, credentials, companyId, logger, config };
 }
 
@@ -125,6 +125,7 @@ function emptyPhaseEmitOptions(): PhaseEmitOptions {
  */
 function emptyBalanceOptions(): BalanceOptions {
   return {
+    balanceAccountIdentities: none(),
     balanceFetchPlan: none(),
     balanceResponsesByBankAccount: none(),
     balanceExtracted: none(),

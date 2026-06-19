@@ -19,6 +19,12 @@
  *   - `billingSumSekel`     — Amex data.billingSumSekel (aggregate)
  *   - `totalIlsBillingDate` — Amex per-card vouchers.totalForStatement
  *
+ * Plus one v6 addition for browser banks that fold the balance into the
+ * transactions response (no separate balance endpoint):
+ *   - `BalanceDisplay`      — Bank Leumi UC_SO_27 top-level balance
+ *                             (essential for zero-txn checking accounts
+ *                             where `runningBalance` is absent)
+ *
  * Legacy SCRAPE-zone code continues to use the narrower
  * `PIPELINE_WELL_KNOWN_TXN_FIELDS.balance` list via the v3 fallback
  * paths; the v4 BALANCE-RESOLVE phase uses this widened list.
@@ -39,6 +45,7 @@ export const PIPELINE_BALANCE_ALIASES: readonly string[] = [
   'totalAmount',
   'billingSumSekel',
   'totalIlsBillingDate',
+  'BalanceDisplay',
 ] as const;
 
 /**

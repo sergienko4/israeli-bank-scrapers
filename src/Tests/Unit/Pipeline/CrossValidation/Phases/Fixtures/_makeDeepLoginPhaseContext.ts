@@ -88,9 +88,20 @@ function composeDeepLoginContext(args: IDeepLoginContextArgs): IPipelineContext 
   const browser = buildDeepLoginBrowser(page);
   const mediator = buildDeepLoginMediator(page, args.loginUrl, args.cookies);
   const credentials = synthesizeCredentials(args.loginConfig);
-  const config: IPipelineContext['config'] = { urls: { base: args.loginUrl } };
+  const config = buildDeepLoginConfig(args.loginUrl);
   const base = makeMockContext({ browser, mediator });
   return { ...base, credentials, config };
+}
+
+/**
+ * Build the deep LOGIN pipeline config. Extracted so the composer stays
+ * under the 10-line cap now that `balanceKind` is a required field.
+ *
+ * @param loginUrl - Base URL for the pipeline config.
+ * @returns Pipeline config with a required account `balanceKind`.
+ */
+function buildDeepLoginConfig(loginUrl: string): IPipelineContext['config'] {
+  return { urls: { base: loginUrl }, balanceKind: 'account' };
 }
 
 /**

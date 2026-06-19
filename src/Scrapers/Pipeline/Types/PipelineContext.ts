@@ -15,6 +15,7 @@ import type { IAccountDiscovery } from './Domain/AccountDiscoveryTypes.js';
 import type { IApiFetchContext } from './Domain/ApiFetchContext.js';
 import type { IAuthDiscovery } from './Domain/AuthDiscoveryTypes.js';
 import type {
+  IAccountIdentity,
   IBalanceExtracted,
   IBalanceFetchPlanEntry,
   IBalanceValidation,
@@ -90,6 +91,12 @@ export interface IActionContext {
   readonly api: Option<IApiFetchContext>;
   /** Login area ready signal. */
   readonly loginAreaReady: boolean;
+  /**
+   * BALANCE-RESOLVE.pre output (v6) — SCRAPE's account identities
+   * carried through the seal. The sealed action context drops `scrape`,
+   * so PRE stashes the identity map here for ACTION to extract per-card.
+   */
+  readonly balanceAccountIdentities: Option<ReadonlyMap<string, IAccountIdentity>>;
   /** BALANCE-RESOLVE.pre output (v6) — per-bank-account fetch plan. */
   readonly balanceFetchPlan: Option<readonly IBalanceFetchPlanEntry[]>;
   /** BALANCE-RESOLVE.action output (v6) — responses keyed by bankAccountUniqueId. */
@@ -191,6 +198,12 @@ interface IPipelineContext {
    * reads the SAME shape across all 5 auth-ladder flows.
    */
   readonly otpFill: Option<IOtpFill>;
+  /**
+   * BALANCE-RESOLVE.pre output (v6) — SCRAPE's account identities
+   * carried through the seal. The sealed action context drops `scrape`,
+   * so PRE stashes the identity map here for ACTION to extract per-card.
+   */
+  readonly balanceAccountIdentities: Option<ReadonlyMap<string, IAccountIdentity>>;
   /**
    * BALANCE-RESOLVE.pre output (v6) — per-bank-account fetch plan.
    * One entry per unique bankAccountUniqueId derived from SCRAPE's

@@ -12,7 +12,12 @@
  *           entry, collects balanceResponsesByBankAccount, then
  *           extracts per-card balance via runBalanceExtractor and
  *           emits balanceExtracted
- *   - .pre fails closed (Procedure fail) on absent inputs
+ *   - .pre fails closed (Procedure fail) only on absent accountIdentities;
+ *           an absent balanceFetchTemplate is a soft no-op (succeed with an
+ *           empty plan) because card flows (Beinleumi/Max/VisaCal/Isracard)
+ *           legitimately have no balance-bearing endpoint. The universal-miss
+ *           POST gate still catches a real failure (identities resolved but
+ *           every live balance fetch missed).
  *   - .action quarantines per-entry fetch failures (single failure
  *           does NOT abort the phase)
  */
@@ -160,7 +165,7 @@ describe('BALANCE-RESOLVE v6 — pre/action contract', () => {
     expect(isSuccess).toBe(false);
   });
 
-  it('PRE: default-deny when balanceFetchTemplate absent → Procedure fail', async () => {
+  it('PRE: absent balanceFetchTemplate → soft no-op (succeed, empty plan)', async () => {
     const scrape = some({
       accounts: [],
       accountIdentities: FAKE_IDENTITIES_VISACAL_SHAPE,
@@ -168,7 +173,10 @@ describe('BALANCE-RESOLVE v6 — pre/action contract', () => {
     const ctx = makeMockContext({ scrape });
     const result = await executeBalanceResolvePre(ctx);
     const isSuccess = isOk(result);
-    expect(isSuccess).toBe(false);
+    expect(isSuccess).toBe(true);
+    if (isSuccess && result.value.balanceFetchPlan.has) {
+      expect(result.value.balanceFetchPlan.value.length).toBe(0);
+    }
   });
 
   it('ACTION: issues one fetchPost per plan entry; extracts per-card balance', async () => {

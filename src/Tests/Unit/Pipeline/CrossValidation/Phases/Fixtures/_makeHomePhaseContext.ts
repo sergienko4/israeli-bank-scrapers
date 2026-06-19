@@ -130,7 +130,7 @@ function buildHomeContext(
   homepageUrl: string,
 ): IPipelineContext {
   const base = makeMockContext({ browser, mediator });
-  return { ...base, config: { urls: { base: homepageUrl } } };
+  return { ...base, config: { urls: { base: homepageUrl }, balanceKind: 'account' } };
 }
 
 /**

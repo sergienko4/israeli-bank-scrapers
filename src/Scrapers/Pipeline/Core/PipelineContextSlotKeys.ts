@@ -26,6 +26,7 @@ export type PhaseEmitSlotKey = 'authDiscovery' | 'otpTrigger' | 'otpFill';
 
 /** Balance-pipeline slot keys (multi-stage balance resolution). */
 export type BalanceSlotKey =
+  | 'balanceAccountIdentities'
   | 'balanceFetchPlan'
   | 'balanceResponsesByBankAccount'
   | 'balanceExtracted'
