@@ -47,7 +47,7 @@ function buildHrefOnlyTargets(hrefTarget: string): IDashboardTargets {
  * @returns Race result or false on probe error.
  */
 async function probeTxnTrigger(mediator: IElementMediator): Promise<IRaceResult | false> {
-  const txnWk = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  const txnWk = WK_DASHBOARD.TRANSACTIONS;
   const result = mediator.resolveVisible(txnWk, DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS);
   return result.catch((): false => false);
 }

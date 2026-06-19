@@ -10,7 +10,6 @@
  * accounts API such as Isracard `GetCardList` fires, then re-resolves.
  */
 
-import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
@@ -130,7 +129,7 @@ async function awaitAndLog(args: IAwaitArgs): Promise<true> {
  * @returns Always true once the click + re-wait completed.
  */
 async function nudgeCardsViewAndReWait(args: IAwaitArgs): Promise<true> {
-  const candidates = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  const candidates = WK_DASHBOARD.TRANSACTIONS;
   args.log.debug({ message: 'account-resolve.pre nudge → click transactions link' });
   await args.mediator.resolveAndClick(candidates, NUDGE_CLICK_TIMEOUT_MS);
   await awaitAndLog(args);
