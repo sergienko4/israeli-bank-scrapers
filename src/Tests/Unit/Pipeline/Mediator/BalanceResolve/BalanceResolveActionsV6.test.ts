@@ -174,7 +174,9 @@ describe('BALANCE-RESOLVE v6 — pre/action contract', () => {
     const result = await executeBalanceResolvePre(ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(true);
-    if (isSuccess && result.value.balanceFetchPlan.has) {
+    if (!isSuccess) throw new ScraperError('PRE must succeed');
+    expect(result.value.balanceFetchPlan.has).toBe(true);
+    if (result.value.balanceFetchPlan.has) {
       expect(result.value.balanceFetchPlan.value.length).toBe(0);
     }
   });

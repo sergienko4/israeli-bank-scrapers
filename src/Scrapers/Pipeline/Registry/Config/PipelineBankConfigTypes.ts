@@ -35,13 +35,12 @@ export type PhoneNumberFormatTag =
   | 'local-only';
 
 /**
- * Balance semantics for a bank — an OPTIONAL, explicit per-bank declaration.
+ * Balance semantics for a bank — an explicit, REQUIRED per-bank declaration.
  * `'account'` banks expose a real account balance (deposit/checking banks)
  * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose only
  * per-cycle credit-card billing aggregates (VisaCal, Max, Amex, Isracard) and
- * have no account balance to resolve (deterministic no-op). ABSENT ⇒ dormant
- * no-op (main parity) — a bank is activated only once its balance resolution
- * is proven offline + live, one bank at a time.
+ * have no account balance to resolve (deterministic no-op). Never inferred
+ * from absence — an unstated kind is a config error, not a dormant no-op.
  */
 export type BalanceKind = 'account' | 'card-cycle';
 

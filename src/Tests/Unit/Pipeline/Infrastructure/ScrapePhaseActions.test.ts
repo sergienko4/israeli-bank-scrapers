@@ -270,8 +270,11 @@ describe('executeStampAccounts', () => {
     const result = await executeStampAccounts(ctx);
     const isStampOk = isOk(result);
     expect(isStampOk).toBe(true);
-    if (isOk(result) && result.value.scrape.has) {
-      expect(result.value.scrape.value.balanceResponseBodies).toEqual([{ BalanceDisplay: 150 }]);
+    if (isOk(result)) {
+      expect(result.value.scrape.has).toBe(true);
+      if (result.value.scrape.has) {
+        expect(result.value.scrape.value.balanceResponseBodies).toEqual([{ BalanceDisplay: 150 }]);
+      }
     }
   });
 });
