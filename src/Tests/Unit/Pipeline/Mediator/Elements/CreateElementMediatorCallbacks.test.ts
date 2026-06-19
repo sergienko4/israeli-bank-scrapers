@@ -187,6 +187,16 @@ describe('CreateElementMediator — walkUpToAnchorHref callback (invoked locally
        */
       first: (): Locator => locator,
       /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       * @returns 1.
+       */
+      count: (): Promise<number> => Promise.resolve(1),
+      /**
+       * Test helper - nth collapses to self (single match).
+       * @returns Self locator.
+       */
+      nth: (): Locator => locator,
+      /**
        * Test helper.
        *
        * @returns Result.
@@ -276,6 +286,16 @@ describe('CreateElementMediator — traceElementInfo callback (invoked locally)'
        * @returns Result.
        */
       first: (): Locator => locator,
+      /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       * @returns 1.
+       */
+      count: (): Promise<number> => Promise.resolve(1),
+      /**
+       * Test helper - nth collapses to self (single match).
+       * @returns Self locator.
+       */
+      nth: (): Locator => locator,
       /**
        * Test helper.
        *
@@ -379,6 +399,16 @@ describe('CreateElementMediator — resolveVisibleInContextImpl winner<0 branch'
        */
       first: (): Locator => locator,
       /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       * @returns 1.
+       */
+      count: (): Promise<number> => Promise.resolve(1),
+      /**
+       * Test helper - nth collapses to self (single match).
+       * @returns Self locator.
+       */
+      nth: (): Locator => locator,
+      /**
        * Test helper.
        *
        * @returns Result.
@@ -452,6 +482,16 @@ describe('CreateElementMediator — buildCandidateLocators default fallback kind
        */
       first: (): Locator => locator,
       /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       * @returns 1.
+       */
+      count: (): Promise<number> => Promise.resolve(1),
+      /**
+       * Test helper - nth collapses to self (single match).
+       * @returns Self locator.
+       */
+      nth: (): Locator => locator,
+      /**
        * Test helper.
        *
        * @returns Result.
@@ -513,6 +553,16 @@ describe('CreateElementMediator — extractIdentity callback (invoked locally)',
        * @returns Result.
        */
       first: (): Locator => locator,
+      /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       * @returns 1.
+       */
+      count: (): Promise<number> => Promise.resolve(1),
+      /**
+       * Test helper - nth collapses to self (single match).
+       * @returns Self locator.
+       */
+      nth: (): Locator => locator,
       /**
        * Test helper.
        *

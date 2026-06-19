@@ -58,23 +58,7 @@ interface IResolveAllArgs {
 }
 
 /**
- * Resolve the first visible element — parallel race across candidates with
- * `.first()` per locator. Uses the SAME resolveVisible + hit-test logic in
- * both LIVE and MOCK modes (Rule #20: passive discovery is identical). If
- * an element isn't visible in the rendered snapshot, the mock MUST fail —
- * that's the whole point. When `args.formAnchor` is set, ALL candidate kinds
- * are scoped to descendants of the form via Playwright Locator chaining.
- * @param args - Bundled page + candidates + timeout + formAnchor.
- * @returns Race result with locator + metadata, or NOT_FOUND.
- */
-async function resolveVisibleImpl(args: IClickResolveArgs): Promise<IRaceResult> {
-  const entries = buildLocatorEntries(args.page, args.candidates, args.formAnchor);
-  const effectiveTimeout = capTimeout(args.timeout);
-  return raceEntriesToResult(entries, effectiveTimeout, 'resolveVisible');
-}
-
-/**
- * Resolve the first visible element — like resolveVisibleImpl but enumerates
+ * Resolve the first visible element via a parallel race that enumerates
  * `.nth(0..MAX_NTH_PER_LOCATOR-1)` per base locator so multi-match elements
  * (e.g. several `<button type="submit">` across login + SMS forms) all enter
  * the race. Hit-test picks the truly visible+enabled winner.
@@ -190,7 +174,7 @@ async function runHitTestRaceLike(
 
 /**
  * Resolve the first visible element within a SINGLE frame context.
- * Same logic as resolveVisibleImpl but scoped to one context.
+ * Same logic as resolveVisibleNthAware but scoped to one context.
  * @param ctx - The specific Page or Frame to search.
  * @param candidates - WellKnown selector candidates.
  * @param timeout - Race timeout in ms.
@@ -322,7 +306,7 @@ function buildResolveVisible(page: Page): IElementMediator['resolveVisible'] {
     if (candidates.length === 0) return Promise.resolve(NOT_FOUND_RESULT);
     const timeout = timeoutMs ?? CLICK_RACE_TIMEOUT;
     const anchor = formAnchor ?? NO_FORM_ANCHOR;
-    return resolveVisibleImpl({ page, candidates, timeout, formAnchor: anchor });
+    return resolveVisibleNthAware({ page, candidates, timeout, formAnchor: anchor });
   };
 }
 

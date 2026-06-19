@@ -2,9 +2,10 @@
  * Per-kind locator builders + OCP-friendly dispatch table. Each builder
  * accepts a form-scoped context and returns BASE Playwright locators
  * (without `.first()`). Callers wrap as needed:
- *   - `buildCandidateLocators` applies `.first()` (resolveVisibleImpl).
- *   - `buildLocatorEntriesAll` enumerates `.nth(0..N-1)` (resolveAllVisible /
- *     resolveAndClick) so multi-match elements all enter the race.
+ *   - `buildCandidateLocators` applies `.first()` (resolveVisibleInContextImpl).
+ *   - `buildLocatorEntriesAll` enumerates `.nth(0..N-1)` (resolveVisible /
+ *     resolveAllVisible / resolveAndClick) so multi-match elements all enter
+ *     the race.
  *
  * Extracted from CreateElementMediator.ts (Phase 12a §3) so the god module
  * no longer owns SelectorCandidate→Locator dispatch.

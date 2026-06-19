@@ -134,10 +134,13 @@ async function runHomePreAndAction(page: Page): Promise<{ didNavigate: boolean }
 }
 
 describe('HOME phase — visible/hidden same-text twin (latent shared-resolver bug)', () => {
-  // it.failing: the desired assertion (reach the genuine login) currently
-  // throws on the origin/main baseline because the resolver picks the
-  // off-canvas decoy. P2's global fix flips this to a passing it().
-  it.failing(
+  // P2 global fix landed (two layers): PRE — passive resolveVisible is
+  // nth-aware + hit-test winner-picking, so it resolves the genuine
+  // on-screen login over the off-canvas decoy; ACTION — buildIdentitySelector
+  // conjoins the distinct href onto the shared aria-label, so the click
+  // targets that exact element instead of re-resolving to the DOM-first
+  // decoy. (Was it.failing on the buggy baseline.)
+  it(
     'resolves the genuine on-screen login, not the off-canvas decoy (fixed globally in P2)',
     async () => {
       const { context, page } = await preparePage();

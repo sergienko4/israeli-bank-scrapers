@@ -36,6 +36,22 @@ describe('CreateElementMediator — snapshotValue href target + fallback', () =>
         return this as unknown as Locator;
       },
       /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
        * waitFor — visible only.
        * @returns Resolves.
        */
@@ -225,6 +241,22 @@ describe('CreateElementMediator — isTrulyVisible evaluate-callback branches', 
        * @returns Result.
        */
       first(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
         return this as unknown as Locator;
       },
       /**

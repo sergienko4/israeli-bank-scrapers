@@ -30,6 +30,22 @@ describe('CreateElementMediator — getAttributeValue with null return', () => {
         return this as unknown as Locator;
       },
       /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
        * Test helper.
        *
        * @returns Result.
@@ -101,6 +117,22 @@ describe('CreateElementMediator — checkAttribute with empty attr', () => {
        * @returns Result.
        */
       first(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
         return this as unknown as Locator;
       },
       /**

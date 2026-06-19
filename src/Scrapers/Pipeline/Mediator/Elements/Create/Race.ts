@@ -4,7 +4,7 @@
  * and packages winners into IRaceResult.
  *
  * Public surface (consumed by parent CreateElementMediator's resolver
- * impls — `resolveVisibleImpl`, `resolveVisibleNthAware`,
+ * impls — `resolveVisibleNthAware`,
  * `resolveAllVisibleImpl`):
  *
  *   - `raceEntriesToResult` — race entries through hit-test, return the
@@ -72,7 +72,7 @@ export function traceRaceDiagnostic(
 
 /**
  * Run the hit-test race against an entry list, log diagnostics.
- * Extracted so resolveVisibleImpl + resolveVisibleNthAware share one path.
+ * Extracted so resolveVisibleNthAware + resolveVisibleInContextImpl share one path.
  * @param entries - Locator entries (single-match `.first()` OR nth-enumerated).
  * @param timeout - Race timeout (already capped by caller).
  * @param label - Log prefix identifying the resolver (for diagnostic trace).
@@ -111,8 +111,8 @@ export async function enrichWinnerToResult(
 
 /**
  * Race entries through hit-test, return found-result or NOT_FOUND.
- * Shared body for resolveVisibleImpl (`.first()` per candidate) and
- * resolveVisibleNthAware (nth-enumerated). Caller picks the entry-builder.
+ * Shared body for resolveVisibleNthAware (nth-enumerated) and
+ * resolveVisibleInContextImpl (`.first()` per candidate). Caller picks the entry-builder.
  * @param entries - Locator entries to race.
  * @param timeout - Race timeout (already capped).
  * @param label - Diagnostic label for log output.

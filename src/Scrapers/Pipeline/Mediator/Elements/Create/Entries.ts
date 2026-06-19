@@ -153,9 +153,12 @@ async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly 
 
 /**
  * Build locator entries that surface MULTIPLE elements per locator (up to
- * `MAX_NTH_PER_LOCATOR`). Used only by `resolveAllVisible` so other
- * resolvers (login/preLogin/etc.) keep their `.first()`-only semantics —
- * zero behavioural change for banks that already pass on attempt 0.
+ * `MAX_NTH_PER_LOCATOR`). Backs `resolveVisibleNthAware`, which now serves
+ * BOTH the active resolve-and-click path and the passive `resolveVisible`
+ * discovery, plus the hit-test race fallback. Surfacing every nth-match lets
+ * the hit-test winner-picker prefer a truly-visible control over a same-text
+ * off-canvas decoy that merely happens to be DOM-first. The single-frame
+ * `resolveVisibleInContextImpl` still uses `.first()` via `buildLocatorEntries`.
  * @param page - Playwright page.
  * @param candidates - WK selector candidates.
  * @param formAnchor - Optional CSS form selector — when set, all candidate

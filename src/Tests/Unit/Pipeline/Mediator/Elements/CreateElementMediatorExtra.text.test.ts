@@ -29,6 +29,22 @@ describe('CreateElementMediator — snapshotValue text-path branches', () => {
         return this as unknown as Locator;
       },
       /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
        * Test helper.
        *
        * @returns Result.
@@ -86,6 +102,22 @@ describe('CreateElementMediator — snapshotValue text-path branches', () => {
        * @returns Result.
        */
       first(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
         return this as unknown as Locator;
       },
       /**
@@ -152,6 +184,22 @@ describe('CreateElementMediator — snapshotValue text-path branches', () => {
         return this as unknown as Locator;
       },
       /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
        * Test helper.
        *
        * @returns Result.
@@ -215,6 +263,22 @@ describe('CreateElementMediator — traceElementIdentity catch branch', () => {
        * @returns Result.
        */
       first(): Locator {
+        return this as unknown as Locator;
+      },
+      /**
+       * Test helper - count for nth-aware resolveVisible (single match).
+       *
+       * @returns 1.
+       */
+      count(): Promise<number> {
+        return Promise.resolve(1);
+      },
+      /**
+       * Test helper - nth collapses to self (single match).
+       *
+       * @returns Self.
+       */
+      nth(): Locator {
         return this as unknown as Locator;
       },
       /**

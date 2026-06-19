@@ -95,6 +95,18 @@ describe('raceResultToTarget — identity-based selector tiers', () => {
     if (target) expect(target.selector).toBe('[aria-label="Send"]');
   });
 
+  it('conjoins [href="…"] onto aria-label to disambiguate same-name twins', () => {
+    // Two controls can share an accessible name (off-canvas decoy + genuine
+    // login anchor both labelled "כניסה לחשבון"); the distinct href pins the
+    // selector to the exact element PRE resolved, so ACTION cannot fall back
+    // to the DOM-first decoy via `.first()`.
+    const identity = makeIdentity({ ariaLabel: 'כניסה לחשבון', href: '/personalarea/Login/' });
+    const result = makeFoundResultWithIdentity(identity);
+    const target = raceResultToTarget(result, page);
+    if (target)
+      expect(target.selector).toBe('[aria-label="כניסה לחשבון"][href="/personalarea/Login/"]');
+  });
+
   it('falls through to [title="…"] when id+name+aria-label absent', () => {
     const identity = makeIdentity({ title: 'שלח' });
     const result = makeFoundResultWithIdentity(identity);

@@ -490,13 +490,33 @@ function hasAttr(v: string): boolean {
 }
 
 /**
+ * Build the aria-label tier selector, conjoining a distinct `href` when the
+ * resolved anchor carries one. Two controls can share an identical accessible
+ * name — e.g. an off-canvas "how to log in" decoy and the genuine on-screen
+ * login anchor both labelled `כניסה לחשבון`. A bare `[aria-label="…"]` then
+ * matches BOTH, and ACTION's `.first()` click lands on the DOM-first decoy.
+ * Conjoining the href (unique per destination) pins the selector to the EXACT
+ * element PRE's hit-test selected. Elements without an href (buttons) keep the
+ * bare aria-label selector, so the Beinleumi `<button title="…">` path is
+ * untouched.
+ * @param identity - DOM identity captured by `extractIdentity` at PRE time.
+ * @returns `[aria-label="…"]`, conjoined with `[href="…"]` when an href exists.
+ */
+function ariaLabelSelector(identity: IElementIdentity): string {
+  const aria = `[aria-label="${identity.ariaLabel}"]`;
+  if (hasAttr(identity.href)) return `${aria}[href="${identity.href}"]`;
+  return aria;
+}
+
+/**
  * Build a precise CSS attribute selector from the resolved element's actual
  * DOM identity, in priority order:
  *   1. id          → `[id="…"]`        (most specific, almost always unique)
  *   2. name        → `[name="…"]`      (form fields)
- *   3. aria-label  → `[aria-label="…"]` (semantic labels)
+ *   3. aria-label  → `[aria-label="…"]` (semantic labels; + `[href]` when the
+ *                    element is an anchor — disambiguates same-name twins)
  *   4. title       → `[title="…"]`     (Bootstrap-style buttons)
- *   5. href        → `[href="…"]`      (anchor links)
+ *   5. href        → `[href="…"]`      (anchor links with no accessible name)
  *
  * The selector matches the EXACT element PRE found, regardless of which WK
  * candidate kind triggered the match. This lets ariaLabel-kind candidates
@@ -511,7 +531,7 @@ function hasAttr(v: string): boolean {
 function buildIdentitySelector(identity: IElementIdentity): string | false {
   if (hasAttr(identity.id)) return `[id="${identity.id}"]`;
   if (hasAttr(identity.name)) return `[name="${identity.name}"]`;
-  if (hasAttr(identity.ariaLabel)) return `[aria-label="${identity.ariaLabel}"]`;
+  if (hasAttr(identity.ariaLabel)) return ariaLabelSelector(identity);
   if (hasAttr(identity.title)) return `[title="${identity.title}"]`;
   if (hasAttr(identity.href)) return `[href="${identity.href}"]`;
   return false;
