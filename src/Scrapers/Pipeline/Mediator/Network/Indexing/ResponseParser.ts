@@ -15,6 +15,11 @@
  *     and this file (parseResponse).
  *
  * Structured-log helpers live in {@link ./ResponseParserLogs.js}.
+ *
+ * SOAP/WCF (Broker.svc-style) envelope unwrap is a bank-specific
+ * adapter concern, intentionally not on the shared response path; a
+ * future SOAP-backed bank migration adds a thin bank-specific adapter
+ * that unwraps before handing plain JSON to this generic parser.
  */
 
 import type { Response } from 'playwright-core';
