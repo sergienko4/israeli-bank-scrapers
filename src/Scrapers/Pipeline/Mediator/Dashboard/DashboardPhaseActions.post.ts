@@ -69,6 +69,15 @@ function buildDashState(pageUrl: string): IDashboardState {
 }
 
 /**
+ * Build PII-safe logging context for the dashboard probe.
+ * @param input - Pipeline context.
+ * @returns Structured log context.
+ */
+function buildProbeLogContext(input: IPipelineContext): Parameters<typeof checkChangePassword>[1] {
+  return { logger: input.logger, companyId: input.companyId };
+}
+
+/**
  * Run the password-change probe + the primed-traffic gate.
  * @param mediator - Element mediator (already unwrapped).
  * @param input - Pipeline context (for logger access).
@@ -78,7 +87,8 @@ async function runPwdAndPrime(
   mediator: IElementMediator,
   input: IPipelineContext,
 ): Promise<Procedure<IPipelineContext> | boolean> {
-  const pwdCheck = await checkChangePassword(mediator);
+  const logContext = buildProbeLogContext(input);
+  const pwdCheck = await checkChangePassword(mediator, logContext);
   if (pwdCheck) return pwdCheck;
   return validateTrafficGate(mediator.network, input.logger);
 }
