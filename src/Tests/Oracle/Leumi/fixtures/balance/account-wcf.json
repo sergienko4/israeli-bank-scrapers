@@ -1,0 +1,9 @@
+{
+  "Envelope": {
+    "Body": {
+      "GetAccountDataResponse": {
+        "GetAccountDataResult": "{\"accounts\":[{\"nextTotalDebit\":9999,\"currentBalance\":\"4321.5\",\"currency\":376}]}"
+      }
+    }
+  }
+}
