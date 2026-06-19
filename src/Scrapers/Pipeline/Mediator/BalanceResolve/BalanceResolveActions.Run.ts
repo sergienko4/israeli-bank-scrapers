@@ -6,6 +6,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { scopedResolveBalanceAliases } from '../../Registry/WK/BalanceResolveWK.js';
 import { some } from '../../Types/Option.js';
 import type {
   IActionContext,
@@ -144,7 +145,8 @@ async function executeDispatchChain(args: IDispatchChainArgs): Promise<Procedure
   const fetched = await fetchAllPlanEntries(args.fetchCtx, args.plan);
   const captured = readSeededCaptured(args.input);
   const responses = mergeCaptured(captured, fetched);
-  const extracted = extractAllCards({ identities, responses });
+  const balanceAliases = scopedResolveBalanceAliases(args.input.config.balanceKind);
+  const extracted = extractAllCards({ identities, responses, balanceAliases });
   return commitDispatchResult({ input: args.input, responses, extracted });
 }
 

@@ -144,20 +144,29 @@ interface ICommitArtifacts {
   readonly responseBody: ApiRecord;
 }
 
+/** Compose result of {@link resolveRequestParts} — resolved request
+ *  parts (method + fieldMap) plus the parsed body sample. */
+interface IRequestPartsResult {
+  readonly parts: IResolvedRequestParts;
+  readonly responseBody: ApiRecord;
+}
+
 /**
  * Resolve method + fieldMap from a shape-passing capture body.
  * Pulled out so {@link buildCommitArtifacts} stays under the LoC budget.
  * @param ep - Capture returned by `discoverTransactionsEndpoint`.
+ * @param balanceAliases - Family-scoped balance aliases (optional;
+ *   the leaf resolver defaults to the full WK list when omitted).
  * @returns Resolved request parts (method + fieldMap) + parsed body.
  */
-function resolveRequestParts(ep: IDiscoveredEndpoint): {
-  parts: IResolvedRequestParts;
-  responseBody: ApiRecord;
-} {
+function resolveRequestParts(
+  ep: IDiscoveredEndpoint,
+  balanceAliases?: readonly string[],
+): IRequestPartsResult {
   const method = ep.method as 'GET' | 'POST';
   const responseBody = (ep.responseBody ?? {}) as ApiRecord;
   const huntedRecords = huntTransactions(responseBody);
-  const fieldMap = resolveFieldMapOrEmpty(huntedRecords);
+  const fieldMap = resolveFieldMapOrEmpty(huntedRecords, balanceAliases);
   return { parts: { method, fieldMap }, responseBody };
 }
 
@@ -168,13 +177,15 @@ function resolveRequestParts(ep: IDiscoveredEndpoint): {
  *
  * @param network - Network surface exposing the captured pool.
  * @param ep - Capture returned by `discoverTransactionsEndpoint`.
+ * @param balanceAliases - Family-scoped balance aliases (optional).
  * @returns Slim endpoint + parsed responseBody bundle.
  */
 function buildCommitArtifacts(
   network: INetworkDiscovery,
   ep: IDiscoveredEndpoint,
+  balanceAliases?: readonly string[],
 ): ICommitArtifacts {
-  const { parts, responseBody } = resolveRequestParts(ep);
+  const { parts, responseBody } = resolveRequestParts(ep, balanceAliases);
   const endpoint = buildTxnEndpoint(network, ep, parts);
   return { endpoint, responseBody };
 }
@@ -193,13 +204,18 @@ function buildCommitArtifacts(
  * auto-discovery for that one execution.
  *
  * @param network - Network surface exposing the pool of captures.
+ * @param balanceAliases - Family-scoped balance aliases (optional;
+ *   DASHBOARD.FINAL passes the bank's kind-scoped list).
  * @returns Resolved internal payload or `false`.
  */
-function resolveTxnEndpoint(network: INetworkDiscovery): ITxnEndpointInternal | false {
+function resolveTxnEndpoint(
+  network: INetworkDiscovery,
+  balanceAliases?: readonly string[],
+): ITxnEndpointInternal | false {
   const ep = network.discoverTransactionsEndpoint();
   if (ep === false) return false;
   if (!isCommittableCapture(ep)) return false;
-  const { endpoint, responseBody } = buildCommitArtifacts(network, ep);
+  const { endpoint, responseBody } = buildCommitArtifacts(network, ep, balanceAliases);
   return buildInternalResult(ep, endpoint, responseBody);
 }
 

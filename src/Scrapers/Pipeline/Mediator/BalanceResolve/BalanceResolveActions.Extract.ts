@@ -4,13 +4,16 @@
  * per-file LoC cap is honoured (phase-2e-residue split).
  */
 
-import { PIPELINE_DISPLAY_ID_FIELDS } from '../../Registry/WK/BalanceResolveWK.js';
+import {
+  PIPELINE_BALANCE_ALIASES,
+  PIPELINE_DISPLAY_ID_FIELDS,
+} from '../../Registry/WK/BalanceResolveWK.js';
 import type {
   BalanceExtractionOutcome,
   IAccountIdentity,
   IBalanceExtracted,
 } from '../../Types/PipelineContext.js';
-import { runBalanceExtractor } from './BalanceExtractor.js';
+import { runBalanceExtractorWith } from './BalanceExtractor.js';
 import { BULK_KEY } from './BalanceFetchPlanner.js';
 
 /** Sentinel returned by findCardRecord when no match is present. */
@@ -95,27 +98,63 @@ function findCardRecord(node: unknown, identity: IAccountIdentity): Record<strin
 }
 
 /**
- * Extract per-card balance from a bank-account-level response.
+ * Scan one bank-account body with a given alias list — the card's own
+ * nested record first, then the whole body.
  * @param body - Response body for the card's bank account.
  * @param identity - Card identity (cardUniqueId + cardDisplayId).
+ * @param aliases - Balance-alias list to scan with.
  * @returns Finite balance number, or `false` for MISS.
  */
-function extractPerCardBalance(body: unknown, identity: IAccountIdentity): number | false {
+function scanBodyWithAliases(
+  body: unknown,
+  identity: IAccountIdentity,
+  aliases: readonly string[],
+): number | false {
   const card = findCardRecord(body, identity);
-  const fromCard = isNoCardRecord(card) ? false : runBalanceExtractor(card);
+  const fromCard = isNoCardRecord(card) ? false : runBalanceExtractorWith(card, aliases);
   if (fromCard !== false) return fromCard;
-  return runBalanceExtractor(body);
+  return runBalanceExtractorWith(body, aliases);
+}
+
+/**
+ * Extract per-card balance, preferring the bank's declared family then
+ * falling back to the full alias list. The scoped pass restricts the
+ * scan to the declared family, so a card bank never bleeds onto an
+ * account alias while an in-family debit is present (R1 hardening). The
+ * fallback pass — byte-identical to the pre-kind unscoped extractor —
+ * fires ONLY when the scoped pass finds nothing, recovering banks whose
+ * balance legitimately lives under a cross-family alias (e.g. a FIBI
+ * account balance folded under the card-shared `totalAmount`).
+ * Behaviour-preserving: a scoped miss yields exactly the unscoped result.
+ * @param body - Response body for the card's bank account.
+ * @param identity - Card identity (cardUniqueId + cardDisplayId).
+ * @param aliases - Family-scoped balance-alias list.
+ * @returns Finite balance number, or `false` for MISS.
+ */
+function extractPerCardBalance(
+  body: unknown,
+  identity: IAccountIdentity,
+  aliases: readonly string[],
+): number | false {
+  const scoped = scanBodyWithAliases(body, identity, aliases);
+  if (scoped !== false) return scoped;
+  return scanBodyWithAliases(body, identity, PIPELINE_BALANCE_ALIASES);
 }
 
 /**
  * Extract a card's balance from one response body (undefined-safe).
  * @param body - Candidate response body (keyed or bulk), may be undefined.
  * @param identity - Card identity.
+ * @param aliases - Family-scoped balance-alias list.
  * @returns Finite balance, or `false` when absent / carries no balance.
  */
-function extractFromBody(body: unknown, identity: IAccountIdentity): number | false {
+function extractFromBody(
+  body: unknown,
+  identity: IAccountIdentity,
+  aliases: readonly string[],
+): number | false {
   if (body === undefined) return false;
-  return extractPerCardBalance(body, identity);
+  return extractPerCardBalance(body, identity, aliases);
 }
 
 /**
@@ -129,23 +168,28 @@ function pickKeyedOrBulk(keyed: number | false, bulk: number | false): BalanceEx
   return bulk === false ? 'MISS' : bulk;
 }
 
+/** Bundled args for {@link extractOneCard}. */
+interface IExtractOneArgs {
+  readonly identity: IAccountIdentity;
+  readonly responses: ReadonlyMap<string, unknown>;
+  /** Family-scoped balance-alias list (kind-required). */
+  readonly aliases: readonly string[];
+}
+
 /**
  * Extract one card's balance: prefer its own keyed response, then fall
  * back to the captured BULK_KEY body when the keyed response is absent
  * OR carries no balance — e.g. a wrong-endpoint live fetch that 200s
  * without a balance must not shadow the captured pool's real balance.
- * @param identity - Card identity.
- * @param responses - Responses keyed by bankAccountUniqueId.
+ * @param args - Card identity + responses + family-scoped aliases.
  * @returns Outcome.
  */
-function extractOneCard(
-  identity: IAccountIdentity,
-  responses: ReadonlyMap<string, unknown>,
-): BalanceExtractionOutcome {
+function extractOneCard(args: IExtractOneArgs): BalanceExtractionOutcome {
+  const { identity, responses, aliases } = args;
   const keyedBody = responses.get(identity.bankAccountUniqueId);
   const bulkBody = responses.get(BULK_KEY);
-  const fromKeyed = extractFromBody(keyedBody, identity);
-  const fromBulk = extractFromBody(bulkBody, identity);
+  const fromKeyed = extractFromBody(keyedBody, identity, aliases);
+  const fromBulk = extractFromBody(bulkBody, identity, aliases);
   return pickKeyedOrBulk(fromKeyed, fromBulk);
 }
 
@@ -153,18 +197,20 @@ function extractOneCard(
 interface IExtractAllArgs {
   readonly identities: ReadonlyMap<string, IAccountIdentity>;
   readonly responses: ReadonlyMap<string, unknown>;
+  /** Family-scoped balance aliases the per-card extractor scans (kind-required). */
+  readonly balanceAliases: readonly string[];
 }
 
 /**
  * Iterate every card identity, running the per-card extractor.
- * @param args - Bundled identities + responses.
+ * @param args - Bundled identities + responses + optional scoped aliases.
  * @returns Per-card outcomes (number or 'MISS').
  */
 function extractAllCards(args: IExtractAllArgs): IBalanceExtracted {
-  const { identities, responses } = args;
+  const { identities, responses, balanceAliases } = args;
   const out = new Map<string, BalanceExtractionOutcome>();
   for (const identity of identities.values()) {
-    const outcome = extractOneCard(identity, responses);
+    const outcome = extractOneCard({ identity, responses, aliases: balanceAliases });
     out.set(identity.cardDisplayId, outcome);
   }
   return out;

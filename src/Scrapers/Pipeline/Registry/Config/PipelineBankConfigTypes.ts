@@ -4,6 +4,15 @@
  * Rule #15 named-alias discipline.
  */
 
+import type { BalanceKind } from '../WK/BalanceKind.js';
+
+/**
+ * Re-exported for back-compat — the canonical home is
+ * {@link ACCOUNT_BALANCE_FAMILY | WK/BalanceKind}. Consumers that
+ * imported `BalanceKind` from this module keep working.
+ */
+export type { BalanceKind };
+
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
 export type AuthPathKey =
   | 'identity.deviceToken'
@@ -33,16 +42,6 @@ export type PhoneNumberFormatTag =
   | 'international-dash'
   | 'international-flat'
   | 'local-only';
-
-/**
- * Balance semantics for a bank — an explicit, REQUIRED per-bank declaration.
- * `'account'` banks expose a real account balance (deposit/checking banks)
- * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose only
- * per-cycle credit-card billing aggregates (VisaCal, Max, Amex, Isracard) and
- * have no account balance to resolve (deterministic no-op). Never inferred
- * from absence — an unstated kind is a config error, not a dormant no-op.
- */
-export type BalanceKind = 'account' | 'card-cycle';
 
 /** Headless-strategy URL block — populates ctx.apiMediator at build time. */
 export interface IHeadlessUrlsConfig {
@@ -94,15 +93,15 @@ export interface IPipelineBankConfig {
   readonly urls: {
     readonly base: string;
   };
+  /**
+   * Balance semantics this bank exposes. Scopes BALANCE-RESOLVE (and
+   * the legacy SCRAPE fieldMap) to the matching alias family so a
+   * card bank never resolves an account alias (and vice-versa).
+   * Mandatory — every registered bank declares its kind explicitly.
+   */
+  readonly balanceKind: BalanceKind;
   /** Fallback transaction API path — used when network discovery finds nothing. */
   readonly transactionsPath?: string;
   /** Headless-strategy URLs — populated for API-native banks (no browser). */
   readonly headless?: IHeadlessUrlsConfig;
-  /**
-   * Balance semantics — see {@link BalanceKind}. REQUIRED: every bank states
-   * its kind explicitly — `'account'` (live balance resolved) or `'card-cycle'`
-   * (deterministic no-op). Never inferred from absence — an unstated kind is a
-   * config error, not a silent dormant no-op.
-   */
-  readonly balanceKind: BalanceKind;
 }

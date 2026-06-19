@@ -10,6 +10,7 @@
  * the per-run {@link ITxnFieldMap}.
  */
 
+import { type BalanceKind, scopeAliasesByKind } from '../../../Registry/WK/BalanceKind.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 import type { ITxnFieldMap } from '../../../Types/PipelineContext.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
@@ -63,17 +64,39 @@ interface IFieldMapOptionals {
 }
 
 /**
+ * Resolve the balance alias preferring the bank's declared family,
+ * then falling back to the full {@link WK.balance} list. The fallback
+ * fires ONLY when the scoped pass finds nothing, so a browser bank
+ * whose balance lives under a cross-family alias still resolves —
+ * mirroring the BALANCE-RESOLVE primary seam's scoped-first-then-full
+ * behaviour. Behaviour-preserving: a scoped miss yields the unscoped
+ * alias.
+ * @param sample - First record from the txn array.
+ * @param balanceAliases - Family-scoped balance-alias list.
+ * @returns First matching balance key, or `false` when absent.
+ */
+function resolveBalanceAlias(sample: ApiRecord, balanceAliases: readonly string[]): string | false {
+  const scoped = resolveOptionalAlias(sample, balanceAliases);
+  if (scoped !== false) return scoped;
+  return resolveOptionalAlias(sample, WK.balance);
+}
+
+/**
  * Resolve the optional aliases bundle for {@link buildFieldMap}.
  * Pulled out so the orchestrator stays a thin guard + return.
  *
  * @param sample - First record from the txn array.
+ * @param balanceAliases - Family-scoped balance-alias list.
  * @returns Bundle holding the three optional alias results.
  */
-function resolveOptionalFields(sample: ApiRecord): IFieldMapOptionals {
+function resolveOptionalFields(
+  sample: ApiRecord,
+  balanceAliases: readonly string[],
+): IFieldMapOptionals {
   return {
     originalAmount: resolveOptionalAlias(sample, WK.originalAmount),
     processedDate: resolveOptionalAlias(sample, WK.processedDate),
-    balance: resolveOptionalAlias(sample, WK.balance),
+    balance: resolveBalanceAlias(sample, balanceAliases),
   };
 }
 
@@ -82,16 +105,18 @@ function resolveOptionalFields(sample: ApiRecord): IFieldMapOptionals {
  * Returns `false` when neither a date alias nor any amount alias
  * resolves — DASHBOARD.FINAL escalates to F-DASH-2.
  * @param sample - First record from the txn array.
+ * @param balanceAliases - Family-scoped balance-alias list.
  * @returns Resolved field map or `false`.
  */
-function buildFieldMap(sample: ApiRecord): ITxnFieldMap | false {
+function buildFieldMap(sample: ApiRecord, balanceAliases: readonly string[]): ITxnFieldMap | false {
   const date = resolveAlias(sample, WK.date);
   const amount = pickAmountAlias(sample);
   if (date === '' || amount === '') return false;
   const description = resolveAlias(sample, WK.description);
   const currency = resolveAlias(sample, WK.currency);
   const identifier = resolveAlias(sample, WK.identifier);
-  return { date, amount, description, currency, identifier, ...resolveOptionalFields(sample) };
+  const optionals = resolveOptionalFields(sample, balanceAliases);
+  return { date, amount, description, currency, identifier, ...optionals };
 }
 
 /** Empty fieldMap returned when the picked capture has zero
@@ -112,13 +137,29 @@ const EMPTY_FIELD_MAP: ITxnFieldMap = {
  * Resolve a fieldMap from the first transaction record, or fall
  * back to the empty fieldMap when the body has zero records.
  * @param records - Records harvested by `huntTransactions`.
+ * @param balanceAliases - Family-scoped balance aliases; defaults to
+ *   the full {@link WK.balance} list for kind-agnostic callers/tests.
  * @returns Resolved fieldMap (never `false`).
  */
-function resolveFieldMapOrEmpty(records: readonly ApiRecord[]): ITxnFieldMap {
+function resolveFieldMapOrEmpty(
+  records: readonly ApiRecord[],
+  balanceAliases: readonly string[] = WK.balance,
+): ITxnFieldMap {
   if (records.length === 0) return EMPTY_FIELD_MAP;
-  const sampleFieldMap = buildFieldMap(records[0]);
+  const sampleFieldMap = buildFieldMap(records[0], balanceAliases);
   if (sampleFieldMap === false) return EMPTY_FIELD_MAP;
   return sampleFieldMap;
+}
+
+/**
+ * Scope the legacy SCRAPE `fieldMap.balance` alias list
+ * ({@link WK.balance}) to a bank's declared kind — the SCRAPE
+ * (legacy) seam's family filter.
+ * @param kind - The bank's declared balance kind.
+ * @returns Family-scoped balance-alias list for the SCRAPE fieldMap.
+ */
+export function scopedTxnBalanceAliases(kind: BalanceKind): readonly string[] {
+  return scopeAliasesByKind(WK.balance, kind);
 }
 
 export default resolveFieldMapOrEmpty;

@@ -206,11 +206,25 @@ function descendArray(arr: readonly JsonValue[], args: IDescendArgs): number | f
  * @returns Finite balance number, or `false` when nothing matched.
  */
 export function runBalanceExtractor(body: JsonValue): number | false {
-  const args: IDescendArgs = {
-    aliases: PIPELINE_BALANCE_ALIASES,
-    depth: 0,
-    maxDepth: MAX_BFS_DEPTH,
-  };
+  return runBalanceExtractorWith(body, PIPELINE_BALANCE_ALIASES);
+}
+
+/**
+ * Family-scoped variant of {@link runBalanceExtractor}. Runs the same
+ * bounded-depth BFS but restricts the scan to `aliases` — the bank's
+ * declared balance-kind family — so a card bank never resolves an
+ * account alias (and an account bank never a card-cycle debit).
+ *
+ * Pure function — no side effects, never throws.
+ * @param body - JSON response body (or arbitrary JsonValue).
+ * @param aliases - Family-scoped balance-alias list.
+ * @returns Finite balance number, or `false` when nothing matched.
+ */
+export function runBalanceExtractorWith(
+  body: JsonValue,
+  aliases: readonly string[],
+): number | false {
+  const args: IDescendArgs = { aliases, depth: 0, maxDepth: MAX_BFS_DEPTH };
   return descendNode(body, args);
 }
 

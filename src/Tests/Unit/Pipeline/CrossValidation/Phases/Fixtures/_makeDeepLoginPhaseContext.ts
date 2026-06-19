@@ -94,11 +94,11 @@ function composeDeepLoginContext(args: IDeepLoginContextArgs): IPipelineContext 
 }
 
 /**
- * Build the deep LOGIN pipeline config. Extracted so the composer stays
- * under the 10-line cap now that `balanceKind` is a required field.
+ * Build the LOGIN-phase pipeline config. Split out so
+ * {@link composeDeepLoginContext} stays under the 10-line cap.
  *
- * @param loginUrl - Base URL for the pipeline config.
- * @returns Pipeline config with a required account `balanceKind`.
+ * @param loginUrl - Base URL the bank's login page is served from.
+ * @returns Pipeline config carrying the account balanceKind.
  */
 function buildDeepLoginConfig(loginUrl: string): IPipelineContext['config'] {
   return { urls: { base: loginUrl }, balanceKind: 'account' };

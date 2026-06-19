@@ -16,7 +16,7 @@ import { EMPTY_TXN_HARVEST } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
 import type { INetworkDiscovery } from '../Network/NetworkDiscoveryTypes.js';
-import { resolveTxnEndpoint } from '../Scrape/ScrapeAutoMapper.js';
+import { resolveTxnEndpoint, scopedTxnBalanceAliases } from '../Scrape/ScrapeAutoMapper.js';
 import { EMPTY_TXN_ENDPOINT } from '../Scrape/ScrapePhaseActions.js';
 import detectDormantEvidence from './DormantEvidenceDetector.js';
 import { buildTxnHarvest } from './TxnParser.js';
@@ -258,7 +258,8 @@ async function commitTxnEndpoint(ctx: IPipelineContext): Promise<ITxnCommitOutco
   await Promise.resolve();
   if (!ctx.mediator.has) return buildBypassOutcome(ctx);
   const network = ctx.mediator.value.network;
-  const internal = resolveTxnEndpoint(network);
+  const balanceAliases = scopedTxnBalanceAliases(ctx.config.balanceKind);
+  const internal = resolveTxnEndpoint(network, balanceAliases);
   if (internal === false) return handleNoTxnEndpoint(ctx, network);
   return commitResolvedEndpoint(ctx, internal);
 }

@@ -6,8 +6,9 @@
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
+import { ACCOUNT_KIND, CARD_CYCLE_KIND } from '../WK/BalanceKind.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
-import type { BalanceKind, IPipelineBankConfig } from './PipelineBankConfigTypes.js';
+import type { IPipelineBankConfig } from './PipelineBankConfigTypes.js';
 
 export type {
   AuthPathKey,
@@ -15,61 +16,55 @@ export type {
   IPipelineBankConfig,
 } from './PipelineBankConfigTypes.js';
 
-/** Billing-cycle banks (credit-card companies) expose no account balance. */
-const CARD_CYCLE: BalanceKind = 'card-cycle';
-
-/** Deposit/checking banks expose a real account balance resolved live. */
-const ACCOUNT: BalanceKind = 'account';
-
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
   [CompanyTypes.Beinleumi]: {
     urls: { base: 'https://www.fibi.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
   },
   [CompanyTypes.Discount]: {
     urls: { base: 'https://www.discountbank.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
   },
   [CompanyTypes.Hapoalim]: {
     urls: { base: 'https://www.bankhapoalim.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
   },
   [CompanyTypes.Massad]: {
     urls: { base: 'https://www.bankmassad.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
   },
   [CompanyTypes.OtsarHahayal]: {
     urls: { base: 'https://www.bankotsar.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
   },
   [CompanyTypes.Pagi]: {
     urls: { base: 'https://www.pagi.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
   },
   [CompanyTypes.VisaCal]: {
     urls: { base: 'https://www.cal-online.co.il/' },
-    balanceKind: CARD_CYCLE,
+    balanceKind: CARD_CYCLE_KIND,
   },
   [CompanyTypes.Amex]: {
     urls: { base: 'https://americanexpress.co.il' },
-    balanceKind: CARD_CYCLE,
+    balanceKind: CARD_CYCLE_KIND,
   },
   [CompanyTypes.Max]: {
     urls: { base: 'https://www.max.co.il' },
-    balanceKind: CARD_CYCLE,
+    balanceKind: CARD_CYCLE_KIND,
   },
   [CompanyTypes.Mercantile]: {
     urls: { base: 'https://www.mercantile.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
   },
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
-    balanceKind: CARD_CYCLE,
+    balanceKind: CARD_CYCLE_KIND,
   },
   [CompanyTypes.OneZero]: {
     urls: { base: 'https://www.onezerobank.com' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
     headless: {
       identityBase: 'https://identity.tfd-bank.com/v1/',
       graphql: 'https://mobile.tfd-bank.com/mobile-graph/graphql',
@@ -86,7 +81,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.PayBox]: {
     urls: { base: 'https://www.payboxapp.com/' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
     headless: {
       identityBase: 'https://apipin.payboxapp.com/api/2.0/',
       // PayBox has no GraphQL — set graphql to identityBase to satisfy the
@@ -115,7 +110,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.Pepper]: {
     urls: { base: 'https://www.pepper.co.il' },
-    balanceKind: ACCOUNT,
+    balanceKind: ACCOUNT_KIND,
     headless: {
       identityBase: 'https://sa.pepper.co.il/',
       graphql: 'https://fe-sec.pepper.co.il/graphql',

@@ -10,6 +10,8 @@
  * through this dedicated seam.
  */
 
+import { type BalanceKind, scopeAliasesByKind } from './BalanceKind.js';
+
 /**
  * Standalone balance-alias export for the BALANCE-RESOLVE phase.
  * Superset of the legacy `PIPELINE_WELL_KNOWN_TXN_FIELDS.balance`
@@ -47,6 +49,16 @@ export const PIPELINE_BALANCE_ALIASES: readonly string[] = [
   'totalIlsBillingDate',
   'BalanceDisplay',
 ] as const;
+
+/**
+ * Scope {@link PIPELINE_BALANCE_ALIASES} to a bank's declared kind —
+ * the BALANCE-RESOLVE (primary) seam's family filter.
+ * @param kind - The bank's declared balance kind.
+ * @returns Family-scoped balance-alias list for BALANCE-RESOLVE.
+ */
+export function scopedResolveBalanceAliases(kind: BalanceKind): readonly string[] {
+  return scopeAliasesByKind(PIPELINE_BALANCE_ALIASES, kind);
+}
 
 /**
  * Field-name aliases that, when present alongside a balance field
