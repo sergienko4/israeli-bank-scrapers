@@ -145,43 +145,86 @@ async function captureScreenshot(page: Page, options: ISafeScreenshotOptions): P
 }
 
 /**
- * Decide whether the CI guard should suppress the requested screenshot.
- * Pulled out so {@link safeScreenshot} stays under the per-function LoC budget.
- * @param file - Basename of the target path (already scrubbed for logging).
- * @returns True iff the capture should be skipped.
+ * Fail-closed CI detection for the screenshot PII gate. Resolves to true
+ * (treat the environment as CI and suppress post-auth screenshots) for
+ * EVERY value except an explicit `CI=false` opt-out (case-insensitive,
+ * whitespace-trimmed). Absent, empty, `CI=true`, `CI=1`, `CI=0`, or any
+ * other value all resolve to CI, so user financial data can never reach a
+ * public CI artifact by accident. GitHub Actions always sets `CI=true`,
+ * so the only path to the not-CI branch is a deliberate local `CI=false`.
+ *
+ * See `coding-principle-guidlines.md` §4 (Default Deny) and
+ * `logging-pii-guidlines.md` §1 (preventive masking).
+ * @returns True unless `CI` is explicitly the literal `false`.
  */
-function shouldSuppressInCi(file: string): boolean {
-  if (!process.env.CI) return false;
-  if (isPreAuthScreenshot(file)) return false;
-  LOG.debug({ file }, 'screenshot suppressed in CI');
-  return true;
+function isCi(): boolean {
+  return process.env.CI?.trim().toLowerCase() !== 'false';
 }
 
 /**
- * Captures a Playwright page screenshot. Under CI, capture is restricted
- * to the pre-auth phase allowlist published in `.github/workflows/pr.yml`
- * (lines 549-552 / 616-618 — see `PRE_AUTH_SCREENSHOT_PHASES`) so that
- * rendered post-auth pixels never reach public artifacts while still
- * leaving WAF / challenge-wall failures triageable from `init` + `home`
- * screenshots. Outside CI, every phase captures.
+ * Rewrite a screenshot path so it lands in a sibling `private/` directory
+ * the public CI artifact glob `screenshots/*.png` can never match. Replaces
+ * the single `screenshots` path segment with `private`, preserving the
+ * surrounding POSIX or Windows separator. The run folder's `private/` tree
+ * is uploaded only to the access-controlled diagnostics store (write-only
+ * pre-authenticated request, short TTL), never to the public artifact.
  *
- * The CI check uses truthy semantics for parity with the codebase's
- * other 8 `process.env.CI` reads — note the literal string `'false'`
- * is truthy and will still gate. See `coding-principle-guidlines.md`
- * §4 (Default Deny) and `logging-pii-guidlines.md` §1 (preventive
- * masking). The debug payload is reduced to the path basename so
- * consumer-supplied directories that may carry PII never reach the
- * structured log stream.
+ * Internal helper — not exported. See {@link isPreAuthScreenshot} for the
+ * Rule #15 rationale.
+ * @param targetPath - Original `screenshots/<file>.png` path.
+ * @returns The same path with the `screenshots` segment renamed `private`.
+ */
+function toPrivatePath(targetPath: string): string {
+  return targetPath.replace(/([\\/])screenshots([\\/])/, '$1private$2');
+}
+
+/**
+ * Decide whether the CI PII gate must divert this capture away from the
+ * public `screenshots/` directory. Post-auth phases under CI are diverted
+ * (their pixels may carry rendered user data); pre-auth phases and every
+ * local (`CI=false`) run keep writing to the public `screenshots/` dir.
+ *
+ * Internal helper — not exported. See {@link isPreAuthScreenshot} for the
+ * Rule #15 rationale.
+ * @param file - Basename of the target screenshot path.
+ * @returns True iff the capture must be rerouted to the private dir.
+ */
+function divertsToPrivate(file: string): boolean {
+  return isCi() && !isPreAuthScreenshot(file);
+}
+
+/**
+ * Captures a Playwright page screenshot behind the CI PII gate.
+ *
+ * Pre-auth phases (the `init` + `home` allowlist published in
+ * `.github/workflows/pr.yml` — see {@link PRE_AUTH_SCREENSHOT_PHASES})
+ * always write to the public `screenshots/` dir. Under CI, post-auth
+ * phases are diverted (not suppressed) into a sibling `private/` dir via
+ * {@link toPrivatePath}: the public upload glob `screenshots/*.png` can
+ * never match `private/`, so rendered post-auth pixels never reach a public
+ * artifact, while the `private/` tree is uploaded only to the
+ * access-controlled diagnostics store (write-only pre-authenticated
+ * request, short TTL) for triage. Outside CI (`CI=false`), every phase
+ * writes to `screenshots/`.
+ *
+ * The CI check is fail-closed (see {@link isCi}): every environment is
+ * treated as CI unless `CI` is an explicit `false`, so post-auth pixels are
+ * diverted by default while a deliberate local `CI=false` restores full
+ * public capture. See `coding-principle-guidlines.md` §4 (Default Deny) and
+ * `logging-pii-guidlines.md` §1 (preventive masking). The debug payload is
+ * reduced to the path basename so consumer-supplied directories that may
+ * carry PII never reach the structured log stream.
  *
  * @param page - The Playwright page to capture.
  * @param options - Target path and optional fullPage flag.
- * @returns True if a PNG was written; false if suppressed or on error.
+ * @returns True if a PNG was written (public or private dir); false on error.
  */
 export async function safeScreenshot(
   page: Page,
   options: ISafeScreenshotOptions,
 ): Promise<boolean> {
   const file = basename(options.path);
-  if (shouldSuppressInCi(file)) return false;
-  return captureScreenshot(page, options);
+  if (!divertsToPrivate(file)) return captureScreenshot(page, options);
+  LOG.debug({ file }, 'post-auth screenshot diverted to private CI dir');
+  return captureScreenshot(page, { ...options, path: toPrivatePath(options.path) });
 }

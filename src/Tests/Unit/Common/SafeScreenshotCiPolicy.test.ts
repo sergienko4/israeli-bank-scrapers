@@ -68,7 +68,7 @@ describe('CI screenshot policy — pr.yml ↔ SafeScreenshot drift pin', () => {
     expect(phases).toEqual(['init', 'home']);
   });
 
-  describe('every PhaseName from the runtime maps to the correct CI gate verdict', () => {
+  describe('every PhaseName from the runtime routes to the correct CI dir', () => {
     beforeEach(() => {
       process.env.CI = 'true';
     });
@@ -78,6 +78,9 @@ describe('CI screenshot policy — pr.yml ↔ SafeScreenshot drift pin', () => {
       jest.clearAllMocks();
     });
 
+    // [basename, isPreAuth]. Pre-auth phases stay in the public `screenshots/`
+    // dir (the CI artifact glob); post-auth phases are diverted to the sibling
+    // `private/` dir, so post-auth pixels can never match the public glob.
     const expectations: readonly (readonly [string, boolean])[] = [
       ['hapoalim-init-pre-done-20260531.png', true],
       ['hapoalim-init-action-fail-20260531.png', true],
@@ -94,12 +97,20 @@ describe('CI screenshot policy — pr.yml ↔ SafeScreenshot drift pin', () => {
       ['amex-terminate-pre-done-20260531.png', false],
     ];
 
-    for (const [file, isExpectedAllowed] of expectations) {
-      it(`policy maps "${file}" → ${String(isExpectedAllowed)}`, async () => {
+    for (const [file, isPreAuth] of expectations) {
+      it(`policy routes "${file}" → ${isPreAuth ? 'public' : 'private'}`, async () => {
         const { page, screenshotMock } = makeMockPage();
-        const didCapture = await safeScreenshot(page, { path: file, fullPage: false });
-        expect(didCapture).toBe(isExpectedAllowed);
-        expect(screenshotMock).toHaveBeenCalledTimes(isExpectedAllowed ? 1 : 0);
+        const publicPath = `/tmp/runs/pipeline/bank/screenshots/${file}`;
+        const privatePath = `/tmp/runs/pipeline/bank/private/${file}`;
+
+        const didCapture = await safeScreenshot(page, { path: publicPath, fullPage: false });
+
+        expect(didCapture).toBe(true);
+        expect(screenshotMock).toHaveBeenCalledTimes(1);
+        expect(screenshotMock).toHaveBeenCalledWith({
+          path: isPreAuth ? publicPath : privatePath,
+          fullPage: false,
+        });
       });
     }
   });
