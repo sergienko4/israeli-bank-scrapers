@@ -173,6 +173,15 @@ describe('HomeResolver — popup-follow override (PR #299)', () => {
     const discovery = await runResolveExpectingOk({ target: '_blank', href: '' });
     expect(discovery.navHrefOverride).toBeUndefined();
   });
+
+  it('does NOT attach navHrefOverride when target="_blank" but href is relative — click path preserved (CR #381)', async () => {
+    const discovery = await runResolveExpectingOk({
+      target: '_blank',
+      href: '/personalarea/Login/',
+    });
+    expect(discovery.strategy).toBe(NAV_STRATEGY.DIRECT);
+    expect(discovery.navHrefOverride).toBeUndefined();
+  });
 });
 
 /**

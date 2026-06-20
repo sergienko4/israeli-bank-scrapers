@@ -38,11 +38,12 @@ interface IHomeDiscovery {
   /** Pre-resolved trigger target (contextId + selector) for ACTION executor. */
   readonly triggerTarget: IResolvedTarget | false;
   /**
-   * Populated only when the DIRECT trigger is an `<a target="_blank">`
-   * element. ACTION must `navigateTo(navHrefOverride)` instead of
-   * clicking, so the scraper's bound page reference stays on the
-   * intended URL (clicking opens a new tab and strands the scraper
-   * on the marketing page — see PR #299 root-cause).
+   * Populated when the DIRECT trigger resolves to an absolute http(s)
+   * href (e.g. an `<a target="_blank">` login link). ACTION must
+   * `navigateTo(navHrefOverride)` instead of clicking, so the scraper's
+   * bound page reference stays on the intended URL (clicking a `_blank`
+   * link opens a new tab and strands the scraper on the marketing page
+   * — see PR #299 root-cause).
    */
   readonly navHrefOverride?: string;
 }
@@ -220,10 +221,12 @@ function isAbsoluteHref(href: string): boolean {
  * href IS the click's intent — done directly it is robust against
  * `target="_blank"` new-tab stranding (PR #299) and against accessible-name
  * selectors that collide with a hidden decoy sharing the login name (Bank
- * Leumi's 0×0 `<a href="#" aria-label="כניסה לחשבון">`). Fires for any
- * absolute href (or `target="_blank"`); a relative href keeps click
- * behaviour (no base URL to navigate to).
- * @param mediator - Element mediator (reads target + href attributes).
+ * Leumi's 0×0 `<a href="#" aria-label="כניסה לחשבון">`). Fires for
+ * absolute http(s) hrefs only — a `_blank` login link's real URL is
+ * absolute, so it still navigates directly; a relative or fragment href
+ * (e.g. the `#` decoy) keeps click behaviour, with no base URL to
+ * navigate to.
+ * @param mediator - Element mediator (reads the trigger's href attribute).
  * @param result - Resolved DIRECT race result.
  * @returns The href to navigate to, or false to keep click behaviour.
  */
@@ -233,15 +236,13 @@ async function resolveNavOverrideHref(
 ): Promise<string | false> {
   const href = await mediator.getAttributeValue(result, 'href');
   if (!href) return false;
-  const targetAttr = await mediator.getAttributeValue(result, 'target');
-  if (targetAttr === '_blank') return href;
   return isAbsoluteHref(href) ? href : false;
 }
 
 /**
  * Augment a DIRECT discovery with `navHrefOverride` so HOME.ACTION
  * navigates to the href instead of clicking (see
- * {@link resolveNavOverrideHref} for the `_blank` + absolute-href
+ * {@link resolveNavOverrideHref} for the absolute-href gating
  * rationale). Non-DIRECT strategies pass through unchanged.
  * @param args - Bundled base discovery + mediator + race result.
  * @returns Discovery, optionally augmented with `navHrefOverride`.
