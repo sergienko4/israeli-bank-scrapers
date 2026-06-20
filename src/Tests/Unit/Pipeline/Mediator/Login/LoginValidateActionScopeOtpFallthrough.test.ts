@@ -2,18 +2,27 @@
  * Mission M4.F2.b — LOGIN.POST OTP discriminator.
  *
  * <p>Pins {@link validateActionScopeIntact}'s ambiguous-branch
- * behaviour: when URL is unchanged AND the password element is still
- * resolvable AND an OTP-trigger or OTP-input element is visible, the
- * validator returns `false` (fall through to OTP-TRIGGER) instead of
- * firing a false-positive `INVALID_PASSWORD`.
+ * behaviour: when the URL is unchanged AND the password element is still
+ * in the DOM, the validator returns `false` (fall through to OTP-TRIGGER)
+ * ONLY when a genuine one-time-code input is rendered. A page that shows
+ * merely the always-coresident SMS-lobby / password-submit buttons (NO
+ * code input) is an honest credential failure → `INVALID_PASSWORD`.
+ *
+ * <p>PR #282 (commit 97ca1353) regression guard: the previous probe
+ * accepted a structural OTP-TRIGGER button (`//button[@type="submit"]`,
+ * `//form//button`) as proof of an OTP screen, so a failed login that
+ * stayed on the login URL was masked as an OTP fall-through — killing the
+ * retry-recovery and surfacing as `failEmpty`. The discriminator now
+ * requires a real OTP CODE INPUT ({@link otpScreenVisible} →
+ * `detectOtpForm` only), so trigger-only pages fail honestly.
  *
  * <p>Test Case IDs:
- *   - LOGIN-POST-OTP-001: OTP form visible → fall through (no fail)
- *   - LOGIN-POST-OTP-002: OTP trigger visible → fall through (no fail)
- *   - LOGIN-POST-OTP-003: neither visible → INVALID_PASSWORD (regression guard)
- *   - LOGIN-POST-OTP-004: URL changed → fall through immediately (no probe)
- *   - LOGIN-POST-OTP-005: password absent → fall through immediately (no probe)
- *   - LOGIN-POST-OTP-006 (PR #221 review id 3216542548): OTP probe REJECTS
+ *   - LOGIN-POST-OTP-001: OTP code input visible → fall through (no fail)
+ *   - LOGIN-POST-OTP-002: NO code input (only lobby/trigger buttons) →
+ *     INVALID_PASSWORD (the #282 regression guard)
+ *   - LOGIN-POST-OTP-003: URL changed → fall through immediately (no probe)
+ *   - LOGIN-POST-OTP-004: password absent → fall through immediately (no probe)
+ *   - LOGIN-POST-OTP-005 (PR #221 review id 3216542548): OTP probe REJECTS
  *     → fall through (probe-failure is unknown, not INVALID_PASSWORD)
  */
 
@@ -36,12 +45,14 @@ import { LOGIN_FIELDS } from '../../../../../Scrapers/Pipeline/Types/PipelineCon
  * kind-routing that encoded WK probe internals into the test. Each
  * scenario row lists the answers IN CALL ORDER instead.
  *
- * <p>`otpScreenVisible` runs `Promise.all([detectOtpTrigger, detectOtpForm])`
- * — both calls are dispatched synchronously, so `resolveVisible` is
- * invoked exactly TWICE per validator entry in the URL-unchanged +
- * password-present branch. Call #1 ≡ trigger probe, call #2 ≡ form
- * probe. Each step in {@link IMediatorConfig.probeAnswers} is consumed
- * in order regardless of how the underlying probes name their kinds.
+ * <p>Since the PR #282 regression fix, `otpScreenVisible` runs ONLY
+ * `detectOtpForm` (the genuine OTP-code-input probe) — the structural
+ * OTP-trigger probe was dropped because it false-matched the always-
+ * coresident SMS-lobby / password-submit buttons. So `resolveVisible`
+ * is invoked exactly ONCE per validator entry in the URL-unchanged +
+ * password-present branch (the single form probe). Each step in
+ * {@link IMediatorConfig.probeAnswers} is consumed in order regardless
+ * of how the underlying probe names its kinds.
  */
 type ProbeAnswer = 'found' | 'not-found' | 'reject';
 
@@ -169,33 +180,29 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
   const loginUrl = 'https://login.bank.fake.example/ng-portals/auth/he/';
   const passwordSelector = '#password';
 
-  it('LOGIN-POST-OTP-001: OTP form visible → fall through (no fail)', async () => {
+  it('LOGIN-POST-OTP-001: OTP code input visible → fall through (no fail)', async () => {
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 1,
-      probeAnswers: ['not-found', 'found'],
+      probeAnswers: ['found'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
     expect(result).toBe(false);
   });
 
-  it('LOGIN-POST-OTP-002: OTP trigger visible → fall through (no fail)', async () => {
+  it('LOGIN-POST-OTP-002: no code input (lobby buttons only) → INVALID_PASSWORD', async () => {
+    // PR #282 (commit 97ca1353) REGRESSION GUARD. The page stays on the
+    // login URL with the password still present and shows only the
+    // always-coresident SMS-lobby / password-submit buttons — NO genuine
+    // one-time-code input. The old probe accepted those structural
+    // trigger buttons as an "OTP screen" and masked the failure as a
+    // fall-through (→ failEmpty). The discriminator now requires a real
+    // code input, so this is an honest credential failure.
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 1,
-      probeAnswers: ['found', 'not-found'],
-    });
-    const ctx = makeContext(loginUrl, passwordSelector);
-    const result = await validateActionScopeIntact(mediator, ctx);
-    expect(result).toBe(false);
-  });
-
-  it('LOGIN-POST-OTP-003: neither OTP element visible → INVALID_PASSWORD', async () => {
-    const mediator = makeMediator({
-      currentUrl: loginUrl,
-      passwordCount: 1,
-      probeAnswers: ['not-found', 'not-found'],
+      probeAnswers: ['not-found'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
@@ -205,51 +212,38 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     }
   });
 
-  it('LOGIN-POST-OTP-004: URL changed → fall through immediately (no probe)', async () => {
+  it('LOGIN-POST-OTP-003: URL changed → fall through immediately (no probe)', async () => {
     const mediator = makeMediator({
       currentUrl: 'https://login.bank.fake.example/dashboard/',
       passwordCount: 1,
-      probeAnswers: ['not-found', 'not-found'],
+      probeAnswers: [],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
     expect(result).toBe(false);
   });
 
-  it('LOGIN-POST-OTP-005: password element absent → fall through (no probe)', async () => {
+  it('LOGIN-POST-OTP-004: password element absent → fall through (no probe)', async () => {
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 0,
-      probeAnswers: ['not-found', 'not-found'],
+      probeAnswers: [],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
     expect(result).toBe(false);
   });
 
-  it('LOGIN-POST-OTP-006: probe REJECTS → fall through (probe-failure is unknown ≠ invalid)', async () => {
+  it('LOGIN-POST-OTP-005: probe REJECTS → fall through (probe-failure is unknown ≠ invalid)', async () => {
     // PR #221 review (id 3216542548): a transient resolver failure on
-    // either probe used to collapse into "not visible" → false-positive
-    // INVALID_PASSWORD. The fix returns `'unknown'` from
-    // `otpScreenVisible`; the validator falls through instead of
-    // firing the credential-failure gate.
+    // the OTP-form probe used to collapse into "not visible" → false-
+    // positive INVALID_PASSWORD. The fix returns `'unknown'` from
+    // `otpScreenVisible`; the validator falls through instead of firing
+    // the credential-failure gate.
     const mediator = makeMediator({
       currentUrl: loginUrl,
       passwordCount: 1,
-      probeAnswers: ['reject', 'not-found'],
-    });
-    const ctx = makeContext(loginUrl, passwordSelector);
-    const result = await validateActionScopeIntact(mediator, ctx);
-    expect(result).toBe(false);
-  });
-
-  it('LOGIN-POST-OTP-007: BOTH probes REJECT → fall through (unknown, not invalid)', async () => {
-    // Companion case to 006: both probes fail. Symmetric outcome —
-    // unknown means unknown; the validator must not pick a verdict.
-    const mediator = makeMediator({
-      currentUrl: loginUrl,
-      passwordCount: 1,
-      probeAnswers: ['reject', 'reject'],
+      probeAnswers: ['reject'],
     });
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
