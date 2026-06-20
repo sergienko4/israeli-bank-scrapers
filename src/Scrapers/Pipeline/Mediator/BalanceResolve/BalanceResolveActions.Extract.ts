@@ -108,7 +108,32 @@ function extractPerCardBalance(body: unknown, identity: IAccountIdentity): numbe
 }
 
 /**
- * Extract one card's balance from its bank-account response (if present).
+ * Extract a card's balance from one response body (undefined-safe).
+ * @param body - Candidate response body (keyed or bulk), may be undefined.
+ * @param identity - Card identity.
+ * @returns Finite balance, or `false` when absent / carries no balance.
+ */
+function extractFromBody(body: unknown, identity: IAccountIdentity): number | false {
+  if (body === undefined) return false;
+  return extractPerCardBalance(body, identity);
+}
+
+/**
+ * Choose the keyed-response balance, else the captured BULK_KEY balance.
+ * @param keyed - Balance from the card's own keyed response, or false.
+ * @param bulk - Balance from the captured BULK_KEY body, or false.
+ * @returns The first finite balance, else 'MISS'.
+ */
+function pickKeyedOrBulk(keyed: number | false, bulk: number | false): BalanceExtractionOutcome {
+  if (keyed !== false) return keyed;
+  return bulk === false ? 'MISS' : bulk;
+}
+
+/**
+ * Extract one card's balance: prefer its own keyed response, then fall
+ * back to the captured BULK_KEY body when the keyed response is absent
+ * OR carries no balance — e.g. a wrong-endpoint live fetch that 200s
+ * without a balance must not shadow the captured pool's real balance.
  * @param identity - Card identity.
  * @param responses - Responses keyed by bankAccountUniqueId.
  * @returns Outcome.
@@ -117,11 +142,11 @@ function extractOneCard(
   identity: IAccountIdentity,
   responses: ReadonlyMap<string, unknown>,
 ): BalanceExtractionOutcome {
-  const body = responses.get(identity.bankAccountUniqueId) ?? responses.get(BULK_KEY);
-  if (body === undefined) return 'MISS';
-  const got = extractPerCardBalance(body, identity);
-  if (got === false) return 'MISS';
-  return got;
+  const keyedBody = responses.get(identity.bankAccountUniqueId);
+  const bulkBody = responses.get(BULK_KEY);
+  const fromKeyed = extractFromBody(keyedBody, identity);
+  const fromBulk = extractFromBody(bulkBody, identity);
+  return pickKeyedOrBulk(fromKeyed, fromBulk);
 }
 
 /** Bundled args for {@link extractAllCards}. */

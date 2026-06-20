@@ -194,7 +194,7 @@ function assembleSequentialTargets(targets: IAssembleSequentialArgs): IDashboard
  * @returns Matching candidate or false when no WK_TRANSACTIONS entry exists.
  */
 function probeSequentialChild(page: Page): Promise<SelectorCandidate | false> {
-  const txnWk = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  const txnWk = WK_DASHBOARD.TRANSACTIONS;
   return findFirstChildInDom(page, txnWk);
 }
 

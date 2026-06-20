@@ -17,13 +17,22 @@ import {
   executeAccountResolvePost,
   executeAccountResolvePre,
 } from '../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.js';
-import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import {
+  type IElementMediator,
+  type IRaceResult,
+  NOT_FOUND_RESULT,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { toActionCtx } from '../../Infrastructure/TestHelpers.js';
+
+/** Shared no-op nudge result — a `found:false` success matching the real
+ *  `resolveAndClick` contract (`Promise<Procedure<IRaceResult>>`) without
+ *  driving an id into the pool. */
+const NUDGE_NOOP_RESULT = succeed(NOT_FOUND_RESULT);
 
 /**
  * Build a stub element mediator whose pool/wait surface is fully
@@ -80,6 +89,13 @@ function makeMediatorStub(
       }
       return true as const;
     },
+    /**
+     * Best-effort PRE nudge click stub (no pool mutation) — present so
+     * the no-id path's nudge resolves; these edge-case tests assert only
+     * that PRE succeeds, not that the nudge yields an id.
+     * @returns Resolved click sentinel.
+     */
+    resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(NUDGE_NOOP_RESULT),
   } as unknown as IElementMediator;
 }
 

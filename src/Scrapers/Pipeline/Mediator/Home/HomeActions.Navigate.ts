@@ -70,6 +70,29 @@ function didReallyNavigate(urlBefore: string, urlAfter: string): boolean {
 }
 
 /**
+ * Max trigger-click attempts for an `<a href="#">` login control whose
+ * async click handler may not be bound yet under heavy CI throttling
+ * (1 initial click + up to 2 re-clicks once the handler has settled).
+ */
+const MAX_TRIGGER_CLICK_ATTEMPTS = 3;
+
+/**
+ * Detect a bare-`#` hash fall-through: the click only appended an empty
+ * fragment (real URL unchanged) — the signature of an `<a href="#"
+ * onclick="">` trigger clicked before its async handler bound (see the
+ * {@link HomePhase} prelude doc). Real navigations and non-empty
+ * fragment routes (`#/login`) are excluded.
+ * @param urlBefore - Page URL before the click.
+ * @param urlAfter - Page URL after the click + settle.
+ * @returns True iff the click only added a trailing bare `#`.
+ */
+function isHashFallthrough(urlBefore: string, urlAfter: string): boolean {
+  if (urlAfter === urlBefore) return false;
+  if (stripFragment(urlBefore) !== stripFragment(urlAfter)) return false;
+  return urlAfter.endsWith('#');
+}
+
+/**
  * Wait for SPA route + network settle after click.
  * @param executor - Sealed action mediator.
  * @param isSequential - Whether to settle before URL wait.
@@ -113,16 +136,54 @@ async function fireTriggerAction(args: IDirectNavArgs): Promise<void> {
 }
 
 /**
+ * Re-fire the trigger click once and re-settle. Recovers an
+ * `<a href="#">` fall-through after the async handler has had time to
+ * bind; the resulting URL is read by the caller via `getCurrentUrl`.
+ * @param args - Bundled executor + target + sequencing flag + logger.
+ * @param attempt - 1-based re-click attempt (for the debug trace).
+ */
+async function refireTrigger(args: IDirectNavArgs, attempt: number): Promise<void> {
+  args.logger.debug({ event: 'home.trigger.fallthrough.reclick', attempt });
+  await fireTriggerAction(args);
+  await settleAfterClick(args.executor, args.isSequential);
+}
+
+/**
+ * Re-click the trigger while the click keeps degrading to a bare-`#`
+ * hash fall-through, bounded by {@link MAX_TRIGGER_CLICK_ATTEMPTS}.
+ * Returns as soon as a real navigation / fragment route is observed, so
+ * triggers that bind on the first click pay no extra cost. Recurses
+ * (no loop) to honour the no-await-in-loop rule.
+ * @param args - Bundled executor + target + sequencing flag + logger.
+ * @param urlBefore - Page URL captured before the first click.
+ * @param attempt - 1-based attempt counter (seed with 1).
+ * @returns The settled URL (recovered when a re-click navigated).
+ */
+async function reclickWhileFallthrough(
+  args: IDirectNavArgs,
+  urlBefore: string,
+  attempt: number,
+): Promise<string> {
+  const url = args.executor.getCurrentUrl();
+  if (attempt >= MAX_TRIGGER_CLICK_ATTEMPTS || !isHashFallthrough(urlBefore, url)) return url;
+  await refireTrigger(args, attempt);
+  return reclickWhileFallthrough(args, urlBefore, attempt + 1);
+}
+
+/**
  * Perform the direct/sequential click + settle + URL probe path that
- * both NAV_STRATEGY.DIRECT and NAV_STRATEGY.SEQUENTIAL share.
+ * both NAV_STRATEGY.DIRECT and NAV_STRATEGY.SEQUENTIAL share. When the
+ * first click degrades to a bare-`#` hash fall-through (async handler
+ * not yet bound under heavy throttling) the trigger is re-clicked once
+ * the page has settled — see {@link isHashFallthrough}.
  * @param args - Bundle of executor, target, sequencing flag, logger.
- * @returns True iff `page.url()` changed after the click.
+ * @returns True iff `page.url()` changed after the click(s).
  */
 async function executeDirectNavigation(args: IDirectNavArgs): Promise<boolean> {
   const urlBefore = args.executor.getCurrentUrl();
   await fireTriggerAction(args);
   await settleAfterClick(args.executor, args.isSequential);
-  const currentUrl = args.executor.getCurrentUrl();
+  const currentUrl = await reclickWhileFallthrough(args, urlBefore, 1);
   const didNavigate = didReallyNavigate(urlBefore, currentUrl);
   args.logger.debug({ url: maskVisibleText(currentUrl), didNavigate });
   return didNavigate;
@@ -171,4 +232,4 @@ async function executeHomeNavigation(
   return dispatchNavStrategy({ executor, discovery, target, logger });
 }
 
-export { didReallyNavigate, executeHomeNavigation };
+export { didReallyNavigate, executeHomeNavigation, isHashFallthrough };

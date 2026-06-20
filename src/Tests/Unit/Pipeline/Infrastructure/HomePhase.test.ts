@@ -25,7 +25,7 @@ import { makeMockContext, makeMockPage } from './MockFactories.js';
 const PHASE = new HomePhase();
 
 /** Minimal bank config with urls.base for HOME phase. */
-const MOCK_CONFIG = { urls: { base: 'https://test.bank.co.il' } };
+const MOCK_CONFIG = { urls: { base: 'https://test.bank.co.il' }, balanceKind: 'account' as const };
 
 /**
  * Build a mock page with goto + url tracking.
@@ -275,6 +275,7 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
     api: ctx.api,
 
     loginAreaReady: ctx.loginAreaReady,
+    balanceAccountIdentities: ctx.balanceAccountIdentities,
     balanceFetchPlan: ctx.balanceFetchPlan,
     balanceResponsesByBankAccount: ctx.balanceResponsesByBankAccount,
     balanceExtracted: ctx.balanceExtracted,

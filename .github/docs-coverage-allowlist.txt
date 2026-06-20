@@ -1188,3 +1188,5 @@ IWaitOptions
 IPageEvalOpts
 # Reason: Elements — multi-element page-eval options; framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
 IPageEvalAllOpts
+# Reason: BalanceResolve — per-bank balance-resolution discriminant ('account' | 'card-cycle') on IPipelineBankConfig; framework-internal config knob that gates the balance-resolve live fetch. Deposit banks declare 'account'; card companies declare 'card-cycle'. REQUIRED — every bank states its kind explicitly; absence is a config error, not a silent no-op. Not user-facing mkdocs surface (mirrors BalanceSlotKey/IDashboardTargets config types already allowlisted).
+BalanceKind

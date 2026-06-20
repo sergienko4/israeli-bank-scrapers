@@ -156,7 +156,7 @@ async function extractHrefLayer3(mediator: IElementMediator): Promise<string> {
  * @returns Extracted href (empty if not found).
  */
 async function extractTransactionHref(mediator: IElementMediator): Promise<string> {
-  const candidates = WK_DASHBOARD.TRANSACTIONS as unknown as readonly SelectorCandidate[];
+  const candidates = WK_DASHBOARD.TRANSACTIONS;
   const l1 = await extractHrefLayer1(mediator, candidates);
   if (l1) return l1;
   const l2 = await extractHrefLayer2(mediator, candidates);
