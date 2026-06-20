@@ -29,6 +29,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.Leumi]: {
     urls: { base: 'https://www.leumi.co.il' },
+    balanceKind: ACCOUNT,
   },
   [CompanyTypes.Discount]: {
     urls: { base: 'https://www.discountbank.co.il' },
