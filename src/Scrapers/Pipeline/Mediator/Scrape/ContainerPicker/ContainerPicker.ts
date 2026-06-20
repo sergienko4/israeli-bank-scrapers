@@ -38,6 +38,21 @@ function buildHuntSummary(totalFound: number, validCount: number, keptCount: num
 }
 
 /**
+ * Unwrap the WCF envelope and coerce the result to a record.
+ * {@link unwrapWcfEnvelope} returns `unknown`; a malformed envelope whose
+ * inner payload parses to a non-object falls back to the original body so
+ * {@link huntTransactions} never receives a primitive (which would otherwise
+ * be force-cast to {@link ApiRecord}).
+ * @param responseBody - Parsed JSON response body.
+ * @returns Inner record to hunt, or the body when the unwrap is non-object.
+ */
+function unwrapToRecord(responseBody: ApiRecord): ApiRecord {
+  const unwrapped = unwrapWcfEnvelope(responseBody);
+  if (typeof unwrapped === 'object' && unwrapped !== null) return unwrapped as ApiRecord;
+  return responseBody;
+}
+
+/**
  * Extract transactions from an API response using stack-based
  * iterative hunt. Filters voided/summary rows. Maps to ITransaction.
  *
@@ -52,7 +67,7 @@ function buildHuntSummary(totalFound: number, validCount: number, keptCount: num
  * @returns Array of mapped ITransactions.
  */
 function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
-  const inner = unwrapWcfEnvelope(responseBody) as ApiRecord;
+  const inner = unwrapToRecord(responseBody);
   const items = huntTransactions(inner);
   const valid = items.filter((r): boolean => !isVoidedTransaction(r));
   const mapped = valid.map(autoMapTransaction);
