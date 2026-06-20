@@ -75,6 +75,26 @@ Source: [`BalanceResolveActions.ts`](https://github.com/sergienko4/israeli-bank-
 
 Builds `Map<accountNumber, number>` (legitimate `0` preserved; `'MISS'` → `0`). Writes to `ctx.balanceResolution` which [`PipelineResult`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts) reads when assembling the final accounts array.
 
+## Balance-kind scoping (R1 hardening)
+
+Every bank config declares a mandatory `balanceKind` — a `BalanceKind` of either `account` or `card-cycle` (the canonical constants `ACCOUNT_KIND` and `CARD_CYCLE_KIND`). The declared kind scopes balance discovery to **one** alias family, so a card bank can never resolve an incidental account-style field and an account bank never a card-cycle debit total.
+
+| Kind | Constant | Alias family | Example aliases |
+|---|---|---|---|
+| `account` | `ACCOUNT_KIND` | `ACCOUNT_BALANCE_FAMILY` | `AccountBalance`, `currentBalance`, `runningBalance` |
+| `card-cycle` | `CARD_CYCLE_KIND` | `CARD_CYCLE_BALANCE_FAMILY` | `nextTotalDebit`, `totalDebit`, `billingSumSekel` |
+
+The two families are **disjoint** and together partition the full WK balance-alias surface. `scopeAliasesByKind(aliases, kind)` is the single filter both seams share — it returns the order-preserving **subset** of `aliases` that belongs to the kind's family, never adding an alias the base list lacked (a behaviour-preserving restriction, not a new lookup).
+
+Two seams consume it, one per balance path — each pairs a kind-scoped alias resolver with its extractor entry point:
+
+| Seam | Kind-scoped resolver | Extractor entry |
+|---|---|---|
+| BALANCE-RESOLVE (primary, live fetch) | `scopedResolveBalanceAliases(kind)` | `runBalanceExtractorWith(body, aliases)` |
+| SCRAPE → DASHBOARD.FINAL (txn field-map) | `scopedTxnBalanceAliases(kind)` | `resolveFieldMapOrEmpty` |
+
+Source: [`BalanceKind.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/WK/BalanceKind.ts), [`BalanceResolveWK.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/WK/BalanceResolveWK.ts), [`EndpointFieldMap.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/EndpointResolver/EndpointFieldMap.ts).
+
 ## Observability
 
 | Event | Level | When |
