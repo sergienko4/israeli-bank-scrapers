@@ -804,6 +804,35 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: failure()
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          # Best-effort upload of the FULL run dir -- including post-auth
+          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
+          # access-controlled OCI bucket via a write-only pre-authenticated
+          # request (AnyObjectWrite = create/overwrite only; no read, list,
+          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
+          # public artifact above. Skips cleanly when the secret is absent
+          # (forks / external PRs) so it can never fail the job.
+          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
+            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
+            exit 0
+          fi
+          root=/tmp/runs/pipeline
+          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
+          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
+            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
+            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
+              echo "uploaded ${obj}"
+            else
+              echo "WARN: upload failed for ${obj}"
+            fi
+          done
+          echo "private diagnostics upload complete."
       # ── Cooldown hold (post-run slot retention) ──
       # Holds the job's repo-wide concurrency.group slot
       # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
@@ -892,6 +921,35 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: failure()
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          # Best-effort upload of the FULL run dir -- including post-auth
+          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
+          # access-controlled OCI bucket via a write-only pre-authenticated
+          # request (AnyObjectWrite = create/overwrite only; no read, list,
+          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
+          # public artifact above. Skips cleanly when the secret is absent
+          # (forks / external PRs) so it can never fail the job.
+          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
+            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
+            exit 0
+          fi
+          root=/tmp/runs/pipeline
+          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
+          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
+            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
+            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
+              echo "uploaded ${obj}"
+            else
+              echo "WARN: upload failed for ${obj}"
+            fi
+          done
+          echo "private diagnostics upload complete."
       # ── Cooldown hold (post-run slot retention) ──
       # Holds the job's repo-wide concurrency.group slot
       # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
@@ -1003,6 +1061,35 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: failure()
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          # Best-effort upload of the FULL run dir -- including post-auth
+          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
+          # access-controlled OCI bucket via a write-only pre-authenticated
+          # request (AnyObjectWrite = create/overwrite only; no read, list,
+          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
+          # public artifact above. Skips cleanly when the secret is absent
+          # (forks / external PRs) so it can never fail the job.
+          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
+            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
+            exit 0
+          fi
+          root=/tmp/runs/pipeline
+          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
+          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
+            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
+            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
+              echo "uploaded ${obj}"
+            else
+              echo "WARN: upload failed for ${obj}"
+            fi
+          done
+          echo "private diagnostics upload complete."
       # ── Cooldown hold (post-run slot retention) ──
       # Holds the job's repo-wide concurrency.group slot
       # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
@@ -1147,6 +1234,35 @@ jobs:
             /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: failure()
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          # Best-effort upload of the FULL run dir -- including post-auth
+          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
+          # access-controlled OCI bucket via a write-only pre-authenticated
+          # request (AnyObjectWrite = create/overwrite only; no read, list,
+          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
+          # public artifact above. Skips cleanly when the secret is absent
+          # (forks / external PRs) so it can never fail the job.
+          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
+            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
+            exit 0
+          fi
+          root=/tmp/runs/pipeline
+          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
+          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
+            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
+            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
+              echo "uploaded ${obj}"
+            else
+              echo "WARN: upload failed for ${obj}"
+            fi
+          done
+          echo "private diagnostics upload complete."
       - name: Encrypt token cache for save (${{ matrix.bank }})
         if: always()
         env:
