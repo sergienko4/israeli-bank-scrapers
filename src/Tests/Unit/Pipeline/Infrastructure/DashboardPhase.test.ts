@@ -189,6 +189,30 @@ function makeClickStub(clickResult: Procedure<IRaceResult>): () => Promise<Proce
 }
 
 /**
+ * Structural equality for a single selector candidate — compares the
+ * semantic fields (kind/value/target/match) rather than object identity.
+ * @param x - First candidate.
+ * @param y - Second candidate.
+ * @returns True when both candidates carry identical field values.
+ */
+function sameCandidate(x: SelectorCandidate, y: SelectorCandidate): boolean {
+  return x.kind === y.kind && x.value === y.value && x.target === y.target && x.match === y.match;
+}
+
+/**
+ * Structural (not reference) equality for two candidate lists — order-
+ * sensitive and element-wise. Lets the stub recognise the dashboard success
+ * group even when the call site passes a copied array; a `===` identity check
+ * would silently miss the copy and stop modelling the forced-change page.
+ * @param a - First candidate list.
+ * @param b - Second candidate list.
+ * @returns True when both lists are the same length with equal elements.
+ */
+function sameCandidates(a: readonly SelectorCandidate[], b: readonly SelectorCandidate[]): boolean {
+  return a.length === b.length && a.every((x, i) => sameCandidate(x, b[i]));
+}
+
+/**
  * Higher-order helper that wraps a fixed race result in a Promise-returning
  * stub matching the resolveVisible mediator signature. The dashboard-success
  * group resolves NOT_FOUND so a change-password probe models a real
@@ -202,7 +226,7 @@ function makeVisibleStub(
 ): (candidates: readonly SelectorCandidate[]) => Promise<IRaceResult> {
   const successGroup = WK_DASHBOARD.SUCCESS as unknown as readonly SelectorCandidate[];
   return (candidates: readonly SelectorCandidate[]): Promise<IRaceResult> =>
-    Promise.resolve(candidates === successGroup ? NOT_FOUND_RESULT : visibleResolved);
+    Promise.resolve(sameCandidates(candidates, successGroup) ? NOT_FOUND_RESULT : visibleResolved);
 }
 
 // -- PRE step --
@@ -309,5 +333,24 @@ describe('DashboardPhase/createDashboardPhase', () => {
     const phase = createDashboardPhase();
     expect(phase.name).toBe('dashboard');
     expect(phase).toBeInstanceOf(DashboardPhase);
+  });
+});
+
+describe('makeVisibleStub — structural (not reference) success-group match (CR #381)', () => {
+  it('resolves NOT_FOUND for a copied success group (structural, not reference)', async () => {
+    const visible: IRaceResult = {
+      found: true,
+      locator: false,
+      candidate: false,
+      context: false,
+      index: 0,
+      value: '',
+      identity: false,
+    };
+    const stub = makeVisibleStub(visible);
+    const success = WK_DASHBOARD.SUCCESS as unknown as readonly SelectorCandidate[];
+    const copiedSuccess = success.map(c => ({ ...c }));
+    const result = await stub(copiedSuccess);
+    expect(result).toBe(NOT_FOUND_RESULT);
   });
 });
