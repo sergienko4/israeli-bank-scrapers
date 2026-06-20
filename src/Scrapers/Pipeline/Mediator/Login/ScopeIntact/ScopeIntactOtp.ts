@@ -7,7 +7,7 @@
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import type { IElementMediator, IRaceResult } from '../../Elements/ElementMediator.js';
-import { detectOtpForm, detectOtpTrigger } from '../../Form/OtpProbe.js';
+import { detectOtpForm } from '../../Form/OtpProbe.js';
 import {
   type OtpScreenVisibility,
   PROBE_FAILED,
@@ -64,18 +64,22 @@ export async function runOtpDetect(
 }
 
 /**
- * Probe the post-submit DOM for an OTP-trigger or OTP-input element.
+ * Probe the post-submit DOM for a genuine OTP CODE INPUT.
+ *
+ * <p>PR #282 regression fix (commit 97ca1353): a rendered OTP screen is
+ * proven ONLY by a real one-time-code input ({@link detectOtpForm} /
+ * `WK_OTP_INPUT`). The previous structural trigger probe
+ * (`//button[@type="submit"]`, `//form//button`) matched the always-
+ * coresident SMS-lobby and password-submit buttons, so a failed login
+ * that stayed on the login URL was masked as an OTP fall-through instead
+ * of an honest `InvalidPassword` — which also killed the retry-recovery.
  * @param mediator - Element mediator.
  * @returns Tri-state OTP visibility verdict.
  */
 export async function otpScreenVisible(mediator: IElementMediator): Promise<OtpScreenVisibility> {
-  const triggerProbe = runOtpDetect(detectOtpTrigger, mediator);
-  const formProbe = runOtpDetect(detectOtpForm, mediator);
-  const [triggerOutcome, formOutcome] = await Promise.all([triggerProbe, formProbe]);
-  if (triggerOutcome !== 'failed' && triggerOutcome.found) return true;
-  if (formOutcome !== 'failed' && formOutcome.found) return true;
-  if (triggerOutcome === 'failed' || formOutcome === 'failed') return 'unknown';
-  return false;
+  const formOutcome = await runOtpDetect(detectOtpForm, mediator);
+  if (formOutcome === 'failed') return 'unknown';
+  return formOutcome.found;
 }
 
 /**
