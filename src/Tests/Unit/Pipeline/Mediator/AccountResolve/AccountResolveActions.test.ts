@@ -29,6 +29,7 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
  *  `resolveAndClick` contract (`Promise<Procedure<IRaceResult>>`) without
  *  driving an id into the pool. */
 const NUDGE_NOOP_RESULT = succeed(NOT_FOUND_RESULT);
+const NAVIGATE_OK: Procedure<void> = succeed(undefined);
 
 /** Args bundle for the synthetic-pool mediator factory. */
 interface IPoolMediatorArgs {
@@ -42,6 +43,15 @@ interface IPoolMediatorArgs {
    * transactions link is clicked.
    */
   readonly onClickCaptures?: readonly IDiscoveredEndpoint[];
+  /** DOM anchor hrefs returned by `collectAllHrefs` (defaults to none). */
+  readonly hrefs?: readonly string[];
+  /**
+   * Captures revealed by the PRE href-navigate fallback — simulates a
+   * nav-gated accounts API (e.g. Amex `GetCardList`) firing only after
+   * navigating directly to the href-discoverable transactions page, when
+   * the visible-text click alone did not surface it.
+   */
+  readonly onNavigateCaptures?: readonly IDiscoveredEndpoint[];
 }
 
 /**
@@ -97,6 +107,22 @@ function makePoolMediator(args: IPoolMediatorArgs): IElementMediator {
     resolveAndClick: (): Promise<Procedure<IRaceResult>> => {
       if (args.onClickCaptures) pool = args.onClickCaptures;
       return Promise.resolve(NUDGE_NOOP_RESULT);
+    },
+    /**
+     * DOM anchor hrefs for the href-navigate fallback (empty by default,
+     * so the fallback no-ops unless a test supplies a txn href).
+     * @returns Configured hrefs.
+     */
+    collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve(args.hrefs ?? []),
+    /**
+     * Href-navigate fallback. When `onNavigateCaptures` is supplied the
+     * pool is swapped to it, modelling an SPA whose accounts API only
+     * fires once the transactions page is navigated to directly.
+     * @returns Resolved void success.
+     */
+    navigateTo: (): Promise<Procedure<void>> => {
+      if (args.onNavigateCaptures) pool = args.onNavigateCaptures;
+      return Promise.resolve(NAVIGATE_OK);
     },
   } as unknown as IElementMediator;
 }
@@ -524,6 +550,18 @@ describe('executeAccountResolvePre — wait outcome telemetry', () => {
        * @returns Resolved click sentinel.
        */
       resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(NUDGE_NOOP_RESULT),
+      /**
+       * Empty href set — the href-navigate fallback finds no txn page and
+       * no-ops, so the test still falls through to the false outcome.
+       * @returns Empty hrefs.
+       */
+      collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve([]),
+      /**
+       * Unused navigate stub (no href matches) — present so the fallback's
+       * mediator contract is satisfied.
+       * @returns Resolved void success.
+       */
+      navigateTo: (): Promise<Procedure<void>> => Promise.resolve(NAVIGATE_OK),
     } as unknown as IElementMediator;
     const baseCtx = makeMockContext();
     const ctx = {
@@ -606,5 +644,63 @@ describe('executeAccountResolvePre — same-URL SPA cards-view nudge', () => {
         expect(post.value.accountDiscovery.value.ids.length).toBeGreaterThan(0);
       }
     }
+  });
+
+  // Amex's id-bearing GetCardList only fires once the SPA reaches its cards
+  // view. Unlike Isracard (a visible-text click toggles the view), Amex's
+  // transactions link is discoverable by HREF (`/transactions`), NOT by the
+  // Hebrew visible-text candidates — so the text-click nudge alone leaves the
+  // pool id-less and POST fails. The generic href-navigate fallback drives the
+  // SPA straight to the txn page so GetCardList fires. Faithful to the captured
+  // Amex dashboard trace (L3 DOM scan: match=.../transactions).
+  const amexTxnHref = 'https://web.americanexpress.example/transactions';
+
+  it('navigates the txn href when the text-click reveals no id (Amex href-only link), then resolves', async () => {
+    // captures:[] (stalled SPA) + NO onClickCaptures (the text-click is a
+    // no-op for Amex) + a discoverable txn href + onNavigateCaptures revealing
+    // GetCardList. The text-only nudge leaves the pool empty → POST would fail
+    // loud; only the href-navigate fallback makes POST resolve, so a passing
+    // POST proves the fallback fired.
+    const mediator = makePoolMediator({
+      captures: [],
+      hrefs: [amexTxnHref],
+      onNavigateCaptures: [idCapture],
+    });
+    const ctx = ctxWith(mediator);
+    const pre = await executeAccountResolvePre(ctx);
+    expect(pre.success).toBe(true);
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(true);
+    if (isOk(post) && post.value.accountDiscovery.has) {
+      expect(post.value.accountDiscovery.value.ids.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('does NOT navigate when the text-click already revealed an id (zero blast radius for click SPAs)', async () => {
+    // onClickCaptures reveals the id (Isracard click path). onNavigateCaptures
+    // is a POISON no-id pool — were the href-navigate to fire it would erase
+    // the id and POST would fail loud. A passing POST proves it was skipped.
+    const mediator = makePoolMediator({
+      captures: [],
+      onClickCaptures: [idCapture],
+      hrefs: [amexTxnHref],
+      onNavigateCaptures: [noiseCapture],
+    });
+    const ctx = ctxWith(mediator);
+    await executeAccountResolvePre(ctx);
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(true);
+    if (isOk(post)) expect(post.value.accountDiscovery.has).toBe(true);
+  });
+
+  it('stays a no-op when neither the click nor a txn href yields an id (loud POST failure preserved)', async () => {
+    // No id anywhere and no txn href → the fallback finds nothing → POST still
+    // fails loud, preserving the genuine ACCOUNT_RESOLUTION_FAILED contract so
+    // the fallback never masks a real account-resolve miss.
+    const mediator = makePoolMediator({ captures: [noiseCapture], hrefs: [] });
+    const ctx = ctxWith(mediator);
+    await executeAccountResolvePre(ctx);
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(false);
   });
 });

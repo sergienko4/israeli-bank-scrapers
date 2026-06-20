@@ -24,6 +24,7 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
  *  `resolveAndClick` contract (`Promise<Procedure<IRaceResult>>`) without
  *  driving an id into the pool. */
 const NUDGE_NOOP_RESULT = succeed(NOT_FOUND_RESULT);
+const NAVIGATE_OK: Procedure<void> = succeed(undefined);
 
 /**
  * Build a stub mediator whose pre-nav pool yields the given account
@@ -69,6 +70,16 @@ function makeStubMediator(idCapture: IDiscoveredEndpoint | false): IElementMedia
      * @returns Resolved click sentinel.
      */
     resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(NUDGE_NOOP_RESULT),
+    /**
+     * Empty href set — the href-navigate fallback no-ops.
+     * @returns Empty hrefs.
+     */
+    collectAllHrefs: (): Promise<readonly string[]> => Promise.resolve([]),
+    /**
+     * Unused navigate stub — present for the fallback contract.
+     * @returns Resolved void success.
+     */
+    navigateTo: (): Promise<Procedure<void>> => Promise.resolve(NAVIGATE_OK),
   } as unknown as IElementMediator;
 }
 

@@ -120,19 +120,75 @@ async function awaitAndLog(args: IAwaitArgs): Promise<true> {
 }
 
 /**
- * Drive a same-URL SPA to its cards/transactions view by clicking the
- * well-known transactions link, so an accounts API that only fires on
- * navigation (e.g. Isracard `GetCardList`) finally fires, then re-runs
- * the id-capture wait. The nudge click does NOT mark a dashboard click,
- * so its capture lands in `getPreNavCaptures()` for POST to read.
+ * True when a DOM href points at a well-known transactions page (e.g. Amex
+ * `/transactions`). Mirrors the Dashboard phase's href matcher locally so
+ * account-resolve stays self-contained (no cross-stage import).
+ * @param href - Candidate DOM anchor href.
+ * @returns Whether it matches any WK transactions-page pattern.
+ */
+function matchesTxnPattern(href: string): boolean {
+  return WK_DASHBOARD.TXN_PAGE_PATTERNS.some((pattern): boolean => pattern.test(href));
+}
+
+/**
+ * First DOM href pointing at a transactions page, or '' when none match.
+ * @param hrefs - All anchor hrefs collected from the page.
+ * @returns The matching href, or '' if absent.
+ */
+function pickTxnHref(hrefs: readonly string[]): string {
+  return hrefs.find(matchesTxnPattern) ?? '';
+}
+
+/**
+ * Href-navigate fallback for SPAs whose transactions link is reachable by
+ * href rather than by the visible-text click (e.g. Amex `/transactions`).
+ * Navigates straight to the txn page so its id-bearing accounts API fires,
+ * then re-runs the wait. Navigation does NOT mark a dashboard click, so the
+ * capture lands in `getPreNavCaptures()` for POST. No-op when no href matches.
  * @param args - Bundled mediator + logger.
- * @returns Always true once the click + re-wait completed.
+ * @returns Always true once the navigate (+ re-wait) completed.
+ */
+async function navigateTxnHrefAndReWait(args: IAwaitArgs): Promise<true> {
+  const hrefs = await args.mediator.collectAllHrefs();
+  const href = pickTxnHref(hrefs);
+  if (href !== '') {
+    args.log.debug({ message: 'account-resolve.pre nudge → navigate transactions href' });
+    await args.mediator.navigateTo(href);
+    await awaitAndLog(args);
+  }
+  return true;
+}
+
+/**
+ * After the visible-text click, fall back to href-navigation only when the
+ * pool still has no id-bearing capture (the Amex href-only case). No-op when
+ * the click already revealed an id, preserving zero blast radius.
+ * @param args - Bundled mediator + logger.
+ * @returns Always true (sentinel for the chained call site).
+ */
+async function navigateIfStillNoId(args: IAwaitArgs): Promise<true> {
+  const pool = args.mediator.network.getPreNavCaptures();
+  if (findFirstIdInPool(pool) !== false) return true;
+  return navigateTxnHrefAndReWait(args);
+}
+
+/**
+ * Drive a same-URL SPA to its cards/transactions view so an accounts API
+ * that only fires on navigation (e.g. Isracard `GetCardList`) finally fires,
+ * then re-runs the id-capture wait. Two generic stages, click-first:
+ * (1) click the well-known transactions link (visible-text — zero CSS), for
+ * SPAs whose link toggles the view in place (Isracard); (2) if still no id,
+ * navigate to the href-discoverable transactions page (Amex). Neither stage
+ * marks a dashboard click, so captures land in `getPreNavCaptures()` for POST.
+ * @param args - Bundled mediator + logger.
+ * @returns Always true once the click + re-wait + optional navigate completed.
  */
 async function nudgeCardsViewAndReWait(args: IAwaitArgs): Promise<true> {
   const candidates = WK_DASHBOARD.TRANSACTIONS;
   args.log.debug({ message: 'account-resolve.pre nudge → click transactions link' });
   await args.mediator.resolveAndClick(candidates, NUDGE_CLICK_TIMEOUT_MS);
   await awaitAndLog(args);
+  await navigateIfStillNoId(args);
   return true;
 }
 
