@@ -15,11 +15,20 @@ import {
   executeAccountResolvePost,
   executeAccountResolvePre,
 } from '../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.js';
-import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import {
+  type IElementMediator,
+  type IRaceResult,
+  NOT_FOUND_RESULT,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+
+/** Shared no-op nudge result — a `found:false` success matching the real
+ *  `resolveAndClick` contract (`Promise<Procedure<IRaceResult>>`) without
+ *  driving an id into the pool. */
+const NUDGE_NOOP_RESULT = succeed(NOT_FOUND_RESULT);
 
 /** Args bundle for the synthetic-pool mediator factory. */
 interface IPoolMediatorArgs {
@@ -27,6 +36,12 @@ interface IPoolMediatorArgs {
   readonly waitMatch?: IDiscoveredEndpoint | false;
   /** Bumps `captures` to `lateCaptures` after `waitForFirstId` resolves. */
   readonly lateCaptures?: readonly IDiscoveredEndpoint[];
+  /**
+   * Captures revealed by the PRE nudge click — simulates a nav-gated
+   * accounts API (e.g. Isracard `GetCardList`) firing only after the
+   * transactions link is clicked.
+   */
+  readonly onClickCaptures?: readonly IDiscoveredEndpoint[];
 }
 
 /**
@@ -72,6 +87,16 @@ function makePoolMediator(args: IPoolMediatorArgs): IElementMediator {
         /* swallow */
       }
       return true as const;
+    },
+    /**
+     * Best-effort PRE nudge click. When `onClickCaptures` is supplied
+     * the pool is swapped to it, modelling a same-URL SPA that only
+     * fetches the accounts API once the transactions link is clicked.
+     * @returns Resolved best-effort click sentinel.
+     */
+    resolveAndClick: (): Promise<Procedure<IRaceResult>> => {
+      if (args.onClickCaptures) pool = args.onClickCaptures;
+      return Promise.resolve(NUDGE_NOOP_RESULT);
     },
   } as unknown as IElementMediator;
 }
@@ -133,22 +158,29 @@ describe('executeAccountResolvePre', () => {
 
 describe('executeAccountResolvePre', () => {
   it('invokes waitForFirstId exactly once and returns the input context', async () => {
+    // Pool already carries an id-bearing capture, so the PRE nudge is
+    // correctly SKIPPED → a single passive wait (no post-nudge re-wait).
+    const idCapture = makeCapture({
+      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
+      method: 'POST',
+      responseBody: { data: { cardsList: [{ accountNumber: '111' }] } },
+    });
     let callCount = 0;
     const mediator = {
       network: {
         /**
          * Counter for assertion.
-         * @returns False (no match needed for this test).
+         * @returns The id-bearing match so the passive wait resolves.
          */
-        waitForFirstId: (): Promise<false> => {
+        waitForFirstId: (): Promise<IDiscoveredEndpoint> => {
           callCount += 1;
-          return Promise.resolve(false);
+          return Promise.resolve(idCapture);
         },
         /**
-         * Empty pool stub.
-         * @returns Empty array.
+         * Id-bearing pool stub (keeps the nudge skipped).
+         * @returns Single id-bearing capture.
          */
-        getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => [],
+        getPreNavCaptures: (): readonly IDiscoveredEndpoint[] => [idCapture],
       },
       /**
        * Never resolves so the race in `awaitAndLog` is decided by
@@ -486,6 +518,12 @@ describe('executeAccountResolvePre — wait outcome telemetry', () => {
         }
         return true as const;
       },
+      /**
+       * Best-effort PRE nudge click stub — the empty pool drives the
+       * nudge, which re-waits (and re-rejects, still caught) → success.
+       * @returns Resolved click sentinel.
+       */
+      resolveAndClick: (): Promise<Procedure<IRaceResult>> => Promise.resolve(NUDGE_NOOP_RESULT),
     } as unknown as IElementMediator;
     const baseCtx = makeMockContext();
     const ctx = {
@@ -504,6 +542,69 @@ describe('executeAccountResolvePost — boundary case', () => {
     expect(result.success).toBe(true);
     if (isOk(result)) {
       expect(result.value.accountDiscovery.has).toBe(false);
+    }
+  });
+});
+
+describe('executeAccountResolvePre — same-URL SPA cards-view nudge', () => {
+  // Isracard's modern id-bearing endpoint (GetCardList) only fires once
+  // the visible transactions link is clicked — the same-URL SPA never
+  // auto-navigates to the cards view. The PRE nudge clicks it when passive
+  // discovery yields no id, so the live capture lands in the pre-nav pool
+  // POST reads. These two tests reproduce that live scenario offline.
+  const idCapture = makeCapture({
+    url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
+    method: 'POST',
+    responseBody: { data: { cardsList: [{ cardSuffix: 'FAKE_C01', accountNumber: '111' }] } },
+  });
+  const noiseCapture = makeCapture({
+    url: 'https://api.bank.example/marketing/banner',
+    method: 'GET',
+    responseBody: { promotion: { title: 'Some banner' } },
+  });
+
+  /**
+   * Wrap a pool mediator in a has:true pipeline context.
+   * @param mediator - Pool mediator stub.
+   * @returns Context with the mediator present.
+   */
+  function ctxWith(mediator: IElementMediator): IPipelineContext {
+    return { ...makeMockContext(), mediator: { has: true, value: mediator } };
+  }
+
+  it('nudges the cards view when passive discovery finds no id, then resolves the revealed accounts', async () => {
+    // Empty passive pool → nudge clicks → onClickCaptures reveals the
+    // GetCardList capture → POST resolves. A non-firing nudge would leave
+    // the pool empty and POST would fail loud — so a passing POST is proof.
+    const mediator = makePoolMediator({ captures: [], onClickCaptures: [idCapture] });
+    const ctx = ctxWith(mediator);
+    const pre = await executeAccountResolvePre(ctx);
+    expect(pre.success).toBe(true);
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(true);
+    if (isOk(post)) {
+      expect(post.value.accountDiscovery.has).toBe(true);
+      if (post.value.accountDiscovery.has) {
+        expect(post.value.accountDiscovery.value.ids.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('does NOT click when passive discovery already found an id (zero blast radius for passive banks)', async () => {
+    // onClickCaptures is a POISON pool with no id — were the nudge to fire
+    // it would erase the real id and POST would fail loud. A passing POST
+    // therefore proves the click was correctly skipped.
+    const mediator = makePoolMediator({ captures: [idCapture], onClickCaptures: [noiseCapture] });
+    const ctx = ctxWith(mediator);
+    const pre = await executeAccountResolvePre(ctx);
+    expect(pre.success).toBe(true);
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(true);
+    if (isOk(post)) {
+      expect(post.value.accountDiscovery.has).toBe(true);
+      if (post.value.accountDiscovery.has) {
+        expect(post.value.accountDiscovery.value.ids.length).toBeGreaterThan(0);
+      }
     }
   });
 });

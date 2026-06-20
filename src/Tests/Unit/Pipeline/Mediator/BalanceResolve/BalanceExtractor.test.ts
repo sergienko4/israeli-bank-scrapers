@@ -310,3 +310,43 @@ describe('BalanceExtractor — F5 ILS-first per-currency selection', () => {
     expect(got).toBe(0);
   });
 });
+
+describe('BalanceExtractor — FIBI/Beinleumi accountSummary (records before arrays)', () => {
+  // Faithful to the real prod trace (dashboard-ACTION accountSummary):
+  // `currentBalances` lists `other` (an array of supplementary ZERO rows)
+  // BEFORE `local` (the record holding the real ILS balance). PII-scrubbed:
+  // balances replaced with synthetic FAKE values; the SHAPE + KEY ORDER are
+  // verbatim from C:\tmp\runs\pipeline\beinleumi\...\accountSummary.json.
+  const accountSummary: JsonValue = {
+    currentBalances: {
+      other: [
+        { totalAmount: 0, title: 'FAKE', date: '', sugBaka: '031', priority: 0, kodNose: 22 },
+        { totalAmount: 0, title: 'FAKE', date: '', sugBaka: '031', priority: 0, kodNose: 25 },
+      ],
+      local: {
+        totalAmount: 12345.67,
+        title: 'FAKE',
+        date: '',
+        sugBaka: '077',
+        priority: 1,
+        kodNose: 1,
+      },
+      foreign: {
+        totalAmount: 678.9,
+        title: 'FAKE',
+        date: '',
+        sugBaka: '031',
+        priority: 180,
+        kodNose: 21,
+      },
+    },
+    recentTransactions: [],
+    creditCards: [],
+    status: {},
+  };
+
+  it('resolves the real balance from currentBalances.local, not the zero other[] rows', () => {
+    const got = runBalanceExtractor(accountSummary);
+    expect(got).toBe(12345.67);
+  });
+});

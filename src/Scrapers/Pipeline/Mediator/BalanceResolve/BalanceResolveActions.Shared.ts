@@ -47,6 +47,19 @@ function readBalanceFetchTemplate(input: IPipelineContext | IActionContext): IBa
   return opt.value.balanceFetchTemplate ?? EMPTY_TEMPLATE;
 }
 
+/**
+ * Read PRE-carried account identities from the sealed action context.
+ * The seal drops `scrape`, so ACTION reads identities from the balance
+ * slot PRE stashed them in (default-deny to the empty sentinel).
+ * @param input - Sealed action context.
+ * @returns Identity map keyed by cardDisplayId.
+ */
+function readCarriedIdentities(input: IActionContext): ReadonlyMap<string, IAccountIdentity> {
+  const opt = input.balanceAccountIdentities;
+  if (!opt.has) return EMPTY_IDENTITIES;
+  return opt.value;
+}
+
 export {
   EMPTY_EXTRACTED,
   EMPTY_IDENTITIES,
@@ -54,4 +67,5 @@ export {
   EMPTY_TEMPLATE,
   readAccountIdentities,
   readBalanceFetchTemplate,
+  readCarriedIdentities,
 };

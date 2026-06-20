@@ -29,6 +29,24 @@ interface IScrapeState {
    * (no per-card POST observed). Downstream consumers default-deny.
    */
   readonly balanceFetchTemplate?: IBalanceFetchTemplate;
+  /**
+   * Captured balance-bearing response bodies snapshotted by SCRAPE.post —
+   * v6 carried-pool channel.
+   *
+   * <p>The browser network pool is read during SCRAPE.post (where the
+   * mediator is present) and the response bodies are carried on scrape
+   * state. BALANCE-RESOLVE.pre runs after the mediator/pool may already be
+   * unavailable, but the scrape slice survives — so the captured-pool seed
+   * ({@link readCapturedBalanceResponses}) reads these carried bodies
+   * instead of the absent live pool. Without this channel an account bank
+   * whose live re-fetch is quarantined has no BULK_KEY fallback and
+   * universal-misses.
+   *
+   * <p>Carried as opaque bodies (`unknown[]`, no Mediator type) to keep the
+   * Types layer free of a Mediator import. Absent (`undefined`) when SCRAPE
+   * had no mediator / an empty pool.
+   */
+  readonly balanceResponseBodies?: readonly unknown[];
 }
 
 export type { IScrapeState };

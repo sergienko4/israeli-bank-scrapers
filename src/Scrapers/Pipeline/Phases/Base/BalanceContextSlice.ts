@@ -1,20 +1,21 @@
 /**
- * BALANCE-RESOLVE slot slice — the five context keys both
+ * BALANCE-RESOLVE slot slice — the six context keys both
  * {@link "./ActionContextBuilder.ts" | buildBootstrapContext} and
  * {@link "./ActionContextBuilder.ts" | buildActionContext} carry forward.
  *
  * <p>Hoisted into its own module during Phase 12b so the two builders
  * can share the slot list without forming an import cycle. The
  * "Generic over duplication" project rule explicitly prefers this
- * shared-helper shape over inlining the five keys at each builder.
+ * shared-helper shape over inlining the six keys at each builder.
  *
  * @see "../../Types/PipelineContext.ts" — full IPipelineContext shape.
  */
 
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 
-/** The five BALANCE-RESOLVE slot keys both bootstrap and sealed action contexts carry. */
+/** The six BALANCE-RESOLVE slot keys both bootstrap and sealed action contexts carry. */
 export const BALANCE_SLOT_KEYS = [
+  'balanceAccountIdentities',
   'balanceFetchPlan',
   'balanceResponsesByBankAccount',
   'balanceExtracted',
@@ -22,7 +23,7 @@ export const BALANCE_SLOT_KEYS = [
   'balanceResolution',
 ] as const;
 
-/** Pick-typed alias for the five BALANCE-RESOLVE slots. */
+/** Pick-typed alias for the six BALANCE-RESOLVE slots. */
 export type BalanceContextSlice = Pick<IPipelineContext, (typeof BALANCE_SLOT_KEYS)[number]>;
 
 /**

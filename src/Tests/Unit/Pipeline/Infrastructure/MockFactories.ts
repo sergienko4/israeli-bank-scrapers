@@ -120,6 +120,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     },
     config: {
       urls: { base: 'https://test.bank' },
+      balanceKind: 'account',
     },
     fetchStrategy: none(),
     mediator: none(),
@@ -139,6 +140,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     authDiscovery: none(),
     otpTrigger: none(),
     otpFill: none(),
+    balanceAccountIdentities: none(),
     balanceFetchPlan: none(),
     balanceResponsesByBankAccount: none(),
     balanceExtracted: none(),

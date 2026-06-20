@@ -34,6 +34,16 @@ export type PhoneNumberFormatTag =
   | 'international-flat'
   | 'local-only';
 
+/**
+ * Balance semantics for a bank — an explicit, REQUIRED per-bank declaration.
+ * `'account'` banks expose a real account balance (deposit/checking banks)
+ * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose only
+ * per-cycle credit-card billing aggregates (VisaCal, Max, Amex, Isracard) and
+ * have no account balance to resolve (deterministic no-op). Never inferred
+ * from absence — an unstated kind is a config error, not a dormant no-op.
+ */
+export type BalanceKind = 'account' | 'card-cycle';
+
 /** Headless-strategy URL block — populates ctx.apiMediator at build time. */
 export interface IHeadlessUrlsConfig {
   readonly identityBase: string;
@@ -88,4 +98,11 @@ export interface IPipelineBankConfig {
   readonly transactionsPath?: string;
   /** Headless-strategy URLs — populated for API-native banks (no browser). */
   readonly headless?: IHeadlessUrlsConfig;
+  /**
+   * Balance semantics — see {@link BalanceKind}. REQUIRED: every bank states
+   * its kind explicitly — `'account'` (live balance resolved) or `'card-cycle'`
+   * (deterministic no-op). Never inferred from absence — an unstated kind is a
+   * config error, not a silent dormant no-op.
+   */
+  readonly balanceKind: BalanceKind;
 }

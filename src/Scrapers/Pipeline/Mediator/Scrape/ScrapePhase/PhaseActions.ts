@@ -124,8 +124,24 @@ function auditPostScrape(input: IPipelineContext): boolean {
 }
 
 /**
+ * Snapshot the captured network response bodies so BALANCE-RESOLVE can
+ * detect / seed a folded balance after the live mediator/pool is gone.
+ * Read at SCRAPE.post where the mediator is present; carried as opaque
+ * bodies on scrape state (no Mediator type leaks downstream).
+ *
+ * @param input - Pipeline context (SCRAPE.post — mediator present).
+ * @returns Response bodies, or undefined when no mediator / empty pool.
+ */
+function snapshotBalancePool(input: IPipelineContext): readonly unknown[] | undefined {
+  if (!input.mediator.has) return undefined;
+  const pool = input.mediator.value.network.getAllEndpoints();
+  if (pool.length === 0) return undefined;
+  return pool.map((endpoint): unknown => endpoint.responseBody);
+}
+
+/**
  * Build the scrape state with BALANCE-RESOLVE emit fields attached
- * (identities + balance template).
+ * (identities + balance template + carried response-body pool).
  *
  * @param args - Bundled input + diagnostics.
  * @returns Updated context with emit fields on scrape state.
@@ -137,6 +153,7 @@ function buildEmitScrape(args: IStampedScrapeArgs): IScrapeStateValue {
     ...args.scrape,
     accountIdentities: identities.size > 0 ? identities : undefined,
     balanceFetchTemplate: template.url === '' ? undefined : template,
+    balanceResponseBodies: snapshotBalancePool(args.input),
   };
 }
 

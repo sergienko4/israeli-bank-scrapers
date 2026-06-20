@@ -2,6 +2,8 @@
  * Unit tests for ScrapePhaseActions — PRE/ACTION/POST/FINAL orchestration.
  */
 
+import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
+import type { IDiscoveredEndpoint } from '../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
 import {
   executeForensicPre,
   executeMatrixLoop,
@@ -13,7 +15,11 @@ import type { IScrapeDiscovery } from '../../../../Scrapers/Pipeline/Types/Pipel
 import { API_STRATEGY } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { ITransaction } from '../../../../Transactions.js';
-import { makeMockContext } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
+import { makePool } from '../../Pipeline/Mediator/BalanceResolve/BalancePoolHelpers.js';
+import {
+  makeMockContext,
+  makeMockMediator,
+} from '../../Scrapers/Pipeline/MockPipelineFactories.js';
 import { makeMockActionExecutor, toActionCtx } from './TestHelpers.js';
 
 /**
@@ -244,6 +250,31 @@ describe('executeStampAccounts', () => {
     expect(isOkResult15).toBe(true);
     if (isOk(result)) {
       expect(result.value.diagnostics.lastAction).toContain('1 accounts');
+    }
+  });
+
+  it('carries the captured balance response-body pool onto scrape state', async () => {
+    const base = makeMockMediator();
+    const pool = makePool([{ BalanceDisplay: 150 }]);
+    const network: IElementMediator['network'] = {
+      ...base.network,
+      /**
+       * Return the carried captured pool.
+       * @returns The synthetic endpoint pool.
+       */
+      getAllEndpoints: (): readonly IDiscoveredEndpoint[] => pool,
+    };
+    const mediator = some<IElementMediator>({ ...base, network });
+    const scrape = some({ accounts: [{ accountNumber: 'A1', balance: 0, txns: [] }] });
+    const ctx = makeMockContext({ scrape, mediator });
+    const result = await executeStampAccounts(ctx);
+    const isStampOk = isOk(result);
+    expect(isStampOk).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.scrape.has).toBe(true);
+      if (result.value.scrape.has) {
+        expect(result.value.scrape.value.balanceResponseBodies).toEqual([{ BalanceDisplay: 150 }]);
+      }
     }
   });
 });

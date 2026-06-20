@@ -3,6 +3,8 @@
  * Isolated: NO imports from Home, Login, or Scrape WK.
  */
 
+import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
+
 /** Selector-kind discriminator strings, lifted out of every literal entry. */
 const KIND_TEXT_CONTENT = 'textContent' as const;
 const KIND_ARIA_LABEL = 'ariaLabel' as const;
@@ -11,6 +13,38 @@ const KIND_REGEX = 'regex' as const;
 /** Hebrew label "transactions and charges" — appears in REVEAL, MENU_EXPAND,
  *  TRANSACTIONS, and SUCCESS lists as a dashboard signal. */
 const LABEL_TXN_AND_CHARGES = 'עסקאות וחיובים' as const;
+
+/** Transactions/charges navigation candidates, priority-ordered: bank-account
+ *  intent → card transactions → medium → generic. The exact-text
+ *  "פירוט החיובים והעסקאות" (with definite articles) sits at the top to
+ *  disambiguate Max's two near-identical dropdown items — "פירוט החיובים
+ *  והעסקאות" (My Info → Charge details and transactions, the correct one) vs
+ *  "פירוט חיובים ועסקאות" (My Card → wrong twin matched by the existing
+ *  substring further down). Verified offline against captured dashboard HTML
+ *  for all 7 banks: only Max has this element; no overlap. */
+const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
+  { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
+  { kind: KIND_ARIA_LABEL, value: 'תנועות בחשבון' },
+  { kind: 'clickableText', value: 'תנועות בחשבון' },
+  { kind: 'clickableText', value: 'תנועות עו"ש' },
+  { kind: 'clickableText', value: 'פירוט תנועות' },
+  { kind: 'clickableText', value: 'לכל התנועות' },
+  { kind: 'clickableText', value: 'תנועות אחרונות' },
+  { kind: 'clickableText', value: 'לעובר ושב' },
+  { kind: KIND_ARIA_LABEL, value: 'עסקאות בכרטיס לפי מועד חיוב' },
+  { kind: KIND_TEXT_CONTENT, value: 'עסקאות בכרטיס לפי מועד חיוב' },
+  { kind: 'clickableText', value: 'פירוט חיובים' },
+  { kind: 'clickableText', value: 'חיובים ועסקאות' },
+  { kind: KIND_TEXT_CONTENT, value: 'פירוט חיובים' },
+  { kind: KIND_TEXT_CONTENT, value: LABEL_TXN_AND_CHARGES },
+  { kind: 'clickableText', value: 'כל העסקאות' },
+  { kind: 'clickableText', value: 'פירוט עסקאות' },
+  { kind: KIND_TEXT_CONTENT, value: 'עסקאות אחרונות' },
+  { kind: KIND_ARIA_LABEL, value: 'עסקאות' },
+  { kind: KIND_ARIA_LABEL, value: 'תנועות' },
+  { kind: 'clickableText', value: 'עסקאות' },
+  { kind: 'clickableText', value: 'תנועות' },
+];
 
 /** Dashboard phase WK — post-authentication UI helpers. */
 export const WK_DASHBOARD = {
@@ -62,36 +96,7 @@ export const WK_DASHBOARD = {
     { kind: KIND_ARIA_LABEL, value: 'עוד' },
     { kind: KIND_ARIA_LABEL, value: 'menu' },
   ],
-  // Priority order: bank-account intent → card transactions → medium → generic.
-  // The exact-text "פירוט החיובים והעסקאות" (with definite articles) sits at
-  // the top to disambiguate Max's two near-identical dropdown items —
-  // "פירוט החיובים והעסקאות" (My Info → Charge details and transactions, the
-  // correct one) vs "פירוט חיובים ועסקאות" (My Card → wrong twin matched by
-  // the existing substring further down). Verified offline against captured
-  // dashboard HTML for all 7 banks: only Max has this element; no overlap.
-  TRANSACTIONS: [
-    { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
-    { kind: KIND_ARIA_LABEL, value: 'תנועות בחשבון' },
-    { kind: 'clickableText', value: 'תנועות בחשבון' },
-    { kind: 'clickableText', value: 'תנועות עו"ש' },
-    { kind: 'clickableText', value: 'פירוט תנועות' },
-    { kind: 'clickableText', value: 'לכל התנועות' },
-    { kind: 'clickableText', value: 'תנועות אחרונות' },
-    { kind: 'clickableText', value: 'לעובר ושב' },
-    { kind: KIND_ARIA_LABEL, value: 'עסקאות בכרטיס לפי מועד חיוב' },
-    { kind: KIND_TEXT_CONTENT, value: 'עסקאות בכרטיס לפי מועד חיוב' },
-    { kind: 'clickableText', value: 'פירוט חיובים' },
-    { kind: 'clickableText', value: 'חיובים ועסקאות' },
-    { kind: KIND_TEXT_CONTENT, value: 'פירוט חיובים' },
-    { kind: KIND_TEXT_CONTENT, value: LABEL_TXN_AND_CHARGES },
-    { kind: 'clickableText', value: 'כל העסקאות' },
-    { kind: 'clickableText', value: 'פירוט עסקאות' },
-    { kind: KIND_TEXT_CONTENT, value: 'עסקאות אחרונות' },
-    { kind: KIND_ARIA_LABEL, value: 'עסקאות' },
-    { kind: KIND_ARIA_LABEL, value: 'תנועות' },
-    { kind: 'clickableText', value: 'עסקאות' },
-    { kind: 'clickableText', value: 'תנועות' },
-  ],
+  TRANSACTIONS: DASHBOARD_TRANSACTIONS,
   SKIP: [
     { kind: KIND_TEXT_CONTENT, value: 'דלג' },
     { kind: KIND_TEXT_CONTENT, value: 'דלג לחשבון' },
