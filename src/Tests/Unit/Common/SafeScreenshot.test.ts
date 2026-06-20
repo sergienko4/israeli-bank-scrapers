@@ -28,7 +28,7 @@ describe('safeScreenshot — CI gating contract', () => {
       process.env.CI = 'true';
     });
 
-    it('safeScreenshot_whenCiTrueAndPostAuthPhase_skipsPageScreenshotCall', async () => {
+    it('safeScreenshot_whenCiTrueAndPostAuthPhase_divertsToPrivateDir', async () => {
       const { page, screenshotMock } = makeMockPage();
 
       const didCapture = await safeScreenshot(page, {
@@ -36,8 +36,12 @@ describe('safeScreenshot — CI gating contract', () => {
         fullPage: true,
       });
 
-      expect(didCapture).toBe(false);
-      expect(screenshotMock).toHaveBeenCalledTimes(0);
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({
+        path: '/tmp/runs/pipeline/hapoalim/private/hapoalim-dashboard-pre-done-20260531.png',
+        fullPage: true,
+      });
     });
 
     it('safeScreenshot_whenCiTrueAndInitPhase_capturesScreenshot', async () => {
@@ -64,7 +68,7 @@ describe('safeScreenshot — CI gating contract', () => {
       expect(screenshotMock).toHaveBeenCalledTimes(1);
     });
 
-    it('safeScreenshot_whenCiTrueAndLoginPhase_skipsPageScreenshotCall', async () => {
+    it('safeScreenshot_whenCiTrueAndLoginPhase_divertsToPrivateDir', async () => {
       const { page, screenshotMock } = makeMockPage();
 
       const didCapture = await safeScreenshot(page, {
@@ -72,11 +76,15 @@ describe('safeScreenshot — CI gating contract', () => {
         fullPage: true,
       });
 
-      expect(didCapture).toBe(false);
-      expect(screenshotMock).toHaveBeenCalledTimes(0);
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({
+        path: '/tmp/runs/pipeline/hapoalim/private/hapoalim-login-action-done-20260531.png',
+        fullPage: true,
+      });
     });
 
-    it('safeScreenshot_whenCiTrueAndAuthDiscoveryPhase_skipsPageScreenshotCall', async () => {
+    it('safeScreenshot_whenCiTrueAndAuthDiscoveryPhase_divertsToPrivateDir', async () => {
       const { page, screenshotMock } = makeMockPage();
 
       const didCapture = await safeScreenshot(page, {
@@ -84,17 +92,21 @@ describe('safeScreenshot — CI gating contract', () => {
         fullPage: true,
       });
 
-      expect(didCapture).toBe(false);
-      expect(screenshotMock).toHaveBeenCalledTimes(0);
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({
+        path: '/tmp/runs/pipeline/isracard/private/isracard-auth-discovery-post-fail-20260531.png',
+        fullPage: true,
+      });
     });
   });
 
-  describe('when CI is unset', () => {
+  describe('when CI explicitly disabled (CI=false)', () => {
     beforeEach(() => {
-      delete process.env.CI;
+      process.env.CI = 'false';
     });
 
-    it('safeScreenshot_whenCiUnset_invokesPageScreenshot', async () => {
+    it('safeScreenshot_whenCiFalse_invokesPageScreenshot', async () => {
       const { page, screenshotMock } = makeMockPage();
 
       const didCapture = await safeScreenshot(page, {
@@ -211,18 +223,68 @@ describe('safeScreenshot — CI gating contract', () => {
     });
   });
 
-  describe('CI truthy-semantics foot-gun', () => {
-    it('safeScreenshot_whenCiLiteralFalseStringAndPostAuthPhase_stillSuppresses', async () => {
+  describe('explicit opt-out — CI=false captures every phase', () => {
+    it('safeScreenshot_whenCiFalseStringAndPostAuthPhase_capturesToPublicDir', async () => {
       process.env.CI = 'false';
+      const { page, screenshotMock } = makeMockPage();
+      const path = '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-scrape-pre-done.png';
+
+      const didCapture = await safeScreenshot(page, { path, fullPage: true });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({ path, fullPage: true });
+    });
+
+    it('safeScreenshot_whenCiFalseUppercaseTrimmed_captures', async () => {
+      process.env.CI = '  FALSE  ';
       const { page, screenshotMock } = makeMockPage();
 
       const didCapture = await safeScreenshot(page, {
-        path: '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-scrape-pre-done.png',
+        path: '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-dashboard-pre-done.png',
         fullPage: true,
       });
 
-      expect(didCapture).toBe(false);
-      expect(screenshotMock).toHaveBeenCalledTimes(0);
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('fail-closed default — non-CI=false diverts post-auth to private', () => {
+    const postAuthPath = '/tmp/runs/pipeline/hapoalim/screenshots/hapoalim-scrape-pre-done.png';
+    const privatePath = '/tmp/runs/pipeline/hapoalim/private/hapoalim-scrape-pre-done.png';
+
+    it('safeScreenshot_whenCiUnset_divertsPostAuthToPrivate', async () => {
+      delete process.env.CI;
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, { path: postAuthPath, fullPage: true });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({ path: privatePath, fullPage: true });
+    });
+
+    it('safeScreenshot_whenCiEmptyString_divertsPostAuthToPrivate', async () => {
+      process.env.CI = '';
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, { path: postAuthPath, fullPage: true });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({ path: privatePath, fullPage: true });
+    });
+
+    it('safeScreenshot_whenCiZero_divertsPostAuthToPrivate', async () => {
+      process.env.CI = '0';
+      const { page, screenshotMock } = makeMockPage();
+
+      const didCapture = await safeScreenshot(page, { path: postAuthPath, fullPage: true });
+
+      expect(didCapture).toBe(true);
+      expect(screenshotMock).toHaveBeenCalledTimes(1);
+      expect(screenshotMock).toHaveBeenCalledWith({ path: privatePath, fullPage: true });
     });
   });
 });
