@@ -1,6 +1,6 @@
 /**
  * Unit tests for TraceConfig — single per-process artefact folder driven by
- * LOG_LEVEL=trace. Covers the off-trace empty-string contract and the
+ * FORENSIC_TRACE=true. Covers the off-forensic empty-string contract and the
  * lazy-creation behaviour for the run / network / screenshot directories.
  */
 
@@ -42,55 +42,55 @@ function makeTmpRoot(prefix: string): string {
 }
 
 /**
- * Probe a single LOG_LEVEL value against `isTraceMode()`. Extracted so the
- * batch test below doesn't rely on `await` inside a loop.
- * @param level - Value to set for `process.env.LOG_LEVEL`.
- * @returns True iff the module reports trace mode.
+ * Probe a single FORENSIC_TRACE value against `isForensicTrace()`. Extracted
+ * so the batch test below doesn't rely on `await` inside a loop.
+ * @param value - Value to set for `process.env.FORENSIC_TRACE`.
+ * @returns True iff the module reports forensic-trace mode.
  */
-async function probeIsTraceMode(level: string): Promise<boolean> {
-  process.env.LOG_LEVEL = level;
+async function probeIsForensicTrace(value: string): Promise<boolean> {
+  process.env.FORENSIC_TRACE = value;
   jest.resetModules();
   const mod = await loadTraceConfig();
-  return mod.isTraceMode();
+  return mod.isForensicTrace();
 }
 
-describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
-  const originalLogLevel = process.env.LOG_LEVEL;
+describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
+  const originalForensic = process.env.FORENSIC_TRACE;
   const originalRunsRoot = process.env.RUNS_ROOT;
 
   afterEach(() => {
-    if (originalLogLevel === undefined) delete process.env.LOG_LEVEL;
-    else process.env.LOG_LEVEL = originalLogLevel;
+    if (originalForensic === undefined) delete process.env.FORENSIC_TRACE;
+    else process.env.FORENSIC_TRACE = originalForensic;
     if (originalRunsRoot === undefined) delete process.env.RUNS_ROOT;
     else process.env.RUNS_ROOT = originalRunsRoot;
     jest.resetModules();
   });
 
-  it('isTraceMode is false when LOG_LEVEL is unset', async () => {
-    delete process.env.LOG_LEVEL;
+  it('isForensicTrace is false when FORENSIC_TRACE is unset', async () => {
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
-    const isMode = mod.isTraceMode();
+    const isMode = mod.isForensicTrace();
     expect(isMode).toBe(false);
   });
 
-  it('isTraceMode is false when LOG_LEVEL is info / debug / warn / error', async () => {
-    const probes = ['info', 'debug', 'warn', 'error'].map(probeIsTraceMode);
+  it('isForensicTrace is false for false / 1 / 0 / yes / trace', async () => {
+    const probes = ['false', '1', '0', 'yes', 'trace'].map(probeIsForensicTrace);
     const results = await Promise.all(probes);
     const hasAnyTrue = results.some(value => value);
     expect(hasAnyTrue).toBe(false);
   });
 
-  it('isTraceMode is true when LOG_LEVEL=trace (case-insensitive)', async () => {
-    process.env.LOG_LEVEL = 'TRACE';
+  it('isForensicTrace is true when FORENSIC_TRACE=true (case/space-insensitive)', async () => {
+    process.env.FORENSIC_TRACE = '  TRUE  ';
     jest.resetModules();
     const mod = await loadTraceConfig();
-    const isMode = mod.isTraceMode();
+    const isMode = mod.isForensicTrace();
     expect(isMode).toBe(true);
   });
 
   it('off-trace: getRunFolder/getLogFile/getNetworkDumpDir/getScreenshotDir all empty', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const runFolder = mod.getRunFolder();
@@ -105,7 +105,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('on-trace: derives folder under RUNS_ROOT, creates it lazily', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-test');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -121,7 +121,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('on-trace: log file, network dir, screenshot dir all share the same root', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shared');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -150,7 +150,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('off-trace: getSubStepNetworkDumpDir returns empty string', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const subDir = mod.getSubStepNetworkDumpDir('home', 'PRE');
@@ -159,7 +159,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('on-trace: getSubStepNetworkDumpDir creates a sub-folder under network/', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-substep');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -175,7 +175,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('on-trace: run folder name uses DDMMYY-HHMMSScc format under <bank>/', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-fmt');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -192,7 +192,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('formatRunStamp produces DDMMYY-HHMMSScc for a known Date', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const date = new Date(2026, 3, 28, 18, 45, 30, 250);
@@ -201,7 +201,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('detectBankFromArgv returns "" when no bank test pattern is in argv', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const detected = mod.detectBankFromArgv();
@@ -210,14 +210,14 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('resetTraceConfigCache clears cached folders so a new call re-derives', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-reset');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('beinleumi');
     const folder1 = mod.getRunFolder();
     const wasReset = mod.resetTraceConfigCache();
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     const folder2 = mod.getRunFolder();
     expect(folder1).not.toBe('');
     expect(wasReset).toBe(true);
@@ -227,7 +227,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('getRunFolder is cached — calling twice returns the same path', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-cache');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -241,7 +241,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('getNetworkDumpDir is cached across calls', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-net');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -253,7 +253,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('getActiveRunId returns "" when no bank has been registered', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const runId = mod.getActiveRunId();
@@ -261,7 +261,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('getActiveRunId is stable across calls within one process', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('discount');
@@ -273,7 +273,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('getActiveRunId matches the on-disk run-folder leaf name (trace mode)', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-runid');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -286,7 +286,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('getActiveRunId is available off-trace (no folder created)', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('hapoalim');
@@ -299,7 +299,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('resetTraceConfigCache clears the runId so a new call re-derives', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     mod.setActiveBank('hapoalim');
@@ -317,7 +317,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
 
   it('getScreenshotDir is cached across calls', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shot');
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();
@@ -370,7 +370,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('formatRunStamp pads single-digit day/month/hour/minute/second/centisecond', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const date = new Date(2026, 0, 2, 3, 4, 5, 60);
@@ -379,7 +379,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('setActiveBank rejects empty string and unknown slugs', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const acceptedEmpty = mod.setActiveBank('');
@@ -391,7 +391,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
   });
 
   it('setActiveBank accepts a known slug case-insensitively', async () => {
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const accepted = mod.setActiveBank(' Beinleumi ');
@@ -402,7 +402,7 @@ describe('TraceConfig — LOG_LEVEL=trace gates artefact emission', () => {
     const tmpRoot = makeTmpRoot('traceconfig-bank');
     const originalArgv = process.argv;
     process.argv = ['node', 'jest', 'src/Tests/E2eReal/beinleumi.e2e-real.test.ts'];
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
     jest.resetModules();
     const mod = await loadTraceConfig();

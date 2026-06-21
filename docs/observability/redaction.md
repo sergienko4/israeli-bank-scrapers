@@ -38,21 +38,40 @@ const redacted = PII_REDACTOR.censor({
 |---|---|---|
 | `pipeline.log` (Pino) | `redact.censor` callback at log time | JSON lines |
 | `network/*.json` (NetworkDiscovery captures) | `PiiRedactor` pre-write filter | JSON |
-| `screenshots/*.html` (SafeScreenshot) | In-place text + `value` attribute scrubs | HTML |
-| `screenshots/*.png` | **NOT redacted** — raster | PNG |
+| `screenshots/*.png` (SafeScreenshot) | **NOT redacted** — raster | PNG |
+| `*.html` snapshots (FixtureCapture, opt-in `DUMP_FIXTURES_DIR`) | `redactHtml` text + `value` attribute scrubs | HTML |
 
 ### `safeScreenshot` API
 
 The canonical capture function is `safeScreenshot(page, options)` in
 `src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts`. It accepts an
-`ISafeScreenshotOptions` describing the phase name and screenshot path, applies
-the redaction passes above, then writes both the scrubbed HTML and the raw PNG
-to the run's screenshots directory. The `PRE_AUTH_SCREENSHOT_PHASES` constant
-enumerates the lifecycle phases (e.g. `pre-login`, `login-form`) where
-screenshots are unconditionally allowed in CI — **in CI only**, calls outside
-those phases become a no-op so credential frames never leak to public-readable
-artifacts. Outside CI the gate is disabled and every phase captures (developer
-local runs need the full diagnostic trail).
+`IScreenshotOptions` (`path` + optional `fullPage`), writes the raw PNG to
+that path, and swallows any capture error so a failed shot stays
+diagnostic-only. It performs **no** redaction — PNGs are raster and cannot be
+reliably scrubbed (see the table above). It does **not** write HTML; DOM
+snapshots are a separate channel owned by `FixtureCapture` / `SnapshotInterceptor`.
+
+Capture is gated **upstream**, not inside `safeScreenshot`. The target path
+comes from `TraceConfig.getScreenshotDir`, which is empty unless the opt-in
+`FORENSIC_TRACE=true` flag is set (`TraceConfig.getRunFolder`). With forensic
+capture off — the default — `BasePhase.takePhaseScreenshot` receives an empty
+path and returns early, so **no PNG is ever written**. There is no per-phase or
+CI allowlist: the single `FORENSIC_TRACE` switch governs the whole run folder
+(`pipeline.log`, `network/*.json`, `screenshots/*.png`) together.
+
+#### Forensic capture (`FORENSIC_TRACE`) — opt-in only
+
+| `FORENSIC_TRACE` | Effect |
+|---|---|
+| unset / `false` / any other value | `getRunFolder` returns `''`. No run folder, no `pipeline.log`, no `network/*.json`, no screenshots. **Default.** |
+| `true` (trimmed, case-insensitive) | The pipeline writes the full run folder under `RUNS_ROOT`. On a failed CI job the bundle uploads to the access-controlled private store only; the public artifact never includes `screenshots/*.png` (raster pixels can carry rendered PII). |
+
+`FORENSIC_TRACE` is decoupled from `LOG_LEVEL` (pino verbosity only) and `CI`
+(OTP / Telegram). Set it explicitly when triaging a failure:
+
+```sh
+FORENSIC_TRACE=true npm run test:e2e:real
+```
 
 ## Disabling redaction
 

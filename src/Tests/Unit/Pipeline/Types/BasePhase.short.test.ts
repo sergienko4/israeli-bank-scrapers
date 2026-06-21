@@ -305,13 +305,13 @@ describe('BasePhase phase-level screenshot bookend', () => {
     expect(isOkResult).toBe(false);
   });
 
-  it('takePhaseScreenshot: trace mode + bank registered → calls page.screenshot', async () => {
+  it('takePhaseScreenshot: forensic trace + bank registered → calls page.screenshot', async () => {
     const tmpDir = os.tmpdir();
     const nowMs = Date.now();
     const stamp = String(nowMs);
     const tempRoot = path.join(tmpDir, `bp-screenshot-${stamp}`);
     const originalCi = process.env.CI;
-    process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tempRoot;
     delete process.env.CI;
     resetTraceConfigCache();
@@ -336,7 +336,7 @@ describe('BasePhase phase-level screenshot bookend', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     expect(screenshotCalls).toBeGreaterThan(0);
-    delete process.env.LOG_LEVEL;
+    delete process.env.FORENSIC_TRACE;
     delete process.env.RUNS_ROOT;
     if (originalCi === undefined) delete process.env.CI;
     else process.env.CI = originalCi;
