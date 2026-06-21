@@ -744,18 +744,11 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
-          # LOG_LEVEL=trace makes the pipeline write per-run artefacts
-          # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
-          # Both pipeline.log AND network/*.json are PII-redacted at
-          # write-time by the runtime layer (commit 3f1b966d: PiiRedactor
-          # is wired into Pino's redact.censor + NetworkDiscovery's
-          # dumpResponseBody routes through redactJsonBody/redactUrl).
-          # Both file types are safe to upload; the failure-only artifact
-          # below uploads them so we can debug auto-discovery + endpoint
-          # selection (e.g. Max's "scrape skipped — No txn URL" case
-          # needs the 71 captured network URLs to triage).
-          # Screenshots are still excluded — PNGs cannot be reliably
-          # redacted and may capture rendered PII text.
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # Non-OTP browser-form banks only — no OTP / TELEGRAM
@@ -790,18 +783,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # pipeline.log + network/*.json — both PII-redacted at write
-          # time by the runtime layer (commit 3f1b966d). Network dumps
-          # are required to triage auto-discovery failures (which URL
-          # got picked out of the captured set, what response shape).
-          # Pre-auth screenshots (init/home only) included since the
-          # bank page carries no user data before LOGIN — needed to
-          # triage WAF / challenge-wall hypotheses without speculation.
-          # LOGIN / OTP / DASHBOARD / SCRAPE screenshots remain excluded.
+          # Public artifact = pipeline.log + network/*.json only, both
+          # PII-redacted at write time.
+          # Screenshots never reach the public artifact: raster PNGs can
+          # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
@@ -810,29 +798,12 @@ jobs:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
           RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          # Best-effort upload of the FULL run dir -- including post-auth
-          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
-          # access-controlled OCI bucket via a write-only pre-authenticated
-          # request (AnyObjectWrite = create/overwrite only; no read, list,
-          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
-          # public artifact above. Skips cleanly when the secret is absent
-          # (forks / external PRs) so it can never fail the job.
-          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
-            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
-            exit 0
-          fi
-          root=/tmp/runs/pipeline
-          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
-          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
-            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
-            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
-              echo "uploaded ${obj}"
-            else
-              echo "WARN: upload failed for ${obj}"
-            fi
-          done
-          echo "private diagnostics upload complete."
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Never touches the public artifact above. Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
       # ── Cooldown hold (post-run slot retention) ──
       # Holds the job's repo-wide concurrency.group slot
       # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
@@ -891,8 +862,11 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
-          # Same trace + RUNS_ROOT setup as Group A — failure artifact
-          # below relies on /tmp/runs being populated when LOG_LEVEL=trace.
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           AMEX_ID: ${{ secrets.AMEX_ID }}
@@ -912,13 +886,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # Same pre-auth screenshot policy as Group A — init + home only
-          # so we can triage homepage WAF / challenge-wall failures
-          # (Hapoalim CI race investigated 2026-05-13) with visual proof.
+          # Public artifact = pipeline.log + network/*.json only, both
+          # PII-redacted at write time.
+          # Screenshots never reach the public artifact: raster PNGs can
+          # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
@@ -927,29 +901,12 @@ jobs:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
           RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          # Best-effort upload of the FULL run dir -- including post-auth
-          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
-          # access-controlled OCI bucket via a write-only pre-authenticated
-          # request (AnyObjectWrite = create/overwrite only; no read, list,
-          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
-          # public artifact above. Skips cleanly when the secret is absent
-          # (forks / external PRs) so it can never fail the job.
-          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
-            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
-            exit 0
-          fi
-          root=/tmp/runs/pipeline
-          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
-          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
-            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
-            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
-              echo "uploaded ${obj}"
-            else
-              echo "WARN: upload failed for ${obj}"
-            fi
-          done
-          echo "private diagnostics upload complete."
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Never touches the public artifact above. Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
       # ── Cooldown hold (post-run slot retention) ──
       # Holds the job's repo-wide concurrency.group slot
       # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
@@ -1032,6 +989,11 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # OTP browser-form banks. Telegram secrets deliver the SMS
@@ -1055,10 +1017,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # Public artifact = pipeline.log + network/*.json only, both
+          # PII-redacted at write time.
+          # Screenshots never reach the public artifact: raster PNGs can
+          # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
@@ -1067,29 +1032,12 @@ jobs:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
           RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          # Best-effort upload of the FULL run dir -- including post-auth
-          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
-          # access-controlled OCI bucket via a write-only pre-authenticated
-          # request (AnyObjectWrite = create/overwrite only; no read, list,
-          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
-          # public artifact above. Skips cleanly when the secret is absent
-          # (forks / external PRs) so it can never fail the job.
-          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
-            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
-            exit 0
-          fi
-          root=/tmp/runs/pipeline
-          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
-          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
-            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
-            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
-              echo "uploaded ${obj}"
-            else
-              echo "WARN: upload failed for ${obj}"
-            fi
-          done
-          echo "private diagnostics upload complete."
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Never touches the public artifact above. Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
       # ── Cooldown hold (post-run slot retention) ──
       # Holds the job's repo-wide concurrency.group slot
       # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
@@ -1189,6 +1137,11 @@ jobs:
         run: bash .github/scripts/ci/decrypt-token-cache.sh "${{ matrix.bank }}"
       - name: E2E real (${{ matrix.bank }})
         env:
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # api-direct banks. PayBox derives deviceId16Hex from
@@ -1228,10 +1181,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
+          # Public artifact = pipeline.log + network/*.json only, both
+          # PII-redacted at write time.
+          # Screenshots never reach the public artifact: raster PNGs can
+          # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
             /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
@@ -1240,29 +1196,12 @@ jobs:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
           RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          # Best-effort upload of the FULL run dir -- including post-auth
-          # screenshots diverted to private/ by SafeScreenshot.ts -- to the
-          # access-controlled OCI bucket via a write-only pre-authenticated
-          # request (AnyObjectWrite = create/overwrite only; no read, list,
-          # or delete; bucket NoPublicAccess; 3-day TTL). Never touches the
-          # public artifact above. Skips cleanly when the secret is absent
-          # (forks / external PRs) so it can never fail the job.
-          if [ -z "${OCI_DIAG_PAR_URL:-}" ]; then
-            echo "OCI_DIAG_PAR_URL not configured -- skipping private upload."
-            exit 0
-          fi
-          root=/tmp/runs/pipeline
-          [ -d "$root" ] || { echo "no run dir -- nothing to upload."; exit 0; }
-          find "$root" -type f -print0 | while IFS= read -r -d '' f; do
-            obj="${DIAG_BANK}/${RUN_TAG}/${f#"$root"/}"
-            if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
-              echo "uploaded ${obj}"
-            else
-              echo "WARN: upload failed for ${obj}"
-            fi
-          done
-          echo "private diagnostics upload complete."
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Never touches the public artifact above. Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
       - name: Encrypt token cache for save (${{ matrix.bank }})
         if: always()
         env:
