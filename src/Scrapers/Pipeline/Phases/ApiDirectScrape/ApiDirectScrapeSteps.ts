@@ -160,21 +160,22 @@ function buildBalanceDispatchArgs<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): 
 
 /**
  * Fetch one account's balance, honouring fallbackOnFail when set.
+ * Surfaces whether the live call fell back (`degraded`) so an opt-in
+ * result guard can tell a degraded warm session apart from a healthy
+ * empty wallet (both report `value: 0` once fallbackOnFail masks the
+ * rejection).
  * @param a - Per-account context.
- * @returns Balance procedure.
+ * @returns Balance outcome procedure (value + degraded flag).
  */
 export async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<number>> {
+): Promise<Procedure<{ readonly value: number; readonly degraded: boolean }>> {
   const dispatchArgs = buildBalanceDispatchArgs(a);
   const resp = await dispatchStep(dispatchArgs);
-  if (isOk(resp)) {
-    const value = a.shape.balance.extract(resp.value);
-    return succeed(value);
-  }
+  if (isOk(resp)) return succeed({ value: a.shape.balance.extract(resp.value), degraded: false });
   const fb = a.shape.balance.fallbackOnFail;
   if (fb === undefined) return resp;
-  return succeed(fb);
+  return succeed({ value: fb, degraded: true });
 }
 
 /** Page fetcher signature consumed by fetchPaginated. */

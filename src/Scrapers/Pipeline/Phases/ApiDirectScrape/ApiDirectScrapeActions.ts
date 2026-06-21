@@ -12,7 +12,7 @@ import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import { some } from '../../Types/Option.js';
-import type { IActionContext } from '../../Types/PipelineContext.js';
+import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import {
@@ -26,8 +26,14 @@ import {
 import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
+/** Per-account scrape outcome — assembled record + balance-degraded flag. */
+interface IAccountResult {
+  readonly account: ITransactionsAccount;
+  readonly degraded: boolean;
+}
+
 /** Accumulator for per-account scrape results. */
-type AcctsAcc = Procedure<readonly ITransactionsAccount[]>;
+type AcctsAcc = Procedure<readonly IAccountResult[]>;
 
 /**
  * Map raw rows through autoMapTransaction (drops rejects).
@@ -47,7 +53,7 @@ function mapTxns(raws: readonly object[]): readonly ITransaction[] {
  */
 async function fetchOneAccount<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<ITransactionsAccount>> {
+): Promise<Procedure<IAccountResult>> {
   const bal = await fetchBalance(a);
   if (!isOk(bal)) return bal;
   const fetchPage = buildPageFetcher(a);
@@ -55,8 +61,8 @@ async function fetchOneAccount<TAcct, TCursor>(
   const paged = await fetchPaginated<object, TCursor>({ fetchPage, stop });
   if (!isOk(paged)) return paged;
   const accountNumber = a.shape.accountNumberOf(a.acct);
-  const txns = [...mapTxns(paged.value)];
-  return succeed({ accountNumber, balance: bal.value, txns });
+  const account = { accountNumber, balance: bal.value.value, txns: [...mapTxns(paged.value)] };
+  return succeed({ account, degraded: bal.value.degraded });
 }
 
 /**
@@ -81,6 +87,20 @@ async function iterateAccounts<TAcct, TCursor>(
 }
 
 /**
+ * Assemble scrape state from per-account results. Sets `balanceDegraded`
+ * to `true` ONLY when at least one account's balance fell back, so a
+ * fully-healthy scrape stays byte-identical to the legacy `{ accounts }`
+ * shape (the flag is absent). An opt-in resultGuard reads the flag.
+ * @param results - Per-account scrape results.
+ * @returns Scrape state for the populated scrape slot.
+ */
+function buildScrapeState(results: readonly IAccountResult[]): IScrapeState {
+  const accounts = results.map(r => r.account);
+  if (results.some(r => r.degraded)) return { accounts, balanceDegraded: true };
+  return { accounts };
+}
+
+/**
  * Run the scrape flow under a bound driver context.
  * @param d - Driver context.
  * @returns Action context augmented with the populated scrape slot.
@@ -92,9 +112,10 @@ async function runScrape<TAcct, TCursor>(
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);
   if (!isOk(scraped)) return scraped;
+  const scrapeState = buildScrapeState(scraped.value);
   const withScrape: ApiDirectScrapeResult = {
     ...d.ctx,
-    scrape: some({ accounts: scraped.value }),
+    scrape: some(scrapeState),
   };
   return succeed(withScrape);
 }

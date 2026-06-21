@@ -47,6 +47,16 @@ interface IScrapeState {
    * had no mediator / an empty pool.
    */
   readonly balanceResponseBodies?: readonly unknown[];
+  /**
+   * Set `true` when at least one account's balance fetch fell back to
+   * the shape's `fallbackOnFail` value (the live balance call was
+   * rejected, e.g. a degraded warm session's `/sync` 400). Absent ⇒
+   * every balance fetch succeeded. Consumed ONLY by an opt-in
+   * `resultGuard` (PayBox) so a silently-degraded warm session that
+   * yields zero transactions can be failed closed rather than reported
+   * as an empty success. PII-safe — a boolean flag, no balance value.
+   */
+  readonly balanceDegraded?: boolean;
 }
 
 export type { IScrapeState };

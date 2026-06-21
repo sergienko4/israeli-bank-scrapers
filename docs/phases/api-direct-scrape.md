@@ -14,7 +14,7 @@ Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-di
 |---|---|
 | `.pre` | Read `IApiDirectScrapeShape` from the bank's `PipelineDescriptor`: per-account txn query + per-account balance query + extractors. |
 | `.action` | For each `accountId`, run `fetchAccountTransactions` (calls the txn endpoint, extracts via the bank's `txnExtract`) + `fetchBalance` (calls the balance endpoint, extracts via `balanceExtract`). Per-account `balance` lands on `scrape.accounts[i].balance` directly. |
-| `.post` | Forensic audit — emits the per-account `--- Account <masked> | <N> txns ---` line via `logForensicAudit`. |
+| `.post` | Forensic audit — emits the per-account `--- Account <masked> | <N> txns ---` line via `logForensicAudit`, then runs the shape's optional `resultGuard` (see below). |
 | `.final` | **Emit `balanceResolution` from `scrape.accounts`** — builds `Map<accountNumber, balance>` directly. `PipelineResult` reads it the same way as browser banks. |
 
 ## .final — Emit balanceResolution from scrape.accounts
@@ -43,3 +43,14 @@ Each api-direct bank declares its own `IApiDirectScrapeShape`:
 | PayBox | REST `/wallet/transactions` | REST `/wallet/balance` | [`Banks/PayBox/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PayBox/scrape) |
 
 The shape interface (`balanceVars`, `balanceExtract`, `txnVars`, `txnExtract`) is uniform; only the per-bank closures differ.
+
+## Optional fail-closed result guard
+
+A shape may declare an optional `resultGuard` of type `ApiDirectScrapeResultGuard`. After the scrape is assembled, the generic phase invokes it — **only when present** — against a PII-safe `IApiDirectScrapeSummary` (`accountCount`, `totalTxns`, `balanceDegraded`; never ids, balances, or tokens). A successful `Procedure` accepts the scrape; a typed failure aborts the phase before FINAL, so the run fails closed instead of reporting an empty success.
+
+| Bank | Guard | Fires when |
+|---|---|---|
+| OneZero / Pepper | none | — (absent ⇒ byte-identical to the legacy flow) |
+| PayBox | `payBoxEmptyResultGuard` | identity resolved **and** zero transactions **and** the balance step degraded (silently-degraded warm session) |
+
+The guard keys on the balance-step **outcome** (`balanceDegraded`), not the balance value, because a `fallbackOnFail` of `0` collapses an HTTP-400 `/sync` to `0` — indistinguishable from a genuinely empty wallet. A healthy empty wallet (`balanceDegraded === false`) is therefore still accepted.

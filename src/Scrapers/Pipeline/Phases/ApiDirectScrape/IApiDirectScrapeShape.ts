@@ -28,6 +28,7 @@ import type {
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
+import type { Procedure } from '../../Types/Procedure.js';
 
 /** Opaque headers map (shape step may declare per-call extraHeaders). */
 export type HeaderMap = Record<string, string>;
@@ -132,6 +133,27 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly bodyTemplate?: JsonValueTemplate;
 }
 
+/**
+ * PII-safe summary of an assembled scrape, handed to a bank's opt-in
+ * {@link IApiDirectScrapeShape.resultGuard}. Carries counts plus a
+ * degradation flag only — never account ids, balances, or tokens.
+ */
+export interface IApiDirectScrapeSummary {
+  /** Number of identities resolved (accounts assembled). */
+  readonly accountCount: number;
+  /** Total transactions mapped across every account. */
+  readonly totalTxns: number;
+  /** True when any account's balance fetch fell back (degraded session). */
+  readonly balanceDegraded: boolean;
+}
+
+/**
+ * Opt-in fail-closed result guard. Returns a successful Procedure to
+ * accept the scrape, or a typed failure to abort the phase. Banks that
+ * omit it (OneZero/Pepper) are byte-identical to the legacy flow.
+ */
+export type ApiDirectScrapeResultGuard = (summary: IApiDirectScrapeSummary) => Procedure<void>;
+
 /** Shape a bank plugs into createApiDirectScrapePhase. */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
@@ -155,4 +177,13 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
   readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
   readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;
+  /**
+   * Optional fail-closed guard run after the scrape is assembled. The
+   * generic phase invokes it ONLY when present, against a PII-safe
+   * {@link IApiDirectScrapeSummary}. PayBox declares it to catch a
+   * silently-degraded warm session (identity resolved, balance step
+   * degraded, zero transactions) that would otherwise surface as an
+   * empty success. Absent ⇒ no guard, byte-identical behaviour.
+   */
+  readonly resultGuard?: ApiDirectScrapeResultGuard;
 }

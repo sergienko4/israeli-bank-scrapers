@@ -22,10 +22,14 @@ import type {
   IScrapeState,
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { succeed } from '../../Types/Procedure.js';
+import { isOk, succeed } from '../../Types/Procedure.js';
 import { buildGenericHeadlessScrape } from './ApiDirectScrapeActions.js';
 import type { ApiDirectScrapeFn } from './ApiDirectScrapeTypes.js';
-import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
+import type {
+  ApiDirectScrapeResultGuard,
+  IApiDirectScrapeShape,
+  IApiDirectScrapeSummary,
+} from './IApiDirectScrapeShape.js';
 
 export type { ApiDirectScrapeFn, ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 
@@ -33,14 +37,17 @@ export type { ApiDirectScrapeFn, ApiDirectScrapeResult } from './ApiDirectScrape
 class ApiDirectScrapePhase extends BasePhase {
   public readonly name = 'api-direct-scrape' as const;
   private readonly _scrapeFn: ApiDirectScrapeFn;
+  private readonly _resultGuard?: ApiDirectScrapeResultGuard;
 
   /**
    * Create the phase bound to a bank's shape literal.
    * @param scrapeFn - Bound scrape function from buildGenericHeadlessScrape.
+   * @param resultGuard - Optional fail-closed guard (PayBox only).
    */
-  constructor(scrapeFn: ApiDirectScrapeFn) {
+  constructor(scrapeFn: ApiDirectScrapeFn, resultGuard?: ApiDirectScrapeResultGuard) {
     super();
     this._scrapeFn = scrapeFn;
+    this._resultGuard = resultGuard;
   }
 
   /** @inheritdoc */
@@ -69,8 +76,8 @@ class ApiDirectScrapePhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'api-direct-scrape.post' });
     if (input.scrape.has) logForensicAudit(input);
-    const outcome = succeed(input);
-    return Promise.resolve(outcome);
+    const guarded = this.applyResultGuard(input);
+    return Promise.resolve(guarded);
   }
 
   /**
@@ -98,6 +105,37 @@ class ApiDirectScrapePhase extends BasePhase {
     const next = emitBalanceResolutionFromScrape(input);
     return Promise.resolve(next);
   }
+
+  /**
+   * Fail-closed result guard — runs the bank's opt-in `resultGuard`
+   * (PayBox only) against a PII-safe summary of the assembled scrape.
+   * Banks that omit the hook return the input unchanged (byte-identical
+   * behaviour). A guard failure short-circuits the phase in POST (FINAL
+   * never runs) so a silently-degraded warm session can never surface
+   * as an empty success.
+   * @param input - Pipeline context after the forensic audit.
+   * @returns Input unchanged, or the guard's typed failure.
+   */
+  private applyResultGuard(input: IPipelineContext): Procedure<IPipelineContext> {
+    if (!this._resultGuard || !input.scrape.has) return succeed(input);
+    const summary = summarizeScrape(input.scrape.value);
+    const verdict = this._resultGuard(summary);
+    if (!isOk(verdict)) return verdict;
+    return succeed(input);
+  }
+}
+
+/**
+ * Summarise the assembled scrape for a bank's resultGuard: identity
+ * count, total mapped txns, and whether the balance step degraded.
+ * PII-safe — carries counts + a flag only, never account ids.
+ * @param scrape - Populated scrape state.
+ * @returns Guard summary.
+ */
+function summarizeScrape(scrape: IScrapeState): IApiDirectScrapeSummary {
+  const totalTxns = scrape.accounts.reduce((sum, acc) => sum + acc.txns.length, 0);
+  const isBalanceDegraded = scrape.balanceDegraded === true;
+  return { accountCount: scrape.accounts.length, totalTxns, balanceDegraded: isBalanceDegraded };
 }
 
 /**
@@ -179,7 +217,7 @@ function buildApiDirectScrapePhase<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): ApiDirectScrapePhase {
   const fn = buildGenericHeadlessScrape(shape);
-  return Reflect.construct(ApiDirectScrapePhase, [fn]);
+  return Reflect.construct(ApiDirectScrapePhase, [fn, shape.resultGuard]);
 }
 
 export default createApiDirectScrapePhase;
