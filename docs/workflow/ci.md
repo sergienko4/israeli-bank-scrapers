@@ -41,6 +41,19 @@ A PR that drops any threshold fails `test:pipeline`. The post-Commit-1 numbers (
 | Pre-commit hook | `.pre-commit-output.log` at repo root (overwritten each run) |
 | GitHub Actions | The PR's "Checks" tab → workflow logs |
 
+## Forensic diagnostics artifacts
+
+BLUF: public CI diagnostics are intentionally narrow. `FORENSIC_TRACE=true`
+enables one per-run folder from `TraceConfig.getRunFolder` containing
+`pipeline.log`, `network/*.json`, and screenshots, but the public artifact
+uploads only `pipeline.log` and redacted `network/*.json`. Raster PNGs stay out
+of public artifacts because they can contain rendered PII.
+
+On failed real-E2E jobs, `.github/scripts/ci/upload-private-diagnostics.sh`
+uploads the full run folder to the access-controlled OCI diagnostics store
+when `OCI_DIAG_PAR_URL` is available. The step is best-effort and keeps
+forked PRs green when the private upload secret is absent.
+
 ## What changed in v8.4
 
 - 3 new ESLint canaries for BALANCE-RESOLVE boundary enforcement: `balance-resolve-isolation`, `no-balance-in-scrape`, `balance-fetch-only-in-balance-resolve`.
