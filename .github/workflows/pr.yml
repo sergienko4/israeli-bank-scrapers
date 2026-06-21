@@ -818,6 +818,7 @@ jobs:
       - name: Cooldown hold (${{ matrix.bank }})
         if: failure()
         run: |
+          set -euo pipefail
           echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
           sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
@@ -920,6 +921,7 @@ jobs:
       - name: Cooldown hold (${{ matrix.bank }})
         if: failure()
         run: |
+          set -euo pipefail
           echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
           sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
@@ -1050,6 +1052,7 @@ jobs:
       - name: Cooldown hold (${{ matrix.bank }})
         if: failure()
         run: |
+          set -euo pipefail
           echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
           sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
@@ -1224,6 +1227,7 @@ jobs:
       - name: Cooldown hold (${{ matrix.bank }})
         if: failure()
         run: |
+          set -euo pipefail
           echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
           sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
