@@ -59,6 +59,14 @@ path and returns early, so **no PNG is ever written**. There is no per-phase or
 CI allowlist: the single `FORENSIC_TRACE` switch governs the whole run folder
 (`pipeline.log`, `network/*.json`, `screenshots/*.png`) together.
 
+`safeScreenshot` does not decide whether output is public or private and does
+not divert files into a `private/` directory. The public CI artifact path block
+is the routing control: it uploads only `pipeline.log` and `network/*.json`.
+On failure, `upload-private-diagnostics.sh` uploads the full forensic run
+folder, including screenshots, to the access-controlled OCI diagnostics store.
+If screenshot capture itself fails, only a path-scrubbed reason is logged;
+absolute paths and leading relative path tokens are replaced before logging.
+
 #### Forensic capture (`FORENSIC_TRACE`) — opt-in only
 
 | `FORENSIC_TRACE` | Effect |

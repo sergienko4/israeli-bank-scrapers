@@ -12,7 +12,7 @@ Discover the list of accounts/cards the user has access to and the billing-cycle
 
 | Hook | What it does |
 |---|---|
-| `.pre` | Read the bank's account-discovery endpoint from `IApiFetchContext`. |
+| `.pre` | Wait for an id-bearing pre-nav capture; if the passive pool stays sparse, nudge the SPA to the cards/transactions view and wait again. |
 | `.action` | Issue the discovery call; parse the response via `findFieldValue` against the bank's WK field aliases (e.g. `cardUniqueId`, `accountId`, `bankAccountUniqueId`). |
 | `.post` | Validate `ids.length > 0`; build the billing-cycle catalog for card banks. |
 | `.final` | Commit `accountDiscovery: { ids, records, containers, endpointCaptureIndex, billingCycleCatalog? }`. |
@@ -34,6 +34,21 @@ interface IAccountDiscovery {
 `SCRAPE.post` reads `accountDiscovery.records` and emits `accountIdentities` — one `(cardDisplayId, cardUniqueId, bankAccountUniqueId)` triple per record. The triple flows to BALANCE-RESOLVE which uses it for per-card extraction.
 
 See [BALANCE-RESOLVE → Sub-step quick reference](balance-resolve.md#sub-step-quick-reference).
+
+## Sparse capture recovery
+
+BLUF: ACCOUNT-RESOLVE is passive-first, but it now has a generic recovery
+nudge for same-URL card SPAs whose account list API does not fire during
+login. When the initial id-capture wait times out with no usable id,
+`nudgeToCardsView` drives the page toward the cards/transactions view and
+then re-runs the same wait so POST can read the newly captured accounts API.
+
+The nudge remains bank-agnostic. It walks the OCP tier list declared by
+`NudgeTier`: direct transactions click, menu-expand then click, and finally
+href navigation to a well-known transactions URL. The href tier rejects
+login-redirect or non-transactions URLs before navigation. `INudgeArgs`
+bundles only the mediator and logger, keeping the recovery decoupled from
+bank-specific code and from shared orchestration.
 
 ## Failure modes
 
