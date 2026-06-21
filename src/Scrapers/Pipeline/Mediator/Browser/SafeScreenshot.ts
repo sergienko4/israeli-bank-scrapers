@@ -12,12 +12,16 @@ export interface IScreenshotOptions {
   readonly fullPage?: boolean;
 }
 
-const PATH_PATTERN = /(?:[a-z]:)?[\\/][\w.\-+/\\]+/gi;
+const PATH_SEGMENT = String.raw`[\w.+-]+`;
+const ABSOLUTE_PATH_PATTERN = String.raw`(?:[a-z]:)?(?:[\\/]${PATH_SEGMENT})+`;
+const RELATIVE_PATH_PATTERN = String.raw`(?:${PATH_SEGMENT}[\\/])+${PATH_SEGMENT}`;
+const PATH_PATTERN = new RegExp(`${ABSOLUTE_PATH_PATTERN}|${RELATIVE_PATH_PATTERN}`, 'gi');
 const MAX_REASON_LENGTH = 160;
 
 /**
- * Strip filesystem path tokens (Windows + POSIX, absolute or relative)
- * from a free-form string so they cannot reach the structured log.
+ * Strip filesystem path tokens (Windows + POSIX, absolute or leading
+ * relative segments) from a free-form string so they cannot reach the
+ * structured log.
  *
  * Internal helper — not exported (Pipeline Rule #15: no primitive-typed
  * exports). The PII-scrub contract is tested end-to-end via {@link safeScreenshot}.
