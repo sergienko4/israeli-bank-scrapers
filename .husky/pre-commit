@@ -419,7 +419,7 @@ run-e2e-happy-path() {
 # commit. CI's `E2E Real {A,B,C} — approval gate` jobs cover this.
 # Re-enable locally via `npm run test:e2e:real` before pushing.
 # run-e2e-happy-path
-#run-e2e-happy-path
+run-e2e-happy-path
 
 log "══════════════════════════════════════════════════════"
 log "✅  ALL GATES PASSED (incl. Mock + Live E2E). COMMITTING..."
