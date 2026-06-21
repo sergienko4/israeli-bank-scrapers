@@ -32,7 +32,7 @@ root=/tmp/runs/pipeline
 
 find "$root" -type f -print0 | while IFS= read -r -d '' f; do
   obj="${bank}/${run_tag}/${f#"$root"/}"
-  if curl -sS --fail-with-body --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
+  if curl -sS --fail-with-body --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 -T "$f" "${OCI_DIAG_PAR_URL}${obj}"; then
     echo "uploaded ${obj}"
   else
     echo "WARN: upload failed for ${obj}"
