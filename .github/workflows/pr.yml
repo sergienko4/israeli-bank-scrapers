@@ -804,23 +804,22 @@ jobs:
         # 3-day TTL). Never touches the public artifact above. Skips cleanly
         # when the secret is absent (forks) so it can never fail the job.
         run: bash .github/scripts/ci/upload-private-diagnostics.sh
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # Amex follow-on under gate-A approval. Rule #16: Amex never
@@ -907,23 +906,22 @@ jobs:
         # 3-day TTL). Never touches the public artifact above. Skips cleanly
         # when the secret is absent (forks) so it can never fail the job.
         run: bash .github/scripts/ci/upload-private-diagnostics.sh
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
@@ -1038,23 +1036,22 @@ jobs:
         # 3-day TTL). Never touches the public artifact above. Skips cleanly
         # when the secret is absent (forks) so it can never fail the job.
         run: bash .github/scripts/ci/upload-private-diagnostics.sh
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
@@ -1213,23 +1210,22 @@ jobs:
         with:
           path: /tmp/tokens-encrypted
           key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   dependency-review:
