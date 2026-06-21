@@ -11,14 +11,14 @@
  * unit tests) keep compiling against `src/Common/SafeScreenshot.js`.
  *
  * Internal helpers from the previous Common implementation
- * (`isPreAuthScreenshot`, `scrubPaths`, `describeError`, `CaughtValue`)
- * are NOT re-exported — they returned bare primitives and would trip
- * Pipeline Rule #15 in the canonical home. The CI gating policy they
- * implemented is still exercised end-to-end via {@link safeScreenshot}.
+ * (`scrubPaths`, `describeError`, `CaughtValue`) are NOT re-exported —
+ * they returned bare primitives and would trip Pipeline Rule #15 in the
+ * canonical home. The PII-scrub policy they implement is still exercised
+ * end-to-end via {@link safeScreenshot}.
  *
- * No brand-type wrappers are needed: every re-exported signature uses
- * plain types (`Promise<boolean>`, `ISafeScreenshotOptions`,
- * `readonly ['init', 'home']`). A direct `export … from` is sufficient.
+ * No brand-type wrappers are needed: the re-exported signatures use plain
+ * types (`Promise<boolean>`, `IScreenshotOptions`). A direct
+ * `export … from` is sufficient.
  *
  * @deprecated Import from
  * `src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts` directly.
@@ -26,7 +26,6 @@
  */
 
 export {
-  type ISafeScreenshotOptions,
-  PRE_AUTH_SCREENSHOT_PHASES,
+  type IScreenshotOptions,
   safeScreenshot,
 } from '../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
