@@ -11,7 +11,6 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -19,9 +18,7 @@ import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/TimingConfig.js';
 import { discoverAccountsInPool } from './AccountFromPool.js';
-
-/** Click timeout (ms) for the cards-view nudge — link is already visible post-login. */
-const NUDGE_CLICK_TIMEOUT_MS = 5000;
+import { nudgeToCardsView } from './AccountResolveActions.Nudge.js';
 
 /** Outcome label lookup for the wait result. */
 const WAIT_OUTCOME: Record<'true' | 'false', 'matched' | 'timeout'> = {
@@ -120,18 +117,17 @@ async function awaitAndLog(args: IAwaitArgs): Promise<true> {
 }
 
 /**
- * Drive a same-URL SPA to its cards/transactions view by clicking the
- * well-known transactions link, so an accounts API that only fires on
- * navigation (e.g. Isracard `GetCardList`) finally fires, then re-runs
- * the id-capture wait. The nudge click does NOT mark a dashboard click,
- * so its capture lands in `getPreNavCaptures()` for POST to read.
+ * Drive a same-URL SPA to its cards/transactions view via the multi-tier
+ * nudge (direct click → menu-expand → href-navigate), so an accounts API
+ * that only fires on navigation (e.g. Isracard `GetCardList`) finally
+ * fires, then re-runs the id-capture wait. The nudge does NOT mark a
+ * dashboard click, so its captures land in `getPreNavCaptures()` for POST
+ * to read.
  * @param args - Bundled mediator + logger.
- * @returns Always true once the click + re-wait completed.
+ * @returns Always true once the nudge + re-wait completed.
  */
 async function nudgeCardsViewAndReWait(args: IAwaitArgs): Promise<true> {
-  const candidates = WK_DASHBOARD.TRANSACTIONS;
-  args.log.debug({ message: 'account-resolve.pre nudge → click transactions link' });
-  await args.mediator.resolveAndClick(candidates, NUDGE_CLICK_TIMEOUT_MS);
+  await nudgeToCardsView(args);
   await awaitAndLog(args);
   return true;
 }
