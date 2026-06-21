@@ -218,6 +218,26 @@ describe('executeAccountResolvePre — multi-tier hidden-menu nudge (regression 
     expect(navTargets).toHaveLength(0);
   });
 
+  it('never navigates to a cross-origin txn-pattern href (decoy rejected)', async () => {
+    // Injection guard: an attacker-planted absolute href that matches a
+    // txn-page pattern but points at a foreign origin must be rejected by
+    // the same-origin boundary, so the nudge never drives the
+    // authenticated session away to another site. revealOnNavigate proves
+    // the point — had it navigated, the accounts API would have revealed
+    // and POST would resolve; the empty pool confirms no navigation.
+    const { mediator, navTargets } = makeHiddenMenuMediator({
+      reveal,
+      hrefs: ['https://evil.example/ocp/transactions'],
+      revealOnNavigate: true,
+    });
+    const ctx = ctxFor(mediator);
+    const pre = await executeAccountResolvePre(ctx);
+    expect(pre.success).toBe(true);
+    expect(navTargets).toHaveLength(0);
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(false);
+  });
+
   it('resolves accounts when the transactions link is directly clickable (tier-1)', async () => {
     // Healthy SPA: the visible transactions link resolves on the first click
     // and the accounts API fires immediately. Tier-1 confirms the traffic and

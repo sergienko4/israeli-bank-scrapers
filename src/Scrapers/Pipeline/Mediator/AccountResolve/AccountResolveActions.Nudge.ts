@@ -14,7 +14,7 @@
  *   <li>tier 1 — click the visible transactions link directly;
  *   <li>tier 2 — expand the collapsed menu, then click the link;
  *   <li>tier 3 — navigate to a discovered transactions-page href
- *       (rejecting non-txn hrefs such as login redirects).
+ *       (rejecting cross-origin and login-redirect decoy hrefs).
  * </ol>
  * Every tier is best-effort: a brittle DOM never crashes the pipeline.
  */
@@ -118,21 +118,31 @@ function isHttpProtocol(protocol: string): boolean {
 }
 
 /**
- * Parse an href into an absolute http(s) URL, rejecting other schemes.
+ * Parse an href into an absolute, same-origin http(s) URL.
+ *
+ * <p>Default-deny: an href harvested from the live DOM is untrusted
+ * input, so the resolved URL must be http(s) AND share the base page's
+ * origin. This blocks a cross-origin decoy (e.g. an injected
+ * `https://evil.example/ocp/transactions`) from driving the tier-3
+ * navigation away from the authenticated session.
  * @param href - Raw href (absolute or relative).
  * @param base - Current page URL used to resolve relatives.
- * @returns Absolute http(s) URL, or '' for non-http(s) schemes.
+ * @returns Absolute same-origin http(s) URL, or '' when unsafe.
  */
 function parseHttpUrl(href: string, base: string): string {
-  const url = new URL(href, base);
-  return isHttpProtocol(url.protocol) ? url.href : '';
+  const baseUrl = new URL(base);
+  const candidate = new URL(href, baseUrl);
+  const isSafe = isHttpProtocol(candidate.protocol) && candidate.origin === baseUrl.origin;
+  return isSafe ? candidate.href : '';
 }
 
 /**
- * Resolve an href to a safe absolute http(s) URL, never throwing.
+ * Resolve an href to a safe absolute same-origin http(s) URL, never
+ * throwing.
  * @param href - Raw href (absolute or relative).
  * @param base - Current page URL used to resolve relatives.
- * @returns Absolute http(s) URL, or '' when unsafe / unparseable.
+ * @returns Absolute same-origin http(s) URL, or '' when unsafe /
+ *   unparseable.
  */
 function toSafeHttpUrl(href: string, base: string): string {
   try {
