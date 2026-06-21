@@ -23,6 +23,7 @@
  *     resolves false EARLY; settle + re-probe never entered.
  */
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type {
   IElementMediator,
   IRaceResult,
@@ -182,6 +183,9 @@ describe('LOGIN.POST scope-intact — in-flight network settle re-probe (PR #385
     expect(result).not.toBe(false);
     if (result !== false) {
       expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+      }
     }
   });
 
