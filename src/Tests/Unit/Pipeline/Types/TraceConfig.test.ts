@@ -54,6 +54,32 @@ async function probeIsForensicTrace(value: string): Promise<boolean> {
   return mod.isForensicTrace();
 }
 
+/**
+ * Append one FORENSIC_TRACE probe after all earlier probes finish.
+ * @param previous - Promise carrying prior sequential probe results.
+ * @param value - Value to probe next.
+ * @returns Prior results plus the next probe result.
+ */
+async function appendProbeResult(
+  previous: Promise<readonly boolean[]>,
+  value: string,
+): Promise<readonly boolean[]> {
+  const results = await previous;
+  const isForensic = await probeIsForensicTrace(value);
+  return [...results, isForensic];
+}
+
+/**
+ * Probe FORENSIC_TRACE values sequentially because each probe mutates
+ * process-global environment and Jest module state.
+ * @param values - Values to probe in order.
+ * @returns Probe results in the same order.
+ */
+function probeValuesSequentially(values: readonly string[]): Promise<readonly boolean[]> {
+  const seed = Promise.resolve([] as readonly boolean[]);
+  return values.reduce(appendProbeResult, seed);
+}
+
 describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
   const originalForensic = process.env.FORENSIC_TRACE;
   const originalRunsRoot = process.env.RUNS_ROOT;
@@ -75,8 +101,8 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
   });
 
   it('isForensicTrace is false for false / 1 / 0 / yes / trace', async () => {
-    const probes = ['false', '1', '0', 'yes', 'trace'].map(probeIsForensicTrace);
-    const results = await Promise.all(probes);
+    const values = ['false', '1', '0', 'yes', 'trace'] as const;
+    const results = await probeValuesSequentially(values);
     const hasAnyTrue = results.some(value => value);
     expect(hasAnyTrue).toBe(false);
   });

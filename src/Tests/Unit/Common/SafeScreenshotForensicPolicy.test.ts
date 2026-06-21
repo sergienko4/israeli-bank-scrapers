@@ -29,6 +29,16 @@ import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
 
 const REPO_ROOT = process.cwd();
 const PR_YML_PATH = resolve(REPO_ROOT, '.github', 'workflows', 'pr.yml');
+const COMMENT_LINE_RE = /^\s*#/;
+const PNG_GLOB_RE = /\*\.png/i;
+const FORENSIC_TRACE_WIRING = 'FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}';
+const E2E_DIAG_NAME = 'name: e2e-real-${{ matrix.bank }}-diag-';
+const PUBLIC_PATH_START = 'path: |';
+const RETENTION_DAYS_KEY = 'retention-days:';
+const ALLOWED_PUBLIC_E2E_PATHS = [
+  '/tmp/runs/pipeline/**/pipeline.log',
+  '/tmp/runs/pipeline/**/network/*.json',
+] as const;
 
 /**
  * Creates a mock Playwright Page exposing only `screenshot` as a jest mock.
@@ -41,15 +51,147 @@ function makeMockPage(): { page: Page; screenshotMock: jest.Mock } {
   return { page, screenshotMock };
 }
 
+/**
+ * Identify executable workflow lines, excluding comments from drift pins.
+ * @param line - Raw workflow line.
+ * @returns True when the line is not a comment.
+ */
+function isWorkflowCodeLine(line: string): boolean {
+  return !COMMENT_LINE_RE.test(line);
+}
+
+/**
+ * Remove comment-only workflow lines so assertions bind to real wiring.
+ * @param input - Raw workflow YAML.
+ * @returns Workflow YAML without comment-only lines.
+ */
+function stripCommentLines(input: string): string {
+  const lines = input.split('\n');
+  const codeLines = lines.filter(isWorkflowCodeLine);
+  return codeLines.join('\n');
+}
+
+/**
+ * Test whether a workflow line names an e2e diagnostics artifact.
+ * @param line - Workflow line.
+ * @returns True when the line starts an e2e diagnostics upload config.
+ */
+function isE2eDiagNameLine(line: string): boolean {
+  return line.includes(E2E_DIAG_NAME);
+}
+
+/**
+ * Test whether a workflow line starts a multiline artifact path block.
+ * @param line - Workflow line.
+ * @returns True when the line is the upload `path: |` key.
+ */
+function isPathStartLine(line: string): boolean {
+  return line.trim() === PUBLIC_PATH_START;
+}
+
+/**
+ * Test whether a workflow line closes the artifact path block.
+ * @param line - Workflow line.
+ * @returns True when the line starts the retention-days key.
+ */
+function isRetentionDaysLine(line: string): boolean {
+  return line.trim().startsWith(RETENTION_DAYS_KEY);
+}
+
+/**
+ * Locate the path block that follows an e2e diagnostics artifact name.
+ * @param lines - Workflow lines.
+ * @param start - Index of the artifact name line.
+ * @returns Index of the following path key, or -1 when absent.
+ */
+function findPathStartAfter(lines: readonly string[], start: number): number {
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (isPathStartLine(lines[index])) return index;
+  }
+  return -1;
+}
+
+/**
+ * Read a multiline path block until the retention-days key.
+ * @param lines - Workflow lines.
+ * @param pathStart - Index of the path key line.
+ * @returns Multiline upload path block.
+ */
+function readPathBlock(lines: readonly string[], pathStart: number): string {
+  const blockLines: string[] = [];
+  for (let index = pathStart + 1; index < lines.length; index += 1) {
+    if (isRetentionDaysLine(lines[index])) break;
+    blockLines.push(lines[index]);
+  }
+  return blockLines.join('\n');
+}
+
+/**
+ * Trim a workflow path line for exact allowlist comparison.
+ * @param line - Raw path-block line.
+ * @returns Trimmed path line.
+ */
+function trimPathLine(line: string): string {
+  return line.trim();
+}
+
+/**
+ * Test whether a normalized path line carries content.
+ * @param line - Trimmed path line.
+ * @returns True when the line is non-empty.
+ */
+function isNonEmptyLine(line: string): boolean {
+  return line.length > 0;
+}
+
+/**
+ * Normalize a workflow path block into comparable path entries.
+ * @param block - Multiline upload path block.
+ * @returns Non-empty trimmed path lines.
+ */
+function toPathLines(block: string): readonly string[] {
+  const lines = block.split('\n');
+  return lines.map(trimPathLine).filter(isNonEmptyLine);
+}
+
+/**
+ * Collect public e2e diagnostics upload path blocks from the workflow.
+ * @param input - Raw workflow YAML.
+ * @returns Multiline path blocks for public e2e diagnostics artifacts.
+ */
+function collectPublicE2ePathBlocks(input: string): string[] {
+  const lines = input.split('\n');
+  const blocks: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!isE2eDiagNameLine(lines[index])) continue;
+    const pathStart = findPathStartAfter(lines, index);
+    if (pathStart < 0) continue;
+    const pathBlock = readPathBlock(lines, pathStart);
+    blocks.push(pathBlock);
+  }
+  return blocks;
+}
+
 describe('forensic screenshot policy — pr.yml <-> SafeScreenshot drift pin', () => {
   const prYml = readFileSync(PR_YML_PATH, 'utf8');
 
-  it('no public upload-artifact step globs screenshots (PII pixels stay private)', () => {
-    expect(prYml).not.toContain('screenshots/*.png');
+  it('public e2e diagnostics upload only pipeline.log and redacted network JSON', () => {
+    const pathBlocks = collectPublicE2ePathBlocks(prYml);
+    expect(pathBlocks.length).toBeGreaterThan(0);
+    for (const block of pathBlocks) {
+      const pathLines = toPathLines(block);
+      expect(pathLines).toEqual(ALLOWED_PUBLIC_E2E_PATHS);
+    }
+  });
+
+  it('no public e2e diagnostics upload path can glob screenshots', () => {
+    const publicPaths = collectPublicE2ePathBlocks(prYml).join('\n');
+    expect(publicPaths).not.toMatch(PNG_GLOB_RE);
   });
 
   it('wires the FORENSIC_TRACE opt-in into the e2e-real jobs', () => {
-    expect(prYml).toContain('FORENSIC_TRACE');
+    const workflowCode = stripCommentLines(prYml);
+    expect(workflowCode).toContain(FORENSIC_TRACE_WIRING);
   });
 
   it('documents that screenshots never reach the public artifact', () => {
