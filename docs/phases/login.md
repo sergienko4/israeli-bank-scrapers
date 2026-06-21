@@ -40,6 +40,10 @@ Once the first field is resolved, **FormAnchor** scopes the remaining fields to 
 | `TIMEOUT` | Submit succeeded but post-login navigation didn't complete |
 | `CHANGE_PASSWORD` | Bank requires password change before continuing |
 
+## Scope-intact disambiguation (in-flight auth settle)
+
+When `.post` finds the scope intact and the URL unchanged, it must tell a genuinely wrong password apart from a login whose auth response is still **in flight** — both present no OTP screen at the instant of the first probe. Amex's AngularJS login iframe is the motivating case: its auth XHR is still pending when the probe runs, so the one-time-code input is not yet painted. The disambiguator awaits a bounded network settle (`SCOPE_INTACT_SETTLE_MS`) and **re-probes** before deciding — a state that paints OTP / navigates during the settle falls through to the OTP phases, while one that never transitions is reported as `INVALID_PASSWORD`. The settle is page-level, so it observes the iframe's XHR too: the behaviour is identical for Amex (iframe) and Isracard.
+
 ## Phase 12d — `Form/Anchor/` & `Form/ErrorDiscovery/` sub-modules
 
 Phase 12d split `FormAnchor.ts` and `FormErrorDiscovery.ts` into focused sub-modules under

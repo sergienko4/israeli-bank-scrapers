@@ -25,3 +25,15 @@ export const LOGIN_TRAFFIC_WAIT_TIMEOUT_MS = 10000;
 
 /** LOGIN cookie-audit network-idle wait. */
 export const LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS = 10000;
+
+/**
+ * LOGIN.POST scope-intact in-flight settle budget.
+ *
+ * <p>Bounds the single network settle the scope-intact disambiguator
+ * awaits before re-probing for the OTP screen. Sized for an AngularJS
+ * login-iframe auth round-trip (Amex/Isracard `personalarea`), matching
+ * the shared `PHASE_SETTLE_MS` reference (4000ms): long enough for an
+ * in-flight auth XHR to paint OTP / navigate, short enough not to stall a
+ * genuinely-invalid login (which never transitions).
+ */
+export const SCOPE_INTACT_SETTLE_MS = 4000;

@@ -131,6 +131,15 @@ function makeMediator(config: IMediatorConfig): IElementMediator {
       callIndex += 1;
       return answerToRace(answer);
     },
+    /**
+     * No-op bounded network settle. The PR #385 scope-intact in-flight
+     * re-probe awaits this before failing; resolve immediately so these
+     * STATIC #282 scenarios keep their pre-settle verdict (no transition
+     * → still InvalidPassword). Returns a constant to satisfy the
+     * architecture no-return-void rule.
+     * @returns Resolved sentinel (settle complete).
+     */
+    waitForNetworkIdle: (): Promise<false> => Promise.resolve(false),
   } as unknown as IElementMediator;
 }
 
