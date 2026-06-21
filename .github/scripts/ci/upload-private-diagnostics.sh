@@ -34,7 +34,10 @@ root=/tmp/runs/pipeline
 # Bundle the whole run dir into ONE archive so the trace is fetched in a
 # single download instead of 100+ per-file objects. zip is preinstalled
 # on ubuntu-latest; fall back to tar.gz if it is ever unavailable.
-work="$(mktemp -d)"
+if ! work="$(mktemp -d)"; then
+  echo "WARN: temp workdir creation failed -- skipping upload."
+  exit 0
+fi
 trap 'rm -rf "$work"' EXIT
 
 # Archive creation must never fail the job (best-effort sink): on any
