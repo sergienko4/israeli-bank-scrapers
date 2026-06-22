@@ -208,3 +208,31 @@ describe('extractHrefLayer3', () => {
     await expect(extraction).resolves.toBe(STRAY_TRANSACTION_HREF);
   });
 });
+
+describe('resolveDashboardTargets — same-origin enforcement', () => {
+  it('TC-DASH-TARGET-003 rejects cross-origin brute-scan href', async () => {
+    const page = makeDashboardPage();
+    const results = [makeHrefResult(''), makeHrefResult(''), NOT_FOUND_RESULT, NOT_FOUND_RESULT];
+    const mediator = makeDashboardMediator(results, ['https://evil.example/transactions']);
+
+    const targets = await resolveDashboardTargets(mediator, page);
+
+    expect(targets.hrefTarget).toBe('');
+    expect(targets.clickTarget).toBe(false);
+  });
+
+  it('TC-DASH-TARGET-004 rejects cross-origin precise-layer href', async () => {
+    const page = makeDashboardPage();
+    const results = [
+      makeHrefResult('https://evil.example/transactions'),
+      NOT_FOUND_RESULT,
+      NOT_FOUND_RESULT,
+    ];
+    const mediator = makeDashboardMediator(results, []);
+
+    const targets = await resolveDashboardTargets(mediator, page);
+
+    expect(targets.hrefTarget).toBe('');
+    expect(targets.clickTarget).toBe(false);
+  });
+});

@@ -14,7 +14,7 @@ import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import { DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS } from '../Timing/TimingConfig.js';
-import { NO_HREF, resolveAbsoluteHref } from './DashboardDiscovery.js';
+import { NO_HREF, resolveHrefFromRaw } from './DashboardDiscovery.js';
 import { extractHrefLayer3, extractTransactionHrefPrecise } from './DashboardHrefExtraction.js';
 import { tryDashboardSequentialNav } from './DashboardPhaseActions.sequential.js';
 import type { IDashboardTargets } from './DashboardPhaseActions.targets.types.js';
@@ -210,26 +210,28 @@ async function resolveClickOrMenu(
 
 /**
  * Resolve a precise dashboard href without the DOM-wide fallback.
+ * Enforces same-origin via {@link resolveHrefFromRaw}.
  *
  * @param mediator - Element mediator.
- * @returns Absolute precise href or NO_HREF.
+ * @returns Absolute same-origin precise href or NO_HREF.
  */
 async function resolveHrefTarget(mediator: IElementMediator): Promise<string> {
   const href = await extractTransactionHrefPrecise(mediator);
   const pageUrl = mediator.getCurrentUrl();
-  return resolveAbsoluteHref(href, pageUrl) || NO_HREF;
+  return resolveHrefFromRaw(href, pageUrl);
 }
 
 /**
  * Resolve the DOM-wide href fallback after click and menu fail.
+ * Enforces same-origin via {@link resolveHrefFromRaw}.
  *
  * @param mediator - Element mediator.
- * @returns Absolute brute-scan href or NO_HREF.
+ * @returns Absolute same-origin brute-scan href or NO_HREF.
  */
 async function resolveBruteHrefTarget(mediator: IElementMediator): Promise<string> {
   const href = await extractHrefLayer3(mediator);
   const pageUrl = mediator.getCurrentUrl();
-  return resolveAbsoluteHref(href, pageUrl) || NO_HREF;
+  return resolveHrefFromRaw(href, pageUrl);
 }
 
 /**
