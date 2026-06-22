@@ -29,3 +29,12 @@ export {
   type IScreenshotOptions,
   safeScreenshot,
 } from '../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
+
+import type { IScreenshotOptions } from '../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
+
+/**
+ * Back-compat alias — the options accepted by {@link safeScreenshot}.
+ *
+ * @deprecated Use {@link IScreenshotOptions} directly.
+ */
+export type ISafeScreenshotOptions = IScreenshotOptions;
