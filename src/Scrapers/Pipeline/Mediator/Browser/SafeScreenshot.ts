@@ -12,7 +12,7 @@ export interface IScreenshotOptions {
   readonly fullPage?: boolean;
 }
 
-const PATH_SEGMENT = String.raw`[\w.+-]+`;
+const PATH_SEGMENT = String.raw`[\w.+-]+(?: [\w.+-]+)*`;
 const ABSOLUTE_PATH_PATTERN = String.raw`(?:[a-z]:)?(?:[\\/]${PATH_SEGMENT})+`;
 const RELATIVE_PATH_PATTERN = String.raw`(?:${PATH_SEGMENT}[\\/])+${PATH_SEGMENT}`;
 const PATH_PATTERN = new RegExp(`${ABSOLUTE_PATH_PATTERN}|${RELATIVE_PATH_PATTERN}`, 'gi');
