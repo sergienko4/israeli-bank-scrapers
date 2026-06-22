@@ -23,33 +23,27 @@ import {
 const STRAY_TRANSACTION_HREF = 'https://web.example.co.il/transactions';
 
 /**
- * Return the deterministic target count for dashboard locator mocks.
- *
- * @returns One visible transaction target.
- */
-function countOneTarget(): Promise<number> {
-  return Promise.resolve(1);
-}
-
-/**
- * Build a locator-count stub for dashboard target expansion.
- *
- * @returns Locator-shaped object exposing count().
- */
-function makeCountLocator(): { count: () => Promise<number> } {
-  return { count: countOneTarget };
-}
-
-/**
  * Build a page whose locator count supports dashboard candidate counting.
+ * Uses {@link makeMockFullPage} and overrides locator with a count stub.
  *
  * @returns Mock page with a deterministic single target count.
  */
 function makeDashboardPage(): Page {
   const page = makeMockFullPage('https://web.example.co.il/dashboard');
+  const oneLocator = {
+    /**
+     * Return one match for dashboard candidate expansion.
+     * @returns Resolved count of one.
+     */
+    count: (): Promise<number> => Promise.resolve(1),
+  };
   return {
     ...page,
-    locator: makeCountLocator,
+    /**
+     * Return count locator stub for dashboard target sizing.
+     * @returns One-match locator.
+     */
+    locator: () => oneLocator,
   } as unknown as Page;
 }
 
