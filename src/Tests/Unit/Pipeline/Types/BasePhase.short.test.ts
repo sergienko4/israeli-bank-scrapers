@@ -311,6 +311,7 @@ describe('BasePhase phase-level screenshot bookend', () => {
     const stamp = String(nowMs);
     const tempRoot = path.join(tmpDir, `bp-screenshot-${stamp}`);
     const originalCi = process.env.CI;
+    const originalForensicTrace = process.env.FORENSIC_TRACE;
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tempRoot;
     delete process.env.CI;
@@ -336,7 +337,8 @@ describe('BasePhase phase-level screenshot bookend', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     expect(screenshotCalls).toBeGreaterThan(0);
-    delete process.env.FORENSIC_TRACE;
+    if (originalForensicTrace === undefined) delete process.env.FORENSIC_TRACE;
+    else process.env.FORENSIC_TRACE = originalForensicTrace;
     delete process.env.RUNS_ROOT;
     if (originalCi === undefined) delete process.env.CI;
     else process.env.CI = originalCi;
