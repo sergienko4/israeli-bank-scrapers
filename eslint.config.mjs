@@ -665,6 +665,9 @@ export default tseslint.config(
       '**/*.mjs',
       '**/*.cjs',
       '**/EslintCanaries/**',
+      // Local-only real-credential harnesses (mirror of .gitignore pattern):
+      // never linted because they are never committed.
+      'src/Tests/**/*.local.test.ts',
     ],
   },
 
