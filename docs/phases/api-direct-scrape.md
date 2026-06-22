@@ -54,3 +54,7 @@ A shape may declare an optional `resultGuard` of type `ApiDirectScrapeResultGuar
 | PayBox | `payBoxEmptyResultGuard` | identity resolved **and** zero transactions **and** the balance step degraded (silently-degraded warm session) |
 
 The guard keys on the balance-step **outcome** (`balanceDegraded`), not the balance value, because a `fallbackOnFail` of `0` collapses an HTTP-400 `/sync` to `0` — indistinguishable from a genuinely empty wallet. A healthy empty wallet (`balanceDegraded === false`) is therefore still accepted.
+
+## Opt-in transient-retry for the balance step
+
+The balance dispatch is the one step that can flip a healthy warm session to `balanceDegraded` on a single transient `/sync` blip (HTTP 429 / 5xx), which then trips the fail-closed guard above and reds CI for a non-bug. A shape's balance step may therefore declare an optional `retryOnTransient` policy of type `ITransientRetryPolicy` (`maxRetries` + `backoffMs`). When present, `dispatchBalanceStep` re-issues the balance call with bounded backoff for as long as `isTransientFailure` matches a 429 / 5xx status marker in the failure message; a **persistent** failure still exhausts the budget and degrades, so the guard keeps its teeth, and **4xx client errors never retry**. When the field is absent the step is byte-identical single-shot `dispatchStep`, so OneZero and Pepper are unaffected — only PayBox opts in.

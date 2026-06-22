@@ -56,6 +56,7 @@ const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
     buildVars: balanceVars,
     extract: balanceExtract,
     fallbackOnFail: 0,
+    retryOnTransient: { maxRetries: 2, backoffMs: 500 },
   },
   transactions: {
     urlTag: TXNS_URL_TAG,

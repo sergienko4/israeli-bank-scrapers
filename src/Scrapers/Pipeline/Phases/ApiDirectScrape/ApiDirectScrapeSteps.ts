@@ -12,6 +12,7 @@ import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import { dispatchStep, type IDispatchArgs } from './ApiDirectScrapeDispatch.js';
+import { dispatchBalanceStep } from './ApiDirectScrapeRetry.js';
 import type {
   ApiDirectScrapeHeadersLike,
   HeaderMap,
@@ -171,7 +172,7 @@ export async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<{ readonly value: number; readonly degraded: boolean }>> {
   const dispatchArgs = buildBalanceDispatchArgs(a);
-  const resp = await dispatchStep(dispatchArgs);
+  const resp = await dispatchBalanceStep(dispatchArgs, a.shape.balance.retryOnTransient);
   if (isOk(resp)) return succeed({ value: a.shape.balance.extract(resp.value), degraded: false });
   const fb = a.shape.balance.fallbackOnFail;
   if (fb === undefined) return resp;

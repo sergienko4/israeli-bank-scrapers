@@ -91,6 +91,17 @@ export interface IApiDirectScrapeCustomerStep<TAcct> {
   readonly skipFetch?: boolean;
 }
 
+/**
+ * Bounded retry policy for transient (HTTP 429 / 5xx) balance-step failures.
+ * Absent from a shape ⇒ single-shot dispatch (byte-identical legacy behaviour).
+ */
+export interface ITransientRetryPolicy {
+  /** Maximum number of retry attempts after the first failure. */
+  readonly maxRetries: number;
+  /** Milliseconds to wait between attempts. */
+  readonly backoffMs: number;
+}
+
 /** Balance-step shape — fetches one account's current balance. */
 export interface IApiDirectScrapeBalanceStep<TAcct> {
   readonly buildVars: (acct: TAcct) => VarsMap;
@@ -102,6 +113,11 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   readonly urlTag?: BalanceUrlTag<TAcct>;
   /** Optional body template — same semantics as customer.bodyTemplate. */
   readonly bodyTemplate?: JsonValueTemplate;
+  /**
+   * Opt-in bounded retry for transient (HTTP 429 / 5xx) balance-step
+   * failures. Absent ⇒ single-shot (byte-identical legacy behaviour).
+   */
+  readonly retryOnTransient?: ITransientRetryPolicy;
 }
 
 /**
