@@ -291,4 +291,29 @@ describe('executeAccountResolvePre — multi-tier hidden-menu nudge (regression 
     const post = await executeAccountResolvePost(ctx);
     expect(post.success).toBe(false);
   });
+
+  it('tier-3 skips cross-origin hrefs and navigates to the first safe same-origin one', async () => {
+    // Regression: when hrefs = [cross-origin-txn, same-origin-txn], the old
+    // find()-based resolveTxnUrl picks the cross-origin href first, toSafeHttpUrl
+    // returns '' (cross-origin rejected), and tier-3 fails — the valid same-
+    // origin href is never tried. The loop fix must skip bad hrefs and proceed.
+    const { mediator, navTargets } = makeHiddenMenuMediator({
+      reveal,
+      hrefs: [
+        'https://evil.example/ocp/transactions',
+        'https://web.isracard.example/ocp/transactions',
+      ],
+      revealOnNavigate: true,
+    });
+    const ctx = ctxFor(mediator);
+    const pre = await executeAccountResolvePre(ctx);
+    expect(pre.success).toBe(true);
+    expect(navTargets).not.toContain('https://evil.example/ocp/transactions');
+    expect(navTargets).toContain('https://web.isracard.example/ocp/transactions');
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(true);
+    if (isOk(post)) {
+      expect(post.value.accountDiscovery.has).toBe(true);
+    }
+  });
 });

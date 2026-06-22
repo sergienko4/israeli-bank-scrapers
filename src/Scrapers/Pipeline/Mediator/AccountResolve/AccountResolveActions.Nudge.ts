@@ -153,16 +153,32 @@ function toSafeHttpUrl(href: string, base: string): string {
 }
 
 /**
- * Find the first transactions-page href on the page and resolve it.
+ * Scan a raw href list for the first entry that both matches the
+ * transactions-page pattern and resolves to a safe same-origin http(s)
+ * URL. Iterating all candidates means a cross-origin or unparseable href
+ * appearing earlier never silently blocks a valid later one.
+ * @param hrefs - Raw href list from the live page.
+ * @param base - Current page URL for same-origin validation.
+ * @returns Absolute same-origin txn-page URL, or '' when none qualifies.
+ */
+function resolveFirstSafeTxnHref(hrefs: readonly string[], base: string): string {
+  const safe = hrefs
+    .filter(matchesTxnPattern)
+    .map(h => toSafeHttpUrl(h, base))
+    .find(u => u !== '');
+  return safe ?? '';
+}
+
+/**
+ * Collect all page hrefs and return the first that resolves to a safe
+ * same-origin txn-page URL.
  * @param mediator - Element mediator.
- * @returns Absolute txn-page URL, or '' when none qualifies.
+ * @returns Absolute same-origin txn-page URL, or '' when none qualifies.
  */
 async function resolveTxnUrl(mediator: IElementMediator): Promise<string> {
   const base = mediator.getCurrentUrl();
   const hrefs = await mediator.collectAllHrefs();
-  const match = hrefs.find(href => matchesTxnPattern(href));
-  if (match === undefined) return '';
-  return toSafeHttpUrl(match, base);
+  return resolveFirstSafeTxnHref(hrefs, base);
 }
 
 /**
