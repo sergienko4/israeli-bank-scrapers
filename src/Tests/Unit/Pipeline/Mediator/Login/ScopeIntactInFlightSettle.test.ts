@@ -118,9 +118,18 @@ function makeMediator(config: IMediatorConfig): { mediator: IElementMediator; sp
  * {@link validateActionScopeIntact} reads.
  * @param loginUrl - The login URL stored in diagnostics.
  * @param passwordSelector - Selector string used by the validator.
+ * @param settleBudgetMs - Optional per-bank scope-intact poll budget (ms).
+ *   When provided, the stub's `config.scopeIntactSettleBudgetMs` is set so
+ *   the bounded poll runs enough iterations to cover in-flight auth scenarios
+ *   (TC5). When absent, `config` is an empty object and the production code
+ *   falls back to its default budget constant.
  * @returns Pipeline-context-shaped stub.
  */
-function makeContext(loginUrl: string, passwordSelector: string): IPipelineContext {
+function makeContext(
+  loginUrl: string,
+  passwordSelector: string,
+  settleBudgetMs?: number,
+): IPipelineContext {
   const passwordTarget: IResolvedTarget = {
     selector: passwordSelector,
     contextId: 'frame-0',
@@ -133,9 +142,11 @@ function makeContext(loginUrl: string, passwordSelector: string): IPipelineConte
     activeFrameId: 'frame-0',
     submitTarget: none(),
   };
+  const config = settleBudgetMs !== undefined ? { scopeIntactSettleBudgetMs: settleBudgetMs } : {};
   return {
     diagnostics: { loginUrl },
     loginFieldDiscovery: some(discovery),
+    config,
     logger: {
       /**
        * No-op debug sink — discards validator diagnostics.
@@ -213,5 +224,22 @@ describe('LOGIN.POST scope-intact — in-flight network settle re-probe (PR #385
     expect(result).toBe(false);
     expect(spy.settleCalls).toBe(0);
     expect(spy.resolveVisibleCalls).toBe(0);
+  });
+
+  it('SCOPE-INFLIGHT-TC5: SLOW in-flight auth — 4 false polls then OTP painted → fall through', async () => {
+    // Amex AngularJS auth XHR stays IN-FLIGHT for ~40 s (PR #385 trace).
+    // The initial probe and 3 in-poll probes return not-found; only the 4th
+    // poll iteration sees OTP painted. Current HEAD (single reprobe) stops at
+    // probe 2 → InvalidPassword (RED). After the fix: budget
+    // (scopeIntactSettleBudgetMs=10000ms / 2500ms interval = 4 iters) reaches
+    // probe 5 → found → fall through (GREEN).
+    const { mediator } = makeMediator({
+      currentUrl: loginUrl,
+      passwordCount: 1,
+      probeAnswers: ['not-found', 'not-found', 'not-found', 'not-found', 'found'],
+    });
+    const ctx = makeContext(loginUrl, passwordSelector, 10000);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
   });
 });
