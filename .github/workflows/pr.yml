@@ -789,7 +789,7 @@ jobs:
           # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/network/**/*.json
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
@@ -892,7 +892,7 @@ jobs:
           # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/network/**/*.json
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
@@ -1023,7 +1023,7 @@ jobs:
           # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/network/**/*.json
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
@@ -1187,7 +1187,7 @@ jobs:
           # carry rendered PII, so they upload to the private store below.
           path: |
             /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
+            /tmp/runs/pipeline/**/network/**/*.json
           retention-days: 7
           if-no-files-found: warn
       - name: Upload full diagnostics to private store (${{ matrix.bank }})

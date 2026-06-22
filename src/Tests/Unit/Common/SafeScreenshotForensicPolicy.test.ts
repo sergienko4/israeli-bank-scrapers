@@ -37,7 +37,7 @@ const PUBLIC_PATH_START = 'path: |';
 const RETENTION_DAYS_KEY = 'retention-days:';
 const ALLOWED_PUBLIC_E2E_PATHS = [
   '/tmp/runs/pipeline/**/pipeline.log',
-  '/tmp/runs/pipeline/**/network/*.json',
+  '/tmp/runs/pipeline/**/network/**/*.json',
 ] as const;
 
 /**
