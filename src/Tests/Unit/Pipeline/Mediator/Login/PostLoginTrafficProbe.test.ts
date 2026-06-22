@@ -5,12 +5,15 @@
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import waitForPostLoginTraffic from '../../../../../Scrapers/Pipeline/Mediator/Login/PostLoginTrafficProbe.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
+import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/LoginTimingConfig.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 
 /** Script for mediator behaviour. */
 interface IScript {
   readonly trafficHit?: IDiscoveredEndpoint | false;
   readonly currentUrl?: string;
+  /** Mutable ref — filled in by waitForTraffic stub with the received budget. */
+  capturedBudget?: number;
 }
 
 /**
@@ -22,11 +25,18 @@ function makeMediator(script: IScript): IElementMediator {
   return {
     network: {
       /**
-       * waitForTraffic — returns scripted endpoint or false.
+       * waitForTraffic — records budget, returns scripted endpoint or false.
+       * @param _patterns - Ignored patterns.
+       * @param budget - Budget ms passed by caller.
        * @returns Scripted.
        */
-      waitForTraffic: (): Promise<IDiscoveredEndpoint | false> =>
-        Promise.resolve(script.trafficHit ?? false),
+      waitForTraffic: (
+        _patterns: unknown,
+        budget: number,
+      ): Promise<IDiscoveredEndpoint | false> => {
+        script.capturedBudget = budget;
+        return Promise.resolve(script.trafficHit ?? false);
+      },
     },
     /**
      * getCurrentUrl.
@@ -152,5 +162,19 @@ describe('waitForPostLoginTraffic', () => {
     const hasTraffic = await waitForPostLoginTraffic(mediator, logger);
     expect(hasTraffic).toBe(false);
     expect(traceCount).toBe(1);
+  });
+
+  it('uses the default budget when budgetMs is omitted', async () => {
+    const script: IScript = { trafficHit: false };
+    const mediator = makeMediator(script);
+    await waitForPostLoginTraffic(mediator);
+    expect(script.capturedBudget).toBe(LOGIN_TRAFFIC_WAIT_TIMEOUT_MS);
+  });
+
+  it('forwards a custom budgetMs to waitForTraffic', async () => {
+    const script: IScript = { trafficHit: false };
+    const mediator = makeMediator(script);
+    await waitForPostLoginTraffic(mediator, undefined, 99_000);
+    expect(script.capturedBudget).toBe(99_000);
   });
 });
