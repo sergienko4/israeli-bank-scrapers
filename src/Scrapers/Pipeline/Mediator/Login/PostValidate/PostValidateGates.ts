@@ -72,6 +72,39 @@ export async function runPostLoadingGate(
 }
 
 /**
+ * Enforce the auth-confirm gate when the bank opts in via loginAuthConfirmMs.
+ * Returns a Timeout failure when opted-in but no authenticated accounts
+ * traffic was observed within the budget; returns false otherwise (legacy
+ * advisory path for banks with no loginAuthConfirmMs set).
+ * @param args - Bundled mediator + config + context + page.
+ * @returns Timeout failure when opted-in and traffic absent, else false.
+ */
+async function enforceAuthConfirm(
+  args: IPostFormScanArgs,
+): Promise<Procedure<IPipelineContext> | false> {
+  const { loginAuthConfirmMs: confirmMs } = args.input.config;
+  const wasAuth = await waitForPostLoginTraffic(args.mediator, args.input.logger, confirmMs);
+  if (confirmMs !== undefined && !wasAuth)
+    return fail(ScraperErrorTypes.Timeout, 'LOGIN.POST: no accounts traffic within auth budget');
+  return false;
+}
+
+/**
+ * Run the auth-confirm gate and the post-login callback in sequence.
+ * @param args - Bundled mediator + config + context + page.
+ * @returns Failure on auth-confirm miss or callback error, else false.
+ */
+async function runPostLoginSequence(
+  args: IPostFormScanArgs,
+): Promise<Procedure<IPipelineContext> | false> {
+  const authFail = await enforceAuthConfirm(args);
+  if (authFail) return authFail;
+  const cbResult = await runPostCallback(args.page, args.config, args.input);
+  if (!cbResult.success) return cbResult;
+  return false;
+}
+
+/**
  * Run the main-frame error scan plus the SPA-traffic wait and POST callback.
  * @param args - Bundled mediator + config + context + page.
  * @returns Failure procedure on detected error, otherwise `false`.
@@ -81,8 +114,5 @@ export async function runPostFormScanAndCallback(
 ): Promise<Procedure<IPipelineContext> | false> {
   const errors = await safeScanFrame(args.mediator, args.page);
   if (errors.hasErrors) return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
-  await waitForPostLoginTraffic(args.mediator, args.input.logger);
-  const cbResult = await runPostCallback(args.page, args.config, args.input);
-  if (!cbResult.success) return cbResult;
-  return false;
+  return runPostLoginSequence(args);
 }

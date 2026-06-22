@@ -105,4 +105,15 @@ export interface IPipelineBankConfig {
    * config error, not a silent dormant no-op.
    */
   readonly balanceKind: BalanceKind;
+  /**
+   * When set, LOGIN.POST enforces a positive auth signal — the first
+   * authenticated accounts-API fetch — within this budget (ms) before
+   * declaring success. Absent ⇒ legacy advisory-only behaviour,
+   * byte-identical for unconfigured banks.
+   *
+   * Set for AngularJS-SPA banks (Amex, Isracard) where the SSO redirect
+   * fires the accounts call inside the login boundary, so a missing hit
+   * within the budget proves the session was never authenticated.
+   */
+  readonly loginAuthConfirmMs?: number;
 }

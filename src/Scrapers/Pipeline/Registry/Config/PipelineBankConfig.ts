@@ -21,6 +21,9 @@ const CARD_CYCLE: BalanceKind = 'card-cycle';
 /** Deposit/checking banks expose a real account balance resolved live. */
 const ACCOUNT: BalanceKind = 'account';
 
+/** Slow-AngularJS auth-confirm budget (Amex/Isracard). */
+const LOGIN_AUTH_CONFIRM_ANGULAR_MS = 45_000;
+
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
   [CompanyTypes.Beinleumi]: {
@@ -54,6 +57,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Amex]: {
     urls: { base: 'https://americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
+    loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
   },
   [CompanyTypes.Max]: {
     urls: { base: 'https://www.max.co.il' },
@@ -66,6 +70,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
     balanceKind: CARD_CYCLE,
+    loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
   },
   [CompanyTypes.OneZero]: {
     urls: { base: 'https://www.onezerobank.com' },

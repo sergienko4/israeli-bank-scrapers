@@ -39,12 +39,14 @@ function logPostLoginTraffic(
 /**
  * Probe network traffic for post-login API patterns.
  * @param mediator - Element mediator with network discovery.
+ * @param budgetMs - Wait ceiling in ms; defaults to LOGIN_TRAFFIC_WAIT_TIMEOUT_MS.
  * @returns First traffic hit or false.
  */
 async function probePostLoginTraffic(
   mediator: IElementMediator,
+  budgetMs: number = LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
 ): Promise<IDiscoveredEndpoint | false> {
-  return mediator.network.waitForTraffic(POST_LOGIN_PATTERNS, LOGIN_TRAFFIC_WAIT_TIMEOUT_MS);
+  return mediator.network.waitForTraffic(POST_LOGIN_PATTERNS, budgetMs);
 }
 
 /**
@@ -52,17 +54,18 @@ async function probePostLoginTraffic(
  * SSO redirect fires transaction APIs from iframe — Patient Observer.
  * @param mediator - Element mediator with network discovery.
  * @param logger - Pipeline logger.
+ * @param budgetMs - Wait ceiling in ms; defaults to LOGIN_TRAFFIC_WAIT_TIMEOUT_MS.
  * @returns True if transaction traffic detected.
  */
 async function waitForPostLoginTraffic(
   mediator: IElementMediator,
   logger?: ScraperLogger,
+  budgetMs: number = LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
 ): Promise<boolean> {
-  const hit = await probePostLoginTraffic(mediator);
   const sink: ScraperLogger | false = logger ?? false;
-  if (hit) return logPostLoginTraffic(sink, true, hit.url);
-  const missUrl = mediator.getCurrentUrl();
-  return logPostLoginTraffic(sink, false, missUrl);
+  const hit = await probePostLoginTraffic(mediator, budgetMs);
+  const url = hit ? hit.url : mediator.getCurrentUrl();
+  return logPostLoginTraffic(sink, !!hit, url);
 }
 
 export default waitForPostLoginTraffic;
