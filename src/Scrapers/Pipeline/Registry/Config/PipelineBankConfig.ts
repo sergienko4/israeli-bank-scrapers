@@ -54,6 +54,11 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Amex]: {
     urls: { base: 'https://americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
+    // AngularJS `personalarea` iframe: auth XHR retries ~27 s apart, total
+    // in-flight window ≈ 40 s (PR #385 trace). 45 s comfortably covers two
+    // retry cycles without stalling a genuinely-invalid login (which never
+    // transitions — PR #282 contract preserved).
+    scopeIntactSettleBudgetMs: 45_000,
   },
   [CompanyTypes.Max]: {
     urls: { base: 'https://www.max.co.il' },
@@ -66,6 +71,9 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
     balanceKind: CARD_CYCLE,
+    // Isracard shares the same AngularJS `personalarea` login family as Amex
+    // — same slow-auth risk. Opt into the same 45 s budget.
+    scopeIntactSettleBudgetMs: 45_000,
   },
   [CompanyTypes.OneZero]: {
     urls: { base: 'https://www.onezerobank.com' },

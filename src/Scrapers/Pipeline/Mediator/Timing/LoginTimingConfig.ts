@@ -37,3 +37,21 @@ export const LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS = 10000;
  * genuinely-invalid login (which never transitions).
  */
 export const SCOPE_INTACT_SETTLE_MS = 4000;
+
+/**
+ * Default scope-intact poll budget for banks without a per-bank override.
+ *
+ * <p>≈ current single-settle so non-opted banks behave essentially as today
+ * (≤2 probes over the same time window). Banks with slow AngularJS auth
+ * (Amex, Isracard) override this via `IPipelineBankConfig.scopeIntactSettleBudgetMs`.
+ */
+export const SCOPE_INTACT_SETTLE_BUDGET_DEFAULT_MS = SCOPE_INTACT_SETTLE_MS;
+
+/**
+ * Per-iteration poll wait between transition re-probes.
+ *
+ * <p>On Amex / Isracard, `waitForNetworkIdle(SCOPE_INTACT_POLL_INTERVAL_MS)` always
+ * times out (constant Google-Ads / pagead / doubleclick beacons), degrading to
+ * a bounded sleep. In tests the stub no-ops so iterations stay instant.
+ */
+export const SCOPE_INTACT_POLL_INTERVAL_MS = 2500;

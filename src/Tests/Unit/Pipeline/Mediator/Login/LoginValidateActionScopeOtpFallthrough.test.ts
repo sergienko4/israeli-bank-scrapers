@@ -167,6 +167,11 @@ function makeContext(loginUrl: string, passwordSelector: string): IPipelineConte
   return {
     diagnostics: { loginUrl },
     loginFieldDiscovery: some(discovery),
+    // Empty config = a bank that did NOT opt into a custom scope-intact
+    // settle budget, so readSettleBudget falls back to the default (~4 s,
+    // ≤2 poll probes) — the unchanged pre-PR-385 verdict window these
+    // STATIC #282 scenarios assert against.
+    config: {},
     logger: {
       /**
        * No-op debug sink — discards diagnostics produced by the

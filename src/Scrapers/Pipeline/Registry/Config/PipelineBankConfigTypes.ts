@@ -105,4 +105,15 @@ export interface IPipelineBankConfig {
    * config error, not a silent dormant no-op.
    */
   readonly balanceKind: BalanceKind;
+  /**
+   * Scope-intact poll budget in milliseconds — overrides the default for banks
+   * whose AngularJS auth XHR stays in-flight longer than the default 4 s window.
+   *
+   * <p>Optional: leave unset for standard banks. Amex and Isracard set this to
+   * 45 000 ms to survive the ~40 s `personalarea` auth retry cycle (PR #385 trace).
+   * The poll re-probes every {@link SCOPE_INTACT_POLL_INTERVAL_MS} ms. Preserves
+   * the PR #282 anti-masking contract: a genuinely-invalid login never transitions,
+   * so the full budget elapse still emits {@link ScraperErrorTypes.InvalidPassword}.
+   */
+  readonly scopeIntactSettleBudgetMs?: number;
 }
