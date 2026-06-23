@@ -3,7 +3,10 @@
 # Upload the full forensic run directory as a single archive to the
 # access-controlled OCI bucket.
 #
-# Best-effort, failure-only diagnostics sink. The run directory only exists
+# Best-effort diagnostics sink. Runs on E2E failure always, and on success
+# too during FORENSIC_TRACE diagnostic runs, so green control traces (e.g.
+# Isracard) land beside a red Amex for side-by-side diffing. The run
+# directory only exists
 # when FORENSIC_TRACE=true gated the pipeline into writing per-run artefacts
 # (pipeline.log, network/*.json, screenshots/*.png) under /tmp/runs; otherwise
 # this is a clean no-op. Upload uses a write-only pre-authenticated request

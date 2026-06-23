@@ -809,7 +809,7 @@ jobs:
             --verbose \
             --forceExit
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
-        if: failure()
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
         env:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
@@ -817,7 +817,9 @@ jobs:
         # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
         # screenshots) to the access-controlled OCI bucket via a write-only
         # pre-authenticated request (create/overwrite only; NoPublicAccess;
-        # 3-day TTL). Sole log sink; no GitHub logs. Skips cleanly
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
         # when the secret is absent (forks) so it can never fail the job.
         run: bash .github/scripts/ci/upload-private-diagnostics.sh
       # ── Cooldown hold (failure-only slot retention) ──
@@ -928,7 +930,7 @@ jobs:
             --verbose \
             --forceExit
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
-        if: failure()
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
         env:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
@@ -936,7 +938,9 @@ jobs:
         # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
         # screenshots) to the access-controlled OCI bucket via a write-only
         # pre-authenticated request (create/overwrite only; NoPublicAccess;
-        # 3-day TTL). Sole log sink; no GitHub logs. Skips cleanly
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
         # when the secret is absent (forks) so it can never fail the job.
         run: bash .github/scripts/ci/upload-private-diagnostics.sh
       # ── Cooldown hold (failure-only slot retention) ──
@@ -1045,7 +1049,7 @@ jobs:
             --verbose \
             --forceExit
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
-        if: failure()
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
         env:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
@@ -1053,7 +1057,9 @@ jobs:
         # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
         # screenshots) to the access-controlled OCI bucket via a write-only
         # pre-authenticated request (create/overwrite only; NoPublicAccess;
-        # 3-day TTL). Sole log sink; no GitHub logs. Skips cleanly
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
         # when the secret is absent (forks) so it can never fail the job.
         run: bash .github/scripts/ci/upload-private-diagnostics.sh
       # ── Cooldown hold (failure-only slot retention) ──
@@ -1195,7 +1201,7 @@ jobs:
             --verbose \
             --forceExit
       - name: Upload full diagnostics to private store (${{ matrix.bank }})
-        if: failure()
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
         env:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: ${{ matrix.bank }}
@@ -1203,7 +1209,9 @@ jobs:
         # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
         # screenshots) to the access-controlled OCI bucket via a write-only
         # pre-authenticated request (create/overwrite only; NoPublicAccess;
-        # 3-day TTL). Sole log sink; no GitHub logs. Skips cleanly
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
         # when the secret is absent (forks) so it can never fail the job.
         run: bash .github/scripts/ci/upload-private-diagnostics.sh
       - name: Encrypt token cache for save (${{ matrix.bank }})
