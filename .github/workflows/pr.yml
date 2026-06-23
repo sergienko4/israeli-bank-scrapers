@@ -906,10 +906,13 @@ jobs:
           IN_BLOCK_WEBRTC: ${{ inputs.amex_camoufox_block_webrtc || vars.AMEX_AB_CAMOUFOX_BLOCK_WEBRTC }}
           IN_WAF_DISABLED: ${{ inputs.amex_waf_interceptor_disabled || vars.AMEX_AB_WAF_INTERCEPTOR_DISABLED }}
         run: |
+          set -euo pipefail
           apply() {
             if [ -n "$2" ]; then
               printf '%s=%s\n' "$1" "$2" >> "$GITHUB_ENV"
               printf 'A/B override applied: %s=%s\n' "$1" "$2"
+            else
+              printf 'A/B override absent: %s (code default in effect)\n' "$1"
             fi
           }
           apply CAMOUFOX_HUMANIZE "$IN_HUMANIZE"
