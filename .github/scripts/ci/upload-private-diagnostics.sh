@@ -8,8 +8,9 @@
 # (pipeline.log, network/*.json, screenshots/*.png) under /tmp/runs; otherwise
 # this is a clean no-op. Upload uses a write-only pre-authenticated request
 # (AnyObjectWrite = create/overwrite only; no read, list, or delete; bucket
-# NoPublicAccess; short TTL). Screenshots reach this private store only --
-# never the public upload-artifact step.
+# NoPublicAccess; short TTL). This is the SOLE diagnostics sink: the full
+# run dir (pipeline.log, network/*.json, screenshots) is uploaded only
+# here -- nothing goes to GitHub artifacts (PII-safe).
 #
 # Skips cleanly (exit 0) when the PAR secret is absent (forks / external PRs)
 # or when no run directory was produced, so it can never fail the job.
