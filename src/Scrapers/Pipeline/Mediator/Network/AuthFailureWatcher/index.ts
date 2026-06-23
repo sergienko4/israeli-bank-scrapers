@@ -7,6 +7,7 @@
  * monolith leak through here.
  */
 
+export { AUTH_REQ_TRACE_ENV_VAR, readAuthReqTraceGate } from './AuthReqTraceGate.js';
 export { default as classifyBodyAsFailure } from './BodyClassifier.js';
 export { createAuthFailureWatcher, createFrozenAuthFailureWatcher } from './Factory.js';
 export { default as AUTH_BODY_FAILURE_PATTERNS } from './Patterns.js';

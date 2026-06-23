@@ -5,7 +5,7 @@
  * No runtime side effects.
  */
 
-import type { Response } from 'playwright-core';
+import type { Request, Response } from 'playwright-core';
 
 import type { JsonValue } from '../../../Types/JsonValue.js';
 
@@ -69,5 +69,7 @@ export interface IWatcherState {
    * disposeFn can call page.off without a runtime guard.
    */
   responseHandler: (response: Response) => boolean;
+  requestHandler: false | ((request: Request) => boolean);
+  requestFailedHandler: false | ((request: Request) => boolean);
   isDisposed: boolean;
 }

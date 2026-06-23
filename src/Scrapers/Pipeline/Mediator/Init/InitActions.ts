@@ -683,7 +683,7 @@ async function executeWireComponents(
  */
 function buildWiredContext(input: IPipelineContext, page: Page): IPipelineContext {
   const fetchStrategy = createBrowserFetchStrategy(page);
-  const mediator = createElementMediator(page);
+  const mediator = createElementMediator(page, input.logger);
   const diagnostics = { ...input.diagnostics, loginUrl: page.url() };
   return { ...input, fetchStrategy: some(fetchStrategy), mediator: some(mediator), diagnostics };
 }

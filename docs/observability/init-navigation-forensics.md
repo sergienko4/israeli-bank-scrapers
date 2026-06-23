@@ -6,6 +6,8 @@ source-files:
   - src/Scrapers/Pipeline/Mediator/Init/NavigationTransportProbe.ts
   - src/Scrapers/Pipeline/Mediator/Init/InitActions.ts
   - src/Scrapers/Pipeline/Mediator/Init/InitForensicsGate.ts
+  - src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/AuthReqTrace.ts
+  - src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/AuthReqTraceGate.ts
 status: new
 ---
 
@@ -424,6 +426,68 @@ Or in `workflow_dispatch` inputs for a one-off Real-B run. Do
 **not** set the env-var in `.env` files used for production
 scrapes.
 
+## Auth-request egress trace (`PIPELINE_AUTH_REQ_TRACE`) — opt-in only
+
+The same pipeline logger that `InitActions.ts` threads through
+`createElementMediator` into the network-discovery → auth-failure-watcher
+chain also powers a **LOGIN-phase** sibling of the gate above: a PII-safe
+trace of the credential-submission request _itself_, not just its response.
+
+### Why the auth-request trace exists
+
+The `AuthFailureWatcher` keys off `page.on('response')`. A request that
+**egresses but whose response is dropped or hung** — an interceptor abort, a
+WAF silent-drop, or a slow-walked first byte — is therefore **invisible**: the
+watcher only ever sees responses that actually arrive. The egress trace closes
+that blind spot by observing the request lifecycle directly, so a failing CI
+run can be classified as _interceptor-abort_ vs _WAF-drop_ vs _slow_ **from
+logs alone** — no rerun required.
+
+The motivating asymmetry: Amex's fixed-password login embeds a Cloudflare JSD
+(`/cdn-cgi/challenge-platform/`) sub-request that the otherwise-identical
+Isracard login does not. When the JSD handshake or the credentials POST fails
+silently, the response-keyed watcher saw nothing; the egress trace now records
+it.
+
+### Auth-request events
+
+| Event                  | Fires when                                                  |
+| ---------------------- | ---------------------------------------------------------- |
+| `login.authreq.sent`   | A request matching the well-known auth POST/PUT egresses.   |
+| `login.authreq.failed` | That same auth POST/PUT fails (`page.on('requestfailed')`). |
+| `login.jsd.failed`     | A Cloudflare JSD challenge-platform sub-request fails.       |
+
+Each line carries only `{ host, method, ms, errorText }` — `host` via a safe
+URL parse, never the full URL or any query string (see
+[redaction](redaction.md)).
+
+### Auth-request trace symbols
+
+| Symbol                          | Role                                                                 |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `AUTH_REQ_TRACE_ENV_VAR`        | The env-var name (`PIPELINE_AUTH_REQ_TRACE`) that opts the trace in. |
+| `readAuthReqTraceGate`          | Reads the env-var, returning an `IAuthReqTraceGateState`.            |
+| `IAuthReqTraceGateState`        | Frozen `{ enabled }` gate-state shape the reader returns.            |
+| `buildAuthRequestHandler`       | Builds the `request` listener that emits `login.authreq.sent`.       |
+| `buildAuthRequestFailedHandler` | Builds the `requestfailed` listener for the `*.failed` events.       |
+| `AuthRequestHandler`            | The listener signature `(request) => boolean`.                       |
+| `WK_AUTH_POST_OR_PUT_REQUEST`   | Bank-agnostic predicate matching the well-known auth POST/PUT.       |
+
+### Auth-request fingerprint safety
+
+The same Marionette-wire concern from [Why the gate exists](#why-the-gate-exists)
+applies. When `AUTH_REQ_TRACE_ENV_VAR` is unset (default), `readAuthReqTraceGate`
+reports disabled and **no** `request` / `requestfailed` listener is attached — the
+watcher's existing `response` listener is unchanged, so a normal scrape is
+byte-identical and adds zero fingerprint surface. A triage run sets the env-var
+to attach the two extra listeners on the **same** page the watcher already uses.
+
+```bash
+PIPELINE_AUTH_REQ_TRACE=1 npm run test:e2e:real
+```
+
+Do **not** set it in `.env` files used for production scrapes.
+
 ## Enforcement — 10-LoC cluster for Mediator/Init/\*\*
 
 Every function under `src/Scrapers/Pipeline/Mediator/Init/**` is
@@ -445,6 +509,8 @@ small and named — do not raise the cap and do not add an
 - `src/Scrapers/Pipeline/Mediator/Init/NavigationRequestLifecycle.ts` — lifecycle observer
 - `src/Scrapers/Pipeline/Mediator/Init/NavigationTransportProbe.ts` — Node-level probe
 - `src/Scrapers/Pipeline/Mediator/Init/InitForensicsGate.ts` — env-var opt-in for L7 + env observability
+- `src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/AuthReqTrace.ts` — auth-request egress/failure handlers
+- `src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/AuthReqTraceGate.ts` — `PIPELINE_AUTH_REQ_TRACE` opt-in gate
 - `src/Tests/Unit/Pipeline/Mediator/Init/NavigationDiagnostics.test.ts` — snapshot specs
 - `src/Tests/Unit/Pipeline/Mediator/Init/NavigationRequestLifecycle.test.ts` — observer specs
 - `src/Tests/Unit/Pipeline/Mediator/Init/NavigationTransportProbe.test.ts` — probe specs

@@ -8,9 +8,14 @@
 
 import type { Page } from 'playwright-core';
 
+import { getDebug, type ScraperLogger } from '../../../Types/Debug.js';
+import { buildAuthRequestFailedHandler, buildAuthRequestHandler } from './AuthReqTrace.js';
+import { readAuthReqTraceGate } from './AuthReqTraceGate.js';
 import { buildResponseHandler } from './Inspector.js';
 import type { IAuthFailure, IAuthFailureWatcher, IWatcherState } from './Types.js';
 import awaitFailure from './Waiter.js';
+
+const LOG = getDebug(import.meta.url);
 
 /**
  * Reset captured state — used between retry attempts.
@@ -33,6 +38,43 @@ function disposeWatcher(page: Page, state: IWatcherState): boolean {
   if (state.isDisposed) return false;
   state.isDisposed = true;
   page.off('response', state.responseHandler);
+  unbindRequestTrace(page, state);
+  return true;
+}
+
+/**
+ * Remove gated request-level trace listeners when they were attached.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True when at least one listener was removed.
+ */
+function unbindRequestTrace(page: Page, state: IWatcherState): boolean {
+  const didRemoveRequest = unbindRequest(page, state);
+  const didRemoveFailure = unbindRequestFailed(page, state);
+  return didRemoveRequest || didRemoveFailure;
+}
+
+/**
+ * Remove the gated request listener when present.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True when removed.
+ */
+function unbindRequest(page: Page, state: IWatcherState): boolean {
+  if (!state.requestHandler) return false;
+  page.off('request', state.requestHandler);
+  return true;
+}
+
+/**
+ * Remove the gated requestfailed listener when present.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True when removed.
+ */
+function unbindRequestFailed(page: Page, state: IWatcherState): boolean {
+  if (!state.requestFailedHandler) return false;
+  page.off('requestfailed', state.requestFailedHandler);
   return true;
 }
 
@@ -90,7 +132,43 @@ function placeholderHandler(): boolean {
  * @returns Fresh IWatcherState with no handler bound.
  */
 function newWatcherState(): IWatcherState {
-  return { detected: false, responseHandler: placeholderHandler, isDisposed: false };
+  return {
+    detected: false,
+    responseHandler: placeholderHandler,
+    requestHandler: false,
+    requestFailedHandler: false,
+    isDisposed: false,
+  };
+}
+
+/**
+ * Attach request/requestfailed auth tracing only when the env gate is ON.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @param logger - Pipeline logger.
+ * @returns True only when listeners were attached.
+ */
+function bindRequestTrace(page: Page, state: IWatcherState, logger: ScraperLogger): boolean {
+  if (!readAuthReqTraceGate().enabled) return false;
+  const startedAtMs = Date.now();
+  state.requestHandler = buildAuthRequestHandler(logger, startedAtMs);
+  state.requestFailedHandler = buildAuthRequestFailedHandler(logger, startedAtMs);
+  page.on('request', state.requestHandler);
+  page.on('requestfailed', state.requestFailedHandler);
+  return true;
+}
+
+/**
+ * Attach the response-keyed auth failure listener.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True after binding.
+ */
+function bindResponseTrace(page: Page, state: IWatcherState): true {
+  const handler = buildResponseHandler(state);
+  state.responseHandler = handler;
+  page.on('response', handler);
+  return true;
 }
 
 /**
@@ -99,13 +177,16 @@ function newWatcherState(): IWatcherState {
  * LoginPhase exits to prevent stale OTP-flow 4xx responses from
  * polluting state.
  * @param page - Playwright page bound to the active scrape.
+ * @param logger - Pipeline logger for gated request-level traces.
  * @returns Watcher API.
  */
-export function createAuthFailureWatcher(page: Page): IAuthFailureWatcher {
+export function createAuthFailureWatcher(
+  page: Page,
+  logger: ScraperLogger = LOG,
+): IAuthFailureWatcher {
   const state = newWatcherState();
-  const handler = buildResponseHandler(state);
-  state.responseHandler = handler;
-  page.on('response', handler);
+  bindResponseTrace(page, state);
+  bindRequestTrace(page, state, logger);
   return buildWatcherApi(page, state);
 }
 

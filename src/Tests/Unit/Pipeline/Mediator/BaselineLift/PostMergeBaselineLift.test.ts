@@ -44,6 +44,8 @@ function makeWatcherState(isDisposed: boolean): IWatcherState {
   return {
     detected: false,
     responseHandler: stubResponseHandler,
+    requestHandler: false,
+    requestFailedHandler: false,
     isDisposed,
   };
 }
