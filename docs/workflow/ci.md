@@ -43,11 +43,12 @@ A PR that drops any threshold fails `test:pipeline`. The post-Commit-1 numbers (
 
 ## Forensic diagnostics artifacts
 
-BLUF: public CI diagnostics are intentionally narrow. `FORENSIC_TRACE=true`
-enables one per-run folder from `TraceConfig.getRunFolder` containing
-`pipeline.log`, `network/*.json`, and screenshots, but the public artifact
-uploads only `pipeline.log` and redacted `network/*.json`. Raster PNGs stay out
-of public artifacts because they can contain rendered PII.
+BLUF: CI diagnostics never leave the access-controlled private store.
+`FORENSIC_TRACE=true` enables one per-run folder from
+`TraceConfig.getRunFolder` containing `pipeline.log`, `network/*.json`, and
+screenshots. On a failed real-E2E job that whole folder uploads only to the
+private OCI diagnostics store — nothing goes to a public GitHub artifact,
+because the bundle can carry rendered PII.
 
 On failed real-E2E jobs, `.github/scripts/ci/upload-private-diagnostics.sh`
 uploads the full run folder to the access-controlled OCI diagnostics store

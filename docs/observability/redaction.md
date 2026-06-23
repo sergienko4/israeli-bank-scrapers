@@ -72,7 +72,7 @@ absolute paths and leading relative path tokens are replaced before logging.
 | `FORENSIC_TRACE` | Effect |
 |---|---|
 | unset / `false` / any other value | `getRunFolder` returns `''`. No run folder, no `pipeline.log`, no `network/*.json`, no screenshots. **Default.** |
-| `true` (trimmed, case-insensitive) | The pipeline writes the full run folder under `RUNS_ROOT`. On a failed CI job the bundle uploads to the access-controlled private store only; the public artifact never includes `screenshots/*.png` (raster pixels can carry rendered PII). |
+| `true` (trimmed, case-insensitive) | The pipeline writes the full run folder under `RUNS_ROOT`. On a failed CI job the whole bundle (`pipeline.log`, `network/*.json`, `screenshots/*.png`) uploads to the access-controlled private store only — never to a public GitHub artifact (raster pixels can carry rendered PII). |
 
 `FORENSIC_TRACE` is decoupled from `LOG_LEVEL` (pino verbosity only) and `CI`
 (OTP / Telegram). Set it explicitly when triaging a failure:
