@@ -65,6 +65,16 @@ function makeMediator(script: IStubScript): IElementMediator {
        */
       waitForTraffic: (): Promise<IDiscoveredEndpoint | false> =>
         Promise.resolve(script.trafficHit ?? false),
+      /**
+       * Return captured endpoints (empty in gate tests).
+       * @returns Empty endpoint pool.
+       */
+      getAllEndpoints: (): IDiscoveredEndpoint[] => [],
+      /**
+       * Return successful-response count (zero in gate tests).
+       * @returns Zero.
+       */
+      countSuccessfulResponses: (): number => 0,
     },
     /**
      * Return a stable page URL.
