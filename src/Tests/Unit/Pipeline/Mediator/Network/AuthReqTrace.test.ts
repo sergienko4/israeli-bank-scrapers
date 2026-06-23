@@ -25,6 +25,7 @@ interface ITraceLog {
 interface IMockPage {
   readonly handle: Page;
   readonly count: (event: TraceEvent) => number;
+  readonly fireRequest: (request: Request) => boolean;
   readonly fireRequestFailed: (request: Request) => boolean;
 }
 
@@ -78,7 +79,7 @@ function makePage(): IMockPage {
     return pageHandle;
   };
   const pageHandle = { on, off } as unknown as Page;
-  return { handle: pageHandle, count, fireRequestFailed };
+  return { handle: pageHandle, count, fireRequest, fireRequestFailed };
 
   /**
    * Count listeners for an event.
@@ -87,6 +88,19 @@ function makePage(): IMockPage {
    */
   function count(event: TraceEvent): number {
     return listeners[event].length;
+  }
+
+  /**
+   * Fire a request event.
+   * @param request - Request payload.
+   * @returns True after fan-out.
+   */
+  function fireRequest(request: Request): boolean {
+    const callbacks = listeners.request;
+    callbacks.forEach(listener => {
+      listener(request);
+    });
+    return true;
   }
 
   /**
@@ -120,6 +134,35 @@ function makeRequest(url: string, method: string, errorText = 'net::ERR_ABORTED'
   /** Resolve the request failure.
    * @returns Request failure payload. */
   const failureFn = (): { readonly errorText: string } => ({ errorText });
+  const request = { url: urlFn, method: methodFn, failure: failureFn };
+  return request as unknown as Request;
+}
+
+/**
+ * Cast used to produce a null at runtime while keeping the function's
+ * declared return type non-null, satisfying the no-null-return ESLint rule.
+ * Exercises the `failure()?.errorText ?? ''` null-coalescing branch.
+ */
+const NULL_FAILURE = null as unknown as { readonly errorText: string };
+
+/**
+ * Build a Request fake where failure() returns null (request did not fail
+ * at the network layer — exercises the `?.errorText ?? ''` null branch
+ * in emitRequestFailed).
+ * @param url - Request URL.
+ * @param method - HTTP method.
+ * @returns Mock request with null failure record.
+ */
+function makeRequestNullFailure(url: string, method: string): Request {
+  /** Resolve the request URL.
+   * @returns Request URL. */
+  const urlFn = (): string => url;
+  /** Resolve the request method.
+   * @returns Request method. */
+  const methodFn = (): string => method;
+  /** Returns NULL_FAILURE — null at runtime — to exercise the optional-chain null path.
+   * @returns Typed-as-object null stand-in. */
+  const failureFn = (): { readonly errorText: string } => NULL_FAILURE;
   const request = { url: urlFn, method: methodFn, failure: failureFn };
   return request as unknown as Request;
 }
@@ -203,6 +246,81 @@ describe('AuthFailureWatcher request trace gate', () => {
       host: 'he.americanexpress.co.il',
       method: 'GET',
       errorText: 'net::ERR_TIMED_OUT',
+    });
+
+    watcher.dispose();
+  });
+
+  it('emits login.authreq.sent for a matching WK auth request event', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    const auth = makeRequest('https://cards.example.test/api/v2/auth/login', 'POST');
+    mockPage.fireRequest(auth);
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: 'login.authreq.sent',
+      host: 'cards.example.test',
+      method: 'POST',
+    });
+
+    watcher.dispose();
+  });
+
+  it('does not log non-WK request events', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    const analytics = makeRequest('https://api-js.mixpanel.com/track', 'POST');
+    mockPage.fireRequest(analytics);
+
+    expect(logs).toHaveLength(0);
+
+    watcher.dispose();
+  });
+
+  it('uses host "?" when the request URL cannot be parsed', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    // Relative URL (no scheme/host) satisfies the JSD path check but
+    // makes new URL() throw → safeHost catch branch returns '?'.
+    const jsd = makeRequest('/cdn-cgi/challenge-platform/test', 'GET');
+    mockPage.fireRequestFailed(jsd);
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: 'login.jsd.failed',
+      host: '?',
+      method: 'GET',
+    });
+
+    watcher.dispose();
+  });
+
+  it('uses empty errorText when the network failure record is absent', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    // failure() returns null → failure()?.errorText is undefined → errorText = ''
+    const auth = makeRequestNullFailure('https://cards.example.test/api/v2/auth/login', 'POST');
+    mockPage.fireRequestFailed(auth);
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: 'login.authreq.failed',
+      host: 'cards.example.test',
+      method: 'POST',
+      errorText: '',
     });
 
     watcher.dispose();
