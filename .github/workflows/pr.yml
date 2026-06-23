@@ -52,6 +52,17 @@ on:
         required: false
         default: ''
         type: string
+      # ── Amex auth-egress diagnostic (not a regression knob) ──
+      # Opt-in PIPELINE_AUTH_REQ_TRACE: when 1/true, AuthFailureWatcher
+      # attaches gated request/requestfailed listeners that classify a
+      # dropped/hung auth POST and a failed Cloudflare JSD handshake.
+      # Blank = off (byte-identical, zero extra fingerprint surface).
+      # PR-branch runs (no dispatch form) use repo var AMEX_AB_AUTH_REQ_TRACE.
+      amex_auth_req_trace:
+        description: 'Amex diag PIPELINE_AUTH_REQ_TRACE (blank=off; 1/true=trace auth+JSD egress)'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: pr-${{ github.head_ref || github.run_id }}
@@ -849,7 +860,12 @@ jobs:
   e2e-real-group-a-amex:
     name: E2E Real A (${{ matrix.bank }})
     needs: e2e-real-group-a
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # Run Amex even when Group A (incl. Isracard) FAILS, so a red Group A
+    # still yields the Amex auth-egress forensic trace in the same run.
+    # `!cancelled()` lifts the implicit success() gate; `result != 'skipped'`
+    # keeps Rule #16 + gate-A intact — Amex only runs once Group A actually
+    # ran (after the maintainer released gate-A), never before/without it.
+    if: ${{ !cancelled() && needs.e2e-real-group-a.result != 'skipped' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
@@ -893,6 +909,7 @@ jobs:
           IN_DISABLE_COOP: ${{ inputs.amex_camoufox_disable_coop || vars.AMEX_AB_CAMOUFOX_DISABLE_COOP }}
           IN_BLOCK_WEBRTC: ${{ inputs.amex_camoufox_block_webrtc || vars.AMEX_AB_CAMOUFOX_BLOCK_WEBRTC }}
           IN_WAF_DISABLED: ${{ inputs.amex_waf_interceptor_disabled || vars.AMEX_AB_WAF_INTERCEPTOR_DISABLED }}
+          IN_AUTH_REQ_TRACE: ${{ inputs.amex_auth_req_trace || vars.AMEX_AB_AUTH_REQ_TRACE }}
         run: |
           set -euo pipefail
           apply() {
@@ -907,6 +924,7 @@ jobs:
           apply CAMOUFOX_DISABLE_COOP "$IN_DISABLE_COOP"
           apply CAMOUFOX_BLOCK_WEBRTC "$IN_BLOCK_WEBRTC"
           apply WAF_INTERCEPTOR_DISABLED "$IN_WAF_DISABLED"
+          apply PIPELINE_AUTH_REQ_TRACE "$IN_AUTH_REQ_TRACE"
           echo 'Knob override step done (blank values leave code defaults intact).'
       - name: E2E real (${{ matrix.bank }})
         env:
