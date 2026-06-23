@@ -27,8 +27,23 @@ const WK_POST_INTERCEPT_PATTERNS = [
   ...PIPELINE_WELL_KNOWN_API.balance,
 ];
 
+/**
+ * Card-family (Amex / Isracard) auth proxy servlet. These banks submit
+ * credentials through `/services/ProxyRequestHandler.ashx` (e.g.
+ * `?reqName=performLogon`), which the shared {@link PIPELINE_WELL_KNOWN_API}
+ * `auth` patterns — verified only for Beinleumi/Discount/Hapoalim/Max/VisaCal —
+ * do not match. Kept module-local and used ONLY by the gated request trace so
+ * the shared WK auth set and the `unsupported` `.ashx` response-drop stay
+ * byte-identical. Structural URL match on a forensics path (not interaction
+ * code) — the zero-CSS-selector rule does not apply.
+ */
+const TRACE_AUTH_SERVLET_PATTERNS = [/ProxyRequestHandler\.ashx/i];
+
 /** WK auth patterns watched by request-level auth tracing. */
-const WK_AUTH_POST_INTERCEPT_PATTERNS = [...PIPELINE_WELL_KNOWN_API.auth];
+const WK_AUTH_POST_INTERCEPT_PATTERNS = [
+  ...PIPELINE_WELL_KNOWN_API.auth,
+  ...TRACE_AUTH_SERVLET_PATTERNS,
+];
 
 /**
  * Match a method against the WK POST/PUT capture policy.
