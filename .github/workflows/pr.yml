@@ -22,6 +22,36 @@ on:
           - info
           - debug
           - trace
+      # ── Amex Camoufox/WAF knob A/B bisect overrides ──
+      # Blank = production default (byte-identical run). Set ONE value to flip
+      # ONE knob for the Amex E2E-Real run from the CI datacenter IP, to
+      # pinpoint the v8.4.0 fingerprint/WAF regression with ZERO production-code
+      # change (the knobs already exist in CamoufoxLauncher.ts /
+      # WafChallengeConfig.ts). CAMOUFOX_* truthy set = {true,1,yes,on}; flip a
+      # knob OFF with 0/false/off/no. WAF: set 1/true to DISABLE the challenge
+      # interceptor. On a PR-branch run (no dispatch form), use repo variables
+      # instead: AMEX_AB_CAMOUFOX_HUMANIZE / _DISABLE_COOP / _BLOCK_WEBRTC /
+      # AMEX_AB_WAF_INTERCEPTOR_DISABLED (the job reads input OR variable).
+      amex_camoufox_humanize:
+        description: 'Amex A/B CAMOUFOX_HUMANIZE (blank=default on; 0/false=off)'
+        required: false
+        default: ''
+        type: string
+      amex_camoufox_disable_coop:
+        description: 'Amex A/B CAMOUFOX_DISABLE_COOP (blank=default on; 0/false=off)'
+        required: false
+        default: ''
+        type: string
+      amex_camoufox_block_webrtc:
+        description: 'Amex A/B CAMOUFOX_BLOCK_WEBRTC (blank=default on; 0/false=off)'
+        required: false
+        default: ''
+        type: string
+      amex_waf_interceptor_disabled:
+        description: 'Amex A/B WAF_INTERCEPTOR_DISABLED (blank=enabled; 1/true=disable)'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: pr-${{ github.head_ref || github.run_id }}
@@ -860,6 +890,33 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # ── Amex Camoufox/WAF knob A/B overrides (v8.4.0 regression bisect) ──
+      # Writes a knob to $GITHUB_ENV ONLY when a non-empty override is supplied
+      # via workflow_dispatch input OR repo variable. Blank/unset → the env var
+      # is never set, so CamoufoxLauncher.envFlag() / WafChallenge isDisabled()
+      # fall back to their code defaults → byte-identical to a normal Amex run.
+      # CRITICAL: envFlag() returns its default ONLY when the var is UNDEFINED;
+      # an empty string parses as falsy, so we must NOT export an empty value.
+      # Zero production-code change — the knobs already exist. Lets the
+      # maintainer pinpoint the datacenter-IP fingerprint/WAF regression.
+      - name: Apply Amex knob A/B overrides (bisect)
+        env:
+          IN_HUMANIZE: ${{ inputs.amex_camoufox_humanize || vars.AMEX_AB_CAMOUFOX_HUMANIZE }}
+          IN_DISABLE_COOP: ${{ inputs.amex_camoufox_disable_coop || vars.AMEX_AB_CAMOUFOX_DISABLE_COOP }}
+          IN_BLOCK_WEBRTC: ${{ inputs.amex_camoufox_block_webrtc || vars.AMEX_AB_CAMOUFOX_BLOCK_WEBRTC }}
+          IN_WAF_DISABLED: ${{ inputs.amex_waf_interceptor_disabled || vars.AMEX_AB_WAF_INTERCEPTOR_DISABLED }}
+        run: |
+          apply() {
+            if [ -n "$2" ]; then
+              printf '%s=%s\n' "$1" "$2" >> "$GITHUB_ENV"
+              printf 'A/B override applied: %s=%s\n' "$1" "$2"
+            fi
+          }
+          apply CAMOUFOX_HUMANIZE "$IN_HUMANIZE"
+          apply CAMOUFOX_DISABLE_COOP "$IN_DISABLE_COOP"
+          apply CAMOUFOX_BLOCK_WEBRTC "$IN_BLOCK_WEBRTC"
+          apply WAF_INTERCEPTOR_DISABLED "$IN_WAF_DISABLED"
+          echo 'Knob override step done (blank values leave code defaults intact).'
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
