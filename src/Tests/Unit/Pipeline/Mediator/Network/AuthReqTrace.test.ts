@@ -10,10 +10,16 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 
-type TraceEvent = 'response' | 'request' | 'requestfailed';
+type TraceEvent = 'response' | 'request' | 'requestfailed' | 'console' | 'pageerror';
 type RequestListener = (request: Request) => unknown;
 type ResponseListener = (response: unknown) => unknown;
 type AnyListener = RequestListener | ResponseListener;
+
+/** Optional overrides for makeRequest defaults. */
+interface IMakeRequestOpts {
+  readonly errorText?: string;
+  readonly resourceType?: string;
+}
 
 interface ITraceLog {
   readonly event: string;
@@ -49,6 +55,39 @@ function makeLogger(): { readonly logger: ScraperLogger; readonly logs: ITraceLo
 }
 
 /**
+ * Build a minimal BrowserContext mock that tracks context-level listeners.
+ * @returns Context mock with on/off.
+ */
+function makeCtxMock(): {
+  readonly on: (_e: string, l: AnyListener) => boolean;
+  readonly off: (_e: string, l: AnyListener) => boolean;
+} {
+  const ctxListeners: AnyListener[] = [];
+  /**
+   * Register a context listener.
+   * @param _e - Event name (ignored).
+   * @param l - Listener callback.
+   * @returns True after registration.
+   */
+  const on = (_e: string, l: AnyListener): boolean => {
+    ctxListeners.push(l);
+    return true;
+  };
+  /**
+   * Remove a context listener.
+   * @param _e - Event name (ignored).
+   * @param l - Listener callback.
+   * @returns True when removed.
+   */
+  const off = (_e: string, l: AnyListener): boolean => {
+    const i = ctxListeners.indexOf(l);
+    if (i >= 0) ctxListeners.splice(i, 1);
+    return i >= 0;
+  };
+  return { on, off };
+}
+
+/**
  * Build a minimal Page fake with on/off and event firing.
  * @returns Mock page helpers.
  */
@@ -57,7 +96,10 @@ function makePage(): IMockPage {
     response: [],
     request: [],
     requestfailed: [],
+    console: [],
+    pageerror: [],
   };
+  const ctx = makeCtxMock();
   /**
    * Register a fake page listener.
    * @param event - Event name.
@@ -78,7 +120,12 @@ function makePage(): IMockPage {
     listeners[event] = listeners[event].filter((entry): boolean => entry !== listener);
     return pageHandle;
   };
-  const pageHandle = { on, off } as unknown as Page;
+  /**
+   * Return the browser context fake.
+   * @returns Context fake.
+   */
+  const context = (): typeof ctx => ctx;
+  const pageHandle = { on, off, context } as unknown as Page;
   return { handle: pageHandle, count, fireRequest, fireRequestFailed };
 
   /**
@@ -121,10 +168,11 @@ function makePage(): IMockPage {
  * Build a minimal Playwright Request fake.
  * @param url - Request URL.
  * @param method - HTTP method.
- * @param errorText - Optional network failure reason.
+ * @param opts - Optional errorText and resourceType overrides.
  * @returns Mock request.
  */
-function makeRequest(url: string, method: string, errorText = 'net::ERR_ABORTED'): Request {
+function makeRequest(url: string, method: string, opts: IMakeRequestOpts = {}): Request {
+  const { errorText = 'net::ERR_ABORTED', resourceType = 'other' } = opts;
   /** Resolve the request URL.
    * @returns Request URL. */
   const urlFn = (): string => url;
@@ -134,7 +182,15 @@ function makeRequest(url: string, method: string, errorText = 'net::ERR_ABORTED'
   /** Resolve the request failure.
    * @returns Request failure payload. */
   const failureFn = (): { readonly errorText: string } => ({ errorText });
-  const request = { url: urlFn, method: methodFn, failure: failureFn };
+  /** Resolve the request resource type.
+   * @returns Resource type string. */
+  const resourceTypeFn = (): string => resourceType;
+  const request = {
+    url: urlFn,
+    method: methodFn,
+    failure: failureFn,
+    resourceType: resourceTypeFn,
+  };
   return request as unknown as Request;
 }
 
@@ -236,7 +292,7 @@ describe('AuthFailureWatcher request trace gate', () => {
     const jsd = makeRequest(
       'https://he.americanexpress.co.il/cdn-cgi/challenge-platform/h/g/scripts/jsd/main.js',
       'GET',
-      'net::ERR_TIMED_OUT',
+      { errorText: 'net::ERR_TIMED_OUT' },
     );
     mockPage.fireRequestFailed(jsd);
 
@@ -251,7 +307,7 @@ describe('AuthFailureWatcher request trace gate', () => {
     watcher.dispose();
   });
 
-  it('emits login.authreq.sent for a matching WK auth request event', () => {
+  it('emits login.req.seen then login.authreq.sent for a matching WK auth request event', () => {
     process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
     const mockPage = makePage();
     const { logger, logs } = makeLogger();
@@ -260,8 +316,13 @@ describe('AuthFailureWatcher request trace gate', () => {
     const auth = makeRequest('https://cards.example.test/api/v2/auth/login', 'POST');
     mockPage.fireRequest(auth);
 
-    expect(logs).toHaveLength(1);
+    expect(logs).toHaveLength(2);
     expect(logs[0]).toMatchObject({
+      event: 'login.req.seen',
+      host: 'cards.example.test',
+      method: 'POST',
+    });
+    expect(logs[1]).toMatchObject({
       event: 'login.authreq.sent',
       host: 'cards.example.test',
       method: 'POST',
@@ -270,7 +331,7 @@ describe('AuthFailureWatcher request trace gate', () => {
     watcher.dispose();
   });
 
-  it('does not log non-WK request events', () => {
+  it('emits login.req.seen for non-WK request but suppresses login.authreq.sent', () => {
     process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
     const mockPage = makePage();
     const { logger, logs } = makeLogger();
@@ -279,7 +340,12 @@ describe('AuthFailureWatcher request trace gate', () => {
     const analytics = makeRequest('https://api-js.mixpanel.com/track', 'POST');
     mockPage.fireRequest(analytics);
 
-    expect(logs).toHaveLength(0);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      event: 'login.req.seen',
+      host: 'api-js.mixpanel.com',
+      method: 'POST',
+    });
 
     watcher.dispose();
   });
