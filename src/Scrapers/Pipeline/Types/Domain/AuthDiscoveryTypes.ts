@@ -38,7 +38,7 @@
  *       cookies present at AUTH-DISCOVERY entry. Used for telemetry
  *       only — never logged with values.</li>
  *   <li>{@link hasAuthApiResponse} — `true` when a captured first-party
- *       well-known accounts/auth API response is present at
+ *       well-known account-data API response is present at
  *       AUTH-DISCOVERY. An unauthenticated page never makes the authed
  *       data fetch.</li>
  * </ul>

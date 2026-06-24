@@ -109,21 +109,21 @@ function isAuthed2xx(ep: IDiscoveredEndpoint): boolean {
 
 /**
  * Returns true when the captured network pool contains at least one
- * first-party well-known accounts OR auth API response. An
+ * first-party well-known account-data API response (the `accounts`
+ * bucket: `GetCardList`, `userAccountsData`, `accountSummary`, …). An
  * unauthenticated page never triggers the authed data fetch, whereas a
- * same-URL authenticated SPA (e.g. Isracard `/StatusPage`) fires
- * `GetCardList`-class endpoints that appear in the `accounts` bucket.
- * Uses the shared `PIPELINE_WELL_KNOWN_API` OCP registry — zero
- * bank-specific logic.
+ * same-URL authenticated SPA (e.g. Isracard `/StatusPage`) does. The
+ * `auth` bucket is deliberately excluded: those are credentials-
+ * submission endpoints that fire DURING login, so a capture proves
+ * login was attempted — not that the dashboard was reached. Uses the
+ * shared `PIPELINE_WELL_KNOWN_API` OCP registry — zero bank-specific logic.
  *
  * @param network - Network discovery surface from the mediator.
- * @returns True when a corroborating first-party API capture is present.
+ * @returns True when a corroborating first-party account-data capture is present.
  */
 function hasCapturedAuthApi(network: INetworkDiscovery): boolean {
   const accts = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.accounts);
-  if (accts !== false && isAuthed2xx(accts)) return true;
-  const auth = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.auth);
-  return auth !== false && isAuthed2xx(auth);
+  return accts !== false && isAuthed2xx(accts);
 }
 
 export type { IAuthChannelCollection, ISessionCookieAudit };

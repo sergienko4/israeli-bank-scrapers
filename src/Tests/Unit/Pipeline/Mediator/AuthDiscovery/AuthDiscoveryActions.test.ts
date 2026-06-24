@@ -280,13 +280,14 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     expect(isGateOpen).toBe(true);
   });
 
-  it('FINAL precedence: ctx.otpTrigger wins over ctx.login when otpFill is none', async () => {
+  it('FINAL reads ctx.login URL, NOT ctx.otpTrigger (PART A login-wins)', async () => {
     // Flow 2: LOGIN → OTP-TRIGGER → AUTH-DISCOVERY (no OTP-FILL).
-    // After PART A fix: login URL is used (not otpTrigger). Here
-    // login URL = otpTrigger URL = currentUrl = 'web.bank/login', so
-    // the gate still reaches url-stuck either way — test outcome unchanged.
-    //
-    // Weak corroboration keeps the url-stuck failure path reachable.
+    // PART A baseline = the LOGIN url. Here login URL == currentUrl ==
+    // 'web.bank/login' (login did NOT move away) while otpTrigger carries a
+    // DISTINCT 'web.bank/otp-page'. On PART-A code the gate reads the login
+    // url → url-stuck → fail. On the OLD precedence code (otpTrigger wins)
+    // it would read 'otp-page' != currentUrl → url-moved → open → this
+    // assertion flips. So the distinct otpTrigger URL makes this fire.
     const baseCtx = makeMockContext();
     const snap: IAuthDiscovery = {
       authToken: false,
@@ -299,9 +300,9 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     };
     const fakeMediator = {
       /**
-       * URL probe — matches OTP-TRIGGER's carried URL so the gate
-       * fails on URL-stuck (proves otpTrigger was read).
-       * @returns OTP-TRIGGER's emit URL.
+       * URL probe — matches the LOGIN url so the gate fails url-stuck
+       * (proves the login url, not otpTrigger's, was read).
+       * @returns The login-phase URL.
        */
       getCurrentUrl: (): string => 'https://web.bank/login',
       /**
@@ -319,7 +320,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
         phoneHint: '',
         triggered: true,
         scopeValidated: true,
-        urlBeforeSubmit: 'https://web.bank/login',
+        urlBeforeSubmit: 'https://web.bank/otp-page',
       }),
     };
     const result = await executeAuthDiscoveryFinal(ctx);

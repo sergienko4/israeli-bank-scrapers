@@ -21,7 +21,7 @@
  * corroboration is present. Same-URL SPAs (Isracard `/StatusPage`)
  * legitimately serve both login and dashboard from one URL — but an
  * interstitial would not also produce a discovered Bearer token OR a
- * captured first-party well-known accounts/auth API response
+ * captured first-party well-known account-data API response
  * (`hasAuthApiResponse`). An unauthenticated page never makes the authed
  * data fetch, whereas a same-URL authed SPA does. So when REVEAL matched
  * AND either an authToken exists OR `hasAuthApiResponse` is true, URL-
@@ -41,7 +41,7 @@ type DashboardGateReason = 'open' | 'reveal-missing' | 'url-stuck';
 
 /**
  * Returns true when the slim snapshot carries either a discovered
- * Bearer token OR a captured first-party well-known accounts/auth API
+ * Bearer token OR a captured first-party well-known account-data API
  * response (`hasAuthApiResponse`). An interstitial / unauthenticated
  * page never makes the authed data fetch, whereas a same-URL authed SPA
  * (Isracard `/StatusPage`) does. Defence-in-depth companion to the

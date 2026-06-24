@@ -23,6 +23,7 @@ import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
+import { PIPELINE_WELL_KNOWN_API } from '../../../../../Scrapers/Pipeline/Registry/WK/ScrapeWK.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 
 const FAKE_COOKIE: ICookieSnapshot = {
@@ -201,39 +202,49 @@ describe('hasCapturedAuthApi', () => {
 
   it('returns false when the accounts endpoint has a 401 status (not authed)', () => {
     const unauthedEndpoint: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, status: 401 };
-    let callCount = 0;
     const network = {
       /**
-       * Returns a 401 endpoint on first call (accounts), false on second (auth).
-       * @returns Endpoint or false.
+       * Returns a 401 accounts endpoint.
+       * @returns Unauthed accounts endpoint.
        */
-      discoverByPatterns: (): IDiscoveredEndpoint | false => {
-        callCount += 1;
-        return callCount === 1 ? unauthedEndpoint : false;
-      },
+      discoverByPatterns: (): IDiscoveredEndpoint => unauthedEndpoint,
     } as unknown as INetworkDiscovery;
     const hasAuth401 = hasCapturedAuthApi(network);
     expect(hasAuth401).toBe(false);
   });
 
-  it('returns true when accounts returns false but auth endpoint has undefined status (replay path)', () => {
-    const authEndpoint: IDiscoveredEndpoint = {
-      ...ACCOUNTS_ENDPOINT,
-      url: 'https://bank.co.il/api/v2/auth/login',
-      status: undefined,
-    };
-    let callCount = 0;
+  it('returns true when the accounts endpoint has undefined status (replay path)', () => {
+    const replayEndpoint: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, status: undefined };
     const network = {
       /**
-       * Returns false for accounts, auth endpoint (no status) for auth.
-       * @returns False or auth endpoint.
+       * Returns an accounts endpoint with no captured status.
+       * @returns Replay accounts endpoint.
        */
-      discoverByPatterns: (): IDiscoveredEndpoint | false => {
-        callCount += 1;
-        return callCount === 1 ? false : authEndpoint;
-      },
+      discoverByPatterns: (): IDiscoveredEndpoint => replayEndpoint,
     } as unknown as INetworkDiscovery;
     const hasAuthReplay = hasCapturedAuthApi(network);
     expect(hasAuthReplay).toBe(true);
+  });
+
+  it('does NOT corroborate on a login-submission (auth-bucket) capture alone', () => {
+    // RED #1 guard: `.auth` endpoints fire DURING login, so a capture
+    // proves login was attempted — not that the dashboard was reached.
+    // Only the `.accounts` (post-auth data) bucket corroborates. This is
+    // RED on the prior `.auth`-fallback code, GREEN on the accounts-only fix.
+    const authEndpoint: IDiscoveredEndpoint = {
+      ...ACCOUNTS_ENDPOINT,
+      url: 'https://bank.co.il/api/v2/auth/login',
+    };
+    const network = {
+      /**
+       * Returns the auth endpoint only for the auth bucket; false for accounts.
+       * @param patterns - Bucket patterns from the probe.
+       * @returns Auth endpoint for the auth bucket, else false.
+       */
+      discoverByPatterns: (patterns: readonly RegExp[]): IDiscoveredEndpoint | false =>
+        patterns === PIPELINE_WELL_KNOWN_API.auth ? authEndpoint : false,
+    } as unknown as INetworkDiscovery;
+    const hasAuthBucketCorroboration = hasCapturedAuthApi(network);
+    expect(hasAuthBucketCorroboration).toBe(false);
   });
 });

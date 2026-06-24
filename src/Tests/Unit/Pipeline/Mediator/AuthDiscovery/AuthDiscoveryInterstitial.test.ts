@@ -162,9 +162,11 @@ describe('Pyramid — Amex-shaped gate (key regression test)', () => {
 });
 
 describe('Pyramid — Isracard redirect (url-moved opens gate)', () => {
-  it('open when URL moved from digital/Login to web/StatusPage (url-moved signal)', () => {
-    const snap: IAuthDiscovery = { ...SNAP_READY, hasAuthApiResponse: true };
-    const reason = dashboardGateReason(snap, ISRACARD_STATUSPAGE_URL, ISRACARD_DIGITAL_LOGIN);
+  it('open when URL moved from digital/Login to web/StatusPage — url-moved ALONE', () => {
+    // SNAP_READY has authToken=false AND hasAuthApiResponse=false, so the
+    // ONLY signal that can open the gate here is the url-moved check. This
+    // proves the url-moved branch in isolation (no corroboration mask).
+    const reason = dashboardGateReason(SNAP_READY, ISRACARD_STATUSPAGE_URL, ISRACARD_DIGITAL_LOGIN);
     expect(reason).toBe('open');
   });
 });
