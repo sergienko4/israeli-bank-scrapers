@@ -231,7 +231,11 @@ describe('AuthFailureWatcher request trace gate', () => {
    * @returns True after restoration.
    */
   function restoreTraceEnv(): true {
-    process.env[AUTH_REQ_TRACE_ENV_VAR] = previous;
+    if (previous === undefined) {
+      Reflect.deleteProperty(process.env, AUTH_REQ_TRACE_ENV_VAR);
+    } else {
+      process.env[AUTH_REQ_TRACE_ENV_VAR] = previous;
+    }
     return true;
   }
 
