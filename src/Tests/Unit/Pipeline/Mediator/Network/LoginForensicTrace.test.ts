@@ -89,6 +89,25 @@ function makePopupPage(url: string): Page {
 }
 
 /**
+ * Build a minimal Page fake with url() and frames() for buildConsoleHandler tests.
+ * @param url - Page URL string.
+ * @returns Page stub with empty frame list.
+ */
+function makeSimplePage(url = 'https://he.example.co.il/'): Page {
+  /**
+   * URL accessor.
+   * @returns Page URL.
+   */
+  const urlFn = (): string => url;
+  /**
+   * Frames accessor.
+   * @returns Empty frame list.
+   */
+  const framesFn = (): never[] => [];
+  return { url: urlFn, frames: framesFn } as unknown as Page;
+}
+
+/**
  * Build a minimal Playwright Request fake with resourceType support.
  * @param url - Request URL.
  * @param method - HTTP method.
@@ -289,7 +308,8 @@ describe('buildPageErrorHandler', () => {
 describe('buildConsoleHandler', () => {
   it('emits login.console for console error type', () => {
     const { logger, logs } = makeLogger();
-    const handler = buildConsoleHandler(logger);
+    const page = makeSimplePage();
+    const handler = buildConsoleHandler(logger, page);
     const msg = makeConsoleMessage('error', 'Auth failed');
     handler(msg);
     expect(logs).toHaveLength(1);
@@ -298,7 +318,8 @@ describe('buildConsoleHandler', () => {
 
   it('emits login.console for console warning type', () => {
     const { logger, logs } = makeLogger();
-    const handler = buildConsoleHandler(logger);
+    const page = makeSimplePage();
+    const handler = buildConsoleHandler(logger, page);
     const msg = makeConsoleMessage('warning', 'Deprecated usage');
     handler(msg);
     expect(logs).toHaveLength(1);
@@ -307,7 +328,8 @@ describe('buildConsoleHandler', () => {
 
   it('suppresses console log type (noise)', () => {
     const { logger, logs } = makeLogger();
-    const handler = buildConsoleHandler(logger);
+    const page = makeSimplePage();
+    const handler = buildConsoleHandler(logger, page);
     const msg = makeConsoleMessage('log', 'Normal log');
     handler(msg);
     expect(logs).toHaveLength(0);
@@ -315,7 +337,8 @@ describe('buildConsoleHandler', () => {
 
   it('suppresses console info type (noise)', () => {
     const { logger, logs } = makeLogger();
-    const handler = buildConsoleHandler(logger);
+    const page = makeSimplePage();
+    const handler = buildConsoleHandler(logger, page);
     const msg = makeConsoleMessage('info', 'Info message');
     handler(msg);
     expect(logs).toHaveLength(0);
@@ -323,7 +346,8 @@ describe('buildConsoleHandler', () => {
 
   it('suppresses console debug type (noise)', () => {
     const { logger, logs } = makeLogger();
-    const handler = buildConsoleHandler(logger);
+    const page = makeSimplePage();
+    const handler = buildConsoleHandler(logger, page);
     const msg = makeConsoleMessage('debug', 'Debug info');
     handler(msg);
     expect(logs).toHaveLength(0);
@@ -331,7 +355,8 @@ describe('buildConsoleHandler', () => {
 
   it('scrubs digit-runs in the console text', () => {
     const { logger, logs } = makeLogger();
-    const handler = buildConsoleHandler(logger);
+    const page = makeSimplePage();
+    const handler = buildConsoleHandler(logger, page);
     const msg = makeConsoleMessage('error', 'Session 9876543 expired');
     handler(msg);
     expect((logs[0] as unknown as { textScrubbed: string }).textScrubbed).not.toMatch(/\d{4}/);
@@ -426,5 +451,164 @@ describe('gate-OFF — zero new listeners (byte-identical production guarantee)'
     // Sanity: response was attached
     const hasResponse = mockPage.onCalls.includes('response');
     expect(hasResponse).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D1 helpers — frame-inventory Page fakes
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal frame stub with a url() accessor for D1 tests.
+ * @param frameUrl - Frame URL string.
+ * @returns Frame stub with url accessor.
+ */
+function makeFrame(frameUrl: string): { url(): string } {
+  /**
+   * Frame URL accessor.
+   * @returns Frame URL string.
+   */
+  const urlFn = (): string => frameUrl;
+  return { url: urlFn };
+}
+
+/**
+ * Build a Page fake with url() and a populated frames() list for D1 tests.
+ * @param mainUrl - Main frame URL.
+ * @param frameUrls - Additional frame URLs to include.
+ * @returns Page stub with url and frames accessors.
+ */
+function makePageWithFrames(mainUrl: string, frameUrls: readonly string[]): Page {
+  /**
+   * Main URL accessor.
+   * @returns Main frame URL.
+   */
+  const urlFn = (): string => mainUrl;
+  /**
+   * Frames accessor — includes main frame + additional frames.
+   * @returns Array of frame stubs.
+   */
+  const framesFn = (): { url(): string }[] => [mainUrl, ...frameUrls].map(makeFrame);
+  return { url: urlFn, frames: framesFn } as unknown as Page;
+}
+
+// ---------------------------------------------------------------------------
+// D1 — frame inventory + main URL on postMessage failure
+// ---------------------------------------------------------------------------
+
+describe('buildConsoleHandler D1 — login.frames snapshot on postMessage error', () => {
+  /** Realistic cross-origin postMessage error text from Amex CI. */
+  const pmText =
+    "Failed to execute 'postMessage' on 'Window': The target origin " +
+    "('https://web.americanexpress.co.il') does not match the recipient " +
+    "window's origin ('https://he.americanexpress.co.il').";
+
+  it('emits login.frames on the first cross-origin postMessage error', () => {
+    const page = makePageWithFrames('https://he.americanexpress.co.il/personalarea/login/', [
+      'https://web.americanexpress.co.il/auth-frame',
+    ]);
+    const { logger, logs } = makeLogger();
+    const handler = buildConsoleHandler(logger, page);
+    const msg = makeConsoleMessage('error', pmText);
+    handler(msg);
+    const frameLog = logs.find(l => l.event === 'login.frames') as unknown as {
+      event: string;
+      mainUrl: string;
+      hosts: readonly string[];
+    };
+    expect(frameLog).toBeDefined();
+    expect(frameLog.hosts).toContain('he.americanexpress.co.il');
+    expect(frameLog.hosts).toContain('web.americanexpress.co.il');
+    expect(frameLog.mainUrl).toBe('he.americanexpress.co.il/personalarea/login/');
+  });
+
+  it('does NOT emit login.frames for a non-postMessage error', () => {
+    const page = makeSimplePage('https://he.americanexpress.co.il/login/');
+    const { logger, logs } = makeLogger();
+    const handler = buildConsoleHandler(logger, page);
+    const msg = makeConsoleMessage('error', 'Uncaught TypeError: angularApp is undefined');
+    handler(msg);
+    const hasFramesEvent = logs.some(l => l.event === 'login.frames');
+    expect(hasFramesEvent).toBe(false);
+  });
+
+  it('emits login.frames exactly ONCE even after two postMessage errors (dedupe)', () => {
+    const page = makeSimplePage('https://he.americanexpress.co.il/login/');
+    const { logger, logs } = makeLogger();
+    const handler = buildConsoleHandler(logger, page);
+    const msg1 = makeConsoleMessage('error', pmText);
+    const msg2 = makeConsoleMessage('error', pmText);
+    handler(msg1);
+    handler(msg2);
+    const frameEvents = logs.filter(l => l.event === 'login.frames');
+    expect(frameEvents).toHaveLength(1);
+  });
+
+  it('does NOT include query strings in mainUrl (PII-safe)', () => {
+    const pageWithQuery = makeSimplePage(
+      'https://he.americanexpress.co.il/login/?session=99887766',
+    );
+    const { logger, logs } = makeLogger();
+    const handler = buildConsoleHandler(logger, pageWithQuery);
+    const msg = makeConsoleMessage('error', pmText);
+    handler(msg);
+    const frameLog = logs.find(l => l.event === 'login.frames') as unknown as {
+      mainUrl: string;
+    };
+    expect(frameLog.mainUrl).not.toContain('?');
+    expect(frameLog.mainUrl).not.toContain('session');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D2 — scrub 300-char cap: both postMessage origins survive
+// ---------------------------------------------------------------------------
+
+describe('buildConsoleHandler D2 — scrub 300-char cap preserves both origins', () => {
+  /** First origin that appears early in the postMessage error text. */
+  const originA = 'https://web.americanexpress.co.il';
+  /** Second origin that appears past the old 120-char cap. */
+  const originB = 'https://he.americanexpress.co.il';
+  /** Realistic ~167-char postMessage error text containing both origins. */
+  const longPmText =
+    "blocked postMessage because the target origin ('" +
+    originA +
+    "') does not match the recipient window's origin ('" +
+    originB +
+    "').";
+
+  it('preserves BOTH origin strings within the 300-char cap', () => {
+    const page = makeSimplePage();
+    const { logger, logs } = makeLogger();
+    const handler = buildConsoleHandler(logger, page);
+    const msg = makeConsoleMessage('error', longPmText);
+    handler(msg);
+    const rec = logs.find(l => l.event === 'login.console') as unknown as {
+      textScrubbed: string;
+    };
+    expect(rec.textScrubbed).toContain(originA);
+    expect(rec.textScrubbed).toContain(originB);
+    expect(rec.textScrubbed.length).toBeLessThanOrEqual(300);
+  });
+
+  it('still scrubs digit-runs within the wider 300-char window', () => {
+    const textWithDigit = longPmText.replace('postMessage', 'postMessage 12345678');
+    const page = makeSimplePage();
+    const { logger, logs } = makeLogger();
+    const handler = buildConsoleHandler(logger, page);
+    const msg = makeConsoleMessage('error', textWithDigit);
+    handler(msg);
+    const rec = logs.find(l => l.event === 'login.console') as unknown as {
+      textScrubbed: string;
+    };
+    expect(rec.textScrubbed).not.toMatch(/\d{4}/);
+    expect(rec.textScrubbed).toContain('#');
+  });
+
+  it('RED proof — old 120-char cap omitted the second origin (D2)', () => {
+    // Proves the cap widening was necessary: at 120 chars, originB is absent.
+    const at120 = longPmText.slice(0, 120);
+    expect(at120).toContain(originA);
+    expect(at120).not.toContain(originB);
   });
 });
