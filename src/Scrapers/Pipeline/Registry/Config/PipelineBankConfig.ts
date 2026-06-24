@@ -24,20 +24,6 @@ const ACCOUNT: BalanceKind = 'account';
 /** Slow-AngularJS auth-confirm budget (Isracard). */
 const LOGIN_AUTH_CONFIRM_ANGULAR_MS = 45_000;
 
-/**
- * Extended auth-confirm budget for Amex (Phase-2A CI slow-walk experiment).
- *
- * The Amex auth XHR fires — Google-Ads `form_submit` and GA4 analytics
- * confirm it ran — but no first-party `americanexpress.co.il` response
- * returns within the 45 s Angular budget from the CI datacenter IP (the
- * byte-identical code passes on residential IPs). Two live hypotheses are
- * being tested: #1 the auth slow-walks under datacenter-IP scrutiny, which
- * a wider window lets settle before the pipeline declares a timeout; #3 a
- * hard datacenter-IP block, which still fails honestly at LOGIN after this
- * budget rather than confusingly at account-resolve, making diagnosis clear.
- */
-const LOGIN_AUTH_CONFIRM_AMEX_MS = 120_000;
-
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
   [CompanyTypes.Beinleumi]: {
@@ -71,7 +57,6 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Amex]: {
     urls: { base: 'https://americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
-    loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_AMEX_MS,
   },
   [CompanyTypes.Max]: {
     urls: { base: 'https://www.max.co.il' },
