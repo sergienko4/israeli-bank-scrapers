@@ -31,7 +31,10 @@ const REPO_ROOT = process.cwd();
 const PR_YML_PATH = resolve(REPO_ROOT, '.github', 'workflows', 'pr.yml');
 const COMMENT_LINE_RE = /^\s*#/;
 const FORENSIC_TRACE_WIRING = 'FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}';
-const E2E_DIAG_ARTIFACT_NAME = 'name: e2e-real-${{ matrix.bank }}-diag-';
+// Block ANY public upload of forensic pixels/dumps, not just one artifact name:
+// a renamed step that still publishes screenshots or /tmp/runs/pipeline must trip this.
+const FORBIDDEN_PUBLIC_DIAG_UPLOAD =
+  /uses:\s*actions\/upload-artifact@[\s\S]{0,250}?\bpath:[^\n]*(?:screenshots|\/tmp\/runs\/pipeline)/i;
 const PRIVATE_STORE_STEP = 'Upload full diagnostics to private store';
 const PRIVATE_STORE_SCRIPT = 'bash .github/scripts/ci/upload-private-diagnostics.sh';
 
@@ -70,7 +73,8 @@ describe('forensic screenshot policy — pr.yml <-> SafeScreenshot drift pin', (
   const prYml = readFileSync(PR_YML_PATH, 'utf8');
 
   it('uploads no public e2e diagnostics artifact — private store is the sole sink', () => {
-    expect(prYml).not.toContain(E2E_DIAG_ARTIFACT_NAME);
+    const workflowCode = stripCommentLines(prYml);
+    expect(workflowCode).not.toMatch(FORBIDDEN_PUBLIC_DIAG_UPLOAD);
   });
 
   it('routes e2e-real failure diagnostics to the private store', () => {
