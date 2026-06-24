@@ -13,7 +13,11 @@ import { succeed } from '../../Types/Procedure.js';
 import { AUTH_DISCOVERY_FINAL_SETTLE_MS } from '../Timing/TimingConfig.js';
 import type { DashboardGateReason } from './AuthDiscoveryInterstitial.js';
 import { dashboardGateReason } from './AuthDiscoveryInterstitial.js';
-import { emitCommittedTelemetry, failAuthDiscovery } from './AuthDiscoveryTelemetry.js';
+import {
+  emitCommittedTelemetry,
+  failAuthDiscovery,
+  logGateDecision,
+} from './AuthDiscoveryTelemetry.js';
 
 /**
  * Resolve the current page URL via the element mediator — empty
@@ -63,7 +67,9 @@ function readPreAuthUrl(input: IPipelineContext): string {
 function runDashboardGate(input: IPipelineContext, snap: IAuthDiscovery): DashboardGateReason {
   const currentUrl = readCurrentUrl(input);
   const preAuthUrl = readPreAuthUrl(input);
-  return dashboardGateReason(snap, currentUrl, preAuthUrl);
+  const reason = dashboardGateReason(snap, currentUrl, preAuthUrl);
+  logGateDecision({ input, reason, currentUrl, preAuthUrl });
+  return reason;
 }
 
 /**

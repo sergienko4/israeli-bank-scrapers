@@ -136,3 +136,6 @@ export {
   failAuthDiscovery,
   logPostValidated,
 };
+
+export type { IGateDecisionLog } from './AuthDiscoveryGateTelemetry.js';
+export { logGateDecision } from './AuthDiscoveryGateTelemetry.js';
