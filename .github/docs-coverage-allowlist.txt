@@ -1191,13 +1191,13 @@ IPageEvalAllOpts
 # Reason: BalanceResolve â€” per-bank balance-resolution discriminant ('account' | 'card-cycle') on IPipelineBankConfig; framework-internal config knob that gates the balance-resolve live fetch. Deposit banks declare 'account'; card companies declare 'card-cycle'. REQUIRED â€” every bank states its kind explicitly; absence is a config error, not a silent no-op. Not user-facing mkdocs surface (mirrors BalanceSlotKey/IDashboardTargets config types already allowlisted).
 BalanceKind
 
-# Reason: LoginForensicTrace — gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Reason: LoginForensicTrace ï¿½ gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
 buildConsoleHandler
-# Reason: LoginForensicTrace — gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Reason: LoginForensicTrace ï¿½ gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
 buildPageErrorHandler
-# Reason: LoginForensicTrace — gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Reason: LoginForensicTrace ï¿½ gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
 buildPopupHandler
 # Reason: SubmitModeGate â€” gated D3 diagnostic lever (PIPELINE_LOGIN_SUBMIT_MODE gate).
@@ -1212,3 +1212,10 @@ SUBMIT_MODE_ENV_VAR
 # Reason: ActionsFill â€” @internal D3 requestSubmit helper, exported for unit-test access only.
 # No docs-surface needed; gated behaviour, not public API.
 tryFormRequestSubmit
+# Reason: LoginDnsProbe - gated runtime DNS probe (PIPELINE_AUTH_REQ_TRACE gate).
+# Fires only when the trace gate is ON; resolves the Amex/Isracard auth hosts
+# and logs a PII-safe login.dns line. Zero-surface in production; CI diagnostic only.
+probeLoginDns
+# Reason: LoginDnsProbe - the Amex/Isracard auth-host list the gated probe resolves.
+# Exported so the unit test asserts coverage without re-hardcoding the hosts. Not user-facing.
+AUTH_HOSTS

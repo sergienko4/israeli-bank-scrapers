@@ -12,6 +12,7 @@ import { getDebug, type ScraperLogger } from '../../../Types/Debug.js';
 import { buildAuthRequestFailedHandler, buildAuthRequestHandler } from './AuthReqTrace.js';
 import { readAuthReqTraceGate } from './AuthReqTraceGate.js';
 import { buildResponseHandler } from './Inspector.js';
+import { probeLoginDns } from './LoginDnsProbe.js';
 import {
   buildConsoleHandler,
   buildPageErrorHandler,
@@ -225,14 +226,16 @@ function bindRequestTrace(page: Page, state: IWatcherState, logger: ScraperLogge
 }
 
 /**
- * Attach console, pageerror, and context-page listeners under the gate.
- * Called only from within the enabled-gate path in bindRequestTrace.
+ * Fire the one-shot login.dns probe, then attach console, pageerror, and
+ * context-page listeners. Called only from the enabled-gate path in
+ * bindRequestTrace, so production (gate OFF) is byte-identical.
  * @param page - Playwright page.
  * @param state - Watcher state.
  * @param logger - Pipeline logger.
  * @returns True after all three listeners are attached.
  */
 function bindForensicHandlers(page: Page, state: IWatcherState, logger: ScraperLogger): boolean {
+  probeLoginDns(logger).catch((): boolean => false);
   state.consoleHandler = buildConsoleHandler(logger, page);
   state.pageErrorHandler = buildPageErrorHandler(logger);
   state.popupHandler = buildPopupHandler(logger);
