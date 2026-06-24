@@ -470,7 +470,7 @@ describe('Mission 1 — AuthDiscoveryFactoryTest cross-bank coverage', () => {
       const ctx = await runAuthDiscoveryChain(fixture);
       expect(ctx.authDiscovery.has).toBe(true);
       if (ctx.authDiscovery.has) {
-        expect(ctx.authDiscovery.value.sessionCookieNames.length).toBe(fixture.cookieNames.length);
+        expect(ctx.authDiscovery.value.sessionCookieNames).toHaveLength(fixture.cookieNames.length);
       }
     });
 
