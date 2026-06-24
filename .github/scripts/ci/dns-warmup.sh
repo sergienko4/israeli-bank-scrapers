@@ -114,6 +114,24 @@ curl -s -m 3 -H Metadata:true \
   || echo "(metadata endpoint unreachable — non-Azure or restricted)"
 echo ""
 
+# ── Amex/Isracard auth-subdomain reachability (DIAGNOSTIC, non-fatal) ──
+# The fail-loud loop above only warms the apex hosts from
+# PipelineBankConfig (americanexpress.co.il / isracard.co.il). The live
+# login flow actually talks to the web./he. subdomains. The Amex CI
+# auth-timeout hypothesis is that web.americanexpress.co.il resolves but
+# is unreachable / WAF-blocked from the runner egress IP, while the
+# adjacent web.isracard.co.il (GREEN control) is fine. This records the
+# resolve + first-hop HTTP status for both so a CI run can classify DNS
+# vs reachability vs window-block. It NEVER touches `failed` or the exit
+# code — purely informational; Isracard rows are the GREEN control.
+echo "===Auth-subdomain reachability (diagnostic, non-fatal)==="
+for sub in web.americanexpress.co.il he.americanexpress.co.il web.isracard.co.il he.isracard.co.il; do
+  subip=$(dig +short +time=3 "$sub" 2>/dev/null | grep -E '^[0-9]' | head -1 || true)
+  status=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "https://${sub}/" 2>/dev/null || true)
+  echo "[diag]  ${sub} -> ip=${subip:-UNRESOLVED} http=${status:-NO_RESPONSE}"
+done
+echo ""
+
 if [ "$failed" -gt 0 ]; then
   echo "❌ DNS warmup FAILED for $failed host(s). Aborting so the failure is"
   echo "   attributable to DNS, not to bank-scrape logic. Subsequent"
