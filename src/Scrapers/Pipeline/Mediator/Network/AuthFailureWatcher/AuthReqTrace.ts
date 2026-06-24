@@ -46,13 +46,18 @@ function buildPayload(
 
 /**
  * Emit a request-sent auth trace when the request matches WK auth POST/PUT.
+ * Always emits `login.req.seen` so every outbound request is visible in the
+ * trace, classifying the Amex fork-A vs fork-B diagnostic (no XHR created
+ * vs XHR created on a detached target).
  * @param ctx - Shared trace context.
  * @param request - Playwright request.
- * @returns True when a log line emitted.
+ * @returns True when a WK-match log line was also emitted.
  */
 function handleAuthRequest(ctx: IAuthReqTraceContext, request: Request): boolean {
+  const payload = buildPayload(ctx, request);
+  ctx.logger.debug({ event: 'login.req.seen', ...payload, resourceType: request.resourceType() });
   if (!WK_AUTH_POST_OR_PUT_REQUEST.matches(request)) return false;
-  ctx.logger.debug({ event: 'login.authreq.sent', ...buildPayload(ctx, request) });
+  ctx.logger.debug({ event: 'login.authreq.sent', ...payload });
   return true;
 }
 

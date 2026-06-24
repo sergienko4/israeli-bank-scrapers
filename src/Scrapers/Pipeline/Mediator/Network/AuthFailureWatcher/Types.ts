@@ -5,7 +5,7 @@
  * No runtime side effects.
  */
 
-import type { Request, Response } from 'playwright-core';
+import type { ConsoleMessage, Page, Request, Response } from 'playwright-core';
 
 import type { JsonValue } from '../../../Types/JsonValue.js';
 
@@ -71,5 +71,11 @@ export interface IWatcherState {
   responseHandler: (response: Response) => boolean;
   requestHandler: false | ((request: Request) => boolean);
   requestFailedHandler: false | ((request: Request) => boolean);
+  /** Gated console-message listener; false when trace gate is OFF. */
+  consoleHandler: false | ((msg: ConsoleMessage) => boolean);
+  /** Gated page-error listener; false when trace gate is OFF. */
+  pageErrorHandler: false | ((err: Error) => boolean);
+  /** Gated context-page (popup) listener; false when trace gate is OFF. */
+  popupHandler: false | ((popup: Page) => boolean);
   isDisposed: boolean;
 }

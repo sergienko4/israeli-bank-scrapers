@@ -12,6 +12,11 @@ import { getDebug, type ScraperLogger } from '../../../Types/Debug.js';
 import { buildAuthRequestFailedHandler, buildAuthRequestHandler } from './AuthReqTrace.js';
 import { readAuthReqTraceGate } from './AuthReqTraceGate.js';
 import { buildResponseHandler } from './Inspector.js';
+import {
+  buildConsoleHandler,
+  buildPageErrorHandler,
+  buildPopupHandler,
+} from './LoginForensicTrace.js';
 import type { IAuthFailure, IAuthFailureWatcher, IWatcherState } from './Types.js';
 import awaitFailure from './Waiter.js';
 
@@ -51,7 +56,8 @@ function disposeWatcher(page: Page, state: IWatcherState): boolean {
 function unbindRequestTrace(page: Page, state: IWatcherState): boolean {
   const didRemoveRequest = unbindRequest(page, state);
   const didRemoveFailure = unbindRequestFailed(page, state);
-  return didRemoveRequest || didRemoveFailure;
+  const didRemoveForensic = unbindForensicHandlers(page, state);
+  return didRemoveRequest || didRemoveFailure || didRemoveForensic;
 }
 
 /**
@@ -76,6 +82,55 @@ function unbindRequestFailed(page: Page, state: IWatcherState): boolean {
   if (!state.requestFailedHandler) return false;
   page.off('requestfailed', state.requestFailedHandler);
   return true;
+}
+
+/**
+ * Remove the gated console listener when present.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True when removed.
+ */
+function unbindConsole(page: Page, state: IWatcherState): boolean {
+  if (!state.consoleHandler) return false;
+  page.off('console', state.consoleHandler);
+  return true;
+}
+
+/**
+ * Remove the gated pageerror listener when present.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True when removed.
+ */
+function unbindPageError(page: Page, state: IWatcherState): boolean {
+  if (!state.pageErrorHandler) return false;
+  page.off('pageerror', state.pageErrorHandler);
+  return true;
+}
+
+/**
+ * Remove the gated context-page (popup) listener when present.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True when removed.
+ */
+function unbindPopup(page: Page, state: IWatcherState): boolean {
+  if (!state.popupHandler) return false;
+  page.context().off('page', state.popupHandler);
+  return true;
+}
+
+/**
+ * Remove all three gated forensic listeners (console, pageerror, popup).
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @returns True when at least one listener was removed.
+ */
+function unbindForensicHandlers(page: Page, state: IWatcherState): boolean {
+  const didRemoveConsole = unbindConsole(page, state);
+  const didRemovePageError = unbindPageError(page, state);
+  const didRemovePopup = unbindPopup(page, state);
+  return didRemoveConsole || didRemovePageError || didRemovePopup;
 }
 
 /**
@@ -132,11 +187,21 @@ function placeholderHandler(): boolean {
  * @returns Fresh IWatcherState with no handler bound.
  */
 function newWatcherState(): IWatcherState {
+  const fields = baseStateFields();
+  return { detected: false, responseHandler: placeholderHandler, ...fields };
+}
+
+/**
+ * Build the handler-only portion of the initial watcher state.
+ * @returns All handler fields defaulted to false plus isDisposed.
+ */
+function baseStateFields(): Omit<IWatcherState, 'detected' | 'responseHandler'> {
   return {
-    detected: false,
-    responseHandler: placeholderHandler,
     requestHandler: false,
     requestFailedHandler: false,
+    consoleHandler: false,
+    pageErrorHandler: false,
+    popupHandler: false,
     isDisposed: false,
   };
 }
@@ -155,6 +220,25 @@ function bindRequestTrace(page: Page, state: IWatcherState, logger: ScraperLogge
   state.requestFailedHandler = buildAuthRequestFailedHandler(logger, startedAtMs);
   page.on('request', state.requestHandler);
   page.on('requestfailed', state.requestFailedHandler);
+  bindForensicHandlers(page, state, logger);
+  return true;
+}
+
+/**
+ * Attach console, pageerror, and context-page listeners under the gate.
+ * Called only from within the enabled-gate path in bindRequestTrace.
+ * @param page - Playwright page.
+ * @param state - Watcher state.
+ * @param logger - Pipeline logger.
+ * @returns True after all three listeners are attached.
+ */
+function bindForensicHandlers(page: Page, state: IWatcherState, logger: ScraperLogger): boolean {
+  state.consoleHandler = buildConsoleHandler(logger);
+  state.pageErrorHandler = buildPageErrorHandler(logger);
+  state.popupHandler = buildPopupHandler(logger);
+  page.on('console', state.consoleHandler);
+  page.on('pageerror', state.pageErrorHandler);
+  page.context().on('page', state.popupHandler);
   return true;
 }
 

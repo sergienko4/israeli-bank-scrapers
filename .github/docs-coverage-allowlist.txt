@@ -1190,3 +1190,13 @@ IPageEvalOpts
 IPageEvalAllOpts
 # Reason: BalanceResolve â€” per-bank balance-resolution discriminant ('account' | 'card-cycle') on IPipelineBankConfig; framework-internal config knob that gates the balance-resolve live fetch. Deposit banks declare 'account'; card companies declare 'card-cycle'. REQUIRED â€” every bank states its kind explicitly; absence is a config error, not a silent no-op. Not user-facing mkdocs surface (mirrors BalanceSlotKey/IDashboardTargets config types already allowlisted).
 BalanceKind
+
+# Reason: LoginForensicTrace — gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
+buildConsoleHandler
+# Reason: LoginForensicTrace — gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
+buildPageErrorHandler
+# Reason: LoginForensicTrace — gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
+buildPopupHandler
