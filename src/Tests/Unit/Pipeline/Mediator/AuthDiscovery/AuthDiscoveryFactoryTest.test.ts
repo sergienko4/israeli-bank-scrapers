@@ -229,6 +229,7 @@ interface IAuthDiscoveryNetworkStub {
   discoverOrigin: () => string | false;
   discoverSiteId: () => string | false;
   buildDiscoveredHeaders: () => Promise<IFetchOpts>;
+  discoverByPatterns: () => false;
 }
 
 /**
@@ -277,11 +278,19 @@ function makeDiscoveredHeadersBuilder(fetchOpts: IFetchOpts): () => Promise<IFet
 }
 
 /**
+ * Stub `discoverByPatterns` — factory tests have no first-party API captures.
+ * @returns Always false.
+ */
+function noopPatternDiscovery(): false {
+  return false;
+}
+
+/**
  * Build the `network` sub-object for `makeFixtureMediator`. Implements
  * only the surface AUTH-DISCOVERY touches. Extracted per §19.10.
  * @param fixture - Per-bank fixture.
  * @param fetchOpts - Pre-built fetch opts for buildDiscoveredHeaders.
- * @returns Network helper bundle (5 stubs).
+ * @returns Network helper bundle (6 stubs).
  */
 function buildNetworkStub(fixture: IBankFixture, fetchOpts: IFetchOpts): IAuthDiscoveryNetworkStub {
   return {
@@ -290,6 +299,7 @@ function buildNetworkStub(fixture: IBankFixture, fetchOpts: IFetchOpts): IAuthDi
     discoverOrigin: makeOriginGetter(fixture),
     discoverSiteId: makeSiteIdGetter(fixture),
     buildDiscoveredHeaders: makeDiscoveredHeadersBuilder(fetchOpts),
+    discoverByPatterns: noopPatternDiscovery,
   };
 }
 

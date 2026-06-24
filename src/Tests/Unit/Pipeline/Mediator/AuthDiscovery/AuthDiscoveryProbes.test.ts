@@ -12,13 +12,17 @@
 import {
   auditSessionCookies,
   collectAuthChannels,
+  hasCapturedAuthApi,
   probeDashboardSignal,
 } from '../../../../../Scrapers/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryProbes.js';
 import type {
   ICookieSnapshot,
   IElementMediator,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { INetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
+import type {
+  IDiscoveredEndpoint,
+  INetworkDiscovery,
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 
 const FAKE_COOKIE: ICookieSnapshot = {
@@ -154,5 +158,82 @@ describe('probeDashboardSignal', () => {
     const result = await probeDashboardSignal(mediator);
     expect(result.dashboardReady).toBe(false);
     expect(result.revealString).toBe('no reveal');
+  });
+});
+
+/** Synthetic discovered endpoint matching the accounts pattern (`GetCardList`). */
+const ACCOUNTS_ENDPOINT: IDiscoveredEndpoint = {
+  url: 'https://web.isracard.co.il/api/GetCardList',
+  method: 'GET',
+  postData: '',
+  responseBody: {},
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 0,
+  status: 200,
+};
+
+describe('hasCapturedAuthApi', () => {
+  it('returns true when discoverByPatterns finds an accounts endpoint with status 200', () => {
+    const network = {
+      /**
+       * Returns a synthetic accounts endpoint.
+       * @returns Accounts endpoint.
+       */
+      discoverByPatterns: (): IDiscoveredEndpoint => ACCOUNTS_ENDPOINT,
+    } as unknown as INetworkDiscovery;
+    const hasAuth200 = hasCapturedAuthApi(network);
+    expect(hasAuth200).toBe(true);
+  });
+
+  it('returns false when discoverByPatterns returns false (analytics-only pool)', () => {
+    const network = {
+      /**
+       * No matching endpoint in analytics-only pool.
+       * @returns False.
+       */
+      discoverByPatterns: (): false => false,
+    } as unknown as INetworkDiscovery;
+    const hasAuthAnalytics = hasCapturedAuthApi(network);
+    expect(hasAuthAnalytics).toBe(false);
+  });
+
+  it('returns false when the accounts endpoint has a 401 status (not authed)', () => {
+    const unauthedEndpoint: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, status: 401 };
+    let callCount = 0;
+    const network = {
+      /**
+       * Returns a 401 endpoint on first call (accounts), false on second (auth).
+       * @returns Endpoint or false.
+       */
+      discoverByPatterns: (): IDiscoveredEndpoint | false => {
+        callCount += 1;
+        return callCount === 1 ? unauthedEndpoint : false;
+      },
+    } as unknown as INetworkDiscovery;
+    const hasAuth401 = hasCapturedAuthApi(network);
+    expect(hasAuth401).toBe(false);
+  });
+
+  it('returns true when accounts returns false but auth endpoint has undefined status (replay path)', () => {
+    const authEndpoint: IDiscoveredEndpoint = {
+      ...ACCOUNTS_ENDPOINT,
+      url: 'https://bank.co.il/api/v2/auth/login',
+      status: undefined,
+    };
+    let callCount = 0;
+    const network = {
+      /**
+       * Returns false for accounts, auth endpoint (no status) for auth.
+       * @returns False or auth endpoint.
+       */
+      discoverByPatterns: (): IDiscoveredEndpoint | false => {
+        callCount += 1;
+        return callCount === 1 ? false : authEndpoint;
+      },
+    } as unknown as INetworkDiscovery;
+    const hasAuthReplay = hasCapturedAuthApi(network);
+    expect(hasAuthReplay).toBe(true);
   });
 });
