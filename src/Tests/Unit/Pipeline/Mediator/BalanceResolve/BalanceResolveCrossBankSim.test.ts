@@ -87,7 +87,11 @@ function makeShapeCtx(shape: IBankShape, carryPool: boolean): IPipelineContext {
   });
   const perUrlApi = makePerUrlApi(shape.success);
   const api = some(perUrlApi);
-  const config = { urls: { base: 'https://test.bank' }, balanceKind: shape.balanceKind };
+  const config = {
+    urls: { base: 'https://test.bank' },
+    balanceKind: shape.balanceKind,
+    authStrategyKind: 'token' as const,
+  };
   return makeMockContext({ scrape, api, mediator: none(), config });
 }
 

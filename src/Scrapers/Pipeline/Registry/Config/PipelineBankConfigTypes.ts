@@ -44,6 +44,20 @@ export type PhoneNumberFormatTag =
  */
 export type BalanceKind = 'account' | 'card-cycle';
 
+/**
+ * Auth-completion family for a bank -- an explicit, REQUIRED per-bank declaration.
+ * Documents HOW a completed browser login is verified:
+ *   - 'token'         -- a Bearer/JWT is discovered post-auth (FIBI/Mataf, Cal).
+ *   - 'session-cookie'-- auth is carried by first-party session cookies
+ *                        (telebank, Wix-shell, Angular SPA banks).
+ *   - 'api-direct'    -- no browser AUTH-DISCOVERY at all (OneZero/PayBox/Pepper
+ *                        run the headless identity strategy).
+ * Declarative only: the runtime dashboard gate does NOT branch on this value
+ * (it is a registry-completeness contract + the test-matrix driver). Never
+ * inferred from absence -- an unstated kind is a config error.
+ */
+export type AuthStrategyKind = 'token' | 'session-cookie' | 'api-direct';
+
 /** Headless-strategy URL block — populates ctx.apiMediator at build time. */
 export interface IHeadlessUrlsConfig {
   readonly identityBase: string;
@@ -105,6 +119,12 @@ export interface IPipelineBankConfig {
    * config error, not a silent dormant no-op.
    */
   readonly balanceKind: BalanceKind;
+  /**
+   * Auth-completion family -- see {@link AuthStrategyKind}. REQUIRED: every bank
+   * states its kind explicitly. Declarative documentation + registry-completeness
+   * contract; the runtime gate does not branch on it.
+   */
+  readonly authStrategyKind: AuthStrategyKind;
   /**
    * When set, LOGIN.POST enforces a positive auth signal — the first
    * authenticated accounts-API fetch — within this budget (ms) before

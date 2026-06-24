@@ -97,6 +97,7 @@ function makeCtx(poolBodies: readonly unknown[]): IPipelineContext {
   const config = {
     urls: { base: 'https://al-online.fibi.co.il' },
     balanceKind: 'account' as const,
+    authStrategyKind: 'token' as const,
   };
   return makeMockContext({ scrape, api, mediator, config });
 }

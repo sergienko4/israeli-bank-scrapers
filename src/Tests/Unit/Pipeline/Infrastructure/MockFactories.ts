@@ -121,6 +121,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     config: {
       urls: { base: 'https://test.bank' },
       balanceKind: 'account',
+      authStrategyKind: 'token',
     },
     fetchStrategy: none(),
     mediator: none(),

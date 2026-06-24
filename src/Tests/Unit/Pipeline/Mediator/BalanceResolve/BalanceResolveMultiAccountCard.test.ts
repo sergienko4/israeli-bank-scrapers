@@ -84,7 +84,11 @@ function makeCardCtx(shape: ICardBankShape): IPipelineContext {
     scrape,
     api,
     mediator: none(),
-    config: { urls: { base: 'https://test.bank' }, balanceKind: 'card-cycle' },
+    config: {
+      urls: { base: 'https://test.bank' },
+      balanceKind: 'card-cycle',
+      authStrategyKind: 'token',
+    },
   });
 }
 

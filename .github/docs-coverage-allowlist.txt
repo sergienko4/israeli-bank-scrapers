@@ -1190,6 +1190,8 @@ IPageEvalOpts
 IPageEvalAllOpts
 # Reason: BalanceResolve — per-bank balance-resolution discriminant ('account' | 'card-cycle') on IPipelineBankConfig; framework-internal config knob that gates the balance-resolve live fetch. Deposit banks declare 'account'; card companies declare 'card-cycle'. REQUIRED — every bank states its kind explicitly; absence is a config error, not a silent no-op. Not user-facing mkdocs surface (mirrors BalanceSlotKey/IDashboardTargets config types already allowlisted).
 BalanceKind
+# Reason: AuthDiscoveryGate — per-bank auth-completion-family discriminant ('token' | 'session-cookie' | 'api-direct') on IPipelineBankConfig; framework-internal config knob that declares how auth success is verified. REQUIRED — every bank states its kind explicitly; tsc enforces completeness. Not user-facing mkdocs surface; mirrors BalanceKind (already allowlisted above).
+AuthStrategyKind
 
 # Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
