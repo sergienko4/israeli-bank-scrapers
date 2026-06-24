@@ -1200,3 +1200,15 @@ buildPageErrorHandler
 # Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
 buildPopupHandler
+# Reason: SubmitModeGate — gated D3 diagnostic lever (PIPELINE_LOGIN_SUBMIT_MODE gate).
+# Default 'enter-click' is byte-identical. CI A/B diagnostic only; not user-facing.
+readSubmitMode
+# Reason: SubmitModeGate — discriminated union type for the D3 submit-mode lever.
+# Internal gate type; not user-facing.
+SubmitMode
+# Reason: SubmitModeGate — env-var name constant for the D3 submit-mode lever.
+# Exported so tests can reference it without hardcoding the string. Not user-facing.
+SUBMIT_MODE_ENV_VAR
+# Reason: ActionsFill — @internal D3 requestSubmit helper, exported for unit-test access only.
+# No docs-surface needed; gated behaviour, not public API.
+tryFormRequestSubmit
