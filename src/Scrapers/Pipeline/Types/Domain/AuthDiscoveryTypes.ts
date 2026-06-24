@@ -37,6 +37,10 @@
  *   <li>{@link sessionCookieNames} — names (not values) of session
  *       cookies present at AUTH-DISCOVERY entry. Used for telemetry
  *       only — never logged with values.</li>
+ *   <li>{@link hasAuthApiResponse} — `true` when a captured first-party
+ *       well-known accounts/auth API response is present at
+ *       AUTH-DISCOVERY. An unauthenticated page never makes the authed
+ *       data fetch.</li>
  * </ul>
  */
 interface IAuthDiscovery {
@@ -46,6 +50,7 @@ interface IAuthDiscovery {
   readonly headers: Readonly<Record<string, string>>;
   readonly dashboardReady: boolean;
   readonly sessionCookieNames: readonly string[];
+  readonly hasAuthApiResponse: boolean;
 }
 
 /**
@@ -68,6 +73,7 @@ const EMPTY_AUTH_DISCOVERY: IAuthDiscovery = {
   headers: {},
   dashboardReady: false,
   sessionCookieNames: [],
+  hasAuthApiResponse: false,
 };
 
 export type { AuthDiscoveryFailCode, IAuthDiscovery };

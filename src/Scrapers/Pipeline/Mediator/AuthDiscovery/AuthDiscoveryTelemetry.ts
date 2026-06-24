@@ -20,18 +20,17 @@ import type { collectAuthChannels, probeDashboardSignal } from './AuthDiscoveryP
 /**
  * Build the slim {@link IAuthDiscovery} value from the collected
  * inputs. Pure — no side effects.
- * @param channels - Collected auth channels.
- * @param dashboardReady - Result of the reveal probe.
- * @param sessionCookieNames - Session cookie names from the audit.
+ * @param args - Bundled snapshot inputs (channels, reveal, cookies, api flag).
  * @returns Slim auth discovery snapshot.
  */
-function buildSnapshot(
-  channels: Awaited<ReturnType<typeof collectAuthChannels>>,
-  dashboardReady: boolean,
-  sessionCookieNames: readonly string[],
-): IAuthDiscovery {
-  const { authToken, origin, siteId, headers } = channels;
-  return { authToken, origin, siteId, headers, dashboardReady, sessionCookieNames };
+function buildSnapshot(args: ISnapshotBuildArgs): IAuthDiscovery {
+  const { channels, reveal, cookieNames, hasAuthApiResponse } = args;
+  return {
+    ...channels,
+    dashboardReady: reveal.dashboardReady,
+    sessionCookieNames: cookieNames,
+    hasAuthApiResponse,
+  };
 }
 
 /**
@@ -50,6 +49,7 @@ function buildAuthDiscoverySummary(snap: IAuthDiscovery): Record<string, boolean
     hasOrigin: snap.origin !== false,
     hasSiteId: snap.siteId !== false,
     sessionCookieCount: snap.sessionCookieNames.length,
+    hasAuthApiResponse: snap.hasAuthApiResponse,
   };
 }
 
@@ -78,6 +78,7 @@ interface ISnapshotBuildArgs {
   readonly channels: Awaited<ReturnType<typeof collectAuthChannels>>;
   readonly reveal: Awaited<ReturnType<typeof probeDashboardSignal>>;
   readonly cookieNames: readonly string[];
+  readonly hasAuthApiResponse: boolean;
 }
 
 /**
@@ -85,13 +86,12 @@ interface ISnapshotBuildArgs {
  * POST-validated telemetry line. Returns the snapshot so callers
  * can commit it to the pipeline context.
  *
- * @param args - Bundled context + channels + reveal + cookie names.
+ * @param args - Bundled context + channels + reveal + cookie names + api flag.
  * @returns The freshly built snapshot.
  */
 function buildAndLogSnapshot(args: ISnapshotBuildArgs): IAuthDiscovery {
-  const { input, channels, reveal, cookieNames } = args;
-  const snapshot = buildSnapshot(channels, reveal.dashboardReady, cookieNames);
-  logPostValidated(input, snapshot, reveal.revealString);
+  const snapshot = buildSnapshot(args);
+  logPostValidated(args.input, snapshot, args.reveal.revealString);
   return snapshot;
 }
 

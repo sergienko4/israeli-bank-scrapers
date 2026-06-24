@@ -32,27 +32,27 @@ function readCurrentUrl(input: IPipelineContext): string {
 }
 
 /**
- * Read the pre-auth URL from the LATEST auth-ladder phase emit.
- * Each phase carries `urlBeforeSubmit` on its own slim contract
- * (LOGIN.PRE captures, OTP-TRIGGER + OTP-FILL copy forward). This
- * helper picks the freshest emit so AUTH-DISCOVERY's gate logic
- * does not branch on auth-ladder shape:
- * <ol>
- *   <li>`ctx.otpFill` (always populated when OTP-FILL ran).</li>
- *   <li>`ctx.otpTrigger` (set when OTP-TRIGGER ran).</li>
- *   <li>`ctx.login` (LOGIN's original capture).</li>
- * </ol>
- * Empty string ⇒ no auth-ladder phase ran (test paths only); the
- * predicate then disables the URL gate and decides on REVEAL alone.
+ * Read the pre-auth URL from the LOGIN.PRE emit only.
+ *
+ * <p>The OTP-FILL and OTP-TRIGGER batons are re-captured at
+ * OTP-FILL.PRE <em>after</em> login's redirect has already occurred —
+ * e.g. Isracard's `digital.isracard.co.il` → `web.isracard.co.il/StatusPage`
+ * redirect fires before OTP-FILL.PRE runs. Preferring those batons
+ * therefore clobbers the login-URL baseline with the post-redirect URL,
+ * making `currentUrl === preAuthUrl` (both `web/StatusPage`) even though
+ * the browser truly navigated. The rule is: AUTH-DISCOVERY URL must
+ * differ from the URL where credentials were entered. Only
+ * `ctx.login.value.urlBeforeSubmit` — the LOGIN.PRE capture — records
+ * the credentials-submission URL reliably.
+ *
+ * <p>Empty string ⇒ no LOGIN phase ran (test paths only); the predicate
+ * then disables the URL gate and decides on REVEAL + corroboration alone.
  *
  * @param input - Pipeline context.
- * @returns Pre-auth URL value (`''` when no emit).
+ * @returns LOGIN.PRE URL value (`''` when no login emit).
  */
 function readPreAuthUrl(input: IPipelineContext): string {
-  if (input.otpFill.has) return input.otpFill.value.urlBeforeSubmit;
-  if (input.otpTrigger.has) return input.otpTrigger.value.urlBeforeSubmit;
-  if (input.login.has) return input.login.value.urlBeforeSubmit;
-  return '';
+  return input.login.has ? input.login.value.urlBeforeSubmit : '';
 }
 
 /**
