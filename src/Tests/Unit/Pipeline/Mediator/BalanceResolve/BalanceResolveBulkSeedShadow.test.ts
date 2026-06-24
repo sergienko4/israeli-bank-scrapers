@@ -120,6 +120,6 @@ describe('BALANCE-RESOLVE bulk-seed shadow (FIBI/Beinleumi)', () => {
     const report = post.value.balanceValidation;
     if (!report.has) throw new ScraperError('POST must commit a balanceValidation report');
     expect(report.value.totalAccounts).toBe(1);
-    expect(report.value.resolvedIds.length).toBe(1);
+    expect(report.value.resolvedIds).toHaveLength(1);
   });
 });
