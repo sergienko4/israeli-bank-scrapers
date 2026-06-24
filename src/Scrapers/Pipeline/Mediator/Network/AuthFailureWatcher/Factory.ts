@@ -233,7 +233,7 @@ function bindRequestTrace(page: Page, state: IWatcherState, logger: ScraperLogge
  * @returns True after all three listeners are attached.
  */
 function bindForensicHandlers(page: Page, state: IWatcherState, logger: ScraperLogger): boolean {
-  state.consoleHandler = buildConsoleHandler(logger);
+  state.consoleHandler = buildConsoleHandler(logger, page);
   state.pageErrorHandler = buildPageErrorHandler(logger);
   state.popupHandler = buildPopupHandler(logger);
   page.on('console', state.consoleHandler);
