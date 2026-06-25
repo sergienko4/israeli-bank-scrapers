@@ -7,6 +7,7 @@
  * or fails loud `AUTH_DISCOVERY_DASHBOARD_NOT_READY`.
  */
 
+import { AUTH_DISCOVERY_NOT_READY_CODE } from '../../Types/Domain/AuthDiscoveryTypes.js';
 import type { IAuthDiscovery, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
@@ -106,7 +107,7 @@ function decideFinalCommit(
   snap: IAuthDiscovery,
   reason: DashboardGateReason,
 ): Procedure<IPipelineContext> {
-  if (reason !== 'open') return failAuthDiscovery('AUTH_DISCOVERY_DASHBOARD_NOT_READY', reason);
+  if (reason !== 'open') return failAuthDiscovery(AUTH_DISCOVERY_NOT_READY_CODE, reason);
   emitCommittedTelemetry(input, snap);
   return succeed(input);
 }
