@@ -1,9 +1,8 @@
 /**
  * Unit tests for LoginCookieAudit — Mission 1+ replacement for the
  * deleted `Mediator/Auth/LoginSignalProbe.ts`. The handler is the
- * sole LOGIN.FINAL implementation: a loading-cleared gate (the login
- * form must have advanced past its spinner) followed by a cookie
- * audit. No dashboard-reveal or auth-token-discovery surface.
+ * sole LOGIN.FINAL implementation: pure cookie-count audit, zero
+ * dashboard-zone or auth-token-discovery surface.
  */
 
 import type {
@@ -23,24 +22,15 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
  * Build a minimal mediator stub returning the supplied cookies.
  *
  * @param cookies - Cookie snapshots to return.
- * @param loadingVisible - When true, the loading-indicator probe reports visible.
  * @returns Mediator stub.
  */
-function makeCookieMediator(
-  cookies: readonly ICookieSnapshot[],
-  loadingVisible = false,
-): IElementMediator {
+function makeCookieMediator(cookies: readonly ICookieSnapshot[]): IElementMediator {
   return {
     /**
      * Network-idle stub — resolves immediately with success.
      * @returns Resolved success procedure.
      */
     waitForNetworkIdle: () => SUCCEED_VOID,
-    /**
-     * Loading-indicator probe — reports the configured visibility.
-     * @returns Race result with the configured `found` flag.
-     */
-    resolveVisible: (): Promise<{ found: boolean }> => Promise.resolve({ found: loadingVisible }),
     /**
      * Returns the supplied cookie snapshots.
      * @returns Cookies.
@@ -103,16 +93,6 @@ describe('executeLoginSignal — Mission 1+ cookie-only audit', () => {
     }
   });
 
-  it('fails loud when the login loading indicator is still visible', async () => {
-    const mediator = makeCookieMediator([FAKE_COOKIE], true);
-    const ctx = ctxWithLogin(mediator);
-    const result = await executeLoginSignal(ctx);
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.errorMessage).toContain('still processing');
-    }
-  });
-
   it('fails AUTH_SESSION_INVALID when cookies are empty', async () => {
     const mediator = makeCookieMediator([]);
     const ctx = ctxWithLogin(mediator);
@@ -132,11 +112,6 @@ describe('executeLoginSignal — Mission 1+ cookie-only audit', () => {
        */
       waitForNetworkIdle: (): Promise<never> => Promise.reject(new Error('network-idle-throw')),
       /**
-       * Loading-indicator probe — reports not visible (gate passes).
-       * @returns Race result with `found: false`.
-       */
-      resolveVisible: (): Promise<{ found: boolean }> => Promise.resolve({ found: false }),
-      /**
        * Returns one cookie so the audit succeeds.
        * @returns Cookies.
        */
@@ -155,11 +130,6 @@ describe('executeLoginSignal — Mission 1+ cookie-only audit', () => {
        * @returns Resolved success.
        */
       waitForNetworkIdle: () => SUCCEED_VOID,
-      /**
-       * Loading-indicator probe — reports not visible (gate passes).
-       * @returns Race result with `found: false`.
-       */
-      resolveVisible: (): Promise<{ found: boolean }> => Promise.resolve({ found: false }),
       /**
        * Always rejects.
        * @returns Rejection.
