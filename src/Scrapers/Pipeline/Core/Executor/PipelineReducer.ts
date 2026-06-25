@@ -3,6 +3,7 @@
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { LOGIN_POST_AUTH_CONFIRM_TIMEOUT } from '../../Mediator/Login/PostValidate/PostValidateGates.js';
 import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
@@ -127,13 +128,31 @@ interface IFailureArgs {
 }
 
 /**
+ * Decide whether a failed phase must skip the sanitization-pulse retry.
+ *
+ * <p>Always skips the side-effecting NO_RETRY phases. Additionally skips
+ * the login retry ONLY when login failed on the auth-confirm timeout
+ * sentinel — re-submitting credentials cannot rescue a stalled auth and
+ * just masks the real failure (Amex SPA stall). Every other login
+ * failure (incl. WAF challenges) still retries.
+ * @param step - The failed phase step.
+ * @param result - The failed phase result.
+ * @returns True when the phase must not be retried.
+ */
+function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): boolean {
+  if (NO_RETRY_PHASES.has(step.name)) return true;
+  if (result.success || step.name !== 'login') return false;
+  return result.errorMessage === LOGIN_POST_AUTH_CONFIRM_TIMEOUT;
+}
+
+/**
  * Handle phase failure: respect NO_RETRY list or attempt sanitization pulse.
  * @param args - Tracker + ctx + step + failed result bundle.
  * @returns Either recovered continuation or original failure.
  */
 async function handlePhaseFailure(args: IFailureArgs): Promise<Procedure<IPipelineContext>> {
   const { tracker, ctx, step, result } = args;
-  if (NO_RETRY_PHASES.has(step.name)) {
+  if (isNonRetryable(step, result)) {
     traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: false });
     return result;
   }

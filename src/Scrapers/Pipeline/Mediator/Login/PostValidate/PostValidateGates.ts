@@ -21,6 +21,16 @@ import { detectAuthApiFailure } from './PostValidateDetect.js';
 export const LOGIN_POST_NO_LOGIN_STATE = 'LOGIN POST: no login state';
 export const LOGIN_POST_NO_BROWSER = 'LOGIN POST: no browser';
 
+/**
+ * Sentinel failure message emitted when an opted-in bank observes no
+ * authenticated accounts traffic within its loginAuthConfirmMs budget.
+ *
+ * <p>Exported as the single source of truth so the pipeline reducer can
+ * match it precisely to suppress the login retry for this case alone
+ * (see {@link ../../../Core/Executor/PipelineReducer.ts}).
+ */
+export const LOGIN_POST_AUTH_CONFIRM_TIMEOUT = 'LOGIN.POST: no accounts traffic within auth budget';
+
 /** Bundled args for {@link runPostFormScanAndCallback}. */
 export interface IPostFormScanArgs {
   readonly mediator: IElementMediator;
@@ -85,7 +95,7 @@ async function enforceAuthConfirm(
   const { loginAuthConfirmMs: confirmMs } = args.input.config;
   const wasAuth = await waitForPostLoginTraffic(args.mediator, args.input.logger, confirmMs);
   if (confirmMs !== undefined && !wasAuth)
-    return fail(ScraperErrorTypes.Timeout, 'LOGIN.POST: no accounts traffic within auth budget');
+    return fail(ScraperErrorTypes.Timeout, LOGIN_POST_AUTH_CONFIRM_TIMEOUT);
   return false;
 }
 

@@ -1226,3 +1226,7 @@ AUTH_HOSTS
 # for up to this budget so the body-bearing endpoint settles. Framework-internal
 # timing knob; exported only so the NetworkPolling race test asserts it. Not user-facing.
 NETWORK_BODY_SETTLE_MS
+# Reason: PostValidateGates - LOGIN.POST auth-confirm timeout sentinel string.
+# Exported as the single source of truth so PipelineReducer.isNonRetryable matches it
+# and the no-retry firing test references it without re-hardcoding. Not user-facing.
+LOGIN_POST_AUTH_CONFIRM_TIMEOUT
