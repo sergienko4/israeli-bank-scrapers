@@ -135,3 +135,15 @@ export function buildWaitForLoadingDone(): IElementMediator['waitForLoadingDone'
     return succeed(true);
   };
 }
+
+/**
+ * Expose the strict single-shot loading probe so other clusters (e.g.
+ * the LOGIN completion observer) can OBSERVE spinner visibility without
+ * re-implementing the WK_LOADING expansion. Returns the same probe
+ * {@link buildWaitForLoadingDone} polls internally — phase-neutral, no
+ * dashboard knowledge.
+ * @returns Probe resolving succeed(true) while a loading indicator is visible.
+ */
+export function buildIsLoadingVisible(): (frame: Page | Frame) => Promise<Procedure<boolean>> {
+  return isAnyLoadingVisible;
+}

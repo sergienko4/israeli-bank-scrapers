@@ -29,6 +29,30 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 | `login.submit` | info | Submit button clicked |
 | `login.result.invalid_password` | warn | Bank returned credentials-wrong |
 | `login.result.success` | info | Post-submit page recognised as authenticated |
+| `login.completion` | debug | Advisory completion snapshot composed at LOGIN.final (see below) |
+| `login.completion.error` | debug | A completion probe threw; snapshot stays neutral |
+
+#### LOGIN completion observer (advisory)
+
+At `LOGIN.final` an advisory observer composes three **LOGIN-LOCAL** signals
+— is a loading spinner still visible, is an error banner present, and has the
+page advanced past the login URL — into one snapshot and logs it as
+`login.completion`. The verdict is **computed and logged only**; it does not
+gate the phase, so behaviour is byte-identical for every bank. Its purpose is
+to surface, per bank in the CI logs, the case where a login lingers on a
+spinning form yet still passes the lenient cookie gate.
+
+- `observeLoginCompletion(input)` — the entry facade wired into `LOGIN.final`.
+  It runs the existing LOGIN post-gates first; if those already fail it returns
+  a neutral snapshot and emits nothing.
+- `captureCompletionSignals(ports)` — the phase-agnostic composer (under
+  `Mediator/Completion`). It reads an `ICompletionPorts` contract and returns an
+  `ICompletionSignals` snapshot (`spinnerVisible`, `hasError`, `advanced`).
+- `buildLoginCompletionPorts(...)` — the LOGIN adapter that binds that contract
+  to login-local probes: the spinner probe is `buildIsLoadingVisible` (the
+  phase-neutral loading well-known), the error probe reuses the existing frame
+  scan, and the advanced probe reuses the existing login-URL helper. It never
+  probes dashboard state — that REVEAL belongs to AUTH-DISCOVERY.
 
 ### OTP-TRIGGER / OTP-FILL
 

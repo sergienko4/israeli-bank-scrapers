@@ -10,6 +10,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IPreludeSpec } from '../../Mediator/Elements/PagePrelude.js';
 import { PRELUDE_NONE } from '../../Mediator/Elements/PagePrelude.js';
+import { observeLoginCompletion } from '../../Mediator/Login/LoginCompletionObserver.js';
 import {
   executeDiscoverForm,
   executeFillAndSubmitFromDiscovery,
@@ -82,6 +83,7 @@ class LoginPhase extends BasePhase {
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'login.final' });
+    await observeLoginCompletion(input);
     return executeLoginSignal(input);
   }
 
