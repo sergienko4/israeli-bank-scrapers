@@ -137,4 +137,20 @@ export interface IPipelineBankConfig {
    * at AUTH-DISCOVERY, keeping LOGIN and AUTH cleanly separated.
    */
   readonly loginAuthConfirmMs?: number;
+  /**
+   * Advisory login-completion poll budget. When set, the LOGIN.final
+   * completion observer re-checks the LOGIN-LOCAL settle signals (form-gone
+   * / advanced / error / spinner) up to `maxAttempts` times, waiting
+   * `intervalMs` between checks. Absent ⇒ single-shot (one capture, zero
+   * wait) — byte-identical to a direct capture and zero added wall-time.
+   *
+   * Advisory by contract: the observer's snapshot is discarded by the
+   * phase, so opting in changes wall-time for a stuck login only, never the
+   * verdict. Set for slow-AngularJS banks whose login form lingers while the
+   * SSO redirect settles.
+   */
+  readonly loginCompletionPoll?: {
+    readonly intervalMs: number;
+    readonly maxAttempts: number;
+  };
 }

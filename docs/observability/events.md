@@ -34,25 +34,47 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 
 #### LOGIN completion observer (advisory)
 
-At `LOGIN.final` an advisory observer composes three **LOGIN-LOCAL** signals
-— is a loading spinner still visible, is an error banner present, and has the
-page advanced past the login URL — into one snapshot and logs it as
-`login.completion`. The verdict is **computed and logged only**; it does not
-gate the phase, so behaviour is byte-identical for every bank. Its purpose is
-to surface, per bank in the CI logs, the case where a login lingers on a
-spinning form yet still passes the lenient cookie gate.
+At `LOGIN.final` an advisory observer composes four **LOGIN-LOCAL** signals
+— is the filled login form still present, is a loading spinner still visible,
+is an error banner present, and has the page advanced past the login URL —
+into one snapshot and logs it as `login.completion`. The verdict is **computed
+and logged only**; it does not gate the phase, so behaviour is byte-identical
+for every bank. Its purpose is to surface, per bank in the CI logs, the case
+where a login lingers on a spinning form yet still passes the lenient cookie
+gate.
+
+The composer is wrapped in a **config-driven, FORM-FIRST poll**. A phase has
+settled when it advanced past the start screen, an error surfaced, OR the
+filled form is gone. By default the poll is **single-shot** (one capture, never
+sleeps) so it is byte-identical to a lone snapshot and adds zero wall-time. A
+bank opts into a multi-attempt budget through the optional `loginCompletionPoll`
+config field; a perpetually spinning login (form still present, no error, URL
+unchanged) then exhausts the budget instead of passing silently.
 
 - `observeLoginCompletion(input)` — the entry facade wired into `LOGIN.final`.
   It runs the existing LOGIN post-gates first; if those already fail it returns
-  a neutral snapshot and emits nothing.
+  a neutral snapshot and emits nothing. It reads `input.config.loginCompletionPoll`
+  to resolve the poll budget (absent ⇒ single-shot).
 - `captureCompletionSignals(ports)` — the phase-agnostic composer (under
   `Mediator/Completion`). It reads an `ICompletionPorts` contract and returns an
-  `ICompletionSignals` snapshot (`spinnerVisible`, `hasError`, `advanced`).
+  `ICompletionSignals` snapshot (`formPresent`, `spinnerVisible`, `hasError`,
+  `advanced`).
+- `pollCompletion(ports, opts)` — the phase-agnostic poll that repeatedly calls
+  the composer until the phase settles or the attempt budget is spent. It returns
+  an `ICompletionPollOutcome` (`settled`, `attempts`, `waitedMs`, `last`). Sleep
+  is injected so timing is deterministic in tests.
+- `ICompletionPollOptions` — the injected budget: `intervalMs`, `maxAttempts`,
+  and the `sleep` function. `ICompletionPollOutcome` — the poll result.
+- `LOGIN_COMPLETION_POLL_INTERVAL_MS` (5000) and
+  `LOGIN_COMPLETION_POLL_MAX_ATTEMPTS` (15) — the opt-in budget constants a bank
+  references when it sets `loginCompletionPoll`.
 - `buildLoginCompletionPorts(...)` — the LOGIN adapter that binds that contract
-  to login-local probes: the spinner probe is `buildIsLoadingVisible` (the
-  phase-neutral loading well-known), the error probe reuses the existing frame
-  scan, and the advanced probe reuses the existing login-URL helper. It never
-  probes dashboard state — that REVEAL belongs to AUTH-DISCOVERY.
+  to login-local probes: the form-present probe re-counts the **already-discovered**
+  password-field target (count-only, no new CSS selector), the spinner probe is
+  `buildIsLoadingVisible` (the phase-neutral loading well-known), the error probe
+  reuses the existing frame scan, and the advanced probe reuses the existing
+  login-URL helper. It never probes dashboard state — that REVEAL belongs to
+  AUTH-DISCOVERY.
 
 ### OTP-TRIGGER / OTP-FILL
 

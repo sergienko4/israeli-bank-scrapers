@@ -25,3 +25,9 @@ export const LOGIN_TRAFFIC_WAIT_TIMEOUT_MS = 10000;
 
 /** LOGIN cookie-audit network-idle wait. */
 export const LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS = 10000;
+
+/** LOGIN completion-poll interval between settle re-checks. */
+export const LOGIN_COMPLETION_POLL_INTERVAL_MS = 5000;
+
+/** LOGIN completion-poll maximum attempts (≈75s ceiling at the 5s interval). */
+export const LOGIN_COMPLETION_POLL_MAX_ATTEMPTS = 15;

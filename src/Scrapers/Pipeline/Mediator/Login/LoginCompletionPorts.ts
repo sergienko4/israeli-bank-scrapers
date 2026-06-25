@@ -3,7 +3,7 @@
  * {@link ICompletionPorts} so the completion verifier never imports
  * Playwright or login internals (Dependency Inversion).
  *
- * <p>The three login-local completion axes:
+ * <p>The four login-local completion axes:
  * <ul>
  *   <li><b>spinner</b> — a loading indicator is still visible
  *       (reuses {@link buildIsLoadingVisible}, the strict probe).</li>
@@ -11,6 +11,9 @@
  *       (reuses {@link safeScanFrame}, the LOGIN.post error scan).</li>
  *   <li><b>advanced</b> — the UI left the login URL
  *       (negation of {@link hasStayedOnLoginUrl}).</li>
+ *   <li><b>form</b> — the filled login form is still present (reuses the
+ *       already-discovered password target via {@link getPasswordTarget};
+ *       no new CSS selector).</li>
  * </ul>
  *
  * <p>These are LOGIN-LOCAL signals only — no `WK_DASHBOARD.REVEAL`
@@ -27,6 +30,7 @@ import { buildIsLoadingVisible } from '../Elements/Create/index.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { safeScanFrame } from './LoginFrameScan.js';
 import { hasStayedOnLoginUrl } from './LoginUrlHelpers.js';
+import { getPasswordTarget } from './ScopeIntact/ScopeIntactProbe.js';
 
 /** Inputs the LOGIN adapter binds into the completion ports. */
 interface ILoginCompletionPortsArgs {
@@ -71,6 +75,20 @@ function advancedPastLogin(mediator: IElementMediator, input: IPipelineContext):
 }
 
 /**
+ * Resolve whether the filled login form is still present. Reuses the
+ * already-discovered password target — no new CSS selector. Fail-open:
+ * returns false when no password target was discovered.
+ * @param mediator - Element mediator (count probe).
+ * @param input - Pipeline context carrying the login-field discovery.
+ * @returns True when the password target still matches at least one node.
+ */
+async function formPresent(mediator: IElementMediator, input: IPipelineContext): Promise<boolean> {
+  const target = getPasswordTarget(input);
+  if (target === false) return false;
+  return (await mediator.countBySelector(target.selector)) > 0;
+}
+
+/**
  * Build login-local completion ports for the active frame. Each port is
  * a pre-bound named probe so the verifier stays Playwright-free (DIP).
  *
@@ -82,6 +100,7 @@ function buildLoginCompletionPorts(args: ILoginCompletionPortsArgs): ICompletion
   return {
     isSpinnerVisible: spinnerVisible.bind(null, frame),
     hasError: errorVisible.bind(null, mediator, frame),
+    isFormPresent: formPresent.bind(null, mediator, input),
     hasAdvanced: advancedPastLogin.bind(null, mediator, input),
   };
 }

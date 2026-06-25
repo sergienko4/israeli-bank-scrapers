@@ -1,14 +1,19 @@
 /**
- * ADVISORY login-completion observer — composes the three LOGIN-LOCAL
- * completion signals (spinner-gone / error-absent / advanced-past-login)
- * into one observed snapshot at LOGIN.final, PII-safe-logs it, and returns
- * it for the caller to OBSERVE.
+ * ADVISORY login-completion observer — composes the four LOGIN-LOCAL
+ * completion signals (spinner-gone / error-absent / advanced-past-login /
+ * form-gone) into one observed snapshot at LOGIN.final, PII-safe-logs it,
+ * and returns it for the caller to OBSERVE.
  *
  * <p>Advisory by contract: the phase DISCARDS the returned snapshot, so
  * wiring this into LOGIN.final changes ZERO behaviour for every bank. It
  * only instruments the perpetually-spinning-login case (a lenient cookie
  * gate falsely passes) so the signal is visible before any future
  * enforcing slice consumes it.
+ *
+ * <p>The snapshot is captured through a CONFIG-DRIVEN completion poll that
+ * defaults to single-shot (one capture, zero wait) — byte-identical to a
+ * direct capture and adding zero wall-time. A bank opts into a real
+ * settle budget via {@link IPipelineBankConfig.loginCompletionPoll}.
  *
  * <p>Strictly LOGIN-LOCAL: it never probes a dashboard well-known (that is
  * AUTH-DISCOVERY's axis per the phase map's 100% separation rule). It is
@@ -17,10 +22,12 @@
  * (pure probes, Camoufox fingerprint-safe).
  */
 
+import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
+
 import type { Frame, Page } from 'playwright-core';
 
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
-import { captureCompletionSignals } from '../Completion/CompletionSnapshot.js';
+import { type ICompletionPollOptions, pollCompletion } from '../Completion/CompletionPoll.js';
 import type { ICompletionSignals } from '../Completion/CompletionTypes.js';
 import { buildLoginCompletionPorts } from './LoginCompletionPorts.js';
 import { checkLoginPostGates } from './PostValidate/PostValidateGates.js';
@@ -30,7 +37,32 @@ const NEUTRAL_COMPLETION: ICompletionSignals = {
   spinnerVisible: false,
   hasError: false,
   advanced: false,
+  formPresent: false,
 };
+
+/** Default poll budget: one capture, zero wait (byte-identical to today). */
+const SINGLE_SHOT_POLL = { intervalMs: 0, maxAttempts: 1 } as const;
+
+/**
+ * Wait the given milliseconds via the canonical node timers promise — an
+ * unref'd, lint-clean wait that satisfies the poll's void sleep contract.
+ * @param ms - Milliseconds to wait.
+ * @returns Resolves after the wait.
+ */
+async function pollSleep(ms: number): Promise<void> {
+  await setTimeoutPromise(ms, undefined, { ref: false });
+}
+
+/**
+ * Resolve the completion-poll options from the bank config, defaulting to
+ * single-shot when the bank did not opt into a settle budget.
+ * @param input - Pipeline context carrying the bank config.
+ * @returns Poll options with the canonical sleep injected.
+ */
+function resolvePollOptions(input: IPipelineContext): ICompletionPollOptions {
+  const budget = input.config.loginCompletionPoll ?? SINGLE_SHOT_POLL;
+  return { intervalMs: budget.intervalMs, maxAttempts: budget.maxAttempts, sleep: pollSleep };
+}
 
 /**
  * PII-safe advisory log of an observed login-completion snapshot. The three
@@ -70,7 +102,9 @@ async function captureFromFrame(
 ): Promise<ICompletionSignals> {
   if (!input.mediator.has) return NEUTRAL_COMPLETION;
   const ports = buildLoginCompletionPorts({ mediator: input.mediator.value, input, frame });
-  return captureCompletionSignals(ports);
+  const options = resolvePollOptions(input);
+  const outcome = await pollCompletion(ports, options);
+  return outcome.last;
 }
 
 /**

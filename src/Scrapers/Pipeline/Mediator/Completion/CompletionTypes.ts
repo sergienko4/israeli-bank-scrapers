@@ -10,7 +10,7 @@
  * without per-phase branching (OCP).
  */
 
-/** One observed completion snapshot — three independent signals. */
+/** One observed completion snapshot — four independent signals. */
 export interface ICompletionSignals {
   /** A loading indicator is still visible (the phase has not settled). */
   readonly spinnerVisible: boolean;
@@ -18,6 +18,8 @@ export interface ICompletionSignals {
   readonly hasError: boolean;
   /** The UI advanced past the phase start screen (e.g. left the login form). */
   readonly advanced: boolean;
+  /** The filled start-screen form is still present (primary settle signal). */
+  readonly formPresent: boolean;
 }
 
 /**
@@ -29,6 +31,8 @@ export interface ICompletionPorts {
   readonly isSpinnerVisible: () => Promise<boolean>;
   /** Resolve true when an error marker is present in the scanned frame. */
   readonly hasError: () => Promise<boolean>;
+  /** Resolve true when the filled start-screen form is still present. */
+  readonly isFormPresent: () => Promise<boolean>;
   /** Return true when the UI has advanced past the phase start screen. */
   readonly hasAdvanced: () => boolean;
 }
