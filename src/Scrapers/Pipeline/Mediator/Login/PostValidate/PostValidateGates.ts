@@ -21,16 +21,6 @@ import { detectAuthApiFailure } from './PostValidateDetect.js';
 export const LOGIN_POST_NO_LOGIN_STATE = 'LOGIN POST: no login state';
 export const LOGIN_POST_NO_BROWSER = 'LOGIN POST: no browser';
 
-/**
- * Sentinel failure message emitted when an opted-in bank observes no
- * authenticated accounts traffic within its loginAuthConfirmMs budget.
- *
- * <p>Exported as the single source of truth so the pipeline reducer can
- * match it precisely to suppress the login retry for this case alone
- * (see {@link ../../../Core/Executor/PipelineReducer.ts}).
- */
-export const LOGIN_POST_AUTH_CONFIRM_TIMEOUT = 'LOGIN.POST: no accounts traffic within auth budget';
-
 /** Bundled args for {@link runPostFormScanAndCallback}. */
 export interface IPostFormScanArgs {
   readonly mediator: IElementMediator;
@@ -82,33 +72,30 @@ export async function runPostLoadingGate(
 }
 
 /**
- * Enforce the auth-confirm gate when the bank opts in via loginAuthConfirmMs.
- * Returns a Timeout failure when opted-in but no authenticated accounts
- * traffic was observed within the budget; returns false otherwise (legacy
- * advisory path for banks with no loginAuthConfirmMs set).
+ * Observe post-login accounts traffic for the bank's advisory budget.
+ *
+ * <p>When the bank sets loginAuthConfirmMs the wait runs up to that budget
+ * so the PII-safe post-login traffic histogram (login.authconfirm.pool) is
+ * emitted for diagnostics. The observation is ADVISORY ONLY and never gates
+ * login completion — authentication is proven later at AUTH-DISCOVERY
+ * (page-state reveal + url-moved / token / authed-API), keeping LOGIN and
+ * AUTH cleanly separated per the phase-ownership rules.
  * @param args - Bundled mediator + config + context + page.
- * @returns Timeout failure when opted-in and traffic absent, else false.
  */
-async function enforceAuthConfirm(
-  args: IPostFormScanArgs,
-): Promise<Procedure<IPipelineContext> | false> {
+async function observeAuthConfirm(args: IPostFormScanArgs): Promise<void> {
   const { loginAuthConfirmMs: confirmMs } = args.input.config;
-  const wasAuth = await waitForPostLoginTraffic(args.mediator, args.input.logger, confirmMs);
-  if (confirmMs !== undefined && !wasAuth)
-    return fail(ScraperErrorTypes.Timeout, LOGIN_POST_AUTH_CONFIRM_TIMEOUT);
-  return false;
+  await waitForPostLoginTraffic(args.mediator, args.input.logger, confirmMs);
 }
 
 /**
- * Run the auth-confirm gate and the post-login callback in sequence.
+ * Observe the advisory auth-confirm budget then run the post-login callback.
  * @param args - Bundled mediator + config + context + page.
- * @returns Failure on auth-confirm miss or callback error, else false.
+ * @returns Failure on callback error, else false.
  */
 async function runPostLoginSequence(
   args: IPostFormScanArgs,
 ): Promise<Procedure<IPipelineContext> | false> {
-  const authFail = await enforceAuthConfirm(args);
-  if (authFail) return authFail;
+  await observeAuthConfirm(args);
   const cbResult = await runPostCallback(args.page, args.config, args.input);
   if (!cbResult.success) return cbResult;
   return false;

@@ -3,7 +3,6 @@
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { LOGIN_POST_AUTH_CONFIRM_TIMEOUT } from '../../Mediator/Login/PostValidate/PostValidateGates.js';
 import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
@@ -130,19 +129,15 @@ interface IFailureArgs {
 /**
  * Decide whether a failed phase must skip the sanitization-pulse retry.
  *
- * <p>Always skips the side-effecting NO_RETRY phases. Additionally skips
- * the login retry ONLY when login failed on the auth-confirm timeout
- * sentinel — re-submitting credentials cannot rescue a stalled auth and
- * just masks the real failure (Amex SPA stall). Every other login
- * failure (incl. WAF challenges) still retries.
+ * <p>Only the side-effecting NO_RETRY phases skip the retry — re-running
+ * them fires real-world side-effects (e.g. api-direct-call sends a fresh
+ * SMS OTP on every retry). Browser phases stay retryable so a transient
+ * WAF challenge can clear on the pulse.
  * @param step - The failed phase step.
- * @param result - The failed phase result.
  * @returns True when the phase must not be retried.
  */
-function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): boolean {
-  if (NO_RETRY_PHASES.has(step.name)) return true;
-  if (result.success || step.name !== 'login') return false;
-  return result.errorMessage === LOGIN_POST_AUTH_CONFIRM_TIMEOUT;
+function isNonRetryable(step: IPhaseStep): boolean {
+  return NO_RETRY_PHASES.has(step.name);
 }
 
 /**
@@ -152,7 +147,7 @@ function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): 
  */
 async function handlePhaseFailure(args: IFailureArgs): Promise<Procedure<IPipelineContext>> {
   const { tracker, ctx, step, result } = args;
-  if (isNonRetryable(step, result)) {
+  if (isNonRetryable(step)) {
     traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: false });
     return result;
   }

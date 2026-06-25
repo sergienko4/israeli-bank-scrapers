@@ -1,11 +1,12 @@
 /**
- * LOGIN.POST auth-confirm enforcement — coverage for enforceAuthConfirm
- * exercised through the exported {@link runPostFormScanAndCallback} seam.
+ * LOGIN.POST auth-confirm advisory observation — coverage for
+ * observeAuthConfirm exercised through the exported
+ * {@link runPostFormScanAndCallback} seam.
  *
  * <p>Test Case IDs:
- *   - AUTH-CONFIRM-001 (FIRING): opted-in bank, accounts traffic absent
- *     → TIMEOUT fail. This test MUST be RED on the pre-fix code (boolean
- *     discarded) and GREEN after the fix.
+ *   - AUTH-CONFIRM-001 (ADVISORY): opted-in bank, accounts traffic absent
+ *     → NO fail (advisory observation only). RED on the pre-demote gate
+ *     (returned a Timeout fail); GREEN after the demote to advisory.
  *   - AUTH-CONFIRM-002 (SLOW-AUTH SUCCESS): opted-in bank, traffic present
  *     → no fail (returns false).
  *   - AUTH-CONFIRM-003 (NON-OPTED BYTE-IDENTICAL): no loginAuthConfirmMs,
@@ -141,20 +142,15 @@ function makeArgs(mediator: IElementMediator, loginAuthConfirmMs?: number): IPos
   };
 }
 
-describe('LOGIN.POST auth-confirm gate — AUTH-CONFIRM-001..004', () => {
-  it('AUTH-CONFIRM-001 (FIRING): opted-in bank, no traffic → TIMEOUT fail', async () => {
-    // This case was RED on the pre-fix code (boolean discarded → no fail).
-    // After the fix, the boolean is enforced → Timeout failure.
+describe('LOGIN.POST auth-confirm advisory — AUTH-CONFIRM-001..004', () => {
+  it('AUTH-CONFIRM-001 (ADVISORY): opted-in bank, no traffic → no fail', async () => {
+    // Demoted gate: opted-in + absent traffic is ADVISORY ONLY. Login is
+    // never failed here — authentication is proven later at auth-discovery.
+    // RED on the pre-demote gate (returned a Timeout fail); GREEN after.
     const mediator = makeMediator({ trafficHit: false });
     const args = makeArgs(mediator, 45_000);
     const result = await runPostFormScanAndCallback(args);
-    expect(result).not.toBe(false);
-    if (result !== false) {
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.errorType).toBe(ScraperErrorTypes.Timeout);
-      }
-    }
+    expect(result).toBe(false);
   });
 
   it('AUTH-CONFIRM-002 (SLOW-AUTH SUCCESS): opted-in bank, traffic present → no fail', async () => {

@@ -126,14 +126,15 @@ export interface IPipelineBankConfig {
    */
   readonly authStrategyKind: AuthStrategyKind;
   /**
-   * When set, LOGIN.POST enforces a positive auth signal — the first
-   * authenticated accounts-API fetch — within this budget (ms) before
-   * declaring success. Absent ⇒ legacy advisory-only behaviour,
-   * byte-identical for unconfigured banks.
+   * Advisory observation budget (ms) for the post-login accounts-traffic
+   * histogram. When set, LOGIN.POST waits up to this budget so the PII-safe
+   * login.authconfirm.pool diagnostic is emitted; it NEVER gates login
+   * completion. Absent ⇒ the wait uses the default short budget.
    *
    * Set for AngularJS-SPA banks (Amex, Isracard) where the SSO redirect
-   * fires the accounts call inside the login boundary, so a missing hit
-   * within the budget proves the session was never authenticated.
+   * fires the accounts call inside the login boundary, so the histogram
+   * captures whether that hit landed. Authentication itself is proven later
+   * at AUTH-DISCOVERY, keeping LOGIN and AUTH cleanly separated.
    */
   readonly loginAuthConfirmMs?: number;
 }
