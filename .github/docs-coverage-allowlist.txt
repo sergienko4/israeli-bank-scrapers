@@ -1221,3 +1221,8 @@ probeLoginDns
 # Reason: LoginDnsProbe - the Amex/Isracard auth-host list the gated probe resolves.
 # Exported so the unit test asserts coverage without re-hardcoding the hosts. Not user-facing.
 AUTH_HOSTS
+# Reason: NetworkTimingConfig - body-read-race settle ceiling for awaitTraffic.
+# After a matched (headers-only) response, the gate re-polls the live capture pool
+# for up to this budget so the body-bearing endpoint settles. Framework-internal
+# timing knob; exported only so the NetworkPolling race test asserts it. Not user-facing.
+NETWORK_BODY_SETTLE_MS
