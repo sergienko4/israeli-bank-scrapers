@@ -34,7 +34,7 @@ const SESSION_COOKIE: AuthStrategyKind = 'session-cookie';
 /** API-native banks -- headless identity strategy, no browser AUTH-DISCOVERY. */
 const API_DIRECT: AuthStrategyKind = 'api-direct';
 
-/** Slow-AngularJS auth-confirm budget (Isracard). */
+/** Slow-AngularJS auth-confirm budget (Isracard, Amex). */
 const LOGIN_AUTH_CONFIRM_ANGULAR_MS = 45_000;
 
 /** Pipeline bank registry — migrated banks only. */
@@ -77,6 +77,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Amex]: {
     urls: { base: 'https://americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
+    loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
     authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Max]: {
