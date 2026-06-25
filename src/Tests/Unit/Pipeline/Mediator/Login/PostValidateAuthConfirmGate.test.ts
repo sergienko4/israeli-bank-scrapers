@@ -13,6 +13,9 @@
  *     traffic absent → no fail (legacy advisory, 12-bank regression guard).
  *   - AUTH-CONFIRM-004 (ANTI-MASKING): form errors present → InvalidPassword
  *     regardless of loginAuthConfirmMs (PR #282 anti-masking preserved).
+ *   - AUTH-CONFIRM-005 (ADVISORY OBSERVATION): opted-in bank still emits the
+ *     login.authconfirm.pool histogram through the demoted gate, proving the
+ *     advisory observation survives (RED if observeAuthConfirm is no-oped).
  */
 
 import type { Page } from 'playwright-core';
@@ -121,12 +124,38 @@ const STUB_LOGGER = {
 } as unknown as ScraperLogger;
 
 /**
+ * Build a logger that captures debug payloads into a sink, to assert the
+ * advisory pool histogram still emits through the demoted gate seam.
+ * @param sink - Array to receive each debug entry.
+ * @returns Capturing logger (no-op except debug).
+ */
+function makeCapturingLogger(sink: unknown[]): ScraperLogger {
+  return {
+    ...STUB_LOGGER,
+    /**
+     * Capture a debug entry.
+     * @param entry - Debug payload.
+     * @returns True.
+     */
+    debug: (entry: unknown): boolean => {
+      sink.push(entry);
+      return true;
+    },
+  };
+}
+
+/**
  * Build IPostFormScanArgs for runPostFormScanAndCallback.
  * @param mediator - Stub mediator.
  * @param loginAuthConfirmMs - Optional auth-confirm budget from bank config.
+ * @param logger - Logger to thread through the context; defaults to STUB_LOGGER.
  * @returns Minimal stub args.
  */
-function makeArgs(mediator: IElementMediator, loginAuthConfirmMs?: number): IPostFormScanArgs {
+function makeArgs(
+  mediator: IElementMediator,
+  loginAuthConfirmMs?: number,
+  logger: ScraperLogger = STUB_LOGGER,
+): IPostFormScanArgs {
   return {
     mediator,
     config: {} as ILoginConfig,
@@ -137,7 +166,7 @@ function makeArgs(mediator: IElementMediator, loginAuthConfirmMs?: number): IPos
         balanceKind: 'card-cycle',
         ...(loginAuthConfirmMs !== undefined && { loginAuthConfirmMs }),
       },
-      logger: STUB_LOGGER,
+      logger,
     } as unknown as IPipelineContext,
   };
 }
@@ -185,5 +214,22 @@ describe('LOGIN.POST auth-confirm advisory — AUTH-CONFIRM-001..004', () => {
         expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
       }
     }
+  });
+
+  it('AUTH-CONFIRM-005 (ADVISORY OBSERVATION): opted-in bank still emits pool histogram', async () => {
+    // The demoted gate never fails, but observeAuthConfirm must still perform
+    // the advisory observation so loginAuthConfirmMs keeps its diagnostics
+    // value: the login.authconfirm.pool histogram reaches logger.debug. RED if
+    // observeAuthConfirm is reduced to a no-op; GREEN while it observes.
+    const debugCalls: unknown[] = [];
+    const logger = makeCapturingLogger(debugCalls);
+    const mediator = makeMediator({ trafficHit: false });
+    const args = makeArgs(mediator, 45_000, logger);
+    const result = await runPostFormScanAndCallback(args);
+    expect(result).toBe(false);
+    const poolEvent = debugCalls.find(
+      (entry): boolean => (entry as { event?: string }).event === 'login.authconfirm.pool',
+    );
+    expect(poolEvent).toMatchObject({ event: 'login.authconfirm.pool', hasTraffic: false });
   });
 });
