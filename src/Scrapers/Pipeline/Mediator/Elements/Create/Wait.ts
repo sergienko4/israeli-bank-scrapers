@@ -2,7 +2,7 @@
  * Loading-indicator wait orchestration for IElementMediator — builds
  * the `waitForLoadingDone` method that callers invoke between page
  * actions to absorb spinner/skeleton transitions before the next
- * interaction. Uses the WK_DASHBOARD.LOADING candidate list as the
+ * interaction. Uses the WK_LOADING candidate list as the
  * "is loading visible" probe.
  *
  * Public surface (consumed by the parent mediator's cluster
@@ -20,7 +20,7 @@
 
 import type { Frame, Locator, Page } from 'playwright-core';
 
-import { WK_DASHBOARD } from '../../../Registry/WK/DashboardWK.js';
+import { WK_LOADING } from '../../../Registry/WK/SharedWK.js';
 import { getDebug } from '../../../Types/Debug.js';
 import { isOk, type Procedure, succeed } from '../../../Types/Procedure.js';
 import { ELEMENTS_LOADING_DELAY_MS } from '../ActionExecutors.js';
@@ -50,7 +50,7 @@ function probeLocatorVisible(locator: Locator): Promise<boolean> {
 
 /**
  * Check if any WellKnown loading indicator is currently visible.
- * Expands every WK_DASHBOARD.LOADING candidate through `buildCandidateLocators`
+ * Expands every WK_LOADING candidate through `buildCandidateLocators`
  * so BOTH `KIND_TEXT_CONTENT` AND `KIND_ARIA_LABEL` entries are honoured —
  * the previous direct `getByText(c.value)` skipped ARIA-labelled spinners
  * entirely, leaving the post-click drainer racing against a still-visible
@@ -59,7 +59,7 @@ function probeLocatorVisible(locator: Locator): Promise<boolean> {
  * @returns succeed(true) if any candidate visible, succeed(false) if clear.
  */
 async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boolean>> {
-  const locators = WK_DASHBOARD.LOADING.flatMap((c): Locator[] =>
+  const locators = WK_LOADING.flatMap((c): Locator[] =>
     buildCandidateLocators(frame, c, NO_FORM_ANCHOR),
   );
   const probes = locators.map(probeLocatorVisible);
