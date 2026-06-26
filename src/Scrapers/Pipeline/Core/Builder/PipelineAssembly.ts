@@ -54,18 +54,6 @@ function ifBrowser(state: IBuilderState): boolean {
 }
 
 /**
- * Predicate: HOME — browser path, unless the bank opted out via
- * `withoutHome()` (its base URL 302s straight to the login page, so
- * the homepage hop is skipped; e.g. Amex `web.americanexpress.co.il`).
- *
- * @param state - Builder state.
- * @returns True for browser-mode pipelines that keep HOME.
- */
-function ifHome(state: IBuilderState): boolean {
-  return state.hasBrowser && state.skipHome !== true;
-}
-
-/**
  * Predicate: PRE-LOGIN — opt-in flag plus browser path.
  *
  * @param state - Builder state.
@@ -247,7 +235,7 @@ function makeTerminate(): BasePhase {
  */
 const PHASE_CHAIN: readonly IPhaseSlot[] = [
   { factory: makeInit, enabled: ifBrowser },
-  { factory: makeHome, enabled: ifHome },
+  { factory: makeHome, enabled: ifBrowser },
   { factory: makePreLogin, enabled: ifBrowserAndPreLogin },
   { factory: makeLogin, enabled: ifLoginAlways },
   { factory: makeOtpTrigger, enabled: ifOtpFillAndTrigger },

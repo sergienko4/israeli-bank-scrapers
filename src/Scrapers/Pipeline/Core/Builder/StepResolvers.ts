@@ -72,7 +72,6 @@ const LOGIN_STEPS: Record<string, StepExecFn> = {
 /** Bundled builder state for assembly. */
 interface IBuilderState {
   readonly hasBrowser: boolean;
-  readonly skipHome?: boolean;
   readonly isHeadless: boolean;
   readonly hasPreLogin: boolean;
   readonly hasOtpFill: boolean;

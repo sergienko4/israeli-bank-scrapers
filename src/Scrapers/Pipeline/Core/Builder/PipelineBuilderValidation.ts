@@ -24,7 +24,6 @@ type ScrapeFn = (ctx: IActionContext) => Promise<Procedure<IPipelineContext>>;
 interface IBuilderFields {
   readonly options: ScraperOptions | false;
   readonly hasBrowser: boolean;
-  readonly skipHome?: boolean;
   readonly isHeadless: boolean;
   readonly loginMode: string;
   readonly error: string;
