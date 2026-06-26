@@ -101,16 +101,18 @@ defaults:
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
 #                           non-OTP browser-form banks
 #                           (Isracard, VisaCal, Discount, Max).
-#   e2e-real-group-a-amex — Amex follow-on under gate-A approval;
-#                           `needs: e2e-real-group-a` enforces
-#                           Rule #16 (Amex never co-runs with
-#                           Isracard).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
 #                           OTP browser-form banks
 #                           (Hapoalim, Beinleumi).
 #   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
 #                           api-direct banks
 #                           (OneZero, Pepper, PayBox).
+#   e2e-real-group-d      — Amex, ISOLATED under its OWN gate-D
+#                           approval (independent of gate-A so the
+#                           maintainer can approve an Amex-only run).
+#                           Rule #16 (Amex never co-runs with
+#                           Isracard) holds by releasing gate-D
+#                           alone — Group A stays unreleased.
 #   dependency-review     — PR-only, independent.
 #
 # Each gate runs ONCE per PR — no overlap between validate and the
@@ -121,9 +123,10 @@ defaults:
 # Gates are mutually INDEPENDENT — all three become approvable as
 # soon as `validate` + `dns-preflight` are green. The reviewer can
 # release any group without waiting for another to finish; in
-# practice that means Groups A, B and C can run in parallel once
-# each has been clicked. The only ordering constraint is Rule #16
-# inside Group A (Amex strictly after group-a's main matrix).
+# practice that means Groups A, B, C and D can run in parallel once
+# each has been clicked. Rule #16 (Amex never co-runs with Isracard)
+# is honored by releasing gate-D alone for an Amex-only run — Group A
+# and Group D are simply never approved together.
 # ──────────────────────────────────────────────────────────────
 
 jobs:
@@ -625,8 +628,6 @@ jobs:
   #   Group A, gate-A (parallel runners):
   #     non-OTP browser-form banks
   #     — Isracard, VisaCal, Discount, Max
-  #     + Amex follow-on (`needs: e2e-real-group-a`, Rule #16:
-  #       Amex never co-runs with Isracard).
   #   Group B, gate-B (parallel runners):
   #     OTP browser-form banks
   #     — Hapoalim, Beinleumi
@@ -635,20 +636,26 @@ jobs:
   #     api-direct banks (no browser)
   #     — OneZero, Pepper, PayBox
   #     (TELEGRAM_* secrets exposed for OTP delivery).
+  #   Group D, gate-D (single runner):
+  #     Amex, isolated under its own gate so it can be approved
+  #     independently. Rule #16 (Amex never co-runs with Isracard)
+  #     is honored by approving gate-D alone — Group A stays
+  #     unreleased for an Amex-only run.
   #
-  # Three approval clicks per PR — one per category. The 3-gate
+  # Four approval clicks per PR — one per category. The 4-gate
   # design lets each category be approved independently (e.g. skip
   # api-direct review when a PR only touches Isracard) and keeps
   # secrets scoped to the runners that need them. Updated 2026-05-26
   # to drop inter-group `needs:` so groups can also run concurrently
   # once each gate is released — the reviewer's click order does
-  # not impose a serial pipeline.
+  # not impose a serial pipeline. Group D (Amex) added 2026-06-26 to
+  # decouple Amex from gate-A so it can be approved on its own.
   #
   # Wall time (gates approved in parallel ⇒ longest group dominates):
   #   validate                         ≈ 10–12 min
   #   dns-preflight                    ≈ 1–2 min
-  #   max(Group A, Group B, Group C)   ≈ 9–11 min (Group A's
-  #                                      Isracard+Amex chain wins)
+  #   max(Group A, B, C, D)            ≈ 9–11 min (Amex's Group D
+  #                                      run dominates when released)
   #
   # Same-repo PRs and manual dispatch only — secrets are not exposed
   # to forks (mirrors the prior gating of the now-removed E2eFull
@@ -661,13 +668,13 @@ jobs:
   # job would spawn one approval per matrix cell — N clicks per
   # gate instead of 1.
   #
-  # The three gates reference DISTINCT environments
-  # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`).
-  # Sharing one environment across all three would let GitHub
-  # batch them into a single approval prompt — fine for an
+  # The four gates reference DISTINCT environments
+  # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`,
+  # `e2e-real-group-d`). Sharing one environment across them would
+  # let GitHub batch them into a single approval prompt — fine for an
   # "approve everything" workflow but defeats per-category review.
   # Required repo setup: Settings → Environments → create each of
-  # the three names above and attach reviewers; first runs against
+  # the four names above and attach reviewers; first runs against
   # missing environments auto-create them WITHOUT reviewers (the
   # workflow then passes through unapproved), so add reviewers
   # right after the first run if not pre-created.
@@ -726,7 +733,8 @@ jobs:
     # purpose of per-category review. Required setup: repo
     # Settings → Environments → create `e2e-real-group-a` with the
     # desired reviewers; same for `e2e-real-group-b` /
-    # `e2e-real-group-c`. Until the environments exist, GitHub
+    # `e2e-real-group-c` / `e2e-real-group-d`. Until the environments
+    # exist, GitHub
     # auto-creates them on first run WITHOUT reviewers (the workflow
     # passes through unapproved); flip-on protection by adding
     # reviewers to each environment afterwards.
@@ -743,10 +751,11 @@ jobs:
     needs: e2e-real-group-a-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    # Non-OTP browser-form banks. Amex runs separately
-    # (`e2e-real-group-a-amex` below) under the SAME gate-A approval
-    # but with `needs: e2e-real-group-a` so Rule #16 is enforced:
-    # Amex never co-runs with Isracard.
+    # Non-OTP browser-form banks. Amex is no longer here — it now runs
+    # in its OWN isolated Group D (`e2e-real-group-d` below) under a
+    # separate gate-D approval. Rule #16 (Amex never co-runs with
+    # Isracard) is honored by approving gate-D alone for an Amex-only
+    # run, leaving this Group A gate unreleased.
     timeout-minutes: 30
     # Serialize same-bank runs across the entire repo (all PRs, all
     # branches). cancel-in-progress: false → newer queued runs wait
@@ -852,20 +861,38 @@ jobs:
           sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
-  # Amex follow-on under gate-A approval. Rule #16: Amex never
-  # co-runs with Isracard, so we `needs: e2e-real-group-a` to make
-  # Amex run STRICTLY after the Group A matrix finishes. No
-  # additional approval click — gate-A's release applies.
+  # ──────────────────────────────────────────────────────────────
+  # Group D — Amex, ISOLATED under its own gate-D approval.
+  # Added 2026-06-26 to decouple Amex from gate-A so the maintainer
+  # can approve an Amex-only run. Rule #16 (Amex never co-runs with
+  # Isracard) is honored by releasing gate-D alone — Group A stays
+  # unreleased. Independent of gate-A/B/C (no inter-group `needs:`).
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-d-gate:
+    name: E2E Real D — approval gate
+    # Same HARD dependency on `dns-preflight` as the other gates: only
+    # approvable once all Israeli-bank hosts resolve through the
+    # runner's resolver chain, so we never burn the Amex run on a
+    # guaranteed-DNS failure. `real_gates_enabled` mirrors gate-A/B/C.
+    needs: [validate, dns-preflight]
+    if: needs.validate.outputs.real_gates_enabled == 'true'
+    runs-on: ubuntu-latest
+    # DISTINCT environment `e2e-real-group-d` → one approval click for
+    # Amex alone. Auto-creates WITHOUT reviewers on first run (passes
+    # through unapproved); add reviewers in Settings → Environments to
+    # enforce the gate thereafter.
+    environment: e2e-real-group-d
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group D approved; Amex job may proceed."
 
-  e2e-real-group-a-amex:
-    name: E2E Real A (${{ matrix.bank }})
-    needs: e2e-real-group-a
-    # Run Amex even when Group A (incl. Isracard) FAILS, so a red Group A
-    # still yields the Amex auth-egress forensic trace in the same run.
-    # `!cancelled()` lifts the implicit success() gate; `result != 'skipped'`
-    # keeps Rule #16 + gate-A intact — Amex only runs once Group A actually
-    # ran (after the maintainer released gate-A), never before/without it.
-    if: ${{ !cancelled() && needs.e2e-real-group-a.result != 'skipped' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) }}
+  e2e-real-group-d:
+    name: E2E Real D (${{ matrix.bank }})
+    needs: e2e-real-group-d-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
