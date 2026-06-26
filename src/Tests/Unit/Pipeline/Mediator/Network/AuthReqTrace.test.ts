@@ -19,12 +19,15 @@ type AnyListener = RequestListener | ResponseListener;
 interface IMakeRequestOpts {
   readonly errorText?: string;
   readonly resourceType?: string;
+  readonly frameUrl?: string;
 }
 
 interface ITraceLog {
   readonly event: string;
   readonly host: string;
   readonly method: string;
+  readonly path?: string;
+  readonly frameHost?: string;
   readonly errorText?: string;
 }
 
@@ -172,7 +175,7 @@ function makePage(): IMockPage {
  * @returns Mock request.
  */
 function makeRequest(url: string, method: string, opts: IMakeRequestOpts = {}): Request {
-  const { errorText = 'net::ERR_ABORTED', resourceType = 'other' } = opts;
+  const { errorText = 'net::ERR_ABORTED', resourceType = 'other', frameUrl = '' } = opts;
   /** Resolve the request URL.
    * @returns Request URL. */
   const urlFn = (): string => url;
@@ -185,11 +188,18 @@ function makeRequest(url: string, method: string, opts: IMakeRequestOpts = {}): 
   /** Resolve the request resource type.
    * @returns Resource type string. */
   const resourceTypeFn = (): string => resourceType;
+  /** Resolve the issuing-frame URL.
+   * @returns Frame URL string (empty when none supplied). */
+  const frameUrlFn = (): string => frameUrl;
+  /** Resolve the issuing frame.
+   * @returns Frame-like with a url() accessor. */
+  const frameFn = (): { url(): string } => ({ url: frameUrlFn });
   const request = {
     url: urlFn,
     method: methodFn,
     failure: failureFn,
     resourceType: resourceTypeFn,
+    frame: frameFn,
   };
   return request as unknown as Request;
 }
@@ -354,6 +364,32 @@ describe('AuthFailureWatcher request trace gate', () => {
     watcher.dispose();
   });
 
+  it('enriches a trace line with PII-safe path and issuing-frame host', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    // Amex real auth POST: the ?reqName=… query is stripped from the logged
+    // path, and the issuing Wix iframe host is captured — the fork-A signal.
+    const auth = makeRequest(
+      'https://he.americanexpress.co.il/services/ProxyRequestHandler.ashx?reqName=performLogonA',
+      'POST',
+      { frameUrl: 'https://web.americanexpress.co.il/login' },
+    );
+    mockPage.fireRequest(auth);
+
+    expect(logs[0]).toMatchObject({
+      event: 'login.req.seen',
+      host: 'he.americanexpress.co.il',
+      path: '/services/ProxyRequestHandler.ashx',
+      frameHost: 'web.americanexpress.co.il',
+      method: 'POST',
+    });
+
+    watcher.dispose();
+  });
+
   it('uses host "?" when the request URL cannot be parsed', () => {
     process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
     const mockPage = makePage();
@@ -361,14 +397,17 @@ describe('AuthFailureWatcher request trace gate', () => {
     const watcher = createAuthFailureWatcher(mockPage.handle, logger);
 
     // Relative URL (no scheme/host) satisfies the JSD path check but
-    // makes new URL() throw → safeHost catch branch returns '?'.
-    const jsd = makeRequest('/cdn-cgi/challenge-platform/test', 'GET');
+    // makes new URL() throw → safeHost/safePath catch branches return '?'.
+    // A non-absolute frameUrl drives the safeFrameHost catch branch too.
+    const jsd = makeRequest('/cdn-cgi/challenge-platform/test', 'GET', { frameUrl: 'also-bad' });
     mockPage.fireRequestFailed(jsd);
 
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatchObject({
       event: 'login.jsd.failed',
       host: '?',
+      path: '?',
+      frameHost: '?',
       method: 'GET',
     });
 

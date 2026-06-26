@@ -17,6 +17,9 @@ interface IAuthReqTraceContext {
   readonly startedAtMs: number;
 }
 
+/** PII-safe common trace payload shape. */
+type AuthReqTracePayload = Record<string, string | number>;
+
 /**
  * Resolve a URL host without logging the full URL.
  * @param request - Playwright request.
@@ -31,17 +34,52 @@ function safeHost(request: Request): string {
 }
 
 /**
+ * Resolve a request URL pathname WITHOUT query or fragment.
+ * The auth POST path is a fixed operation endpoint (e.g.
+ * `/services/ProxyRequestHandler.ashx`); account/card identifiers travel in
+ * the body or query, never the path, so the bare pathname is PII-safe. Lets
+ * the trace distinguish a first-party auth path from a `/recaptcha/api2/` or
+ * `/cdn-cgi/challenge-platform/` sub-request without logging full URLs.
+ * @param request - Playwright request.
+ * @returns Pathname or `?` when URL parsing fails.
+ */
+function safePath(request: Request): string {
+  try {
+    return new URL(request.url()).pathname;
+  } catch {
+    return '?';
+  }
+}
+
+/**
+ * Resolve the host of the frame that ISSUED the request.
+ * Discriminates a top-frame `he.*` request from a Wix-embedded `web.*` iframe
+ * request — the Amex CI fork-A signal — without logging full frame URLs.
+ * @param request - Playwright request.
+ * @returns Issuing-frame host, or `?` when the frame is unavailable.
+ */
+function safeFrameHost(request: Request): string {
+  try {
+    return new URL(request.frame().url()).host;
+  } catch {
+    return '?';
+  }
+}
+
+/**
  * Build the PII-safe common trace payload.
  * @param ctx - Shared trace context.
  * @param request - Playwright request.
- * @returns Host, method, and elapsed milliseconds.
+ * @returns Host, path, issuing-frame host, method, and elapsed milliseconds.
  */
-function buildPayload(
-  ctx: IAuthReqTraceContext,
-  request: Request,
-): Record<string, string | number> {
-  const ms = Date.now() - ctx.startedAtMs;
-  return { host: safeHost(request), method: request.method(), ms };
+function buildPayload(ctx: IAuthReqTraceContext, request: Request): AuthReqTracePayload {
+  return {
+    host: safeHost(request),
+    path: safePath(request),
+    frameHost: safeFrameHost(request),
+    method: request.method(),
+    ms: Date.now() - ctx.startedAtMs,
+  };
 }
 
 /**
