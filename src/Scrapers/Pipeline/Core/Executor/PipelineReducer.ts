@@ -6,6 +6,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { AUTH_DISCOVERY_NOT_READY_CODE } from '../../Types/Domain/AuthDiscoveryTypes.js';
+import { LOGIN_NOT_COMPLETED_CODE } from '../../Types/Domain/LoginTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { PhaseName } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -144,6 +145,7 @@ interface IFailureArgs {
 function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): boolean {
   if (NO_RETRY_PHASES.has(step.name)) return true;
   if (isOk(result)) return false;
+  if (step.name === 'login' && result.errorMessage.includes(LOGIN_NOT_COMPLETED_CODE)) return true;
   return (
     step.name === 'auth-discovery' && result.errorMessage.includes(AUTH_DISCOVERY_NOT_READY_CODE)
   );
