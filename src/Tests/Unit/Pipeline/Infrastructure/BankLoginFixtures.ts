@@ -86,10 +86,26 @@ const BASE_PHASES = [
   'terminate',
 ] as const;
 
-/** Base + `pre-login` (Amex / Isracard / Max / VisaCal). */
+/** Base + `pre-login` (Isracard / Max / VisaCal). */
 const PRE_LOGIN_PHASES = [
   'init',
   'home',
+  'pre-login',
+  'login',
+  'auth-discovery',
+  'account-resolve',
+  'dashboard',
+  'scrape',
+  'balance-resolve',
+  'terminate',
+] as const;
+
+/**
+ * Pre-login shape minus `home` (Amex). Its base URL 302s straight to
+ * the login SPA, so the pipeline opts out of HOME via `withoutHome()`.
+ */
+const PRE_LOGIN_NO_HOME_PHASES = [
+  'init',
   'pre-login',
   'login',
   'auth-discovery',
@@ -159,8 +175,8 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     loginConfig: AMEX_LOGIN,
     buildPipeline: buildAmexPipeline,
     expectedFieldKeys: ['id', 'password', 'card6Digits'],
-    expectedPhaseCount: PRE_LOGIN_PHASES.length,
-    expectedPhaseNames: PRE_LOGIN_PHASES,
+    expectedPhaseCount: PRE_LOGIN_NO_HOME_PHASES.length,
+    expectedPhaseNames: PRE_LOGIN_NO_HOME_PHASES,
   },
   {
     bank: 'isracard',

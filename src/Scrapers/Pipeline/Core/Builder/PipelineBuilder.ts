@@ -96,6 +96,16 @@ class PipelineBuilder {
   }
 
   /**
+   * Skip the HOME phase — the bank's base URL 302s straight to its
+   * login page, so the homepage click-through hop is unnecessary.
+   * @returns This builder.
+   */
+  public withoutHome(): this {
+    this._s.skipHome = true;
+    return this;
+  }
+
+  /**
    * Enable OTP trigger phase (clicks "Send SMS").
    * @returns This builder.
    */

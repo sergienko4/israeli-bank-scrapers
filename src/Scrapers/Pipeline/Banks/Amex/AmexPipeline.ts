@@ -27,11 +27,14 @@ export const AMEX_LOGIN: ILoginConfig = {
  * @returns Pipeline descriptor.
  */
 function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
+  // web.americanexpress.co.il 302s straight to the login SPA, so the HOME
+  // homepage-hop is dropped via withoutHome() and INIT navigates direct to login.
   return createPipelineBuilder()
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(AMEX_LOGIN)
     .withPreLogin()
+    .withoutHome()
     .build();
 }
 

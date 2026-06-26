@@ -23,6 +23,7 @@ type LoginMode = 'none' | 'declarative' | 'apiDirectConfig';
 interface IBuilderState {
   options: ScraperOptions | false;
   hasBrowser: boolean;
+  skipHome: boolean;
   isHeadless: boolean;
   loginMode: LoginMode;
   error: string;
@@ -40,6 +41,7 @@ interface IBuilderState {
 /** Default values for an empty builder state — split to keep the factory ≤ 15 LOC. */
 const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error'> = {
   hasBrowser: false,
+  skipHome: false,
   isHeadless: false,
   loginConfig: false,
   loginFn: false,
