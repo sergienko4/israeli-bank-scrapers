@@ -24,7 +24,9 @@ runs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        key: camoufox-bin-v135-stable
+        # Key bumped (-stable -> -stable-2) to force a clean reinstall and
+        # rule out a stale/corrupt cached binary as the Amex CI login cause.
+        key: camoufox-bin-v135-stable-2
     - name: Install Camoufox browser
       shell: bash
       env:
