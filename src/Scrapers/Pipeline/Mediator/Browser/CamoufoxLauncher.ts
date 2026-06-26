@@ -69,10 +69,24 @@ const CAMOUFOX_KNOBS = Object.freeze({
   block_webrtc: { envVar: 'CAMOUFOX_BLOCK_WEBRTC', default: true },
 } as const);
 
+/**
+ * Firefox `intl.accept_languages` pref that re-pins `navigator.language`
+ * to he-IL. Camoufox v150 (Firefox 150) regressed launch-arg `locale`
+ * propagation to the BrowsingContext (upstream daijro/camoufox PR #643,
+ * still open) so `navigator.language` fell back to the build default
+ * `en-US` even with `locale: he-IL`. Setting the canonical Firefox pref
+ * directly restores he-IL and keeps `AntiDetection.e2e-mocked.test.ts`
+ * green. Harmless on v135 (its launch-arg locale already yields he-IL).
+ */
+const ISRAEL_ACCEPT_LANGUAGES_PREF = Object.freeze({
+  'intl.accept_languages': `${ISRAEL_LOCALE}, en-US`,
+});
+
 /** Frozen non-overridable Camoufox launch settings shared by every run. */
 const CAMOUFOX_PINNED = Object.freeze({
   locale: ISRAEL_LOCALE,
   os: 'windows' as const,
+  firefox_user_prefs: ISRAEL_ACCEPT_LANGUAGES_PREF,
 });
 
 /**

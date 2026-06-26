@@ -118,6 +118,12 @@ describe('CamoufoxLauncher knobs canary', () => {
       expect(opts.os).toBe('windows');
     });
 
+    it('pins intl.accept_languages so navigator.language stays he-IL on v150', () => {
+      const opts = buildLaunchOptions(true);
+      const prefs = opts.firefox_user_prefs as Record<string, string>;
+      expect(prefs['intl.accept_languages']).toBe('he-IL, en-US');
+    });
+
     it('passes through the headless argument verbatim', () => {
       const headlessTrue = buildLaunchOptions(true);
       const headlessFalse = buildLaunchOptions(false);
@@ -175,12 +181,13 @@ describe('CamoufoxLauncher knobs canary', () => {
   });
 
   describe('shape of returned options bundle', () => {
-    it('returns a plain object with all 8 expected keys', () => {
+    it('returns a plain object with all 9 expected keys', () => {
       const opts = buildLaunchOptions(true);
       const keys = Object.keys(opts).sort();
       expect(keys).toEqual([
         'block_webrtc',
         'disable_coop',
+        'firefox_user_prefs',
         'headless',
         'humanize',
         'locale',
