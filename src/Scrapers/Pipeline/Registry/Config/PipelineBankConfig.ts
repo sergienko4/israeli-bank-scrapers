@@ -79,7 +79,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     authStrategyKind: TOKEN,
   },
   [CompanyTypes.Amex]: {
-    urls: { base: 'https://americanexpress.co.il' },
+    urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
     loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
     loginCompletionPoll: {
