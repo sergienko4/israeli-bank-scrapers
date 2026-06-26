@@ -25,6 +25,8 @@ export interface ICompletionPollOptions {
   readonly maxAttempts: number;
   /** Injected delay between attempts (real timer in prod, fake in tests). */
   readonly sleep: (ms: number) => Promise<void>;
+  /** Optional per-attempt hook — invoked with each capture (telemetry; never gates). */
+  readonly onAttempt?: (attempt: number, signals: ICompletionSignals) => true;
 }
 
 /** The poll result — settled flag, attempt count, waited ms, last signals. */
@@ -84,6 +86,7 @@ function buildOutcome(
  */
 async function pollTick(deps: IPollDeps, state: IPollState): Promise<ICompletionPollOutcome> {
   const last = await captureCompletionSignals(deps.ports);
+  if (deps.opts.onAttempt !== undefined) deps.opts.onAttempt(state.attempt, last);
   if (isSettled(last)) return buildOutcome(true, state, last);
   if (state.attempt >= deps.opts.maxAttempts) return buildOutcome(false, state, last);
   await deps.opts.sleep(deps.opts.intervalMs);

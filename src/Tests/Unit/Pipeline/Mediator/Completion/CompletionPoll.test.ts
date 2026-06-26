@@ -15,7 +15,10 @@ import {
   type ICompletionPollOptions,
   pollCompletion,
 } from '../../../../../Scrapers/Pipeline/Mediator/Completion/CompletionPoll.js';
-import type { ICompletionPorts } from '../../../../../Scrapers/Pipeline/Mediator/Completion/CompletionTypes.js';
+import type {
+  ICompletionPorts,
+  ICompletionSignals,
+} from '../../../../../Scrapers/Pipeline/Mediator/Completion/CompletionTypes.js';
 import {
   LOGIN_COMPLETION_POLL_INTERVAL_MS,
   LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
@@ -188,5 +191,65 @@ describe('pollCompletion — FORM-FIRST settle timing', () => {
     const res = await runPoll(STUCK_CLEAR_AT, LOGIN_COMPLETION_POLL_MAX_ATTEMPTS, { error: true });
     expectImmediateSettle(res);
     expect(res.outcome.last.hasError).toBe(true);
+  });
+});
+
+describe('pollCompletion — onAttempt hook', () => {
+  it('form clears at attempt 3: onAttempt fires [1,2,3] with formPresent [true,true,false]', async () => {
+    const calls: { attempt: number; formPresent: boolean }[] = [];
+    const { ports } = makeScriptedPorts(3);
+    /**
+     * Record each captured attempt for signal-sequence assertion.
+     * @param attempt - Poll attempt index.
+     * @param signals - Captured completion signals.
+     * @returns True after recording.
+     */
+    const recordAttempt = (attempt: number, signals: ICompletionSignals): true => {
+      calls.push({ attempt, formPresent: signals.formPresent });
+      return true;
+    };
+    /**
+     * No real delay — deterministic test; poll interval is irrelevant here.
+     * @returns Immediately resolved promise.
+     */
+    const noopSleep = (): Promise<void> => Promise.resolve();
+    const opts: ICompletionPollOptions = {
+      intervalMs: LOGIN_COMPLETION_POLL_INTERVAL_MS,
+      maxAttempts: LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
+      sleep: noopSleep,
+      onAttempt: recordAttempt,
+    };
+    await pollCompletion(ports, opts);
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toEqual({ attempt: 1, formPresent: true });
+    expect(calls[1]).toEqual({ attempt: 2, formPresent: true });
+    expect(calls[2]).toEqual({ attempt: 3, formPresent: false });
+  });
+
+  it('single-shot budget: onAttempt fires exactly once', async () => {
+    const calls: number[] = [];
+    const { ports } = makeScriptedPorts(STUCK_CLEAR_AT);
+    /**
+     * Record the attempt index for count assertion.
+     * @param attempt - Poll attempt index.
+     * @returns True after recording.
+     */
+    const recordIndex = (attempt: number): true => {
+      calls.push(attempt);
+      return true;
+    };
+    /**
+     * No real delay — deterministic test.
+     * @returns Immediately resolved promise.
+     */
+    const noopSleep = (): Promise<void> => Promise.resolve();
+    const opts: ICompletionPollOptions = {
+      intervalMs: 0,
+      maxAttempts: 1,
+      sleep: noopSleep,
+      onAttempt: recordIndex,
+    };
+    await pollCompletion(ports, opts);
+    expect(calls).toEqual([1]);
   });
 });

@@ -1,23 +1,33 @@
 /**
- * Unit coverage for {@link observeLoginCompletion} — the ADVISORY
- * login-completion observer wired into LOGIN.final. Proves it composes the
- * four LOGIN-LOCAL signals (spinner / error / advanced / form) into one
- * snapshot, PII-safe-logs it, and is error-isolated (any throw → neutral
- * snapshot), driving real collaborators through typed fakes (no module
- * mocking). The config-driven poll defaults to single-shot (one capture),
- * so the advisory snapshot stays byte-identical to a lone capture.
+ * Unit coverage for {@link enforceLoginCompletion} — the NEUTRAL-by-default
+ * login-completion enforcer wired into LOGIN.final. Proves it composes the
+ * four LOGIN-LOCAL signals (spinner / error / advanced / form) through a
+ * config-driven settle poll, PII-safe-logs the snapshot, and returns a
+ * Procedure verdict: a bank that did NOT opt into a settle budget ALWAYS
+ * succeeds (byte-identical to today, even with a stuck form on screen),
+ * while an opted-in bank fails non-retryably when the budget is exhausted
+ * with the form still present. Error-isolated: any probe throw → neutral
+ * success. Drives real collaborators through typed fakes (no module mocking).
  */
 
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import { observeLoginCompletion } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginCompletionObserver.js';
+import { enforceLoginCompletion } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginCompletionObserver.js';
+import { LOGIN_NOT_COMPLETED_CODE } from '../../../../../Scrapers/Pipeline/Types/Domain/LoginTypes.js';
 import {
   type IPipelineContext,
   LOGIN_FIELDS,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { createMockPage, makeLocatorMock } from '../../../../MockPage.js';
+
+/** A config-driven settle budget the bank may opt into. */
+interface IPollBudget {
+  readonly intervalMs: number;
+  readonly maxAttempts: number;
+}
 
 /** Tunable inputs for one fake LOGIN.final pipeline context. */
 interface IFakeCtxArgs {
@@ -30,6 +40,7 @@ interface IFakeCtxArgs {
   readonly hasErrors?: boolean;
   readonly shouldThrowOnUrl?: boolean;
   readonly formPresent?: boolean;
+  readonly pollBudget?: IPollBudget;
 }
 
 /** The captured `logger.debug` spy plus the assembled context. */
@@ -39,7 +50,7 @@ interface IFakeCtx {
 }
 
 /**
- * Build a fake element mediator exposing only the three probes the observer
+ * Build a fake element mediator exposing only the three probes the enforcer
  * touches: frame error discovery, the current URL, and the password-target
  * count (used by the form-present signal).
  * @param args - Error + URL + form-present behaviour for the fake.
@@ -74,8 +85,9 @@ function makeFrame(spinner: boolean): Page {
 }
 
 /**
- * Assemble a minimal LOGIN.final pipeline context plus a debug spy.
- * @param args - Tunable presence + probe behaviour.
+ * Assemble a minimal LOGIN.final pipeline context plus a debug spy. The
+ * bank opts into enforcement only when {@link IFakeCtxArgs.pollBudget} is set.
+ * @param args - Tunable presence + probe behaviour + optional poll budget.
  * @returns The fake context and its captured `logger.debug` spy.
  */
 function makeCtx(args: IFakeCtxArgs = {}): IFakeCtx {
@@ -84,7 +96,7 @@ function makeCtx(args: IFakeCtxArgs = {}): IFakeCtx {
   const ctx = {
     logger: { debug },
     diagnostics: { loginUrl: args.loginUrl ?? '' },
-    config: {},
+    config: args.pollBudget ? { loginCompletionPoll: args.pollBudget } : {},
     loginFieldDiscovery:
       args.formPresent === true
         ? { has: true, value: { targets: new Map([[LOGIN_FIELDS.PASSWORD, { selector: 'pwd' }]]) } }
@@ -97,76 +109,114 @@ function makeCtx(args: IFakeCtxArgs = {}): IFakeCtx {
   return { ctx, debug };
 }
 
-describe('observeLoginCompletion', () => {
-  it('login state absent → neutral snapshot, no advisory log', async () => {
+describe('enforceLoginCompletion', () => {
+  it('not opted + login state absent → succeed, no completion log', async () => {
     const { ctx, debug } = makeCtx({ loginHas: false });
-    const snap = await observeLoginCompletion(ctx);
-    expect(snap).toEqual({
-      spinnerVisible: false,
-      hasError: false,
-      advanced: false,
-      formPresent: false,
-    });
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (isSuccess) expect(result.value).toBe(ctx);
     expect(debug).not.toHaveBeenCalled();
   });
 
-  it('mediator absent → neutral snapshot is still logged as login.completion', async () => {
+  it('not opted + mediator absent → succeed, neutral snapshot logged', async () => {
     const { ctx, debug } = makeCtx({ mediatorHas: false });
-    const snap = await observeLoginCompletion(ctx);
-    expect(snap).toEqual({
-      spinnerVisible: false,
-      hasError: false,
-      advanced: false,
-      formPresent: false,
-    });
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
     expect(debug).toHaveBeenCalledWith({
       phase: 'login',
       message: 'login.completion',
-      spinnerVisible: false,
+      settled: true,
+      attempts: 1,
+      waitedMs: 0,
       hasError: false,
       advanced: false,
       formPresent: false,
     });
   });
 
-  it('clean page → all signals false, logged as login.completion', async () => {
+  it('not opted + clean page → succeed, logged once per attempt + final', async () => {
     const { ctx, debug } = makeCtx({ loginUrl: '' });
-    const snap = await observeLoginCompletion(ctx);
-    expect(snap).toEqual({
-      spinnerVisible: false,
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    expect(debug).toHaveBeenCalledTimes(2);
+  });
+
+  it('not opted + stuck form present → STILL succeed (neutrality)', async () => {
+    const { ctx, debug } = makeCtx({ formPresent: true });
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (isSuccess) expect(result.value).toBe(ctx);
+    expect(debug).toHaveBeenCalledWith({
+      phase: 'login',
+      message: 'login.completion',
+      settled: false,
+      attempts: 1,
+      waitedMs: 0,
       hasError: false,
       advanced: false,
-      formPresent: false,
-    });
-    expect(debug).toHaveBeenCalledTimes(1);
-  });
-
-  it('spinning + error + url moved + form present → all signals true', async () => {
-    const { ctx } = makeCtx({
-      frame: makeFrame(true),
-      hasErrors: true,
-      loginUrl: 'https://bank.test/login',
-      currentUrl: 'https://bank.test/dashboard',
-      formPresent: true,
-    });
-    const snap = await observeLoginCompletion(ctx);
-    expect(snap).toEqual({
-      spinnerVisible: true,
-      hasError: true,
-      advanced: true,
       formPresent: true,
     });
   });
 
-  it('a probe throwing → neutral snapshot, logged as login.completion.error', async () => {
+  it('opted in + stuck form present → fail with not-completed code', async () => {
+    const { ctx } = makeCtx({ formPresent: true, pollBudget: { intervalMs: 0, maxAttempts: 3 } });
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
+    if (!isSuccess) expect(result.errorMessage).toContain(LOGIN_NOT_COMPLETED_CODE);
+  });
+
+  it('opted in + stuck form, 3 attempts: logs 3 attempt lines + final line', async () => {
+    const { ctx, debug } = makeCtx({
+      formPresent: true,
+      pollBudget: { intervalMs: 0, maxAttempts: 3 },
+    });
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
+    if (!isSuccess) expect(result.errorMessage).toContain(LOGIN_NOT_COMPLETED_CODE);
+    expect(debug).toHaveBeenCalledTimes(4);
+    for (let a = 1; a <= 3; a++) {
+      expect(debug).toHaveBeenCalledWith({
+        phase: 'login',
+        message: 'login.completion.attempt',
+        attempt: a,
+        of: 3,
+        formPresent: true,
+        advanced: false,
+        hasError: false,
+      });
+    }
+    expect(debug).toHaveBeenCalledWith({
+      phase: 'login',
+      message: 'login.completion',
+      settled: false,
+      attempts: 3,
+      waitedMs: 0,
+      formPresent: true,
+      advanced: false,
+      hasError: false,
+    });
+  });
+
+  it('opted in + form gone → succeed (settles on attempt one)', async () => {
+    const { ctx } = makeCtx({ pollBudget: { intervalMs: 0, maxAttempts: 3 } });
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (isSuccess) expect(result.value).toBe(ctx);
+  });
+
+  it('a probe throwing → neutral succeed, logged as completion.error', async () => {
     const { ctx, debug } = makeCtx({ loginUrl: 'https://bank.test/login', shouldThrowOnUrl: true });
-    const snap = await observeLoginCompletion(ctx);
-    expect(snap).toEqual({
-      spinnerVisible: false,
-      hasError: false,
-      advanced: false,
-      formPresent: false,
-    });
+    const result = await enforceLoginCompletion(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (isSuccess) expect(result.value).toBe(ctx);
     expect(debug).toHaveBeenCalledWith({
       phase: 'login',
       message: 'login.completion.error',
