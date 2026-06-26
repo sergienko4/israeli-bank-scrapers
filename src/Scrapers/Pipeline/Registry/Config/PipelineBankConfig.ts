@@ -6,6 +6,10 @@
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
+import {
+  LOGIN_COMPLETION_POLL_INTERVAL_MS,
+  LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
+} from '../../Mediator/Timing/LoginTimingConfig.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
   AuthStrategyKind,
@@ -78,6 +82,10 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     urls: { base: 'https://americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
     loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
+    loginCompletionPoll: {
+      intervalMs: LOGIN_COMPLETION_POLL_INTERVAL_MS,
+      maxAttempts: LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
+    },
     authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Max]: {
