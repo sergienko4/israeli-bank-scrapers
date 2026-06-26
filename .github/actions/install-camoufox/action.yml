@@ -9,24 +9,21 @@ inputs:
 runs:
   using: composite
   steps:
-    # Camoufox is pinned to the v135 stable line (matches the
-    # Playwright 1.59.x bytes pinned in package.json — see the
-    # fallback path recorded in commit 6305e576's body). Tried
-    # v150.0.2-beta.25 alongside Playwright 1.60.0; v150's locale
-    # handling regressed `navigator.language` (returned `en-US` even
-    # when the context option declared `he-IL`, breaking
-    # `AntiDetection.e2e-mocked.test.ts`). Reverted to dynamic-latest
-    # fetch via camoufox-js (which resolves to v135.0.1-beta.24 with
-    # the current `@hieutran094/camoufox-js: ^0.6.8` package), and
-    # Playwright is held at ~1.59.1 in package.json so the cached
-    # binary + client stay on the last green combination.
+    # Camoufox is pinned to the v135 stable line (v135.0.1-beta.24),
+    # matching @hieutran094/camoufox-js 0.6.8 and playwright-core
+    # ~1.59.1 in package.json (Firefox 135 juggler protocol). Both the
+    # primary camoufox-js fetch AND the gh-release fallback below
+    # resolve to v135, so CI stays deterministic on a cache miss or a
+    # rate-limited primary fetch. Do NOT let the fallback track LATEST:
+    # v150.0.2's locale handling regressed `navigator.language`
+    # (returned `en-US` even when the context declared `he-IL`),
+    # breaking `AntiDetection.e2e-mocked.test.ts`.
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        # Key bumped (-stable -> -stable-2) to force a clean reinstall and
-        # rule out a stale/corrupt cached binary as the Amex CI login cause.
-        key: camoufox-bin-v135-stable-2
+        # Cache the deterministic v135 binary across jobs/runs.
+        key: camoufox-bin-v135-stable
     - name: Install Camoufox browser
       shell: bash
       env:
@@ -42,12 +39,14 @@ runs:
           else
             echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
             ASSET_DIR=$(mktemp -d)
-            # Resolve latest daijro/camoufox release tag dynamically — no
-            # static version pinned in CI; matches what camoufox-js itself
-            # picks at fetch time.
-            LATEST_TAG=$(gh release view --repo daijro/camoufox --json tagName -q .tagName)
-            echo "Falling back to daijro/camoufox release: ${LATEST_TAG}"
-            gh release download "${LATEST_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+            # Pin the fallback to the SAME stable v135 tag camoufox-js
+            # 0.6.8 resolves to. LATEST is currently v150.0.2-beta.25,
+            # whose locale regression (navigator.language he-IL ->
+            # en-US) breaks AntiDetection.e2e-mocked.test.ts — never
+            # track it here.
+            PINNED_TAG=v135.0.1-beta.24
+            echo "Falling back to daijro/camoufox release: ${PINNED_TAG}"
+            gh release download "${PINNED_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
             mkdir -p ~/.cache/camoufox
             unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
             rm -rf "$ASSET_DIR"
