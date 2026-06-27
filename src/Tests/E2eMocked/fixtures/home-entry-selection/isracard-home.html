@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>ישראכרט — דף הבית</title>
+    <style>
+      .entry {
+        display: block;
+        width: 320px;
+        padding: 18px;
+        margin: 24px;
+        font-size: 18px;
+        text-align: center;
+        border: 1px solid #999;
+        background: #fff;
+        color: #003;
+        text-decoration: none;
+      }
+      .hidden-menu {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ישראכרט</h1>
+      <!--
+        Entry point #1 — same Wix component + same visible label as Amex,
+        but Isracard renders it as a genuine <a href> (its Wix JS binds),
+        so the resolver classifies it DIRECT and clicking it navigates to
+        the login page. Identical WK rank (idx 1) as Amex's broken button —
+        the ONLY difference is button-vs-anchor, which is the whole bug.
+      -->
+      <a
+        class="entry"
+        aria-label="כניסה לחשבון שלי"
+        href="https://digital.isracard.co.il/personalarea/login/"
+        ><span data-testid="stylablebutton-label">כניסה לחשבון שלי</span></a
+      >
+
+      <!-- Entry point #2 — the secondary real login anchor (idx 6/7). -->
+      <a
+        class="entry"
+        aria-label="החשבון שלי"
+        href="https://digital.isracard.co.il/personalarea/login/"
+        >החשבון שלי</a
+      >
+
+      <!-- Entry point #3 — navigation menu (reserved for the PR-2 menu tier). -->
+      <nav>
+        <button type="button" class="entry">מידע ופעולות</button>
+        <div class="hidden-menu">
+          <span data-testid="submenu-sub-item-label">כניסה לאיזור האישי</span>
+        </div>
+      </nav>
+    </header>
+    <main>
+      <p>ברוכים הבאים לאתר ישראכרט.</p>
+    </main>
+  </body>
+</html>
