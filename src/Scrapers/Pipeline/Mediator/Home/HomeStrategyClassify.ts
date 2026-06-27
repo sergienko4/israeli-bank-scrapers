@@ -23,8 +23,8 @@ const NAV_STRATEGY = {
 /** Navigation strategy for HOME.ACTION. */
 type NavStrategy = (typeof NAV_STRATEGY)[keyof typeof NAV_STRATEGY];
 
-/** Non-navigation href patterns — modal triggers, SPA anchors. */
-const FAKE_HREF_PATTERNS = new Set(['#', 'javascript:void(0)', 'javascript:;', '']);
+/** Non-navigation href values — javascript: pseudo-protocols. */
+const FAKE_HREF_PATTERNS = new Set(['javascript:void(0)', 'javascript:;']);
 
 /** HTML attributes that indicate a modal trigger element. */
 const MODAL_ATTRIBUTES = ['data-toggle', 'data-bs-toggle'];
@@ -39,8 +39,8 @@ async function detectRealHref(mediator: IElementMediator, result: IRaceResult): 
   const attrResult = await mediator.checkAttribute(result, 'href');
   if (!isOk(attrResult)) return false;
   if (!attrResult.value) return false;
-  const rawHref = await mediator.getAttributeValue(result, 'href');
-  const isFake = FAKE_HREF_PATTERNS.has(rawHref);
+  const rawHref = (await mediator.getAttributeValue(result, 'href')).trim().toLowerCase();
+  const isFake = rawHref === '' || rawHref.startsWith('#') || FAKE_HREF_PATTERNS.has(rawHref);
   return !isFake;
 }
 

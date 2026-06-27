@@ -145,6 +145,34 @@ describe('resolveHomeStrategy', () => {
     if (result.success) expect(result.value.strategy).toBe(NAV_STRATEGY.DIRECT);
   });
 
+  it('does not classify a fragment-only href as DIRECT', async () => {
+    const visible: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const, value: 'Login' };
+    const mediator = makeMediator({
+      visibleResult: visible,
+      attrsByName: { href: true, 'data-toggle': false, 'data-bs-toggle': false },
+      hrefValue: '#loginModal',
+    });
+    const fragmentPage = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, fragmentPage);
+    const isFragmentOk = isOk(result);
+    expect(isFragmentOk).toBe(true);
+    if (result.success) expect(result.value.strategy).toBe(NAV_STRATEGY.SEQUENTIAL);
+  });
+
+  it('classifies a fragment-only href with data-toggle as MODAL', async () => {
+    const visible: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const, value: 'Login' };
+    const mediator = makeMediator({
+      visibleResult: visible,
+      attrsByName: { href: true, 'data-toggle': true },
+      hrefValue: '#section',
+    });
+    const fragmentModalPage = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, fragmentModalPage);
+    const isFragmentModalOk = isOk(result);
+    expect(isFragmentModalOk).toBe(true);
+    if (result.success) expect(result.value.strategy).toBe(NAV_STRATEGY.MODAL);
+  });
+
   it('classifies MODAL when href is fake and data-toggle present', async () => {
     const visible: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const, value: 'Login' };
     const mediator = makeMediator({
