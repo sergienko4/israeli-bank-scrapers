@@ -16,6 +16,9 @@
  *   - AUTH-CONFIRM-005 (ADVISORY OBSERVATION): opted-in bank still emits the
  *     login.authconfirm.pool histogram through the demoted gate, proving the
  *     advisory observation survives (RED if observeAuthConfirm is no-oped).
+ *   - AUTH-CONFIRM-006 (NON-OPTED SKIP): no loginAuthConfirmMs → observeAuthConfirm
+ *     returns early, so the login.authconfirm.pool histogram is NOT emitted
+ *     (RED before the early return, GREEN after).
  */
 
 import type { Page } from 'playwright-core';
@@ -231,5 +234,22 @@ describe('LOGIN.POST auth-confirm advisory — AUTH-CONFIRM-001..004', () => {
       (entry): boolean => (entry as { event?: string }).event === 'login.authconfirm.pool',
     );
     expect(poolEvent).toMatchObject({ event: 'login.authconfirm.pool', hasTraffic: false });
+  });
+
+  it('AUTH-CONFIRM-006 (NON-OPTED SKIP): no budget → pool histogram not emitted', async () => {
+    // R3-02: without loginAuthConfirmMs observeAuthConfirm returns early, so a
+    // non-opted bank never runs the post-login traffic wait and never emits the
+    // login.authconfirm.pool histogram. RED before the early return (the wait
+    // ran on the default budget and emitted the histogram); GREEN after.
+    const debugCalls: unknown[] = [];
+    const logger = makeCapturingLogger(debugCalls);
+    const mediator = makeMediator({ trafficHit: false });
+    const args = makeArgs(mediator, undefined, logger);
+    const result = await runPostFormScanAndCallback(args);
+    expect(result).toBe(false);
+    const poolEvent = debugCalls.find(
+      (entry): boolean => (entry as { event?: string }).event === 'login.authconfirm.pool',
+    );
+    expect(poolEvent).toBeUndefined();
   });
 });
