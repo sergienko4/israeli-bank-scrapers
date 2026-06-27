@@ -92,9 +92,12 @@ function clearKnobEnvVars(): true {
 
 describe('CamoufoxLauncher knobs canary', () => {
   const initialEnv = snapshotEnv();
+  const initialOsEnv = process.env.CAMOUFOX_OS;
 
   afterEach(() => {
     restoreEnv(initialEnv);
+    if (initialOsEnv === undefined) Reflect.deleteProperty(process.env, 'CAMOUFOX_OS');
+    else process.env.CAMOUFOX_OS = initialOsEnv;
   });
 
   describe('default knob values', () => {
@@ -113,9 +116,30 @@ describe('CamoufoxLauncher knobs canary', () => {
       expect(opts.locale).toBe('he-IL');
     });
 
-    it('forces os to windows', () => {
+    it('defaults os to windows when CAMOUFOX_OS is unset', () => {
+      Reflect.deleteProperty(process.env, 'CAMOUFOX_OS');
       const opts = buildLaunchOptions(true);
       expect(opts.os).toBe('windows');
+    });
+
+    it('CAMOUFOX_OS=linux flips the fingerprint to linux', () => {
+      process.env.CAMOUFOX_OS = 'linux';
+      expect(buildLaunchOptions(true).os).toBe('linux');
+    });
+
+    it('CAMOUFOX_OS=macos flips the fingerprint to macos', () => {
+      process.env.CAMOUFOX_OS = 'macos';
+      expect(buildLaunchOptions(true).os).toBe('macos');
+    });
+
+    it('CAMOUFOX_OS is case-insensitive (LINUX maps to linux)', () => {
+      process.env.CAMOUFOX_OS = 'LINUX';
+      expect(buildLaunchOptions(true).os).toBe('linux');
+    });
+
+    it('falls back to windows on an unrecognised CAMOUFOX_OS', () => {
+      process.env.CAMOUFOX_OS = 'plan9';
+      expect(buildLaunchOptions(true).os).toBe('windows');
     });
 
     it('passes through the headless argument verbatim', () => {
