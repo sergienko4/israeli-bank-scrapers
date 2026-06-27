@@ -15,6 +15,7 @@
  */
 
 import type { Page, Response } from 'playwright-core';
+import { errors } from 'playwright-core';
 
 import { createPromise } from '../../Timing/TimingActions.js';
 import {
@@ -143,6 +144,18 @@ function matchUrlPredicate(patterns: readonly RegExp[], response: Response): boo
 }
 
 /**
+ * Convert a Playwright timeout into a false signal, but rethrow any
+ * other terminal failure (page/context closure, connection loss) so
+ * callers see genuine errors instead of a silent no-match.
+ * @param error - Rejection from `page.waitForResponse`.
+ * @returns False only when the rejection is a timeout.
+ */
+function swallowTimeout(error: unknown): false {
+  if (error instanceof errors.TimeoutError) return false;
+  throw error;
+}
+
+/**
  * Resolve true when a response URL matches within the budget, false
  * on timeout. The matched Response is intentionally discarded — its
  * body lands via the capture listener and is polled by
@@ -160,7 +173,7 @@ function waitForMatch(
   return page
     .waitForResponse(matchUrl, { timeout: timeoutMs })
     .then((): true => true)
-    .catch((): false => false);
+    .catch(swallowTimeout);
 }
 
 /**

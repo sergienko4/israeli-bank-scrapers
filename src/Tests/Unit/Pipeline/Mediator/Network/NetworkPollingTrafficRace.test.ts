@@ -8,9 +8,12 @@
  * the login-retry root-cause fix: a 2-3 ms false-fail forced a credential
  * re-submit). The TIMEOUT path must NOT add any settle wait so a bank
  * whose accounts API never arrives (Amex) still fails fast and honestly.
+ *   Non-timeout terminal failures (page/context closure) must propagate
+ *   rather than be swallowed as a silent no-match.
  */
 
 import type { Page, Response } from 'playwright-core';
+import { errors } from 'playwright-core';
 
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import { awaitTraffic } from '../../../../../Scrapers/Pipeline/Mediator/Network/Polling/NetworkPolling.js';
@@ -62,16 +65,32 @@ function makeMatchPage(captured: IDiscoveredEndpoint[], bodyHit: IDiscoveredEndp
 }
 
 /**
- * Fake page whose `waitForResponse` rejects immediately — mirrors the
- * Playwright timeout when no matching response ever arrives.
+ * Fake page whose `waitForResponse` rejects with a Playwright timeout —
+ * mirrors no matching response arriving within the budget.
  * @returns Fake Playwright page.
  */
 function makeTimeoutPage(): Page {
   /**
-   * Reject immediately (no match within budget).
+   * Reject with a TimeoutError (no match within budget).
    * @returns Rejected promise.
    */
-  const waitForResponse = (): Promise<Response> => Promise.reject(new Error('timeout'));
+  const waitForResponse = (): Promise<Response> =>
+    Promise.reject(new errors.TimeoutError('Timeout 20000ms exceeded'));
+  return { waitForResponse } as unknown as Page;
+}
+
+/**
+ * Fake page whose `waitForResponse` rejects with a terminal non-timeout
+ * failure — mirrors the page/context being closed mid-wait.
+ * @returns Fake Playwright page.
+ */
+function makeClosedPage(): Page {
+  /**
+   * Reject with a closure error (not a timeout).
+   * @returns Rejected promise.
+   */
+  const waitForResponse = (): Promise<Response> =>
+    Promise.reject(new Error('Target page, context or browser has been closed'));
   return { waitForResponse } as unknown as Page;
 }
 
@@ -113,6 +132,13 @@ describe('awaitTraffic header-vs-body read race', () => {
     const result = await awaitTraffic({ page, captured, patterns: [GET_CARD_LIST] }, 20_000);
     expect(result).toBe(false);
     expect(Date.now() - start).toBeLessThan(200);
+  });
+
+  it('rethrows non-timeout failures (page/context closed) instead of swallowing them', async () => {
+    const captured: IDiscoveredEndpoint[] = [];
+    const page = makeClosedPage();
+    const pending = awaitTraffic({ page, captured, patterns: [GET_CARD_LIST] }, 20_000);
+    await expect(pending).rejects.toThrow('has been closed');
   });
 
   it('returns the existing pool hit immediately without waiting on the page', async () => {
