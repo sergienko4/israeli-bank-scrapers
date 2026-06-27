@@ -16,20 +16,12 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { fail, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
-
-/** Navigation strategy const — single source of truth. */
-const NAV_STRATEGY = {
-  DIRECT: 'DIRECT',
-  SEQUENTIAL: 'SEQUENTIAL',
-  MODAL: 'MODAL',
-} as const;
-
-/** Navigation strategy for HOME.ACTION. */
-type NavStrategy = (typeof NAV_STRATEGY)[keyof typeof NAV_STRATEGY];
+import type { NavStrategy } from './HomeStrategyClassify.js';
+import { classifyStrategy, NAV_STRATEGY } from './HomeStrategyClassify.js';
 
 /** Discovery result from HOME.PRE — instructions for ACTION. */
 interface IHomeDiscovery {
@@ -156,80 +148,6 @@ function buildDiscoveryByStrategy(
   target: IResolvedTarget | false,
 ): IHomeDiscovery {
   return DISCOVERY_BUILDERS[strategy](text, target);
-}
-
-/** Non-navigation href patterns — modal triggers, SPA anchors. */
-const FAKE_HREF_PATTERNS = new Set(['#', 'javascript:void(0)', 'javascript:;', '']);
-
-/** HTML attributes that indicate a modal trigger element. */
-const MODAL_ATTRIBUTES = ['data-toggle', 'data-bs-toggle'];
-
-/**
- * Classify navigation strategy from element metadata (passive).
- * DIRECT: real href → page navigation.
- * MODAL: fake href + modal attribute (data-toggle) → DOM overlay.
- * SEQUENTIAL: fake href, no modal → menu toggle + child click.
- * @param mediator - Element mediator.
- * @param result - Resolved race result.
- * @returns Navigation strategy.
- */
-async function classifyStrategy(
-  mediator: IElementMediator,
-  result: IRaceResult,
-): Promise<NavStrategy> {
-  const hasRealHref = await detectRealHref(mediator, result);
-  if (hasRealHref) return NAV_STRATEGY.DIRECT;
-  const isModal = await detectModalAttribute(mediator, result);
-  if (isModal) return NAV_STRATEGY.MODAL;
-  return NAV_STRATEGY.SEQUENTIAL;
-}
-
-/**
- * Check if element has a real navigation href (passive).
- * @param mediator - Element mediator.
- * @param result - Resolved race result.
- * @returns True if href points to a real URL.
- */
-async function detectRealHref(mediator: IElementMediator, result: IRaceResult): Promise<boolean> {
-  const attrResult = await mediator.checkAttribute(result, 'href');
-  if (!isOk(attrResult)) return false;
-  if (!attrResult.value) return false;
-  const rawHref = await mediator.getAttributeValue(result, 'href');
-  const isFake = FAKE_HREF_PATTERNS.has(rawHref);
-  return !isFake;
-}
-
-/**
- * Check one attribute for modal trigger presence.
- * @param mediator - Element mediator.
- * @param result - Resolved race result.
- * @param attr - Attribute name to check.
- * @returns True if attribute exists.
- */
-async function hasAttribute(
-  mediator: IElementMediator,
-  result: IRaceResult,
-  attr: string,
-): Promise<boolean> {
-  const check = await mediator.checkAttribute(result, attr);
-  return isOk(check) && check.value;
-}
-
-/**
- * Check if element has a modal trigger attribute (passive).
- * @param mediator - Element mediator.
- * @param result - Resolved race result.
- * @returns True if data-toggle or data-bs-toggle found.
- */
-async function detectModalAttribute(
-  mediator: IElementMediator,
-  result: IRaceResult,
-): Promise<boolean> {
-  const checks = MODAL_ATTRIBUTES.map(
-    (attr: string): Promise<boolean> => hasAttribute(mediator, result, attr),
-  );
-  const results = await Promise.all(checks);
-  return results.some(Boolean);
 }
 
 /** Bundled args for {@link attachPopupNavOverride} — keeps params ≤3. */
