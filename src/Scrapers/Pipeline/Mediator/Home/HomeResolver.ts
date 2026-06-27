@@ -20,6 +20,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { preferDirectEntry } from './HomeDirectEntry.js';
 import type { NavStrategy } from './HomeStrategyClassify.js';
 import { classifyStrategy, NAV_STRATEGY } from './HomeStrategyClassify.js';
 
@@ -107,6 +108,23 @@ async function classifyAndBuild(args: IClassifyAndBuildArgs): Promise<IHomeDisco
 const NO_LOGIN_LINK_FAIL = fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');
 
 /**
+ * Resolve the home login entry, then prefer a navigable DIRECT link over
+ * an href-less SEQUENTIAL trigger (see {@link preferDirectEntry}). Returns
+ * `false` when no visible trigger is found at all.
+ * @param mediator - Element mediator providing the visibility race.
+ * @param logger - Pipeline logger for the resolve + prefer-direct trace.
+ * @returns The preferred race result, or `false` when none visible.
+ */
+async function resolveHomeEntry(
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+): Promise<false | IRaceResult> {
+  const primary = await resolveHomeTrigger(mediator, logger);
+  if (primary === false || !primary.found) return false;
+  return preferDirectEntry({ mediator, primary, logger });
+}
+
+/**
  * Passive discovery — find login entry and detect navigation strategy.
  * Zero clicks. Zero DOM mutation. Only reads attributes.
  * @param mediator - Element mediator.
@@ -119,7 +137,7 @@ async function resolveHomeStrategy(
   logger: ScraperLogger,
   page: Page,
 ): Promise<Procedure<IHomeDiscovery>> {
-  const visible = await resolveHomeTrigger(mediator, logger);
+  const visible = await resolveHomeEntry(mediator, logger);
   if (visible === false || !visible.found) return NO_LOGIN_LINK_FAIL;
   const discovery = await classifyAndBuild({ mediator, visible, page, logger });
   return succeed(discovery);

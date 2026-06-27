@@ -85,6 +85,12 @@ function makeMediator(script: IMediatorScript = {}): IElementMediator {
      * @returns Scripted.
      */
     getAttributeValue: (): Promise<string> => Promise.resolve(script.hrefValue ?? ''),
+    /**
+     * resolveAllVisible — no extra candidates, so prefer-direct keeps the
+     * primary winner (SEQUENTIAL path stays byte-identical).
+     * @returns Empty list.
+     */
+    resolveAllVisible: (): Promise<readonly IRaceResult[]> => Promise.resolve([]),
   } as unknown as IElementMediator;
 }
 
