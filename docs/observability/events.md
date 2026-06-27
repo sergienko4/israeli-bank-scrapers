@@ -29,19 +29,23 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 | `login.submit` | info | Submit button clicked |
 | `login.result.invalid_password` | warn | Bank returned credentials-wrong |
 | `login.result.success` | info | Post-submit page recognised as authenticated |
-| `login.completion` | debug | Advisory completion snapshot composed at LOGIN.final (see below) |
+| `login.completion.attempt` | debug | One settle-poll capture — `attempt` / `of` + `formPresent` / `advanced` / `hasError` (see below) |
+| `login.completion` | debug | Final completion snapshot composed at LOGIN.final — `settled` / `attempts` / `waitedMs` + form signals (see below) |
 | `login.completion.error` | debug | A completion probe threw; snapshot stays neutral |
 
-#### LOGIN completion observer (advisory)
+#### LOGIN completion observer (enforced when opted in)
 
-At `LOGIN.final` an advisory observer composes four **LOGIN-LOCAL** signals
+At `LOGIN.final` an observer composes four **LOGIN-LOCAL** signals
 — is the filled login form still present, is a loading spinner still visible,
 is an error banner present, and has the page advanced past the login URL —
-into one snapshot and logs it as `login.completion`. The verdict is **computed
-and logged only**; it does not gate the phase, so behaviour is byte-identical
-for every bank. Its purpose is to surface, per bank in the CI logs, the case
-where a login lingers on a spinning form yet still passes the lenient cookie
-gate.
+into one snapshot and logs it as `login.completion`. The verdict is **neutral
+by default**: a bank that has not opted into a settle budget always succeeds
+(the single-shot poll settles on the first capture), so behaviour is
+byte-identical for it. A bank that opts in (see `loginCompletionPoll` below)
+instead **fails `LOGIN.final` non-retryably** with `LOGIN_NOT_COMPLETED` when
+the poll budget is exhausted while the filled form is still on screen —
+surfacing, per bank in the CI logs, the case where a login lingers on a
+spinning form yet still passes the lenient cookie gate.
 
 The composer is wrapped in a **config-driven, FORM-FIRST poll**. A phase has
 settled when it advanced past the start screen, an error surfaced, OR the
@@ -51,10 +55,16 @@ bank opts into a multi-attempt budget through the optional `loginCompletionPoll`
 config field; a perpetually spinning login (form still present, no error, URL
 unchanged) then exhausts the budget instead of passing silently.
 
-- `observeLoginCompletion(input)` — the entry facade wired into `LOGIN.final`.
+- `enforceLoginCompletion(input)` — the entry facade wired into `LOGIN.final`.
   It runs the existing LOGIN post-gates first; if those already fail it returns
-  a neutral snapshot and emits nothing. It reads `input.config.loginCompletionPoll`
-  to resolve the poll budget (absent ⇒ single-shot).
+  a neutral success and emits nothing. It reads `input.config.loginCompletionPoll`
+  to resolve the poll budget (absent ⇒ single-shot) and returns the LOGIN.final
+  verdict — a non-retryable `LOGIN_NOT_COMPLETED` fail only for an opted-in,
+  unsettled poll; otherwise success.
+- Each poll capture emits one `login.completion.attempt` debug line (`attempt`,
+  `of`, plus the three form signals `formPresent` / `advanced` / `hasError`); the
+  final summary is the single `login.completion` line. Both drop the unreliable
+  `spinnerVisible` from their logged projection.
 - `captureCompletionSignals(ports)` — the phase-agnostic composer (under
   `Mediator/Completion`). It reads an `ICompletionPorts` contract and returns an
   `ICompletionSignals` snapshot (`formPresent`, `spinnerVisible`, `hasError`,
