@@ -70,12 +70,11 @@ function safeFrameHost(request: Request): string {
  * Build the PII-safe common trace payload.
  * @param ctx - Shared trace context.
  * @param request - Playwright request.
- * @returns Host, path, issuing-frame host, method, and elapsed milliseconds.
+ * @returns Host, issuing-frame host, method, and elapsed milliseconds.
  */
 function buildPayload(ctx: IAuthReqTraceContext, request: Request): AuthReqTracePayload {
   return {
     host: safeHost(request),
-    path: safePath(request),
     frameHost: safeFrameHost(request),
     method: request.method(),
     ms: Date.now() - ctx.startedAtMs,
@@ -93,9 +92,11 @@ function buildPayload(ctx: IAuthReqTraceContext, request: Request): AuthReqTrace
  */
 function handleAuthRequest(ctx: IAuthReqTraceContext, request: Request): boolean {
   const payload = buildPayload(ctx, request);
-  ctx.logger.debug({ event: 'login.req.seen', ...payload, resourceType: request.resourceType() });
+  const pathClass = classifyReqPath(request);
+  const resourceType = request.resourceType();
+  ctx.logger.debug({ event: 'login.req.seen', ...payload, pathClass, resourceType });
   if (!WK_AUTH_POST_OR_PUT_REQUEST.matches(request)) return false;
-  ctx.logger.debug({ event: 'login.authreq.sent', ...payload });
+  ctx.logger.debug({ event: 'login.authreq.sent', ...payload, path: safePath(request) });
   return true;
 }
 
@@ -113,6 +114,26 @@ function isChallengePlatformRequest(request: Request): boolean {
   return request.url().includes(CHALLENGE_PLATFORM_PATH);
 }
 
+/** reCAPTCHA enterprise/v3 sub-request path fragment. */
+const RECAPTCHA_PATH = '/recaptcha/';
+
+/**
+ * Classify an outbound request into a coarse, PII-safe bucket for the
+ * all-request trace. The raw pathname is NOT logged on `login.req.seen`
+ * because arbitrary first/third-party paths can carry account identifiers;
+ * the bucket still distinguishes a first-party auth POST from a Cloudflare
+ * challenge or reCAPTCHA sub-request (the Amex fork-A vs fork-B diagnostic).
+ * @param request - Playwright request.
+ * @returns One of `auth` | `challenge` | `recaptcha` | `other`.
+ */
+function classifyReqPath(request: Request): string {
+  if (WK_AUTH_POST_OR_PUT_REQUEST.matches(request)) return 'auth';
+  const url = request.url();
+  if (url.includes(CHALLENGE_PLATFORM_PATH)) return 'challenge';
+  if (url.includes(RECAPTCHA_PATH)) return 'recaptcha';
+  return 'other';
+}
+
 /**
  * Emit a PII-safe requestfailed trace under the supplied event name.
  * @param ctx - Shared trace context.
@@ -122,7 +143,7 @@ function isChallengePlatformRequest(request: Request): boolean {
  */
 function emitRequestFailed(ctx: IAuthReqTraceContext, request: Request, event: string): boolean {
   const errorText = request.failure()?.errorText ?? '';
-  ctx.logger.debug({ event, ...buildPayload(ctx, request), errorText });
+  ctx.logger.debug({ event, ...buildPayload(ctx, request), path: safePath(request), errorText });
   return true;
 }
 

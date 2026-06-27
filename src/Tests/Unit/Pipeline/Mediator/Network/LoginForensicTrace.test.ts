@@ -558,6 +558,20 @@ describe('buildConsoleHandler D1 — login.frames snapshot on postMessage error'
     expect(frameLog.mainUrl).not.toContain('?');
     expect(frameLog.mainUrl).not.toContain('session');
   });
+
+  it('reports mainUrl as "(opaque)" for a host-less scheme (no path leak)', () => {
+    // about:/data:/blob: URLs have an empty host; their "pathname" can carry
+    // page content and must never surface as mainUrl. Mirrors safeHostOf.
+    const opaquePage = makePageWithFrames('about:blank', []);
+    const { logger, logs } = makeLogger();
+    const handler = buildConsoleHandler(logger, opaquePage);
+    const msg = makeConsoleMessage('error', pmText);
+    handler(msg);
+    const frameLog = logs.find(l => l.event === 'login.frames') as unknown as {
+      mainUrl: string;
+    };
+    expect(frameLog.mainUrl).toBe('(opaque)');
+  });
 });
 
 // ---------------------------------------------------------------------------

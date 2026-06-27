@@ -53,7 +53,7 @@ function safeHostOf(url: string): string {
 function hostPathOf(url: string): string {
   try {
     const { host, pathname } = new URL(url);
-    return host + pathname;
+    return host ? host + pathname : '(opaque)';
   } catch {
     return '(opaque)';
   }

@@ -27,6 +27,7 @@ interface ITraceLog {
   readonly host: string;
   readonly method: string;
   readonly path?: string;
+  readonly pathClass?: string;
   readonly frameHost?: string;
   readonly errorText?: string;
 }
@@ -370,8 +371,9 @@ describe('AuthFailureWatcher request trace gate', () => {
     const { logger, logs } = makeLogger();
     const watcher = createAuthFailureWatcher(mockPage.handle, logger);
 
-    // Amex real auth POST: the ?reqName=… query is stripped from the logged
-    // path, and the issuing Wix iframe host is captured — the fork-A signal.
+    // Amex real auth POST: the raw path is logged ONLY on the allowlisted
+    // login.authreq.sent event; the all-request login.req.seen line carries a
+    // coarse pathClass instead, and the issuing Wix iframe host is captured.
     const auth = makeRequest(
       'https://he.americanexpress.co.il/services/ProxyRequestHandler.ashx?reqName=performLogonA',
       'POST',
@@ -382,10 +384,33 @@ describe('AuthFailureWatcher request trace gate', () => {
     expect(logs[0]).toMatchObject({
       event: 'login.req.seen',
       host: 'he.americanexpress.co.il',
-      path: '/services/ProxyRequestHandler.ashx',
+      pathClass: 'auth',
       frameHost: 'web.americanexpress.co.il',
       method: 'POST',
     });
+    expect(logs[0]).not.toHaveProperty('path');
+    expect(logs[1]).toMatchObject({
+      event: 'login.authreq.sent',
+      path: '/services/ProxyRequestHandler.ashx',
+    });
+
+    watcher.dispose();
+  });
+
+  it('logs a coarse pathClass (never a raw path) on login.req.seen', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    // A third-party tracker path can carry account identifiers — it must NEVER
+    // be logged raw on the all-request trace, only as a coarse bucket.
+    const tracker = makeRequest('https://cdn.thirdparty.test/u/acct-987654/pixel.gif', 'GET');
+    mockPage.fireRequest(tracker);
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ event: 'login.req.seen', pathClass: 'other' });
+    expect(logs[0]).not.toHaveProperty('path');
 
     watcher.dispose();
   });
