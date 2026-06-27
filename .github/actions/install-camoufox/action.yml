@@ -9,26 +9,21 @@ inputs:
 runs:
   using: composite
   steps:
-    # Camoufox is bumped to the v150 line (v150.0.2-beta.25) to trial the
-    # Firefox 150 base as a SOLO variable. playwright-core is intentionally
-    # held at ~1.59.1: trialling PW 1.60.0 alongside v150 regressed the
-    # Firefox `addPageError` path (`undefined 'url'`) and crashed the whole
-    # integration replay suite (PR #389 CI run 28264624542), so v150 is now
-    # tested against the known-good PW 1.59.1 client. The cache key below is a
-    # fresh `-v150-test` value so the prior v135 cache cannot satisfy this
-    # miss: on a miss the primary camoufox-js fetch resolves to the newest
-    # in-range build (v150 today) and the gh-release fallback pins the SAME
-    # v150 tag, so cache-hit / primary / fallback all converge on v150.
-    # v150 regressed `navigator.language` (he-IL -> en-US); the
-    # CamoufoxLauncher `intl.accept_languages` firefox_user_pref restores
-    # he-IL so `AntiDetection.e2e-mocked.test.ts` stays green.
+    # Camoufox is pinned to the v135 stable line (v135.0.1-beta.24),
+    # matching @hieutran094/camoufox-js 0.6.8 and playwright-core
+    # ~1.59.1 in package.json (Firefox 135 juggler protocol). Both the
+    # primary camoufox-js fetch AND the gh-release fallback below
+    # resolve to v135, so CI stays deterministic on a cache miss or a
+    # rate-limited primary fetch. Do NOT let the fallback track LATEST:
+    # v150.0.2's locale handling regressed `navigator.language`
+    # (returned `en-US` even when the context declared `he-IL`),
+    # breaking `AntiDetection.e2e-mocked.test.ts`.
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        # Fresh key — force a miss so the deterministic v150 binary is
-        # cached (the prior v135 cache must NOT satisfy this miss).
-        key: camoufox-bin-v150-test
+        # Cache the deterministic v135 binary across jobs/runs.
+        key: camoufox-bin-v135-stable
     - name: Install Camoufox browser
       shell: bash
       env:
@@ -44,12 +39,12 @@ runs:
           else
             echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
             ASSET_DIR=$(mktemp -d)
-            # Pin the fallback to the SAME v150 tag the primary
-            # camoufox-js 0.6.8 fetchLatest resolves to (newest in-range).
-            # The v150.0.2-beta.25 tag ships an alpha-named linux asset
-            # (camoufox-150.0.2-alpha.26-lin.x86_64.zip) matched by the
-            # glob below — keep primary + fallback on the same v150 base.
-            PINNED_TAG=v150.0.2-beta.25
+            # Pin the fallback to the SAME stable v135 tag camoufox-js
+            # 0.6.8 resolves to. LATEST is currently v150.0.2-beta.25,
+            # whose locale regression (navigator.language he-IL ->
+            # en-US) breaks AntiDetection.e2e-mocked.test.ts — never
+            # track it here.
+            PINNED_TAG=v135.0.1-beta.24
             echo "Falling back to daijro/camoufox release: ${PINNED_TAG}"
             gh release download "${PINNED_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
             mkdir -p ~/.cache/camoufox
