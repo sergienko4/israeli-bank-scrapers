@@ -12,7 +12,7 @@ import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import { some } from '../../Types/Option.js';
-import type { IActionContext } from '../../Types/PipelineContext.js';
+import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import {
@@ -26,8 +26,14 @@ import {
 import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
+/** One account plus whether its balance fetch fell back to a default. */
+interface IAccountResult {
+  readonly account: ITransactionsAccount;
+  readonly degraded: boolean;
+}
+
 /** Accumulator for per-account scrape results. */
-type AcctsAcc = Procedure<readonly ITransactionsAccount[]>;
+type AcctsAcc = Procedure<readonly IAccountResult[]>;
 
 /**
  * Map raw rows through autoMapTransaction (drops rejects).
@@ -41,22 +47,36 @@ function mapTxns(raws: readonly object[]): readonly ITransaction[] {
 }
 
 /**
- * Assemble one account — balance + paginated txns + mapping.
+ * Fetch + map one account's paginated transactions.
  * @param a - Per-account context.
- * @returns ITransactionsAccount procedure.
+ * @returns Mapped transactions procedure.
  */
-async function fetchOneAccount<TAcct, TCursor>(
+async function fetchAccountTxns<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<ITransactionsAccount>> {
-  const bal = await fetchBalance(a);
-  if (!isOk(bal)) return bal;
+): Promise<Procedure<readonly ITransaction[]>> {
   const fetchPage = buildPageFetcher(a);
   const stop = buildStop(a);
   const paged = await fetchPaginated<object, TCursor>({ fetchPage, stop });
   if (!isOk(paged)) return paged;
+  const mapped = mapTxns(paged.value);
+  return succeed(mapped);
+}
+
+/**
+ * Assemble one account — balance + txns + degraded flag.
+ * @param a - Per-account context.
+ * @returns Account-result procedure (account + balance outcome).
+ */
+async function fetchOneAccount<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+): Promise<Procedure<IAccountResult>> {
+  const bal = await fetchBalance(a);
+  if (!isOk(bal)) return bal;
+  const txns = await fetchAccountTxns(a);
+  if (!isOk(txns)) return txns;
   const accountNumber = a.shape.accountNumberOf(a.acct);
-  const txns = [...mapTxns(paged.value)];
-  return succeed({ accountNumber, balance: bal.value, txns });
+  const account = { accountNumber, balance: bal.value.value, txns: [...txns.value] };
+  return succeed({ account, degraded: bal.value.degraded });
 }
 
 /**
@@ -81,6 +101,19 @@ async function iterateAccounts<TAcct, TCursor>(
 }
 
 /**
+ * Fold per-account results into the scrape slot, surfacing whether any
+ * account's balance fetch fell back (the degraded warm-session signal a
+ * shape's resultGuard inspects).
+ * @param results - Per-account results from the sequential walk.
+ * @returns Scrape state with accounts + balanceDegraded flag.
+ */
+function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
+  const accounts = results.map(r => r.account);
+  const hasDegraded = results.some(r => r.degraded);
+  return { accounts, balanceDegraded: hasDegraded };
+}
+
+/**
  * Run the scrape flow under a bound driver context.
  * @param d - Driver context.
  * @returns Action context augmented with the populated scrape slot.
@@ -92,10 +125,8 @@ async function runScrape<TAcct, TCursor>(
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);
   if (!isOk(scraped)) return scraped;
-  const withScrape: ApiDirectScrapeResult = {
-    ...d.ctx,
-    scrape: some({ accounts: scraped.value }),
-  };
+  const summary = summarizeScrape(scraped.value);
+  const withScrape: ApiDirectScrapeResult = { ...d.ctx, scrape: some(summary) };
   return succeed(withScrape);
 }
 

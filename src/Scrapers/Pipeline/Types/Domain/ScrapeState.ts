@@ -47,6 +47,20 @@ interface IScrapeState {
    * had no mediator / an empty pool.
    */
   readonly balanceResponseBodies?: readonly unknown[];
+  /**
+   * True when at least one account's balance fetch failed and fell back
+   * to the shape's `fallbackOnFail` default instead of a live value.
+   *
+   * <p>Surfaces a degraded warm-session signal that a per-account
+   * `balance === fallback` value cannot: a `fallbackOnFail: 0` shape
+   * yields `balance === 0` whether `/sync` returned a real zero (healthy
+   * empty wallet) OR fell back from a rejected call (degraded token).
+   * A shape's `resultGuard` keys on this OUTCOME, never on the value, to
+   * distinguish the two. Absent (`undefined`) ⇒ no balance step ran or
+   * none fell back (treated as not-degraded; default-deny stays loud
+   * only when this is explicitly `true`).
+   */
+  readonly balanceDegraded?: boolean;
 }
 
 export type { IScrapeState };

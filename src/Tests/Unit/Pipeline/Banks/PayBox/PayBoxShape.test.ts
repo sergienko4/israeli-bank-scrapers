@@ -14,6 +14,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import {
   accountNumberOf,
@@ -28,8 +29,12 @@ import {
   PAYBOX_TXNS_INTERNALS,
   txnsExtractPage,
 } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShapeTxns.js';
+import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
+import {
+  buildApiDirectScrapePhase,
+  createApiDirectScrapePhase,
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -290,5 +295,109 @@ describe('PayBoxShape pagination terminators', () => {
     const items = [{ ts: 'newer' }];
     const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items);
     expect(next).toBe(false);
+  });
+});
+
+describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
+  /**
+   * Build a degraded PayBox scrape bus: the `/sync` balance call is
+   * rejected (the masked 400) so `fallbackOnFail: 0` engages, and the
+   * history page is empty — the exact silent-success shape the guard
+   * converts into a loud, typed failure.
+   * @returns Mock mediator pre-seeded for the degraded path.
+   */
+  function degradedBus(): IApiMediator {
+    return makePayBoxBus({
+      balance: [fail(ScraperErrorTypes.Generic, 'sync rejected (masked by fallbackOnFail)')],
+      transactions: [succeed({ content: { nc: [] } })],
+    });
+  }
+
+  /**
+   * Run the PayBox scrape action then feed its scrape slot into a fresh
+   * api-direct phase's POST stage (the production guard site).
+   * @param bus - Pre-seeded mediator.
+   * @returns POST-stage procedure (failure ⇒ guard fired).
+   */
+  async function postAfterScrape(bus: IApiMediator): Promise<Procedure<IPipelineContext>> {
+    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+    const scraped = await scrapeFn(ctx);
+    assertOk(scraped);
+    const phase = buildApiDirectScrapePhase(PAYBOX_SHAPE);
+    const base = makeMockContext();
+    const pctx: IPipelineContext = { ...base, scrape: scraped.value.scrape };
+    return phase.post(pctx, pctx);
+  }
+
+  it('PB-GUARD-1 degraded warm token + zero txns FAILS the post stage', async () => {
+    const bus = degradedBus();
+    const result = await postAfterScrape(bus);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+  });
+
+  it('PB-GUARD-2 healthy wallet with zero txns does NOT fire (empty is legal)', async () => {
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed({ content: { nc: [] } })],
+    });
+    const result = await postAfterScrape(bus);
+    expect(result.success).toBe(true);
+  });
+
+  it('PB-GUARD-2b healthy /sync returning balance 0 + zero txns does NOT fire (keys on outcome, not value)', async () => {
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 0 } } })],
+      transactions: [succeed({ content: { nc: [] } })],
+    });
+    const result = await postAfterScrape(bus);
+    expect(result.success).toBe(true);
+  });
+
+  it('PB-GUARD-5 happy path with mapped txns does NOT fire', async () => {
+    const row = {
+      _id: 'g5-1',
+      ts: '2026-05-14T07:00:29.037Z',
+      amt: 12,
+      type: 'incomingTransaction',
+    };
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed({ content: { nc: [row] } }), succeed({ content: { nc: [] } })],
+    });
+    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+    const scraped = await scrapeFn(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    expect(scraped.value.scrape.value.accounts[0].txns.length).toBeGreaterThanOrEqual(1);
+    const phase = buildApiDirectScrapePhase(PAYBOX_SHAPE);
+    const base = makeMockContext();
+    const pctx: IPipelineContext = { ...base, scrape: scraped.value.scrape };
+    const result = await phase.post(pctx, pctx);
+    expect(result.success).toBe(true);
+  });
+
+  it('PB-GUARD-3 guard is wired on PayBox only (OneZero + Pepper opt out)', () => {
+    expect(typeof PAYBOX_SHAPE.resultGuard).toBe('function');
+    expect(ONE_ZERO_SHAPE.resultGuard).toBeUndefined();
+    expect(PEPPER_SHAPE.resultGuard).toBeUndefined();
+  });
+
+  it('PB-GUARD-4 same degraded scrape FAILS PayBox but PASSES OneZero', async () => {
+    const bus = degradedBus();
+    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+    const scraped = await scrapeFn(ctx);
+    assertOk(scraped);
+    const base = makeMockContext();
+    const pctx: IPipelineContext = { ...base, scrape: scraped.value.scrape };
+    const payboxPhase = buildApiDirectScrapePhase(PAYBOX_SHAPE);
+    const oneZeroPhase = buildApiDirectScrapePhase(ONE_ZERO_SHAPE);
+    const payboxPost = await payboxPhase.post(pctx, pctx);
+    const oneZeroPost = await oneZeroPhase.post(pctx, pctx);
+    expect(payboxPost.success).toBe(false);
+    expect(oneZeroPost.success).toBe(true);
   });
 });
