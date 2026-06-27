@@ -31,7 +31,7 @@ on:
       # knob OFF with 0/false/off/no. WAF: set 1/true to DISABLE the challenge
       # interceptor. On a PR-branch run (no dispatch form), use repo variables
       # instead: AMEX_AB_CAMOUFOX_HUMANIZE / _DISABLE_COOP / _BLOCK_WEBRTC /
-      # AMEX_AB_WAF_INTERCEPTOR_DISABLED (the job reads input OR variable).
+      # _CAMOUFOX_OS / AMEX_AB_WAF_INTERCEPTOR_DISABLED (input OR variable).
       amex_camoufox_humanize:
         description: 'Amex A/B CAMOUFOX_HUMANIZE (blank=default on; 0/false=off)'
         required: false
@@ -44,6 +44,11 @@ on:
         type: string
       amex_camoufox_block_webrtc:
         description: 'Amex A/B CAMOUFOX_BLOCK_WEBRTC (blank=default on; 0/false=off)'
+        required: false
+        default: ''
+        type: string
+      amex_camoufox_os:
+        description: 'Amex A/B CAMOUFOX_OS fingerprint (blank=windows; linux|macos|windows)'
         required: false
         default: ''
         type: string
@@ -935,6 +940,7 @@ jobs:
           IN_HUMANIZE: ${{ inputs.amex_camoufox_humanize || vars.AMEX_AB_CAMOUFOX_HUMANIZE }}
           IN_DISABLE_COOP: ${{ inputs.amex_camoufox_disable_coop || vars.AMEX_AB_CAMOUFOX_DISABLE_COOP }}
           IN_BLOCK_WEBRTC: ${{ inputs.amex_camoufox_block_webrtc || vars.AMEX_AB_CAMOUFOX_BLOCK_WEBRTC }}
+          IN_CAMOUFOX_OS: ${{ inputs.amex_camoufox_os || vars.AMEX_AB_CAMOUFOX_OS }}
           IN_WAF_DISABLED: ${{ inputs.amex_waf_interceptor_disabled || vars.AMEX_AB_WAF_INTERCEPTOR_DISABLED }}
           IN_AUTH_REQ_TRACE: ${{ inputs.amex_auth_req_trace || vars.AMEX_AB_AUTH_REQ_TRACE }}
         run: |
@@ -950,6 +956,7 @@ jobs:
           apply CAMOUFOX_HUMANIZE "$IN_HUMANIZE"
           apply CAMOUFOX_DISABLE_COOP "$IN_DISABLE_COOP"
           apply CAMOUFOX_BLOCK_WEBRTC "$IN_BLOCK_WEBRTC"
+          apply CAMOUFOX_OS "$IN_CAMOUFOX_OS"
           apply WAF_INTERCEPTOR_DISABLED "$IN_WAF_DISABLED"
           apply PIPELINE_AUTH_REQ_TRACE "$IN_AUTH_REQ_TRACE"
           echo 'Knob override step done (blank values leave code defaults intact).'
