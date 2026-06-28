@@ -36,12 +36,9 @@ function scrub(text: string): string {
  * @returns Host component or the sentinel '(opaque)'.
  */
 function safeHostOf(url: string): string {
-  try {
-    const { host } = new URL(url);
-    return host || '(opaque)';
-  } catch {
-    return '(opaque)';
-  }
+  if (!URL.canParse(url)) return '(opaque)';
+  const { host } = new URL(url);
+  return host || '(opaque)';
 }
 
 /**
@@ -51,12 +48,9 @@ function safeHostOf(url: string): string {
  * @returns host+pathname, or '(opaque)' on failure.
  */
 function hostPathOf(url: string): string {
-  try {
-    const { host, pathname } = new URL(url);
-    return host ? host + pathname : '(opaque)';
-  } catch {
-    return '(opaque)';
-  }
+  if (!URL.canParse(url)) return '(opaque)';
+  const { host, pathname } = new URL(url);
+  return host ? host + pathname : '(opaque)';
 }
 
 /** Return type alias: ConsoleMessage → boolean handler. */
