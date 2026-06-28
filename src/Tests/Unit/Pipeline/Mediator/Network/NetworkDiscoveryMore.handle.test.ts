@@ -64,7 +64,8 @@ describe('NetworkDiscovery — handleResponse non-JSON content type', () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    expect(discovery.getAllEndpoints().length).toBe(0);
+    const endpoints = discovery.getAllEndpoints();
+    expect(endpoints).toHaveLength(0);
   });
 
   it('handleResponse with missing content-type header applies NO_CONTENT_TYPE sentinel', async () => {
@@ -119,7 +120,8 @@ describe('NetworkDiscovery — handleResponse non-JSON content type', () => {
     await Promise.resolve();
     await Promise.resolve();
     // Was skipped (no 'application/json' in 'none')
-    expect(discovery.getAllEndpoints().length).toBe(0);
+    const endpoints = discovery.getAllEndpoints();
+    expect(endpoints).toHaveLength(0);
   });
 });
 
@@ -175,7 +177,8 @@ describe('NetworkDiscovery — parseResponse JSON parse error', () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    expect(discovery.getAllEndpoints().length).toBe(0);
+    const endpoints = discovery.getAllEndpoints();
+    expect(endpoints).toHaveLength(0);
   });
 });
 
