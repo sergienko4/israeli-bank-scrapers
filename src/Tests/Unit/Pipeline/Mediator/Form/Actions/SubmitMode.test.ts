@@ -108,6 +108,32 @@ function makeFormPage(options: IFormPageOptions = {}): {
   return { page: { locator } as unknown as Page, spy };
 }
 
+/**
+ * Build a Page whose locator(sel).evaluate(fn) actually invokes the page
+ * function against `element`, running doFormRequestSubmit in-process. The
+ * production path runs that callback in-browser via Playwright, where istanbul
+ * cannot reach it; invoking it here unit-tests the page function directly.
+ * @param element - Fake DOM element handed to the page function.
+ * @returns Page mock wired to a real-evaluate locator.
+ */
+function makeRealEvaluatePage(element: unknown): Page {
+  /**
+   * Invoke the supplied page function against the fake element.
+   * @param fn - The doFormRequestSubmit page function under test.
+   * @returns Resolved submit outcome.
+   */
+  const evaluate = (fn: (el: Element) => boolean): Promise<boolean> => {
+    const didSubmit = fn(element as Element);
+    return Promise.resolve(didSubmit);
+  };
+  /**
+   * Return a locator exposing the real-evaluate stub.
+   * @returns Locator stub whose evaluate() runs the page function.
+   */
+  const locator = (): { evaluate: typeof evaluate } => ({ evaluate });
+  return { locator } as unknown as Page;
+}
+
 // ─── Tests: SubmitModeGate ────────────────────────────────────────────────────
 
 describe('SubmitModeGate — readSubmitMode()', () => {
@@ -208,5 +234,27 @@ describe('ActionsFill — tryFormRequestSubmit (D3 form.requestSubmit wiring)', 
     const didSubmit = await tryFormRequestSubmit(page, 'form');
     expect(didSubmit).toBe(true);
     expect(spy.evaluateCalls).toBe(1);
+  });
+
+  it('runs doFormRequestSubmit and invokes requestSubmit on a submit-capable element', async () => {
+    let calls = 0;
+    const element = {
+      /**
+       * Count one native requestSubmit invocation.
+       */
+      requestSubmit: (): void => {
+        calls += 1;
+      },
+    };
+    const page = makeRealEvaluatePage(element);
+    const didSubmit = await tryFormRequestSubmit(page, 'form#loginForm');
+    expect(didSubmit).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it('runs doFormRequestSubmit and returns false when requestSubmit is absent', async () => {
+    const page = makeRealEvaluatePage({});
+    const didSubmit = await tryFormRequestSubmit(page, 'form#loginForm');
+    expect(didSubmit).toBe(false);
   });
 });

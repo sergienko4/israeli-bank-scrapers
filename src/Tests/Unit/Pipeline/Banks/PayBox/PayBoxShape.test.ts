@@ -400,4 +400,23 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
     expect(payboxPost.success).toBe(false);
     expect(oneZeroPost.success).toBe(true);
   });
+
+  it('PB-GUARD-6 absent balanceDegraded reads as not-degraded (guard stays silent)', async () => {
+    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed({ content: { nc: [] } })],
+    });
+    const ctx = ctxOf(bus);
+    const scraped = await scrapeFn(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    // Rebuild the scrape slot WITHOUT balanceDegraded so the guard's
+    // `scrape.balanceDegraded ?? false` exercises the undefined -> false branch:
+    // an absent flag must read as not-degraded and keep the fail-closed guard silent.
+    const { accounts } = scraped.value.scrape.value;
+    const pctx: IPipelineContext = { ...makeMockContext(), scrape: some({ accounts }) };
+    const result = await buildApiDirectScrapePhase(PAYBOX_SHAPE).post(pctx, pctx);
+    expect(result.success).toBe(true);
+  });
 });

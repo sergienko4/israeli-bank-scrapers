@@ -415,6 +415,45 @@ describe('AuthFailureWatcher request trace gate', () => {
     watcher.dispose();
   });
 
+  it('classifies a Cloudflare challenge-platform request as pathClass "challenge"', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    // A Cloudflare managed-challenge asset (GET — never matches the WK auth
+    // POST/PUT set) buckets as "challenge", not as a raw path.
+    const challenge = makeRequest(
+      'https://he.americanexpress.co.il/cdn-cgi/challenge-platform/h/g/scripts/jsd/main.js',
+      'GET',
+    );
+    mockPage.fireRequest(challenge);
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ event: 'login.req.seen', pathClass: 'challenge' });
+    expect(logs[0]).not.toHaveProperty('path');
+
+    watcher.dispose();
+  });
+
+  it('classifies a reCAPTCHA request as pathClass "recaptcha"', () => {
+    process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
+    const mockPage = makePage();
+    const { logger, logs } = makeLogger();
+    const watcher = createAuthFailureWatcher(mockPage.handle, logger);
+
+    // A Google reCAPTCHA asset (GET — never matches the WK auth POST/PUT set)
+    // buckets as "recaptcha", not as a raw path.
+    const recaptcha = makeRequest('https://www.google.com/recaptcha/enterprise.js', 'GET');
+    mockPage.fireRequest(recaptcha);
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ event: 'login.req.seen', pathClass: 'recaptcha' });
+    expect(logs[0]).not.toHaveProperty('path');
+
+    watcher.dispose();
+  });
+
   it('uses host "?" when the request URL cannot be parsed', () => {
     process.env[AUTH_REQ_TRACE_ENV_VAR] = '1';
     const mockPage = makePage();
