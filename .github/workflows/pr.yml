@@ -118,6 +118,8 @@ defaults:
 #                           Rule #16 (Amex never co-runs with
 #                           Isracard) holds by releasing gate-D
 #                           alone — Group A stays unreleased.
+#   e2e-real-group-e      — username/password browser banks
+#                           (Leumi, Yahav), own gate-E approval.
 #   dependency-review     — PR-only, independent.
 #
 # Each gate runs ONCE per PR — no overlap between validate and the
@@ -1020,10 +1022,9 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group B — browser-form banks (Hapoalim, Beinleumi, Leumi).
-  # Hapoalim + Beinleumi are OTP (Telegram secrets deliver the SMS
-  # OTP dance); Leumi is username/password (two-step nav, no OTP — it
-  # simply ignores the Telegram secrets). Requires gate-B approval
+  # Group B — OTP browser-form banks (Hapoalim, Beinleumi).
+  # Both are OTP (Telegram secrets deliver the SMS OTP dance). Leumi
+  # moved to Group E (with Yahav). Requires gate-B approval
   # AFTER Group A + Amex have completed.
   # ──────────────────────────────────────────────────────────────
   e2e-real-group-b-gate:
@@ -1071,7 +1072,6 @@ jobs:
         bank:
           - Hapoalim
           - Beinleumi
-          - Leumi
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -1098,9 +1098,6 @@ jobs:
           HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
           BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
           BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
-          # Leumi is username/password (no OTP — Telegram secrets unused).
-          LEUMI_USERNAME: ${{ secrets.LEUMI_USERNAME }}
-          LEUMI_PASSWORD: ${{ secrets.LEUMI_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -1299,6 +1296,94 @@ jobs:
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
+      - name: Cooldown hold (${{ matrix.bank }})
+        if: failure()
+        run: |
+          set -euo pipefail
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
+          echo "[cooldown-hold] done; slot freed for next queued same-bank job"
+
+  # ──────────────────────────────────────────────────────────────
+  # Group E — username/password browser-form banks (Leumi, Yahav).
+  # Both are two-step nav, NO OTP — they ignore the Telegram secrets.
+  # Leumi moved here from Group B; Yahav joins as a fresh pipeline
+  # bank (username/password/nationalID). Requires gate-E approval;
+  # independent of Groups A/B/C/D (no inter-group `needs:`).
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-e-gate:
+    name: E2E Real E — approval gate
+    needs: [validate, dns-preflight]
+    if: needs.validate.outputs.real_gates_enabled == 'true'
+    runs-on: ubuntu-latest
+    # DISTINCT environment `e2e-real-group-e` → one approval click for
+    # Leumi + Yahav. Auto-creates WITHOUT reviewers on first run; the
+    # repo owner adds reviewers in Settings → Environments to enforce.
+    environment: e2e-real-group-e
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group E approved; username/password matrix may proceed."
+
+  e2e-real-group-e:
+    name: E2E Real E (${{ matrix.bank }})
+    needs: e2e-real-group-e-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Leumi
+          - Yahav
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          # Leumi is username/password; Yahav is username/password/nationalID
+          # (YAHAV_ID maps to nationalID). Neither bank uses OTP.
+          LEUMI_USERNAME: ${{ secrets.LEUMI_USERNAME }}
+          LEUMI_PASSWORD: ${{ secrets.LEUMI_PASSWORD }}
+          YAHAV_USERNAME: ${{ secrets.YAHAV_USERNAME }}
+          YAHAV_ID: ${{ secrets.YAHAV_ID }}
+          YAHAV_PASSWORD: ${{ secrets.YAHAV_PASSWORD }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
       - name: Cooldown hold (${{ matrix.bank }})
         if: failure()
         run: |
