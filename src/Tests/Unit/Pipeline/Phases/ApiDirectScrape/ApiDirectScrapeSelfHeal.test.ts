@@ -240,4 +240,26 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     expect(recoverSession).toHaveBeenCalledTimes(1);
     expect(scr.value.balanceDegraded).toBe(true);
   });
+
+  it('SH-6 — warm + transient-shaped balance fallback still recovers', async () => {
+    const transient = fail(ScraperErrorTypes.Generic, '503: service unavailable');
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [succeed(SYN_CASE.fixtures.customer), succeed(SYN_CASE.fixtures.customer)],
+        balance: [transient, succeed(SYN_CASE.fixtures.balance)],
+        transactions: [
+          succeed(SYN_CASE.fixtures.transactions),
+          succeed(SYN_CASE.fixtures.transactions),
+        ],
+      },
+      isWarm: true,
+      recover: succeed('fresh-cold-token'),
+    });
+    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const phase = createApiDirectScrapePhase(shape);
+    const ctx = ctxOf(bus, SYN_CASE.name);
+    const result = await phase(ctx);
+    assertOk(result);
+    expect(recoverSession).toHaveBeenCalledTimes(1);
+  });
 });

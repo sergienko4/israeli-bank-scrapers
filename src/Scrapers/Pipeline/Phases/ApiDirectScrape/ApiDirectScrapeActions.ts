@@ -133,14 +133,25 @@ async function runScrape<TAcct, TCursor>(
 
 /**
  * Decide whether a scrape outcome warrants a session-recovery attempt: a hard
- * failure OR a degraded-balance signal (a warm token the server silently
- * rejected while it still looks locally fresh).
+ * failure OR a degraded-balance signal.
+ *
+ * `balanceDegraded` is set by ANY balance fallback — including a transient 5xx
+ * unrelated to the token — not only an auth-shaped rejection. This conflation
+ * is DELIBERATE: a silently server-rejected warm token most reliably surfaces
+ * as a balance fallback, and the blast radius is already bounded — recovery is
+ * gated on a warm session (cold sessions never recover, see
+ * {@link shouldRecoverSession}) and runs at most once (recover-once). Splitting
+ * transient-vs-auth here would require threading the failure shape through
+ * IBalanceOutcome, which the bank result guards consume with the current
+ * any-fallback meaning. Worst case: one unnecessary OTP on a warm session that
+ * hit a transient balance hiccup.
  * @param first - The first scrape procedure.
  * @returns True when the scrape failed or reported a degraded balance.
  */
 function isScrapeSuspicious(first: Procedure<ApiDirectScrapeResult>): boolean {
   if (!isOk(first)) return true;
   const { scrape } = first.value;
+  // Strict `=== true`: balanceDegraded is a validated boolean — never coerce.
   return isSome(scrape) && scrape.value.balanceDegraded === true;
 }
 
