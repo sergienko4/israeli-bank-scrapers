@@ -45,7 +45,7 @@ interface IOtpChallengeState {
  * @returns Fresh nonce string.
  */
 function generateNonce(): string {
-  const seed = Math.random().toString(36).slice(2, 11);
+  const seed = Math.random().toString(36).slice(2).padEnd(9, '0').slice(0, 9);
   return `otp-${seed}`;
 }
 
