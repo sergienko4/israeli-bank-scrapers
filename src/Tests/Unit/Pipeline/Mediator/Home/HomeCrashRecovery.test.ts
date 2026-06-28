@@ -80,6 +80,15 @@ function makeRecoveryMediator(script: IRecoveryScript, calls: IRecoveryCalls): I
      */
     resolveVisible: (): Promise<IRaceResult> => Promise.resolve(queue.shift() ?? NOT_FOUND_RESULT),
     /**
+     * resolveAllVisible — dequeues one scripted result (array form
+     * consumed by resolveHomeTrigger).
+     * @returns Single-element list when found, else empty.
+     */
+    resolveAllVisible: (): Promise<readonly IRaceResult[]> => {
+      const next = queue.shift() ?? NOT_FOUND_RESULT;
+      return Promise.resolve(next.found ? [next] : []);
+    },
+    /**
      * countByText — scripted crash-marker count.
      * @returns Configured count.
      */

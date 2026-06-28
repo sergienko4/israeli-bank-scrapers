@@ -17,34 +17,6 @@ export type { IBankScraperConfig };
 /** Central per-bank scraper configuration — URLs, API, auth, format, timing, selectors. */
 export const SCRAPER_CONFIGURATION = {
   banks: {
-    [CompanyTypes.Leumi]: {
-      urls: {
-        base: 'https://www.leumi.co.il',
-        loginRoute: null,
-        transactions:
-          'https://hb2.bankleumi.co.il/eBanking/SO/SPA.aspx#/ts/BusinessAccountTrx?WidgetPar=1',
-      },
-      api: { ...NULL_API, base: 'https://hb2.bankleumi.co.il' },
-      auth: NULL_AUTH,
-      loginSetup: SIMPLE_LOGIN,
-      format: { ...NULL_FORMAT, date: 'DD.MM.YY' },
-      timing: NULL_TIMING,
-      selectors: {
-        advancedSearchBtn: [{ kind: 'css', value: 'button[title="חיפוש מתקדם"]' }],
-        dateRangeRadio: [{ kind: 'css', value: 'bll-radio-button:not([checked])' }],
-        dateFromInput: [{ kind: 'css', value: 'input[formcontrolname="txtInputFrom"]' }],
-        filterBtn: [{ kind: 'ariaLabel', value: 'סנן' }],
-        accountListItems: [
-          { kind: 'css', value: 'app-masked-number-combo span.display-number-li' },
-        ],
-        accountCombo: [
-          {
-            kind: 'xpath',
-            value: '//*[contains(@class, "number") and contains(@class, "combo-inner")]',
-          },
-        ],
-      },
-    },
     [CompanyTypes.Mizrahi]: {
       urls: {
         base: 'https://www.mizrahi-tefahot.co.il',

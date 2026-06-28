@@ -1190,6 +1190,8 @@ IPageEvalOpts
 IPageEvalAllOpts
 # Reason: BalanceResolve — per-bank balance-resolution discriminant ('account' | 'card-cycle') on IPipelineBankConfig; framework-internal config knob that gates the balance-resolve live fetch. Deposit banks declare 'account'; card companies declare 'card-cycle'. REQUIRED — every bank states its kind explicitly; absence is a config error, not a silent no-op. Not user-facing mkdocs surface (mirrors BalanceSlotKey/IDashboardTargets config types already allowlisted).
 BalanceKind
+# Reason: Banks — Leumi declarative login config (credential keys only; WellKnown resolves selectors); framework-internal bank-registration surface consumed by the integration test wiring (BankLoginConfigs), mirroring every other pipeline bank's *_LOGIN. Not user-facing.
+LEUMI_LOGIN
 # Reason: AuthDiscoveryGate — per-bank auth-completion-family discriminant ('token' | 'session-cookie' | 'api-direct') on IPipelineBankConfig; framework-internal config knob that declares how auth success is verified. REQUIRED — every bank states its kind explicitly; tsc enforces completeness. Not user-facing mkdocs surface; mirrors BalanceKind (already allowlisted above).
 AuthStrategyKind
 

@@ -118,6 +118,13 @@ function makeHomeCtx(pageUrl = 'https://test.bank.co.il/login'): IPipelineContex
      */
     resolveVisible: () => Promise.resolve(foundResult),
     /**
+     * Resolve all visible — HOME.PRE (resolveHomeTrigger) races this,
+     * not resolveVisible; return the found trigger so the login nav
+     * link is located instead of defaulting to an empty list.
+     * @returns Single-element found race-result list.
+     */
+    resolveAllVisible: () => Promise.resolve([foundResult]),
+    /**
      * Resolve and click — best-effort, returns found.
      * @returns Resolved found.
      */

@@ -173,7 +173,7 @@ function auditFile(file) {
     p.re.lastIndex = 0;
     let m;
     while ((m = p.re.exec(raw)) !== null) {
-      const hit = { pat: p, match: m[0].slice(0, 80), at: m.index, ctx: snippet(raw, m.index, 80) };
+      const hit = { pat: p, match: m[0], at: m.index, ctx: snippet(raw, m.index, 80) };
       if (!isFalsePositive(hit)) hits.push(hit);
       if (m.index === p.re.lastIndex) p.re.lastIndex++;
     }
@@ -201,7 +201,7 @@ function main() {
     console.log(`\n=== ${rel} ===`);
     for (const hit of interesting.slice(0, 15)) {
       const tag = `[${hit.pat.severity}] ${hit.pat.id}`;
-      console.log(`  ${tag}: "${hit.match}"  ctx: ...${hit.ctx}...`);
+      console.log(`  ${tag}: "${hit.match.slice(0, 80)}"  ctx: ...${hit.ctx}...`);
       if (hit.pat.severity === 'CRITICAL') {
         critical++;
         fileSummary[rel].c++;

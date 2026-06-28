@@ -242,6 +242,31 @@ describe('extractTransactions', () => {
     const txns = extractTransactions(body);
     expect(txns.length).toBeGreaterThanOrEqual(0);
   });
+
+  it('unwraps the Leumi WCF envelope and maps the inner txn', () => {
+    const inner = {
+      HistoryTransactionsItems: [
+        {
+          DateUTC: '2026-06-17T09:00:00Z',
+          Amount: 150,
+          Credit: 150,
+          Debit: 0,
+          Description: 'salary',
+          RunningBalance: 150,
+          ReferenceNumberLong: 987654321,
+        },
+      ],
+      TodayTransactionsItems: null,
+      BalanceDisplay: 150,
+    };
+    const envelope = { ProcessRequestResult: 0, jsonResp: JSON.stringify(inner) };
+    const txns = extractTransactions(envelope);
+    expect(txns).toHaveLength(1);
+    expect(txns[0].chargedAmount).toBe(150);
+    expect(txns[0].description).toBe('salary');
+    expect(txns[0].identifier).toBe(987654321);
+    expect(txns[0].date).toContain('2026-06-17');
+  });
 });
 
 describe('extractTransactionsForCard', () => {

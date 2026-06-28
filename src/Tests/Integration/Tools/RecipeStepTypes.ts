@@ -48,6 +48,10 @@ interface ILoginStep {
   readonly stepName: string;
   /** Optional override: log into a different bank's pipeline config. */
   readonly bankIdOverride?: string;
+  /** When false, drive the login action WITHOUT overwriting an existing
+   *  snapshot at `stepName` (used when the credential form was already
+   *  captured pre-login). Defaults to true (snapshot written). */
+  readonly snapshot?: boolean;
 }
 
 /** Step: wait for URL substring match or visible text before snapshot.

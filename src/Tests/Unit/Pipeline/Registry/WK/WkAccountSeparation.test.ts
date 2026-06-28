@@ -11,8 +11,14 @@ import {
 } from '../../../../../Scrapers/Pipeline/Registry/WK/ScrapeWK.js';
 
 describe('PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS — Phase 7d separation', () => {
-  it('exposes the 4 WK container names in card-then-bank-account order', () => {
-    expect(WK_ACCT.containers).toEqual(['cardsList', 'cards', 'accounts', 'bankAccounts']);
+  it('exposes the 5 WK container names in card-then-bank-account order', () => {
+    expect(WK_ACCT.containers).toEqual([
+      'cardsList',
+      'cards',
+      'accounts',
+      'bankAccounts',
+      'accountsItems',
+    ]);
   });
 
   it('combined id list is non-empty and includes both query and display ids', () => {

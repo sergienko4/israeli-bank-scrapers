@@ -315,6 +315,25 @@ interface IDriveLoginSpec {
   readonly creds: BankCredentials;
 }
 
+/** Narrowed `ok` variant of {@link LoginGate} (login prereqs satisfied). */
+type LoginGateOk = Extract<LoginGate, { tag: 'ok' }>;
+
+/**
+ * Assemble the drive spec from a resolved (non-skip) login gate. Keeps
+ * {@link executeLoginStep} under the 10-line test-helper cap.
+ * @param step - Login step being executed.
+ * @param args - Shared executor args.
+ * @param gate - Resolved login gate (credentials + config present).
+ * @returns Fully-populated drive spec.
+ */
+function toDriveSpec(
+  step: ILoginStep,
+  args: IStepExecutorArgs,
+  gate: LoginGateOk,
+): IDriveLoginSpec {
+  return { step, args, config: gate.config, creds: gate.creds };
+}
+
 /**
  * Resolve the pipeline logger — caller-provided or silent fallback.
  * @param args - Shared executor args.
@@ -355,15 +374,17 @@ function assertLoginSuccess(result: Procedure<unknown>, stepName: string): true 
 
 /**
  * Drive the LOGIN ACTION via the production `fillAndSubmit` and
- * snapshot the post-submit DOM. Extracted so {@link executeLoginStep}
- * stays under the 10-line cap.
+ * snapshot the post-submit DOM unless `step.snapshot === false`.
+ * Extracted so {@link executeLoginStep} stays under the 10-line cap.
  * @param spec - Resolved login bundle.
- * @returns Resolves once the snapshot is persisted.
+ * @returns True when a snapshot was written, false when skipped.
  */
-async function driveLoginAndSnapshot(spec: IDriveLoginSpec): Promise<void> {
+async function driveLoginAndSnapshot(spec: IDriveLoginSpec): Promise<boolean> {
   const result = await runFillAndSubmit(spec);
   assertLoginSuccess(result, spec.step.stepName);
+  if (spec.step.snapshot === false) return false;
   await spec.args.writeSnapshot(spec.args.page, spec.step.stepName);
+  return true;
 }
 
 /**
@@ -383,8 +404,9 @@ async function executeLoginStep(
 ): Promise<IStepExecutorResult> {
   const gate = gateLoginPrereqs(args);
   if (gate.tag === 'skip') return skip(step, gate.reason);
-  await driveLoginAndSnapshot({ step, args, config: gate.config, creds: gate.creds });
-  return ok(step, true);
+  const spec = toDriveSpec(step, args, gate);
+  const wasWritten = await driveLoginAndSnapshot(spec);
+  return ok(step, wasWritten);
 }
 
 /**

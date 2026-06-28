@@ -55,15 +55,23 @@ const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../../');
 const HOME_RESOLVER_PATH = join(REPO_ROOT, 'src/Scrapers/Pipeline/Mediator/Home/HomeResolver.ts');
+const HOME_RESOLVER_TRIGGER_PATH = join(
+  REPO_ROOT,
+  'src/Scrapers/Pipeline/Mediator/Home/HomeResolver.trigger.ts',
+);
 
 /**
- * Read the on-disk `HomeResolver.ts` source so the centralisation
- * invariant can be asserted without importing private internals.
+ * Read the on-disk HOME resolver sources — the main `HomeResolver.ts`
+ * plus the extracted `HomeResolver.trigger.ts`, which owns the
+ * entry-timeout import after the Leumi real-href trigger split — so the
+ * centralisation invariant holds wherever the import now lives.
  *
- * @returns Full file contents as UTF-8 text.
+ * @returns Concatenated UTF-8 contents of both resolver files.
  */
 function readHomeResolverSource(): string {
-  return readFileSync(HOME_RESOLVER_PATH, 'utf8');
+  const main = readFileSync(HOME_RESOLVER_PATH, 'utf8');
+  const trigger = readFileSync(HOME_RESOLVER_TRIGGER_PATH, 'utf8');
+  return `${main}\n${trigger}`;
 }
 
 /**

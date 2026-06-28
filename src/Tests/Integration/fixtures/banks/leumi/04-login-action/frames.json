@@ -1,0 +1,20 @@
+[
+  {
+    "index": 0,
+    "name": "",
+    "url": "https://hb2.bankleumi.co.il/staticcontent/gate-keeper/he/",
+    "file": "frame-0.html"
+  },
+  {
+    "index": 1,
+    "name": "cross-domain-store-server-iframe",
+    "url": "https://cache.bankleumi.co.il/adrum/adrum-xd.281eccdb0a28fe3b4dbfbf942f8b88ed.html",
+    "file": "frame-1.html"
+  },
+  {
+    "index": 2,
+    "name": "sharedDomainIframe",
+    "url": "https://cache.bankleumi.co.il/adrum/adrum-xd.281eccdb0a28fe3b4dbfbf942f8b88ed_files/shareddomain.html",
+    "file": "frame-2.html"
+  }
+]

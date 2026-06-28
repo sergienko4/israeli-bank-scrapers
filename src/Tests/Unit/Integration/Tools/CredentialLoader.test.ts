@@ -104,9 +104,18 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the seven onboarded pipeline banks sorted', () => {
+    it('returns the eight onboarded pipeline banks sorted', () => {
       const banks = knownBanks();
-      const expected = ['amex', 'beinleumi', 'discount', 'hapoalim', 'isracard', 'max', 'visaCal'];
+      const expected = [
+        'amex',
+        'beinleumi',
+        'discount',
+        'hapoalim',
+        'isracard',
+        'leumi',
+        'max',
+        'visaCal',
+      ];
       expect(banks).toEqual(expected);
     });
   });

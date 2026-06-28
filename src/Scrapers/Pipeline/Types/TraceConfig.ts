@@ -128,6 +128,7 @@ const KNOWN_BANK_SLUGS: readonly string[] = [
   'discount',
   'hapoalim',
   'isracard',
+  'leumi',
   'max',
   'massad',
   'mercantile',
