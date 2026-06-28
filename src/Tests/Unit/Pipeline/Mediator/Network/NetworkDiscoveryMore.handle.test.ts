@@ -6,6 +6,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { Frame, Page, Response } from 'playwright-core';
+import { errors } from 'playwright-core';
 
 import { createNetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import { listeners, makePage, restoreDumpDir, simulate } from './NetworkDiscoveryMoreHelpers.js';
@@ -260,7 +261,8 @@ describe('NetworkDiscovery — waitForTraffic matcher invocation', () => {
        */
       url: (): string => 'https://bank.co.il',
       /**
-       * waitForResponse — invoke matcher + reject to end quickly.
+       * waitForResponse — invoke matcher then reject with a real Playwright
+       * TimeoutError so the production swallowTimeout treats it as "no traffic".
        * @param matcher - Test predicate.
        * @returns Rejected.
        */
@@ -269,7 +271,7 @@ describe('NetworkDiscovery — waitForTraffic matcher invocation', () => {
           wasMatcherCalled = true;
           (matcher as (r: Response) => boolean)(testResp);
         }
-        return Promise.reject(new Error('timeout'));
+        return Promise.reject(new errors.TimeoutError('timeout'));
       },
       /**
        * Test helper.

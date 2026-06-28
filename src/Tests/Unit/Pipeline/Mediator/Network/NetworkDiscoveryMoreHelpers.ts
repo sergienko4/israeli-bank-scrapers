@@ -3,6 +3,7 @@
  */
 
 import type { Frame, Page, Response } from 'playwright-core';
+import { errors } from 'playwright-core';
 
 /** Captured listeners. */
 export let listeners: ((r: Response) => boolean)[] = [];
@@ -32,10 +33,12 @@ export function makePage(frames: Frame[] = [], url = 'https://bank.co.il'): Page
      */
     url: (): string => url,
     /**
-     * waitForResponse — rejects quickly for test purposes.
-     * @returns Rejected promise.
+     * waitForResponse — rejects with a Playwright TimeoutError to model
+     * a real wait budget elapsing (so awaitTraffic's swallowTimeout
+     * recognises it and returns false instead of rethrowing).
+     * @returns Rejected promise (TimeoutError).
      */
-    waitForResponse: (): Promise<false> => Promise.reject(new Error('timeout')),
+    waitForResponse: (): Promise<false> => Promise.reject(new errors.TimeoutError('timeout')),
     /**
      * frames.
      * @returns Frames array.
