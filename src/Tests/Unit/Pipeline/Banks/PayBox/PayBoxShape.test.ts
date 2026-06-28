@@ -43,7 +43,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
-import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 
 const FIXT_UID = 'pb-uid-fixture-1';
 const FIXT_DEVICE = 'fixt-device-pb-0001';
@@ -91,6 +91,7 @@ function makePayBoxBus(router: Record<string, readonly Procedure<unknown>[]>): I
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
     setSessionContext: jest.fn(),
+    ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => PAYBOX_SESSION),
   } as unknown as IApiMediator;
 }
