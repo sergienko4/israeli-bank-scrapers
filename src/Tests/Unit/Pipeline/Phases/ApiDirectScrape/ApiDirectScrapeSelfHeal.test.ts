@@ -262,4 +262,48 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     assertOk(result);
     expect(recoverSession).toHaveBeenCalledTimes(1);
   });
+
+  it('SH-7 — warm + empty-but-authenticated body recovers once and heals', async () => {
+    const emptyCustomer = succeed({ accts: [] });
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [emptyCustomer, succeed(SYN_CASE.fixtures.customer)],
+        balance: [succeed(SYN_CASE.fixtures.balance)],
+        transactions: [succeed(SYN_CASE.fixtures.transactions)],
+      },
+      isWarm: true,
+      recover: succeed('fresh-cold-token'),
+    });
+    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const phase = createApiDirectScrapePhase(shape);
+    const ctx = ctxOf(bus, SYN_CASE.name);
+    const result = await phase(ctx);
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    expect(recoverSession).toHaveBeenCalledTimes(1);
+    expect(scr.value.accounts).toHaveLength(1);
+  });
+
+  it('SH-8 — cold + empty-but-authenticated body does not recover', async () => {
+    const emptyCustomer = succeed({ accts: [] });
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [emptyCustomer],
+        balance: [succeed(SYN_CASE.fixtures.balance)],
+        transactions: [succeed(SYN_CASE.fixtures.transactions)],
+      },
+      isWarm: false,
+      recover: succeed('unused'),
+    });
+    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const phase = createApiDirectScrapePhase(shape);
+    const ctx = ctxOf(bus, SYN_CASE.name);
+    const result = await phase(ctx);
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    expect(recoverSession).not.toHaveBeenCalled();
+    expect(scr.value.accounts).toHaveLength(0);
+  });
 });

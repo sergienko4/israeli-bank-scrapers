@@ -132,8 +132,27 @@ async function runScrape<TAcct, TCursor>(
 }
 
 /**
+ * Recognize a degraded scrape SLOT: a balance fallback fired OR the
+ * authenticated call returned zero accounts.
+ *
+ * An empty-but-authenticated body is a known server-degraded warm-session
+ * shape — the cached token still authenticates yet the backend silently
+ * returns nothing. On the warm direct-API path this must count as suspicious so
+ * self-heal can fire. The rule is bounded: recovery is warm-gated (see
+ * {@link shouldRecoverSession}) and recover-once, so a direct-API account that
+ * legitimately holds zero accounts re-runs at most once and then surfaces the
+ * same empty result unmasked.
+ * @param state - The populated scrape slot.
+ * @returns True when the slot is empty or balance-degraded.
+ */
+function isDegradedScrapeState(state: IScrapeState): boolean {
+  // Strict `=== true`: balanceDegraded is a validated boolean — never coerce.
+  return state.accounts.length === 0 || state.balanceDegraded === true;
+}
+
+/**
  * Decide whether a scrape outcome warrants a session-recovery attempt: a hard
- * failure OR a degraded-balance signal.
+ * failure OR a degraded scrape slot (see {@link isDegradedScrapeState}).
  *
  * `balanceDegraded` is set by ANY balance fallback — including a transient 5xx
  * unrelated to the token — not only an auth-shaped rejection. This conflation
@@ -146,13 +165,12 @@ async function runScrape<TAcct, TCursor>(
  * any-fallback meaning. Worst case: one unnecessary OTP on a warm session that
  * hit a transient balance hiccup.
  * @param first - The first scrape procedure.
- * @returns True when the scrape failed or reported a degraded balance.
+ * @returns True when the scrape failed or reported a degraded slot.
  */
 function isScrapeSuspicious(first: Procedure<ApiDirectScrapeResult>): boolean {
   if (!isOk(first)) return true;
   const { scrape } = first.value;
-  // Strict `=== true`: balanceDegraded is a validated boolean — never coerce.
-  return isSome(scrape) && scrape.value.balanceDegraded === true;
+  return isSome(scrape) && isDegradedScrapeState(scrape.value);
 }
 
 /**
