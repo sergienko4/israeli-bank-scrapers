@@ -161,7 +161,10 @@
   ],
   "overrides": {
     "test-exclude": "^7.0.2",
-    "ua-parser-js": "1.0.41"
+    "ua-parser-js": "1.0.41",
+    "@babel/core": "^7.29.6",
+    "esbuild": "^0.28.1",
+    "js-yaml": "^4.2.0"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
