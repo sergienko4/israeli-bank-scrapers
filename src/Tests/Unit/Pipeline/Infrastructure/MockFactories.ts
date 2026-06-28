@@ -148,7 +148,11 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     balanceValidation: none(),
     balanceResolution: none(),
   };
-  return { ...defaults, ...overrides };
+  return {
+    ...defaults,
+    ...overrides,
+    config: { ...defaults.config, ...overrides.config },
+  };
 }
 
 /**

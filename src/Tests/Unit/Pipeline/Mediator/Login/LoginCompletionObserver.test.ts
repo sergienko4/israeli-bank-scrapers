@@ -85,6 +85,19 @@ function makeFrame(spinner: boolean): Page {
 }
 
 /**
+ * Build the bank-config slice for the fake context. Enforcement is opt-in via
+ * {@link IFakeCtxArgs.pollBudget}; the base URL falls back through the supplied
+ * current/login URLs so url-stuck detection stays deterministic.
+ * @param args - Tunable presence + probe behaviour + optional poll budget.
+ * @returns A minimal IPipelineBankConfig-shaped literal.
+ */
+function makeCtxConfig(args: IFakeCtxArgs): Record<string, unknown> {
+  const base = args.currentUrl ?? args.loginUrl ?? '';
+  const poll = args.pollBudget ? { loginCompletionPoll: args.pollBudget } : {};
+  return { urls: { base }, balanceKind: 'account', authStrategyKind: 'token', ...poll };
+}
+
+/**
  * Assemble a minimal LOGIN.final pipeline context plus a debug spy. The
  * bank opts into enforcement only when {@link IFakeCtxArgs.pollBudget} is set.
  * @param args - Tunable presence + probe behaviour + optional poll budget.
@@ -96,7 +109,7 @@ function makeCtx(args: IFakeCtxArgs = {}): IFakeCtx {
   const ctx = {
     logger: { debug },
     diagnostics: { loginUrl: args.loginUrl ?? '' },
-    config: args.pollBudget ? { loginCompletionPoll: args.pollBudget } : {},
+    config: makeCtxConfig(args),
     loginFieldDiscovery:
       args.formPresent === true
         ? { has: true, value: { targets: new Map([[LOGIN_FIELDS.PASSWORD, { selector: 'pwd' }]]) } }

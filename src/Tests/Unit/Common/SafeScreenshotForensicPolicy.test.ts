@@ -32,9 +32,10 @@ const PR_YML_PATH = resolve(REPO_ROOT, '.github', 'workflows', 'pr.yml');
 const COMMENT_LINE_RE = /^\s*#/;
 const FORENSIC_TRACE_WIRING = 'FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}';
 // Block ANY public upload of forensic pixels/dumps, not just one artifact name:
-// a renamed step that still publishes screenshots or /tmp/runs/pipeline must trip this.
+// a renamed step that still publishes screenshots or /tmp/runs/pipeline must trip
+// this — including block/list `path:` forms where the location is on a later line.
 const FORBIDDEN_PUBLIC_DIAG_UPLOAD =
-  /uses:\s*actions\/upload-artifact@[\s\S]{0,250}?\bpath:[^\n]*(?:screenshots|\/tmp\/runs\/pipeline)/i;
+  /uses:\s*actions\/upload-artifact@[\s\S]{0,250}?\bpath:[\s\S]{0,250}?(?:screenshots|\/tmp\/runs\/pipeline)/i;
 const PRIVATE_STORE_STEP = 'Upload full diagnostics to private store';
 const PRIVATE_STORE_SCRIPT = 'bash .github/scripts/ci/upload-private-diagnostics.sh';
 
@@ -75,6 +76,20 @@ describe('forensic screenshot policy — pr.yml <-> SafeScreenshot drift pin', (
   it('uploads no public e2e diagnostics artifact — private store is the sole sink', () => {
     const workflowCode = stripCommentLines(prYml);
     expect(workflowCode).not.toMatch(FORBIDDEN_PUBLIC_DIAG_UPLOAD);
+  });
+
+  it('flags a block/list-form public upload of pipeline diagnostics (multiline)', () => {
+    // R3-20 firing guard: the matcher must catch block/list `path:` forms where
+    // the sensitive location sits on a later line. RED on the prior `[^\n]*`
+    // single-line matcher; GREEN on the broadened `[\s\S]` scan.
+    const blockFormUpload = [
+      'uses: actions/upload-artifact@v4',
+      'with:',
+      '  name: e2e-diag',
+      '  path: |',
+      '    /tmp/runs/pipeline',
+    ].join('\n');
+    expect(blockFormUpload).toMatch(FORBIDDEN_PUBLIC_DIAG_UPLOAD);
   });
 
   it('routes e2e-real failure diagnostics to the private store', () => {

@@ -397,7 +397,11 @@ describe('login.req.seen — all-request integration (RED→GREEN proof)', () =>
   const prev = process.env[AUTH_REQ_TRACE_ENV_VAR];
 
   afterEach(() => {
-    process.env[AUTH_REQ_TRACE_ENV_VAR] = prev;
+    if (prev === undefined) {
+      Reflect.deleteProperty(process.env, AUTH_REQ_TRACE_ENV_VAR);
+    } else {
+      process.env[AUTH_REQ_TRACE_ENV_VAR] = prev;
+    }
   });
 
   it('emits login.req.seen for a non-WK analytics request (gate ON)', () => {
@@ -430,7 +434,11 @@ describe('gate-OFF — zero new listeners (byte-identical production guarantee)'
   const prev = process.env[AUTH_REQ_TRACE_ENV_VAR];
 
   afterEach(() => {
-    process.env[AUTH_REQ_TRACE_ENV_VAR] = prev;
+    if (prev === undefined) {
+      Reflect.deleteProperty(process.env, AUTH_REQ_TRACE_ENV_VAR);
+    } else {
+      process.env[AUTH_REQ_TRACE_ENV_VAR] = prev;
+    }
   });
 
   it('attaches no console, pageerror, or popup listeners when gate is OFF', () => {
