@@ -74,14 +74,18 @@ function buildPrimeBindings(
   };
 }
 
+/** The three slot-derived getter bindings produced by buildGetterBindings. */
+type IGetterBindings = Pick<
+  IStrategyBindings,
+  'getLatestLongTermToken' | 'getLatestCarrySnapshot' | 'lastPrimeWasWarm'
+>;
+
 /**
- * Build the slot-getter bindings (long-term token + carry snapshot).
+ * Build the slot-getter bindings (long-term token + carry snapshot + warm flag).
  * @param slot - Capture slot.
- * @returns Two-binding object.
+ * @returns Three-binding object.
  */
-function buildGetterBindings(
-  slot: ILongTermTokenSlot,
-): Pick<IStrategyBindings, 'getLatestLongTermToken' | 'getLatestCarrySnapshot'> {
+function buildGetterBindings(slot: ILongTermTokenSlot): IGetterBindings {
   /**
    * Read the captured long-term token from the slot.
    * @returns Latest captured token (or '' when none).
@@ -93,7 +97,12 @@ function buildGetterBindings(
    */
   const getLatestCarrySnapshot = (): Readonly<Record<string, JsonValue>> =>
     slot.latestCarrySnapshot;
-  return { getLatestLongTermToken, getLatestCarrySnapshot };
+  /**
+   * Whether the last prime reused a cached warm seed (vs cold flow).
+   * @returns Warm-path flag (false until a prime sets it).
+   */
+  const lastPrimeWasWarm = (): boolean => slot.usedWarmPath ?? false;
+  return { getLatestLongTermToken, getLatestCarrySnapshot, lastPrimeWasWarm };
 }
 
 /**

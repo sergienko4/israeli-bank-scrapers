@@ -5,6 +5,8 @@ import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
+import { AUTH_DISCOVERY_NOT_READY_CODE } from '../../Types/Domain/AuthDiscoveryTypes.js';
+import { LOGIN_NOT_COMPLETED_CODE } from '../../Types/Domain/LoginTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { PhaseName } from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -127,13 +129,36 @@ interface IFailureArgs {
 }
 
 /**
+ * Decide whether a failed phase must skip the sanitization-pulse retry.
+ *
+ * <p>Two non-retryable cases: (1) the side-effecting NO_RETRY phases —
+ * re-running them fires real-world side-effects (e.g. api-direct-call
+ * sends a fresh SMS OTP on every retry); (2) AUTH-DISCOVERY's honest
+ * dashboard-not-ready failure — the page is stuck on login, so a retry
+ * only re-reads the same still-login page. One try is enough. Other
+ * browser failures (incl. AUTH_DISCOVERY_SESSION_INVALID) stay retryable
+ * so a transient WAF challenge can clear on the pulse.
+ * @param step - The failed phase step.
+ * @param result - The failed phase result (carries the fail code).
+ * @returns True when the phase must not be retried.
+ */
+function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): boolean {
+  if (NO_RETRY_PHASES.has(step.name)) return true;
+  if (isOk(result)) return false;
+  if (step.name === 'login' && result.errorMessage.includes(LOGIN_NOT_COMPLETED_CODE)) return true;
+  return (
+    step.name === 'auth-discovery' && result.errorMessage.includes(AUTH_DISCOVERY_NOT_READY_CODE)
+  );
+}
+
+/**
  * Handle phase failure: respect NO_RETRY list or attempt sanitization pulse.
  * @param args - Tracker + ctx + step + failed result bundle.
  * @returns Either recovered continuation or original failure.
  */
 async function handlePhaseFailure(args: IFailureArgs): Promise<Procedure<IPipelineContext>> {
   const { tracker, ctx, step, result } = args;
-  if (NO_RETRY_PHASES.has(step.name)) {
+  if (isNonRetryable(step, result)) {
     traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: false });
     return result;
   }

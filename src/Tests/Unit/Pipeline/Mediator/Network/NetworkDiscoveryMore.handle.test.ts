@@ -6,6 +6,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { Frame, Page, Response } from 'playwright-core';
+import { errors } from 'playwright-core';
 
 import { createNetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import { listeners, makePage, restoreDumpDir, simulate } from './NetworkDiscoveryMoreHelpers.js';
@@ -63,7 +64,8 @@ describe('NetworkDiscovery — handleResponse non-JSON content type', () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    expect(discovery.getAllEndpoints().length).toBe(0);
+    const endpoints = discovery.getAllEndpoints();
+    expect(endpoints).toHaveLength(0);
   });
 
   it('handleResponse with missing content-type header applies NO_CONTENT_TYPE sentinel', async () => {
@@ -118,7 +120,8 @@ describe('NetworkDiscovery — handleResponse non-JSON content type', () => {
     await Promise.resolve();
     await Promise.resolve();
     // Was skipped (no 'application/json' in 'none')
-    expect(discovery.getAllEndpoints().length).toBe(0);
+    const endpoints = discovery.getAllEndpoints();
+    expect(endpoints).toHaveLength(0);
   });
 });
 
@@ -174,7 +177,8 @@ describe('NetworkDiscovery — parseResponse JSON parse error', () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    expect(discovery.getAllEndpoints().length).toBe(0);
+    const endpoints = discovery.getAllEndpoints();
+    expect(endpoints).toHaveLength(0);
   });
 });
 
@@ -260,7 +264,8 @@ describe('NetworkDiscovery — waitForTraffic matcher invocation', () => {
        */
       url: (): string => 'https://bank.co.il',
       /**
-       * waitForResponse — invoke matcher + reject to end quickly.
+       * waitForResponse — invoke matcher then reject with a real Playwright
+       * TimeoutError so the production swallowTimeout treats it as "no traffic".
        * @param matcher - Test predicate.
        * @returns Rejected.
        */
@@ -269,7 +274,7 @@ describe('NetworkDiscovery — waitForTraffic matcher invocation', () => {
           wasMatcherCalled = true;
           (matcher as (r: Response) => boolean)(testResp);
         }
-        return Promise.reject(new Error('timeout'));
+        return Promise.reject(new errors.TimeoutError('timeout'));
       },
       /**
        * Test helper.

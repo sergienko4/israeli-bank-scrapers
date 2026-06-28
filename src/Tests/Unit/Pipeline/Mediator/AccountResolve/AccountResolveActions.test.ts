@@ -18,17 +18,12 @@ import {
 import {
   type IElementMediator,
   type IRaceResult,
-  NOT_FOUND_RESULT,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, type Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
-
-/** Shared no-op nudge result — a `found:false` success matching the real
- *  `resolveAndClick` contract (`Promise<Procedure<IRaceResult>>`) without
- *  driving an id into the pool. */
-const NUDGE_NOOP_RESULT = succeed(NOT_FOUND_RESULT);
+import { makeCapture, NUDGE_NOOP_RESULT } from './AccountResolveActions.fixtures.js';
 
 /** Args bundle for the synthetic-pool mediator factory. */
 interface IPoolMediatorArgs {
@@ -99,32 +94,6 @@ function makePoolMediator(args: IPoolMediatorArgs): IElementMediator {
       return Promise.resolve(NUDGE_NOOP_RESULT);
     },
   } as unknown as IElementMediator;
-}
-
-/** Args for `makeCapture`. */
-interface IMakeCaptureArgs {
-  readonly url: string;
-  readonly method: 'GET' | 'POST';
-  readonly responseBody: unknown;
-  readonly postData?: string;
-}
-
-/**
- * Build a synthetic discovered endpoint.
- * @param args - Capture args.
- * @returns Synthetic IDiscoveredEndpoint.
- */
-function makeCapture(args: IMakeCaptureArgs): IDiscoveredEndpoint {
-  return {
-    url: args.url,
-    method: args.method,
-    postData: args.postData ?? '',
-    responseBody: args.responseBody,
-    contentType: 'application/json',
-    requestHeaders: {},
-    responseHeaders: {},
-    timestamp: 100,
-  };
 }
 
 describe('ACCOUNT_RESOLVE_BUDGET_MS', () => {
@@ -595,6 +564,37 @@ describe('executeAccountResolvePre — same-URL SPA cards-view nudge', () => {
     // it would erase the real id and POST would fail loud. A passing POST
     // therefore proves the click was correctly skipped.
     const mediator = makePoolMediator({ captures: [idCapture], onClickCaptures: [noiseCapture] });
+    const ctx = ctxWith(mediator);
+    const pre = await executeAccountResolvePre(ctx);
+    expect(pre.success).toBe(true);
+    const post = await executeAccountResolvePost(ctx);
+    expect(post.success).toBe(true);
+    if (isOk(post)) {
+      expect(post.value.accountDiscovery.has).toBe(true);
+      if (post.value.accountDiscovery.has) {
+        expect(post.value.accountDiscovery.value.ids.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('treats an accounts container whose only id is an unusable placeholder as a passive miss', async () => {
+    // An accounts-shaped container (cardsList) IS recognised as an endpoint,
+    // but its sole record carries only a placeholder identifier ('1', a
+    // position-index sentinel that isUsableIdentifier rejects for length < 2).
+    // findFirstIdInPool therefore sees the endpoint yet zero usable ids, so the
+    // SPA is still nudged to fire the real GetCardList rather than mistaking the
+    // skeleton row for a resolved account. The nudge reveals idCapture; POST resolves.
+    const idlessContainer = makeCapture({
+      url: 'https://web.isracard.example/ocp/statuspage/DigitalV3.StatusPage/GetCardList',
+      method: 'POST',
+      responseBody: {
+        data: { cardsList: [{ cardSuffix: '1', heading: 'Statement', currencyText: 'ILS' }] },
+      },
+    });
+    const mediator = makePoolMediator({
+      captures: [idlessContainer],
+      onClickCaptures: [idCapture],
+    });
     const ctx = ctxWith(mediator);
     const pre = await executeAccountResolvePre(ctx);
     expect(pre.success).toBe(true);

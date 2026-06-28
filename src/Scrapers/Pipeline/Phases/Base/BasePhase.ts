@@ -105,7 +105,7 @@ abstract class BasePhase {
    * ACTION receives sealed IActionContext (no discovery).
    * Bookended by automatic phase-level diagnostic screenshots
    * (`<bank>-<phase>-pre-<ts>.png` before PRE, `<bank>-<phase>-post-<ts>.png`
-   * after FINAL). Both no-op outside trace mode (gated by RunLabel).
+   * after FINAL). Both no-op unless the opt-in `FORENSIC_TRACE` flag is set (gated by RunLabel).
    * @param ctx - Pipeline context at phase entry.
    * @returns Final context after all 4 stages, or first failure.
    */

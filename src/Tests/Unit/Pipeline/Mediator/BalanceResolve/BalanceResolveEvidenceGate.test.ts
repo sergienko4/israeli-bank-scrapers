@@ -133,7 +133,11 @@ type MockCtx = ReturnType<typeof makeMockContext>;
  * @returns Mock pipeline context for PRE.
  */
 function makeKindCtx(balanceKind: 'account' | 'card-cycle'): MockCtx {
-  const config = { urls: { base: 'https://fake.bank' }, balanceKind };
+  const config = {
+    urls: { base: 'https://fake.bank' },
+    balanceKind,
+    authStrategyKind: 'token' as const,
+  };
   return makeMockContext({ scrape: PLAN_SCRAPE, config });
 }
 

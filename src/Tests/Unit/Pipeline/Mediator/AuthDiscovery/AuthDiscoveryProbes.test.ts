@@ -12,13 +12,17 @@
 import {
   auditSessionCookies,
   collectAuthChannels,
+  hasCapturedAuthApi,
   probeDashboardSignal,
 } from '../../../../../Scrapers/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryProbes.js';
 import type {
   ICookieSnapshot,
   IElementMediator,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { INetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
+import type {
+  IDiscoveredEndpoint,
+  INetworkDiscovery,
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 
 const FAKE_COOKIE: ICookieSnapshot = {
@@ -154,5 +158,91 @@ describe('probeDashboardSignal', () => {
     const result = await probeDashboardSignal(mediator);
     expect(result.dashboardReady).toBe(false);
     expect(result.revealString).toBe('no reveal');
+  });
+});
+
+/** Synthetic discovered endpoint matching the accounts pattern (`GetCardList`). */
+const ACCOUNTS_ENDPOINT: IDiscoveredEndpoint = {
+  url: 'https://web.isracard.co.il/api/GetCardList',
+  method: 'GET',
+  postData: '',
+  responseBody: {},
+  contentType: 'application/json',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 0,
+  status: 200,
+};
+
+/**
+ * Build a network surface whose findEndpoints() filters a fixed capture
+ * pool by the supplied pattern — the faithful multi-match contract the
+ * production probe relies on (an early non-2xx must not mask a later 2xx).
+ * @param pool - Captured endpoints the fake network exposes.
+ * @returns Network discovery stub backed by the pool.
+ */
+function makeNetwork(pool: readonly IDiscoveredEndpoint[]): INetworkDiscovery {
+  return {
+    /**
+     * Return every pooled capture whose URL matches the pattern.
+     * @param pattern - Accounts-bucket regex from the probe.
+     * @returns Matching captures in pool order.
+     */
+    findEndpoints: (pattern: RegExp): readonly IDiscoveredEndpoint[] =>
+      pool.filter((ep): boolean => pattern.test(ep.url)),
+  } as unknown as INetworkDiscovery;
+}
+
+describe('hasCapturedAuthApi', () => {
+  it('returns true when an accounts endpoint with status 200 is captured', () => {
+    const network = makeNetwork([ACCOUNTS_ENDPOINT]);
+    const hasAuth200 = hasCapturedAuthApi(network);
+    expect(hasAuth200).toBe(true);
+  });
+
+  it('returns false for an analytics-only pool (no accounts match)', () => {
+    const analytics: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, url: 'https://x.co/collect' };
+    const network = makeNetwork([analytics]);
+    const hasAuthAnalytics = hasCapturedAuthApi(network);
+    expect(hasAuthAnalytics).toBe(false);
+  });
+
+  it('returns false when the only accounts endpoint has a 401 status (not authed)', () => {
+    const unauthedEndpoint: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, status: 401 };
+    const network = makeNetwork([unauthedEndpoint]);
+    const hasAuth401 = hasCapturedAuthApi(network);
+    expect(hasAuth401).toBe(false);
+  });
+
+  it('returns true when the accounts endpoint has undefined status (replay path)', () => {
+    const replayEndpoint: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, status: undefined };
+    const network = makeNetwork([replayEndpoint]);
+    const hasAuthReplay = hasCapturedAuthApi(network);
+    expect(hasAuthReplay).toBe(true);
+  });
+
+  it('returns true on a later 200 even when an earlier 401 was captured first', () => {
+    // R3-11 firing guard: an early failed retry must NOT mask a later authed
+    // success on the same URL. RED on the prior discoverByPatterns (first-match)
+    // code, which saw only the 401; GREEN on the findEndpoints `.some` scan.
+    const early401: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, status: 401, timestamp: 0 };
+    const later200: IDiscoveredEndpoint = { ...ACCOUNTS_ENDPOINT, status: 200, timestamp: 1 };
+    const network = makeNetwork([early401, later200]);
+    const hasAuthAfterRetry = hasCapturedAuthApi(network);
+    expect(hasAuthAfterRetry).toBe(true);
+  });
+
+  it('does NOT corroborate on a login-submission (auth-bucket) capture alone', () => {
+    // RED #1 guard: `.auth` endpoints fire DURING login, so a capture
+    // proves login was attempted — not that the dashboard was reached.
+    // Only the `.accounts` (post-auth data) bucket corroborates. This is
+    // RED on the prior `.auth`-fallback code, GREEN on the accounts-only fix.
+    const authEndpoint: IDiscoveredEndpoint = {
+      ...ACCOUNTS_ENDPOINT,
+      url: 'https://bank.co.il/api/v2/auth/login',
+    };
+    const network = makeNetwork([authEndpoint]);
+    const hasAuthBucketCorroboration = hasCapturedAuthApi(network);
+    expect(hasAuthBucketCorroboration).toBe(false);
   });
 });

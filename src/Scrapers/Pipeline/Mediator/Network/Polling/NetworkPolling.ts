@@ -15,9 +15,13 @@
  */
 
 import type { Page, Response } from 'playwright-core';
+import { errors } from 'playwright-core';
 
 import { createPromise } from '../../Timing/TimingActions.js';
-import { NETWORK_WAIT_FIRST_ID_POLL_MS } from '../../Timing/TimingConfig.js';
+import {
+  NETWORK_BODY_SETTLE_MS,
+  NETWORK_WAIT_FIRST_ID_POLL_MS,
+} from '../../Timing/TimingConfig.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
 /** Predicate signature — caller-owned shape detector. */
@@ -140,8 +144,72 @@ function matchUrlPredicate(patterns: readonly RegExp[], response: Response): boo
 }
 
 /**
+ * Convert a Playwright timeout into a false signal, but rethrow any
+ * other terminal failure (page/context closure, connection loss) so
+ * callers see genuine errors instead of a silent no-match.
+ * @param error - Rejection from `page.waitForResponse`.
+ * @returns False only when the rejection is a timeout.
+ */
+function swallowTimeout(error: unknown): false {
+  if (error instanceof errors.TimeoutError) return false;
+  throw error;
+}
+
+/**
+ * Resolve true when a response URL matches within the budget, false
+ * on timeout. The matched Response is intentionally discarded — its
+ * body lands via the capture listener and is polled by
+ * `settleTrafficHit`, so this only signals MATCHED-vs-TIMED-OUT.
+ * @param page - Playwright page.
+ * @param matchUrl - Bound URL predicate.
+ * @param timeoutMs - Max wait budget in ms.
+ * @returns True on URL match, false on timeout.
+ */
+function waitForMatch(
+  page: Page,
+  matchUrl: (response: Response) => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  return page
+    .waitForResponse(matchUrl, { timeout: timeoutMs })
+    .then((): true => true)
+    .catch(swallowTimeout);
+}
+
+/**
+ * Adapter turning {@link findTrafficHit} (param order `(pool,
+ * patterns)`) into a {@link FirstIdPredicate} `(pool) => …` with
+ * `patterns` pre-bound. Consumed by `settleTrafficHit`.
+ * @param patterns - WK regex patterns (pre-bound).
+ * @param pool - Live captured endpoints (re-read each tick).
+ * @returns First traffic hit or false.
+ */
+function trafficPredicate(
+  patterns: readonly RegExp[],
+  pool: readonly IDiscoveredEndpoint[],
+): IDiscoveredEndpoint | false {
+  return findTrafficHit(pool, patterns);
+}
+
+/**
+ * Success-path settle: the URL matched on headers, so re-poll the live
+ * capture pool for up to `NETWORK_BODY_SETTLE_MS` until the
+ * listener appends the body-bearing endpoint — closing the ~2-3 ms
+ * header-vs-body read race. Reuses {@link awaitFirstId}.
+ * @param args - Page, captured endpoints, and patterns.
+ * @returns The body-bearing traffic hit or false if it never lands.
+ */
+function settleTrafficHit(args: ITrafficWaitArgs): Promise<IDiscoveredEndpoint | false> {
+  const predicate = trafficPredicate.bind(null, args.patterns);
+  return awaitFirstId(args.captured, NETWORK_BODY_SETTLE_MS, predicate);
+}
+
+/**
  * Wait for a response matching WellKnown patterns via Playwright.
- * Non-polling: uses Playwright's native event-driven response matching.
+ * The immediate fast-path checks the existing pool first. On a fresh
+ * URL match (`waitForResponse` resolves on HEADERS) the success path
+ * re-polls the pool so the listener-appended body is seen; on timeout
+ * a single pool check preserves the honest fast-fail (no extra wait).
  * @param args - Page, captured endpoints, and patterns.
  * @param timeoutMs - Max wait time.
  * @returns First matching endpoint or false on timeout.
@@ -153,8 +221,8 @@ async function awaitTraffic(
   const immediate = findTrafficHit(args.captured, args.patterns);
   if (immediate) return immediate;
   const matchUrl = matchUrlPredicate.bind(null, args.patterns);
-  await args.page.waitForResponse(matchUrl, { timeout: timeoutMs }).catch((): false => false);
-  return findTrafficHit(args.captured, args.patterns);
+  const didMatch = await waitForMatch(args.page, matchUrl, timeoutMs);
+  return didMatch ? settleTrafficHit(args) : findTrafficHit(args.captured, args.patterns);
 }
 
 export type { FirstIdPredicate, IPollFirstIdArgs, ITrafficWaitArgs };

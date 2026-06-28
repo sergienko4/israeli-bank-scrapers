@@ -7,6 +7,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import type {
   IMediatorState,
   IWithTokenStrategyOpArgs,
+  RecoveredHook,
   SessionContext,
   WasResolverSet,
 } from './ApiMediator.types.js';
@@ -23,6 +24,7 @@ function makeInitialMediatorState(): IMediatorState {
     rawAuth: '',
     resolver: NULL_RESOLVER,
     sessionContext: Object.freeze({}),
+    sessionWarm: false,
   };
 }
 
@@ -55,6 +57,37 @@ function setSessionContextOp(state: IMediatorState, ctx: SessionContext): boolea
  */
 function getSessionContextOp(state: IMediatorState): SessionContext {
   return state.sessionContext;
+}
+
+/**
+ * Record whether the active session was primed from a cached warm token.
+ * @param state - Mediator state.
+ * @param value - True when a warm (cached) token seeded the session.
+ * @returns The stored value (echoed for caller convenience).
+ */
+function setSessionWarmOp(state: IMediatorState, value: boolean): boolean {
+  state.sessionWarm = value;
+  return value;
+}
+
+/**
+ * Return whether the active session was primed from a cached warm token.
+ * @param state - Mediator state.
+ * @returns True when the session is warm-seeded.
+ */
+function getSessionWarmOp(state: IMediatorState): boolean {
+  return state.sessionWarm;
+}
+
+/**
+ * Register the post-recovery re-cache hook on the mediator state.
+ * @param state - Mediator state.
+ * @param hook - Callback fired with the new header after a successful recovery.
+ * @returns True once stored.
+ */
+function setRecoveryHookOp(state: IMediatorState, hook: RecoveredHook): boolean {
+  state.onRecovered = hook;
+  return true;
 }
 
 /**
@@ -100,11 +133,14 @@ async function primeSessionOp(state: IMediatorState): Promise<Procedure<string>>
 
 export {
   getSessionContextOp,
+  getSessionWarmOp,
   makeInitialMediatorState,
   primeSessionOp,
   setBearerOp,
   setRawAuthOp,
+  setRecoveryHookOp,
   setSessionContextOp,
+  setSessionWarmOp,
   withTokenResolverOp,
   withTokenStrategyOp,
 };

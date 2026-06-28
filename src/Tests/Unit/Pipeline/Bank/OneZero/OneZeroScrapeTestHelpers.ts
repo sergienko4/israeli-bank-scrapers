@@ -16,7 +16,11 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { makeMockContext, makeMockOptions } from '../../Infrastructure/MockFactories.js';
+import {
+  makeMockContext,
+  makeMockOptions,
+  makeRecoverySessionStubs,
+} from '../../Infrastructure/MockFactories.js';
 
 /** Synthetic portfolio shape — minimum fields consumed by the scraper. */
 export const SYN_PORTFOLIO_1 = {
@@ -136,6 +140,7 @@ export function makeMediator(router: OpRouter): IApiMediator {
     apiQuery,
     setBearer: jest.fn(),
     setSessionContext: jest.fn(),
+    ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
   } as unknown as IApiMediator;
 }

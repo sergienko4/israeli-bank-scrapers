@@ -14,5 +14,6 @@ export type {
   IApiMediator,
   IApiQueryOpts,
   IBrowserBackedHeadlessMediatorArgs,
+  RecoveredHook,
   SessionContext,
 } from './ApiMediator.types.js';

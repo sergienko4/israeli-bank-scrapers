@@ -44,6 +44,23 @@ function ackTrue(): true {
 }
 
 /**
+ * Always-false boolean ack — inert `wasSessionWarm` stub (cold session).
+ * @returns false
+ */
+function ackFalse(): false {
+  return false;
+}
+
+/**
+ * Shared recoverSession stub — tests never call it; always unused.
+ * @returns Unused generic failure.
+ */
+async function recoverSessionStub(): Promise<Procedure<string>> {
+  await Promise.resolve();
+  return fail(ScraperErrorTypes.Generic, 'unused');
+}
+
+/**
  * Build a primeSession closure from the optional configured bearer /
  * explicit procedure. Defaults to succeed('').
  * @param args - Stub args.
@@ -129,6 +146,9 @@ function makeStubMediator(args: IStubMediatorArgs): IApiMediator {
     withTokenResolver: ackTrue,
     withTokenStrategy: ackTrue,
     primeSession: makePrimeSession(args),
+    setSessionWarm: ackTrue,
+    wasSessionWarm: ackFalse,
+    recoverSession: recoverSessionStub,
     apiPost: makeApiPost(args),
     apiGet: apiGetStub,
     apiQuery: apiQueryStub,

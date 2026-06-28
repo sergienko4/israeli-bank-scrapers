@@ -39,12 +39,99 @@ function logPostLoginTraffic(
 /**
  * Probe network traffic for post-login API patterns.
  * @param mediator - Element mediator with network discovery.
+ * @param budgetMs - Wait ceiling in ms; defaults to LOGIN_TRAFFIC_WAIT_TIMEOUT_MS.
  * @returns First traffic hit or false.
  */
 async function probePostLoginTraffic(
   mediator: IElementMediator,
+  budgetMs: number = LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
 ): Promise<IDiscoveredEndpoint | false> {
-  return mediator.network.waitForTraffic(POST_LOGIN_PATTERNS, LOGIN_TRAFFIC_WAIT_TIMEOUT_MS);
+  return mediator.network.waitForTraffic(POST_LOGIN_PATTERNS, budgetMs);
+}
+
+/**
+ * Resolve a URL's host for histogram bucketing. PII-safe — host only, no
+ * path or query string. Returns 'invalid' for an unparseable URL.
+ * @param url - Captured endpoint URL.
+ * @returns The URL host, or 'invalid'.
+ */
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'invalid';
+  }
+}
+
+/**
+ * Bucket the captured-response pool by host into a count histogram.
+ * @param pool - Captured discovered endpoints.
+ * @returns Host → response-count map (PII-safe: hosts only, no full URLs).
+ */
+function poolHostHistogram(pool: readonly IDiscoveredEndpoint[]): Record<string, number> {
+  return pool.reduce<Record<string, number>>((acc, endpoint) => {
+    const host = safeHost(endpoint.url);
+    acc[host] = (acc[host] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+/**
+ * Auth-confirm wait outcome passed to the pool-histogram emitter.
+ */
+interface IAuthConfirmProbe {
+  readonly hasTraffic: boolean;
+  readonly startedMs: number;
+}
+
+/**
+ * PII-safe `login.authconfirm.pool` debug payload: scalar counts plus a
+ * host-only histogram of the captured response pool at the auth-confirm gate.
+ */
+interface IAuthConfirmPoolEvent {
+  readonly event: string;
+  readonly total: number;
+  readonly successful: number;
+  readonly hosts: Record<string, number>;
+  readonly hasTraffic: boolean;
+  readonly elapsedMs: number;
+}
+
+/**
+ * Build the PII-safe auth-confirm pool event from network discovery.
+ * @param network - Mediator network discovery (read-only access).
+ * @param probe - Wait outcome and start time.
+ * @returns The assembled histogram event.
+ */
+function poolEvent(
+  network: IElementMediator['network'],
+  probe: IAuthConfirmProbe,
+): IAuthConfirmPoolEvent {
+  const pool = network.getAllEndpoints();
+  const successful = network.countSuccessfulResponses();
+  const counts = { total: pool.length, successful, hosts: poolHostHistogram(pool) };
+  const timing = { hasTraffic: probe.hasTraffic, elapsedMs: Date.now() - probe.startedMs };
+  return { event: 'login.authconfirm.pool', ...counts, ...timing };
+}
+
+/**
+ * Emit a PII-safe pool histogram at the auth-confirm gate. Reads the existing
+ * in-memory pool via {@link IElementMediator.network} (no new page listeners —
+ * Camoufox fingerprint stays unchanged), making an analytics-only Amex trace
+ * (zero first-party responses) directly diffable against a green control bank.
+ * @param mediator - Element mediator with network discovery.
+ * @param logger - Pipeline logger.
+ * @param probe - Wait outcome and start time.
+ * @returns The emitted histogram event.
+ */
+function emitAuthConfirmPool(
+  mediator: IElementMediator,
+  logger: ScraperLogger,
+  probe: IAuthConfirmProbe,
+): IAuthConfirmPoolEvent {
+  const event = poolEvent(mediator.network, probe);
+  logger.debug(event);
+  return event;
 }
 
 /**
@@ -52,17 +139,18 @@ async function probePostLoginTraffic(
  * SSO redirect fires transaction APIs from iframe — Patient Observer.
  * @param mediator - Element mediator with network discovery.
  * @param logger - Pipeline logger.
+ * @param budgetMs - Wait ceiling in ms; defaults to LOGIN_TRAFFIC_WAIT_TIMEOUT_MS.
  * @returns True if transaction traffic detected.
  */
 async function waitForPostLoginTraffic(
   mediator: IElementMediator,
   logger?: ScraperLogger,
+  budgetMs: number = LOGIN_TRAFFIC_WAIT_TIMEOUT_MS,
 ): Promise<boolean> {
-  const hit = await probePostLoginTraffic(mediator);
-  const sink: ScraperLogger | false = logger ?? false;
-  if (hit) return logPostLoginTraffic(sink, true, hit.url);
-  const missUrl = mediator.getCurrentUrl();
-  return logPostLoginTraffic(sink, false, missUrl);
+  const startedMs = Date.now();
+  const hit = await probePostLoginTraffic(mediator, budgetMs);
+  if (logger) emitAuthConfirmPool(mediator, logger, { hasTraffic: !!hit, startedMs });
+  return logPostLoginTraffic(logger ?? false, !!hit, hit ? hit.url : mediator.getCurrentUrl());
 }
 
 export default waitForPostLoginTraffic;

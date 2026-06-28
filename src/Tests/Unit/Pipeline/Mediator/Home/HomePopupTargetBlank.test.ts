@@ -85,6 +85,11 @@ function makePopupMediator(responses: IAttrResponses): IElementMediator {
      */
     resolveVisible: (): Promise<IRaceResult> => Promise.resolve(visible),
     /**
+     * resolveAllVisible — no extra entries (prefer-direct keeps primary).
+     * @returns Empty list so the SEQUENTIAL primary winner is preserved.
+     */
+    resolveAllVisible: (): Promise<readonly IRaceResult[]> => Promise.resolve([]),
+    /**
      * checkAttribute returns true only for `href` (force DIRECT path).
      * @param _r - Race result.
      * @param attr - Attribute name.

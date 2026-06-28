@@ -48,7 +48,11 @@ function resolveCoreDeps(
   const companyId = descriptor.options.companyId;
   const logger = createLogger(`pipeline-${companyId}`);
   const resolved = resolvePipelineBankConfig(companyId);
-  const config = resolved || { urls: { base: '' }, balanceKind: 'card-cycle' as const };
+  const config = resolved || {
+    urls: { base: '' },
+    balanceKind: 'card-cycle' as const,
+    authStrategyKind: 'token' as const,
+  };
   return { options: descriptor.options, credentials, companyId, logger, config };
 }
 

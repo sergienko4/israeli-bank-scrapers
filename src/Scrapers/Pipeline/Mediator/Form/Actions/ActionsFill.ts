@@ -29,6 +29,10 @@ import {
   normalizeSubmit,
   resolveSubmitFromPhase,
 } from './ActionsTypes.js';
+import { readSubmitMode } from './SubmitModeGate.js';
+
+/** Page or Frame context for submit targeting; false when no frame scope is available. */
+type FormCtx = Page | Frame | false;
 
 /**
  * Run the sequential `reduceField` chain over an ordered field list.
@@ -171,15 +175,70 @@ async function tryClickSubmit(args: ISubmitPhaseArgs): Promise<Procedure<boolean
 }
 
 /**
- * Run the Enter + Click submit attempts in order.
- * Both fire so POST knows what to validate; the caller decides the outcome.
+ * Browser-side callback: call form.requestSubmit() when the element supports it.
+ * Passed to Playwright locator.evaluate(); runs inside the browser context.
+ * Returns whether a real submit fired so callers never treat a non-submit
+ * element (requestSubmit absent) as a successful submit.
+ * @param el - The matched form element.
+ * @returns True when requestSubmit was invoked; false when it is unavailable.
+ */
+function doFormRequestSubmit(el: Element): boolean {
+  interface IHasSubmit {
+    requestSubmit?(): unknown;
+  }
+  const f = el as unknown as IHasSubmit;
+  if (typeof f.requestSubmit !== 'function') return false;
+  f.requestSubmit();
+  return true;
+}
+
+/**
+ * Invoke form.requestSubmit() on the discovered form anchor.
+ * D3 diagnostic: test AngularJS native submit vs Enter+click.
+ * Returns false without throwing when ctx is false or formAnchor is empty.
+ * @internal — exported for unit-test access only.
+ * @param ctx - Page or Frame, or false when no frame context is available.
+ * @param formAnchor - CSS selector string for the form element.
+ * @returns The evaluated submit outcome; false when ctx/anchor are missing,
+ *   the element is not submit-capable, or evaluate rejects.
+ */
+export async function tryFormRequestSubmit(ctx: FormCtx, formAnchor: string): Promise<boolean> {
+  if (!ctx || !formAnchor) return false;
+  try {
+    const locator = ctx.locator(formAnchor);
+    return await locator.evaluate(doFormRequestSubmit);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Submit using ONLY form.requestSubmit() (D3 'form' mode).
+ * Skips Enter + click entirely; the click signal mirrors the real submit
+ * outcome so gateNoSubmitSignal fails when no requestSubmit actually fired.
+ * @param ctx - Page or Frame context for the form.
+ * @param formAnchor - Discovered form anchor selector.
+ * @returns ISubmitPhaseResult with didEnter=false, clickResult=succeed(outcome).
+ */
+async function runFormOnlySubmit(ctx: FormCtx, formAnchor: string): Promise<ISubmitPhaseResult> {
+  const didSubmit = await tryFormRequestSubmit(ctx, formAnchor);
+  return { didEnter: false, clickResult: succeed(didSubmit) };
+}
+
+/**
+ * Run the submit attempts according to the active submit mode.
+ * Default ('enter-click') is byte-identical to pre-D3 behaviour.
+ * 'form' = requestSubmit only; 'all' = Enter + Click + requestSubmit.
  * @param args - Bundled submit-phase args.
  * @returns Bundle of `didEnter` + `clickResult`.
  */
 async function runSubmitPhase(args: ISubmitPhaseArgs): Promise<ISubmitPhaseResult> {
   const formAnchor = args.mediator.getFormAnchor();
+  const mode = readSubmitMode();
+  if (mode === 'form') return runFormOnlySubmit(args.enterCtx, formAnchor);
   const didEnter = await tryEnterSubmit(args.enterCtx, formAnchor, args.logger);
   const clickResult = await tryClickSubmit(args);
+  if (mode === 'all') await tryFormRequestSubmit(args.enterCtx, formAnchor);
   return { didEnter, clickResult };
 }
 

@@ -77,4 +77,4 @@ export {
   type IWinnerInfo,
   snapshotValue,
 } from './Snapshot.js';
-export { buildWaitForLoadingDone } from './Wait.js';
+export { buildIsLoadingVisible, buildWaitForLoadingDone } from './Wait.js';

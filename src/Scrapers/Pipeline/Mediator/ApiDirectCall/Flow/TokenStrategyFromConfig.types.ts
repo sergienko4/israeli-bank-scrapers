@@ -18,6 +18,8 @@ type GenericCreds = Readonly<Record<string, unknown>>;
 interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
   getLatestLongTermToken(): string;
   getLatestCarrySnapshot(): Readonly<Record<string, JsonValue>>;
+  /** Whether the most recent prime reused a cached warm seed (vs cold flow). */
+  lastPrimeWasWarm(): boolean;
 }
 
 /** Args for runConfiguredFlow — respects 3-param ceiling. */
@@ -34,6 +36,8 @@ interface IRunFlowArgs {
 interface ILongTermTokenSlot {
   latest: string;
   latestCarrySnapshot: Readonly<Record<string, JsonValue>>;
+  /** True when the last prime reused a cached warm seed; false on cold flow. */
+  usedWarmPath?: boolean;
 }
 
 /** Subset of IFlowResult consumed by captureFlowResult. */

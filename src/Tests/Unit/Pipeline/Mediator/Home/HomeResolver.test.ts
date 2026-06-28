@@ -85,6 +85,12 @@ function makeMediator(script: IMediatorScript = {}): IElementMediator {
      * @returns Scripted.
      */
     getAttributeValue: (): Promise<string> => Promise.resolve(script.hrefValue ?? ''),
+    /**
+     * resolveAllVisible — no extra candidates, so prefer-direct keeps the
+     * primary winner (SEQUENTIAL path stays byte-identical).
+     * @returns Empty list.
+     */
+    resolveAllVisible: (): Promise<readonly IRaceResult[]> => Promise.resolve([]),
   } as unknown as IElementMediator;
 }
 
@@ -137,6 +143,34 @@ describe('resolveHomeStrategy', () => {
     const isOkResult6 = isOk(result);
     expect(isOkResult6).toBe(true);
     if (result.success) expect(result.value.strategy).toBe(NAV_STRATEGY.DIRECT);
+  });
+
+  it('does not classify a fragment-only href as DIRECT', async () => {
+    const visible: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const, value: 'Login' };
+    const mediator = makeMediator({
+      visibleResult: visible,
+      attrsByName: { href: true, 'data-toggle': false, 'data-bs-toggle': false },
+      hrefValue: '#loginModal',
+    });
+    const fragmentPage = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, fragmentPage);
+    const isFragmentOk = isOk(result);
+    expect(isFragmentOk).toBe(true);
+    if (result.success) expect(result.value.strategy).toBe(NAV_STRATEGY.SEQUENTIAL);
+  });
+
+  it('classifies a fragment-only href with data-toggle as MODAL', async () => {
+    const visible: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const, value: 'Login' };
+    const mediator = makeMediator({
+      visibleResult: visible,
+      attrsByName: { href: true, 'data-toggle': true },
+      hrefValue: '#section',
+    });
+    const fragmentModalPage = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, fragmentModalPage);
+    const isFragmentModalOk = isOk(result);
+    expect(isFragmentModalOk).toBe(true);
+    if (result.success) expect(result.value.strategy).toBe(NAV_STRATEGY.MODAL);
   });
 
   it('classifies MODAL when href is fake and data-toggle present', async () => {

@@ -21,9 +21,11 @@ export type {
 } from './AuthFailureWatcher/index.js';
 export {
   AUTH_BODY_FAILURE_PATTERNS,
+  AUTH_REQ_TRACE_ENV_VAR,
   classifyBodyAsFailure,
   createAuthFailureWatcher,
   createFrozenAuthFailureWatcher,
   isAuthEndpointUrl,
   isFailureStatusCode,
+  readAuthReqTraceGate,
 } from './AuthFailureWatcher/index.js';

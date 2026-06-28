@@ -27,5 +27,14 @@ interface ILoginFieldDiscovery {
   readonly submitTarget: Option<IResolvedTarget>;
 }
 
-export { LOGIN_FIELDS };
+/**
+ * Stable fail-code string for the login-not-completed failure — the single
+ * source of truth shared by LOGIN.FINAL's completion enforcer (the emitter)
+ * and the pipeline reducer (which matches it to keep that one honest failure
+ * non-retryable; a perpetually-spinning login never settles, so one try is
+ * enough on a stuck login screen).
+ */
+const LOGIN_NOT_COMPLETED_CODE = 'LOGIN_NOT_COMPLETED' as const;
+
+export { LOGIN_FIELDS, LOGIN_NOT_COMPLETED_CODE };
 export type { ILoginFieldDiscovery, LoginFieldKey };

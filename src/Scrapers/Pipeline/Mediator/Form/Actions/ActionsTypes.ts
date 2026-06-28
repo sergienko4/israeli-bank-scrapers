@@ -158,6 +158,6 @@ export function logSubmitResult(
 ): true {
   const url = source.getCurrentUrl();
   const masked = maskVisibleText(url);
-  logger.debug({ method, url: masked });
+  logger.debug({ event: 'login.submit', method, url: masked });
   return true;
 }
