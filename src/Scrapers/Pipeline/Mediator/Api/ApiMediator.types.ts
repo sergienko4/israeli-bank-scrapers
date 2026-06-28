@@ -46,6 +46,9 @@ interface IApiMediator {
     creds: TCreds,
   ) => WasResolverSet;
   primeSession: () => Promise<Procedure<string>>;
+  setSessionWarm: (value: boolean) => boolean;
+  wasSessionWarm: () => boolean;
+  recoverSession: () => Promise<Procedure<string>>;
   apiPost: <T>(
     wkUrl: WKUrlGroup,
     body: Record<string, unknown>,
@@ -92,6 +95,7 @@ interface IMediatorState {
   rawAuth: string;
   resolver: ITokenResolver;
   sessionContext: SessionContext;
+  sessionWarm: boolean;
 }
 
 /** Per-call context shared by apiPost/apiGet/apiQuery operations. */
@@ -138,6 +142,9 @@ type IResolverMethods = Pick<
   'withTokenResolver' | 'withTokenStrategy' | 'primeSession'
 >;
 
+/** Picked subset of `IApiMediator` produced by `buildRecoveryMethods`. */
+type IRecoveryMethods = Pick<IApiMediator, 'setSessionWarm' | 'wasSessionWarm' | 'recoverSession'>;
+
 /** Picked subset of `IApiMediator` produced by `buildCallMethods`. */
 type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
 
@@ -164,6 +171,7 @@ export type {
   IGraphQLEnvelope,
   IGraphQLError,
   IMediatorState,
+  IRecoveryMethods,
   IResolverMethods,
   IWithTokenStrategyOpArgs,
   SessionContext,

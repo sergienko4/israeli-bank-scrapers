@@ -23,6 +23,7 @@ function makeInitialMediatorState(): IMediatorState {
     rawAuth: '',
     resolver: NULL_RESOLVER,
     sessionContext: Object.freeze({}),
+    sessionWarm: false,
   };
 }
 
@@ -55,6 +56,26 @@ function setSessionContextOp(state: IMediatorState, ctx: SessionContext): boolea
  */
 function getSessionContextOp(state: IMediatorState): SessionContext {
   return state.sessionContext;
+}
+
+/**
+ * Record whether the active session was primed from a cached warm token.
+ * @param state - Mediator state.
+ * @param value - True when a warm (cached) token seeded the session.
+ * @returns The stored value (echoed for caller convenience).
+ */
+function setSessionWarmOp(state: IMediatorState, value: boolean): boolean {
+  state.sessionWarm = value;
+  return value;
+}
+
+/**
+ * Return whether the active session was primed from a cached warm token.
+ * @param state - Mediator state.
+ * @returns True when the session is warm-seeded.
+ */
+function getSessionWarmOp(state: IMediatorState): boolean {
+  return state.sessionWarm;
 }
 
 /**
@@ -100,11 +121,13 @@ async function primeSessionOp(state: IMediatorState): Promise<Procedure<string>>
 
 export {
   getSessionContextOp,
+  getSessionWarmOp,
   makeInitialMediatorState,
   primeSessionOp,
   setBearerOp,
   setRawAuthOp,
   setSessionContextOp,
+  setSessionWarmOp,
   withTokenResolverOp,
   withTokenStrategyOp,
 };

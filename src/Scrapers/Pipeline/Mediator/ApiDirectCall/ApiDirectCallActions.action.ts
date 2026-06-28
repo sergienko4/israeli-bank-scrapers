@@ -104,6 +104,17 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 }
 
 /**
+ * Record whether the strategy reused a cached warm token onto the bus.
+ * @param booted - Booted ACTION bundle.
+ * @returns The recorded warm-state flag.
+ */
+function recordWarmState(booted: IBootedAction): boolean {
+  const isWarm = booted.strategy.hasWarmState(booted.creds);
+  booted.bus.setSessionWarm(isWarm);
+  return isWarm;
+}
+
+/**
  * Run primeSession on the booted bus, install auth + session context.
  * @param booted - Booted ACTION bundle.
  * @returns Updated context procedure.
@@ -111,6 +122,7 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 async function installPrimedAuth(booted: IBootedAction): Promise<Procedure<IPipelineContext>> {
   const { bus, strategy, ctx, creds } = booted;
   bus.withTokenStrategy(strategy, ctx, creds);
+  recordWarmState(booted);
   const primed = await primeAndCheck(bus);
   if (!isOk(primed)) return primed;
   setBusAuth(bus, strategy, primed.value);

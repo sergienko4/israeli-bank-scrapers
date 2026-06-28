@@ -6,7 +6,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
-import { setRawAuthOp } from './ApiMediator.state.js';
+import { setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
 
 /** Cached regex matching the embedded HTTP status prefix `<sp>401:<sp>`. */
@@ -71,5 +71,23 @@ async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> 
   return args.fire();
 }
 
-export { retryOn401Op, safeRefreshOp };
+/**
+ * Discard the current (degraded) session and re-mint via a full cold flow.
+ *
+ * Reuses the proven recovery primitives: {@link safeRefreshOp} runs the
+ * resolver's cold `refresh()` and {@link applyRefreshedAuth} installs the new
+ * Authorization header on success. The session is flipped cold
+ * (`sessionWarm=false`) on BOTH success and failure (recover-once); a failed
+ * refresh propagates so the caller fails loud instead of masking degradation.
+ * @param state - Mediator state.
+ * @returns Refresh procedure (success carries the fresh header value).
+ */
+async function recoverSessionOp(state: IMediatorState): Promise<Procedure<string>> {
+  const refreshed = await safeRefreshOp(state);
+  applyRefreshedAuth(state, refreshed);
+  setSessionWarmOp(state, false);
+  return refreshed;
+}
+
+export { recoverSessionOp, retryOn401Op, safeRefreshOp };
 export type { IRetryOn401Args };
