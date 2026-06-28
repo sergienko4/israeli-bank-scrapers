@@ -7,6 +7,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import type {
   IMediatorState,
   IWithTokenStrategyOpArgs,
+  RecoveredHook,
   SessionContext,
   WasResolverSet,
 } from './ApiMediator.types.js';
@@ -79,6 +80,17 @@ function getSessionWarmOp(state: IMediatorState): boolean {
 }
 
 /**
+ * Register the post-recovery re-cache hook on the mediator state.
+ * @param state - Mediator state.
+ * @param hook - Callback fired with the new header after a successful recovery.
+ * @returns True once stored.
+ */
+function setRecoveryHookOp(state: IMediatorState, hook: RecoveredHook): boolean {
+  state.onRecovered = hook;
+  return true;
+}
+
+/**
  * Convenience wrapper — stores a `Bearer <token>` Authorization header.
  * @param state - Mediator state.
  * @param token - Opaque bearer value.
@@ -126,6 +138,7 @@ export {
   primeSessionOp,
   setBearerOp,
   setRawAuthOp,
+  setRecoveryHookOp,
   setSessionContextOp,
   setSessionWarmOp,
   withTokenResolverOp,

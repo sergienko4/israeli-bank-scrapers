@@ -11,6 +11,7 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import type { RecoveredHook } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { createApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
@@ -136,6 +137,48 @@ describe('ApiMediator — warm-flag round-trip', () => {
     mediator.setSessionWarm(false);
     const wasWarmAfterFalse = mediator.wasSessionWarm();
     expect(wasWarmAfterFalse).toBe(false);
+  });
+});
+
+/**
+ * Build a recording recovery hook that captures each header it is fired with.
+ * @param sink - Array receiving every header passed to the hook.
+ * @returns Recovery hook that records then resolves.
+ */
+function recordingHook(sink: string[]): RecoveredHook {
+  /**
+   * Record the fresh header then resolve.
+   * @param header - Fresh header from a successful recovery.
+   * @returns Resolved once recorded.
+   */
+  async function hook(header: string): Promise<void> {
+    sink.push(header);
+    await Promise.resolve();
+  }
+  return hook;
+}
+
+describe('ApiMediator.recoverSession — re-cache hook (F3)', () => {
+  it('fires the recovery hook with the fresh header on success', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const strategy = strategyWithFresh(okFresh);
+    const mediator = makeMediator(strategy);
+    const captured: string[] = [];
+    const hook = recordingHook(captured);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.recoverSession();
+    expect(captured).toEqual([FRESH_HEADER]);
+  });
+
+  it('does not fire the recovery hook when refresh fails', async () => {
+    const refreshFail = fail(ScraperErrorTypes.Generic, 'refresh denied');
+    const strategy = strategyWithFresh(refreshFail);
+    const mediator = makeMediator(strategy);
+    const captured: string[] = [];
+    const hook = recordingHook(captured);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.recoverSession();
+    expect(captured).toEqual([]);
   });
 });
 

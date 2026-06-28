@@ -9,8 +9,8 @@
 
 import type { Procedure } from '../../Types/Procedure.js';
 import { recoverSessionOp } from './ApiMediator.retry.js';
-import { getSessionWarmOp, setSessionWarmOp } from './ApiMediator.state.js';
-import type { IMediatorState, IRecoveryMethods } from './ApiMediator.types.js';
+import { getSessionWarmOp, setRecoveryHookOp, setSessionWarmOp } from './ApiMediator.state.js';
+import type { IMediatorState, IRecoveryMethods, RecoveredHook } from './ApiMediator.types.js';
 
 /**
  * Bind the warm-flag setter to the given mediator state.
@@ -40,6 +40,15 @@ function bindRecoverSession(state: IMediatorState): IRecoveryMethods['recoverSes
 }
 
 /**
+ * Bind the post-recovery re-cache hook installer to the given mediator state.
+ * @param state - Mediator state.
+ * @returns Bound `withRecoveryHook` callable.
+ */
+function bindWithRecoveryHook(state: IMediatorState): IRecoveryMethods['withRecoveryHook'] {
+  return (hook: RecoveredHook): boolean => setRecoveryHookOp(state, hook);
+}
+
+/**
  * Build the warm-session self-heal method bundle.
  * @param state - Mediator state.
  * @returns Recovery methods.
@@ -49,6 +58,7 @@ function buildRecoveryMethods(state: IMediatorState): IRecoveryMethods {
     setSessionWarm: bindSetSessionWarm(state),
     wasSessionWarm: bindWasSessionWarm(state),
     recoverSession: bindRecoverSession(state),
+    withRecoveryHook: bindWithRecoveryHook(state),
   };
 }
 

@@ -77,20 +77,59 @@ async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> 
 }
 
 /**
+ * Fire the post-recovery re-cache hook with the freshly minted header.
+ *
+ * The hook (installed by the ACTION phase) re-installs the new carry/session
+ * context onto the bus and re-surfaces the new long-term token to the caller's
+ * `onAuthFlowComplete` so a server-degraded-but-locally-fresh token is
+ * re-cached to disk and reused next run instead of re-OTP'ing every time.
+ * @param state - Mediator state.
+ * @param refreshed - Successful refresh procedure carrying the new header.
+ * @returns True once the hook ran (false when absent or refresh failed).
+ */
+async function runRecoveredHook(
+  state: IMediatorState,
+  refreshed: Procedure<string>,
+): Promise<boolean> {
+  if (!isOk(refreshed)) return false;
+  if (state.onRecovered === undefined) return false;
+  await state.onRecovered(refreshed.value);
+  return true;
+}
+
+/**
+ * Discard the stale bearer when a recovery refresh fails (defense-in-depth).
+ * @param state - Mediator state.
+ * @param refreshed - The failed refresh procedure (propagated unchanged).
+ * @returns The same failed procedure so the caller fails loud.
+ */
+function discardOnFailedRecovery(
+  state: IMediatorState,
+  refreshed: Procedure<string>,
+): Procedure<string> {
+  setRawAuthOp(state, '');
+  return refreshed;
+}
+
+/**
  * Discard the current (degraded) session and re-mint via a full cold flow.
  *
  * Reuses the proven recovery primitives: {@link safeRefreshOp} runs the
  * resolver's cold `refresh()` and {@link applyRefreshedAuth} installs the new
  * Authorization header on success. The session is flipped cold
- * (`sessionWarm=false`) on BOTH success and failure (recover-once); a failed
- * refresh propagates so the caller fails loud instead of masking degradation.
+ * (`sessionWarm=false`) on BOTH success and failure (recover-once). On success
+ * the re-cache hook re-installs session context + re-surfaces the new token; on
+ * failure the stale bearer is cleared and the failure propagates so the caller
+ * fails loud instead of masking degradation.
  * @param state - Mediator state.
  * @returns Refresh procedure (success carries the fresh header value).
  */
 async function recoverSessionOp(state: IMediatorState): Promise<Procedure<string>> {
   const refreshed = await safeRefreshOp(state);
-  applyRefreshedAuth(state, refreshed);
+  const isReady = applyRefreshedAuth(state, refreshed);
   setSessionWarmOp(state, false);
+  if (!isReady) return discardOnFailedRecovery(state, refreshed);
+  await runRecoveredHook(state, refreshed);
   return refreshed;
 }
 

@@ -13,6 +13,7 @@ import { resolveApiMediator } from '../Api/ApiMediatorAccessor.js';
 import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
+import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
 import { PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
 import {
   createTokenStrategyFromConfig,
@@ -119,13 +120,25 @@ function recordWarmState(booted: IBootedAction): boolean {
 }
 
 /**
+ * Register the token strategy and install the post-recovery re-cache hook.
+ * @param booted - Booted ACTION bundle.
+ * @returns True once the strategy + hook are registered.
+ */
+function registerStrategy(booted: IBootedAction): boolean {
+  const { bus, strategy, ctx, creds } = booted;
+  bus.withTokenStrategy(strategy, ctx, creds);
+  const hook = makeRecoveryHook({ bus, ctx, strategy });
+  return bus.withRecoveryHook?.(hook) ?? false;
+}
+
+/**
  * Run primeSession on the booted bus, install auth + session context.
  * @param booted - Booted ACTION bundle.
  * @returns Updated context procedure.
  */
 async function installPrimedAuth(booted: IBootedAction): Promise<Procedure<IPipelineContext>> {
-  const { bus, strategy, ctx, creds } = booted;
-  bus.withTokenStrategy(strategy, ctx, creds);
+  const { bus, strategy, ctx } = booted;
+  registerStrategy(booted);
   const primed = await primeAndCheck(bus);
   if (!isOk(primed)) return primed;
   recordWarmState(booted);
