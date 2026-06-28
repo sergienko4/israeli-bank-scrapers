@@ -21,7 +21,7 @@
  * re-exporting the eight public symbols the existing 7 prod + 2 test
  * importers actually consume:
  *   - `TimeoutError` (BaseScraper, BaseScraper.test)
- *   - `runSerial` (Base*, GenericBankScraper, Leumi, Mizrahi, Yahav)
+ *   - `runSerial` (Base*, GenericBankScraper, Mizrahi)
  *   - `humanDelay`, `RACE_TIMED_OUT`, `raceTimeout`, `sleep`,
  *     `waitUntil`, `SECOND` (Tests/Unit/Waiting.test.ts)
  * Pipeline-side callers already import directly from

@@ -6,7 +6,7 @@
  * Commit 1 (Common ↔ Pipeline unification) collapsed this file from a
  * duplicate ~426 LoC implementation into a thin re-export. All public
  * exports remain available from this path so existing Common-tree
- * callers (Leumi/BeyahadBishvilha/Yahav/Mizrahi/Base) keep compiling
+ * callers (BeyahadBishvilha/Mizrahi/Base) keep compiling
  * unchanged. New code should import directly from the Pipeline path.
  * This shim will be removed in a follow-up phase once all Common
  * importers are migrated.
@@ -16,7 +16,7 @@
  * `extractCredentialKey`. The wrapper functions below preserve the
  * original plain-`string` return signatures so existing Common-tree
  * call sites (e.g. `Object.fromEntries(...) as Record<string, string>`
- * in `YahavScraper`) continue to compile. Brands erase at runtime —
+ * in legacy DOM scrapers) continue to compile. Brands erase at runtime —
  * the wrappers are simple delegates that V8 will inline.
  *
  * `IFieldContext` is compatible for current callers and is widened by
