@@ -66,7 +66,7 @@ describe('Leumi ACCOUNT-RESOLVE — AccountsItems WK contract', () => {
   it('LEUMI-AR-002 surfaces exactly one account id', (): void => {
     const result = discoverAccountsInPool(LEUMI_POOL);
 
-    expect(result.ids.length).toBe(1);
+    expect(result.ids).toHaveLength(1);
   });
 
   it('LEUMI-AR-003 surfaces the MaskedNumber (AccountIndex rejected as too short)', (): void => {

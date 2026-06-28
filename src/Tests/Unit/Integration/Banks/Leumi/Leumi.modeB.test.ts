@@ -401,7 +401,7 @@ async function assertScriptedStep(args: IStepAssertArgs): Promise<number> {
   const route = makeRoute();
   const req = buildScriptedRequest(args.step);
   await args.invoke(route.route, req);
-  expect(route.fulfilled.length).toBe(FULFILL_BUMP);
+  expect(route.fulfilled).toHaveLength(FULFILL_BUMP);
   const bytes = assertFulfilled(route.fulfilled[0], args.step);
   const currentPhase = args.snapshotPhase();
   expect(currentPhase).toBe(args.step.expectedPhaseAfter);
@@ -482,7 +482,7 @@ describe('Leumi Mode B — SIMULATOR state-machine drive (Phase 11)', () => {
       expect(fired).toBe(SCRIPT.length);
       const snap = handle.snapshot();
       expect(snap.transitionsFired).toBe(SCRIPT.length);
-      expect(snap.fatalEscapes.length).toBe(0);
+      expect(snap.fatalEscapes).toHaveLength(0);
     } finally {
       await handle.dispose();
     }
