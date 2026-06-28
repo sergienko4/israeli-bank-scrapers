@@ -59,6 +59,10 @@ function isUnauthorizedFailure<T>(first: Procedure<T>): boolean {
 
 /**
  * Run a request once, and on a 401 response refresh and retry once.
+ *
+ * A 401-driven `refresh()` re-mints via a cold path (it spends an OTP), so
+ * the session is no longer purely warm — clear `sessionWarm` before the
+ * retry so a later degraded scrape does not fire a second recovery OTP.
  * @param args - Bundled mediator-state + fire-callable.
  * @returns Procedure from the first or second attempt.
  */
@@ -68,6 +72,7 @@ async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> 
   const refreshed = await safeRefreshOp(args.state);
   const isReady = applyRefreshedAuth(args.state, refreshed);
   if (!isReady) return first;
+  setSessionWarmOp(args.state, false);
   return args.fire();
 }
 
