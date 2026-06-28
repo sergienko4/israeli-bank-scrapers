@@ -488,6 +488,31 @@ PIPELINE_AUTH_REQ_TRACE=1 npm run test:e2e:real
 
 Do **not** set it in `.env` files used for production scrapes.
 
+### Login DNS probe (`login.dns`)
+
+The same `PIPELINE_AUTH_REQ_TRACE` gate fires one more LOGIN-phase
+diagnostic: a Node-level DNS resolution of the cross-subdomain auth
+hosts the Amex/Isracard `he.` → `web.` handshake depends on. It runs
+**once** from the gated path in the auth-failure-watcher factory and
+emits a single PII-safe `login.dns` line carrying, per host,
+`{ host, ips, error? }` — IPv4 addresses on success, a Node error
+**code** (never a message or stack) on failure.
+
+The probe separates _DNS-resolve_ from _reachability_ from
+_window-block_ when a login stalls: the `web.isracard.co.il` row is
+the GREEN control for the `web.americanexpress.co.il` row (same `/24`,
+shared backend), so a trace can tell "host did not resolve" apart from
+"host resolved but the auth window never opened" from logs alone.
+
+| Symbol          | Role                                                                          |
+| --------------- | ----------------------------------------------------------------------------- |
+| `probeLoginDns` | Fire-and-forget async entry; resolves `AUTH_HOSTS` and emits `login.dns`. Never throws; takes an injectable resolver for tests. |
+| `AUTH_HOSTS`    | The four `web.`/`he.` × `americanexpress`/`isracard` hosts the handshake needs. |
+
+Like the egress trace, this uses **no** `page.on()` listener — it is a
+pure Node `dns.resolve4` call — so with the gate OFF (production
+default) it never runs and adds zero fingerprint surface.
+
 ## Enforcement — 10-LoC cluster for Mediator/Init/\*\*
 
 Every function under `src/Scrapers/Pipeline/Mediator/Init/**` is
@@ -511,6 +536,7 @@ small and named — do not raise the cap and do not add an
 - `src/Scrapers/Pipeline/Mediator/Init/InitForensicsGate.ts` — env-var opt-in for L7 + env observability
 - `src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/AuthReqTrace.ts` — auth-request egress/failure handlers
 - `src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/AuthReqTraceGate.ts` — `PIPELINE_AUTH_REQ_TRACE` opt-in gate
+- `src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/LoginDnsProbe.ts` — gated `login.dns` host-resolution probe (`probeLoginDns` / `AUTH_HOSTS`)
 - `src/Tests/Unit/Pipeline/Mediator/Init/NavigationDiagnostics.test.ts` — snapshot specs
 - `src/Tests/Unit/Pipeline/Mediator/Init/NavigationRequestLifecycle.test.ts` — observer specs
 - `src/Tests/Unit/Pipeline/Mediator/Init/NavigationTransportProbe.test.ts` — probe specs
