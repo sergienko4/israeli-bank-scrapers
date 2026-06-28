@@ -163,7 +163,7 @@ jobs:
       trusted_event: ${{ steps.gate.outputs.trusted_event }}
       real_gates_enabled: ${{ steps.gate.outputs.real_gates_enabled }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -198,7 +198,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -241,7 +241,7 @@ jobs:
             'README.md' 'docs/**/*.md'
           fail: true
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         if: needs.changes.outputs.docs == 'true'
         with:
           python-version: '3.13'
@@ -318,7 +318,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -349,7 +349,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -378,7 +378,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -399,7 +399,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -451,7 +451,7 @@ jobs:
     env:
       INTEGRATION_BANK_FILTER: ${{ matrix.bank }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -474,7 +474,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -591,7 +591,7 @@ jobs:
           - Pagi
           - OneZero
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node-deps
@@ -713,7 +713,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Force reliable DNS for Israeli bank resolution
@@ -785,7 +785,7 @@ jobs:
           - Discount
           - Max
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       # DNS override + warmup (single source of truth lives in
@@ -918,7 +918,7 @@ jobs:
         bank:
           - Amex
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       # Same DNS-warmup script as preflight and Group A — extracts
@@ -1069,7 +1069,7 @@ jobs:
           - Hapoalim
           - Beinleumi
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
@@ -1186,7 +1186,7 @@ jobs:
           - Pepper
           - PayBox
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
@@ -1205,7 +1205,7 @@ jobs:
       # cache via the default-branch fallback rule, so a brand-new PR
       # gets a warm start as long as main has run recently.
       - name: Restore encrypted token cache (${{ matrix.bank }})
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4.2.4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4.2.4
         with:
           path: /tmp/tokens-encrypted
           key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}-restore
@@ -1277,7 +1277,7 @@ jobs:
         run: bash .github/scripts/ci/encrypt-token-cache.sh "${{ matrix.bank }}"
       - name: Save encrypted token cache (${{ matrix.bank }})
         if: always()
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4.2.4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4.2.4
         with:
           path: /tmp/tokens-encrypted
           key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -1314,7 +1314,7 @@ jobs:
 
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       # v5.0.0 — first stable release on Node.js 24 (published
