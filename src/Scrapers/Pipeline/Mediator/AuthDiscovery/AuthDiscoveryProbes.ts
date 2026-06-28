@@ -120,10 +120,14 @@ function isAuthed2xx(ep: IDiscoveredEndpoint): boolean {
  *
  * @param network - Network discovery surface from the mediator.
  * @returns True when a corroborating first-party account-data capture is present.
+ *   Scans EVERY capture matching each accounts pattern (not just the first),
+ *   so an early non-2xx (e.g. a 401 that preceded the authed retry) cannot
+ *   mask a later 200 on the same URL.
  */
 function hasCapturedAuthApi(network: INetworkDiscovery): boolean {
-  const accts = network.discoverByPatterns(PIPELINE_WELL_KNOWN_API.accounts);
-  return accts !== false && isAuthed2xx(accts);
+  return PIPELINE_WELL_KNOWN_API.accounts.some((pattern): boolean =>
+    network.findEndpoints(pattern).some(isAuthed2xx),
+  );
 }
 
 export type { IAuthChannelCollection, ISessionCookieAudit };
