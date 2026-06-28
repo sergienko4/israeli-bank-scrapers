@@ -124,6 +124,16 @@ const LEUMI_PHASE_11_STEPS = [
   { stepName: '11-balance' },
 ] as const;
 
+const YAHAV_PHASE_11_STEPS = [
+  { stepName: '01-home' },
+  { stepName: '04-login-action' },
+  { stepName: '07-auth-discovery' },
+  { stepName: '08-account-resolve' },
+  { stepName: '09-dashboard' },
+  { stepName: '10-scrape-transactions' },
+  { stepName: '11-balance' },
+] as const;
+
 const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'leumi',
@@ -131,6 +141,13 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     loginStep: '04-login-action',
     requiresHydration: false,
     steps: LEUMI_PHASE_11_STEPS,
+  },
+  {
+    bankId: 'yahav',
+    originUrl: 'https://www.yahav.co.il',
+    loginStep: '04-login-action',
+    requiresHydration: false,
+    steps: YAHAV_PHASE_11_STEPS,
   },
   {
     bankId: 'isracard',

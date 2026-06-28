@@ -131,6 +131,11 @@ export const WK_LOGIN_ERROR = [
 export const WK_CONCEPT_MAP: Partial<Record<string, FormSlot>> = {
   id: 'nationalId',
   nationalId: 'nationalId',
+  // Yahav declares its third credential as `nationalID` (capital ID) — the
+  // same id-document slot, just a different key spelling. Mapping both
+  // casings keeps WellKnown field resolution casing-tolerant; no other
+  // bank uses the capital-ID form, so there is no collision.
+  nationalID: 'nationalId',
   username: 'username',
   userCode: 'accountNum',
   accountNum: 'accountNum',

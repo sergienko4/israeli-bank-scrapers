@@ -1,0 +1,87 @@
+{
+  "bankId": "yahav",
+  "originUrl": "https://www.yahav.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.yahav.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "04-login-action.html"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "POST",
+      "urlPattern": "BaNCSDigitalUI/digital/sf/login",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/login.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "POST",
+      "urlPattern": "BaNCSDigitalUI/digital/sf/accountSummary",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/account-summary.json"
+      },
+      "advanceTo": "ACCOUNT_RESOLVE"
+    },
+    {
+      "phase": "ACCOUNT_RESOLVE",
+      "method": "POST",
+      "urlPattern": "BaNCSDigitalUI/digital/sf/accountList",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/accounts.json"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "BaNCSDigitalUI/digital/sf/infoAndBalance",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/balance.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "current-account/transactions/list",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/account-transactions.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

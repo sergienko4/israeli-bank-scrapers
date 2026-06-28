@@ -1,0 +1,20 @@
+{
+  "transactions": [
+    {
+      "transactionDate": "2026-01-10",
+      "description": "[redacted-merchant]",
+      "referenceNumber": 1000001,
+      "amount": 0,
+      "runningBalance": 0
+    },
+    {
+      "transactionDate": "2026-01-20",
+      "description": "[redacted-merchant]",
+      "referenceNumber": 1000002,
+      "amount": 0,
+      "runningBalance": 0
+    }
+  ],
+  "currentBalance": 0,
+  "currency": "ILS"
+}
