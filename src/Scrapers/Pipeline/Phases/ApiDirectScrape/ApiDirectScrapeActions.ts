@@ -8,10 +8,11 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
-import { some } from '../../Types/Option.js';
+import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
@@ -131,6 +132,50 @@ async function runScrape<TAcct, TCursor>(
 }
 
 /**
+ * Decide whether a scrape outcome warrants a session-recovery attempt: a hard
+ * failure OR a degraded-balance signal (a warm token the server silently
+ * rejected while it still looks locally fresh).
+ * @param first - The first scrape procedure.
+ * @returns True when the scrape failed or reported a degraded balance.
+ */
+function isScrapeSuspicious(first: Procedure<ApiDirectScrapeResult>): boolean {
+  if (!isOk(first)) return true;
+  const { scrape } = first.value;
+  return isSome(scrape) && scrape.value.balanceDegraded === true;
+}
+
+/**
+ * Gate recovery on BOTH a suspicious outcome AND a warm (cached-token) session.
+ * A cold session already ran the full login flow, so recovering would only
+ * burn a second OTP; a healthy warm session needs no recovery.
+ * @param first - The first scrape procedure.
+ * @param bus - The bound ApiMediator.
+ * @returns True when recovery should run.
+ */
+function shouldRecoverSession(first: Procedure<ApiDirectScrapeResult>, bus: IApiMediator): boolean {
+  return isScrapeSuspicious(first) && bus.wasSessionWarm();
+}
+
+/**
+ * Run the scrape; when a warm session yields a suspicious outcome, discard the
+ * cached token (full cold re-login via recoverSession) and re-run once. A
+ * failed recovery returns the first outcome unchanged so a loud failure or a
+ * degraded result is never masked. Shared by every api-direct bank with zero
+ * per-bank coupling.
+ * @param d - Driver context.
+ * @returns Scrape procedure (recovered when warranted).
+ */
+async function runScrapeWithRecovery<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+): Promise<Procedure<ApiDirectScrapeResult>> {
+  const first = await runScrape(d);
+  if (!shouldRecoverSession(first, d.bus)) return first;
+  const recovered = await d.bus.recoverSession();
+  if (!isOk(recovered)) return first;
+  return runScrape(d);
+}
+
+/**
  * Factory — convert a bank shape into a scrape function.
  * @param shape - Bank-supplied shape declaration (data only).
  * @returns Scrape function consumed by the Pipeline descriptor.
@@ -141,7 +186,7 @@ export function buildGenericHeadlessScrape<TAcct, TCursor>(
   return async (ctx): Promise<Procedure<ApiDirectScrapeResult>> => {
     const busProc = resolveApiMediator(ctx, shape.stepName);
     if (!isOk(busProc)) return busProc;
-    return runScrape({ shape, bus: busProc.value, ctx });
+    return runScrapeWithRecovery({ shape, bus: busProc.value, ctx });
   };
 }
 
