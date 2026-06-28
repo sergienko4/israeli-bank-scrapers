@@ -27,11 +27,11 @@ interface IGraphQLEnvelope<T> {
   readonly errors?: readonly IGraphQLError[];
 }
 
-/** Per-call options — extraHeaders + optional URL query params + optional Set-Cookie hook. */
-// (definition lives in ../../Types/Domain/ApiQueryOpts.ts; re-exported below)
-
 /** Bus-level session-context snapshot. */
 type SessionContext = Readonly<Record<string, unknown>>;
+
+/** Hook invoked after a successful cold session recovery, with the new header. */
+type RecoveredHook = (header: string) => Promise<void>;
 
 /** Public ApiMediator surface — the only API phases/handlers see. */
 interface IApiMediator {
@@ -46,6 +46,10 @@ interface IApiMediator {
     creds: TCreds,
   ) => WasResolverSet;
   primeSession: () => Promise<Procedure<string>>;
+  setSessionWarm: (value: boolean) => boolean;
+  wasSessionWarm: () => boolean;
+  recoverSession: () => Promise<Procedure<string>>;
+  withRecoveryHook?: (hook: RecoveredHook) => boolean;
   apiPost: <T>(
     wkUrl: WKUrlGroup,
     body: Record<string, unknown>,
@@ -92,6 +96,8 @@ interface IMediatorState {
   rawAuth: string;
   resolver: ITokenResolver;
   sessionContext: SessionContext;
+  sessionWarm: boolean;
+  onRecovered?: RecoveredHook;
 }
 
 /** Per-call context shared by apiPost/apiGet/apiQuery operations. */
@@ -138,6 +144,12 @@ type IResolverMethods = Pick<
   'withTokenResolver' | 'withTokenStrategy' | 'primeSession'
 >;
 
+/** Picked subset of `IApiMediator` produced by `buildRecoveryMethods`. */
+type IRecoveryMethods = Pick<
+  IApiMediator,
+  'setSessionWarm' | 'wasSessionWarm' | 'recoverSession' | 'withRecoveryHook'
+>;
+
 /** Picked subset of `IApiMediator` produced by `buildCallMethods`. */
 type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
 
@@ -164,8 +176,10 @@ export type {
   IGraphQLEnvelope,
   IGraphQLError,
   IMediatorState,
+  IRecoveryMethods,
   IResolverMethods,
   IWithTokenStrategyOpArgs,
+  RecoveredHook,
   SessionContext,
   WasResolverSet,
 };

@@ -151,6 +151,19 @@ async function extractHrefLayer3(mediator: IElementMediator): Promise<string> {
 }
 
 /**
+ * Extracts only high-confidence WK transaction hrefs.
+ *
+ * @param mediator - Element mediator.
+ * @returns Layer 1 or Layer 2 href, or empty when the control has no href.
+ */
+async function extractTransactionHrefPrecise(mediator: IElementMediator): Promise<string> {
+  const candidates = WK_DASHBOARD.TRANSACTIONS;
+  const l1 = await extractHrefLayer1(mediator, candidates);
+  if (l1) return l1;
+  return extractHrefLayer2(mediator, candidates);
+}
+
+/**
  * Triple-Threat href extraction: ariaLabel -> textContent -> DOM scan.
  * @param mediator - Element mediator.
  * @returns Extracted href (empty if not found).
@@ -164,4 +177,4 @@ async function extractTransactionHref(mediator: IElementMediator): Promise<strin
   return extractHrefLayer3(mediator);
 }
 
-export { extractTransactionHref, NO_HREF };
+export { extractHrefLayer3, extractTransactionHref, extractTransactionHrefPrecise, NO_HREF };

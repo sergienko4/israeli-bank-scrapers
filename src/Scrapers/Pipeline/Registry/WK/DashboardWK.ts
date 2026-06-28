@@ -107,10 +107,6 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'סה"כ' },
     { kind: KIND_ARIA_LABEL, value: 'יתרה' },
   ],
-  LOADING: [
-    { kind: KIND_ARIA_LABEL, value: 'טוען' },
-    { kind: KIND_TEXT_CONTENT, value: 'טוען' },
-  ],
   DATE_FROM: [
     { kind: 'placeholder', value: 'מתאריך' },
     { kind: 'placeholder', value: 'מהתאריך' },

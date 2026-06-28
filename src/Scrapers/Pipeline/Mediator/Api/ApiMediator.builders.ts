@@ -14,6 +14,7 @@ import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { apiGetOp, apiPostOp, apiQueryOp } from './ApiMediator.ops.js';
+import { buildRecoveryMethods } from './ApiMediator.recovery.js';
 import {
   getSessionContextOp,
   primeSessionOp,
@@ -194,7 +195,9 @@ function assembleMediator(self: IApiMediator, ctx: IApiCallContext): IApiMediato
   const auth = buildAuthMethods(ctx.state);
   const resolver = buildResolverMethods(self, ctx.state);
   const calls = buildCallMethods(ctx);
-  return Object.assign(self, auth, resolver, calls);
+  const recovery = buildRecoveryMethods(ctx.state);
+  const base = Object.assign(self, auth, resolver, calls);
+  return Object.assign(base, recovery);
 }
 
 export { assembleMediator, buildAuthMethods, buildCallMethods, buildResolverMethods };

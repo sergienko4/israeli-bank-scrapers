@@ -84,7 +84,11 @@ function makeCardCtx(shape: ICardBankShape): IPipelineContext {
     scrape,
     api,
     mediator: none(),
-    config: { urls: { base: 'https://test.bank' }, balanceKind: 'card-cycle' },
+    config: {
+      urls: { base: 'https://test.bank' },
+      balanceKind: 'card-cycle',
+      authStrategyKind: 'token',
+    },
   });
 }
 
@@ -157,12 +161,12 @@ describe('BALANCE-RESOLVE multi-account card-bank regression lock', () => {
   it('VisaCal — aggregate-only pool + unextractable 200 re-fetch → soft no-op', async () => {
     const report = await drive(VISACAL);
     expect(report.totalAccounts).toBe(0);
-    expect(report.missedIds.length).toBe(0);
+    expect(report.missedIds).toHaveLength(0);
   });
 
   it('Isracard — aggregate-only pool + quarantined re-fetch → soft no-op', async () => {
     const report = await drive(ISRACARD);
     expect(report.totalAccounts).toBe(0);
-    expect(report.missedIds.length).toBe(0);
+    expect(report.missedIds).toHaveLength(0);
   });
 });

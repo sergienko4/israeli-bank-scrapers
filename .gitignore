@@ -82,6 +82,10 @@ CLAUDE.md
 local-debug/
 .visacal-debug/
 
+# Local-only reproduction harnesses (e.g. Amex slow-network login repro).
+# Real-credential probes that must NEVER reach the PR or coverage gates.
+src/Tests/**/*.local.test.ts
+
 # Future bank scraper backlog (local research — not part of current PR)
 capture/
 tasks/

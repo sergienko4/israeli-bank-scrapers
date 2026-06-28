@@ -109,6 +109,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       headers: { 'X-Site-Id': '10' },
       dashboardReady: true,
       sessionCookieNames: ['JSESSIONID', 'PSEK'],
+      hasAuthApiResponse: false,
     };
     const ctx = { ...baseCtx, authDiscovery: some(snap) };
     const result = await executeAuthDiscoveryFinal(ctx);
@@ -133,6 +134,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       headers: {},
       dashboardReady: false,
       sessionCookieNames: ['JSESSIONID'],
+      hasAuthApiResponse: false,
     };
     const ctx = { ...baseCtx, authDiscovery: some(snap) };
     const result = await executeAuthDiscoveryFinal(ctx);
@@ -144,9 +146,8 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
   });
 
   it('FINAL fails loud AUTH_DISCOVERY_DASHBOARD_NOT_READY when URL never changed AND auth signals are weak', async () => {
-    // M4.F1.fix: url-stuck is only fatal when the corroboration is
-    // also weak (no authToken, < 5 session cookies). Strong signals
-    // (Bearer token or multi-cookie session) override URL-change.
+    // M4.F1.fix: url-stuck is only fatal when corroboration is also
+    // weak (no authToken, no hasAuthApiResponse). Strong signals override.
     const baseCtx = makeMockContext();
     const snap: IAuthDiscovery = {
       authToken: false,
@@ -155,6 +156,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       headers: {},
       dashboardReady: true,
       sessionCookieNames: [],
+      hasAuthApiResponse: false,
     };
     const fakeMediator = {
       /**
@@ -196,6 +198,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       headers: {},
       dashboardReady: true,
       sessionCookieNames: ['JSESSIONID'],
+      hasAuthApiResponse: false,
     };
     const fakeMediator = {
       /**
@@ -225,16 +228,17 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     expect(wasOk).toBe(true);
   });
 
-  it('FINAL precedence: ctx.otpFill emit wins over ctx.otpTrigger and ctx.login when all three are present', async () => {
-    // 5 auth-ladder flows supported. This test pins the precedence:
-    // otpFill > otpTrigger > login. The OTP-FILL emit is always set
-    // when OTP-FILL ran (form-found / soft-skip / MOCK_MODE), so it
-    // is the freshest baton available.
+  it('FINAL PART A: login URL always used as pre-auth baseline even when otpFill and otpTrigger are present', async () => {
+    // PART A fix: readPreAuthUrl now reads login.urlBeforeSubmit exclusively.
+    // The OTP-FILL/OTP-TRIGGER batons are re-captured after login's redirect
+    // and carry the post-redirect URL, not the login-page URL. Using them
+    // clobbers the login-URL baseline (Isracard: digital→web clobber).
     //
-    // M4.F1.fix: snap uses weak corroboration (no authToken, no
-    // session cookies) so the url-stuck path is reachable — that
-    // is the failure the test asserts to prove the right baton URL
-    // was read.
+    // Setup: login URL = 'https://web.bank/login', otpFill URL = currentUrl =
+    // 'https://web.bank/otp'. After fix, preAuthUrl = 'web.bank/login' which
+    // differs from currentUrl 'web.bank/otp' → gate opens (url-moved).
+    // On OLD code preAuthUrl was otpFill URL = 'web.bank/otp' = currentUrl
+    // → url-stuck → FAIL. Test is RED on old code, GREEN on new code.
     const baseCtx = makeMockContext();
     const snap: IAuthDiscovery = {
       authToken: false,
@@ -243,13 +247,12 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       headers: {},
       dashboardReady: true,
       sessionCookieNames: [],
+      hasAuthApiResponse: false,
     };
     const fakeMediator = {
       /**
-       * URL probe returns the OTP-FILL emit's URL — proves the gate
-       * read otpFill (not login or otpTrigger) and therefore failed
-       * the URL-change check.
-       * @returns OTP-FILL's emitted URL (gate must compare against this).
+       * Returns currentUrl matching otpFill's emit URL (post-redirect).
+       * @returns OTP-fill's URL.
        */
       getCurrentUrl: (): string => 'https://web.bank/otp',
       /**
@@ -272,20 +275,19 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       otpFill: some({ urlBeforeSubmit: 'https://web.bank/otp' }),
     };
     const result = await executeAuthDiscoveryFinal(ctx);
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(false);
-    if (!isOk(result)) {
-      expect(result.errorMessage).toContain('AUTH_DISCOVERY_DASHBOARD_NOT_READY');
-    }
+    // After PART A fix: login URL differs from currentUrl → gate opens.
+    const isGateOpen = isOk(result);
+    expect(isGateOpen).toBe(true);
   });
 
-  it('FINAL precedence: ctx.otpTrigger wins over ctx.login when otpFill is none', async () => {
+  it('FINAL reads ctx.login URL, NOT ctx.otpTrigger (PART A login-wins)', async () => {
     // Flow 2: LOGIN → OTP-TRIGGER → AUTH-DISCOVERY (no OTP-FILL).
-    // OTP-TRIGGER carried LOGIN's urlBeforeSubmit forward; the gate
-    // must read it (not LOGIN's directly).
-    //
-    // M4.F1.fix: weak corroboration keeps the url-stuck failure path
-    // reachable (see the otpFill precedence test above).
+    // PART A baseline = the LOGIN url. Here login URL == currentUrl ==
+    // 'web.bank/login' (login did NOT move away) while otpTrigger carries a
+    // DISTINCT 'web.bank/otp-page'. On PART-A code the gate reads the login
+    // url → url-stuck → fail. On the OLD precedence code (otpTrigger wins)
+    // it would read 'otp-page' != currentUrl → url-moved → open → this
+    // assertion flips. So the distinct otpTrigger URL makes this fire.
     const baseCtx = makeMockContext();
     const snap: IAuthDiscovery = {
       authToken: false,
@@ -294,12 +296,13 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       headers: {},
       dashboardReady: true,
       sessionCookieNames: [],
+      hasAuthApiResponse: false,
     };
     const fakeMediator = {
       /**
-       * URL probe — matches OTP-TRIGGER's carried URL so the gate
-       * fails on URL-stuck (proves otpTrigger was read).
-       * @returns OTP-TRIGGER's emit URL.
+       * URL probe — matches the LOGIN url so the gate fails url-stuck
+       * (proves the login url, not otpTrigger's, was read).
+       * @returns The login-phase URL.
        */
       getCurrentUrl: (): string => 'https://web.bank/login',
       /**
@@ -317,7 +320,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
         phoneHint: '',
         triggered: true,
         scopeValidated: true,
-        urlBeforeSubmit: 'https://web.bank/login',
+        urlBeforeSubmit: 'https://web.bank/otp-page',
       }),
     };
     const result = await executeAuthDiscoveryFinal(ctx);
@@ -337,6 +340,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
       headers: {},
       dashboardReady: true,
       sessionCookieNames: ['JSESSIONID'],
+      hasAuthApiResponse: false,
     };
     const fakeMediator = {
       /**

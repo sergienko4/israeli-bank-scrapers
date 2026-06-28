@@ -28,7 +28,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
-import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 import {
   ALL_BANK_CASES,
   type AnyBankCase,
@@ -72,6 +72,7 @@ function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): I
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
     setSessionContext: jest.fn(),
+    ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
   } as unknown as IApiMediator;
 }

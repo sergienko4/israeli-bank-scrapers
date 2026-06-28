@@ -13,6 +13,7 @@ import { resolveApiMediator } from '../Api/ApiMediatorAccessor.js';
 import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
+import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
 import { PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
 import {
   createTokenStrategyFromConfig,
@@ -104,15 +105,43 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 }
 
 /**
+ * Record whether the strategy's LAST prime actually reused a cached warm
+ * token (vs ran the cold OTP flow) onto the bus. Reads the post-prime
+ * `lastPrimeWasWarm` so the flag reflects the path that produced the
+ * final token — not mere cached-token presence (which a stale/expired
+ * seed satisfies even though it falls back to the cold flow).
+ * @param booted - Booted ACTION bundle.
+ * @returns The recorded warm-state flag.
+ */
+function recordWarmState(booted: IBootedAction): boolean {
+  const isWarm = booted.strategy.lastPrimeWasWarm();
+  booted.bus.setSessionWarm(isWarm);
+  return isWarm;
+}
+
+/**
+ * Register the token strategy and install the post-recovery re-cache hook.
+ * @param booted - Booted ACTION bundle.
+ * @returns True once the strategy + hook are registered.
+ */
+function registerStrategy(booted: IBootedAction): boolean {
+  const { bus, strategy, ctx, creds } = booted;
+  bus.withTokenStrategy(strategy, ctx, creds);
+  const hook = makeRecoveryHook({ bus, ctx, strategy });
+  return bus.withRecoveryHook?.(hook) ?? false;
+}
+
+/**
  * Run primeSession on the booted bus, install auth + session context.
  * @param booted - Booted ACTION bundle.
  * @returns Updated context procedure.
  */
 async function installPrimedAuth(booted: IBootedAction): Promise<Procedure<IPipelineContext>> {
-  const { bus, strategy, ctx, creds } = booted;
-  bus.withTokenStrategy(strategy, ctx, creds);
+  const { bus, strategy, ctx } = booted;
+  registerStrategy(booted);
   const primed = await primeAndCheck(bus);
   if (!isOk(primed)) return primed;
+  recordWarmState(booted);
   setBusAuth(bus, strategy, primed.value);
   await invokeAuthFlowComplete(ctx, strategy, primed.value);
   return succeed(ctx);

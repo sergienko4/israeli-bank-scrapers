@@ -45,7 +45,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
-import { makeMockContext } from '../../Infrastructure/MockFactories.js';
+import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 
 /** REST account ref — minimum payload the REST shape extractor returns. */
 interface IRestAcct {
@@ -253,6 +253,7 @@ function makeRestBus(router: PostRouter, captures: IPostCapture[]): IApiMediator
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
     setSessionContext: jest.fn(),
+    ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn(restSessionContext),
   } as unknown as IApiMediator;
 }

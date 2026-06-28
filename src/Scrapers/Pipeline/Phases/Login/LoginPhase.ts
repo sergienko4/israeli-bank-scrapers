@@ -10,6 +10,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IPreludeSpec } from '../../Mediator/Elements/PagePrelude.js';
 import { PRELUDE_NONE } from '../../Mediator/Elements/PagePrelude.js';
+import { enforceLoginCompletion } from '../../Mediator/Login/LoginCompletionObserver.js';
 import {
   executeDiscoverForm,
   executeFillAndSubmitFromDiscovery,
@@ -20,7 +21,7 @@ import { LOGIN_PRELUDE_POST_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfi
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail } from '../../Types/Procedure.js';
+import { fail, isOk } from '../../Types/Procedure.js';
 
 /** LOGIN prelude table — POST waits for SPA-ready; others no-op. */
 const LOGIN_PRELUDE_TABLE: Record<'PRE' | 'ACTION' | 'POST' | 'FINAL', IPreludeSpec> = {
@@ -82,6 +83,8 @@ class LoginPhase extends BasePhase {
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'login.final' });
+    const completion = await enforceLoginCompletion(input);
+    if (!isOk(completion)) return completion;
     return executeLoginSignal(input);
   }
 

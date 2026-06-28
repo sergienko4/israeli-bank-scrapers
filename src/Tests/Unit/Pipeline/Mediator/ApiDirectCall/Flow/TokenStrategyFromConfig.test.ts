@@ -227,6 +227,78 @@ describe('api-direct-call createTokenStrategyFromConfig unsupported flow', () =>
   });
 });
 
+describe('api-direct-call createTokenStrategyFromConfig lastPrimeWasWarm', () => {
+  /**
+   * Build a warm+jwtClaims strategy for the lastPrimeWasWarm cases.
+   * @returns Config-driven strategy (throws if the factory fails).
+   */
+  function makeWarmStrategy(): ReturnType<typeof createTokenStrategyFromConfig> {
+    const cfg: IApiDirectCallConfig = {
+      ...makeSingleStepConfig(),
+      warmStart: { credsField: 'storedJwt', carryField: 'token', fromStepIndex: 1 },
+      jwtClaims: { freshnessField: 'exp', skewSeconds: 60 },
+    };
+    return createTokenStrategyFromConfig({ config: cfg });
+  }
+
+  it('reports true after a fresh-seed warm prime', async (): Promise<void> => {
+    const bus = makeStubMediator({ responses: [], captures: [] });
+    const result = makeWarmStrategy();
+    if (!result.success) throw new ScraperError('factory should succeed');
+    const seed = makeJwt(3600);
+    await result.value.primeInitial(bus, CTX_STUB, { storedJwt: seed });
+    const wasWarm = result.value.lastPrimeWasWarm();
+    expect(wasWarm).toBe(true);
+  });
+
+  it('reports false when a stale seed falls through to the cold flow', async (): Promise<void> => {
+    const coldTok = succeed({ access_token: 't' });
+    const bus = makeStubMediator({ responses: [coldTok], captures: [] });
+    const result = makeWarmStrategy();
+    if (!result.success) throw new ScraperError('factory should succeed');
+    const seed = makeJwt(-10);
+    await result.value.primeInitial(bus, CTX_STUB, { storedJwt: seed });
+    const wasWarm = result.value.lastPrimeWasWarm();
+    expect(wasWarm).toBe(false);
+  });
+
+  it('reports false for a no-warmStart cold prime', async (): Promise<void> => {
+    const coldTok = succeed({ access_token: 't' });
+    const bus = makeStubMediator({ responses: [coldTok], captures: [] });
+    const baseConfig = makeSingleStepConfig();
+    const result = createTokenStrategyFromConfig({ config: baseConfig });
+    if (!result.success) throw new ScraperError('factory should succeed');
+    await result.value.primeInitial(bus, CTX_STUB, { storedJwt: 'anything' });
+    const wasWarm = result.value.lastPrimeWasWarm();
+    expect(wasWarm).toBe(false);
+  });
+
+  it('reports false after primeFresh even when a fresh seed exists', async (): Promise<void> => {
+    const coldTok = succeed({ access_token: 't' });
+    const bus = makeStubMediator({ responses: [coldTok], captures: [] });
+    const result = makeWarmStrategy();
+    if (!result.success) throw new ScraperError('factory should succeed');
+    const seed = makeJwt(3600);
+    await result.value.primeFresh(bus, CTX_STUB, { storedJwt: seed });
+    const wasWarm = result.value.lastPrimeWasWarm();
+    expect(wasWarm).toBe(false);
+  });
+
+  it('reflects the cold fallback after a warm prime is followed by primeFresh (S1)', async (): Promise<void> => {
+    const coldTok = succeed({ access_token: 't' });
+    const bus = makeStubMediator({ responses: [coldTok], captures: [] });
+    const result = makeWarmStrategy();
+    if (!result.success) throw new ScraperError('factory should succeed');
+    const seed = makeJwt(3600);
+    await result.value.primeInitial(bus, CTX_STUB, { storedJwt: seed });
+    const wasWarmAfterInitial = result.value.lastPrimeWasWarm();
+    expect(wasWarmAfterInitial).toBe(true);
+    await result.value.primeFresh(bus, CTX_STUB, { storedJwt: seed });
+    const wasWarmAfterFresh = result.value.lastPrimeWasWarm();
+    expect(wasWarmAfterFresh).toBe(false);
+  });
+});
+
 describe('api-direct-call createTokenStrategyFromConfig custom name', () => {
   it('uses the provided strategy name', (): void => {
     const result = createTokenStrategyFromConfig({

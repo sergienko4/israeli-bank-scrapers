@@ -41,6 +41,45 @@ A PR that drops any threshold fails `test:pipeline`. The post-Commit-1 numbers (
 | Pre-commit hook | `.pre-commit-output.log` at repo root (overwritten each run) |
 | GitHub Actions | The PR's "Checks" tab → workflow logs |
 
+## Forensic diagnostics artifacts
+
+BLUF: CI diagnostics never leave the access-controlled private store.
+`FORENSIC_TRACE=true` enables one per-run folder from
+`TraceConfig.getRunFolder` containing `pipeline.log`, `network/*.json`, and
+screenshots. On a failed real-E2E job that whole folder uploads only to the
+private OCI diagnostics store — nothing goes to a public GitHub artifact,
+because the bundle can carry rendered PII.
+
+On failed real-E2E jobs, `.github/scripts/ci/upload-private-diagnostics.sh`
+uploads the full run folder to the access-controlled OCI diagnostics store
+when `OCI_DIAG_PAR_URL` is available. The step is best-effort and keeps
+forked PRs green when the private upload secret is absent.
+
+Object keys are laid out `<bank>/<run_id>-<run_attempt>/forensic-<bank>-<tag>.zip`,
+so each CI run groups under its own `<run_id>-<run_attempt>` segment.
+
+### Retention
+
+BLUF: a one-time bucket **Lifecycle Policy** deletes diagnostics older than
+**7 days** server-side; CI never deletes, because the PAR cannot.
+
+OCI Pre-Authenticated Requests grant only `GET` (read) and `PUT`
+(write/overwrite) — **no PAR access type can issue an HTTP `DELETE`**. The CI
+job therefore only ever uploads; it cannot prune the bucket with
+`OCI_DIAG_PAR_URL`. Retention is enforced outside the upload step:
+
+- **Age — active.** A server-side **Object Lifecycle Policy** on the
+  diagnostics bucket deletes objects 7 days after creation. Set once in the
+  OCI Console (Bucket → _Lifecycle Policy Rules_ → _Create Rule_ → Action
+  **Delete**, Target **Objects**, **7** days) or via
+  `oci os object-lifecycle-policy put`. No CI code, no extra secret, runs
+  daily server-side.
+- **Count — keep newest 5 runs — deferred.** Count-based pruning needs a real
+  `DeleteObject` call, which a PAR cannot make. It is deferred until an OCI
+  API-key secret is added to CI; the prune would then list + delete via
+  `oci os object`, grouping by the `<run_id>-<run_attempt>` key segment and
+  keeping the 5 newest run tags.
+
 ## What changed in v8.4
 
 - 3 new ESLint canaries for BALANCE-RESOLVE boundary enforcement: `balance-resolve-isolation`, `no-balance-in-scrape`, `balance-fetch-only-in-balance-resolve`.

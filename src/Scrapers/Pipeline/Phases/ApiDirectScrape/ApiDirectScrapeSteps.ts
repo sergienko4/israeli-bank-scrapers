@@ -16,6 +16,7 @@ import type {
   ApiDirectScrapeHeadersLike,
   HeaderMap,
   IApiDirectScrapeShape,
+  IBalanceOutcome,
 } from './IApiDirectScrapeShape.js';
 
 /** Stop signal — branded so Rule #15 accepts the boolean return. */
@@ -161,20 +162,17 @@ function buildBalanceDispatchArgs<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): 
 /**
  * Fetch one account's balance, honouring fallbackOnFail when set.
  * @param a - Per-account context.
- * @returns Balance procedure.
+ * @returns Balance outcome procedure (value + degraded flag).
  */
 export async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<number>> {
+): Promise<Procedure<IBalanceOutcome>> {
   const dispatchArgs = buildBalanceDispatchArgs(a);
   const resp = await dispatchStep(dispatchArgs);
-  if (isOk(resp)) {
-    const value = a.shape.balance.extract(resp.value);
-    return succeed(value);
-  }
+  if (isOk(resp)) return succeed({ value: a.shape.balance.extract(resp.value), degraded: false });
   const fb = a.shape.balance.fallbackOnFail;
   if (fb === undefined) return resp;
-  return succeed(fb);
+  return succeed({ value: fb, degraded: true });
 }
 
 /** Page fetcher signature consumed by fetchPaginated. */

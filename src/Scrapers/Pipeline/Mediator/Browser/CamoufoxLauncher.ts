@@ -69,10 +69,25 @@ const CAMOUFOX_KNOBS = Object.freeze({
   block_webrtc: { envVar: 'CAMOUFOX_BLOCK_WEBRTC', default: true },
 } as const);
 
+/** Valid Camoufox OS-fingerprint values (camoufox-js `os` option). */
+const VALID_CAMOUFOX_OS = Object.freeze(['windows', 'macos', 'linux'] as const);
+
+/** Union of the valid Camoufox OS-fingerprint values. */
+type CamoufoxOs = (typeof VALID_CAMOUFOX_OS)[number];
+
+/**
+ * Production-default OS fingerprint. All banks are proven green on a
+ * Windows fingerprint, so Windows stays the default; a CI bisect run
+ * overrides it per-job via {@link CAMOUFOX_OS_ENV} without touching it.
+ */
+const DEFAULT_CAMOUFOX_OS: CamoufoxOs = 'windows';
+
+/** CI bisect override env-var for the OS fingerprint (per-job, opt-in). */
+const CAMOUFOX_OS_ENV = 'CAMOUFOX_OS';
+
 /** Frozen non-overridable Camoufox launch settings shared by every run. */
 const CAMOUFOX_PINNED = Object.freeze({
   locale: ISRAEL_LOCALE,
-  os: 'windows' as const,
 });
 
 /**
@@ -101,15 +116,32 @@ function resolveKnobs(): Pick<CamoufoxLaunchOptions, 'humanize' | 'disable_coop'
 }
 
 /**
+ * Resolve the Camoufox OS fingerprint from {@link CAMOUFOX_OS_ENV},
+ * defaulting to {@link DEFAULT_CAMOUFOX_OS} (Windows — the all-banks-green
+ * baseline). A CI bisect sets `CAMOUFOX_OS=linux` on the Amex E2E-real job
+ * ALONE to test whether a host-matching Linux fingerprint clears the
+ * datacenter-IP WAF, leaving every other bank on the proven Windows
+ * fingerprint. An unset or unrecognised value falls back to Windows.
+ *
+ * @returns A valid Camoufox `os` value.
+ */
+function resolveOs(): CamoufoxOs {
+  const raw = process.env[CAMOUFOX_OS_ENV]?.toLowerCase();
+  return VALID_CAMOUFOX_OS.find(value => value === raw) ?? DEFAULT_CAMOUFOX_OS;
+}
+
+/**
  * Build the Camoufox launch options bundle. Centralised so the
  * `humanize` + `disable_coop` anti-detect knobs and the pinned
- * Windows 1920x1080 fingerprint stay in ONE place, locked-in by
+ * 1920x1080 window fingerprint stay in ONE place, locked-in by
  * the {@link "../../../../Tests/Unit/Common/CamoufoxLauncherKnobs.test.ts"}
  * drift canary.
  *
  * <p>Knob defaults + their CI bisect env-vars live in the
  * {@link CAMOUFOX_KNOBS} readonly table; pinned non-overridable settings
- * (locale/os/window) live in {@link CAMOUFOX_PINNED}.
+ * (locale/window) live in {@link CAMOUFOX_PINNED}; the OS fingerprint
+ * defaults to Windows via {@link resolveOs} and is the one fingerprint
+ * field a CI bisect overrides ({@link CAMOUFOX_OS_ENV}).
  *
  * <p>NOTE: `headless: 'virtual'` (Xvfb-backed display on Linux) is
  * intentionally NOT enabled by default — Camoufox throws
@@ -123,6 +155,7 @@ export function buildLaunchOptions(headless: boolean): CamoufoxLaunchOptions {
   return {
     headless,
     ...CAMOUFOX_PINNED,
+    os: resolveOs(),
     window: pinnedWindow(),
     ...resolveKnobs(),
     screen: PINNED_SCREEN_CONSTRAINT,
@@ -133,8 +166,9 @@ export function buildLaunchOptions(headless: boolean): CamoufoxLaunchOptions {
  * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).
  * Uses dynamic import() because camoufox-js is ESM-only.
  *
- * Pins os/window/screen to a deterministic Windows 1920x1080 fingerprint
- * so banks cannot serve mobile content via screen-size heuristics. Without
+ * Pins window/screen to a deterministic 1920x1080 desktop fingerprint
+ * (OS fingerprint defaults to Windows; see {@link resolveOs}) so banks
+ * cannot serve mobile content via screen-size heuristics. Without
  * this, Camoufox randomly picks per launch and an unlucky fingerprint can
  * trip the bank's mobile detection (observed: Isracard post-login splash
  * to /Sta… mobile-app upsell on small-screen fingerprint).

@@ -37,6 +37,10 @@
  *   <li>{@link sessionCookieNames} — names (not values) of session
  *       cookies present at AUTH-DISCOVERY entry. Used for telemetry
  *       only — never logged with values.</li>
+ *   <li>{@link hasAuthApiResponse} — `true` when a captured first-party
+ *       well-known account-data API response is present at
+ *       AUTH-DISCOVERY. An unauthenticated page never makes the authed
+ *       data fetch.</li>
  * </ul>
  */
 interface IAuthDiscovery {
@@ -46,6 +50,7 @@ interface IAuthDiscovery {
   readonly headers: Readonly<Record<string, string>>;
   readonly dashboardReady: boolean;
   readonly sessionCookieNames: readonly string[];
+  readonly hasAuthApiResponse: boolean;
 }
 
 /**
@@ -58,6 +63,14 @@ type AuthDiscoveryFailCode =
   | 'AUTH_DISCOVERY_TOKEN_REQUIRED_AND_MISSING';
 
 /**
+ * Stable fail-code string for the dashboard-not-ready failure — the
+ * single source of truth shared by AUTH-DISCOVERY.FINAL (the emitter)
+ * and the pipeline reducer (which matches it to keep that one honest
+ * failure non-retryable; one try is enough on a stuck-on-login page).
+ */
+const AUTH_DISCOVERY_NOT_READY_CODE = 'AUTH_DISCOVERY_DASHBOARD_NOT_READY' as const;
+
+/**
  * Empty default for test paths. Mirrors the EMPTY_AUTH_DISCOVERY's role
  * in the ACCOUNT-RESOLVE / TXN-endpoint patterns.
  */
@@ -68,7 +81,8 @@ const EMPTY_AUTH_DISCOVERY: IAuthDiscovery = {
   headers: {},
   dashboardReady: false,
   sessionCookieNames: [],
+  hasAuthApiResponse: false,
 };
 
 export type { AuthDiscoveryFailCode, IAuthDiscovery };
-export { EMPTY_AUTH_DISCOVERY };
+export { AUTH_DISCOVERY_NOT_READY_CODE, EMPTY_AUTH_DISCOVERY };

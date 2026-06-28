@@ -13,7 +13,7 @@ Close the browser, dispose interceptors, and produce the final `IScraperScraping
 | Hook | What it does |
 |---|---|
 | `.pre` | Read the final context — succeeded or failed. |
-| `.action` | Run registered browser cleanups: close `Page` → `BrowserContext` → `Browser`. Persist any pending FixtureCapture writes (`network/*.json`, `screenshots/*.html`). |
+| `.action` | Run registered browser cleanups: close `Page` → `BrowserContext` → `Browser`. Persist any pending FixtureCapture writes (`network/*.json`, fixture `*.html`). |
 | `.post` | Log final outcome via Pino. |
 | `.final` | Hand off to `PipelineResult.toResult(procedure)` which produces `IScraperScrapingResult`. |
 
@@ -23,8 +23,8 @@ Close the browser, dispose interceptors, and produce the final `IScraperScraping
 |---|---|---|
 | `pipeline.log` | Pino transport | ✅ via `PiiRedactor.censor` callback |
 | `network/*.json` | `NetworkDiscovery` capture writer | ✅ pre-write through `PiiRedactor` |
-| `screenshots/*.html` | `SafeScreenshot` DOM serializer | ✅ in-place text + value scrubs |
-| `screenshots/*.png` | `SafeScreenshot` raster | ❌ **not** OCR-redacted — see [Bug Reports](https://github.com/sergienko4/israeli-bank-scrapers#filing-a-bug-report) |
+| fixture `*.html` | `FixtureCapture` DOM serializer (opt-in `DUMP_FIXTURES_DIR`) | ✅ `redactHtml` text + value scrubs |
+| `screenshots/*.png` | `SafeScreenshot` raster (opt-in `FORENSIC_TRACE`) | ❌ **not** OCR-redacted — see [Bug Reports](https://github.com/sergienko4/israeli-bank-scrapers#filing-a-bug-report) |
 
 ## Cleanup invariants
 
