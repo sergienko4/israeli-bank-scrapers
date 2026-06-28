@@ -45,7 +45,18 @@ function strategyStub(): IConfigTokenStrategy {
   function getLatestLongTermToken(): string {
     return NEW_LONG_TERM;
   }
-  return { getLatestCarrySnapshot, getLatestLongTermToken } as unknown as IConfigTokenStrategy;
+  /**
+   * Whether the active session was primed from a cached warm token.
+   * @returns Always false — this stub models a freshly recovered session.
+   */
+  function lastPrimeWasWarm(): boolean {
+    return false;
+  }
+  return {
+    getLatestCarrySnapshot,
+    getLatestLongTermToken,
+    lastPrimeWasWarm,
+  } as unknown as IConfigTokenStrategy;
 }
 
 /**

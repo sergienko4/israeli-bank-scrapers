@@ -94,8 +94,12 @@ function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): I
 function makeSelfHealBus(args: ISelfHealArgs): ISelfHealHandle {
   const bus = makeRouterBus(args.router);
   const recoverSession = jest.fn((): Promise<Procedure<string>> => Promise.resolve(args.recover));
-  const wasSessionWarm = jest.fn((): boolean => args.isWarm);
-  const setSessionWarm = jest.fn((value: boolean): boolean => value);
+  let isWarm = args.isWarm;
+  const wasSessionWarm = jest.fn((): boolean => isWarm);
+  const setSessionWarm = jest.fn((value: boolean): boolean => {
+    isWarm = value;
+    return value;
+  });
   Object.assign(bus, { recoverSession, wasSessionWarm, setSessionWarm });
   return { bus, recoverSession };
 }
