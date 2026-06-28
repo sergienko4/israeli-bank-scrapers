@@ -175,18 +175,20 @@ async function tryClickSubmit(args: ISubmitPhaseArgs): Promise<Procedure<boolean
 }
 
 /**
- * Browser-side callback: call form.requestSubmit() if the element supports it.
+ * Browser-side callback: call form.requestSubmit() when the element supports it.
  * Passed to Playwright locator.evaluate(); runs inside the browser context.
- * Returns true so the evaluate Promise resolves to a boolean (not undefined).
+ * Returns whether a real submit fired so callers never treat a non-submit
+ * element (requestSubmit absent) as a successful submit.
  * @param el - The matched form element.
- * @returns True after invoking requestSubmit (no-op when absent).
+ * @returns True when requestSubmit was invoked; false when it is unavailable.
  */
 function doFormRequestSubmit(el: Element): boolean {
   interface IHasSubmit {
     requestSubmit?(): unknown;
   }
   const f = el as unknown as IHasSubmit;
-  f.requestSubmit?.();
+  if (typeof f.requestSubmit !== 'function') return false;
+  f.requestSubmit();
   return true;
 }
 
@@ -197,14 +199,14 @@ function doFormRequestSubmit(el: Element): boolean {
  * @internal — exported for unit-test access only.
  * @param ctx - Page or Frame, or false when no frame context is available.
  * @param formAnchor - CSS selector string for the form element.
- * @returns True when evaluate was dispatched without error.
+ * @returns The evaluated submit outcome; false when ctx/anchor are missing,
+ *   the element is not submit-capable, or evaluate rejects.
  */
 export async function tryFormRequestSubmit(ctx: FormCtx, formAnchor: string): Promise<boolean> {
   if (!ctx || !formAnchor) return false;
   try {
     const locator = ctx.locator(formAnchor);
-    await locator.evaluate(doFormRequestSubmit);
-    return true;
+    return await locator.evaluate(doFormRequestSubmit);
   } catch {
     return false;
   }
@@ -212,15 +214,15 @@ export async function tryFormRequestSubmit(ctx: FormCtx, formAnchor: string): Pr
 
 /**
  * Submit using ONLY form.requestSubmit() (D3 'form' mode).
- * Skips Enter + click entirely; returns succeed(true) as the click signal
- * so gateNoSubmitSignal passes (a requestSubmit DID fire).
+ * Skips Enter + click entirely; the click signal mirrors the real submit
+ * outcome so gateNoSubmitSignal fails when no requestSubmit actually fired.
  * @param ctx - Page or Frame context for the form.
  * @param formAnchor - Discovered form anchor selector.
- * @returns ISubmitPhaseResult with didEnter=false, clickResult=succeed(true).
+ * @returns ISubmitPhaseResult with didEnter=false, clickResult=succeed(outcome).
  */
 async function runFormOnlySubmit(ctx: FormCtx, formAnchor: string): Promise<ISubmitPhaseResult> {
-  await tryFormRequestSubmit(ctx, formAnchor);
-  return { didEnter: false, clickResult: succeed(true) };
+  const didSubmit = await tryFormRequestSubmit(ctx, formAnchor);
+  return { didEnter: false, clickResult: succeed(didSubmit) };
 }
 
 /**
