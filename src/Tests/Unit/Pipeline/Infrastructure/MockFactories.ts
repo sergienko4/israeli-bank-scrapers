@@ -11,6 +11,7 @@ import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigType
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import type { IRecoveryMethods } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import type { IApiDirectScrapeShape } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
@@ -35,6 +36,50 @@ const TEST_COMPANY_ID = 'testBank';
  */
 export function createMockLogger(): ScraperLogger {
   return pino({ enabled: false });
+}
+
+/**
+ * Inert `setSessionWarm` stub — echoes the flag, records nothing.
+ * @param value - The warm flag, returned unchanged.
+ * @returns The same boolean value.
+ */
+function echoSessionWarm(value: boolean): boolean {
+  return value;
+}
+
+/**
+ * Always-false `wasSessionWarm` stub — keeps the self-heal fast-path a no-op.
+ * @returns false
+ */
+function notSessionWarm(): boolean {
+  return false;
+}
+
+/**
+ * Inert `recoverSession` stub — never consumed while `wasSessionWarm` is false.
+ * @returns A resolved empty success {@link Procedure}.
+ */
+async function recoverSessionNoop(): Promise<Procedure<string>> {
+  await Promise.resolve();
+  return succeed('');
+}
+
+/**
+ * Build no-op warm-session self-heal stubs to spread into a mock mediator.
+ *
+ * Fast-path default: `wasSessionWarm` returns false, so the shared
+ * `runScrapeWithRecovery` wrapper never enters the recovery branch — every
+ * template-mock scrape stays byte-identical to its pre-self-heal behaviour.
+ * `recoverSession`'s value is never consumed on that path.
+ *
+ * @returns The three {@link IRecoveryMethods} stubs for a mock mediator.
+ */
+function makeRecoverySessionStubs(): IRecoveryMethods {
+  return {
+    setSessionWarm: echoSessionWarm,
+    wasSessionWarm: notSessionWarm,
+    recoverSession: recoverSessionNoop,
+  };
 }
 
 /**
@@ -121,6 +166,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     config: {
       urls: { base: 'https://test.bank' },
       balanceKind: 'account',
+      authStrategyKind: 'token',
     },
     fetchStrategy: none(),
     mediator: none(),
@@ -147,7 +193,11 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     balanceValidation: none(),
     balanceResolution: none(),
   };
-  return { ...defaults, ...overrides };
+  return {
+    ...defaults,
+    ...overrides,
+    config: { ...defaults.config, ...overrides.config },
+  };
 }
 
 /**
@@ -222,6 +272,7 @@ export {
   makeMockDescriptor,
   makeMockOptions,
   makeMockPage,
+  makeRecoverySessionStubs,
   MOCK_API_DIRECT,
   MOCK_API_DIRECT_SHAPE,
   MOCK_DIRECT_LOGIN,

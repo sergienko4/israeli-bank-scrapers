@@ -87,7 +87,11 @@ function makeShapeCtx(shape: IBankShape, carryPool: boolean): IPipelineContext {
   });
   const perUrlApi = makePerUrlApi(shape.success);
   const api = some(perUrlApi);
-  const config = { urls: { base: 'https://test.bank' }, balanceKind: shape.balanceKind };
+  const config = {
+    urls: { base: 'https://test.bank' },
+    balanceKind: shape.balanceKind,
+    authStrategyKind: 'token' as const,
+  };
   return makeMockContext({ scrape, api, mediator: none(), config });
 }
 
@@ -189,25 +193,25 @@ describe('BALANCE-RESOLVE cross-bank Mode B simulator', () => {
   it('Discount — keyed 200 without balance falls back to the captured balance', async () => {
     const report = await drive(DISCOUNT);
     expect(report.totalAccounts).toBe(1);
-    expect(report.resolvedIds.length).toBe(1);
+    expect(report.resolvedIds).toHaveLength(1);
   });
 
   it('VisaCal — card-cycle bank → deterministic no-op (total=0, no miss)', async () => {
     const report = await drive(VISACAL);
     expect(report.totalAccounts).toBe(0);
-    expect(report.missedIds.length).toBe(0);
+    expect(report.missedIds).toHaveLength(0);
   });
 
   it('Leumi — folded balance with a quarantined re-fetch resolves via BULK_KEY', async () => {
     const report = await drive(LEUMI);
     expect(report.totalAccounts).toBe(1);
-    expect(report.resolvedIds.length).toBe(1);
+    expect(report.resolvedIds).toHaveLength(1);
   });
 
   it('Hapoalim — separate balance endpoint, 4xx re-fetch resolves via BULK_KEY', async () => {
     const report = await drive(HAPOALIM);
     expect(report.totalAccounts).toBe(1);
-    expect(report.resolvedIds.length).toBe(1);
+    expect(report.resolvedIds).toHaveLength(1);
   });
 
   it('LIVE REGRESSION — an account bank without the carried pool universal-misses', async () => {

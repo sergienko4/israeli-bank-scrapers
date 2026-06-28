@@ -22,6 +22,52 @@ on:
           - info
           - debug
           - trace
+      # ── Amex Camoufox/WAF knob A/B bisect overrides ──
+      # Blank = production default (byte-identical run). Set ONE value to flip
+      # ONE knob for the Amex E2E-Real run from the CI datacenter IP, to
+      # pinpoint the v8.4.0 fingerprint/WAF regression with ZERO production-code
+      # change (the knobs already exist in CamoufoxLauncher.ts /
+      # WafChallengeConfig.ts). CAMOUFOX_* truthy set = {true,1,yes,on}; flip a
+      # knob OFF with 0/false/off/no. WAF: set 1/true to DISABLE the challenge
+      # interceptor. On a PR-branch run (no dispatch form), use repo variables
+      # instead: AMEX_AB_CAMOUFOX_HUMANIZE / _DISABLE_COOP / _BLOCK_WEBRTC /
+      # _CAMOUFOX_OS / AMEX_AB_WAF_INTERCEPTOR_DISABLED (input OR variable).
+      amex_camoufox_humanize:
+        description: 'Amex A/B CAMOUFOX_HUMANIZE (blank=default on; 0/false=off)'
+        required: false
+        default: ''
+        type: string
+      amex_camoufox_disable_coop:
+        description: 'Amex A/B CAMOUFOX_DISABLE_COOP (blank=default on; 0/false=off)'
+        required: false
+        default: ''
+        type: string
+      amex_camoufox_block_webrtc:
+        description: 'Amex A/B CAMOUFOX_BLOCK_WEBRTC (blank=default on; 0/false=off)'
+        required: false
+        default: ''
+        type: string
+      amex_camoufox_os:
+        description: 'Amex A/B CAMOUFOX_OS fingerprint (blank=windows; linux|macos|windows)'
+        required: false
+        default: ''
+        type: string
+      amex_waf_interceptor_disabled:
+        description: 'Amex A/B WAF_INTERCEPTOR_DISABLED (blank=enabled; 1/true=disable)'
+        required: false
+        default: ''
+        type: string
+      # ── Amex auth-egress diagnostic (not a regression knob) ──
+      # Opt-in PIPELINE_AUTH_REQ_TRACE: when 1/true, AuthFailureWatcher
+      # attaches gated request/requestfailed listeners that classify a
+      # dropped/hung auth POST and a failed Cloudflare JSD handshake.
+      # Blank = off (byte-identical, zero extra fingerprint surface).
+      # PR-branch runs (no dispatch form) use repo var AMEX_AB_AUTH_REQ_TRACE.
+      amex_auth_req_trace:
+        description: 'Amex diag PIPELINE_AUTH_REQ_TRACE (blank=off; 1/true=trace auth+JSD egress)'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: pr-${{ github.head_ref || github.run_id }}
@@ -60,16 +106,18 @@ defaults:
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
 #                           non-OTP browser-form banks
 #                           (Isracard, VisaCal, Discount, Max).
-#   e2e-real-group-a-amex — Amex follow-on under gate-A approval;
-#                           `needs: e2e-real-group-a` enforces
-#                           Rule #16 (Amex never co-runs with
-#                           Isracard).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
 #                           OTP browser-form banks
 #                           (Hapoalim, Beinleumi).
 #   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
 #                           api-direct banks
 #                           (OneZero, Pepper, PayBox).
+#   e2e-real-group-d      — Amex, ISOLATED under its OWN gate-D
+#                           approval (independent of gate-A so the
+#                           maintainer can approve an Amex-only run).
+#                           Rule #16 (Amex never co-runs with
+#                           Isracard) holds by releasing gate-D
+#                           alone — Group A stays unreleased.
 #   dependency-review     — PR-only, independent.
 #
 # Each gate runs ONCE per PR — no overlap between validate and the
@@ -80,9 +128,10 @@ defaults:
 # Gates are mutually INDEPENDENT — all three become approvable as
 # soon as `validate` + `dns-preflight` are green. The reviewer can
 # release any group without waiting for another to finish; in
-# practice that means Groups A, B and C can run in parallel once
-# each has been clicked. The only ordering constraint is Rule #16
-# inside Group A (Amex strictly after group-a's main matrix).
+# practice that means Groups A, B, C and D can run in parallel once
+# each has been clicked. Rule #16 (Amex never co-runs with Isracard)
+# is honored by releasing gate-D alone for an Amex-only run — Group A
+# and Group D are simply never approved together.
 # ──────────────────────────────────────────────────────────────
 
 jobs:
@@ -114,7 +163,7 @@ jobs:
       trusted_event: ${{ steps.gate.outputs.trusted_event }}
       real_gates_enabled: ${{ steps.gate.outputs.real_gates_enabled }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -149,7 +198,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -192,7 +241,7 @@ jobs:
             'README.md' 'docs/**/*.md'
           fail: true
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         if: needs.changes.outputs.docs == 'true'
         with:
           python-version: '3.13'
@@ -269,7 +318,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -300,7 +349,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -329,7 +378,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -350,7 +399,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -403,7 +452,7 @@ jobs:
     env:
       INTEGRATION_BANK_FILTER: ${{ matrix.bank }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -426,7 +475,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-test-runner
@@ -543,7 +592,7 @@ jobs:
           - Pagi
           - OneZero
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node-deps
@@ -585,8 +634,6 @@ jobs:
   #   Group A, gate-A (parallel runners):
   #     non-OTP browser-form banks
   #     — Isracard, VisaCal, Discount, Max
-  #     + Amex follow-on (`needs: e2e-real-group-a`, Rule #16:
-  #       Amex never co-runs with Isracard).
   #   Group B, gate-B (parallel runners):
   #     OTP browser-form banks
   #     — Hapoalim, Beinleumi
@@ -595,20 +642,26 @@ jobs:
   #     api-direct banks (no browser)
   #     — OneZero, Pepper, PayBox
   #     (TELEGRAM_* secrets exposed for OTP delivery).
+  #   Group D, gate-D (single runner):
+  #     Amex, isolated under its own gate so it can be approved
+  #     independently. Rule #16 (Amex never co-runs with Isracard)
+  #     is honored by approving gate-D alone — Group A stays
+  #     unreleased for an Amex-only run.
   #
-  # Three approval clicks per PR — one per category. The 3-gate
+  # Four approval clicks per PR — one per category. The 4-gate
   # design lets each category be approved independently (e.g. skip
   # api-direct review when a PR only touches Isracard) and keeps
   # secrets scoped to the runners that need them. Updated 2026-05-26
   # to drop inter-group `needs:` so groups can also run concurrently
   # once each gate is released — the reviewer's click order does
-  # not impose a serial pipeline.
+  # not impose a serial pipeline. Group D (Amex) added 2026-06-26 to
+  # decouple Amex from gate-A so it can be approved on its own.
   #
   # Wall time (gates approved in parallel ⇒ longest group dominates):
   #   validate                         ≈ 10–12 min
   #   dns-preflight                    ≈ 1–2 min
-  #   max(Group A, Group B, Group C)   ≈ 9–11 min (Group A's
-  #                                      Isracard+Amex chain wins)
+  #   max(Group A, B, C, D)            ≈ 9–11 min (Amex's Group D
+  #                                      run dominates when released)
   #
   # Same-repo PRs and manual dispatch only — secrets are not exposed
   # to forks (mirrors the prior gating of the now-removed E2eFull
@@ -621,13 +674,13 @@ jobs:
   # job would spawn one approval per matrix cell — N clicks per
   # gate instead of 1.
   #
-  # The three gates reference DISTINCT environments
-  # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`).
-  # Sharing one environment across all three would let GitHub
-  # batch them into a single approval prompt — fine for an
+  # The four gates reference DISTINCT environments
+  # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`,
+  # `e2e-real-group-d`). Sharing one environment across them would
+  # let GitHub batch them into a single approval prompt — fine for an
   # "approve everything" workflow but defeats per-category review.
   # Required repo setup: Settings → Environments → create each of
-  # the three names above and attach reviewers; first runs against
+  # the four names above and attach reviewers; first runs against
   # missing environments auto-create them WITHOUT reviewers (the
   # workflow then passes through unapproved), so add reviewers
   # right after the first run if not pre-created.
@@ -661,7 +714,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Force reliable DNS for Israeli bank resolution
@@ -686,7 +739,8 @@ jobs:
     # purpose of per-category review. Required setup: repo
     # Settings → Environments → create `e2e-real-group-a` with the
     # desired reviewers; same for `e2e-real-group-b` /
-    # `e2e-real-group-c`. Until the environments exist, GitHub
+    # `e2e-real-group-c` / `e2e-real-group-d`. Until the environments
+    # exist, GitHub
     # auto-creates them on first run WITHOUT reviewers (the workflow
     # passes through unapproved); flip-on protection by adding
     # reviewers to each environment afterwards.
@@ -703,18 +757,21 @@ jobs:
     needs: e2e-real-group-a-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    # Non-OTP browser-form banks. Amex runs separately
-    # (`e2e-real-group-a-amex` below) under the SAME gate-A approval
-    # but with `needs: e2e-real-group-a` so Rule #16 is enforced:
-    # Amex never co-runs with Isracard.
+    # Non-OTP browser-form banks. Amex is no longer here — it now runs
+    # in its OWN isolated Group D (`e2e-real-group-d` below) under a
+    # separate gate-D approval. Rule #16 (Amex never co-runs with
+    # Isracard) is honored by approving gate-D alone for an Amex-only
+    # run, leaving this Group A gate unreleased.
     timeout-minutes: 30
     # Serialize same-bank runs across the entire repo (all PRs, all
     # branches). cancel-in-progress: false → newer queued runs wait
     # for the current one to finish instead of cancelling it. NOTE:
     # GitHub only queues ONE pending job per group; a 3rd queued job
     # for the same bank is cancelled (see PR body for rationale).
+    # Rule #16: Amex + Isracard share one mutex key so they can never
+    # run concurrently even when both gate-A and gate-D are approved.
     concurrency:
-      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      group: "e2e-real-bank-${{ (matrix.bank == 'Amex' || matrix.bank == 'Isracard') && 'amex-isracard-mutex' || matrix.bank }}-${{ github.repository }}"
       cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -729,7 +786,7 @@ jobs:
           - Discount
           - Max
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       # DNS override + warmup (single source of truth lives in
@@ -745,18 +802,11 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
-          # LOG_LEVEL=trace makes the pipeline write per-run artefacts
-          # (pipeline.log, screenshots, network dumps) under RUNS_ROOT.
-          # Both pipeline.log AND network/*.json are PII-redacted at
-          # write-time by the runtime layer (commit 3f1b966d: PiiRedactor
-          # is wired into Pino's redact.censor + NetworkDiscovery's
-          # dumpResponseBody routes through redactJsonBody/redactUrl).
-          # Both file types are safe to upload; the failure-only artifact
-          # below uploads them so we can debug auto-discovery + endpoint
-          # selection (e.g. Max's "scrape skipped — No txn URL" case
-          # needs the 71 captured network URLs to triage).
-          # Screenshots are still excluded — PNGs cannot be reliably
-          # redacted and may capture rendered PII text.
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # Non-OTP browser-form banks only — no OTP / TELEGRAM
@@ -786,58 +836,78 @@ jobs:
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
             --forceExit
-      - name: Upload diagnostics on failure (${{ matrix.bank }})
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # pipeline.log + network/*.json — both PII-redacted at write
-          # time by the runtime layer (commit 3f1b966d). Network dumps
-          # are required to triage auto-discovery failures (which URL
-          # got picked out of the captured set, what response shape).
-          # Pre-auth screenshots (init/home only) included since the
-          # bank page carries no user data before LOGIN — needed to
-          # triage WAF / challenge-wall hypotheses without speculation.
-          # LOGIN / OTP / DASHBOARD / SCRAPE screenshots remain excluded.
-          path: |
-            /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
-          retention-days: 7
-          if-no-files-found: warn
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          set -euo pipefail
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
-  # Amex follow-on under gate-A approval. Rule #16: Amex never
-  # co-runs with Isracard, so we `needs: e2e-real-group-a` to make
-  # Amex run STRICTLY after the Group A matrix finishes. No
-  # additional approval click — gate-A's release applies.
+  # ──────────────────────────────────────────────────────────────
+  # Group D — Amex, ISOLATED under its own gate-D approval.
+  # Added 2026-06-26 to decouple Amex from gate-A so the maintainer
+  # can approve an Amex-only run. Rule #16 (Amex never co-runs with
+  # Isracard) is honored by releasing gate-D alone — Group A stays
+  # unreleased. Independent of gate-A/B/C (no inter-group `needs:`).
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-d-gate:
+    name: E2E Real D — approval gate
+    # Same HARD dependency on `dns-preflight` as the other gates: only
+    # approvable once all Israeli-bank hosts resolve through the
+    # runner's resolver chain, so we never burn the Amex run on a
+    # guaranteed-DNS failure. `real_gates_enabled` mirrors gate-A/B/C.
+    needs: [validate, dns-preflight]
+    if: needs.validate.outputs.real_gates_enabled == 'true'
+    runs-on: ubuntu-latest
+    # DISTINCT environment `e2e-real-group-d` → one approval click for
+    # Amex alone. Auto-creates WITHOUT reviewers on first run (passes
+    # through unapproved); add reviewers in Settings → Environments to
+    # enforce the gate thereafter.
+    environment: e2e-real-group-d
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group D approved; Amex job may proceed."
 
-  e2e-real-group-a-amex:
-    name: E2E Real A (${{ matrix.bank }})
-    needs: e2e-real-group-a
+  e2e-real-group-d:
+    name: E2E Real D (${{ matrix.bank }})
+    needs: e2e-real-group-d-gate
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
+    # Rule #16: shared amex-isracard-mutex key (see Group A) keeps this
+    # Amex job mutually exclusive with Isracard's Group A run.
     concurrency:
-      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      group: "e2e-real-bank-${{ (matrix.bank == 'Amex' || matrix.bank == 'Isracard') && 'amex-isracard-mutex' || matrix.bank }}-${{ github.repository }}"
       cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -849,7 +919,7 @@ jobs:
         bank:
           - Amex
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       # Same DNS-warmup script as preflight and Group A — extracts
@@ -861,10 +931,47 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # ── Amex Camoufox/WAF knob A/B overrides (v8.4.0 regression bisect) ──
+      # Writes a knob to $GITHUB_ENV ONLY when a non-empty override is supplied
+      # via workflow_dispatch input OR repo variable. Blank/unset → the env var
+      # is never set, so CamoufoxLauncher.envFlag() / WafChallenge isDisabled()
+      # fall back to their code defaults → byte-identical to a normal Amex run.
+      # CRITICAL: envFlag() returns its default ONLY when the var is UNDEFINED;
+      # an empty string parses as falsy, so we must NOT export an empty value.
+      # Zero production-code change — the knobs already exist. Lets the
+      # maintainer pinpoint the datacenter-IP fingerprint/WAF regression.
+      - name: Apply Amex knob A/B overrides (bisect)
+        env:
+          IN_HUMANIZE: ${{ inputs.amex_camoufox_humanize || vars.AMEX_AB_CAMOUFOX_HUMANIZE }}
+          IN_DISABLE_COOP: ${{ inputs.amex_camoufox_disable_coop || vars.AMEX_AB_CAMOUFOX_DISABLE_COOP }}
+          IN_BLOCK_WEBRTC: ${{ inputs.amex_camoufox_block_webrtc || vars.AMEX_AB_CAMOUFOX_BLOCK_WEBRTC }}
+          IN_CAMOUFOX_OS: ${{ inputs.amex_camoufox_os || vars.AMEX_AB_CAMOUFOX_OS }}
+          IN_WAF_DISABLED: ${{ inputs.amex_waf_interceptor_disabled || vars.AMEX_AB_WAF_INTERCEPTOR_DISABLED }}
+          IN_AUTH_REQ_TRACE: ${{ inputs.amex_auth_req_trace || vars.AMEX_AB_AUTH_REQ_TRACE }}
+        run: |
+          set -euo pipefail
+          apply() {
+            if [ -n "$2" ]; then
+              printf '%s=%s\n' "$1" "$2" >> "$GITHUB_ENV"
+              printf 'A/B override applied: %s=%s\n' "$1" "$2"
+            else
+              printf 'A/B override absent: %s (code default in effect)\n' "$1"
+            fi
+          }
+          apply CAMOUFOX_HUMANIZE "$IN_HUMANIZE"
+          apply CAMOUFOX_DISABLE_COOP "$IN_DISABLE_COOP"
+          apply CAMOUFOX_BLOCK_WEBRTC "$IN_BLOCK_WEBRTC"
+          apply CAMOUFOX_OS "$IN_CAMOUFOX_OS"
+          apply WAF_INTERCEPTOR_DISABLED "$IN_WAF_DISABLED"
+          apply PIPELINE_AUTH_REQ_TRACE "$IN_AUTH_REQ_TRACE"
+          echo 'Knob override step done (blank values leave code defaults intact).'
       - name: E2E real (${{ matrix.bank }})
         env:
-          # Same trace + RUNS_ROOT setup as Group A — failure artifact
-          # below relies on /tmp/runs being populated when LOG_LEVEL=trace.
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           AMEX_ID: ${{ secrets.AMEX_ID }}
@@ -879,37 +986,37 @@ jobs:
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
             --forceExit
-      - name: Upload diagnostics on failure (${{ matrix.bank }})
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          # Same pre-auth screenshot policy as Group A — init + home only
-          # so we can triage homepage WAF / challenge-wall failures
-          # (Hapoalim CI race investigated 2026-05-13) with visual proof.
-          path: |
-            /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
-          retention-days: 7
-          if-no-files-found: warn
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          set -euo pipefail
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
@@ -966,7 +1073,7 @@ jobs:
           - Beinleumi
           - Leumi
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
@@ -978,6 +1085,11 @@ jobs:
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # OTP browser-form banks. Telegram secrets deliver the SMS
@@ -999,34 +1111,37 @@ jobs:
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
             --forceExit
-      - name: Upload diagnostics on failure (${{ matrix.bank }})
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          path: |
-            /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
-          retention-days: 7
-          if-no-files-found: warn
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          set -euo pipefail
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
@@ -1078,7 +1193,7 @@ jobs:
           - Pepper
           - PayBox
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
@@ -1097,7 +1212,7 @@ jobs:
       # cache via the default-branch fallback rule, so a brand-new PR
       # gets a warm start as long as main has run recently.
       - name: Restore encrypted token cache (${{ matrix.bank }})
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4.2.4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4.2.4
         with:
           path: /tmp/tokens-encrypted
           key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}-restore
@@ -1109,6 +1224,11 @@ jobs:
         run: bash .github/scripts/ci/decrypt-token-cache.sh "${{ matrix.bank }}"
       - name: E2E real (${{ matrix.bank }})
         env:
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture
+          # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
+          # unset/false captures nothing; true captures, then uploads to the
+          # private store on failure only. LOG_LEVEL only sets log verbosity.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # api-direct banks. PayBox derives deviceId16Hex from
@@ -1143,17 +1263,20 @@ jobs:
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
             --forceExit
-      - name: Upload diagnostics on failure (${{ matrix.bank }})
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-real-${{ matrix.bank }}-diag-${{ github.run_id }}
-          path: |
-            /tmp/runs/pipeline/**/pipeline.log
-            /tmp/runs/pipeline/**/network/*.json
-            /tmp/runs/pipeline/**/screenshots/*.png
-          retention-days: 7
-          if-no-files-found: warn
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        # Best-effort upload of the full FORENSIC_TRACE run dir (incl.
+        # screenshots) to the access-controlled OCI bucket via a write-only
+        # pre-authenticated request (create/overwrite only; NoPublicAccess;
+        # 3-day TTL). Sole log sink; no GitHub logs. The if: above runs
+        # this on E2E failure always + on success during FORENSIC_TRACE
+        # diagnostic runs (green control traces). Skips cleanly
+        # when the secret is absent (forks) so it can never fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
       - name: Encrypt token cache for save (${{ matrix.bank }})
         if: always()
         env:
@@ -1161,27 +1284,27 @@ jobs:
         run: bash .github/scripts/ci/encrypt-token-cache.sh "${{ matrix.bank }}"
       - name: Save encrypted token cache (${{ matrix.bank }})
         if: always()
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v4.2.4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4.2.4
         with:
           path: /tmp/tokens-encrypted
           key: tokens-${{ matrix.bank }}-${{ github.run_id }}-${{ github.run_attempt }}
-      # ── Cooldown hold (post-run slot retention) ──
-      # Holds the job's repo-wide concurrency.group slot
-      # (e2e-real-bank-<bank>-<repo>) for 600 s so the NEXT same-bank
-      # run — across ANY PR or workflow — starts at least 10 min after
-      # this run completed. WAF risk-score decay window observed: 15-60
-      # min for Hapoalim image-puzzle escalation; 10 min is the minimum
-      # that meaningfully reduces repeat-trigger probability without
-      # over-burning runner time. Always runs (success OR failure) so
-      # repeated failures (which often indicate WAF heat) also throttle.
+      # ── Cooldown hold (failure-only slot retention) ──
+      # On FAILURE only, holds the job's repo-wide concurrency.group
+      # slot (e2e-real-bank-<bank>-<repo>) for 120 s so the NEXT
+      # same-bank run — across ANY PR or workflow — starts ≥2 min after
+      # this failed run. A failed E2E-Real often indicates WAF heat, so
+      # throttling the next same-bank attempt reduces repeat-trigger
+      # probability. GREEN runs skip the hold entirely (no WAF signal →
+      # no need to burn runner time or delay the next queued job).
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
       - name: Cooldown hold (${{ matrix.bank }})
-        if: always()
+        if: failure()
         run: |
-          echo "[cooldown-hold] sleeping 600 s to hold concurrency slot for ${{ matrix.bank }}"
-          sleep 600
+          set -euo pipefail
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   dependency-review:
@@ -1198,7 +1321,7 @@ jobs:
 
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       # v5.0.0 — first stable release on Node.js 24 (published

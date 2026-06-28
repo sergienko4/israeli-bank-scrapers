@@ -1192,3 +1192,32 @@ IPageEvalAllOpts
 BalanceKind
 # Reason: Banks — Leumi declarative login config (credential keys only; WellKnown resolves selectors); framework-internal bank-registration surface consumed by the integration test wiring (BankLoginConfigs), mirroring every other pipeline bank's *_LOGIN. Not user-facing.
 LEUMI_LOGIN
+# Reason: AuthDiscoveryGate — per-bank auth-completion-family discriminant ('token' | 'session-cookie' | 'api-direct') on IPipelineBankConfig; framework-internal config knob that declares how auth success is verified. REQUIRED — every bank states its kind explicitly; tsc enforces completeness. Not user-facing mkdocs surface; mirrors BalanceKind (already allowlisted above).
+AuthStrategyKind
+
+# Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
+buildConsoleHandler
+# Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
+buildPageErrorHandler
+# Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
+buildPopupHandler
+# Reason: SubmitModeGate — gated D3 diagnostic lever (PIPELINE_LOGIN_SUBMIT_MODE gate).
+# Default 'enter-click' is byte-identical. CI A/B diagnostic only; not user-facing.
+readSubmitMode
+# Reason: SubmitModeGate — discriminated union type for the D3 submit-mode lever.
+# Internal gate type; not user-facing.
+SubmitMode
+# Reason: SubmitModeGate — env-var name constant for the D3 submit-mode lever.
+# Exported so tests can reference it without hardcoding the string. Not user-facing.
+SUBMIT_MODE_ENV_VAR
+# Reason: ActionsFill — @internal D3 requestSubmit helper, exported for unit-test access only.
+# No docs-surface needed; gated behaviour, not public API.
+tryFormRequestSubmit
+# Reason: NetworkTimingConfig - body-read-race settle ceiling for awaitTraffic.
+# After a matched (headers-only) response, the gate re-polls the live capture pool
+# for up to this budget so the body-bearing endpoint settles. Framework-internal
+# timing knob; exported only so the NetworkPolling race test asserts it. Not user-facing.
+NETWORK_BODY_SETTLE_MS

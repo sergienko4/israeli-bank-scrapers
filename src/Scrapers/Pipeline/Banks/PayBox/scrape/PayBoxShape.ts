@@ -28,6 +28,7 @@ import {
   PAYBOX_SCRAPE_SIGNER,
   PAYBOX_SECRETS,
 } from '../../../Registry/Config/PipelineBankConfigPayBoxCrypto.js';
+import { payBoxResultGuard } from './PayBoxResultGuard.js';
 import {
   accountNumberOf,
   balanceExtract,
@@ -60,6 +61,7 @@ const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
   },
+  resultGuard: payBoxResultGuard,
 };
 
 export default PAYBOX_SHAPE;

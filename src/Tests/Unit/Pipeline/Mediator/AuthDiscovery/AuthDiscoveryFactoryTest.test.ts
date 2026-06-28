@@ -225,19 +225,35 @@ function buildResolveVisibleStub(fixture: IBankFixture): () => Promise<unknown> 
 /** Shape of the `network` sub-object on the fixture mediator. */
 interface IAuthDiscoveryNetworkStub {
   getAllEndpoints: () => readonly [];
+  findEndpoints: () => readonly [];
   discoverAuthToken: () => Promise<string | false>;
   discoverOrigin: () => string | false;
   discoverSiteId: () => string | false;
   buildDiscoveredHeaders: () => Promise<IFetchOpts>;
+  discoverByPatterns: () => false;
 }
 
 /**
- * Empty endpoint pool stub — PRE counts captures only.
+ * Empty endpoint pool stub — backs both `getAllEndpoints` and
+ * `findEndpoints`; factory tests have no first-party captures, so
+ * pattern lookups and full-pool reads both return nothing.
  * Extracted per §19.10 so `buildNetworkStub` stays compact.
  * @returns Thunk that returns the empty tuple.
  */
 function makeEmptyEndpointsGetter(): () => readonly [] {
   return (): readonly [] => [];
+}
+
+/**
+ * Empty capture-pool stubs (`getAllEndpoints` + `findEndpoints`) bundled
+ * so `buildNetworkStub` stays within the §19.10 helper line cap.
+ * @returns The two empty-pool stub thunks.
+ */
+function makeEndpointPoolStubs(): Pick<
+  IAuthDiscoveryNetworkStub,
+  'getAllEndpoints' | 'findEndpoints'
+> {
+  return { getAllEndpoints: makeEmptyEndpointsGetter(), findEndpoints: makeEmptyEndpointsGetter() };
 }
 
 /**
@@ -277,19 +293,28 @@ function makeDiscoveredHeadersBuilder(fetchOpts: IFetchOpts): () => Promise<IFet
 }
 
 /**
+ * Stub `discoverByPatterns` — factory tests have no first-party API captures.
+ * @returns Always false.
+ */
+function noopPatternDiscovery(): false {
+  return false;
+}
+
+/**
  * Build the `network` sub-object for `makeFixtureMediator`. Implements
  * only the surface AUTH-DISCOVERY touches. Extracted per §19.10.
  * @param fixture - Per-bank fixture.
  * @param fetchOpts - Pre-built fetch opts for buildDiscoveredHeaders.
- * @returns Network helper bundle (5 stubs).
+ * @returns Network helper bundle (7 stubs).
  */
 function buildNetworkStub(fixture: IBankFixture, fetchOpts: IFetchOpts): IAuthDiscoveryNetworkStub {
   return {
-    getAllEndpoints: makeEmptyEndpointsGetter(),
+    ...makeEndpointPoolStubs(),
     discoverAuthToken: makeAuthTokenGetter(fixture),
     discoverOrigin: makeOriginGetter(fixture),
     discoverSiteId: makeSiteIdGetter(fixture),
     buildDiscoveredHeaders: makeDiscoveredHeadersBuilder(fetchOpts),
+    discoverByPatterns: noopPatternDiscovery,
   };
 }
 
@@ -460,7 +485,7 @@ describe('Mission 1 — AuthDiscoveryFactoryTest cross-bank coverage', () => {
       const ctx = await runAuthDiscoveryChain(fixture);
       expect(ctx.authDiscovery.has).toBe(true);
       if (ctx.authDiscovery.has) {
-        expect(ctx.authDiscovery.value.sessionCookieNames.length).toBe(fixture.cookieNames.length);
+        expect(ctx.authDiscovery.value.sessionCookieNames).toHaveLength(fixture.cookieNames.length);
       }
     });
 

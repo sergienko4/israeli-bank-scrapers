@@ -101,7 +101,7 @@ function composeDeepLoginContext(args: IDeepLoginContextArgs): IPipelineContext 
  * @returns Pipeline config with a required account `balanceKind`.
  */
 function buildDeepLoginConfig(loginUrl: string): IPipelineContext['config'] {
-  return { urls: { base: loginUrl }, balanceKind: 'account' };
+  return { urls: { base: loginUrl }, balanceKind: 'account', authStrategyKind: 'token' };
 }
 
 /**

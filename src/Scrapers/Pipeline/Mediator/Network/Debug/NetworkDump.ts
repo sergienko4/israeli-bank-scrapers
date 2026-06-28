@@ -24,7 +24,7 @@ const LOG = getDebug(import.meta.url);
  * Per-run dump counter — each response body that gets dumped is numbered so
  * the on-disk order matches the order they fired during the run. The dump
  * folder itself is owned by TraceConfig (single per-process root for logs,
- * network, and screenshots — gated by `LOG_LEVEL=trace`).
+ *   network, and screenshots — gated by the opt-in `FORENSIC_TRACE` flag).
  */
 let dumpCounter = 0;
 

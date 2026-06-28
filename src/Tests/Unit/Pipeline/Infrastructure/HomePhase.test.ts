@@ -25,7 +25,11 @@ import { makeMockContext, makeMockPage } from './MockFactories.js';
 const PHASE = new HomePhase();
 
 /** Minimal bank config with urls.base for HOME phase. */
-const MOCK_CONFIG = { urls: { base: 'https://test.bank.co.il' }, balanceKind: 'account' as const };
+const MOCK_CONFIG = {
+  urls: { base: 'https://test.bank.co.il' },
+  balanceKind: 'account' as const,
+  authStrategyKind: 'token' as const,
+};
 
 /**
  * Build a mock page with goto + url tracking.

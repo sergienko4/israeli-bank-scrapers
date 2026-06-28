@@ -285,6 +285,43 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
   });
 });
 
+describe('ApiMediator.retryOn401 — warm-flag hygiene (F2)', () => {
+  it('clears the warm flag after a 401-driven refresh + retry', async () => {
+    const initial401 = fail(ScraperErrorTypes.Generic, MSG_401_FIRST);
+    const retriedOk = succeed({ ok: 'retried' });
+    const fetchStrat = scriptedFetchStrategy([initial401, retriedOk]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const refreshOk = succeed(FRESH_HEADER);
+    const strategy = scriptedStrategy([refreshOk]);
+    const ctx0 = makeStubCtx();
+    const creds0 = { marker: 'x' };
+    mediator.withTokenStrategy(strategy, ctx0, creds0);
+    mediator.setSessionWarm(true);
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    const wasWarm = mediator.wasSessionWarm();
+    expect(result.success).toBe(true);
+    expect(wasWarm).toBe(false);
+  });
+
+  it('keeps the warm flag set on a 200 response (no refresh)', async () => {
+    const okFirst = succeed({ ok: true });
+    const fetchStrat = scriptedFetchStrategy([okFirst]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const refreshOk = succeed(FRESH_HEADER);
+    const strategy = scriptedStrategy([refreshOk]);
+    const ctx0 = makeStubCtx();
+    const creds0 = { marker: 'x' };
+    mediator.withTokenStrategy(strategy, ctx0, creds0);
+    mediator.setSessionWarm(true);
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    const wasWarm = mediator.wasSessionWarm();
+    expect(result.success).toBe(true);
+    expect(wasWarm).toBe(true);
+  });
+});
+
 describe('ApiMediator.primeSession — direct invocation', () => {
   it('NULL_RESOLVER path fails without a registered strategy', async () => {
     const noOp = scriptedFetchStrategy([]);

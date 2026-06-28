@@ -28,6 +28,7 @@ import type {
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
+import type { Procedure } from '../../Types/Procedure.js';
 
 /** Opaque headers map (shape step may declare per-call extraHeaders). */
 export type HeaderMap = Record<string, string>;
@@ -132,6 +133,23 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly bodyTemplate?: JsonValueTemplate;
 }
 
+/** Balance fetch outcome: value + whether it came from `fallbackOnFail`. */
+export interface IBalanceOutcome {
+  readonly value: number;
+  readonly degraded: boolean;
+}
+
+/**
+ * Read-only summary of a completed scrape, handed to a shape's optional
+ * {@link IApiDirectScrapeShape.resultGuard}. Carries only the signals a
+ * fail-closed guard needs — never PII, never raw rows.
+ */
+export interface IApiDirectScrapeGuardSummary {
+  readonly accountCount: number;
+  readonly totalTxns: number;
+  readonly balanceDegraded: boolean;
+}
+
 /** Shape a bank plugs into createApiDirectScrapePhase. */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
@@ -155,4 +173,12 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
   readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
   readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;
+  /**
+   * Optional fail-closed guard run in the phase POST stage. Receives a
+   * PII-free {@link IApiDirectScrapeGuardSummary} and returns a failure
+   * Procedure to abort the run (e.g. zero transactions from a degraded
+   * warm session) or `succeed(undefined)` to pass through. Absent ⇒ the
+   * scrape always succeeds (Pepper / OneZero pattern).
+   */
+  readonly resultGuard?: (summary: IApiDirectScrapeGuardSummary) => Procedure<void>;
 }

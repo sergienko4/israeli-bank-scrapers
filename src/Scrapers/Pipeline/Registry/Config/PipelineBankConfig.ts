@@ -6,8 +6,12 @@
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
+import {
+  LOGIN_COMPLETION_POLL_INTERVAL_MS,
+  LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
+} from '../../Mediator/Timing/LoginTimingConfig.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
-import type { BalanceKind, IPipelineBankConfig } from './PipelineBankConfigTypes.js';
+import type { IPipelineBankConfig } from './PipelineBankConfigTypes.js';
 
 export type {
   AuthPathKey,
@@ -16,64 +20,95 @@ export type {
 } from './PipelineBankConfigTypes.js';
 
 /** Billing-cycle banks (credit-card companies) expose no account balance. */
-const CARD_CYCLE: BalanceKind = 'card-cycle';
+const CARD_CYCLE = 'card-cycle';
 
 /** Deposit/checking banks expose a real account balance resolved live. */
-const ACCOUNT: BalanceKind = 'account';
+const ACCOUNT = 'account';
+
+/** Banks whose completed login yields a discovered Bearer/JWT token. */
+const TOKEN = 'token';
+
+/** Banks whose completed login is carried by first-party session cookies. */
+const SESSION_COOKIE = 'session-cookie';
+
+/** API-native banks -- headless identity strategy, no browser AUTH-DISCOVERY. */
+const API_DIRECT = 'api-direct';
+
+/** Slow-AngularJS auth-confirm budget (Isracard, Amex). */
+const LOGIN_AUTH_CONFIRM_ANGULAR_MS = 45_000;
 
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
   [CompanyTypes.Beinleumi]: {
     urls: { base: 'https://www.fibi.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: TOKEN,
   },
   [CompanyTypes.Leumi]: {
     urls: { base: 'https://www.leumi.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Discount]: {
     urls: { base: 'https://www.discountbank.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Hapoalim]: {
     urls: { base: 'https://www.bankhapoalim.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Massad]: {
     urls: { base: 'https://www.bankmassad.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: TOKEN,
   },
   [CompanyTypes.OtsarHahayal]: {
     urls: { base: 'https://www.bankotsar.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: TOKEN,
   },
   [CompanyTypes.Pagi]: {
     urls: { base: 'https://www.pagi.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: TOKEN,
   },
   [CompanyTypes.VisaCal]: {
     urls: { base: 'https://www.cal-online.co.il/' },
     balanceKind: CARD_CYCLE,
+    authStrategyKind: TOKEN,
   },
   [CompanyTypes.Amex]: {
-    urls: { base: 'https://americanexpress.co.il' },
+    urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
+    loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
+    loginCompletionPoll: {
+      intervalMs: LOGIN_COMPLETION_POLL_INTERVAL_MS,
+      maxAttempts: LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
+    },
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Max]: {
     urls: { base: 'https://www.max.co.il' },
     balanceKind: CARD_CYCLE,
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Mercantile]: {
     urls: { base: 'https://www.mercantile.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
     balanceKind: CARD_CYCLE,
+    loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.OneZero]: {
     urls: { base: 'https://www.onezerobank.com' },
     balanceKind: ACCOUNT,
+    authStrategyKind: API_DIRECT,
     headless: {
       identityBase: 'https://identity.tfd-bank.com/v1/',
       graphql: 'https://mobile.tfd-bank.com/mobile-graph/graphql',
@@ -91,6 +126,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.PayBox]: {
     urls: { base: 'https://www.payboxapp.com/' },
     balanceKind: ACCOUNT,
+    authStrategyKind: API_DIRECT,
     headless: {
       identityBase: 'https://apipin.payboxapp.com/api/2.0/',
       // PayBox has no GraphQL — set graphql to identityBase to satisfy the
@@ -120,6 +156,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Pepper]: {
     urls: { base: 'https://www.pepper.co.il' },
     balanceKind: ACCOUNT,
+    authStrategyKind: API_DIRECT,
     headless: {
       identityBase: 'https://sa.pepper.co.il/',
       graphql: 'https://fe-sec.pepper.co.il/graphql',

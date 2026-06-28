@@ -1,6 +1,7 @@
 /**
- * Trace-mode artefact root — single per-process folder for the pipeline log,
- * network response dumps, and screenshots when `LOG_LEVEL=trace`. Removes
+ * Forensic artefact root — single per-process folder for the pipeline log,
+ * network response dumps, and screenshots, captured only when the opt-in
+ * `FORENSIC_TRACE=true` flag is set. Removes
  * the older patchwork of independent env vars (LOG_FILE / LOG_PATH /
  * LOG_BANK / DUMP_NETWORK_DIR / DUMP_NETWORK_LABEL) that had to be wired up
  * by hand on every run.
@@ -18,11 +19,11 @@
  * `cc` is centiseconds (1/100 s) for sub-second uniqueness across parallel
  * jest invocations.
  *
- * Path layout is independent of LOG_LEVEL — any log level resolves to the
- * same `<RUNS_ROOT>/pipeline/<bank>/<stamp>/` root. The decision of which
- * artefacts to actually write at a given log level happens in the writer
- * layer (Pino transport, NetworkDiscovery dump gate, screenshot helpers),
- * not here.
+ * Capture is gated centrally by `FORENSIC_TRACE` (see {@link isForensicTrace}):
+ * when the flag is off (default) every artefact getter returns `''` and the
+ * writer layer (Pino transport, NetworkDiscovery dump gate, screenshot
+ * helpers) no-ops. `LOG_LEVEL` independently controls log verbosity only — it
+ * no longer decides whether artefacts land on disk.
  *
  * Override with `RUNS_ROOT` env var when the default `C:\tmp\runs` is wrong
  * (e.g. CI). Folder paths are cached after first creation, so all artefacts
@@ -44,8 +45,8 @@ type BankSlugLower = Brand<string, 'BankSlugLower'>;
 type IsSlugMatch = Brand<boolean, 'IsSlugMatch'>;
 /** setActiveBank acceptance outcome. */
 type DidAcceptBank = Brand<boolean, 'DidAcceptBank'>;
-/** Trace-mode active flag. */
-type IsTraceModeActive = Brand<boolean, 'IsTraceModeActive'>;
+/** Forensic-trace active flag. */
+type IsForensicTraceActive = Brand<boolean, 'IsForensicTraceActive'>;
 /** Absolute run folder path (or empty when off-trace). */
 type RunFolderPath = Brand<string, 'RunFolderPath'>;
 /** Absolute log file path (or empty). */
@@ -209,14 +210,17 @@ function resolveBankSlug(): BankSlugLower {
 }
 
 /**
- * True iff `LOG_LEVEL=trace` (case-insensitive). Single source of truth for
- * "are we in trace mode" — used by every artefact subsystem to decide
- * whether to emit anything.
- * @returns True when trace mode is active.
+ * True iff `FORENSIC_TRACE=true` (case-insensitive, whitespace-trimmed).
+ * Single opt-in gate for ALL on-disk forensic artefacts (pipeline.log,
+ * network dumps, screenshots). Default-deny: absent, empty, `false`, or any
+ * other value resolves to false so nothing is captured unless explicitly
+ * requested. Decoupled from `LOG_LEVEL` (verbosity) and `CI` (OTP/Telegram).
+ * See `coding-principle-guidlines.md` §4 (Default Deny).
+ * @returns True only when the flag is the literal `true`.
  */
-function isTraceMode(): IsTraceModeActive {
-  const v = (process.env.LOG_LEVEL ?? '').toLowerCase();
-  return (v === 'trace') as IsTraceModeActive;
+function isForensicTrace(): IsForensicTraceActive {
+  const v = (process.env.FORENSIC_TRACE ?? '').trim().toLowerCase();
+  return (v === 'true') as IsForensicTraceActive;
 }
 
 /**
@@ -243,10 +247,11 @@ function getActiveRunId(): RunStampStr {
 /**
  * Lazily resolve the per-process run folder
  * `<RUNS_ROOT>/pipeline/<bank>/<DDMMYY-HHMMSScc>/`. Path format is the same
- * for every log level. Returns `''` when off-trace OR when no bank has
- * been registered yet — letting module-init code (e.g. Debug.ts's pino
- * transport setup at import time) safely fall back to console-only without
- * forcing a bank registration before imports resolve. The "no run without
+ * for every log level. Returns `''` when forensic capture is disabled
+ * (`FORENSIC_TRACE` not `true`) OR when no bank has been registered yet —
+ * letting module-init code (e.g. Debug.ts's pino transport setup at import
+ * time) safely fall back to console-only without forcing a bank registration
+ * before imports resolve. The "no run without
  * bank" rule is enforced at pipeline start by `PipelineExecutor` calling
  * `setActiveBank(companyId)` and failing if the slug isn't recognised.
  * Reuses {@link getActiveRunId}'s cached stamp so the on-disk folder
@@ -254,7 +259,7 @@ function getActiveRunId(): RunStampStr {
  * @returns Absolute folder path, or empty string.
  */
 function getRunFolder(): RunFolderPath {
-  if (!isTraceMode()) return '' as RunFolderPath;
+  if (!isForensicTrace()) return '' as RunFolderPath;
   if (runFolderCache) return runFolderCache as RunFolderPath;
   const bank = resolveBankSlug();
   if (bank.length === 0) return '' as RunFolderPath;
@@ -357,7 +362,7 @@ export {
   getRunFolder,
   getScreenshotDir,
   getSubStepNetworkDumpDir,
-  isTraceMode,
+  isForensicTrace,
   resetTraceConfigCache,
   setActiveBank,
 };
