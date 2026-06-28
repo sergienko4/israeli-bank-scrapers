@@ -116,6 +116,21 @@ function buildHomeMediator(postNavUrl: string): Option<IElementMediator> {
 }
 
 /**
+ * Returns the minimal IPipelineBankConfig for HOME-phase fixtures.
+ * Uses account/token defaults -- sufficient for homepage-navigation tests.
+ *
+ * @param homepageUrl - Bank's homepage URL to pin in {@link IUrls.base}.
+ * @returns Minimal config with balanceKind/authStrategyKind defaults.
+ */
+function buildHomeConfig(homepageUrl: string): IPipelineContext['config'] {
+  return {
+    urls: { base: homepageUrl },
+    balanceKind: 'account' as const,
+    authStrategyKind: 'token' as const,
+  };
+}
+
+/**
  * Assemble the final pipeline context with the supplied browser +
  * mediator and the bank's homepage URL pinned in `config.urls.base`.
  *
@@ -130,7 +145,7 @@ function buildHomeContext(
   homepageUrl: string,
 ): IPipelineContext {
   const base = makeMockContext({ browser, mediator });
-  return { ...base, config: { urls: { base: homepageUrl }, balanceKind: 'account' } };
+  return { ...base, config: buildHomeConfig(homepageUrl) };
 }
 
 /**

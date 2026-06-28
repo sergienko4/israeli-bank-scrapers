@@ -27,27 +27,22 @@ const SNAP_READY: IAuthDiscovery = {
   headers: {},
   dashboardReady: true,
   sessionCookieNames: [],
+  hasAuthApiResponse: false,
 };
 
 const SNAP_NOT_READY: IAuthDiscovery = { ...SNAP_READY, dashboardReady: false };
 
 const ISRACARD_STATUSPAGE_URL = 'https://web.isracard.co.il/StatusPage';
-const FIVE_REAL_SESSION_COOKIES = [
-  'svSession',
-  'XSRF-TOKEN',
-  'bSession',
-  'JSESSIONID',
-  '__cfwaitingroom',
-];
 const TWO_TRACKING_COOKIES = ['is_eu', 'tt_sessionId'];
 
 const SNAP_READY_BEARER_TOKEN: IAuthDiscovery = {
   ...SNAP_READY,
   authToken: 'bearer:opaque-jwt-from-network-discovery',
 };
-const SNAP_READY_FIVE_COOKIES: IAuthDiscovery = {
+/** Snap with a captured first-party API response — the new corroboration signal. */
+const SNAP_READY_AUTH_API: IAuthDiscovery = {
   ...SNAP_READY,
-  sessionCookieNames: FIVE_REAL_SESSION_COOKIES,
+  hasAuthApiResponse: true,
 };
 const SNAP_READY_TRACKING_ONLY: IAuthDiscovery = {
   ...SNAP_READY,
@@ -104,13 +99,14 @@ describe('M4.F1 — passesDashboardGate (pure two-signal predicate)', () => {
 
 /**
  * M4.F1.fix — relaxes the url-stuck branch when strong auth corroboration
- * is present. Motivated by the PR #221 CI Isracard regression: the SPA
- * stays on `/StatusPage` from login screen through dashboard reveal
- * (same-URL routing), so `currentUrl === preAuthUrl` even though REVEAL
- * + a discovered Bearer token + 60 post-auth session cookies all agree
- * the dashboard is ready. An interstitial would not produce both a real
- * authToken AND a multi-cookie session — so those signals are sufficient
- * corroboration to override the URL-change requirement.
+ * is present. Replaces the removed cookie-COUNT floor with two real auth
+ * signals: authToken (unchanged) and hasAuthApiResponse (new). An
+ * unauthenticated page never fires the authed data fetch; an interstitial
+ * never produces a Bearer token — so either is sufficient corroboration.
+ * Cookie count was removed because analytics-only pages (e.g. Amex
+ * personalarea/login) carry ~59 tracking cookies that silently defeated
+ * the old floor of 5. CI forensics: same-run Amex run showed 59 garbage
+ * cookies + dashboardReady=true (hidden twin) → gate opened on garbage.
  */
 describe('M4.F1.fix — url-stuck relaxed when strong auth corroboration is present', () => {
   it('returns open when URL is stuck but an authToken was discovered', () => {
@@ -122,21 +118,68 @@ describe('M4.F1.fix — url-stuck relaxed when strong auth corroboration is pres
     expect(reason).toBe('open');
   });
 
-  it('returns open when URL is stuck but at least five session cookies were captured', () => {
+  it('returns open when URL is stuck but a captured first-party API response was found (hasAuthApiResponse)', () => {
     const reason = dashboardGateReason(
-      SNAP_READY_FIVE_COOKIES,
+      SNAP_READY_AUTH_API,
       ISRACARD_STATUSPAGE_URL,
       ISRACARD_STATUSPAGE_URL,
     );
     expect(reason).toBe('open');
   });
 
-  it('returns url-stuck when URL is stuck AND signals are weak (no authToken, only tracking cookies)', () => {
+  it('returns url-stuck when URL is stuck AND signals are weak (no authToken, no captured API, only tracking cookies)', () => {
     const reason = dashboardGateReason(
       SNAP_READY_TRACKING_ONLY,
       ISRACARD_STATUSPAGE_URL,
       ISRACARD_STATUSPAGE_URL,
     );
+    expect(reason).toBe('url-stuck');
+  });
+});
+
+// ── Pyramid tests (RED on old code, GREEN after fix) ─────────────────────────
+
+const AMEX_LOGIN_URL = 'https://he.americanexpress.co.il/personalarea/login/';
+const ISRACARD_DIGITAL_LOGIN = 'https://digital.isracard.co.il/personalarea/Login/';
+
+/** 59 fake cookie names simulating Amex's analytics/tracking cookie pool. */
+const AMEX_59_FAKE_COOKIES = Array.from(
+  { length: 59 },
+  (_: unknown, i: number): string => `analytics-cookie-${String(i)}`,
+);
+
+describe('Pyramid — Amex-shaped gate (key regression test)', () => {
+  it('url-stuck when 59 tracking cookies, no authToken, no captured API — gate stays closed', () => {
+    // On OLD code: 59 >= STRONG_AUTH_COOKIE_FLOOR(5) → open (FALSE PASS).
+    // On NEW code: hasAuthApiResponse=false, authToken=false → url-stuck (CORRECT).
+    const snap: IAuthDiscovery = {
+      ...SNAP_READY,
+      sessionCookieNames: AMEX_59_FAKE_COOKIES,
+    };
+    const reason = dashboardGateReason(snap, AMEX_LOGIN_URL, AMEX_LOGIN_URL);
+    expect(reason).toBe('url-stuck');
+  });
+});
+
+describe('Pyramid — Isracard redirect (url-moved opens gate)', () => {
+  it('open when URL moved from digital/Login to web/StatusPage — url-moved ALONE', () => {
+    // SNAP_READY has authToken=false AND hasAuthApiResponse=false, so the
+    // ONLY signal that can open the gate here is the url-moved check. This
+    // proves the url-moved branch in isolation (no corroboration mask).
+    const reason = dashboardGateReason(SNAP_READY, ISRACARD_STATUSPAGE_URL, ISRACARD_DIGITAL_LOGIN);
+    expect(reason).toBe('open');
+  });
+});
+
+describe('Pyramid — same-URL authed SPA (corroboration path)', () => {
+  it('open when currentUrl==preAuthUrl but hasAuthApiResponse=true (corroboration)', () => {
+    const snap: IAuthDiscovery = { ...SNAP_READY, hasAuthApiResponse: true };
+    const reason = dashboardGateReason(snap, ISRACARD_STATUSPAGE_URL, ISRACARD_STATUSPAGE_URL);
+    expect(reason).toBe('open');
+  });
+
+  it('url-stuck when currentUrl==preAuthUrl AND hasAuthApiResponse=false (no corroboration)', () => {
+    const reason = dashboardGateReason(SNAP_READY, AMEX_LOGIN_URL, AMEX_LOGIN_URL);
     expect(reason).toBe('url-stuck');
   });
 });

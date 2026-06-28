@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>אמריקן אקספרס — דף הבית</title>
+    <style>
+      .entry {
+        display: block;
+        width: 320px;
+        padding: 18px;
+        margin: 24px;
+        font-size: 18px;
+        text-align: center;
+        border: 1px solid #999;
+        background: #fff;
+        color: #003;
+        text-decoration: none;
+      }
+      .hidden-menu {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>אמריקן אקספרס</h1>
+      <!--
+        Entry point #1 — the broken Wix component.
+        Renders as an href-less <button> on Amex (its Wix JS never binds),
+        so the resolver classifies it SEQUENTIAL and clicking it navigates
+        nowhere. WK_HOME.ENTRY ranks its aria-label (idx 1) ABOVE the real
+        anchor (idx 6), so resolveVisible wrongly picks it first.
+      -->
+      <button type="button" class="entry" aria-label="כניסה לחשבון שלי">
+        <span data-testid="stylablebutton-label">כניסה לחשבון שלי</span>
+      </button>
+
+      <!--
+        Entry point #2 — the REAL login anchor (the correct one).
+        A genuine <a href> to the login page ⇒ classified DIRECT.
+      -->
+      <a
+        class="entry"
+        aria-label="החשבון שלי"
+        href="https://he.americanexpress.co.il/personalarea/login/"
+        >החשבון שלי</a
+      >
+
+      <!--
+        Entry point #3 — the navigation menu (reserved for the PR-2 menu
+        tier). The sub-item stays display:none until the toggle is clicked,
+        so resolveVisible skips it (idx 0 would otherwise out-rank idx 1).
+      -->
+      <nav>
+        <button type="button" class="entry">מידע ופעולות</button>
+        <div class="hidden-menu">
+          <span data-testid="submenu-sub-item-label">כניסה לאיזור האישי</span>
+        </div>
+      </nav>
+    </header>
+    <main>
+      <p>ברוכים הבאים לאתר אמריקן אקספרס.</p>
+    </main>
+  </body>
+</html>

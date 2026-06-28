@@ -14,6 +14,7 @@
 
 import type { Page } from 'playwright-core';
 
+import { getDebug, type ScraperLogger } from '../../../Types/Debug.js';
 import { createAuthFailureWatcher } from '../AuthFailureWatcher.js';
 import { buildDashboardClickState } from '../EndpointState/EndpointState.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../NetworkDiscoveryTypes.js';
@@ -28,6 +29,8 @@ import {
 } from './MetaBuilders.js';
 import { buildBucketingMethods, buildCoreMethods, buildEndpointMethods } from './MethodBundles.js';
 
+const LOG = getDebug(import.meta.url);
+
 /**
  * Optional behaviour modifiers for {@link createNetworkDiscovery}.
  */
@@ -41,6 +44,8 @@ interface INetworkDiscoveryOpts {
    * (eager attach — backwards-compatible with the 200+ unit tests).
    */
   readonly isDeferAttach?: boolean;
+  /** Pipeline logger used by gated auth request tracing. */
+  readonly logger?: ScraperLogger;
 }
 
 /** Discovery half of the live bundle (capture-pool only). */
@@ -145,12 +150,17 @@ function buildDiscoverySlice(
  * failure watcher).
  * @param page - Playwright page.
  * @param captured - Captured endpoints array.
+ * @param logger - Pipeline logger.
  * @returns I/O slice.
  */
-function buildIoSlice(page: Page, captured: IDiscoveredEndpoint[]): IIoSlice {
+function buildIoSlice(
+  page: Page,
+  captured: IDiscoveredEndpoint[],
+  logger: ScraperLogger,
+): IIoSlice {
   const traffic = buildTrafficMethods({ page, captured });
   const authCache = buildAuthCache(page, captured);
-  const authFailureWatcher = createAuthFailureWatcher(page);
+  const authFailureWatcher = createAuthFailureWatcher(page, logger);
   return { traffic, authCache, authFailureWatcher };
 }
 
@@ -218,7 +228,7 @@ function assembleLiveDiscovery(
  * captures into pre-nav and post-nav buckets.
  *
  * @param page - Playwright page to capture responses from.
- * @param opts - Optional behaviour modifiers.
+ * @param opts - Behaviour modifiers and logger.
  * @returns The live network-discovery instance.
  */
 function createNetworkDiscovery(page: Page, opts: INetworkDiscoveryOpts = {}): INetworkDiscovery {
@@ -226,7 +236,7 @@ function createNetworkDiscovery(page: Page, opts: INetworkDiscoveryOpts = {}): I
   const isDeferAttach = opts.isDeferAttach === true;
   const buckets = buildBucketingSlice(page, captured, isDeferAttach);
   const d = buildDiscoverySlice(captured, buckets.bucketing.getPostNavCaptures);
-  const io = buildIoSlice(page, captured);
+  const io = buildIoSlice(page, captured, opts.logger ?? LOG);
   return assembleLiveDiscovery(buckets, d, io);
 }
 

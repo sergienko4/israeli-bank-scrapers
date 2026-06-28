@@ -2,7 +2,7 @@
 
 > **Who this is for:** maintainers debugging a failed run, security reviewers auditing the redaction guarantee, anyone filing a bug report.
 
-The package auto-redacts PII *before* any line is written and emits structured events at every phase boundary. You can share `pipeline.log`, `network/*.json`, and `screenshots/*.html` publicly without exposing customer data.
+The package auto-redacts PII *before* any line is written and emits structured events at every phase boundary. `pipeline.log` and `network/*.json` are redaction-safe to share, while raster `screenshots/*.png` (opt-in via `FORENSIC_TRACE`) can carry rendered PII. On a failed CI job the entire diagnostics bundle uploads to the access-controlled private store only — CI never publishes a public diagnostics artifact.
 
 ## In this section
 
@@ -19,7 +19,7 @@ flowchart LR
     LOG[".info / .debug / .warn / .error"]
     PINO[Pino transport]
     REDACT["PiiRedactor<br/>(censor callback)"]
-    SINKS["pipeline.log<br/>network/*.json<br/>screenshots/*.html"]
+    SINKS["pipeline.log<br/>network/*.json"]
     AST["ESLint AST rules<br/>+ PII-Log canary"]
     BLOCK([Pre-commit blocks])
 

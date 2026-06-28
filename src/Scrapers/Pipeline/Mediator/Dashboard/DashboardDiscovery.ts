@@ -18,7 +18,7 @@ import {
 } from '../Timing/TimingConfig.js';
 import { buildDateCandidates } from './DashboardDateCandidates.js';
 
-export { resolveAbsoluteHref } from './DashboardHref.js';
+export { resolveAbsoluteHref, resolveHrefFromRaw } from './DashboardHref.js';
 export { extractTransactionHref, NO_HREF } from './DashboardHrefExtraction.js';
 
 /**

@@ -1,6 +1,6 @@
 /**
  * Per-run screenshot path builder. Produces `{bank}-{phase-step}-{ts}.png`
- * inside the trace-mode run folder
+ * inside the forensic-trace run folder
  * (`<RUNS_ROOT>/<run-stamp>/screenshots/`), where `ts` is captured when
  * the screenshot is taken. Bank comes from the caller (pipeline
  * context.companyId); timestamp is computed inline so every shot lands in

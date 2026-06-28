@@ -29,6 +29,62 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 | `login.submit` | info | Submit button clicked |
 | `login.result.invalid_password` | warn | Bank returned credentials-wrong |
 | `login.result.success` | info | Post-submit page recognised as authenticated |
+| `login.completion.attempt` | debug | One settle-poll capture — `attempt` / `of` + `formPresent` / `advanced` / `hasError` (see below) |
+| `login.completion` | debug | Final completion snapshot composed at LOGIN.final — `settled` / `attempts` / `waitedMs` + form signals (see below) |
+| `login.completion.error` | debug | A completion probe threw; snapshot stays neutral |
+
+#### LOGIN completion observer (enforced when opted in)
+
+At `LOGIN.final` an observer composes four **LOGIN-LOCAL** signals
+— is the filled login form still present, is a loading spinner still visible,
+is an error banner present, and has the page advanced past the login URL —
+into one snapshot and logs it as `login.completion`. The verdict is **neutral
+by default**: a bank that has not opted into a settle budget always succeeds
+(the single-shot poll settles on the first capture), so behaviour is
+byte-identical for it. A bank that opts in (see `loginCompletionPoll` below)
+instead **fails `LOGIN.final` non-retryably** with `LOGIN_NOT_COMPLETED` when
+the poll budget is exhausted while the filled form is still on screen —
+surfacing, per bank in the CI logs, the case where a login lingers on a
+spinning form yet still passes the lenient cookie gate.
+
+The composer is wrapped in a **config-driven, FORM-FIRST poll**. A phase has
+settled when it advanced past the start screen, an error surfaced, OR the
+filled form is gone. By default the poll is **single-shot** (one capture, never
+sleeps) so it is byte-identical to a lone snapshot and adds zero wall-time. A
+bank opts into a multi-attempt budget through the optional `loginCompletionPoll`
+config field; a perpetually spinning login (form still present, no error, URL
+unchanged) then exhausts the budget instead of passing silently.
+
+- `enforceLoginCompletion(input)` — the entry facade wired into `LOGIN.final`.
+  It runs the existing LOGIN post-gates first; if those already fail it returns
+  a neutral success and emits nothing. It reads `input.config.loginCompletionPoll`
+  to resolve the poll budget (absent ⇒ single-shot) and returns the LOGIN.final
+  verdict — a non-retryable `LOGIN_NOT_COMPLETED` fail only for an opted-in,
+  unsettled poll; otherwise success.
+- Each poll capture emits one `login.completion.attempt` debug line (`attempt`,
+  `of`, plus the three form signals `formPresent` / `advanced` / `hasError`); the
+  final summary is the single `login.completion` line. Both drop the unreliable
+  `spinnerVisible` from their logged projection.
+- `captureCompletionSignals(ports)` — the phase-agnostic composer (under
+  `Mediator/Completion`). It reads an `ICompletionPorts` contract and returns an
+  `ICompletionSignals` snapshot (`formPresent`, `spinnerVisible`, `hasError`,
+  `advanced`).
+- `pollCompletion(ports, opts)` — the phase-agnostic poll that repeatedly calls
+  the composer until the phase settles or the attempt budget is spent. It returns
+  an `ICompletionPollOutcome` (`settled`, `attempts`, `waitedMs`, `last`). Sleep
+  is injected so timing is deterministic in tests.
+- `ICompletionPollOptions` — the injected budget: `intervalMs`, `maxAttempts`,
+  and the `sleep` function. `ICompletionPollOutcome` — the poll result.
+- `LOGIN_COMPLETION_POLL_INTERVAL_MS` (5000) and
+  `LOGIN_COMPLETION_POLL_MAX_ATTEMPTS` (15) — the opt-in budget constants a bank
+  references when it sets `loginCompletionPoll`.
+- `buildLoginCompletionPorts(...)` — the LOGIN adapter that binds that contract
+  to login-local probes: the form-present probe re-counts the **already-discovered**
+  password-field target (count-only, no new CSS selector), the spinner probe is
+  `buildIsLoadingVisible` (the phase-neutral loading well-known), the error probe
+  reuses the existing frame scan, and the advanced probe reuses the existing
+  login-URL helper. It never probes dashboard state — that REVEAL belongs to
+  AUTH-DISCOVERY.
 
 ### OTP-TRIGGER / OTP-FILL
 

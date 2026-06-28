@@ -89,7 +89,11 @@ function makeCtx(): IPipelineContext {
   const liveBodies = new Map<string, unknown>([[BULK_TEMPLATE.url, AUTH_ASSERT_400]]);
   const perUrlApi = makePerUrlApi(liveBodies);
   const api = some(perUrlApi);
-  const config = { urls: { base: 'https://fibi.test' }, balanceKind: 'account' as const };
+  const config = {
+    urls: { base: 'https://fibi.test' },
+    balanceKind: 'account' as const,
+    authStrategyKind: 'token' as const,
+  };
   return makeMockContext({ scrape, api, mediator, config });
 }
 
@@ -116,6 +120,6 @@ describe('BALANCE-RESOLVE bulk-seed shadow (FIBI/Beinleumi)', () => {
     const report = post.value.balanceValidation;
     if (!report.has) throw new ScraperError('POST must commit a balanceValidation report');
     expect(report.value.totalAccounts).toBe(1);
-    expect(report.value.resolvedIds.length).toBe(1);
+    expect(report.value.resolvedIds).toHaveLength(1);
   });
 });

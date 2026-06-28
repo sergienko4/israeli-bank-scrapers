@@ -8,11 +8,12 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
-import { some } from '../../Types/Option.js';
-import type { IActionContext } from '../../Types/PipelineContext.js';
+import { isSome, some } from '../../Types/Option.js';
+import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import {
@@ -26,8 +27,14 @@ import {
 import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
+/** One account plus whether its balance fetch fell back to a default. */
+interface IAccountResult {
+  readonly account: ITransactionsAccount;
+  readonly degraded: boolean;
+}
+
 /** Accumulator for per-account scrape results. */
-type AcctsAcc = Procedure<readonly ITransactionsAccount[]>;
+type AcctsAcc = Procedure<readonly IAccountResult[]>;
 
 /**
  * Map raw rows through autoMapTransaction (drops rejects).
@@ -41,22 +48,36 @@ function mapTxns(raws: readonly object[]): readonly ITransaction[] {
 }
 
 /**
- * Assemble one account — balance + paginated txns + mapping.
+ * Fetch + map one account's paginated transactions.
  * @param a - Per-account context.
- * @returns ITransactionsAccount procedure.
+ * @returns Mapped transactions procedure.
  */
-async function fetchOneAccount<TAcct, TCursor>(
+async function fetchAccountTxns<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<ITransactionsAccount>> {
-  const bal = await fetchBalance(a);
-  if (!isOk(bal)) return bal;
+): Promise<Procedure<readonly ITransaction[]>> {
   const fetchPage = buildPageFetcher(a);
   const stop = buildStop(a);
   const paged = await fetchPaginated<object, TCursor>({ fetchPage, stop });
   if (!isOk(paged)) return paged;
+  const mapped = mapTxns(paged.value);
+  return succeed(mapped);
+}
+
+/**
+ * Assemble one account — balance + txns + degraded flag.
+ * @param a - Per-account context.
+ * @returns Account-result procedure (account + balance outcome).
+ */
+async function fetchOneAccount<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+): Promise<Procedure<IAccountResult>> {
+  const bal = await fetchBalance(a);
+  if (!isOk(bal)) return bal;
+  const txns = await fetchAccountTxns(a);
+  if (!isOk(txns)) return txns;
   const accountNumber = a.shape.accountNumberOf(a.acct);
-  const txns = [...mapTxns(paged.value)];
-  return succeed({ accountNumber, balance: bal.value, txns });
+  const account = { accountNumber, balance: bal.value.value, txns: [...txns.value] };
+  return succeed({ account, degraded: bal.value.degraded });
 }
 
 /**
@@ -81,6 +102,19 @@ async function iterateAccounts<TAcct, TCursor>(
 }
 
 /**
+ * Fold per-account results into the scrape slot, surfacing whether any
+ * account's balance fetch fell back (the degraded warm-session signal a
+ * shape's resultGuard inspects).
+ * @param results - Per-account results from the sequential walk.
+ * @returns Scrape state with accounts + balanceDegraded flag.
+ */
+function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
+  const accounts = results.map(r => r.account);
+  const hasDegraded = results.some(r => r.degraded);
+  return { accounts, balanceDegraded: hasDegraded };
+}
+
+/**
  * Run the scrape flow under a bound driver context.
  * @param d - Driver context.
  * @returns Action context augmented with the populated scrape slot.
@@ -92,11 +126,82 @@ async function runScrape<TAcct, TCursor>(
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);
   if (!isOk(scraped)) return scraped;
-  const withScrape: ApiDirectScrapeResult = {
-    ...d.ctx,
-    scrape: some({ accounts: scraped.value }),
-  };
+  const summary = summarizeScrape(scraped.value);
+  const withScrape: ApiDirectScrapeResult = { ...d.ctx, scrape: some(summary) };
   return succeed(withScrape);
+}
+
+/**
+ * Recognize a degraded scrape SLOT: a balance fallback fired OR the
+ * authenticated call returned zero accounts.
+ *
+ * An empty-but-authenticated body is a known server-degraded warm-session
+ * shape — the cached token still authenticates yet the backend silently
+ * returns nothing. On the warm direct-API path this must count as suspicious so
+ * self-heal can fire. The rule is bounded: recovery is warm-gated (see
+ * {@link shouldRecoverSession}) and recover-once, so a direct-API account that
+ * legitimately holds zero accounts re-runs at most once and then surfaces the
+ * same empty result unmasked.
+ * @param state - The populated scrape slot.
+ * @returns True when the slot is empty or balance-degraded.
+ */
+function isDegradedScrapeState(state: IScrapeState): boolean {
+  // Strict `=== true`: balanceDegraded is a validated boolean — never coerce.
+  return state.accounts.length === 0 || state.balanceDegraded === true;
+}
+
+/**
+ * Decide whether a scrape outcome warrants a session-recovery attempt: a hard
+ * failure OR a degraded scrape slot (see {@link isDegradedScrapeState}).
+ *
+ * `balanceDegraded` is set by ANY balance fallback — including a transient 5xx
+ * unrelated to the token — not only an auth-shaped rejection. This conflation
+ * is DELIBERATE: a silently server-rejected warm token most reliably surfaces
+ * as a balance fallback, and the blast radius is already bounded — recovery is
+ * gated on a warm session (cold sessions never recover, see
+ * {@link shouldRecoverSession}) and runs at most once (recover-once). Splitting
+ * transient-vs-auth here would require threading the failure shape through
+ * IBalanceOutcome, which the bank result guards consume with the current
+ * any-fallback meaning. Worst case: one unnecessary OTP on a warm session that
+ * hit a transient balance hiccup.
+ * @param first - The first scrape procedure.
+ * @returns True when the scrape failed or reported a degraded slot.
+ */
+function isScrapeSuspicious(first: Procedure<ApiDirectScrapeResult>): boolean {
+  if (!isOk(first)) return true;
+  const { scrape } = first.value;
+  return isSome(scrape) && isDegradedScrapeState(scrape.value);
+}
+
+/**
+ * Gate recovery on BOTH a suspicious outcome AND a warm (cached-token) session.
+ * A cold session already ran the full login flow, so recovering would only
+ * burn a second OTP; a healthy warm session needs no recovery.
+ * @param first - The first scrape procedure.
+ * @param bus - The bound ApiMediator.
+ * @returns True when recovery should run.
+ */
+function shouldRecoverSession(first: Procedure<ApiDirectScrapeResult>, bus: IApiMediator): boolean {
+  return isScrapeSuspicious(first) && bus.wasSessionWarm();
+}
+
+/**
+ * Run the scrape; when a warm session yields a suspicious outcome, discard the
+ * cached token (full cold re-login via recoverSession) and re-run once. A
+ * failed recovery returns the first outcome unchanged so a loud failure or a
+ * degraded result is never masked. Shared by every api-direct bank with zero
+ * per-bank coupling.
+ * @param d - Driver context.
+ * @returns Scrape procedure (recovered when warranted).
+ */
+async function runScrapeWithRecovery<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+): Promise<Procedure<ApiDirectScrapeResult>> {
+  const first = await runScrape(d);
+  if (!shouldRecoverSession(first, d.bus)) return first;
+  const recovered = await d.bus.recoverSession();
+  if (!isOk(recovered)) return first;
+  return runScrape(d);
 }
 
 /**
@@ -110,7 +215,7 @@ export function buildGenericHeadlessScrape<TAcct, TCursor>(
   return async (ctx): Promise<Procedure<ApiDirectScrapeResult>> => {
     const busProc = resolveApiMediator(ctx, shape.stepName);
     if (!isOk(busProc)) return busProc;
-    return runScrape({ shape, bus: busProc.value, ctx });
+    return runScrapeWithRecovery({ shape, bus: busProc.value, ctx });
   };
 }
 

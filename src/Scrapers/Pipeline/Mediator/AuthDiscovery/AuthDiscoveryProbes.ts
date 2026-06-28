@@ -12,10 +12,11 @@
  * mediator from importing the helper.
  */
 
+import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { probeDashboardReveal } from '../Dashboard/DashboardDiscovery.js';
 import type { ICookieSnapshot, IElementMediator } from '../Elements/ElementMediator.js';
-import type { INetworkDiscovery } from '../Network/NetworkDiscoveryTypes.js';
+import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Network/NetworkDiscoveryTypes.js';
 
 /** Result of a session-cookie audit at AUTH-DISCOVERY entry. */
 interface ISessionCookieAudit {
@@ -93,5 +94,41 @@ async function probeDashboardSignal(
   return { dashboardReady: isDashboardReady, revealString };
 }
 
+/**
+ * True when the captured endpoint's HTTP status confirms a successful
+ * first-party response. `undefined` status (replay/test paths) is
+ * treated as corroborating — the endpoint was captured, which is signal
+ * enough.
+ *
+ * @param ep - Captured endpoint to inspect.
+ * @returns True when status is absent OR a 2xx (200–299).
+ */
+function isAuthed2xx(ep: IDiscoveredEndpoint): boolean {
+  return ep.status === undefined || (ep.status >= 200 && ep.status <= 299);
+}
+
+/**
+ * Returns true when the captured network pool contains at least one
+ * first-party well-known account-data API response (the `accounts`
+ * bucket: `GetCardList`, `userAccountsData`, `accountSummary`, …). An
+ * unauthenticated page never triggers the authed data fetch, whereas a
+ * same-URL authenticated SPA (e.g. Isracard `/StatusPage`) does. The
+ * `auth` bucket is deliberately excluded: those are credentials-
+ * submission endpoints that fire DURING login, so a capture proves
+ * login was attempted — not that the dashboard was reached. Uses the
+ * shared `PIPELINE_WELL_KNOWN_API` OCP registry — zero bank-specific logic.
+ *
+ * @param network - Network discovery surface from the mediator.
+ * @returns True when a corroborating first-party account-data capture is present.
+ *   Scans EVERY capture matching each accounts pattern (not just the first),
+ *   so an early non-2xx (e.g. a 401 that preceded the authed retry) cannot
+ *   mask a later 200 on the same URL.
+ */
+function hasCapturedAuthApi(network: INetworkDiscovery): boolean {
+  return PIPELINE_WELL_KNOWN_API.accounts.some((pattern): boolean =>
+    network.findEndpoints(pattern).some(isAuthed2xx),
+  );
+}
+
 export type { IAuthChannelCollection, ISessionCookieAudit };
-export { auditSessionCookies, collectAuthChannels, probeDashboardSignal };
+export { auditSessionCookies, collectAuthChannels, hasCapturedAuthApi, probeDashboardSignal };

@@ -55,7 +55,7 @@ describe('Feature — WithBankContext', () => {
 });
 
 // buildLogFilePath was removed — log path resolution now lives in
-// TraceConfig.getLogFile() (gated by LOG_LEVEL=trace). See
+// TraceConfig.getLogFile() (gated by FORENSIC_TRACE). See
 // `Tests/Unit/Pipeline/Types/TraceConfig.test.ts` for coverage.
 
 describe('Debug re-exports from MockTiming', () => {
@@ -156,6 +156,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
   const originalRunsRoot = process.env.RUNS_ROOT;
   const originalCi = process.env.CI;
   const originalNodeEnv = process.env.NODE_ENV;
+  const originalForensicTrace = process.env.FORENSIC_TRACE;
 
   afterEach(() => {
     // Restore env exactly.
@@ -167,13 +168,16 @@ describe('Debug buildTransport — env-permutation branches', () => {
     else process.env.CI = originalCi;
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = originalNodeEnv;
+    if (originalForensicTrace === undefined) delete process.env.FORENSIC_TRACE;
+    else process.env.FORENSIC_TRACE = originalForensicTrace;
     jest.resetModules();
   });
 
-  it('LOG_LEVEL=trace + isDevMode=true builds multi-target transport', async () => {
+  it('FORENSIC_TRACE + isDevMode=true builds multi-target transport', async () => {
     delete process.env.CI;
     process.env.NODE_ENV = 'development';
     process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_DEV;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
@@ -185,10 +189,11 @@ describe('Debug buildTransport — env-permutation branches', () => {
     }).not.toThrow();
   });
 
-  it('LOG_LEVEL=trace + CI=true builds file-only transport (non-dev)', async () => {
+  it('FORENSIC_TRACE + CI=true builds file-only transport (non-dev)', async () => {
     process.env.CI = '1';
     delete process.env.NODE_ENV;
     process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CI;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
@@ -266,6 +271,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     delete process.env.CI;
     process.env.NODE_ENV = 'development';
     process.env.LOG_LEVEL = 'trace';
+    process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CACHE;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');

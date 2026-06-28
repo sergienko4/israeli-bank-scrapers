@@ -22,25 +22,34 @@ import type {
   IScrapeState,
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { succeed } from '../../Types/Procedure.js';
+import { isOk, succeed } from '../../Types/Procedure.js';
 import { buildGenericHeadlessScrape } from './ApiDirectScrapeActions.js';
 import type { ApiDirectScrapeFn } from './ApiDirectScrapeTypes.js';
-import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
+import type {
+  IApiDirectScrapeGuardSummary,
+  IApiDirectScrapeShape,
+} from './IApiDirectScrapeShape.js';
 
 export type { ApiDirectScrapeFn, ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
+
+/** Result-guard fn — a shape may convert a degraded scrape into a failure. */
+type ResultGuardFn = (summary: IApiDirectScrapeGuardSummary) => Procedure<void>;
 
 /** ApiDirectScrape phase — BasePhase bound to a shape literal. */
 class ApiDirectScrapePhase extends BasePhase {
   public readonly name = 'api-direct-scrape' as const;
   private readonly _scrapeFn: ApiDirectScrapeFn;
+  private readonly _resultGuard?: ResultGuardFn;
 
   /**
    * Create the phase bound to a bank's shape literal.
    * @param scrapeFn - Bound scrape function from buildGenericHeadlessScrape.
+   * @param resultGuard - Optional fail-closed guard run in POST.
    */
-  constructor(scrapeFn: ApiDirectScrapeFn) {
+  constructor(scrapeFn: ApiDirectScrapeFn, resultGuard?: ResultGuardFn) {
     super();
     this._scrapeFn = scrapeFn;
+    this._resultGuard = resultGuard;
   }
 
   /** @inheritdoc */
@@ -54,14 +63,19 @@ class ApiDirectScrapePhase extends BasePhase {
   /**
    * POST stage — emit the forensic-audit summary so the per-account
    * txn-count line lands in `pipeline.log` for every api-direct
-   * scrape, mirroring the legacy {@link ScrapePhase.post} hook.
-   * Observability-only: no state mutation, no failure on empty.
-   * Required because `pipeline.log` is the primary post-run debug
-   * surface; without this line, root-causing bank issues forces a
-   * re-run of the live E2E (SMS OTP, minutes of wall time).
+   * scrape, mirroring the legacy {@link ScrapePhase.post} hook, then
+   * run the shape's optional fail-closed {@link ResultGuardFn}.
+   * Observability + guard only: no state mutation. When the shape
+   * supplies no guard the stage always succeeds; when it does, a
+   * degraded/empty scrape is converted into a loud typed failure
+   * (e.g. PayBox zero-txns from a degraded warm session) instead of
+   * a silent empty result. Required because `pipeline.log` is the
+   * primary post-run debug surface; without this line, root-causing
+   * bank issues forces a re-run of the live E2E (SMS OTP, minutes of
+   * wall time).
    * @param _ctx - Unused incoming context.
    * @param input - Pipeline context after the scrape action.
-   * @returns Input context unchanged, wrapped in a successful Procedure.
+   * @returns Input unchanged on success, or the guard's typed failure.
    */
   public post(
     _ctx: IPipelineContext,
@@ -69,7 +83,7 @@ class ApiDirectScrapePhase extends BasePhase {
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'api-direct-scrape.post' });
     if (input.scrape.has) logForensicAudit(input);
-    const outcome = succeed(input);
+    const outcome = runResultGuard(input, this._resultGuard);
     return Promise.resolve(outcome);
   }
 
@@ -98,6 +112,42 @@ class ApiDirectScrapePhase extends BasePhase {
     const next = emitBalanceResolutionFromScrape(input);
     return Promise.resolve(next);
   }
+}
+
+/**
+ * Run the optional shape result-guard against the post-scrape context.
+ * Converts a degraded/empty scrape into a loud typed failure when the
+ * guard says so; otherwise passes the context through unchanged.
+ * Hoisted so `this` is not implicated (class-methods-use-this).
+ *
+ * @param input - Pipeline context after the scrape action.
+ * @param guard - Optional shape-supplied result guard.
+ * @returns Guard failure, or the input wrapped in success.
+ */
+function runResultGuard(
+  input: IPipelineContext,
+  guard?: ResultGuardFn,
+): Procedure<IPipelineContext> {
+  if (guard === undefined || !input.scrape.has) return succeed(input);
+  const summary = summarizeScrapeForGuard(input.scrape.value);
+  const verdict = guard(summary);
+  if (!isOk(verdict)) return verdict;
+  return succeed(input);
+}
+
+/**
+ * Fold the scrape slice into the PII-free summary a shape inspects:
+ * account count, total transactions, and whether any account's balance
+ * fetch fell back (the degraded-warm-session signal).
+ *
+ * @param scrape - Scrape state committed by the action.
+ * @returns Summary consumed by a shape's resultGuard.
+ */
+function summarizeScrapeForGuard(scrape: IScrapeState): IApiDirectScrapeGuardSummary {
+  const accountCount = scrape.accounts.length;
+  const totalTxns = scrape.accounts.reduce((n, a) => n + a.txns.length, 0);
+  const hasDegraded = scrape.balanceDegraded ?? false;
+  return { accountCount, totalTxns, balanceDegraded: hasDegraded };
 }
 
 /**
@@ -179,7 +229,7 @@ function buildApiDirectScrapePhase<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): ApiDirectScrapePhase {
   const fn = buildGenericHeadlessScrape(shape);
-  return Reflect.construct(ApiDirectScrapePhase, [fn]);
+  return Reflect.construct(ApiDirectScrapePhase, [fn, shape.resultGuard]);
 }
 
 export default createApiDirectScrapePhase;

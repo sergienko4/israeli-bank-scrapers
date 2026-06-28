@@ -8,7 +8,7 @@
  * 150 LoC cap; CR #2 method-aware dedupe; CR #3 error log).
  */
 
-import type { Page, Response } from 'playwright-core';
+import type { Page, Request, Response } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../../Types/Debug.js';
@@ -28,6 +28,33 @@ const WK_POST_INTERCEPT_PATTERNS = [
 ];
 
 /**
+ * Card-family (Amex / Isracard) auth proxy servlet. These banks submit
+ * credentials through `/services/ProxyRequestHandler.ashx` (e.g.
+ * `?reqName=performLogon`), which the shared {@link PIPELINE_WELL_KNOWN_API}
+ * `auth` patterns — verified only for Beinleumi/Discount/Hapoalim/Max/VisaCal —
+ * do not match. Kept module-local and used ONLY by the gated request trace so
+ * the shared WK auth set and the `unsupported` `.ashx` response-drop stay
+ * byte-identical. Structural URL match on a forensics path (not interaction
+ * code) — the zero-CSS-selector rule does not apply.
+ */
+const TRACE_AUTH_SERVLET_PATTERNS = [/ProxyRequestHandler\.ashx/i];
+
+/** WK auth patterns watched by request-level auth tracing. */
+const WK_AUTH_POST_INTERCEPT_PATTERNS = [
+  ...PIPELINE_WELL_KNOWN_API.auth,
+  ...TRACE_AUTH_SERVLET_PATTERNS,
+];
+
+/**
+ * Match a method against the WK POST/PUT capture policy.
+ * @param method - HTTP method from Playwright.
+ * @returns True when the method can submit auth/API payloads.
+ */
+function isPostOrPut(method: string): boolean {
+  return method === 'POST' || method === 'PUT';
+}
+
+/**
  * Match POST/PUT requests against WellKnown patterns. Pure predicate
  * passed to `page.waitForResponse`.
  * @param r - Playwright response.
@@ -35,11 +62,30 @@ const WK_POST_INTERCEPT_PATTERNS = [
  */
 function isWkApiPostOrPut(r: Response): boolean {
   const method = r.request().method();
-  const isApiMethod = method === 'POST' || method === 'PUT';
-  if (!isApiMethod) return false;
+  if (!isPostOrPut(method)) return false;
   const url = r.url();
   return WK_POST_INTERCEPT_PATTERNS.some((p): boolean => p.test(url));
 }
+
+/**
+ * Match request-level auth submissions against WellKnown auth URL
+ * patterns. Used only by gated auth-request tracing so analytics and
+ * non-auth API calls never enter the forensic log.
+ * @param request - Playwright request.
+ * @returns True for WK auth POST/PUT requests.
+ */
+function isWkAuthPostOrPutRequest(request: Request): boolean {
+  const method = request.method();
+  if (!isPostOrPut(method)) return false;
+  const url = request.url();
+  const isAuthMatch = WK_AUTH_POST_INTERCEPT_PATTERNS.some((p): boolean => p.test(url));
+  return isAuthMatch;
+}
+
+/** Request-level WK auth POST/PUT predicate surface. */
+export const WK_AUTH_POST_OR_PUT_REQUEST = Object.freeze({
+  matches: isWkAuthPostOrPutRequest,
+});
 
 /**
  * CR PR #276 #2 — dedupe must compare URL AND method so a GET and a

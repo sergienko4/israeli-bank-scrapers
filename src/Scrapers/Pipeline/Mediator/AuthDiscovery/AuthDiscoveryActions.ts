@@ -27,6 +27,7 @@ import { AUTH_DISCOVERY_PRE_SETTLE_MS } from '../Timing/TimingConfig.js';
 import {
   auditSessionCookies,
   collectAuthChannels,
+  hasCapturedAuthApi,
   probeDashboardSignal,
 } from './AuthDiscoveryProbes.js';
 import { buildAndLogSnapshot, failAuthDiscovery } from './AuthDiscoveryTelemetry.js';
@@ -127,7 +128,8 @@ async function collectAuthDiscoverySnapshot(
 ): Promise<IAuthDiscovery> {
   const channels = await collectAuthChannels(mediator.network);
   const reveal = await probeDashboardSignal(mediator);
-  return buildAndLogSnapshot({ input, channels, reveal, cookieNames });
+  const hasAuthApiResponse = hasCapturedAuthApi(mediator.network);
+  return buildAndLogSnapshot({ input, channels, reveal, cookieNames, hasAuthApiResponse });
 }
 
 /** Result of {@link gateAuthDiscoveryPost} — proceed or short-circuit. */

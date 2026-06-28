@@ -53,6 +53,11 @@ function makeBus(args: IStubArgs): IApiMediator {
     return succeed('');
   };
   /**
+   * Inert `wasSessionWarm` stub — reports a cold session.
+   * @returns false
+   */
+  const okWarmFalse = (): false => false;
+  /**
    * Scripted apiPost — fails fast on a sentinel tag (proves the mock
    * routes by url) otherwise returns the bundled response.
    * @param url - WK URL group.
@@ -116,6 +121,9 @@ function makeBus(args: IStubArgs): IApiMediator {
     withTokenResolver: okSet,
     withTokenStrategy: okSet,
     primeSession: okPrime,
+    setSessionWarm: okSet,
+    wasSessionWarm: okWarmFalse,
+    recoverSession: okPrime,
     apiPost,
     apiGet,
     apiQuery,

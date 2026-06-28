@@ -19,13 +19,14 @@
  *
  * <p>M4.F1.fix relaxes the URL-change requirement when strong auth
  * corroboration is present. Same-URL SPAs (Isracard `/StatusPage`)
- * legitimately serve both login and dashboard from one URL — but
- * an interstitial would not also produce a discovered Bearer token
- * or a multi-cookie session. So when REVEAL matched AND either an
- * authToken exists OR ≥ {@link STRONG_AUTH_COOKIE_FLOOR} session
- * cookies were captured, URL-change is no longer required. PR #221
- * CI run `25652060222` evidenced 60 post-auth cookies + authToken
- * + REVEAL all agreeing while currentUrl===preAuthUrl.
+ * legitimately serve both login and dashboard from one URL — but an
+ * interstitial would not also produce a discovered Bearer token OR a
+ * captured first-party well-known account-data API response
+ * (`hasAuthApiResponse`). An unauthenticated page never makes the authed
+ * data fetch, whereas a same-URL authed SPA does. So when REVEAL matched
+ * AND either an authToken exists OR `hasAuthApiResponse` is true, URL-
+ * change is no longer required. PR #221 CI run `25652060222` evidenced
+ * authToken + REVEAL agreeing while currentUrl===preAuthUrl.
  *
  * <p>Pure predicate — no I/O, no side effects. Caller resolves the
  * URL inputs (mediator + LOGIN emit) and threads them in. Mock /
@@ -34,24 +35,25 @@
  */
 
 import type { IAuthDiscovery } from '../../Types/PipelineContext.js';
-import { STRONG_AUTH_COOKIE_FLOOR } from '../Timing/TimingConfig.js';
 
 /** Closed list of reasons the gate emits — matches the closed list pattern used by AuthDiscoveryFailCode. */
 type DashboardGateReason = 'open' | 'reveal-missing' | 'url-stuck';
 
 /**
  * Returns true when the slim snapshot carries either a discovered
- * Bearer token OR enough post-auth session cookies that the REVEAL
- * match cannot plausibly come from an interstitial. Defence-in-depth
- * companion to the URL-change signal — required only when
- * `currentUrl === preAuthUrl` for the gate to still open.
+ * Bearer token OR a captured first-party well-known account-data API
+ * response (`hasAuthApiResponse`). An interstitial / unauthenticated
+ * page never makes the authed data fetch, whereas a same-URL authed SPA
+ * (Isracard `/StatusPage`) does. Defence-in-depth companion to the
+ * URL-change signal — required only when `currentUrl === preAuthUrl`
+ * for the gate to still open.
  *
  * @param snap - Slim {@link IAuthDiscovery} value committed by POST.
  * @returns True iff at least one strong auth signal is present.
  */
 function hasStrongAuthCorroboration(snap: IAuthDiscovery): boolean {
   if (snap.authToken !== false) return true;
-  return snap.sessionCookieNames.length >= STRONG_AUTH_COOKIE_FLOOR;
+  return snap.hasAuthApiResponse;
 }
 
 /**

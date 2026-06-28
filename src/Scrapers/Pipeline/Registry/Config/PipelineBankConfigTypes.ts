@@ -44,6 +44,20 @@ export type PhoneNumberFormatTag =
  */
 export type BalanceKind = 'account' | 'card-cycle';
 
+/**
+ * Auth-completion family for a bank -- an explicit, REQUIRED per-bank declaration.
+ * Documents HOW a completed browser login is verified:
+ *   - 'token'         -- a Bearer/JWT is discovered post-auth (FIBI/Mataf, Cal).
+ *   - 'session-cookie'-- auth is carried by first-party session cookies
+ *                        (telebank, Wix-shell, Angular SPA banks).
+ *   - 'api-direct'    -- no browser AUTH-DISCOVERY at all (OneZero/PayBox/Pepper
+ *                        run the headless identity strategy).
+ * Declarative only: the runtime dashboard gate does NOT branch on this value
+ * (it is a registry-completeness contract + the test-matrix driver). Never
+ * inferred from absence -- an unstated kind is a config error.
+ */
+export type AuthStrategyKind = 'token' | 'session-cookie' | 'api-direct';
+
 /** Headless-strategy URL block — populates ctx.apiMediator at build time. */
 export interface IHeadlessUrlsConfig {
   readonly identityBase: string;
@@ -105,4 +119,40 @@ export interface IPipelineBankConfig {
    * config error, not a silent dormant no-op.
    */
   readonly balanceKind: BalanceKind;
+  /**
+   * Auth-completion family -- see {@link AuthStrategyKind}. REQUIRED: every bank
+   * states its kind explicitly. Declarative documentation + registry-completeness
+   * contract; the runtime gate does not branch on it.
+   */
+  readonly authStrategyKind: AuthStrategyKind;
+  /**
+   * Advisory observation budget (ms) for the post-login accounts-traffic
+   * histogram. When set, LOGIN.POST waits up to this budget so the PII-safe
+   * login.authconfirm.pool diagnostic is emitted; it NEVER gates login
+   * completion. Absent ⇒ the wait uses the default short budget.
+   *
+   * Set for AngularJS-SPA banks (Amex, Isracard) where the SSO redirect
+   * fires the accounts call inside the login boundary, so the histogram
+   * captures whether that hit landed. Authentication itself is proven later
+   * at AUTH-DISCOVERY, keeping LOGIN and AUTH cleanly separated.
+   */
+  readonly loginAuthConfirmMs?: number;
+  /**
+   * Login-completion settle-poll budget. When set, the LOGIN.final completion
+   * observer re-checks the LOGIN-LOCAL settle signals (form-gone / advanced /
+   * error / spinner) up to `maxAttempts` times, waiting `intervalMs` between
+   * checks. Absent ⇒ single-shot (one capture, zero wait) — byte-identical to
+   * a direct capture and zero added wall-time.
+   *
+   * ENFORCED when opted in: a bank whose poll budget is exhausted while the
+   * filled login form is still on screen fails LOGIN.final non-retryably with
+   * LOGIN_NOT_COMPLETED. A non-opted bank always succeeds (the single-shot
+   * poll settles on the first capture), so the verdict is unchanged for it.
+   * Set for slow-AngularJS banks whose login form lingers while the SSO
+   * redirect settles.
+   */
+  readonly loginCompletionPoll?: {
+    readonly intervalMs: number;
+    readonly maxAttempts: number;
+  };
 }

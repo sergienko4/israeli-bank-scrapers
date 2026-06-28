@@ -72,6 +72,41 @@ export async function runPostLoadingGate(
 }
 
 /**
+ * Observe post-login accounts traffic for the bank's advisory budget.
+ *
+ * <p>When the bank sets loginAuthConfirmMs the wait runs up to that budget
+ * so the PII-safe post-login traffic histogram (login.authconfirm.pool) is
+ * emitted for diagnostics. The observation is ADVISORY ONLY and never gates
+ * login completion — authentication is proven later at AUTH-DISCOVERY
+ * (page-state reveal + url-moved / token / authed-API), keeping LOGIN and
+ * AUTH cleanly separated per the phase-ownership rules. Banks that do not opt
+ * in (loginAuthConfirmMs absent) skip this advisory wait: their login verdict
+ * is unchanged (it never gated completion) and AUTH-DISCOVERY re-settles
+ * traffic independently, so they no longer block on the post-login observation.
+ * @param args - Bundled mediator + config + context + page.
+ */
+async function observeAuthConfirm(args: IPostFormScanArgs): Promise<void> {
+  const { loginAuthConfirmMs: confirmMs } = args.input.config;
+  if (confirmMs !== undefined) {
+    await waitForPostLoginTraffic(args.mediator, args.input.logger, confirmMs);
+  }
+}
+
+/**
+ * Observe the advisory auth-confirm budget then run the post-login callback.
+ * @param args - Bundled mediator + config + context + page.
+ * @returns Failure on callback error, else false.
+ */
+async function runPostLoginSequence(
+  args: IPostFormScanArgs,
+): Promise<Procedure<IPipelineContext> | false> {
+  await observeAuthConfirm(args);
+  const cbResult = await runPostCallback(args.page, args.config, args.input);
+  if (!cbResult.success) return cbResult;
+  return false;
+}
+
+/**
  * Run the main-frame error scan plus the SPA-traffic wait and POST callback.
  * @param args - Bundled mediator + config + context + page.
  * @returns Failure procedure on detected error, otherwise `false`.
@@ -81,8 +116,5 @@ export async function runPostFormScanAndCallback(
 ): Promise<Procedure<IPipelineContext> | false> {
   const errors = await safeScanFrame(args.mediator, args.page);
   if (errors.hasErrors) return fail(ScraperErrorTypes.InvalidPassword, `Form: ${errors.summary}`);
-  await waitForPostLoginTraffic(args.mediator, args.input.logger);
-  const cbResult = await runPostCallback(args.page, args.config, args.input);
-  if (!cbResult.success) return cbResult;
-  return false;
+  return runPostLoginSequence(args);
 }

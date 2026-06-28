@@ -45,6 +45,7 @@ type PhoneNumberFormatTag =
 interface IPipelineBankConfig {
   readonly urls: { readonly base: string };
   readonly balanceKind: 'account' | 'card-cycle';
+  readonly authStrategyKind: 'token' | 'session-cookie' | 'api-direct';
   readonly headless?: {
     readonly identityBase: string;
     readonly graphql: string;
@@ -134,6 +135,7 @@ function makeBankConfig(format: PhoneNumberFormatTag): IPipelineBankConfig {
   return {
     urls: { base: 'https://example.invalid' },
     balanceKind: 'account',
+    authStrategyKind: 'api-direct',
     headless: {
       identityBase: 'https://identity.example.invalid/',
       graphql: 'https://graph.example.invalid/graphql',
@@ -189,6 +191,7 @@ describe('Phone normalisation — pipeline integration', () => {
     const configNoFormat: IPipelineBankConfig = {
       urls: { base: 'https://example.invalid' },
       balanceKind: 'account',
+      authStrategyKind: 'api-direct',
       headless: {
         identityBase: 'https://identity.example.invalid/',
         graphql: 'https://graph.example.invalid/graphql',
