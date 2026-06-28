@@ -767,8 +767,10 @@ jobs:
     # for the current one to finish instead of cancelling it. NOTE:
     # GitHub only queues ONE pending job per group; a 3rd queued job
     # for the same bank is cancelled (see PR body for rationale).
+    # Rule #16: Amex + Isracard share one mutex key so they can never
+    # run concurrently even when both gate-A and gate-D are approved.
     concurrency:
-      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      group: "e2e-real-bank-${{ (matrix.bank == 'Amex' || matrix.bank == 'Isracard') && 'amex-isracard-mutex' || matrix.bank }}-${{ github.repository }}"
       cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -901,8 +903,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
+    # Rule #16: shared amex-isracard-mutex key (see Group A) keeps this
+    # Amex job mutually exclusive with Isracard's Group A run.
     concurrency:
-      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      group: "e2e-real-bank-${{ (matrix.bank == 'Amex' || matrix.bank == 'Isracard') && 'amex-isracard-mutex' || matrix.bank }}-${{ github.repository }}"
       cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
