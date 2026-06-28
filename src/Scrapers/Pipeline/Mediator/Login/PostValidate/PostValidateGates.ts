@@ -80,8 +80,9 @@ export async function runPostLoadingGate(
  * login completion — authentication is proven later at AUTH-DISCOVERY
  * (page-state reveal + url-moved / token / authed-API), keeping LOGIN and
  * AUTH cleanly separated per the phase-ownership rules. Banks that do not opt
- * in (loginAuthConfirmMs absent) skip the wait so they stay byte-identical and
- * never block on the post-login traffic observation.
+ * in (loginAuthConfirmMs absent) skip this advisory wait: their login verdict
+ * is unchanged (it never gated completion) and AUTH-DISCOVERY re-settles
+ * traffic independently, so they no longer block on the post-login observation.
  * @param args - Bundled mediator + config + context + page.
  */
 async function observeAuthConfirm(args: IPostFormScanArgs): Promise<void> {

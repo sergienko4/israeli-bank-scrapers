@@ -9,7 +9,7 @@
  *     (returned a Timeout fail); GREEN after the demote to advisory.
  *   - AUTH-CONFIRM-002 (SLOW-AUTH SUCCESS): opted-in bank, traffic present
  *     → no fail (returns false).
- *   - AUTH-CONFIRM-003 (NON-OPTED BYTE-IDENTICAL): no loginAuthConfirmMs,
+ *   - AUTH-CONFIRM-003 (NON-OPTED VERDICT-UNCHANGED): no loginAuthConfirmMs,
  *     traffic absent → no fail (legacy advisory, 12-bank regression guard).
  *   - AUTH-CONFIRM-004 (ANTI-MASKING): form errors present → InvalidPassword
  *     regardless of loginAuthConfirmMs (PR #282 anti-masking preserved).
@@ -192,7 +192,7 @@ describe('LOGIN.POST auth-confirm advisory — AUTH-CONFIRM-001..004', () => {
     expect(result).toBe(false);
   });
 
-  it('AUTH-CONFIRM-003 (NON-OPTED BYTE-IDENTICAL): no budget, traffic absent → no fail', async () => {
+  it('AUTH-CONFIRM-003 (NON-OPTED VERDICT-UNCHANGED): no budget, traffic absent → no fail', async () => {
     // Legacy 12-bank no-regression guard: without loginAuthConfirmMs the
     // boolean is advisory only and a false return does NOT fail the gate.
     const mediator = makeMediator({ trafficHit: false });
