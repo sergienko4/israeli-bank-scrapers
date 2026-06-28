@@ -104,12 +104,16 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 }
 
 /**
- * Record whether the strategy reused a cached warm token onto the bus.
+ * Record whether the strategy's LAST prime actually reused a cached warm
+ * token (vs ran the cold OTP flow) onto the bus. Reads the post-prime
+ * `lastPrimeWasWarm` so the flag reflects the path that produced the
+ * final token — not mere cached-token presence (which a stale/expired
+ * seed satisfies even though it falls back to the cold flow).
  * @param booted - Booted ACTION bundle.
  * @returns The recorded warm-state flag.
  */
 function recordWarmState(booted: IBootedAction): boolean {
-  const isWarm = booted.strategy.hasWarmState(booted.creds);
+  const isWarm = booted.strategy.lastPrimeWasWarm();
   booted.bus.setSessionWarm(isWarm);
   return isWarm;
 }
@@ -122,9 +126,9 @@ function recordWarmState(booted: IBootedAction): boolean {
 async function installPrimedAuth(booted: IBootedAction): Promise<Procedure<IPipelineContext>> {
   const { bus, strategy, ctx, creds } = booted;
   bus.withTokenStrategy(strategy, ctx, creds);
-  recordWarmState(booted);
   const primed = await primeAndCheck(bus);
   if (!isOk(primed)) return primed;
+  recordWarmState(booted);
   setBusAuth(bus, strategy, primed.value);
   await invokeAuthFlowComplete(ctx, strategy, primed.value);
   return succeed(ctx);
