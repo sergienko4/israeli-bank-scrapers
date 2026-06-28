@@ -63,13 +63,14 @@ describe('createLoginStep', () => {
 });
 
 describe('PipelineRegistry', () => {
-  it('contains 14 pipeline banks', () => {
+  it('contains 15 pipeline banks', () => {
     const keys = Object.keys(PIPELINE_REGISTRY);
     expect(keys).toContain('amex');
     expect(keys).toContain('beinleumi');
     expect(keys).toContain('discount');
     expect(keys).toContain('hapoalim');
     expect(keys).toContain('isracard');
+    expect(keys).toContain('leumi');
     expect(keys).toContain('massad');
     expect(keys).toContain('max');
     expect(keys).toContain('mercantile');
@@ -79,6 +80,6 @@ describe('PipelineRegistry', () => {
     expect(keys).toContain('payBox');
     expect(keys).toContain('pepper');
     expect(keys).toContain('visaCal');
-    expect(keys).toHaveLength(14);
+    expect(keys).toHaveLength(15);
   });
 });

@@ -11,11 +11,7 @@ import {
   LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
 } from '../../Mediator/Timing/LoginTimingConfig.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
-import type {
-  AuthStrategyKind,
-  BalanceKind,
-  IPipelineBankConfig,
-} from './PipelineBankConfigTypes.js';
+import type { IPipelineBankConfig } from './PipelineBankConfigTypes.js';
 
 export type {
   AuthPathKey,
@@ -24,19 +20,19 @@ export type {
 } from './PipelineBankConfigTypes.js';
 
 /** Billing-cycle banks (credit-card companies) expose no account balance. */
-const CARD_CYCLE: BalanceKind = 'card-cycle';
+const CARD_CYCLE = 'card-cycle';
 
 /** Deposit/checking banks expose a real account balance resolved live. */
-const ACCOUNT: BalanceKind = 'account';
+const ACCOUNT = 'account';
 
 /** Banks whose completed login yields a discovered Bearer/JWT token. */
-const TOKEN: AuthStrategyKind = 'token';
+const TOKEN = 'token';
 
 /** Banks whose completed login is carried by first-party session cookies. */
-const SESSION_COOKIE: AuthStrategyKind = 'session-cookie';
+const SESSION_COOKIE = 'session-cookie';
 
 /** API-native banks -- headless identity strategy, no browser AUTH-DISCOVERY. */
-const API_DIRECT: AuthStrategyKind = 'api-direct';
+const API_DIRECT = 'api-direct';
 
 /** Slow-AngularJS auth-confirm budget (Isracard, Amex). */
 const LOGIN_AUTH_CONFIRM_ANGULAR_MS = 45_000;
@@ -47,6 +43,11 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     urls: { base: 'https://www.fibi.co.il' },
     balanceKind: ACCOUNT,
     authStrategyKind: TOKEN,
+  },
+  [CompanyTypes.Leumi]: {
+    urls: { base: 'https://www.leumi.co.il' },
+    balanceKind: ACCOUNT,
+    authStrategyKind: SESSION_COOKIE,
   },
   [CompanyTypes.Discount]: {
     urls: { base: 'https://www.discountbank.co.il' },

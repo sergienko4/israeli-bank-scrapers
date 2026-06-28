@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title></title>
+    <link rel="stylesheet" href="Style/style_rates.css" />
+    <script async="" src="https://cdn.perfdrive.com/aperture/aperture.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const widthParam = urlParams.get('w');
+
+        if (widthParam && parseInt(widthParam) < 820) {
+          const elementsToChange = document.querySelectorAll(
+            '.currencyName, .shaar, .update_date_text',
+          );
+          elementsToChange.forEach(el => {
+            el.classList.add('small-font');
+          });
+        }
+      });
+    </script>
+    <script>
+      var __uzdbm_1 = 'f420b8ea-c676-4562-8ee5-5661631ac9b8';
+      var __uzdbm_2 = 'ZDdjY2U2MjUtY2U2ei00ZjhmLWI1OWItNzVkOWRkNGE1YjA3JDg1LjY0LjIzMC4xNzY=';
+      var __uzdbm_3 =
+        '7f9000f420b8ea-c676-4562-8ee5-5661631ac9b81-17817038225260-003377aec24e254f9ce10';
+      var __uzdbm_4 = 'false';
+      var __uzdbm_5 = 'uzmx';
+      var __uzdbm_6 =
+        '7f9000a0cbeaa8-fb35-4382-aeba-8bc0d343aaef1-17817038225260-af3da545ae8ed10010';
+      var __uzdbm_7 = 'bankleumi.co.il';
+    </script>
+    <script>
+      (function (w, d, e, u, c, g, a, b) {
+        w['SSJSConnectorObj'] = { ss_cid: c, domain_info: 'auto' };
+        a = d.createElement(e);
+        a.async = true;
+        a.src = u;
+        b = d.getElementsByTagName(e)[0];
+        b.parentNode.insertBefore(a, b);
+      })(
+        window,
+        document,
+        'script',
+        'https://cdn.perfdrive.com/aperture/aperture.js',
+        'ce71',
+        'ssConf',
+      );
+    </script>
+  </head>
+  <body>
+    <div class="capital_market_widget">
+      <div class="currency_rates_tab">
+        <div class="latest_capital_rates tab_data" role="list">
+          <div role="listitem">
+            <div class="rightData">
+              <span class="currencyImage icon_dollar"></span>
+              <span class="currencyName" aria-label='דולר ארה"ב'>דולר ארה"ב</span>
+            </div>
+            <div class="leftData">
+              <span class="shaar" id="dollar">2.918</span>
+            </div>
+          </div>
+
+          <div role="listitem">
+            <div class="rightData">
+              <span class="currencyImage icon_euro"></span>
+              <span class="currencyName" aria-label="אירו">אירו</span>
+            </div>
+            <div class="leftData">
+              <span class="shaar" id="euro">3.3814</span>
+            </div>
+          </div>
+
+          <div role="listitem">
+            <div class="rightData">
+              <span class="currencyImage icon_sterling"></span>
+              <span class="currencyName" aria-label="לירה שטרלינג">לירה שטרלינג</span>
+            </div>
+            <div class="leftData">
+              <span class="shaar" id="sterling">3.9107</span>
+            </div>
+          </div>
+
+          <div role="listitem">
+            <div class="rightData">
+              <span class="currencyImage icon_yen"></span>
+              <span class="currencyName" aria-label="ין יפני 100">100 ין יפני</span>
+            </div>
+            <div class="leftData">
+              <span class="shaar" id="yen">1.8203</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="update_date_text" id="last-updated">עודכן לאחרונה ב־17 ביוני, 2026</div>
+      </div>
+    </div>
+    <script>
+      fetch('/Api/ForeignExchange/LatestCapitalRates')
+        .then(response => response.json())
+        .then(data => {
+          const valueDollar = data.CapitalRates.dollar.rate;
+          document.getElementById('dollar').textContent = valueDollar;
+          const valueEuro = data.CapitalRates.euro.rate;
+          document.getElementById('euro').textContent = valueEuro;
+          const valueSterling = data.CapitalRates.sterling.rate;
+          document.getElementById('sterling').textContent = valueSterling;
+          const valueYen = data.CapitalRates.yen.rate;
+          document.getElementById('yen').textContent = valueYen;
+          const apiDateString = data.CapitalRates.yen.updateDate;
+
+          function parseCustomDate(str) {
+            const [day, month, yearShort] = str.split('/');
+
+            const year = yearShort.length === 2 ? `20${yearShort}` : yearShort;
+
+            return new Date(`${year}-${month}-${day}`);
+          }
+
+          function formatDateToHebrew(date) {
+            const months = [
+              'ינואר',
+              'פברואר',
+              'מרץ',
+              'אפריל',
+              'מאי',
+              'יוני',
+              'יולי',
+              'אוגוסט',
+              'ספטמבר',
+              'אוקטובר',
+              'נובמבר',
+              'דצמבר',
+            ];
+            const day = date.getDate();
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            return `עודכן לאחרונה ב־${day} ב${month}, ${year}`;
+          }
+
+          const parsedDate = parseCustomDate(apiDateString);
+          const formatted = formatDateToHebrew(parsedDate);
+          document.getElementById('last-updated').textContent = formatted;
+        })
+        .catch(error => {
+          console.error('error', error);
+        });
+    </script>
+  </body>
+</html>

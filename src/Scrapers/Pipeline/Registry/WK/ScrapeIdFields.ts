@@ -25,6 +25,11 @@ export const DISPLAY_ID_FIELDS = [
   'displayId',
   'account',
   'card4Number',
+  // Leumi (WCF `UC_SO_GetAccounts`) — the human-visible masked account
+  // number, e.g. `888-12345/88`. Exact case-insensitive match
+  // (`key.toLowerCase() === wkName`), so it cannot collide with another
+  // bank's field. Surfaced as the account's displayed number.
+  'MaskedNumber',
 ] as const;
 
 export const QUERY_ID_FIELDS = [
@@ -35,4 +40,8 @@ export const QUERY_ID_FIELDS = [
   'accountId',
   'CardId',
   'cardIndex',
+  // Leumi (WCF `UC_SO_GetAccounts`) — the numeric account index used as
+  // the query key on Leumi POST bodies (e.g. UC_SO_27 transactions).
+  // Exact case-insensitive match; no cross-bank collision.
+  'AccountIndex',
 ] as const;

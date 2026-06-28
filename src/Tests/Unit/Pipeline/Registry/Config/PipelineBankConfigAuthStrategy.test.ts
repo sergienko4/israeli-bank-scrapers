@@ -3,8 +3,8 @@
  *
  * <p>Test Case IDs:
  *   - T-REG-1 (FIRING): every entry's `authStrategyKind` is one of the 3 union members.
- *     RED while the field is absent (pre-C1); GREEN after C1 adds it to all 14 banks.
- *   - T-REG-2: family counts are exactly 5 token / 6 session-cookie / 3 api-direct.
+ *     RED while the field is absent (pre-C1); GREEN after C1 adds it to all 15 banks.
+ *   - T-REG-2: family counts are exactly 5 token / 7 session-cookie / 3 api-direct.
  *   - T-REG-3: the api-direct banks are exactly OneZero, PayBox, Pepper.
  *   - T-REG-4: each specific bank maps to the spec-S2 value (table-driven).
  *
@@ -24,6 +24,7 @@ const EXPECTED_KIND_PER_BANK: readonly [CompanyTypes, AuthKind][] = [
   [CompanyTypes.Beinleumi, 'token'],
   [CompanyTypes.Discount, 'session-cookie'],
   [CompanyTypes.Hapoalim, 'session-cookie'],
+  [CompanyTypes.Leumi, 'session-cookie'],
   [CompanyTypes.Massad, 'token'],
   [CompanyTypes.OtsarHahayal, 'token'],
   [CompanyTypes.Pagi, 'token'],
@@ -57,7 +58,7 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
     }
   });
 
-  it('T-REG-2: family counts are 5 token / 6 session-cookie / 3 api-direct', async () => {
+  it('T-REG-2: family counts are 5 token / 7 session-cookie / 3 api-direct', async () => {
     const { PIPELINE_BANK_CONFIG: bankConfigMap } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entries = Object.values(bankConfigMap);
@@ -67,7 +68,7 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
       if (config.authStrategyKind === 'session-cookie') counts.sessionCookie++;
       if (config.authStrategyKind === 'api-direct') counts.apiDirect++;
     }
-    expect(counts).toEqual({ token: 5, sessionCookie: 6, apiDirect: 3 });
+    expect(counts).toEqual({ token: 5, sessionCookie: 7, apiDirect: 3 });
   });
 
   it('T-REG-3: api-direct banks are exactly OneZero, PayBox, and Pepper', async () => {

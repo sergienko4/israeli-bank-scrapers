@@ -1,0 +1,1061 @@
+<!doctype html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title></title>
+    <script type="text/javascript">
+      var SESSION_STORAGE_NAME = 'session_storage';
+      var LOCAL_STORAGE_NAME = 'local_storage';
+      var COOKIE_STORAGE_NAME = 'cookie';
+      var PERSISTENT_STORAGE_MODE_NAME = 'persistentStorageMode';
+      var COOKIE_ATTRIBUTES = 'path=/; SameSite=None; Secure';
+      var PAST_DATE_EXPIRATION = 'expires=Thu, 01 Jan 1970 00:00:00 UTC;';
+      window.onload = function () {
+        // Implementation of a lock for local storage transactions.
+        // For more information regarding this lock, read the client high availability documantion.
+        // This is the somewhat refactored, striped, only async version of the algorithm described there.
+        var AquireLock = (function () {
+          function now() {
+            return new Date().getTime();
+          }
+
+          function someNumber() {
+            return (Math.random() * 1000000000) | 0;
+          }
+
+          var myId = now() + ':' + someNumber();
+
+          function isKeyLocked(lskey) {
+            var value = getMutex(lskey);
+            if (!value) {
+              return null;
+            }
+
+            var splitted = value.split(/\|/);
+            if (parseInt(splitted[1]) < now()) {
+              return null;
+            } else {
+              return splitted[0];
+            }
+          }
+
+          function _mutexTransaction(key, callback) {
+            const [xKey, yKey] = getMutexTransactionKey(key);
+            setMutex(xKey, myId);
+
+            if (isKeyLocked(yKey)) {
+              setTimeout(function () {
+                _mutexTransaction(key, callback);
+              }, 5);
+            } else {
+              setMutex(yKey, myId + '|' + (now() + 40));
+
+              if (getMutex(xKey) !== myId) {
+                setTimeout(function () {
+                  _mutexTransaction(key, callback);
+                }, 50);
+              } else {
+                criticalSection();
+              }
+            }
+
+            function criticalSection() {
+              try {
+                callback();
+              } finally {
+                removePersistentStorageItem(yKey);
+              }
+            }
+          }
+
+          function lockImpl(key, callback, maxDuration) {
+            maxDuration = maxDuration || 5000;
+
+            var mutexKey;
+            if (sessionStorage.getItem(PERSISTENT_STORAGE_MODE_NAME) == COOKIE_STORAGE_NAME) {
+              // Use shared mutex for changing all cookies so that there won't be to many cookies (mutex is also a cookie).
+              mutexKey = 'COOKIE__MUTEX';
+            } else {
+              // Use field-specific mutex since localStorage operations are independent.
+              mutexKey = key + '__MUTEX';
+            }
+
+            var mutexValue = myId + ':' + someNumber() + '|' + (now() + maxDuration);
+
+            if (isKeyLocked(mutexKey)) {
+              restart();
+            } else {
+              _mutexTransaction(key, function () {
+                if (isKeyLocked(mutexKey)) {
+                  restart();
+                  return;
+                }
+                setMutex(mutexKey, mutexValue);
+                setTimeout(mutexAquired, 0);
+              });
+            }
+
+            function restart() {
+              setTimeout(function () {
+                lockImpl(key, callback, maxDuration);
+              }, 10);
+            }
+
+            function mutexAquired() {
+              if (getMutex(mutexKey) == mutexValue) {
+                try {
+                  callback();
+                } finally {
+                  var started = new Date().getTime();
+                  var currentValue = getMutex(mutexKey);
+                  if (currentValue !== mutexValue) {
+                    throw key + ' was locked by a different process';
+                  }
+                  removePersistentStorageItem(mutexKey);
+                }
+              } else {
+                restart();
+              }
+            }
+          }
+          return lockImpl;
+        })();
+
+        /////////////////////////////////////////////////////
+        // DUPLICATED CODE, exists also in uuidUtils.js //
+        /////////////////////////////////////////////////////
+        function generateUUID() {
+          var d = new Date().getTime();
+          // the 'a' at the beginning is not a mistake - we need at least 1 letter in the tab ID.
+          var uuid = 'axxxxxxxxxxxxxxx'.replace(/x/g, function (c) {
+            // Return a random char from 0123456789abcdef
+            return ((d + Math.floor(Math.random() * 16)) % 16).toString(16);
+          });
+          return uuid;
+        }
+
+        function listenToEvents() {
+          var eventMethod = window.addEventListener ? 'addEventListener' : 'attachEvent';
+          var eventer = window[eventMethod];
+          var messageEvent = eventMethod == 'attachEvent' ? 'onmessage' : 'message';
+
+          // Listen to message from child window
+          eventer(messageEvent, messagesCallback, false);
+        }
+
+        function sendResponse(incomingData, responseData) {
+          responseData.isFromSharedDomain = true;
+          responseData.msgUid = incomingData.commandUid;
+          responseData.fg_internal = true;
+          parent.postMessage(JSON.stringify(responseData), '*');
+        }
+
+        function messagesCallback(e) {
+          var data;
+
+          try {
+            var key = e.message ? 'message' : 'data';
+            data = JSON.parse(e[key]);
+          } catch (error) {
+            // JSON.parse exception can occur on isolated iframe since they are can be sent from a bypassed site
+            return;
+          }
+
+          var useLock = data.useLock;
+          var useSessionStorage = data.storageType === 'session';
+          var setItemSizeLimit = data.setItemSizeLimit;
+
+          switch (data.commandType) {
+            case 'delete':
+              executeStorageTransaction(data.key, useLock, function () {
+                if (useSessionStorage) {
+                  sessionStorage.removeItem(data.key);
+                } else {
+                  removePersistentStorageItem(data.key);
+                }
+                sendResponse(data, { responseType: 'deleteFinished' });
+              });
+              break;
+            case 'clear':
+              sessionStorage.clear();
+              sendResponse(data, { responseType: 'clearFinished' });
+              break;
+            case 'getItem':
+              executeStorageTransaction(data.key, useLock, function () {
+                var value;
+                if (data.key == 'tabid') {
+                  value = generateTabId();
+                } else if (data.key == 'userToken') {
+                  value = getUserToken();
+                } else if (data.key == 'clientid') {
+                  value = getClientId();
+                } else if (data.key == 'wssHeadersToken') {
+                  value = getWSSHeadersToken();
+                } else {
+                  if (useSessionStorage) {
+                    value = sessionStorage.getItem(data.key);
+                  } else {
+                    value = getPersistentStorageItem(data.key);
+                  }
+                }
+                if (value !== undefined) {
+                  try {
+                    value = JSON.parse(value);
+                  } catch (error) {}
+                }
+
+                sendResponse(data, { responseType: 'getItemFinished', value: value });
+              });
+              break;
+            case 'getBlacklist':
+              var value = getBlacklist(data);
+              sendResponse(data, { responseType: 'getBlacklistFinished', value: value });
+              break;
+            case 'getLocalFlashWhitelist':
+              var value = getLocalFlashWhitelist(data);
+              sendResponse(data, { responseType: 'getLocalFlashWhitelistFinished', value: value });
+              break;
+            case 'clearClientId':
+              executeStorageTransaction(data.key, useLock, function () {
+                clearClientId();
+                sendResponse(data, {
+                  responseType: 'clearClientIdFinished',
+                  error: null,
+                });
+              });
+              break;
+            case 'setItem':
+              data.val = JSON.stringify(data.val);
+              executeStorageTransaction(data.key, useLock, function () {
+                var result = setItem(data.key, data.val, {
+                  useSessionStorage: useSessionStorage,
+                  setItemSizeLimit: setItemSizeLimit,
+                });
+                sendResponse(data, {
+                  responseType: 'setItemFinished',
+                  error: result.error,
+                });
+              });
+              break;
+            case 'atomicGetOrSetCurrentFireglassHost':
+              atomicGetOrSetCurrentFireglassHost(data);
+              break;
+            case 'atomicTrySetBrowserDataApplicationServer':
+              atomicTrySetBrowserDataApplicationServer(data);
+              break;
+            case 'atomicUpdateServiceWorkerCleanerLastRun':
+              atomicUpdateServiceWorkerCleanerLastRun(data);
+              break;
+            case 'trySetCurrentHost':
+              trySetCurrentHost(data);
+              break;
+            case 'trySetPrimaryHost':
+              trySetPrimaryHost(data);
+              break;
+            case 'popFastFeedbackMessage':
+              popFastFeedbackMessage(data);
+              break;
+            case 'appendFastFeedbackMessage':
+              appendFastFeedbackMessage(data);
+              break;
+            case 'setPersistentStorageType':
+              setPersistentStorageType(data);
+              break;
+            case 'exportLocalStorage':
+              exportLocalStorage(data);
+              break;
+            case 'importLocalStorage':
+              importLocalStorage(data);
+              break;
+            default:
+              sendResponse(data, {});
+          }
+        }
+
+        function exportLocalStorage(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            var exportedObject = {};
+            var keys = Object.keys(localStorage);
+
+            for (var i = keys.length - 1; i >= 0; i--) {
+              var key = keys[i];
+              exportedObject[key] = getPersistentStorageItem(key);
+            }
+
+            sendResponse(data, {
+              value: exportedObject,
+              responseType: 'exportLocalStorageFinished',
+            });
+          });
+        }
+
+        function importLocalStorage(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            var importedObject = data.val;
+            var keys = Object.keys(importedObject);
+            var errors = [];
+            var clientIdKeyName = 'clientId';
+
+            for (var i = keys.length - 1; i >= 0; i--) {
+              var key = keys[i];
+              var value = importedObject[key];
+              // We moved to clientId from clientid, so we rename the key
+              if (key === 'clientid') {
+                key = clientIdKeyName;
+              }
+              var result = setItem(key, value, {
+                setItemSizeLimit: data.setItemSizeLimit,
+              });
+
+              if (result.error) {
+                errors.push(result.error);
+              }
+            }
+
+            importClientIdFromDifferentKeyNameIfNecessary(
+              importedObject,
+              clientIdKeyName,
+              errors,
+              data.setItemSizeLimit,
+            );
+
+            var error = null;
+
+            if (errors.length > 0) {
+              error = errors.join('\r\n');
+            }
+
+            sendResponse(data, {
+              responseType: 'importLocalStorageFinished',
+              error: error,
+            });
+          });
+        }
+
+        function importClientIdFromDifferentKeyNameIfNecessary(
+          importedObject,
+          clientIdKeyName,
+          errors,
+          setItemSizeLimit,
+        ) {
+          var migratedClientIdKeyName = '';
+          var migratedClientIdValue = importedObject[migratedClientIdKeyName];
+          if (migratedClientIdKeyName && migratedClientIdValue) {
+            var result = setItem(clientIdKeyName, migratedClientIdValue, {
+              setItemSizeLimit: setItemSizeLimit,
+            });
+
+            if (result.error) {
+              errors.push(result.error);
+            }
+          }
+        }
+
+        /* Stores the storage type (local storage/cookie) in the session storage. Called once on
+            shared domain inititalization. */
+        function setPersistentStorageType(data) {
+          sessionStorage.setItem(PERSISTENT_STORAGE_MODE_NAME, data.setPersistentStorageType);
+          sendResponse(data, {
+            responseType: 'setPersistentStorageTypeFinished',
+            value: PERSISTENT_STORAGE_MODE_NAME,
+          });
+        }
+
+        /*
+                Gets the feedback messages field from the local storage
+                Appends a fast feedback message to the parsed list and pushes it back to the local storage
+                The entire code is executed in a locked transaction.
+            */
+        function appendFastFeedbackMessage(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            // Feedback message always uses local storage and not cookie because of it's size.
+            var feedbackMessages = localStorage.getItem(data.key);
+            if (feedbackMessages) {
+              feedbackMessages = JSON.parse(feedbackMessages);
+              if (feedbackMessages && Array.isArray(feedbackMessages)) {
+                // preventing a flood of feedback messages that might use all localstorage.
+                if (feedbackMessages.length > 3) {
+                  feedbackMessages.pop();
+                }
+                feedbackMessages.push(data.val);
+              } else {
+                feedbackMessages = [data.val];
+              }
+            } else {
+              feedbackMessages = [data.val];
+            }
+            var result = setItem(data.key, JSON.stringify(feedbackMessages), {
+              useLocalStorage: true, // Force local storage usage in feedback message since it's too big for cookie.
+              setItemSizeLimit: data.setItemSizeLimit,
+            });
+
+            sendResponse(data, {
+              responseType: 'appendFastFeedbackMessageFinished',
+              error: result.error,
+            });
+          });
+        }
+
+        /*
+                Gets the feedback messages field from the local storage
+                removes a fast feedback message of a certain id.
+                Sets the fast feedback messages back in the local storage.
+                The entire code is executed in a locked transaction.
+            */
+        function popFastFeedbackMessage(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            // Feedback message always uses local storage and not cookie because of it's size.
+            var feedbackMessages = localStorage.getItem(data.key);
+            var message;
+            if (feedbackMessages) {
+              feedbackMessages = JSON.parse(feedbackMessages);
+              if (feedbackMessages && Array.isArray(feedbackMessages)) {
+                message = feedbackMessages.pop();
+              } else {
+                feedbackMessages = [];
+              }
+            }
+
+            var result = setItem(data.key, JSON.stringify(feedbackMessages), {
+              useLocalStorage: true,
+              setItemSizeLimit: data.setItemSizeLimit,
+            });
+
+            sendResponse(data, {
+              responseType: 'removeFastFeedbackMessageFinished',
+              error: result.error,
+              value: message,
+            });
+          });
+        }
+
+        /*
+                Called Once a connection to a host is considered valid (survived longer than a configured duration).
+                This function attempts to assign the given value into the primary host field in the local storage -
+                ONLY IF the primary host has been connected for longer than the given inactivity duration.
+
+                The "primary host" is a field used for upgrade purposes in which the current host disconnects and changes due to the nature of our upgrade.
+                Our goal is to return back to the primary host due to the existence of cache and cookies in our Threat Isolation Engine.
+
+                This logic on the other hand, prevents sticking to a primary host that no longer exists. In case the primary host has not been connected long enough, we change it.
+
+            */
+        function trySetPrimaryHost(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            var primaryHost = getPersistentStorageItem(data.primaryHostKeyword);
+            var last_primary_host_heartbeat = getPersistentStorageItem(
+              data.slidingWindowPrefix + primaryHost,
+            );
+            var currentHost = getPersistentStorageItem(data.key);
+            if (
+              primaryHost !== currentHost &&
+              (!last_primary_host_heartbeat ||
+                new Date().getTime() - last_primary_host_heartbeat > data.hostSlidingWindowTimeout)
+            ) {
+              var result = setItem(data.primaryHostKeyword, currentHost);
+              sendResponse(data, {
+                responseType: 'trySetPrimaryHostFinished',
+                error: result.error,
+              });
+
+              return;
+            }
+            sendResponse(data, { responseType: 'trySetPrimaryHostFinished', value: false });
+          });
+        }
+        /*
+                The "primary host" is a field used for upgrade purposes in which the current host disconnects and changes due to the nature of our upgrade.
+                Our goal is to return back to the primary host due to the existence of cache and cookies in our Threat Isolation Engine.
+
+                This method is called after the target tab has been considered inactive for a configured duration.
+                The method extracts the host and primary host from the local storage, and tries to assign the primary host into current host if the following conditions are met:
+
+                    1. The primary host is not blacklisted.
+                    2. The primary host is not null or undefined or an empty string
+                    3. The primary host is not equal to the current host
+
+                After this method returns, upon success, the tab will be reloaded.
+            */
+        function trySetCurrentHost(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            var currentHost = getPersistentStorageItem(data.key);
+            var primaryHost = getPersistentStorageItem(data.primaryHostKeyword);
+
+            var is_primary_host_in_physical_blacklist = isHostInBlacklist(
+              primaryHost,
+              data.physicalBlacklistPrefix,
+              data.physicalBlacklistTimeout,
+            );
+            var is_primary_host_in_logical_blacklist = isHostInBlacklist(
+              primaryHost,
+              data.logicalBlacklistPrefix,
+              data.logicalBlacklistTimeout,
+            );
+
+            if (
+              primaryHost &&
+              primaryHost !== currentHost &&
+              !is_primary_host_in_physical_blacklist &&
+              !is_primary_host_in_logical_blacklist
+            ) {
+              var result = setItem(data.key, primaryHost);
+              sendResponse(data, {
+                responseType: 'tryAssignPrimaryHostToCurrentHostFinished',
+                error: result.error,
+                value: true,
+              });
+
+              return;
+            }
+            sendResponse(data, { responseType: 'trySetCurrentHostFinished', value: false });
+          });
+        }
+
+        function clearHostsDataAndFeedbackMessageOnSerialNumberChange(data) {
+          if (data.serialNumberKeyword) {
+            var currentSerialNumber = getPersistentStorageItem(data.serialNumberKeyword);
+            if (currentSerialNumber != data.serialNumber) {
+              if (data.serialNumber) {
+                setItem(data.serialNumberKeyword, data.serialNumber);
+                if (currentSerialNumber) {
+                  // Feedback message always uses local storage and not cookie because of it's size.
+                  localStorage.removeItem(data.feedbackMessagesKeyword);
+                  removePersistentStorageItem(data.key);
+                  removePersistentStorageItem(data.primaryHostKeyword);
+                }
+              }
+            }
+          }
+        }
+
+        function clearHostsDataOnLoadBalancingVersionChange(data) {
+          var loadBalancingGuidKeyName = data.loadBalancingUIDKeyword;
+          var loadBalancingGuid = data.loadBalancingUID;
+          var currentLoadBalancingGuid = getPersistentStorageItem(loadBalancingGuidKeyName);
+
+          if (
+            (loadBalancingGuid || currentLoadBalancingGuid) &&
+            loadBalancingGuid !== currentLoadBalancingGuid
+          ) {
+            removePersistentStorageItem(data.key);
+            removePersistentStorageItem(data.primaryHostKeyword);
+            setItem(loadBalancingGuidKeyName, loadBalancingGuid);
+          }
+        }
+
+        function saveObjectToCookie(obj) {
+          for (var key in obj) {
+            document.cookie = key + '=' + obj[key];
+          }
+        }
+
+        function praseCookie() {
+          var obj = {};
+          var attributes = document.cookie.split(';');
+          for (var i = 0; i < attributes.length; i++) {
+            var parts = attributes[i].split('=');
+            if (parts.length === 2) {
+              obj[parts[0]] = parts[1];
+            }
+          }
+
+          return obj;
+        }
+
+        // Add the current host to the session cookie.
+        // Client may have several different hosts during a browser session (If suddenly the server is not available)
+        function saveCurrentApplicationServerOnCookie(currentHost) {
+          var cookieObj = praseCookie();
+          if (
+            !cookieObj.currentApplicationServer ||
+            cookieObj.currentApplicationServer !== currentHost
+          ) {
+            cookieObj.currentApplicationServer = currentHost;
+            saveObjectToCookie(cookieObj);
+          }
+        }
+
+        function hasActiveSession() {
+          return Boolean(praseCookie().currentApplicationServer);
+        }
+
+        /*
+                returns the fireglass host's hostname from the localstorage.
+                If the current host is no longer vaild, or if applicationServerPersistencyEnabled is false and no active tabs, set a new host and return it.
+                Here are the conditions for a host's validity:
+                    A host must exist in the shared domain local storage ( not undefined ).
+                    The host has been recently connected ( a timestamp has been written for it in the past X milliseconds ).
+                    The host is located in data.availableHosts
+                    The host is not located in a blacklist
+
+                If the primary host field is empty or undefined after the function's execution, we set it identical to the chosen host (or the current one).
+
+                migrationID - used to manage the migrations on the application server side, ex. when multiple tabs are opened to a host (different than the primary host), and the tab that triggered the migration, is closed before being notified that the migration succeeded, the followed tab will use the same migration ID (which will be ignored on application server side).
+
+                browserDataApplicationServer - The application server with the updated client's browser data (cookies, local storage, etc.).
+                When migrating to another host (wasHostChanged), browser data (cookies, local storage) might be retrieved from the previousHost (and accordingly primaryHost will be set to the currentHost)
+            */
+        function atomicGetOrSetCurrentFireglassHost(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            var error = undefined;
+            var wasHostChanged = false;
+            var hostChangeReason = '';
+            var reportHostChanged = false;
+
+            clearHostsDataAndFeedbackMessageOnSerialNumberChange(data);
+            clearHostsDataOnLoadBalancingVersionChange(data);
+
+            var forcedCurrentHost = sessionStorage.getItem(
+              data.forcedCurrentFireglassHostAddressKeyword,
+            );
+
+            // This condition is activated when the user/support has selected the advanced debug option of "Force isolation server".
+            // This forces the current tab to always connect to the selected server until the tab is closed or it's session storage is deleted.
+            if (forcedCurrentHost) {
+              try {
+                forcedCurrentHost = JSON.parse(forcedCurrentHost);
+                sendResponse(data, {
+                  responseType: 'atomicGetOrSetCurrentFireglassHostFinished',
+                  value: {
+                    host: forcedCurrentHost,
+                    wasHostChanged: false,
+                    reportHostChanged: false,
+                    previousHost: null,
+                    reason: null,
+                  },
+                  error: error,
+                });
+                return;
+              } catch (err) {
+                error = err;
+              }
+            }
+
+            var currentHost = getPersistentStorageItem(data.key);
+            var previousHost = currentHost;
+            var migrationID = parseInt(getPersistentStorageItem('migrationID'));
+            if (!migrationID) {
+              migrationID = 1;
+            }
+
+            var is_in_physical_blacklist = isHostInBlacklist(
+              currentHost,
+              data.physicalBlacklistPrefix,
+              data.physicalBlacklistTimeout,
+            );
+            var is_in_logical_blacklist = isHostInBlacklist(
+              currentHost,
+              data.logicalBlacklistPrefix,
+              data.logicalBlacklistTimeout,
+            );
+
+            var shouldSetHost = false;
+
+            if (!currentHost) {
+              shouldSetHost = true;
+            }
+
+            if (!shouldSetHost && data.availableHosts.indexOf(currentHost) == -1) {
+              reportHostChanged = true;
+              shouldSetHost = true;
+              hostChangeReason = 'Current host is not in the available hosts list.';
+            }
+
+            if (!shouldSetHost && is_in_logical_blacklist) {
+              reportHostChanged = true;
+              shouldSetHost = true;
+              hostChangeReason = 'Current host is in the logical blacklist.';
+            }
+
+            if (!shouldSetHost && is_in_physical_blacklist) {
+              reportHostChanged = true;
+              shouldSetHost = true;
+              hostChangeReason = 'Current host is in the physical blacklist.';
+            }
+
+            if (
+              !shouldSetHost &&
+              !data.applicationServerPersistencyEnabled &&
+              !hasActiveSession() &&
+              currentHost !== data.hostToSet
+            ) {
+              shouldSetHost = true;
+              hostChangeReason =
+                'Client load balancing migration is enabled and no active session to a server exists.';
+            }
+
+            if (shouldSetHost) {
+              removePersistentStorageItem(data.physicalBlacklistPrefix + data.hostToSet);
+              removePersistentStorageItem(data.logicalBlacklistPrefix + data.hostToSet);
+              var result = setItem(data.key, data.hostToSet);
+              error = result.error;
+
+              // Only report host changed if host wasn't previously undefined.
+              if (currentHost && currentHost !== data.hostToSet) {
+                wasHostChanged = true;
+              }
+
+              if (!error) {
+                currentHost = data.hostToSet;
+              }
+            }
+
+            // Saving indication about active tabs to prevent migration for load balancing while connected to an application server
+            // There might be 2 problems with this cookie:
+            // 1 - Missing SameSite attribute
+            // 2 - If applicationServerPersistency is being disabled while users already have active tabs
+            // We should revert the "Browser data sync" feature - ADAMA-5518
+            if (!data.applicationServerPersistencyEnabled) {
+              saveCurrentApplicationServerOnCookie(currentHost);
+            }
+
+            var primaryHost = getPersistentStorageItem(data.primaryHostKeyword);
+
+            if (!primaryHost) {
+              setItem(data.primaryHostKeyword, currentHost);
+            }
+
+            sendResponse(data, {
+              responseType: 'atomicGetOrSetCurrentFireglassHostFinished',
+              value: {
+                host: currentHost,
+                wasHostChanged: wasHostChanged,
+                reportHostChanged: reportHostChanged,
+                previousHost: previousHost,
+                reason: hostChangeReason,
+                browserDataApplicationServer: primaryHost,
+                migrationID: migrationID,
+              },
+              error: error,
+            });
+          });
+        }
+        /*
+                The Primaryhost entry represents the host which has the updated browser data (ex. cookies and local storage)
+                Update primaryHost in case client migrated successfully to another host (browserDataApplicationServer) and increase migration ID.
+
+                Theoretically another tab can migrate between that tab migration and updating primaryHost,
+                in that case the last update will be stored (and browser's data updates on the different host will be lost)
+            */
+        function atomicTrySetBrowserDataApplicationServer(data) {
+          executeStorageTransaction(data.key, data.useLock, function () {
+            setItem(data.primaryHostKeyword, data.browserDataApplicationServer);
+
+            // Increase migration ID
+            var migrationID = parseInt(getPersistentStorageItem('migrationID'));
+            migrationID = migrationID ? migrationID + 1 : 1;
+            setItem('migrationID', migrationID);
+
+            sendResponse(data, {
+              responseType: 'atomicTrySetBrowserDataApplicationServerFinished',
+              value: {
+                error: undefined,
+              },
+            });
+          });
+        }
+
+        function atomicUpdateServiceWorkerCleanerLastRun(data) {
+          executeStorageTransaction(data.key, true, function () {
+            var lastRun = getPersistentStorageItem(data.key) || 0;
+            var currentDate = new Date().getTime();
+            var shouldRunCleaner = false;
+
+            if (currentDate - data.intervalInSeconds * 1000 > lastRun) {
+              setPersistentStorageItem(key, value);
+              shouldRunCleaner = true;
+            }
+
+            sendResponse(data, {
+              responseType: 'atomicUpdateServiceWorkerCleanerLastRunFinished',
+              value: {
+                shouldRunCleaner: shouldRunCleaner,
+              },
+            });
+          });
+        }
+
+        function getBlacklist(data) {
+          var blacklist = {};
+
+          if (!data.hosts || !Array.isArray(data.hosts)) {
+            return blacklist;
+          }
+
+          for (var i = 0; i < data.hosts.length; i++) {
+            var host = data.hosts[i];
+
+            var isInPhysicalBlacklist = isHostInBlacklist(
+              host,
+              data.physicalBlacklistPrefix,
+              data.physicalBlacklistTimeout,
+            );
+
+            var isInLogicalBlacklist = isHostInBlacklist(
+              host,
+              data.logicalBlacklistPrefix,
+              data.logicalBlacklistTimeout,
+            );
+
+            blacklist[host] = {
+              isInPhysicalBlacklist: isInPhysicalBlacklist,
+              isInLogicalBlacklist: isInLogicalBlacklist,
+            };
+          }
+          return blacklist;
+        }
+
+        function getLocalFlashWhitelist(data) {
+          var whitelist = [];
+          for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (
+              key &&
+              key.indexOf(data.flashWhitelistPrefix) == 0 &&
+              new Date().getTime() - localStorage.getItem(key) <
+                data.flashWhitelistExpirationDuration
+            ) {
+              var hostname = key.replace(data.flashWhitelistPrefix, '');
+              whitelist.push(hostname);
+            }
+          }
+          return whitelist;
+        }
+
+        function isHostInBlacklist(host, blacklistPrefix, timeout) {
+          var timestamp = getPersistentStorageItem(blacklistPrefix + host);
+          var currentDate = new Date().getTime();
+          return timestamp && currentDate - timestamp <= timeout;
+        }
+
+        function executeStorageTransaction(key, useLock, callback) {
+          if (useLock) {
+            AquireLock(key, callback);
+          } else {
+            callback();
+          }
+        }
+
+        function getUsernameFromClientId(client_id) {
+          var delim_index = client_id.indexOf('__FGL__');
+          if (delim_index === -1) {
+            return '';
+          }
+          return client_id.substr(0, delim_index);
+        }
+
+        function getUserToken() {
+          return 'UWn314r/tKrq4VCeMCh/Sm3j2VbO7P0bwZWtKXe5Plg=abf79dcf865c8f3c2a835d80e309a8bc339f2b78f374eab2705959cdbe72ea74';
+        }
+
+        function getWSSHeadersToken() {
+          return '';
+        }
+
+        function getClientId() {
+          var clientId = getPersistentStorageItem('clientId');
+          return clientId;
+        }
+
+        function clearClientId() {
+          removePersistentStorageItem('clientId');
+        }
+
+        function generateTabId() {
+          var tabId = sessionStorage.getItem('tabid');
+
+          if (tabId) {
+            // Normalize tab id to remove json string '"' characters.
+            tabId = tabId.replace(new RegExp('"', 'g'), '');
+            // sanity check
+            if (tabId.length != 16) {
+              alert('tab id was invalid in the shared domain! Contact fireglass!');
+              tabId = '';
+              sessionStorage.clear();
+            }
+          }
+
+          if (!tabId) {
+            tabId = generateUUID();
+            tabId = JSON.stringify(tabId);
+            setItem('tabid', tabId, { useSessionStorage: true });
+          }
+          return tabId;
+        }
+
+        function setItem(key, value, options) {
+          var result = {
+            error: undefined,
+          };
+
+          options = options || {};
+
+          if (options.setItemSizeLimit && value.length > options.setItemSizeLimit) {
+            result.error = 'Exceeded maximum single entry size limitation!';
+            return result;
+          }
+
+          try {
+            if (options.useSessionStorage) {
+              sessionStorage.setItem(key, value);
+            } else if (options.useLocalStorage) {
+              localStorage.setItem(key, value);
+            } else {
+              setPersistentStorageItem(key, value);
+            }
+            return result;
+          } catch (error) {
+            // This should be prompted to the console otherwise will never be detected.
+            /*eslint-disable no-console */
+            console.log(error ? error.stack || error : '');
+
+            /*eslint-enable no-console */
+            result.error = error.stack;
+          }
+        }
+
+        /**
+         * Gets a cookie value by exact name match
+         * @param {string} cookieName - Name of the cookie to retrieve
+         * @returns {string|null} Cookie value if found, null otherwise
+         */
+        function getCookieValue(cookieName) {
+          const cookies = document.cookie.split(';');
+
+          for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+
+            if (name === cookieName) {
+              return decodeURIComponent(value);
+            }
+          }
+          return null;
+        }
+
+        function getMutex(key) {
+          return getPersistentStorageItem(key);
+        }
+
+        function getPersistentStorageItem(key) {
+          if (sessionStorage.getItem(PERSISTENT_STORAGE_MODE_NAME) == COOKIE_STORAGE_NAME) {
+            return getCookieValue(key);
+          }
+
+          return localStorage.getItem(key);
+        }
+
+        /**
+         * Sets mutex with short expiration
+         * @param {string} key - Mutex key
+         * @param {string} value - Mutex value
+         */
+        function setMutex(key, value) {
+          if (sessionStorage.getItem(PERSISTENT_STORAGE_MODE_NAME) == COOKIE_STORAGE_NAME) {
+            var date = new Date();
+            date.setTime(date.getTime() + 10 * 1000); // Set the expiration date to 10 seconds from now
+            var expires = '; expires=' + date.toUTCString();
+            document.cookie =
+              key + '=' + encodeURIComponent(value) + expires + '; ' + COOKIE_ATTRIBUTES;
+          } else {
+            localStorage.setItem(key, value);
+          }
+        }
+
+        function getMutexTransactionKey(key) {
+          const xMutex = '__MUTEX_x',
+            yMutex = '__MUTEX_y';
+          if (sessionStorage.getItem(PERSISTENT_STORAGE_MODE_NAME) == COOKIE_STORAGE_NAME) {
+            // When cookie is used for persistent storage a 2 mutex cookies are used for all keys.
+            return [xMutex, yMutex];
+          }
+          return [key + '__MUTEX_x', (yKey = key + '__MUTEX_y')];
+        }
+
+        function setPersistentStorageItem(key, value) {
+          if (sessionStorage.getItem(PERSISTENT_STORAGE_MODE_NAME) == COOKIE_STORAGE_NAME) {
+            setCookie(key, value, 365);
+          } else {
+            localStorage.setItem(key, value);
+          }
+        }
+
+        /**
+         * Sets a cookie with specified expiration
+         * @param {string} cookieName - Name of the cookie
+         * @param {string} data - Cookie value
+         * @param {number} days - Days until expiration
+         */
+        function setCookie(cookieName, data, days) {
+          var date = new Date();
+          date.setFullYear(date.getFullYear() + 1); // Set the expiration date to one year from now
+          var expires = '; expires=' + date.toUTCString();
+          document.cookie =
+            cookieName + '=' + encodeURIComponent(data) + expires + '; ' + COOKIE_ATTRIBUTES;
+        }
+
+        function removePersistentStorageItem(key) {
+          if (sessionStorage.getItem(PERSISTENT_STORAGE_MODE_NAME) == COOKIE_STORAGE_NAME) {
+            // Set the cookie's expiration date to a past date
+            document.cookie = key + '=; ' + PAST_DATE_EXPIRATION + COOKIE_ATTRIBUTES;
+          } else {
+            localStorage.removeItem(key);
+          }
+        }
+
+        function checkDOMStorage(storageName) {
+          // ATTENTION: changes to storageInit have to be consistent with sharedDomainInitStatus.d.ts
+          var sharedDomainInitStatus = { isSuccessful: false, errorCode: 'unknown_failure' };
+          try {
+            switch (storageName) {
+              case SESSION_STORAGE_NAME:
+                storageReference = sessionStorage;
+                break;
+              default:
+                storageReference = localStorage;
+            }
+
+            if (storageReference) {
+              try {
+                storageReference.setItem('dummy', 'value');
+                storageReference.removeItem('dummy');
+                sharedDomainInitStatus.isSuccessful = true;
+              } catch (e) {
+                sharedDomainInitStatus.errorCode = 'not_able_to_write_to_' + storageName;
+              }
+            } else {
+              sharedDomainInitStatus.errorCode = storageName + '_is_undefined';
+            }
+          } catch (e) {
+            sharedDomainInitStatus.errorCode = 'no_access_to_' + storageName;
+          }
+          return sharedDomainInitStatus;
+        }
+
+        var readyMessage = {
+          responseType: 'ready',
+          isFromSharedDomain: true,
+        };
+
+        readyMessage.sharedDomainInitStatus = checkDOMStorage(SESSION_STORAGE_NAME);
+        // checking the local storage will overide the previous shared domain status
+        if (readyMessage.sharedDomainInitStatus.isSuccessful) {
+          readyMessage.sharedDomainInitStatus = checkDOMStorage(LOCAL_STORAGE_NAME);
+        }
+
+        if (readyMessage.sharedDomainInitStatus.isSuccessful) {
+          readyMessage.value = {
+            migrationRequired: !Boolean(getPersistentStorageItem('import_done')),
+          };
+        }
+
+        // special case - should not use 'sendResponse' (since this is not a real response)
+        readyMessage.fg_internal = true;
+        parent.postMessage(JSON.stringify(readyMessage), '*');
+
+        listenToEvents();
+      };
+    </script>
+  </head>
+  <body></body>
+</html>

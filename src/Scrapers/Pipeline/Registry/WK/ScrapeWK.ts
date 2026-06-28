@@ -61,6 +61,11 @@ export const PIPELINE_WELL_KNOWN_API = {
     // still routing through `discoverShapeAware`'s POST-with-shape
     // preference (no broader risk than the original pattern).
     /get\w*Transactions/i,
+    // Leumi WCF list endpoint `UC_SO_27_GetBusinessAccountTrx` — the
+    // `Trx` abbreviation (not the full `Transactions` word) falls
+    // outside `get\w*Transactions`, so it needs its own pattern. The
+    // module name is Leumi-specific; no cross-bank overlap.
+    /GetBusinessAccountTrx/i,
   ],
   // Negative patterns — URL paths that MATCH the `transactions` list
   // above but actually serve dashboard-PREVIEW / status-page WIDGET

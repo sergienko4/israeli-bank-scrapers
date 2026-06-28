@@ -5,6 +5,7 @@ import { buildBeinleumiPipeline } from './Beinleumi/BeinleumiPipeline.js';
 import { buildDiscountPipeline } from './Discount/DiscountPipeline.js';
 import { buildHapoalimPipeline } from './Hapoalim/HapoalimPipeline.js';
 import { buildIsracardPipeline } from './Isracard/IsracardPipeline.js';
+import { buildLeumiPipeline } from './Leumi/LeumiPipeline.js';
 import { buildMassadPipeline } from './Massad/MassadPipeline.js';
 import { buildMaxPipeline } from './Max/MaxPipeline.js';
 
@@ -19,6 +20,7 @@ const PIPELINE_REGISTRY_AMEX_TO_MAX: Partial<Record<CompanyTypes, PipelineFactor
   [CompanyTypes.Discount]: buildDiscountPipeline,
   [CompanyTypes.Hapoalim]: buildHapoalimPipeline,
   [CompanyTypes.Isracard]: buildIsracardPipeline,
+  [CompanyTypes.Leumi]: buildLeumiPipeline,
   [CompanyTypes.Massad]: buildMassadPipeline,
   [CompanyTypes.Max]: buildMaxPipeline,
 };

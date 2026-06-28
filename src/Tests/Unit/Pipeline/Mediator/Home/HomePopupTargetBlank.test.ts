@@ -85,10 +85,10 @@ function makePopupMediator(responses: IAttrResponses): IElementMediator {
      */
     resolveVisible: (): Promise<IRaceResult> => Promise.resolve(visible),
     /**
-     * resolveAllVisible — no extra entries (prefer-direct keeps primary).
-     * @returns Empty list so the SEQUENTIAL primary winner is preserved.
+     * resolveAllVisible — array form consumed by resolveHomeTrigger.
+     * @returns Single-element list holding the visible trigger.
      */
-    resolveAllVisible: (): Promise<readonly IRaceResult[]> => Promise.resolve([]),
+    resolveAllVisible: (): Promise<readonly IRaceResult[]> => Promise.resolve([visible]),
     /**
      * checkAttribute returns true only for `href` (force DIRECT path).
      * @param _r - Race result.
@@ -157,13 +157,29 @@ describe('HomeResolver — popup-follow override (PR #299)', () => {
     expect(discovery.navHrefOverride).toBe(REAL_HREF);
   });
 
-  it('does NOT attach navHrefOverride when target attribute is missing (target !== "_blank")', async () => {
+  it('attaches navHrefOverride for any absolute href (no _blank) — DIRECT navigates to the login URL (provider-agnostic, e.g. Leumi enter_account)', async () => {
     const discovery = await runResolveExpectingOk({ target: '', href: REAL_HREF });
+    expect(discovery.strategy).toBe(NAV_STRATEGY.DIRECT);
+    expect(discovery.navHrefOverride).toBe(REAL_HREF);
+  });
+
+  it('does NOT attach navHrefOverride for a relative href (no _blank) — click path preserved', async () => {
+    const discovery = await runResolveExpectingOk({ target: '', href: '/personalarea/Login/' });
+    expect(discovery.strategy).toBe(NAV_STRATEGY.DIRECT);
     expect(discovery.navHrefOverride).toBeUndefined();
   });
 
   it('does NOT attach navHrefOverride when target="_blank" but href is empty', async () => {
     const discovery = await runResolveExpectingOk({ target: '_blank', href: '' });
+    expect(discovery.navHrefOverride).toBeUndefined();
+  });
+
+  it('does NOT attach navHrefOverride when target="_blank" but href is relative — click path preserved (CR #381)', async () => {
+    const discovery = await runResolveExpectingOk({
+      target: '_blank',
+      href: '/personalarea/Login/',
+    });
+    expect(discovery.strategy).toBe(NAV_STRATEGY.DIRECT);
     expect(discovery.navHrefOverride).toBeUndefined();
   });
 });

@@ -255,6 +255,34 @@ const BEINLEUMI_POST_LOGIN = {
   ],
 } as const satisfies IExtendedRecipe;
 
+/** Leumi: no OTP; SPA shell at eBanking/SO/SPA.aspx. The DASHBOARD tail is
+ *  a two-step menu nav — עובר ושב (current account) then תנועות בחשבון
+ *  (account movements) — which fires the UC_SO_27 GetBusinessAccountTrx
+ *  Broker.svc call carrying the transactions. Reveal steps click those
+ *  menus by visible text; recordResponse flushes the UC_SO_27 envelope. */
+const LEUMI_POST_LOGIN = {
+  bankId: 'leumi',
+  steps: [
+    { kind: 'login', stepName: '04-login-action', snapshot: false },
+    {
+      kind: 'waitFor',
+      stepName: '07-auth-discovery',
+      urlIncludes: 'SPA.aspx',
+      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
+    },
+    { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
+    { kind: 'reveal', stepName: '09-dashboard', revealText: 'עובר ושב' },
+    { kind: 'reveal', stepName: '10-reveal-transactions', revealText: 'תנועות בחשבון' },
+    { kind: 'snapshot', stepName: '11-balance', waitForLifecycle: 'networkidle' },
+    {
+      kind: 'recordResponse',
+      stepName: '10-scrape-transactions',
+      urlPattern: 'UC_SO_27',
+      captureAs: 'business-account-trx',
+    },
+  ],
+} as const satisfies IExtendedRecipe;
+
 /**
  * Registry: bankId → post-login recipe.
  *
@@ -271,6 +299,7 @@ const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
   visaCal: VISACAL_POST_LOGIN,
   hapoalim: HAPOALIM_POST_LOGIN,
   beinleumi: BEINLEUMI_POST_LOGIN,
+  leumi: LEUMI_POST_LOGIN,
 };
 
 /**
@@ -391,6 +420,16 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
       { stepName: '01-home', url: 'https://www.fibi.co.il' },
       { stepName: '02-modal-opened', revealText: 'כניסה לחשבון' },
       { stepName: '03-after-prelogin', revealText: 'כניסה עם סיסמה' },
+    ],
+  },
+  leumi: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.leumi.co.il/' },
+      {
+        stepName: '04-login-action',
+        url: 'https://hb2.bankleumi.co.il/H/Login.html',
+        waitForCredentialInput: true,
+      },
     ],
   },
   max: {
