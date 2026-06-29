@@ -95,8 +95,16 @@ function isDateRangeBody(template: string): boolean {
   let hasHit = false;
   try {
     const root = JSON.parse(template) as JsonRecord;
-    walk([root], (n): void => { hasHit = hasHit || isRangeNode(n); }, MAX_RANGE_DEPTH);
-  } catch { return false; }
+    walk(
+      [root],
+      (n): void => {
+        hasHit = hasHit || isRangeNode(n);
+      },
+      MAX_RANGE_DEPTH,
+    );
+  } catch {
+    return false;
+  }
   return hasHit;
 }
 
@@ -106,7 +114,13 @@ function isDateRangeBody(template: string): boolean {
  * @param bounds - Calendar bounds for the chunk.
  */
 function applyDateRangeToBody(body: JsonRecord, bounds: IDateBounds): void {
-  walk([body], (n): void => { if (isRangeNode(n)) applyNode(n, bounds); }, MAX_RANGE_DEPTH);
+  walk(
+    [body],
+    (n): void => {
+      if (isRangeNode(n)) applyNode(n, bounds);
+    },
+    MAX_RANGE_DEPTH,
+  );
 }
 
 export { applyDateRangeToBody, isDateRangeBody };
