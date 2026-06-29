@@ -86,26 +86,31 @@ function walk(queue: readonly JsonRecord[], visit: (n: JsonRecord) => void, dept
 }
 
 /**
+ * Early-stopping BFS: true when any reachable node is a range node.
+ * @param queue - Current BFS frontier.
+ * @param depth - Remaining depth budget.
+ * @returns True when a GE/LE OrigDt node is found.
+ */
+function hasRangeNodeBFS(queue: readonly JsonRecord[], depth: number): boolean {
+  if (queue.length === 0 || depth <= 0) return false;
+  if (queue.some(isRangeNode)) return true;
+  const next = queue.flatMap(r => Object.values(r).flatMap(childRecs));
+  return hasRangeNodeBFS(next, depth - 1);
+}
+
+/**
  * Detect a nested GE/LE OrigDt date-range template.
  * @param template - Captured POST body string.
  * @returns True when a range node exists.
  */
 function isDateRangeBody(template: string): boolean {
   if (!template) return false;
-  let hasHit = false;
   try {
     const root = JSON.parse(template) as JsonRecord;
-    walk(
-      [root],
-      (n): void => {
-        hasHit = hasHit || isRangeNode(n);
-      },
-      MAX_RANGE_DEPTH,
-    );
+    return hasRangeNodeBFS([root], MAX_RANGE_DEPTH);
   } catch {
     return false;
   }
-  return hasHit;
 }
 
 /**
