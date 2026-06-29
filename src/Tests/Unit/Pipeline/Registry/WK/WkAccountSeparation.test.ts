@@ -11,13 +11,14 @@ import {
 } from '../../../../../Scrapers/Pipeline/Registry/WK/ScrapeWK.js';
 
 describe('PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS — Phase 7d separation', () => {
-  it('exposes the 5 WK container names in card-then-bank-account order', () => {
+  it('exposes the 6 WK container names in card-then-bank-account order', () => {
     expect(WK_ACCT.containers).toEqual([
       'cardsList',
       'cards',
       'accounts',
       'bankAccounts',
       'accountsItems',
+      'DataEntity',
     ]);
   });
 
