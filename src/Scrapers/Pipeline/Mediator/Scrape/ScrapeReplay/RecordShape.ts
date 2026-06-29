@@ -11,6 +11,7 @@ import type { IDateBounds } from './BodyDateRange.js';
 import { applyDateRangeToBody, isDateRangeBody } from './BodyDateRange.js';
 import replaceField from './JsonReplace.js';
 import type { JsonRecord } from './JsonTypes.js';
+import ensureRequestOrigin from './RequestOrigin.js';
 
 /**
  * Account record passed through buildMonthBody for shape-aware
@@ -226,10 +227,8 @@ function applyCompositeDate(args: ICompositeArgs): true {
  * @returns True after apply.
  */
 function applyDirectMonthYear(args: IMonthYearArgs): true {
-  const monthStr = String(args.month);
-  const yearStr = String(args.year);
-  replaceField(args.body, MF.month, monthStr);
-  replaceField(args.body, MF.year, yearStr);
+  replaceField(args.body, MF.month, String(args.month));
+  replaceField(args.body, MF.year, String(args.year));
   return true;
 }
 
@@ -285,6 +284,7 @@ function buildMonthBody(opts: IMonthBodyOpts): JsonRecord {
   if (opts.accountRecord) {
     applyRecordShape(body, opts.accountRecord, RESERVED_WK_KEYS);
   }
+  ensureRequestOrigin(body);
   return body;
 }
 
