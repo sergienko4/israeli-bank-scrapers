@@ -25,10 +25,11 @@ const LABEL_TXN_AND_CHARGES = 'עסקאות וחיובים' as const;
 const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
   { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
   // Bank Yahav (BaNCS Digital) reaches the account-movements view via the
-  // "פרטי חשבון" (account details) nav link off the dashboard home. Distinct
-  // exact label — only Yahav exposes it; placed near the top so the
-  // account-intent nav wins over generic card-transaction labels.
-  { kind: 'clickableText', value: 'פרטי חשבון' },
+  // "פרטי חשבון" (account details) nav link off the dashboard home. EXACT
+  // text only — Discount exposes "פרטי חשבון והגדרות" which a substring
+  // match would wrongly click; exactText disambiguates and is safe near the
+  // top so Yahav's account-intent nav wins over generic card labels.
+  { kind: 'exactText', value: 'פרטי חשבון' },
   { kind: KIND_ARIA_LABEL, value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות עו"ש' },
