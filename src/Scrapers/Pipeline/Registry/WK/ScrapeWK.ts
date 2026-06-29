@@ -66,6 +66,16 @@ export const PIPELINE_WELL_KNOWN_API = {
     // outside `get\w*Transactions`, so it needs its own pattern. The
     // module name is Leumi-specific; no cross-bank overlap.
     /GetBusinessAccountTrx/i,
+    // Yahav BaNCS digital app routes EVERY operation (balance, txns,
+    // holds, account) through the single POST path `/BaNCSDigitalApp/
+    // account` — the URL alone cannot disambiguate, so balance/holds
+    // also match. `discoverShapeAware` then ranks by `hasTxnArray`
+    // (date+amount alias on a non-empty nested array), so only the real
+    // transaction op (DataEntity `Transaction_1.0.0`) wins on a funded
+    // account; the balance (`BalanceList`) / holds (`AccountHold`) ops
+    // carry no txn array and lose. `BaNCSDigitalApp` is Yahav-unique →
+    // zero cross-bank overlap.
+    /BaNCSDigitalApp\/account/i,
   ],
   // Negative patterns — URL paths that MATCH the `transactions` list
   // above but actually serve dashboard-PREVIEW / status-page WIDGET

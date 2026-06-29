@@ -19,6 +19,7 @@ const KIND_ARIA_LABEL = 'ariaLabel' as const;
 const LABEL_OTP_ONETIME = 'קוד חד פעמי' as const;
 const LABEL_CARD_DIGITS = 'ספרות הכרטיס' as const;
 const LABEL_ACCOUNT_NUMBER = 'מספר חשבון' as const;
+const LABEL_NATIONAL_ID = 'תעודת זהות' as const;
 
 /** The valid slot names in WK.LOGIN.ACTION.FORM. */
 type FormSlot =
@@ -38,13 +39,16 @@ export const WK_LOGIN_FORM = {
     { kind: 'labelText', value: 'קוד משתמש' },
     { kind: 'placeholder', value: 'שם משתמש' },
     { kind: 'placeholder', value: 'קוד משתמש' },
+    { kind: KIND_ARIA_LABEL, value: 'שם משתמש' },
   ],
   nationalId: [
-    { kind: 'labelText', value: 'תעודת זהות' },
+    { kind: 'labelText', value: LABEL_NATIONAL_ID },
     { kind: 'labelText', value: 'מספר זהות' },
-    { kind: 'placeholder', value: 'תעודת זהות' },
+    { kind: 'placeholder', value: LABEL_NATIONAL_ID },
     { kind: 'placeholder', value: 'מספר תעודת זהות' },
     { kind: 'placeholder', value: 'מספר זהות' },
+    { kind: KIND_ARIA_LABEL, value: 'תעודת זהות (9 ספרות)' },
+    { kind: KIND_ARIA_LABEL, value: LABEL_NATIONAL_ID },
     { kind: KIND_TEXT_CONTENT, value: 'מספר תעודת זהות' },
     { kind: KIND_TEXT_CONTENT, value: 'מספר זהות' },
   ],
@@ -80,6 +84,7 @@ export const WK_LOGIN_FORM = {
     { kind: 'labelText', value: 'קוד משתמש' },
 
     { kind: KIND_ARIA_LABEL, value: LABEL_ACCOUNT_NUMBER },
+    { kind: KIND_ARIA_LABEL, value: 'קוד משתמש' },
 
     { kind: KIND_TEXT_CONTENT, value: 'קוד מזהה' },
     { kind: 'placeholder', value: LABEL_ACCOUNT_NUMBER },
@@ -130,11 +135,8 @@ export const WK_LOGIN_ERROR = [
 /** Credential key → FORM slot mapping. */
 export const WK_CONCEPT_MAP: Partial<Record<string, FormSlot>> = {
   id: 'nationalId',
-  nationalId: 'nationalId',
   // Yahav declares its third credential as `nationalID` (capital ID) — the
-  // same id-document slot, just a different key spelling. Mapping both
-  // casings keeps WellKnown field resolution casing-tolerant; no other
-  // bank uses the capital-ID form, so there is no collision.
+  // id-document slot. No other bank uses this key, so there is no collision.
   nationalID: 'nationalId',
   username: 'username',
   userCode: 'accountNum',

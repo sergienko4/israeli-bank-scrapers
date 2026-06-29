@@ -138,6 +138,7 @@ const KNOWN_BANK_SLUGS: readonly string[] = [
   'paybox',
   'pepper',
   'visacal',
+  'yahav',
 ];
 
 /**

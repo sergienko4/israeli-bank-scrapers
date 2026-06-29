@@ -37,7 +37,7 @@ export const PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS = {
    * appended last. Matching is suffix-based (`key.endsWith(wkName)`),
    * and `accountsItems` is not a suffix of any other bank's key.
    */
-  containers: ['cardsList', 'cards', 'accounts', 'bankAccounts', 'accountsItems'],
+  containers: ['cardsList', 'cards', 'accounts', 'bankAccounts', 'accountsItems', 'DataEntity'],
   /** Combined identifier list — query-style first, display-style second. */
   id: [...QUERY_ID_FIELDS, ...DISPLAY_ID_FIELDS],
   /** Display identifiers (last-4 / short forms shown on the card). */

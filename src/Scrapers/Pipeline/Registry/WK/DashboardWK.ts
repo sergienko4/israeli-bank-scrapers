@@ -25,11 +25,11 @@ const LABEL_TXN_AND_CHARGES = 'עסקאות וחיובים' as const;
 const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
   { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
   // Bank Yahav (BaNCS Digital) reaches the account-movements view via the
-  // "פרטי חשבון" (account details) nav link off the dashboard home. EXACT
-  // text only — Discount exposes "פרטי חשבון והגדרות" which a substring
-  // match would wrongly click; exactText disambiguates and is safe near the
-  // top so Yahav's account-intent nav wins over generic card labels.
-  { kind: 'exactText', value: 'פרטי חשבון' },
+  // "חשבון עו״ש" (current account) nav link off the dashboard home. Both quote
+  // forms — gershayim ״ (U+05F4, what the live site renders) and the straight
+  // ASCII " — are listed so resolution is punctuation-tolerant.
+  { kind: 'clickableText', value: 'חשבון עו״ש' },
+  { kind: 'clickableText', value: 'חשבון עו"ש' },
   { kind: KIND_ARIA_LABEL, value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות עו"ש' },
@@ -77,6 +77,7 @@ export const WK_DASHBOARD = {
   ],
   REVEAL: [
     { kind: KIND_REGEX, value: String.raw`כניסתך האחרונה.*\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}` },
+    { kind: KIND_TEXT_CONTENT, value: 'חשבון עו״ש' },
     { kind: KIND_TEXT_CONTENT, value: LABEL_TXN_AND_CHARGES },
     { kind: KIND_TEXT_CONTENT, value: 'כל הפעולות' },
     { kind: KIND_TEXT_CONTENT, value: 'חיובים ועסקאות' },
@@ -91,7 +92,9 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'פעולות' },
     { kind: KIND_TEXT_CONTENT, value: 'עובר ושב' },
     { kind: KIND_TEXT_CONTENT, value: 'עו"ש' },
+    { kind: KIND_TEXT_CONTENT, value: 'עו״ש' },
     { kind: KIND_TEXT_CONTENT, value: 'חשבון עו"ש' },
+    { kind: KIND_TEXT_CONTENT, value: 'חשבון עו״ש' },
     { kind: KIND_TEXT_CONTENT, value: 'פעולות נוספות' },
     { kind: KIND_TEXT_CONTENT, value: 'תפריט' },
     { kind: KIND_TEXT_CONTENT, value: 'שירות אונליין' },

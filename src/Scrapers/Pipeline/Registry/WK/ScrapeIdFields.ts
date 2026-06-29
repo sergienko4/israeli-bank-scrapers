@@ -40,6 +40,11 @@ export const QUERY_ID_FIELDS = [
   'accountId',
   'CardId',
   'cardIndex',
+  // Bank Yahav (BaNCS Digital) — the portfolio handle the BaNCS app
+  // replays as the account selector lives at `Prtflio.Id.iorId` (e.g.
+  // "mBzx0Q"). Found recursively; exact case-insensitive match so it
+  // cannot collide with another bank's id key.
+  'iorId',
   // Leumi (WCF `UC_SO_GetAccounts`) — the numeric account index used as
   // the query key on Leumi POST bodies (e.g. UC_SO_27 transactions).
   // Exact case-insensitive match; no cross-bank collision.
