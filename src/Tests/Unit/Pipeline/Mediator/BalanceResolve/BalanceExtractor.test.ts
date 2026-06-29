@@ -247,13 +247,14 @@ describe('BalanceExtractor — resolveRecordBalance defensive branches', () => {
   });
 
   it('returns false past MAX_BFS_DEPTH via array-of-array nesting (L162 branch)', () => {
-    // descendNode bounds the recursion via depth > maxDepth (=4). The
-    // record path uses findFieldValue which does its own unbounded BFS
-    // inside one record, so depth only matters for nested ARRAYS where
-    // each descendArray descends one level into each child via
-    // descendNode. 6 levels of array wrapping a record exceeds the
-    // bound and forces the guard to fire on the deepest descendNode.
-    const deep: JsonValue = [[[[[[{ balance: 999 }]]]]]];
+    // descendNode bounds the recursion via depth > maxDepth (=8). Each
+    // descendArray increments depth by 1 for the next descendNode call;
+    // scanArrayILSFirst runs at the CURRENT depth, so only the recursive
+    // call into the NEXT array level is bounded. 10 levels of array
+    // wrapping a record places {balance:999} behind the 9th recursive
+    // call (depth=9 > maxDepth=8) — the guard fires before
+    // descendArray/scanArrayILSFirst can reach the record.
+    const deep: JsonValue = [[[[[[[[[[{ balance: 999 }]]]]]]]]]];
     const got = runBalanceExtractor(deep);
     expect(got).toBe(false);
   });
