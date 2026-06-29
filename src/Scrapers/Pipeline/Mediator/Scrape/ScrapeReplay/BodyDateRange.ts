@@ -35,7 +35,7 @@ function isRec(v: JsonNode): v is JsonRecord {
  * @returns Child records for BFS.
  */
 function childRecs(v: JsonNode): JsonRecord[] {
-  if (Array.isArray(v)) return v.filter(isRec) as JsonRecord[];
+  if (Array.isArray(v)) return v.filter(isRec);
   return isRec(v) ? [v] : [];
 }
 
@@ -92,11 +92,12 @@ function walk(queue: readonly JsonRecord[], visit: (n: JsonRecord) => void, dept
  */
 function isDateRangeBody(template: string): boolean {
   if (!template) return false;
-  let hit = false;
+  let hasHit = false;
   try {
-    walk([JSON.parse(template) as JsonRecord], (n): void => { hit = hit || isRangeNode(n); }, MAX_RANGE_DEPTH);
+    const root = JSON.parse(template) as JsonRecord;
+    walk([root], (n): void => { hasHit = hasHit || isRangeNode(n); }, MAX_RANGE_DEPTH);
   } catch { return false; }
-  return hit;
+  return hasHit;
 }
 
 /**
@@ -108,5 +109,5 @@ function applyDateRangeToBody(body: JsonRecord, bounds: IDateBounds): void {
   walk([body], (n): void => { if (isRangeNode(n)) applyNode(n, bounds); }, MAX_RANGE_DEPTH);
 }
 
-export { isDateRangeBody, applyDateRangeToBody };
+export { applyDateRangeToBody, isDateRangeBody };
 export type { IDateBounds };

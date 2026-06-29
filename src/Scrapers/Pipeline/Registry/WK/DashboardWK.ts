@@ -14,6 +14,10 @@ const KIND_REGEX = 'regex' as const;
  *  TRANSACTIONS, and SUCCESS lists as a dashboard signal. */
 const LABEL_TXN_AND_CHARGES = 'עסקאות וחיובים' as const;
 
+/** Hebrew "current account" (חשבון עו״ש, gershayim ״ U+05F4) — the live BaNCS
+ *  Digital nav label; appears in TRANSACTIONS, REVEAL, and MENU_EXPAND. */
+const LABEL_CURRENT_ACCOUNT_NAV = 'חשבון עו״ש' as const;
+
 /** Transactions/charges navigation candidates, priority-ordered: bank-account
  *  intent → card transactions → medium → generic. The exact-text
  *  "פירוט החיובים והעסקאות" (with definite articles) sits at the top to
@@ -28,7 +32,7 @@ const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
   // "חשבון עו״ש" (current account) nav link off the dashboard home. Both quote
   // forms — gershayim ״ (U+05F4, what the live site renders) and the straight
   // ASCII " — are listed so resolution is punctuation-tolerant.
-  { kind: 'clickableText', value: 'חשבון עו״ש' },
+  { kind: 'clickableText', value: LABEL_CURRENT_ACCOUNT_NAV },
   { kind: 'clickableText', value: 'חשבון עו"ש' },
   { kind: KIND_ARIA_LABEL, value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות בחשבון' },
@@ -77,7 +81,7 @@ export const WK_DASHBOARD = {
   ],
   REVEAL: [
     { kind: KIND_REGEX, value: String.raw`כניסתך האחרונה.*\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}` },
-    { kind: KIND_TEXT_CONTENT, value: 'חשבון עו״ש' },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT_NAV },
     { kind: KIND_TEXT_CONTENT, value: LABEL_TXN_AND_CHARGES },
     { kind: KIND_TEXT_CONTENT, value: 'כל הפעולות' },
     { kind: KIND_TEXT_CONTENT, value: 'חיובים ועסקאות' },
@@ -94,7 +98,7 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'עו"ש' },
     { kind: KIND_TEXT_CONTENT, value: 'עו״ש' },
     { kind: KIND_TEXT_CONTENT, value: 'חשבון עו"ש' },
-    { kind: KIND_TEXT_CONTENT, value: 'חשבון עו״ש' },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT_NAV },
     { kind: KIND_TEXT_CONTENT, value: 'פעולות נוספות' },
     { kind: KIND_TEXT_CONTENT, value: 'תפריט' },
     { kind: KIND_TEXT_CONTENT, value: 'שירות אונליין' },
