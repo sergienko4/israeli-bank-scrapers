@@ -215,6 +215,9 @@ jobs:
       - name: Prettier check
         if: needs.changes.outputs.src == 'true'
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
+      - name: E2E-Real gate-matrix coverage
+        if: needs.changes.outputs.ci_scripts == 'true'
+        run: node scripts/validate-gate-matrix.mjs
       - name: Lint Markdown
         if: needs.changes.outputs.md == 'true' || needs.changes.outputs.src == 'true'
         uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23.2.0

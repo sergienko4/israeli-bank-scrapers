@@ -22,6 +22,17 @@
 # blocks merges).
 set -o pipefail
 
+# E2E gate-matrix guard (always-run): every e2e-real-group-X runner must
+# have its approval gate triad. Mirrors CI `lint:gate-matrix`. Skips when
+# pr.yml is absent (other repos) so it can never block unrelated pushes.
+if [ -f ".github/workflows/pr.yml" ]; then
+    echo "🔍 pre-push: validating E2E gate-matrix"
+    if ! node scripts/validate-gate-matrix.mjs; then
+        echo "❌ pre-push: ungated E2E-Real group(s) — add the gate triad."
+        exit 1
+    fi
+fi
+
 PR_BODY_PATH=""
 if [ -n "${PR_BODY_FILE:-}" ] && [ -f "${PR_BODY_FILE}" ]; then
     PR_BODY_PATH="${PR_BODY_FILE}"
