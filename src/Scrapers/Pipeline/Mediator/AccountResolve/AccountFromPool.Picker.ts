@@ -14,6 +14,7 @@ import {
   findFieldValue,
 } from '../Scrape/ScrapeAutoMapper.js';
 import type { IAccountDiscoveryResult } from './AccountFromPool.Types.js';
+import { deriveBancsDisplayIds } from './BancsPortfolioAccount.js';
 
 /**
  * True iff the first element of a candidate array is an object that
@@ -202,7 +203,8 @@ function poolMaxContainer(pool: readonly IDiscoveredEndpoint[]): number {
  */
 function buildDiscoveryFromEndpoint(endpoint: IDiscoveredEndpoint): IAccountDiscoveryResult {
   const body = endpoint.responseBody as ApiPayload;
-  const ids = extractAccountIds(body);
+  const rawIds = extractAccountIds(body);
+  const ids = deriveBancsDisplayIds(body, rawIds);
   const records = extractAccountRecords(body);
   const containers = extractAllContainers(body);
   return { endpoint, ids, records, containers };
