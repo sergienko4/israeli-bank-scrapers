@@ -7,6 +7,8 @@
 
 import { PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF } from '../../../Registry/WK/ScrapeWK.js';
 import type { JsonNode } from '../JsonTraversal.js';
+import type { IDateBounds } from './BodyDateRange.js';
+import { applyDateRangeToBody, isDateRangeBody } from './BodyDateRange.js';
 import replaceField from './JsonReplace.js';
 import type { JsonRecord } from './JsonTypes.js';
 
@@ -113,19 +115,35 @@ function findScalarShapeHit(ctx: IShapeStepCtx, bodyKey: string): IShapeHit | fa
 }
 
 /**
+ * True when `v` is a structural type-version sentinel — a `*_<major>.<minor>.<patch>`
+ * tag such as `MessageEnvelope_1.0.0`.
+ *
+ * <p>These tags discriminate the envelope/record TYPE on the wire and must never
+ * be overwritten by a per-card account-record field that happens to share the
+ * body key (e.g. a record carrying its own `Ver` of a different type). Skipping
+ * them keeps the replayed body's structural type identical to the captured
+ * template. The regex is end-anchored with no nested quantifier (ReDoS-safe).
+ * @param v - candidate body value.
+ * @returns true when v is a string ending in `_<digits>.<digits>.<digits>`.
+ */
+function isVersionSentinel(v: JsonNode): boolean {
+  return typeof v === 'string' && /_\d+\.\d+\.\d+$/.test(v);
+}
+
+/**
  * Substitutes `ctx.body[bk]` with the matching scalar from `ctx.record`,
- * unless `bk` is reserved for WK monthly substitution.
+ * unless `bk` is reserved for WK monthly substitution or holds a structural
+ * type-version sentinel.
  * @param ctx - bundled shape context.
  * @param bk - body key under consideration.
  * @returns True when a substitution was applied.
  */
 function applyShapeForKey(ctx: IShapeStepCtx, bk: string): boolean {
   const lowerBk = bk.toLowerCase();
-  if (ctx.skipKeys.has(lowerBk)) return false;
+  if (ctx.skipKeys.has(lowerBk) || isVersionSentinel(ctx.body[bk])) return false;
   const hit = findScalarShapeHit(ctx, bk);
   if (!hit) return false;
-  const before = ctx.body[bk];
-  ctx.body[bk] = coerceToBodyType(before, hit.recVal);
+  ctx.body[bk] = coerceToBodyType(ctx.body[bk], hit.recVal);
   return true;
 }
 
@@ -232,6 +250,30 @@ function applyMonthYear(body: JsonRecord, month: number, year: number): true {
 }
 
 /**
+ * First-day/last-day bounds for a calendar month (1-indexed).
+ * @param month - Calendar month, 1-indexed (1 = January).
+ * @param year - Full calendar year.
+ * @returns Inclusive { from, to } Date bounds for the month.
+ */
+function monthBounds(month: number, year: number): IDateBounds {
+  return { from: new Date(year, month - 1, 1), to: new Date(year, month, 0) };
+}
+
+/**
+ * Apply the per-month window: a nested from/to date-range body gets its
+ * GE/LE bounds rewritten; a top-level month/year body gets month/year keys.
+ * @param body - Body to mutate.
+ * @param opts - Month body options (template + month + year).
+ */
+function applyDates(body: JsonRecord, opts: IMonthBodyOpts): void {
+  if (isDateRangeBody(opts.template)) {
+    applyDateRangeToBody(body, monthBounds(opts.month, opts.year));
+    return;
+  }
+  applyMonthYear(body, opts.month, opts.year);
+}
+
+/**
  * Build a POST body for one month from a template.
  * @param opts - Month body options with template + values.
  * @returns New POST body as Record.
@@ -239,7 +281,7 @@ function applyMonthYear(body: JsonRecord, month: number, year: number): true {
 function buildMonthBody(opts: IMonthBodyOpts): JsonRecord {
   const body = JSON.parse(opts.template) as JsonRecord;
   replaceField(body, MF.accountId, opts.accountId);
-  applyMonthYear(body, opts.month, opts.year);
+  applyDates(body, opts);
   if (opts.accountRecord) {
     applyRecordShape(body, opts.accountRecord, RESERVED_WK_KEYS);
   }
@@ -280,6 +322,7 @@ function safeParse(raw: string): JsonRecord | false {
  */
 function isMonthlyEndpoint(postData: string): boolean {
   if (!postData) return false;
+  if (isDateRangeBody(postData)) return true;
   const body = safeParse(postData);
   if (!body) return false;
   const hasMonth = MF.month.some((f): boolean => f in body);

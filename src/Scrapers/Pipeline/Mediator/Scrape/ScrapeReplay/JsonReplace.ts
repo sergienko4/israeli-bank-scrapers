@@ -57,14 +57,23 @@ function findLowerHit(keys: readonly string[], fieldNames: readonly string[]): s
 
 /**
  * Try to replace a WK field in a single object.
+ *
+ * <p>When the matched key holds a CONTAINER (object or array), the value is left
+ * intact and `false` is returned so the BFS descends INTO it instead of
+ * flattening it to a scalar. This preserves banks (e.g. BaNCS-core) whose
+ * account identifier is a nested object — overwriting it with a flat string
+ * would corrupt the body and the bank would reject the request. For flat banks
+ * the matched value is a scalar, so the guard is inert and the overwrite runs.
  * @param obj - Object to check and mutate.
  * @param fieldNames - WellKnown field names to match.
  * @param value - New value to set.
- * @returns True if a field was replaced.
+ * @returns True if a scalar field was replaced; false if absent or a container.
  */
 function replaceInObject(obj: JsonRecord, fieldNames: readonly string[], value: string): boolean {
   const bodyKey = findLowerHit(Object.keys(obj), fieldNames);
   if (!bodyKey) return false;
+  const current = obj[bodyKey];
+  if (current !== null && typeof current === 'object') return false;
   obj[bodyKey] = value;
   return true;
 }

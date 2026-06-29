@@ -173,6 +173,75 @@ describe('buildMonthBody', () => {
   });
 });
 
+/**
+ * Minimal typed view of the Yahav BaNCS-core replay body, so the regression
+ * assertions can navigate the nested account identifier without using `any`.
+ */
+interface IYahavReplayShape {
+  readonly Ver: string;
+  readonly Payload: {
+    readonly DataEntity: readonly {
+      readonly AccountId: { readonly Id: { readonly Id: string } };
+    }[];
+  };
+}
+
+describe('buildMonthBody — Yahav nested-account replay (regression)', () => {
+  // Offline-proven root cause (PR #396): the scrape-replay engine corrupted a
+  // correct captured transaction template in TWO places before re-sending it,
+  // which made the bank return 0 transactions (server ERROR 90000):
+  //   1. Payload.DataEntity[0].AccountId (a nested object) was flattened to ""
+  //      by the unconditional replaceField overwrite.
+  //   2. the envelope-level Ver (MessageEnvelope_1.0.0) was clobbered by the
+  //      account record's Ver (PortfolioAccountRelationship_1.0.0).
+  // Flat banks (Isracard/Amex/Max/VisaCal) stay byte-identical because their
+  // cardId/accountId is a top-level scalar and the envelope Ver never matches a
+  // record key.
+  const template = JSON.stringify({
+    Ver: 'MessageEnvelope_1.0.0',
+    Payload: {
+      DataEntity: [
+        {
+          Ver: 'AccountData_1.0.0',
+          AccountId: {
+            Ver: 'AccountIdentifier_1.0.0',
+            AcctIds: { BANKACCOUNTID: '' },
+            Id: { Ver: 'Identifier_1.0.0', Id: '0009999999999' },
+            iorId: 'AbCdEf',
+          },
+          Category: ['CURRENT_ACCOUNT'],
+        },
+      ],
+    },
+  });
+
+  /**
+   * Replays the Yahav captured template once.
+   *
+   * @returns the replayed body as the typed Yahav shape.
+   */
+  function buildYahavResult(): IYahavReplayShape {
+    const result = buildMonthBody({
+      template,
+      accountId: '',
+      month: 12,
+      year: 2025,
+      accountRecord: { Ver: 'PortfolioAccountRelationship_1.0.0', AccountId: '' },
+    });
+    return result as unknown as IYahavReplayShape;
+  }
+
+  it('preserves the nested AccountId object (Fix #1: replaceField container guard)', () => {
+    const result = buildYahavResult();
+    expect(result.Payload.DataEntity[0].AccountId.Id.Id).toBe('0009999999999');
+  });
+
+  it('preserves the envelope Ver against the account record (Fix #2: version sentinel)', () => {
+    const result = buildYahavResult();
+    expect(result.Ver).toBe('MessageEnvelope_1.0.0');
+  });
+});
+
 describe('isMonthlyEndpoint', () => {
   it('returns false for empty POST data', () => {
     const isMonthlyEndpointResult1 = isMonthlyEndpoint('');
@@ -309,6 +378,27 @@ describe('replaceField — exhaustion', () => {
     };
     const isChanged = replaceField(body, ['accountId'], 'NEW');
     expect(isChanged).toBe(true);
+  });
+});
+
+describe('replaceField — container guard (Yahav nested AccountId)', () => {
+  // A key whose NAME matches the field list but whose VALUE is a nested object
+  // must be preserved, not flattened to the scalar replacement. BaNCS-core banks
+  // (Yahav) carry the account identifier as a nested object; flattening it to ""
+  // made the bank reject the replayed request and return 0 transactions.
+  it('preserves a name-matching nested object instead of overwriting it', () => {
+    const body: JsonRecord = {
+      AccountId: {
+        Ver: 'AccountIdentifier_1.0.0',
+        Id: { Ver: 'Identifier_1.0.0', Id: '0009999999999' },
+      },
+    };
+    const isChanged = replaceField(body, ['accountId'], '');
+    expect(isChanged).toBe(false);
+    expect(body.AccountId).toEqual({
+      Ver: 'AccountIdentifier_1.0.0',
+      Id: { Ver: 'Identifier_1.0.0', Id: '0009999999999' },
+    });
   });
 });
 
