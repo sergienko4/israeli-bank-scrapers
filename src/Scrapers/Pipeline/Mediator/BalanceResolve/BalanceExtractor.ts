@@ -2,7 +2,7 @@
  * BALANCE-RESOLVE — balance extractor.
  *
  * Pure-function balance discovery in a captured response body.
- * Implements F2 (bounded BFS to depth 4), F4 (string coercion +
+ * Implements F2 (bounded BFS to depth 8), F4 (string coercion +
  * Number.isFinite check), and F5 (ILS-first per-currency selection).
  *
  * Uses {@link PIPELINE_BALANCE_ALIASES} — the full WK balance-alias
@@ -24,8 +24,9 @@ import { findFieldValue } from '../Scrape/ScrapeAutoMapper.js';
 type JsonObject = Record<string, JsonValue>;
 type MaybeRecord = JsonObject | null | undefined;
 
-/** Maximum depth for bounded BFS. Empirically covers every captured shape. */
-const MAX_BFS_DEPTH = 4;
+/** Maximum depth for bounded BFS. Empirically covers every captured shape
+ * incl. BaNCS-core nested CurrAmt.Amt.Value (Yahav DemandDepositAccount). */
+const MAX_BFS_DEPTH = 8;
 
 /**
  * Type guard: value is a plain record (non-null, non-array object).

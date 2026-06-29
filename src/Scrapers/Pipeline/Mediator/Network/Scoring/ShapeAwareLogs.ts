@@ -16,6 +16,7 @@ const LOG = getDebug(import.meta.url);
 type ShapeAwareTier =
   | 'none'
   | 'postWithShape'
+  | 'replayablePostTxn'
   | 'replayablePost'
   | 'shapePassing'
   | 'preClickFallback'

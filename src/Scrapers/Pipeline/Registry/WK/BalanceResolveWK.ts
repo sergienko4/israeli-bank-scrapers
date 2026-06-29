@@ -46,6 +46,7 @@ export const PIPELINE_BALANCE_ALIASES: readonly string[] = [
   'billingSumSekel',
   'totalIlsBillingDate',
   'BalanceDisplay',
+  'Value',
 ] as const;
 
 /**

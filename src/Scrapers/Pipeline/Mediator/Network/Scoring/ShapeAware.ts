@@ -12,13 +12,27 @@
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS } from '../../../Registry/WK/ScrapeWK.js';
 import { hasTxnArray, isTxnWidgetUrl } from '../../Scrape/TxnShape.js';
 import { isReplayablePost } from '../Indexing/Indexing.js';
-import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
+import type { IDiscoveredEndpoint, PickerTier } from '../NetworkDiscoveryTypes.js';
 import safeParseWindowUrl from './SafeUrl.js';
 import { logShapeAwarePick, type ShapeAwareTier } from './ShapeAwareLogs.js';
 
 /** WK-aliased date-window param keys for the `windowParamsMatch` tier. */
 const WINDOW_FROM_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.fromDate);
 const WINDOW_TO_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.toDate);
+
+/** Body marker for a txn-pull POST template (vs. an account-list POST). */
+const TXN_POSTDATA_MARKER = /transaction/i;
+
+/**
+ * True when a replayable POST's request body references the txn-pull
+ * data entity — distinguishes a transaction template from a sibling
+ * account-list POST sharing the same URL. Bank-agnostic.
+ * @param ep - Candidate endpoint.
+ * @returns True for a replayable POST carrying the txn marker.
+ */
+function isTxnReplayablePost(ep: IDiscoveredEndpoint): boolean {
+  return isReplayablePost(ep) && TXN_POSTDATA_MARKER.test(ep.postData);
+}
 
 /**
  * True when the URL's searchParams carry both a fromDate alias AND a
@@ -80,6 +94,8 @@ function pickFallbackTiers(
  */
 function pickReplayableOrShape(input: IPickerInput): ITierPickOutcome | false {
   const { urlMatches, shapePassing, matches } = input;
+  const txnPost = urlMatches.find(isTxnReplayablePost);
+  if (txnPost) return { endpoint: txnPost, tier: 'replayablePostTxn', matches };
   const anyReplayablePost = urlMatches.find(isReplayablePost);
   if (anyReplayablePost) return { endpoint: anyReplayablePost, tier: 'replayablePost', matches };
   if (shapePassing.length > 0) return { endpoint: shapePassing[0], tier: 'shapePassing', matches };
@@ -139,6 +155,23 @@ function tierPick(
 }
 
 /**
+ * Narrow each granular {@link ShapeAwareTier} to the persisted
+ * {@link PickerTier}. Only `replayablePostTxn` (a telemetry-only
+ * refinement of `replayablePost`) collapses; every other tier maps to
+ * its own identity, so adding a ShapeAwareTier forces a mapping decision.
+ */
+const SHAPE_TIER_TO_PICKER: Record<ShapeAwareTier, PickerTier> = {
+  none: 'none',
+  postWithShape: 'postWithShape',
+  replayablePostTxn: 'replayablePost',
+  replayablePost: 'replayablePost',
+  shapePassing: 'shapePassing',
+  preClickFallback: 'preClickFallback',
+  urlOnlyMatch: 'urlOnlyMatch',
+  windowParamsMatch: 'windowParamsMatch',
+};
+
+/**
  * Stamp the picker tier label and pre-click flag onto the chosen
  * endpoint so DASHBOARD.FINAL's resolver can carry them onto
  * `ITxnEndpointInternal`.
@@ -152,7 +185,7 @@ function stampTierMeta(
   tier: ShapeAwareTier,
   capturedPreClick: boolean,
 ): IDiscoveredEndpoint {
-  return { ...endpoint, pickerTier: tier, capturedPreClick };
+  return { ...endpoint, pickerTier: SHAPE_TIER_TO_PICKER[tier], capturedPreClick };
 }
 
 /**
