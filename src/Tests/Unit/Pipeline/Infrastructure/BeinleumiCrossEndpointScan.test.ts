@@ -93,18 +93,16 @@ function loadAllDumps(): readonly ILoadedResponse[] {
  * @returns Endpoint list with only the fields the scanners read.
  */
 function adaptEndpoints(dumps: readonly ILoadedResponse[]): readonly IDiscoveredEndpoint[] {
-  return dumps.map(
-    (d): IDiscoveredEndpoint => ({
-      url: d.url,
-      method: 'GET',
-      postData: '',
-      contentType: 'application/json',
-      requestHeaders: {},
-      responseHeaders: {},
-      responseBody: d.body,
-      timestamp: 0,
-    }),
-  );
+  return dumps.map((d): IDiscoveredEndpoint => ({
+    url: d.url,
+    method: 'GET',
+    postData: '',
+    contentType: 'application/json',
+    requestHeaders: {},
+    responseHeaders: {},
+    responseBody: d.body,
+    timestamp: 0,
+  }));
 }
 
 /**

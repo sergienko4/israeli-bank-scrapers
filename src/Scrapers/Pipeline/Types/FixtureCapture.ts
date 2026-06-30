@@ -162,13 +162,11 @@ export async function collectIframeSnapshots(page: Page): Promise<readonly IIfra
   const children = page.frames().filter((f): IsMainFrame => (f !== mainFrame) as IsMainFrame);
   const readPromises = children.map(readFrameContent);
   const htmls = await Promise.all(readPromises);
-  const snaps = children.map(
-    (f, i): IIframeSnapshot => ({
-      html: htmls[i],
-      url: readFrameUrl(f),
-      name: readFrameName(f),
-    }),
-  );
+  const snaps = children.map((f, i): IIframeSnapshot => ({
+    html: htmls[i],
+    url: readFrameUrl(f),
+    name: readFrameName(f),
+  }));
   return snaps.filter((s): IsNonEmptySnapshot => (s.html.length > 0) as IsNonEmptySnapshot);
 }
 
@@ -216,14 +214,12 @@ async function writeFrameMetadata(
   const meta: IFrameMetaFile = {
     label: args.label,
     main: { url: mainUrl, htmlPath: `${args.label}.html` },
-    iframes: indexed.map(
-      (s): IIframeMetaRow => ({
-        idx: s.idx,
-        url: s.url,
-        name: s.name,
-        htmlPath: `${args.label}-iframe-${String(s.idx)}.html`,
-      }),
-    ),
+    iframes: indexed.map((s): IIframeMetaRow => ({
+      idx: s.idx,
+      url: s.url,
+      name: s.name,
+      htmlPath: `${args.label}-iframe-${String(s.idx)}.html`,
+    })),
   };
   const metaPath = `${args.bankDir}/${args.label}.frames.json`;
   const json = JSON.stringify(meta);
@@ -241,16 +237,14 @@ async function writeFrameMetadata(
 async function maybeWalkFrames(fs: FsPromisesModule, args: IWriteFrameArgs): Promise<number> {
   if (!args.walkFrames) return 0;
   const snapshots = await collectIframeSnapshots(args.page);
-  const indexed = snapshots.map(
-    (s, idx): IIndexedSnapshot => ({
-      html: s.html,
-      url: s.url,
-      name: s.name,
-      idx,
-    }),
-  );
-  const writePromises = indexed.map(
-    (s): Promise<void> => writeIframeSnapshot({ fs, outer: args, snap: s }),
+  const indexed = snapshots.map((s, idx): IIndexedSnapshot => ({
+    html: s.html,
+    url: s.url,
+    name: s.name,
+    idx,
+  }));
+  const writePromises = indexed.map((s): Promise<void> =>
+    writeIframeSnapshot({ fs, outer: args, snap: s }),
   );
   await Promise.all(writePromises);
   await writeFrameMetadata(fs, args, indexed);

@@ -85,9 +85,7 @@ interface IExternalBrowserContextOptions {
 }
 
 type ScraperBrowserOptions =
-  | IExternalBrowserOptions
-  | IExternalBrowserContextOptions
-  | IDefaultBrowserOptions;
+  IExternalBrowserOptions | IExternalBrowserContextOptions | IDefaultBrowserOptions;
 
 export type ScraperOptions = ScraperBrowserOptions & {
   /**

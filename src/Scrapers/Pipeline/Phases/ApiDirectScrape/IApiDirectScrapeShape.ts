@@ -53,8 +53,7 @@ export type ApiBody = Record<string, unknown>;
 export type CustomerUrlTag = WKUrlGroup | ((ctx: IActionContext) => WKUrlGroup);
 export type BalanceUrlTag<TAcct> = WKUrlGroup | ((acct: TAcct) => WKUrlGroup);
 export type TxnsUrlTag<TAcct, TCursor> =
-  | WKUrlGroup
-  | ((acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => WKUrlGroup);
+  WKUrlGroup | ((acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => WKUrlGroup);
 
 /**
  * Bundle passed to {@link IApiDirectScrapeCustomerStep.extractAccounts}.

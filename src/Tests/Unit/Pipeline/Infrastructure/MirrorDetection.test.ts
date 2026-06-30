@@ -178,13 +178,11 @@ describe('detectMirroredAccounts', () => {
      */
     const makeCard = (cardId: string, count: number): IFingerAccount => ({
       accountNumber: cardId,
-      txns: dates.slice(0, count).map(
-        (d, i): IFingerTxn => ({
-          date: d,
-          chargedAmount: -((i + 1) * 11) - (cardId.codePointAt(0) ?? 0),
-          description: `${cardId}-FAKE-${String(i)}`,
-        }),
-      ),
+      txns: dates.slice(0, count).map((d, i): IFingerTxn => ({
+        date: d,
+        chargedAmount: -((i + 1) * 11) - (cardId.codePointAt(0) ?? 0),
+        description: `${cardId}-FAKE-${String(i)}`,
+      })),
     });
     const accounts: IFingerAccount[] = [
       makeCard('CARD-A', 22),

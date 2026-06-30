@@ -55,8 +55,8 @@ interface IHomeRecoveryArgs {
  * @returns True when any crash marker text is present.
  */
 async function detectClientCrash(mediator: IElementMediator): Promise<boolean> {
-  const probes = CLIENT_CRASH_MARKERS.map(
-    (marker: string): Promise<number> => mediator.countByText(marker),
+  const probes = CLIENT_CRASH_MARKERS.map((marker: string): Promise<number> =>
+    mediator.countByText(marker),
   );
   const counts = await Promise.all(probes);
   return counts.some((count: number): boolean => count > 0);

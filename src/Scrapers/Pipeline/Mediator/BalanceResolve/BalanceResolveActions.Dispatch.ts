@@ -168,8 +168,8 @@ async function fetchAllPlanEntries(
   ctx: IFetchExecCtx,
   plan: readonly IBalanceFetchPlanEntry[],
 ): Promise<ReadonlyMap<string, unknown>> {
-  const dispatchPromises = plan.map(
-    (entry): Promise<IDispatchResult> => dispatchEntry({ ctx, entry }),
+  const dispatchPromises = plan.map((entry): Promise<IDispatchResult> =>
+    dispatchEntry({ ctx, entry }),
   );
   const results = await Promise.all(dispatchPromises);
   return collectSuccesses(plan, results);

@@ -346,8 +346,8 @@ function flushDetachedSideEffects(
   const isReached = spy.mock.calls.length >= targetCalls;
   if (isReached) return Promise.resolve(true);
   if (maxTicks <= 0) return Promise.resolve(false);
-  return Promise.resolve().then(
-    (): Promise<boolean> => flushDetachedSideEffects(spy, targetCalls, maxTicks - 1),
+  return Promise.resolve().then((): Promise<boolean> =>
+    flushDetachedSideEffects(spy, targetCalls, maxTicks - 1),
   );
 }
 
@@ -373,8 +373,8 @@ function flushUntilUrlPresent(spy: jest.Mock, urlRegex: RegExp, maxTicks = 200):
   });
   if (isPresent) return Promise.resolve(true);
   if (maxTicks <= 0) return Promise.resolve(false);
-  return Promise.resolve().then(
-    (): Promise<boolean> => flushUntilUrlPresent(spy, urlRegex, maxTicks - 1),
+  return Promise.resolve().then((): Promise<boolean> =>
+    flushUntilUrlPresent(spy, urlRegex, maxTicks - 1),
   );
 }
 

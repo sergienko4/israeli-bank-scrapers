@@ -67,8 +67,7 @@ export type LegacyLoginSetup = LegacyBankConfig['loginSetup'];
 
 /** Discriminated result of resolveLegacyBank: either loginSetup or a failure. */
 export type LegacyBankLookup =
-  | { readonly loginSetup: LegacyLoginSetup }
-  | { readonly failure: IScraperScrapingResult };
+  { readonly loginSetup: LegacyLoginSetup } | { readonly failure: IScraperScrapingResult };
 
 /**
  * Look up the legacy bank config for a given companyId. Pipeline-only

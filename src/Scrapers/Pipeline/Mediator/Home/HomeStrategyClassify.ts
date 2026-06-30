@@ -70,8 +70,8 @@ async function detectModalAttribute(
   mediator: IElementMediator,
   result: IRaceResult,
 ): Promise<boolean> {
-  const checks = MODAL_ATTRIBUTES.map(
-    (attr: string): Promise<boolean> => hasAttribute(mediator, result, attr),
+  const checks = MODAL_ATTRIBUTES.map((attr: string): Promise<boolean> =>
+    hasAttribute(mediator, result, attr),
   );
   const results = await Promise.all(checks);
   return results.some(Boolean);

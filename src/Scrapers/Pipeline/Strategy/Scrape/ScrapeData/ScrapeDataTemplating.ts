@@ -141,8 +141,8 @@ function filterOnePluralKey(body: MutBody, key: string, accountId: string): DidF
  */
 function filterPluralCardArrays(body: Record<string, unknown>, accountId: string): DidFilter {
   if (accountId.length === 0) return false as DidFilter;
-  const outcomes = PLURAL_CARDS_KEYS.map(
-    (key): DidFilter => filterOnePluralKey(body, key, accountId),
+  const outcomes = PLURAL_CARDS_KEYS.map((key): DidFilter =>
+    filterOnePluralKey(body, key, accountId),
   );
   return outcomes.includes(true as DidFilter) as DidFilter;
 }

@@ -522,8 +522,8 @@ function collectChildFrames(page: Page): readonly Frame[] {
  * @returns Number of iframe files written.
  */
 async function writeChildFrames(childFrames: readonly Frame[], opts: ICliOptions): Promise<number> {
-  const tasks = childFrames.map(
-    (frame, index): Promise<boolean> => writeOneFrame({ index, frame, opts }),
+  const tasks = childFrames.map((frame, index): Promise<boolean> =>
+    writeOneFrame({ index, frame, opts }),
   );
   const results = await Promise.all(tasks);
   return results.filter(Boolean).length;
