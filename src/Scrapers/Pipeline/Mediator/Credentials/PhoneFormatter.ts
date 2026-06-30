@@ -26,10 +26,7 @@ import { fail, isOk, succeed } from '../../Types/Procedure.js';
  * - `local-only` → `XXXXXXXXX` (no current consumer; reserved)
  */
 export type PhoneNumberFormat =
-  | 'international-plus'
-  | 'international-dash'
-  | 'international-flat'
-  | 'local-only';
+  'international-plus' | 'international-dash' | 'international-flat' | 'local-only';
 
 /** Israeli country-code prefix — every bank we onboard is IL-issued. */
 const IL_COUNTRY_CODE = '972';

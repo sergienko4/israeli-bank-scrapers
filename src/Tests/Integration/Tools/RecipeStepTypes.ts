@@ -86,12 +86,7 @@ interface IRecordResponseStep {
 
 /** Sum type of all harvester step kinds. */
 type IHarvestStep =
-  | IGotoStep
-  | IRevealStep
-  | ILoginStep
-  | IWaitForStep
-  | ISnapshotStep
-  | IRecordResponseStep;
+  IGotoStep | IRevealStep | ILoginStep | IWaitForStep | ISnapshotStep | IRecordResponseStep;
 
 /** Bank recipe in the extended union format. */
 interface IExtendedRecipe {

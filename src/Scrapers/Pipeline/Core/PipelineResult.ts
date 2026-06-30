@@ -59,8 +59,8 @@ function combineWithBalance(
 function extractAccounts(ctx: IPipelineContext): IScraperScrapingResult['accounts'] {
   if (!ctx.scrape.has) return [];
   const balanceMap = readBalanceResolution(ctx);
-  return ctx.scrape.value.accounts.map(
-    (acc): ITransactionsAccount => combineWithBalance(acc, balanceMap),
+  return ctx.scrape.value.accounts.map((acc): ITransactionsAccount =>
+    combineWithBalance(acc, balanceMap),
   );
 }
 

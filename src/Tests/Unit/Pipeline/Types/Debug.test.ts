@@ -46,9 +46,8 @@ describe('Feature — WithBankContext', () => {
   });
 
   it('supports async return values', async () => {
-    const result = await runWithBankContext(
-      'bankY',
-      (): Promise<string> => Promise.resolve('done'),
+    const result = await runWithBankContext('bankY', (): Promise<string> =>
+      Promise.resolve('done'),
     );
     expect(result).toBe('done');
   });

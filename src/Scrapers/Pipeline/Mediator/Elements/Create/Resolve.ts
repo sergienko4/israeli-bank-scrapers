@@ -145,9 +145,11 @@ function buildContextEntries(
   candidates: readonly SelectorCandidate[],
 ): readonly ILocatorEntry[] {
   return candidates.flatMap((c): ILocatorEntry[] =>
-    buildCandidateLocators(ctx, c).map(
-      (locator): ILocatorEntry => ({ locator, candidate: c, context: ctx }),
-    ),
+    buildCandidateLocators(ctx, c).map((locator): ILocatorEntry => ({
+      locator,
+      candidate: c,
+      context: ctx,
+    })),
   );
 }
 

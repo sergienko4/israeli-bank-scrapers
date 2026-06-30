@@ -18,8 +18,7 @@ import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../Registry/WK
  * means the pair is unrelated and the loop should keep walking.
  */
 type IPairOutcome =
-  | { readonly kind: 'match'; readonly value: string | false }
-  | { readonly kind: 'skip' };
+  { readonly kind: 'match'; readonly value: string | false } | { readonly kind: 'skip' };
 
 const PAIR_OUTCOME_SKIP: IPairOutcome = { kind: 'skip' };
 

@@ -62,12 +62,10 @@ const PHASE_11_STEP_NAMES = [
  * Maps the production PHASE_CHAIN to the harvested phase HTML files
  * under `fixtures/banks/isracard/`.
  */
-const PHASE_EXPECTATIONS = PHASE_11_STEP_NAMES.map(
-  (stepName): IPhaseExpectation => ({
-    stepName,
-    mustContain: [ISRACARD_BANK_MARKER],
-  }),
-);
+const PHASE_EXPECTATIONS = PHASE_11_STEP_NAMES.map((stepName): IPhaseExpectation => ({
+  stepName,
+  mustContain: [ISRACARD_BANK_MARKER],
+}));
 
 export { PHASE_EXPECTATIONS };
 export type { IPhaseExpectation };

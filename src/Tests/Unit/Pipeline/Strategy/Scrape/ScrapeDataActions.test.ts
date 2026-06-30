@@ -148,8 +148,8 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
       chargedAmount: 12.5,
     };
     const distinctIds: readonly string[] = ['voucher-1001', 'voucher-1002'];
-    const coffees = distinctIds.map(
-      (id): ITransaction => makeTxn({ ...sharedAttrs, identifier: id }),
+    const coffees = distinctIds.map((id): ITransaction =>
+      makeTxn({ ...sharedAttrs, identifier: id }),
     );
 
     const result = callDedupLegacy(coffees, 0);
@@ -202,8 +202,8 @@ describe('deduplicateTxns — Phase F: identifier-first dedup + date-desc sort',
       orderedByDateDesc[0], // newest second
       orderedByDateDesc[1], // middle last
     ];
-    const txns = insertionOrder.map(
-      (row): ITransaction => makeTxn({ identifier: row.id, date: row.date }),
+    const txns = insertionOrder.map((row): ITransaction =>
+      makeTxn({ identifier: row.id, date: row.date }),
     );
 
     const result = callDedupLegacy(txns, 0);

@@ -29,10 +29,7 @@ export type AuthPathKey =
  * login flow consumes the value.
  */
 export type PhoneNumberFormatTag =
-  | 'international-plus'
-  | 'international-dash'
-  | 'international-flat'
-  | 'local-only';
+  'international-plus' | 'international-dash' | 'international-flat' | 'local-only';
 
 /**
  * Balance semantics for a bank — an explicit, REQUIRED per-bank declaration.

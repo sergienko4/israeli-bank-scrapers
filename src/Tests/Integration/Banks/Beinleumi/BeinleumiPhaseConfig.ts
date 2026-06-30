@@ -110,12 +110,10 @@ const PHASE_11_STEP_NAMES = [
  * under `fixtures/banks/beinleumi/`. Built via `.map()` over the
  * config array — no duplication.
  */
-const PHASE_EXPECTATIONS = PHASE_11_STEP_NAMES.map(
-  (stepName): IPhaseExpectation => ({
-    stepName,
-    mustContain: [BEINLEUMI_BANK_MARKER],
-  }),
-);
+const PHASE_EXPECTATIONS = PHASE_11_STEP_NAMES.map((stepName): IPhaseExpectation => ({
+  stepName,
+  mustContain: [BEINLEUMI_BANK_MARKER],
+}));
 
 export { PHASE_EXPECTATIONS };
 export type { IPhaseExpectation };
