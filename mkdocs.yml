@@ -153,6 +153,7 @@ nav:
       - Browser:
           - Amex: banks/amex.md
           - Bank Hapoalim: banks/hapoalim.md
+          - Bank Leumi: banks/leumi.md
           - Beinleumi: banks/beinleumi.md
           - Discount: banks/discount.md
           - Isracard: banks/isracard.md
@@ -169,7 +170,6 @@ nav:
       - Legacy (deprecated):
           - Behatsdaa: banks/behatsdaa.md
           - Beyahad Bishvilha: banks/beyahad-bishvilha.md
-          - Bank Leumi: banks/leumi.md
           - Mizrahi Bank: banks/mizrahi.md
           - Bank Yahav: banks/yahav.md
   - Observability:
