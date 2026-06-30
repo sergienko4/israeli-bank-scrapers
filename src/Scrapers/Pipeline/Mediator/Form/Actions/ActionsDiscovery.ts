@@ -155,8 +155,8 @@ async function processDiscoveryEntry(p: IProcessEntryArgs): Promise<Procedure<bo
  */
 function reduceDiscoveryFill(r: IReduceArgs): Promise<Procedure<boolean>> {
   const { args, acc, entry } = r;
-  return acc.then(
-    (prev): Promise<Procedure<boolean>> => processDiscoveryEntry({ args, prev, entry }),
+  return acc.then((prev): Promise<Procedure<boolean>> =>
+    processDiscoveryEntry({ args, prev, entry }),
   );
 }
 

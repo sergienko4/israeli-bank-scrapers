@@ -167,9 +167,8 @@ async function installSimulator(args: IInstallSimulatorArgs): Promise<ISimulator
   const manifest = loadMirrorManifest({ bankId: args.bankId, fixturesRoot: args.fixturesRoot });
   const state: ISimulatorState = buildInitialState(manifest);
   const ctx: IRouteCtx = buildRouteCtx({ manifest, state, args });
-  await args.page.route(
-    '**/*',
-    (route, req): Promise<SimulatorStepStatus> => handleRoute(route, req, ctx),
+  await args.page.route('**/*', (route, req): Promise<SimulatorStepStatus> =>
+    handleRoute(route, req, ctx),
   );
   return buildHandle(args.page, state);
 }

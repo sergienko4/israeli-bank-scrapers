@@ -36,10 +36,7 @@ const RAW_PHONE = '972000000000';
  * config) — that is the integration pin.
  */
 type PhoneNumberFormatTag =
-  | 'international-plus'
-  | 'international-dash'
-  | 'international-flat'
-  | 'local-only';
+  'international-plus' | 'international-dash' | 'international-flat' | 'local-only';
 
 /** Local mirror of the registry's `IPipelineBankConfig` shape — see above. */
 interface IPipelineBankConfig {

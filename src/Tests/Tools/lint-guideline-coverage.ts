@@ -301,8 +301,8 @@ function printReport(failures: readonly ICoverageFailure[]): number {
 }
 
 const ESLINT_RUNNER = new ESLint();
-const AUDIT_PROMISES = PIPELINE_CLUSTERS.map(
-  (cluster): Promise<readonly ICoverageFailure[]> => auditCluster(ESLINT_RUNNER, cluster),
+const AUDIT_PROMISES = PIPELINE_CLUSTERS.map((cluster): Promise<readonly ICoverageFailure[]> =>
+  auditCluster(ESLINT_RUNNER, cluster),
 );
 const CLUSTER_FAILURES = await Promise.all(AUDIT_PROMISES);
 const ALL_FAILURES: readonly ICoverageFailure[] = CLUSTER_FAILURES.flat();

@@ -60,9 +60,11 @@ function entriesForCandidate(
   candidate: SelectorCandidate,
   formAnchor: string,
 ): ILocatorEntry[] {
-  return buildCandidateLocators(ctx, candidate, formAnchor).map(
-    (locator): ILocatorEntry => ({ locator, candidate, context: ctx }),
-  );
+  return buildCandidateLocators(ctx, candidate, formAnchor).map((locator): ILocatorEntry => ({
+    locator,
+    candidate,
+    context: ctx,
+  }));
 }
 
 /**
@@ -144,8 +146,8 @@ function entriesFromExpansion(
  */
 async function expandCandidateEntries(args: IExpandEntryArgs): Promise<readonly ILocatorEntry[]> {
   const bases = buildCandidateLocatorsBase(args.ctx, args.candidate, args.formAnchor);
-  const expansionPromises = bases.map(
-    (b): Promise<readonly Locator[]> => expandLocatorToNth(b, args.maxPerLocator),
+  const expansionPromises = bases.map((b): Promise<readonly Locator[]> =>
+    expandLocatorToNth(b, args.maxPerLocator),
   );
   const expanded = await Promise.all(expansionPromises);
   return entriesFromExpansion(expanded, args.candidate, args.ctx);
@@ -205,8 +207,8 @@ function mapCandidatesToExpansions(
   candidates: readonly SelectorCandidate[],
   formAnchor = NO_FORM_ANCHOR,
 ): Promise<readonly ILocatorEntry[]>[] {
-  return candidates.map(
-    (c): Promise<readonly ILocatorEntry[]> => expandOneCandidate(ctx, c, formAnchor),
+  return candidates.map((c): Promise<readonly ILocatorEntry[]> =>
+    expandOneCandidate(ctx, c, formAnchor),
   );
 }
 

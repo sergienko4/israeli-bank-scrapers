@@ -362,8 +362,8 @@ function optionalPostData(value: unknown, ptr: string): Option<IPostDataPredicat
  */
 function optionalHeaders(value: unknown, ptr: string): Option<readonly IHeaderPredicate[]> {
   if (value === undefined) return none();
-  const list = expectArray(value, ptr).map(
-    (entry, i): IHeaderPredicate => parseHeaderPredicate(entry, `${ptr}[${String(i)}]`),
+  const list = expectArray(value, ptr).map((entry, i): IHeaderPredicate =>
+    parseHeaderPredicate(entry, `${ptr}[${String(i)}]`),
   );
   return some(list);
 }
@@ -393,8 +393,8 @@ function parseHeaderPredicate(entry: unknown, entryPtr: string): IHeaderPredicat
  */
 function optionalCookies(value: unknown, ptr: string): Option<readonly ICookiePredicate[]> {
   if (value === undefined) return none();
-  const list = expectArray(value, ptr).map(
-    (entry, i): ICookiePredicate => parseCookiePredicate(entry, `${ptr}[${String(i)}]`),
+  const list = expectArray(value, ptr).map((entry, i): ICookiePredicate =>
+    parseCookiePredicate(entry, `${ptr}[${String(i)}]`),
   );
   return some(list);
 }

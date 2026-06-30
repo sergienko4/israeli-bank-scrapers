@@ -35,7 +35,4 @@ export type BalanceSlotKey =
 
 /** Union of every result-slot key — single source of truth for IResultSlots. */
 export type ResultSlotKey =
-  | PhaseStateSlotKey
-  | DiscoverySlotKey
-  | PhaseEmitSlotKey
-  | BalanceSlotKey;
+  PhaseStateSlotKey | DiscoverySlotKey | PhaseEmitSlotKey | BalanceSlotKey;

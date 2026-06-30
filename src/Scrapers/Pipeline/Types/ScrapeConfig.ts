@@ -49,8 +49,7 @@ interface ITransactionsFetchConfig<TRaw> {
 
 /** Pagination strategy for transaction fetching. */
 type PaginationKind =
-  | { readonly kind: 'none' }
-  | { readonly kind: 'monthly'; readonly defaultMonthsBack: number };
+  { readonly kind: 'none' } | { readonly kind: 'monthly'; readonly defaultMonthsBack: number };
 
 /**
  * Generic scrape config — banks provide this to define their scrape flow.

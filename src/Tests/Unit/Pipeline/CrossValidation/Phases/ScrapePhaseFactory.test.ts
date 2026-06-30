@@ -70,9 +70,8 @@ function buildRedactedTxn(ordinal: number): ITransaction {
  * @returns Redacted account record.
  */
 function buildRedactedAccount(txnCount: number): ITransactionsAccount {
-  const txns = Array.from(
-    { length: txnCount },
-    (_unused, index): ITransaction => buildRedactedTxn(index),
+  const txns = Array.from({ length: txnCount }, (_unused, index): ITransaction =>
+    buildRedactedTxn(index),
   );
   return { accountNumber: 'FAKE-000000', balance: 0, txns };
 }

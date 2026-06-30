@@ -190,7 +190,7 @@ jobs:
   lint-and-types:
     name: Lint & Types
     needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true'
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -203,7 +203,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-node-deps
-        if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
       - if: needs.changes.outputs.src == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
@@ -211,7 +211,7 @@ jobs:
         if: needs.changes.outputs.src == 'true'
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Prettier check
-        if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
         if: needs.changes.outputs.md == 'true' || needs.changes.outputs.src == 'true'
