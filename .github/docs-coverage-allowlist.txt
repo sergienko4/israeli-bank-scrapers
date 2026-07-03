@@ -1350,3 +1350,31 @@ filterMaxRows
 # Reason: ANGULAR_LOGIN_POLL - shared slow-AngularJS login completion-poll budget
 # (Isracard/Amex) composed from the LOGIN_COMPLETION_POLL_* timing consts. Framework-internal.
 ANGULAR_LOGIN_POLL
+# --- P4 Leumi hard-model post-auth scrape shape (account browser bank) ---
+# Reason: leumiBrokerUrl - Leumi WCF broker urlTag builder (module rides the
+# moduleName query). Per-bank shape helper consumed only by LEUMI_SHAPE. Not user-facing.
+leumiBrokerUrl
+# Reason: parseJsonResp - Leumi WCF response unwrapper (JSON.parse of the jsonResp
+# envelope field). Shared by all three Leumi extractors. Framework-internal.
+parseJsonResp
+# Reason: sessionHeader - Leumi WCF SessionHeader builder (primed SessionID + fixed
+# FIID). Consumed only by the Leumi shape inner-request builders. Not user-facing.
+sessionHeader
+# Reason: wcfEnvelope - Leumi WCF double-encoded envelope builder ({moduleName,
+# reqObj, version}). Shared by the accounts/balance/txns vars builders. Not user-facing.
+wcfEnvelope
+# Reason: GET_ACCOUNTS_MODULE - Leumi UC_SO_GetAccounts module-name const shared by the
+# shape urlTag + envelope moduleName. Bank contract constant, not user-facing.
+GET_ACCOUNTS_MODULE
+# Reason: ILeumiAcct - Leumi scrape-shape account ref (accountIndex + displayNumber);
+# consumed only by LEUMI_SHAPE + its helpers. Pipeline-internal, not in src/index.ts.
+ILeumiAcct
+# Reason: IUcSo27Variant - Leumi UC_SO_27 request variant shape (requestType/dates/
+# periodType); component of the shared balance + txns vars builder. Not user-facing.
+IUcSo27Variant
+# Reason: UC_SO_27_MODULE - Leumi UC_SO_27 business-account-trx module-name const shared
+# by the balance + txns urlTag. Bank contract constant, not user-facing.
+UC_SO_27_MODULE
+# Reason: ucSo27Vars - Leumi shared UC_SO_27 vars builder (balance empty-range + txns
+# dated OpersB). Per-bank shape closure consumed only by LEUMI_SHAPE. Not user-facing.
+ucSo27Vars

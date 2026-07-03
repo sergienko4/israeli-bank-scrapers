@@ -59,7 +59,14 @@ function defineBank(
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
   [CompanyTypes.Beinleumi]: defineBank('https://www.fibi.co.il', ACCOUNT, TOKEN),
-  [CompanyTypes.Leumi]: defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Leumi]: {
+    ...defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
+    sessionTokenCapture: {
+      urlMatch: 'Broker.svc/ProcessRequest',
+      bodyField: 'reqObj',
+      tokenPath: ['SessionHeader', 'SessionID'],
+    },
+  },
   [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Hapoalim]: defineBank('https://www.bankhapoalim.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Massad]: defineBank('https://www.bankmassad.co.il', ACCOUNT, TOKEN),
