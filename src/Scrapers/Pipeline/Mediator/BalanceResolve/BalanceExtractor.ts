@@ -19,6 +19,7 @@ import {
 } from '../../Registry/WK/BalanceResolveWK.js';
 import type { JsonValue } from '../../Types/JsonValue.js';
 import { fail, type Procedure, succeed } from '../../Types/Procedure.js';
+import selectBancsBalance from '../Scrape/Bancs/BancsBalance.js';
 import { findFieldValue } from '../Scrape/ScrapeAutoMapper.js';
 
 type JsonObject = Record<string, JsonValue>;
@@ -206,6 +207,8 @@ function descendArray(arr: readonly JsonValue[], args: IDescendArgs): number | f
  * @returns Finite balance number, or `false` when nothing matched.
  */
 export function runBalanceExtractor(body: JsonValue): number | false {
+  const bancs = selectBancsBalance(body);
+  if (bancs !== false) return bancs;
   const args: IDescendArgs = {
     aliases: PIPELINE_BALANCE_ALIASES,
     depth: 0,
