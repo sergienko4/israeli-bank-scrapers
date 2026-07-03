@@ -5,6 +5,7 @@
  */
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
+import { isBancsTxnBody } from '../Bancs/BancsTxnRequest.js';
 import type { JsonRecord } from './JsonTypes.js';
 
 /** Known paging context field names (case-insensitive). */
@@ -90,12 +91,16 @@ function hasDateRangeFields(body: JsonRecord): boolean {
 
 /**
  * Check if a POST body has date range fields.
- * Searches direct body + Base64-encoded paging context.
+ * Searches direct body + Base64-encoded paging context. A BaNCS
+ * CURRENT_ACCOUNT query is range-iterable via its nested `OrigDt`
+ * bounds ({@link isBancsTxnBody}, default-deny), so it routes through
+ * the monthly-chunk replay rather than a single un-ranged direct POST.
  * @param body - Parsed POST body.
  * @returns True if both from and to WK fields are present.
  */
 function isRangeIterable(body: JsonRecord): boolean {
   if (hasDateRangeFields(body)) return true;
+  if (isBancsTxnBody(body)) return true;
   const ctx = findPagingContext(body);
   if (!ctx) return false;
   return hasDateRangeFields(ctx.decoded);

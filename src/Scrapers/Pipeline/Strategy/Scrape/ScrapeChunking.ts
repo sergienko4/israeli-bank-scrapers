@@ -11,6 +11,7 @@
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
+import applyBancsChunkRange from '../../Mediator/Scrape/Bancs/BancsDateTemplate.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { generateMonthChunks, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
@@ -46,6 +47,7 @@ async function scrapeOneChunk(
   const body = JSON.parse(cloned) as Record<string, unknown>;
   replaceField(body as JsonRecord, WK.fromDate, chunk.start);
   replaceField(body as JsonRecord, WK.toDate, chunk.end);
+  applyBancsChunkRange(body, chunk);
   const chunkStart = new Date(chunk.start);
   const chunkEnd = new Date(chunk.end);
   const patchedUrl = applyDateRangeAndAppend(ctx.url, {

@@ -142,4 +142,4 @@ function isBancsTxnCapture(cap: IBancsCapture): boolean {
   return isBancsTxnBody(body);
 }
 
-export { isBancsTxnBody, isBancsTxnCapture };
+export { innerFilterNodes, isBancsTxnBody, isBancsTxnCapture };
