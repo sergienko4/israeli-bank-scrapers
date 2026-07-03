@@ -153,4 +153,12 @@ export interface IPipelineBankConfig {
     readonly intervalMs: number;
     readonly maxAttempts: number;
   };
+  /**
+   * SPA build-version query key (e.g. Max's `'v'`). When set, BIND-API-MEDIATOR
+   * scans the live page's resource-timing buffer for the first request carrying
+   * `?<key>=<value>` and stashes `<value>` on the mediator session-context as
+   * `clientVersion`, letting browser hard-model shapes reconstruct versioned API
+   * URLs. Absent ⇒ no scan (banks whose APIs carry no build-version param).
+   */
+  readonly clientVersionParam?: string;
 }

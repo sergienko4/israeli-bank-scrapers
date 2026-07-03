@@ -17,6 +17,7 @@ import type { IActionContext, IPipelineContext } from '../../Types/PipelineConte
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { primeTokenAuth } from './BindApiMediatorAuth.js';
+import { primeClientVersion } from './BindApiMediatorClientVersion.js';
 
 /**
  * Resolve the live login page from the context's browser slot.
@@ -43,6 +44,7 @@ async function bindBrowserPageMediator(ctx: IActionContext): Promise<Procedure<I
   if (!isOk(pageProc)) return pageProc;
   const mediator = createBrowserPageApiMediator(full.companyId, pageProc.value);
   await primeTokenAuth(full.config, pageProc.value, mediator);
+  await primeClientVersion(full.config, pageProc.value, mediator);
   const next = { ...full, apiMediator: some(mediator) };
   return succeed(next as unknown as IActionContext);
 }
