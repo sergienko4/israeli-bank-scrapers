@@ -34,6 +34,15 @@ import type { Procedure } from '../../Types/Procedure.js';
 export type HeaderMap = Record<string, string>;
 
 /**
+ * REST verb for a `urlTag`-dispatched scrape step. Defaults to `POST`
+ * (preserves every existing body-dispatch bank: PayBox/OneZero/Pepper).
+ * GET banks — whose accounts / balance / transactions ride path + query
+ * params (Discount, Max, VisaCal) — declare `method: 'GET'`; the driver
+ * then calls `apiGet` with the resolved URL and sends no request body.
+ */
+export type ScrapeHttpMethod = 'GET' | 'POST';
+
+/**
  * extraHeaders may be a static map (OneZero) or a function producing
  * a map on every call (Pepper — per-request UUIDs). The driver calls
  * the function at call time, never caches its result.
@@ -74,6 +83,8 @@ export interface IApiDirectScrapeCustomerStep<TAcct> {
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('customer'). */
   readonly urlTag?: CustomerUrlTag;
+  /** REST verb when `urlTag` is set; default POST. GET sends no body. */
+  readonly method?: ScrapeHttpMethod;
   /**
    * Optional `JsonValueTemplate` body — when set, the dispatcher
    * hydrates this against the post-login scope (carry + creds +
@@ -99,6 +110,8 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   readonly fallbackOnFail?: number;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('balance'). */
   readonly urlTag?: BalanceUrlTag<TAcct>;
+  /** REST verb when `urlTag` is set; default POST. GET sends no body. */
+  readonly method?: ScrapeHttpMethod;
   /** Optional body template — same semantics as customer.bodyTemplate. */
   readonly bodyTemplate?: JsonValueTemplate;
 }
@@ -123,6 +136,8 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('transactions'). */
   readonly urlTag?: TxnsUrlTag<TAcct, TCursor>;
+  /** REST verb when `urlTag` is set; default POST. GET sends no body. */
+  readonly method?: ScrapeHttpMethod;
   /**
    * Optional body template — banks whose transactions endpoint
    * accepts a structured class-y body declare it here. When set,

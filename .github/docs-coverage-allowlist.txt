@@ -2,9 +2,9 @@
 # =======================
 # Symbol names listed here are exempt from the docs-coverage CI gate
 # (the `Docs coverage canary` step inside .github/workflows/pr.yml's
-# `validate` job — driver script lives at
+# `validate` job â€” driver script lives at
 # .github/scripts/ci/docs-coverage.sh). Each entry is a one-line
-# escape hatch — only use it when the symbol is intentionally
+# escape hatch â€” only use it when the symbol is intentionally
 # exported from src/Scrapers/Pipeline/ but not part of the
 # user-facing mkdocs guide under docs/.
 #
@@ -16,21 +16,21 @@
 # Rules
 # -----
 #   * One symbol per line, no leading/trailing whitespace.
-#   * `# …` lines are comments; blank lines are ignored.
-#   * The script does whole-word matching — case-sensitive.
+#   * `# â€¦` lines are comments; blank lines are ignored.
+#   * The script does whole-word matching â€” case-sensitive.
 #   * Re-exports via barrel files (`export { Foo } from './bar.js'`)
 #     are NOT scanned, so they never need allowlisting.
-#   * Default exports (`export default …`) are NOT scanned for the
-#     same reason — there is no symbol name to grep against docs/.
+#   * Default exports (`export default â€¦`) are NOT scanned for the
+#     same reason â€” there is no symbol name to grep against docs/.
 #
 # When NOT to add an entry
 # ------------------------
 #   * If the symbol is part of the public API and a consumer might
-#     reach for it from their own code → document it in docs/
+#     reach for it from their own code â†’ document it in docs/
 #     instead. The allowlist is for genuinely-internal-but-leaked
 #     names, not a way to skip documentation work.
 #   * If you're mid-refactor and the symbol will be removed in the
-#     same PR → drop the `export` keyword now and let the next
+#     same PR â†’ drop the `export` keyword now and let the next
 #     incremental commit do the cleanup; the allowlist is meant to
 #     persist, not absorb in-flight churn.
 #
@@ -43,102 +43,102 @@
 # --- Phase 5: ScrapeAutoMapper cluster shared internals (PR #277) ---
 # These symbols moved from the (formerly monolithic) ScrapeAutoMapper.ts
 # into AutoMapperFacade/AutoMapperTypes.ts as part of the 11-sub-module
-# split. They are CROSS-MODULE INTERNALS — shared types + constants
+# split. They are CROSS-MODULE INTERNALS â€” shared types + constants
 # used by BfsFieldSearch, AccountExtractor, ContainerPicker, TxnMapper,
-# etc. — not part of the user-facing @sergienko4/israeli-bank-scrapers
+# etc. â€” not part of the user-facing @sergienko4/israeli-bank-scrapers
 # public surface. They are not re-exported from lib/index.{cjs,mjs}.
 
-# Reason: ApiRecord — internal alias `Record<string, unknown>` for API response shapes (used by AccountExtractor + BfsFieldSearch + TxnMapper). Not a stable public type.
+# Reason: ApiRecord â€” internal alias `Record<string, unknown>` for API response shapes (used by AccountExtractor + BfsFieldSearch + TxnMapper). Not a stable public type.
 ApiRecord
-# Reason: DEFAULT_CURRENCY — internal 'ILS' fallback constant for amount normalization; bundled into transaction objects via the shim, never imported by consumers.
+# Reason: DEFAULT_CURRENCY â€” internal 'ILS' fallback constant for amount normalization; bundled into transaction objects via the shim, never imported by consumers.
 DEFAULT_CURRENCY
-# Reason: MAX_SEARCH_DEPTH — internal BFS recursion bound for AccountExtractor field discovery; tuning constant, not user-facing.
+# Reason: MAX_SEARCH_DEPTH â€” internal BFS recursion bound for AccountExtractor field discovery; tuning constant, not user-facing.
 MAX_SEARCH_DEPTH
-# Reason: ScalarFieldHit — internal helper union (`string | number | false`) for findFieldValue / coerce* miss-marking. Implementation detail of the field-search algorithm.
+# Reason: ScalarFieldHit â€” internal helper union (`string | number | false`) for findFieldValue / coerce* miss-marking. Implementation detail of the field-search algorithm.
 ScalarFieldHit
-# Reason: UntypedValue — internal alias of the shared JsonValue union (named to avoid Sonar S6564); retained for call-site stability across Scrape sub-modules.
+# Reason: UntypedValue â€” internal alias of the shared JsonValue union (named to avoid Sonar S6564); retained for call-site stability across Scrape sub-modules.
 UntypedValue
 
 # --- Phase 6: PiiRedactor cluster internal scaffolding (PR #278) ---
 # These symbols moved from the (formerly monolithic) PiiRedactor.ts
 # into per-category sub-modules under Pipeline/Types/PiiRedactor/ as
 # part of the 13-sub-module split. They are CROSS-MODULE INTERNALS
-# — the per-strategy classify/redact registry contract, brand types,
+# â€” the per-strategy classify/redact registry contract, brand types,
 # sentinel constants, and helpers consumed only by Facade.ts and the
 # per-category siblings. Not part of the user-facing
 # @sergienko4/israeli-bank-scrapers public surface and not re-exported
 # from lib/index.{cjs,mjs}. (The user-facing `redact()` entry point
 # is documented in docs/ and so is NOT in this allowlist.)
 
-# Reason: CATEGORY — each strategy module's PiiCategory literal, consumed by Facade STRATEGY_REGISTRY dispatch. Not user-facing — consumers use the unified `redact()` entry point.
+# Reason: CATEGORY â€” each strategy module's PiiCategory literal, consumed by Facade STRATEGY_REGISTRY dispatch. Not user-facing â€” consumers use the unified `redact()` entry point.
 CATEGORY
-# Reason: JSON_BODY_CATEGORY — JsonBody.ts's strategy-registry category literal; same role as CATEGORY for the JSON walker.
+# Reason: JSON_BODY_CATEGORY â€” JsonBody.ts's strategy-registry category literal; same role as CATEGORY for the JSON walker.
 JSON_BODY_CATEGORY
-# Reason: URL_CATEGORY — Url.ts's strategy-registry category literal; same role as CATEGORY for URL redaction.
+# Reason: URL_CATEGORY â€” Url.ts's strategy-registry category literal; same role as CATEGORY for URL redaction.
 URL_CATEGORY
-# Reason: ERROR_LOG_CATEGORY — ErrorLog.ts's strategy-registry category literal; same role as CATEGORY for error/log message redaction.
+# Reason: ERROR_LOG_CATEGORY â€” ErrorLog.ts's strategy-registry category literal; same role as CATEGORY for error/log message redaction.
 ERROR_LOG_CATEGORY
-# Reason: TOKEN_CATEGORY — AuthCredentials.ts category literal for bearer-token classification within the always-redact credential bucket.
+# Reason: TOKEN_CATEGORY â€” AuthCredentials.ts category literal for bearer-token classification within the always-redact credential bucket.
 TOKEN_CATEGORY
-# Reason: OTP_CATEGORY — AuthCredentials.ts category literal for one-time-password classification within the always-redact credential bucket.
+# Reason: OTP_CATEGORY â€” AuthCredentials.ts category literal for one-time-password classification within the always-redact credential bucket.
 OTP_CATEGORY
-# Reason: COOKIE_CATEGORY — AuthCredentials.ts category literal for cookie/setCookie classification within the always-redact credential bucket.
+# Reason: COOKIE_CATEGORY â€” AuthCredentials.ts category literal for cookie/setCookie classification within the always-redact credential bucket.
 COOKIE_CATEGORY
-# Reason: PiiCategory — branded union type of all classifier outcomes; consumed only by Facade dispatch and the per-category modules' classify() return type.
+# Reason: PiiCategory â€” branded union type of all classifier outcomes; consumed only by Facade dispatch and the per-category modules' classify() return type.
 PiiCategory
-# Reason: PiiClassifierBool — Brand<boolean> tag for per-strategy classify() return values; type-system-only, no runtime surface.
+# Reason: PiiClassifierBool â€” Brand<boolean> tag for per-strategy classify() return values; type-system-only, no runtime surface.
 PiiClassifierBool
-# Reason: PiiCountInt — Brand<number> tag for counted-thing redaction outputs (e.g., name length class); type-system-only.
+# Reason: PiiCountInt â€” Brand<number> tag for counted-thing redaction outputs (e.g., name length class); type-system-only.
 PiiCountInt
-# Reason: PiiHintString — Brand<string> tag for redaction-output strings; type-system-only, never imported by consumers (they see plain string).
+# Reason: PiiHintString â€” Brand<string> tag for redaction-output strings; type-system-only, never imported by consumers (they see plain string).
 PiiHintString
-# Reason: JsonValue — recursive JSON union consumed by JsonBody walker + Facade dispatch; identical to the prior internal alias on the pre-split PiiRedactor.ts.
+# Reason: JsonValue â€” recursive JSON union consumed by JsonBody walker + Facade dispatch; identical to the prior internal alias on the pre-split PiiRedactor.ts.
 JsonValue
-# Reason: JsonScalar — JSON leaf-type alias (string|number|boolean|null); component of JsonValue, used only by JsonBody.
+# Reason: JsonScalar â€” JSON leaf-type alias (string|number|boolean|null); component of JsonValue, used only by JsonBody.
 JsonScalar
-# Reason: JsonArray — readonly JsonValue[] alias; component of JsonValue, used only by JsonBody walker.
+# Reason: JsonArray â€” readonly JsonValue[] alias; component of JsonValue, used only by JsonBody walker.
 JsonArray
-# Reason: IJsonObject — `{readonly [k:string]: JsonValue}` shape; component of JsonValue, used only by JsonBody walker.
+# Reason: IJsonObject â€” `{readonly [k:string]: JsonValue}` shape; component of JsonValue, used only by JsonBody walker.
 IJsonObject
-# Reason: REDACTED_HINT — `[REDACTED]` literal sentinel returned by default-deny; held in Types.ts so every per-category module can import it without a Facade dependency cycle.
+# Reason: REDACTED_HINT â€” `[REDACTED]` literal sentinel returned by default-deny; held in Types.ts so every per-category module can import it without a Facade dependency cycle.
 REDACTED_HINT
-# Reason: REDACTION_ERROR_HINT — `[REDACTION_ERROR]` literal sentinel returned by the unified `redact()` catch block; same anti-cycle reason as REDACTED_HINT.
+# Reason: REDACTION_ERROR_HINT â€” `[REDACTION_ERROR]` literal sentinel returned by the unified `redact()` catch block; same anti-cycle reason as REDACTED_HINT.
 REDACTION_ERROR_HINT
-# Reason: OTP_HINT — `[OTP]` literal sentinel returned by the OTP strategy; held in Types.ts so per-category modules + AuthCredentials.ts import the constant instead of hardcoding the literal (CR cycle-1 #9 / §13 sentinel ban).
+# Reason: OTP_HINT â€” `[OTP]` literal sentinel returned by the OTP strategy; held in Types.ts so per-category modules + AuthCredentials.ts import the constant instead of hardcoding the literal (CR cycle-1 #9 / Â§13 sentinel ban).
 OTP_HINT
-# Reason: AMOUNT_NEGATIVE_HINT — `-***` literal sentinel returned by the Amount strategy for negative magnitudes; held in Types.ts so log readers / fixtures / test snapshots share one definition (CR cycle-2 / §13 broadened sentinel ban).
+# Reason: AMOUNT_NEGATIVE_HINT â€” `-***` literal sentinel returned by the Amount strategy for negative magnitudes; held in Types.ts so log readers / fixtures / test snapshots share one definition (CR cycle-2 / Â§13 broadened sentinel ban).
 AMOUNT_NEGATIVE_HINT
-# Reason: AMOUNT_POSITIVE_HINT — `+***` literal sentinel returned by the Amount strategy for positive magnitudes; same reason as AMOUNT_NEGATIVE_HINT.
+# Reason: AMOUNT_POSITIVE_HINT â€” `+***` literal sentinel returned by the Amount strategy for positive magnitudes; same reason as AMOUNT_NEGATIVE_HINT.
 AMOUNT_POSITIVE_HINT
-# Reason: isPiiRedactionDisabled — boolean flag derived from PII_REDACTION env var; consumed by per-category modules to honor the bypass (credentials excluded).
+# Reason: isPiiRedactionDisabled â€” boolean flag derived from PII_REDACTION env var; consumed by per-category modules to honor the bypass (credentials excluded).
 isPiiRedactionDisabled
-# Reason: CensorFn — internal type alias for the Pino censor callback shape; consumed by createCensorFn + Pino logger config wiring.
+# Reason: CensorFn â€” internal type alias for the Pino censor callback shape; consumed by createCensorFn + Pino logger config wiring.
 CensorFn
-# Reason: CensorValue — internal type for the value-position argument Pino passes into the censor function; component of CensorFn.
+# Reason: CensorValue â€” internal type for the value-position argument Pino passes into the censor function; component of CensorFn.
 CensorValue
-# Reason: classifyKey — key-tail-to-category lookup used internally by createCensorFn to drive PATH_TAIL_TO_CATEGORY dispatch; not invoked by user code.
+# Reason: classifyKey â€” key-tail-to-category lookup used internally by createCensorFn to drive PATH_TAIL_TO_CATEGORY dispatch; not invoked by user code.
 classifyKey
-# Reason: createCensorFn — factory that builds the Pino censor callback from the strategy registry; wired by the Pipeline logger config, never called from user code.
+# Reason: createCensorFn â€” factory that builds the Pino censor callback from the strategy registry; wired by the Pipeline logger config, never called from user code.
 createCensorFn
-# Reason: PATH_TAIL_TO_CATEGORY — Pino payload key-tail to PiiCategory mapping table; static dispatch data for createCensorFn.
+# Reason: PATH_TAIL_TO_CATEGORY â€” Pino payload key-tail to PiiCategory mapping table; static dispatch data for createCensorFn.
 PATH_TAIL_TO_CATEGORY
-# Reason: looksLikeToken — AuthCredentials.ts heuristic classifier for bearer-token-shaped values; component of the always-redact credential bucket.
+# Reason: looksLikeToken â€” AuthCredentials.ts heuristic classifier for bearer-token-shaped values; component of the always-redact credential bucket.
 looksLikeToken
-# Reason: looksLikeOtp — AuthCredentials.ts heuristic classifier for one-time-password-shaped values; component of the always-redact credential bucket.
+# Reason: looksLikeOtp â€” AuthCredentials.ts heuristic classifier for one-time-password-shaped values; component of the always-redact credential bucket.
 looksLikeOtp
-# Reason: looksLikeCookie — AuthCredentials.ts heuristic classifier for cookie/setCookie-shaped values; component of the always-redact credential bucket.
+# Reason: looksLikeCookie â€” AuthCredentials.ts heuristic classifier for cookie/setCookie-shaped values; component of the always-redact credential bucket.
 looksLikeCookie
-# Reason: PII_QUERY_KEYS — Url.ts list of query-string parameter names that must be redacted; static dispatch data for URL redaction.
+# Reason: PII_QUERY_KEYS â€” Url.ts list of query-string parameter names that must be redacted; static dispatch data for URL redaction.
 PII_QUERY_KEYS
-# Reason: SENSITIVE_SCRAPER_ENUMS — ErrorLog.ts allowlist of ScraperErrorTypes enum values that must never be log-interpolated (CodeQL #28); static dispatch data for redactSensitiveEnum.
+# Reason: SENSITIVE_SCRAPER_ENUMS â€” ErrorLog.ts allowlist of ScraperErrorTypes enum values that must never be log-interpolated (CodeQL #28); static dispatch data for redactSensitiveEnum.
 SENSITIVE_SCRAPER_ENUMS
-# Reason: buildSegmenter — CommonHelpers.ts factory returning a Unicode Intl.Segmenter for accurate grapheme counting; used by length-class hints in Name/Merchant.
+# Reason: buildSegmenter â€” CommonHelpers.ts factory returning a Unicode Intl.Segmenter for accurate grapheme counting; used by length-class hints in Name/Merchant.
 buildSegmenter
-# Reason: graphemeCount — CommonHelpers.ts grapheme-cluster counter built on buildSegmenter; consumed only by per-category length-class hint logic.
+# Reason: graphemeCount â€” CommonHelpers.ts grapheme-cluster counter built on buildSegmenter; consumed only by per-category length-class hint logic.
 graphemeCount
 
 # --- Phase 6 follow-up: CR review #5 shared-table extract (PR #278) ---
-# Reason: LITERAL_TEXT_PII_PATTERNS — CommonHelpers.ts regex table shared by JsonBody.applyFallbackPatterns AND Html.redactHtml; extracted from the two former duplicate constants per CR review finding #5 (DRY / no-duplication guideline).
+# Reason: LITERAL_TEXT_PII_PATTERNS â€” CommonHelpers.ts regex table shared by JsonBody.applyFallbackPatterns AND Html.redactHtml; extracted from the two former duplicate constants per CR review finding #5 (DRY / no-duplication guideline).
 LITERAL_TEXT_PII_PATTERNS
 
 # --- Phase 8.5a / Network canonical-10 drain (PR pending) ---
@@ -148,71 +148,71 @@ LITERAL_TEXT_PII_PATTERNS
 # re-export) and intentionally NOT part of the user-facing Pipeline API.
 # The barrel (index.ts) re-exports only the historical public surface.
 
-# Reason: getJsonHeaders — Fetch/Headers.ts JSON Content-Type/Accept builder; composed inside fetchPost/fetchGet to keep the parent functions <=10 LoC.
+# Reason: getJsonHeaders â€” Fetch/Headers.ts JSON Content-Type/Accept builder; composed inside fetchPost/fetchGet to keep the parent functions <=10 LoC.
 getJsonHeaders
-# Reason: LogEmitted — Fetch/Logging.ts Brand<true> tag for log-emit functions; type-system-only, satisfies Rule #15 (no exported primitive returns).
+# Reason: LogEmitted â€” Fetch/Logging.ts Brand<true> tag for log-emit functions; type-system-only, satisfies Rule #15 (no exported primitive returns).
 LogEmitted
-# Reason: logApiCall — Fetch/Logging.ts emit helper invoked by NativeFetch + PageFetchPost; centralizes the request-start LOG.info shape.
+# Reason: logApiCall â€” Fetch/Logging.ts emit helper invoked by NativeFetch + PageFetchPost; centralizes the request-start LOG.info shape.
 logApiCall
-# Reason: logResponseIssues — Fetch/Logging.ts emit helper invoked by parseGetResult/parsePostResult; centralizes the response-anomaly LOG.warn shape.
+# Reason: logResponseIssues â€” Fetch/Logging.ts emit helper invoked by parseGetResult/parsePostResult; centralizes the response-anomaly LOG.warn shape.
 logResponseIssues
-# Reason: IFetchGraphqlOptions — Fetch/NativeFetch.ts option-bag interface for fetchGraphql; shared between the native call site and its test fixtures.
+# Reason: IFetchGraphqlOptions â€” Fetch/NativeFetch.ts option-bag interface for fetchGraphql; shared between the native call site and its test fixtures.
 IFetchGraphqlOptions
-# Reason: fetchGraphql — Fetch/NativeFetch.ts thin wrapper over fetchPost with GraphQL Content-Type defaults; re-exported by the Fetch barrel for historical callers.
+# Reason: fetchGraphql â€” Fetch/NativeFetch.ts thin wrapper over fetchPost with GraphQL Content-Type defaults; re-exported by the Fetch barrel for historical callers.
 fetchGraphql
-# Reason: fetchGetWithinPage — Fetch/PageFetchGet.ts page-context evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
+# Reason: fetchGetWithinPage â€” Fetch/PageFetchGet.ts page-context evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
 fetchGetWithinPage
-# Reason: fetchGetWithinPageWithHeaders — Fetch/PageFetchGet.ts variant of fetchGetWithinPage with explicit request headers; re-exported for historical callers.
+# Reason: fetchGetWithinPageWithHeaders â€” Fetch/PageFetchGet.ts variant of fetchGetWithinPage with explicit request headers; re-exported for historical callers.
 fetchGetWithinPageWithHeaders
-# Reason: IFetchPostOptions — Fetch/PageFetchPost.ts option-bag interface for fetchPostWithinPage; shared between the page-eval call site and its test fixtures.
+# Reason: IFetchPostOptions â€” Fetch/PageFetchPost.ts option-bag interface for fetchPostWithinPage; shared between the page-eval call site and its test fixtures.
 IFetchPostOptions
-# Reason: fetchPostWithinPage — Fetch/PageFetchPost.ts page-context POST evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
+# Reason: fetchPostWithinPage â€” Fetch/PageFetchPost.ts page-context POST evaluate() wrapper; re-exported by the Fetch barrel for historical callers (BALANCE-RESOLVE + SCRAPE).
 fetchPostWithinPage
-# Reason: EMPTY_RESULT — Fetch/ParseResult.ts sentinel literal returned by parseGetResult/parsePostResult on empty bodies; centralized to avoid sentinel duplication across sub-modules.
+# Reason: EMPTY_RESULT â€” Fetch/ParseResult.ts sentinel literal returned by parseGetResult/parsePostResult on empty bodies; centralized to avoid sentinel duplication across sub-modules.
 EMPTY_RESULT
-# Reason: IParseErrorOpts — Fetch/ParseResult.ts option-bag interface for handleParseError; composed by parseGetResult/parsePostResult.
+# Reason: IParseErrorOpts â€” Fetch/ParseResult.ts option-bag interface for handleParseError; composed by parseGetResult/parsePostResult.
 IParseErrorOpts
-# Reason: IParseGetOpts — Fetch/ParseResult.ts option-bag interface for parseGetResult; composed by NativeFetch + PageFetchGet sub-modules.
+# Reason: IParseGetOpts â€” Fetch/ParseResult.ts option-bag interface for parseGetResult; composed by NativeFetch + PageFetchGet sub-modules.
 IParseGetOpts
-# Reason: IParsePostOpts — Fetch/ParseResult.ts option-bag interface for parsePostResult; composed by NativeFetch + PageFetchPost sub-modules.
+# Reason: IParsePostOpts â€” Fetch/ParseResult.ts option-bag interface for parsePostResult; composed by NativeFetch + PageFetchPost sub-modules.
 IParsePostOpts
-# Reason: handleParseError — Fetch/ParseResult.ts shared catch-block helper that emits LOG.warn + returns EMPTY_RESULT; composed by parseGetResult/parsePostResult.
+# Reason: handleParseError â€” Fetch/ParseResult.ts shared catch-block helper that emits LOG.warn + returns EMPTY_RESULT; composed by parseGetResult/parsePostResult.
 handleParseError
-# Reason: parseGetResult — Fetch/ParseResult.ts shared response-parser for GET-style calls; composed by NativeFetch.parseFetchGetResponse + PageFetchGet.evaluateGet.
+# Reason: parseGetResult â€” Fetch/ParseResult.ts shared response-parser for GET-style calls; composed by NativeFetch.parseFetchGetResponse + PageFetchGet.evaluateGet.
 parseGetResult
-# Reason: parsePostResult — Fetch/ParseResult.ts shared response-parser for POST-style calls; composed by NativeFetch.fetchPost + PageFetchPost.runPostEvaluate.
+# Reason: parsePostResult â€” Fetch/ParseResult.ts shared response-parser for POST-style calls; composed by NativeFetch.fetchPost + PageFetchPost.runPostEvaluate.
 parsePostResult
-# Reason: WafBlockDescription — Fetch/WafDetection.ts Brand<string> tag for WAF detection results; type-system-only, consumed only by WafBlockError construction.
+# Reason: WafBlockDescription â€” Fetch/WafDetection.ts Brand<string> tag for WAF detection results; type-system-only, consumed only by WafBlockError construction.
 WafBlockDescription
-# Reason: detectWafBlock — Fetch/WafDetection.ts shared detector invoked by fetchPost + fetchGet to short-circuit response parsing on WAF interception; re-exported by the Fetch barrel for historical callers.
+# Reason: detectWafBlock â€” Fetch/WafDetection.ts shared detector invoked by fetchPost + fetchGet to short-circuit response parsing on WAF interception; re-exported by the Fetch barrel for historical callers.
 detectWafBlock
-# Reason: extractAuthHeader — AuthDiscovery/HeadersTier.ts per-endpoint header-extraction helper; composed by Tier 1 (discoverFromHeaders).
+# Reason: extractAuthHeader â€” AuthDiscovery/HeadersTier.ts per-endpoint header-extraction helper; composed by Tier 1 (discoverFromHeaders).
 extractAuthHeader
-# Reason: searchBodyForToken — AuthDiscovery/ResponseTier.ts response-body walker that finds WellKnown token fields (flat + 1 level nested); composed by Tier 2 (discoverFromResponses).
+# Reason: searchBodyForToken â€” AuthDiscovery/ResponseTier.ts response-body walker that finds WellKnown token fields (flat + 1 level nested); composed by Tier 2 (discoverFromResponses).
 searchBodyForToken
-# Reason: readMainStorageRaw — AuthDiscovery/StorageMain.ts raw sessionStorage reader for the main page frame; composed by Tier 3a (discoverFromStorage).
+# Reason: readMainStorageRaw â€” AuthDiscovery/StorageMain.ts raw sessionStorage reader for the main page frame; composed by Tier 3a (discoverFromStorage).
 readMainStorageRaw
-# Reason: readAllJsonStorageValues — AuthDiscovery/StorageScanAll.ts JSON-shape filter over sessionStorage keys in a single frame; composed by Tier 3c (discoverFromAllStorageKeys).
+# Reason: readAllJsonStorageValues â€” AuthDiscovery/StorageScanAll.ts JSON-shape filter over sessionStorage keys in a single frame; composed by Tier 3c (discoverFromAllStorageKeys).
 readAllJsonStorageValues
-# Reason: checkOneValue — AuthDiscovery/StorageFrames.ts single-value token extractor with JSON-then-raw fallback; composed by Tier 3b (discoverFromAllFrames).
+# Reason: checkOneValue â€” AuthDiscovery/StorageFrames.ts single-value token extractor with JSON-then-raw fallback; composed by Tier 3b (discoverFromAllFrames).
 checkOneValue
-# Reason: handleToToken — AuthDiscovery/PollTier.ts Playwright JSHandle-to-token resolver; composed by Tier 4 (pollForAuthModule).
+# Reason: handleToToken â€” AuthDiscovery/PollTier.ts Playwright JSHandle-to-token resolver; composed by Tier 4 (pollForAuthModule).
 handleToToken
-# Reason: TOKEN_BODY_FIELDS — AuthDiscovery/Tokens.ts WellKnown auth-body field-name table; static dispatch data shared by ResponseTier search logic.
+# Reason: TOKEN_BODY_FIELDS â€” AuthDiscovery/Tokens.ts WellKnown auth-body field-name table; static dispatch data shared by ResponseTier search logic.
 TOKEN_BODY_FIELDS
-# Reason: STORAGE_AUTH_KEYS — AuthDiscovery/Tokens.ts WellKnown sessionStorage key-name table; static dispatch data shared by StorageMain + StorageFrames.
+# Reason: STORAGE_AUTH_KEYS â€” AuthDiscovery/Tokens.ts WellKnown sessionStorage key-name table; static dispatch data shared by StorageMain + StorageFrames.
 STORAGE_AUTH_KEYS
-# Reason: AUTH_POLL_TIMEOUT — AuthDiscovery/Tokens.ts polling timeout constant (ms); consumed by PollTier.buildFrameWaiter.
+# Reason: AUTH_POLL_TIMEOUT â€” AuthDiscovery/Tokens.ts polling timeout constant (ms); consumed by PollTier.buildFrameWaiter.
 AUTH_POLL_TIMEOUT
-# Reason: AUTH_POLL_INTERVAL — AuthDiscovery/Tokens.ts polling interval constant (ms); consumed by PollTier.buildFrameWaiter.
+# Reason: AUTH_POLL_INTERVAL â€” AuthDiscovery/Tokens.ts polling interval constant (ms); consumed by PollTier.buildFrameWaiter.
 AUTH_POLL_INTERVAL
-# Reason: IStorageAuth — AuthDiscovery/Tokens.ts parsed JSON-storage auth shape; consumed by extractFromParsed in tryParseJsonToken.
+# Reason: IStorageAuth â€” AuthDiscovery/Tokens.ts parsed JSON-storage auth shape; consumed by extractFromParsed in tryParseJsonToken.
 IStorageAuth
-# Reason: PrefixedAuthToken — AuthDiscovery/Tokens.ts Brand<string> tag for prefixToken's return type; type-system-only, satisfies Rule #15.
+# Reason: PrefixedAuthToken â€” AuthDiscovery/Tokens.ts Brand<string> tag for prefixToken's return type; type-system-only, satisfies Rule #15.
 PrefixedAuthToken
-# Reason: prefixToken — AuthDiscovery/Tokens.ts auth-scheme prefix helper (CALAuthScheme/Bearer); composed by ResponseTier + StorageFrames.
+# Reason: prefixToken â€” AuthDiscovery/Tokens.ts auth-scheme prefix helper (CALAuthScheme/Bearer); composed by ResponseTier + StorageFrames.
 prefixToken
-# Reason: tryParseJsonToken — AuthDiscovery/Tokens.ts safe JSON-parse-and-extract for sessionStorage-stored auth blobs; composed by StorageMain + StorageFrames + StorageScanAll + PollTier.
+# Reason: tryParseJsonToken â€” AuthDiscovery/Tokens.ts safe JSON-parse-and-extract for sessionStorage-stored auth blobs; composed by StorageMain + StorageFrames + StorageScanAll + PollTier.
 tryParseJsonToken
 
 # --- Phase 8.5a / commit 2 follow-up (AuthDiscovery tier helpers) ---
@@ -220,21 +220,21 @@ tryParseJsonToken
 # Each is composed by the wider discoverAuthThreeTier orchestrator and is
 # NOT part of the user-facing Pipeline API.
 
-# Reason: discoverFromHeaders — AuthDiscovery/HeadersTier.ts Tier 1 wrapper that scans captured endpoints for an Authorization-shaped request header; composed by Orchestrator.fallbackTiers.
+# Reason: discoverFromHeaders â€” AuthDiscovery/HeadersTier.ts Tier 1 wrapper that scans captured endpoints for an Authorization-shaped request header; composed by Orchestrator.fallbackTiers.
 discoverFromHeaders
-# Reason: discoverFromResponses — AuthDiscovery/ResponseTier.ts Tier 2 wrapper that walks WK-auth response bodies for a token field; composed by Orchestrator as the first attempted tier.
+# Reason: discoverFromResponses â€” AuthDiscovery/ResponseTier.ts Tier 2 wrapper that walks WK-auth response bodies for a token field; composed by Orchestrator as the first attempted tier.
 discoverFromResponses
-# Reason: discoverFromStorage — AuthDiscovery/StorageMain.ts Tier 3a wrapper that reads the main-page sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
+# Reason: discoverFromStorage â€” AuthDiscovery/StorageMain.ts Tier 3a wrapper that reads the main-page sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
 discoverFromStorage
-# Reason: discoverFromAllFrames — AuthDiscovery/StorageFrames.ts Tier 3b wrapper that scans every iframe sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
+# Reason: discoverFromAllFrames â€” AuthDiscovery/StorageFrames.ts Tier 3b wrapper that scans every iframe sessionStorage for an auth blob; composed by Orchestrator.storageTiers.
 discoverFromAllFrames
-# Reason: discoverFromAllStorageKeys — AuthDiscovery/StorageScanAll.ts Tier 3c wrapper that scans every sessionStorage key in every frame for token-shaped JSON; composed by Orchestrator.storageTiers.
+# Reason: discoverFromAllStorageKeys â€” AuthDiscovery/StorageScanAll.ts Tier 3c wrapper that scans every sessionStorage key in every frame for token-shaped JSON; composed by Orchestrator.storageTiers.
 discoverFromAllStorageKeys
-# Reason: pollForAuthModule — AuthDiscovery/PollTier.ts Tier 4 wrapper that polls every frame's sessionStorage for auth-module until it appears; composed by Orchestrator.fallbackTiers as the last-resort tier.
+# Reason: pollForAuthModule â€” AuthDiscovery/PollTier.ts Tier 4 wrapper that polls every frame's sessionStorage for auth-module until it appears; composed by Orchestrator.fallbackTiers as the last-resort tier.
 pollForAuthModule
-# Reason: AUTH_HEADER_NAMES — AuthDiscovery/Tokens.ts WellKnown auth request-header name table (authorization, x-auth-token); static dispatch data shared by HeadersTier.
+# Reason: AUTH_HEADER_NAMES â€” AuthDiscovery/Tokens.ts WellKnown auth request-header name table (authorization, x-auth-token); static dispatch data shared by HeadersTier.
 AUTH_HEADER_NAMES
-# Reason: AUTH_MODULE_STORAGE_KEY — AuthDiscovery/Tokens.ts WellKnown sessionStorage key name for the canonical auth blob; static dispatch data shared by PollTier (closure-captured via waitForFunction arg, see CR PR #280 #111).
+# Reason: AUTH_MODULE_STORAGE_KEY â€” AuthDiscovery/Tokens.ts WellKnown sessionStorage key name for the canonical auth blob; static dispatch data shared by PollTier (closure-captured via waitForFunction arg, see CR PR #280 #111).
 AUTH_MODULE_STORAGE_KEY
 
 # --- Phase 8.5a / commit 3 (AuthFailureWatcher split) ---
@@ -243,39 +243,39 @@ AUTH_MODULE_STORAGE_KEY
 # Factory's createAuthFailureWatcher/createFrozenAuthFailureWatcher entry
 # points and intentionally NOT part of the user-facing Pipeline API.
 
-# Reason: BODY_PREVIEW_LIMIT — AuthFailureWatcher/Types.ts mask-truncate length for diagnostic body previews; shared by BodyReaders + Inspector.
+# Reason: BODY_PREVIEW_LIMIT â€” AuthFailureWatcher/Types.ts mask-truncate length for diagnostic body previews; shared by BodyReaders + Inspector.
 BODY_PREVIEW_LIMIT
-# Reason: FAIL_STATUS_MIN — AuthFailureWatcher/Types.ts inclusive lower bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
+# Reason: FAIL_STATUS_MIN â€” AuthFailureWatcher/Types.ts inclusive lower bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
 FAIL_STATUS_MIN
-# Reason: FAIL_STATUS_MAX — AuthFailureWatcher/Types.ts inclusive upper bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
+# Reason: FAIL_STATUS_MAX â€” AuthFailureWatcher/Types.ts inclusive upper bound of the 4xx auth-rejection range; static dispatch data for UrlMatchers.
 FAIL_STATUS_MAX
-# Reason: NO_PARSED_BODY — AuthFailureWatcher/Types.ts sentinel string returned by BodyReaders.safeParsedBody when JSON parse fails; composed by Inspector.
+# Reason: NO_PARSED_BODY â€” AuthFailureWatcher/Types.ts sentinel string returned by BodyReaders.safeParsedBody when JSON parse fails; composed by Inspector.
 NO_PARSED_BODY
-# Reason: IWatcherState — AuthFailureWatcher/Types.ts mutable internal-state shape passed between Factory, Inspector, Waiter, State sub-modules.
+# Reason: IWatcherState â€” AuthFailureWatcher/Types.ts mutable internal-state shape passed between Factory, Inspector, Waiter, State sub-modules.
 IWatcherState
-# Reason: matchInRecord — AuthFailureWatcher/BodyClassifier.ts (file-private since CR PR #280 #118); kept for historical trace — the symbol is no longer exported and this row is therefore inert.
+# Reason: matchInRecord â€” AuthFailureWatcher/BodyClassifier.ts (file-private since CR PR #280 #118); kept for historical trace â€” the symbol is no longer exported and this row is therefore inert.
 matchInRecord
-# Reason: safeBodyPreview — AuthFailureWatcher/BodyReaders.ts safe response.text() + mask + truncate helper; composed by Inspector + Waiter for diagnostic previews.
+# Reason: safeBodyPreview â€” AuthFailureWatcher/BodyReaders.ts safe response.text() + mask + truncate helper; composed by Inspector + Waiter for diagnostic previews.
 safeBodyPreview
-# Reason: safeParsedBody — AuthFailureWatcher/BodyReaders.ts safe response.text() + JSON.parse helper; composed by Inspector for L2 (body-error) detection.
+# Reason: safeParsedBody â€” AuthFailureWatcher/BodyReaders.ts safe response.text() + JSON.parse helper; composed by Inspector for L2 (body-error) detection.
 safeParsedBody
-# Reason: RecordOutcome — AuthFailureWatcher/State.ts Brand<boolean> tag for recordFailure's return; type-system-only, satisfies Rule #15.
+# Reason: RecordOutcome â€” AuthFailureWatcher/State.ts Brand<boolean> tag for recordFailure's return; type-system-only, satisfies Rule #15.
 RecordOutcome
-# Reason: recordFailure — AuthFailureWatcher/State.ts idempotent state-mutator + LOG.debug emitter; composed by Inspector (both layers) + Waiter.
+# Reason: recordFailure â€” AuthFailureWatcher/State.ts idempotent state-mutator + LOG.debug emitter; composed by Inspector (both layers) + Waiter.
 recordFailure
-# Reason: readDetected — AuthFailureWatcher/State.ts cross-await re-read of state.detected (defeats TS narrowing); composed by Waiter.awaitFailure.
+# Reason: readDetected â€” AuthFailureWatcher/State.ts cross-await re-read of state.detected (defeats TS narrowing); composed by Waiter.awaitFailure.
 readDetected
-# Reason: DisposedFlag — AuthFailureWatcher/State.ts Brand<boolean> tag for readDisposed's return; type-system-only, satisfies Rule #15 (CR PR #280 #121 follow-up).
+# Reason: DisposedFlag â€” AuthFailureWatcher/State.ts Brand<boolean> tag for readDisposed's return; type-system-only, satisfies Rule #15 (CR PR #280 #121 follow-up).
 DisposedFlag
-# Reason: readDisposed — AuthFailureWatcher/State.ts cross-await re-read of state.isDisposed (defeats TS narrowing); composed by Waiter.executeAwait (CR PR #280 #121 follow-up).
+# Reason: readDisposed â€” AuthFailureWatcher/State.ts cross-await re-read of state.isDisposed (defeats TS narrowing); composed by Waiter.executeAwait (CR PR #280 #121 follow-up).
 readDisposed
-# Reason: inspectAuthResponse — AuthFailureWatcher/Inspector.ts two-layer detection runner; composed by buildResponseHandler.
+# Reason: inspectAuthResponse â€” AuthFailureWatcher/Inspector.ts two-layer detection runner; composed by buildResponseHandler.
 inspectAuthResponse
-# Reason: buildResponseHandler — AuthFailureWatcher/Inspector.ts factory returning the Playwright response listener closure; composed by Factory.createAuthFailureWatcher.
+# Reason: buildResponseHandler â€” AuthFailureWatcher/Inspector.ts factory returning the Playwright response listener closure; composed by Factory.createAuthFailureWatcher.
 buildResponseHandler
-# Reason: buildWatcherApi — AuthFailureWatcher/Factory.ts builder that returns the IAuthFailureWatcher public object bound to a page + state; composed by both createAuthFailureWatcher and tests.
+# Reason: buildWatcherApi â€” AuthFailureWatcher/Factory.ts builder that returns the IAuthFailureWatcher public object bound to a page + state; composed by both createAuthFailureWatcher and tests.
 buildWatcherApi
-# Reason: AuthMatcherBool — AuthFailureWatcher/UrlMatchers.ts Brand<boolean> tag for isAuthEndpointUrl + isFailureStatusCode return types; type-system-only, satisfies Rule #15.
+# Reason: AuthMatcherBool â€” AuthFailureWatcher/UrlMatchers.ts Brand<boolean> tag for isAuthEndpointUrl + isFailureStatusCode return types; type-system-only, satisfies Rule #15.
 AuthMatcherBool
 
 # --- Phase 8.5a / commit 4 follow-up (AuthFailureWatcher public-surface paths) ---
@@ -286,70 +286,70 @@ AuthMatcherBool
 # the symbol names are unchanged. Allowlisted because the public API surface is
 # identical; no new exports were added.
 
-# Reason: classifyBodyAsFailure — AuthFailureWatcher/BodyClassifier.ts (was AuthFailureWatcher.ts) public body-pattern matcher; reused by L2 inspection.
+# Reason: classifyBodyAsFailure â€” AuthFailureWatcher/BodyClassifier.ts (was AuthFailureWatcher.ts) public body-pattern matcher; reused by L2 inspection.
 classifyBodyAsFailure
-# Reason: createAuthFailureWatcher — AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) primary entry point; used by DiscoveryEngine.buildIoSlice.
+# Reason: createAuthFailureWatcher â€” AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) primary entry point; used by DiscoveryEngine.buildIoSlice.
 createAuthFailureWatcher
-# Reason: createFrozenAuthFailureWatcher — AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) frozen-replay variant; used by FrozenReplay.buildBaseFrozenDiscovery.
+# Reason: createFrozenAuthFailureWatcher â€” AuthFailureWatcher/Factory.ts (was AuthFailureWatcher.ts) frozen-replay variant; used by FrozenReplay.buildBaseFrozenDiscovery.
 createFrozenAuthFailureWatcher
-# Reason: AuthFailureClassifier — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) classifier-function type alias; consumed externally.
+# Reason: AuthFailureClassifier â€” AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) classifier-function type alias; consumed externally.
 AuthFailureClassifier
-# Reason: IAuthFailure — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) failure-payload interface returned to callers.
+# Reason: IAuthFailure â€” AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) failure-payload interface returned to callers.
 IAuthFailure
-# Reason: IAuthFailureWatcher — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) primary watcher contract returned by the Factory.
+# Reason: IAuthFailureWatcher â€” AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) primary watcher contract returned by the Factory.
 IAuthFailureWatcher
-# Reason: IBodyFailurePattern — AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) body-pattern shape used by AUTH_BODY_FAILURE_PATTERNS table.
+# Reason: IBodyFailurePattern â€” AuthFailureWatcher/Types.ts (was AuthFailureWatcher.ts) body-pattern shape used by AUTH_BODY_FAILURE_PATTERNS table.
 IBodyFailurePattern
-# Reason: isAuthEndpointUrl — AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public URL-pattern predicate; reused by inspection helpers.
+# Reason: isAuthEndpointUrl â€” AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public URL-pattern predicate; reused by inspection helpers.
 isAuthEndpointUrl
-# Reason: isFailureStatusCode — AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public 4xx status predicate; reused by inspection helpers.
+# Reason: isFailureStatusCode â€” AuthFailureWatcher/UrlMatchers.ts (was AuthFailureWatcher.ts) public 4xx status predicate; reused by inspection helpers.
 isFailureStatusCode
-# --- Phase 8.5a / commit 7 (Network §11 cap tightening 20→10) ---
-# Reason: IAwaitFailureArgs — AuthFailureWatcher/Waiter.ts bundled-args interface introduced solely to keep awaitFailure within the 10-LoC per-function cap; internal-only — no external consumer.
+# --- Phase 8.5a / commit 7 (Network Â§11 cap tightening 20â†’10) ---
+# Reason: IAwaitFailureArgs â€” AuthFailureWatcher/Waiter.ts bundled-args interface introduced solely to keep awaitFailure within the 10-LoC per-function cap; internal-only â€” no external consumer.
 IAwaitFailureArgs
 
-# --- Phase 8.5a / commit 9 (CR PR #280 follow-up — Scoring/ShapeAwareLogs export surface) ---
-# Reason: logShapeAwarePick — Scoring/ShapeAwareLogs.ts canonical `discover.shapeAware` Pino emitter; composed by every ShapeAware caller so the structured event lives in one place.
+# --- Phase 8.5a / commit 9 (CR PR #280 follow-up â€” Scoring/ShapeAwareLogs export surface) ---
+# Reason: logShapeAwarePick â€” Scoring/ShapeAwareLogs.ts canonical `discover.shapeAware` Pino emitter; composed by every ShapeAware caller so the structured event lives in one place.
 logShapeAwarePick
-# Reason: ShapeAwareTier — Scoring/ShapeAwareLogs.ts type alias enumerating the seven shape-aware tier labels carried on `discover.shapeAware`; consumed by callers to type-check tier arguments.
+# Reason: ShapeAwareTier â€” Scoring/ShapeAwareLogs.ts type alias enumerating the seven shape-aware tier labels carried on `discover.shapeAware`; consumed by callers to type-check tier arguments.
 ShapeAwareTier
-# Reason: NETWORK_FETCH_TIMEOUT_MS — Network/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
+# Reason: NETWORK_FETCH_TIMEOUT_MS â€” Network/FetchConfig.ts AbortController-driven native-fetch timeout (30s); shared by Fetch/NativeFetch.ts so bank API stalls cannot hang the scraper indefinitely (CR PR #280 #124).
 NETWORK_FETCH_TIMEOUT_MS
 
 # --- Phase 8.5b / commit 3 (ScrapeReplay split) ---
-# Reason: JsonRecord — ScrapeReplay/JsonTypes.ts canonical Record<string, JsonNode> alias used across every ScrapeReplay/* sub-module + Strategy/Scrape/ScrapeDataActions+ScrapeChunking+Account/AccountScrapeStrategy consumers; previously exported via "export type { JsonRecord }" from ScrapeReplayAction.ts (docs-coverage regex only matches direct "export type" declarations so the symbol is now flagged, but its public-surface status is unchanged).
+# Reason: JsonRecord â€” ScrapeReplay/JsonTypes.ts canonical Record<string, JsonNode> alias used across every ScrapeReplay/* sub-module + Strategy/Scrape/ScrapeDataActions+ScrapeChunking+Account/AccountScrapeStrategy consumers; previously exported via "export type { JsonRecord }" from ScrapeReplayAction.ts (docs-coverage regex only matches direct "export type" declarations so the symbol is now flagged, but its public-surface status is unchanged).
 JsonRecord
 
-# --- Phase 3 / commit 13 (CR PR #286 finding F7 — OTP click timeouts) ---
-# Reason: OTP_FALLBACK_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (5000 ms) used exclusively by OtpDetector.tryFallbackClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
+# --- Phase 3 / commit 13 (CR PR #286 finding F7 â€” OTP click timeouts) ---
+# Reason: OTP_FALLBACK_CLICK_TIMEOUT_MS â€” Mediator/Otp/OtpDetectorConfig.ts named constant (5000 ms) used exclusively by OtpDetector.tryFallbackClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
 OTP_FALLBACK_CLICK_TIMEOUT_MS
-# Reason: OTP_FORCE_CLICK_TIMEOUT_MS — Mediator/Otp/OtpDetectorConfig.ts named constant (3000 ms) used exclusively by OtpDetector.tryForceClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
+# Reason: OTP_FORCE_CLICK_TIMEOUT_MS â€” Mediator/Otp/OtpDetectorConfig.ts named constant (3000 ms) used exclusively by OtpDetector.tryForceClick and its unit-test suite. Extracted from an inline literal per CR PR #286 to keep the fallback + force-click timeouts together and prevent drift; not part of the @sergienko4/israeli-bank-scrapers public surface.
 OTP_FORCE_CLICK_TIMEOUT_MS
 
-# --- Phase 2a / C15 (PipelineContextSlotKeys — extracted from PipelineContextFactory.ts) ---
-# Reason: PhaseStateSlotKey — internal string-literal union 'login' | 'dashboard' | 'scrape' | 'api' used by PipelineContextFactory.ts to type the four top-level phase-state result slots. Pure type-plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
+# --- Phase 2a / C15 (PipelineContextSlotKeys â€” extracted from PipelineContextFactory.ts) ---
+# Reason: PhaseStateSlotKey â€” internal string-literal union 'login' | 'dashboard' | 'scrape' | 'api' used by PipelineContextFactory.ts to type the four top-level phase-state result slots. Pure type-plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
 PhaseStateSlotKey
-# Reason: DiscoverySlotKey — internal string-literal union of the six discovery result-slot names (preLoginDiscovery, loginFieldDiscovery, scrapeDiscovery, accountDiscovery, txnEndpoint, dashboardTxnHarvest) used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+# Reason: DiscoverySlotKey â€” internal string-literal union of the six discovery result-slot names (preLoginDiscovery, loginFieldDiscovery, scrapeDiscovery, accountDiscovery, txnEndpoint, dashboardTxnHarvest) used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
 DiscoverySlotKey
-# Reason: PhaseEmitSlotKey — internal string-literal union 'authDiscovery' | 'otpTrigger' | 'otpFill' for the M1/M4 sealed-phase result slots used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+# Reason: PhaseEmitSlotKey â€” internal string-literal union 'authDiscovery' | 'otpTrigger' | 'otpFill' for the M1/M4 sealed-phase result slots used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
 PhaseEmitSlotKey
-# Reason: BalanceSlotKey — internal string-literal union of the five balance-pipeline result-slot names (balanceFetchPlan, balanceResponsesByBankAccount, balanceExtracted, balanceValidation, balanceResolution) used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+# Reason: BalanceSlotKey â€” internal string-literal union of the five balance-pipeline result-slot names (balanceFetchPlan, balanceResponsesByBankAccount, balanceExtracted, balanceValidation, balanceResolution) used by PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
 BalanceSlotKey
-# Reason: ResultSlotKey — internal union-of-the-four-sub-key-types fed to Pick<IPipelineContext, ResultSlotKey> to derive IResultSlots inside PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
+# Reason: ResultSlotKey â€” internal union-of-the-four-sub-key-types fed to Pick<IPipelineContext, ResultSlotKey> to derive IResultSlots inside PipelineContextFactory.ts. Pure type-plumbing; not part of the public API.
 ResultSlotKey
 
 # --- Phase 2c-strict / Dashboard split (DashboardPhaseActions / TxnParser) ---
-# Reason: IDashboardTargets — internal target-resolver bundle used by DashboardPhaseActions.sequential.ts + .targets.ts + .action.ts siblings after the 1991-line monolith was split to satisfy the 150-line file cap. Pure cross-sibling type plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
+# Reason: IDashboardTargets â€” internal target-resolver bundle used by DashboardPhaseActions.sequential.ts + .targets.ts + .action.ts siblings after the 1991-line monolith was split to satisfy the 150-line file cap. Pure cross-sibling type plumbing; not part of the @sergienko4/israeli-bank-scrapers public surface.
 IDashboardTargets
-# Reason: JsonScopeValue — internal JSON-value alias used by the TxnParser.scope.ts / .accountId.ts / .harvest.ts siblings after TxnParser.ts was split to satisfy the per-file LoC budget. Same architectural role as TxnParser.ts (DASHBOARD-side harvest scope); pure cross-sibling type plumbing, not part of the public API.
+# Reason: JsonScopeValue â€” internal JSON-value alias used by the TxnParser.scope.ts / .accountId.ts / .harvest.ts siblings after TxnParser.ts was split to satisfy the per-file LoC budget. Same architectural role as TxnParser.ts (DASHBOARD-side harvest scope); pure cross-sibling type plumbing, not part of the public API.
 JsonScopeValue
 
 # --- Phase 2d-strict / Login cycle break (LoginFieldDiscovery <-> LoginSubmitResolve) ---
-# Reason: IDiscoverFieldsArgs — internal bundled-arguments interface shared by LoginFieldDiscovery.ts (producer of executeDiscoverFields) and LoginSubmitResolve.ts (consumer of resolveSubmitTarget). Extracted to LoginFieldDiscovery.types.ts to break the type-only madge cycle introduced by the Phase 2d split (LoginFieldDiscovery imports resolveSubmitTarget at runtime while LoginSubmitResolve imported the type back). Pure cross-sibling type plumbing; not part of the public API surface.
+# Reason: IDiscoverFieldsArgs â€” internal bundled-arguments interface shared by LoginFieldDiscovery.ts (producer of executeDiscoverFields) and LoginSubmitResolve.ts (consumer of resolveSubmitTarget). Extracted to LoginFieldDiscovery.types.ts to break the type-only madge cycle introduced by the Phase 2d split (LoginFieldDiscovery imports resolveSubmitTarget at runtime while LoginSubmitResolve imported the type back). Pure cross-sibling type plumbing; not part of the public API surface.
 IDiscoverFieldsArgs
 
-# --- Phase 2 / CR fix (EndpointUrlHelpers — WK constant for pending/clearance-requests URL) ---
-# Reason: PIPELINE_WELL_KNOWN_PENDING — internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @sergienko4/israeli-bank-scrapers public surface — Pipeline is internal to the scrapers, not exported via src/index.ts.
+# --- Phase 2 / CR fix (EndpointUrlHelpers â€” WK constant for pending/clearance-requests URL) ---
+# Reason: PIPELINE_WELL_KNOWN_PENDING â€” internal WellKnown registry constant in ScrapeWK.ts that names the apiPrefix/pathFragment/actionName triple for the pending/clearance-requests endpoint on the shared card-family backbone (CAL/Isracard/Amex/MAX). Mirrors the shape of pre-existing PIPELINE_WELL_KNOWN_BILLING/_API/_QUERY_KEYS/_HEADERS constants which were grandfathered into the docs-coverage gate by pre-existing on main; this addition is the same kind (Pipeline-internal WK registry plumbing consumed only by EndpointUrlHelpers.resolvePendingUrl). Not part of the @sergienko4/israeli-bank-scrapers public surface â€” Pipeline is internal to the scrapers, not exported via src/index.ts.
 PIPELINE_WELL_KNOWN_PENDING
 
 # Reason: Internal probe-result interface for urlHasWkDateRange (Rule #15
@@ -365,7 +365,7 @@ urlHasWkDateRange
 #         window fix).
 readCapturedFromDate
 
-# Reason: buildPinoOptions / buildSilentOptions / buildActiveOptions —
+# Reason: buildPinoOptions / buildSilentOptions / buildActiveOptions â€”
 #         internal Logging/RootLogger.ts helpers exported ONLY so unit
 #         tests under Tests/Unit/Pipeline/Logging/RootLogger.test.ts
 #         can pin the silent vs active dispatch contract introduced
@@ -390,7 +390,7 @@ buildActiveOptions
 # from "newly introduced" via export * from barrels, so it sees every
 # constant as + ACCOUNT_RESOLVE_BUDGET_MS (introduced in
 # .../AccountResolveTimingConfig.ts) and demands docs coverage. These
-# names were never user-facing in the first place — they are
+# names were never user-facing in the first place â€” they are
 # Pipeline-internal wait-budget ceilings consumed by the phase mediator,
 # not part of the @sergienko4/israeli-bank-scrapers public surface.
 # Allowlisting them keeps the perimeter honest without forcing 69 entries
@@ -473,7 +473,7 @@ TERMINATE_CLEANUP_BUDGET_MS
 # src/Scrapers/Pipeline/Phases/Base/ (PhaseTrace.ts,
 # BalanceContextSlice.ts, ActionContextBuilder.ts, HandoffHelpers.ts).
 # They are NOT new public
-# API — they remain Pipeline-internal collaborators of the abstract
+# API â€” they remain Pipeline-internal collaborators of the abstract
 # BasePhase Template Method; lib/index.d.ts SHA-256 stays
 # byte-identical after the move. The docs-coverage scanner sees them
 # as "newly introduced" because it can't follow same-PR cross-file
@@ -499,162 +499,162 @@ logHandoffSummary
 # well-formed payload before handing off to ACTION. It is exported from
 # src/Scrapers/Pipeline/Phases/Base/BasePhase.ts so the legacy
 # Types/BasePhase.ts shim can re-export it for back-compat. The brand
-# is module-internal — no user-facing scraper code constructs or pattern-
-# matches against it — so dedicated docs coverage would be noise. The
+# is module-internal â€” no user-facing scraper code constructs or pattern-
+# matches against it â€” so dedicated docs coverage would be noise. The
 # user-facing concept ("BasePhase template method") is already
 # documented in docs/architecture/{layers,pipeline}.md and
 # docs/phases/index.md.
 IsPrePayloadValid
-# --- Phase 12a: CreateElementMediator god-module split (sub-step 1 — Scope + Locators) ---
+# --- Phase 12a: CreateElementMediator god-module split (sub-step 1 â€” Scope + Locators) ---
 # These symbols moved out of CreateElementMediator.ts into focused sub-modules
 # under src/Scrapers/Pipeline/Mediator/Elements/Create/. They are CROSS-MODULE
-# INTERNALS — used by the façade plus the upcoming Hittest/Entries/Race extraction
+# INTERNALS â€” used by the faÃ§ade plus the upcoming Hittest/Entries/Race extraction
 # clusters. None are part of the @sergienko4/israeli-bank-scrapers public API
-# (Pipeline is internal — public surface is src/index.ts, not the Pipeline tree).
+# (Pipeline is internal â€” public surface is src/index.ts, not the Pipeline tree).
 
-# Reason: CLICK_RACE_TIMEOUT — internal default-timeout constant (3000 ms) for the
+# Reason: CLICK_RACE_TIMEOUT â€” internal default-timeout constant (3000 ms) for the
 #         parallel resolveAndClick race; tuning knob, not a consumer-facing API.
 CLICK_RACE_TIMEOUT
-# Reason: NO_FORM_ANCHOR — empty-string sentinel meaning "no form scoping"; internal
-#         to the SelectorCandidate→Locator dispatch, never crosses a public boundary.
+# Reason: NO_FORM_ANCHOR â€” empty-string sentinel meaning "no form scoping"; internal
+#         to the SelectorCandidateâ†’Locator dispatch, never crosses a public boundary.
 NO_FORM_ANCHOR
-# Reason: LocatorContext — internal type alias (Page | Frame | Locator) used by the
+# Reason: LocatorContext â€” internal type alias (Page | Frame | Locator) used by the
 #         per-kind locator builders so form-scoping can be applied uniformly via
 #         Locator chaining. Implementation detail of the dispatch table.
 LocatorContext
-# Reason: applyFormScope — helper that promotes a Page/Frame to a form-scoped
+# Reason: applyFormScope â€” helper that promotes a Page/Frame to a form-scoped
 #         Locator (or returns ctx unchanged when no form anchor is set). Internal
 #         to Create/Locators.ts; reused by upcoming Race/Hittest extractions.
 applyFormScope
-# Reason: buildCandidateLocators — internal factory producing first-match locators
+# Reason: buildCandidateLocators â€” internal factory producing first-match locators
 #         from a SelectorCandidate for legacy resolvers (login/preLogin/OTP/scrape).
-#         Used by the façade plus the next-commit Hittest/Entries sub-modules.
+#         Used by the faÃ§ade plus the next-commit Hittest/Entries sub-modules.
 buildCandidateLocators
-# Reason: buildCandidateLocatorsBase — internal factory producing BASE (no .first())
+# Reason: buildCandidateLocatorsBase â€” internal factory producing BASE (no .first())
 #         locators consumed by the multi-match nth-enumeration race path. Internal
 #         counterpart of buildCandidateLocators.
 buildCandidateLocatorsBase
-# Reason: LOCATOR_KIND_BUILDERS — internal OCP dispatch table mapping each
+# Reason: LOCATOR_KIND_BUILDERS â€” internal OCP dispatch table mapping each
 #         SelectorCandidate.kind to its locator builder. Pure dispatch table; not
 #         a public extension point.
 LOCATOR_KIND_BUILDERS
-# Reason: LocatorKindBuilder — internal function signature for entries of
+# Reason: LocatorKindBuilder â€” internal function signature for entries of
 #         LOCATOR_KIND_BUILDERS. Implementation detail of the dispatch table.
 LocatorKindBuilder
-# Reason: buildAriaLabelLocators — internal per-kind builder for ariaLabel
+# Reason: buildAriaLabelLocators â€” internal per-kind builder for ariaLabel
 #         candidates (fans across getByLabel + 3 ARIA roles). Used only by the
 #         LOCATOR_KIND_BUILDERS dispatch table.
 buildAriaLabelLocators
-# Reason: buildClickableTextLocatorsBase — internal per-kind builder for the
+# Reason: buildClickableTextLocatorsBase â€” internal per-kind builder for the
 #         clickableText kind (innermost element containing text). Dispatch-table
 #         row, not a public API.
 buildClickableTextLocatorsBase
-# Reason: buildCssLocators — internal per-kind builder for raw CSS candidates;
+# Reason: buildCssLocators â€” internal per-kind builder for raw CSS candidates;
 #         row in the LOCATOR_KIND_BUILDERS dispatch table.
 buildCssLocators
-# Reason: buildExactTextLocators — internal per-kind builder for exactText
+# Reason: buildExactTextLocators â€” internal per-kind builder for exactText
 #         candidates (getByText with exact:true); dispatch-table row.
 buildExactTextLocators
-# Reason: buildLabelTextLocators — internal per-kind builder for labelText
+# Reason: buildLabelTextLocators â€” internal per-kind builder for labelText
 #         candidates (Playwright getByLabel resolves to the bound form control);
 #         dispatch-table row.
 buildLabelTextLocators
-# Reason: buildNameLocators — internal per-kind builder for HTML name
+# Reason: buildNameLocators â€” internal per-kind builder for HTML name
 #         attribute candidates (CSS attribute selector); dispatch-table row.
 buildNameLocators
-# Reason: buildPlaceholderLocators — internal per-kind builder for placeholder
+# Reason: buildPlaceholderLocators â€” internal per-kind builder for placeholder
 #         candidates (getByPlaceholder); dispatch-table row.
 buildPlaceholderLocators
-# Reason: buildRegexLocators — internal per-kind builder for regex candidates
+# Reason: buildRegexLocators â€” internal per-kind builder for regex candidates
 #         (getByText with RegExp); dispatch-table row.
 buildRegexLocators
-# Reason: buildWalkUpLocatorsBase — internal per-kind builder for textContent
+# Reason: buildWalkUpLocatorsBase â€” internal per-kind builder for textContent
 #         candidates (walk-up XPath across CLICK_ANCESTORS tags); dispatch-table row.
 buildWalkUpLocatorsBase
-# Reason: buildXpathLocators — internal per-kind builder for xpath candidates
+# Reason: buildXpathLocators â€” internal per-kind builder for xpath candidates
 #         (prepends xpath= and relativizes under form scope); dispatch-table row.
 buildXpathLocators
 # --- Phase 12a sub-step 2: Hittest + Entries extraction ---
 # These six symbols are NEW exports landed by the Phase 12a refactor of
 # CreateElementMediator.ts. They live in Mediator/Elements/Create/
-# behind the barrel and are internal mediator plumbing only — no public
+# behind the barrel and are internal mediator plumbing only â€” no public
 # scraper consumes them directly. They will be re-homed (Hittest /
 # Entries) without API change in later Phase 12a commits, so adding
 # docs pages now would be churn. The parent mediator's public surface
 # (lib/index.d.ts) is byte-identical to baseline (A3.5.4 gate verified).
 #
-# Reason: IRaceDiagnostic — internal trace payload for
+# Reason: IRaceDiagnostic â€” internal trace payload for
 #         raceLocatorsWithHitTest (winner + fulfilled + hit-pass counts).
 IRaceDiagnostic
-# Reason: raceLocators — internal locator race primitive; first locator to
+# Reason: raceLocators â€” internal locator race primitive; first locator to
 #         reach the requested state wins.
 raceLocators
-# Reason: raceLocatorsWithHitTest — internal race+elementFromPoint hit-test
+# Reason: raceLocatorsWithHitTest â€” internal race+elementFromPoint hit-test
 #         + skip-link filter pipeline; primary path for resolve-visible
 #         helpers in the mediator.
 raceLocatorsWithHitTest
-# Reason: raceLocatorsFirstHit — internal single-winner locator race that
+# Reason: raceLocatorsFirstHit â€” internal single-winner locator race that
 #         short-circuits on the FIRST hit-testable locator (or visible
 #         fallback) via Promise.any instead of awaiting every candidate;
 #         sibling of raceLocatorsWithHitTest, consumed only by Race.ts +
 #         Resolve.ts. Pipeline-internal, not part of the npm public surface.
 raceLocatorsFirstHit
-# Reason: ILocatorEntry — internal carrier pairing a Playwright Locator with
+# Reason: ILocatorEntry â€” internal carrier pairing a Playwright Locator with
 #         the candidate descriptor and browsing-context that produced it.
 ILocatorEntry
-# Reason: buildLocatorEntries — internal single-shot entry expander
+# Reason: buildLocatorEntries â€” internal single-shot entry expander
 #         (.first() semantics) used by resolveVisible-style helpers.
 buildLocatorEntries
-# Reason: buildLocatorEntriesAll — internal multi-match expander
+# Reason: buildLocatorEntriesAll â€” internal multi-match expander
 #         (.nth(0..MAX_NTH_PER_LOCATOR-1)) used by resolveAllVisible /
 #         resolveAndClick so legacy + modern sibling pairs both enter the race.
 buildLocatorEntriesAll
 # --- Phase 12a sub-step 3: Snapshot extraction ---
 # Four NEW exports landed by Phase 12a sub-step-3 (Snapshot.ts under
 # Mediator/Elements/Create/). All four are internal mediator plumbing
-# behind the barrel — no public scraper consumes them directly. The
+# behind the barrel â€” no public scraper consumes them directly. The
 # parent mediator's public surface (lib/index.d.ts) remains
 # byte-identical to baseline (A3.5.4 verified).
 #
-# Reason: IWinnerInfo — internal {index,value,identity} bundle passed
+# Reason: IWinnerInfo â€” internal {index,value,identity} bundle passed
 #         to buildFoundResult so callers stay under the 3-param ceiling.
 IWinnerInfo
-# Reason: snapshotValue — captures the winning element's text or href
+# Reason: snapshotValue â€” captures the winning element's text or href
 #         before the next click invalidates it (stale-element protection).
 snapshotValue
-# Reason: extractAndTraceIdentity — snapshots DOM identity + bounded
+# Reason: extractAndTraceIdentity â€” snapshots DOM identity + bounded
 #         outerHTML, emits debug trace, returns identity for ACTION-stage
 #         selector building.
 extractAndTraceIdentity
-# Reason: buildFoundResult — packages winner data into the IRaceResult
+# Reason: buildFoundResult â€” packages winner data into the IRaceResult
 #         contract consumed by every resolve* helper.
 buildFoundResult
 # --- Phase 12a sub-step 4: Race extraction ---
 # Six NEW exports landed by Phase 12a sub-step-4 (Race.ts under
 # Mediator/Elements/Create/). All six are internal mediator plumbing
-# behind the barrel — no public scraper consumes them directly. The
+# behind the barrel â€” no public scraper consumes them directly. The
 # parent mediator's public surface (lib/index.d.ts) remains
 # byte-identical to baseline (A3.5.4 verified).
 #
-# Reason: IRaceSetup — return shape of setupAllVisibleRace
+# Reason: IRaceSetup â€” return shape of setupAllVisibleRace
 #         ({entries, locators, timeout}); needed by resolveAllVisibleImpl
 #         to destructure race inputs.
 IRaceSetup
-# Reason: traceRaceDiagnostic — debug-level race-outcome log emitter
+# Reason: traceRaceDiagnostic â€” debug-level race-outcome log emitter
 #         (winner index + per-locator detail) shared by every race caller.
 traceRaceDiagnostic
-# Reason: raceEntriesToResult — race entries through hit-test, return
+# Reason: raceEntriesToResult â€” race entries through hit-test, return
 #         found-result for the winner or NOT_FOUND_RESULT; the shared
 #         single-winner body for resolveVisibleImpl + resolveVisibleNthAware.
 raceEntriesToResult
-# Reason: extractWinnerSequence — turn race-winner indices into IRaceResults
+# Reason: extractWinnerSequence â€” turn race-winner indices into IRaceResults
 #         with DOM-element dedup + selector-specificity ranking + cap;
 #         consumed by resolveAllVisibleImpl.
 extractWinnerSequence
-# Reason: setupAllVisibleRace — prepare race inputs (nth-expanded entries +
+# Reason: setupAllVisibleRace â€” prepare race inputs (nth-expanded entries +
 #         locator array + capped timeout) for the multi-winner path.
 setupAllVisibleRace
-# Reason: enrichWinnerToResult — capture identity + value from one winning
+# Reason: enrichWinnerToResult â€” capture identity + value from one winning
 #         entry and wrap as IRaceResult; shared by raceEntriesToResult,
 #         resolveVisibleInContextImpl, and tryAttachedClickFallback.
 enrichWinnerToResult
@@ -663,136 +663,136 @@ enrichWinnerToResult
 # src/Scrapers/Pipeline/Types/Debug.ts into src/Scrapers/Pipeline/Logging/Debug.ts,
 # leaving Types/Debug.ts as a re-export shim. This branch is based off
 # pre-12c main (017eb7e2) so Types/Debug.ts still carries the inline
-# export function … declarations. The docs-coverage gate diffs us against
+# export function â€¦ declarations. The docs-coverage gate diffs us against
 # CURRENT main (post-12c shim) and sees these three symbols as "introduced
 # in HEAD" because the extractor treats inline export function as a new
-# symbol distinct from the shim's export { … } from '../Logging/Debug.js'.
+# symbol distinct from the shim's export { â€¦ } from '../Logging/Debug.js'.
 #
 # These three entries unblock the Phase 12a CreateElementMediator refactor
 # from a Phase 12c side effect that the orchestrator will resolve by
 # rebasing this branch onto post-12c main before merge. They should be
 # REMOVED in the rebase commit alongside the inline declarations.
 #
-# Reason: ScraperLogger — pre-existing logger type alias, surfaced as
+# Reason: ScraperLogger â€” pre-existing logger type alias, surfaced as
 #         "new" only because main inlined the re-export shim.
 ScraperLogger
-# Reason: getActiveLogContext — pre-existing context accessor, surfaced as
+# Reason: getActiveLogContext â€” pre-existing context accessor, surfaced as
 #         "new" only because main inlined the re-export shim.
 getActiveLogContext
-# Reason: runWithBankContext — pre-existing context binder, surfaced as
+# Reason: runWithBankContext â€” pre-existing context binder, surfaced as
 #         "new" only because main inlined the re-export shim.
 runWithBankContext
 # --- Phase 12a sub-step 5: FieldResolve+Wait+Discover extraction ---
 # Eight NEW exports landed by Phase 12a sub-step-5 (FieldResolve.ts,
 # Wait.ts, Discover.ts under Mediator/Elements/Create/). All eight are
-# internal mediator plumbing behind the barrel — no public scraper
+# internal mediator plumbing behind the barrel â€” no public scraper
 # consumes them directly. The parent mediator's public surface
 # (lib/index.d.ts) remains byte-identical to baseline (A3.5.4 verified).
 #
-# Reason: IFormCache — per-instance mutable cache for the form-anchor
+# Reason: IFormCache â€” per-instance mutable cache for the form-anchor
 #         selector; threaded through discoverForm + scopeToForm.
 IFormCache
-# Reason: buildResolveField — wraps resolveFieldPipeline with
-#         scoped→wide fallback semantics and error catching;
+# Reason: buildResolveField â€” wraps resolveFieldPipeline with
+#         scopedâ†’wide fallback semantics and error catching;
 #         consumed by buildResolveCluster.
 buildResolveField
-# Reason: buildResolveClickable — clickable-field resolver pinned to
+# Reason: buildResolveClickable â€” clickable-field resolver pinned to
 #         the __submit__ fieldKey for WK.__submit__ fallback;
 #         consumed by buildResolveCluster.
 buildResolveClickable
-# Reason: buildDiscoverErrors — Layer-1 DOM scan + Layer-2 WK text
+# Reason: buildDiscoverErrors â€” Layer-1 DOM scan + Layer-2 WK text
 #         fallback packaged as the mediator's discoverErrors method.
 buildDiscoverErrors
-# Reason: buildDiscoverForm — caches the discovered form anchor and
+# Reason: buildDiscoverForm â€” caches the discovered form anchor and
 #         catches non-fatal discovery errors; consumed by
 #         buildFormCluster.
 buildDiscoverForm
-# Reason: buildScopeToForm — uses the cached anchor to re-scope a
+# Reason: buildScopeToForm â€” uses the cached anchor to re-scope a
 #         candidate list (no-op when cache empty); consumed by
 #         buildFormCluster.
 buildScopeToForm
-# Reason: buildWaitForLoadingDone — polls WK_DASHBOARD.LOADING up to
+# Reason: buildWaitForLoadingDone â€” polls WK_DASHBOARD.LOADING up to
 #         3 attempts (ELEMENTS_LOADING_DELAY_MS between attempts);
 #         consumed by buildResolveCluster.
 buildWaitForLoadingDone
-# Reason: ELEMENTS_LOADING_DELAY_MS — inter-attempt polling delay
+# Reason: ELEMENTS_LOADING_DELAY_MS â€” inter-attempt polling delay
 #         re-exported from Wait.ts so the cluster owns its tuning
 #         knob (the constant still lives in ActionExecutors for the
 #         other action callers that share the same delay).
 ELEMENTS_LOADING_DELAY_MS
 # --- Phase 12a sub-step 6: Resolve+Navigation+Observation+Cookies+PhaseControls+Assembly+ActionMediator extraction ---
 # Final Phase 12a landing: trims CreateElementMediator.ts from 915 LoC to
-# ~38 LoC (≤150 target) by relocating seven cohesive clusters into sibling
+# ~38 LoC (â‰¤150 target) by relocating seven cohesive clusters into sibling
 # sub-modules under Mediator/Elements/Create/. All new exports are internal
-# mediator plumbing behind the Create/index.ts barrel — no public scraper
+# mediator plumbing behind the Create/index.ts barrel â€” no public scraper
 # consumes them directly. lib/index.d.ts byte-identical to baseline.
 #
-# Reason: buildResolveCluster — assembles the 6-method locator/click
+# Reason: buildResolveCluster â€” assembles the 6-method locator/click
 #         resolver bundle (resolveField/resolveClickable/resolveVisible/
 #         resolveAllVisible/resolveVisibleInContext/resolveAndClick).
 buildResolveCluster
-# Reason: ResolveBundle — Pick<IElementMediator, ...> tuple for the
+# Reason: ResolveBundle â€” Pick<IElementMediator, ...> tuple for the
 #         resolver cluster's slice surface.
 ResolveBundle
-# Reason: buildFormCluster — assembles the 3-method form-anchor cluster
+# Reason: buildFormCluster â€” assembles the 3-method form-anchor cluster
 #         (discoverForm/scopeToForm/getFormAnchor) bound to an IFormCache.
 buildFormCluster
-# Reason: FormBundle — Pick<IElementMediator, ...> tuple for the
+# Reason: FormBundle â€” Pick<IElementMediator, ...> tuple for the
 #         form-anchor cluster's slice surface.
 FormBundle
-# Reason: buildNavCluster — assembles the 5-method navigation cluster
+# Reason: buildNavCluster â€” assembles the 5-method navigation cluster
 #         (navigateTo/getCurrentUrl/waitForNetworkIdle/raceWithNetworkIdle/
 #         waitForURL) with single-source waitForNetworkIdle reuse.
 buildNavCluster
-# Reason: NavBundle — Pick<IElementMediator, ...> tuple for the
+# Reason: NavBundle â€” Pick<IElementMediator, ...> tuple for the
 #         navigation cluster's slice surface.
 NavBundle
-# Reason: buildAttrCluster — assembles the 2-method attribute-read
+# Reason: buildAttrCluster â€” assembles the 2-method attribute-read
 #         cluster (checkAttribute/getAttributeValue) on locators carried
 #         by IRaceResult winners.
 buildAttrCluster
-# Reason: AttrBundle — Pick<IElementMediator, ...> tuple for the
+# Reason: AttrBundle â€” Pick<IElementMediator, ...> tuple for the
 #         attribute-read cluster's slice surface.
 AttrBundle
-# Reason: buildCountCluster — assembles the 3-method counting + href
+# Reason: buildCountCluster â€” assembles the 3-method counting + href
 #         cluster (countByText/countBySelector/collectAllHrefs) bound
 #         to a Page reference.
 buildCountCluster
-# Reason: CountBundle — Pick<IElementMediator, ...> tuple for the
+# Reason: CountBundle â€” Pick<IElementMediator, ...> tuple for the
 #         count/href cluster's slice surface.
 CountBundle
-# Reason: buildCookieCluster — assembles the 2-method cookie I/O
+# Reason: buildCookieCluster â€” assembles the 2-method cookie I/O
 #         cluster (getCookies/addCookies) over the browser context.
 buildCookieCluster
-# Reason: CookieBundle — Pick<IElementMediator, ...> tuple for the
+# Reason: CookieBundle â€” Pick<IElementMediator, ...> tuple for the
 #         cookie-I/O cluster's slice surface.
 CookieBundle
-# Reason: buildPhaseControls — assembles the 4-method phase/stage/
+# Reason: buildPhaseControls â€” assembles the 4-method phase/stage/
 #         discovery cluster, owning the ActiveState pass-through that
 #         was previously transient on Create/index.ts.
 buildPhaseControls
-# Reason: buildStaticCluster — fuses PhaseControlsBundle + AttrBundle
-#         so assembleElementMediator's spread count stays ≤ 6.
+# Reason: buildStaticCluster â€” fuses PhaseControlsBundle + AttrBundle
+#         so assembleElementMediator's spread count stays â‰¤ 6.
 buildStaticCluster
-# Reason: PhaseControlsBundle — Pick<IElementMediator, ...> tuple for
+# Reason: PhaseControlsBundle â€” Pick<IElementMediator, ...> tuple for
 #         the phase/stage/discovery cluster's slice surface.
 PhaseControlsBundle
-# Reason: StaticBundle — intersection (PhaseControlsBundle & AttrBundle)
+# Reason: StaticBundle â€” intersection (PhaseControlsBundle & AttrBundle)
 #         for the page-independent merged surface.
 StaticBundle
-# Reason: assembleElementMediator — composes the full IElementMediator
+# Reason: assembleElementMediator â€” composes the full IElementMediator
 #         method bundle from all six cluster builders (everything
-#         except network, which the façade layers on top).
+#         except network, which the faÃ§ade layers on top).
 assembleElementMediator
-# Reason: extractActionMediator — relocated from the parent
-#         CreateElementMediator.ts façade into Create/ActionMediator.ts
+# Reason: extractActionMediator â€” relocated from the parent
+#         CreateElementMediator.ts faÃ§ade into Create/ActionMediator.ts
 #         as part of the Phase 12a sub-step-6 trim. The symbol's public
 #         signature is unchanged; the docs-coverage gate flags it as
 #         "introduced" because it now ships from a new file path.
 extractActionMediator
 
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — LoginScopeIntact.ts → ScopeIntact/{Types,Otp,
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” LoginScopeIntact.ts â†’ ScopeIntact/{Types,Otp,
 # Disambiguate,Probe}.ts. The parent file shrunk from a 222-line
 # mixed-concern module to a 33-line thin facade composing the four
 # sub-modules. All 20 symbols below were previously module-private
@@ -801,136 +801,136 @@ extractActionMediator
 # (validateActionScopeIntact) remains the sole user-facing surface
 # and is already documented under docs/architecture/login-pipeline.md.
 # Pattern matches the Phase 12a Create/ allowlist entries above.
-# ─────────────────────────────────────────────────────────────────────
-# Reason: SCOPE_OTP_VISIBLE_LOG — diagnostic log constant consumed by
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Reason: SCOPE_OTP_VISIBLE_LOG â€” diagnostic log constant consumed by
 #         ScopeIntactDisambiguate; not user-visible.
 SCOPE_OTP_VISIBLE_LOG
-# Reason: SCOPE_OTP_UNKNOWN_LOG — diagnostic log constant consumed by
+# Reason: SCOPE_OTP_UNKNOWN_LOG â€” diagnostic log constant consumed by
 #         ScopeIntactDisambiguate; not user-visible.
 SCOPE_OTP_UNKNOWN_LOG
-# Reason: SCOPE_INTACT_FAIL_MSG — diagnostic message constant consumed
+# Reason: SCOPE_INTACT_FAIL_MSG â€” diagnostic message constant consumed
 #         by ScopeIntactDisambiguate; not user-visible.
 SCOPE_INTACT_FAIL_MSG
-# Reason: SCOPE_OTP_FALLTHROUGH_LOGS — lookup map from OtpScreenVisibility
+# Reason: SCOPE_OTP_FALLTHROUGH_LOGS â€” lookup map from OtpScreenVisibility
 #         keys to fall-through trace logs; sub-module-internal.
 SCOPE_OTP_FALLTHROUGH_LOGS
-# Reason: PROBE_FAILED — sentinel for runOtpDetect's catch arm;
+# Reason: PROBE_FAILED â€” sentinel for runOtpDetect's catch arm;
 #         sub-module-internal.
 PROBE_FAILED
-# Reason: IScopeIntactArgs — bundled state for emitScopeIntactFailure;
+# Reason: IScopeIntactArgs â€” bundled state for emitScopeIntactFailure;
 #         purely framework-internal type alias.
 IScopeIntactArgs
-# Reason: OtpScreenVisibility — tri-state outcome alias for
+# Reason: OtpScreenVisibility â€” tri-state outcome alias for
 #         otpScreenVisible; purely framework-internal.
 OtpScreenVisibility
-# Reason: ProbeOutcome — flat probe outcome alias used by runOtpDetect
+# Reason: ProbeOutcome â€” flat probe outcome alias used by runOtpDetect
 #         and unwrapOtpProcedure; purely framework-internal.
 ProbeOutcome
-# Reason: ScopeProbe — pre-check probe result alias for probeScopeIntact;
+# Reason: ScopeProbe â€” pre-check probe result alias for probeScopeIntact;
 #         purely framework-internal.
 ScopeProbe
-# Reason: unwrapOtpProcedure — Procedure→ProbeOutcome translator;
+# Reason: unwrapOtpProcedure â€” Procedureâ†’ProbeOutcome translator;
 #         framework-internal helper for runOtpDetect.
 unwrapOtpProcedure
-# Reason: runOtpDetect — single OTP detect probe runner; framework-
+# Reason: runOtpDetect â€” single OTP detect probe runner; framework-
 #         internal helper for otpScreenVisible.
 runOtpDetect
-# Reason: otpScreenVisible — composite OTP visibility probe; framework-
+# Reason: otpScreenVisible â€” composite OTP visibility probe; framework-
 #         internal helper for disambiguateScopeIntact.
 otpScreenVisible
-# Reason: pickOtpFallthroughLog — visibility verdict→log resolver;
+# Reason: pickOtpFallthroughLog â€” visibility verdictâ†’log resolver;
 #         framework-internal helper for disambiguateScopeIntact.
 pickOtpFallthroughLog
-# Reason: emitScopeIntactFailure — structured failure emitter;
+# Reason: emitScopeIntactFailure â€” structured failure emitter;
 #         framework-internal helper for disambiguateScopeIntact.
 emitScopeIntactFailure
-# Reason: emitFallthroughLog — fall-through log emitter; framework-
+# Reason: emitFallthroughLog â€” fall-through log emitter; framework-
 #         internal helper for disambiguateScopeIntact.
 emitFallthroughLog
-# Reason: disambiguateScopeIntact — OTP-vs-invalid-creds disambiguator;
-#         framework-internal helper composed by the façade.
+# Reason: disambiguateScopeIntact â€” OTP-vs-invalid-creds disambiguator;
+#         framework-internal helper composed by the faÃ§ade.
 disambiguateScopeIntact
-# Reason: getPasswordTarget — password target lookup; framework-
+# Reason: getPasswordTarget â€” password target lookup; framework-
 #         internal helper for probeScopeIntact.
 getPasswordTarget
-# Reason: probeCountTarget — selector count probe; framework-internal
+# Reason: probeCountTarget â€” selector count probe; framework-internal
 #         helper for probeScopeIntact.
 probeCountTarget
-# Reason: probeScopeIntact — composite pre-check probe; framework-
-#         internal helper composed by the façade.
+# Reason: probeScopeIntact â€” composite pre-check probe; framework-
+#         internal helper composed by the faÃ§ade.
 probeScopeIntact
-# Reason: makeScopeArgs — IScopeIntactArgs builder; framework-internal
-#         helper composed by the façade.
+# Reason: makeScopeArgs â€” IScopeIntactArgs builder; framework-internal
+#         helper composed by the faÃ§ade.
 makeScopeArgs
 
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — LoginSubmitResolve.ts → SubmitResolve/{Types,
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” LoginSubmitResolve.ts â†’ SubmitResolve/{Types,
 # FrameMatch,Build,Core}.ts. The parent file shrunk from a 224-line
 # mixed-concern module to a 41-line thin facade composing the four
 # sub-modules. All 15 symbols below were previously module-private
 # helpers; the export keyword exists only to let the sub-modules
 # import each other across the new file boundary. The facade
 # (resolveSubmitTarget) remains the sole user-facing surface.
-# ─────────────────────────────────────────────────────────────────────
-# Reason: STRUCTURAL_SUBMIT_WK — WK structural submit candidate list;
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Reason: STRUCTURAL_SUBMIT_WK â€” WK structural submit candidate list;
 #         sub-module-internal constant.
 STRUCTURAL_SUBMIT_WK
-# Reason: IFrameMatchArgs — frame-match bundle alias; sub-module-internal.
+# Reason: IFrameMatchArgs â€” frame-match bundle alias; sub-module-internal.
 IFrameMatchArgs
-# Reason: IFrameScope — frame scope bundle alias; sub-module-internal.
+# Reason: IFrameScope â€” frame scope bundle alias; sub-module-internal.
 IFrameScope
-# Reason: IResolveInFrameArgs — resolve-in-frame args bundle alias;
+# Reason: IResolveInFrameArgs â€” resolve-in-frame args bundle alias;
 #         sub-module-internal.
 IResolveInFrameArgs
-# Reason: frameMatchExtras — partial match bundle builder; framework-
+# Reason: frameMatchExtras â€” partial match bundle builder; framework-
 #         internal helper for buildFrameMatchArgs.
 frameMatchExtras
-# Reason: buildFrameMatchArgs — match bundle builder; framework-
+# Reason: buildFrameMatchArgs â€” match bundle builder; framework-
 #         internal helper for resolveInFrame.
 buildFrameMatchArgs
-# Reason: logFrameMismatch — wrong-frame telemetry helper; framework-
+# Reason: logFrameMismatch â€” wrong-frame telemetry helper; framework-
 #         internal helper for resolveInFrame.
 logFrameMismatch
-# Reason: logFrameMatch — matched-frame telemetry helper; framework-
+# Reason: logFrameMatch â€” matched-frame telemetry helper; framework-
 #         internal helper for resolveInFrame.
 logFrameMatch
-# Reason: buildSuccessTarget — success Option builder; framework-
+# Reason: buildSuccessTarget â€” success Option builder; framework-
 #         internal helper for resolveInFrame.
 buildSuccessTarget
-# Reason: buildResolveArgs — resolve-in-frame args bundle builder;
+# Reason: buildResolveArgs â€” resolve-in-frame args bundle builder;
 #         framework-internal helper.
 buildResolveArgs
-# Reason: buildScope — frame scope bundle builder; framework-internal
-#         helper composed by the façade.
+# Reason: buildScope â€” frame scope bundle builder; framework-internal
+#         helper composed by the faÃ§ade.
 buildScope
-# Reason: resolveVisibleCandidates — mediator.resolveVisible bridge;
+# Reason: resolveVisibleCandidates â€” mediator.resolveVisible bridge;
 #         framework-internal helper for resolveInFrame.
 resolveVisibleCandidates
-# Reason: resolveInFrame — frame-scoped race resolver; framework-
+# Reason: resolveInFrame â€” frame-scoped race resolver; framework-
 #         internal helper composed by try*Submit helpers.
 resolveInFrame
-# Reason: tryStructuralSubmit — WK structural submit race; framework-
-#         internal helper composed by the façade.
+# Reason: tryStructuralSubmit â€” WK structural submit race; framework-
+#         internal helper composed by the faÃ§ade.
 tryStructuralSubmit
-# Reason: tryConfiguredSubmit — bank-configured submit race; framework-
-#         internal helper composed by the façade.
+# Reason: tryConfiguredSubmit â€” bank-configured submit race; framework-
+#         internal helper composed by the faÃ§ade.
 tryConfiguredSubmit
 
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — LoginPostValidate.ts → PostValidate/{Detect,Gates,Flow}.ts
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” LoginPostValidate.ts â†’ PostValidate/{Detect,Gates,Flow}.ts
 # Sub-modules are framework-internal helpers behind the LoginPostValidate.ts
 # facade. The facade keeps its 2 public exports (default executeValidateLogin
 # + named detectAsyncLoginErrors); these symbols cross-talk between the
 # 3 sub-modules and are not part of the consumer-facing API.
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Reason: Sub-module lookup table mapping auth-failure classifier → human-readable layer label (PostValidateDetect).
+# Reason: Sub-module lookup table mapping auth-failure classifier â†’ human-readable layer label (PostValidateDetect).
 AUTH_FAILURE_LAYER_LABELS
 # Reason: Sub-module re-export of the async login-error detector consumed by the facade and PostValidateFlow.
 detectAsyncLoginErrors
-# Reason: Sub-module helper that scans a page for async error banners — used internally by detectAsyncLoginErrors.
+# Reason: Sub-module helper that scans a page for async error banners â€” used internally by detectAsyncLoginErrors.
 detectAsyncOnPage
-# Reason: Sub-module probe for the auth-API failure watcher result — used by PostValidateGates + Flow.
+# Reason: Sub-module probe for the auth-API failure watcher result â€” used by PostValidateGates + Flow.
 detectAuthApiFailure
 # Reason: Sub-module DTO bundling validate-login flow args (config/mediator/input/page/activeFrame).
 IValidateLoginArgs
@@ -956,270 +956,270 @@ failReady
 runPostFormScanAndCallback
 # Reason: Sub-module helper running the loading-gate wait + early auth-API watcher.
 runPostLoadingGate
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — LoginFieldDiscovery.ts → FieldDiscovery/{Types,ResolveOne,Accumulate,Fold}.ts
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” LoginFieldDiscovery.ts â†’ FieldDiscovery/{Types,ResolveOne,Accumulate,Fold}.ts
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Reason: Sub-module accumulator type — passes target map + form anchor through the fold; internal only.
+# Reason: Sub-module accumulator type â€” passes target map + form anchor through the fold; internal only.
 IFieldAccum
-# Reason: Sub-module bundle for resolveOneField — keeps the body under the 10-line ceiling.
+# Reason: Sub-module bundle for resolveOneField â€” keeps the body under the 10-line ceiling.
 IResolveOneArgs
-# Reason: Sub-module bundle for accumulateField — under the 3-param ceiling.
+# Reason: Sub-module bundle for accumulateField â€” under the 3-param ceiling.
 IAccumulateCallArgs
 # Reason: Sub-module bundle for maybeDiscoverAnchor.
 IAnchorCheckArgs
-# Reason: Sub-module trace-tag lookup — internal logging helper.
+# Reason: Sub-module trace-tag lookup â€” internal logging helper.
 FIELD_RESULT_TAG
-# Reason: Sub-module helper — assembles an IResolvedTarget from a resolved field context.
+# Reason: Sub-module helper â€” assembles an IResolvedTarget from a resolved field context.
 buildPreTarget
-# Reason: Sub-module helper — picks the form anchor's CSS selector, or '' when absent.
+# Reason: Sub-module helper â€” picks the form anchor's CSS selector, or '' when absent.
 pickFormSelector
-# Reason: Sub-module helper — maps a field-resolution Procedure into the IResolvedTarget sentinel.
+# Reason: Sub-module helper â€” maps a field-resolution Procedure into the IResolvedTarget sentinel.
 preTargetOrFalse
-# Reason: Sub-module helper — resolves one credential field and returns its IResolvedTarget or false.
+# Reason: Sub-module helper â€” resolves one credential field and returns its IResolvedTarget or false.
 resolveOneField
-# Reason: Sub-module helper — accumulates one resolved field into the targets map + emits trace log.
+# Reason: Sub-module helper â€” accumulates one resolved field into the targets map + emits trace log.
 accumulateField
-# Reason: Sub-module helper — lazily discovers a form anchor only on the first successful field resolution.
+# Reason: Sub-module helper â€” lazily discovers a form anchor only on the first successful field resolution.
 maybeDiscoverAnchor
-# Reason: Sub-module helper — composes resolveOneField + accumulateField + maybeDiscoverAnchor into one step.
+# Reason: Sub-module helper â€” composes resolveOneField + accumulateField + maybeDiscoverAnchor into one step.
 resolveAndAccumulate
-# Reason: Sub-module factory — builds the single-step reducer used by foldDiscoveryFields.
+# Reason: Sub-module factory â€” builds the single-step reducer used by foldDiscoveryFields.
 makeFieldStep
-# Reason: Sub-module helper — sequentially folds the ordered field list into the discovery accumulator.
+# Reason: Sub-module helper â€” sequentially folds the ordered field list into the discovery accumulator.
 foldDiscoveryFields
-# Reason: Sub-module helper — selects the active-frame id for downstream submit resolution.
+# Reason: Sub-module helper â€” selects the active-frame id for downstream submit resolution.
 pickActiveFrameId
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — FormErrorDiscovery.ts → ErrorDiscovery/{Types,Scan,Probe}.ts
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” FormErrorDiscovery.ts â†’ ErrorDiscovery/{Types,Scan,Probe}.ts
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 # Reason: Sub-module sentinel for elements missing a `class` attribute (browser-context).
 NO_CLASS
-# Reason: Sub-module raw DOM item interface — output of the in-browser scan callback.
+# Reason: Sub-module raw DOM item interface â€” output of the in-browser scan callback.
 IRawDomItem
-# Reason: Sub-module evaluation-argument bundle — passes selector + sentinel into the browser context.
+# Reason: Sub-module evaluation-argument bundle â€” passes selector + sentinel into the browser context.
 IEvalArg
-# Reason: Sub-module CSS-selector constant — joined list of structural error-element selectors.
+# Reason: Sub-module CSS-selector constant â€” joined list of structural error-element selectors.
 ERROR_SELECTOR
-# Reason: Sub-module type — discriminator for the kind of form error (formValidation/networkError/authError).
+# Reason: Sub-module type â€” discriminator for the kind of form error (formValidation/networkError/authError).
 FormErrorKind
-# Reason: Sub-module interface — a single discovered form error (selector + text + kind).
+# Reason: Sub-module interface â€” a single discovered form error (selector + text + kind).
 IFormError
-# Reason: Sub-module interface — unified scan result for Layer 1 + Layer 2 error discovery.
+# Reason: Sub-module interface â€” unified scan result for Layer 1 + Layer 2 error discovery.
 IFormErrorScanResult
-# Reason: Sub-module constant — canonical empty IFormErrorScanResult sentinel.
+# Reason: Sub-module constant â€” canonical empty IFormErrorScanResult sentinel.
 NO_ERRORS
-# Reason: Sub-module Layer 1 entry — dynamic DOM structural scan for form errors.
+# Reason: Sub-module Layer 1 entry â€” dynamic DOM structural scan for form errors.
 discoverFormErrors
-# Reason: Sub-module Layer 2 entry — WellKnown error-text probe for form errors.
+# Reason: Sub-module Layer 2 entry â€” WellKnown error-text probe for form errors.
 checkFrameForErrors
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — LoginPreOrchestrator.ts → PreOrchestrator/{Types,Readiness,Discovery}.ts
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” LoginPreOrchestrator.ts â†’ PreOrchestrator/{Types,Readiness,Discovery}.ts
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Reason: Sub-module constant — failure message for the LOGIN PRE missing-browser early gate.
+# Reason: Sub-module constant â€” failure message for the LOGIN PRE missing-browser early gate.
 LOGIN_PRE_NO_BROWSER
-# Reason: Sub-module constant — failure message for the LOGIN PRE missing-mediator early gate.
+# Reason: Sub-module constant â€” failure message for the LOGIN PRE missing-mediator early gate.
 LOGIN_PRE_NO_MEDIATOR
-# Reason: Sub-module constant — LOGIN.PRE prelude spec for the iframe-hosted login form.
+# Reason: Sub-module constant â€” LOGIN.PRE prelude spec for the iframe-hosted login form.
 LOGIN_PRE_FRAME_PRELUDE
 # Reason: Sub-module tagged-union outcome of runDiscoverFormPreamble (fail/frame variants).
 DiscoverFormPreamble
-# Reason: Sub-module DTO — bundled discover-form resources (config + context + page + mediator).
+# Reason: Sub-module DTO â€” bundled discover-form resources (config + context + page + mediator).
 IDiscoverFormResources
-# Reason: Sub-module function — probes the page for a Firefox-style network-error chrome.
+# Reason: Sub-module function â€” probes the page for a Firefox-style network-error chrome.
 probeNeterrorAndFail
-# Reason: Sub-module function — runs LOGIN.PRE checkReadiness + preAction preamble.
+# Reason: Sub-module function â€” runs LOGIN.PRE checkReadiness + preAction preamble.
 runDiscoverFormPreamble
-# Reason: Sub-module function — runs the post-preamble DOM-ready wait + field discovery + commit.
+# Reason: Sub-module function â€” runs the post-preamble DOM-ready wait + field discovery + commit.
 runPostPreamble
 
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — FormAnchor.ts → Anchor/{Types,Walk,Scope}.ts
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” FormAnchor.ts â†’ Anchor/{Types,Walk,Scope}.ts
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Reason: Sub-module type — form anchor result (selector + Playwright context).
+# Reason: Sub-module type â€” form anchor result (selector + Playwright context).
 IFormAnchor
-# Reason: Sub-module ancestor metadata interface — typed view of a single DOM ancestor.
+# Reason: Sub-module ancestor metadata interface â€” typed view of a single DOM ancestor.
 IAncestorMeta
-# Reason: Sub-module ancestor tuple type — wire-format from browser evaluate to Node.
+# Reason: Sub-module ancestor tuple type â€” wire-format from browser evaluate to Node.
 AncestorTuple
-# Reason: Sub-module sentinel — typed null for Nullable return types.
+# Reason: Sub-module sentinel â€” typed null for Nullable return types.
 EMPTY_RESULT
-# Reason: Sub-module constant — regex matching id-bearing form CSS selectors.
+# Reason: Sub-module constant â€” regex matching id-bearing form CSS selectors.
 FORM_ID_RE
-# Reason: Sub-module constant — XPath filter excluding non-fillable input types.
+# Reason: Sub-module constant â€” XPath filter excluding non-fillable input types.
 NON_FILLABLE_FILTER
-# Reason: Sub-module constant — XPath expression for ancestor walk (excludes html/body).
+# Reason: Sub-module constant â€” XPath expression for ancestor walk (excludes html/body).
 ANCESTOR_XPATH
-# Reason: Sub-module constant — minimum fillable input count for form-like detection.
+# Reason: Sub-module constant â€” minimum fillable input count for form-like detection.
 MIN_FILLABLE_INPUTS
-# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+# Reason: Re-exported from facade FormAnchor.ts â€” public API documented at consumer sites.
 discoverFormAnchor
-# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+# Reason: Re-exported from facade FormAnchor.ts â€” public API documented at consumer sites.
 scopeCandidate
-# Reason: Re-exported from facade FormAnchor.ts — public API documented at consumer sites.
+# Reason: Re-exported from facade FormAnchor.ts â€” public API documented at consumer sites.
 scopeCandidates
 
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12d split — LoginFormActions.ts → Actions/{Types,Fill,Discovery}.ts
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12d split â€” LoginFormActions.ts â†’ Actions/{Types,Fill,Discovery}.ts
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+# Reason: Re-exported from facade LoginFormActions.ts â€” public API documented at consumer sites.
 fillAllFields
-# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+# Reason: Re-exported from facade LoginFormActions.ts â€” public API documented at consumer sites.
 fillAndSubmit
-# Reason: Re-exported from facade LoginFormActions.ts — public API documented at consumer sites.
+# Reason: Re-exported from facade LoginFormActions.ts â€” public API documented at consumer sites.
 fillFromDiscovery
-# Reason: Re-exported from facade LoginFormActions.ts — public type used by ActionMediator consumers.
+# Reason: Re-exported from facade LoginFormActions.ts â€” public type used by ActionMediator consumers.
 IFillFromDiscoveryArgs
-# Reason: Re-exported from facade LoginFormActions.ts — public type returned by fillAndSubmit / fillFromDiscovery.
+# Reason: Re-exported from facade LoginFormActions.ts â€” public type returned by fillAndSubmit / fillFromDiscovery.
 ISubmitResult
-# Reason: Re-exported from facade LoginFormActions.ts — public union 'enter'|'click'|'both'.
+# Reason: Re-exported from facade LoginFormActions.ts â€” public union 'enter'|'click'|'both'.
 SubmitMethod
-# Reason: Sub-module type — bundled args for fillAllFields (mediator + fields + creds + logger).
+# Reason: Sub-module type â€” bundled args for fillAllFields (mediator + fields + creds + logger).
 IFillAllArgs
-# Reason: Sub-module type — fill result with frame context for downstream submit targeting.
+# Reason: Sub-module type â€” fill result with frame context for downstream submit targeting.
 IFillAllResult
-# Reason: Sub-module type — bundled args for fillAndSubmit.
+# Reason: Sub-module type â€” bundled args for fillAndSubmit.
 IFillAndSubmitArgs
-# Reason: Sub-module type — bundled args for runSubmitPhase (3-param ceiling shim).
+# Reason: Sub-module type â€” bundled args for runSubmitPhase (3-param ceiling shim).
 ISubmitPhaseArgs
-# Reason: Sub-module type — bundle of (didEnter, clickResult) returned by submit-phase runners.
+# Reason: Sub-module type â€” bundle of (didEnter, clickResult) returned by submit-phase runners.
 ISubmitPhaseResult
-# Reason: Sub-module helper — normalize ILoginConfig['submit'] to readonly candidate array.
+# Reason: Sub-module helper â€” normalize ILoginConfig['submit'] to readonly candidate array.
 normalizeSubmit
-# Reason: Sub-module helper — boolean-pair → 'enter'|'click'|'both' lookup.
+# Reason: Sub-module helper â€” boolean-pair â†’ 'enter'|'click'|'both' lookup.
 resolveSubmitMethod
-# Reason: Sub-module helper — convert ISubmitPhaseResult into the final SubmitMethod label.
+# Reason: Sub-module helper â€” convert ISubmitPhaseResult into the final SubmitMethod label.
 resolveSubmitFromPhase
-# Reason: Sub-module helper — phantom-success guard returning a failure when no submit signal fired.
+# Reason: Sub-module helper â€” phantom-success guard returning a failure when no submit signal fired.
 gateNoSubmitSignal
-# Reason: Sub-module helper — emit the "filling N fields" debug line.
+# Reason: Sub-module helper â€” emit the "filling N fields" debug line.
 logFillCount
-# Reason: Sub-module helper — emit the post-submit debug line (method + masked URL).
+# Reason: Sub-module helper â€” emit the post-submit debug line (method + masked URL).
 logSubmitResult
 
-# ─────────────────────────────────────────────────────────────────────
-# PR #345 CR round-2 — narrowed Enter-press catch (Actions/ActionsBenignReject.ts)
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# PR #345 CR round-2 â€” narrowed Enter-press catch (Actions/ActionsBenignReject.ts)
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Reason: Sub-module constant — benign-signal substrings for the Enter-fallback press path.
+# Reason: Sub-module constant â€” benign-signal substrings for the Enter-fallback press path.
 BENIGN_PRESS_PATTERNS
-# Reason: Sub-module type — nominal brand for the press-rejection classification boolean.
+# Reason: Sub-module type â€” nominal brand for the press-rejection classification boolean.
 BenignPressSignal
-# Reason: Sub-module helper — benign-vs-real predicate narrowing the pressEnter catch.
+# Reason: Sub-module helper â€” benign-vs-real predicate narrowing the pressEnter catch.
 isBenignPressReject
 
-# ─────────────────────────────────────────────────────────────────────
-# Phase 12e — NavigationTransportProbe split (Mediator/Init/TransportProbe/**)
-# ─────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Phase 12e â€” NavigationTransportProbe split (Mediator/Init/TransportProbe/**)
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # These symbols moved from the (formerly 1036-LoC) NavigationTransportProbe.ts
 # into a focused TransportProbe/ sub-cluster (Types / Reject / Result / Url /
 # Dns / Tcp / Tls / Probe) as part of a behavior-preserving facade split. They
-# are CROSS-MODULE INTERNALS — phase runners, default dep implementations,
+# are CROSS-MODULE INTERNALS â€” phase runners, default dep implementations,
 # per-phase input/outcome bundles, and shared sentinels consumed only by the
 # sibling sub-modules and the Probe orchestrator. The user-facing surface
 # (probeTransport, probeTransportWithDeps, and the I* envelope types) is
 # unchanged and still re-exported byte-for-byte through the
-# NavigationTransportProbe.ts barrel facade — those public symbols stay
+# NavigationTransportProbe.ts barrel facade â€” those public symbols stay
 # documented in docs/observability/init-navigation-forensics.md and are NOT
 # in this allowlist. None of the symbols below are re-exported from
 # lib/index.{cjs,mjs}.
 
-# Reason: Types — input bundle for the injectable tcpConnect dep (host/port/budget). Cross-module internal.
+# Reason: Types â€” input bundle for the injectable tcpConnect dep (host/port/budget). Cross-module internal.
 ITcpConnectInput
-# Reason: Types — input bundle for the injectable tlsUpgrade dep (socket/host/budget). Cross-module internal.
+# Reason: Types â€” input bundle for the injectable tlsUpgrade dep (socket/host/budget). Cross-module internal.
 ITlsUpgradeInput
-# Reason: Types — parsed target-URL parts (host/port/isTls) threaded from Url.ts into the phase runners.
+# Reason: Types â€” parsed target-URL parts (host/port/isTls) threaded from Url.ts into the phase runners.
 IUrlParts
-# Reason: Types — per-run probe context carried across the DNS/TCP/TLS phases. Implementation detail.
+# Reason: Types â€” per-run probe context carried across the DNS/TCP/TLS phases. Implementation detail.
 IProbeContext
-# Reason: Types — accumulating timing/result envelope assembled into the final INavTransportProbe.
+# Reason: Types â€” accumulating timing/result envelope assembled into the final INavTransportProbe.
 IProbeEnvelope
-# Reason: Types — '' sentinel for an unresolved address before the DNS phase runs.
+# Reason: Types â€” '' sentinel for an unresolved address before the DNS phase runs.
 EMPTY_ADDRESS
-# Reason: Types — 0-ms sentinel for any phase that did not run. Shared by Result/Dns/Tcp/Tls.
+# Reason: Types â€” 0-ms sentinel for any phase that did not run. Shared by Result/Dns/Tcp/Tls.
 ZERO_MS
-# Reason: Types — 'other-error' outcome literal constant for the catch-all phase failure path.
+# Reason: Types â€” 'other-error' outcome literal constant for the catch-all phase failure path.
 OUTCOME_OTHER_ERROR
-# Reason: Types — zeroed IProbeEnvelope seed used to start every probe run.
+# Reason: Types â€” zeroed IProbeEnvelope seed used to start every probe run.
 EMPTY_ENVELOPE
-# Reason: Types — zeroed IUrlParts fallback returned when target-URL parsing fails.
+# Reason: Types â€” zeroed IUrlParts fallback returned when target-URL parsing fails.
 EMPTY_URL
-# Reason: Url — discriminated parse result for tryParseTargetUrl (ok parts vs failure outcome).
+# Reason: Url â€” discriminated parse result for tryParseTargetUrl (ok parts vs failure outcome).
 IParseUrlOutcome
-# Reason: Url — internal target-URL parser consumed by the Probe orchestrator. Not user-facing.
+# Reason: Url â€” internal target-URL parser consumed by the Probe orchestrator. Not user-facing.
 tryParseTargetUrl
-# Reason: Result — input bundle for buildProbeResult (envelope + outcome + timing). Cross-module internal.
+# Reason: Result â€” input bundle for buildProbeResult (envelope + outcome + timing). Cross-module internal.
 IBuildProbeInput
-# Reason: Result — assembles the final INavTransportProbe from phase outputs. Internal helper.
+# Reason: Result â€” assembles the final INavTransportProbe from phase outputs. Internal helper.
 buildProbeResult
-# Reason: Dns — production dns.lookup dep implementation injected as the default lookup. Test seam internal.
+# Reason: Dns â€” production dns.lookup dep implementation injected as the default lookup. Test seam internal.
 defaultDnsLookup
-# Reason: Dns — discriminated DNS-phase result (resolved address vs failure outcome). Internal.
+# Reason: Dns â€” discriminated DNS-phase result (resolved address vs failure outcome). Internal.
 IDnsPhaseOutcome
-# Reason: Dns — DNS-phase input bundle (host/budget/deps). Cross-module internal.
+# Reason: Dns â€” DNS-phase input bundle (host/budget/deps). Cross-module internal.
 IRunDnsInput
-# Reason: Dns — runs the DNS phase within budget; consumed only by the Probe orchestrator.
+# Reason: Dns â€” runs the DNS phase within budget; consumed only by the Probe orchestrator.
 runDnsPhase
-# Reason: Tcp — production net.connect dep implementation injected as the default tcpConnect. Test seam internal.
+# Reason: Tcp â€” production net.connect dep implementation injected as the default tcpConnect. Test seam internal.
 defaultTcpConnect
-# Reason: Tcp — TCP-phase input bundle (address/port/budget/deps). Cross-module internal.
+# Reason: Tcp â€” TCP-phase input bundle (address/port/budget/deps). Cross-module internal.
 IRunTcpInput
-# Reason: Tcp — runs the TCP phase within budget; consumed only by the Probe orchestrator.
+# Reason: Tcp â€” runs the TCP phase within budget; consumed only by the Probe orchestrator.
 runTcpPhase
-# Reason: Tls — production tls.connect dep implementation injected as the default tlsUpgrade. Test seam internal.
+# Reason: Tls â€” production tls.connect dep implementation injected as the default tlsUpgrade. Test seam internal.
 defaultTlsUpgrade
-# Reason: Tls — TLS-phase input bundle (socket/host/budget/deps). Cross-module internal.
+# Reason: Tls â€” TLS-phase input bundle (socket/host/budget/deps). Cross-module internal.
 IRunTlsInput
-# Reason: Tls — runs the TLS phase within budget; consumed only by the Probe orchestrator.
+# Reason: Tls â€” runs the TLS phase within budget; consumed only by the Probe orchestrator.
 runTlsPhase
-# Reason: ApiDirectScrape — action-context payload type for the shape-driven scrape fn; framework-internal phase type relocated to a leaf in the 12g cycle-break (was already exported from ApiDirectScrapePhase.ts). Not user-facing.
+# Reason: ApiDirectScrape â€” action-context payload type for the shape-driven scrape fn; framework-internal phase type relocated to a leaf in the 12g cycle-break (was already exported from ApiDirectScrapePhase.ts). Not user-facing.
 ApiDirectScrapeResult
-# Reason: ApiDirectScrape — bound phase-action fn type; framework-internal, relocated to a leaf in the 12g cycle-break (was already exported from ApiDirectScrapePhase.ts). Not user-facing.
+# Reason: ApiDirectScrape â€” bound phase-action fn type; framework-internal, relocated to a leaf in the 12g cycle-break (was already exported from ApiDirectScrapePhase.ts). Not user-facing.
 ApiDirectScrapeFn
-# Reason: Form — credential field-fill fn; framework-internal, relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts, still re-exported there). Not user-facing.
+# Reason: Form â€” credential field-fill fn; framework-internal, relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts, still re-exported there). Not user-facing.
 fillOneField
-# Reason: Form — single-field fill options; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
+# Reason: Form â€” single-field fill options; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
 IFillOpts
-# Reason: Form — bundled fill-field options; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
+# Reason: Form â€” bundled fill-field options; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
 IFillFieldOpts
-# Reason: Form — field-fill result; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
+# Reason: Form â€” field-fill result; framework-internal type relocated to the LoginFieldFill leaf in the 12g-2 cycle-break (was already exported from LoginFormFill.ts). Not user-facing.
 IFillResult
-# Reason: Elements — element wait options (visibility/timeout); framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
+# Reason: Elements â€” element wait options (visibility/timeout); framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
 IWaitOptions
-# Reason: Elements — single-element page-eval options; framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
+# Reason: Elements â€” single-element page-eval options; framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
 IPageEvalOpts
-# Reason: Elements — multi-element page-eval options; framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
+# Reason: Elements â€” multi-element page-eval options; framework-internal type relocated to the ElementsActionTypes leaf in the 12f cycle-break (was already exported from ElementsInteractions.ts, still re-exported there). Not user-facing.
 IPageEvalAllOpts
-# Reason: BalanceResolve — per-bank balance-resolution discriminant ('account' | 'card-cycle') on IPipelineBankConfig; framework-internal config knob that gates the balance-resolve live fetch. Deposit banks declare 'account'; card companies declare 'card-cycle'. REQUIRED — every bank states its kind explicitly; absence is a config error, not a silent no-op. Not user-facing mkdocs surface (mirrors BalanceSlotKey/IDashboardTargets config types already allowlisted).
+# Reason: BalanceResolve â€” per-bank balance-resolution discriminant ('account' | 'card-cycle') on IPipelineBankConfig; framework-internal config knob that gates the balance-resolve live fetch. Deposit banks declare 'account'; card companies declare 'card-cycle'. REQUIRED â€” every bank states its kind explicitly; absence is a config error, not a silent no-op. Not user-facing mkdocs surface (mirrors BalanceSlotKey/IDashboardTargets config types already allowlisted).
 BalanceKind
-# Reason: Banks — Leumi declarative login config (credential keys only; WellKnown resolves selectors); framework-internal bank-registration surface consumed by the integration test wiring (BankLoginConfigs), mirroring every other pipeline bank's *_LOGIN. Not user-facing.
+# Reason: Banks â€” Leumi declarative login config (credential keys only; WellKnown resolves selectors); framework-internal bank-registration surface consumed by the integration test wiring (BankLoginConfigs), mirroring every other pipeline bank's *_LOGIN. Not user-facing.
 LEUMI_LOGIN
-# Reason: AuthDiscoveryGate — per-bank auth-completion-family discriminant ('token' | 'session-cookie' | 'api-direct') on IPipelineBankConfig; framework-internal config knob that declares how auth success is verified. REQUIRED — every bank states its kind explicitly; tsc enforces completeness. Not user-facing mkdocs surface; mirrors BalanceKind (already allowlisted above).
+# Reason: AuthDiscoveryGate â€” per-bank auth-completion-family discriminant ('token' | 'session-cookie' | 'api-direct') on IPipelineBankConfig; framework-internal config knob that declares how auth success is verified. REQUIRED â€” every bank states its kind explicitly; tsc enforces completeness. Not user-facing mkdocs surface; mirrors BalanceKind (already allowlisted above).
 AuthStrategyKind
 
-# Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Reason: LoginForensicTrace ï¿½ gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
 buildConsoleHandler
-# Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Reason: LoginForensicTrace ï¿½ gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
 buildPageErrorHandler
-# Reason: LoginForensicTrace � gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
+# Reason: LoginForensicTrace ï¿½ gated diagnostic handlers (PIPELINE_AUTH_REQ_TRACE gate).
 # Attached only when the trace gate is ON; zero-surface in production. CI diagnostic only.
 buildPopupHandler
-# Reason: SubmitModeGate — gated D3 diagnostic lever (PIPELINE_LOGIN_SUBMIT_MODE gate).
+# Reason: SubmitModeGate â€” gated D3 diagnostic lever (PIPELINE_LOGIN_SUBMIT_MODE gate).
 # Default 'enter-click' is byte-identical. CI A/B diagnostic only; not user-facing.
 readSubmitMode
-# Reason: SubmitModeGate — discriminated union type for the D3 submit-mode lever.
+# Reason: SubmitModeGate â€” discriminated union type for the D3 submit-mode lever.
 # Internal gate type; not user-facing.
 SubmitMode
-# Reason: SubmitModeGate — env-var name constant for the D3 submit-mode lever.
+# Reason: SubmitModeGate â€” env-var name constant for the D3 submit-mode lever.
 # Exported so tests can reference it without hardcoding the string. Not user-facing.
 SUBMIT_MODE_ENV_VAR
-# Reason: ActionsFill — @internal D3 requestSubmit helper, exported for unit-test access only.
+# Reason: ActionsFill â€” @internal D3 requestSubmit helper, exported for unit-test access only.
 # No docs-surface needed; gated behaviour, not public API.
 tryFormRequestSubmit
 # Reason: NetworkTimingConfig - body-read-race settle ceiling for awaitTraffic.
@@ -1227,12 +1227,12 @@ tryFormRequestSubmit
 # for up to this budget so the body-bearing endpoint settles. Framework-internal
 # timing knob; exported only so the NetworkPolling race test asserts it. Not user-facing.
 NETWORK_BODY_SETTLE_MS
-# Reason: DashboardTxnMatch — shared TXN-page URL predicate reused by the DASHBOARD
+# Reason: DashboardTxnMatch â€” shared TXN-page URL predicate reused by the DASHBOARD
 # click-walker, dashboard href-extraction, and the ACCOUNT-RESOLVE nudge (dedup of
 # TXN_PAGE_PATTERNS.some) and driven by the DashboardWK pin test. Framework-internal
 # matcher, not user-facing public API.
 isTxnPageUrl
-# Reason: WindowParams — hasWindowParams detects a COMPLETE fromDate+toDate window
+# Reason: WindowParams â€” hasWindowParams detects a COMPLETE fromDate+toDate window
 # (top-level query keys OR keys nested inside a JSON-valued param such as Max's
 # filterData). Framework-internal predicate for the ShapeAware windowParamsMatch
 # picker tier; exported so the ShapeAware empty-cycle regression test drives it.
@@ -1251,3 +1251,25 @@ readBancsFromDate
 # unit test asserts against this exact source of truth instead of duplicating
 # the extraction. Not user-facing public API.
 todayDatePart
+
+# Reason: ApiDirectScrapeDispatchArgs -- framework-internal driver context type,
+# relocated verbatim from ApiDirectScrapeSteps.ts by the REST-GET file split so the
+# import graph stays one-directional (Actions -> Steps -> DispatchArgs). Consumed only
+# within the ApiDirectScrape phase; never re-exported from the package index. Not user-facing.
+IDriverCtx
+# Reason: ApiDirectScrapeDispatchArgs -- framework-internal per-account context type
+# (extends IDriverCtx), relocated verbatim from ApiDirectScrapeSteps.ts by the REST-GET
+# file split. Phase-internal; never re-exported from the package index. Not user-facing.
+IAcctCtx
+# Reason: ApiDirectScrapeDispatchArgs -- framework-internal factory that builds the
+# customer-step dispatch args (urlTag + method + vars). Promoted to module scope by the
+# REST-GET file split; consumed only by ApiDirectScrapeSteps. Not user-facing.
+buildCustomerDispatchArgs
+# Reason: ApiDirectScrapeDispatchArgs -- framework-internal factory that builds the
+# balance-step dispatch args. Promoted to module scope by the REST-GET file split;
+# consumed only by ApiDirectScrapeSteps. Not user-facing.
+buildBalanceDispatchArgs
+# Reason: ApiDirectScrapeDispatchArgs -- framework-internal factory that builds the
+# transactions-step dispatch args. Promoted to module scope by the REST-GET file split;
+# consumed only by ApiDirectScrapeSteps. Not user-facing.
+buildTxnsDispatchArgs

@@ -2,20 +2,20 @@
 
 Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-direct banks. Same `PRE → ACTION → POST → FINAL` lifecycle as the browser pair, but the action is a shape-extractor pass rather than a DOM walk.
 
-| | |
-|---|---|
-| **Always-on?** | api-direct banks only |
-| **Owner slots** | `scrape`, `balanceResolution` |
-| **Source** | [`ApiDirectScrapePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts) + [`ApiDirectScrapeSteps.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.ts) |
+|                 |                                                                                                                                                                                                                                                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Always-on?**  | api-direct banks only                                                                                                                                                                                                                                                                                                                         |
+| **Owner slots** | `scrape`, `balanceResolution`                                                                                                                                                                                                                                                                                                                 |
+| **Source**      | [`ApiDirectScrapePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts) + [`ApiDirectScrapeSteps.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.ts) |
 
 ## Sub-step contract
 
-| Hook | What it does |
-|---|---|
-| `.pre` | Read `IApiDirectScrapeShape` from the bank's `PipelineDescriptor`: per-account txn query + per-account balance query + extractors. |
+| Hook      | What it does                                                                                                                                                                                                                                                                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.pre`    | Read `IApiDirectScrapeShape` from the bank's `PipelineDescriptor`: per-account txn query + per-account balance query + extractors.                                                                                                                                                                                                                                        |
 | `.action` | For each `accountId`, run `fetchAccountTransactions` (calls the txn endpoint, extracts via the bank's `txnExtract`) + `fetchBalance` (calls the balance endpoint, extracts via `balanceExtract`, returning an `IBalanceOutcome` that records whether the value is real or a `fallbackOnFail` mask). Per-account `balance` lands on `scrape.accounts[i].balance` directly. |
-| `.post` | Forensic audit — emits the per-account `--- Account <masked> | <N> txns ---` line via `logForensicAudit`, then runs the optional **result guard** (see below). |
-| `.final` | **Emit `balanceResolution` from `scrape.accounts`** — builds `Map<accountNumber, balance>` directly. `PipelineResult` reads it the same way as browser banks. |
+| `.post`   | Forensic audit — emits the per-account `--- Account <masked>                                                                                                                                                                                                                                                                                                              | <N> txns ---`line via`logForensicAudit`, then runs the optional **result guard** (see below). |
+| `.final`  | **Emit `balanceResolution` from `scrape.accounts`** — builds `Map<accountNumber, balance>` directly. `PipelineResult` reads it the same way as browser banks.                                                                                                                                                                                                             |
 
 ## .final — Emit balanceResolution from scrape.accounts
 
@@ -59,11 +59,11 @@ byte-identical: the guard is a no-op that returns the input unchanged.
 
 Each api-direct bank declares its own `IApiDirectScrapeShape`:
 
-| Bank | TXN query | Balance query | Source |
-|---|---|---|---|
+| Bank    | TXN query                          | Balance query                 | Source                                                                                                                                    |
+| ------- | ---------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | OneZero | `GET_ACCOUNT_TRANSACTIONS` GraphQL | `GET_ACCOUNT_BALANCE` GraphQL | [`Banks/OneZero/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/OneZero/scrape) |
-| Pepper | REST `/transactions` | REST `/balance` | [`Banks/Pepper/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/scrape) |
-| PayBox | REST `/wallet/transactions` | REST `/wallet/balance` | [`Banks/PayBox/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PayBox/scrape) |
+| Pepper  | REST `/transactions`               | REST `/balance`               | [`Banks/Pepper/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/scrape)   |
+| PayBox  | REST `/wallet/transactions`        | REST `/wallet/balance`        | [`Banks/PayBox/scrape/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PayBox/scrape)   |
 
 The shape interface (`balanceVars`, `balanceExtract`, `txnVars`, `txnExtract`) is uniform; only the per-bank closures differ.
 
@@ -72,3 +72,7 @@ The shape interface (`balanceVars`, `balanceExtract`, `txnVars`, `txnExtract`) i
 Each shape step (`customer`, `balance`, `transactions`) carries a `urlTag` of type `WKUrlOrLiteral` — either a Well-Known `WKUrlGroup` token resolved through the WK registry, or an absolute REST URL declared inline. Browser banks migrating to the hard-model post-auth path keep their whole API contract in one shape by wrapping each endpoint with `literalUrl(url)` (a branded `LiteralUrl`); GraphQL and Well-Known-registered banks keep using their `WKUrlGroup` token unchanged.
 
 `resolveWkUrl` in [`UrlsWK.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts) short-circuits on `isLiteralUrl(tag)` and returns the literal URL verbatim before the WK map lookup, so existing tokens resolve exactly as before.
+
+## REST verb — GET vs POST
+
+Each REST shape step carries an optional `method` of type `ScrapeHttpMethod` (`'GET' | 'POST'`). It defaults to `POST`, so every existing bank is unaffected. When a step sets `method: 'GET'`, `dispatchStep` routes it to `apiGet` with the resolved `urlTag` and sends **no** request body (GET carries its params in the path/query, built by the `urlTag` producer); `bodyTemplate` and `buildVars` are inert for that step. Banks whose whole contract is GET (e.g. the Discount/Titan family) declare `method: 'GET'` on all three steps. GraphQL steps (no `urlTag`) ignore `method` and keep routing through `apiQuery`.

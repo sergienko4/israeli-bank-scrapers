@@ -92,6 +92,7 @@ function makeDispatchArgs(overrides: Partial<IDispatchArgs>): IDispatchArgs {
     ctx,
     queryTag: 'customer',
     urlTag: 'identity.deviceToken',
+    method: 'POST',
     vars: {},
     bodyTemplate: false,
     signer: false,
@@ -176,5 +177,27 @@ describe('ApiDirectScrapeDispatch.dispatchStep — REST literal URL', () => {
     expect(result.success).toBe(true);
     const [dispatchedTag] = apiPost.mock.calls[0] as unknown as [unknown];
     expect(dispatchedTag).toBe('https://api.example/v2/transactions');
+  });
+});
+
+describe('ApiDirectScrapeDispatch.dispatchStep — REST GET branch', () => {
+  it('routes GET steps to apiGet with the resolved url and no body', async () => {
+    // A GET bank (Discount) declares `method: 'GET'`; the dispatcher must
+    // call `apiGet` with the resolved URL and never touch `apiPost` (GET
+    // carries its params in the path/query — there is no request body).
+    const getOutcome = succeed({ ok: true });
+    const getResp = Promise.resolve(getOutcome);
+    const apiGet = jest.fn((): Promise<Procedure<unknown>> => getResp);
+    const apiPost = jest.fn();
+    const baseBus = makeOneShotBus(getOutcome);
+    const bus = { ...baseBus, apiGet, apiPost } as unknown as IApiMediator;
+    const url = literalUrl('https://start.telebank.co.il/Titan/gatewayAPI/userAccountsData');
+    const args = makeDispatchArgs({ bus, method: 'GET', urlTag: url });
+    const result = await dispatchStep(args);
+    expect(result.success).toBe(true);
+    expect(apiGet).toHaveBeenCalledTimes(1);
+    const [dispatchedUrl] = apiGet.mock.calls[0] as unknown as [unknown];
+    expect(dispatchedUrl).toBe('https://start.telebank.co.il/Titan/gatewayAPI/userAccountsData');
+    expect(apiPost).not.toHaveBeenCalled();
   });
 });
