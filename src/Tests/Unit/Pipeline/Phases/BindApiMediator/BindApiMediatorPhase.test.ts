@@ -37,7 +37,17 @@ function makeCtx(overrides: ICtxOverrides): IActionContext {
   const browser: IPipelineContext['browser'] = overrides.browserPresent
     ? some({ page, context: {}, cleanups: [] } as unknown as IBrowserState)
     : none();
-  const ctx = { companyId: CompanyTypes.Discount, browser, apiMediator: overrides.mediator };
+  const config = {
+    urls: { base: 'https://example.co.il/' },
+    balanceKind: 'account',
+    authStrategyKind: 'session-cookie',
+  } as const;
+  const ctx = {
+    companyId: CompanyTypes.Discount,
+    browser,
+    apiMediator: overrides.mediator,
+    config,
+  };
   return ctx as unknown as IActionContext;
 }
 

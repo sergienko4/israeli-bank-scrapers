@@ -49,8 +49,9 @@ export type BalanceKind = 'account' | 'card-cycle';
  *                        (telebank, Wix-shell, Angular SPA banks).
  *   - 'api-direct'    -- no browser AUTH-DISCOVERY at all (OneZero/PayBox/Pepper
  *                        run the headless identity strategy).
- * Declarative only: the runtime dashboard gate does NOT branch on this value
- * (it is a registry-completeness contract + the test-matrix driver). Never
+ * The BIND-API-MEDIATOR auth-prime consumes 'token' (reads the post-login token
+ * and installs it on the browser-page mediator); 'session-cookie' is a no-op
+ * there. The runtime dashboard gate does NOT branch on this value. Never
  * inferred from absence -- an unstated kind is a config error.
  */
 export type AuthStrategyKind = 'token' | 'session-cookie' | 'api-direct';
