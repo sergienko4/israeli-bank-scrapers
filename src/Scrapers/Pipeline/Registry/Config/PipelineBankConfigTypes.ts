@@ -161,4 +161,23 @@ export interface IPipelineBankConfig {
    * URLs. Absent ⇒ no scan (banks whose APIs carry no build-version param).
    */
   readonly clientVersionParam?: string;
+  /**
+   * Post-auth session-token capture — for banks whose API carries a body-borne
+   * session id (e.g. Leumi's WCF `reqObj.SessionHeader.SessionID`) instead of a
+   * header/cookie token. BIND-API-MEDIATOR reads the login-inclusive discovery
+   * pool (open from `pre-login` onward via the network-trace lifecycle
+   * interceptor), finds the first POST whose URL includes `urlMatch`, decodes
+   * the body, walks `tokenPath`, and stashes the leaf on the mediator
+   * session-context as `sessionToken`. ONLY the matched bank endpoint is
+   * inspected — credential POSTs are never read (PII-safe by extraction scope).
+   * Absent ⇒ no capture (header-token / cookie banks).
+   */
+  readonly sessionTokenCapture?: {
+    /** Substring identifying the bank's post-auth API endpoint URL. */
+    readonly urlMatch: string;
+    /** Top-level postData key whose string value is itself JSON (WCF `reqObj`). */
+    readonly bodyField?: string;
+    /** Ordered keys within the decoded body to the token leaf. */
+    readonly tokenPath: readonly string[];
+  };
 }
