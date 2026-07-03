@@ -510,6 +510,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      */
     waitForNetworkIdle: (): Promise<Procedure<void>> => SUCCEED_VOID,
     /**
+     * Page-settle mock — always succeeds (load+networkidle settled).
+     * @returns Succeed(undefined).
+     */
+    waitForPageSettle: (): Promise<Procedure<void>> => SUCCEED_VOID,
+    /**
      * Race mock — awaits the custom wait so caller-supplied stubs
      * (e.g. `waitForTransactionsTraffic`) still execute side effects
      * like pool mutation before the consumer's pool scan runs.

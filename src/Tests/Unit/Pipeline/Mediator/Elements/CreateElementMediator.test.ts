@@ -235,6 +235,22 @@ describe('mediator.waitForNetworkIdle', () => {
   });
 });
 
+describe('mediator.waitForPageSettle', () => {
+  it('succeeds even when waitForLoadState throws (settle non-fatal)', async () => {
+    const page = makePage({ url: 'x', waitLoadStateThrows: true });
+    const m = createElementMediator(page);
+    const result = await m.waitForPageSettle(100);
+    expect(result.success).toBe(true);
+  });
+
+  it('succeeds with default timeout', async () => {
+    const page = makePage({ url: 'x' });
+    const m = createElementMediator(page);
+    const result = await m.waitForPageSettle();
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('mediator.waitForURL', () => {
   it('succeeds with true when URL matches', async () => {
     const page = makePage({ url: 'x' });

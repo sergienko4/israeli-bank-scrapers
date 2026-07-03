@@ -22,16 +22,18 @@ export const AUTH_DISCOVERY_DASHBOARD_WAIT_MS = 8000;
 export const AUTH_POLL_TIMEOUT_MS = 3_000;
 
 /**
- * AUTH-DISCOVERY.PRE settle ceiling — gives the SPA time to flush
- * post-login redirect chatter (auth-token endpoints, header-bearer
- * fetches, redirect navigation) before AUTH-DISCOVERY.PRE inventories
- * the capture pool. Event-driven via `mediator.waitForNetworkIdle`
- * (early-exits the moment the network goes idle), so fast banks pay
- * 0 ms while slow-redirect banks pay up to this ceiling. Starts at
- * 3 s per architectural review — increase only if a slow-redirect
- * bank empirically requires it.
+ * AUTH-DISCOVERY.PRE settle ceiling — gives the SPA time to finish the
+ * post-login redirect chain (SiteMinder → redirect module → SPA render)
+ * before AUTH-DISCOVERY.PRE inventories the capture pool and POST probes
+ * the dashboard reveal. Event-driven via `mediator.waitForPageSettle`
+ * (awaits BOTH the `load` lifecycle event AND `networkidle`), so fast
+ * banks early-exit at ~0 ms while slow-redirect banks pay up to this
+ * ceiling. Raised 3 s → 15 s in the Yahav onboarding wave: the 3 s
+ * networkidle-only wait early-exited during a between-hop idle gap,
+ * leaving the page mid-navigation when the reveal probe ran
+ * (execution-context-destroyed → caught → "no reveal").
  */
-export const AUTH_DISCOVERY_PRE_SETTLE_MS = 3_000;
+export const AUTH_DISCOVERY_PRE_SETTLE_MS = 15_000;
 
 /**
  * AUTH-DISCOVERY.FINAL settle ceiling — Mission M4.F1. Before FINAL

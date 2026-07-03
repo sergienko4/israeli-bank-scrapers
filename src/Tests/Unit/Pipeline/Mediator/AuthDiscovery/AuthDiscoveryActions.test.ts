@@ -31,14 +31,14 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     expect(wasOk).toBe(true);
   });
 
-  it('PRE awaits a settle wait via mediator.waitForNetworkIdle BEFORE inventorying captures (post-login redirect grace)', async () => {
-    // PR #221 review follow-up: AUTH-DISCOVERY.PRE must give the SPA
-    // up to AUTH_DISCOVERY_PRE_SETTLE_MS to flush the post-login
-    // redirect chatter so the inventory it reads
+  it('PRE awaits a settle wait via mediator.waitForPageSettle BEFORE inventorying captures (post-login redirect grace)', async () => {
+    // PR #221 review follow-up + Yahav onboarding: AUTH-DISCOVERY.PRE
+    // must give the SPA up to AUTH_DISCOVERY_PRE_SETTLE_MS to finish
+    // the post-login redirect so the inventory it reads
     // (`network.getAllEndpoints()`) reflects the final post-login
-    // state, not a mid-redirect snapshot. Event-driven (uses
-    // `waitForNetworkIdle`) so fast banks pay 0ms; slow banks pay
-    // up to the ceiling.
+    // state, not a mid-redirect snapshot. Event-driven (awaits BOTH
+    // `load` and `networkidle` via `waitForPageSettle`) so fast banks
+    // pay 0ms; slow-redirect banks pay up to the ceiling.
     let didCallSettleWait = false;
     let didCaptureBeforeWait = false;
     const fakeMediator = {
@@ -48,7 +48,7 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
        *
        * @returns Resolved succeed (no settle pending).
        */
-      waitForNetworkIdle: () => {
+      waitForPageSettle: () => {
         didCallSettleWait = true;
         return Promise.resolve({ success: true as const, value: undefined });
       },

@@ -322,10 +322,11 @@ function buildNetworkStub(fixture: IBankFixture, fetchOpts: IFetchOpts): IAuthDi
 const SETTLE_OK_SENTINEL = { success: true as const, value: 'settled' as const };
 
 /**
- * Build a no-op `waitForNetworkIdle` stub. AUTH-DISCOVERY.PRE awaits it
- * before inventorying the capture pool — instant resolve dodges the
- * real timer cost in unit-test land. Extracted per §19.10.
- * @returns Mediator-shaped waitForNetworkIdle stub.
+ * Build a no-op settle stub. AUTH-DISCOVERY.PRE awaits
+ * `waitForPageSettle` and FINAL awaits `waitForNetworkIdle` before
+ * inventorying / gating — instant resolve dodges the real timer cost
+ * in unit-test land. Extracted per §19.10.
+ * @returns Mediator-shaped settle-wait stub.
  */
 function buildSettleStub(): () => Promise<typeof SETTLE_OK_SENTINEL> {
   return (): Promise<typeof SETTLE_OK_SENTINEL> => Promise.resolve(SETTLE_OK_SENTINEL);
@@ -359,6 +360,7 @@ interface IFixtureMediatorStub {
   resolveVisible: () => Promise<unknown>;
   network: IAuthDiscoveryNetworkStub;
   waitForNetworkIdle: () => Promise<typeof SETTLE_OK_SENTINEL>;
+  waitForPageSettle: () => Promise<typeof SETTLE_OK_SENTINEL>;
   getCurrentUrl: () => string;
 }
 
@@ -381,6 +383,7 @@ function assembleMediatorStub(params: IAssembleStubParams): IFixtureMediatorStub
     resolveVisible: buildResolveVisibleStub(params.fixture),
     network: buildNetworkStub(params.fixture, params.fetchOpts),
     waitForNetworkIdle: buildSettleStub(),
+    waitForPageSettle: buildSettleStub(),
     getCurrentUrl: buildUrlStub(),
   };
 }

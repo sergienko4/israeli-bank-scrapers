@@ -11,7 +11,11 @@ import {
   LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
 } from '../../Mediator/Timing/LoginTimingConfig.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
-import type { IPipelineBankConfig } from './PipelineBankConfigTypes.js';
+import type {
+  AuthStrategyKind,
+  BalanceKind,
+  IPipelineBankConfig,
+} from './PipelineBankConfigTypes.js';
 
 export type {
   AuthPathKey,
@@ -37,48 +41,35 @@ const API_DIRECT = 'api-direct';
 /** Slow-AngularJS auth-confirm budget (Isracard, Amex). */
 const LOGIN_AUTH_CONFIRM_ANGULAR_MS = 45_000;
 
+/**
+ * Build a plain bank config — base URL + balance/auth kinds, no
+ * headless/OTP/poll blocks. Keeps the registry DRY: adding a simple
+ * deposit or card bank is a single line; banks needing extra wiring
+ * (Amex/Isracard poll, API-direct headless) stay object-literal.
+ * @param base - Official website URL (HOME phase navigates here).
+ * @param balanceKind - Balance semantics (account vs card-cycle).
+ * @param authStrategyKind - Auth-completion family.
+ * @returns A pipeline bank config.
+ */
+function defineBank(
+  base: string,
+  balanceKind: BalanceKind,
+  authStrategyKind: AuthStrategyKind,
+): IPipelineBankConfig {
+  return { urls: { base }, balanceKind, authStrategyKind };
+}
+
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
-  [CompanyTypes.Beinleumi]: {
-    urls: { base: 'https://www.fibi.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: TOKEN,
-  },
-  [CompanyTypes.Leumi]: {
-    urls: { base: 'https://www.leumi.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: SESSION_COOKIE,
-  },
-  [CompanyTypes.Discount]: {
-    urls: { base: 'https://www.discountbank.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: SESSION_COOKIE,
-  },
-  [CompanyTypes.Hapoalim]: {
-    urls: { base: 'https://www.bankhapoalim.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: SESSION_COOKIE,
-  },
-  [CompanyTypes.Massad]: {
-    urls: { base: 'https://www.bankmassad.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: TOKEN,
-  },
-  [CompanyTypes.OtsarHahayal]: {
-    urls: { base: 'https://www.bankotsar.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: TOKEN,
-  },
-  [CompanyTypes.Pagi]: {
-    urls: { base: 'https://www.pagi.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: TOKEN,
-  },
-  [CompanyTypes.VisaCal]: {
-    urls: { base: 'https://www.cal-online.co.il/' },
-    balanceKind: CARD_CYCLE,
-    authStrategyKind: TOKEN,
-  },
+  [CompanyTypes.Beinleumi]: defineBank('https://www.fibi.co.il', ACCOUNT, TOKEN),
+  [CompanyTypes.Leumi]: defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Hapoalim]: defineBank('https://www.bankhapoalim.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Massad]: defineBank('https://www.bankmassad.co.il', ACCOUNT, TOKEN),
+  [CompanyTypes.OtsarHahayal]: defineBank('https://www.bankotsar.co.il', ACCOUNT, TOKEN),
+  [CompanyTypes.Pagi]: defineBank('https://www.pagi.co.il', ACCOUNT, TOKEN),
+  [CompanyTypes.Yahav]: defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.VisaCal]: defineBank('https://www.cal-online.co.il/', CARD_CYCLE, TOKEN),
   [CompanyTypes.Amex]: {
     urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
@@ -89,16 +80,8 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     },
     authStrategyKind: SESSION_COOKIE,
   },
-  [CompanyTypes.Max]: {
-    urls: { base: 'https://www.max.co.il' },
-    balanceKind: CARD_CYCLE,
-    authStrategyKind: SESSION_COOKIE,
-  },
-  [CompanyTypes.Mercantile]: {
-    urls: { base: 'https://www.mercantile.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: SESSION_COOKIE,
-  },
+  [CompanyTypes.Max]: defineBank('https://www.max.co.il', CARD_CYCLE, SESSION_COOKIE),
+  [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
     balanceKind: CARD_CYCLE,

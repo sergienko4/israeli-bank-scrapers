@@ -20,6 +20,7 @@ import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { fail, type Procedure, succeed } from '../../../Types/Procedure.js';
 import { ELEMENTS_NETWORK_IDLE_TIMEOUT_MS } from '../../Timing/ElementsTimingConfig.js';
 import { type IElementMediator } from '../ElementMediator.js';
+import { waitForSpaReady } from '../PageReadiness.js';
 
 /** Default timeout for SPA URL wait. */
 const URL_WAIT_TIMEOUT_MS = 10_000;
@@ -93,6 +94,24 @@ function buildWaitForNetworkIdle(page: Page): IElementMediator['waitForNetworkId
 }
 
 /**
+ * Build waitForPageSettle — event-driven wait for the page to reach a
+ * stable rendered state: BOTH the `load` lifecycle event AND
+ * `networkidle`. Stronger than {@link buildWaitForNetworkIdle} (which
+ * ignores `load`), so a slow multi-hop post-login redirect finishes
+ * before AUTH-DISCOVERY probes the dashboard reveal. Reuses
+ * {@link waitForSpaReady}; timeout is non-fatal.
+ * @param page - The Playwright page.
+ * @returns Mediator waitForPageSettle function.
+ */
+function buildWaitForPageSettle(page: Page): IElementMediator['waitForPageSettle'] {
+  return async (timeoutMs?): Promise<Procedure<void>> => {
+    const timeout = timeoutMs ?? ELEMENTS_NETWORK_IDLE_TIMEOUT_MS;
+    await waitForSpaReady(page, timeout);
+    return succeed(undefined);
+  };
+}
+
+/**
  * Race promises and swallow rejection. Observed state above decides
  * outcome — both racers are best-effort signals, neither rejection
  * invalidates the pool. Extracted so {@link buildRaceWithNetworkIdle}
@@ -145,7 +164,12 @@ function buildWaitForURL(page: Page): IElementMediator['waitForURL'] {
 /** Navigation primitives — URL + networkidle gating. */
 export type NavBundle = Pick<
   IElementMediator,
-  'navigateTo' | 'getCurrentUrl' | 'waitForNetworkIdle' | 'raceWithNetworkIdle' | 'waitForURL'
+  | 'navigateTo'
+  | 'getCurrentUrl'
+  | 'waitForNetworkIdle'
+  | 'waitForPageSettle'
+  | 'raceWithNetworkIdle'
+  | 'waitForURL'
 >;
 
 /**
@@ -162,6 +186,7 @@ export function buildNavCluster(page: Page): NavBundle {
     navigateTo: buildNavigateTo(page),
     getCurrentUrl: buildGetCurrentUrl(page),
     waitForNetworkIdle: wfni,
+    waitForPageSettle: buildWaitForPageSettle(page),
     raceWithNetworkIdle: buildRaceWithNetworkIdle(wfni),
     waitForURL: buildWaitForURL(page),
   };
