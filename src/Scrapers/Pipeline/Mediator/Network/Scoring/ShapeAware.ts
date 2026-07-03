@@ -10,6 +10,7 @@
  */
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS } from '../../../Registry/WK/ScrapeWK.js';
+import { isBancsTxnCapture } from '../../Scrape/Bancs/BancsTxnRequest.js';
 import { hasTxnArray, isTxnWidgetUrl } from '../../Scrape/TxnShape.js';
 import { isReplayablePost } from '../Indexing/Indexing.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
@@ -103,18 +104,24 @@ function pickFromMatches(input: IPickerInput): ITierPickOutcome {
 }
 
 /**
- * Filter the candidate pool to URL-matching, non-widget endpoints.
- * Pulled out of {@link tierPick} so the orchestrator fits the cap.
+ * Filter the candidate pool to txn-serving, non-widget endpoints. Admits
+ * a capture when its URL matches a WK txn pattern OR its request body is
+ * a BaNCS CURRENT_ACCOUNT date-range query (the BaNCS `/account`
+ * multiplexer serves txns by body, not URL — {@link isBancsTxnCapture} is
+ * default-deny so non-BaNCS pools keep exact URL-only behaviour). Pulled
+ * out of {@link tierPick} so the orchestrator fits the cap.
  * @param pool - Candidate captured endpoints.
  * @param patterns - WellKnown URL patterns.
- * @returns URL-matching endpoints excluding widget URLs.
+ * @returns Txn-serving endpoints excluding widget URLs.
  */
 function filterPoolMatches(
   pool: readonly IDiscoveredEndpoint[],
   patterns: readonly RegExp[],
 ): readonly IDiscoveredEndpoint[] {
   return pool.filter(
-    (ep): boolean => patterns.some((p): boolean => p.test(ep.url)) && !isTxnWidgetUrl(ep.url),
+    (ep): boolean =>
+      (patterns.some((p): boolean => p.test(ep.url)) || isBancsTxnCapture(ep)) &&
+      !isTxnWidgetUrl(ep.url),
   );
 }
 

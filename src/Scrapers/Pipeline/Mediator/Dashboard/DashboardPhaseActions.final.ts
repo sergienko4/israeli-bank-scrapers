@@ -14,6 +14,7 @@ import { some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { isBancsTxnCapture } from '../Scrape/Bancs/BancsTxnRequest.js';
 import { DASHBOARD_FINAL_TXN_WAIT_MS } from '../Timing/TimingConfig.js';
 import { buildApiContext } from './DashboardDiscovery.js';
 import { commitTxnEndpoint } from './DashboardPhaseActions.final.commit.js';
@@ -95,6 +96,22 @@ function hasPostNavTxnMatch(ctx: IPipelineContext): boolean {
 }
 
 /**
+ * Whether the FULL captured pool carries a BaNCS CURRENT_ACCOUNT txn
+ * capture. BaNCS serves txns from `POST /account` by request body (not
+ * URL) and the SPA fires that request during account-resolve (pre-nav),
+ * so the post-nav URL gate never sees it. Default-deny via
+ * {@link isBancsTxnCapture} — non-BaNCS pools yield `false` and keep the
+ * exact post-nav URL-gate semantics.
+ * @param ctx - Pipeline context.
+ * @returns True iff a BaNCS txn capture exists anywhere in the pool.
+ */
+function hasBancsTxnCapture(ctx: IPipelineContext): boolean {
+  if (!ctx.mediator.has) return false;
+  const all = ctx.mediator.value.network.getAllEndpoints();
+  return all.some((ep): boolean => isBancsTxnCapture(ep));
+}
+
+/**
  * Wait until the post-nav pool exposes at least one WK-txn URL match.
  * @param input - Pipeline context.
  * @returns True when a match landed (or was already present); false on timeout.
@@ -102,6 +119,7 @@ function hasPostNavTxnMatch(ctx: IPipelineContext): boolean {
 async function waitForPostNavTxnMatch(input: IPipelineContext): Promise<boolean> {
   if (!input.mediator.has) return true;
   if (hasPostNavTxnMatch(input)) return true;
+  if (hasBancsTxnCapture(input)) return true;
   const hit = await input.mediator.value.network
     .waitForTransactionsTraffic(DASHBOARD_FINAL_TXN_WAIT_MS)
     .catch((): false => false);
