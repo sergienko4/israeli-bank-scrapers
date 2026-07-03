@@ -21,6 +21,7 @@ import {
   dispatchStep,
   type IDispatchArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatch.js';
+import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -156,5 +157,24 @@ describe('ApiDirectScrapeDispatch.dispatchStep — REST signer branch', () => {
     });
     const result = await dispatchStep(args);
     expect(result.success).toBe(true);
+  });
+});
+
+describe('ApiDirectScrapeDispatch.dispatchStep — REST literal URL', () => {
+  it('forwards an inline literal absolute URL to apiPost as the urlTag', async () => {
+    // A browser bank declares its endpoint inline via `literalUrl(...)`
+    // instead of a WK group. dispatchStep must forward that absolute URL
+    // verbatim as apiPost's first arg (mediator passthrough resolves it).
+    const okOutcome = succeed({});
+    const okResp = Promise.resolve(okOutcome);
+    const apiPost = jest.fn((): Promise<Procedure<unknown>> => okResp);
+    const baseBus = makeOneShotBus(okOutcome);
+    const bus = { ...baseBus, apiPost } as unknown as IApiMediator;
+    const literalTag = literalUrl('https://api.example/v2/transactions');
+    const args = makeDispatchArgs({ bus, urlTag: literalTag, vars: { page: 1 } });
+    const result = await dispatchStep(args);
+    expect(result.success).toBe(true);
+    const [dispatchedTag] = apiPost.mock.calls[0] as unknown as [unknown];
+    expect(dispatchedTag).toBe('https://api.example/v2/transactions');
   });
 });

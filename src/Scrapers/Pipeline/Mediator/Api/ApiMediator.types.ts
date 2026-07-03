@@ -4,7 +4,7 @@
 
 import type { CompanyTypes } from '../../../../Definitions.js';
 import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
@@ -51,11 +51,11 @@ interface IApiMediator {
   recoverSession: () => Promise<Procedure<string>>;
   withRecoveryHook?: (hook: RecoveredHook) => boolean;
   apiPost: <T>(
-    wkUrl: WKUrlGroup,
+    wkUrl: WKUrlOrLiteral,
     body: Record<string, unknown>,
     opts?: IApiQueryOpts,
   ) => Promise<Procedure<T>>;
-  apiGet: <T>(wkUrl: WKUrlGroup) => Promise<Procedure<T>>;
+  apiGet: <T>(wkUrl: WKUrlOrLiteral) => Promise<Procedure<T>>;
   apiQuery: <T>(
     wkQuery: WKQueryOperation,
     variables: Record<string, unknown>,
@@ -119,7 +119,7 @@ interface IWithTokenStrategyOpArgs<TCreds> {
 /** Arg bundle for `apiPostOp`. */
 interface IApiPostOpArgs {
   readonly ctx: IApiCallContext;
-  readonly wkUrl: WKUrlGroup;
+  readonly wkUrl: WKUrlOrLiteral;
   readonly body: Record<string, unknown>;
   readonly opts?: IApiQueryOpts;
 }

@@ -4,7 +4,7 @@
  */
 
 import { resolveWkQuery } from '../../Registry/WK/QueriesWK.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import { resolveWkUrl } from '../../Registry/WK/UrlsWK.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
@@ -99,7 +99,7 @@ function makeApiGetFireOnce<T>(
  * @param wkUrl - WK URL group to resolve.
  * @returns Procedure with typed payload.
  */
-async function apiGetOp<T>(ctx: IApiCallContext, wkUrl: WKUrlGroup): Promise<Procedure<T>> {
+async function apiGetOp<T>(ctx: IApiCallContext, wkUrl: WKUrlOrLiteral): Promise<Procedure<T>> {
   const urlProc = resolveWkUrl(wkUrl, ctx.bankHint);
   if (!isOk(urlProc)) return urlProc;
   const fire = makeApiGetFireOnce<T>(ctx, urlProc.value);

@@ -19,7 +19,7 @@ import type {
 } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import { hydrate } from '../../Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../Mediator/ApiDirectCall/Template/RefResolver.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
@@ -83,7 +83,7 @@ export interface IDispatchArgs {
   readonly bus: IApiMediator;
   readonly ctx: IActionContext;
   readonly queryTag: 'customer' | 'balance' | 'transactions';
-  readonly urlTag: WKUrlGroup | false;
+  readonly urlTag: WKUrlOrLiteral | false;
   readonly vars: VarsMap;
   readonly bodyTemplate: JsonValueTemplate | false;
   readonly signer: IAesSignerConfig | false;

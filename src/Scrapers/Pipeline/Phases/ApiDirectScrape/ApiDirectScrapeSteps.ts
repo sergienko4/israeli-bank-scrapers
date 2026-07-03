@@ -5,7 +5,7 @@
  */
 
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
@@ -79,7 +79,9 @@ function pickShapeSigning<TAcct, TCursor>(
  * @param d - Driver context.
  * @returns WK URL tag or `false` when GraphQL.
  */
-function resolveCustomerUrlTag<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): WKUrlGroup | false {
+function resolveCustomerUrlTag<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+): WKUrlOrLiteral | false {
   const spec = d.shape.customer.urlTag;
   if (spec === undefined) return false;
   if (typeof spec === 'function') return spec(d.ctx);
@@ -134,7 +136,7 @@ export async function fetchAccounts<TAcct, TCursor>(
  * @param a - Per-account context.
  * @returns WK URL tag or `false` when GraphQL.
  */
-function resolveBalanceUrlTag<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): WKUrlGroup | false {
+function resolveBalanceUrlTag<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): WKUrlOrLiteral | false {
   const spec = a.shape.balance.urlTag;
   if (spec === undefined) return false;
   if (typeof spec === 'function') return spec(a.acct);
@@ -187,7 +189,7 @@ type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage
 function resolveTxnsUrlTag<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   cursor: TCursor | false,
-): WKUrlGroup | false {
+): WKUrlOrLiteral | false {
   const spec = a.shape.transactions.urlTag;
   if (spec === undefined) return false;
   if (typeof spec === 'function') return spec(a.acct, cursor, a.ctx);

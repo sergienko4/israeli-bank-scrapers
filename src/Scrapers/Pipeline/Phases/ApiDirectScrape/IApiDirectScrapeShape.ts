@@ -25,7 +25,7 @@ import type {
   IAesSignerConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -50,10 +50,10 @@ export type ApiBody = Record<string, unknown>;
  * relevant per-call inputs (ctx / acct / cursor) so banks can pick
  * different endpoints per account kind (PayBox wallet vs debit).
  */
-export type CustomerUrlTag = WKUrlGroup | ((ctx: IActionContext) => WKUrlGroup);
-export type BalanceUrlTag<TAcct> = WKUrlGroup | ((acct: TAcct) => WKUrlGroup);
+export type CustomerUrlTag = WKUrlOrLiteral | ((ctx: IActionContext) => WKUrlOrLiteral);
+export type BalanceUrlTag<TAcct> = WKUrlOrLiteral | ((acct: TAcct) => WKUrlOrLiteral);
 export type TxnsUrlTag<TAcct, TCursor> =
-  WKUrlGroup | ((acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => WKUrlGroup);
+  WKUrlOrLiteral | ((acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => WKUrlOrLiteral);
 
 /**
  * Bundle passed to {@link IApiDirectScrapeCustomerStep.extractAccounts}.
