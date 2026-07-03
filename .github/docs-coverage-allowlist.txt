@@ -1378,3 +1378,15 @@ UC_SO_27_MODULE
 # Reason: ucSo27Vars - Leumi shared UC_SO_27 vars builder (balance empty-range + txns
 # dated OpersB). Per-bank shape closure consumed only by LEUMI_SHAPE. Not user-facing.
 ucSo27Vars
+# --- P4 Isracard hard-model post-auth scrape shape (card-cycle browser bank) ---
+# Reason: ISRACARD_API - Isracard DigitalV3 SPA origin const (web.isracard.co.il) shared
+# by the Isracard shape's customer/transactions urlTag builders. Framework-internal bank
+# contract constant, not part of the @sergienko4/israeli-bank-scrapers public surface.
+ISRACARD_API
+# Reason: IIsracardCard - Isracard scrape-shape card ref (cardSuffix last-4 + per-card
+# companyCode); consumed only by ISRACARD_SHAPE + its helpers. Pipeline-internal,
+# not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
+IIsracardCard
+# Reason: mergeIsracardRows - Isracard transactions-step row merger (approvals + israelAbroad
+# vouchers + currentTransactionsList). Per-bank shape closure consumed only by ISRACARD_SHAPE.
+mergeIsracardRows
