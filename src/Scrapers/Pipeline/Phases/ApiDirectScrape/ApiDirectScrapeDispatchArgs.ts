@@ -129,7 +129,7 @@ export function buildBalanceDispatchArgs<TAcct, TCursor>(
     queryTag: 'balance',
     urlTag: resolveBalanceUrlTag(a),
     method: a.shape.balance.method ?? 'POST',
-    vars: a.shape.balance.buildVars(a.acct),
+    vars: a.shape.balance.buildVars(a.acct, a.ctx),
     bodyTemplate: a.shape.balance.bodyTemplate ?? false,
     ...pickShapeSigning(a.shape),
     opts: toOpts(a.ctx, a.shape.balance.extraHeaders),

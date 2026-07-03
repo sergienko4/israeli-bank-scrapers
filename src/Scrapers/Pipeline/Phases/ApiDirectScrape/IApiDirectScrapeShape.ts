@@ -103,7 +103,14 @@ export interface IApiDirectScrapeCustomerStep<TAcct> {
 
 /** Balance-step shape — fetches one account's current balance. */
 export interface IApiDirectScrapeBalanceStep<TAcct> {
-  readonly buildVars: (acct: TAcct) => VarsMap;
+  /**
+   * Build the balance-call variables (REST body when `urlTag` is set).
+   * Receives `ctx` — symmetric with the customer/transactions steps — so
+   * banks whose balance body carries a runtime session token (Leumi's WCF
+   * `SessionHeader.SessionID`) can read it back from the mediator
+   * session-context. Shapes that ignore it keep their `(acct) => …` form.
+   */
+  readonly buildVars: (acct: TAcct, ctx: IActionContext) => VarsMap;
   readonly extract: (body: ApiBody) => number;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** Value to return on failure; undefined → propagate. */
