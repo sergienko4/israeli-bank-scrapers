@@ -31,3 +31,9 @@ export const LOGIN_COMPLETION_POLL_INTERVAL_MS = 5000;
 
 /** LOGIN completion-poll maximum attempts (≈70s ceiling: 14 waits × 5s interval). */
 export const LOGIN_COMPLETION_POLL_MAX_ATTEMPTS = 15;
+
+/** Slow-AngularJS login completion-poll budget (Isracard, Amex). */
+export const ANGULAR_LOGIN_POLL = {
+  intervalMs: LOGIN_COMPLETION_POLL_INTERVAL_MS,
+  maxAttempts: LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
+} as const;

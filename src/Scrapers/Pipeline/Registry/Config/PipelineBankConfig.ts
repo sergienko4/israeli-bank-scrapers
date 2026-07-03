@@ -6,10 +6,7 @@
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
-import {
-  LOGIN_COMPLETION_POLL_INTERVAL_MS,
-  LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
-} from '../../Mediator/Timing/LoginTimingConfig.js';
+import { ANGULAR_LOGIN_POLL } from '../../Mediator/Timing/LoginTimingConfig.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
   AuthStrategyKind,
@@ -74,13 +71,13 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
     loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
-    loginCompletionPoll: {
-      intervalMs: LOGIN_COMPLETION_POLL_INTERVAL_MS,
-      maxAttempts: LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
-    },
+    loginCompletionPoll: ANGULAR_LOGIN_POLL,
     authStrategyKind: SESSION_COOKIE,
   },
-  [CompanyTypes.Max]: defineBank('https://www.max.co.il', CARD_CYCLE, SESSION_COOKIE),
+  [CompanyTypes.Max]: {
+    ...defineBank('https://www.max.co.il', CARD_CYCLE, SESSION_COOKIE),
+    clientVersionParam: 'v',
+  },
   [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
