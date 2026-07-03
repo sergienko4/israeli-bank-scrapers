@@ -114,6 +114,15 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   readonly method?: ScrapeHttpMethod;
   /** Optional body template — same semantics as customer.bodyTemplate. */
   readonly bodyTemplate?: JsonValueTemplate;
+  /**
+   * Skip the balance-step network call entirely — for `card-cycle` banks
+   * (VisaCal, Max, Amex, Isracard) that expose no account-level balance,
+   * only per-cycle credit-card billing aggregates. `extract` still runs
+   * but with `body: {}`, so a card-cycle shape declares `extract: () => 0`
+   * for a deterministic zero balance. Mirrors
+   * {@link IApiDirectScrapeCustomerStep.skipFetch}.
+   */
+  readonly skipFetch?: boolean;
 }
 
 /**

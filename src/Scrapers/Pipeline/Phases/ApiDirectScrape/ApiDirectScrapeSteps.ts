@@ -22,8 +22,8 @@ import type { IBalanceOutcome } from './IApiDirectScrapeShape.js';
 /** Stop signal — branded so Rule #15 accepts the boolean return. */
 type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
 
-/** Empty body passed to `extractAccounts` when customer skips the fetch. */
-const EMPTY_CUSTOMER_BODY = Object.freeze({});
+/** Empty body passed to a step's extractor when it skips the fetch. */
+const EMPTY_BODY = Object.freeze({});
 
 /**
  * Fetch customer tree and extract the flat account list. Honours
@@ -37,7 +37,7 @@ export async function fetchAccounts<TAcct, TCursor>(
 ): Promise<Procedure<readonly TAcct[]>> {
   const sessionContext = d.bus.getSessionContext();
   if (d.shape.customer.skipFetch === true) {
-    const accts = d.shape.customer.extractAccounts({ body: EMPTY_CUSTOMER_BODY, sessionContext });
+    const accts = d.shape.customer.extractAccounts({ body: EMPTY_BODY, sessionContext });
     return succeed(accts);
   }
   const dispatchArgs = buildCustomerDispatchArgs(d);
@@ -55,6 +55,9 @@ export async function fetchAccounts<TAcct, TCursor>(
 export async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<IBalanceOutcome>> {
+  if (a.shape.balance.skipFetch === true) {
+    return succeed({ value: a.shape.balance.extract(EMPTY_BODY), degraded: false });
+  }
   const dispatchArgs = buildBalanceDispatchArgs(a);
   const resp = await dispatchStep(dispatchArgs);
   if (isOk(resp)) return succeed({ value: a.shape.balance.extract(resp.value), degraded: false });

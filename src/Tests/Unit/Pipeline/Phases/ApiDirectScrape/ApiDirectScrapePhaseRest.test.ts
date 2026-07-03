@@ -287,6 +287,24 @@ function isSessionBearer(token: unknown): boolean {
   return token === 'session-bearer';
 }
 
+/**
+ * Card-cycle balance extractor — no account-level balance, always zero.
+ * Mirrors what a `card-cycle` shape declares alongside `skipFetch: true`.
+ * @returns Zero balance.
+ */
+function zeroBalance(): number {
+  return 0;
+}
+
+/**
+ * Predicate — true when a capture targeted the balance step's URL tag.
+ * @param c - Captured apiPost call.
+ * @returns True when the URL is the balance step's tag.
+ */
+function isBalanceCapture(c: IPostCapture): boolean {
+  return c.url === 'identity.otpPrepare';
+}
+
 describe('createApiDirectScrapePhase ApiDirectScrape REST flow', () => {
   it('ADS-REST-1 dispatches via apiPost, hydrates template, extracts accounts', async () => {
     const captures: IPostCapture[] = [];
@@ -386,6 +404,29 @@ describe('createApiDirectScrapePhase ApiDirectScrape dynamic urlTag + skipFetch'
     expect(result.success).toBe(true);
     // 2 captures only (balance + transactions) — customer is skipped.
     expect(captures).toHaveLength(2);
+  });
+
+  it('ADS-REST-SKIP-2 bypasses the balance network call when balance.skipFetch=true', async () => {
+    const captures: IPostCapture[] = [];
+    const router = makeHappyRouter();
+    const bus = makeRestBus(router, captures);
+    const ctx = makeRestCtx(bus);
+    const baseShape = makeRestShape();
+    const shape = {
+      ...baseShape,
+      balance: { ...baseShape.balance, skipFetch: true, extract: zeroBalance },
+    };
+    const phase = createApiDirectScrapePhase(shape);
+    const result = await phase(ctx);
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    // Card-cycle: extract runs on an empty body → deterministic zero balance.
+    expect(scr.value.accounts[0].balance).toBe(0);
+    // 2 captures only (customer + transactions) — balance is skipped.
+    expect(captures).toHaveLength(2);
+    const didHitBalance = captures.some(isBalanceCapture);
+    expect(didHitBalance).toBe(false);
   });
 });
 
