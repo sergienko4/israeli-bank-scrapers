@@ -1303,3 +1303,18 @@ txnsExtractPage
 # Reason: txnsVars — Discount transactions-step vars builder. Per-bank shape closure
 # consumed only by DISCOUNT_SHAPE. Not user-facing.
 txnsVars
+
+# --- P3 VisaCal hard-model post-auth scrape shape (card-cycle browser bank) ---
+# Reason: CAL_API — CAL API gateway origin const shared by the VisaCal shape's
+# customer/transactions urlTag builders. Framework-internal bank contract constant.
+CAL_API
+# Reason: IVisaCalCard — VisaCal scrape-shape card ref (cardUniqueId query id +
+# displayNumber last-4); consumed only by VISACAL_SHAPE + its helpers. Pipeline-internal,
+# not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
+IVisaCalCard
+# Reason: extractCards — VisaCal customer-step extractor (result.cards[] flatten).
+# Per-bank shape closure consumed only by VISACAL_SHAPE. Not user-facing.
+extractCards
+# Reason: customerVars — VisaCal customer-step POST body builder ({"tokenGuid":""}).
+# Per-bank shape closure consumed only by VISACAL_SHAPE. Not user-facing.
+customerVars
