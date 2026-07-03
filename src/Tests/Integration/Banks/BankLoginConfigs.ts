@@ -1,6 +1,6 @@
 /**
  * Barrel — exports the `*_LOGIN` config of every bank whose pipeline
- * supports Mode A integration drive. Consolidating these 11 imports
+ * supports Mode A integration drive. Consolidating these 13 imports
  * into one barrel keeps {@link LoginFormDiscovery.integration.test}
  * under the `import-x/max-dependencies` ceiling while preserving the
  * one-bank-per-line readability at the call-site.
@@ -23,6 +23,7 @@ import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/Me
 import { OTSAR_HAHAYAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import { PAGI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 import { VISACAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
+import { YAHAV_LOGIN } from '../../../Scrapers/Pipeline/Banks/Yahav/YahavPipeline.js';
 
 /**
  * Map of bankId → exported LoginConfig — used by both Mode A and
@@ -43,6 +44,7 @@ const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
   otsarHahayal: OTSAR_HAHAYAL_LOGIN,
   pagi: PAGI_LOGIN,
   visaCal: VISACAL_LOGIN,
+  yahav: YAHAV_LOGIN,
 };
 
 export default BANK_LOGIN_CONFIGS;

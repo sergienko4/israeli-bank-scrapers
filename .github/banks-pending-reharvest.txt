@@ -18,7 +18,7 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (3) ──
+# ── Currently pending (4) ──
 #
 # Massad      recipe gap: login form has a tab/accordion-toggle UI
 #             that reveals the password tab only after click. Harvester
@@ -30,6 +30,15 @@ pagi
 #
 # OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
 otsarHahayal
+#
+# Yahav       recipe gap: BaNCS Digital Angular SPA (#/authentication)
+#             behind SiteMinder + Imperva Incapsula — the credential form
+#             is rendered post-JS, so static capture lacks the num /
+#             nationalID / password inputs. Harvester needs SPA-hydration-
+#             aware capture before the loginStep HTML will contain them.
+#             Pipeline is registered + WellKnown-resolvable; requiresHydration
+#             stays true until a full HarvestBankHtml.ts run.
+yahav
 #
 # ── Resolved (kept for traceability) ──
 # visaCal     RESOLVED in PR #335 C7: harvester gained frame-aware reveal
