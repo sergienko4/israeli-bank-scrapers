@@ -3,8 +3,9 @@
  * bank sets BOTH `hasBrowser` and `apiDirectScrape`, so it never
  * assembles for a current pipeline. These tests lock that invariant
  * AND the forward contract: once a browser bank is migrated to the
- * hard-model path, BIND-API-MEDIATOR is inserted between DASHBOARD
- * and the api-direct SCRAPE.
+ * hard-model path, the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE /
+ * DASHBOARD / BALANCE-RESOLVE phases drop out and BIND-API-MEDIATOR
+ * is inserted immediately before the api-direct SCRAPE.
  */
 
 import type { IBuilderState } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineAssembly.js';
@@ -55,11 +56,15 @@ function phaseNames(phases: readonly BasePhase[]): readonly string[] {
 }
 
 describe('PipelineAssembly — BIND-API-MEDIATOR wiring', () => {
-  it('omits bind-api-mediator for a plain browser bank (no api-direct shape)', () => {
+  it('omits bind-api-mediator and keeps the generic middle phases for a plain browser bank', () => {
     const state = makeState();
     const phases = assemblePhases(state);
     const names = phaseNames(phases);
     expect(names).not.toContain('bind-api-mediator');
+    expect(names).toContain('auth-discovery');
+    expect(names).toContain('account-resolve');
+    expect(names).toContain('dashboard');
+    expect(names).toContain('balance-resolve');
   });
 
   it('omits bind-api-mediator for a headless api-direct bank (no browser)', () => {
@@ -69,14 +74,27 @@ describe('PipelineAssembly — BIND-API-MEDIATOR wiring', () => {
     expect(names).not.toContain('bind-api-mediator');
   });
 
-  it('inserts bind-api-mediator between dashboard and api-direct scrape when migrated', () => {
+  it('drops the generic middle phases and inserts bind-api-mediator before api-direct scrape when migrated', () => {
     const state = makeState({ apiDirectScrape: SHAPE_STUB });
     const phases = assemblePhases(state);
     const names = phaseNames(phases);
-    const dashIdx = names.indexOf('dashboard');
+    expect(names).not.toContain('auth-discovery');
+    expect(names).not.toContain('account-resolve');
+    expect(names).not.toContain('dashboard');
+    expect(names).not.toContain('balance-resolve');
     const bindIdx = names.indexOf('bind-api-mediator');
     const scrapeIdx = names.indexOf('api-direct-scrape');
-    expect(bindIdx).toBeGreaterThan(dashIdx);
+    expect(bindIdx).toBeGreaterThanOrEqual(0);
     expect(scrapeIdx).toBeGreaterThan(bindIdx);
+  });
+
+  it('keeps the browser login + terminate phases when migrated', () => {
+    const state = makeState({ apiDirectScrape: SHAPE_STUB });
+    const phases = assemblePhases(state);
+    const names = phaseNames(phases);
+    expect(names).toContain('init');
+    expect(names).toContain('home');
+    expect(names).toContain('login');
+    expect(names).toContain('terminate');
   });
 });

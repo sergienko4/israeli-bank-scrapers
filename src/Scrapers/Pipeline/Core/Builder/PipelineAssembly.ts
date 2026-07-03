@@ -44,14 +44,29 @@ interface IPhaseSlot {
 // ── Predicates ───────────────────────────────────────────────────
 
 /**
- * Predicate: every browser-only phase (INIT/HOME/AUTH-DISCOVERY/
- * ACCOUNT-RESOLVE/DASHBOARD/TERMINATE).
+ * Predicate: the browser-lifecycle phases that run for EVERY browser
+ * bank regardless of post-auth path (INIT / HOME / TERMINATE).
  *
  * @param state - Builder state.
  * @returns True for browser-mode pipelines.
  */
 function ifBrowser(state: IBuilderState): boolean {
   return state.hasBrowser;
+}
+
+/**
+ * Predicate: the GENERIC browser middle phases (AUTH-DISCOVERY,
+ * ACCOUNT-RESOLVE, DASHBOARD, BALANCE-RESOLVE). Enabled for a plain
+ * browser bank but turned OFF once the bank declares an api-direct
+ * shape — the hard-model path replaces all four with the single
+ * API-DIRECT-SCRAPE phase. Inert for every current bank: with no
+ * shape set, `ifGenericBrowser` equals `ifBrowser`.
+ *
+ * @param state - Builder state.
+ * @returns True for a browser bank WITHOUT an api-direct shape.
+ */
+function ifGenericBrowser(state: IBuilderState): boolean {
+  return state.hasBrowser && state.apiDirectScrape === false;
 }
 
 /**
@@ -266,12 +281,12 @@ const PHASE_CHAIN: readonly IPhaseSlot[] = [
   { factory: makeLogin, enabled: ifLoginAlways },
   { factory: makeOtpTrigger, enabled: ifOtpFillAndTrigger },
   { factory: makeOtpFill, enabled: ifOtpFill },
-  { factory: makeAuthDiscovery, enabled: ifBrowser },
-  { factory: makeAccountResolve, enabled: ifBrowser },
-  { factory: makeDashboard, enabled: ifBrowser },
+  { factory: makeAuthDiscovery, enabled: ifGenericBrowser },
+  { factory: makeAccountResolve, enabled: ifGenericBrowser },
+  { factory: makeDashboard, enabled: ifGenericBrowser },
   { factory: makeBindApiMediator, enabled: ifBrowserApiDirect },
   { factory: makeScrape, enabled: ifAnyScraper },
-  { factory: makeBalanceResolve, enabled: ifBrowser },
+  { factory: makeBalanceResolve, enabled: ifGenericBrowser },
   { factory: makeTerminate, enabled: ifBrowser },
 ];
 
