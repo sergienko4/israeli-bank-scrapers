@@ -1318,3 +1318,15 @@ extractCards
 # Reason: customerVars — VisaCal customer-step POST body builder ({"tokenGuid":""}).
 # Per-bank shape closure consumed only by VISACAL_SHAPE. Not user-facing.
 customerVars
+
+# --- P4 Amex hard-model post-auth scrape shape (card-cycle browser bank) ---
+# Reason: AMEX_API - Amex DigitalV3 SPA origin const shared by the Amex shape's
+# customer/transactions urlTag builders. Framework-internal bank contract constant.
+AMEX_API
+# Reason: IAmexCard - Amex scrape-shape card ref (cardSuffix last-4 + per-card
+# companyCode); consumed only by AMEX_SHAPE + its helpers. Pipeline-internal,
+# not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
+IAmexCard
+# Reason: mergeAmexRows - Amex transactions-step row merger (approvals + israelAbroad
+# vouchers + currentTransactionsList). Per-bank shape closure consumed only by AMEX_SHAPE.
+mergeAmexRows
