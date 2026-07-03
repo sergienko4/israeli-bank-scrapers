@@ -1273,3 +1273,33 @@ buildBalanceDispatchArgs
 # transactions-step dispatch args. Promoted to module scope by the REST-GET file split;
 # consumed only by ApiDirectScrapeSteps. Not user-facing.
 buildTxnsDispatchArgs
+
+# --- P2 Discount hard-model post-auth scrape shape (browser-bank migration) ---
+# Reason: IDiscountAcct — Discount scrape-shape account ref (accountId path id +
+# displayNumber); consumed only by DISCOUNT_SHAPE + its helpers. Pipeline-internal,
+# not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
+IDiscountAcct
+# Reason: TITAN_API — Titan gateway origin const shared by the Discount shape's
+# customer/balance/txns urlTag builders. Framework-internal bank contract constant.
+TITAN_API
+# Reason: extractAccounts — Discount customer-step extractor (UserAccountsData.UserAccounts
+# flatten). Per-bank shape closure consumed only by DISCOUNT_SHAPE. Not user-facing.
+extractAccounts
+# Reason: accountNumberOf — Discount shape accessor returning the branded display number.
+# Per-bank shape closure consumed only by DISCOUNT_SHAPE. Not user-facing.
+accountNumberOf
+# Reason: customerUrl — Discount customer-step urlTag (static Titan userAccountsData URL).
+# Per-bank shape closure consumed only by DISCOUNT_SHAPE. Not user-facing.
+customerUrl
+# Reason: noVars — Discount empty-vars builder (Titan GET calls carry params in the URL).
+# Per-bank shape closure consumed only by DISCOUNT_SHAPE. Not user-facing.
+noVars
+# Reason: txnsUrl — Discount transactions-step urlTag (the /Date full-history endpoint).
+# Per-bank shape closure consumed only by DISCOUNT_SHAPE. Not user-facing.
+txnsUrl
+# Reason: txnsExtractPage — Discount transactions-step page extractor (raw OperationEntry
+# rows, terminal cursor). Per-bank shape closure consumed only by DISCOUNT_SHAPE.
+txnsExtractPage
+# Reason: txnsVars — Discount transactions-step vars builder. Per-bank shape closure
+# consumed only by DISCOUNT_SHAPE. Not user-facing.
+txnsVars
