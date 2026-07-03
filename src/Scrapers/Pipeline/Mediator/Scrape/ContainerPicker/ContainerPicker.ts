@@ -14,6 +14,7 @@ import type { ITransaction } from '../../../../../Transactions.js';
 import { getDebug } from '../../../Types/Debug.js';
 import { unwrapWcfEnvelope } from '../../Network/Indexing/ResponseEnvelope.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import normalizeBancsRecords from '../Bancs/BancsNormalizer.js';
 import { isSearchableObject } from '../BfsFieldSearch/BfsFieldSearch.js';
 import huntTransactions from '../FieldHunt/TxnHunt.js';
 import { autoMapTransaction, isVoidedTransaction } from '../TxnMapper/TxnMapper.js';
@@ -63,17 +64,21 @@ function unwrapToRecord(responseBody: ApiRecord): ApiRecord {
  * capture-time unwrap — descend into the real container. Idempotent +
  * default-deny: already-unwrapped / non-envelope bodies pass through
  * unchanged, so every other bank is unaffected.
+ *
+ * <p>Hunt output is passed through {@link normalizeBancsRecords} before
+ * filtering: BaNCS (Yahav) rows are signed + flattened into `bancs*`
+ * scalars; all other banks' records are returned untouched (default-deny).
  * @param responseBody - Parsed JSON response body.
  * @returns Array of mapped ITransactions.
  */
 function extractTransactions(responseBody: ApiRecord): readonly ITransaction[] {
   const inner = unwrapToRecord(responseBody);
-  const items = huntTransactions(inner);
+  const hunted = huntTransactions(inner);
+  const items = normalizeBancsRecords(hunted);
   const valid = items.filter((r): boolean => !isVoidedTransaction(r));
   const mapped = valid.map(autoMapTransaction);
   const kept = mapped.filter((t): t is ITransaction => t !== false);
-  const message = buildHuntSummary(items.length, valid.length, kept.length);
-  LOG.debug({ message });
+  LOG.debug({ message: buildHuntSummary(items.length, valid.length, kept.length) });
   return kept;
 }
 
