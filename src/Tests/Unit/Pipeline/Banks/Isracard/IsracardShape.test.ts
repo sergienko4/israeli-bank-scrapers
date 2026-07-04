@@ -194,4 +194,10 @@ describe('ISRACARD_SHAPE wiring', () => {
   it('carries the IsracardScrape step name', () => {
     expect(ISRACARD_SHAPE.stepName).toBe('IsracardScrape');
   });
+
+  it('primes the transactions-service session via the SPA route', () => {
+    expect(ISRACARD_SHAPE.prime).toBeDefined();
+    const url = ISRACARD_SHAPE.prime?.navUrl({} as unknown as IActionContext);
+    expect(url).toBe('https://web.isracard.co.il/transactions');
+  });
 });

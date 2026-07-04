@@ -23,7 +23,7 @@ Cookie-only banks authorise every post-auth service from the login session, so t
 
 The optional `IApiDirectScrapePrime` shape hook restores that step for the api-direct path. When a shape declares `prime`, `runPrime` navigates the **live login page** to the URL returned by `prime.navUrl(ctx)` and waits for the network to settle before the first scrape fetch. The nav is best-effort and non-fatal — a slow or failed prime never aborts the scrape. It is a strict no-op for banks that omit `prime` (all cookie-only + headless banks) or that run without a browser executor (headless mediators), so their behaviour stays byte-identical.
 
-Amex opts in via `primeUrl`, which points the hook at `https://web.americanexpress.co.il/transactions`.
+Amex and Isracard (the DigitalV3 base-isracard-amex family) opt in via their `primeUrl` helper, pointing the hook at `https://web.americanexpress.co.il/transactions` and `https://web.isracard.co.il/transactions` respectively.
 
 ## .final — Emit balanceResolution from scrape.accounts
 

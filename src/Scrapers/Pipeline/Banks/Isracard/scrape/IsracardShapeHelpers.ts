@@ -21,7 +21,7 @@ import type {
   IExtractAccountsArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import { type LiteralUrl, literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Isracard DigitalV3 API origin — the post-login SPA host (web, not www). */
@@ -128,6 +128,21 @@ export function customerVars(): VarsMap {
  */
 export function customerUrl(): WKUrlOrLiteral {
   return literalUrl(`${ISRACARD_API}/ocp/transactions/DigitalV3.Transactions/GetCardList`);
+}
+
+/**
+ * Prime route — the Isracard transactions SPA frontend. Navigating here
+ * post-login establishes the transactions-service session (SSO cookie +
+ * referer + InitContent bootstrap) so GetCardList / GetTransactionsList
+ * return 200 instead of 302→login. Grounded in the generic-DASHBOARD
+ * trace, which navigates this exact route and logs `primed:true`. Typed
+ * as the branded {@link LiteralUrl} (⊆ string) so it satisfies both the
+ * nominal-return architecture rule and the `navUrl: (ctx) => string`
+ * shape contract.
+ * @returns Isracard transactions SPA route.
+ */
+export function primeUrl(): LiteralUrl {
+  return literalUrl(`${ISRACARD_API}/transactions`);
 }
 
 /**
