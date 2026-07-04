@@ -59,6 +59,27 @@ function isStr(v: unknown): v is string {
   return typeof v === 'string';
 }
 
+/** BalType code marking the current-account balance (decision C = visible 150). */
+const CURRENT_BALTYPE = 'CURRENT';
+
+/**
+ * Plain-object type guard (non-null, non-array object).
+ * @param v - Value to test.
+ * @returns True when `v` is a record.
+ */
+function isRecord(v: unknown): v is ApiRecord {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Whether a `BalanceList[]` entry's `BalType.CDE` is `CURRENT`.
+ * @param entry - One BalanceList element.
+ * @returns True when the entry is the CURRENT balance.
+ */
+function isCurrentBalType(entry: ApiRecord): boolean {
+  return getIn(entry, ['BalType', 'CDE']) === CURRENT_BALTYPE;
+}
+
 /**
  * Whether `field` on `root` is a BaNCS `{Day,Month,Year}` numeric date.
  * @param root - Candidate record.
@@ -81,4 +102,4 @@ function isBancsTxnRecord(root: ApiRecord): boolean {
   return isStr(amount);
 }
 
-export { getIn, isBancsTxnRecord, isNum, isStr };
+export { CURRENT_BALTYPE, getIn, isBancsTxnRecord, isCurrentBalType, isNum, isRecord, isStr };

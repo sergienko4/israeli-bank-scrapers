@@ -24,35 +24,13 @@
  */
 
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
-import { getIn, isStr } from './BancsShape.js';
-
-/** BalType code marking the current-account balance (decision C). */
-const CURRENT_BALTYPE = 'CURRENT';
+import { getIn, isCurrentBalType, isRecord, isStr } from './BancsShape.js';
 
 /** Path to the shared BaNCS query id (also carried by txn rows). */
 const BANKACCOUNTID_PATH = ['AccountId', 'AcctIds', 'BANKACCOUNTID'];
 
 /** Path to the top-level IBAN present only on real account records. */
 const IBAN_PATH = ['AccountId', 'AcctIds', 'IBAN'];
-
-/**
- * Plain-object type guard over an unknown JSON value.
- * @param v - Value to test.
- * @returns True when `v` is a non-null, non-array object.
- */
-function isRec(v: unknown): v is ApiRecord {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-/**
- * Whether a BalanceList entry's `BalType.CDE` is CURRENT.
- * @param entry - One BalanceList element.
- * @returns True when the entry is the CURRENT balance.
- */
-function isCurrentEntry(entry: ApiRecord): boolean {
-  const cde = getIn(entry, ['BalType', 'CDE']);
-  return cde === CURRENT_BALTYPE;
-}
 
 /**
  * Whether a member owns a top-level `BalanceList[]` with a CURRENT entry.
@@ -62,8 +40,8 @@ function isCurrentEntry(entry: ApiRecord): boolean {
 function hasCurrentBalance(member: ApiRecord): boolean {
   const list = member.BalanceList;
   if (!Array.isArray(list)) return false;
-  const records = list.filter(isRec);
-  return records.some(isCurrentEntry);
+  const records = list.filter(isRecord);
+  return records.some(isCurrentBalType);
 }
 
 /**
@@ -85,7 +63,7 @@ function isCurrentDdaAccount(member: ApiRecord): boolean {
 function dataEntities(body: ApiRecord): readonly ApiRecord[] {
   const de = getIn(body, ['Payload', 'DataEntity']);
   if (!Array.isArray(de)) return [];
-  return de.filter(isRec);
+  return de.filter(isRecord);
 }
 
 /**

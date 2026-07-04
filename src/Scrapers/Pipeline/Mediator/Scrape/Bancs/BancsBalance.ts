@@ -15,23 +15,12 @@
  * logged here — the module is a pure selector with no log sink.
  */
 
-import type { JsonObject, JsonValue } from '../../../Types/JsonValue.js';
-import { getIn, isStr } from './BancsShape.js';
-
-/** BalType code for the current-account balance (decision C = the visible 150). */
-const CURRENT_BALTYPE = 'CURRENT';
+import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import { getIn, isCurrentBalType, isRecord, isStr } from './BancsShape.js';
 
 /** Bounded search depth — every captured BaNCS balance shape sits ≤ 4 deep. */
 const MAX_DEPTH = 6;
-
-/**
- * Record type guard over a {@link JsonValue}.
- * @param v - Value to test.
- * @returns True when `v` is a non-null, non-array object.
- */
-function isObj(v: JsonValue): v is JsonObject {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 /**
  * Parse a BaNCS magnitude (string like `"150.00"` or a number) to a
@@ -52,9 +41,9 @@ function toFinite(v: unknown): number {
  * @param entry - One BalanceList element.
  * @returns Finite CURRENT amount, or `Number.NaN`.
  */
-function currentEntryAmount(entry: JsonValue): number {
-  if (!isObj(entry)) return Number.NaN;
-  if (getIn(entry, ['BalType', 'CDE']) !== CURRENT_BALTYPE) return Number.NaN;
+function currentEntryAmount(entry: unknown): number {
+  if (!isRecord(entry)) return Number.NaN;
+  if (!isCurrentBalType(entry)) return Number.NaN;
   const raw = getIn(entry, ['CurrAmt', 'Amt', 'Value']);
   return toFinite(raw);
 }
@@ -64,7 +53,7 @@ function currentEntryAmount(entry: JsonValue): number {
  * @param list - BalanceList array.
  * @returns First finite CURRENT amount, or `Number.NaN`.
  */
-function scanBalanceList(list: readonly JsonValue[]): number {
+function scanBalanceList(list: readonly unknown[]): number {
   const amounts = list.map(currentEntryAmount);
   return amounts.find(Number.isFinite) ?? Number.NaN;
 }
@@ -75,7 +64,7 @@ function scanBalanceList(list: readonly JsonValue[]): number {
  * @param depth - Remaining search depth.
  * @returns Finite CURRENT balance, or `Number.NaN`.
  */
-function fromRecord(rec: JsonObject, depth: number): number {
+function fromRecord(rec: ApiRecord, depth: number): number {
   const list = rec.BalanceList;
   const here = Array.isArray(list) ? scanBalanceList(list) : Number.NaN;
   if (Number.isFinite(here)) return here;
@@ -89,7 +78,7 @@ function fromRecord(rec: JsonObject, depth: number): number {
  * @param depth - Remaining search depth.
  * @returns First finite CURRENT balance, or `Number.NaN`.
  */
-function fromChildren(children: readonly JsonValue[], depth: number): number {
+function fromChildren(children: readonly unknown[], depth: number): number {
   if (depth <= 0) return Number.NaN;
   const hits = children.map((c): number => descend(c, depth - 1));
   return hits.find(Number.isFinite) ?? Number.NaN;
@@ -101,8 +90,8 @@ function fromChildren(children: readonly JsonValue[], depth: number): number {
  * @param depth - Remaining search depth.
  * @returns Finite CURRENT balance, or `Number.NaN`.
  */
-function descend(node: JsonValue, depth: number): number {
-  if (isObj(node)) return fromRecord(node, depth);
+function descend(node: unknown, depth: number): number {
+  if (isRecord(node)) return fromRecord(node, depth);
   if (Array.isArray(node)) return fromChildren(node, depth);
   return Number.NaN;
 }
