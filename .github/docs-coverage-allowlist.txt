@@ -1476,3 +1476,12 @@ OTSAR_HAHAYAL_API
 # session accountType); consumed only by OTSAR_HAHAYAL_SHAPE + its helpers. Pipeline-internal, not
 # part of the @sergienko4/israeli-bank-scrapers public surface.
 IOtsarHahayalAcct
+# --- P4 Pagi (FIBI) hard-model post-auth scrape shape (account browser bank, OTP) ---
+# Reason: PAGI_API - FIBI online gateway origin const shared by the Pagi shape's
+# customer/secondary/balance/transactions urlTag builders. Framework-internal bank contract
+# constant, not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
+PAGI_API
+# Reason: IPagiAcct - Pagi scrape-shape account ref (accountNumber + branch + session
+# accountType); consumed only by PAGI_SHAPE + its helpers. Pipeline-internal, not part of the
+# @sergienko4/israeli-bank-scrapers public surface.
+IPagiAcct
