@@ -70,43 +70,6 @@ export const SCRAPER_CONFIGURATION = {
         loadingIndicator: [{ kind: 'css', value: '.react-loading.hide' }],
       },
     },
-    [CompanyTypes.Yahav]: {
-      urls: { base: 'https://www.yahav.co.il', loginRoute: null, transactions: null },
-      api: NULL_API,
-      auth: NULL_AUTH,
-      loginSetup: SIMPLE_LOGIN,
-      format: { ...NULL_FORMAT, date: 'DD/MM/YYYY' },
-      timing: NULL_TIMING,
-      selectors: {
-        accountDetails: [{ kind: 'css', value: '.account-details' }],
-        accountId: [
-          {
-            kind: 'css',
-            value: 'span.portfolio-value[ng-if="mainController.data.portfolioList.length === 1"]',
-          },
-        ],
-        transactionRows: [{ kind: 'css', value: '.list-item-holder .entire-content-ctr' }],
-        transactionTableHeader: [{ kind: 'css', value: '.under-line-txn-table-header' }],
-        datePickerOpener: [
-          {
-            kind: 'css',
-            value:
-              'div.date-options-cell:nth-child(7) > date-picker:nth-child(1) > div:nth-child(1) > span:nth-child(2)',
-          },
-        ],
-        // Pickmeup date picker: structural CSS exception — 3rd-party widget
-        // has no ARIA roles, labels, or text alternatives on grid containers.
-        // Only CSS class + nth-child can navigate the year/month/day grids.
-        monthPickerBtn: [{ kind: 'css', value: '.pmu-month' }],
-        loadingSpinner: [{ kind: 'css', value: '.loading-bar-spinner' }],
-        monthsGridCheck: [{ kind: 'css', value: '.pmu-months > div:nth-child(1)' }],
-        monthsGridPrefix: [{ kind: 'css', value: '.pmu-months' }],
-        yearsGridCheck: [{ kind: 'css', value: '.pmu-years > div:nth-child(1)' }],
-        yearsGridPrefix: [{ kind: 'css', value: '.pmu-years' }],
-        daysGridPrefix: [{ kind: 'css', value: '.pmu-days' }],
-        daysGridCheck: [{ kind: 'css', value: '.pmu-days > div:nth-child(1)' }],
-      },
-    },
   } satisfies Partial<Record<CompanyTypes, IBankScraperConfig>>,
 
   wellKnownSelectors: WELL_KNOWN_LOGIN_SELECTORS,
