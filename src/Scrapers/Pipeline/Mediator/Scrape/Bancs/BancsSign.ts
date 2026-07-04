@@ -177,7 +177,7 @@ function signSorted(sorted: readonly IBancsRow[]): ReadonlyMap<number, number> {
  * @returns Signed amounts; index-aligned to `items`.
  */
 function computeSignedAmounts(items: readonly ApiRecord[]): readonly number[] {
-  const rows = items.map(toRow);
+  const rows = items.map((root, index): IBancsRow => toRow(root, index));
   const sorted = [...rows].sort(byIsoAsc);
   const signByIndex = signSorted(sorted);
   return rows.map((row): number => (signByIndex.get(row.index) ?? -1) * row.magnitude);
