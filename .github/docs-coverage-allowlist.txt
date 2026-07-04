@@ -1485,3 +1485,11 @@ PAGI_API
 # accountType); consumed only by PAGI_SHAPE + its helpers. Pipeline-internal, not part of the
 # @sergienko4/israeli-bank-scrapers public surface.
 IPagiAcct
+# --- AuthDiscovery storage-tier chain single-sourced for BIND reuse ---
+# Reason: storageTiers - page-only sessionStorage discovery chain (main page 3a ->
+# all frames 3b -> all keys 3c) extracted from Orchestrator.ts so both the generic
+# AuthDiscovery orchestrator and the BIND-API-MEDIATOR auth-prime find frame-scoped
+# SPA tokens identically. Framework-internal plumbing consumed only by Orchestrator.ts
+# + BindApiMediatorAuth.ts; not part of the @sergienko4/israeli-bank-scrapers public
+# surface (Pipeline is internal to the scrapers, not exported via src/index.ts).
+storageTiers
