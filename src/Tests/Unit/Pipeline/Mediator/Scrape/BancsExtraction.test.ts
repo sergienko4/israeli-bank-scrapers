@@ -248,3 +248,34 @@ describe('BaNCS extraction — boundary + fallback branches', () => {
     expect(out[1].bancsAmount).toBe(-200);
   });
 });
+
+describe('BaNCS extraction — signs isolated from non-BaNCS rows', () => {
+  it('a stray non-BaNCS row cannot perturb BaNCS running-balance signs', () => {
+    const rowA = buildBancsRecord({
+      id: 'FAKE-A',
+      day: 10,
+      magnitude: '200',
+      runBal: '1000',
+      typeCode: 'OutPymntOrd',
+    });
+    const rowC = buildBancsRecord({
+      id: 'FAKE-C',
+      day: 12,
+      magnitude: '300',
+      runBal: '1200',
+      typeCode: 'OutPymntOrd',
+    });
+    // A date-bearing non-BaNCS record (no TotalCurAmt) that sorts BETWEEN
+    // A and C and — if signed alongside them — would break C's delta.
+    const stray = {
+      OrigDt: { Day: 11, Month: 1, Year: 2026 },
+      StmtRunningBal: runningBal('5000'),
+      description: 'stray non-BaNCS row',
+    };
+    const out = normalizeBancsRecords([rowA, stray, rowC]);
+    expect(out[0].bancsAmount).toBe(-200);
+    expect('bancsAmount' in out[1]).toBe(false);
+    // C's sign uses A's balance (delta +200), NOT the stray's 5000.
+    expect(out[2].bancsAmount).toBe(300);
+  });
+});

@@ -55,28 +55,45 @@ function flattenBancs(root: ApiRecord, signedAmount: number): ApiRecord {
 }
 
 /**
- * Flatten a BaNCS record; pass any non-BaNCS record through untouched.
+ * Sign the BaNCS rows and key each signed amount by its record reference.
+ *
+ * <p>Only BaNCS rows reach the sign engine, so the chronological sort and
+ * running-balance delta cannot be perturbed by a stray non-BaNCS record
+ * sharing the hunt output.
+ * @param bancsRows - The BaNCS-shaped rows only.
+ * @returns Map of record reference → signed charged amount.
+ */
+function signRows(bancsRows: readonly ApiRecord[]): ReadonlyMap<ApiRecord, number> {
+  const signed = computeSignedAmounts(bancsRows);
+  return new Map(bancsRows.map((row, j): [ApiRecord, number] => [row, signed[j]]));
+}
+
+/**
+ * Flatten a signed BaNCS record; pass any other record through untouched.
  * @param root - Hunt-collected record.
- * @param signedAmount - Pre-signed amount for this index.
+ * @param signByRow - Signed amount per BaNCS record reference.
  * @returns Normalized BaNCS record, or the original record unchanged.
  */
-function mapOne(root: ApiRecord, signedAmount: number): ApiRecord {
-  if (!isBancsTxnRecord(root)) return root;
-  return flattenBancs(root, signedAmount);
+function applySign(root: ApiRecord, signByRow: ReadonlyMap<ApiRecord, number>): ApiRecord {
+  const signed = signByRow.get(root);
+  if (signed === undefined) return root;
+  return flattenBancs(root, signed);
 }
 
 /**
  * Normalize BaNCS transaction records inside the hunt output.
  *
- * <p>Runs at ARRAY level because running-balance signing needs every
- * row. No-op (returns input) when nothing looks like BaNCS.
+ * <p>BaNCS rows are filtered out FIRST and signed in isolation, then the
+ * signs are mapped back to the original records by reference; non-BaNCS
+ * rows pass through untouched. No-op when nothing looks like BaNCS.
  * @param items - Records collected by `huntTransactions`.
  * @returns Records with `bancs*` fields added to BaNCS rows only.
  */
 function normalizeBancsRecords(items: readonly ApiRecord[]): readonly ApiRecord[] {
-  if (!items.some(isBancsTxnRecord)) return items;
-  const signed = computeSignedAmounts(items);
-  return items.map((root, i): ApiRecord => mapOne(root, signed[i]));
+  const bancsRows = items.filter(isBancsTxnRecord);
+  if (bancsRows.length === 0) return items;
+  const signByRow = signRows(bancsRows);
+  return items.map((root): ApiRecord => applySign(root, signByRow));
 }
 
 export default normalizeBancsRecords;
