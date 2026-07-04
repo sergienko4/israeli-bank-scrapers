@@ -1,52 +1,49 @@
 /**
- * BIND-API-MEDIATOR auth-prime — install the discovered Bearer/JWT for
- * `authStrategyKind === 'token'` browser banks (e.g. VisaCal). Session-cookie
- * banks ride first-party cookies on BrowserFetchStrategy and need no prime.
+ * BIND-API-MEDIATOR auth-prime — install the discovered Authorization for
+ * `authStrategyKind === 'token'` browser banks (VisaCal + the FIBI family).
+ * Session-cookie banks ride first-party cookies on BrowserFetchStrategy and
+ * need no prime.
  *
- * Reuses the proven page AuthDiscovery storage tiers (main page → all frames →
- * all keys → poll) so the token key + scheme (Cal's `CALAuthScheme <jwt>`) stay
- * single-sourced in Tokens.ts. The all-frame scan lets banks whose token lives
- * in a cross-origin SPA frame (FIBI family) prime their Authorization. The
- * resolved value is the FULL Authorization header value, so it is installed
- * verbatim via `setRawAuth` (never `setBearer`, which would prepend a second
- * scheme). Zero bank coupling.
+ * Runs the SAME 5-tier AuthDiscovery orchestrator the generic AUTH-DISCOVERY
+ * phase used — response bodies (Tier 2) → page/frame sessionStorage (Tier 3a-c)
+ * → request headers (Tier 1) → poll (Tier 4) — over the login-inclusive capture
+ * pool + the live login page. The network-trace gate opens at login entry, so
+ * the SPA's own login response (which mints the token — e.g. Cal's connect-login
+ * `{"token":...}`) is already in the pool, and Tier 2 `discoverFromResponses`
+ * reads it. The resolved value already carries its scheme (`CALAuthScheme <jwt>`
+ * / `Bearer <jwt>`), so it installs verbatim via `setRawAuth` (never `setBearer`,
+ * which would prepend a second scheme). Zero bank coupling.
  */
 
 import type { Page } from 'playwright-core';
 
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.types.js';
-import { pollForAuthModule } from '../../Mediator/Network/AuthDiscovery/PollTier.js';
-import { storageTiers } from '../../Mediator/Network/AuthDiscovery/StorageTiers.js';
+import discoverAuthThreeTier from '../../Mediator/Network/AuthDiscovery/Orchestrator.js';
+import type { IDiscoveredEndpoint } from '../../Mediator/Network/Types/Endpoint.js';
 import type { IPipelineBankConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 
-/**
- * Resolve the post-login token from the live page: sessionStorage (main page →
- * all frames → all keys) first, then poll the auth-module across frames. Both
- * tiers need only the page. The all-frame storage scan lets banks whose token
- * lives in a cross-origin SPA frame (FIBI family) prime their Authorization.
- * @param page - Live login page.
- * @returns Full Authorization header value, or false when none is present.
- */
-async function resolvePageToken(page: Page): Promise<string | false> {
-  const fromStorage = await storageTiers(page);
-  if (fromStorage) return fromStorage;
-  return pollForAuthModule(page);
+/** The two token sources the orchestrator reads: login capture pool + live page. */
+interface IAuthTokenSource {
+  readonly pool: readonly IDiscoveredEndpoint[];
+  readonly page: Page;
 }
 
 /**
- * Prime the mediator's Authorization for `'token'` banks (no-op otherwise).
+ * Prime the mediator Authorization for `'token'` banks via the 5-tier
+ * AuthDiscovery orchestrator (no-op for non-token banks). The captured value
+ * already carries its scheme, so it installs verbatim via `setRawAuth`.
  * @param config - Resolved bank config carrying `authStrategyKind`.
- * @param page - Live login page the token is read from.
+ * @param source - Login capture pool + live login page.
  * @param mediator - Browser-page mediator to authorize.
  * @returns True when a token was installed, false otherwise.
  */
 async function primeTokenAuth(
   config: IPipelineBankConfig,
-  page: Page,
+  source: IAuthTokenSource,
   mediator: IApiMediator,
 ): Promise<boolean> {
   if (config.authStrategyKind !== 'token') return false;
-  const token = await resolvePageToken(page);
+  const token = await discoverAuthThreeTier(source.pool, source.page);
   if (!token) return false;
   return mediator.setRawAuth(token);
 }

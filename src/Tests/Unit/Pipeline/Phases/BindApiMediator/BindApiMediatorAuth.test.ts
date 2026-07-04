@@ -1,13 +1,16 @@
 /**
- * BIND-API-MEDIATOR auth-prime unit tests — proves `primeTokenAuth` installs
- * the post-login token verbatim for `'token'` banks, is a no-op for
- * `'session-cookie'` banks, and skips installation when no token is present.
+ * BIND-API-MEDIATOR auth-prime unit tests — proves `primeTokenAuth` resolves the
+ * post-login Authorization via the 5-tier AuthDiscovery orchestrator: installs a
+ * token from a login response body (Tier 2 — the VisaCal path) or from
+ * page/frame sessionStorage (Tier 3) for `'token'` banks, is a no-op for
+ * `'session-cookie'` banks, and skips installation when no tier yields a token.
  */
 
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
+import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
 import { primeTokenAuth } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorAuth.js';
 
 /** Local mirror of the registry auth-strategy union (import is DI-restricted). */
@@ -130,12 +133,26 @@ function makeFramePage(frames: readonly Frame[]): Page {
   } as unknown as Page;
 }
 
-describe('BIND-API-MEDIATOR auth-prime — primeTokenAuth', () => {
+/**
+ * Build a captured auth endpoint carrying the given response body — the Tier 2
+ * source. Fields the response tier ignores are cast away.
+ * @param url - Captured request URL (matched against WK auth patterns).
+ * @param responseBody - Parsed response body the pool capture exposes.
+ * @returns Minimal discovered-endpoint literal.
+ */
+function makeAuthEndpoint(url: string, responseBody: unknown): IDiscoveredEndpoint {
+  return { url, responseBody, requestHeaders: {} } as unknown as IDiscoveredEndpoint;
+}
+
+/** Empty login pool — the storage-tier tests read only the page. */
+const NO_POOL: readonly IDiscoveredEndpoint[] = [];
+
+describe('BIND-API-MEDIATOR auth-prime — storage tiers', () => {
   it('BIND-AUTH-1 installs the prefixed token verbatim for token banks', async () => {
     const page = makePage('{"auth":{"calConnectToken":"jwt-abc-123"}}');
     const mediator = makeMediator();
     const config = makeConfig('token');
-    const wasInstalled = await primeTokenAuth(config, page, mediator);
+    const wasInstalled = await primeTokenAuth(config, { pool: NO_POOL, page }, mediator);
     expect(wasInstalled).toBe(true);
     expect(mediator.setRawAuth).toHaveBeenCalledWith('CALAuthScheme jwt-abc-123');
   });
@@ -144,7 +161,7 @@ describe('BIND-API-MEDIATOR auth-prime — primeTokenAuth', () => {
     const page = makePage('{"auth":{"calConnectToken":"jwt-abc-123"}}');
     const mediator = makeMediator();
     const config = makeConfig('session-cookie');
-    const wasInstalled = await primeTokenAuth(config, page, mediator);
+    const wasInstalled = await primeTokenAuth(config, { pool: NO_POOL, page }, mediator);
     expect(wasInstalled).toBe(false);
     expect(mediator.setRawAuth).not.toHaveBeenCalled();
   });
@@ -153,7 +170,7 @@ describe('BIND-API-MEDIATOR auth-prime — primeTokenAuth', () => {
     const page = makePage('NONE');
     const mediator = makeMediator();
     const config = makeConfig('token');
-    const wasInstalled = await primeTokenAuth(config, page, mediator);
+    const wasInstalled = await primeTokenAuth(config, { pool: NO_POOL, page }, mediator);
     expect(wasInstalled).toBe(false);
     expect(mediator.setRawAuth).not.toHaveBeenCalled();
   });
@@ -166,8 +183,39 @@ describe('BIND-API-MEDIATOR auth-prime — primeTokenAuth', () => {
     const mediator = makeMediator();
     const config = makeConfig('token');
     const page = makeFramePage([frame]);
-    const wasInstalled = await primeTokenAuth(config, page, mediator);
+    const wasInstalled = await primeTokenAuth(config, { pool: NO_POOL, page }, mediator);
     expect(wasInstalled).toBe(true);
     expect(mediator.setRawAuth).toHaveBeenCalledWith('CALAuthScheme fibi-jwt-xyz');
+  });
+});
+
+describe('BIND-API-MEDIATOR auth-prime — response-body tier (Tier 2)', () => {
+  const loginUrl = 'https://connect.example.co.il/col-rest/calconnect/authentication/login';
+
+  it('BIND-AUTH-5 installs a token from a login response body for token banks', async () => {
+    const pool = [makeAuthEndpoint(loginUrl, { token: 'cal-jwt-90210', hash: null })];
+    const mediator = makeMediator();
+    const config = makeConfig('token');
+    const wasInstalled = await primeTokenAuth(config, { pool, page: makePage('NONE') }, mediator);
+    expect(wasInstalled).toBe(true);
+    expect(mediator.setRawAuth).toHaveBeenCalledWith('CALAuthScheme cal-jwt-90210');
+  });
+
+  it('BIND-AUTH-6 is a no-op for session-cookie banks despite a response token', async () => {
+    const pool = [makeAuthEndpoint(loginUrl, { token: 'cal-jwt-90210' })];
+    const mediator = makeMediator();
+    const config = makeConfig('session-cookie');
+    const wasInstalled = await primeTokenAuth(config, { pool, page: makePage('NONE') }, mediator);
+    expect(wasInstalled).toBe(false);
+    expect(mediator.setRawAuth).not.toHaveBeenCalled();
+  });
+
+  it('BIND-AUTH-7 skips install when no tier yields a token', async () => {
+    const pool = [makeAuthEndpoint('https://cdn.example.co.il/assets/app.js', { nope: 1 })];
+    const mediator = makeMediator();
+    const config = makeConfig('token');
+    const wasInstalled = await primeTokenAuth(config, { pool, page: makePage('NONE') }, mediator);
+    expect(wasInstalled).toBe(false);
+    expect(mediator.setRawAuth).not.toHaveBeenCalled();
   });
 });
