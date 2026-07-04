@@ -1,13 +1,17 @@
 /**
  * Isracard scrape shape — response row extraction. One GetTransactionsList
- * response carries rows across three containers:
- * data.approvals.approvedTransactions[] (pending authorisations),
+ * response carries transaction rows across two containers:
+ * data.approvals.approvedTransactions[] (pending authorisations) and
  * data.israelAbroadVouchers.vouchers.israelAbroadVouchersList[] (settled
- * charges + installments), and data.currentTransactionsList (usually null).
- * Rows are merged untouched; the downstream Data Mapper normalises fields
- * (purchaseDate, ilsBillingAmount/billingAmount, seqVoucherNumber…). Split
- * from IsracardShapeTxns.ts for the 150-LOC cap. Isracard and Amex share the
- * DigitalV3 backbone (base-isracard-amex), so the response shape matches.
+ * charges + installments). data.currentTransactionsList is NOT a row list —
+ * it is a per-currency cycle-summary object
+ * (currentTransactionsBillingMonth[].totalTransactionsCurrency[] = totals
+ * only), so it is intentionally excluded (grounded in the Isracard scrape
+ * trace 0111). Rows are merged untouched; the downstream Data Mapper
+ * normalises fields (purchaseDate, ilsBillingAmount/billingAmount,
+ * seqVoucherNumber…). Split from IsracardShapeTxns.ts for the 150-LOC cap.
+ * Isracard and Amex share the DigitalV3 backbone (base-isracard-amex), so
+ * the response shape matches.
  */
 
 type IsracardTxn = Record<string, unknown>;
@@ -24,7 +28,6 @@ interface IIsraelAbroadVouchers {
 interface ITxnsData {
   readonly approvals?: IApprovals | null;
   readonly israelAbroadVouchers?: IIsraelAbroadVouchers | null;
-  readonly currentTransactionsList?: readonly IsracardTxn[] | null;
 }
 interface ITxnsResp {
   readonly data?: ITxnsData | null;
@@ -50,17 +53,8 @@ function voucherRows(data: ITxnsData): readonly IsracardTxn[] {
 }
 
 /**
- * Current-cycle rows (data.currentTransactionsList — usually null).
- * @param data - Unwrapped response data.
- * @returns Current rows (empty when null/absent).
- */
-function currentRows(data: ITxnsData): readonly IsracardTxn[] {
-  return data.currentTransactionsList ?? [];
-}
-
-/**
- * Merge all three transaction containers from one GetTransactionsList
- * response into a single row list. Tolerates a null/absent data block.
+ * Merge both transaction containers from one GetTransactionsList response
+ * into a single row list. Tolerates a null/absent data block.
  * @param body - Raw GetTransactionsList response body.
  * @returns Merged transaction rows.
  */
@@ -69,8 +63,7 @@ export function mergeIsracardRows(body: object): readonly object[] {
   if (!data) return [];
   const approved = approvedRows(data);
   const vouchers = voucherRows(data);
-  const current = currentRows(data);
-  return [...approved, ...vouchers, ...current];
+  return [...approved, ...vouchers];
 }
 
 export default mergeIsracardRows;

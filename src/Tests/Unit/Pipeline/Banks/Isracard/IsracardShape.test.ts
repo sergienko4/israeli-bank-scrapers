@@ -146,19 +146,23 @@ describe('IsracardShape transactions', () => {
     expect(vars).toMatchObject({ billingMonth: '01/08/2026', companyCode: 11 });
   });
 
-  it('txnsExtractPage merges approvals + vouchers + current containers', () => {
+  it('txnsExtractPage merges approvals + vouchers, excludes summary-only current', () => {
     const body = {
       data: {
         approvals: { approvedTransactions: [{ id: 'a1' }] },
         israelAbroadVouchers: {
           vouchers: { israelAbroadVouchersList: [{ id: 'v1' }, { id: 'v2' }] },
         },
-        currentTransactionsList: [{ id: 'c1' }],
+        currentTransactionsList: {
+          currentTransactionsBillingMonth: [
+            { totalTransactionsCurrency: [{ transactionsTotal: 5 }] },
+          ],
+        },
       },
     };
     const ctx = ctxWith(new Date(2000, 0, 1), 0);
     const page = txnsExtractPage({ body, cursor: false, acct: CARD, ctx });
-    expect(page.items).toHaveLength(4);
+    expect(page.items).toEqual([{ id: 'a1' }, { id: 'v1' }, { id: 'v2' }]);
     expect(page.nextCursor).toBe(1);
   });
 
