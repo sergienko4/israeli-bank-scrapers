@@ -105,7 +105,7 @@ describe('BaNCS extraction — sign resolution', () => {
     });
     const env = bancsEnvelope([record]);
     const txns = extractTransactions(env);
-    expect(txns.length).toBe(1);
+    expect(txns).toHaveLength(1);
     expect(txns[0].chargedAmount).toBe(-150);
     expect(txns[0].identifier).toBe('FAKE-SINGLE');
   });
@@ -134,7 +134,7 @@ describe('BaNCS extraction — sign resolution', () => {
     });
     const env = bancsEnvelope([rowB, rowA, rowC]);
     const txns = extractTransactions(env);
-    expect(txns.length).toBe(3);
+    expect(txns).toHaveLength(3);
     const amtA = amountById(txns, 'FAKE-A');
     const amtB = amountById(txns, 'FAKE-B');
     const amtC = amountById(txns, 'FAKE-C');
@@ -163,7 +163,7 @@ describe('BaNCS extraction — default-deny for non-BaNCS records', () => {
     };
     const env = { movements: [movement] };
     const txns = extractTransactions(env);
-    expect(txns.length).toBe(1);
+    expect(txns).toHaveLength(1);
     expect(txns[0].chargedAmount).toBe(90);
   });
 });

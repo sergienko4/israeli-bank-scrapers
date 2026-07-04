@@ -158,7 +158,7 @@ function resolveSign(sorted: readonly IBancsRow[], k: number): number {
   const delta = k > 0 ? deltaSign(cur, sorted[k - 1]) : 0;
   const message = warnFor(k, cur, delta);
   if (message !== '') LOG.warn({ message });
-  return finalizeSign(delta !== 0 ? delta : typeSign(cur.typeCode));
+  return finalizeSign(delta === 0 ? typeSign(cur.typeCode) : delta);
 }
 
 /**
