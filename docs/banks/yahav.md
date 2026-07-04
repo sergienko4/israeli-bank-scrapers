@@ -26,6 +26,9 @@ const result = await scraper.scrape({
 });
 ```
 
+For backward compatibility the legacy key `username` is still accepted as an
+alias for `num`, so `scrape({ username, nationalID, password })` keeps working.
+
 ## Pipeline specifics
 
 Yahav is a **real-browser** Pipeline bank backed by **TCS BaNCS Digital**.
@@ -47,10 +50,11 @@ arrays** (`num`, `nationalID`, `password`) — `SelectorResolver` matches them f
 the generic Well-Known login candidates, per the repo's ZERO-CSS-selectors rule.
 The builder wires only `.withBrowser()` + `.withDeclarativeLogin(YAHAV_LOGIN)`,
 so there is no PRE-LOGIN and no OTP. Because Yahav's national-ID input
-(`#pinno`, `name="NATIONAL_ID"`) carries its label **only in `aria-label`**
-(`"תעודת זהות (9 ספרות)"`) with an empty placeholder, the migration **added the
-missing matchers to the generic `LoginWK.nationalId` slot** (an `ariaLabel`
-value + `xpath`-by-`name`/`id`) — the shared WK is extended, never a
+carries its label **only in `aria-label`** (`"תעודת זהות (9 ספרות)"`) with an
+empty placeholder, the migration **added the missing visible-text matcher to
+the generic `LoginWK.nationalId` slot** — a `labelText`/`ariaLabel` value of
+`"תעודת זהות"`, which Playwright `getByLabel` substring-matches against the
+field's accessible name (zero CSS). The shared WK is extended, never a
 bank-specific selector in the config.
 
 **BaNCS multiplexes every data call through one URL.** Unlike a REST bank, BaNCS
@@ -75,9 +79,10 @@ false-positive as authed data.
 
 ## Known quirks
 
-- **Aria-label-only login fields.** The `#pinno` national-ID input has an empty
-  placeholder and no visible label text — it is matched by `aria-label`
-  (`"תעודת זהות"`) and by `name="NATIONAL_ID"` / `id="pinno"` in `LoginWK`.
+- **Aria-label-only login fields.** The national-ID input has an empty
+  placeholder, with its label only in `aria-label="תעודת זהות (9 ספרות)"` — it
+  is matched by the visible-text value `"תעודת זהות"` in `LoginWK`, which
+  Playwright `getByLabel` substring-matches (no `name`/`id` CSS coupling).
 - **Cross-origin login iframe.** Credentials are entered in an iframe on
   `login.yahav.co.il`; the SiteMinder redirect chain
   (`#/authentication?SMAUTHREASON=27`) lands on `digital.yahav.co.il`.

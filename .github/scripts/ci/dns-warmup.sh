@@ -59,8 +59,9 @@ BANK_FILTER="${1:-}"
 if [ -n "$BANK_FILTER" ]; then
   # Per-bank matrix mode — extract only the hostname for the named
   # CompanyTypes key. Grep the line with `[CompanyTypes.<Bank>]:`
-  # plus the next 2 lines so we catch the `base:` inside the
-  # `urls: { base: '...' }` block on the following line.
+  # plus the next 2 lines so we catch either the `base:` inside a
+  # `urls: { base: '...' }` block or the `defineBank('https://...')` factory
+  # call on the following lines.
   # shellcheck disable=SC2207
   HOSTS=($(grep -A 2 "\[CompanyTypes\.${BANK_FILTER}\]" "$CONFIG_FILE" \
            | grep -oE "(base:[[:space:]]*|defineBank\()'https?://[^/'[:space:]]+" \
