@@ -1390,3 +1390,9 @@ IIsracardCard
 # Reason: mergeIsracardRows - Isracard transactions-step row merger (approvals + israelAbroad
 # vouchers + currentTransactionsList). Per-bank shape closure consumed only by ISRACARD_SHAPE.
 mergeIsracardRows
+# --- P4 Mercantile hard-model post-auth scrape shape (browser-bank migration) ---
+# Reason: IMercantileAcct - Mercantile scrape-shape account ref (accountId path id +
+# displayNumber); consumed only by MERCANTILE_SHAPE + its helpers. Shares Discount's
+# Titan contract; pipeline-internal, not part of the @sergienko4/israeli-bank-scrapers
+# public surface (not in src/index.ts).
+IMercantileAcct
