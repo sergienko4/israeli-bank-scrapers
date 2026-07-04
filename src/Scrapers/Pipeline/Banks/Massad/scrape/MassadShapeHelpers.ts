@@ -5,15 +5,18 @@
  * Account-identity merge lives in MassadShapeAccounts.ts; transactions in
  * MassadShapeTxns.ts.
  *
- * Contract is identical to Beinleumi: Massad is a First-International
- * (FIBI) group brand on the same online.fibi.co.il Mataf Angular portal;
- * only the login tenant differs, handled by the browser login phase.
- * Cloned (not imported) per the zero-cross-bank-import convention. Every
- * post-login call is cookie-authed (session cookies ride the live login
- * page through BrowserFetchStrategy) and every GET carries a fresh random
- * `uid`. balanceKind=account. Raw txn rows normalise downstream via the
- * Data Mapper — never in the shape. Grounded in the captured Beinleumi
- * trace (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970).
+ * Massad is a First-International (FIBI) group brand. The BFF path shape
+ * (userData + bff-balancetransactions) is cloned from Beinleumi per the
+ * zero-cross-bank-import convention, but the host is Massad's own
+ * post-login origin (online.bankmassad.co.il, from the fork login
+ * navigation and upstream MassadScraper BASE_URL) — NOT Beinleumi's
+ * online.fibi.co.il. BrowserFetchStrategy dispatches through the live
+ * login page, so the BFF must be same-origin or session cookies will not
+ * ride. Every post-login call is cookie-authed and every GET carries a
+ * fresh random `uid`. balanceKind=account. Raw txn rows normalise
+ * downstream via the Data Mapper — never in the shape. Host regrounded
+ * from the fork login origin; the cloned BFF paths on this host are
+ * pending maintainer live-E2E.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -22,8 +25,8 @@ import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirec
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
-/** FIBI BFF origin — the Massad group's fixed post-login API host. */
-export const MASSAD_API = 'https://online.fibi.co.il';
+/** Massad BFF origin — post-login API host (same-origin as login). */
+export const MASSAD_API = 'https://online.bankmassad.co.il';
 /** userData path — accounts source (account number + branch). */
 export const USER_DATA_PATH = '/MatafAngularRestApiService/rest/utils/userData';
 /** BFF base — accountType, balances, and list all hang off this prefix. */
