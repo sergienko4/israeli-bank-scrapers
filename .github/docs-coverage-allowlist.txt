@@ -1434,3 +1434,25 @@ IHapoalimAcct
 # fixed pageUuid + fresh uuid + exact content-type). Per-bank shape helper consumed only by
 # HAPOALIM_SHAPE. Framework-internal, not user-facing.
 txnsHeaders
+
+# --- P4 Beinleumi (FIBI) hard-model post-auth scrape shape (account browser bank, OTP) ---
+# Reason: BEINLEUMI_API - FIBI online gateway origin const shared by the Beinleumi shape's
+# customer/secondary/balance/transactions urlTag builders. Framework-internal bank contract
+# constant, not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
+BEINLEUMI_API
+# Reason: BFF_BASE - FIBI bff-balancetransactions path prefix const shared by the accountType,
+# balances, and list urlTag builders. Framework-internal bank contract constant, not user-facing.
+BFF_BASE
+# Reason: USER_DATA_PATH - FIBI userData accounts path const consumed only by the Beinleumi
+# customerUrl builder. Framework-internal bank contract constant, not user-facing.
+USER_DATA_PATH
+# Reason: IBeinleumiAcct - Beinleumi scrape-shape account ref (accountNumber + branch +
+# session accountType); consumed only by BEINLEUMI_SHAPE + its helpers. Pipeline-internal,
+# not part of the @sergienko4/israeli-bank-scrapers public surface.
+IBeinleumiAcct
+# Reason: secondaryUrl - Beinleumi session-level accountType identity urlTag builder wired to
+# customer.secondaryUrlTag. Per-bank shape helper consumed only by BEINLEUMI_SHAPE. Not user-facing.
+secondaryUrl
+# Reason: uid - Beinleumi fresh per-request correlation GUID builder for the FIBI `uid` query
+# param; consumed only by the Beinleumi urlTag builders. Framework-internal helper, not user-facing.
+uid
