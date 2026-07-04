@@ -1396,3 +1396,23 @@ mergeIsracardRows
 # Titan contract; pipeline-internal, not part of the @sergienko4/israeli-bank-scrapers
 # public surface (not in src/index.ts).
 IMercantileAcct
+# --- Framework: anti-replay cookie-echo header sentinel (BrowserFetchStrategy) ---
+# Reason: INamedCookie - minimal {name,value} cookie record read by the @cookie:<name>
+# header resolver; structural subset of Playwright's Cookie. Framework-internal, not
+# part of the @sergienko4/israeli-bank-scrapers public surface.
+INamedCookie
+# Reason: hasCookieSentinel - pure predicate letting BrowserFetchStrategy skip the async
+# cookie read when no @cookie:<name> sentinel is present. Framework-internal, not user-facing.
+hasCookieSentinel
+# Reason: substituteCookieHeaders - pure resolver echoing a login cookie's value into an
+# outgoing request header (Hapoalim X-XSRF-TOKEN <- XSRF-TOKEN cookie). Framework-internal.
+substituteCookieHeaders
+# Reason: COOKIE_HEADER_SENTINEL_PREFIX - the '@cookie:' literal prefix a shape uses to
+# request a login cookie be echoed into a request header. Framework-internal constant.
+COOKIE_HEADER_SENTINEL_PREFIX
+# Reason: CookieJar - readonly INamedCookie[] snapshot passed to substituteCookieHeaders;
+# structural alias over Playwright cookies. Framework-internal, not user-facing.
+CookieJar
+# Reason: HasCookieSentinel - branded boolean (Rule #15 nominal return) for the
+# hasCookieSentinel predicate; framework-internal, not user-facing.
+HasCookieSentinel
