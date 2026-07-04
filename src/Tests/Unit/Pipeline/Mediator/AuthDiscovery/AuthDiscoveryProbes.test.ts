@@ -246,3 +246,52 @@ describe('hasCapturedAuthApi', () => {
     expect(hasAuthBucketCorroboration).toBe(false);
   });
 });
+
+/** A BaNCS `/account` capture — 200 JSON with the `Payload.DataEntity[]` envelope. */
+const BANCS_ACCOUNT_ENDPOINT: IDiscoveredEndpoint = {
+  url: 'https://digital.yahav.co.il/BaNCSDigitalApp/account',
+  method: 'POST',
+  postData: '{}',
+  responseBody: { Payload: { DataEntity: [{ AccountId: { AcctIds: { IBAN: 'FAKE-IBAN' } } }] } },
+  contentType: 'application/json; charset=UTF-8',
+  requestHeaders: {},
+  responseHeaders: {},
+  timestamp: 0,
+  status: 200,
+};
+
+describe('hasCapturedAuthApi — BaNCS (Yahav) shape corroboration', () => {
+  it('corroborates a BaNCS /account 200 JSON envelope (Gap M: URL matches no WK pattern)', () => {
+    const network = makeNetwork([BANCS_ACCOUNT_ENDPOINT]);
+    const hasBancsAuth = hasCapturedAuthApi(network);
+    expect(hasBancsAuth).toBe(true);
+  });
+
+  it('does NOT corroborate the BaNCS HTML interstitial served with 200 (Gap L page)', () => {
+    const interstitial: IDiscoveredEndpoint = {
+      ...BANCS_ACCOUNT_ENDPOINT,
+      contentType: 'text/html; charset=UTF-8',
+      responseBody: '<TITLE>לא ניתן להשלים בקשה</TITLE>',
+    };
+    const network = makeNetwork([interstitial]);
+    const hasBancsAuth = hasCapturedAuthApi(network);
+    expect(hasBancsAuth).toBe(false);
+  });
+
+  it('does NOT corroborate a BaNCS /account with a 401 status (not authed)', () => {
+    const unauthed: IDiscoveredEndpoint = { ...BANCS_ACCOUNT_ENDPOINT, status: 401 };
+    const network = makeNetwork([unauthed]);
+    const hasBancsAuth = hasCapturedAuthApi(network);
+    expect(hasBancsAuth).toBe(false);
+  });
+
+  it('does NOT corroborate a BaNCS /account JSON that lacks the DataEntity envelope', () => {
+    const noEnvelope: IDiscoveredEndpoint = {
+      ...BANCS_ACCOUNT_ENDPOINT,
+      responseBody: { Payload: { SomethingElse: {} } },
+    };
+    const network = makeNetwork([noEnvelope]);
+    const hasBancsAuth = hasCapturedAuthApi(network);
+    expect(hasBancsAuth).toBe(false);
+  });
+});

@@ -17,6 +17,7 @@ import type { IFetchOpts } from '../../Strategy/Fetch/FetchStrategy.js';
 import { probeDashboardReveal } from '../Dashboard/DashboardDiscovery.js';
 import type { ICookieSnapshot, IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Network/NetworkDiscoveryTypes.js';
+import { BANCS_ACCOUNT_URL, isBancsAuthResponse } from '../Scrape/Bancs/BancsAuthResponse.js';
 
 /** Result of a session-cookie audit at AUTH-DISCOVERY entry. */
 interface ISessionCookieAudit {
@@ -110,24 +111,55 @@ function isAuthed2xx(ep: IDiscoveredEndpoint): boolean {
 /**
  * Returns true when the captured network pool contains at least one
  * first-party well-known account-data API response (the `accounts`
- * bucket: `GetCardList`, `userAccountsData`, `accountSummary`, …). An
- * unauthenticated page never triggers the authed data fetch, whereas a
- * same-URL authenticated SPA (e.g. Isracard `/StatusPage`) does. The
- * `auth` bucket is deliberately excluded: those are credentials-
- * submission endpoints that fire DURING login, so a capture proves
- * login was attempted — not that the dashboard was reached. Uses the
- * shared `PIPELINE_WELL_KNOWN_API` OCP registry — zero bank-specific logic.
+ * bucket: `GetCardList`, `userAccountsData`, `accountSummary`, …). Uses
+ * the shared `PIPELINE_WELL_KNOWN_API` OCP registry — no bank-specific
+ * logic.
  *
  * @param network - Network discovery surface from the mediator.
- * @returns True when a corroborating first-party account-data capture is present.
- *   Scans EVERY capture matching each accounts pattern (not just the first),
- *   so an early non-2xx (e.g. a 401 that preceded the authed retry) cannot
- *   mask a later 200 on the same URL.
+ * @returns True when a corroborating well-known account-data capture exists.
  */
-function hasCapturedAuthApi(network: INetworkDiscovery): boolean {
+function hasWellKnownAuthApi(network: INetworkDiscovery): boolean {
   return PIPELINE_WELL_KNOWN_API.accounts.some((pattern): boolean =>
     network.findEndpoints(pattern).some(isAuthed2xx),
   );
+}
+
+/**
+ * Returns true when the pool contains an authed BaNCS account-data
+ * response. TCS BaNCS multiplexes every resource through the SAME
+ * `…/BaNCSDigitalApp/account` URL, so it matches no well-known `accounts`
+ * pattern (the Gap L blind spot). {@link isBancsAuthResponse} recognizes
+ * it by JSON + `Payload.DataEntity[]` envelope shape, paired here with the
+ * generic 2xx check — so the HTML Imperva interstitial (served 200) can
+ * never corroborate. Default-deny for every non-BaNCS pool.
+ *
+ * @param network - Network discovery surface from the mediator.
+ * @returns True when an authed BaNCS account-data capture is present.
+ */
+function hasBancsAuthApi(network: INetworkDiscovery): boolean {
+  return network
+    .findEndpoints(BANCS_ACCOUNT_URL)
+    .some((ep): boolean => isAuthed2xx(ep) && isBancsAuthResponse(ep));
+}
+
+/**
+ * Returns true when the captured network pool corroborates that an
+ * authenticated first-party data fetch occurred — via a well-known
+ * `accounts` capture OR a shape-recognized BaNCS `/account` envelope. An
+ * unauthenticated page never triggers the authed data fetch, whereas a
+ * same-URL authenticated SPA (e.g. Isracard `/StatusPage`) does. The
+ * `auth` bucket is deliberately excluded: those are credentials-
+ * submission endpoints that fire DURING login, so a capture proves login
+ * was attempted — not that the dashboard was reached.
+ *
+ * @param network - Network discovery surface from the mediator.
+ * @returns True when a corroborating first-party account-data capture is present.
+ *   Scans EVERY capture matching each pattern (not just the first), so an
+ *   early non-2xx (e.g. a 401 that preceded the authed retry) cannot mask
+ *   a later 200 on the same URL.
+ */
+function hasCapturedAuthApi(network: INetworkDiscovery): boolean {
+  return hasWellKnownAuthApi(network) || hasBancsAuthApi(network);
 }
 
 export type { IAuthChannelCollection, ISessionCookieAudit };
