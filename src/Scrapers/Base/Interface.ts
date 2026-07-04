@@ -37,8 +37,8 @@ export type ScraperCredentials =
   | { id: string; password: string }
   | { id: string; password: string; num: string }
   | { id: string; password: string; card6Digits: string }
-  | { username: string; nationalID: string; password: string }
-  | { num: string; nationalID: string; password: string } // Yahav (pipeline): user code + ת.ז.
+  | { username: string; nationalID: string; password: string } // Yahav (legacy key): username == num
+  | { num: string; nationalID: string; password: string } // Yahav (pipeline): user code (num) + ת.ז.; num accepts legacy `username`
   | ({ email: string; password: string } & (
       | {
           otpCodeRetriever: () => Promise<string>;
