@@ -63,13 +63,19 @@ function toRow(root: ApiRecord, index: number): IBancsRow {
 }
 
 /**
- * Chronological comparator (`YYYY-MM-DD` sorts lexicographically).
+ * Chronological comparator (`YYYY-MM-DD` sorts lexicographically). Same-day
+ * ties (no time component in `OrigDt`) break on the original array index, so
+ * ordering is deterministic regardless of `Array.sort` stability — the
+ * running-balance delta for same-day rows is derived from their API arrival
+ * order (the signed sum over the day is preserved either way).
  * @param a - Left row.
  * @param b - Right row.
- * @returns Negative/zero/positive per `localeCompare`.
+ * @returns Negative/zero/positive by ISO date, then by original index.
  */
 function byIsoAsc(a: IBancsRow, b: IBancsRow): number {
-  return a.iso.localeCompare(b.iso);
+  const byDate = a.iso.localeCompare(b.iso);
+  if (byDate !== 0) return byDate;
+  return a.index - b.index;
 }
 
 /**

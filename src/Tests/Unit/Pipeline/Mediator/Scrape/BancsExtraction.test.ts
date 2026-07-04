@@ -193,6 +193,25 @@ describe('BaNCS extraction — boundary + fallback branches', () => {
     expect(out[0].bancsAmount).toBe(250);
   });
 
+  it('same-day rows sign deterministically by API arrival order', () => {
+    const first = {
+      OrigDt: { Day: 4, Month: 4, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '100' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('900'),
+    };
+    const second = {
+      OrigDt: { Day: 4, Month: 4, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '300' } },
+      TxnType: { OthrSubTyp: 'OutPymntOrd' },
+      StmtRunningBal: runningBal('1200'),
+    };
+    const out = normalizeBancsRecords([first, second]);
+    // index tie-break keeps [first, second]; delta(second) = 1200 − 900 = +300.
+    expect(out[1].bancsAmount).toBe(300);
+    expect(out[0].bancsAmount).toBe(-100);
+  });
+
   it('type/delta disagreement trusts the running-balance delta (credit)', () => {
     const older = {
       OrigDt: { Day: 1, Month: 1, Year: 2026 },
