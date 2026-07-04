@@ -44,9 +44,13 @@ export const WK_LOGIN_FORM = {
   nationalId: [
     { kind: 'labelText', value: LABEL_NATIONAL_ID },
     { kind: 'labelText', value: 'מספר זהות' },
+    { kind: KIND_ARIA_LABEL, value: LABEL_NATIONAL_ID },
     { kind: 'placeholder', value: LABEL_NATIONAL_ID },
     { kind: 'placeholder', value: 'מספר תעודת זהות' },
     { kind: 'placeholder', value: 'מספר זהות' },
+    // Yahav: aria-label-only field (empty placeholder) — match by name/id.
+    { kind: 'xpath', value: '//input[@name="NATIONAL_ID"]' },
+    { kind: 'xpath', value: '//input[@id="pinno"]' },
     { kind: KIND_TEXT_CONTENT, value: 'מספר תעודת זהות' },
     { kind: KIND_TEXT_CONTENT, value: 'מספר זהות' },
     { kind: KIND_TEXT_CONTENT, value: LABEL_NATIONAL_ID },
