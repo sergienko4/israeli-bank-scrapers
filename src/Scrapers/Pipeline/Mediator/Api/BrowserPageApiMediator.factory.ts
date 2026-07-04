@@ -18,6 +18,7 @@ import type { Page } from 'playwright-core';
 
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { createBrowserFetchStrategy } from '../../Strategy/Fetch/BrowserFetchStrategy.js';
+import { withDefaultHeaders } from '../../Strategy/Fetch/DefaultHeadersFetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type { IApiMediator } from './ApiMediator.types.js';
@@ -33,12 +34,23 @@ function pageOrigin(page: Page): string {
 
 /**
  * Build an ApiMediator whose REST transport runs through a live page.
+ *
+ * When `defaultHeaders` is non-empty the browser fetch strategy is wrapped
+ * so every call carries the bank's discovered SPA header bag under its
+ * per-call headers (see {@link withDefaultHeaders}); an empty bag is a
+ * transparent pass-through, so cookie/token banks are byte-identical.
  * @param bankHint - Target bank (for WK lookups).
  * @param page - Live post-login Playwright page (session cookies attached).
+ * @param defaultHeaders - Discovered default-header bag (empty ⇒ no wrap).
  * @returns IApiMediator dispatching through the browser page session.
  */
-function createBrowserPageApiMediator(bankHint: CompanyTypes, page: Page): IApiMediator {
-  const fetch = createBrowserFetchStrategy(page);
+function createBrowserPageApiMediator(
+  bankHint: CompanyTypes,
+  page: Page,
+  defaultHeaders: Readonly<Record<string, string>> = {},
+): IApiMediator {
+  const base = createBrowserFetchStrategy(page);
+  const fetch = withDefaultHeaders(base, defaultHeaders);
   const gql: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [pageOrigin(page)]);
   return createApiMediator(bankHint, fetch, gql);
 }
