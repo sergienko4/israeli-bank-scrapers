@@ -1416,3 +1416,17 @@ CookieJar
 # Reason: HasCookieSentinel - branded boolean (Rule #15 nominal return) for the
 # hasCookieSentinel predicate; framework-internal, not user-facing.
 HasCookieSentinel
+
+# --- P4 Hapoalim hard-model post-auth scrape shape (account browser bank) ---
+# Reason: HAPOALIM_API - Hapoalim ServerServices gateway origin const shared by the Hapoalim
+# shape's customer/balance/transactions urlTag builders. Framework-internal bank contract
+# constant, not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
+HAPOALIM_API
+# Reason: IHapoalimAcct - Hapoalim scrape-shape account ref (composite
+# bankNumber-branchNumber-accountNumber id); consumed only by HAPOALIM_SHAPE + its helpers.
+# Pipeline-internal, not part of the @sergienko4/israeli-bank-scrapers public surface.
+IHapoalimAcct
+# Reason: txnsHeaders - Hapoalim anti-replay POST header builder (cookie-echo X-XSRF-TOKEN +
+# fixed pageUuid + fresh uuid + exact content-type). Per-bank shape helper consumed only by
+# HAPOALIM_SHAPE. Framework-internal, not user-facing.
+txnsHeaders
