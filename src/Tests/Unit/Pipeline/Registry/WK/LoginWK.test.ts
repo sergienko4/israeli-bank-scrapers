@@ -2,10 +2,13 @@
  * LoginWK — pin the login-form field matchers against live bank UIs.
  * Regression guard: Yahav's nationalID field (#pinno) carries its label
  * ONLY in `aria-label` ("תעודת זהות (9 ספרות)") with an empty placeholder,
- * so the legacy→pipeline migration that dropped the `ariaLabel` + name/id
- * matchers silently broke login — nationalID resolved NOT_FOUND, fell back
- * to #username, and collided with num. These cases pin the matchers so the
- * drop cannot recur.
+ * so the legacy→pipeline migration that dropped the visible-text matchers
+ * silently broke login — nationalID resolved NOT_FOUND, fell back to
+ * #username, and collided with num. These cases pin the visible-text
+ * (labelText / ariaLabel) matchers — which resolve via Playwright
+ * `getByLabel` (substring accessible-name match) — and assert the slot
+ * stays free of structural (name/id) CSS coupling, so neither the drop nor
+ * a CSS-coupling regression can recur.
  */
 
 import { WK_LOGIN_FORM } from '../../../../../Scrapers/Pipeline/Registry/WK/LoginWK.js';
@@ -16,9 +19,12 @@ interface IFormEntry {
   readonly value: string;
 }
 
+/** Selector kinds that couple to DOM structure (name/id/class) — forbidden. */
+const STRUCTURAL_KINDS = ['xpath', 'css', 'name'];
+
 /**
  * Whether the nationalId slot carries a (kind, value) matcher.
- * @param kind - WK selector kind ("ariaLabel", "xpath", …).
+ * @param kind - WK selector kind ("ariaLabel", "labelText", …).
  * @param value - Literal selector value.
  * @returns True iff present.
  */
@@ -34,13 +40,15 @@ describe('WK_LOGIN_FORM.nationalId — aria-label-only field coverage', () => {
     expect(isMatched).toBe(true);
   });
 
-  it('matches by name="NATIONAL_ID"', () => {
-    const isMatched = hasNationalId('xpath', '//input[@name="NATIONAL_ID"]');
+  it('matches by labelText "תעודת זהות" (getByLabel substring)', () => {
+    const isMatched = hasNationalId('labelText', 'תעודת זהות');
     expect(isMatched).toBe(true);
   });
 
-  it('matches Yahav id="pinno"', () => {
-    const isMatched = hasNationalId('xpath', '//input[@id="pinno"]');
-    expect(isMatched).toBe(true);
+  it('uses only visible-text matchers — no name/id CSS coupling', () => {
+    const structural = WK_LOGIN_FORM.nationalId.filter((entry: IFormEntry): boolean =>
+      STRUCTURAL_KINDS.includes(entry.kind),
+    );
+    expect(structural).toHaveLength(0);
   });
 });

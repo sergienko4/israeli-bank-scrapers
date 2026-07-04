@@ -42,15 +42,16 @@ export const WK_LOGIN_FORM = {
     { kind: 'placeholder', value: LABEL_USER_CODE },
   ],
   nationalId: [
+    // Yahav's national-ID input is aria-label-only (empty placeholder): its
+    // label lives in `aria-label="תעודת זהות (9 ספרות)"`. `labelText` /
+    // `ariaLabel` resolve via Playwright `getByLabel`, which substring-matches
+    // the accessible name — so the visible label alone locates it (zero CSS).
     { kind: 'labelText', value: LABEL_NATIONAL_ID },
     { kind: 'labelText', value: 'מספר זהות' },
     { kind: KIND_ARIA_LABEL, value: LABEL_NATIONAL_ID },
     { kind: 'placeholder', value: LABEL_NATIONAL_ID },
     { kind: 'placeholder', value: 'מספר תעודת זהות' },
     { kind: 'placeholder', value: 'מספר זהות' },
-    // Yahav: aria-label-only field (empty placeholder) — match by name/id.
-    { kind: 'xpath', value: '//input[@name="NATIONAL_ID"]' },
-    { kind: 'xpath', value: '//input[@id="pinno"]' },
     { kind: KIND_TEXT_CONTENT, value: 'מספר תעודת זהות' },
     { kind: KIND_TEXT_CONTENT, value: 'מספר זהות' },
     { kind: KIND_TEXT_CONTENT, value: LABEL_NATIONAL_ID },
