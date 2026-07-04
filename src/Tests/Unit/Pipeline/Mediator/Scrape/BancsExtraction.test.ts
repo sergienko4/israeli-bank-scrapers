@@ -183,6 +183,16 @@ describe('BaNCS extraction — boundary + fallback branches', () => {
     expect(row.bancsDescription).toBe('');
   });
 
+  it('single InPymntOrd (boundary credit) → positive charged amount', () => {
+    const credit = {
+      OrigDt: { Day: 8, Month: 3, Year: 2026 },
+      TotalCurAmt: { Amt: { Value: '250' } },
+      TxnType: { OthrSubTyp: 'InPymntOrd' },
+    };
+    const out = normalizeBancsRecords([credit]);
+    expect(out[0].bancsAmount).toBe(250);
+  });
+
   it('type/delta disagreement trusts the running-balance delta (credit)', () => {
     const older = {
       OrigDt: { Day: 1, Month: 1, Year: 2026 },

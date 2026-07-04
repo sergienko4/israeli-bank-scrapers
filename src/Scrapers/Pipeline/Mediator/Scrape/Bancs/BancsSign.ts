@@ -19,6 +19,15 @@ const LOG = getDebug(import.meta.url);
 /** Lowercased BaNCS type codes known to be debits (outgoing → negative). */
 const BANCS_DEBIT_TYPES = new Set(['outpymntord', 'payment']);
 
+/**
+ * Lowercased BaNCS type codes known to be credits (incoming → positive).
+ * Seeded with the schema-symmetric counterpart of the confirmed debit
+ * `OutPymntOrd` — extend from a live credit trace (GAP G: the onboarding
+ * account carried no credit sample). Adding a code here can only correctly
+ * sign an incoming txn; it can never flip a known debit.
+ */
+const BANCS_CREDIT_TYPES = new Set(['inpymntord']);
+
 /** One transaction reduced to the scalars the sign engine needs. */
 interface IBancsRow {
   readonly index: number;
@@ -77,10 +86,11 @@ function deltaSign(cur: IBancsRow, prev: IBancsRow): number {
 /**
  * Direction sign from the `TxnType` code (boundary fallback).
  * @param code - Lowercased BaNCS type code.
- * @returns -1 for known debits, 0 when the type is unknown.
+ * @returns -1 for known debits, +1 for known credits, 0 when unknown.
  */
 function typeSign(code: string): number {
   if (BANCS_DEBIT_TYPES.has(code)) return -1;
+  if (BANCS_CREDIT_TYPES.has(code)) return 1;
   return 0;
 }
 
