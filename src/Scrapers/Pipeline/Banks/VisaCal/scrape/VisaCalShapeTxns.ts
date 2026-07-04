@@ -26,11 +26,15 @@ import { CAL_API, type IVisaCalCard } from './VisaCalShapeHelpers.js';
 
 type VisaCalTxn = Record<string, unknown>;
 
-interface IRawTxnCard {
+interface IRawDebitDay {
   readonly transactions?: readonly VisaCalTxn[];
 }
+interface IRawImmediateDebits {
+  readonly debitDays?: readonly IRawDebitDay[];
+}
 interface IRawBankAccount {
-  readonly cards?: readonly IRawTxnCard[];
+  readonly debitDates?: readonly IRawDebitDay[];
+  readonly immidiateDebits?: IRawImmediateDebits;
 }
 interface ITxnsResp {
   readonly result?: { readonly bankAccounts?: readonly IRawBankAccount[] } | null;
@@ -102,28 +106,41 @@ export function txnsUrl(): WKUrlOrLiteral {
 }
 
 /**
- * Transactions of one card block.
- * @param c - Raw card block.
- * @returns Card transaction rows (empty when absent).
+ * Transactions of one debit-day block (a regular billing date or an
+ * immediate-debit day).
+ * @param d - Raw debit-day block.
+ * @returns Debit-day transaction rows (empty when absent).
  */
-function cardTxns(c: IRawTxnCard): readonly VisaCalTxn[] {
-  return c.transactions ?? [];
+function dayTxns(d: IRawDebitDay): readonly VisaCalTxn[] {
+  return d.transactions ?? [];
 }
 
 /**
- * Transactions of one bank-account block (all its cards).
+ * Regular billing dates + immediate-debit days of one bank-account.
  * @param a - Raw bank-account block.
- * @returns Flattened card transaction rows.
+ * @returns All debit-day blocks (regular first, then immediate).
+ */
+function accountDebitDays(a: IRawBankAccount): readonly IRawDebitDay[] {
+  return [...(a.debitDates ?? []), ...(a.immidiateDebits?.debitDays ?? [])];
+}
+
+/**
+ * Transactions of one bank-account block (all debit days).
+ * @param a - Raw bank-account block.
+ * @returns Flattened debit-day transaction rows.
  */
 function accountTxns(a: IRawBankAccount): readonly VisaCalTxn[] {
-  return (a.cards ?? []).flatMap(cardTxns);
+  return accountDebitDays(a).flatMap(dayTxns);
 }
 
 /**
- * Flatten result.bankAccounts[].cards[].transactions[] — tolerates the
- * `result: null` incomplete-cycle response by yielding no rows.
+ * Flatten result.bankAccounts[].debitDates[].transactions[] plus
+ * result.bankAccounts[].immidiateDebits.debitDays[].transactions[] —
+ * tolerates the `result: null` incomplete-cycle response by yielding no
+ * rows. Mirrors the upstream CAL contract + the generic pipeline's own
+ * TxnShape BFS (result.bankAccounts[].debitDates[].transactions[]).
  * @param resp - Unwrapped transactions response.
- * @returns All card transaction rows for the month.
+ * @returns All transaction rows for the month.
  */
 function flattenTxns(resp: ITxnsResp): readonly VisaCalTxn[] {
   return (resp.result?.bankAccounts ?? []).flatMap(accountTxns);

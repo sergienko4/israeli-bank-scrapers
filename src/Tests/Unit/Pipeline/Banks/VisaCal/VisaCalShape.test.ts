@@ -5,7 +5,9 @@
  *
  * Bodies are synthetic (structural only, fake values) so the test is
  * self-contained and carries zero PII. Field paths mirror the captured
- * VisaCal trace (result.cards, result.bankAccounts[].cards[].transactions).
+ * VisaCal trace + upstream CAL contract (result.cards,
+ * result.bankAccounts[].debitDates[].transactions +
+ * result.bankAccounts[].immidiateDebits.debitDays[].transactions).
  */
 
 import { VISACAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
@@ -111,9 +113,9 @@ describe('VisaCalShape transactions', () => {
     expect(vars).toEqual({ cardUniqueId: 'CARD-1', month: '3', year: '2024' });
   });
 
-  it('txnsExtractPage flattens bankAccounts[].cards[].transactions[]', () => {
+  it('txnsExtractPage flattens bankAccounts[].debitDates[].transactions[]', () => {
     const body = {
-      result: { bankAccounts: [{ cards: [{ transactions: [{ id: 't1' }, { id: 't2' }] }] }] },
+      result: { bankAccounts: [{ debitDates: [{ transactions: [{ id: 't1' }, { id: 't2' }] }] }] },
     };
     const page = txnsExtractPage({
       body,
@@ -123,6 +125,26 @@ describe('VisaCalShape transactions', () => {
     });
     expect(page.items).toHaveLength(2);
     expect(page.nextCursor).toBe(1);
+  });
+
+  it('txnsExtractPage also includes immidiateDebits.debitDays[].transactions[]', () => {
+    const body = {
+      result: {
+        bankAccounts: [
+          {
+            debitDates: [{ transactions: [{ id: 'r1' }] }],
+            immidiateDebits: { debitDays: [{ transactions: [{ id: 'i1' }, { id: 'i2' }] }] },
+          },
+        ],
+      },
+    };
+    const page = txnsExtractPage({
+      body,
+      cursor: false,
+      acct: CARD,
+      ctx: ctxWith(new Date(2000, 0, 1), 0),
+    });
+    expect(page.items).toHaveLength(3);
   });
 
   it('txnsExtractPage tolerates the result:null incomplete-cycle response', () => {
