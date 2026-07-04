@@ -15,7 +15,7 @@ import type { IApiMediator } from '../../Mediator/Api/ApiMediator.types.js';
 import { createBrowserPageApiMediator } from '../../Mediator/Api/BrowserPageApiMediator.factory.js';
 import type { Option } from '../../Types/Option.js';
 import { isSome, none, some } from '../../Types/Option.js';
-import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
+import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { primeTokenAuth } from './BindApiMediatorAuth.js';
@@ -49,21 +49,23 @@ function primeSessionTokenFromPool(full: IPipelineContext, mediator: IApiMediato
  * Bind a browser-page ApiMediator into the context's apiMediator slot, then
  * prime the Bearer/JWT for `'token'` banks (session-cookie banks ride cookies).
  * Idempotent: a pre-populated slot (headless banks) passes through so the
- * step is safe wherever it runs.
- * @param ctx - Sealed action context (the full pipeline object at runtime).
+ * step is safe wherever it runs. Runs in the BIND phase PRE stage — the only
+ * stage that receives the full context carrying the live `browser` slot (the
+ * sealed ACTION context strips browser/page/mediator by construction).
+ * @param ctx - Full pipeline context (carries the live login `browser`).
  * @returns Context carrying the primed browser-page ApiMediator, or failure.
  */
-async function bindBrowserPageMediator(ctx: IActionContext): Promise<Procedure<IActionContext>> {
-  const full = ctx as unknown as IPipelineContext;
-  if (isSome(full.apiMediator)) return succeed(ctx);
-  const pageProc = resolveLoginPage(full);
+async function bindBrowserPageMediator(
+  ctx: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  if (isSome(ctx.apiMediator)) return succeed(ctx);
+  const pageProc = resolveLoginPage(ctx);
   if (!isOk(pageProc)) return pageProc;
-  const mediator = createBrowserPageApiMediator(full.companyId, pageProc.value);
-  await primeTokenAuth(full.config, pageProc.value, mediator);
-  await primeClientVersion(full.config, pageProc.value, mediator);
-  primeSessionTokenFromPool(full, mediator);
-  const next = { ...full, apiMediator: some(mediator) };
-  return succeed(next as unknown as IActionContext);
+  const mediator = createBrowserPageApiMediator(ctx.companyId, pageProc.value);
+  await primeTokenAuth(ctx.config, pageProc.value, mediator);
+  await primeClientVersion(ctx.config, pageProc.value, mediator);
+  primeSessionTokenFromPool(ctx, mediator);
+  return succeed({ ...ctx, apiMediator: some(mediator) });
 }
 
 export default bindBrowserPageMediator;
