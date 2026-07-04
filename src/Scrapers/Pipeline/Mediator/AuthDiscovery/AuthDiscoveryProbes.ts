@@ -109,6 +109,21 @@ function isAuthed2xx(ep: IDiscoveredEndpoint): boolean {
 }
 
 /**
+ * Stricter 2xx check for the BaNCS reveal-missing corroboration path: the
+ * status MUST be an explicit 2xx. Unlike {@link isAuthed2xx}, an absent
+ * status does NOT pass — so a status-less capture cannot corroborate a
+ * REVEAL-missing login (defense-in-depth, S-3). Genuine BaNCS `/account`
+ * responses always carry an explicit 200, so this never rejects a real
+ * authed capture.
+ *
+ * @param ep - Captured endpoint to inspect.
+ * @returns True only when status is a defined 2xx (200–299).
+ */
+function isExplicit2xx(ep: IDiscoveredEndpoint): boolean {
+  return ep.status !== undefined && ep.status >= 200 && ep.status <= 299;
+}
+
+/**
  * Returns true when the captured network pool contains at least one
  * first-party well-known account-data API response (the `accounts`
  * bucket: `GetCardList`, `userAccountsData`, `accountSummary`, …). Uses
@@ -129,9 +144,10 @@ function hasWellKnownAuthApi(network: INetworkDiscovery): boolean {
  * response. TCS BaNCS multiplexes every resource through the SAME
  * `…/BaNCSDigitalApp/account` URL, so it matches no well-known `accounts`
  * pattern (the Gap L blind spot). {@link isBancsAuthResponse} recognizes
- * it by JSON + `Payload.DataEntity[]` envelope shape, paired here with the
- * generic 2xx check — so the HTML Imperva interstitial (served 200) can
- * never corroborate. Default-deny for every non-BaNCS pool.
+ * it by JSON + `Payload.DataEntity[]` envelope shape, paired here with an
+ * EXPLICIT 2xx check ({@link isExplicit2xx}) — so the HTML Imperva
+ * interstitial (served 200) AND a status-less capture can never corroborate.
+ * Default-deny for every non-BaNCS pool.
  *
  * @param network - Network discovery surface from the mediator.
  * @returns True when an authed BaNCS account-data capture is present.
@@ -139,7 +155,7 @@ function hasWellKnownAuthApi(network: INetworkDiscovery): boolean {
 function hasBancsAuthApi(network: INetworkDiscovery): boolean {
   return network
     .findEndpoints(BANCS_ACCOUNT_URL)
-    .some((ep): boolean => isAuthed2xx(ep) && isBancsAuthResponse(ep));
+    .some((ep): boolean => isExplicit2xx(ep) && isBancsAuthResponse(ep));
 }
 
 /**

@@ -294,4 +294,11 @@ describe('hasCapturedAuthApi — BaNCS (Yahav) shape corroboration', () => {
     const hasBancsAuth = hasCapturedAuthApi(network);
     expect(hasBancsAuth).toBe(false);
   });
+
+  it('does NOT corroborate a BaNCS /account with undefined status (S-3: explicit 2xx required)', () => {
+    const statusless: IDiscoveredEndpoint = { ...BANCS_ACCOUNT_ENDPOINT, status: undefined };
+    const network = makeNetwork([statusless]);
+    const hasBancsAuth = hasCapturedAuthApi(network);
+    expect(hasBancsAuth).toBe(false);
+  });
 });
