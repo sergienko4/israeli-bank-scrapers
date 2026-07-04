@@ -24,12 +24,7 @@ import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from '../El
 import { buildDiscoverForm, buildScopeToForm } from './Discover.js';
 import { buildLocatorEntries, buildLocatorEntriesAll, type ILocatorEntry } from './Entries.js';
 import { buildResolveClickable, buildResolveField, type IFormCache } from './FieldResolve.js';
-import {
-  type IRaceDiagnostic,
-  raceLocators,
-  raceLocatorsFirstHit,
-  raceLocatorsWithHitTest,
-} from './Hittest.js';
+import { type IRaceDiagnostic, raceLocators, raceLocatorsWithHitTest } from './Hittest.js';
 import { buildCandidateLocators } from './Locators.js';
 import {
   enrichWinnerToResult,
@@ -190,7 +185,7 @@ async function runHitTestRaceLike(
   const locators = entries.map((e): Locator => e.locator);
   const effectiveTimeout = capTimeout(timeout);
   logResolveProbe(label, locators.length, effectiveTimeout);
-  const diag = await raceLocatorsFirstHit(locators, effectiveTimeout);
+  const diag = await raceLocatorsWithHitTest(locators, effectiveTimeout);
   traceRaceDiagnostic(entries, diag);
   return diag;
 }
