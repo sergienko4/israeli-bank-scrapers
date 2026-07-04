@@ -20,41 +20,12 @@
 
 import { createFrozenNetwork } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
-
-const ACCOUNT_URL = 'https://digital.bank.fake.example/BaNCSDigitalApp/account';
+import { ACCOUNT_URL, balanceBody, txnBody } from '../../../../BancsRequestFixtures.js';
 
 /** A minimal BaNCS txn response body (one fabricated record). */
 const TXN_RESPONSE: Readonly<Record<string, unknown>> = {
   Payload: { DataEntity: [{ OrigDt: { Day: 1, Month: 1, Year: 2026 }, Memo: 'X' }] },
 };
-
-/**
- * Build one BaNCS `OrigDt` date-range bound.
- * @param day - Day-of-month for the bound (fabricated).
- * @param operator - BaNCS range operator (GREATERTHANOREQUAL / …).
- * @returns A synthetic inner-filter record.
- */
-function origDtBound(day: number, operator: string): Record<string, unknown> {
-  return { OrigDt: { Day: day, Month: 1, Year: 2026 }, Operator: operator };
-}
-
-/**
- * Build a CURRENT_ACCOUNT transactions request body with a from/to range.
- * @returns A synthetic BaNCS transactions request body.
- */
-function txnBody(): Record<string, unknown> {
-  const from = origDtBound(1, 'GREATERTHANOREQUAL');
-  const to = origDtBound(31, 'LESSTHANOREQUAL');
-  return { Payload: { Category: ['CURRENT_ACCOUNT'], Filters: [{ Filters: [from, to] }] } };
-}
-
-/**
- * Build the portfolioBalance request body (Category set, NO Filters).
- * @returns A synthetic BaNCS balance request body.
- */
-function balanceBody(): Record<string, unknown> {
-  return { Payload: { Category: ['portfolioBalance'] } };
-}
 
 /**
  * Build a BaNCS `POST /account` capture (body drives recognition).

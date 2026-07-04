@@ -17,42 +17,7 @@ import {
   isBancsTxnBody,
   isBancsTxnCapture,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsTxnRequest.js';
-
-const ACCOUNT_URL = 'https://digital.bank.fake.example/BaNCSDigitalApp/account';
-
-/**
- * Build one BaNCS `OrigDt` date-range bound.
- * @param day - Day-of-month for the bound (fabricated).
- * @param operator - BaNCS range operator (GREATERTHANOREQUAL / …).
- * @returns A synthetic inner-filter record.
- */
-function origDtBound(day: number, operator: string): Record<string, unknown> {
-  return { Ver: 'x', OrigDt: { Ver: 'x', Day: day, Month: 1, Year: 2026 }, Operator: operator };
-}
-
-/**
- * Build a CURRENT_ACCOUNT transactions request body with a from/to range.
- * @returns A synthetic BaNCS transactions request body.
- */
-function txnBody(): Record<string, unknown> {
-  const from = origDtBound(1, 'GREATERTHANOREQUAL');
-  const to = origDtBound(31, 'LESSTHANOREQUAL');
-  return {
-    Payload: {
-      Operation: 'INQ',
-      Category: ['CURRENT_ACCOUNT'],
-      Filters: [{ Filters: [from, to] }],
-    },
-  };
-}
-
-/**
- * Build the portfolioBalance request body (Category set, NO Filters).
- * @returns A synthetic BaNCS balance request body.
- */
-function balanceBody(): Record<string, unknown> {
-  return { Payload: { Operation: 'INQ', Category: ['portfolioBalance'] } };
-}
+import { ACCOUNT_URL, balanceBody, txnBody } from '../../../../BancsRequestFixtures.js';
 
 /**
  * Build the account-details request body (NO Category, NO Filters).
