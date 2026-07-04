@@ -1273,6 +1273,10 @@ buildBalanceDispatchArgs
 # transactions-step dispatch args. Promoted to module scope by the REST-GET file split;
 # consumed only by ApiDirectScrapeSteps. Not user-facing.
 buildTxnsDispatchArgs
+# Reason: ApiDirectScrapeDispatchArgs — framework-internal resolver that mirrors
+# resolveCustomerUrlTag for the optional secondary-identity GET (customer.secondaryUrlTag).
+# Consumed only by ApiDirectScrapeSteps; never re-exported from the package index. Not user-facing.
+resolveSecondaryUrlTag
 
 # --- P2 Discount hard-model post-auth scrape shape (browser-bank migration) ---
 # Reason: IDiscountAcct — Discount scrape-shape account ref (accountId path id +

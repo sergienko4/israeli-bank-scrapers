@@ -83,6 +83,23 @@ function resolveCustomerUrlTag<TAcct, TCursor>(
 }
 
 /**
+ * Resolve the optional customer secondary-identity urlTag (a second GET
+ * whose body augments `extractAccounts`). Mirrors
+ * {@link resolveCustomerUrlTag}, but `false` here means "no secondary
+ * fetch declared" — there is no GraphQL secondary variant.
+ * @param d - Driver context.
+ * @returns WK URL tag, or `false` when the shape declares none.
+ */
+export function resolveSecondaryUrlTag<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+): WKUrlOrLiteral | false {
+  const spec = d.shape.customer.secondaryUrlTag;
+  if (spec === undefined) return false;
+  if (typeof spec === 'function') return spec(d.ctx);
+  return spec;
+}
+
+/**
  * Build the customer-step dispatch args bundle.
  * @param d - Driver context.
  * @returns Dispatch args ready for {@link dispatchStep}.

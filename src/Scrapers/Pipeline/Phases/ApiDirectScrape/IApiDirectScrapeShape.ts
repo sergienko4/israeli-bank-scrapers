@@ -74,6 +74,14 @@ export type TxnsUrlTag<TAcct, TCursor> =
 export interface IExtractAccountsArgs {
   readonly body: ApiBody;
   readonly sessionContext: Readonly<Record<string, unknown>>;
+  /**
+   * Response of the optional `customer.secondaryUrlTag` identity GET, or
+   * `{}` when the shape declares none. Lets banks whose account identity
+   * spans two calls (FIBI: `userData` accounts + a session-level
+   * `accountType` lookup) fold both into each account reference. Existing
+   * single-call banks ignore it.
+   */
+  readonly secondaryBody?: ApiBody;
 }
 
 /** Customer-step shape — fetches the account list once per scrape. */
@@ -83,6 +91,14 @@ export interface IApiDirectScrapeCustomerStep<TAcct> {
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('customer'). */
   readonly urlTag?: CustomerUrlTag;
+  /**
+   * Optional secondary identity GET fired once, immediately after the
+   * primary customer fetch. Its parsed response reaches `extractAccounts`
+   * as `secondaryBody`. GET-only (carries no request body); absent ⇒
+   * `secondaryBody` is `{}`. Used by FIBI banks whose transactions body
+   * needs a session-level `accountType` the accounts call omits.
+   */
+  readonly secondaryUrlTag?: CustomerUrlTag;
   /** REST verb when `urlTag` is set; default POST. GET sends no body. */
   readonly method?: ScrapeHttpMethod;
   /**

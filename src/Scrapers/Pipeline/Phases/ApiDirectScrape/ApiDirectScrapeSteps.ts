@@ -16,8 +16,9 @@ import {
   buildTxnsDispatchArgs,
   type IAcctCtx,
   type IDriverCtx,
+  resolveSecondaryUrlTag,
 } from './ApiDirectScrapeDispatchArgs.js';
-import type { IBalanceOutcome } from './IApiDirectScrapeShape.js';
+import type { ApiBody, IBalanceOutcome } from './IApiDirectScrapeShape.js';
 
 /** Stop signal — branded so Rule #15 accepts the boolean return. */
 type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
@@ -26,25 +27,55 @@ type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
 const EMPTY_BODY = Object.freeze({});
 
 /**
+ * Fetch the optional secondary identity GET declared by
+ * `customer.secondaryUrlTag`; yields EMPTY_BODY when none is declared so
+ * `extractAccounts` always receives a defined `secondaryBody`.
+ * @param d - Driver context.
+ * @returns Secondary identity body procedure.
+ */
+async function fetchSecondaryBody<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+): Promise<Procedure<ApiBody>> {
+  const tag = resolveSecondaryUrlTag(d);
+  if (tag === false) return succeed<ApiBody>(EMPTY_BODY);
+  return d.bus.apiGet<ApiBody>(tag);
+}
+
+/**
+ * Run `extractAccounts` against a primary body plus the optional
+ * secondary-identity body and the post-login session-context.
+ * @param d - Driver context.
+ * @param body - Primary customer-fetch body (EMPTY_BODY when skipped).
+ * @returns Account refs procedure.
+ */
+async function extractAccts<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  body: ApiBody,
+): Promise<Procedure<readonly TAcct[]>> {
+  const secondary = await fetchSecondaryBody(d);
+  if (!isOk(secondary)) return secondary;
+  const sessionContext = d.bus.getSessionContext();
+  const args = { body, secondaryBody: secondary.value, sessionContext };
+  const accts = d.shape.customer.extractAccounts(args);
+  return succeed(accts);
+}
+
+/**
  * Fetch customer tree and extract the flat account list. Honours
- * `customer.skipFetch === true` by bypassing the network call —
- * `extractAccounts` runs against an empty body + session-context.
+ * `customer.skipFetch === true` by bypassing the network call, and
+ * `customer.secondaryUrlTag` by folding a second identity GET into
+ * `extractAccounts` as `secondaryBody`.
  * @param d - Driver context.
  * @returns Account refs procedure.
  */
 export async function fetchAccounts<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<readonly TAcct[]>> {
-  const sessionContext = d.bus.getSessionContext();
-  if (d.shape.customer.skipFetch === true) {
-    const accts = d.shape.customer.extractAccounts({ body: EMPTY_BODY, sessionContext });
-    return succeed(accts);
-  }
+  if (d.shape.customer.skipFetch === true) return extractAccts(d, EMPTY_BODY);
   const dispatchArgs = buildCustomerDispatchArgs(d);
   const resp = await dispatchStep(dispatchArgs);
   if (!isOk(resp)) return resp;
-  const accts = d.shape.customer.extractAccounts({ body: resp.value, sessionContext });
-  return succeed(accts);
+  return extractAccts(d, resp.value);
 }
 
 /**
