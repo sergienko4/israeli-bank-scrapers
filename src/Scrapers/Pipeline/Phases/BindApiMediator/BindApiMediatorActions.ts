@@ -19,7 +19,11 @@ import { isSome, none, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { primeTokenAuth } from './BindApiMediatorAuth.js';
+import {
+  buildDiscoveredHeaderBag,
+  discoverAuthToken,
+  installAuthToken,
+} from './BindApiMediatorAuth.js';
 import { primeClientVersion } from './BindApiMediatorClientVersion.js';
 import { primeSessionToken } from './BindApiMediatorSessionToken.js';
 
@@ -58,22 +62,23 @@ function loginPool(full: IPipelineContext): readonly IDiscoveredEndpoint[] {
 }
 
 /**
- * Prime the Authorization for `'token'` banks via the 5-tier AuthDiscovery
- * orchestrator over the login capture pool + live page (response bodies first —
- * the value the bank API already accepted). Session-cookie banks ride first-party
- * cookies and no-op.
+ * Build a browser-page ApiMediator carrying each `'token'` bank's discovered
+ * auth. Discovers the token ONCE over the login pool + live page, builds the
+ * opt-in discovered-header bag from the SAME pool, constructs the mediator with
+ * that bag as fetch-strategy defaults, then installs the token via `setRawAuth`
+ * (which still wins over the bag). Session-cookie banks discover no token and
+ * get an empty bag ⇒ byte-identical to a bare mediator.
  * @param ctx - Full pipeline context (carries login page + capture pool).
- * @param page - Live login page for the storage/poll tiers.
- * @param mediator - Browser-page mediator to authorize.
- * @returns True when a token was installed.
+ * @param page - Live login page for discovery + dispatch.
+ * @returns The authorized browser-page mediator.
  */
-async function primeAuth(
-  ctx: IPipelineContext,
-  page: Page,
-  mediator: IApiMediator,
-): Promise<boolean> {
-  const source = { pool: loginPool(ctx), page };
-  return primeTokenAuth(ctx.config, source, mediator);
+async function bindMediatorWithAuth(ctx: IPipelineContext, page: Page): Promise<IApiMediator> {
+  const pool = loginPool(ctx);
+  const token = await discoverAuthToken(ctx.config, { pool, page });
+  const bag = buildDiscoveredHeaderBag(ctx.config, pool, token);
+  const mediator = createBrowserPageApiMediator(ctx.companyId, page, bag);
+  if (token) installAuthToken(token, mediator);
+  return mediator;
 }
 
 /**
@@ -92,8 +97,7 @@ async function bindBrowserPageMediator(
   if (isSome(ctx.apiMediator)) return succeed(ctx);
   const pageProc = resolveLoginPage(ctx);
   if (!isOk(pageProc)) return pageProc;
-  const mediator = createBrowserPageApiMediator(ctx.companyId, pageProc.value);
-  await primeAuth(ctx, pageProc.value, mediator);
+  const mediator = await bindMediatorWithAuth(ctx, pageProc.value);
   await primeClientVersion(ctx.config, pageProc.value, mediator);
   primeSessionTokenFromPool(ctx, mediator);
   return succeed({ ...ctx, apiMediator: some(mediator) });

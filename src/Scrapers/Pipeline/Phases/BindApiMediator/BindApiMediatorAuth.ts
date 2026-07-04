@@ -19,6 +19,7 @@ import type { Page } from 'playwright-core';
 
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.types.js';
 import discoverAuthThreeTier from '../../Mediator/Network/AuthDiscovery/Orchestrator.js';
+import buildDiscoveredHeadersFromCapture from '../../Mediator/Network/DiscoveryHeaders/DiscoveryHeaders.js';
 import type { IDiscoveredEndpoint } from '../../Mediator/Network/Types/Endpoint.js';
 import type { IPipelineBankConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 
@@ -29,9 +30,35 @@ interface IAuthTokenSource {
 }
 
 /**
- * Prime the mediator Authorization for `'token'` banks via the 5-tier
+ * Discover the post-login Authorization for `'token'` banks via the 5-tier
  * AuthDiscovery orchestrator (no-op for non-token banks). The captured value
- * already carries its scheme, so it installs verbatim via `setRawAuth`.
+ * already carries its scheme, so callers install it verbatim.
+ * @param config - Resolved bank config carrying `authStrategyKind`.
+ * @param source - Login capture pool + live login page.
+ * @returns The discovered scheme-prefixed token, or false.
+ */
+async function discoverAuthToken(
+  config: IPipelineBankConfig,
+  source: IAuthTokenSource,
+): Promise<string | false> {
+  if (config.authStrategyKind !== 'token') return false;
+  return discoverAuthThreeTier(source.pool, source.page);
+}
+
+/**
+ * Install a discovered token on the mediator verbatim via `setRawAuth` (never
+ * `setBearer`, which would prepend a second scheme).
+ * @param token - Scheme-prefixed token to install.
+ * @param mediator - Browser-page mediator to authorize.
+ * @returns True when the mediator accepted the token.
+ */
+function installAuthToken(token: string, mediator: IApiMediator): boolean {
+  return mediator.setRawAuth(token);
+}
+
+/**
+ * Prime the mediator Authorization for `'token'` banks (no-op otherwise). Thin
+ * compose over {@link discoverAuthToken} + {@link installAuthToken}.
  * @param config - Resolved bank config carrying `authStrategyKind`.
  * @param source - Login capture pool + live login page.
  * @param mediator - Browser-page mediator to authorize.
@@ -42,11 +69,31 @@ async function primeTokenAuth(
   source: IAuthTokenSource,
   mediator: IApiMediator,
 ): Promise<boolean> {
-  if (config.authStrategyKind !== 'token') return false;
-  const token = await discoverAuthThreeTier(source.pool, source.page);
+  const token = await discoverAuthToken(config, source);
   if (!token) return false;
-  return mediator.setRawAuth(token);
+  return installAuthToken(token, mediator);
+}
+
+/**
+ * Build the discovered-header bag installed on every hard-model call for banks
+ * that opt in via `installDiscoveredHeaders`. Reuses the proven generic
+ * `buildDiscoveredHeadersFromCapture` (SPA content-negotiation headers +
+ * Origin / Referer / X-Site-Id, plus the token as Authorization when found).
+ * Returns an empty bag — a transparent pass-through — when not opted in.
+ * @param config - Resolved bank config carrying `installDiscoveredHeaders`.
+ * @param pool - Login-inclusive capture pool the headers are drawn from.
+ * @param token - Discovered token (folded in as Authorization) or false.
+ * @returns The header bag, or `{}` when the bank did not opt in.
+ */
+function buildDiscoveredHeaderBag(
+  config: IPipelineBankConfig,
+  pool: readonly IDiscoveredEndpoint[],
+  token: string | false,
+): Record<string, string> {
+  if (!config.installDiscoveredHeaders) return {};
+  const opts = buildDiscoveredHeadersFromCapture(pool, token);
+  return opts.extraHeaders;
 }
 
 export default primeTokenAuth;
-export { primeTokenAuth };
+export { buildDiscoveredHeaderBag, discoverAuthToken, installAuthToken, primeTokenAuth };

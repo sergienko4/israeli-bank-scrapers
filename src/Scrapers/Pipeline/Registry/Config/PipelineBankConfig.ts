@@ -56,9 +56,26 @@ function defineBank(
   return { urls: { base }, balanceKind, authStrategyKind };
 }
 
+/**
+ * FIBI-family config — deposit account reached via a discovered Bearer/JWT plus
+ * the discovered-header bag (the shared appsng BFF rejects a bare cookie without
+ * `Accept: application/json`). Beinleumi, Massad, OtsarHahayal and Pagi differ
+ * only by HOME URL.
+ * @param base - Official website URL for the HOME phase.
+ * @returns Registry config for one FIBI-family bank.
+ */
+function fibiConfig(base: string): IPipelineBankConfig {
+  return {
+    urls: { base },
+    balanceKind: ACCOUNT,
+    authStrategyKind: TOKEN,
+    installDiscoveredHeaders: true,
+  };
+}
+
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
-  [CompanyTypes.Beinleumi]: defineBank('https://www.fibi.co.il', ACCOUNT, TOKEN),
+  [CompanyTypes.Beinleumi]: fibiConfig('https://www.fibi.co.il'),
   [CompanyTypes.Leumi]: {
     ...defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
     sessionTokenCapture: {
@@ -69,11 +86,14 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Hapoalim]: defineBank('https://www.bankhapoalim.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.Massad]: defineBank('https://www.bankmassad.co.il', ACCOUNT, TOKEN),
-  [CompanyTypes.OtsarHahayal]: defineBank('https://www.bankotsar.co.il', ACCOUNT, TOKEN),
-  [CompanyTypes.Pagi]: defineBank('https://www.pagi.co.il', ACCOUNT, TOKEN),
+  [CompanyTypes.Massad]: fibiConfig('https://www.bankmassad.co.il'),
+  [CompanyTypes.OtsarHahayal]: fibiConfig('https://www.bankotsar.co.il'),
+  [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il'),
   [CompanyTypes.Yahav]: defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.VisaCal]: defineBank('https://www.cal-online.co.il/', CARD_CYCLE, TOKEN),
+  [CompanyTypes.VisaCal]: {
+    ...defineBank('https://www.cal-online.co.il/', CARD_CYCLE, TOKEN),
+    installDiscoveredHeaders: true,
+  },
   [CompanyTypes.Amex]: {
     urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,

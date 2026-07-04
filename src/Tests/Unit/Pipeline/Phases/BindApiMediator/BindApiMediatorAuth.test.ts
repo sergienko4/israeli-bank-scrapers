@@ -11,7 +11,10 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
-import { primeTokenAuth } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorAuth.js';
+import {
+  buildDiscoveredHeaderBag,
+  primeTokenAuth,
+} from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorAuth.js';
 
 /** Local mirror of the registry auth-strategy union (import is DI-restricted). */
 type AuthKind = 'token' | 'session-cookie' | 'api-direct';
@@ -21,6 +24,7 @@ interface ITestBankConfig {
   readonly urls: { readonly base: string };
   readonly balanceKind: 'account' | 'card-cycle';
   readonly authStrategyKind: AuthKind;
+  readonly installDiscoveredHeaders?: boolean;
 }
 
 /**
@@ -34,6 +38,16 @@ function makeConfig(kind: AuthKind): ITestBankConfig {
     balanceKind: 'card-cycle',
     authStrategyKind: kind,
   };
+}
+
+/**
+ * Build a `'token'` bank config with the discovered-header opt-in flag set.
+ * @param optIn - Whether the bank opts into the discovered-header bag.
+ * @returns Registry-shaped config literal.
+ */
+function makeHeaderConfig(optIn: boolean): ITestBankConfig {
+  const base = makeConfig('token');
+  return { ...base, installDiscoveredHeaders: optIn };
 }
 
 /**
@@ -217,5 +231,25 @@ describe('BIND-API-MEDIATOR auth-prime — response-body tier (Tier 2)', () => {
     const wasInstalled = await primeTokenAuth(config, { pool, page: makePage('NONE') }, mediator);
     expect(wasInstalled).toBe(false);
     expect(mediator.setRawAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe('BIND-API-MEDIATOR discovered-header bag — installDiscoveredHeaders gate', () => {
+  it('BIND-BAG-1 folds the discovered token into an opted-in bag as Authorization', () => {
+    const config = makeHeaderConfig(true);
+    const bag = buildDiscoveredHeaderBag(config, NO_POOL, 'CALAuthScheme jwt-bag-1');
+    expect(bag).toEqual({ authorization: 'CALAuthScheme jwt-bag-1' });
+  });
+
+  it('BIND-BAG-2 returns an empty bag for a bank that does not opt in', () => {
+    const config = makeHeaderConfig(false);
+    const bag = buildDiscoveredHeaderBag(config, NO_POOL, 'CALAuthScheme jwt-bag-2');
+    expect(bag).toEqual({});
+  });
+
+  it('BIND-BAG-3 returns an empty bag when opted in but no token was discovered', () => {
+    const config = makeHeaderConfig(true);
+    const bag = buildDiscoveredHeaderBag(config, NO_POOL, false);
+    expect(bag).toEqual({});
   });
 });

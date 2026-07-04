@@ -180,4 +180,17 @@ export interface IPipelineBankConfig {
     /** Ordered keys within the decoded body to the token leaf. */
     readonly tokenPath: readonly string[];
   };
+  /**
+   * Opt-in: install the FULL discovered-header bag (SPA content-negotiation
+   * headers + Origin / Referer / X-Site-Id, plus the discovered token as
+   * Authorization) on EVERY hard-model call, replicating the generic
+   * AUTH-DISCOVERY green path. BIND-API-MEDIATOR reads the login-inclusive
+   * capture pool once, builds the bag via `buildDiscoveredHeadersFromCapture`,
+   * and passes it to the browser-page mediator's fetch strategy as defaults
+   * (per-call and rawAuth headers still win). Set for `'token'` browser banks
+   * whose SPA API rejects a bare cookie/Bearer without the negotiation headers
+   * (VisaCal needs X-Site-Id; the FIBI BFF needs Accept: application/json).
+   * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
+   */
+  readonly installDiscoveredHeaders?: boolean;
 }
