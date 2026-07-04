@@ -73,16 +73,18 @@ interface IBankLoginFixture {
   readonly expectedPhaseNames: readonly string[];
 }
 
-/** Base phases shared by every browser bank (incl. v4 balance-resolve). */
+/**
+ * Base phases shared by every migrated browser bank. The generic
+ * post-auth chain (auth-discovery / account-resolve / dashboard /
+ * scrape / balance-resolve) is replaced by the hard-model pair
+ * `bind-api-mediator` → `api-direct-scrape` via `withBrowserApiDirect`.
+ */
 const BASE_PHASES = [
   'init',
   'home',
   'login',
-  'auth-discovery',
-  'account-resolve',
-  'dashboard',
-  'scrape',
-  'balance-resolve',
+  'bind-api-mediator',
+  'api-direct-scrape',
   'terminate',
 ] as const;
 
@@ -92,11 +94,8 @@ const PRE_LOGIN_PHASES = [
   'home',
   'pre-login',
   'login',
-  'auth-discovery',
-  'account-resolve',
-  'dashboard',
-  'scrape',
-  'balance-resolve',
+  'bind-api-mediator',
+  'api-direct-scrape',
   'terminate',
 ] as const;
 
@@ -106,11 +105,8 @@ const OTP_FILL_PHASES = [
   'home',
   'login',
   'otp-fill',
-  'auth-discovery',
-  'account-resolve',
-  'dashboard',
-  'scrape',
-  'balance-resolve',
+  'bind-api-mediator',
+  'api-direct-scrape',
   'terminate',
 ] as const;
 
@@ -121,18 +117,15 @@ const OTP_FULL_PHASES = [
   'login',
   'otp-trigger',
   'otp-fill',
-  'auth-discovery',
-  'account-resolve',
-  'dashboard',
-  'scrape',
-  'balance-resolve',
+  'bind-api-mediator',
+  'api-direct-scrape',
   'terminate',
 ] as const;
 
 /**
  * Bank-fixture table consumed by {@link LoginFactoryTest}'s
- * `describe.each`. Order is alphabetical by phase-shape group:
- * base (8) → pre-login (9) → otp-fill (9) → otp-full (10).
+ * `describe.each`. Order is by phase-shape group:
+ * base (6) → pre-login (7) → otp-fill (7) → otp-full (8).
  */
 const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
   {
