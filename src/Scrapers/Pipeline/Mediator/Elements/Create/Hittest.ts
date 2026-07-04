@@ -128,6 +128,100 @@ export interface IRaceDiagnostic {
   readonly fulfilledIndices: readonly number[];
 }
 
+/** Control-flow rejection for a locator that loses a single-winner gate. */
+class GateRejectError extends Error {}
+
+/** Bundled per-locator gate spec — keeps {@link gateLocator} at ≤3 params. */
+interface IGateSpec {
+  readonly index: number;
+  readonly timeout: number;
+  readonly requireHit: boolean;
+}
+
+/**
+ * Per-locator gate for the single-winner short-circuit race: await
+ * visibility, REJECT accessibility skip-links, and — when
+ * `spec.requireHit` — also REJECT elements failing the elementFromPoint
+ * hit-test. Resolving with `spec.index` lets `Promise.any` settle on the
+ * FIRST passing locator instead of awaiting every candidate.
+ * @param locator - Candidate locator to gate.
+ * @param spec - Bundled index + per-locator timeout + hit-test requirement.
+ * @returns `spec.index` on a pass; rejects otherwise.
+ */
+async function gateLocator(locator: Locator, spec: IGateSpec): Promise<number> {
+  await locator.waitFor({ state: 'visible', timeout: spec.timeout });
+  const isSkip = await locator.evaluate(isAccessibilitySkipLink).catch((): boolean => false);
+  if (isSkip) throw new GateRejectError();
+  if (spec.requireHit && !(await isTrulyVisible(locator))) throw new GateRejectError();
+  return spec.index;
+}
+
+/**
+ * Race locators and resolve to the index of the FIRST that passes its gate
+ * (visible + not-skip, plus hit-test when `requireHit`), short-circuiting
+ * via `Promise.any`. Returns -1 when none pass within `timeout`.
+ * @param locators - Candidate locators to race.
+ * @param timeout - Per-locator visibility wait budget (ms).
+ * @param requireHit - When true, also require the elementFromPoint hit-test.
+ * @returns First passing index (wall-clock), or -1.
+ */
+async function raceFirstIndex(
+  locators: Locator[],
+  timeout: number,
+  requireHit: boolean,
+): Promise<number> {
+  const gates = locators.map((loc, i): Promise<number> =>
+    gateLocator(loc, { index: i, timeout, requireHit }),
+  );
+  return Promise.any(gates).catch((): number => -1);
+}
+
+/**
+ * Collapse a short-circuit winner into an {@link IRaceDiagnostic}, mirroring
+ * the multi-winner diagnostic shape so trace emitters stay reusable.
+ * @param winner - Winning index, or -1 when none passed.
+ * @param hitPassed - True when the winner cleared the hit-test (vs a visible fallback).
+ * @returns Diagnostic describing the single winner.
+ */
+function singleWinnerDiag(winner: number, hitPassed: boolean): IRaceDiagnostic {
+  const isFound = winner >= 0;
+  return {
+    winner,
+    fulfilledCount: isFound ? 1 : 0,
+    hitTestPassedCount: isFound && hitPassed ? 1 : 0,
+    fulfilledIndices: isFound ? [winner] : [],
+  };
+}
+
+/**
+ * Single-winner race: resolve to the FIRST locator that is visible, not a
+ * skip-link, and hit-testable — short-circuiting as soon as ONE fully
+ * passes, instead of waiting for EVERY candidate to settle like
+ * {@link raceLocatorsWithHitTest}. On a heavy dashboard with ~100 reveal
+ * candidates this returns in ~1-2s instead of ~120s. When NO locator clears
+ * the hit-test it falls back to the first merely-visible locator (overlay /
+ * cookie-banner parity with the multi-winner {@link raceLocatorsWithHitTest}
+ * `resolveWinner`). Both tiers race concurrently so the not-found cost stays
+ * bounded by a single `timeout`. Ties resolve by wall-clock arrival, not
+ * lowest input index — intended for single-winner gates + clicks where any
+ * hit-testable match is equivalent.
+ * @param locators - Candidate locators to race.
+ * @param timeout - Per-locator visibility wait budget (ms).
+ * @returns Diagnostic whose `winner` is the first passing index, or -1.
+ */
+export async function raceLocatorsFirstHit(
+  locators: Locator[],
+  timeout: number,
+): Promise<IRaceDiagnostic> {
+  if (locators.length === 0) return singleWinnerDiag(-1, false);
+  const [hitWinner, visibleWinner] = await Promise.all([
+    raceFirstIndex(locators, timeout, true),
+    raceFirstIndex(locators, timeout, false),
+  ]);
+  if (hitWinner >= 0) return singleWinnerDiag(hitWinner, true);
+  return singleWinnerDiag(visibleWinner, false);
+}
+
 /**
  * Await waitFor(visible) on all locators; return indices that resolved.
  * @param locators - Locators to race.
