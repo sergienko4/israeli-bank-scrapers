@@ -107,24 +107,25 @@ describe('MaxShape helpers', () => {
 });
 
 describe('MaxShape transactions', () => {
-  it('txnsUrl encodes filterData + firstCallCardIndex + version (cursor 0)', () => {
+  it('txnsUrl encodes the show-all filterData with a YYYY-M-01 date + version (cursor 0)', () => {
     const ctx = ctxWithVersion(new Date(2026, 3, 15), 'V4-TEST');
     const raw = txnsUrl(CARD, false, ctx);
     const url = String(raw);
-    const json = JSON.stringify({ month: 4, year: 2026 });
-    const filter = encodeURIComponent(json);
-    expect(url).toContain(`getTransactionsAndGraphs?filterData=${filter}`);
+    const filterData = new URL(url).searchParams.get('filterData') ?? '';
+    const parsed = JSON.parse(filterData) as { date: string; monthView: boolean };
+    expect(parsed.date).toBe('2026-4-01');
+    expect(parsed.monthView).toBe(true);
     expect(url).toContain('&firstCallCardIndex=-1');
     expect(url).toContain('&v=V4-TEST');
   });
 
-  it('txnsUrl advances the filterData month by the cursor offset', () => {
+  it('txnsUrl advances the filterData date month by the cursor offset', () => {
     const ctx = ctxWithVersion(new Date(2026, 3, 15), 'V4-TEST');
     const raw = txnsUrl(CARD, 2, ctx);
     const url = String(raw);
-    const json = JSON.stringify({ month: 6, year: 2026 });
-    const filter = encodeURIComponent(json);
-    expect(url).toContain(`filterData=${filter}`);
+    const filterData = new URL(url).searchParams.get('filterData') ?? '';
+    const parsed = JSON.parse(filterData) as { date: string };
+    expect(parsed.date).toBe('2026-6-01');
   });
 
   it('txnsExtractPage filters merged rows to the account card', () => {

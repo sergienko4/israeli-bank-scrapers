@@ -6,9 +6,10 @@
  * cursor is a 0-based month offset from the window start; the driver advances
  * it until the last in-window month, then stops. Empty months yield no rows.
  *
- * filterData carries {"month":M,"year":YYYY} (month 1-based), URL-encoded; the
- * version param rides via withVersion. Split from MaxShapeHelpers.ts for the
- * 150-LOC cap.
+ * filterData carries the Max "show all cards" object
+ * ({userIndex:-1,cardIndex:-1,monthView:true,date:"YYYY-M-01",…}),
+ * URL-encoded; the version param rides via withVersion. Split from
+ * MaxShapeHelpers.ts for the 150-LOC cap.
  */
 
 import moment from 'moment';
@@ -63,13 +64,33 @@ function monthAt(ctx: IActionContext, offset: number): moment.Moment {
 }
 
 /**
- * URL-encoded filterData value carrying {"month":M,"year":YYYY} (1-based month).
+ * getTransactionsAndGraphs "show all cards" filterData template — the exact
+ * object Max's API requires (userIndex/cardIndex -1, monthView, a YYYY-M-01
+ * `date`, all-cards bankAccount). Mirrors upstream max.ts getTransactionsUrl
+ * and the generic pipeline's FILTER_DATA_TEMPLATE; the simplified
+ * {month,year} form is rejected with result:null, returnCode:10.
+ */
+const MAX_FILTER_DATA = {
+  userIndex: -1,
+  cardIndex: -1,
+  monthView: true,
+  date: '{date}',
+  dates: { startDate: '0', endDate: '0' },
+  bankAccount: { bankAccountIndex: -1, cards: null },
+} as const;
+
+/**
+ * URL-encoded filterData for the target month — the full show-all object with
+ * `date` slotted as YYYY-M-01 (1-based month, no zero-pad, per the Max
+ * contract).
  * @param m - Target month moment.
  * @returns Encoded filterData query value.
  */
 function filterDataParam(m: moment.Moment): string {
-  const filter = { month: m.month() + 1, year: m.year() };
-  const json = JSON.stringify(filter);
+  const year = m.year();
+  const month = m.month() + 1;
+  const dateStr = `${String(year)}-${String(month)}-01`;
+  const json = JSON.stringify(MAX_FILTER_DATA).replace('{date}', dateStr);
   return encodeURIComponent(json);
 }
 
