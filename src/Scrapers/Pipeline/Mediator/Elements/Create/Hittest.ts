@@ -205,6 +205,15 @@ function singleWinnerDiag(winner: number, hitPassed: boolean): IRaceDiagnostic {
  * bounded by a single `timeout`. Ties resolve by wall-clock arrival, not
  * lowest input index — intended for single-winner gates + clicks where any
  * hit-testable match is equivalent.
+ *
+ * <p>ORDER-INDEPENDENCE CONTRACT: the winner is wall-clock-first, so callers
+ * whose candidate list is PRIORITY-ordered (e.g. the DASHBOARD nudge over
+ * `WK_DASHBOARD.TRANSACTIONS` — current-account before credit-cards) must NOT
+ * rely on this race to honour that priority; a later-listed locator can win
+ * if it settles first. Such callers MUST carry a downstream disambiguator —
+ * the nudge re-fires until `accountsTrafficSeen`, and account selection is
+ * shape-guarded (top-level IBAN + a CURRENT `BalanceList`) — so a mis-ordered
+ * click still resolves to the right account.
  * @param locators - Candidate locators to race.
  * @param timeout - Per-locator visibility wait budget (ms).
  * @returns Diagnostic whose `winner` is the first passing index, or -1.
