@@ -4,6 +4,9 @@
  * token from a login response body (Tier 2 — the VisaCal path) or from
  * page/frame sessionStorage (Tier 3) for `'token'` banks, is a no-op for
  * `'session-cookie'` banks, and skips installation when no tier yields a token.
+ * Also proves the config-driven family-scoped header sniff (FIBI `appsng`): it
+ * installs the family Bearer verbatim, takes priority over the storage tier,
+ * skips the Bearer-less OAuth code-exchange, and falls back to the 5-tier on miss.
  */
 
 import { jest } from '@jest/globals';
@@ -25,6 +28,7 @@ interface ITestBankConfig {
   readonly balanceKind: 'account' | 'card-cycle';
   readonly authStrategyKind: AuthKind;
   readonly installDiscoveredHeaders?: boolean;
+  readonly authHeaderUrlMatch?: string;
 }
 
 /**
@@ -48,6 +52,16 @@ function makeConfig(kind: AuthKind): ITestBankConfig {
 function makeHeaderConfig(optIn: boolean): ITestBankConfig {
   const base = makeConfig('token');
   return { ...base, installDiscoveredHeaders: optIn };
+}
+
+/**
+ * Build a `'token'` bank config declaring the family-scoped auth-header sniff.
+ * @param urlMatch - Endpoint-family substring the sniff scopes to.
+ * @returns Registry-shaped config literal.
+ */
+function makeSniffConfig(urlMatch: string): ITestBankConfig {
+  const base = makeConfig('token');
+  return { ...base, authHeaderUrlMatch: urlMatch };
 }
 
 /**
@@ -158,6 +172,20 @@ function makeAuthEndpoint(url: string, responseBody: unknown): IDiscoveredEndpoi
   return { url, responseBody, requestHeaders: {} } as unknown as IDiscoveredEndpoint;
 }
 
+/**
+ * Build a captured endpoint carrying the given request headers — the Tier 1 /
+ * family-scoped-sniff source. The response body is irrelevant here.
+ * @param url - Captured request URL (matched against `authHeaderUrlMatch`).
+ * @param requestHeaders - Request headers the pool capture exposes.
+ * @returns Minimal discovered-endpoint literal.
+ */
+function makeHeaderEndpoint(
+  url: string,
+  requestHeaders: Record<string, string>,
+): IDiscoveredEndpoint {
+  return { url, responseBody: null, requestHeaders } as unknown as IDiscoveredEndpoint;
+}
+
 /** Empty login pool — the storage-tier tests read only the page. */
 const NO_POOL: readonly IDiscoveredEndpoint[] = [];
 
@@ -231,6 +259,54 @@ describe('BIND-API-MEDIATOR auth-prime — response-body tier (Tier 2)', () => {
     const wasInstalled = await primeTokenAuth(config, { pool, page: makePage('NONE') }, mediator);
     expect(wasInstalled).toBe(false);
     expect(mediator.setRawAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe('BIND-API-MEDIATOR auth-prime — family-scoped header sniff (appsng)', () => {
+  const menusUrl = 'https://online.fibi.co.il/appsng/bff-portal-shell/api/v1/menu/menus';
+  const authorizeUrl =
+    'https://online.fibi.co.il/appsng/bff-portal-shell/api/v1/autorization/authorize?code=AAM2';
+  const summaryUrl =
+    'https://online.fibi.co.il/appsng/bff-portal-accountsummary/api/v1/accountSummary';
+
+  it('BIND-SNIFF-1 installs the family-scoped Bearer verbatim for token banks', async () => {
+    const pool = [makeHeaderEndpoint(menusUrl, { authorization: 'Bearer fibi-appsng-jwt' })];
+    const mediator = makeMediator();
+    const config = makeSniffConfig('appsng/bff-');
+    const wasInstalled = await primeTokenAuth(config, { pool, page: makePage('NONE') }, mediator);
+    expect(wasInstalled).toBe(true);
+    expect(mediator.setRawAuth).toHaveBeenCalledWith('Bearer fibi-appsng-jwt');
+  });
+
+  it('BIND-SNIFF-2 takes priority over a storage-tier token', async () => {
+    const pool = [makeHeaderEndpoint(menusUrl, { authorization: 'Bearer fibi-appsng-jwt' })];
+    const mediator = makeMediator();
+    const config = makeSniffConfig('appsng/bff-');
+    const page = makePage('{"auth":{"calConnectToken":"storage-should-not-win"}}');
+    await primeTokenAuth(config, { pool, page }, mediator);
+    expect(mediator.setRawAuth).toHaveBeenCalledWith('Bearer fibi-appsng-jwt');
+  });
+
+  it('BIND-SNIFF-3 skips the Bearer-less OAuth code-exchange', async () => {
+    const pool = [
+      makeHeaderEndpoint(authorizeUrl, {}),
+      makeHeaderEndpoint(summaryUrl, { authorization: 'Bearer fibi-appsng-jwt' }),
+    ];
+    const mediator = makeMediator();
+    const config = makeSniffConfig('appsng/bff-');
+    const wasInstalled = await primeTokenAuth(config, { pool, page: makePage('NONE') }, mediator);
+    expect(wasInstalled).toBe(true);
+    expect(mediator.setRawAuth).toHaveBeenCalledWith('Bearer fibi-appsng-jwt');
+  });
+
+  it('BIND-SNIFF-4 falls back to the 5-tier when no endpoint matches', async () => {
+    const pool = [makeHeaderEndpoint('https://cdn.example.co.il/assets/app.js', {})];
+    const mediator = makeMediator();
+    const config = makeSniffConfig('appsng/bff-');
+    const page = makePage('{"auth":{"calConnectToken":"fallback-token"}}');
+    const wasInstalled = await primeTokenAuth(config, { pool, page }, mediator);
+    expect(wasInstalled).toBe(true);
+    expect(mediator.setRawAuth).toHaveBeenCalledWith('CALAuthScheme fallback-token');
   });
 });
 

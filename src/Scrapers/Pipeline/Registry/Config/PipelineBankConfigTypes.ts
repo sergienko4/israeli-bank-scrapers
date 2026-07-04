@@ -193,4 +193,18 @@ export interface IPipelineBankConfig {
    * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
    */
   readonly installDiscoveredHeaders?: boolean;
+  /**
+   * Post-login auth-header sniff — for banks whose API Bearer is injected by the
+   * SPA's own HTTP interceptor and appears in NO login response body nor a
+   * parseable sessionStorage shape (FIBI's `appsng` BFF: the token rides only
+   * the SPA's own authorized requests). BIND-API-MEDIATOR scans the
+   * login-inclusive capture pool for the FIRST request whose URL includes this
+   * substring carrying a non-empty `authorization` / `x-auth-token` header and
+   * installs that value verbatim as the discovered Authorization — taking
+   * priority over the generic 5-tier discovery so a wrong-family token is never
+   * picked. Scoped to the bank's own SPA endpoint family (e.g. `'appsng/bff-'`);
+   * the pre-token OAuth code-exchange carries no Bearer and is skipped
+   * naturally. Absent ⇒ no sniff (generic discovery runs unchanged).
+   */
+  readonly authHeaderUrlMatch?: string;
 }

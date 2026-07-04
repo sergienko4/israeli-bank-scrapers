@@ -59,8 +59,10 @@ function defineBank(
 /**
  * FIBI-family config — deposit account reached via a discovered Bearer/JWT plus
  * the discovered-header bag (the shared appsng BFF rejects a bare cookie without
- * `Accept: application/json`). Beinleumi, Massad, OtsarHahayal and Pagi differ
- * only by HOME URL.
+ * `Accept: application/json`). The BFF Bearer is injected by the SPA's own HTTP
+ * interceptor (not in any login body nor a parseable storage shape), so it is
+ * sniffed from the SPA's own `appsng/bff-` requests in the capture pool.
+ * Beinleumi, Massad, OtsarHahayal and Pagi differ only by HOME URL.
  * @param base - Official website URL for the HOME phase.
  * @returns Registry config for one FIBI-family bank.
  */
@@ -70,6 +72,7 @@ function fibiConfig(base: string): IPipelineBankConfig {
     balanceKind: ACCOUNT,
     authStrategyKind: TOKEN,
     installDiscoveredHeaders: true,
+    authHeaderUrlMatch: 'appsng/bff-',
   };
 }
 

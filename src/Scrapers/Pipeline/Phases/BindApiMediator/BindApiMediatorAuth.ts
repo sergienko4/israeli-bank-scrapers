@@ -7,7 +7,11 @@
  * Runs the SAME 5-tier AuthDiscovery orchestrator the generic AUTH-DISCOVERY
  * phase used — response bodies (Tier 2) → page/frame sessionStorage (Tier 3a-c)
  * → request headers (Tier 1) → poll (Tier 4) — over the login-inclusive capture
- * pool + the live login page. The network-trace gate opens at login entry, so
+ * pool + the live login page. Banks whose API Bearer is injected by the SPA's
+ * own HTTP interceptor (FIBI `appsng` BFF — absent from every login body and any
+ * parseable storage shape) declare `authHeaderUrlMatch`; that family-scoped
+ * sniff runs FIRST so a wrong-family token is never picked. The network-trace
+ * gate opens at login entry, so
  * the SPA's own login response (which mints the token — e.g. Cal's connect-login
  * `{"token":...}`) is already in the pool, and Tier 2 `discoverFromResponses`
  * reads it. The resolved value already carries its scheme (`CALAuthScheme <jwt>`
@@ -18,6 +22,7 @@
 import type { Page } from 'playwright-core';
 
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.types.js';
+import { discoverFromHeaders } from '../../Mediator/Network/AuthDiscovery/HeadersTier.js';
 import discoverAuthThreeTier from '../../Mediator/Network/AuthDiscovery/Orchestrator.js';
 import buildDiscoveredHeadersFromCapture from '../../Mediator/Network/DiscoveryHeaders/DiscoveryHeaders.js';
 import type { IDiscoveredEndpoint } from '../../Mediator/Network/Types/Endpoint.js';
@@ -30,9 +35,32 @@ interface IAuthTokenSource {
 }
 
 /**
- * Discover the post-login Authorization for `'token'` banks via the 5-tier
- * AuthDiscovery orchestrator (no-op for non-token banks). The captured value
- * already carries its scheme, so callers install it verbatim.
+ * Config-driven auth-header sniff (FIBI `appsng` BFF) — scan the login-inclusive
+ * capture pool, scoped to the bank's own SPA endpoint family, for the first
+ * request carrying a non-empty auth header. Skips the Bearer-less OAuth
+ * code-exchange naturally and never picks a wrong-family token (unlike the
+ * generic first-match-across-all-URLs Tier 1). No-op when the bank did not
+ * declare `authHeaderUrlMatch`.
+ * @param config - Resolved bank config carrying `authHeaderUrlMatch`.
+ * @param pool - Login-inclusive capture pool (carries request headers).
+ * @returns The sniffed scheme-prefixed token, or false.
+ */
+function captureAuthHeaderFromPool(
+  config: IPipelineBankConfig,
+  pool: readonly IDiscoveredEndpoint[],
+): string | false {
+  const urlMatch = config.authHeaderUrlMatch;
+  if (!urlMatch) return false;
+  const scoped = pool.filter((ep): boolean => ep.url.includes(urlMatch));
+  return discoverFromHeaders(scoped);
+}
+
+/**
+ * Discover the post-login Authorization for `'token'` banks (no-op for non-token
+ * banks). Tries the config-driven `appsng`-family header sniff FIRST (so a
+ * wrong-family token is never picked), then falls back to the 5-tier
+ * AuthDiscovery orchestrator. The captured value already carries its scheme, so
+ * callers install it verbatim.
  * @param config - Resolved bank config carrying `authStrategyKind`.
  * @param source - Login capture pool + live login page.
  * @returns The discovered scheme-prefixed token, or false.
@@ -42,6 +70,8 @@ async function discoverAuthToken(
   source: IAuthTokenSource,
 ): Promise<string | false> {
   if (config.authStrategyKind !== 'token') return false;
+  const sniffed = captureAuthHeaderFromPool(config, source.pool);
+  if (sniffed) return sniffed;
   return discoverAuthThreeTier(source.pool, source.page);
 }
 
