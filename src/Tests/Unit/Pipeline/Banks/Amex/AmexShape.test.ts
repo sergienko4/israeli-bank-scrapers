@@ -192,4 +192,10 @@ describe('AMEX_SHAPE wiring', () => {
   it('carries the AmexScrape step name', () => {
     expect(AMEX_SHAPE.stepName).toBe('AmexScrape');
   });
+
+  it('primes the transactions-service session via the SPA route', () => {
+    expect(AMEX_SHAPE.prime).toBeDefined();
+    const url = AMEX_SHAPE.prime?.navUrl({} as unknown as IActionContext);
+    expect(url).toBe('https://web.americanexpress.co.il/transactions');
+  });
 });

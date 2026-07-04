@@ -17,6 +17,14 @@ Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-di
 | `.post`   | Forensic audit — emits the per-account `--- Account <masked>                                                                                                                                                                                                                                                                                                              | <N> txns ---`line via`logForensicAudit`, then runs the optional **result guard** (see below). |
 | `.final`  | **Emit `balanceResolution` from `scrape.accounts`** — builds `Map<accountNumber, balance>` directly. `PipelineResult` reads it the same way as browser banks.                                                                                                                                                                                                             |
 
+## Prime — post-login SPA navigation (browser banks only)
+
+Cookie-only banks authorise every post-auth service from the login session, so the hard-model driver can call the transactions API the moment login clears. A few browser banks split their services across **separate session scopes**: Amex's browser login authorises the statuspage service, but the transactions API only becomes reachable after the SPA navigates to its `/transactions` frontend route (the generic DASHBOARD phase used to trigger this, logging `primed:true`).
+
+The optional `IApiDirectScrapePrime` shape hook restores that step for the api-direct path. When a shape declares `prime`, `runPrime` navigates the **live login page** to the URL returned by `prime.navUrl(ctx)` and waits for the network to settle before the first scrape fetch. The nav is best-effort and non-fatal — a slow or failed prime never aborts the scrape. It is a strict no-op for banks that omit `prime` (all cookie-only + headless banks) or that run without a browser executor (headless mediators), so their behaviour stays byte-identical.
+
+Amex opts in via `primeUrl`, which points the hook at `https://web.americanexpress.co.il/transactions`.
+
 ## .final — Emit balanceResolution from scrape.accounts
 
 ```typescript

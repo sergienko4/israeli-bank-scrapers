@@ -196,10 +196,33 @@ export interface IApiDirectScrapeGuardSummary {
   readonly balanceDegraded: boolean;
 }
 
+/**
+ * Optional post-login PRIME navigation. Some browser banks (Amex,
+ * Isracard) authorize their login-origin service via first-party cookies
+ * but gate the transactions service behind a separate session the SPA only
+ * establishes after navigating to its frontend route. Declaring `prime`
+ * makes the driver navigate the live login page there once, before any
+ * scrape fetch, so the transactions service returns 200 rather than
+ * 302→login. Absent ⇒ no navigation (cookie-only + headless banks).
+ */
+export interface IApiDirectScrapePrime {
+  /**
+   * Absolute SPA route the driver navigates for the priming handshake.
+   * Receives `ctx` so a bank whose route embeds a session value can build
+   * it dynamically; static routes ignore the argument.
+   */
+  readonly navUrl: (ctx: IActionContext) => string;
+}
+
 /** Shape a bank plugs into createApiDirectScrapePhase. */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
   readonly accountNumberOf: (acct: TAcct) => string;
+  /**
+   * Optional post-login prime navigation — see {@link IApiDirectScrapePrime}.
+   * Absent ⇒ no prime (cookie-only session banks + headless banks).
+   */
+  readonly prime?: IApiDirectScrapePrime;
   /**
    * Optional class-y body-pointer signer applied to every scrape-step
    * body before POST. Same `IAesSignerConfig` type used by the login

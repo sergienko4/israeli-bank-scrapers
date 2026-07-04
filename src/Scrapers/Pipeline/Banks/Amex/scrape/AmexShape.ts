@@ -4,9 +4,12 @@
  * `withBrowserApiDirect`. balanceKind=card-cycle (`balance.skipFetch`
  * yields a deterministic 0 — Amex exposes no account-level balance);
  * auth=session-cookie (the browser login's first-party cookies ride
- * BrowserFetchStrategy — no token prime). Customer + transactions are POST
- * against the Amex DigitalV3 API. Helpers split across AmexShapeHelpers.ts,
- * AmexShapeTxns.ts and AmexShapeExtract.ts to hold the file-size cap.
+ * BrowserFetchStrategy — no token prime). A post-login `prime` nav to the
+ * transactions SPA route establishes the separate transactions-service
+ * session (the login cookies alone only authorize the statuspage service).
+ * Customer + transactions are POST against the Amex DigitalV3 API. Helpers
+ * split across AmexShapeHelpers.ts, AmexShapeTxns.ts and AmexShapeExtract.ts
+ * to hold the file-size cap.
  */
 
 import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
@@ -17,6 +20,7 @@ import {
   extractCards,
   type IAmexCard,
   noVars,
+  primeUrl,
 } from './AmexShapeHelpers.js';
 import { txnsExtractPage, txnsUrl, txnsVars } from './AmexShapeTxns.js';
 
@@ -34,6 +38,7 @@ function balanceZero(): number {
 const AMEX_SHAPE: IApiDirectScrapeShape<IAmexCard, number> = {
   stepName: 'AmexScrape',
   accountNumberOf,
+  prime: { navUrl: primeUrl },
   customer: {
     buildVars: customerVars,
     extractAccounts: extractCards,
