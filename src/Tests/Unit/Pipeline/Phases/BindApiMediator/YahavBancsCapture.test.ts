@@ -302,6 +302,13 @@ describe('BIND-API-MEDIATOR BaNCS prime — primeBancsSession', () => {
     expect(bag.accept).toBe('application/json');
     expect(bag.cookie).toBeUndefined();
   });
+
+  it('CAPTURE-17 tolerates a valid-but-non-object JSON postData', () => {
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', '[1,2,3]');
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
 });
 
 const LOGIN_URL = 'https://digital.yahav.co.il/BaNCSDigitalApp/login';
@@ -347,6 +354,48 @@ describe('BIND-API-MEDIATOR BaNCS CSRF sniff — scanCsrf', () => {
     const csrf = scanCsrf([acct]);
     expect(csrf.bancsCsrfValue).toBe('');
   });
+
+  it('CSRF-4 treats a non-record login response body as no token', () => {
+    const login = {
+      url: LOGIN_URL,
+      method: 'POST',
+      responseBody: 'nope',
+      requestHeaders: {},
+    } as unknown as IDiscoveredEndpoint;
+    const body = accountBody();
+    const acct = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const csrf = scanCsrf([login, acct]);
+    expect(csrf.bancsCsrfValue).toBe('');
+  });
+
+  it('CSRF-5 treats a non-string csrfTkn as no token', () => {
+    const login = {
+      url: LOGIN_URL,
+      method: 'POST',
+      responseBody: { csrfTkn: 123 },
+      requestHeaders: {},
+    } as unknown as IDiscoveredEndpoint;
+    const body = accountBody();
+    const acct = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const csrf = scanCsrf([login, acct]);
+    expect(csrf.bancsCsrfValue).toBe('');
+  });
+
+  it('CSRF-6 skips a non-BaNCS request and an empty-valued csrf header', () => {
+    const login = loginEndpoint('tok');
+    const nonBancsBase = {
+      url: 'https://x.example/api',
+      method: 'POST',
+      requestHeaders: {},
+    } as unknown as IDiscoveredEndpoint;
+    const nonBancs = withHeaders(nonBancsBase, { csrftkn: 'tok' });
+    const body = accountBody();
+    const emptyBase = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const emptyVal = withHeaders(emptyBase, { csrftkn: '' });
+    const csrf = scanCsrf([login, nonBancs, emptyVal]);
+    expect(csrf.bancsCsrfName).toBe('');
+    expect(csrf.bancsCsrfValue).toBe('tok');
+  });
 });
 
 describe('BIND-API-MEDIATOR BaNCS SPA-header sniff — scanSpaHeaders', () => {
@@ -374,6 +423,17 @@ describe('BIND-API-MEDIATOR BaNCS SPA-header sniff — scanSpaHeaders', () => {
     const body = accountBody();
     const acct = makeEndpoint(ACCOUNT_URL, 'POST', body);
     const spa = scanSpaHeaders([acct]);
+    expect(spa.bancsSpaHeaders).toBe('');
+  });
+
+  it('SPA-3 ignores a non-POST and a non-account endpoint', () => {
+    const body = accountBody();
+    const getBase = makeEndpoint(ACCOUNT_URL, 'GET', body);
+    const getEp = withHeaders(getBase, { 'x-requested-with': 'x' });
+    const portfolioUrl = 'https://digital.yahav.co.il/BaNCSDigitalApp/portfolio';
+    const otherBase = makeEndpoint(portfolioUrl, 'POST', body);
+    const otherEp = withHeaders(otherBase, { 'x-requested-with': 'x' });
+    const spa = scanSpaHeaders([getEp, otherEp]);
     expect(spa.bancsSpaHeaders).toBe('');
   });
 });
