@@ -7,12 +7,14 @@
  * Why the pool already holds them: the network-trace lifecycle interceptor
  * opens capture at `pre-login`, so the accounts POST the SPA fires during
  * login/boot is recorded before BIND runs. That request's `postData` carries a
- * FILLED `SecToken.Token[0]` + `Payload.DataEntity[0].Prtflio.Id` — this prime
- * inspects ONLY that endpoint family (`/BaNCSDigitalApp/account`), never the
- * credential POST, so it is PII-safe by extraction scope. Opt-in per bank via
- * `bancsSessionCapture`; banks that omit it yield `none()`. Mirrors the
- * session-token / client-version primes — merges into the existing context,
- * no bank coupling.
+ * FILLED `SecToken.Token[0]` + `Payload.DataEntity[0].Prtflio.Id`. The SecToken
+ * + portfolio scan reads ONLY the `/BaNCSDigitalApp/account` family; the CSRF
+ * sniff additionally reads the login response's `csrfTkn` nonce + the
+ * login-boot request headers (never the credential body). All values are
+ * per-session auth material, never the user's credentials — PII-safe by
+ * extraction scope. Opt-in per bank via `bancsSessionCapture`; banks that omit
+ * it yield `none()`. Mirrors the session-token / client-version primes — merges
+ * into the existing context, no bank coupling.
  */
 
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.types.js';

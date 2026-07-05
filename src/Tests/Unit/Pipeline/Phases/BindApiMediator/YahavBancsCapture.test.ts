@@ -396,6 +396,19 @@ describe('BIND-API-MEDIATOR BaNCS CSRF sniff — scanCsrf', () => {
     expect(csrf.bancsCsrfName).toBe('');
     expect(csrf.bancsCsrfValue).toBe('tok');
   });
+
+  it('CSRF-7 prefers a later value-match over an earlier wrong-valued csrf header', () => {
+    const login = loginEndpoint('real-tok');
+    const decoyBody = accountBody();
+    const decoyBase = makeEndpoint(ACCOUNT_URL, 'POST', decoyBody);
+    const decoy = withHeaders(decoyBase, { 'x-csrf-token': 'wrong-value' });
+    const realBody = accountBody();
+    const realBase = makeEndpoint(ACCOUNT_URL, 'POST', realBody);
+    const real = withHeaders(realBase, { 'x-opaque': 'real-tok' });
+    const csrf = scanCsrf([login, decoy, real]);
+    expect(csrf.bancsCsrfName).toBe('x-opaque');
+    expect(csrf.bancsCsrfValue).toBe('real-tok');
+  });
 });
 
 describe('BIND-API-MEDIATOR BaNCS SPA-header sniff — scanSpaHeaders', () => {

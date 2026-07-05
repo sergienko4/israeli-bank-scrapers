@@ -44,34 +44,65 @@ function readLoginCsrf(pool: readonly IDiscoveredEndpoint[]): string {
 }
 
 /**
- * Find the CSRF request header on one BaNCS request — by value-match to the
- * login token first (the name is opaque), then by a name containing "csrf".
- * @param ep - Captured endpoint.
- * @param value - The login `csrfTkn` value (empty to skip value-match).
- * @returns CSRF header, or `false`.
+ * Read a matched header entry into a CSRF bundle (`false` for an empty value).
+ * @param hit - Matched `[name, value]` entry.
+ * @returns CSRF header bundle, or `false`.
  */
-function matchCsrfHeader(ep: IDiscoveredEndpoint, value: string): ICsrfHeader | false {
-  if (!ep.url.includes(BANCS_APP_MATCH)) return false;
-  const entries = Object.entries(ep.requestHeaders);
-  const byValue = value.length > 0 ? entries.find((e): boolean => e[1] === value) : undefined;
-  const byName = entries.find((e): boolean => e[0].toLowerCase().includes('csrf'));
-  const hit = byValue ?? byName;
-  if (hit === undefined || hit[1].length === 0) return false;
+function toCsrf(hit: readonly [string, string]): ICsrfHeader | false {
+  if (hit[1].length === 0) return false;
   return { bancsCsrfName: hit[0], bancsCsrfValue: hit[1] };
 }
 
 /**
- * Sniff the CSRF header from the login-boot pool: the exact request-header name
- * (value-matched) when captured, else the login-response value alone (an empty
- * name signals the shape to fall back to candidate header names).
+ * Value-match one BaNCS request's headers against the login token (the header
+ * name is opaque, so the value is the reliable key).
+ * @param ep - Captured endpoint.
+ * @param value - The login `csrfTkn` value (empty ⇒ no match).
+ * @returns CSRF header bundle, or `false`.
+ */
+function matchByValue(ep: IDiscoveredEndpoint, value: string): ICsrfHeader | false {
+  if (value.length === 0 || !ep.url.includes(BANCS_APP_MATCH)) return false;
+  const hit = Object.entries(ep.requestHeaders).find((e): boolean => e[1] === value);
+  return hit === undefined ? false : toCsrf(hit);
+}
+
+/**
+ * Whether a header entry is a non-empty `csrf`-named header.
+ * @param entry - Header `[name, value]` entry.
+ * @returns True when the name contains "csrf" and the value is non-empty.
+ */
+function isCsrfNamed(entry: readonly [string, string]): boolean {
+  return entry[0].toLowerCase().includes('csrf') && entry[1].length > 0;
+}
+
+/**
+ * Name-match one BaNCS request's headers by a name containing "csrf".
+ * @param ep - Captured endpoint.
+ * @returns CSRF header bundle, or `false`.
+ */
+function matchByName(ep: IDiscoveredEndpoint): ICsrfHeader | false {
+  if (!ep.url.includes(BANCS_APP_MATCH)) return false;
+  const hit = Object.entries(ep.requestHeaders).find(isCsrfNamed);
+  return hit === undefined ? false : toCsrf(hit);
+}
+
+/**
+ * Sniff the CSRF header from the login-boot pool. A GLOBAL value-match pass
+ * (across every request) runs first, so a later request that actually carries
+ * the login token wins over an earlier request with a `csrf`-named but
+ * wrong-valued header; the name-contains-`csrf` pass is the fallback. When only
+ * the login value is known, an empty name signals the shape to try candidate
+ * header names.
  * @param pool - Login-inclusive discovery captures.
  * @returns CSRF header bundle, or the empty bundle.
  */
 export function scanCsrf(pool: readonly IDiscoveredEndpoint[]): ICsrfHeader {
   const value = readLoginCsrf(pool);
-  const hits = pool.map((ep): ICsrfHeader | false => matchCsrfHeader(ep, value));
-  const hit = hits.find((c): c is ICsrfHeader => c !== false);
-  if (hit !== undefined) return hit;
+  const valueHit = pool.map((ep): ICsrfHeader | false => matchByValue(ep, value));
+  const byValue = valueHit.find((c): c is ICsrfHeader => c !== false);
+  if (byValue !== undefined) return byValue;
+  const byName = pool.map(matchByName).find((c): c is ICsrfHeader => c !== false);
+  if (byName !== undefined) return byName;
   if (value.length > 0) return { bancsCsrfName: '', bancsCsrfValue: value };
   return EMPTY_CSRF;
 }
