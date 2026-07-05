@@ -2,7 +2,7 @@
 
 > **Who this is for:** users picking the right `CompanyTypes` for their bank and looking up credentials, OTP behavior, or known quirks.
 
-19 institutions are supported. **15 are on the Pipeline architecture** (recommended), **4 are on the legacy path** (still ship, on the migration roadmap).
+19 institutions are supported. **16 are on the Pipeline architecture** (recommended), **3 are on the legacy path** (still ship, on the migration roadmap).
 
 ## Quick directory
 
@@ -10,7 +10,7 @@
 
 - :material-bank: **Banks (browser engine)**
 
-  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md)
+  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Bank Yahav](yahav.md)
 
 - :material-credit-card: **Credit cards (browser engine)**
 
@@ -22,11 +22,11 @@
 
 - :material-archive: **Legacy (deprecated)**
 
-  [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md) · [Mizrahi Bank](mizrahi.md) · [Bank Yahav](yahav.md)
+  [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md) · [Mizrahi Bank](mizrahi.md)
 
 </div>
 
-## Pipeline-backed banks (15) — credentials at a glance
+## Pipeline-backed banks (16) — credentials at a glance
 
 | Bank            | `CompanyTypes` | Credential fields               | OTP            |
 | --------------- | -------------- | ------------------------------- | -------------- |
@@ -45,15 +45,15 @@
 | PayBox          | `PayBox`       | `phoneNumber`                   | required (API) |
 | Pepper          | `Pepper`       | `phoneNumber`, `password`       | required (API) |
 | Visa Cal        | `VisaCal`      | `username`, `password`          | —              |
+| Bank Yahav      | `Yahav`        | `num`, `nationalID`, `password` | —              |
 
-## Legacy banks (4) — credentials at a glance
+## Legacy banks (3) — credentials at a glance
 
-| Bank              | `CompanyTypes`     | Credential fields                    | OTP |
-| ----------------- | ------------------ | ------------------------------------ | --- |
-| Behatsdaa         | `Behatsdaa`        | `id`, `password`                     | —   |
-| Beyahad Bishvilha | `BeyahadBishvilha` | `id`, `password`                     | —   |
-| Mizrahi Bank      | `Mizrahi`          | `username`, `password`               | —   |
-| Bank Yahav        | `Yahav`            | `username`, `nationalID`, `password` | —   |
+| Bank              | `CompanyTypes`     | Credential fields      | OTP |
+| ----------------- | ------------------ | ---------------------- | --- |
+| Behatsdaa         | `Behatsdaa`        | `id`, `password`       | —   |
+| Beyahad Bishvilha | `BeyahadBishvilha` | `id`, `password`       | —   |
+| Mizrahi Bank      | `Mizrahi`          | `username`, `password` | —   |
 
 Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 

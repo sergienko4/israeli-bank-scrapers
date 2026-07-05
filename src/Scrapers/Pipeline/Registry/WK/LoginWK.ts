@@ -19,6 +19,8 @@ const KIND_ARIA_LABEL = 'ariaLabel' as const;
 const LABEL_OTP_ONETIME = 'קוד חד פעמי' as const;
 const LABEL_CARD_DIGITS = 'ספרות הכרטיס' as const;
 const LABEL_ACCOUNT_NUMBER = 'מספר חשבון' as const;
+const LABEL_USER_CODE = 'קוד משתמש' as const;
+const LABEL_NATIONAL_ID = 'תעודת זהות' as const;
 
 /** The valid slot names in WK.LOGIN.ACTION.FORM. */
 type FormSlot =
@@ -35,18 +37,24 @@ type FormSlot =
 export const WK_LOGIN_FORM = {
   username: [
     { kind: 'labelText', value: 'שם משתמש' },
-    { kind: 'labelText', value: 'קוד משתמש' },
+    { kind: 'labelText', value: LABEL_USER_CODE },
     { kind: 'placeholder', value: 'שם משתמש' },
-    { kind: 'placeholder', value: 'קוד משתמש' },
+    { kind: 'placeholder', value: LABEL_USER_CODE },
   ],
   nationalId: [
-    { kind: 'labelText', value: 'תעודת זהות' },
+    // Yahav's national-ID input is aria-label-only (empty placeholder): its
+    // label lives in `aria-label="תעודת זהות (9 ספרות)"`. `labelText` /
+    // `ariaLabel` resolve via Playwright `getByLabel`, which substring-matches
+    // the accessible name — so the visible label alone locates it (zero CSS).
+    { kind: 'labelText', value: LABEL_NATIONAL_ID },
     { kind: 'labelText', value: 'מספר זהות' },
-    { kind: 'placeholder', value: 'תעודת זהות' },
+    { kind: KIND_ARIA_LABEL, value: LABEL_NATIONAL_ID },
+    { kind: 'placeholder', value: LABEL_NATIONAL_ID },
     { kind: 'placeholder', value: 'מספר תעודת זהות' },
     { kind: 'placeholder', value: 'מספר זהות' },
     { kind: KIND_TEXT_CONTENT, value: 'מספר תעודת זהות' },
     { kind: KIND_TEXT_CONTENT, value: 'מספר זהות' },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_NATIONAL_ID },
   ],
   password: [
     { kind: 'xpath', value: '//input[@type="password"]' },
@@ -77,14 +85,13 @@ export const WK_LOGIN_FORM = {
   accountNum: [
     { kind: 'labelText', value: 'קוד מזהה' },
     { kind: 'labelText', value: LABEL_ACCOUNT_NUMBER },
-    { kind: 'labelText', value: 'קוד משתמש' },
-
+    { kind: 'labelText', value: LABEL_USER_CODE },
     { kind: KIND_ARIA_LABEL, value: LABEL_ACCOUNT_NUMBER },
-
     { kind: KIND_TEXT_CONTENT, value: 'קוד מזהה' },
     { kind: 'placeholder', value: LABEL_ACCOUNT_NUMBER },
     { kind: 'placeholder', value: 'מספר לקוח' },
-    { kind: 'placeholder', value: 'קוד משתמש' },
+    { kind: 'placeholder', value: LABEL_USER_CODE },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_USER_CODE },
   ],
   /** Structural submit — type="submit" in same DOM scope as password. Tried FIRST. */
   submitStructural: [
@@ -131,6 +138,7 @@ export const WK_LOGIN_ERROR = [
 export const WK_CONCEPT_MAP: Partial<Record<string, FormSlot>> = {
   id: 'nationalId',
   nationalId: 'nationalId',
+  nationalID: 'nationalId',
   username: 'username',
   userCode: 'accountNum',
   accountNum: 'accountNum',

@@ -14,6 +14,7 @@
 import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../../Types/Debug.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import { selectBancsAccountIds, selectBancsAccountRecords } from '../Bancs/BancsAccount.js';
 import { findFieldValue } from '../BfsFieldSearch/BfsFieldSearch.js';
 import { castSearchable } from '../BfsFieldSearch/TxnSignature.js';
 import findFirstArray from '../FieldHunt/LifoCrawl.js';
@@ -90,15 +91,15 @@ function emitZeroItemsTrace(responseBody: ApiRecord): true {
 }
 
 /**
- * Extract account records from API response. Logs the response shape
- * at trace level when zero items are found — exposes per-bank mapper
- * gaps. Tries three extractors in order: named WK_ACCT.containers,
+ * Generic account-record extraction: named WK_ACCT.containers, then
  * txn-signature BFS findFirstArray, then root-level array fallback.
+ * Logs the response shape at trace level when zero items are found —
+ * exposes per-bank mapper gaps.
  *
  * @param responseBody - Parsed JSON response body.
  * @returns Account records with all original fields.
  */
-function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
+function extractGenericAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
   const containers = extractAllContainers(responseBody);
   if (Object.keys(containers).length > 0) return flattenContainersForLog(containers);
   const fromArray = tryFindFirstArrayItems(responseBody);
@@ -107,6 +108,21 @@ function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
   if (fromRoot.length > 0) return fromRoot;
   emitZeroItemsTrace(responseBody);
   return [];
+}
+
+/**
+ * Extract account records from API response. The shape-guarded BaNCS
+ * (Yahav) recognizer runs first and short-circuits with the single
+ * current DDA account; every non-BaNCS body falls through to the
+ * generic extractors unchanged.
+ *
+ * @param responseBody - Parsed JSON response body.
+ * @returns Account records with all original fields.
+ */
+function extractAccountRecords(responseBody: ApiRecord): readonly ApiRecord[] {
+  const bancs = selectBancsAccountRecords(responseBody);
+  if (bancs !== false) return bancs;
+  return extractGenericAccountRecords(responseBody);
 }
 
 /**
@@ -152,11 +168,16 @@ function extractValidIdentifier(record: ApiRecord): string {
 }
 
 /**
- * Extracts validated account identifiers from an API response.
+ * Extracts validated account identifiers from an API response. The
+ * BaNCS (Yahav) recognizer runs first and returns the BANKACCOUNTID
+ * query id; every non-BaNCS body falls through to the generic
+ * WK_ACCT.id walk unchanged.
  * @param responseBody - Parsed JSON response body.
  * @returns Array of usable identifier strings.
  */
 function extractAccountIds(responseBody: ApiRecord): readonly string[] {
+  const bancs = selectBancsAccountIds(responseBody);
+  if (bancs !== false) return bancs;
   const records = extractAccountRecords(responseBody);
   return records.map(extractValidIdentifier).filter(Boolean);
 }

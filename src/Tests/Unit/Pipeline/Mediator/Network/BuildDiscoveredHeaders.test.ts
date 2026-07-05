@@ -210,3 +210,108 @@ describe("buildDiscoveredHeaders — Phase H'' captured-header pass-through", ()
     expect(opts.extraHeaders.Origin).toBe('https://login.bankhapoalim.fake.example');
   });
 });
+
+// --- BaNCS (Yahav) /account body-shape header fallback ---------------
+
+/**
+ * RED→GREEN per debugging-guidlines.md §1.2.
+ *
+ * <p>Live Yahav run `04-07-2026_12401872` proved: the BaNCS txn
+ * replay POST is WAF/BaNCS-rejected (HTTP 200 HTML
+ * `לא ניתן להשלים בקשה`) because it carries only Origin+Referer —
+ * the SPA's `x-xsrf-token`, `bd_ident_key`, `content-type` and
+ * `accept` are dropped. Root cause: `extractSpaHeaders` finds the
+ * txn endpoint by URL-well-known ONLY, and BaNCS multiplexes txns
+ * through `POST …/BaNCSDigitalApp/account` — a URL that matches no
+ * WK txn pattern — so it hit `return {}` and forwarded nothing.
+ *
+ * <p>The captured `/account` request headers DO carry these
+ * (session-scoped, not single-use) values; the body-shape fallback
+ * ({@link isBancsTxnCapture}) must locate that capture so its custom
+ * headers reach the replay. Default-deny: a non-txn `/account` body
+ * (e.g. `portfolioBalance`) must still forward nothing.
+ */
+const BANCS_XSRF = 'fake-xsrf-token-0000';
+const BANCS_BD_IDENT = 'fake-bd-ident-key-0000';
+const BANCS_CONTENT_TYPE = 'application/json;charset=utf-8';
+const BANCS_TXN_BODY = JSON.stringify({
+  Payload: {
+    Category: ['CURRENT_ACCOUNT'],
+    Filters: [
+      {
+        Filters: [
+          { OrigDt: { Day: 3, Month: 4, Year: 2026 }, Operator: 'GREATERTHANEQUALTO' },
+          { OrigDt: { Day: 3, Month: 7, Year: 2026 }, Operator: 'LESSTHANEQUALTO' },
+        ],
+      },
+    ],
+  },
+});
+const BANCS_BALANCE_BODY = JSON.stringify({ Payload: { Category: ['portfolioBalance'] } });
+
+/**
+ * Build a captured BaNCS `/account` POST — a URL that matches NO
+ * well-known txn pattern, so only the body-shape fallback can find
+ * it — carrying the SPA's session-scoped security headers.
+ * @param postData - Request body (defaults to a CURRENT_ACCOUNT query).
+ * @returns Single-endpoint fixture for the frozen network.
+ */
+function buildBancsTxnCapture(postData: string = BANCS_TXN_BODY): IDiscoveredEndpoint {
+  return {
+    url: 'https://digital.yahav.fake.example/BaNCSDigitalApp/account',
+    method: 'POST',
+    postData,
+    contentType: BANCS_CONTENT_TYPE,
+    requestHeaders: {
+      'content-type': BANCS_CONTENT_TYPE,
+      accept: 'application/json, text/plain, */*',
+      'x-xsrf-token': BANCS_XSRF,
+      bd_ident_key: BANCS_BD_IDENT,
+      referer: 'https://digital.yahav.fake.example/BaNCSDigitalApp/index.html',
+      origin: 'https://digital.yahav.fake.example',
+      cookie: 'XSRF-TOKEN=abc; SMSESSION=xyz',
+      host: 'digital.yahav.fake.example',
+      'user-agent': 'Mozilla/5.0 ...',
+    },
+    responseHeaders: { 'content-type': 'application/json; charset=UTF-8' },
+    responseBody: { Payload: { DataEntity: [] } },
+    timestamp: 2,
+    captureIndex: 2,
+    status: 200,
+  };
+}
+
+describe('buildDiscoveredHeaders — BaNCS /account body-shape header fallback', () => {
+  it('BDH-BANCS-XSRF-001 forwards x-xsrf-token from a BaNCS /account txn capture (no URL-WK match)', async (): Promise<void> => {
+    const network = createFrozenNetwork([buildBancsTxnCapture()], false);
+
+    const opts = await network.buildDiscoveredHeaders();
+
+    expect(opts.extraHeaders['x-xsrf-token']).toBe(BANCS_XSRF);
+  });
+
+  it('BDH-BANCS-IDENT-001 forwards the bd_ident_key identity token from the BaNCS capture', async (): Promise<void> => {
+    const network = createFrozenNetwork([buildBancsTxnCapture()], false);
+
+    const opts = await network.buildDiscoveredHeaders();
+
+    expect(opts.extraHeaders.bd_ident_key).toBe(BANCS_BD_IDENT);
+  });
+
+  it('BDH-BANCS-CONTENT-TYPE-001 forwards the BaNCS content-type verbatim', async (): Promise<void> => {
+    const network = createFrozenNetwork([buildBancsTxnCapture()], false);
+
+    const opts = await network.buildDiscoveredHeaders();
+
+    expect(opts.extraHeaders['content-type']).toBe(BANCS_CONTENT_TYPE);
+  });
+
+  it('BDH-BANCS-DENY-001 forwards NO SPA security headers for a non-txn /account body (default-deny)', async (): Promise<void> => {
+    const network = createFrozenNetwork([buildBancsTxnCapture(BANCS_BALANCE_BODY)], false);
+
+    const opts = await network.buildDiscoveredHeaders();
+
+    expect(opts.extraHeaders['x-xsrf-token']).toBeUndefined();
+    expect(opts.extraHeaders.bd_ident_key).toBeUndefined();
+  });
+});

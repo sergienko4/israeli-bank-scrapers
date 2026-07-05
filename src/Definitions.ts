@@ -75,7 +75,7 @@ export const SCRAPERS = {
   },
   [CompanyTypes.Yahav]: {
     name: 'Bank Yahav',
-    loginFields: ['username', 'nationalID', PASSWORD_FIELD],
+    loginFields: ['num', 'nationalID', PASSWORD_FIELD],
   },
   [CompanyTypes.BeyahadBishvilha]: {
     name: 'Beyahad Bishvilha',

@@ -14,6 +14,12 @@ const KIND_REGEX = 'regex' as const;
  *  TRANSACTIONS, and SUCCESS lists as a dashboard signal. */
 const LABEL_TXN_AND_CHARGES = 'עסקאות וחיובים' as const;
 
+/** Yahav current-account ("checking") nav label. Both quote glyphs — real
+ *  gershayim U+05F4 + ASCII U+0022 fallback. Shared by TRANSACTIONS (nudge
+ *  target), MENU_EXPAND (collapsed-menu trigger), and REVEAL (shell anchor). */
+const LABEL_CURRENT_ACCOUNT = 'חשבון עו״ש' as const;
+const LABEL_CURRENT_ACCOUNT_ASCII = 'חשבון עו"ש' as const;
+
 /** Transactions/charges navigation candidates, priority-ordered: bank-account
  *  intent → card transactions → medium → generic. The exact-text
  *  "פירוט החיובים והעסקאות" (with definite articles) sits at the top to
@@ -24,13 +30,18 @@ const LABEL_TXN_AND_CHARGES = 'עסקאות וחיובים' as const;
  *  for all 7 banks: only Max has this element; no overlap. */
 const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
   { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
-  { kind: KIND_ARIA_LABEL, value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות עו"ש' },
   { kind: 'clickableText', value: 'פירוט תנועות' },
   { kind: 'clickableText', value: 'לכל התנועות' },
   { kind: 'clickableText', value: 'תנועות אחרונות' },
   { kind: 'clickableText', value: 'לעובר ושב' },
+  // Yahav current-account nav (SPA route #/main/accounts/current/). Both quote
+  // variants: gershayim U+05F4 (the real glyph) + ASCII U+0022 fallback. Placed
+  // before the credit-card entries so the account-resolve nudge reaches the
+  // current DDA (id-bearing /account response), not the credit-cards view.
+  { kind: 'clickableText', value: LABEL_CURRENT_ACCOUNT },
+  { kind: 'clickableText', value: LABEL_CURRENT_ACCOUNT_ASCII },
   { kind: KIND_ARIA_LABEL, value: 'עסקאות בכרטיס לפי מועד חיוב' },
   { kind: KIND_TEXT_CONTENT, value: 'עסקאות בכרטיס לפי מועד חיוב' },
   { kind: 'clickableText', value: 'פירוט חיובים' },
@@ -71,6 +82,14 @@ export const WK_DASHBOARD = {
   ],
   REVEAL: [
     { kind: KIND_REGEX, value: String.raw`כניסתך האחרונה.*\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}` },
+    // Yahav BaNCS static-shell dashboard-ready anchors. The "כניסתך האחרונה"
+    // last-login widget above is data-gated (Angular ng-if on customer.activity)
+    // and renders late/unreliably, so it cannot be the sole reveal. These render
+    // with the SPA shell on #/main/home: the header portfolio label + the
+    // current-account nav (both quote variants).
+    { kind: KIND_TEXT_CONTENT, value: 'החשבונות שלי' },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT_ASCII },
     { kind: KIND_TEXT_CONTENT, value: LABEL_TXN_AND_CHARGES },
     { kind: KIND_TEXT_CONTENT, value: 'כל הפעולות' },
     { kind: KIND_TEXT_CONTENT, value: 'חיובים ועסקאות' },
@@ -79,13 +98,17 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'חיובים עתידיים' },
     { kind: KIND_TEXT_CONTENT, value: 'צפייה בכרטיסים שלי' },
     { kind: KIND_TEXT_CONTENT, value: 'יתרה בחשבון' },
+    // Leumi shell anchor — renders immediately (the late last-login regex
+    // above caused the observed "no reveal" live regression).
+    { kind: KIND_TEXT_CONTENT, value: 'תנועות בחשבון' },
   ],
   /** Menu expand triggers — collapsed menus that hide transaction links. */
   MENU_EXPAND: [
     { kind: KIND_TEXT_CONTENT, value: 'פעולות' },
     { kind: KIND_TEXT_CONTENT, value: 'עובר ושב' },
     { kind: KIND_TEXT_CONTENT, value: 'עו"ש' },
-    { kind: KIND_TEXT_CONTENT, value: 'חשבון עו"ש' },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT },
+    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT_ASCII },
     { kind: KIND_TEXT_CONTENT, value: 'פעולות נוספות' },
     { kind: KIND_TEXT_CONTENT, value: 'תפריט' },
     { kind: KIND_TEXT_CONTENT, value: 'שירות אונליין' },
@@ -123,8 +146,13 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'המתנה' },
   ],
   TXN_PAGE_PATTERNS: [
-    /\/transactions$/i,
     /\/transactions\b/i,
+    // Max credit-card txn data endpoint (`…/transactionDetails/
+    // getTransactionsAndGraphs`) — a Max-specific API name, matched by URL so
+    // it is picked even when the current billing cycle is empty (0 records) and
+    // response-shape picking would miss it. Word-anchored; no other bank's URL
+    // contains this token, so it stays default-deny for every other bank.
+    /\/getTransactionsAndGraphs\b/i,
     /\/current-account\/transactions/i,
     /\/transactionlist/i,
     /\/ocp\/transactions/i,

@@ -7,6 +7,7 @@ import { buildPagiPipeline } from './Pagi/PagiPipeline.js';
 import { buildPayBoxPipeline } from './PayBox/PayBoxPipeline.js';
 import { buildPepperPipeline } from './Pepper/PepperPipeline.js';
 import { buildVisaCalPipeline } from './VisaCal/VisaCalPipeline.js';
+import { buildYahavPipeline } from './Yahav/YahavPipeline.js';
 
 /**
  * Pipeline registry for banks Mercantile through VisaCal (alphabetical second
@@ -21,6 +22,7 @@ const PIPELINE_REGISTRY_MERCANTILE_TO_VISACAL: Partial<Record<CompanyTypes, Pipe
   [CompanyTypes.PayBox]: buildPayBoxPipeline,
   [CompanyTypes.Pepper]: buildPepperPipeline,
   [CompanyTypes.VisaCal]: buildVisaCalPipeline,
+  [CompanyTypes.Yahav]: buildYahavPipeline,
 };
 
 export default PIPELINE_REGISTRY_MERCANTILE_TO_VISACAL;

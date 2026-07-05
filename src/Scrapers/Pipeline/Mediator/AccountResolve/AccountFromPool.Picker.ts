@@ -7,6 +7,7 @@
 import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../Registry/WK/ScrapeWK.js';
 import type { ApiPayload } from '../../Strategy/Scrape/ScrapeTypes.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
+import { selectBancsAccountRecords } from '../Scrape/Bancs/BancsAccount.js';
 import {
   extractAccountIds,
   extractAccountRecords,
@@ -107,6 +108,22 @@ function firstRecordFieldRichness(ep: IDiscoveredEndpoint): number {
   return countPopulatedEntries(containers[names[0]][0]);
 }
 
+/**
+ * Count the shape-guarded BaNCS (Yahav) current DDA account records
+ * reachable from this capture's body. Returns 0 for every non-BaNCS
+ * bank (default-deny), so {@link scoreCandidate} is provably unchanged
+ * for Leumi/Discount/VisaCal/Max/Isracard.
+ * @param ep - Captured endpoint.
+ * @returns 1 when the body is the BaNCS account-resolve response, else 0.
+ */
+function bancsAccountCount(ep: IDiscoveredEndpoint): number {
+  const body = ep.responseBody;
+  if (body === null || typeof body !== 'object') return 0;
+  const records = selectBancsAccountRecords(body as ApiPayload);
+  if (records === false) return 0;
+  return records.length;
+}
+
 /** Scoring tuple used to rank pool candidates for the picker. */
 interface IPoolCandidate {
   readonly endpoint: IDiscoveredEndpoint;
@@ -115,16 +132,17 @@ interface IPoolCandidate {
 }
 
 /**
- * Builds a scoring tuple for one endpoint.
+ * Builds a scoring tuple for one endpoint. The candidate count is the
+ * larger of the WK named-container total and the shape-guarded BaNCS
+ * account count, so a BaNCS account-resolve body becomes selectable
+ * without inflating the WK-only {@link poolMaxContainer} guard.
  * @param ep - Captured endpoint.
  * @returns Scoring tuple.
  */
 function scoreCandidate(ep: IDiscoveredEndpoint): IPoolCandidate {
-  return {
-    endpoint: ep,
-    count: sumContainerRecords(ep),
-    richness: firstRecordFieldRichness(ep),
-  };
+  const wk = sumContainerRecords(ep);
+  const bancs = bancsAccountCount(ep);
+  return { endpoint: ep, count: maxNumber(wk, bancs), richness: firstRecordFieldRichness(ep) };
 }
 
 /**

@@ -118,17 +118,20 @@ defaults:
 #                           Rule #16 (Amex never co-runs with
 #                           Isracard) holds by releasing gate-D
 #                           alone — Group A stays unreleased.
+#   e2e-real-group-e      — Stage 4 (parallel, gate-E approval):
+#                           non-OTP browser-form banks
+#                           (Leumi, Yahav).
 #   dependency-review     — PR-only, independent.
 #
 # Each gate runs ONCE per PR — no overlap between validate and the
-# real-bank matrices. Three approval clicks per PR (gate-A, gate-B,
-# gate-C) — intentional revert of the 2026-05-13 single-gate
-# consolidation so each category can be approved independently.
+# real-bank matrices. Five approval clicks per PR (gate-A … gate-E)
+# — intentional revert of the 2026-05-13 single-gate consolidation
+# so each category can be approved independently.
 #
-# Gates are mutually INDEPENDENT — all three become approvable as
+# Gates are mutually INDEPENDENT — all become approvable as
 # soon as `validate` + `dns-preflight` are green. The reviewer can
 # release any group without waiting for another to finish; in
-# practice that means Groups A, B, C and D can run in parallel once
+# practice that means Groups A, B, C, D and E can run in parallel once
 # each has been clicked. Rule #16 (Amex never co-runs with Isracard)
 # is honored by releasing gate-D alone for an Amex-only run — Group A
 # and Group D are simply never approved together.
@@ -674,9 +677,10 @@ jobs:
   # job would spawn one approval per matrix cell — N clicks per
   # gate instead of 1.
   #
-  # The four gates reference DISTINCT environments
+  # The five gates reference DISTINCT environments
   # (`e2e-real-group-a`, `e2e-real-group-b`, `e2e-real-group-c`,
-  # `e2e-real-group-d`). Sharing one environment across them would
+  # `e2e-real-group-d`, `e2e-real-group-e`). Sharing one environment
+  # across them would
   # let GitHub batch them into a single approval prompt — fine for an
   # "approve everything" workflow but defeats per-category review.
   # Required repo setup: Settings → Environments → create each of
@@ -739,7 +743,8 @@ jobs:
     # purpose of per-category review. Required setup: repo
     # Settings → Environments → create `e2e-real-group-a` with the
     # desired reviewers; same for `e2e-real-group-b` /
-    # `e2e-real-group-c` / `e2e-real-group-d`. Until the environments
+    # `e2e-real-group-c` / `e2e-real-group-d` / `e2e-real-group-e`.
+    # Until the environments
     # exist, GitHub
     # auto-creates them on first run WITHOUT reviewers (the workflow
     # passes through unapproved); flip-on protection by adding
@@ -804,9 +809,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # Non-OTP browser-form banks only — no OTP / TELEGRAM
@@ -969,9 +974,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           AMEX_ID: ${{ secrets.AMEX_ID }}
@@ -1020,11 +1025,9 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group B — browser-form banks (Hapoalim, Beinleumi, Leumi).
-  # Hapoalim + Beinleumi are OTP (Telegram secrets deliver the SMS
-  # OTP dance); Leumi is username/password (two-step nav, no OTP — it
-  # simply ignores the Telegram secrets). Requires gate-B approval
-  # AFTER Group A + Amex have completed.
+  # Group B — OTP browser-form banks (Hapoalim, Beinleumi). Telegram
+  # secrets deliver the SMS OTP dance. (Leumi + Yahav moved to their
+  # own non-OTP Group E below.) Gate is independent — see the header.
   # ──────────────────────────────────────────────────────────────
   e2e-real-group-b-gate:
     name: E2E Real B — approval gate
@@ -1071,7 +1074,6 @@ jobs:
         bank:
           - Hapoalim
           - Beinleumi
-          - Leumi
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -1087,9 +1089,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # OTP browser-form banks. Telegram secrets deliver the SMS
@@ -1098,9 +1100,6 @@ jobs:
           HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}
           BEINLEUMI_USERNAME: ${{ secrets.BEINLEUMI_USERNAME }}
           BEINLEUMI_PASSWORD: ${{ secrets.BEINLEUMI_PASSWORD }}
-          # Leumi is username/password (no OTP — Telegram secrets unused).
-          LEUMI_USERNAME: ${{ secrets.LEUMI_USERNAME }}
-          LEUMI_PASSWORD: ${{ secrets.LEUMI_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -1226,9 +1225,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # api-direct banks. PayBox derives deviceId16Hex from
@@ -1299,6 +1298,100 @@ jobs:
       # Replaces the actions/cache-backed timestamp dance per CR review
       # on PR #300 (cache was PR-branch scoped → cross-PR enforcement
       # unreliable; concurrency.group + post-run sleep is reliable).
+      - name: Cooldown hold (${{ matrix.bank }})
+        if: failure()
+        run: |
+          set -euo pipefail
+          echo "[cooldown-hold] run failed — holding slot 120 s for ${{ matrix.bank }}"
+          sleep 120
+          echo "[cooldown-hold] done; slot freed for next queued same-bank job"
+
+  # ──────────────────────────────────────────────────────────────
+  # Group E — non-OTP browser-form banks (Leumi, Yahav). Split out
+  # of Group B so Leumi + Yahav approve/run under their OWN gate-E,
+  # independent of the OTP banks. Both are username/password (no OTP
+  # — no Telegram secrets). Gate is independent — see the header.
+  # ──────────────────────────────────────────────────────────────
+  e2e-real-group-e-gate:
+    name: E2E Real E — approval gate
+    # Same HARD dependency on `dns-preflight` as the other gates.
+    needs: [validate, dns-preflight]
+    # See dns-preflight comment for `real_gates_enabled` semantics.
+    if: needs.validate.outputs.real_gates_enabled == 'true'
+    runs-on: ubuntu-latest
+    # Distinct environment per the gate-A comment above — each
+    # group's approval click is independent.
+    environment: e2e-real-group-e
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Gate released
+        run: echo "Group E approved; non-OTP browser-form matrix may proceed."
+
+  e2e-real-group-e:
+    name: E2E Real E (${{ matrix.bank }})
+    needs: e2e-real-group-e-gate
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
+    concurrency:
+      group: e2e-real-bank-${{ matrix.bank }}-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bank:
+          - Leumi
+          - Yahav
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Force reliable DNS for ${{ matrix.bank }}
+        run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
+      - uses: ./.github/actions/setup-node-deps
+      - uses: ./.github/actions/install-camoufox
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      - name: E2E real (${{ matrix.bank }})
+        env:
+          # FORENSIC_TRACE (repo variable) gates per-run artefact capture;
+          # LOG_LEVEL only sets log verbosity. See Group B for details.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
+          LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
+          RUNS_ROOT: /tmp/runs
+          # Leumi is username/password (no OTP — no Telegram secrets).
+          LEUMI_USERNAME: ${{ secrets.LEUMI_USERNAME }}
+          LEUMI_PASSWORD: ${{ secrets.LEUMI_PASSWORD }}
+          # Yahav is num/nationalID/password (no OTP). YAHAV_USERNAME holds the
+          # user-code (-> `num`; legacy secret name kept, and `num` also accepts
+          # the old `username` key); YAHAV_ID -> `nationalID`; YAHAV_PASSWORD ->
+          # `password`.
+          YAHAV_USERNAME: ${{ secrets.YAHAV_USERNAME }}
+          YAHAV_ID: ${{ secrets.YAHAV_ID }}
+          YAHAV_PASSWORD: ${{ secrets.YAHAV_PASSWORD }}
+        run: |
+          node --experimental-vm-modules node_modules/jest/bin/jest.js \
+            --ci \
+            --testPathPatterns="E2eReal/${{ matrix.bank }}\\.e2e-real" \
+            --testNamePattern='scrapes transactions successfully' \
+            --testPathIgnorePatterns='/node_modules/' \
+            --verbose \
+            --forceExit
+      - name: Upload full diagnostics to private store (${{ matrix.bank }})
+        if: ${{ !cancelled() && (failure() || vars.FORENSIC_TRACE != '') }}
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: ${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
       - name: Cooldown hold (${{ matrix.bank }})
         if: failure()
         run: |

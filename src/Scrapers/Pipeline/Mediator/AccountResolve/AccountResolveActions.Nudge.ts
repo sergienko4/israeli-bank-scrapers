@@ -20,6 +20,7 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
+import { isTxnPageUrl } from '../../Registry/WK/DashboardTxnMatch.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
@@ -42,8 +43,6 @@ const ACCOUNTS_PATTERNS = [
 const TRANSACTIONS_GROUP = WK_DASHBOARD.TRANSACTIONS;
 /** Well-known menu-expand candidates (cast mirrors Dashboard call sites). */
 const MENU_EXPAND_GROUP = WK_DASHBOARD.MENU_EXPAND as unknown as readonly SelectorCandidate[];
-/** Transactions-page href patterns for the href-navigation tier. */
-const TXN_PAGE_PATTERNS = WK_DASHBOARD.TXN_PAGE_PATTERNS;
 
 /** Bundled args — structurally compatible with Wait's `IAwaitArgs`. */
 interface INudgeArgs {
@@ -97,15 +96,6 @@ async function tierExpandThenClick(args: INudgeArgs): Promise<boolean> {
   if (!(await clickGroup(args.mediator, MENU_EXPAND_GROUP))) return false;
   if (!(await clickGroup(args.mediator, TRANSACTIONS_GROUP))) return false;
   return accountsTrafficSeen(args.mediator);
-}
-
-/**
- * Test an href against the well-known transactions-page patterns.
- * @param href - Candidate href.
- * @returns True when the href looks like a transactions page.
- */
-function matchesTxnPattern(href: string): boolean {
-  return TXN_PAGE_PATTERNS.some(pattern => pattern.test(href));
 }
 
 /**
@@ -163,7 +153,7 @@ function toSafeHttpUrl(href: string, base: string): string {
  */
 function resolveFirstSafeTxnHref(hrefs: readonly string[], base: string): string {
   const safe = hrefs
-    .filter(matchesTxnPattern)
+    .filter(isTxnPageUrl)
     .map(h => toSafeHttpUrl(h, base))
     .find(u => u !== '');
   return safe ?? '';

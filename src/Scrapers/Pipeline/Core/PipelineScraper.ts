@@ -17,6 +17,7 @@ import type {
 import type { VoidResult } from '../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../Base/ScraperError.js';
 import { isOk, type Procedure, toLegacy } from '../Types/Procedure.js';
+import { normalizeCredentials } from './CredentialAliases.js';
 import { executePipeline } from './Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
@@ -61,7 +62,8 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
       const legacy = toLegacy(buildResult);
       return legacy;
     }
-    return executePipeline(buildResult.value, credentials);
+    const normalized = normalizeCredentials(credentials);
+    return executePipeline(buildResult.value, normalized);
   }
 
   /**

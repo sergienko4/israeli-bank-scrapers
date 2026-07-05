@@ -30,7 +30,7 @@ import type { SelectorCandidate } from '../../../../Base/Config/LoginConfigTypes
 import { capTimeout, getDebug } from '../../../Types/Debug.js';
 import { type IElementIdentity, type IRaceResult, NOT_FOUND_RESULT } from '../ElementMediator.js';
 import { buildLocatorEntriesAll, type ILocatorEntry } from './Entries.js';
-import { type IRaceDiagnostic, raceLocatorsWithHitTest } from './Hittest.js';
+import { type IRaceDiagnostic, raceLocatorsFirstHit } from './Hittest.js';
 import { buildFoundResult, extractAndTraceIdentity, snapshotValue } from './Snapshot.js';
 
 const LOG = getDebug(import.meta.url);
@@ -87,7 +87,7 @@ async function runHitTestRace(
   const countStr = String(locators.length);
   const timeoutStr = String(timeout);
   LOG.debug({ message: `${label}: ${countStr} locators, timeout=${timeoutStr}ms` });
-  const diag = await raceLocatorsWithHitTest(locators, timeout);
+  const diag = await raceLocatorsFirstHit(locators, timeout);
   traceRaceDiagnostic(entries, diag);
   return diag;
 }

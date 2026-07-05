@@ -115,7 +115,9 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- visible text ---
     { kind: 'labelText', value: 'קוד מזהה' },
     { kind: 'labelText', value: 'מספר חשבון' },
+    { kind: 'labelText', value: 'קוד משתמש' }, // Yahav (reused)
     { kind: 'placeholder', value: 'מספר חשבון' },
+    { kind: 'placeholder', value: 'קוד משתמש' }, // Yahav (reused)
     { kind: 'ariaLabel', value: 'מספר חשבון' },
     // --- semantic HTML ---
     { kind: 'name', value: 'num' },
@@ -124,6 +126,7 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- walk-up DOM (absolute last resort) ---
     { kind: 'textContent', value: 'קוד מזהה' },
     { kind: 'textContent', value: 'מספר חשבון' },
+    { kind: 'textContent', value: 'קוד משתמש' }, // Yahav (reused)
   ],
   otpCode: [
     // --- visible text ---
@@ -217,6 +220,7 @@ export const WELL_KNOWN_DASHBOARD_SELECTORS = {
   dashboardIndicator: [
     { kind: 'textContent', value: 'שלום' },
     { kind: 'textContent', value: 'חשבון עו"ש' },
+    { kind: 'textContent', value: 'חשבון עו״ש' },
     { kind: 'textContent', value: 'תנועות אחרונות' },
     { kind: 'textContent', value: 'יתרה' },
     { kind: 'textContent', value: 'סך הכל' },
@@ -250,6 +254,7 @@ export const WELL_KNOWN_DASHBOARD_SELECTORS = {
   balance: [
     { kind: 'textContent', value: 'יתרה' },
     { kind: 'textContent', value: 'סה"כ' },
+    { kind: 'textContent', value: 'סה״כ' },
     { kind: 'ariaLabel', value: 'יתרה' },
   ],
   /** Loading indicator */

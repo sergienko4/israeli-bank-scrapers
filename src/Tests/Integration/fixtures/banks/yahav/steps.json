@@ -1,0 +1,10 @@
+[
+  {
+    "name": "01-home",
+    "finalUrl": "https://www.yahav.co.il/"
+  },
+  {
+    "name": "02-pre-login",
+    "finalUrl": "https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/authentication"
+  }
+]
