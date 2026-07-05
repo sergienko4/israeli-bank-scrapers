@@ -53,7 +53,7 @@ describe.skip('External Browser: Mocked E2E', () => {
   }, 60000);
 
   it('uses provided browser context', async () => {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ viewport: null });
 
     const scraper = createScraper({
       companyId: CompanyTypes.Amex,

@@ -1,0 +1,30 @@
+diff --git a/node_modules/playwright-core/lib/coreBundle.js b/node_modules/playwright-core/lib/coreBundle.js
+index 7d8468f..8795de8 100644
+--- a/node_modules/playwright-core/lib/coreBundle.js
++++ b/node_modules/playwright-core/lib/coreBundle.js
+@@ -25126,9 +25126,9 @@ var init_tracing = __esm({
+           params: {
+             error: serializeError(pageError.error),
+             location: {
+-              url: pageError.location.url,
+-              line: pageError.location.lineNumber,
+-              column: pageError.location.columnNumber
++              url: (pageError.location?.url ?? ""),
++              line: (pageError.location?.lineNumber ?? 0),
++              column: (pageError.location?.columnNumber ?? 0)
+             }
+           },
+           pageId: page.guid
+@@ -52905,9 +52905,9 @@ var init_browserContextDispatcher = __esm({
+             error: serializeError(pageError.error),
+             page: PageDispatcher.from(this, page),
+             location: {
+-              url: pageError.location.url,
+-              line: pageError.location.lineNumber,
+-              column: pageError.location.columnNumber
++              url: (pageError.location?.url ?? ""),
++              line: (pageError.location?.lineNumber ?? 0),
++              column: (pageError.location?.columnNumber ?? 0)
+             }
+           });
+         });

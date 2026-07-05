@@ -116,7 +116,7 @@ function silentLogger(): pino.Logger {
 async function preparePage(
   testCase: IHomeEntryCase,
 ): Promise<{ context: BrowserContext; page: Page }> {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ viewport: null });
   const page = await context.newPage();
   await setupRequestInterception(page, [
     {

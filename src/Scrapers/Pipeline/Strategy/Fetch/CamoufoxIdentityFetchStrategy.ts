@@ -406,7 +406,7 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
    * @returns Active Page on success; throws on failure (caller wraps).
    */
   private async navigateToOrigin(browser: Browser): Promise<Page> {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ viewport: null });
     const hasBypass = this._bypassOriginChallenge;
     if (hasBypass) await this.installOriginChallengeBypass(context);
     const page = await context.newPage();

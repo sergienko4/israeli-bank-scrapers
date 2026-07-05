@@ -2,6 +2,9 @@
 .husky/* text eol=lf
 *.sh text eol=lf
 
+# patch-package patches must stay LF or they fail to apply on Linux CI
+*.patch text eol=lf
+
 # Source files: normalize to LF in repo, respect OS on checkout
 *.ts text eol=lf
 *.js text eol=lf
