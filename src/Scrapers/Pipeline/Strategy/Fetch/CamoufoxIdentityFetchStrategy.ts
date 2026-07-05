@@ -13,6 +13,7 @@ import type { Browser, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { LifecyclePromise, Nullable } from '../../../Base/Interfaces/CallbackTypes.js';
+import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
 import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
@@ -406,7 +407,8 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
    * @returns Active Page on success; throws on failure (caller wraps).
    */
   private async navigateToOrigin(browser: Browser): Promise<Page> {
-    const context = await browser.newContext({ viewport: null });
+    const contextOptions = buildContextOptions();
+    const context = await browser.newContext(contextOptions);
     const hasBypass = this._bypassOriginChallenge;
     if (hasBypass) await this.installOriginChallengeBypass(context);
     const page = await context.newPage();
