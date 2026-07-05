@@ -5,18 +5,19 @@
  * builder. Account-identity merge lives in OtsarHahayalShapeAccounts.ts;
  * transactions in OtsarHahayalShapeTxns.ts.
  *
- * Otsar Hahayal is a First-International (FIBI) group brand. The BFF path
- * shape (userData + bff-balancetransactions) is cloned from Beinleumi per
- * the zero-cross-bank-import convention, but the host is Otsar Hahayal's
- * own post-login origin (digital.otsarh.co.il, from the fork login
- * navigation and BankFixtureExpectations) — NOT Beinleumi's
- * online.fibi.co.il. BrowserFetchStrategy dispatches through the live
- * login page, so the BFF must be same-origin or session cookies will not
- * ride. Every post-login call is cookie-authed and every GET carries a
- * fresh random `uid`. balanceKind=account. Raw txn rows normalise
- * downstream via the Data Mapper — never in the shape. Host regrounded
- * from the fork login origin; the cloned BFF paths on this host are
- * pending maintainer live-E2E.
+ * Otsar Hahayal is a First-International (FIBI) group brand sharing the
+ * identical Mataf/appsng BFF contract with Beinleumi (userData +
+ * bff-balancetransactions) — paths are cloned per the
+ * zero-cross-bank-import convention and only the API host differs. The
+ * host follows the proven FIBI `online.<login-domain>` transform: login
+ * www.bankotsar.co.il -> API online.bankotsar.co.il (DNS-confirmed on the
+ * shared FIBI subnet; same registrable domain, so the session cookies set
+ * at login ride to the API host — the mechanism proven live for Beinleumi
+ * www.fibi.co.il -> online.fibi.co.il). Every post-login call is
+ * cookie-authed and every GET carries a fresh random `uid`.
+ * balanceKind=account. Raw txn rows normalise downstream via the Data
+ * Mapper — never in the shape. Host DNS + pattern-grounded; a full
+ * live-E2E on real credentials is still pending.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -25,8 +26,8 @@ import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirec
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
-/** Otsar Hahayal BFF origin — post-login API host (same-origin as login). */
-export const OTSAR_HAHAYAL_API = 'https://digital.otsarh.co.il';
+/** Otsar Hahayal BFF origin — FIBI online.<login-domain> API host. */
+export const OTSAR_HAHAYAL_API = 'https://online.bankotsar.co.il';
 /** userData path — accounts source (account number + branch). */
 export const USER_DATA_PATH = '/MatafAngularRestApiService/rest/utils/userData';
 /** BFF base — accountType, balances, and list all hang off this prefix. */
