@@ -29,7 +29,7 @@ For each legacy bank, the porting PR does:
 | 6 | Once green, delete `src/Scrapers/<Bank>/` and remove from `SCRAPER_REGISTRY_LEUMI_TO_YAHAV.ts` or its sibling |
 | 7 | Re-run `lint:dead-code` to confirm no unused exports remain |
 
-The 14 banks already on Pipeline followed exactly this sequence over v8.3 → v8.4.
+The 16 banks already on Pipeline followed exactly this sequence.
 
 ## Per-utility migration sequence
 
@@ -44,6 +44,9 @@ For each `src/Common/` helper that the Pipeline does NOT already use:
 | 5 | When the last legacy caller is migrated, delete the original |
 
 ## Order of operations (proposed)
+
+> **Status:** Bank Leumi (wave 1) and Bank Yahav (wave 2) have since migrated to
+> the Pipeline; Mizrahi, Behatsdaa, and Beyahad Bishvilha remain.
 
 | Wave | Banks to migrate | Why this wave |
 |---|---|---|
@@ -62,7 +65,7 @@ Each wave is a separate PR, gated by:
 
 ## Why this order?
 
-- **Mizrahi + Leumi first** — they're the highest-traffic legacy banks, so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
+- **Mizrahi + Leumi first** — the highest-traffic legacy banks (Leumi has since migrated), so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
 - **Banks before utilities** — utilities can't safely be deleted while a single legacy bank still imports them. Migrate all bank surfaces, then fold the helpers.
 - **Base classes last** — they are an implementation detail; once no caller imports them, they go.
 
