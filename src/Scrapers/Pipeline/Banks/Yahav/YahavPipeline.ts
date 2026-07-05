@@ -1,8 +1,11 @@
 /**
- * Yahav pipeline — 100% generic, no OTP. BaNCS Digital backend.
- * GenericAutoScrape handles everything via network traffic discovery.
- * Login fields carry NO bank-specific selectors: each resolves purely
- * through the shared visible-text WellKnown (LoginWK) — num → `קוד משתמש`,
+ * Yahav pipeline — browser login (no OTP) + hard-model post-auth scrape.
+ * Replaces the generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain with the
+ * Yahav TCS BaNCS hard model (api-direct scrape): a single multiplexed
+ * `/BaNCSDigitalApp/account` endpoint serves accounts, balance and
+ * transactions, differentiated by the request `Payload`. balanceKind=account.
+ * Login fields carry NO bank-specific selectors: each resolves purely through
+ * the shared visible-text WellKnown (LoginWK) — num → `קוד משתמש`,
  * nationalID → `תעודת זהות`, password → `input[type=password]`. Yahav's form
  * hides its visible labels in `aria-hidden` sibling spans (empty `<label>`s,
  * `" "` placeholders), so LoginWK carries `textContent` variants whose
@@ -15,6 +18,7 @@ import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.j
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import { YAHAV_SHAPE } from './scrape/YahavShape.js';
 
 /** Yahav login fields — resolved entirely via shared WellKnown (no CSS). */
 const YAHAV_LOGIN: ILoginConfig = {
@@ -38,6 +42,7 @@ function buildYahavPipeline(options: ScraperOptions): Procedure<IPipelineDescrip
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(YAHAV_LOGIN)
+    .withBrowserApiDirect(YAHAV_SHAPE)
     .build();
 }
 

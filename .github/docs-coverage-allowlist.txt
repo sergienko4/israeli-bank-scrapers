@@ -1493,3 +1493,37 @@ IPagiAcct
 # + BindApiMediatorAuth.ts; not part of the @sergienko4/israeli-bank-scrapers public
 # surface (Pipeline is internal to the scrapers, not exported via src/index.ts).
 storageTiers
+# Reason: Yahav (TCS BaNCS Digital) hard-model scrape shape. The envelope
+# template blocks, payload builders, account/txn extractors, and the assembled
+# shape are per-bank data + closures consumed only within the Yahav pipeline
+# and the shared ApiDirectScrape driver. Framework-internal; never re-exported
+# from the package index. Not user-facing public API.
+API_VER
+APP_VER
+CLIENT_APP
+DEVICE
+ENVELOPE_STATIC
+LOCALE
+PROXY_APP
+RESOURCE
+buildEnvelope
+portfolioRefs
+IPortfolioRefs
+YAHAV_API
+ACCOUNT_PATH
+IYahavAcct
+msgId
+accountsPayload
+balancePayload
+refDataList
+txnsPayload
+extractYahavAccounts
+YAHAV_CUSTOMER
+YAHAV_BALANCE
+YAHAV_TXNS
+YAHAV_SHAPE
+# Reason: BindApiMediatorBancs -- the captured BaNCS session-value bundle
+# (SecToken + portfolio refs) stashed on the mediator session-context at
+# BIND-API-MEDIATOR. Framework-internal; consumed only by the BIND actions.
+# Not user-facing.
+IBancsCapture

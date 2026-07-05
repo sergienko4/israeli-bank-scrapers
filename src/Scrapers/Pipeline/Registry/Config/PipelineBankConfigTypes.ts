@@ -207,4 +207,18 @@ export interface IPipelineBankConfig {
    * naturally. Absent ⇒ no sniff (generic discovery runs unchanged).
    */
   readonly authHeaderUrlMatch?: string;
+  /**
+   * Opt-in: capture the TCS BaNCS session values (the auth `SecToken` block +
+   * the portfolio `iorId`/`Id`) at BIND-API-MEDIATOR. For BaNCS Digital banks
+   * (Yahav) whose every post-login API request is a `MessageEnvelope` carrying
+   * a body-borne `SecToken` + portfolio refs the SPA established during login.
+   * BIND scans the login-inclusive pool for the accounts POST
+   * (`/BaNCSDigitalApp/account`) whose `postData` holds a filled `SecToken` +
+   * `Payload.DataEntity[0].Prtflio.Id`, and stashes `bancsSecToken` /
+   * `bancsPortfolioIorId` / `bancsPortfolioId` on the mediator
+   * session-context for the hard-model shape to reconstruct each request.
+   * ONLY the accounts endpoint family is inspected — the credential POST is
+   * never read (PII-safe by extraction scope). Absent ⇒ no capture.
+   */
+  readonly bancsSessionCapture?: boolean;
 }

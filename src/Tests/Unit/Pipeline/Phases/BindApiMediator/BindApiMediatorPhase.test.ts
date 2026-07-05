@@ -15,6 +15,8 @@ import type { Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
+import type { INetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Discovery.js';
+import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
 import { buildActionContext } from '../../../../../Scrapers/Pipeline/Phases/Base/ActionContextBuilder.js';
 import { createBindApiMediatorPhase } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorPhase.js';
 import type { IBrowserState } from '../../../../../Scrapers/Pipeline/Types/Domain/BrowserState.js';
@@ -43,8 +45,11 @@ function makeCtx(overrides: ICtxOverrides): IPipelineContext {
   const browser: IPipelineContext['browser'] = overrides.browserPresent
     ? some({ page, context: {}, cleanups: [] } as unknown as IBrowserState)
     : none();
+  const network = {
+    getAllEndpoints: jest.fn((): readonly IDiscoveredEndpoint[] => []),
+  } as unknown as INetworkDiscovery;
   const mediator = (
-    overrides.elementMediatorPresent ? some({}) : none()
+    overrides.elementMediatorPresent ? some({ network }) : none()
   ) as IPipelineContext['mediator'];
   const config = {
     urls: { base: 'https://example.co.il/' },
@@ -66,6 +71,19 @@ function makeCtx(overrides: ICtxOverrides): IPipelineContext {
 describe('BindApiMediatorPhase', () => {
   it('binds a browser-page ApiMediator in PRE when the browser slot is present', async () => {
     const ctx = makeCtx({ browserPresent: true, apiMediator: none() });
+    const phase = createBindApiMediatorPhase();
+    const result = await phase.pre(ctx, ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+    if (isSuccess) expect(result.value.apiMediator.has).toBe(true);
+  });
+
+  it('binds + runs the session-token / BaNCS primes when an element mediator is present', async () => {
+    const ctx = makeCtx({
+      browserPresent: true,
+      apiMediator: none(),
+      elementMediatorPresent: true,
+    });
     const phase = createBindApiMediatorPhase();
     const result = await phase.pre(ctx, ctx);
     const isSuccess = isOk(result);

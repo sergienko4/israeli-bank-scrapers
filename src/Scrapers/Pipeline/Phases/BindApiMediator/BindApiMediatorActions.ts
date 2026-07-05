@@ -24,6 +24,7 @@ import {
   discoverAuthToken,
   installAuthToken,
 } from './BindApiMediatorAuth.js';
+import { type IBancsCapture, primeBancsSession } from './BindApiMediatorBancs.js';
 import { primeClientVersion } from './BindApiMediatorClientVersion.js';
 import { primeSessionToken } from './BindApiMediatorSessionToken.js';
 
@@ -48,6 +49,20 @@ function primeSessionTokenFromPool(full: IPipelineContext, mediator: IApiMediato
   if (!isSome(full.mediator)) return none();
   const network = full.mediator.value.network;
   return primeSessionToken(full.config, network, mediator);
+}
+
+/**
+ * Prime the BaNCS session values (SecToken + portfolio refs) from the element
+ * mediator's login-capture pool, for banks that declare `bancsSessionCapture`
+ * (no-op when no pool or no flag).
+ * @param full - Full pipeline context (holds the element mediator + config).
+ * @param mediator - Browser-page mediator to enrich.
+ * @returns `some(capture)` when stashed, `none()` otherwise.
+ */
+function primeBancsFromPool(full: IPipelineContext, mediator: IApiMediator): Option<IBancsCapture> {
+  if (!isSome(full.mediator)) return none();
+  const network = full.mediator.value.network;
+  return primeBancsSession(full.config, network, mediator);
 }
 
 /**
@@ -100,6 +115,7 @@ async function bindBrowserPageMediator(
   const mediator = await bindMediatorWithAuth(ctx, pageProc.value);
   await primeClientVersion(ctx.config, pageProc.value, mediator);
   primeSessionTokenFromPool(ctx, mediator);
+  primeBancsFromPool(ctx, mediator);
   return succeed({ ...ctx, apiMediator: some(mediator) });
 }
 

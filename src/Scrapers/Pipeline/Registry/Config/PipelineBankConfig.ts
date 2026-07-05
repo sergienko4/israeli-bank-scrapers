@@ -92,7 +92,10 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Massad]: fibiConfig('https://www.bankmassad.co.il'),
   [CompanyTypes.OtsarHahayal]: fibiConfig('https://www.bankotsar.co.il'),
   [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il'),
-  [CompanyTypes.Yahav]: defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Yahav]: {
+    ...defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
+    bancsSessionCapture: true,
+  },
   [CompanyTypes.VisaCal]: {
     ...defineBank('https://www.cal-online.co.il/', CARD_CYCLE, TOKEN),
     installDiscoveredHeaders: true,

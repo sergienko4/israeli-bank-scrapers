@@ -1,0 +1,241 @@
+/**
+ * BIND-API-MEDIATOR BaNCS prime unit tests — proves `primeBancsSession` pulls
+ * the auth `SecToken` block + the portfolio `iorId`/`Id` out of a login-boot
+ * `/BaNCSDigitalApp/account` POST in the capture pool, stashes them on the
+ * mediator session-context for opted-in banks, and no-ops for non-matching
+ * captures / non-POST / missing SecToken / archetype (unfilled) Prtflio /
+ * opted-out banks. All ids + signatures are FAKE — never copy trace values.
+ */
+
+import { jest } from '@jest/globals';
+
+import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
+import type { INetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Discovery.js';
+import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
+import { primeBancsSession } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorBancs.js';
+import { isSome } from '../../../../../Scrapers/Pipeline/Types/Option.js';
+
+/** Local mirror of the registry bank-config shape (import is DI-restricted). */
+interface ITestBankConfig {
+  readonly urls: { readonly base: string };
+  readonly balanceKind: 'account' | 'card-cycle';
+  readonly authStrategyKind: 'token' | 'session-cookie' | 'api-direct';
+  readonly bancsSessionCapture?: boolean;
+}
+
+const ACCOUNT_URL = 'https://digital.yahav.co.il/BaNCSDigitalApp/account';
+const FAKE_SIG = 'fake-signature-0000';
+const SEC_TOKEN = {
+  Ver: 'SecurityToken_1.0.0',
+  Token: [{ TokenId: 'fake-uuid', Signature: FAKE_SIG }],
+};
+
+/**
+ * Build a captured endpoint literal for the fake pool.
+ * @param url - Request URL.
+ * @param method - HTTP method.
+ * @param postData - Serialized request body.
+ * @returns Discovered-endpoint-shaped fixture.
+ */
+function makeEndpoint(url: string, method: string, postData: string): IDiscoveredEndpoint {
+  return { url, method, postData } as unknown as IDiscoveredEndpoint;
+}
+
+/**
+ * Serialize an accounts request postData carrying a filled SecToken + Prtflio.
+ * @returns Stringified `{ SecToken, Payload }` body.
+ */
+function accountBody(): string {
+  const prtId = { iorId: 'fakePior', Id: 'fakeport0001' };
+  const payload = { DataEntity: [{ Prtflio: { Id: prtId } }] };
+  return JSON.stringify({ SecToken: SEC_TOKEN, Payload: payload });
+}
+
+/**
+ * Serialize a portfolio archetype postData whose Prtflio.Id is unfilled.
+ * @returns Stringified body with an empty (archetype) portfolio id.
+ */
+function archetypeBody(): string {
+  const payload = { DataEntity: [{ Prtflio: { Id: { isArchetype: true } } }] };
+  return JSON.stringify({ SecToken: SEC_TOKEN, Payload: payload });
+}
+
+/**
+ * Build a network-discovery stub returning a canned capture pool.
+ * @param pool - Captures to expose.
+ * @returns Network discovery whose `getAllEndpoints` yields the pool.
+ */
+function makeNetwork(pool: readonly IDiscoveredEndpoint[]): INetworkDiscovery {
+  return {
+    getAllEndpoints: jest.fn((): readonly IDiscoveredEndpoint[] => pool),
+  } as unknown as INetworkDiscovery;
+}
+
+/**
+ * Build a mediator spy exposing `getSessionContext` + `setSessionContext`.
+ * @param existing - Pre-existing session-context bundle.
+ * @returns Mediator with jest-mocked session-context accessors.
+ */
+function makeMediator(existing: Readonly<Record<string, unknown>>): IApiMediator {
+  return {
+    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => existing),
+    setSessionContext: jest.fn((): boolean => true),
+  } as unknown as IApiMediator;
+}
+
+/**
+ * Read the first `setSessionContext` argument the mediator recorded.
+ * @param mediator - Mediator spy.
+ * @returns The merged session-context passed to `setSessionContext`.
+ */
+function firstSetArg(mediator: IApiMediator): Record<string, unknown> {
+  const fn = mediator.setSessionContext as unknown as { mock: { calls: unknown[][] } };
+  return fn.mock.calls[0][0] as Record<string, unknown>;
+}
+
+/**
+ * Build a minimal bank config, optionally enabling the BaNCS capture.
+ * @param bancsSessionCapture - Enable flag, or undefined to opt out.
+ * @returns Registry-shaped config literal.
+ */
+function makeConfig(bancsSessionCapture?: boolean): ITestBankConfig {
+  return {
+    urls: { base: 'https://www.yahav.co.il' },
+    balanceKind: 'account',
+    authStrategyKind: 'session-cookie',
+    bancsSessionCapture,
+  };
+}
+
+/**
+ * Run the BaNCS prime over a one-endpoint pool.
+ * @param endpoint - The single pooled capture.
+ * @param enabled - `bancsSessionCapture` flag.
+ * @param existing - Pre-existing mediator session-context.
+ * @returns The Option result + the spied mediator.
+ */
+function runPrime(
+  endpoint: IDiscoveredEndpoint,
+  enabled: boolean,
+  existing: Record<string, unknown>,
+): { result: ReturnType<typeof primeBancsSession>; mediator: IApiMediator } {
+  const network = makeNetwork([endpoint]);
+  const config = makeConfig(enabled);
+  const mediator = makeMediator(existing);
+  const result = primeBancsSession(config, network, mediator);
+  return { result, mediator };
+}
+
+describe('BIND-API-MEDIATOR BaNCS prime — primeBancsSession', () => {
+  it('CAPTURE-1 stashes the SecToken + portfolio refs from an accounts POST', () => {
+    const body = accountBody();
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(true);
+    const passed = firstSetArg(run.mediator);
+    expect(passed.bancsPortfolioIorId).toBe('fakePior');
+    expect(passed.bancsPortfolioId).toBe('fakeport0001');
+    expect(passed.bancsSecToken).toContain(FAKE_SIG);
+  });
+
+  it('CAPTURE-2 merges into the existing session-context', () => {
+    const body = accountBody();
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, { keep: 'me' });
+    const passed = firstSetArg(run.mediator);
+    expect(passed.keep).toBe('me');
+  });
+
+  it('CAPTURE-3 no-ops (none) when the bank opts out', () => {
+    const body = accountBody();
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, false, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+    expect(run.mediator.setSessionContext).not.toHaveBeenCalled();
+  });
+
+  it('CAPTURE-4 ignores a non-account POST', () => {
+    const other = 'https://digital.yahav.co.il/BaNCSDigitalApp/portfolio';
+    const body = accountBody();
+    const endpoint = makeEndpoint(other, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-5 ignores a non-POST capture', () => {
+    const body = accountBody();
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'GET', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-6 skips an archetype (unfilled) portfolio request', () => {
+    const body = archetypeBody();
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-7 skips a request carrying no SecToken', () => {
+    const prtId = { iorId: 'fakePior', Id: 'fakeport0001' };
+    const body = JSON.stringify({ Payload: { DataEntity: [{ Prtflio: { Id: prtId } }] } });
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-8 tolerates a malformed postData', () => {
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', 'not-json{');
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-9 skips a SecToken missing its TokenId', () => {
+    const badSec = { Ver: 'SecurityToken_1.0.0', Token: [{ Signature: 'x' }] };
+    const prtId = { iorId: 'fakePior', Id: 'fakeport0001' };
+    const payload = { DataEntity: [{ Prtflio: { Id: prtId } }] };
+    const body = JSON.stringify({ SecToken: badSec, Payload: payload });
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-10 skips an empty-string portfolio iorId', () => {
+    const prtId = { iorId: '', Id: 'fakeport0001' };
+    const payload = { DataEntity: [{ Prtflio: { Id: prtId } }] };
+    const body = JSON.stringify({ SecToken: SEC_TOKEN, Payload: payload });
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-11 skips an empty-string portfolio Id', () => {
+    const prtId = { iorId: 'fakePior', Id: '' };
+    const payload = { DataEntity: [{ Prtflio: { Id: prtId } }] };
+    const body = JSON.stringify({ SecToken: SEC_TOKEN, Payload: payload });
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-12 skips a SecToken with an empty TokenId', () => {
+    const badSec = { Ver: 'SecurityToken_1.0.0', Token: [{ TokenId: '', Signature: 'x' }] };
+    const prtId = { iorId: 'fakePior', Id: 'fakeport0001' };
+    const payload = { DataEntity: [{ Prtflio: { Id: prtId } }] };
+    const body = JSON.stringify({ SecToken: badSec, Payload: payload });
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const isPresent = isSome(run.result);
+    expect(isPresent).toBe(false);
+  });
+});
