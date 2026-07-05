@@ -84,3 +84,22 @@ Each shape step (`customer`, `balance`, `transactions`) carries a `urlTag` of ty
 ## REST verb — GET vs POST
 
 Each REST shape step carries an optional `method` of type `ScrapeHttpMethod` (`'GET' | 'POST'`). It defaults to `POST`, so every existing bank is unaffected. When a step sets `method: 'GET'`, `dispatchStep` routes it to `apiGet` with the resolved `urlTag` and sends **no** request body (GET carries its params in the path/query, built by the `urlTag` producer); `bodyTemplate` and `buildVars` are inert for that step. Banks whose whole contract is GET (e.g. the Discount/Titan family) declare `method: 'GET'` on all three steps. GraphQL steps (no `urlTag`) ignore `method` and keep routing through `apiQuery`.
+
+## withBrowserApiDirect — wiring a browser bank to the hard model
+
+`PipelineBuilder.withBrowserApiDirect(shape)` is the public builder entry point that swaps a browser bank's generic post-auth chain (AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / generic SCRAPE / BALANCE-RESOLVE) for a single `API-DIRECT-SCRAPE` phase driven by the bank's `IApiDirectScrapeShape`, while keeping the browser login phases (INIT / HOME / PRE-LOGIN / LOGIN / OTP-\*) for WAF bypass. The hard-model calls dispatch through the **live login page** (`BrowserFetchStrategy`), so session cookies + the TLS/JA3 fingerprint ride every request for free.
+
+## BaNCS session-capture contract (Yahav)
+
+TCS BaNCS banks (Yahav) POST a large `MessageEnvelope` whose session-specific fields cannot be templated. A bank opts in with `bancsSessionCapture: true` in its `PipelineBankConfig`; at BIND, `primeBancsSession` scans the login-boot network pool and stashes an `IBancsCapture` on the mediator session-context:
+
+| Field | Source | Rides |
+| --- | --- | --- |
+| `bancsSecToken` | pooled `/account` POST `SecToken` block | envelope `SecToken` |
+| `bancsPortfolioIorId` / `bancsPortfolioId` | pooled `Prtflio.Id` | every Payload |
+| `bancsAppVer` | pooled `AppVer` (per-deployment build string) | envelope version nodes |
+
+Two request-header sniffs run alongside it (both PII-safe — only per-session auth material, never the credential body):
+
+- **CSRF** (`scanCsrf`): value-matches the login response's `csrfTkn` nonce to the opaque request-header name the SPA's Angular interceptor injects, replayed on every `/account` POST (clears BaNCS error 88521).
+- **SPA headers** (`scanSpaHeaders`): the SPA's custom XHR headers (`X-Requested-With` / `Accept`) captured from the pooled accounts request and replayed via the default-header bag (clears BaNCS error 93194 whose subject element is `origin`).

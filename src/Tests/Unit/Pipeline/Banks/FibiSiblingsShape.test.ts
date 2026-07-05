@@ -3,8 +3,8 @@
  * cross-bank unit coverage for the shared FIBI Mataf/appsng contract.
  *
  * The three shapes are cloned from Beinleumi per the zero-cross-bank-import
- * convention and differ only by API host + step name, so ONE `it.each` over the
- * sibling registry exercises each bank's account-identity merge, balance
+ * convention and differ only by API host + step name, so ONE `describe.each` over
+ * the sibling registry exercises each bank's account-identity merge, balance
  * extractor, identity/balance urlTags, and transactions body — no per-bank
  * duplication. Bodies are synthetic (fake values) — zero PII.
  */
