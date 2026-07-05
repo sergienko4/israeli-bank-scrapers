@@ -1221,3 +1221,8 @@ tryFormRequestSubmit
 # for up to this budget so the body-bearing endpoint settles. Framework-internal
 # timing knob; exported only so the NetworkPolling race test asserts it. Not user-facing.
 NETWORK_BODY_SETTLE_MS
+# Reason: DashboardTxnMatch — shared TXN-page URL predicate reused by the DASHBOARD
+# click-walker, dashboard href-extraction, and the ACCOUNT-RESOLVE nudge (dedup of
+# TXN_PAGE_PATTERNS.some) and driven by the DashboardWK pin test. Framework-internal
+# matcher, not user-facing public API.
+isTxnPageUrl

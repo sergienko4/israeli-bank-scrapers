@@ -8,7 +8,7 @@
  * between attempts.
  */
 
-import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
+import { isTxnPageUrl } from '../../Registry/WK/DashboardTxnMatch.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IActionContext, IResolvedTarget } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -44,15 +44,6 @@ interface IClickOutcome {
 
 /** Force-click flag for candidate clicks (matches existing menu/legacy pattern). */
 const shouldForceCandidateClick = true;
-
-/**
- * URL-pattern signal — universal post-click "did we land on the txn page?".
- * @param url - Current URL after click.
- * @returns True iff URL matches any known transactions-page pattern.
- */
-function isTxnPageUrl(url: string): boolean {
-  return WK_DASHBOARD.TXN_PAGE_PATTERNS.some((pat): boolean => pat.test(url));
-}
 
 /**
  * Confirm a WK transactions endpoint is captured after a URL-pattern match.

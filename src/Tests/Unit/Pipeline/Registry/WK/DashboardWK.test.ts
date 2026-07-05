@@ -10,40 +10,27 @@
  * on the late-rendering last-login widget.
  */
 
-import { WK_DASHBOARD } from '../../../../../Scrapers/Pipeline/Registry/WK/DashboardWK.js';
-
-/** A WK reveal entry shape (just the bits this test asserts on). */
-interface IRevealEntry {
-  readonly kind: string;
-  readonly value: string;
-}
+import { buildRevealCandidates } from '../../../../../Scrapers/Pipeline/Mediator/Dashboard/DashboardDiscovery.js';
+import { isTxnPageUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/DashboardTxnMatch.js';
 
 /**
- * Whether REVEAL carries a `textContent` match for `value`.
- * @param value - Literal reveal text.
- * @returns True iff present as a textContent reveal anchor.
+ * Whether the production REVEAL candidate builder emits a candidate whose
+ * visible-text value equals `value`. Driving through the real builder (not a
+ * re-check of the WK array) ties this guard to how the runtime actually
+ * consumes WK_DASHBOARD.REVEAL, so a drift in that consumption fails here.
+ * @param value - Literal reveal anchor text.
+ * @returns True iff the production-built candidate list carries it.
  */
-function revealHasText(value: string): boolean {
-  return WK_DASHBOARD.REVEAL.some(
-    (entry: IRevealEntry): boolean => entry.kind === 'textContent' && entry.value === value,
-  );
+function revealBuildsText(value: string): boolean {
+  return buildRevealCandidates().some((candidate): boolean => candidate.value === value);
 }
 
 describe('WK_DASHBOARD.REVEAL — Leumi stable shell anchor', () => {
   it('pins the Leumi account-movements shell anchor "תנועות בחשבון"', () => {
-    const hasMovements = revealHasText('תנועות בחשבון');
+    const hasMovements = revealBuildsText('תנועות בחשבון');
     expect(hasMovements).toBe(true);
   });
 });
-
-/**
- * Whether any TXN_PAGE_PATTERN matches `url`.
- * @param url - Captured response URL.
- * @returns True iff the DASHBOARD txn-endpoint picker would URL-match it.
- */
-function anyTxnPatternMatches(url: string): boolean {
-  return WK_DASHBOARD.TXN_PAGE_PATTERNS.some((re: RegExp): boolean => re.test(url));
-}
 
 /**
  * Regression guard (live real-E2E, 2026-07-05): Max reached its dashboard and
@@ -58,13 +45,13 @@ describe('WK_DASHBOARD.TXN_PAGE_PATTERNS — Max txn endpoint', () => {
   it('matches the Max getTransactionsAndGraphs data endpoint (empty-cycle safe)', () => {
     const url =
       'https://www.max.co.il/api/registered/transactionDetails/getTransactionsAndGraphs?v=V4';
-    const isMatched = anyTxnPatternMatches(url);
+    const isMatched = isTxnPageUrl(url);
     expect(isMatched).toBe(true);
   });
 
   it('does not match an unrelated Max endpoint (default-deny)', () => {
     const url = 'https://www.max.co.il/api/registered/spreadTransaction/getContents';
-    const isMatched = anyTxnPatternMatches(url);
+    const isMatched = isTxnPageUrl(url);
     expect(isMatched).toBe(false);
   });
 });
