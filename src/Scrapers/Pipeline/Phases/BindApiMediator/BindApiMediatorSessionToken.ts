@@ -101,7 +101,7 @@ function asNonEmptyString(node: unknown): string | false {
  */
 function walkToToken(root: Record<string, unknown>, path: readonly string[]): string | false {
   const seed: unknown = root;
-  const leaf = path.reduce(stepInto, seed);
+  const leaf = path.reduce((acc: unknown, key: string): unknown => stepInto(acc, key), seed);
   return asNonEmptyString(leaf);
 }
 
