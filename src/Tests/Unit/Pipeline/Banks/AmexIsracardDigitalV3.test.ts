@@ -77,13 +77,16 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
     expect(cards).toEqual([{ cardSuffix: '', companyCode: '' }]);
   });
 
-  it('extractCards yields no cards for a malformed or absent cardsList', () => {
+  it('extractCards yields no cards for a malformed, absent, or null cardsList', () => {
     const malformedArgs = cardsArgs({ data: { cardsList: 'not-json{' } });
     const absentArgs = cardsArgs({ data: {} });
+    const nullArgs = cardsArgs({ data: { cardsList: null } });
     const malformed = bank.mod.extractCards(malformedArgs);
     const absent = bank.mod.extractCards(absentArgs);
+    const nulled = bank.mod.extractCards(nullArgs);
     expect(malformed).toEqual([]);
     expect(absent).toEqual([]);
+    expect(nulled).toEqual([]);
   });
 
   it('extractCards yields no cards when the JSON payload is not an array', () => {

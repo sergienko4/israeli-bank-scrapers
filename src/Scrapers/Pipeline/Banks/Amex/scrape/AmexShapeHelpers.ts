@@ -75,9 +75,8 @@ function safeParseCards(raw: string): readonly IRawCard[] {
  * @returns Raw card rows.
  */
 function parseCardsList(raw?: string | readonly IRawCard[]): readonly IRawCard[] {
-  if (raw === undefined) return [];
   if (typeof raw === 'string') return safeParseCards(raw);
-  return raw;
+  return raw ?? [];
 }
 
 /**
