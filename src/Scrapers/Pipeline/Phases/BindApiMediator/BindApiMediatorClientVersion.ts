@@ -26,7 +26,8 @@ async function discoverClientVersion(page: Page, param: string): Promise<string>
   return page
     .evaluate((key: string): string => {
       const names = performance.getEntriesByType('resource').map((e): string => e.name);
-      const values = names.map((n): string => new URL(n).searchParams.get(key) ?? '');
+      const parseable = names.filter((n): boolean => URL.canParse(n));
+      const values = parseable.map((n): string => new URL(n).searchParams.get(key) ?? '');
       return values.find((v): boolean => v.length > 0) ?? '';
     }, param)
     .catch((): string => '');

@@ -111,7 +111,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
     const ctx = resolveContext(this._page, url);
-    const extraHeaders = await this.resolveHeaders(opts.extraHeaders);
+    const extraHeaders = await this.resolveHeaders(url, opts.extraHeaders);
     return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders })
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
@@ -137,16 +137,21 @@ class BrowserFetchStrategy implements IFetchStrategy {
   }
 
   /**
-   * Resolve `@cookie:<name>` header sentinels against the live page
-   * cookie jar; skips the cookie read when no sentinel is present so
-   * non-anti-replay banks pay zero overhead.
+   * Resolve `@cookie:<name>` header sentinels against the live page cookie jar,
+   * scoped to the request URL so only that URL's cookies are read; skips the
+   * cookie read when no sentinel is present so non-anti-replay banks pay zero
+   * overhead.
+   * @param url - Request URL the cookies are scoped to.
    * @param headers - Outgoing header map (possibly with sentinels).
    * @returns Header map with sentinels resolved.
    */
-  private async resolveHeaders(headers: Record<string, string>): Promise<Record<string, string>> {
+  private async resolveHeaders(
+    url: string,
+    headers: Record<string, string>,
+  ): Promise<Record<string, string>> {
     const isPresent: boolean = hasCookieSentinel(headers);
     if (!isPresent) return headers;
-    const jar = await this._page.context().cookies();
+    const jar = await this._page.context().cookies(url);
     return substituteCookieHeaders(headers, jar);
   }
 }
