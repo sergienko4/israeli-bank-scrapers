@@ -35,7 +35,7 @@ import type {
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 const SEC_TOKEN = { Ver: 'SecurityToken_1.0.0', Token: [{ TokenId: 't-1', Signature: 'sig' }] };
-const ACCT: IYahavAcct = { id: 'fakeacct00001', iorId: 'fakeIor', balance: 150 };
+const ACCT: IYahavAcct = { id: 'fakeacct00001', iorId: 'fakeIor' };
 const APP_VER = 'BaNCSDigital.Web_1.3.46.BY.1.1.96.FP46';
 const CHUNK = { start: '2026-06-25T00:00:00.000Z', end: '2026-07-02T23:59:59.000Z' };
 
@@ -250,11 +250,11 @@ describe('YahavShape payloads', () => {
 });
 
 describe('YahavShape account extraction', () => {
-  it('extractYahavAccounts reads id + iorId + CURRENT balance', () => {
+  it('extractYahavAccounts reads id + iorId', () => {
     const body = accountsBody('150.0');
     const args = accountsArgs(body);
     const accounts = extractYahavAccounts(args);
-    expect(accounts).toEqual([{ id: 'fakeacct00001', iorId: 'fakeIor', balance: 150 }]);
+    expect(accounts).toEqual([{ id: 'fakeacct00001', iorId: 'fakeIor' }]);
   });
 
   it('extractYahavAccounts returns an empty list when DataEntity is absent', () => {
@@ -263,11 +263,11 @@ describe('YahavShape account extraction', () => {
     expect(accounts).toEqual([]);
   });
 
-  it('extractYahavAccounts defaults the balance to 0 when no CURRENT entry', () => {
+  it('extractYahavAccounts resolves id + iorId even when the balance list is empty', () => {
     const account = { AccountId: { Id: { Id: 'x' }, iorId: 'y' }, BalanceList: [] };
     const args = accountsArgs({ Payload: { DataEntity: [{ Account: account }] } });
     const accounts = extractYahavAccounts(args);
-    expect(accounts).toEqual([{ id: 'x', iorId: 'y', balance: 0 }]);
+    expect(accounts).toEqual([{ id: 'x', iorId: 'y' }]);
   });
 
   it('extractYahavAccounts drops a member with no AccountId', () => {

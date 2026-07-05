@@ -22,14 +22,14 @@ export const ACCOUNT_PATH = '/BaNCSDigitalApp/account';
 type MsgId = Brand<string, 'YahavMsgId'>;
 
 /**
- * Yahav account reference resolved from the accounts response. `id` +
- * `iorId` ride the transactions request body; `balance` is read from the
- * same accounts response (`BalanceList[CURRENT]`), so no extra fetch.
+ * Yahav account reference resolved from the accounts response — `id` +
+ * `iorId`, which ride the transactions request body. The current balance is
+ * supplied separately by the dedicated `portfolioBalance` step, so it is not
+ * carried on the ref.
  */
 export interface IYahavAcct {
   readonly id: string;
   readonly iorId: string;
-  readonly balance: number;
 }
 
 /**

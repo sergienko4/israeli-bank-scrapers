@@ -40,7 +40,12 @@ function accountsVars(ctx: IActionContext): VarsMap {
 }
 
 /**
- * Balance request body — the portfolioBalance Payload in the envelope.
+ * Balance request body — the portfolioBalance Payload in the envelope. The
+ * BaNCS `portfolioBalance` category returns the portfolio-level CURRENT
+ * balance; Yahav retail portfolios carry a single primary DDA/ILS account, so
+ * it maps 1:1 to that account. `_acct` is unused — the call is portfolio-
+ * scoped, not per-account (a multi-account portfolio would report the same
+ * aggregate for each member).
  * @param _acct - Resolved account (unused; balance is portfolio-level).
  * @param ctx - Action context.
  * @returns Variables map POSTed as the JSON body.

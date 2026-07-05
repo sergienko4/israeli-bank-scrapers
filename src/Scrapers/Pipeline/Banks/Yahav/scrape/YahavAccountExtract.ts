@@ -1,13 +1,12 @@
 /**
  * Yahav BaNCS account extraction — resolves the current DDA account (`id` +
- * `iorId` + CURRENT balance) from the accounts response (call 0014), where the
- * account sits nested under `Payload.DataEntity[].Account`. Reuses the shared
- * BaNCS getters (`getIn`) + the recursive CURRENT-balance selector. PII-safe:
- * account identifiers + magnitudes are never logged (pure selector).
+ * `iorId`) from the accounts response (call 0014), where the account sits
+ * nested under `Payload.DataEntity[].Account`. Reuses the shared BaNCS getters
+ * (`getIn`). The current balance is supplied separately by the dedicated
+ * `portfolioBalance` step. PII-safe: account identifiers are never logged.
  */
 
 import type { ApiRecord } from '../../../Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
-import selectBancsBalance from '../../../Mediator/Scrape/Bancs/BancsBalance.js';
 import { getIn, isRecord, isStr } from '../../../Mediator/Scrape/Bancs/BancsShape.js';
 import type { IExtractAccountsArgs } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IYahavAcct } from './YahavShapeHelpers.js';
@@ -43,9 +42,7 @@ function toAcct(member: ApiRecord): IYahavAcct | false {
   const id = getIn(aid, ['Id', 'Id']);
   const iorId = aid.iorId;
   if (!isStr(id) || !isStr(iorId)) return false;
-  const found = selectBancsBalance(member.Account);
-  const balance = found === false ? 0 : found;
-  return { id, iorId, balance };
+  return { id, iorId };
 }
 
 /**
