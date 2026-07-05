@@ -25,9 +25,9 @@ describe('buildContextOptions', () => {
     expect(opts.javaScriptEnabled).toBe(true);
   });
 
-  it('sets desktop viewport 1920x1080', () => {
+  it('leaves viewport null so the Camoufox-pinned window size is used', () => {
     const opts = buildContextOptions();
-    expect(opts.viewport).toEqual({ width: 1920, height: 1080 });
+    expect(opts.viewport).toBeNull();
   });
 
   it('returns a new object each call (immutable callers)', () => {

@@ -60,7 +60,7 @@ describe.skip('offline VisaCal invalid-creds', () => {
       );
     }
     browser = await launchCamoufox(true);
-    context = await browser.newContext();
+    context = await browser.newContext({ viewport: null });
     const page = await context.newPage();
     const interceptor = await installOfflineInterceptor({ page, fixtures });
     const scraper = createScraper({

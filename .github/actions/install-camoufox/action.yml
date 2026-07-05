@@ -11,13 +11,16 @@ runs:
   steps:
     # Camoufox is pinned to the v135 stable line (v135.0.1-beta.24),
     # matching @hieutran094/camoufox-js 0.6.8 and playwright-core
-    # ~1.59.1 in package.json (Firefox 135 juggler protocol). Both the
-    # primary camoufox-js fetch AND the gh-release fallback below
-    # resolve to v135, so CI stays deterministic on a cache miss or a
-    # rate-limited primary fetch. Do NOT let the fallback track LATEST:
-    # v150.0.2's locale handling regressed `navigator.language`
-    # (returned `en-US` even when the context declared `he-IL`),
-    # breaking `AntiDetection.e2e-mocked.test.ts`.
+    # ~1.61.1 in package.json (Firefox 135 juggler protocol). playwright
+    # 1.61 needs two compat shims for this Firefox: viewport:null (avoids
+    # the unsupported Browser.setDefaultViewport) and the patch-package
+    # guard on pageError.location (Camoufox omits it) — see
+    # patches/playwright-core+1.61.1.patch. Both the primary camoufox-js
+    # fetch AND the gh-release fallback below resolve to v135, so CI stays
+    # deterministic on a cache miss or a rate-limited primary fetch. Do
+    # NOT let the fallback track LATEST: v150.0.2's locale handling
+    # regressed `navigator.language` (returned `en-US` even when the
+    # context declared `he-IL`), breaking `AntiDetection.e2e-mocked.test.ts`.
     - name: Resolve pinned Camoufox tag
       id: camoufox-tag
       shell: bash
