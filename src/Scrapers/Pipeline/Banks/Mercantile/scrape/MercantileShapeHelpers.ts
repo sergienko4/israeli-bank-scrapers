@@ -73,7 +73,7 @@ function toAcct(a: IUserAccount): IMercantileAcct {
 export function extractAccounts(args: IExtractAccountsArgs): readonly IMercantileAcct[] {
   const resp = args.body as unknown as ICustomerResp;
   const rows = resp.UserAccountsData?.UserAccounts ?? [];
-  return rows.map(toAcct);
+  return rows.map(toAcct).filter((acct): boolean => acct.accountId.length > 0);
 }
 
 /**

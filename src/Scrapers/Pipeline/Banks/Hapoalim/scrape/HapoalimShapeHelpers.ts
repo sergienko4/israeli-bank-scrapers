@@ -66,7 +66,7 @@ function isOpen(a: IHapoalimRawAccount): boolean {
  */
 function toAcct(a: IHapoalimRawAccount): IHapoalimAcct {
   const parts = [a.bankNumber, a.branchNumber, a.accountNumber];
-  return { composite: parts.map(String).join('-') };
+  return { composite: parts.map((p): string => String(p ?? '')).join('-') };
 }
 
 /**
