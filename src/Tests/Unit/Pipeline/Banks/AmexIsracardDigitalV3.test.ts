@@ -2,7 +2,7 @@
  * Amex + Isracard DigitalV3 hard-model shapes — cross-bank unit coverage for
  * the shared GetCardList customer step + the two-container transactions row
  * merge. Both banks ride the identical Isracard-issued DigitalV3 backbone, so
- * ONE `it.each` over the pair exercises card-list parsing (string-encoded
+ * ONE `describe.each` over the pair exercises card-list parsing (string-encoded
  * array, malformed, non-array, missing fields) and the approvals+vouchers
  * merge (null data, absent containers). Bodies are synthetic — zero PII.
  */
