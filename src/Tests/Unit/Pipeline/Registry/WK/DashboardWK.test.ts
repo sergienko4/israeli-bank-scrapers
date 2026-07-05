@@ -35,3 +35,36 @@ describe('WK_DASHBOARD.REVEAL — Leumi stable shell anchor', () => {
     expect(hasMovements).toBe(true);
   });
 });
+
+/**
+ * Whether any TXN_PAGE_PATTERN matches `url`.
+ * @param url - Captured response URL.
+ * @returns True iff the DASHBOARD txn-endpoint picker would URL-match it.
+ */
+function anyTxnPatternMatches(url: string): boolean {
+  return WK_DASHBOARD.TXN_PAGE_PATTERNS.some((re: RegExp): boolean => re.test(url));
+}
+
+/**
+ * Regression guard (live real-E2E, 2026-07-05): Max reached its dashboard and
+ * its real txn data endpoint `…/transactionDetails/getTransactionsAndGraphs`
+ * fired 200 but the current billing cycle was empty (0 records). The picker had
+ * no URL pattern for it, so it depended on response shape (records present) —
+ * which an empty cycle lacks — and fail-loud'd DASHBOARD_TXN_FIELDMAP_INCOMPLETE.
+ * This pins the Max URL pattern so the empty capture is picked by URL and the
+ * SCRAPE phase re-fetches the historical range.
+ */
+describe('WK_DASHBOARD.TXN_PAGE_PATTERNS — Max txn endpoint', () => {
+  it('matches the Max getTransactionsAndGraphs data endpoint (empty-cycle safe)', () => {
+    const url =
+      'https://www.max.co.il/api/registered/transactionDetails/getTransactionsAndGraphs?v=V4';
+    const isMatched = anyTxnPatternMatches(url);
+    expect(isMatched).toBe(true);
+  });
+
+  it('does not match an unrelated Max endpoint (default-deny)', () => {
+    const url = 'https://www.max.co.il/api/registered/spreadTransaction/getContents';
+    const isMatched = anyTxnPatternMatches(url);
+    expect(isMatched).toBe(false);
+  });
+});

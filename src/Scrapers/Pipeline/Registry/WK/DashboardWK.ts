@@ -146,8 +146,13 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'המתנה' },
   ],
   TXN_PAGE_PATTERNS: [
-    /\/transactions$/i,
     /\/transactions\b/i,
+    // Max credit-card txn data endpoint (`…/transactionDetails/
+    // getTransactionsAndGraphs`) — a Max-specific API name, matched by URL so
+    // it is picked even when the current billing cycle is empty (0 records) and
+    // response-shape picking would miss it. Word-anchored; no other bank's URL
+    // contains this token, so it stays default-deny for every other bank.
+    /\/getTransactionsAndGraphs\b/i,
     /\/current-account\/transactions/i,
     /\/transactionlist/i,
     /\/ocp\/transactions/i,
