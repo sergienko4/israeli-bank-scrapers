@@ -16,10 +16,15 @@ import { msgId } from './YahavShapeHelpers.js';
 const SCRAPE_LABEL = 'YahavScrape';
 
 /** Empty SecToken used when the BIND capture is absent (BaNCS rejects loud). */
-const EMPTY_SECTOKEN = { Ver: 'SecurityToken_1.0.0', Token: [] };
+const EMPTY_SECTOKEN = Object.freeze({ Ver: 'SecurityToken_1.0.0', Token: [] });
 
 /** Israel wire timezone block, as captured verbatim. */
-const TIMEZONE = { Ver: 'TimeZone_1.0.0', UTCOffsetHour: -3, UTCOffsetMinute: 0, Abbr: 'UTC' };
+const TIMEZONE = Object.freeze({
+  Ver: 'TimeZone_1.0.0',
+  UTCOffsetHour: -3,
+  UTCOffsetMinute: 0,
+  Abbr: 'UTC',
+});
 
 /**
  * Read a captured string from the mediator session-context.
