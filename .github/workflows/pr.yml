@@ -809,9 +809,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # Non-OTP browser-form banks only — no OTP / TELEGRAM
@@ -974,9 +974,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           AMEX_ID: ${{ secrets.AMEX_ID }}
@@ -1089,9 +1089,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # OTP browser-form banks. Telegram secrets deliver the SMS
@@ -1225,9 +1225,9 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
           # (pipeline.log, network dumps, screenshots) under RUNS_ROOT:
-          # unset/false captures nothing; true captures, then uploads to the
+          # defaults to `true` for this happy-path step so a failure is always
           # private store on failure only. LOG_LEVEL only sets log verbosity.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # api-direct banks. PayBox derives deviceId16Hex from
@@ -1364,7 +1364,7 @@ jobs:
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture;
           # LOG_LEVEL only sets log verbosity. See Group B for details.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # Leumi is username/password (no OTP — no Telegram secrets).
