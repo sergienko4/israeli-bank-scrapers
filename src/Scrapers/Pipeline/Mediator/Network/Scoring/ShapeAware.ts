@@ -9,36 +9,12 @@
  * to {@link ./ShapeAwareLogs.js} so this file fits the cap.
  */
 
-import { PIPELINE_WELL_KNOWN_TXN_FIELDS } from '../../../Registry/WK/ScrapeWK.js';
 import { isBancsTxnCapture } from '../../Scrape/Bancs/BancsTxnRequest.js';
 import { hasTxnArray, isTxnWidgetUrl } from '../../Scrape/TxnShape.js';
 import { isReplayablePost } from '../Indexing/Indexing.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
-import safeParseWindowUrl from './SafeUrl.js';
 import { logShapeAwarePick, type ShapeAwareTier } from './ShapeAwareLogs.js';
-
-/** WK-aliased date-window param keys for the `windowParamsMatch` tier. */
-const WINDOW_FROM_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.fromDate);
-const WINDOW_TO_KEYS = new Set<string>(PIPELINE_WELL_KNOWN_TXN_FIELDS.toDate);
-
-/**
- * True when the URL's searchParams carry both a fromDate alias AND a
- * toDate alias — signals that the captured endpoint is date-window
- * aware even when its body fails the txn-shape gate. Pass-through on
- * URL parse error.
- * @param url - Captured URL.
- * @returns True when both aliases are present in the query string.
- */
-function hasWindowParams(url: string): boolean {
-  const parsed = safeParseWindowUrl(url);
-  if (parsed === false) return false;
-  const searchParams = parsed.searchParams;
-  const paramKeys = searchParams.keys();
-  const keys = Array.from(paramKeys);
-  const hasFrom = keys.some((key): boolean => WINDOW_FROM_KEYS.has(key));
-  if (!hasFrom) return false;
-  return keys.some((key): boolean => WINDOW_TO_KEYS.has(key));
-}
+import { hasWindowParams } from './WindowParams.js';
 
 /** Bundled outcome of one tier-priority pass over a candidate pool. */
 interface ITierPickOutcome {

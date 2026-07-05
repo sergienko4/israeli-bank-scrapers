@@ -1226,3 +1226,9 @@ NETWORK_BODY_SETTLE_MS
 # TXN_PAGE_PATTERNS.some) and driven by the DashboardWK pin test. Framework-internal
 # matcher, not user-facing public API.
 isTxnPageUrl
+# Reason: WindowParams — hasWindowParams detects a COMPLETE fromDate+toDate window
+# (top-level query keys OR keys nested inside a JSON-valued param such as Max's
+# filterData). Framework-internal predicate for the ShapeAware windowParamsMatch
+# picker tier; exported so the ShapeAware empty-cycle regression test drives it.
+# Not user-facing public API.
+hasWindowParams
