@@ -98,7 +98,7 @@ describe('ApiDirectScrape runPrime', () => {
     const ctx = driverCtx(executorOpt, PRIMED_SHAPE);
     await runPrime(ctx);
     expect(spy.urls).toEqual([PRIME_URL]);
-    expect(spy.idleWaits.length).toBe(1);
+    expect(spy.idleWaits).toHaveLength(1);
   });
 
   it('no-ops when the shape declares no prime', async () => {

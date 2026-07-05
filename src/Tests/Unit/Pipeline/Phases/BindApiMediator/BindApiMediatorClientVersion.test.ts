@@ -95,6 +95,10 @@ function makeRejectingPage(): Page {
 }
 
 describe('BIND-API-MEDIATOR client-version prime — primeClientVersion', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('BIND-VER-1 stashes the discovered version for opted-in banks', async () => {
     const page = makePage('V4.216-RC.4.116');
     const mediator = makeMediator({});
@@ -131,10 +135,6 @@ describe('BIND-API-MEDIATOR client-version prime — primeClientVersion', () => 
     const wasStashed = await primeClientVersion(config, page, mediator);
     expect(wasStashed).toBe(false);
     expect(mediator.setSessionContext).not.toHaveBeenCalled();
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
   });
 
   it('BIND-VER-5 discovers the version from the resource-timing buffer', async () => {
