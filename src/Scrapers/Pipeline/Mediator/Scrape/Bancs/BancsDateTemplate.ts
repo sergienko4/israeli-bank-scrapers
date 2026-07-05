@@ -10,6 +10,11 @@
  * honours the user's requested `startDate`→today window instead of the
  * captured one.
  *
+ * <p>The upper (to) bound is capped at today: BaNCS returns an empty
+ * envelope when the to-bound is a future date, so a current-month chunk
+ * whose calendar end is month-end (still in the future) would otherwise
+ * silently drop today's already-settled transactions.
+ *
  * <p>Default-deny (fail-closed): the body is mutated only when
  * {@link isBancsTxnBody} recognises it, and each node only when it
  * carries a classifiable `Operator` and an `OrigDt` object; every other
@@ -18,7 +23,7 @@
  */
 
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
-import { getIn } from './BancsShape.js';
+import { getIn, isNum } from './BancsShape.js';
 import { innerFilterNodes, isBancsTxnBody } from './BancsTxnRequest.js';
 
 /** A calendar date split into BaNCS numeric parts. */
@@ -101,6 +106,42 @@ function applyNode(node: ApiRecord, from: IDatePart, to: IDatePart): boolean {
 }
 
 /**
+ * Today's date as BaNCS calendar parts, using the local calendar to match
+ * the month-chunk generator's local date extraction.
+ * @returns Today as `{Day,Month,Year}`.
+ */
+function todayDatePart(): IDatePart {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  return { Day: now.getDate(), Month: month, Year: now.getFullYear() };
+}
+
+/**
+ * A calendar date's chronological ordinal (YYYYMMDD) for comparison.
+ * @param part - A BaNCS calendar date.
+ * @returns The comparable ordinal.
+ */
+function partOrdinal(part: IDatePart): number {
+  return part.Year * 10000 + part.Month * 100 + part.Day;
+}
+
+/**
+ * The chunk's upper (to) bound, never later than today — BaNCS empties
+ * the response for a future to-bound, which would drop today's settled
+ * transactions from a current-month chunk ending at month-end.
+ * @param endIso - The month chunk's UTC ISO end timestamp.
+ * @returns The to-bound calendar parts, capped at today.
+ */
+function cappedToBound(endIso: string): IDatePart {
+  const endPart = toDatePart(endIso);
+  const today = todayDatePart();
+  const endOrd = partOrdinal(endPart);
+  const todayOrd = partOrdinal(today);
+  const capMap: Record<string, IDatePart> = { true: today, false: endPart };
+  return capMap[String(endOrd > todayOrd)];
+}
+
+/**
  * Rewrite a BaNCS CURRENT_ACCOUNT query's two `OrigDt` bounds with the
  * iteration's month chunk. Default-deny — a no-op for non-BaNCS bodies.
  * @param body - The per-chunk cloned POST body (mutated in place).
@@ -110,7 +151,7 @@ function applyNode(node: ApiRecord, from: IDatePart, to: IDatePart): boolean {
 function applyBancsChunkRange(body: ApiRecord, chunk: IChunkRange): boolean {
   if (!isBancsTxnBody(body)) return false;
   const from = toDatePart(chunk.start);
-  const to = toDatePart(chunk.end);
+  const to = cappedToBound(chunk.end);
   for (const node of innerFilterNodes(body)) {
     applyNode(node, from, to);
   }
@@ -118,3 +159,51 @@ function applyBancsChunkRange(body: ApiRecord, chunk: IChunkRange): boolean {
 }
 
 export default applyBancsChunkRange;
+
+/**
+ * Build a UTC Date from a BaNCS `OrigDt {Day,Month,Year}` (Month is
+ * 1-based), or false when any part is missing or non-numeric.
+ * @param origDt - The `OrigDt` sub-record of one inner filter node.
+ * @returns The calendar date (UTC), or false.
+ */
+function origDtToDate(origDt: ApiRecord): Date | false {
+  const day = getIn(origDt, ['Day']);
+  const month = getIn(origDt, ['Month']);
+  const year = getIn(origDt, ['Year']);
+  if (isNum(day) && isNum(month) && isNum(year)) {
+    const utcMs = Date.UTC(year, month - 1, day);
+    return new Date(utcMs);
+  }
+  return false;
+}
+
+/**
+ * The lower (from) bound date of one node — present only when the node
+ * carries a `GREATERTHAN*` operator and an `OrigDt`.
+ * @param node - One `Payload.Filters[].Filters[]` record.
+ * @returns The from-bound date, or false.
+ */
+function fromBoundDate(node: ApiRecord): Date | false {
+  const operator = readOperator(node);
+  if (!FROM_OPERATORS.has(operator)) return false;
+  const origDt = getIn(node, ['OrigDt']);
+  if (origDt === null || typeof origDt !== 'object') return false;
+  return origDtToDate(origDt as ApiRecord);
+}
+
+/**
+ * Read the captured lower (from) date bound of a BaNCS CURRENT_ACCOUNT
+ * body — the `GREATERTHAN*` `OrigDt`. The READ complement of
+ * {@link applyBancsChunkRange}: the SCRAPE firstWave gate uses it to tell
+ * a narrow dashboard-preview window (fromDate after the requested start)
+ * from one that already covers the user's requested range. Default-deny —
+ * `false` for any non-BaNCS body, so the gate is a no-op for other banks.
+ * @param body - Parsed request body (the committed `templatePostData`).
+ * @returns The captured fromDate (UTC), or false.
+ */
+export function readBancsFromDate(body: ApiRecord): Date | false {
+  if (!isBancsTxnBody(body)) return false;
+  const nodes = innerFilterNodes(body);
+  const dates = nodes.map(fromBoundDate);
+  return dates.find((d): d is Date => d !== false) ?? false;
+}

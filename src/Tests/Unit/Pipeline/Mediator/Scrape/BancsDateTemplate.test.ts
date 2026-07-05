@@ -63,6 +63,17 @@ function readInnerNodes(body: JsonRecord): readonly IReadNode[] {
   return parsed.Payload.Filters[0].Filters;
 }
 
+/**
+ * Today's calendar parts — the test-side expected value for the to-bound
+ * cap (mirrors the production `todayDatePart` local-calendar extraction).
+ * @returns Today as `{Day,Month,Year}`.
+ */
+function todayParts(): { Day: number; Month: number; Year: number } {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  return { Day: now.getDate(), Month: month, Year: now.getFullYear() };
+}
+
 describe('BancsDateTemplate — applyBancsChunkRange (default-deny write)', () => {
   it('when_bancs_txn_body_should_rewrite_from_bound_to_chunk_start', () => {
     const body = bancsTxnBody();
@@ -132,6 +143,33 @@ describe('BancsDateTemplate — applyBancsChunkRange (default-deny write)', () =
       Ver: 'v1',
       Operator: 'EQUALS',
       OrigDt: { Ver: 'v1', Day: 9, Month: 6, Year: 2025 },
+    });
+  });
+});
+
+describe('BancsDateTemplate — to-bound capped at today', () => {
+  it('when_chunk_end_is_in_the_future_should_cap_the_to_bound_at_today', () => {
+    const body = bancsTxnBody();
+    const futureChunk = { start: '2026-07-01T00:00:00.000Z', end: '2999-12-31T23:59:59.000Z' };
+    applyBancsChunkRange(body, futureChunk);
+    const nodes = readInnerNodes(body);
+    const today = todayParts();
+    expect(nodes).toContainEqual({
+      Ver: 'v1',
+      Operator: 'LESSTHANOREQUAL',
+      OrigDt: { Ver: 'v1', Day: today.Day, Month: today.Month, Year: today.Year },
+    });
+  });
+
+  it('when_chunk_end_is_in_the_past_should_keep_the_chunk_end_verbatim', () => {
+    const body = bancsTxnBody();
+    const pastChunk = { start: '2000-01-01T00:00:00.000Z', end: '2000-01-31T23:59:59.000Z' };
+    applyBancsChunkRange(body, pastChunk);
+    const nodes = readInnerNodes(body);
+    expect(nodes).toContainEqual({
+      Ver: 'v1',
+      Operator: 'LESSTHANOREQUAL',
+      OrigDt: { Ver: 'v1', Day: 31, Month: 1, Year: 2000 },
     });
   });
 });
