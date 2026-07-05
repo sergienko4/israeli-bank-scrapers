@@ -30,7 +30,7 @@ import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
 const REPO_ROOT = process.cwd();
 const PR_YML_PATH = resolve(REPO_ROOT, '.github', 'workflows', 'pr.yml');
 const COMMENT_LINE_RE = /^\s*#/;
-const FORENSIC_TRACE_WIRING = 'FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE }}';
+const FORENSIC_TRACE_WIRING = "FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}";
 // Block ANY public upload of forensic pixels/dumps, not just one artifact name:
 // a renamed step that still publishes screenshots or /tmp/runs/pipeline must trip
 // this — including block/list `path:` forms where the location is on a later line.
@@ -98,7 +98,7 @@ describe('forensic screenshot policy — pr.yml <-> SafeScreenshot drift pin', (
     expect(workflowCode).toContain(PRIVATE_STORE_SCRIPT);
   });
 
-  it('wires the FORENSIC_TRACE opt-in into the e2e-real jobs', () => {
+  it('wires the FORENSIC_TRACE default (|| true) into the e2e-real jobs', () => {
     const workflowCode = stripCommentLines(prYml);
     expect(workflowCode).toContain(FORENSIC_TRACE_WIRING);
   });
