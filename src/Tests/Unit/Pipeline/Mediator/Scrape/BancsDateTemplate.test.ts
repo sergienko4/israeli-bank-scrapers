@@ -14,7 +14,9 @@
  * Every value is fabricated — no real account data appears.
  */
 
-import applyBancsChunkRange from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsDateTemplate.js';
+import applyBancsChunkRange, {
+  todayDatePart,
+} from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsDateTemplate.js';
 import type { JsonRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.js';
 import { isRangeIterable } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.js';
 
@@ -132,6 +134,33 @@ describe('BancsDateTemplate — applyBancsChunkRange (default-deny write)', () =
       Ver: 'v1',
       Operator: 'EQUALS',
       OrigDt: { Ver: 'v1', Day: 9, Month: 6, Year: 2025 },
+    });
+  });
+});
+
+describe('BancsDateTemplate — to-bound capped at today', () => {
+  it('when_chunk_end_is_in_the_future_should_cap_the_to_bound_at_today', () => {
+    const body = bancsTxnBody();
+    const futureChunk = { start: '2026-07-01T00:00:00.000Z', end: '2999-12-31T23:59:59.000Z' };
+    applyBancsChunkRange(body, futureChunk);
+    const nodes = readInnerNodes(body);
+    const today = todayDatePart();
+    expect(nodes).toContainEqual({
+      Ver: 'v1',
+      Operator: 'LESSTHANOREQUAL',
+      OrigDt: { Ver: 'v1', Day: today.Day, Month: today.Month, Year: today.Year },
+    });
+  });
+
+  it('when_chunk_end_is_in_the_past_should_keep_the_chunk_end_verbatim', () => {
+    const body = bancsTxnBody();
+    const pastChunk = { start: '2000-01-01T00:00:00.000Z', end: '2000-01-31T23:59:59.000Z' };
+    applyBancsChunkRange(body, pastChunk);
+    const nodes = readInnerNodes(body);
+    expect(nodes).toContainEqual({
+      Ver: 'v1',
+      Operator: 'LESSTHANOREQUAL',
+      OrigDt: { Ver: 'v1', Day: 31, Month: 1, Year: 2000 },
     });
   });
 });

@@ -1238,3 +1238,16 @@ isTxnPageUrl
 # picker tier; exported so the ShapeAware empty-cycle regression test drives it.
 # Not user-facing public API.
 hasWindowParams
+# Reason: BancsDateRead — readBancsFromDate reads the captured GREATERTHAN*
+# OrigDt from-bound of a BaNCS CURRENT_ACCOUNT body (Yahav). Framework-internal
+# READ complement of applyBancsChunkRange; exported so the SCRAPE firstWave gate
+# (AccountScrapeFirstWave) can tell a narrow dashboard-preview window from one
+# that already covers the requested range, and so the BancsDateRead unit test
+# drives it. Not user-facing public API.
+readBancsFromDate
+# Reason: BancsDateTemplate — todayDatePart returns today as BaNCS calendar
+# parts (local calendar, matching the month-chunk generator). Framework-internal
+# helper backing the current-month to-bound cap; exported so the to-bound-cap
+# unit test asserts against this exact source of truth instead of duplicating
+# the extraction. Not user-facing public API.
+todayDatePart

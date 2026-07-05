@@ -6,6 +6,7 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
+import { readBancsFromDate } from '../../../Mediator/Scrape/Bancs/BancsDateTemplate.js';
 import {
   readCapturedFromDate,
   urlHasWkDateRange,
@@ -66,26 +67,55 @@ function harvestApplies(harvest: IDashboardTxnHarvest, iterationAccountId: strin
 }
 
 /**
- * True when the captured TXN endpoint URL has no WK date-range params,
- * or the captured fromDate is at-or-before the user's requested start.
- * Generic — relies only on WK aliases + the safe URL parser.
+ * URL-window branch (precondition: the URL carries a WK date range):
+ * reuse only when the captured URL fromDate is at-or-before the requested
+ * start. False when the window is present but its fromDate is unreadable.
+ * @param url - Captured TXN endpoint URL.
+ * @param requestedStartMs - User's requested start (epoch ms).
+ * @returns True when the captured URL window covers the requested range.
+ */
+function urlWindowCovers(url: string, requestedStartMs: number): boolean {
+  const capturedStart = readCapturedFromDate(url);
+  if (capturedStart === false) return false;
+  return capturedStart.getTime() <= requestedStartMs;
+}
+
+/**
+ * Body-window branch for BaNCS banks (Yahav), whose date window lives in
+ * the POST body (`OrigDt`), not the URL: reuse only when the captured
+ * `GREATERTHAN*` fromDate is at-or-before the requested start. A non-BaNCS
+ * body (no readable body window) defaults to reuse-safe (`true`), so the
+ * gate is a provable no-op for every other bank.
+ * @param baseBody - The committed POST body (`post.baseBody`).
+ * @param requestedStartMs - User's requested start (epoch ms).
+ * @returns True when the captured body window covers the requested range.
+ */
+function bancsWindowCovers(baseBody: Record<string, unknown>, requestedStartMs: number): boolean {
+  const bancsStart = readBancsFromDate(baseBody);
+  if (bancsStart === false) return true;
+  return bancsStart.getTime() <= requestedStartMs;
+}
+
+/**
+ * True when the captured window covers the user's requested range — so the
+ * DASHBOARD-side harvest is safe to reuse. Inspects the URL date-range
+ * params first (Hapoalim/Discount windowed POST/GET), then the BaNCS POST
+ * body (`OrigDt`) when the URL carries none.
  *
- * <p>When false, the DASHBOARD-side harvest reflects only the SPA's
- * narrow dashboard window (e.g. Hapoalim's 1-month preview). Reusing
- * it would mask the bulk of the user's requested history. The caller
+ * <p>When false, the harvest reflects only the SPA's narrow dashboard
+ * window (Hapoalim's 1-month preview; Yahav/BaNCS's default-load preview),
+ * so reusing it would mask the bulk of the user's history. The caller
  * forces fall-through to the chunked re-fetch path instead.
  *
  * @param fc - Fetch context (carries `startDate` + `txnEndpoint`).
- * @param post - POST fetch params (carries the URL to inspect).
- * @returns True when harvest covers the requested range.
+ * @param post - POST fetch params (carries the URL + committed body).
+ * @returns True when the harvest covers the requested range.
  */
 function capturedWindowCoversRequested(fc: IAccountFetchCtx, post: IPostFetchCtx): boolean {
-  const wkProbe = urlHasWkDateRange(post.url);
-  if (!wkProbe.hasWkDateRange) return true;
-  const capturedStart = readCapturedFromDate(post.url);
-  if (capturedStart === false) return false;
   const requestedStartMs = parseStartDate(fc.startDate).getTime();
-  return capturedStart.getTime() <= requestedStartMs;
+  const wkProbe = urlHasWkDateRange(post.url);
+  if (wkProbe.hasWkDateRange) return urlWindowCovers(post.url, requestedStartMs);
+  return bancsWindowCovers(post.baseBody, requestedStartMs);
 }
 
 /**
