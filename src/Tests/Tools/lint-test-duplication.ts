@@ -60,7 +60,7 @@ const ALLOWLIST: ReadonlySet<string> = new Set<string>([
 ]);
 
 /** One function body, located + normalized for comparison. */
-interface IBody {
+export interface IBody {
   readonly file: string;
   readonly line: number;
   readonly name: string;

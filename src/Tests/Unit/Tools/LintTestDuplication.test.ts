@@ -11,20 +11,35 @@
  * re-commented copy still collides).
  */
 
-import { detectDuplicates, normalizeBody } from '../../../Tests/Tools/lint-test-duplication.js';
+import {
+  detectDuplicates,
+  type IBody,
+  normalizeBody,
+} from '../../../Tests/Tools/lint-test-duplication.js';
+
+/**
+ * Minimal `IBody`-shaped fixture; override only the fields a case needs.
+ * @param overrides - Fields to override on the default fixture.
+ * @returns One `IBody` fixture.
+ */
+function makeBody(overrides: Partial<IBody> = {}): IBody {
+  return { file: 'src/Foo.ts', line: 10, name: 'helper', norm: 'BODYX', ...overrides };
+}
 
 describe('lint-test-duplication — detectDuplicates', () => {
   it('flags a test body byte-identical to a production body', () => {
-    const prod = [{ file: 'src/Foo.ts', line: 10, name: 'helper', norm: 'BODYX' }];
-    const test = [{ file: 'src/Tests/Unit/Foo.test.ts', line: 20, name: 'copy', norm: 'BODYX' }];
+    const prod = [makeBody()];
+    const test = [makeBody({ file: 'src/Tests/Unit/Foo.test.ts', line: 20, name: 'copy' })];
     const violations = detectDuplicates(prod, test);
     const pairs = violations.map((v): string => `${v.test.name}<->${v.prod.name}`);
     expect(pairs).toEqual(['copy<->helper']);
   });
 
   it('ignores a test body that matches nothing in production', () => {
-    const prod = [{ file: 'src/Foo.ts', line: 10, name: 'helper', norm: 'AAA' }];
-    const test = [{ file: 'src/Tests/Unit/Foo.test.ts', line: 20, name: 'other', norm: 'BBB' }];
+    const prod = [makeBody({ norm: 'AAA' })];
+    const test = [
+      makeBody({ file: 'src/Tests/Unit/Foo.test.ts', line: 20, name: 'other', norm: 'BBB' }),
+    ];
     const violations = detectDuplicates(prod, test);
     expect(violations).toEqual([]);
   });
@@ -32,8 +47,8 @@ describe('lint-test-duplication — detectDuplicates', () => {
   it('honours the allowlist for the documented intentional copy', () => {
     const prodFile = 'src/Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.Wait.ts';
     const testFile = 'src/Tests/Unit/Pipeline/Mediator/Network/WaitForFirstId.test.ts';
-    const prod = [{ file: prodFile, line: 54, name: 'findFirstIdInPool', norm: 'DUP' }];
-    const test = [{ file: testFile, line: 30, name: 'findFirstIdInPool', norm: 'DUP' }];
+    const prod = [makeBody({ file: prodFile, line: 54, name: 'findFirstIdInPool', norm: 'DUP' })];
+    const test = [makeBody({ file: testFile, line: 30, name: 'findFirstIdInPool', norm: 'DUP' })];
     const violations = detectDuplicates(prod, test);
     expect(violations).toEqual([]);
   });
