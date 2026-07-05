@@ -30,7 +30,6 @@ const LABEL_CURRENT_ACCOUNT_ASCII = 'חשבון עו"ש' as const;
  *  for all 7 banks: only Max has this element; no overlap. */
 const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
   { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
-  { kind: KIND_ARIA_LABEL, value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות עו"ש' },
   { kind: 'clickableText', value: 'פירוט תנועות' },
@@ -99,6 +98,9 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'חיובים עתידיים' },
     { kind: KIND_TEXT_CONTENT, value: 'צפייה בכרטיסים שלי' },
     { kind: KIND_TEXT_CONTENT, value: 'יתרה בחשבון' },
+    // Leumi shell anchor — renders immediately (the late last-login regex
+    // above caused the observed "no reveal" live regression).
+    { kind: KIND_TEXT_CONTENT, value: 'תנועות בחשבון' },
   ],
   /** Menu expand triggers — collapsed menus that hide transaction links. */
   MENU_EXPAND: [
