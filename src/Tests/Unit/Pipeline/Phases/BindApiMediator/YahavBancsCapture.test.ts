@@ -13,6 +13,7 @@ import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api
 import type { INetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Discovery.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
 import { primeBancsSession } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorBancs.js';
+import { scanCsrf } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorBancsCsrf.js';
 import { isSome } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
 /** Local mirror of the registry bank-config shape (import is DI-restricted). */
@@ -35,10 +36,23 @@ const SEC_TOKEN = {
  * @param url - Request URL.
  * @param method - HTTP method.
  * @param postData - Serialized request body.
- * @returns Discovered-endpoint-shaped fixture.
+ * @returns Discovered-endpoint-shaped fixture (empty request headers).
  */
 function makeEndpoint(url: string, method: string, postData: string): IDiscoveredEndpoint {
-  return { url, method, postData } as unknown as IDiscoveredEndpoint;
+  return { url, method, postData, requestHeaders: {} } as unknown as IDiscoveredEndpoint;
+}
+
+/**
+ * Attach request headers to a captured endpoint (for the CSRF sniff).
+ * @param ep - Base endpoint.
+ * @param requestHeaders - Captured request headers.
+ * @returns Endpoint carrying the headers.
+ */
+function withHeaders(
+  ep: IDiscoveredEndpoint,
+  requestHeaders: Record<string, string>,
+): IDiscoveredEndpoint {
+  return { ...ep, requestHeaders };
 }
 
 /**
@@ -237,5 +251,69 @@ describe('BIND-API-MEDIATOR BaNCS prime — primeBancsSession', () => {
     const run = runPrime(endpoint, true, {});
     const isPresent = isSome(run.result);
     expect(isPresent).toBe(false);
+  });
+
+  it('CAPTURE-13 sniffs the CSRF request header from the pool', () => {
+    const body = accountBody();
+    const headers = { 'content-type': 'application/json', csrftkn: 'csrf-abc' };
+    const base = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const endpoint = withHeaders(base, headers);
+    const run = runPrime(endpoint, true, {});
+    const passed = firstSetArg(run.mediator);
+    expect(passed.bancsCsrfName).toBe('csrftkn');
+    expect(passed.bancsCsrfValue).toBe('csrf-abc');
+  });
+
+  it('CAPTURE-14 leaves the CSRF header empty when none is present', () => {
+    const body = accountBody();
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const passed = firstSetArg(run.mediator);
+    expect(passed.bancsCsrfName).toBe('');
+  });
+});
+
+const LOGIN_URL = 'https://digital.yahav.co.il/BaNCSDigitalApp/login';
+
+/**
+ * Build a login endpoint carrying `csrfTkn` in its response body.
+ * @param csrfTkn - CSRF token value to embed.
+ * @returns Login endpoint fixture.
+ */
+function loginEndpoint(csrfTkn: string): IDiscoveredEndpoint {
+  const responseBody = { csrfTkn };
+  return {
+    url: LOGIN_URL,
+    method: 'POST',
+    responseBody,
+    requestHeaders: {},
+  } as unknown as IDiscoveredEndpoint;
+}
+
+describe('BIND-API-MEDIATOR BaNCS CSRF sniff — scanCsrf', () => {
+  it('CSRF-1 value-matches the request header by the login csrfTkn', () => {
+    const login = loginEndpoint('tok-xyz');
+    const body = accountBody();
+    const base = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const acct = withHeaders(base, { 'x-opaque-name': 'tok-xyz' });
+    const csrf = scanCsrf([login, acct]);
+    expect(csrf.bancsCsrfName).toBe('x-opaque-name');
+    expect(csrf.bancsCsrfValue).toBe('tok-xyz');
+  });
+
+  it('CSRF-2 keeps the login value with an empty name when no header matches', () => {
+    const login = loginEndpoint('tok-only');
+    const body = accountBody();
+    const acct = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const csrf = scanCsrf([login, acct]);
+    expect(csrf.bancsCsrfName).toBe('');
+    expect(csrf.bancsCsrfValue).toBe('tok-only');
+  });
+
+  it('CSRF-3 yields empty when neither a login token nor a csrf header exists', () => {
+    const body = accountBody();
+    const acct = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const csrf = scanCsrf([acct]);
+    expect(csrf.bancsCsrfValue).toBe('');
   });
 });

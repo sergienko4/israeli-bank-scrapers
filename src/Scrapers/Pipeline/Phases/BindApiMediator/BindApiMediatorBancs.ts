@@ -23,6 +23,7 @@ import { getIn, isRecord, isStr } from '../../Mediator/Scrape/Bancs/BancsShape.j
 import type { IPipelineBankConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
+import { scanCsrf } from './BindApiMediatorBancsCsrf.js';
 
 /** The BaNCS multiplexed data path — the pooled request family to inspect. */
 const ACCOUNT_URL_MATCH = '/BaNCSDigitalApp/account';
@@ -127,7 +128,8 @@ function primeBancsSession(
   const pool = network.getAllEndpoints();
   const capture = scanPool(pool);
   if (capture === false) return none();
-  const merged = { ...mediator.getSessionContext(), ...capture };
+  const csrf = scanCsrf(pool);
+  const merged = { ...mediator.getSessionContext(), ...capture, ...csrf };
   mediator.setSessionContext(merged);
   return some(capture);
 }

@@ -6,7 +6,7 @@
  */
 
 import { resolveApiMediator } from '../../../Mediator/Api/ApiMediatorAccessor.js';
-import type { VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type { HeaderMap, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { isOk } from '../../../Types/Procedure.js';
 import { ENVELOPE_STATIC } from './YahavEnvelopeStatic.js';
@@ -53,6 +53,31 @@ export function portfolioRefs(ctx: IActionContext): IPortfolioRefs {
   const iorId = readSession(ctx, 'bancsPortfolioIorId');
   const id = readSession(ctx, 'bancsPortfolioId');
   return { iorId, id };
+}
+
+/**
+ * Candidate CSRF header names, tried when BIND captured the token value but
+ * not the exact header name. `csrfTkn` mirrors the login-response field; the
+ * rest are the common BaNCS/Angular variants. Extra unknown headers are inert.
+ */
+const CSRF_CANDIDATE_NAMES = ['csrfTkn', 'X-CSRF-Token', 'X-CSRF-TOKEN', 'csrf-token'];
+
+/**
+ * CSRF request header captured at BIND, or an empty map when unprimed. Rides
+ * every `/account` POST so BaNCS accepts the request (the SPA's interceptor
+ * injects it and a direct fetch omits it). When BIND value-matched the exact
+ * header name it is used verbatim; otherwise the token rides all candidate
+ * names.
+ * @param ctx - Action context.
+ * @returns Header map, or empty.
+ */
+export function csrfHeaders(ctx: IActionContext): HeaderMap {
+  const name = readSession(ctx, 'bancsCsrfName');
+  const value = readSession(ctx, 'bancsCsrfValue');
+  if (value.length === 0) return {};
+  if (name.length > 0) return { [name]: value };
+  const pairs = CSRF_CANDIDATE_NAMES.map((candidate): [string, string] => [candidate, value]);
+  return Object.fromEntries(pairs);
 }
 
 /**

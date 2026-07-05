@@ -1508,6 +1508,7 @@ PROXY_APP
 RESOURCE
 buildEnvelope
 portfolioRefs
+csrfHeaders
 IPortfolioRefs
 YAHAV_API
 ACCOUNT_PATH
@@ -1527,3 +1528,9 @@ YAHAV_SHAPE
 # BIND-API-MEDIATOR. Framework-internal; consumed only by the BIND actions.
 # Not user-facing.
 IBancsCapture
+# Reason: BindApiMediatorBancsCsrf -- sniffs the TCS BaNCS CSRF request header
+# (login-response csrfTkn value-matched to the request-header name) from the
+# login-boot pool so the hard-model fetch can replay it. Framework-internal;
+# consumed only by BindApiMediatorBancs. Not user-facing.
+scanCsrf
+ICsrfHeader

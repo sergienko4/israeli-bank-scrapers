@@ -15,6 +15,7 @@ import { extractYahavAccounts } from '../../../../../Scrapers/Pipeline/Banks/Yah
 import { YAHAV_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShape.js';
 import {
   buildEnvelope,
+  csrfHeaders,
   portfolioRefs,
 } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeEnvelope.js';
 import { type IYahavAcct } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeHelpers.js';
@@ -141,6 +142,25 @@ describe('YahavShape envelope', () => {
     const ctx = { options: {} } as unknown as IActionContext;
     const refs = portfolioRefs(ctx);
     expect(refs.iorId).toBe('');
+  });
+
+  it('csrfHeaders returns the captured CSRF request header', () => {
+    const ctx = ctxWithBancs({ bancsCsrfName: 'csrfTkn', bancsCsrfValue: 'abc123' });
+    const headers = csrfHeaders(ctx);
+    expect(headers).toEqual({ csrfTkn: 'abc123' });
+  });
+
+  it('csrfHeaders returns an empty map when unprimed', () => {
+    const ctx = ctxWithBancs();
+    const headers = csrfHeaders(ctx);
+    expect(headers).toEqual({});
+  });
+
+  it('csrfHeaders falls back to candidate names when only the value is known', () => {
+    const ctx = ctxWithBancs({ bancsCsrfName: '', bancsCsrfValue: 'abc123' });
+    const headers = csrfHeaders(ctx);
+    expect(headers.csrfTkn).toBe('abc123');
+    expect(headers['X-CSRF-Token']).toBe('abc123');
   });
 });
 
