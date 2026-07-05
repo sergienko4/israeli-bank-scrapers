@@ -71,6 +71,13 @@ describe('MercantileShape helpers', () => {
     expect(accounts).toEqual([]);
   });
 
+  it('extractAccounts drops an account whose AccountID is absent', () => {
+    const body = { UserAccountsData: { UserAccounts: [{ FormatAccountID: '12-345-6' }] } };
+    const args = accountsArgs(body);
+    const accounts = extractAccounts(args);
+    expect(accounts).toEqual([]);
+  });
+
   it('accountNumberOf returns the display number', () => {
     const number = accountNumberOf(ACCT);
     expect(number).toBe('12-345-6');
