@@ -7,11 +7,13 @@
  *   1. POSITIVE: REVEAL matched at AUTH-DISCOVERY.POST (carried as
  *      `snap.dashboardReady`).
  *   2. NEGATIVE: page URL changed from the login URL.
- * Both must be true. Either false ⇒ AUTH-DISCOVERY.FINAL fails
- * loud with `AUTH_DISCOVERY_DASHBOARD_NOT_READY` so DASHBOARD.PRE
- * never wastes its 122 s resolver budget on an interstitial /
- * redirect page (Isracard CI run `25633964342`,
- * runId `10-05-2026_16381614`).
+ * The signals must agree ⇒ else AUTH-DISCOVERY.FINAL fails loud with
+ * `AUTH_DISCOVERY_DASHBOARD_NOT_READY` so DASHBOARD.PRE never wastes its
+ * 122 s resolver budget on an interstitial / redirect page (Isracard CI
+ * run `25633964342`, runId `10-05-2026_16381614`). M4.F2.fix narrowly
+ * relaxes the REVEAL requirement: a REVEAL miss opens ONLY on a
+ * shape-verified authed API response (`hasAuthApiResponse`), never on a
+ * bare token / cookie count / URL change alone.
  */
 
 import {
@@ -181,5 +183,72 @@ describe('Pyramid — same-URL authed SPA (corroboration path)', () => {
   it('url-stuck when currentUrl==preAuthUrl AND hasAuthApiResponse=false (no corroboration)', () => {
     const reason = dashboardGateReason(SNAP_READY, AMEX_LOGIN_URL, AMEX_LOGIN_URL);
     expect(reason).toBe('url-stuck');
+  });
+});
+
+// ── M4.F2.fix — REVEAL-missing opens ONLY on a shape-verified authed API ─────
+
+const YAHAV_MARKETING_URL = 'https://www.bank-yahav.co.il/';
+const YAHAV_SPA_HOME_URL = 'https://digital.yahav.co.il/BaNCSDigitalUI/app/index.html#/main/home';
+
+const SNAP_NOT_READY_AUTH_API: IAuthDiscovery = { ...SNAP_NOT_READY, hasAuthApiResponse: true };
+const SNAP_NOT_READY_BEARER: IAuthDiscovery = {
+  ...SNAP_NOT_READY,
+  authToken: 'bearer:opaque-jwt-from-network-discovery',
+};
+const SNAP_NOT_READY_TRACKING: IAuthDiscovery = {
+  ...SNAP_NOT_READY,
+  sessionCookieNames: TWO_TRACKING_COOKIES,
+};
+
+describe('M4.F2.fix — REVEAL-missing opens only on a shape-verified authed API', () => {
+  it('opens on a captured authed account API when REVEAL missed (Yahav run6 #/main/home)', () => {
+    // The exact run6 state: BaNCS /account 200 JSON captured before the gate
+    // → hasAuthApiResponse=true (via the Gap M shape recognizer), REVEAL flaked.
+    const reason = dashboardGateReason(
+      SNAP_NOT_READY_AUTH_API,
+      YAHAV_SPA_HOME_URL,
+      YAHAV_MARKETING_URL,
+    );
+    expect(reason).toBe('open');
+  });
+
+  it('STAYS reveal-missing on a bare authToken when REVEAL missed (Isracard CI 25633964342 guard)', () => {
+    // A token can be captured mid-login on a page that never reached the
+    // dashboard. When REVEAL ALSO missed, token-alone must fail closed —
+    // else the gate re-exposes the 122s DASHBOARD.PRE budget waste the
+    // M4.F1 gate exists to prevent. Only a shape-verified authed API
+    // response (hasAuthApiResponse) may open a REVEAL-missing page.
+    const reason = dashboardGateReason(
+      SNAP_NOT_READY_BEARER,
+      YAHAV_SPA_HOME_URL,
+      YAHAV_MARKETING_URL,
+    );
+    expect(reason).toBe('reveal-missing');
+  });
+
+  it('passesDashboardGate is true for the REVEAL-missing + authed-API case', () => {
+    const wasOk = passesDashboardGate(
+      SNAP_NOT_READY_AUTH_API,
+      YAHAV_SPA_HOME_URL,
+      YAHAV_MARKETING_URL,
+    );
+    expect(wasOk).toBe(true);
+  });
+
+  it('stays reveal-missing on URL change ALONE (no corroboration) — url-change is not an auth signal', () => {
+    // Safety property: an interstitial redirect also changes the URL, so a
+    // REVEAL miss with no token / no authed API must NOT open the gate.
+    const reason = dashboardGateReason(SNAP_NOT_READY, YAHAV_SPA_HOME_URL, YAHAV_MARKETING_URL);
+    expect(reason).toBe('reveal-missing');
+  });
+
+  it('stays reveal-missing with tracking cookies only (the removed cookie-count signal)', () => {
+    const reason = dashboardGateReason(
+      SNAP_NOT_READY_TRACKING,
+      YAHAV_SPA_HOME_URL,
+      YAHAV_MARKETING_URL,
+    );
+    expect(reason).toBe('reveal-missing');
   });
 });

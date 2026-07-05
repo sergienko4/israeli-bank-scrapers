@@ -15,8 +15,8 @@
  * `CredentialKey` from `toXpathLiteral` / `candidateToCss` /
  * `extractCredentialKey`. The wrapper functions below preserve the
  * original plain-`string` return signatures so existing Common-tree
- * call sites (e.g. `Object.fromEntries(...) as Record<string, string>`
- * in `YahavScraper`) continue to compile. Brands erase at runtime —
+ * call sites (legacy `Object.fromEntries(...) as Record<string, string>`
+ * patterns) continue to compile. Brands erase at runtime —
  * the wrappers are simple delegates that V8 will inline.
  *
  * `IFieldContext` is compatible for current callers and is widened by

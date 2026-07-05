@@ -18,7 +18,7 @@ export const SCRAPERS = {
   // ... existing entries ...
   [CompanyTypes.NewBank]: {
     name: 'New Bank',
-    loginFields: ['username', PASSWORD_FIELD],   // declarative
+    loginFields: ['username', PASSWORD_FIELD], // declarative
   },
 };
 ```
@@ -44,31 +44,40 @@ import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.j
 export const NEWBANK_LOGIN: ILoginConfig = {
   loginUrl: 'https://newbank.example/login',
   fields: [
-    { name: 'username', kind: 'textContent', value: 'שם משתמש' },     // Hebrew label
-    { name: 'password', kind: 'placeholder', value: 'סיסמה' },
+    { credentialKey: 'username', selectors: [] }, // resolved via shared LoginWK
+    { credentialKey: 'password', selectors: [] },
   ],
-  submit: { kind: 'textContent', value: 'כניסה' },
-  possibleResults: {
-    [ScraperErrorTypes.InvalidPassword]: { kind: 'textContent', value: 'פרטים שגויים' },
-    // ... etc
-  },
+  submit: [],
+  possibleResults: { success: [] },
 };
 ```
+
+**Prefer empty `selectors: []`.** The generic Well-Known login dictionary
+([`Registry/WK/LoginWK.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/WK/LoginWK.ts))
+resolves each field by visible text / `aria-label` / semantic HTML — never a CSS
+selector in the bank config (the ZERO-CSS-selectors rule). If a field is not
+matched (e.g. an `aria-label`-only input with an empty placeholder, like Yahav's
+`#pinno` national-ID field), **add the value to the shared `LoginWK` slot** — do
+not put a bank-specific selector here. See [Bank Yahav](../banks/yahav.md) for a
+three-field WK-resolved login.
 
 ### 4. Write the pipeline builder
 
 Create `src/Scrapers/Pipeline/Banks/<NewBank>/<NewBank>Pipeline.ts`:
 
 ```typescript
-import { PipelineBuilder } from '../../Core/Builder/PipelineBuilder.js';
+import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import { NEWBANK_LOGIN } from './NewBankLoginConfig.js';
 
 export function buildNewBankPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
-  return PipelineBuilder.create(options)
-    .withBrowser()
-    .withLogin(NEWBANK_LOGIN)
-    // optional: .withOtpFill(...).withPreLogin(...) etc.
-    .build();
+  return (
+    createPipelineBuilder()
+      .withOptions(options)
+      .withBrowser()
+      .withDeclarativeLogin(NEWBANK_LOGIN)
+      // optional: .withOtpTrigger().withOtpFill() etc.
+      .build()
+  );
 }
 ```
 
@@ -121,11 +130,12 @@ Conventional Commit subject: `feat(banks): add NewBank pipeline scraper`. The pr
 If your bank needs OTP:
 
 ```typescript
-return PipelineBuilder.create(options)
+return createPipelineBuilder()
+  .withOptions(options)
   .withBrowser()
-  .withLogin(NEWBANK_LOGIN)
-  .withOtpTrigger(NEWBANK_OTP_TRIGGER_CONFIG)
-  .withOtpFill(NEWBANK_OTP_FILL_CONFIG)
+  .withDeclarativeLogin(NEWBANK_LOGIN)
+  .withOtpTrigger()
+  .withOtpFill()
   .build();
 ```
 

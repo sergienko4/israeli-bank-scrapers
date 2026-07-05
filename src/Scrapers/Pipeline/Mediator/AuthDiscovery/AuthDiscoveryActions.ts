@@ -45,12 +45,16 @@ function failCookiesEmpty(): Procedure<IPipelineContext> {
 
 /**
  * Wait up to {@link AUTH_DISCOVERY_PRE_SETTLE_MS} for the SPA's
- * network to go idle. Event-driven via `waitForNetworkIdle`.
+ * post-login redirect to finish — awaits BOTH the `load` lifecycle
+ * event AND `networkidle` via `waitForPageSettle`. Event-driven: fast
+ * banks early-exit; a slow multi-hop redirect (e.g. Yahav BaNCS)
+ * settles before the POST reveal probe runs, so the probe no longer
+ * fires mid-navigation (execution-context-destroyed → "no reveal").
  * @param mediator - Element mediator (provides the wait primitive).
  * @returns True after the wait settles or the budget elapses.
  */
 async function settlePostLoginRedirect(mediator: IElementMediator): Promise<true> {
-  await mediator.waitForNetworkIdle(AUTH_DISCOVERY_PRE_SETTLE_MS).catch((): false => false);
+  await mediator.waitForPageSettle(AUTH_DISCOVERY_PRE_SETTLE_MS).catch((): false => false);
   return true;
 }
 

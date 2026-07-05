@@ -46,7 +46,8 @@ cat /etc/resolv.conf
 echo ""
 
 # ── Extract bank hostnames from PipelineBankConfig.ts ───────────
-# Matches lines like:    urls: { base: 'https://www.fibi.co.il' },
+# Matches both the explicit  urls: { base: 'https://www.fibi.co.il' }
+# shape AND the  defineBank('https://...', ...)  factory shape.
 # Extracts hostname only (no scheme, no path, no trailing slash).
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "❌ Config file not found: $CONFIG_FILE"
@@ -58,11 +59,13 @@ BANK_FILTER="${1:-}"
 if [ -n "$BANK_FILTER" ]; then
   # Per-bank matrix mode — extract only the hostname for the named
   # CompanyTypes key. Grep the line with `[CompanyTypes.<Bank>]:`
-  # plus the next 2 lines so we catch the `base:` inside the
-  # `urls: { base: '...' }` block on the following line.
+  # plus the next 2 lines so we catch either the `base:` inside a
+  # `urls: { base: '...' }` block or the `defineBank('https://...')` factory
+  # call on the following lines.
   # shellcheck disable=SC2207
   HOSTS=($(grep -A 2 "\[CompanyTypes\.${BANK_FILTER}\]" "$CONFIG_FILE" \
-           | grep -oE "base:[[:space:]]*'https?://[^/'[:space:]]+" \
+           | grep -oE "(base:[[:space:]]*|defineBank\()'https?://[^/'[:space:]]+" \
+           | head -1 \
            | sed -E "s|.*://||"))
   if [ "${#HOSTS[@]}" -eq 0 ]; then
     echo "❌ No hostname found for CompanyTypes.${BANK_FILTER} in $CONFIG_FILE."
@@ -74,7 +77,7 @@ if [ -n "$BANK_FILTER" ]; then
 else
   # Preflight mode — warm every bank in the config.
   # shellcheck disable=SC2207
-  HOSTS=($(grep -oE "base:[[:space:]]*'https?://[^/'[:space:]]+" "$CONFIG_FILE" \
+  HOSTS=($(grep -oE "(base:[[:space:]]*|defineBank\()'https?://[^/'[:space:]]+" "$CONFIG_FILE" \
            | sed -E "s|.*://||" \
            | sort -u))
   if [ "${#HOSTS[@]}" -eq 0 ]; then

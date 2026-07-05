@@ -4,6 +4,7 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
+import { isTxnPageUrl } from '../../Registry/WK/DashboardTxnMatch.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
@@ -24,16 +25,6 @@ function withHrefTarget(c: SelectorCandidate): SelectorCandidate {
 }
 
 /**
- * Test if an href matches any WK transaction page pattern.
- * @param h - Href to test.
- * @returns True if matches.
- */
-function matchesTxnPattern(h: string): boolean {
-  const patterns = WK_DASHBOARD.TXN_PAGE_PATTERNS;
-  return patterns.some((p): boolean => p.test(h));
-}
-
-/**
  * Filter a resolved href to only return it when it points to a real txn
  * page. Otherwise reject so the next layer can try — prevents an aria-
  * label match on a non-txn anchor (e.g. a "transactions" link leading to
@@ -43,7 +34,7 @@ function matchesTxnPattern(h: string): boolean {
  */
 function filterByTxnPattern(href: string): string {
   if (!href) return NO_HREF;
-  if (matchesTxnPattern(href)) return href;
+  if (isTxnPageUrl(href)) return href;
   return NO_HREF;
 }
 
@@ -142,7 +133,7 @@ async function extractHrefLayer2(
  */
 async function extractHrefLayer3(mediator: IElementMediator): Promise<string> {
   const allHrefs = await mediator.collectAllHrefs();
-  const txnHref = allHrefs.find(matchesTxnPattern);
+  const txnHref = allHrefs.find(isTxnPageUrl);
   const label = txnHref ?? 'none';
   LOG.debug({
     message: `L3 DOM scan: match=${maskVisibleText(label)} total=${String(allHrefs.length)}`,

@@ -254,6 +254,18 @@ interface IElementMediator {
   waitForNetworkIdle(timeoutMs?: number): Promise<Procedure<void>>;
 
   /**
+   * Event-driven wait for the page to reach a stable rendered state —
+   * awaits BOTH the `load` lifecycle event AND `networkidle`. Stronger
+   * than {@link waitForNetworkIdle} (which ignores `load`): used by
+   * AUTH-DISCOVERY.PRE so a slow multi-hop post-login redirect finishes
+   * before the reveal probe runs, instead of firing mid-navigation.
+   * Fast pages early-exit; timeout is non-fatal (swallowed).
+   * @param timeoutMs - Ceiling (default: elements networkidle budget).
+   * @returns Always succeed — timeout is swallowed.
+   */
+  waitForPageSettle(timeoutMs?: number): Promise<Procedure<void>>;
+
+  /**
    * Race a custom wait promise against `waitForNetworkIdle`. Resolves
    * as soon as either side settles (resolve OR reject); the caller
    * decides the outcome by inspecting observed state after this

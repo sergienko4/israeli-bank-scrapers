@@ -127,4 +127,10 @@ function validateTrafficGate(network: INetworkDiscovery, logger?: ScraperLogger)
 
 export { buildApiContext, triggerOrganicDashboard } from './DashboardNavigation.js';
 
-export { countTxnTraffic, probeDashboardReveal, probeSuccessIndicators, validateTrafficGate };
+export {
+  buildRevealCandidates,
+  countTxnTraffic,
+  probeDashboardReveal,
+  probeSuccessIndicators,
+  validateTrafficGate,
+};

@@ -20,6 +20,7 @@
 
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../../Types/Debug.js';
+import { isBancsTxnCapture } from '../../Scrape/Bancs/BancsTxnRequest.js';
 import { BROWSER_STANDARD_HEADERS, extractBaseUrl } from '../Indexing/Indexing.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
@@ -121,13 +122,29 @@ function isBrowserStandard(name: string): boolean {
 }
 
 /**
+ * Find the endpoint whose request headers seed the txn replay —
+ * URL-well-known first, then a default-deny BaNCS body-shape
+ * fallback for the multiplexed `/account` POST whose URL matches no
+ * well-known txn pattern. Non-BaNCS pools yield `false` unchanged.
+ * @param captured - Captured endpoints.
+ * @returns The txn header source endpoint, or `false` when none.
+ */
+function findTxnHeaderSource(
+  captured: readonly IDiscoveredEndpoint[],
+): IDiscoveredEndpoint | false {
+  const byUrl = discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.transactions);
+  if (byUrl) return byUrl;
+  return captured.find((ep): boolean => isBancsTxnCapture(ep)) ?? false;
+}
+
+/**
  * Extract SPA-specific headers from the transaction endpoint.
  * Filters out browser-standard headers, keeps custom SPA headers (SID, CID, etc.).
  * @param captured - Captured endpoints.
  * @returns SPA-specific headers or empty object.
  */
 function extractSpaHeaders(captured: readonly IDiscoveredEndpoint[]): Record<string, string> {
-  const txnEp = discoverByWellKnown(captured, PIPELINE_WELL_KNOWN_API.transactions);
+  const txnEp = findTxnHeaderSource(captured);
   if (!txnEp) return {};
   const entries = Object.entries(txnEp.requestHeaders);
   const spaOnly = entries.filter(([name]): boolean => !isBrowserStandard(name));

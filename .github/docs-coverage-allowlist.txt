@@ -593,6 +593,12 @@ raceLocators
 #         + skip-link filter pipeline; primary path for resolve-visible
 #         helpers in the mediator.
 raceLocatorsWithHitTest
+# Reason: raceLocatorsFirstHit — internal single-winner locator race that
+#         short-circuits on the FIRST hit-testable locator (or visible
+#         fallback) via Promise.any instead of awaiting every candidate;
+#         sibling of raceLocatorsWithHitTest, consumed only by Race.ts +
+#         Resolve.ts. Pipeline-internal, not part of the npm public surface.
+raceLocatorsFirstHit
 # Reason: ILocatorEntry — internal carrier pairing a Playwright Locator with
 #         the candidate descriptor and browsing-context that produced it.
 ILocatorEntry
@@ -1221,3 +1227,14 @@ tryFormRequestSubmit
 # for up to this budget so the body-bearing endpoint settles. Framework-internal
 # timing knob; exported only so the NetworkPolling race test asserts it. Not user-facing.
 NETWORK_BODY_SETTLE_MS
+# Reason: DashboardTxnMatch — shared TXN-page URL predicate reused by the DASHBOARD
+# click-walker, dashboard href-extraction, and the ACCOUNT-RESOLVE nudge (dedup of
+# TXN_PAGE_PATTERNS.some) and driven by the DashboardWK pin test. Framework-internal
+# matcher, not user-facing public API.
+isTxnPageUrl
+# Reason: WindowParams — hasWindowParams detects a COMPLETE fromDate+toDate window
+# (top-level query keys OR keys nested inside a JSON-valued param such as Max's
+# filterData). Framework-internal predicate for the ShapeAware windowParamsMatch
+# picker tier; exported so the ShapeAware empty-cycle regression test drives it.
+# Not user-facing public API.
+hasWindowParams

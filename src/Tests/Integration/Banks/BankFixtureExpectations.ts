@@ -256,6 +256,13 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     requiresHydration: true,
     steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
   },
+  {
+    bankId: 'yahav',
+    originUrl: 'https://digital.yahav.co.il',
+    loginStep: '02-pre-login',
+    requiresHydration: true,
+    steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
+  },
 ];
 
 export default BANK_FIXTURE_EXPECTATIONS;
