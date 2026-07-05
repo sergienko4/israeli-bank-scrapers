@@ -13,7 +13,7 @@ import {
 dotenv.config();
 
 const hasCredentials = !!(
-  process.env.YAHAV_USERNAME &&
+  process.env.YAHAV_NUM &&
   process.env.YAHAV_ID &&
   process.env.YAHAV_PASSWORD
 );
@@ -32,7 +32,7 @@ DESCRIBE_IF('E2E: Bank Yahav (real credentials)', () => {
       args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
-      num: process.env.YAHAV_USERNAME ?? '',
+      num: process.env.YAHAV_NUM ?? '',
       nationalID: process.env.YAHAV_ID ?? '',
       password: process.env.YAHAV_PASSWORD ?? '',
     });
