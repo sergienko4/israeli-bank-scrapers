@@ -28,3 +28,15 @@ const result = await scraper.scrape({
 
 - Beinleumi is the parent of the Beinleumi group: same login flow used by Massad, Otsar Hahayal, Pagi.
 - Balance endpoint shape: `(withdrawable + current)` per account — see [`beinleumi/balance-resolve/last-good.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/beinleumi/balance-resolve/last-good.json) for the captured response shape.
+
+## Hard-model post-auth
+
+After login, Beinleumi uses the hard-model post-auth path
+(`withBrowserApiDirect`): the exact API calls are issued directly through the
+live login page instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE /
+DASHBOARD / SCRAPE / BALANCE-RESOLVE chain. The bank's `IApiDirectScrapeShape`
+(account-list, balance, and transactions helpers under `Banks/Beinleumi/scrape/`:
+`extractAccounts`, `balanceExtract` / `balanceUrl`, `txnsVars` /
+`txnsExtractPage`) declares each endpoint. See
+[api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
+

@@ -14,3 +14,15 @@
 - All Max selectors were migrated from CSS/IDs to **visible Hebrew text** in v8.2.0.
 - Max + Isracard + Amex are the three credit-card brands with PRE-LOGIN.
 - BALANCE-RESOLVE plan is per-bank-account — Max users typically have one BA per card.
+
+## Hard-model post-auth
+
+After login, Max uses the hard-model post-auth path
+(`withBrowserApiDirect`): the exact API calls are issued directly through the
+live login page instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE /
+DASHBOARD / SCRAPE / BALANCE-RESOLVE chain. The bank's `IApiDirectScrapeShape`
+(account-list, balance, and transactions helpers under `Banks/Max/scrape/`:
+`extractAccounts`, `balanceExtract` / `balanceUrl`, `txnsVars` /
+`txnsExtractPage`) declares each endpoint. See
+[api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
+

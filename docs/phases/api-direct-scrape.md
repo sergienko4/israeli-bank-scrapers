@@ -103,3 +103,13 @@ Two request-header sniffs run alongside it (both PII-safe — only per-session a
 
 - **CSRF** (`scanCsrf`): value-matches the login response's `csrfTkn` nonce to the opaque request-header name the SPA's Angular interceptor injects, replayed on every `/account` POST (clears BaNCS error 88521).
 - **SPA headers** (`scanSpaHeaders`): the SPA's custom XHR headers (`X-Requested-With` / `Accept`) captured from the pooled accounts request and replayed via the default-header bag (clears BaNCS error 93194 whose subject element is `origin`).
+
+## Optional shape hooks
+
+Beyond the three required steps (`customer` / `balance` / `transactions`), `IApiDirectScrapeShape` exposes optional hooks a bank declares only when needed:
+
+- `customer.secondaryUrlTag` — a second identity GET fired after the primary customer fetch; its parsed response reaches `extractAccounts` as `secondaryBody` (FIBI account-type lookup).
+- `customer.skipFetch` / `balance.skipFetch` — skip the network call entirely; the extractor still runs but with `body: {}` (PayBox `uId`-derived accounts; card-cycle banks' deterministic zero balance).
+- `bodyTemplate` (per step) — a `JsonValueTemplate` hydrated against the post-login scope and POSTed as the request body (PayBox class-y `auth` envelopes).
+- `signer` + `secrets` (shape root) — an `IAesSignerConfig` body-pointer signer applied to every scrape-step body before POST (PayBox).
+- `resultGuard` — a fail-closed POST-stage guard over a PII-free `IApiDirectScrapeGuardSummary` that aborts a degraded run (e.g. zero transactions from a warm session).
