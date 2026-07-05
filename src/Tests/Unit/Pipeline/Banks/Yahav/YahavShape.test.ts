@@ -17,7 +17,9 @@ import {
   buildEnvelope,
   csrfHeaders,
   portfolioRefs,
+  spaHeaders,
 } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeEnvelope.js';
+import { bancsHeaders } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeHeaders.js';
 import { type IYahavAcct } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeHelpers.js';
 import {
   accountsPayload,
@@ -172,6 +174,39 @@ describe('YahavShape envelope', () => {
     const headers = csrfHeaders(ctx);
     expect(headers.csrfTkn).toBe('abc123');
     expect(headers['X-CSRF-Token']).toBe('abc123');
+  });
+});
+
+describe('YahavShape headers', () => {
+  it('spaHeaders parses the captured SPA header bag', () => {
+    const bag = JSON.stringify({ 'x-requested-with': 'XMLHttpRequest' });
+    const ctx = ctxWithBancs({ bancsSpaHeaders: bag });
+    const headers = spaHeaders(ctx);
+    expect(headers['x-requested-with']).toBe('XMLHttpRequest');
+  });
+
+  it('spaHeaders returns an empty map when unprimed', () => {
+    const ctx = ctxWithBancs();
+    const headers = spaHeaders(ctx);
+    expect(headers).toEqual({});
+  });
+
+  it('spaHeaders tolerates a malformed bag', () => {
+    const ctx = ctxWithBancs({ bancsSpaHeaders: 'not-json' });
+    const headers = spaHeaders(ctx);
+    expect(headers).toEqual({});
+  });
+
+  it('bancsHeaders merges SPA headers with the CSRF header (CSRF wins a clash)', () => {
+    const bag = JSON.stringify({ 'x-requested-with': 'XMLHttpRequest', 'x-xsrf-token': 'stale' });
+    const ctx = ctxWithBancs({
+      bancsSpaHeaders: bag,
+      bancsCsrfName: 'x-xsrf-token',
+      bancsCsrfValue: 'fresh',
+    });
+    const headers = bancsHeaders(ctx);
+    expect(headers['x-requested-with']).toBe('XMLHttpRequest');
+    expect(headers['x-xsrf-token']).toBe('fresh');
   });
 });
 

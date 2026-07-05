@@ -81,6 +81,24 @@ export function csrfHeaders(ctx: IActionContext): HeaderMap {
 }
 
 /**
+ * The SPA content-negotiation header bag captured at BIND (X-Requested-With /
+ * Accept / ...), or an empty map when unprimed. Rides every `/account` POST so
+ * BaNCS accepts the request; without it the server rejects a bare fetch with a
+ * generic 93194 whose subject element is `origin`.
+ * @param ctx - Action context.
+ * @returns Header map, or empty.
+ */
+export function spaHeaders(ctx: IActionContext): HeaderMap {
+  const raw = readSession(ctx, 'bancsSpaHeaders');
+  if (raw.length === 0) return {};
+  try {
+    return JSON.parse(raw) as HeaderMap;
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Parse the captured SecToken (a stringified `{Ver,Token:[...]}` block).
  * @param ctx - Action context.
  * @returns SecToken block, or the empty block when absent/malformed.

@@ -1510,6 +1510,8 @@ versionFields
 buildEnvelope
 portfolioRefs
 csrfHeaders
+spaHeaders
+bancsHeaders
 IPortfolioRefs
 YAHAV_API
 ACCOUNT_PATH
@@ -1535,3 +1537,10 @@ IBancsCapture
 # consumed only by BindApiMediatorBancs. Not user-facing.
 scanCsrf
 ICsrfHeader
+# Reason: BindApiMediatorBancsHeaders -- sniffs the TCS BaNCS SPA's custom XHR
+# request headers (X-Requested-With / Accept / ...) from the login-boot accounts
+# POST so the hard-model fetch replays them (the server rejects a bare fetch with
+# a 93194 'origin' exception). Framework-internal; consumed only by
+# BindApiMediatorBancs. Not user-facing.
+scanSpaHeaders
+IBancsSpaHeaders

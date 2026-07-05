@@ -14,6 +14,7 @@ import type { INetworkDiscovery } from '../../../../../Scrapers/Pipeline/Mediato
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
 import { primeBancsSession } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorBancs.js';
 import { scanCsrf } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorBancsCsrf.js';
+import { scanSpaHeaders } from '../../../../../Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorBancsHeaders.js';
 import { isSome } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
 /** Local mirror of the registry bank-config shape (import is DI-restricted). */
@@ -283,6 +284,24 @@ describe('BIND-API-MEDIATOR BaNCS prime — primeBancsSession', () => {
     const passed = firstSetArg(run.mediator);
     expect(passed.bancsAppVer).toBe('');
   });
+
+  it('CAPTURE-16 stashes the filtered SPA header bag from the accounts POST', () => {
+    const headers = {
+      'x-requested-with': 'XMLHttpRequest',
+      cookie: 'secret',
+      accept: 'application/json',
+    };
+    const body = accountBody();
+    const base = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const endpoint = withHeaders(base, headers);
+    const run = runPrime(endpoint, true, {});
+    const passed = firstSetArg(run.mediator);
+    const raw = String(passed.bancsSpaHeaders);
+    const bag = JSON.parse(raw) as Record<string, string>;
+    expect(bag['x-requested-with']).toBe('XMLHttpRequest');
+    expect(bag.accept).toBe('application/json');
+    expect(bag.cookie).toBeUndefined();
+  });
 });
 
 const LOGIN_URL = 'https://digital.yahav.co.il/BaNCSDigitalApp/login';
@@ -327,5 +346,34 @@ describe('BIND-API-MEDIATOR BaNCS CSRF sniff — scanCsrf', () => {
     const acct = makeEndpoint(ACCOUNT_URL, 'POST', body);
     const csrf = scanCsrf([acct]);
     expect(csrf.bancsCsrfValue).toBe('');
+  });
+});
+
+describe('BIND-API-MEDIATOR BaNCS SPA-header sniff — scanSpaHeaders', () => {
+  it('SPA-1 keeps custom SPA headers and drops browser-standard + content-type', () => {
+    const headers = {
+      'x-requested-with': 'XMLHttpRequest',
+      accept: 'application/json',
+      cookie: 'secret',
+      origin: 'https://digital.yahav.co.il',
+      'content-type': 'application/json',
+    };
+    const body = accountBody();
+    const base = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const acct = withHeaders(base, headers);
+    const raw = scanSpaHeaders([acct]).bancsSpaHeaders;
+    const bag = JSON.parse(raw) as Record<string, string>;
+    expect(bag['x-requested-with']).toBe('XMLHttpRequest');
+    expect(bag.accept).toBe('application/json');
+    expect(bag.cookie).toBeUndefined();
+    expect(bag.origin).toBeUndefined();
+    expect(bag['content-type']).toBeUndefined();
+  });
+
+  it('SPA-2 yields an empty bag when no accounts request carries headers', () => {
+    const body = accountBody();
+    const acct = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const spa = scanSpaHeaders([acct]);
+    expect(spa.bancsSpaHeaders).toBe('');
   });
 });

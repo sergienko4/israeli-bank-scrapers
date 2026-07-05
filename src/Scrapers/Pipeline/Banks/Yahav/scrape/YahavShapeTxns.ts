@@ -22,7 +22,8 @@ import type {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { buildEnvelope, csrfHeaders } from './YahavShapeEnvelope.js';
+import { buildEnvelope } from './YahavShapeEnvelope.js';
+import { bancsHeaders } from './YahavShapeHeaders.js';
 import { ACCOUNT_PATH, type IYahavAcct, YAHAV_API } from './YahavShapeHelpers.js';
 import { txnsPayload } from './YahavShapeTxnPayload.js';
 
@@ -94,5 +95,5 @@ export const YAHAV_TXNS: IApiDirectScrapeTxnsStep<IYahavAcct, number> = {
   extractPage: txnsExtractPage,
   urlTag: txnsUrl,
   method: 'POST',
-  extraHeaders: csrfHeaders,
+  extraHeaders: bancsHeaders,
 };

@@ -16,7 +16,8 @@ import type {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { extractYahavAccounts } from './YahavAccountExtract.js';
-import { buildEnvelope, csrfHeaders } from './YahavShapeEnvelope.js';
+import { buildEnvelope } from './YahavShapeEnvelope.js';
+import { bancsHeaders } from './YahavShapeHeaders.js';
 import { ACCOUNT_PATH, type IYahavAcct, YAHAV_API } from './YahavShapeHelpers.js';
 import { accountsPayload, balancePayload } from './YahavShapePayloads.js';
 
@@ -65,7 +66,7 @@ export const YAHAV_CUSTOMER: IApiDirectScrapeCustomerStep<IYahavAcct> = {
   extractAccounts: extractYahavAccounts,
   urlTag: accountUrl,
   method: 'POST',
-  extraHeaders: csrfHeaders,
+  extraHeaders: bancsHeaders,
 };
 
 /** Balance step — POST the portfolioBalance Payload, read CURRENT balance. */
@@ -75,5 +76,5 @@ export const YAHAV_BALANCE: IApiDirectScrapeBalanceStep<IYahavAcct> = {
   urlTag: accountUrl,
   method: 'POST',
   fallbackOnFail: 0,
-  extraHeaders: csrfHeaders,
+  extraHeaders: bancsHeaders,
 };
