@@ -593,6 +593,12 @@ raceLocators
 #         + skip-link filter pipeline; primary path for resolve-visible
 #         helpers in the mediator.
 raceLocatorsWithHitTest
+# Reason: raceLocatorsFirstHit — internal single-winner locator race that
+#         short-circuits on the FIRST hit-testable locator (or visible
+#         fallback) via Promise.any instead of awaiting every candidate;
+#         sibling of raceLocatorsWithHitTest, consumed only by Race.ts +
+#         Resolve.ts. Pipeline-internal, not part of the npm public surface.
+raceLocatorsFirstHit
 # Reason: ILocatorEntry — internal carrier pairing a Playwright Locator with
 #         the candidate descriptor and browsing-context that produced it.
 ILocatorEntry
