@@ -70,7 +70,7 @@ function toAcct(a: IUserAccount): IDiscountAcct {
 export function extractAccounts(args: IExtractAccountsArgs): readonly IDiscountAcct[] {
   const resp = args.body as unknown as ICustomerResp;
   const rows = resp.UserAccountsData?.UserAccounts ?? [];
-  return rows.map(toAcct);
+  return rows.map(toAcct).filter((acct): boolean => acct.accountId.length > 0);
 }
 
 /**
