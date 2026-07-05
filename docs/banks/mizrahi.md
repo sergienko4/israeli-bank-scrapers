@@ -22,4 +22,4 @@ const result = await scraper.scrape({
 
 ## Migration status
 
-**Wave 1** target in the [migration plan](../architecture/migration.md) — Mizrahi is a high-traffic legacy bank, so it lands in the first migration wave alongside Leumi.
+**Wave 1** target in the [migration plan](../architecture/migration.md) — Mizrahi is a high-traffic legacy bank, so it lands in the first migration wave — alongside Bank Leumi, which has since migrated to the Pipeline.
