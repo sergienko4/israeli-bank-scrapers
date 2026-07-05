@@ -56,13 +56,14 @@ function withHeaders(
 }
 
 /**
- * Serialize an accounts request postData carrying a filled SecToken + Prtflio.
- * @returns Stringified `{ SecToken, Payload }` body.
+ * Serialize an accounts request postData carrying a filled SecToken + Prtflio
+ * plus a client-build `AppVer` (captured to track BaNCS deployment bumps).
+ * @returns Stringified `{ SecToken, Payload, AppVer }` body.
  */
 function accountBody(): string {
   const prtId = { iorId: 'fakePior', Id: 'fakeport0001' };
   const payload = { DataEntity: [{ Prtflio: { Id: prtId } }] };
-  return JSON.stringify({ SecToken: SEC_TOKEN, Payload: payload });
+  return JSON.stringify({ SecToken: SEC_TOKEN, Payload: payload, AppVer: 'fake.build.FP46' });
 }
 
 /**
@@ -151,6 +152,7 @@ describe('BIND-API-MEDIATOR BaNCS prime — primeBancsSession', () => {
     expect(passed.bancsPortfolioIorId).toBe('fakePior');
     expect(passed.bancsPortfolioId).toBe('fakeport0001');
     expect(passed.bancsSecToken).toContain(FAKE_SIG);
+    expect(passed.bancsAppVer).toBe('fake.build.FP46');
   });
 
   it('CAPTURE-2 merges into the existing session-context', () => {
@@ -270,6 +272,16 @@ describe('BIND-API-MEDIATOR BaNCS prime — primeBancsSession', () => {
     const run = runPrime(endpoint, true, {});
     const passed = firstSetArg(run.mediator);
     expect(passed.bancsCsrfName).toBe('');
+  });
+
+  it('CAPTURE-15 captures an empty AppVer when the postData omits it', () => {
+    const prtId = { iorId: 'fakePior', Id: 'fakeport0001' };
+    const payload = { DataEntity: [{ Prtflio: { Id: prtId } }] };
+    const body = JSON.stringify({ SecToken: SEC_TOKEN, Payload: payload });
+    const endpoint = makeEndpoint(ACCOUNT_URL, 'POST', body);
+    const run = runPrime(endpoint, true, {});
+    const passed = firstSetArg(run.mediator);
+    expect(passed.bancsAppVer).toBe('');
   });
 });
 

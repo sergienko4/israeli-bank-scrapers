@@ -9,7 +9,7 @@ import { resolveApiMediator } from '../../../Mediator/Api/ApiMediatorAccessor.js
 import type { HeaderMap, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { isOk } from '../../../Types/Procedure.js';
-import { ENVELOPE_STATIC } from './YahavEnvelopeStatic.js';
+import { APP_VER, ENVELOPE_STATIC, versionFields } from './YahavEnvelopeStatic.js';
 import { msgId } from './YahavShapeHelpers.js';
 
 /** Accessor label surfaced in a mediator-missing failure message. */
@@ -96,19 +96,22 @@ function secToken(ctx: IActionContext): object {
 }
 
 /**
- * Numeric calendar parts of a date (matches the BaNCS DateTime shape).
+ * Numeric UTC calendar parts of a date (matches the BaNCS DateTime shape).
+ * The SPA sends UTC time under a fixed `UTCOffsetHour: -3` block, so a local
+ * clock would post a future timestamp (Israel is UTC+3) that BaNCS rejects
+ * with a generic 93194 exception — hence the UTC getters.
  * @param d - Current instant.
- * @returns Day/Year/Month/Hour/Minute/Second/Fraction.
+ * @returns Day/Year/Month/Hour/Minute/Second/Fraction in UTC.
  */
 function dateParts(d: Date): Record<string, number> {
   return {
-    Day: d.getDate(),
-    Year: d.getFullYear(),
-    Month: d.getMonth() + 1,
-    Hour: d.getHours(),
-    Minute: d.getMinutes(),
-    Second: d.getSeconds(),
-    Fraction: d.getMilliseconds(),
+    Day: d.getUTCDate(),
+    Year: d.getUTCFullYear(),
+    Month: d.getUTCMonth() + 1,
+    Hour: d.getUTCHours(),
+    Minute: d.getUTCMinutes(),
+    Second: d.getUTCSeconds(),
+    Fraction: d.getUTCMilliseconds(),
   };
 }
 
@@ -123,17 +126,22 @@ function timeStamp(): object {
 }
 
 /**
- * Wrap a per-call Payload in the full BaNCS MessageEnvelope.
- * @param ctx - Action context (SecToken source).
+ * Wrap a per-call Payload in the full BaNCS MessageEnvelope. The client-build
+ * version is the value captured at BIND (`bancsAppVer`), falling back to the
+ * pinned `APP_VER` only when the capture was absent — so a BaNCS deployment
+ * bump never leaves the request on a stale build.
+ * @param ctx - Action context (SecToken + AppVer source).
  * @param payload - Per-call `Payload` object.
  * @returns Envelope posted verbatim as the JSON request body.
  */
 export function buildEnvelope(ctx: IActionContext, payload: VarsMap): VarsMap {
+  const captured = readSession(ctx, 'bancsAppVer');
+  const appVer = captured.length > 0 ? captured : APP_VER;
   const dynamic = {
     TimeStamp: timeStamp(),
     SecToken: secToken(ctx),
     Payload: payload,
     MsgId: msgId(),
   };
-  return { ...ENVELOPE_STATIC, ...dynamic };
+  return { ...ENVELOPE_STATIC, ...versionFields(appVer), ...dynamic };
 }

@@ -34,7 +34,7 @@ import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/Pipe
 
 const SEC_TOKEN = { Ver: 'SecurityToken_1.0.0', Token: [{ TokenId: 't-1', Signature: 'sig' }] };
 const ACCT: IYahavAcct = { id: 'fakeacct00001', iorId: 'fakeIor', balance: 150 };
-const APP_VER = 'BaNCSDigital.Web_1.3.46.BY.1.1.96.FP42_updated';
+const APP_VER = 'BaNCSDigital.Web_1.3.46.BY.1.1.96.FP46';
 const CHUNK = { start: '2026-06-25T00:00:00.000Z', end: '2026-07-02T23:59:59.000Z' };
 
 /**
@@ -122,6 +122,17 @@ describe('YahavShape envelope', () => {
     const sec = env.SecToken as Record<string, unknown>;
     const tokens = sec.Token as Record<string, unknown>[];
     expect(tokens[0].TokenId).toBe('t-1');
+  });
+
+  it('buildEnvelope threads the captured AppVer through both ClientApp nodes', () => {
+    const ctx = ctxWithBancs({ bancsAppVer: 'captured.build.FP99' });
+    const env = buildEnvelope(ctx, {});
+    expect(env.AppVer).toBe('captured.build.FP99');
+    const clientApp = env.ClientApp as Record<string, unknown>;
+    expect(clientApp.ApVer).toBe('captured.build.FP99');
+    const comptLst = clientApp.ComptLst as Record<string, unknown>;
+    const list = comptLst.AppCompLst as Record<string, unknown>[];
+    expect(list[0].AppCompVer).toBe('captured.build.FP99');
   });
 
   it('buildEnvelope emits an empty SecToken.Token when the capture is absent', () => {

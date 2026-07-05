@@ -39,6 +39,7 @@ export interface IBancsCapture {
   readonly bancsSecToken: string;
   readonly bancsPortfolioIorId: string;
   readonly bancsPortfolioId: string;
+  readonly bancsAppVer: string;
 }
 
 /**
@@ -82,6 +83,18 @@ function readSecToken(body: ApiRecord): string | false {
 }
 
 /**
+ * Read the client-build `AppVer` from an accounts request postData. Captured so
+ * the envelope tracks BaNCS deployment bumps instead of posting a pinned build
+ * the server rejects with a generic 93194 once the bank redeploys.
+ * @param body - Parsed request postData.
+ * @returns The AppVer string, or empty when absent.
+ */
+function readAppVer(body: ApiRecord): string {
+  const appVer = body.AppVer;
+  return isStr(appVer) ? appVer : '';
+}
+
+/**
  * Extract the BaNCS capture from a single pooled accounts request.
  * @param ep - Captured endpoint.
  * @returns Capture bundle, or `false` when this endpoint has none.
@@ -97,6 +110,7 @@ function captureFrom(ep: IDiscoveredEndpoint): IBancsCapture | false {
     bancsSecToken: secToken,
     bancsPortfolioIorId: portfolio.iorId,
     bancsPortfolioId: portfolio.id,
+    bancsAppVer: readAppVer(body),
   };
 }
 

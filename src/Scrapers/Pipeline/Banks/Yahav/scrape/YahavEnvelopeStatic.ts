@@ -2,21 +2,30 @@
  * Yahav BaNCS `MessageEnvelope` — fixed static blocks.
  *
  * Every field here is invariant across the accounts / balance / transactions
- * requests (verified against the captured trace). The version-bearing scalars
- * (`APP_VER`, `API_VER`) are client-build strings that BaNCS may bump on a
- * deployment; they are pinned to the captured build and re-grounded from the
- * SPA's `/BaNCSDigitalUI/*config.json` if a future trace shows drift. Split
- * from YahavShapeEnvelope.ts to keep both files within the LOC ceiling.
+ * requests (verified against the captured trace). The client-build version
+ * (`AppVer`) BaNCS bumps on every deployment, so it is captured live at BIND
+ * and threaded in via {@link versionFields}; `APP_VER` is only the fallback
+ * pin. Split from YahavShapeEnvelope.ts to keep both files within the LOC
+ * ceiling.
  */
 
-/** Client-build version string (rides `AppVer` + every `ClientApp` node). */
-export const APP_VER = 'BaNCSDigital.Web_1.3.46.BY.1.1.96.FP42_updated';
+/**
+ * Pinned client-build version — the last-resort fallback only. BaNCS bumps this
+ * on every deployment (the 02-07 trace shows `FP42_updated`, later `FP46`), so
+ * the live value is captured at BIND (`bancsAppVer`) and this pin is used solely
+ * when that capture is absent. Rides `AppVer` + every `ClientApp` version node
+ * through {@link versionFields}.
+ */
+export const APP_VER = 'BaNCSDigital.Web_1.3.46.BY.1.1.96.FP46';
 
 /** BaNCS Global Data Model API version. */
 export const API_VER = 'GDM_1.0.88';
 
 /** Shared `Identifier_1.0.0` version tag (rides several empty id blocks). */
 const VER_IDENTIFIER = 'Identifier_1.0.0';
+
+/** `ApplicationComponentList` version tag (shared by CLIENT_APP + versionFields). */
+const APP_COMP_LIST_VER = 'ApplicationComponentList_1.0.0';
 
 /** Envelope resource — the double-slash matches the captured wire form. */
 export const RESOURCE = 'https://digital.yahav.co.il//BaNCSDigitalApp/account';
@@ -57,7 +66,7 @@ export const CLIENT_APP = Object.freeze({
   Id: { Ver: VER_IDENTIFIER },
   BldDt: { Ver: 'DateTime_1.0.0', Timezone: { Ver: 'TimeZone_1.0.0' } },
   InstlDt: { Ver: 'DateTime_1.0.0', Timezone: { Ver: 'TimeZone_1.0.0' } },
-  ComptLst: { Ver: 'ApplicationComponentList_1.0.0', AppCompLst: [APP_COMPONENT] },
+  ComptLst: { Ver: APP_COMP_LIST_VER, AppCompLst: [APP_COMPONENT] },
   ApId: { Ver: VER_IDENTIFIER },
   ApGrpId: { Ver: VER_IDENTIFIER },
   Nam: 'Retail Internet Banking',
@@ -83,3 +92,24 @@ export const ENVELOPE_STATIC = Object.freeze({
   ClientApp: CLIENT_APP,
   SessionId: 'sessionId',
 });
+
+/** Version-bearing envelope overlay — {@link versionFields} return shape. */
+interface IVersionFields {
+  readonly AppVer: string;
+  readonly ClientApp: Record<string, unknown>;
+}
+
+/**
+ * Version-bearing overlay for a client-build string. Threads `appVer` through
+ * the top-level `AppVer` and both `ClientApp` version nodes so the captured
+ * build replaces the pinned fallback; without it a post-deployment version
+ * mismatch draws a generic BaNCS 93194 exception.
+ * @param appVer - Client-build version (captured at BIND, or `APP_VER`).
+ * @returns `{ AppVer, ClientApp }` overlay merged over ENVELOPE_STATIC.
+ */
+export function versionFields(appVer: string): IVersionFields {
+  const component = { ...APP_COMPONENT, AppCompVer: appVer };
+  const comptLst = { Ver: APP_COMP_LIST_VER, AppCompLst: [component] };
+  const clientApp = { ...CLIENT_APP, ApVer: appVer, ComptLst: comptLst };
+  return { AppVer: appVer, ClientApp: clientApp };
+}
