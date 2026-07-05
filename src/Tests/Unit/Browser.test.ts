@@ -1,10 +1,5 @@
 import { buildContextOptions } from '../../Common/Browser.js';
-import {
-  DESKTOP_VIEWPORT_HEIGHT,
-  DESKTOP_VIEWPORT_WIDTH,
-  ISRAEL_LOCALE,
-  ISRAEL_TIMEZONE,
-} from '../../Common/Config/BrowserConfig.js';
+import { ISRAEL_LOCALE, ISRAEL_TIMEZONE } from '../../Common/Config/BrowserConfig.js';
 
 describe('buildContextOptions', () => {
   it('returns Hebrew locale and Israel timezone', () => {
@@ -23,11 +18,8 @@ describe('buildContextOptions', () => {
     expect(options.userAgent).toBeUndefined();
   });
 
-  it('sets 1920x1080 viewport (Israeli banks hide login at smaller sizes)', () => {
+  it('leaves viewport null so the Camoufox-pinned 1920x1080 window is used', () => {
     const options = buildContextOptions();
-    expect(options.viewport).toEqual({
-      width: DESKTOP_VIEWPORT_WIDTH,
-      height: DESKTOP_VIEWPORT_HEIGHT,
-    });
+    expect(options.viewport).toBeNull();
   });
 });

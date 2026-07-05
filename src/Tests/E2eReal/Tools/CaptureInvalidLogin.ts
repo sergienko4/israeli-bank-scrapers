@@ -652,7 +652,7 @@ async function buildSessionFromBrowser(
   browser: Browser,
   opts: ICliOptions,
 ): Promise<IBrowserSession> {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ viewport: null });
   const page = await context.newPage();
   page.setDefaultTimeout(opts.timeoutMs);
   return { browser, context, page };

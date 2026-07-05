@@ -26,7 +26,7 @@ const EXPECTED_NTH1_ID = 'pm.q077';
 async function setupProbePage(): Promise<{ browser: Browser; page: Page }> {
   const html = fs.readFileSync(FIXTURE, 'utf8');
   const browser = await launchCamoufox(true);
-  const context = await browser.newContext();
+  const context = await browser.newContext({ viewport: null });
   const page = await context.newPage();
   await page.setContent(html);
   return { browser, page };
