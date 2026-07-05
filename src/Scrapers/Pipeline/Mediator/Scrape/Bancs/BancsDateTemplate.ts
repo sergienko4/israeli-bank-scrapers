@@ -107,10 +107,12 @@ function applyNode(node: ApiRecord, from: IDatePart, to: IDatePart): boolean {
 
 /**
  * Today's date as BaNCS calendar parts, using the local calendar to match
- * the month-chunk generator's local date extraction.
+ * the month-chunk generator's local date extraction. Exported so the
+ * BancsDateTemplate to-bound-cap test asserts against this exact source of
+ * truth instead of duplicating the extraction.
  * @returns Today as `{Day,Month,Year}`.
  */
-function todayDatePart(): IDatePart {
+export function todayDatePart(): IDatePart {
   const now = new Date();
   const month = now.getMonth() + 1;
   return { Day: now.getDate(), Month: month, Year: now.getFullYear() };
@@ -137,8 +139,7 @@ function cappedToBound(endIso: string): IDatePart {
   const today = todayDatePart();
   const endOrd = partOrdinal(endPart);
   const todayOrd = partOrdinal(today);
-  const capMap: Record<string, IDatePart> = { true: today, false: endPart };
-  return capMap[String(endOrd > todayOrd)];
+  return endOrd > todayOrd ? today : endPart;
 }
 
 /**

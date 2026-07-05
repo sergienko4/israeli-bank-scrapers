@@ -14,7 +14,9 @@
  * Every value is fabricated — no real account data appears.
  */
 
-import applyBancsChunkRange from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsDateTemplate.js';
+import applyBancsChunkRange, {
+  todayDatePart,
+} from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsDateTemplate.js';
 import type { JsonRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.js';
 import { isRangeIterable } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.js';
 
@@ -61,17 +63,6 @@ function readInnerNodes(body: JsonRecord): readonly IReadNode[] {
   const serialized = JSON.stringify(body);
   const parsed = JSON.parse(serialized) as IReadBody;
   return parsed.Payload.Filters[0].Filters;
-}
-
-/**
- * Today's calendar parts — the test-side expected value for the to-bound
- * cap (mirrors the production `todayDatePart` local-calendar extraction).
- * @returns Today as `{Day,Month,Year}`.
- */
-function todayParts(): { Day: number; Month: number; Year: number } {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  return { Day: now.getDate(), Month: month, Year: now.getFullYear() };
 }
 
 describe('BancsDateTemplate — applyBancsChunkRange (default-deny write)', () => {
@@ -153,7 +144,7 @@ describe('BancsDateTemplate — to-bound capped at today', () => {
     const futureChunk = { start: '2026-07-01T00:00:00.000Z', end: '2999-12-31T23:59:59.000Z' };
     applyBancsChunkRange(body, futureChunk);
     const nodes = readInnerNodes(body);
-    const today = todayParts();
+    const today = todayDatePart();
     expect(nodes).toContainEqual({
       Ver: 'v1',
       Operator: 'LESSTHANOREQUAL',
