@@ -12,11 +12,11 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 | ----------------- | -------------------------------------------------- | -------------------------------------------- |
 | Behatsdaa         | `src/Scrapers/Behatsdaa/BehatsdaaScraper.ts`       | `SCRAPER_REGISTRY_AMEX_TO_ISRACARD` (subset) |
 | Beyahad Bishvilha | (registered in `ScraperRegistryAmexToIsracard.ts`) | `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`          |
-| Bank Leumi        | `src/Scrapers/Leumi/LeumiScraper.ts`               | `SCRAPER_REGISTRY_LEUMI_TO_YAHAV`            |
 | Mizrahi Bank      | `src/Scrapers/Mizrahi/MizrahiScraper.ts`           | `SCRAPER_REGISTRY_LEUMI_TO_YAHAV`            |
 
-> **Bank Yahav** was migrated to the Pipeline and its legacy scraper deleted —
-> it is now pipeline-only (see [Bank Yahav](../banks/yahav.md)).
+> **Bank Leumi** and **Bank Yahav** were migrated to the Pipeline and their
+> legacy scrapers deleted — they are now pipeline-only (see
+> [Bank Leumi](../banks/leumi.md), [Bank Yahav](../banks/yahav.md)).
 
 ### Legacy base classes
 
@@ -43,8 +43,8 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 ## Why ship deprecated code?
 
-1. **Public API compatibility** — `createScraper(CompanyTypes.Leumi, ...)` already works; removing it would be a breaking change.
-2. **Migration is incremental** — porting Leumi to Pipeline requires writing a `LoginConfig`, a `PipelineDescriptor`, and registering in `PIPELINE_REGISTRY`. That's a per-bank PR, not a single sweep.
+1. **Public API compatibility** — `createScraper(CompanyTypes.Mizrahi, ...)` already works; removing it would be a breaking change.
+2. **Migration is incremental** — porting Mizrahi to Pipeline requires writing a `LoginConfig`, a `PipelineDescriptor`, and registering in `PIPELINE_REGISTRY`. That's a per-bank PR, not a single sweep.
 3. **Two-registry dispatch is safe** — `Factory.tryPipeline` is consulted first; legacy is a fallback. When a bank moves to Pipeline, `createScraper` automatically routes there with no caller change.
 
 ## What new code should NOT touch

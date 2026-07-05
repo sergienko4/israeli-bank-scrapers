@@ -208,7 +208,7 @@ This snippet shows the redacted shape produced by the [redaction layer](#logging
 | Bank Hapoalim      | Browser    | `userCode`, `password`, OTP          |
 | Bank Leumi         | Browser    | `username`, `password`               |
 | Bank Otsar Hahayal | Browser    | `username`, `password`, OTP          |
-| Bank Yahav         | Browser    | `username`, `nationalID`, `password` |
+| Bank Yahav         | Browser    | `num`, `nationalID`, `password`      |
 | Behatsdaa          | Browser    | `id`, `password`                     |
 | Beinleumi          | Browser    | `username`, `password`, OTP          |
 | Beyahad Bishvilha  | Browser    | `id`, `password`                     |
@@ -243,7 +243,7 @@ This snippet shows the redacted shape produced by the [redaction layer](#logging
 
 </details>
 
-> **Migration notice (wide-net policy):** 5 banks are still on the **legacy** scraper path — _Behatsdaa_, _Beyahad Bishvilha_, _Bank Leumi_, _Mizrahi Bank_, _Bank Yahav_. They keep working through the same `createScraper(...)` entry point, but new features and bug fixes target the Pipeline architecture. They are scheduled for migration; the broader `src/Scrapers/Base/`, `src/Common/`, and legacy bank folders are also on the migration path and will be folded into `src/Scrapers/Pipeline/` over time. Public API behavior is preserved.
+> **Migration notice (wide-net policy):** 3 banks are still on the **legacy** scraper path — _Behatsdaa_, _Beyahad Bishvilha_, _Mizrahi Bank_. They keep working through the same `createScraper(...)` entry point, but new features and bug fixes target the Pipeline architecture. They are scheduled for migration; the broader `src/Scrapers/Base/`, `src/Common/`, and legacy bank folders are also on the migration path and will be folded into `src/Scrapers/Pipeline/` over time. Public API behavior is preserved.
 
 ## OTP (Two-Factor Authentication)
 

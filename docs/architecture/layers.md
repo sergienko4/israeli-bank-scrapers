@@ -34,7 +34,7 @@ flowchart TB
 | 3   | Pipeline mediator            | `src/Scrapers/Pipeline/Mediator/` (BalanceResolve, Browser, Dashboard, Elements, Form, Login, Network, OtpFill, OtpTrigger, Scrape, …)                                                                                                                             | Canonical                                             |
 | 4   | Pipeline strategy + registry | `src/Scrapers/Pipeline/Strategy/`, `src/Scrapers/Pipeline/Banks/`, `src/Scrapers/Pipeline/Registry/`, `src/Scrapers/Registry/Factory.ts`                                                                                                                           | Canonical                                             |
 | 5   | Pipeline types               | `src/Scrapers/Pipeline/Types/`, `src/Scrapers/Base/{Interface, ErrorTypes, ScraperError, Config/, Interfaces/}`                                                                                                                                                    | Shared infra                                          |
-| 6   | Legacy scrapers              | `src/Scrapers/Base/{BaseScraper, BaseScraperWithBrowser, BaseScraperHelpers, ConcreteGenericScraper, GenericBankScraper}.ts`, `src/Scrapers/{Behatsdaa, BeyahadBishvilha, Leumi, Mizrahi}/`, `src/Scrapers/Registry/ScraperRegistryLeumiToYahav.ts` (Mizrahi only) | **Deprecated**                                        |
+| 6   | Legacy scrapers              | `src/Scrapers/Base/{BaseScraper, BaseScraperWithBrowser, BaseScraperHelpers, ConcreteGenericScraper, GenericBankScraper}.ts`, `src/Scrapers/{Behatsdaa, BeyahadBishvilha, Mizrahi}/`, `src/Scrapers/Registry/ScraperRegistryLeumiToYahav.ts` (Mizrahi only) | **Deprecated**                                        |
 | 7   | Common utilities             | `src/Common/` (Browser, CamoufoxLauncher, Fetch, Navigation, OtpDetector, OtpHandler, ResultFormatter, SafeScreenshot, SelectorResolver, Storage, Waiting, …)                                                                                                      | **Mostly deprecated** — pipeline uses only `Debug.ts` |
 | 8   | Tests                        | `src/Tests/Unit/`, `src/Tests/E2eMocked/`, `src/Tests/E2eReal/`, `src/Tests/Helpers/`, `src/Tests/Tools/`                                                                                                                                                          | Always-on gate                                        |
 | 9   | Build & CI                   | `.github/workflows/`, `.husky/`, `tsup.config.ts`, `biome.json`, `eslint.config.mjs`, `tsconfig.json`                                                                                                                                                              | Always-on gate                                        |
@@ -51,7 +51,7 @@ flowchart TB
 
 **Layer 6 (legacy)** still works through `createScraper` but is on the migration path:
 
-- The 4 legacy bank dirs (Behatsdaa, BeyahadBishvilha, Leumi, Mizrahi) — Yahav migrated to Pipeline
+- The 3 legacy bank dirs (Behatsdaa, BeyahadBishvilha, Mizrahi) — Leumi + Yahav migrated to Pipeline
 - The 5 legacy base classes (`BaseScraper`, `BaseScraperWithBrowser`, `BaseScraperHelpers`, `ConcreteGenericScraper`, `GenericBankScraper`)
 - The legacy registry (`ScraperRegistryLeumiToYahav.ts`)
 
