@@ -60,6 +60,40 @@ function makeMediator(existing: Readonly<Record<string, unknown>>): IApiMediator
   } as unknown as IApiMediator;
 }
 
+/**
+ * Build a page whose `evaluate` runs the scan callback in-process, so the real
+ * resource-timing map/find/URL logic executes against the spied `performance`.
+ * @returns Mock Playwright page.
+ */
+function makeScanPage(): Page {
+  return {
+    /**
+     * evaluate — runs the scan callback against the spied globals.
+     * @param fn - The in-page scan callback.
+     * @param key - Query key to read.
+     * @returns Resolved discovered version.
+     */
+    evaluate: (fn: (k: string) => string, key: string): Promise<string> => {
+      const version = fn(key);
+      return Promise.resolve(version);
+    },
+  } as unknown as Page;
+}
+
+/**
+ * Build a page whose `evaluate` rejects (simulates page teardown mid-scan).
+ * @returns Mock Playwright page.
+ */
+function makeRejectingPage(): Page {
+  return {
+    /**
+     * evaluate — always rejects to exercise the scan's catch path.
+     * @returns Rejected promise.
+     */
+    evaluate: (): Promise<string> => Promise.reject(new Error('page gone')),
+  } as unknown as Page;
+}
+
 describe('BIND-API-MEDIATOR client-version prime — primeClientVersion', () => {
   it('BIND-VER-1 stashes the discovered version for opted-in banks', async () => {
     const page = makePage('V4.216-RC.4.116');
@@ -97,5 +131,45 @@ describe('BIND-API-MEDIATOR client-version prime — primeClientVersion', () => 
     const wasStashed = await primeClientVersion(config, page, mediator);
     expect(wasStashed).toBe(false);
     expect(mediator.setSessionContext).not.toHaveBeenCalled();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('BIND-VER-5 discovers the version from the resource-timing buffer', async () => {
+    const names = ['https://x.co.il/app.js', 'https://x.co.il/api?v=V4.216'];
+    const entries = names.map((name): { name: string } => ({ name }));
+    jest
+      .spyOn(performance, 'getEntriesByType')
+      .mockReturnValue(entries as unknown as ReturnType<typeof performance.getEntriesByType>);
+    const mediator = makeMediator({});
+    const config = makeConfig('v');
+    const page = makeScanPage();
+    const wasStashed = await primeClientVersion(config, page, mediator);
+    expect(wasStashed).toBe(true);
+    const expected = { clientVersion: 'V4.216' };
+    expect(mediator.setSessionContext).toHaveBeenCalledWith(expected);
+  });
+
+  it('BIND-VER-6 yields empty when no scanned resource carries the param', async () => {
+    const names = ['https://x.co.il/app.js', 'https://x.co.il/style.css'];
+    const entries = names.map((name): { name: string } => ({ name }));
+    jest
+      .spyOn(performance, 'getEntriesByType')
+      .mockReturnValue(entries as unknown as ReturnType<typeof performance.getEntriesByType>);
+    const mediator = makeMediator({});
+    const config = makeConfig('v');
+    const page = makeScanPage();
+    const wasStashed = await primeClientVersion(config, page, mediator);
+    expect(wasStashed).toBe(false);
+  });
+
+  it('BIND-VER-7 recovers to empty when the scan rejects', async () => {
+    const mediator = makeMediator({});
+    const config = makeConfig('v');
+    const page = makeRejectingPage();
+    const wasStashed = await primeClientVersion(config, page, mediator);
+    expect(wasStashed).toBe(false);
   });
 });

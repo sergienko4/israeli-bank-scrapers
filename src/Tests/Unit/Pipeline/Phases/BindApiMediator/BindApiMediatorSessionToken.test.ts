@@ -154,6 +154,49 @@ describe('BIND-API-MEDIATOR session-token prime — extractSessionToken', () => 
     const token = extractSessionToken([noiseGet, noisePost, match], WCF_SPEC);
     expect(token).toBe(FAKE_SESSION_ID);
   });
+
+  it('EXTRACT-8 ignores a null JSON body', () => {
+    const endpoint = makeEndpoint(LEUMI_URL, 'POST', 'null');
+    const token = extractSessionToken([endpoint], FLAT_SPEC);
+    expect(token).toBe(false);
+  });
+
+  it('EXTRACT-9 ignores a non-object JSON body', () => {
+    const endpoint = makeEndpoint(LEUMI_URL, 'POST', '42');
+    const token = extractSessionToken([endpoint], FLAT_SPEC);
+    expect(token).toBe(false);
+  });
+
+  it('EXTRACT-10 ignores a JSON array body', () => {
+    const endpoint = makeEndpoint(LEUMI_URL, 'POST', '[]');
+    const token = extractSessionToken([endpoint], FLAT_SPEC);
+    expect(token).toBe(false);
+  });
+
+  it('EXTRACT-11 ignores a non-string reqObj field', () => {
+    const body = JSON.stringify({ reqObj: { SessionHeader: { SessionID: 'x' } } });
+    const endpoint = makeEndpoint(LEUMI_URL, 'POST', body);
+    const token = extractSessionToken([endpoint], WCF_SPEC);
+    expect(token).toBe(false);
+  });
+
+  it('EXTRACT-12 stops when the path dead-ends before its last key', () => {
+    const flat = JSON.stringify({ SessionHeader: 'not-an-object' });
+    const endpoint = makeEndpoint(LEUMI_URL, 'POST', flat);
+    const deep: ISessionSpec = {
+      ...FLAT_SPEC,
+      tokenPath: ['SessionHeader', 'SessionID', 'Nested'],
+    };
+    const token = extractSessionToken([endpoint], deep);
+    expect(token).toBe(false);
+  });
+
+  it('EXTRACT-13 rejects an empty-string token leaf', () => {
+    const flat = JSON.stringify({ SessionHeader: { SessionID: '' } });
+    const endpoint = makeEndpoint(LEUMI_URL, 'POST', flat);
+    const token = extractSessionToken([endpoint], FLAT_SPEC);
+    expect(token).toBe(false);
+  });
 });
 
 describe('BIND-API-MEDIATOR session-token prime — primeSessionToken', () => {

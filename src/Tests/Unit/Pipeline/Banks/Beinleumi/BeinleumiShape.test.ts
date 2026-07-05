@@ -99,6 +99,14 @@ describe('BeinleumiShape accounts', () => {
     expect(accounts).toEqual([]);
   });
 
+  it('extractAccounts defaults missing account/branch fields to empty strings', () => {
+    const body = { accounts: [{ selected: true }] };
+    const secondary = { accountType: [{ accountType: 105 }] };
+    const args = accountsArgs(body, secondary);
+    const accounts = extractAccounts(args);
+    expect(accounts).toEqual([{ accountNumber: '', branch: '', accountType: 105 }]);
+  });
+
   it('accountNumberOf returns the display account number', () => {
     const number = accountNumberOf(ACCT);
     expect(number).toBe('555001');
