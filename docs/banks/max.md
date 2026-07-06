@@ -12,7 +12,7 @@
 ## Known quirks
 
 - All Max selectors were migrated from CSS/IDs to **visible Hebrew text** in v8.2.0.
-- Max + Isracard + Amex are the three credit-card brands with PRE-LOGIN.
+- Max shares its two-screen **PRE-LOGIN** with the other card brands — Isracard, Amex, and Visa Cal.
 - Balance is card-cycle (`balanceKind: CARD_CYCLE`) — derived from the billing cycle by the hard-model path, not a separate per-account balance call.
 
 ## Hard-model post-auth
