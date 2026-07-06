@@ -1370,11 +1370,10 @@ jobs:
           # Leumi is username/password (no OTP — no Telegram secrets).
           LEUMI_USERNAME: ${{ secrets.LEUMI_USERNAME }}
           LEUMI_PASSWORD: ${{ secrets.LEUMI_PASSWORD }}
-          # Yahav is num/nationalID/password (no OTP). YAHAV_USERNAME holds the
-          # user-code (-> `num`; legacy secret name kept, and `num` also accepts
-          # the old `username` key); YAHAV_ID -> `nationalID`; YAHAV_PASSWORD ->
-          # `password`.
-          YAHAV_USERNAME: ${{ secrets.YAHAV_USERNAME }}
+          # Yahav is num/nationalID/password (no OTP). YAHAV_NUM holds the
+          # user-code (mapped to `num`); YAHAV_ID -> `nationalID`;
+          # YAHAV_PASSWORD -> `password`.
+          YAHAV_NUM: ${{ secrets.YAHAV_NUM }}
           YAHAV_ID: ${{ secrets.YAHAV_ID }}
           YAHAV_PASSWORD: ${{ secrets.YAHAV_PASSWORD }}
         run: |
