@@ -25,14 +25,14 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 describe('createAuthDiscoveryPhase ApiAuthDiscovery wrapper', () => {
   it('AD-PRE-1 pre delegates to executeAuthDiscoveryPre and short-circuits with no mediator', async () => {
-    const phase = createAuthDiscoveryPhase();
+    const phase = createAuthDiscoveryPhase(false);
     const ctx = makeMockContext();
     const result = await phase.pre(ctx, ctx);
     assertOk(result);
   });
 
   it('AD-ACTION-1 action returns the sealed pass-through unchanged', async () => {
-    const phase = createAuthDiscoveryPhase();
+    const phase = createAuthDiscoveryPhase(false);
     const ctx = makeMockContext();
     const actionCtx = ctx as unknown as IActionContext;
     const result = await phase.action(actionCtx, actionCtx);
@@ -40,7 +40,7 @@ describe('createAuthDiscoveryPhase ApiAuthDiscovery wrapper', () => {
   });
 
   it('AD-POST-1 post delegates to executeAuthDiscoveryPost and short-circuits with no mediator', async () => {
-    const phase = createAuthDiscoveryPhase();
+    const phase = createAuthDiscoveryPhase(false);
     const ctx: IPipelineContext = makeMockContext();
     const result = await phase.post(ctx, ctx);
     assertOk(result);
@@ -50,14 +50,26 @@ describe('createAuthDiscoveryPhase ApiAuthDiscovery wrapper', () => {
   });
 
   it('AD-FINAL-1 final delegates to executeAuthDiscoveryFinal and short-circuits with no mediator', async () => {
-    const phase = createAuthDiscoveryPhase();
+    const phase = createAuthDiscoveryPhase(false);
     const ctx: IPipelineContext = makeMockContext();
     const result = await phase.final(ctx, ctx);
     assertOk(result);
   });
 
   it('AD-NAME-1 carries the canonical "auth-discovery" phase name', () => {
-    const phase = createAuthDiscoveryPhase();
+    const phase = createAuthDiscoveryPhase(false);
+    expect(phase.name).toBe('auth-discovery');
+  });
+
+  it('AD-HM-1 hard-model final passes through (no dashboard gate) with no mediator', async () => {
+    const phase = createAuthDiscoveryPhase(true);
+    const ctx: IPipelineContext = makeMockContext();
+    const result = await phase.final(ctx, ctx);
+    assertOk(result);
+  });
+
+  it('AD-HM-2 hard-model phase carries the canonical "auth-discovery" phase name', () => {
+    const phase = createAuthDiscoveryPhase(true);
     expect(phase.name).toBe('auth-discovery');
   });
 });

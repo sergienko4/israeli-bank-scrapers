@@ -32,6 +32,12 @@ export type WKUrlGroup =
   | 'data.getUserHistory'
   | 'data.virtualCardTranRequest';
 
+/** Absolute REST URL declared inline by an api-direct shape (bypasses the WK map). */
+export type LiteralUrl = Brand<string, 'WkLiteralUrl'>;
+
+/** A urlTag: either a registered WK group OR an inline absolute URL. */
+export type WKUrlOrLiteral = WKUrlGroup | LiteralUrl;
+
 /** Internal registry: group -> bankHint -> url string. */
 const WK_URLS = new Map<WKUrlGroup, Map<CompanyTypes, string>>();
 
@@ -63,12 +69,31 @@ export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: st
 }
 
 /**
+ * Type guard: true when the tag is an inline absolute URL, not a WK group.
+ * @param tag - urlTag to test.
+ * @returns True when the tag begins with the http scheme.
+ */
+export function isLiteralUrl(tag: WKUrlOrLiteral): tag is LiteralUrl {
+  return tag.startsWith('http');
+}
+
+/**
+ * Brand an absolute REST URL for inline use in an api-direct shape.
+ * @param url - Absolute http(s) URL taken from a captured trace.
+ * @returns The URL branded as a LiteralUrl.
+ */
+export function literalUrl(url: string): LiteralUrl {
+  return url as LiteralUrl;
+}
+
+/**
  * Resolve a URL string for (group, bankHint).
- * @param group - WK URL group.
+ * @param group - WK URL group, or an inline absolute URL (passthrough).
  * @param bankHint - Target bank identifier.
  * @returns Procedure carrying the URL string, or fail if unknown.
  */
-export function resolveWkUrl(group: WKUrlGroup, bankHint: CompanyTypes): Procedure<string> {
+export function resolveWkUrl(group: WKUrlOrLiteral, bankHint: CompanyTypes): Procedure<string> {
+  if (isLiteralUrl(group)) return succeed(group);
   const inner = WK_URLS.get(group);
   const hit = inner?.get(bankHint);
   if (!hit) return fail(ScraperErrorTypes.Generic, `unknown WK url: ${group}/${bankHint}`);

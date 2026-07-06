@@ -406,13 +406,13 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
   pagi: {
     steps: [
       { stepName: '01-home', url: 'https://www.pagi.co.il' },
-      { stepName: '02-pre-login', url: 'https://onlinepagi.bankpoalim.co.il' },
+      { stepName: '02-pre-login', url: 'https://online.pagi.co.il' },
     ],
   },
   otsarHahayal: {
     steps: [
       { stepName: '01-home', url: 'https://www.bankotsar.co.il' },
-      { stepName: '02-pre-login', url: 'https://digital.otsarh.co.il' },
+      { stepName: '02-pre-login', url: 'https://online.bankotsar.co.il' },
     ],
   },
   beinleumi: {

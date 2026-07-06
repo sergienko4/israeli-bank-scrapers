@@ -49,8 +49,9 @@ export type BalanceKind = 'account' | 'card-cycle';
  *                        (telebank, Wix-shell, Angular SPA banks).
  *   - 'api-direct'    -- no browser AUTH-DISCOVERY at all (OneZero/PayBox/Pepper
  *                        run the headless identity strategy).
- * Declarative only: the runtime dashboard gate does NOT branch on this value
- * (it is a registry-completeness contract + the test-matrix driver). Never
+ * The BIND-API-MEDIATOR auth-prime consumes 'token' (reads the post-login token
+ * and installs it on the browser-page mediator); 'session-cookie' is a no-op
+ * there. The runtime dashboard gate does NOT branch on this value. Never
  * inferred from absence -- an unstated kind is a config error.
  */
 export type AuthStrategyKind = 'token' | 'session-cookie' | 'api-direct';
@@ -152,4 +153,82 @@ export interface IPipelineBankConfig {
     readonly intervalMs: number;
     readonly maxAttempts: number;
   };
+  /**
+   * SPA build-version query key (e.g. Max's `'v'`). When set, BIND-API-MEDIATOR
+   * scans the live page's resource-timing buffer for the first request carrying
+   * `?<key>=<value>` and stashes `<value>` on the mediator session-context as
+   * `clientVersion`, letting browser hard-model shapes reconstruct versioned API
+   * URLs. Absent ⇒ no scan (banks whose APIs carry no build-version param).
+   */
+  readonly clientVersionParam?: string;
+  /**
+   * Post-auth session-token capture — for banks whose API carries a body-borne
+   * session id (e.g. Leumi's WCF `reqObj.SessionHeader.SessionID`) instead of a
+   * header/cookie token. BIND-API-MEDIATOR reads the login-inclusive discovery
+   * pool (open from `pre-login` onward via the network-trace lifecycle
+   * interceptor), finds the first POST whose URL includes `urlMatch`, decodes
+   * the body, walks `tokenPath`, and stashes the leaf on the mediator
+   * session-context as `sessionToken`. ONLY the matched bank endpoint is
+   * inspected — credential POSTs are never read (PII-safe by extraction scope).
+   * Absent ⇒ no capture (header-token / cookie banks).
+   */
+  readonly sessionTokenCapture?: {
+    /** Substring identifying the bank's post-auth API endpoint URL. */
+    readonly urlMatch: string;
+    /** Top-level postData key whose string value is itself JSON (WCF `reqObj`). */
+    readonly bodyField?: string;
+    /** Ordered keys within the decoded body to the token leaf. */
+    readonly tokenPath: readonly string[];
+  };
+  /**
+   * Opt-in: install the FULL discovered-header bag (SPA content-negotiation
+   * headers + Origin / Referer / X-Site-Id, plus the discovered token as
+   * Authorization) on EVERY hard-model call, replicating the generic
+   * AUTH-DISCOVERY green path. BIND-API-MEDIATOR reads the login-inclusive
+   * capture pool once, builds the bag via `buildDiscoveredHeadersFromCapture`,
+   * and passes it to the browser-page mediator's fetch strategy as defaults
+   * (per-call and rawAuth headers still win). Set for `'token'` browser banks
+   * whose SPA API rejects a bare cookie/Bearer without the negotiation headers
+   * (VisaCal needs X-Site-Id; the FIBI BFF needs Accept: application/json).
+   * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
+   */
+  readonly installDiscoveredHeaders?: boolean;
+  /**
+   * Post-login auth-header sniff — for banks whose API Bearer is injected by the
+   * SPA's own HTTP interceptor and appears in NO login response body nor a
+   * parseable sessionStorage shape (FIBI's `appsng` BFF: the token rides only
+   * the SPA's own authorized requests). BIND-API-MEDIATOR scans the
+   * login-inclusive capture pool for the FIRST request whose URL includes this
+   * substring carrying a non-empty `authorization` / `x-auth-token` header and
+   * installs that value verbatim as the discovered Authorization — taking
+   * priority over the generic 5-tier discovery so a wrong-family token is never
+   * picked. Scoped to the bank's own SPA endpoint family (e.g. `'appsng/bff-'`);
+   * the pre-token OAuth code-exchange carries no Bearer and is skipped
+   * naturally. Absent ⇒ no sniff (generic discovery runs unchanged).
+   */
+  readonly authHeaderUrlMatch?: string;
+  /**
+   * Post-login navigation the browser performs in AUTH-DISCOVERY, BEFORE the
+   * cookie-audit, to mint the data-API session for banks whose data API lives
+   * on a DIFFERENT origin than the login page (FIBI: login on `www.<host>`,
+   * data API on `online.<host>`). Navigating to the SPA frontend route drives
+   * the browser onto the data-API origin so its SPA runs the session handshake
+   * — the hand-off the removed DASHBOARD phase used to perform. Absent ⇒ no nav
+   * (banks whose data API is same-origin as login).
+   */
+  readonly postLoginNav?: { readonly url: string; readonly settleMs?: number };
+  /**
+   * Opt-in: capture the TCS BaNCS session values (the auth `SecToken` block +
+   * the portfolio `iorId`/`Id`) at BIND-API-MEDIATOR. For BaNCS Digital banks
+   * (Yahav) whose every post-login API request is a `MessageEnvelope` carrying
+   * a body-borne `SecToken` + portfolio refs the SPA established during login.
+   * BIND scans the login-inclusive pool for the accounts POST
+   * (`/BaNCSDigitalApp/account`) whose `postData` holds a filled `SecToken` +
+   * `Payload.DataEntity[0].Prtflio.Id`, and stashes `bancsSecToken` /
+   * `bancsPortfolioIorId` / `bancsPortfolioId` on the mediator
+   * session-context for the hard-model shape to reconstruct each request.
+   * ONLY the accounts endpoint family is inspected — the credential POST is
+   * never read (PII-safe by extraction scope). Absent ⇒ no capture.
+   */
+  readonly bancsSessionCapture?: boolean;
 }

@@ -5,6 +5,10 @@
 module.exports = {
   preset: 'ts-jest/presets/default-esm',
   clearMocks: true,
+  // Restart a worker once its heap exceeds this (checked after each test
+  // file) so cross-suite memory accumulation over the 500+ suites cannot
+  // OOM-crash a worker in CI (`Jest worker ran out of memory`). PR #404.
+  workerIdleMemoryLimit: '512MB',
   coverageDirectory: 'coverage',
   rootDir: './src',
   extensionsToTreatAsEsm: ['.ts'],

@@ -11,13 +11,13 @@ import type {
   IApiMediator,
   IApiQueryOpts,
 } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Captured apiPost call — exposed to tests for assertion. */
 interface IApiPostCapture {
-  readonly url: WKUrlGroup;
+  readonly url: WKUrlOrLiteral;
   readonly body: Record<string, unknown>;
   readonly extraHeaders: Record<string, string> | undefined;
 }
@@ -100,7 +100,7 @@ async function apiQueryStub<T>(): Promise<Procedure<T>> {
 function makeApiPost(args: IStubMediatorArgs): IApiMediator['apiPost'] {
   let idx = 0;
   return async <T>(
-    url: WKUrlGroup,
+    url: WKUrlOrLiteral,
     body: Record<string, unknown>,
     opts?: IApiQueryOpts,
   ): Promise<Procedure<T>> => {

@@ -9,6 +9,7 @@ import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.j
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import { DISCOUNT_SHAPE } from './scrape/DiscountShape.js';
 
 /** Discount login fields — credential keys only. WellKnown resolves selectors. */
 const DISCOUNT_LOGIN: ILoginConfig = {
@@ -25,6 +26,8 @@ const DISCOUNT_LOGIN: ILoginConfig = {
 /**
  * Build the Discount pipeline descriptor.
  * Portal redirect handled by PRE-LOGIN reading ctx.config.urls.portalUrl.
+ * Post-auth data path uses the Discount hard model (api-direct scrape)
+ * instead of the generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
  * @param options - Scraper options from the user.
  * @returns Pipeline descriptor.
  */
@@ -33,6 +36,7 @@ function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDesc
     .withOptions(options)
     .withBrowser()
     .withDeclarativeLogin(DISCOUNT_LOGIN)
+    .withBrowserApiDirect(DISCOUNT_SHAPE)
     .build();
 }
 

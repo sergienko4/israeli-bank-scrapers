@@ -6,10 +6,7 @@
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
-import {
-  LOGIN_COMPLETION_POLL_INTERVAL_MS,
-  LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
-} from '../../Mediator/Timing/LoginTimingConfig.js';
+import { ANGULAR_LOGIN_POLL } from '../../Mediator/Timing/LoginTimingConfig.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
   AuthStrategyKind,
@@ -59,28 +56,73 @@ function defineBank(
   return { urls: { base }, balanceKind, authStrategyKind };
 }
 
+/** FIBI appsng SPA shell route — AUTH-DISCOVERY navigates here post-login. */
+const FIBI_APPSNG_SHELL = '/appsng/Resources/PortalNG/shell/#/accountSummary';
+
+/**
+ * FIBI-family config — deposit account reached via a discovered Bearer/JWT plus
+ * the discovered-header bag (the shared appsng BFF rejects a bare cookie without
+ * `Accept: application/json`). The BFF Bearer is injected by the SPA's own HTTP
+ * interceptor (not in any login body nor a parseable storage shape), so it is
+ * sniffed from the SPA's own `appsng/bff-` requests in the capture pool.
+ * Beinleumi, Massad, OtsarHahayal and Pagi differ only by HOME URL.
+ * @param base - Official website URL for the HOME phase.
+ * @param onlineHost - Data-API origin (`online.<host>`) AUTH-DISCOVERY
+ *   navigates to post-login to mint the appsng session.
+ * @returns Registry config for one FIBI-family bank.
+ */
+function fibiConfig(base: string, onlineHost: string): IPipelineBankConfig {
+  return {
+    urls: { base },
+    balanceKind: ACCOUNT,
+    authStrategyKind: TOKEN,
+    installDiscoveredHeaders: true,
+    authHeaderUrlMatch: 'appsng/bff-',
+    postLoginNav: { url: `${onlineHost}${FIBI_APPSNG_SHELL}` },
+  };
+}
+
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
-  [CompanyTypes.Beinleumi]: defineBank('https://www.fibi.co.il', ACCOUNT, TOKEN),
-  [CompanyTypes.Leumi]: defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Beinleumi]: fibiConfig('https://www.fibi.co.il', 'https://online.fibi.co.il'),
+  [CompanyTypes.Leumi]: {
+    ...defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
+    sessionTokenCapture: {
+      urlMatch: 'Broker.svc/ProcessRequest',
+      bodyField: 'reqObj',
+      tokenPath: ['SessionHeader', 'SessionID'],
+    },
+  },
   [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Hapoalim]: defineBank('https://www.bankhapoalim.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.Massad]: defineBank('https://www.bankmassad.co.il', ACCOUNT, TOKEN),
-  [CompanyTypes.OtsarHahayal]: defineBank('https://www.bankotsar.co.il', ACCOUNT, TOKEN),
-  [CompanyTypes.Pagi]: defineBank('https://www.pagi.co.il', ACCOUNT, TOKEN),
-  [CompanyTypes.Yahav]: defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.VisaCal]: defineBank('https://www.cal-online.co.il/', CARD_CYCLE, TOKEN),
+  [CompanyTypes.Massad]: fibiConfig(
+    'https://www.bankmassad.co.il',
+    'https://online.bankmassad.co.il',
+  ),
+  [CompanyTypes.OtsarHahayal]: fibiConfig(
+    'https://www.bankotsar.co.il',
+    'https://online.bankotsar.co.il',
+  ),
+  [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il', 'https://online.pagi.co.il'),
+  [CompanyTypes.Yahav]: {
+    ...defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
+    bancsSessionCapture: true,
+  },
+  [CompanyTypes.VisaCal]: {
+    ...defineBank('https://www.cal-online.co.il/', CARD_CYCLE, TOKEN),
+    installDiscoveredHeaders: true,
+  },
   [CompanyTypes.Amex]: {
     urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
     loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
-    loginCompletionPoll: {
-      intervalMs: LOGIN_COMPLETION_POLL_INTERVAL_MS,
-      maxAttempts: LOGIN_COMPLETION_POLL_MAX_ATTEMPTS,
-    },
+    loginCompletionPoll: ANGULAR_LOGIN_POLL,
     authStrategyKind: SESSION_COOKIE,
   },
-  [CompanyTypes.Max]: defineBank('https://www.max.co.il', CARD_CYCLE, SESSION_COOKIE),
+  [CompanyTypes.Max]: {
+    ...defineBank('https://www.max.co.il', CARD_CYCLE, SESSION_COOKIE),
+    clientVersionParam: 'v',
+  },
   [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },

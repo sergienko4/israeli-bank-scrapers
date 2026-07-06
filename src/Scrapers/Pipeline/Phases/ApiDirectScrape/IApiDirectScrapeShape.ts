@@ -25,13 +25,22 @@ import type {
   IAesSignerConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
 /** Opaque headers map (shape step may declare per-call extraHeaders). */
 export type HeaderMap = Record<string, string>;
+
+/**
+ * REST verb for a `urlTag`-dispatched scrape step. Defaults to `POST`
+ * (preserves every existing body-dispatch bank: PayBox/OneZero/Pepper).
+ * GET banks — whose accounts / balance / transactions ride path + query
+ * params (Discount, Max, VisaCal) — declare `method: 'GET'`; the driver
+ * then calls `apiGet` with the resolved URL and sends no request body.
+ */
+export type ScrapeHttpMethod = 'GET' | 'POST';
 
 /**
  * extraHeaders may be a static map (OneZero) or a function producing
@@ -50,10 +59,10 @@ export type ApiBody = Record<string, unknown>;
  * relevant per-call inputs (ctx / acct / cursor) so banks can pick
  * different endpoints per account kind (PayBox wallet vs debit).
  */
-export type CustomerUrlTag = WKUrlGroup | ((ctx: IActionContext) => WKUrlGroup);
-export type BalanceUrlTag<TAcct> = WKUrlGroup | ((acct: TAcct) => WKUrlGroup);
+export type CustomerUrlTag = WKUrlOrLiteral | ((ctx: IActionContext) => WKUrlOrLiteral);
+export type BalanceUrlTag<TAcct> = WKUrlOrLiteral | ((acct: TAcct) => WKUrlOrLiteral);
 export type TxnsUrlTag<TAcct, TCursor> =
-  WKUrlGroup | ((acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => WKUrlGroup);
+  WKUrlOrLiteral | ((acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => WKUrlOrLiteral);
 
 /**
  * Bundle passed to {@link IApiDirectScrapeCustomerStep.extractAccounts}.
@@ -65,6 +74,14 @@ export type TxnsUrlTag<TAcct, TCursor> =
 export interface IExtractAccountsArgs {
   readonly body: ApiBody;
   readonly sessionContext: Readonly<Record<string, unknown>>;
+  /**
+   * Response of the optional `customer.secondaryUrlTag` identity GET, or
+   * `{}` when the shape declares none. Lets banks whose account identity
+   * spans two calls (FIBI: `userData` accounts + a session-level
+   * `accountType` lookup) fold both into each account reference. Existing
+   * single-call banks ignore it.
+   */
+  readonly secondaryBody?: ApiBody;
 }
 
 /** Customer-step shape — fetches the account list once per scrape. */
@@ -74,6 +91,16 @@ export interface IApiDirectScrapeCustomerStep<TAcct> {
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('customer'). */
   readonly urlTag?: CustomerUrlTag;
+  /**
+   * Optional secondary identity GET fired once, immediately after the
+   * primary customer fetch. Its parsed response reaches `extractAccounts`
+   * as `secondaryBody`. GET-only (carries no request body); absent ⇒
+   * `secondaryBody` is `{}`. Used by FIBI banks whose transactions body
+   * needs a session-level `accountType` the accounts call omits.
+   */
+  readonly secondaryUrlTag?: CustomerUrlTag;
+  /** REST verb when `urlTag` is set; default POST. GET sends no body. */
+  readonly method?: ScrapeHttpMethod;
   /**
    * Optional `JsonValueTemplate` body — when set, the dispatcher
    * hydrates this against the post-login scope (carry + creds +
@@ -92,15 +119,33 @@ export interface IApiDirectScrapeCustomerStep<TAcct> {
 
 /** Balance-step shape — fetches one account's current balance. */
 export interface IApiDirectScrapeBalanceStep<TAcct> {
-  readonly buildVars: (acct: TAcct) => VarsMap;
+  /**
+   * Build the balance-call variables (REST body when `urlTag` is set).
+   * Receives `ctx` — symmetric with the customer/transactions steps — so
+   * banks whose balance body carries a runtime session token (Leumi's WCF
+   * `SessionHeader.SessionID`) can read it back from the mediator
+   * session-context. Shapes that ignore it keep their `(acct) => …` form.
+   */
+  readonly buildVars: (acct: TAcct, ctx: IActionContext) => VarsMap;
   readonly extract: (body: ApiBody) => number;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** Value to return on failure; undefined → propagate. */
   readonly fallbackOnFail?: number;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('balance'). */
   readonly urlTag?: BalanceUrlTag<TAcct>;
+  /** REST verb when `urlTag` is set; default POST. GET sends no body. */
+  readonly method?: ScrapeHttpMethod;
   /** Optional body template — same semantics as customer.bodyTemplate. */
   readonly bodyTemplate?: JsonValueTemplate;
+  /**
+   * Skip the balance-step network call entirely — for `card-cycle` banks
+   * (VisaCal, Max, Amex, Isracard) that expose no account-level balance,
+   * only per-cycle credit-card billing aggregates. `extract` still runs
+   * but with `body: {}`, so a card-cycle shape declares `extract: () => 0`
+   * for a deterministic zero balance. Mirrors
+   * {@link IApiDirectScrapeCustomerStep.skipFetch}.
+   */
+  readonly skipFetch?: boolean;
 }
 
 /**
@@ -123,6 +168,8 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('transactions'). */
   readonly urlTag?: TxnsUrlTag<TAcct, TCursor>;
+  /** REST verb when `urlTag` is set; default POST. GET sends no body. */
+  readonly method?: ScrapeHttpMethod;
   /**
    * Optional body template — banks whose transactions endpoint
    * accepts a structured class-y body declare it here. When set,
@@ -149,10 +196,33 @@ export interface IApiDirectScrapeGuardSummary {
   readonly balanceDegraded: boolean;
 }
 
+/**
+ * Optional post-login PRIME navigation. Some browser banks (Amex,
+ * Isracard) authorize their login-origin service via first-party cookies
+ * but gate the transactions service behind a separate session the SPA only
+ * establishes after navigating to its frontend route. Declaring `prime`
+ * makes the driver navigate the live login page there once, before any
+ * scrape fetch, so the transactions service returns 200 rather than
+ * 302→login. Absent ⇒ no navigation (cookie-only + headless banks).
+ */
+export interface IApiDirectScrapePrime {
+  /**
+   * Absolute SPA route the driver navigates for the priming handshake.
+   * Receives `ctx` so a bank whose route embeds a session value can build
+   * it dynamically; static routes ignore the argument.
+   */
+  readonly navUrl: (ctx: IActionContext) => string;
+}
+
 /** Shape a bank plugs into createApiDirectScrapePhase. */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
   readonly accountNumberOf: (acct: TAcct) => string;
+  /**
+   * Optional post-login prime navigation — see {@link IApiDirectScrapePrime}.
+   * Absent ⇒ no prime (cookie-only session banks + headless banks).
+   */
+  readonly prime?: IApiDirectScrapePrime;
   /**
    * Optional class-y body-pointer signer applied to every scrape-step
    * body before POST. Same `IAesSignerConfig` type used by the login
@@ -177,7 +247,8 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * PII-free {@link IApiDirectScrapeGuardSummary} and returns a failure
    * Procedure to abort the run (e.g. zero transactions from a degraded
    * warm session) or `succeed(undefined)` to pass through. Absent ⇒ the
-   * scrape always succeeds (Pepper / OneZero pattern).
+   * phase default guard applies, which fails a run that resolved zero
+   * accounts (a universally invalid post-login outcome).
    */
   readonly resultGuard?: (summary: IApiDirectScrapeGuardSummary) => Procedure<void>;
 }

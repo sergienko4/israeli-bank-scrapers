@@ -73,10 +73,46 @@ function logInventory(input: IPipelineContext, captureCount: number): true {
   return true;
 }
 
+/** Nav budget for the post-login AUTH-DISCOVERY nav; a timeout is non-fatal. */
+const POST_LOGIN_NAV_OPTS = { waitUntil: 'networkidle', timeout: 20_000 } as const;
+/** Default settle window after the post-login nav (SPA bootstrap XHR burst). */
+const POST_LOGIN_NAV_SETTLE_MS = 3000;
+
 /**
- * PRE — passive inventory after a settle wait. Gives the SPA time
- * to flush post-login redirect chatter so the inventory it reads
- * reflects the final post-login state.
+ * Navigate to the bank's data-API SPA route (config `postLoginNav`) so its SPA
+ * mints the data-API session before the cookie-audit — for banks whose data API
+ * is on a different origin than login (FIBI). No-op unless the bank declares
+ * `postLoginNav`. Best-effort: a nav timeout is swallowed (a genuinely broken
+ * session surfaces its own loud error on the first scrape fetch).
+ * @param input - Pipeline context (config).
+ * @param mediator - Live element mediator (navigation).
+ * @returns Resolves once the best-effort nav completes.
+ */
+async function runPostLoginNav(input: IPipelineContext, mediator: IElementMediator): Promise<void> {
+  const nav = input.config.postLoginNav;
+  if (nav) {
+    await mediator.navigateTo(nav.url, POST_LOGIN_NAV_OPTS);
+    await mediator.waitForNetworkIdle(nav.settleMs ?? POST_LOGIN_NAV_SETTLE_MS);
+  }
+}
+
+/**
+ * Settle the post-login redirect, then run the optional cross-origin
+ * data-API nav ({@link runPostLoginNav}). Combined so the PRE stays ≤10 lines.
+ * @param input - Pipeline context (config).
+ * @param mediator - Live element mediator.
+ * @returns Resolves once settle + optional nav complete.
+ */
+async function settleAndNav(input: IPipelineContext, mediator: IElementMediator): Promise<void> {
+  await settlePostLoginRedirect(mediator);
+  await runPostLoginNav(input, mediator);
+}
+
+/**
+ * PRE — passive inventory after a settle wait + the optional post-login nav.
+ * Gives the SPA time to flush post-login redirect chatter, then (for cross-
+ * origin data-API banks) navigates to the data-API SPA route so the inventory
+ * it reads reflects the authenticated post-login state.
  * @param input - Pipeline context.
  * @returns Pass-through success.
  */
@@ -85,7 +121,7 @@ async function executeAuthDiscoveryPre(
 ): Promise<Procedure<IPipelineContext>> {
   if (!input.mediator.has) return succeed(input);
   const mediator = input.mediator.value;
-  await settlePostLoginRedirect(mediator);
+  await settleAndNav(input, mediator);
   const allEndpoints = mediator.network.getAllEndpoints();
   logInventory(input, allEndpoints.length);
   return succeed(input);
@@ -175,5 +211,8 @@ async function executeAuthDiscoveryPost(
 }
 
 export { AUTH_DISCOVERY_DASHBOARD_WAIT_MS } from '../Timing/TimingConfig.js';
-export { executeAuthDiscoveryFinal } from './AuthDiscoveryFinal.js';
+export {
+  executeAuthDiscoveryFinal,
+  executeHardModelAuthDiscoveryFinal,
+} from './AuthDiscoveryFinal.js';
 export { executeAuthDiscoveryAction, executeAuthDiscoveryPost, executeAuthDiscoveryPre };

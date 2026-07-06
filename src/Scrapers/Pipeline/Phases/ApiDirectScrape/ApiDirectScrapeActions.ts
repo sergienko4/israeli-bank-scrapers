@@ -16,13 +16,13 @@ import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
+import runPrime from './ApiDirectScrapePrime.js';
 import {
   buildPageFetcher,
   buildStop,
   fetchAccounts,
   fetchBalance,
-  type IAcctCtx,
-  type IDriverCtx,
 } from './ApiDirectScrapeSteps.js';
 import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
@@ -122,6 +122,7 @@ function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
 async function runScrape<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
+  await runPrime(d);
   const accts = await fetchAccounts(d);
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);

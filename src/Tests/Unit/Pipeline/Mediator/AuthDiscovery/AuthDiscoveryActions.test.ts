@@ -367,4 +367,90 @@ describe('AuthDiscoveryActions — focused branch coverage', () => {
     const wasOk = isOk(result);
     expect(wasOk).toBe(true);
   });
+
+  // ── PR #404 T2 — cross-origin data-API session hand-off ───────────
+  // FIBI family: login lands on www.<host> but the data API lives on
+  // online.<host>. AUTH-DISCOVERY.PRE navigates to the appsng SPA route
+  // (config `postLoginNav`) so its SPA mints the online-origin session
+  // before the cookie audit — the hand-off the removed DASHBOARD phase
+  // used to perform. Same-origin banks declare no `postLoginNav` (no-op).
+
+  it('PRE navigates to config.postLoginNav.url + settles (cross-origin hand-off) when set', async () => {
+    let navigatedTo = '';
+    let didWaitIdle = false;
+    const fakeMediator = {
+      /**
+       * Stub settle wait — no pending redirect.
+       * @returns Resolved succeed.
+       */
+      waitForPageSettle: () => Promise.resolve({ success: true as const, value: undefined }),
+      /**
+       * Records the post-login nav target.
+       * @param url - Navigation target.
+       * @returns Resolved succeed.
+       */
+      navigateTo: (url: string) => {
+        navigatedTo = url;
+        return Promise.resolve({ success: true as const, value: undefined });
+      },
+      /**
+       * Records the settle-after-nav wait.
+       * @returns Resolved succeed.
+       */
+      waitForNetworkIdle: () => {
+        didWaitIdle = true;
+        return Promise.resolve({ success: true as const, value: undefined });
+      },
+      network: {
+        /**
+         * Empty capture pool (nav path is what this test asserts).
+         * @returns Empty captures.
+         */
+        getAllEndpoints: (): readonly unknown[] => [],
+      },
+    } as unknown as IElementMediator;
+    const baseCtx = makeMockContext();
+    const ctx = {
+      ...baseCtx,
+      config: { ...baseCtx.config, postLoginNav: { url: 'https://online.fibi.co.il/appsng/#/x' } },
+      mediator: { has: true as const, value: fakeMediator },
+    };
+    const result = await executeAuthDiscoveryPre(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    expect(navigatedTo).toBe('https://online.fibi.co.il/appsng/#/x');
+    expect(didWaitIdle).toBe(true);
+  });
+
+  it('PRE does NOT navigate when config.postLoginNav is absent (same-origin banks — no-op)', async () => {
+    let didNavigate = false;
+    const fakeMediator = {
+      /**
+       * Stub settle wait — no pending redirect.
+       * @returns Resolved succeed.
+       */
+      waitForPageSettle: () => Promise.resolve({ success: true as const, value: undefined }),
+      /**
+       * Flags an unexpected nav — must not fire for same-origin banks.
+       * @returns Resolved succeed.
+       */
+      navigateTo: () => {
+        didNavigate = true;
+        return Promise.resolve({ success: true as const, value: undefined });
+      },
+      network: {
+        /**
+         * Empty capture pool (no-op nav path is what this test asserts).
+         * @returns Empty captures.
+         */
+        getAllEndpoints: (): readonly unknown[] => [],
+      },
+    } as unknown as IElementMediator;
+    const baseCtx = makeMockContext();
+    const ctx = { ...baseCtx, mediator: { has: true as const, value: fakeMediator } };
+    const result = await executeAuthDiscoveryPre(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    expect(didNavigate).toBe(false);
+  });
 });

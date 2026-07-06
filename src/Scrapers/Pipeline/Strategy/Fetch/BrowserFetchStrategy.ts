@@ -20,6 +20,7 @@ import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { hasCookieSentinel, substituteCookieHeaders } from './CookieHeaderSentinel.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
 type IsTargetFrame = Brand<boolean, 'IsTargetFrame'>;
@@ -110,7 +111,8 @@ class BrowserFetchStrategy implements IFetchStrategy {
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
     const ctx = resolveContext(this._page, url);
-    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders: opts.extraHeaders })
+    const extraHeaders = await this.resolveHeaders(url, opts.extraHeaders);
+    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders })
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
@@ -132,6 +134,25 @@ class BrowserFetchStrategy implements IFetchStrategy {
     return fetchGetWithinPageWithHeaders<T>(ctx, url, opts.extraHeaders)
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
+  }
+
+  /**
+   * Resolve `@cookie:<name>` header sentinels against the live page cookie jar,
+   * scoped to the request URL so only that URL's cookies are read; skips the
+   * cookie read when no sentinel is present so non-anti-replay banks pay zero
+   * overhead.
+   * @param url - Request URL the cookies are scoped to.
+   * @param headers - Outgoing header map (possibly with sentinels).
+   * @returns Header map with sentinels resolved.
+   */
+  private async resolveHeaders(
+    url: string,
+    headers: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const isPresent: boolean = hasCookieSentinel(headers);
+    if (!isPresent) return headers;
+    const jar = await this._page.context().cookies(url);
+    return substituteCookieHeaders(headers, jar);
   }
 }
 

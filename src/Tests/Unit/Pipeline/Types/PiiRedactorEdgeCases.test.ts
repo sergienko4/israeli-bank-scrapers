@@ -51,4 +51,15 @@ describe('PiiRedactor — censor function defensive branches', () => {
     const category = classifyKey('totally-not-classified');
     expect(category).toBe('unknown');
   });
+
+  it('classifyKey redacts BaNCS auth + portfolio leaf keys', () => {
+    const csrf = classifyKey('csrfTkn');
+    const tokenId = classifyKey('TokenId');
+    const signature = classifyKey('Signature');
+    const iorId = classifyKey('iorId');
+    expect(csrf).toBe('token');
+    expect(tokenId).toBe('token');
+    expect(signature).toBe('token');
+    expect(iorId).toBe('account');
+  });
 });

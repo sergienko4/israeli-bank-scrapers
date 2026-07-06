@@ -24,6 +24,7 @@ import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
   IPipelineContext,
+  IScrapeState,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -275,5 +276,16 @@ describe('buildApiDirectScrapePhase (Commit E — BasePhase wrapper)', () => {
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase.action(ctx, ctx);
     expect(result.success).toBe(true);
+  });
+
+  it('ADS-WR-3 — defaults to zeroAccountsGuard when the shape omits resultGuard', async () => {
+    const phase = buildApiDirectScrapePhase(
+      SYN_CASE.shape as IApiDirectScrapeShape<unknown, unknown>,
+    );
+    const emptyScrape = { accounts: [], balanceDegraded: false } as unknown as IScrapeState;
+    const scrape = some(emptyScrape);
+    const input = makeMockContext({ scrape });
+    const result = await phase.post(input, input);
+    expect(result.success).toBe(false);
   });
 });
