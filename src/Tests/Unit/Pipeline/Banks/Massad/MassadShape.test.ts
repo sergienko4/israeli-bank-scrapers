@@ -19,13 +19,11 @@ import {
   secondaryUrl,
 } from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeAccounts.js';
 import {
-  APPSNG_SHELL_ROUTE,
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   type IMassadAcct,
   MASSAD_API,
-  primeUrl,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShapeHelpers.js';
 import {
@@ -182,14 +180,7 @@ describe('MASSAD_SHAPE wiring', () => {
     expect(MASSAD_SHAPE.stepName).toBe('MassadScrape');
   });
 
-  it('primeUrl targets the appsng SPA shell (drives /wps/ shell → app context)', () => {
-    const url = primeUrl();
-    expect(url).toBe(`${MASSAD_API}${APPSNG_SHELL_ROUTE}`);
-  });
-
-  it('declares a prime nav so the blank /wps/ portal shell is bypassed before fetch', () => {
-    const ctx = ctxWithStart();
-    const navTarget = MASSAD_SHAPE.prime?.navUrl(ctx);
-    expect(navTarget).toBe(`${MASSAD_API}${APPSNG_SHELL_ROUTE}`);
+  it('declares no prime nav — AUTH-DISCOVERY handles the appsng session hand-off', () => {
+    expect(MASSAD_SHAPE.prime).toBeUndefined();
   });
 });

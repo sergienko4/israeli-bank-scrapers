@@ -18,7 +18,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { type LiteralUrl, literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** FIBI BFF origin — Beinleumi's fixed post-login API host. */
@@ -27,8 +27,6 @@ export const BEINLEUMI_API = 'https://online.fibi.co.il';
 export const USER_DATA_PATH = '/MatafAngularRestApiService/rest/utils/userData';
 /** BFF base — accountType, balances, and list all hang off this prefix. */
 export const BFF_BASE = '/appsng/bff-balancetransactions/api/v1/transactions';
-/** appsng Angular SPA shell — the route FIBI's post-OTP redirect resolves to. */
-export const APPSNG_SHELL_ROUTE = '/appsng/Resources/PortalNG/shell/#/accountSummary';
 
 /** Current account balance — branded for Rule #15. */
 type AccountBalance = Brand<number, 'BeinleumiAccountBalance'>;
@@ -78,21 +76,6 @@ export function balanceExtract(body: ApiBody): AccountBalance {
 export function balanceUrl(acct: IBeinleumiAcct): WKUrlOrLiteral {
   const path = `${BFF_BASE}/balances/${String(acct.accountType)}`;
   return literalUrl(`${BEINLEUMI_API}${path}?uid=${uid()}`);
-}
-
-/**
- * Prime route — the appsng Angular SPA shell. FIBI's post-OTP redirect
- * chain is `/wps/` portal shell → JS-bootstrap → this appsng route; headless
- * runs intermittently stall on the blank `/wps/` shell and never reach it,
- * so the cookie-authed userData/BFF fetches fire on a dead page and raise
- * `NetworkError`. Navigating here once (the `prime` nav) forces the app
- * context to render before any scrape fetch — replaying the DASHBOARD nav the
- * hard model dropped. Grounded in the green trace's otp-fill landing URL
- * (04-07-2026_11221970). Mirrors the Amex/Isracard prime pattern.
- * @returns appsng accountSummary SPA route.
- */
-export function primeUrl(): LiteralUrl {
-  return literalUrl(`${BEINLEUMI_API}${APPSNG_SHELL_ROUTE}`);
 }
 
 /**

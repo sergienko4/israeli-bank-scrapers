@@ -24,20 +24,13 @@ import {
   extractAccounts,
   secondaryUrl,
 } from './PagiShapeAccounts.js';
-import {
-  balanceExtract,
-  balanceUrl,
-  type IPagiAcct,
-  noVars,
-  primeUrl,
-} from './PagiShapeHelpers.js';
+import { balanceExtract, balanceUrl, type IPagiAcct, noVars } from './PagiShapeHelpers.js';
 import { txnsExtractPage, txnsUrl, txnsVars } from './PagiShapeTxns.js';
 
 /** Pagi hard-model shape — passed to `.withBrowserApiDirect(...)`. */
 const PAGI_SHAPE: IApiDirectScrapeShape<IPagiAcct, never> = {
   stepName: 'PagiScrape',
   accountNumberOf,
-  prime: { navUrl: primeUrl },
   customer: {
     buildVars: noVars,
     extractAccounts,

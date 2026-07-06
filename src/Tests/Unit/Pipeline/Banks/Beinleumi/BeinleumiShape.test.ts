@@ -18,13 +18,11 @@ import {
   secondaryUrl,
 } from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/scrape/BeinleumiShapeAccounts.js';
 import {
-  APPSNG_SHELL_ROUTE,
   balanceExtract,
   balanceUrl,
   BEINLEUMI_API,
   BFF_BASE,
   type IBeinleumiAcct,
-  primeUrl,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/scrape/BeinleumiShapeHelpers.js';
 import {
@@ -189,14 +187,7 @@ describe('BEINLEUMI_SHAPE wiring', () => {
     expect(BEINLEUMI_SHAPE.stepName).toBe('BeinleumiScrape');
   });
 
-  it('primeUrl targets the appsng SPA shell (drives /wps/ shell → app context)', () => {
-    const url = primeUrl();
-    expect(url).toBe(`${BEINLEUMI_API}${APPSNG_SHELL_ROUTE}`);
-  });
-
-  it('declares a prime nav so the blank /wps/ portal shell is bypassed before fetch', () => {
-    const ctx = ctxWithStart();
-    const navTarget = BEINLEUMI_SHAPE.prime?.navUrl(ctx);
-    expect(navTarget).toBe(`${BEINLEUMI_API}${APPSNG_SHELL_ROUTE}`);
+  it('declares no prime nav — AUTH-DISCOVERY handles the appsng session hand-off', () => {
+    expect(BEINLEUMI_SHAPE.prime).toBeUndefined();
   });
 });

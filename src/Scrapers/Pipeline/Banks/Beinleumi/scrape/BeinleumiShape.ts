@@ -13,8 +13,8 @@
  *
  * Contract grounded in the captured trace
  * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970). Replaces the
- * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain — the `prime` nav
- * to the appsng SPA shell replays that dropped DASHBOARD navigation so the
+ * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain. AUTH-DISCOVERY now
+ * performs the cross-origin appsng nav (config `postLoginNav`) so the
  * cookie-authed fetches run from the rendered app context, not FIBI's blank
  * `/wps/` portal shell.
  */
@@ -31,7 +31,6 @@ import {
   balanceUrl,
   type IBeinleumiAcct,
   noVars,
-  primeUrl,
 } from './BeinleumiShapeHelpers.js';
 import { txnsExtractPage, txnsUrl, txnsVars } from './BeinleumiShapeTxns.js';
 
@@ -39,7 +38,6 @@ import { txnsExtractPage, txnsUrl, txnsVars } from './BeinleumiShapeTxns.js';
 const BEINLEUMI_SHAPE: IApiDirectScrapeShape<IBeinleumiAcct, never> = {
   stepName: 'BeinleumiScrape',
   accountNumberOf,
-  prime: { navUrl: primeUrl },
   customer: {
     buildVars: noVars,
     extractAccounts,

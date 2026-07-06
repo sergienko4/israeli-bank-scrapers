@@ -1456,11 +1456,6 @@ secondaryUrl
 # Reason: uid - Beinleumi fresh per-request correlation GUID builder for the FIBI `uid` query
 # param; consumed only by the Beinleumi urlTag builders. Framework-internal helper, not user-facing.
 uid
-# Reason: APPSNG_SHELL_ROUTE - FIBI appsng Angular SPA shell route const (the post-OTP frontend
-# the prime nav drives the /wps/ portal shell into). Shared name across the FIBI Mataf group
-# (Beinleumi/OtsarHahayal/Pagi/Massad); consumed only by each bank's primeUrl builder. Not user-facing.
-APPSNG_SHELL_ROUTE
-
 # --- P4 Massad (FIBI) hard-model post-auth scrape shape (account browser bank, OTP) ---
 # Reason: MASSAD_API - FIBI online gateway origin const shared by the Massad shape's
 # customer/secondary/balance/transactions urlTag builders. Framework-internal bank contract
