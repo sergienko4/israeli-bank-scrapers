@@ -1,0 +1,23 @@
+# PII denylist — sha256 hashes of real account/card/API-key values scrubbed
+# from git history (PR #404 follow-up). Values are stored ONLY as hashes so
+# they are never re-committed in plaintext. check-staged-pii.cjs blocks any
+# commit whose staged additions contain a token matching one of these.
+# Format: <sha256>  # <generic-label>
+
+b59ee7590b22367eec0de8478dfac82f4b2186ecb29ff91778a30a4e52ab82ef  # account-a
+4815933746643172f6eced8f9de4f8dfd60ea3e7bb34ff4d0e0c074b9070d44e  # account-b
+060e89a5072d2121511f6d41ffa5c176f3819384be03bd421d8abca7405a8e60  # account-c
+d235eb81baeea31c7ed68dd712d50a590a48dcf128cbc12331bfcd5f93b3a9fb  # account-d
+df2d94920d94b034020800b10a10a6dbac5e9abf3b51a45fe9c53a9dd3d43d1e  # account-e
+5ebf9c14567c68387840328ae5fdfc851ea247dbdb20e12b9f78ab3581d07c90  # account-f
+5d8374f460449be086faf39db1467efec4b224af1d84b2f6d6cd94399e005efc  # account-composite
+891a3e6bc9f5be4cd80dfcfd32c7f922a726fd458147fb18302e10df1e647cc3  # branch
+fee7ea88bd20947400f34225b5511f3c353f3dd5045759e7add277aa460d616d  # card-a
+27ed5b43a1c87bdf97934b51528c17cf26f3e34ba4328041da951caad6dcd884  # card-b
+3324dab86f4dcdf48ba8ed6d736dcf050f09a23bf617c7d3579224548269ba1f  # card-c
+2a9bc42abbb7a7640b5e4c6323378d7ee9d87f3e1f46100c8d9896f4f4376693  # card-d
+32768dc1b008847fe7bc2ca62dc057650fbf239146884d0832e7e189e4cc2d89  # card-e
+ec00669143d20646e94925c0cd88cf3e21d083bf2ec6521192ee5e3713c90d98  # card-f
+e781b2c55b7dd50d14e90f2b616af651c8ec1d8064db6491b7e0daeea4e4efe8  # card-g
+a896653291d864fbafc95dbe32b23b301994906cc054c4a07f38f1f8bdfacf0f  # card-h
+39dcca3b56e2a78c4d48ca0048c864c5ee649b6508bea1e2b3cb979c2216c75a  # gmaps-api-key

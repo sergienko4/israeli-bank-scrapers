@@ -65,6 +65,7 @@
     "lint:test-duplication": "npx tsx src/Tests/Tools/lint-test-duplication.ts",
     "lint:bank-coverage": "npx tsx src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts",
     "lint:fixtures-pii": "node scripts/audit-fixtures-pii.cjs",
+    "lint:pii-staged": "node scripts/check-staged-pii.cjs",
     "lint:docs-strict": "python -m mkdocs build --strict --site-dir .mkdocs-strict-out",
     "lint:phases:strict": "eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0",
     "lint:pr-body": "node scripts/validate-pr-body.mjs",

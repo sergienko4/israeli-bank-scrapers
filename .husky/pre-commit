@@ -198,6 +198,7 @@ bg_gate "guideline-coverage" "yes" npm run lint:guideline-coverage
 bg_gate "test-duplication"  "yes" npm run lint:test-duplication
 bg_gate "bank-coverage"     "yes" npm run lint:bank-coverage
 bg_gate "fixtures-pii"      "yes" npm run lint:fixtures-pii
+bg_gate "pii-staged"        "yes" npm run lint:pii-staged
 
 # docs-strict — fires when docs/** or any root .md file (consumed by
 # mkdocs.yml's nav / referenced via relative link) changed. Catches the

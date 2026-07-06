@@ -92,6 +92,8 @@ tasks/
 
 scripts/**
 !scripts/audit-fixtures-pii.cjs
+!scripts/check-staged-pii.cjs
+!scripts/pii-denylist.sha256
 !scripts/sweep-fixtures-pii.ts
 !scripts/validate-pr-body.mjs
 
