@@ -3,9 +3,10 @@
  * bank sets BOTH `hasBrowser` and `apiDirectScrape`, so it never
  * assembles for a current pipeline. These tests lock that invariant
  * AND the forward contract: once a browser bank is migrated to the
- * hard-model path, the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE /
- * DASHBOARD / BALANCE-RESOLVE phases drop out and BIND-API-MEDIATOR
- * is inserted immediately before the api-direct SCRAPE.
+ * hard-model path, the generic ACCOUNT-RESOLVE / DASHBOARD /
+ * BALANCE-RESOLVE phases drop out (AUTH-DISCOVERY is retained to
+ * establish the data-API session) and BIND-API-MEDIATOR is inserted
+ * immediately before the api-direct SCRAPE.
  */
 
 import type { IBuilderState } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineAssembly.js';
@@ -74,11 +75,11 @@ describe('PipelineAssembly — BIND-API-MEDIATOR wiring', () => {
     expect(names).not.toContain('bind-api-mediator');
   });
 
-  it('drops the generic middle phases and inserts bind-api-mediator before api-direct scrape when migrated', () => {
+  it('keeps auth-discovery, drops the generic middle phases, inserts bind before api-direct scrape when migrated', () => {
     const state = makeState({ apiDirectScrape: SHAPE_STUB });
     const phases = assemblePhases(state);
     const names = phaseNames(phases);
-    expect(names).not.toContain('auth-discovery');
+    expect(names).toContain('auth-discovery');
     expect(names).not.toContain('account-resolve');
     expect(names).not.toContain('dashboard');
     expect(names).not.toContain('balance-resolve');
