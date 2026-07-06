@@ -125,7 +125,7 @@
     "eslint-plugin-regexp": "^3.1.0",
     "eslint-plugin-simple-import-sort": "^13.0.0",
     "eslint-plugin-sonarjs": "^4.0.3",
-    "eslint-plugin-unicorn": "^69.0.0",
+    "eslint-plugin-unicorn": "^71.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",
     "fast-check": "^4.8.0",
     "fs-extra": "^11.3.5",
