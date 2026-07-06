@@ -208,6 +208,21 @@ describe('YahavShape headers', () => {
     expect(headers['x-requested-with']).toBe('XMLHttpRequest');
     expect(headers['x-xsrf-token']).toBe('fresh');
   });
+
+  it('bancsHeaders falls back to static XHR headers when the SPA capture is empty', () => {
+    const ctx = ctxWithBancs();
+    const headers = bancsHeaders(ctx);
+    expect(headers['x-requested-with']).toBe('XMLHttpRequest');
+    expect(headers.accept).toContain('application/json');
+  });
+
+  it('bancsHeaders prefers the captured SPA bag over the static fallback', () => {
+    const bag = JSON.stringify({ 'x-spa-only': 'captured' });
+    const ctx = ctxWithBancs({ bancsSpaHeaders: bag });
+    const headers = bancsHeaders(ctx);
+    expect(headers['x-spa-only']).toBe('captured');
+    expect(headers['x-requested-with']).toBeUndefined();
+  });
 });
 
 describe('YahavShape payloads', () => {
