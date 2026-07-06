@@ -196,12 +196,16 @@ function makeOtpFill(state: IBuilderState): BasePhase {
 }
 
 /**
- * Build the AUTH-DISCOVERY phase instance — Mission 1.
+ * Build the AUTH-DISCOVERY phase instance — Mission 1. Runs for every browser
+ * bank; hard-model (`withBrowserApiDirect`) banks get the hard-model-aware
+ * variant (POST cookie-audit, no FINAL dashboard gate).
  *
+ * @param state - Builder state (`apiDirectScrape` set ⇒ hard-model).
  * @returns AUTH-DISCOVERY phase.
  */
-function makeAuthDiscovery(): BasePhase {
-  return createAuthDiscoveryPhase();
+function makeAuthDiscovery(state: IBuilderState): BasePhase {
+  const isHardModel = Boolean(state.apiDirectScrape);
+  return createAuthDiscoveryPhase(isHardModel);
 }
 
 /**
@@ -281,7 +285,7 @@ const PHASE_CHAIN: readonly IPhaseSlot[] = [
   { factory: makeLogin, enabled: ifLoginAlways },
   { factory: makeOtpTrigger, enabled: ifOtpFillAndTrigger },
   { factory: makeOtpFill, enabled: ifOtpFill },
-  { factory: makeAuthDiscovery, enabled: ifGenericBrowser },
+  { factory: makeAuthDiscovery, enabled: ifBrowser },
   { factory: makeAccountResolve, enabled: ifGenericBrowser },
   { factory: makeDashboard, enabled: ifGenericBrowser },
   { factory: makeBindApiMediator, enabled: ifBrowserApiDirect },

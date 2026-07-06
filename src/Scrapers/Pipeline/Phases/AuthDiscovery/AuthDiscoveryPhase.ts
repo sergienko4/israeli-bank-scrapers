@@ -18,6 +18,7 @@ import {
   executeAuthDiscoveryFinal,
   executeAuthDiscoveryPost,
   executeAuthDiscoveryPre,
+  executeHardModelAuthDiscoveryFinal,
 } from '../../Mediator/AuthDiscovery/AuthDiscoveryActions.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
@@ -26,6 +27,18 @@ import type { Procedure } from '../../Types/Procedure.js';
 /** AUTH-DISCOVERY phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class AuthDiscoveryPhase extends BasePhase {
   public readonly name = 'auth-discovery' as const;
+  private readonly _hardModel: boolean;
+
+  /**
+   * Construct the phase in generic or hard-model mode.
+   * @param hardModel - True for `withBrowserApiDirect` banks — skips the FINAL
+   *   dashboard gate (they validate auth via the POST cookie-audit, not a
+   *   revealed browser dashboard).
+   */
+  constructor(hardModel: boolean) {
+    super();
+    this._hardModel = hardModel;
+  }
 
   /** @inheritdoc */
   public async pre(
@@ -60,16 +73,18 @@ class AuthDiscoveryPhase extends BasePhase {
     input: IPipelineContext,
   ): Promise<Procedure<IPipelineContext>> {
     input.logger.debug({ phase: this.name, message: 'auth-discovery.final' });
+    if (this._hardModel) return executeHardModelAuthDiscoveryFinal(input);
     return executeAuthDiscoveryFinal(input);
   }
 }
 
 /**
  * Create the AUTH-DISCOVERY phase instance.
+ * @param hardModel - True for hard-model (`withBrowserApiDirect`) banks.
  * @returns AuthDiscoveryPhase.
  */
-function createAuthDiscoveryPhase(): AuthDiscoveryPhase {
-  return Reflect.construct(AuthDiscoveryPhase, []);
+function createAuthDiscoveryPhase(hardModel: boolean): AuthDiscoveryPhase {
+  return Reflect.construct(AuthDiscoveryPhase, [hardModel]);
 }
 
 export { AuthDiscoveryPhase, createAuthDiscoveryPhase };

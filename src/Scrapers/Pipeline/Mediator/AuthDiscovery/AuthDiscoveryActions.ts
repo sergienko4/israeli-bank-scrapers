@@ -175,5 +175,8 @@ async function executeAuthDiscoveryPost(
 }
 
 export { AUTH_DISCOVERY_DASHBOARD_WAIT_MS } from '../Timing/TimingConfig.js';
-export { executeAuthDiscoveryFinal } from './AuthDiscoveryFinal.js';
+export {
+  executeAuthDiscoveryFinal,
+  executeHardModelAuthDiscoveryFinal,
+} from './AuthDiscoveryFinal.js';
 export { executeAuthDiscoveryAction, executeAuthDiscoveryPost, executeAuthDiscoveryPre };

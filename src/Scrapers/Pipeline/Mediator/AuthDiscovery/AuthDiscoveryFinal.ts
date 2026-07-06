@@ -129,5 +129,24 @@ async function executeAuthDiscoveryFinal(
   return decideFinalCommit(input, snap, reason);
 }
 
+/**
+ * FINAL for hard-model banks — commit telemetry WITHOUT the dashboard gate.
+ * Hard-model (`withBrowserApiDirect`) banks never reveal a browser dashboard;
+ * their auth is validated by the POST cookie-audit, so the M4.F1 dashboard gate
+ * would fail-loud `AUTH_DISCOVERY_DASHBOARD_NOT_READY` on a legitimately
+ * authenticated session. Settle, emit the committed telemetry, pass through.
+ * @param input - Pipeline context.
+ * @returns Pass-through success (no dashboard gate).
+ */
+async function executeHardModelAuthDiscoveryFinal(
+  input: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  if (!input.authDiscovery.has) return succeed(input);
+  await settleBeforeGate(input);
+  const snap = input.authDiscovery.value;
+  emitCommittedTelemetry(input, snap);
+  return succeed(input);
+}
+
 export default executeAuthDiscoveryFinal;
-export { executeAuthDiscoveryFinal };
+export { executeAuthDiscoveryFinal, executeHardModelAuthDiscoveryFinal };

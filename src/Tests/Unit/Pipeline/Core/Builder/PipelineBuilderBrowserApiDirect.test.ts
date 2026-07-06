@@ -68,7 +68,7 @@ describe('PipelineBuilder — withBrowserApiDirect', () => {
     const names = migratedPhaseNames(opts);
     expect(names).toContain('bind-api-mediator');
     expect(names).toContain('api-direct-scrape');
-    expect(names).not.toContain('auth-discovery');
+    expect(names).toContain('auth-discovery');
     expect(names).not.toContain('account-resolve');
     expect(names).not.toContain('dashboard');
     expect(names).not.toContain('balance-resolve');
