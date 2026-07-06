@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
+  isLiteralUrl,
+  literalUrl,
   registerWkUrl,
   resolveWkUrl,
   WK_URLS,
@@ -65,6 +67,28 @@ describe('UrlsWK/resolveFailure', () => {
     const result = resolveWkUrl('identity.getIdToken', CompanyTypes.Hapoalim);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
+  });
+});
+
+describe('UrlsWK/literalUrl', () => {
+  it('brands an absolute URL that isLiteralUrl accepts', () => {
+    const branded = literalUrl('https://api.example/txns');
+    const isLiteral = isLiteralUrl(branded);
+    expect(isLiteral).toBe(true);
+  });
+
+  it('treats a WK group tag as not a literal URL', () => {
+    const isLiteral = isLiteralUrl('graphql');
+    expect(isLiteral).toBe(false);
+  });
+
+  it('resolves a literal URL by passthrough with an empty registry', () => {
+    const urlText = 'https://api.example/accounts';
+    const tag = literalUrl(urlText);
+    const result = resolveWkUrl(tag, HINT);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    if (isOk(result)) expect(result.value).toBe(urlText);
   });
 });
 

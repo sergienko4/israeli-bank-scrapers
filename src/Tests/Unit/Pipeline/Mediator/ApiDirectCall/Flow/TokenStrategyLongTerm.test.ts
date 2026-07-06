@@ -12,7 +12,10 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { createTokenStrategyFromConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
-import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type {
+  WKUrlGroup,
+  WKUrlOrLiteral,
+} from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -66,7 +69,7 @@ function makeBus(args: IStubArgs): IApiMediator {
    * @returns Scripted Procedure.
    */
   const apiPost = async <T>(
-    url: WKUrlGroup,
+    url: WKUrlOrLiteral,
     body: Record<string, unknown>,
     opts?: IApiQueryOpts,
   ): Promise<Procedure<T>> => {

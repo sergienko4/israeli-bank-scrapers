@@ -244,14 +244,14 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   },
   {
     bankId: 'pagi',
-    originUrl: 'https://onlinepagi.bankpoalim.co.il',
+    originUrl: 'https://online.pagi.co.il',
     loginStep: '02-pre-login',
     requiresHydration: true,
     steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
   },
   {
     bankId: 'otsarHahayal',
-    originUrl: 'https://digital.otsarh.co.il',
+    originUrl: 'https://online.bankotsar.co.il',
     loginStep: '02-pre-login',
     requiresHydration: true,
     steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],

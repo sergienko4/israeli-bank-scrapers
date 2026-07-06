@@ -45,6 +45,17 @@ const API_DIRECT_SET = new Set<CompanyTypes>([
   CompanyTypes.Pepper,
 ]);
 
+/** FIBI appsng SPA shell route AUTH-DISCOVERY navigates to post-login. */
+const FIBI_APPSNG_SHELL_ROUTE = '/appsng/Resources/PortalNG/shell/#/accountSummary';
+
+/** Expected post-login data-API origin per FIBI-family bank (cross-origin hand-off). */
+const FIBI_ONLINE_HOST_PER_BANK: readonly [CompanyTypes, string][] = [
+  [CompanyTypes.Beinleumi, 'https://online.fibi.co.il'],
+  [CompanyTypes.Massad, 'https://online.bankmassad.co.il'],
+  [CompanyTypes.OtsarHahayal, 'https://online.bankotsar.co.il'],
+  [CompanyTypes.Pagi, 'https://online.pagi.co.il'],
+];
+
 describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
   it('T-REG-1 (FIRING): every registered bank has a valid authStrategyKind', async () => {
     // Dynamic import dodges the no-restricted-imports DI rule.
@@ -100,4 +111,29 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
       }
     },
   );
+});
+
+describe('PipelineBankConfig — FIBI postLoginNav (T-REG-5)', () => {
+  it.each(FIBI_ONLINE_HOST_PER_BANK)(
+    'T-REG-5: %s navigates post-login to its online-origin appsng shell',
+    async (companyId, onlineHost) => {
+      const { resolvePipelineBankConfig } =
+        await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+      const config = resolvePipelineBankConfig(companyId);
+      expect(config).not.toBe(false);
+      if (config !== false) {
+        expect(config.postLoginNav?.url).toBe(`${onlineHost}${FIBI_APPSNG_SHELL_ROUTE}`);
+      }
+    },
+  );
+
+  it('T-REG-5b: a same-origin bank (Discount) declares no postLoginNav', async () => {
+    const { resolvePipelineBankConfig } =
+      await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+    const config = resolvePipelineBankConfig(CompanyTypes.Discount);
+    expect(config).not.toBe(false);
+    if (config !== false) {
+      expect(config.postLoginNav).toBeUndefined();
+    }
+  });
 });

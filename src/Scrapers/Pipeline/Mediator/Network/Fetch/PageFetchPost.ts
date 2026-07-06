@@ -118,17 +118,42 @@ const DEFAULT_JSON_HEADERS: Record<string, string> = {
 };
 
 /**
- * Build the post-evaluate args bundle from the public options.
- * When the caller supplies `extraHeaders` we forward them verbatim
- * (captured SPA headers stay the source of truth). When the caller
- * omitted them entirely we fall back to a minimal JSON shape so the
- * server receives a valid Content-Type without callers having to know.
+ * True when the header map already declares a Content-Type (any casing) — so a
+ * captured SPA value (Hapoalim rejects a mismatched Content-Type) is never
+ * shadowed by the JSON default filled in below.
+ * @param headers - Caller-supplied header map.
+ * @returns True when a content-type key (any casing) is present.
+ */
+function hasContentType(headers: Record<string, string>): boolean {
+  return Object.keys(headers).some((k): boolean => k.toLowerCase() === 'content-type');
+}
+
+/**
+ * Guarantee a POST — whose body is ALWAYS JSON-stringified below — advertises a
+ * JSON Content-Type. Captured SPA headers stay the source of truth: an omitted
+ * header set falls back to the minimal JSON default; a partial set WITHOUT a
+ * Content-Type (FIBI `appsng` BFF, which otherwise serves the SPA shell at 200)
+ * gains only `application/json`; an already-present Content-Type (Hapoalim) is
+ * forwarded verbatim.
+ * @param extraHeaders - Caller-supplied headers, or undefined.
+ * @returns Header map guaranteed to carry a Content-Type.
+ */
+function withJsonContentType(extraHeaders?: Record<string, string>): Record<string, string> {
+  if (!extraHeaders) return DEFAULT_JSON_HEADERS;
+  if (hasContentType(extraHeaders)) return extraHeaders;
+  return { ...extraHeaders, 'content-type': JSON_CONTENT_TYPE };
+}
+
+/**
+ * Build the post-evaluate args bundle from the public options. Headers pass
+ * through {@link withJsonContentType} so every JSON POST advertises a
+ * Content-Type without shadowing a captured SPA value.
  * @param url - Target URL.
  * @param opts - Public fetch options.
  * @returns Args ready for runPostEvaluate.
  */
 function buildPostArgs(url: string, opts: IFetchPostOptions): IPostEvaluateArgs {
-  const innerExtraHeaders = opts.extraHeaders ?? DEFAULT_JSON_HEADERS;
+  const innerExtraHeaders = withJsonContentType(opts.extraHeaders);
   return { innerUrl: url, innerDataJson: JSON.stringify(opts.data), innerExtraHeaders };
 }
 

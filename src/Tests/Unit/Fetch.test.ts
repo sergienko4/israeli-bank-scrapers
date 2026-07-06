@@ -210,7 +210,7 @@ describe('fetchPostWithinPage', () => {
     await expect(fetchPromise).rejects.toThrow('status: 403');
   });
 
-  it('passes extraHeaders to page.evaluate as single arg', async () => {
+  it('adds a JSON content-type to a partial header bag (FIBI appsng POST)', async () => {
     const serializedOk = JSON.stringify({ ok: true });
     const evaluate = jest.fn().mockResolvedValue([serializedOk, 200]);
     const page = createMockPage({ evaluate });
@@ -226,7 +226,33 @@ describe('fetchPostWithinPage', () => {
     expect(evaluateCall[1]).toEqual({
       innerUrl: 'https://bank.co.il/api',
       innerDataJson: '{}',
-      innerExtraHeaders: { 'X-Custom': 'val' },
+      innerExtraHeaders: { 'X-Custom': 'val', 'content-type': 'application/json' },
+    });
+  });
+
+  it('preserves an already-present content-type verbatim (Hapoalim)', async () => {
+    const serializedOk = JSON.stringify({ ok: true });
+    const evaluate = jest.fn().mockResolvedValue([serializedOk, 200]);
+    const page = createMockPage({ evaluate });
+    await fetchPostWithinPage(page, 'https://bank.co.il/api', {
+      data: {},
+      extraHeaders: { 'Content-Type': 'application/json;charset=UTF-8' },
+    });
+    const evaluateCall = evaluate.mock.calls[0] as [unknown, Record<string, string>];
+    expect(evaluateCall[1].innerExtraHeaders).toEqual({
+      'Content-Type': 'application/json;charset=UTF-8',
+    });
+  });
+
+  it('falls back to the default JSON headers when none supplied', async () => {
+    const serializedOk = JSON.stringify({ ok: true });
+    const evaluate = jest.fn().mockResolvedValue([serializedOk, 200]);
+    const page = createMockPage({ evaluate });
+    await fetchPostWithinPage(page, 'https://bank.co.il/api', { data: {} });
+    const evaluateCall = evaluate.mock.calls[0] as [unknown, Record<string, string>];
+    expect(evaluateCall[1].innerExtraHeaders).toEqual({
+      'content-type': 'application/json',
+      accept: 'application/json',
     });
   });
 });

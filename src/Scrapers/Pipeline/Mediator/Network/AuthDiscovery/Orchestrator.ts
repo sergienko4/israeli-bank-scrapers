@@ -16,22 +16,7 @@ import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import { discoverFromHeaders } from './HeadersTier.js';
 import { pollForAuthModule } from './PollTier.js';
 import { discoverFromResponses } from './ResponseTier.js';
-import { discoverFromAllFrames } from './StorageFrames.js';
-import { discoverFromStorage } from './StorageMain.js';
-import { discoverFromAllStorageKeys } from './StorageScanAll.js';
-
-/**
- * Try the three sessionStorage tiers in order.
- * @param page - Playwright page.
- * @returns Token or false.
- */
-async function storageTiers(page: Page): Promise<string | false> {
-  const fromStorage = await discoverFromStorage(page);
-  if (fromStorage) return fromStorage;
-  const fromFrames = await discoverFromAllFrames(page);
-  if (fromFrames) return fromFrames;
-  return discoverFromAllStorageKeys(page);
-}
+import { storageTiers } from './StorageTiers.js';
 
 /**
  * Try the request-header + poll tiers after storage tiers fail.

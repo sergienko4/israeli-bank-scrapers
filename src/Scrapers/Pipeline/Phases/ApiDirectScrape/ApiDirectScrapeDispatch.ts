@@ -19,11 +19,11 @@ import type {
 } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import { hydrate } from '../../Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../Mediator/ApiDirectCall/Template/RefResolver.js';
-import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
+import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import type { ApiBody, VarsMap } from './IApiDirectScrapeShape.js';
+import type { ApiBody, ScrapeHttpMethod, VarsMap } from './IApiDirectScrapeShape.js';
 
 /** Synthetic IApiDirectCallConfig sentinel used by scrape-phase scope. */
 const SCRAPE_CONFIG_SENTINEL: IApiDirectCallConfig = Object.freeze({
@@ -83,7 +83,9 @@ export interface IDispatchArgs {
   readonly bus: IApiMediator;
   readonly ctx: IActionContext;
   readonly queryTag: 'customer' | 'balance' | 'transactions';
-  readonly urlTag: WKUrlGroup | false;
+  readonly urlTag: WKUrlOrLiteral | false;
+  /** REST verb for the urlTag branch — GET sends no body, POST hydrates one. */
+  readonly method: ScrapeHttpMethod;
   readonly vars: VarsMap;
   readonly bodyTemplate: JsonValueTemplate | false;
   readonly signer: IAesSignerConfig | false;
@@ -168,8 +170,29 @@ function maybeSignBody(
 }
 
 /**
- * Dispatch one scrape step against the mediator. REST when `urlTag`
- * is set, GraphQL otherwise. Bodies are hydrated/signed before POST.
+ * Dispatch a REST POST scrape step: hydrate the body from the step's
+ * `bodyTemplate` (or bare vars), apply the optional shape-level signer,
+ * then POST against the resolved URL. Split from {@link dispatchStep}
+ * so the router stays a thin 3-way switch.
+ * @param args - Dispatch bundle.
+ * @param url - Resolved REST URL (router guarantees it is not `false`).
+ * @returns Procedure with the typed payload.
+ */
+async function dispatchRestPost(
+  args: IDispatchArgs,
+  url: WKUrlOrLiteral,
+): Promise<Procedure<ApiBody>> {
+  const bodyProc = resolveStepBody(args);
+  if (!isOk(bodyProc)) return bodyProc;
+  const signedProc = maybeSignBody(bodyProc.value, args);
+  if (!isOk(signedProc)) return signedProc;
+  return args.bus.apiPost<ApiBody>(url, signedProc.value, args.opts);
+}
+
+/**
+ * Dispatch one scrape step against the mediator. Routes GraphQL when
+ * `urlTag` is absent, REST GET when `method === 'GET'` (no body), and
+ * REST POST otherwise (body hydrated/signed).
  * @param args - Dispatch bundle.
  * @returns Procedure with the typed payload.
  */
@@ -177,9 +200,6 @@ export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBo
   if (args.urlTag === false) {
     return args.bus.apiQuery<ApiBody>(args.queryTag, args.vars, args.opts);
   }
-  const bodyProc = resolveStepBody(args);
-  if (!isOk(bodyProc)) return bodyProc;
-  const signedProc = maybeSignBody(bodyProc.value, args);
-  if (!isOk(signedProc)) return signedProc;
-  return args.bus.apiPost<ApiBody>(args.urlTag, signedProc.value, args.opts);
+  if (args.method === 'GET') return args.bus.apiGet<ApiBody>(args.urlTag);
+  return dispatchRestPost(args, args.urlTag);
 }

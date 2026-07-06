@@ -123,7 +123,8 @@ describe('PEPPER_SHAPE accessors', () => {
   });
 
   it('balance.buildVars carries accountId', () => {
-    const vars = PEPPER_SHAPE.balance.buildVars({ accountId: 'a' });
+    const ctx = makeMockContext({}) as unknown as IActionContext;
+    const vars = PEPPER_SHAPE.balance.buildVars({ accountId: 'a' }, ctx);
     expect(vars).toEqual({ accountId: 'a' });
   });
 
