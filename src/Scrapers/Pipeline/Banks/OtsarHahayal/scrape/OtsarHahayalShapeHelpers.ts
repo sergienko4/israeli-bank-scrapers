@@ -23,7 +23,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import { type LiteralUrl, literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Otsar Hahayal BFF origin — FIBI online.<login-domain> API host. */
@@ -32,6 +32,8 @@ export const OTSAR_HAHAYAL_API = 'https://online.bankotsar.co.il';
 export const USER_DATA_PATH = '/MatafAngularRestApiService/rest/utils/userData';
 /** BFF base — accountType, balances, and list all hang off this prefix. */
 export const BFF_BASE = '/appsng/bff-balancetransactions/api/v1/transactions';
+/** appsng Angular SPA shell — the route FIBI's post-OTP redirect resolves to. */
+export const APPSNG_SHELL_ROUTE = '/appsng/Resources/PortalNG/shell/#/accountSummary';
 
 /** Current account balance — branded for Rule #15. */
 type AccountBalance = Brand<number, 'OtsarHahayalAccountBalance'>;
@@ -81,6 +83,18 @@ export function balanceExtract(body: ApiBody): AccountBalance {
 export function balanceUrl(acct: IOtsarHahayalAcct): WKUrlOrLiteral {
   const path = `${BFF_BASE}/balances/${String(acct.accountType)}`;
   return literalUrl(`${OTSAR_HAHAYAL_API}${path}?uid=${uid()}`);
+}
+
+/**
+ * Prime route — the appsng Angular SPA shell. FIBI's post-OTP redirect
+ * resolves `/wps/` portal shell → this appsng route; headless runs can
+ * stall on the blank shell, so the cookie-authed fetches fire on a dead
+ * page and raise `NetworkError`. The `prime` nav forces the app context to
+ * render first. Mirrors the Beinleumi/Amex prime pattern.
+ * @returns appsng accountSummary SPA route.
+ */
+export function primeUrl(): LiteralUrl {
+  return literalUrl(`${OTSAR_HAHAYAL_API}${APPSNG_SHELL_ROUTE}`);
 }
 
 /**

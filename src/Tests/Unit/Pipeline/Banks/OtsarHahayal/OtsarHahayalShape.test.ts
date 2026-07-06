@@ -19,11 +19,13 @@ import {
   secondaryUrl,
 } from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeAccounts.js';
 import {
+  APPSNG_SHELL_ROUTE,
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   type IOtsarHahayalAcct,
   OTSAR_HAHAYAL_API,
+  primeUrl,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShapeHelpers.js';
 import {
@@ -178,5 +180,16 @@ describe('OTSAR_HAHAYAL_SHAPE wiring', () => {
 
   it('carries the OtsarHahayalScrape step name', () => {
     expect(OTSAR_HAHAYAL_SHAPE.stepName).toBe('OtsarHahayalScrape');
+  });
+
+  it('primeUrl targets the appsng SPA shell (drives /wps/ shell → app context)', () => {
+    const url = primeUrl();
+    expect(url).toBe(`${OTSAR_HAHAYAL_API}${APPSNG_SHELL_ROUTE}`);
+  });
+
+  it('declares a prime nav so the blank /wps/ portal shell is bypassed before fetch', () => {
+    const ctx = ctxWithStart();
+    const navTarget = OTSAR_HAHAYAL_SHAPE.prime?.navUrl(ctx);
+    expect(navTarget).toBe(`${OTSAR_HAHAYAL_API}${APPSNG_SHELL_ROUTE}`);
   });
 });

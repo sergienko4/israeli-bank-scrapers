@@ -19,11 +19,13 @@ import {
   secondaryUrl,
 } from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeAccounts.js';
 import {
+  APPSNG_SHELL_ROUTE,
   balanceExtract,
   balanceUrl,
   BFF_BASE,
   type IPagiAcct,
   PAGI_API,
+  primeUrl,
   USER_DATA_PATH,
 } from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShapeHelpers.js';
 import {
@@ -178,5 +180,16 @@ describe('PAGI_SHAPE wiring', () => {
 
   it('carries the PagiScrape step name', () => {
     expect(PAGI_SHAPE.stepName).toBe('PagiScrape');
+  });
+
+  it('primeUrl targets the appsng SPA shell (drives /wps/ shell → app context)', () => {
+    const url = primeUrl();
+    expect(url).toBe(`${PAGI_API}${APPSNG_SHELL_ROUTE}`);
+  });
+
+  it('declares a prime nav so the blank /wps/ portal shell is bypassed before fetch', () => {
+    const ctx = ctxWithStart();
+    const navTarget = PAGI_SHAPE.prime?.navUrl(ctx);
+    expect(navTarget).toBe(`${PAGI_API}${APPSNG_SHELL_ROUTE}`);
   });
 });

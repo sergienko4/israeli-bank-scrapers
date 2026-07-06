@@ -24,13 +24,20 @@ import {
   extractAccounts,
   secondaryUrl,
 } from './MassadShapeAccounts.js';
-import { balanceExtract, balanceUrl, type IMassadAcct, noVars } from './MassadShapeHelpers.js';
+import {
+  balanceExtract,
+  balanceUrl,
+  type IMassadAcct,
+  noVars,
+  primeUrl,
+} from './MassadShapeHelpers.js';
 import { txnsExtractPage, txnsUrl, txnsVars } from './MassadShapeTxns.js';
 
 /** Massad hard-model shape — passed to `.withBrowserApiDirect(...)`. */
 const MASSAD_SHAPE: IApiDirectScrapeShape<IMassadAcct, never> = {
   stepName: 'MassadScrape',
   accountNumberOf,
+  prime: { navUrl: primeUrl },
   customer: {
     buildVars: noVars,
     extractAccounts,

@@ -20,5 +20,9 @@ After login, Pagi uses the hard-model post-auth path (`withBrowserApiDirect`):
 instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / SCRAPE /
 BALANCE-RESOLVE chain, the `PAGI_SHAPE` `IApiDirectScrapeShape`
 (`Banks/Pagi/scrape/PagiShape.ts`) declares the exact accounts, balance, and
-transactions API calls, issued directly through the live login page. See
+transactions API calls, issued directly through the live login page. A
+post-login `prime` nav to the appsng SPA shell
+(`/appsng/Resources/PortalNG/shell/#/accountSummary`) forces FIBI's `/wps/`
+portal shell into the Angular app context first, so the cookie-authed fetches
+don't fire on a blank page. See
 [api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.

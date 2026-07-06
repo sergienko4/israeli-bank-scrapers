@@ -25,7 +25,7 @@ The optional `IApiDirectScrapePrime` shape hook restores that step for the api-d
 
 Amex and Isracard (the DigitalV3 base-isracard-amex family) opt in via their `primeUrl` helper, pointing the hook at `https://web.americanexpress.co.il/transactions` and `https://web.isracard.co.il/transactions` respectively.
 
-Beinleumi (the FIBI Mataf/appsng portal) also opts in, pointing `primeUrl` at `https://online.fibi.co.il/appsng/Resources/PortalNG/shell/#/accountSummary`. FIBI's post-OTP redirect resolves through the `/wps/` portal shell before bootstrapping that Angular route; headless runs intermittently stall on the blank shell, so the prime nav forces the app context before the cookie-authed fetches (without it they raise `NetworkError` on the dead page).
+Beinleumi and its FIBI-group siblings (OtsarHahayal, Pagi, Massad — the same Mataf/appsng portal) also opt in, pointing `primeUrl` at `/appsng/Resources/PortalNG/shell/#/accountSummary` on each bank's own host (e.g. `https://online.fibi.co.il/…` for Beinleumi). FIBI's post-OTP redirect resolves through the `/wps/` portal shell before bootstrapping that Angular route; headless runs intermittently stall on the blank shell, so the prime nav forces the app context before the cookie-authed fetches (without it they raise `NetworkError` on the dead page).
 
 ## .final — Emit balanceResolution from scrape.accounts
 

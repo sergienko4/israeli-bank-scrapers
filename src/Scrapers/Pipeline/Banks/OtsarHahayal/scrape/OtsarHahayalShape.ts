@@ -29,6 +29,7 @@ import {
   balanceUrl,
   type IOtsarHahayalAcct,
   noVars,
+  primeUrl,
 } from './OtsarHahayalShapeHelpers.js';
 import { txnsExtractPage, txnsUrl, txnsVars } from './OtsarHahayalShapeTxns.js';
 
@@ -36,6 +37,7 @@ import { txnsExtractPage, txnsUrl, txnsVars } from './OtsarHahayalShapeTxns.js';
 const OTSAR_HAHAYAL_SHAPE: IApiDirectScrapeShape<IOtsarHahayalAcct, never> = {
   stepName: 'OtsarHahayalScrape',
   accountNumberOf,
+  prime: { navUrl: primeUrl },
   customer: {
     buildVars: noVars,
     extractAccounts,
