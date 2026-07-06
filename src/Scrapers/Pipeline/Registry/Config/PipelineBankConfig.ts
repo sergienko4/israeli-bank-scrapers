@@ -56,6 +56,9 @@ function defineBank(
   return { urls: { base }, balanceKind, authStrategyKind };
 }
 
+/** FIBI appsng SPA shell route — AUTH-DISCOVERY navigates here post-login. */
+const FIBI_APPSNG_SHELL = '/appsng/Resources/PortalNG/shell/#/accountSummary';
+
 /**
  * FIBI-family config — deposit account reached via a discovered Bearer/JWT plus
  * the discovered-header bag (the shared appsng BFF rejects a bare cookie without
@@ -64,21 +67,24 @@ function defineBank(
  * sniffed from the SPA's own `appsng/bff-` requests in the capture pool.
  * Beinleumi, Massad, OtsarHahayal and Pagi differ only by HOME URL.
  * @param base - Official website URL for the HOME phase.
+ * @param onlineHost - Data-API origin (`online.<host>`) AUTH-DISCOVERY
+ *   navigates to post-login to mint the appsng session.
  * @returns Registry config for one FIBI-family bank.
  */
-function fibiConfig(base: string): IPipelineBankConfig {
+function fibiConfig(base: string, onlineHost: string): IPipelineBankConfig {
   return {
     urls: { base },
     balanceKind: ACCOUNT,
     authStrategyKind: TOKEN,
     installDiscoveredHeaders: true,
     authHeaderUrlMatch: 'appsng/bff-',
+    postLoginNav: { url: `${onlineHost}${FIBI_APPSNG_SHELL}` },
   };
 }
 
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
-  [CompanyTypes.Beinleumi]: fibiConfig('https://www.fibi.co.il'),
+  [CompanyTypes.Beinleumi]: fibiConfig('https://www.fibi.co.il', 'https://online.fibi.co.il'),
   [CompanyTypes.Leumi]: {
     ...defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
     sessionTokenCapture: {
@@ -89,9 +95,15 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Hapoalim]: defineBank('https://www.bankhapoalim.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.Massad]: fibiConfig('https://www.bankmassad.co.il'),
-  [CompanyTypes.OtsarHahayal]: fibiConfig('https://www.bankotsar.co.il'),
-  [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il'),
+  [CompanyTypes.Massad]: fibiConfig(
+    'https://www.bankmassad.co.il',
+    'https://online.bankmassad.co.il',
+  ),
+  [CompanyTypes.OtsarHahayal]: fibiConfig(
+    'https://www.bankotsar.co.il',
+    'https://online.bankotsar.co.il',
+  ),
+  [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il', 'https://online.pagi.co.il'),
   [CompanyTypes.Yahav]: {
     ...defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
     bancsSessionCapture: true,

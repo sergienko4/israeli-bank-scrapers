@@ -208,6 +208,16 @@ export interface IPipelineBankConfig {
    */
   readonly authHeaderUrlMatch?: string;
   /**
+   * Post-login navigation the browser performs in AUTH-DISCOVERY, BEFORE the
+   * cookie-audit, to mint the data-API session for banks whose data API lives
+   * on a DIFFERENT origin than the login page (FIBI: login on `www.<host>`,
+   * data API on `online.<host>`). Navigating to the SPA frontend route drives
+   * the browser onto the data-API origin so its SPA runs the session handshake
+   * — the hand-off the removed DASHBOARD phase used to perform. Absent ⇒ no nav
+   * (banks whose data API is same-origin as login).
+   */
+  readonly postLoginNav?: { readonly url: string; readonly settleMs?: number };
+  /**
    * Opt-in: capture the TCS BaNCS session values (the auth `SecToken` block +
    * the portfolio `iorId`/`Id`) at BIND-API-MEDIATOR. For BaNCS Digital banks
    * (Yahav) whose every post-login API request is a `MessageEnvelope` carrying
