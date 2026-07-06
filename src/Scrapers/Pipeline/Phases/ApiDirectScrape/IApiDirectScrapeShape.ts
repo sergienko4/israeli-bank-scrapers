@@ -247,7 +247,8 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * PII-free {@link IApiDirectScrapeGuardSummary} and returns a failure
    * Procedure to abort the run (e.g. zero transactions from a degraded
    * warm session) or `succeed(undefined)` to pass through. Absent ⇒ the
-   * scrape always succeeds (Pepper / OneZero pattern).
+   * phase default guard applies, which fails a run that resolved zero
+   * accounts (a universally invalid post-login outcome).
    */
   readonly resultGuard?: (summary: IApiDirectScrapeGuardSummary) => Procedure<void>;
 }

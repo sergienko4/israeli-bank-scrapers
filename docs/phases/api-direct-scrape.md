@@ -60,8 +60,14 @@ genuine balance of `0` stays distinguishable from a fallback-masked `0`.
 PayBox opts in via `payBoxResultGuard`, which fails the phase closed
 with a `Generic` error when `accountCount >= 1 && totalTxns === 0 &&
 balanceDegraded` — i.e. a degraded token produced an empty scrape.
-OneZero and Pepper leave `resultGuard` undefined, so their behaviour is
-byte-identical: the guard is a no-op that returns the input unchanged.
+
+When a shape declares **no** `resultGuard`, the phase applies the
+default `zeroAccountsGuard`: it fails the run closed when `accountCount
+=== 0`, a universally invalid post-login outcome that otherwise surfaces
+as a silent empty scrape (e.g. Max's `403` or Yahav's BaNCS `93194`
+leaving the account list empty). It keys on accounts only, never
+transactions, so an empty-but-healthy account (OneZero / Pepper) stays
+successful.
 
 ## Per-bank shape extractors
 
