@@ -37,6 +37,10 @@ live login page instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE /
 DASHBOARD / SCRAPE / BALANCE-RESOLVE chain. The bank's `IApiDirectScrapeShape`
 (account-list, balance, and transactions helpers under `Banks/Beinleumi/scrape/`:
 `extractAccounts`, `balanceExtract` / `balanceUrl`, `txnsVars` /
-`txnsExtractPage`) declares each endpoint. See
+`txnsExtractPage`) declares each endpoint. A post-login `prime` nav to the
+appsng SPA shell (`/appsng/Resources/PortalNG/shell/#/accountSummary`) forces
+FIBI's `/wps/` portal shell into the Angular app context before the first
+fetch — without it, headless runs intermittently stall on the blank shell and
+the cookie-authed fetches raise `NetworkError`. See
 [api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
 
