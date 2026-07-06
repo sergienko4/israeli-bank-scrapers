@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.6.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.5.0...v8.6.0) (2026-07-06)
+
+
+### Features
+
+* **pipeline:** hard-model post-auth for browser banks ([#404](https://github.com/sergienko4/israeli-bank-scrapers/issues/404)) ([5691c01](https://github.com/sergienko4/israeli-bank-scrapers/commit/5691c01b6cb565864bf6d6f0f7b958634808f825))
+
 ## [8.5.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.4.0...v8.5.0) (2026-07-05)
 
 
