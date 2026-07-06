@@ -21,24 +21,29 @@ function summary(accountCount: number, totalTxns: number): IApiDirectScrapeGuard
 }
 
 describe('zeroAccountsGuard', () => {
-  it('ZAG-1 fails a scrape that resolved zero accounts', () => {
-    const input = summary(0, 0);
+  it.each([
+    {
+      name: 'ZAG-1 fails a scrape that resolved zero accounts',
+      accountCount: 0,
+      totalTxns: 0,
+      isPass: false,
+    },
+    {
+      name: 'ZAG-2 passes a scrape with one account and transactions',
+      accountCount: 1,
+      totalTxns: 3,
+      isPass: true,
+    },
+    {
+      name: 'ZAG-3 passes a healthy-empty account (>=1 account, zero transactions)',
+      accountCount: 2,
+      totalTxns: 0,
+      isPass: true,
+    },
+  ])('$name', ({ accountCount, totalTxns, isPass }) => {
+    const input = summary(accountCount, totalTxns);
     const result = zeroAccountsGuard(input);
     const isSuccess = isOk(result);
-    expect(isSuccess).toBe(false);
-  });
-
-  it('ZAG-2 passes a scrape with one account and transactions', () => {
-    const input = summary(1, 3);
-    const result = zeroAccountsGuard(input);
-    const isSuccess = isOk(result);
-    expect(isSuccess).toBe(true);
-  });
-
-  it('ZAG-3 passes a healthy-empty account (>=1 account, zero transactions)', () => {
-    const input = summary(2, 0);
-    const result = zeroAccountsGuard(input);
-    const isSuccess = isOk(result);
-    expect(isSuccess).toBe(true);
+    expect(isSuccess).toBe(isPass);
   });
 });

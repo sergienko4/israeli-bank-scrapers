@@ -155,20 +155,12 @@ describe('BIND-API-MEDIATOR session-token prime — extractSessionToken', () => 
     expect(token).toBe(FAKE_SESSION_ID);
   });
 
-  it('EXTRACT-8 ignores a null JSON body', () => {
-    const endpoint = makeEndpoint(LEUMI_URL, 'POST', 'null');
-    const token = extractSessionToken([endpoint], FLAT_SPEC);
-    expect(token).toBe(false);
-  });
-
-  it('EXTRACT-9 ignores a non-object JSON body', () => {
-    const endpoint = makeEndpoint(LEUMI_URL, 'POST', '42');
-    const token = extractSessionToken([endpoint], FLAT_SPEC);
-    expect(token).toBe(false);
-  });
-
-  it('EXTRACT-10 ignores a JSON array body', () => {
-    const endpoint = makeEndpoint(LEUMI_URL, 'POST', '[]');
+  it.each([
+    { name: 'EXTRACT-8 ignores a null JSON body', body: 'null' },
+    { name: 'EXTRACT-9 ignores a non-object JSON body', body: '42' },
+    { name: 'EXTRACT-10 ignores a JSON array body', body: '[]' },
+  ])('$name', ({ body }) => {
+    const endpoint = makeEndpoint(LEUMI_URL, 'POST', body);
     const token = extractSessionToken([endpoint], FLAT_SPEC);
     expect(token).toBe(false);
   });
