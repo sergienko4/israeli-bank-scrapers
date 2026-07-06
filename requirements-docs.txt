@@ -12,4 +12,4 @@ mkdocs-material==9.7.6
 mkdocs-mermaid2-plugin==1.2.3
 mkdocs-minify-plugin==0.8.0
 mkdocs==1.6.1
-pymdown-extensions==11.0
+pymdown-extensions==11.0.1
