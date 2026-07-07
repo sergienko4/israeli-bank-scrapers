@@ -1,5 +1,43 @@
 # Changelog
 
+## [8.6.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.5.0...v8.6.0) (2026-07-07)
+
+
+### Features
+
+* **ci:** add acyclic-dependencies cycle gate (decoupling, measured) ([#359](https://github.com/sergienko4/israeli-bank-scrapers/issues/359)) ([ddecdd5](https://github.com/sergienko4/israeli-bank-scrapers/commit/ddecdd5fd277638ca4b7890d269ba410ffb6b306))
+* **ci:** guard cycle baseline against widening ([#380](https://github.com/sergienko4/israeli-bank-scrapers/issues/380)) ([6adcfb8](https://github.com/sergienko4/israeli-bank-scrapers/commit/6adcfb86909e1a8d62f13b6a76f969c04a8b036f))
+* **init:** add network forensics to executeNavigateToBank failures ([#288](https://github.com/sergienko4/israeli-bank-scrapers/issues/288)) ([b75dab0](https://github.com/sergienko4/israeli-bank-scrapers/commit/b75dab036d3a041f8451bd99c30f331f879084fe))
+* **integration:** close cross-bank mirror gap for AMEX + Beinleumi + ship visaCal harvester hydration wait ([#335](https://github.com/sergienko4/israeli-bank-scrapers/issues/335)) ([8c15a73](https://github.com/sergienko4/israeli-bank-scrapers/commit/8c15a7392706869d4fa995e989cb5fdfd8549ec3))
+* **integration:** hard gate — Mode A static + Mode B mirror, all pipeline banks ([#307](https://github.com/sergienko4/israeli-bank-scrapers/issues/307), [#309](https://github.com/sergienko4/israeli-bank-scrapers/issues/309)) ([#310](https://github.com/sergienko4/israeli-bank-scrapers/issues/310)) ([53ac33e](https://github.com/sergienko4/israeli-bank-scrapers/commit/53ac33edd66798aa7c134dfd101b3a3cfee8055d))
+* **integration:** Phase 11 AMEX Mode A + Mode B coverage — 4th bank complete ([#331](https://github.com/sergienko4/israeli-bank-scrapers/issues/331)) ([5662f1d](https://github.com/sergienko4/israeli-bank-scrapers/commit/5662f1dbd2182c660f89138b15c36432c2b38327))
+* **integration:** Phase 11 Beinleumi Mode A + Mode B SIMULATOR coverage — 7th bank, FIRST OTP-gated ([#334](https://github.com/sergienko4/israeli-bank-scrapers/issues/334)) ([5bf5354](https://github.com/sergienko4/israeli-bank-scrapers/commit/5bf5354c82923d79c9a3964e34a39dc9a7761de5))
+* **integration:** Phase 11 Discount Mode A static drive (PR-3 of 4) ([#321](https://github.com/sergienko4/israeli-bank-scrapers/issues/321)) ([0109d3c](https://github.com/sergienko4/israeli-bank-scrapers/commit/0109d3c52d6ad6485cdc4d301cabac5ffed9ecc3))
+* **integration:** Phase 11 Discount Mode B SIMULATOR drive — 1st bank Mode B coverage ([#322](https://github.com/sergienko4/israeli-bank-scrapers/issues/322)) ([1dde373](https://github.com/sergienko4/israeli-bank-scrapers/commit/1dde373eb7d6cabf90ec8342e323ca19ac9dead9))
+* **integration:** Phase 11 Hapoalim Mode A + Mode B SIMULATOR coverage — 2nd bank complete ([#328](https://github.com/sergienko4/israeli-bank-scrapers/issues/328)) ([06ad9e3](https://github.com/sergienko4/israeli-bank-scrapers/commit/06ad9e3c8725fe34c1ee69883dc31bb29a8f47cb))
+* **integration:** Phase 11 MAX Mode A + Mode B SIMULATOR coverage — 5th bank complete ([7c7109f](https://github.com/sergienko4/israeli-bank-scrapers/commit/7c7109f90e479499b7ba030aee21cbd65f0afd63))
+* **integration:** Phase 11 VisaCal Mode A + Mode B coverage — 6th bank complete ([#333](https://github.com/sergienko4/israeli-bank-scrapers/issues/333)) ([c035658](https://github.com/sergienko4/israeli-bank-scrapers/commit/c035658d66cfb4cc04686ed600b53576705be093))
+* **isracard:** scrub production card+account PII + Phase-11 Mode A/B coverage ([#330](https://github.com/sergienko4/israeli-bank-scrapers/issues/330)) ([e9a0b34](https://github.com/sergienko4/israeli-bank-scrapers/commit/e9a0b34079563fc85d0aed086a789938b799336e))
+* **leumi:** migrate Bank Leumi onto the declarative Pipeline ([#381](https://github.com/sergienko4/israeli-bank-scrapers/issues/381)) ([9e39ed7](https://github.com/sergienko4/israeli-bank-scrapers/commit/9e39ed7278e094b04a13ff869831ade19f548a37))
+* **pipeline:** config-driven balance-resolve + required balanceKind (FIBI bulk-seed fix) ([#382](https://github.com/sergienko4/israeli-bank-scrapers/issues/382)) ([40fb4c0](https://github.com/sergienko4/israeli-bank-scrapers/commit/40fb4c06c40b36d2f8e85b7024c1310f0c73ca72))
+* **pipeline:** generic background WAF challenge interceptor (hCaptcha/Turnstile checkbox auto-solve) ([#282](https://github.com/sergienko4/israeli-bank-scrapers/issues/282)) ([7d52e9f](https://github.com/sergienko4/israeli-bank-scrapers/commit/7d52e9ffcb573b8dfbb941b0749c5764eb872618))
+* **pipeline:** hard-model post-auth for browser banks ([#404](https://github.com/sergienko4/israeli-bank-scrapers/issues/404)) ([84aba50](https://github.com/sergienko4/israeli-bank-scrapers/commit/84aba50918c4dcc8bf175fe727150ce30cae3860))
+* **test:** Phase 7.5 — unskip 13 e2e-mocked tests + purge MOCK_MODE prod code ([#304](https://github.com/sergienko4/israeli-bank-scrapers/issues/304)) ([5f865c2](https://github.com/sergienko4/israeli-bank-scrapers/commit/5f865c2a502498b5776e5621cb9100815276b3a4))
+* **yahav:** migrate Bank Yahav to the pipeline (BaNCS Digital) ([#403](https://github.com/sergienko4/israeli-bank-scrapers/issues/403)) ([728b7a1](https://github.com/sergienko4/israeli-bank-scrapers/commit/728b7a1fde33a4ace5898eccfc9f93ae0f9b0347))
+
+
+### Bug Fixes
+
+* **ci:** exempt bot PRs from §10 body-section check ([#287](https://github.com/sergienko4/israeli-bank-scrapers/issues/287)) ([42f4dba](https://github.com/sergienko4/israeli-bank-scrapers/commit/42f4dba91522d87055125da6da43cb6694def636))
+* **deps:** pin playwright-core to 1.59.x + validate dep PRs in CI ([#357](https://github.com/sergienko4/israeli-bank-scrapers/issues/357)) ([0a6b6e2](https://github.com/sergienko4/israeli-bank-scrapers/commit/0a6b6e22b939e0108b7d1f36912f56a2dce34148))
+* **harvest:** update isracard recipe URL — login form moved to /personalarea/Login/ ([#329](https://github.com/sergienko4/israeli-bank-scrapers/issues/329)) ([1863aad](https://github.com/sergienko4/israeli-bank-scrapers/commit/1863aad526be3827f13187a7c9b1ee9aefdd452f))
+* **home:** recover from client-side crash on home discovery ([#347](https://github.com/sergienko4/israeli-bank-scrapers/issues/347)) ([4ceb652](https://github.com/sergienko4/israeli-bank-scrapers/commit/4ceb652f2131f0b68c2460dc1569d055489f354e))
+* **metadata:** restore sergienko4 in metadata files after filter-repo over-scrub ([#319](https://github.com/sergienko4/israeli-bank-scrapers/issues/319)) ([238ced1](https://github.com/sergienko4/israeli-bank-scrapers/commit/238ced1fd943e778df3eb7505112ecfd4af23ebb))
+* **pipeline:** login auth-confirm + account-resolve/dashboard latent bugs ([#389](https://github.com/sergienko4/israeli-bank-scrapers/issues/389)) ([a8ce432](https://github.com/sergienko4/israeli-bank-scrapers/commit/a8ce4326d076337f0a609b4653224a805bd76ebd))
+* **scrape:** fetch full range for Yahav accounts ([#405](https://github.com/sergienko4/israeli-bank-scrapers/issues/405)) ([6a4c6ac](https://github.com/sergienko4/israeli-bank-scrapers/commit/6a4c6acc2e9f6a1ee2d8df79d11023472bb3fdde))
+* **security:** redact maps API keys in fixtures ([#391](https://github.com/sergienko4/israeli-bank-scrapers/issues/391)) ([7778f8b](https://github.com/sergienko4/israeli-bank-scrapers/commit/7778f8ba9eea6c00bc606154b0db2060ae8780f9))
+* use URL.canParse in login forensic trace ([#394](https://github.com/sergienko4/israeli-bank-scrapers/issues/394)) ([06967ae](https://github.com/sergienko4/israeli-bank-scrapers/commit/06967ae15b2f8591603e98ba408ca2c17f3385f6))
+
 ## [8.5.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.4.0...v8.5.0) (2026-07-05)
 
 
