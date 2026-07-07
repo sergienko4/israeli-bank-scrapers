@@ -1,5 +1,7 @@
 # BALANCE-RESOLVE (v6) — single-phase balance ownership
 
+> **Retired for pipeline banks in v8.6.0.** Every pipeline bank now scrapes via the direct-API hard model ([`API-DIRECT-SCRAPE`](../phases/api-direct-scrape.md)), whose shape emits `ctx.balanceResolution` directly — so the standalone `BALANCE-RESOLVE` phase below no longer runs for any bank. The phase and its ESLint isolation canaries stay in the tree to guard the boundary. This page is retained as the design record of the v6 ownership model.
+
 > **Lands in v8.4.0** (commit `c267d48b`). The architectural shift that **closes the v4 "universal-empty" gate** and removes ~370 LOC of v5 attribution code from SCRAPE.
 
 ## What changed

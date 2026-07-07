@@ -4,7 +4,7 @@
 
 Every phase implements [`BasePhase`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/BasePhase.ts) and owns four sub-step hooks: `pre`, `action`, `post`, `final`. The `PipelineExecutor` drives them in order and threads an immutable `IPipelineContext` snapshot between phases.
 
-## Browser banks — 12 phases
+## Browser banks — direct-API after login
 
 | Slot | Phase | Always-on? | One-line role |
 |---|---|---|---|
@@ -15,18 +15,17 @@ Every phase implements [`BasePhase`](https://github.com/sergienko4/israeli-bank-
 | 5 | [OTP-TRIGGER](otp-trigger.md) | ⚙️ | Ask bank to dispatch SMS |
 | 6 | [OTP-FILL](otp-fill.md) | ⚙️ | Fill the code from `otpCodeRetriever` |
 | 7 | [AUTH-DISCOVERY](auth-discovery.md) | ✅ | Capture post-login auth token + API origin |
-| 8 | [ACCOUNT-RESOLVE](account-resolve.md) | ✅ | Discover account/card list + billing-cycle catalog |
-| 9 | [DASHBOARD](dashboard.md) | ✅ | Pivot to dashboard, prime network capture |
-| 10 | [SCRAPE](scrape.md) | ✅ | Per-account transaction walk; emit identities + balance template |
-| 11 | [BALANCE-RESOLVE](balance-resolve.md) | ✅ | **v6** — owns every live balance fetch + per-card extraction |
-| 12 | [TERMINATE](terminate.md) | ✅ | Close browser, finalise result |
+| 8 | `BIND-API-MEDIATOR` | ✅ | Bind an authenticated `ApiMediator` to the live page; prime bearer / session token |
+| 9 | [API-DIRECT-SCRAPE](api-direct-scrape.md) | ✅ | Walk the bank's hard-model shape (accounts + balances + transactions) — no nav; `.final` emits `ctx.balanceResolution` |
+| 10 | [TERMINATE](terminate.md) | ✅ | Close browser, finalise result |
+| — | _dormant_: [ACCOUNT-RESOLVE](account-resolve.md) · [DASHBOARD](dashboard.md) · [SCRAPE](scrape.md) · [BALANCE-RESOLVE](balance-resolve.md) | — | Retired generic navigation + DOM-scrape chain; still in the tree (ESLint-canary-guarded) but unused by any pipeline bank |
 
 ## API-direct banks — 2 phases
 
 | Phase | Replaces (browser side) | One-line role |
 |---|---|---|
 | [API-DIRECT-CALL](api-direct-call.md) | INIT → HOME → … → OTP-FILL | Login + OTP via JSON API |
-| [API-DIRECT-SCRAPE](api-direct-scrape.md) | SCRAPE + BALANCE-RESOLVE | Shape-driven walk; `.final` emits `ctx.balanceResolution` |
+| [API-DIRECT-SCRAPE](api-direct-scrape.md) | shared — the same scrape phase browser banks run | Shape-driven walk; `.final` emits `ctx.balanceResolution` |
 
 ## Sub-step contract template
 
