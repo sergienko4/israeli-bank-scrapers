@@ -6,7 +6,7 @@ The package is a **typed phase-based pipeline**. Banks register a declarative `P
 
 ## Read in this order
 
-1. **[Pipeline architecture](pipeline.md)** — the 12 browser phases + 2 api-direct phases, the `IPipelineContext`, the `Procedure<T>` result pattern.
+1. **[Pipeline architecture](pipeline.md)** — the browser phase chain (direct-API after login) + the 2 api-direct phases, the `IPipelineContext`, the `Procedure<T>` result pattern.
 2. **[Layer separation](layers.md)** — the 9 logical layers (public-api, orchestration, mediator, strategy-registry, types, legacy-scrapers, common-utilities, tests, build-ci) and how imports flow between them.
 3. **[Config Contracts (api-direct-call)](config-contracts.md)** — the 6-bucket type split that replaces the legacy `IApiDirectCallConfig.ts` god-file in v8.5; the example that defines how every type-tree should be carved into ≤150-LoC concern slices.
 4. **[BALANCE-RESOLVE (v6)](balance-resolve.md)** — the single-phase ownership rewrite that lands in v8.4; the example that defines how new phases should be structured.

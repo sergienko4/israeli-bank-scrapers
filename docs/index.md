@@ -36,12 +36,12 @@ npm install @sergienko4/israeli-bank-scrapers
 
 ```mermaid
 flowchart LR
-    subgraph BB["Browser banks (16)"]
+    subgraph BB["Browser banks (13 pipeline)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN --> OTP["OTP (opt-in)"]
-      OTP --> AUTH["AUTH-DISCOVERY"] --> ACCT["ACCOUNT-RESOLVE"] --> DASH["DASHBOARD"]
-      DASH --> SCRAPE --> BAL["BALANCE-RESOLVE"] --> TERM["TERMINATE"]
+      OTP --> AUTH["AUTH-DISCOVERY"] --> BIND["BIND-API-MEDIATOR"]
+      BIND --> SCRAPE["API-DIRECT-SCRAPE<br/>(direct API — no nav)"] --> TERM["TERMINATE"]
     end
 
     subgraph API["API-direct banks (3)"]
@@ -55,15 +55,16 @@ flowchart LR
 
 | Surface | Counts | Source of truth |
 |---|---|---|
-| Banks supported | **19** total — 14 on Pipeline, 5 on legacy migration path | [Banks](banks/index.md) |
-| Phases | **12** (browser) + **2** (api-direct) | [Phases](phases/index.md) |
+| Banks supported | **19** total — 16 on Pipeline (13 browser + 3 api-direct), 3 on legacy migration path | [Banks](banks/index.md) |
+| Phases | Browser: `INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP] → AUTH-DISCOVERY → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE` · api-direct: **2** | [Phases](phases/index.md) |
 | Test suites | 412, ~4,800 tests, 97.20% statements coverage | [Workflow → CI gates](workflow/ci.md) |
 | Pre-commit gates | 12 gates in parallel | [Workflow → Pre-commit](workflow/pre-commit.md) |
 
 ## What's new
 
+- **v8.6.0** — **Direct-API scraping after login for every pipeline bank.** The 13 browser banks retire the generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE` navigation chain: after `AUTH-DISCOVERY`, `BIND-API-MEDIATOR` binds an authenticated `ApiMediator` to the live page and `API-DIRECT-SCRAPE` walks a typed hard-model shape of REST/GraphQL calls (accounts, balances, transactions) — no post-auth page navigation or DOM scraping. Balance is emitted by the shape's `.final`.
 - **v8.4.0** — Two milestones land together:
-    - [`BALANCE-RESOLVE` single-phase ownership (v6)](architecture/balance-resolve.md). SCRAPE emits identities + template, BALANCE-RESOLVE owns every live `api.fetchPost`/`fetchGet` and per-card extraction. Universal-miss fail only when **every** card missed.
+    - [`BALANCE-RESOLVE` single-phase ownership (v6)](architecture/balance-resolve.md). SCRAPE emits identities + template, BALANCE-RESOLVE owns every live `api.fetchPost`/`fetchGet` and per-card extraction. Universal-miss fail only when **every** card missed. _(Retired in v8.6.0 — balance now rides the hard-model shape.)_
     - Unified api-direct primitives across OneZero, Pepper, PayBox (signer config DU, `JsonValueTemplate`, carry derivations).
 - **v8.3.0** — Pipeline architecture v2 (Strategy / Builder / Mediator / Result patterns, phase isolation, PII redaction).
 

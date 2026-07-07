@@ -30,17 +30,15 @@ npm install @sergienko4/israeli-bank-scrapers
 
 ```mermaid
 flowchart LR
-    subgraph BB["Browser banks (16)"]
+    subgraph BB["Browser banks (13 pipeline)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
       LOGIN --> OTP["OTP-TRIGGER / OTP-FILL (opt-in)"]
       OTP --> AUTH["AUTH-DISCOVERY"]
-      AUTH --> ACCT["ACCOUNT-RESOLVE"]
-      ACCT --> DASH["DASHBOARD"]
-      DASH --> SCRAPE
-      SCRAPE --> BAL["BALANCE-RESOLVE"]
-      BAL --> TERM["TERMINATE"]
+      AUTH --> BIND["BIND-API-MEDIATOR"]
+      BIND --> SCRAPE["API-DIRECT-SCRAPE<br/>(direct API calls — no nav / DOM walk)"]
+      SCRAPE --> TERM["TERMINATE"]
     end
 
     subgraph API["API-direct banks (3) — OneZero · Pepper · PayBox"]
@@ -52,7 +50,16 @@ flowchart LR
     API -.->|"unified result shape"| RESULT
 ```
 
-12 phases for browser banks, 2 phases for api-direct banks, **one result shape**. Each phase owns its mediator zone and its own state — phases never reach into each other's data. See [Architecture](#architecture) for the contract that keeps the wiring honest.
+Every pipeline bank scrapes **direct API after login**. On the **browser
+banks (13)**, once `AUTH-DISCOVERY` proves the session, `BIND-API-MEDIATOR`
+binds an authenticated `ApiMediator` to the live page and `API-DIRECT-SCRAPE`
+walks a typed hard-model shape of REST/GraphQL calls — no post-auth page
+navigation, no DOM scraping. The **api-direct banks (3)** reach the same
+`API-DIRECT-SCRAPE` through `API-DIRECT-CALL` (headless JSON login) instead of
+the browser `LOGIN → AUTH-DISCOVERY → BIND-API-MEDIATOR` prefix. The retired
+generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE` chain is
+dormant (no bank triggers it). See [Architecture](#architecture) for the
+contract that keeps the wiring honest.
 
 > **📚 Full documentation:** [User Guide & Architecture (mkdocs)](https://sergienko4.github.io/israeli-bank-scrapers/) · [API Reference (TypeDoc)](https://sergienko4.github.io/israeli-bank-scrapers/api/) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -119,8 +126,9 @@ Replace `userCode` and `password` with real credentials. See [Supported Institut
 - **Zero CSS selectors in interaction code** — visible Hebrew text + a 7-strategy `SelectorResolver`. Site UI redesigns rarely break logins.
 - **Auto-detect + auto-fill OTP** — either via a callback you provide or a stable long-term token (returned for API banks).
 - **End-to-end PII redaction** — every log line, captured network body, and DOM snapshot goes through one redactor _before_ it touches disk. Share traces publicly without leaking customer data.
-- **Phase-based pipeline** — 12 isolated phases for browser banks, 2 for api-direct banks. One result shape across both paths.
-- **Single-phase balance ownership (v6)** — `BALANCE-RESOLVE` owns every live balance fetch + per-card extraction; legitimate empty-month results pass through without a false "scrape failed" signal.
+- **Direct-API scraping after login** — once the browser proves the session, data is fetched through a typed hard-model shape of REST/GraphQL calls (`BIND-API-MEDIATOR → API-DIRECT-SCRAPE`), not DOM navigation. Every pipeline bank (browser and api-direct alike) reads its accounts, balances, and transactions straight from the bank's own API.
+- **Phase-based pipeline** — isolated, single-responsibility phases; browser banks add a WAF-bypassing login front-end, api-direct banks run login as a JSON-API flow. One result shape across both paths.
+- **Single-phase balance ownership** — the hard-model `API-DIRECT-SCRAPE` shape emits `balanceResolution` directly from each bank's balance endpoint; legitimate empty-month results pass through without a false "scrape failed" signal.
 - **Dual ESM + CJS** — works with both `import` and `require()`.
 - **3 test surfaces** — unit (Jest), pipeline coverage (with thresholds), mock + real E2E orchestrators.
 
@@ -481,25 +489,27 @@ If you spot a pattern that leaks past both layers, please open an issue — that
 Pipeline of typed phases. Each phase owns its mediator zone, its own well-known-selectors dictionary, and its own retry policy. Phases never reach into one another's state — communication happens via slim `Option<T>` fields on the pipeline context.
 
 ```
-Browser banks (12 phases):
+Browser banks — direct-API after login (hard model):
   INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP-TRIGGER → OTP-FILL]
-       → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD → SCRAPE
-       → BALANCE-RESOLVE → TERMINATE
+       → AUTH-DISCOVERY → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE
 
-API-direct banks (2 phases):
+API-direct banks (fully headless, 2 phases):
   API-DIRECT-CALL → API-DIRECT-SCRAPE
 ```
 
 - `[PRE-LOGIN]` is opt-in — card banks with a separate "show login" toggle: Amex, Isracard, Max, VisaCal.
 - `[OTP-TRIGGER → OTP-FILL]` is opt-in. Beinleumi-group banks (Beinleumi, Massad, Otsar Hahayal, Pagi) and Hapoalim use them. Hapoalim uses OTP-FILL only, conditionally.
-- `AUTH-DISCOVERY` separates the credential exchange from the dashboard handoff so post-auth signal capture (cookies, ids, tokens) is observable, redactable, and testable in isolation.
-- `API-DIRECT-CALL` replaces `LOGIN [+ OTP-TRIGGER + OTP-FILL]` for banks with a programmatic auth endpoint. OTP, when required, is fetched via the same `otpCodeRetriever` callback during this phase.
-- `API-DIRECT-SCRAPE` replaces `SCRAPE [+ BALANCE-RESOLVE]` for those banks — same `PRE → ACTION → POST → FINAL` lifecycle, but the action is a shape-driven GraphQL/REST walk instead of a DOM walk. `.final` emits `ctx.balanceResolution` directly.
+- `AUTH-DISCOVERY` separates the credential exchange from the data handoff so post-auth signal capture (cookies, ids, tokens) is observable, redactable, and testable in isolation.
+- `BIND-API-MEDIATOR` binds an authenticated `ApiMediator` to the **live login page** so the hard-model scrape dispatches REST/GraphQL calls over the same WAF-passing browser session (cookies / discovered tokens ride along). It reads the login-inclusive capture pool once to prime any bearer / session token, then hands off.
+- `API-DIRECT-SCRAPE` replaces the retired generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE` chain for **every** pipeline bank — same `PRE → ACTION → POST → FINAL` lifecycle, but the action is a bank-supplied hard-model **shape** (a typed list of REST/GraphQL calls) instead of a DOM walk. `.final` emits `ctx.balanceResolution` directly. No post-auth page navigation.
+- `API-DIRECT-CALL` replaces `LOGIN [+ OTP-TRIGGER + OTP-FILL]` for banks with a programmatic auth endpoint (OneZero, Pepper, PayBox). OTP, when required, is fetched via the same `otpCodeRetriever` callback during this phase.
 
 <details open>
-<summary><strong>BALANCE-RESOLVE — single-phase balance ownership (v6)</strong></summary>
+<summary><strong>Balance ownership — emitted by the hard-model shape</strong></summary>
 
-`BALANCE-RESOLVE` is the only phase that performs balance work. SCRAPE no longer attributes per-account responses — it just emits the typed inputs `BALANCE-RESOLVE` consumes.
+Balance is resolved as part of `API-DIRECT-SCRAPE`: each bank's hard-model shape declares a balance call whose `.final` emits `ctx.balanceResolution` — a `Map<accountNumber, number>` that `PipelineResult` reads as the single source of truth. A universal miss (every account failed) is a real scrape failure; partial / legitimately-empty months pass through.
+
+> The standalone `BALANCE-RESOLVE` phase (v6) is retired for pipeline banks: it only ran on the generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE` chain, which no bank uses now. Its ESLint isolation canaries still guard the boundary so the phase cannot silently reach back into a scrape path.
 
 | Sub-step      | Responsibility                                                                                                                                                                                                                                                                                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -532,8 +542,8 @@ Every api-direct bank reuses the same building blocks below the two phases, so n
 
 Interceptors don't own data, they observe and dismiss:
 
-- **PopupInterceptor** — before HOME, ACCOUNT-RESOLVE, and DASHBOARD, the interceptor scans for modal overlays (privacy banners, new-feature promos, "you have a message" dialogs) and dismisses them by visible-text.
-- **NetworkDiscovery + trace lifecycle** — every HTTP request and response the page issues is observed and indexed. The discovery layer learns each bank's per-account / per-card / per-statement endpoints at runtime (no hand-maintained URL list) and feeds them into SCRAPE and BALANCE-RESOLVE. Bodies are captured to disk only inside the configured boundary (post-auth onward) so pre-auth secrets never hit the trace; bodies + URLs flow through the central `PiiRedactor` before any write.
+- **PopupInterceptor** — before HOME (and before the api-direct scrape), the interceptor scans for modal overlays (privacy banners, new-feature promos, "you have a message" dialogs) and dismisses them by visible-text.
+- **NetworkDiscovery + trace lifecycle** — every HTTP request and response the page issues is observed and indexed. The discovery layer learns each bank's per-account / per-card / per-statement endpoints at runtime (no hand-maintained URL list) and feeds them into `BIND-API-MEDIATOR` (token / session priming) and the `API-DIRECT-SCRAPE` shape. Bodies are captured to disk only inside the configured boundary (post-auth onward) so pre-auth secrets never hit the trace; bodies + URLs flow through the central `PiiRedactor` before any write.
 
 </details>
 
@@ -626,6 +636,7 @@ The pre-commit hook runs the same gates plus mock-E2E and bank tests. PRs are sq
 | v8.3.0  | Pipeline architecture v2 — Strategy / Builder / Mediator / Result patterns, AUTH-DISCOVERY phase + 100% phase isolation, cross-bank test factory (Phase H), TIMING ceilings, Telegram OTP delivery, PII redaction across log/network/snapshots                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | v8.4.0  | **Unified api-direct primitives** across OneZero / Pepper / PayBox — AES-CBC-PKCS7 body-pointer signer alongside the existing asymmetric header-attached one, declarative `JsonValueTemplate` bodies served by one hydration engine, `seedCarryFromCreds` + `derivedCarry` carry derivations (incl. deterministic `sha256-prefix-16` bootstrap for warm-start-stable device identifiers), session-context bus method-pair, in-body `cryptoField` pre-hook for symmetric OTP encryption, per-bank `phoneNumberFormat` normaliser, forensic-audit observability hook on the api-direct scrape POST; PayBox onboarding lands as a pure consumer of these primitives.<br><br>**Single-phase balance ownership (BALANCE-RESOLVE v6)** — SCRAPE.post emits `accountIdentities` + `balanceFetchTemplate`; BALANCE-RESOLVE owns live `api.fetchPost` / `fetchGet`, per-card extraction (Visa Cal nested cards + Amex `cardChargeNext`), quarantine on per-fetch failure, universal-miss hard-fail only when _every_ card missed; `ctx.balanceResolution` becomes the single source of truth read by `PipelineResult` for both browser and api-direct paths; v5 attribution path (~370 LOC) removed; 3 new ESLint canaries lock the separation at commit time. |
 | v8.5.0  | **Bank Leumi + Bank Yahav migrated to the Pipeline** (Yahav via BaNCS Digital) — 16 of 19 institutions are now pipeline-native, 3 legacy remain, and Yahav fetches the full requested date range through monthly BaNCS `OrigDt` chunking (current-month bound capped at today). **Config-driven BALANCE-RESOLVE** with a required per-bank `balanceKind` (`ACCOUNT` vs `CARD_CYCLE`). **Generic background WAF challenge interceptor** — hCaptcha / Turnstile checkbox auto-solve. **Phase 11 integration hard gate** — Mode A static-HTML drive + Mode B mirror across all pipeline banks. New commit-time guards: an acyclic-dependencies cycle gate (baseline-ratcheted) and a test-duplication canary that blocks tests from copying production logic. |
+| v8.6.0  | **Direct-API scraping after login for every pipeline bank.** The 13 browser banks retire the generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE` navigation + DOM-scrape chain. After `AUTH-DISCOVERY`, the new **`BIND-API-MEDIATOR`** phase binds an authenticated `ApiMediator` to the live login page (bearer / session token primed from the capture pool), then **`API-DIRECT-SCRAPE`** walks each bank's typed hard-model shape — explicit accounts + balances + transactions REST/GraphQL calls with `buildVars` / `extract*` / pagination cursor / `resultGuard` — with **no post-auth page navigation and no generic DOM extraction**. `balanceKind` (`ACCOUNT` vs `CARD_CYCLE`) is emitted by the shape's `.final`, so all 16 pipeline institutions (13 browser + 3 api-direct) now share one direct-API scrape driver. The generic phases remain in the codebase (ESLint-canary-guarded) but no pipeline bank triggers them. |
 
 ## Contributors
 
