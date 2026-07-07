@@ -50,13 +50,16 @@ flowchart LR
     API -.->|"unified result shape"| RESULT
 ```
 
-Every pipeline bank talks **direct API after login**: once `AUTH-DISCOVERY`
-proves the session, `BIND-API-MEDIATOR` binds an authenticated `ApiMediator`
-to the live page and `API-DIRECT-SCRAPE` walks a typed hard-model shape of
-REST/GraphQL calls — no post-auth page navigation, no DOM scraping. The
-retired generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE`
-chain is dormant (no bank triggers it). See [Architecture](#architecture)
-for the contract that keeps the wiring honest.
+Every pipeline bank scrapes **direct API after login**. On the **browser
+banks (13)**, once `AUTH-DISCOVERY` proves the session, `BIND-API-MEDIATOR`
+binds an authenticated `ApiMediator` to the live page and `API-DIRECT-SCRAPE`
+walks a typed hard-model shape of REST/GraphQL calls — no post-auth page
+navigation, no DOM scraping. The **api-direct banks (3)** reach the same
+`API-DIRECT-SCRAPE` through `API-DIRECT-CALL` (headless JSON login) instead of
+the browser `LOGIN → AUTH-DISCOVERY → BIND-API-MEDIATOR` prefix. The retired
+generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE` chain is
+dormant (no bank triggers it). See [Architecture](#architecture) for the
+contract that keeps the wiring honest.
 
 > **📚 Full documentation:** [User Guide & Architecture (mkdocs)](https://sergienko4.github.io/israeli-bank-scrapers/) · [API Reference (TypeDoc)](https://sergienko4.github.io/israeli-bank-scrapers/api/) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md)
 

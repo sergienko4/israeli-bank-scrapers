@@ -66,12 +66,12 @@ Key slots (v8.6+):
 |---|---|---|
 | `browser` | INIT | Playwright browser + context + page |
 | `login` | LOGIN | `persistentOtpToken`, `urlBeforeSubmit` |
-| `apiMediator` | BIND-API-MEDIATOR | Authenticated `ApiMediator` bound to the live login page, with any primed bearer / session token |
+| `apiMediator` | BIND-API-MEDIATOR (browser) · headless context wiring (api-direct) | Authenticated `ApiMediator`. **Browser banks:** `BIND-API-MEDIATOR` commits a page-bound mediator to the live login page (+ any primed bearer / session token). **api-direct banks:** wired at context build via `createBrowserBackedHeadlessApiMediator`, then consumed by `API-DIRECT-CALL` |
 | `scrape` | API-DIRECT-SCRAPE.post | `accounts`, `accountIdentities` produced by the hard-model shape |
 | `balanceResolution` | API-DIRECT-SCRAPE.final | Final `Map<accountNumber, number>` → `PipelineResult` |
 | _dormant_ | ACCOUNT-RESOLVE / DASHBOARD / BALANCE-RESOLVE | `accountDiscovery`, `txnEndpoint`, `dashboardTxnHarvest`, `balanceFetchPlan`, `balanceResponsesByBankAccount`, `balanceExtracted`, `balanceValidation` — slots of the retired generic chain; still declared on `IPipelineContext` but written by no pipeline bank |
 
-> **api-direct banks** reuse the exact same `apiMediator` → `scrape` → `balanceResolution` slots — the only difference is that `API-DIRECT-CALL` (not a browser LOGIN) mints the mediator.
+> Both paths converge on the same `apiMediator` → `scrape` → `balanceResolution` slots. They differ only in **who mints the mediator**: `BIND-API-MEDIATOR` for browser banks (page-bound, post-auth); the headless context wiring — consumed by `API-DIRECT-CALL` — for api-direct banks.
 
 The two paths converge on `balanceResolution` — that's the single source of truth read by [`PipelineResult.combineWithBalance`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts).
 
