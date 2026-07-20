@@ -218,7 +218,7 @@ jobs:
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
         if: needs.changes.outputs.md == 'true' || needs.changes.outputs.src == 'true'
-        uses: DavidAnson/markdownlint-cli2-action@8de2aa07cae85fd17c0b35642db70cf5495f1d25 # v24.0.0
+        uses: DavidAnson/markdownlint-cli2-action@6bf21b07787794f89a243495939cd651942aeabe # v24.1.0
         with:
           globs: '*.md docs/**/*.md tasks/**/*.md'
           config: '.markdownlint.json'
@@ -244,7 +244,7 @@ jobs:
             'README.md' 'docs/**/*.md'
           fail: true
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         if: needs.changes.outputs.docs == 'true'
         with:
           python-version: '3.13'
