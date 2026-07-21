@@ -152,7 +152,7 @@
     "typescript-eslint": "^8.59.3"
   },
   "dependencies": {
-    "@hieutran094/camoufox-js": "^0.6.8",
+    "@hieutran094/camoufox-js": "^0.11.2",
     "lodash": "^4.17.23",
     "moment": "^2.30.1",
     "moment-timezone": "^0.6.0",
