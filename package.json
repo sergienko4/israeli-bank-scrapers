@@ -148,7 +148,7 @@
     "tsup": "^8.5.1",
     "tsx": "^4.22.1",
     "typedoc": "^0.28.17",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.59.3"
   },
   "dependencies": {
