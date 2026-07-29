@@ -39,6 +39,30 @@ if [ ! -f "${REPO_ROOT}/.env" ]; then
     echo "ERROR: .env not found at ${REPO_ROOT}/.env" >&2
     exit 1
 fi
+
+# Docker's --env-file is NOT a dotenv parser: everything after the
+# first `=` is passed through verbatim, so `KEY="secret"` reaches the
+# container as `"secret"` WITH the quote characters. The E2E suites
+# call dotenv.config(), which DOES strip matching surrounding quotes —
+# but dotenv never overrides an already-set variable, so under Docker
+# the quoted form wins and the value silently gains two characters.
+# Live evidence: MAX_PASSWORD="…" arrived 16 chars against Max's
+# password input, which caps at maxlength="14". Playwright's .fill()
+# assigns the value programmatically and so bypasses maxlength, leaving
+# Angular's maxLength(14) validator to mark the control ng-invalid;
+# ngSubmit then returned before issuing any auth request, producing a
+# login that fails with no error banner and no network call.
+# Normalise once, here, so the container sees dotenv-equivalent values.
+ENV_FILE_SANITIZED="$(mktemp)"
+trap 'rm -f "$ENV_FILE_SANITIZED"' EXIT
+sed -E 's/\r$//; s/^([A-Za-z_][A-Za-z0-9_]*)=(["'"'"'])(.*)\2$/\1=\3/' \
+    "${REPO_ROOT}/.env" >"$ENV_FILE_SANITIZED"
+if command -v cygpath >/dev/null 2>&1; then
+    ENV_FILE_DOCKER=$(cygpath -w "$ENV_FILE_SANITIZED")
+else
+    ENV_FILE_DOCKER="$ENV_FILE_SANITIZED"
+fi
+
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "ERROR: image '$IMAGE' not built. Run:" >&2
     echo "  docker build -f docker/Dockerfile.ci-mirror -t $IMAGE $REPO_ROOT" >&2
