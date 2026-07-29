@@ -120,10 +120,24 @@ run_one_bank() {
     # saw all 8 parallel banks fail with `Server Not Found` on the
     # bank URL — Docker Desktop's DNS was saturated. Google + Cloudflare
     # public resolvers are intentionally redundant.
+    # The `-v /work/node_modules` anonymous volume is REQUIRED, not
+    # cosmetic: the repo bind-mount above replaces the whole `/work`
+    # tree, which would otherwise shadow the Linux `node_modules` the
+    # image baked via `npm ci`. On a Windows host that substitutes
+    # win32-x64 native binaries (`@unrs/resolver-binding-win32-x64-msvc`,
+    # playwright/camoufox `.node` addons) into a Linux container, and
+    # every bank then fails identically with
+    # `GENERIC Cannot read properties of undefined (reading 'has')` —
+    # an environment artifact that masks the real per-bank result.
+    # The anonymous volume restores the image's own node_modules at
+    # that path, so the container runs the deps `npm ci` resolved from
+    # package-lock.json at image-build time (rebuild the image after a
+    # lockfile bump to keep the two in sync).
     MSYS_NO_PATHCONV=1 docker run --rm \
     --name "isbs-ci-${bank,,}" \
     --dns=8.8.8.8 --dns=1.1.1.1 \
     -v "${REPO_ROOT_DOCKER}:/work" \
+    -v /work/node_modules \
     -w /work \
     --env-file "$ENV_FILE_DOCKER" \
     -e CI=true \
