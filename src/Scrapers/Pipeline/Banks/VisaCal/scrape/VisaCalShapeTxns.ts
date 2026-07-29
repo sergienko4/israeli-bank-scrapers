@@ -5,8 +5,10 @@
  * for each billing month in the scrape window, body {cardUniqueId, month,
  * year} (all strings, mirroring BillingFallbackStrategy). The cursor is a
  * 0-based month offset from the window start; the driver advances it
- * until the last in-window month, then stops. Early/incomplete months
- * return `result: null` (statusCode -1) and are tolerated as empty pages.
+ * until the last in-window month, then stops. The window always reaches
+ * the still-open cycle — see {@link OPEN_CYCLE_MONTHS}. Early/incomplete
+ * months return `result: null` (statusCode -1) and are tolerated as
+ * empty pages.
  *
  * Raw card-transaction rows flow downstream to the field-mapping Data
  * Mapper unchanged. Split from VisaCalShapeHelpers.ts for the 150-LOC cap.
@@ -50,13 +52,25 @@ function startMonth(ctx: IActionContext): moment.Moment {
 }
 
 /**
+ * Month offset of the still-open billing cycle relative to the current
+ * calendar month. CAL indexes a billing month by its debit date, so a
+ * cycle covers purchases made from roughly the previous month up to its
+ * debit day — purchases made today therefore belong to next month's
+ * cycle. Flooring the window end here keeps `futureMonthsToScrape: 0`
+ * meaning "no cycles beyond the open one" instead of silently dropping
+ * up to a month of already-made purchases.
+ */
+const OPEN_CYCLE_MONTHS = 1;
+
+/**
  * Highest in-window month offset — months from the start month to
- * now + futureMonthsToScrape (inclusive of the future cycle).
+ * now + futureMonthsToScrape, never earlier than the still-open cycle.
  * @param ctx - Action context.
  * @returns Last 0-based month offset.
  */
 function lastOffset(ctx: IActionContext): number {
-  const future = getFutureMonths(ctx.options);
+  const requested = getFutureMonths(ctx.options);
+  const future = Math.max(requested, OPEN_CYCLE_MONTHS);
   const end = moment().add(future, 'months').startOf('month');
   const start = startMonth(ctx);
   return end.diff(start, 'months');

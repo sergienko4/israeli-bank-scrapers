@@ -32,6 +32,13 @@ import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/Pipe
 const CARD: IVisaCalCard = { cardUniqueId: 'CARD-1', displayNumber: '1234' };
 
 /**
+ * Month offset of the still-open billing cycle relative to the current
+ * calendar month. CAL indexes a cycle by its debit month, so purchases
+ * made today sit in next month's cycle.
+ */
+const OPEN_CYCLE_OFFSET = 1;
+
+/**
  * Wrap a raw response body in the extractAccounts args bundle.
  * @param body - Synthetic response body.
  * @returns Extract-accounts args bundle.
@@ -161,12 +168,32 @@ describe('VisaCalShape transactions', () => {
   it('txnsExtractPage stops when the window is exhausted', () => {
     const page = txnsExtractPage({
       body: {},
-      cursor: false,
+      cursor: OPEN_CYCLE_OFFSET,
       acct: CARD,
       ctx: ctxWith(new Date(), 0),
     });
     expect(page.items).toEqual([]);
     expect(page.nextCursor).toBe(false);
+  });
+
+  it('reaches the still-open billing cycle when futureMonthsToScrape is 0', () => {
+    const page = txnsExtractPage({
+      body: {},
+      cursor: false,
+      acct: CARD,
+      ctx: ctxWith(new Date(), 0),
+    });
+    expect(page.nextCursor).toBe(OPEN_CYCLE_OFFSET);
+  });
+
+  it('futureMonthsToScrape above the open cycle still widens the window', () => {
+    const page = txnsExtractPage({
+      body: {},
+      cursor: OPEN_CYCLE_OFFSET,
+      acct: CARD,
+      ctx: ctxWith(new Date(), 3),
+    });
+    expect(page.nextCursor).toBe(OPEN_CYCLE_OFFSET + 1);
   });
 });
 
