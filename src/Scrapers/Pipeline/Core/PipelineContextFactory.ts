@@ -174,6 +174,7 @@ function buildInitialContext(
 interface IHeadlessWiring {
   readonly identity: string;
   readonly graphql: string;
+  readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
   readonly requiresBrowserTls: boolean;
   /** When true, the Camoufox strategy route-intercepts the initial origin nav
@@ -195,24 +196,13 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
   return {
     identity: headless.identityBase,
     graphql: headless.graphql,
+    graphqlHeaders: headless.graphqlHeaders,
     staticAuth: headless.staticAuth,
     requiresBrowserTls: headless.requiresBrowserTls === true,
     bypassOriginChallenge: headless.bypassOriginChallenge === true,
   };
 }
 
-/**
- * Wire the browser-backed headless API mediator. All currently-registered
- * headless banks (OneZero, Pepper, PayBox) opt into `requiresBrowserTls:
- * true` — each bank's identity host either gates Node TLS directly or
- * sits behind a Cloudflare edge whose challenge JS is bypassed via the
- * Camoufox strategy's optional origin-challenge route-intercept (see
- * `CamoufoxIdentityFetchStrategy` constructor `bypassOriginChallenge`
- * flag).
- * @param companyId - Target bank company type.
- * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Wired IApiMediator instance with a dispose hook.
- */
 /**
  * Build the `createBrowserBackedHeadlessApiMediator` arg literal from
  * the resolved wiring + companyId. Extracted so the call site below
@@ -231,29 +221,18 @@ function buildMediatorArgsForWiring(
     identityBaseUrl: wiring.identity,
     identityOriginUrl,
     graphqlUrl: wiring.graphql,
+    graphqlHeaders: wiring.graphqlHeaders,
     staticAuth: wiring.staticAuth,
     bypassOriginChallenge: wiring.bypassOriginChallenge,
   };
 }
 
 /**
- * Build the browser-backed headless ApiMediator for the supplied wiring.
- * The args literal is assembled by {@link buildMediatorArgsForWiring}
- * so this site stays under the project's max-lines-per-function cap.
- * @param companyId - Target bank company type.
- * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Wired ApiMediator instance with a dispose hook.
- */
-function buildApiMediatorForWiring(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): ReturnType<typeof createBrowserBackedHeadlessApiMediator> {
-  const args = buildMediatorArgsForWiring(companyId, wiring);
-  return createBrowserBackedHeadlessApiMediator(args);
-}
-
-/**
  * Inject an ApiMediator into the phase slots when the descriptor is headless.
+ * All currently-registered headless banks (OneZero, Pepper, PayBox) opt into
+ * `requiresBrowserTls: true` — each identity host either gates Node TLS or
+ * sits behind a Cloudflare edge bypassed by the Camoufox strategy's optional
+ * origin-challenge route-intercept.
  * @param descriptor - The pipeline descriptor (isHeadless flag).
  * @param slots - Empty phase slots from emptyPhaseSlots().
  * @returns Phase slots with apiMediator populated when applicable.
@@ -262,7 +241,8 @@ function wireHeadlessMediator(descriptor: IPipelineDescriptor, slots: IPhaseSlot
   if (descriptor.isHeadless !== true) return slots;
   const wiring = resolveHeadlessWiring(descriptor.options.companyId);
   if (wiring === false) return slots;
-  const apiMediator = buildApiMediatorForWiring(descriptor.options.companyId, wiring);
+  const args = buildMediatorArgsForWiring(descriptor.options.companyId, wiring);
+  const apiMediator = createBrowserBackedHeadlessApiMediator(args);
   return { ...slots, apiMediator: some(apiMediator) };
 }
 

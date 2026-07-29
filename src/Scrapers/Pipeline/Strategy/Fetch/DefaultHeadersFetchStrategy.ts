@@ -86,4 +86,4 @@ function withDefaultHeaders(inner: IFetchStrategy, defaults: DefaultHeaders): IF
 
 export default withDefaultHeaders;
 export type { DefaultHeaders };
-export { DefaultHeadersFetchStrategy, withDefaultHeaders };
+export { DefaultHeadersFetchStrategy, mergeUnder, withDefaultHeaders };
