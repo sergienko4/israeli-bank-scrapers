@@ -83,14 +83,19 @@ function makeHomePage(pageUrl: string): Page {
 }
 
 /**
- * Build a mediator that records every `resolveAndClick` candidate group
- * and always reports the login trigger as discovered.
+ * Build a mediator that records every `resolveAndClick` candidate group.
  *
  * @param log - Mutable sink collecting the candidate groups.
  * @param pageUrl - URL the mediator reports.
+ * @param hasOverlay - When false, the close-popup group resolves as
+ *   not-found so the "nothing to dismiss" branch is genuinely driven.
  * @returns Recording mediator stub.
  */
-function makeRecordingMediator(log: ClickLog, pageUrl: string): IElementMediator {
+function makeRecordingMediator(
+  log: ClickLog,
+  pageUrl: string,
+  hasOverlay: boolean,
+): IElementMediator {
   return makeMockMediator({
     /**
      * Report the current URL.
@@ -108,13 +113,14 @@ function makeRecordingMediator(log: ClickLog, pageUrl: string): IElementMediator
      */
     resolveAllVisible: () => Promise.resolve([TRIGGER_FOUND]),
     /**
-     * Record the candidate group, then report a successful click.
+     * Record the candidate group, then report the scripted outcome.
      * @param candidates - Candidate group under test.
-     * @returns Successful race result.
+     * @returns Successful race result (found only when applicable).
      */
     resolveAndClick: (candidates: readonly SelectorCandidate[]) => {
       log.push([...candidates]);
-      const clicked = succeed(TRIGGER_FOUND);
+      const isAbsent = isClosePopupGroup(candidates) && !hasOverlay;
+      const clicked = succeed(isAbsent ? NOT_FOUND_RESULT : TRIGGER_FOUND);
       return Promise.resolve(clicked);
     },
     /**
@@ -129,16 +135,17 @@ function makeRecordingMediator(log: ClickLog, pageUrl: string): IElementMediator
  * Assemble a HOME pipeline context wired to a recording mediator.
  *
  * @param log - Mutable sink collecting `resolveAndClick` groups.
+ * @param hasOverlay - Whether a dismissible overlay is present.
  * @returns Pipeline context ready for `HomePhase.pre`.
  */
-function makeHomeCtx(log: ClickLog): IPipelineContext {
+function makeHomeCtx(log: ClickLog, hasOverlay: boolean): IPipelineContext {
   const pageUrl = 'https://www.max.co.il/';
   const browser: IBrowserState = {
     page: makeHomePage(pageUrl),
     context: {} as unknown as IBrowserState['context'],
     cleanups: [],
   };
-  const mediator = makeRecordingMediator(log, pageUrl);
+  const mediator = makeRecordingMediator(log, pageUrl, hasOverlay);
   return makeMockContext({
     browser: some(browser),
     mediator: some(mediator),
@@ -161,16 +168,18 @@ function isClosePopupGroup(group: readonly SelectorCandidate[]): boolean {
 describe('HomePhase/PRE obstruction clearing', () => {
   it('dismisses a blocking overlay after discovery completes', async () => {
     const log: ClickLog = [];
-    const ctx = makeHomeCtx(log);
+    const ctx = makeHomeCtx(log, true);
     await new HomePhase().pre(ctx, ctx);
     const didProbeClosePopup = log.some(isClosePopupGroup);
     expect(didProbeClosePopup).toBe(true);
   });
 
-  it('still reports PRE success when no overlay is present', async () => {
+  it('still probes, and reports PRE success, when no overlay is present', async () => {
     const log: ClickLog = [];
-    const ctx = makeHomeCtx(log);
+    const ctx = makeHomeCtx(log, false);
     const result = await new HomePhase().pre(ctx, ctx);
+    const didProbeClosePopup = log.some(isClosePopupGroup);
     expect(result.success).toBe(true);
+    expect(didProbeClosePopup).toBe(true);
   });
 });

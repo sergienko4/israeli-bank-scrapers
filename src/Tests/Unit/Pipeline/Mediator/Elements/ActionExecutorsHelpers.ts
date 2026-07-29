@@ -11,7 +11,7 @@ export interface ILocatorScript {
   focus?: () => Promise<boolean>;
   pressSequentially?: () => Promise<boolean>;
   dispatchEvent?: () => Promise<boolean>;
-  evaluate?: () => Promise<unknown>;
+  evaluate?: (...args: unknown[]) => Promise<unknown>;
   getAttribute?: () => Promise<string | false>;
   count?: () => Promise<number>;
 }
