@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.6.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.0...v8.6.1) (2026-07-29)
+
+
+### Bug Fixes
+
+* **pipeline:** make VisaCal and Max scrapers green ([#434](https://github.com/sergienko4/israeli-bank-scrapers/issues/434)) ([bcb420c](https://github.com/sergienko4/israeli-bank-scrapers/commit/bcb420c69376ec86ee15d87727205bd081983882))
+
 ## [8.6.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.5.0...v8.6.0) (2026-07-07)
 
 
