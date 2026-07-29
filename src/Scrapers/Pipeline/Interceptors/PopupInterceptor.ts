@@ -12,11 +12,11 @@ import type { Page } from 'playwright-core';
 
 import type { IElementMediator, IRaceResult } from '../Mediator/Elements/ElementMediator.js';
 import { computeContextId, MAIN_CONTEXT_ID } from '../Mediator/Elements/FrameRegistry.js';
+import { dismissPopups } from '../Mediator/Elements/PopupDismiss.js';
 import { WK_CLOSE_POPUP } from '../Registry/WK/SharedWK.js';
 import type { Brand } from '../Types/Brand.js';
 import type { ScraperLogger } from '../Types/Debug.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
-import { maskVisibleText } from '../Types/LogEvent.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';
 import { succeed } from '../Types/Procedure.js';
@@ -24,12 +24,8 @@ import { succeed } from '../Types/Procedure.js';
 type EndpointDelta = Brand<number, 'EndpointDelta'>;
 type IsInCooldown = Brand<boolean, 'IsInCooldown'>;
 
-/** Max popup dismissal attempts per phase transition. */
-const MAX_POPUP_ATTEMPTS = 2;
 /** Cooldown between popup probes (ms). */
 const POPUP_COOLDOWN_MS = 2000;
-/** Wait for SPA state update after popup dismissal (ms). */
-const POPUP_SETTLE_MS = 1000;
 /** Budget for the close-control provenance probe (ms) — a gate, not a wait. */
 const FRAME_GATE_TIMEOUT_MS = 2000;
 
@@ -144,38 +140,6 @@ async function resolveSkipReason(
   const isWidgetOwned = await isCloseControlInSubFrame(ctx, nextPhase);
   if (isWidgetOwned) return 'widget-frame';
   return false;
-}
-
-/**
- * Attempt to dismiss one popup via WK_CLOSE_POPUP.
- * @param mediator - Element mediator.
- * @param logger - Pipeline logger.
- * @returns True if a popup was found and clicked.
- */
-async function tryDismissOnce(mediator: IElementMediator, logger: ScraperLogger): Promise<boolean> {
-  const result = await mediator.resolveAndClick(WK_CLOSE_POPUP).catch((): false => false);
-  if (result === false) return false;
-  if (!result.success || !result.value.found) return false;
-  const masked = maskVisibleText(result.value.value);
-  logger.debug({ text: masked, attempt: 0, max: MAX_POPUP_ATTEMPTS });
-  await mediator.waitForNetworkIdle(POPUP_SETTLE_MS).catch((): false => false);
-  return true;
-}
-
-/**
- * Dismiss up to MAX_POPUP_ATTEMPTS popups sequentially.
- * @param mediator - Element mediator.
- * @param logger - Pipeline logger.
- * @returns Count of dismissed popups.
- */
-async function dismissPopups(mediator: IElementMediator, logger: ScraperLogger): Promise<number> {
-  const didDismissFirst = await tryDismissOnce(mediator, logger);
-  if (!didDismissFirst) return 0;
-  logger.debug({ text: 'attempt', attempt: 1, max: MAX_POPUP_ATTEMPTS });
-  const didDismissSecond = await tryDismissOnce(mediator, logger);
-  if (!didDismissSecond) return 1;
-  logger.debug({ text: 'attempt', attempt: 2, max: MAX_POPUP_ATTEMPTS });
-  return MAX_POPUP_ATTEMPTS;
 }
 
 /**
