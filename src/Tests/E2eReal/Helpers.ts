@@ -226,13 +226,31 @@ function txnTime(t: ITransaction): number {
 }
 
 /**
+ * Sort key for a transaction, with undated rows ranked oldest.
+ *
+ * <p>Never returns NaN: a NaN comparator result is a tie under
+ * `Array.sort`, which would leave valid rows around an undated one in
+ * emission order instead of newest-first.
+ *
+ * @param t - Transaction record.
+ * @returns Epoch ms, or `-Infinity` when the row carries no usable date.
+ */
+function sortKey(t: ITransaction): number {
+  const ms = txnTime(t);
+  return isRealTime(ms) ? ms : Number.NEGATIVE_INFINITY;
+}
+
+/**
  * Newest-first comparator for log rows.
  * @param a - Left transaction.
  * @param b - Right transaction.
  * @returns Negative when `a` is newer.
  */
 function byDateDesc(a: ITransaction, b: ITransaction): number {
-  return txnTime(b) - txnTime(a);
+  const left = sortKey(a);
+  const right = sortKey(b);
+  if (left === right) return 0;
+  return left > right ? -1 : 1;
 }
 
 /**

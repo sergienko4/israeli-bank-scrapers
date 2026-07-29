@@ -23,6 +23,9 @@ const DESCRIPTION = 'corner-shop';
 // descends within itself, so the final entry is not the newest date.
 const CYCLE_GROUPED = ['2026-06-30', '2026-06-02', '2026-07-28', '2026-07-02'];
 
+// Same order with an unparseable date wedged between the two cycles.
+const WITH_UNDATED = ['2026-06-02', 'not-a-date', '2026-07-28'];
+
 /**
  * Build a synthetic transaction carrying only the logged fields.
  * @param date - ISO transaction date.
@@ -93,6 +96,18 @@ describe('logScrapedTransactions row ordering', () => {
     blockOf(result);
     const after = result.accounts?.[0].txns.map(t => t.date);
     expect(after).toEqual(before);
+  });
+
+  it('still orders valid rows when an undated row sits between them', () => {
+    const rows = rowsFor(WITH_UNDATED);
+    expect(rows[0]).toContain('28.7.2026');
+    expect(rows[1]).toContain('2.6.2026');
+  });
+
+  it('ranks an undated row oldest instead of tying the comparator', () => {
+    const rows = rowsFor(WITH_UNDATED);
+    const last = rows[rows.length - 1];
+    expect(last).not.toContain('2026');
   });
 });
 
