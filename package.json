@@ -170,7 +170,8 @@
     "@babel/core": "^7.29.6",
     "esbuild": "^0.28.1",
     "js-yaml": "^4.2.0",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "minimatch": "^10"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
