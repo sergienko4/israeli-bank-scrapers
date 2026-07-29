@@ -1570,6 +1570,18 @@ export default tseslint.config(
       // removes the duplicate-assertion noise.
       'jest/expect-expect': ['error', { assertFunctionNames: ['expect', 'assert*', 'run*'] }],
       'jest/no-standalone-expect': 'error',
+
+      // `@typescript-eslint/unbound-method` cannot see that `expect(obj.method)`
+      // never calls the reference — it only inspects it — so it reports every
+      // `expect(page.waitForURL).toHaveBeenCalled()` assertion as an unsafe
+      // unbound reference. `jest/unbound-method` is the Jest-aware extension of
+      // the SAME rule, published by typescript-eslint/eslint-plugin-jest for
+      // exactly this pairing: it keeps the check everywhere else in the file and
+      // only exempts the `expect()` argument position. This is a swap, not a
+      // relaxation — the base rule stays 'error' for all non-test code.
+      // See https://typescript-eslint.io/rules/unbound-method/#how-to-use (Jest note).
+      '@typescript-eslint/unbound-method': 'off',
+      'jest/unbound-method': 'error',
     },
   },
 
