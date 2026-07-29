@@ -21,18 +21,28 @@ const MAX_POPUP_ATTEMPTS = 2;
 /** Wait for SPA state update after popup dismissal (ms). */
 const POPUP_SETTLE_MS = 1000;
 
+/** Inputs for a single dismissal attempt. */
+interface IDismissAttempt {
+  readonly mediator: IElementMediator;
+  readonly logger: ScraperLogger;
+  /** 1-based attempt index, surfaced in the diagnostic log. */
+  readonly attempt: number;
+}
+
+/** Recursion state for {@link dismissPopups} — keeps the arity at one. */
+interface IDismissState extends IDismissAttempt {
+  readonly dismissed: number;
+}
+
 /**
  * Attempt to dismiss one popup via WK_CLOSE_POPUP.
- * @param mediator - Element mediator.
- * @param logger - Pipeline logger.
- * @param attempt - 1-based attempt index, surfaced in the diagnostic log.
+ * @param root0 - Inputs for this attempt.
+ * @param root0.mediator - Element mediator.
+ * @param root0.logger - Pipeline logger.
+ * @param root0.attempt - 1-based attempt index.
  * @returns True if a popup was found and clicked.
  */
-async function tryDismissOnce(
-  mediator: IElementMediator,
-  logger: ScraperLogger,
-  attempt = 1,
-): Promise<boolean> {
+async function tryDismissOnce({ mediator, logger, attempt }: IDismissAttempt): Promise<boolean> {
   const result = await mediator.resolveAndClick(WK_CLOSE_POPUP).catch((): false => false);
   if (result === false) return false;
   if (!result.success || !result.value.found) return false;
@@ -40,14 +50,6 @@ async function tryDismissOnce(
   logger.debug({ text: masked, attempt, max: MAX_POPUP_ATTEMPTS });
   await mediator.waitForNetworkIdle(POPUP_SETTLE_MS).catch((): false => false);
   return true;
-}
-
-/** Recursion state for {@link dismissPopups} — keeps the arity at one. */
-interface IDismissState {
-  readonly mediator: IElementMediator;
-  readonly logger: ScraperLogger;
-  readonly attempt: number;
-  readonly dismissed: number;
 }
 
 /**
@@ -62,7 +64,7 @@ interface IDismissState {
  */
 async function dismissFrom(state: IDismissState): Promise<number> {
   if (state.attempt > MAX_POPUP_ATTEMPTS) return state.dismissed;
-  const didDismiss = await tryDismissOnce(state.mediator, state.logger, state.attempt);
+  const didDismiss = await tryDismissOnce(state);
   if (!didDismiss) return state.dismissed;
   const next = { ...state, attempt: state.attempt + 1, dismissed: state.dismissed + 1 };
   return dismissFrom(next);
