@@ -52,10 +52,19 @@ fi
 # Angular's maxLength(14) validator to mark the control ng-invalid;
 # ngSubmit then returned before issuing any auth request, producing a
 # login that fails with no error banner and no network call.
+#
+# The same gap applies to dotenv's INLINE COMMENT handling: dotenv drops
+# a trailing ` # …` from an unquoted value, docker keeps it. Live
+# evidence: PEPPER_PHONE_NUMBER carried a trailing note and reached the
+# container 58 chars long, so Pepper's auth.bind answered
+# `400 error_code 2013 "User ID exceeds maximum size"` — a local-only
+# failure that never reproduces in CI, where the value arrives as a real
+# environment variable with no comment attached. Quoted values keep any
+# `#` verbatim, matching dotenv.
 # Normalise once, here, so the container sees dotenv-equivalent values.
 ENV_FILE_SANITIZED="$(mktemp)"
 trap 'rm -f "$ENV_FILE_SANITIZED"' EXIT
-sed -E 's/\r$//; s/^([A-Za-z_][A-Za-z0-9_]*)=(["'"'"'])(.*)\2$/\1=\3/' \
+sed -E 's/\r$//; s/^([A-Za-z_][A-Za-z0-9_]*)=([^"'"'"'].*)[[:space:]]#.*$/\1=\2/; s/^([A-Za-z_][A-Za-z0-9_]*)=(.*[^[:space:]])[[:space:]]+$/\1=\2/; s/^([A-Za-z_][A-Za-z0-9_]*)=(["'"'"'])(.*)\2$/\1=\3/' \
     "${REPO_ROOT}/.env" >"$ENV_FILE_SANITIZED"
 if command -v cygpath >/dev/null 2>&1; then
     ENV_FILE_DOCKER=$(cygpath -w "$ENV_FILE_SANITIZED")
