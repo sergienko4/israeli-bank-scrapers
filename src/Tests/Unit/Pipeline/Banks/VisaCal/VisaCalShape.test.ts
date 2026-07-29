@@ -10,6 +10,8 @@
  * result.bankAccounts[].immidiateDebits.debitDays[].transactions).
  */
 
+import { jest } from '@jest/globals';
+
 import { VISACAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
 import {
   accountNumberOf,
@@ -37,6 +39,13 @@ const CARD: IVisaCalCard = { cardUniqueId: 'CARD-1', displayNumber: '1234' };
  * made today sit in next month's cycle.
  */
 const OPEN_CYCLE_OFFSET = 1;
+
+/**
+ * Clock pinned mid-month so the cursor tests cannot straddle a calendar
+ * month boundary between building the context and the production code
+ * reading `moment()`.
+ */
+const NOW = new Date('2026-07-15T12:00:00.000Z');
 
 /**
  * Wrap a raw response body in the extractAccounts args bundle.
@@ -165,35 +174,46 @@ describe('VisaCalShape transactions', () => {
     expect(page.nextCursor).toBe(1);
   });
 
-  it('txnsExtractPage stops when the window is exhausted', () => {
-    const page = txnsExtractPage({
-      body: {},
-      cursor: OPEN_CYCLE_OFFSET,
-      acct: CARD,
-      ctx: ctxWith(new Date(), 0),
+  describe('cursor window (frozen clock)', () => {
+    beforeAll(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(NOW);
     });
-    expect(page.items).toEqual([]);
-    expect(page.nextCursor).toBe(false);
-  });
 
-  it('reaches the still-open billing cycle when futureMonthsToScrape is 0', () => {
-    const page = txnsExtractPage({
-      body: {},
-      cursor: false,
-      acct: CARD,
-      ctx: ctxWith(new Date(), 0),
+    afterAll(() => {
+      jest.useRealTimers();
     });
-    expect(page.nextCursor).toBe(OPEN_CYCLE_OFFSET);
-  });
 
-  it('futureMonthsToScrape above the open cycle still widens the window', () => {
-    const page = txnsExtractPage({
-      body: {},
-      cursor: OPEN_CYCLE_OFFSET,
-      acct: CARD,
-      ctx: ctxWith(new Date(), 3),
+    it('txnsExtractPage stops when the window is exhausted', () => {
+      const page = txnsExtractPage({
+        body: {},
+        cursor: OPEN_CYCLE_OFFSET,
+        acct: CARD,
+        ctx: ctxWith(NOW, 0),
+      });
+      expect(page.items).toEqual([]);
+      expect(page.nextCursor).toBe(false);
     });
-    expect(page.nextCursor).toBe(OPEN_CYCLE_OFFSET + 1);
+
+    it('reaches the still-open billing cycle when futureMonthsToScrape is 0', () => {
+      const page = txnsExtractPage({
+        body: {},
+        cursor: false,
+        acct: CARD,
+        ctx: ctxWith(NOW, 0),
+      });
+      expect(page.nextCursor).toBe(OPEN_CYCLE_OFFSET);
+    });
+
+    it('futureMonthsToScrape above the open cycle still widens the window', () => {
+      const page = txnsExtractPage({
+        body: {},
+        cursor: OPEN_CYCLE_OFFSET,
+        acct: CARD,
+        ctx: ctxWith(NOW, 3),
+      });
+      expect(page.nextCursor).toBe(OPEN_CYCLE_OFFSET + 1);
+    });
   });
 });
 
