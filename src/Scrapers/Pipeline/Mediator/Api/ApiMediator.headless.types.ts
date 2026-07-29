@@ -14,6 +14,7 @@ interface IHeadlessMediatorArgs {
   readonly bankHint: CompanyTypes;
   readonly identityBaseUrl: string;
   readonly graphqlUrl: string;
+  readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
 }
 
@@ -29,8 +30,15 @@ interface IBrowserBackedHeadlessMediatorArgs {
   readonly identityBaseUrl: string;
   readonly identityOriginUrl: string;
   readonly graphqlUrl: string;
+  readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
   readonly bypassOriginChallenge?: boolean;
+}
+
+/** Minimal shape needed to construct the shared GraphQL transport. */
+interface IGraphQLTransportArgs {
+  readonly graphqlUrl: string;
+  readonly graphqlHeaders?: Readonly<Record<string, string>>;
 }
 
 /** Bundled strategy pair returned by the browser-backed headless builder. */
@@ -42,6 +50,7 @@ interface IBrowserBackedStrategies {
 export type {
   IBrowserBackedHeadlessMediatorArgs,
   IBrowserBackedStrategies,
+  IGraphQLTransportArgs,
   IHeadlessMediatorArgs,
   IHeadlessStrategies,
 };

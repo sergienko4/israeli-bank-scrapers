@@ -33,6 +33,15 @@ const MSG_401_FIRST = 'POST https://bank.example.com/customer 401: not authorise
 const MSG_401_SECOND = 'POST https://bank.example.com/customer 401: still denied';
 
 /**
+ * 403 pattern matching Pepper's edge, which answers an expired or invalid
+ * bearer with a CloudFront 403 block page instead of a 401.
+ */
+const MSG_403_FIRST = 'POST https://bank.example.com/customer 403: <!DOCTYPE HTML PUBLIC';
+
+/** Non-auth status that must never spend an OTP on a cold re-mint. */
+const MSG_404 = 'POST https://bank.example.com/customer 404: no such route';
+
+/**
  * Minimal pipeline-context stub — withTokenStrategy never inspects it
  * in these tests because the strategies are fakes.
  * @returns Empty ctx.
@@ -282,6 +291,37 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
     const result = await mediator.apiPost(TEST_URL_TAG, {});
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('not authorised');
+  });
+});
+
+describe('ApiMediator.retryOn401 — 403 auth rejection (Pepper edge)', () => {
+  it('refreshes once + retries when the edge answers 403 instead of 401', async () => {
+    const initial403 = fail(ScraperErrorTypes.Generic, MSG_403_FIRST);
+    const retriedOk = succeed({ ok: 'retried' });
+    const fetchStrat = scriptedFetchStrategy([initial403, retriedOk]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const refreshOk = succeed(FRESH_HEADER);
+    const strategy = scriptedStrategy([refreshOk]);
+    const ctx0 = makeStubCtx();
+    mediator.withTokenStrategy(strategy, ctx0, { marker: 'x' });
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    expect(result.success).toBe(true);
+  });
+
+  it('does NOT refresh on a non-auth status such as 404', async () => {
+    const initial404 = fail(ScraperErrorTypes.Generic, MSG_404);
+    const retriedOk404 = succeed({ ok: 'retried' });
+    const fetchStrat = scriptedFetchStrategy([initial404, retriedOk404]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const refreshOk = succeed(FRESH_HEADER);
+    const strategy = scriptedStrategy([refreshOk]);
+    const ctx0 = makeStubCtx();
+    mediator.withTokenStrategy(strategy, ctx0, { marker: 'x' });
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('no such route');
   });
 });
 

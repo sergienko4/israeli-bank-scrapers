@@ -158,6 +158,7 @@ type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
 export type {
   IBrowserBackedHeadlessMediatorArgs,
   IBrowserBackedStrategies,
+  IGraphQLTransportArgs,
   IHeadlessMediatorArgs,
   IHeadlessStrategies,
 } from './ApiMediator.headless.types.js';

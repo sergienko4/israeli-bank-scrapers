@@ -65,6 +65,14 @@ export interface IHeadlessUrlsConfig {
   /** Static Authorization header installed before login (e.g. Transmit TSToken). */
   readonly staticAuth?: string;
   /**
+   * Header floor merged UNDER every GraphQL call's per-call headers
+   * (per-call wins). Set it for banks whose GraphQL gateway sits behind an
+   * edge WAF that allow-lists a specific client identity on EVERY request —
+   * including the post-auth probe, which carries no shape-level headers.
+   * Default: undefined (treated as an empty bag ⇒ byte-identical behaviour).
+   */
+  readonly graphqlHeaders?: Readonly<Record<string, string>>;
+  /**
    * When true, identity API calls (NOT graphql) are routed through a Camoufox
    * browser session to bypass Cloudflare's Node-TLS bot rule. Default: undefined
    * (treated as false). Only set for banks whose identity host gates Node TLS.

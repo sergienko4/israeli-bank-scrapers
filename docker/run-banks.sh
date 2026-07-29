@@ -39,6 +39,39 @@ if [ ! -f "${REPO_ROOT}/.env" ]; then
     echo "ERROR: .env not found at ${REPO_ROOT}/.env" >&2
     exit 1
 fi
+
+# Docker's --env-file is NOT a dotenv parser: everything after the
+# first `=` is passed through verbatim, so `KEY="secret"` reaches the
+# container as `"secret"` WITH the quote characters. The E2E suites
+# call dotenv.config(), which DOES strip matching surrounding quotes —
+# but dotenv never overrides an already-set variable, so under Docker
+# the quoted form wins and the value silently gains two characters.
+# Live evidence: MAX_PASSWORD="…" arrived 16 chars against Max's
+# password input, which caps at maxlength="14". Playwright's .fill()
+# assigns the value programmatically and so bypasses maxlength, leaving
+# Angular's maxLength(14) validator to mark the control ng-invalid;
+# ngSubmit then returned before issuing any auth request, producing a
+# login that fails with no error banner and no network call.
+#
+# The same gap applies to dotenv's INLINE COMMENT handling: dotenv drops
+# a trailing ` # …` from an unquoted value, docker keeps it. Live
+# evidence: PEPPER_PHONE_NUMBER carried a trailing note and reached the
+# container 58 chars long, so Pepper's auth.bind answered
+# `400 error_code 2013 "User ID exceeds maximum size"` — a local-only
+# failure that never reproduces in CI, where the value arrives as a real
+# environment variable with no comment attached. Quoted values keep any
+# `#` verbatim, matching dotenv.
+# Normalise once, here, so the container sees dotenv-equivalent values.
+ENV_FILE_SANITIZED="$(mktemp)"
+trap 'rm -f "$ENV_FILE_SANITIZED"' EXIT
+sed -E 's/\r$//; s/^([A-Za-z_][A-Za-z0-9_]*)=([^"'"'"'].*)[[:space:]]#.*$/\1=\2/; s/^([A-Za-z_][A-Za-z0-9_]*)=(.*[^[:space:]])[[:space:]]+$/\1=\2/; s/^([A-Za-z_][A-Za-z0-9_]*)=(["'"'"'])(.*)\2$/\1=\3/' \
+    "${REPO_ROOT}/.env" >"$ENV_FILE_SANITIZED"
+if command -v cygpath >/dev/null 2>&1; then
+    ENV_FILE_DOCKER=$(cygpath -w "$ENV_FILE_SANITIZED")
+else
+    ENV_FILE_DOCKER="$ENV_FILE_SANITIZED"
+fi
+
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "ERROR: image '$IMAGE' not built. Run:" >&2
     echo "  docker build -f docker/Dockerfile.ci-mirror -t $IMAGE $REPO_ROOT" >&2
@@ -120,10 +153,24 @@ run_one_bank() {
     # saw all 8 parallel banks fail with `Server Not Found` on the
     # bank URL — Docker Desktop's DNS was saturated. Google + Cloudflare
     # public resolvers are intentionally redundant.
+    # The `-v /work/node_modules` anonymous volume is REQUIRED, not
+    # cosmetic: the repo bind-mount above replaces the whole `/work`
+    # tree, which would otherwise shadow the Linux `node_modules` the
+    # image baked via `npm ci`. On a Windows host that substitutes
+    # win32-x64 native binaries (`@unrs/resolver-binding-win32-x64-msvc`,
+    # playwright/camoufox `.node` addons) into a Linux container, and
+    # every bank then fails identically with
+    # `GENERIC Cannot read properties of undefined (reading 'has')` —
+    # an environment artifact that masks the real per-bank result.
+    # The anonymous volume restores the image's own node_modules at
+    # that path, so the container runs the deps `npm ci` resolved from
+    # package-lock.json at image-build time (rebuild the image after a
+    # lockfile bump to keep the two in sync).
     MSYS_NO_PATHCONV=1 docker run --rm \
     --name "isbs-ci-${bank,,}" \
     --dns=8.8.8.8 --dns=1.1.1.1 \
     -v "${REPO_ROOT_DOCKER}:/work" \
+    -v /work/node_modules \
     -w /work \
     --env-file "$ENV_FILE_DOCKER" \
     -e CI=true \

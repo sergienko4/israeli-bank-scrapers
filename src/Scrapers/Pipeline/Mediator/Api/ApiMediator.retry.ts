@@ -1,5 +1,5 @@
 /**
- * Retry-on-401 orchestration for ApiMediator operations.
+ * Retry-on-auth-rejection orchestration for ApiMediator operations.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -9,8 +9,16 @@ import { fail, isOk } from '../../Types/Procedure.js';
 import { setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
 
-/** Cached regex matching the embedded HTTP status prefix `<sp>401:<sp>`. */
-const STATUS_401_REGEX = /\s401:\s/;
+/**
+ * Matches the embedded HTTP status prefix `<sp>401:<sp>` or `<sp>403:<sp>`.
+ *
+ * Most banks reject a stale or invalid bearer with 401, but Pepper sits
+ * behind a CloudFront edge that answers 403 with a block page before the
+ * API is reached. Without 403 here a stale warm-path token can never be
+ * re-minted and the scrape fails hard instead of falling back to a cold
+ * login.
+ */
+const AUTH_REJECT_REGEX = /\s(?:401|403):\s/;
 
 /**
  * Bundled args for `retryOn401Op` (keeps the signature single-line).
@@ -48,21 +56,21 @@ function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>)
 }
 
 /**
- * Decide whether the first attempt's failure is a 401 worth retrying.
+ * Decide whether the first attempt's failure is worth a token re-mint.
  * @param first - First-attempt procedure.
- * @returns True iff the failure carries a `401:` status marker.
+ * @returns True iff the failure carries an auth-rejection status marker.
  */
 function isUnauthorizedFailure<T>(first: Procedure<T>): boolean {
   if (first.success) return false;
-  return STATUS_401_REGEX.test(first.errorMessage);
+  return AUTH_REJECT_REGEX.test(first.errorMessage);
 }
 
 /**
- * Run a request once, and on a 401 response refresh and retry once.
+ * Run a request once, and on an auth rejection refresh and retry once.
  *
- * A 401-driven `refresh()` re-mints via a cold path (it spends an OTP), so
- * the session is no longer purely warm — clear `sessionWarm` before the
- * retry so a later degraded scrape does not fire a second recovery OTP.
+ * A refresh re-mints via a cold path (it spends an OTP), so the session is
+ * no longer purely warm — clear `sessionWarm` before the retry so a later
+ * degraded scrape does not fire a second recovery OTP.
  * @param args - Bundled mediator-state + fire-callable.
  * @returns Procedure from the first or second attempt.
  */

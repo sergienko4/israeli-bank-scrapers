@@ -1,6 +1,6 @@
 {
   "name": "@sergienko4/israeli-bank-scrapers",
-  "version": "8.6.0",
+  "version": "8.6.1",
   "description": "Scrape transactions from all 18 Israeli banks with Cloudflare WAF bypass (Camoufox + Playwright)",
   "engines": {
     "node": ">= 22.14.0"
@@ -164,6 +164,7 @@
     "lib/**/*"
   ],
   "overrides": {
+    "adm-zip": "^0.6.0",
     "test-exclude": "^7.0.2",
     "ua-parser-js": "1.0.41",
     "@babel/core": "^7.29.6",

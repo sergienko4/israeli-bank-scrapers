@@ -1,6 +1,6 @@
 /**
  * HOME phase — thin orchestration, all logic in Mediator/Home.
- * PRE:    passive discovery via HomeResolver (zero clicks)
+ * PRE:    passive discovery via HomeResolver, then obstruction clearing
  * ACTION: navigate to login via HomeActions (all clicks here)
  * POST:   validate page/iframe has login area
  * FINAL:  store loginUrl → signal to PRE-LOGIN
@@ -9,6 +9,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IPreludeSpec } from '../../Mediator/Elements/PagePrelude.js';
 import { PRELUDE_NONE } from '../../Mediator/Elements/PagePrelude.js';
+import { dismissPopups } from '../../Mediator/Elements/PopupDismiss.js';
 import {
   executeHomeNavigation,
   executeStoreLoginSignal,
@@ -39,7 +40,17 @@ class HomePhase extends BasePhase {
   private _discovery: IHomeDiscovery | false = false;
   private readonly _preludeTable = HOME_PRELUDE_TABLE;
 
-  /** @inheritdoc */
+  /**
+   * @inheritdoc
+   *
+   * <p>Discovery can block for a minute or more, and banks render
+   * marketing overlays on a timer. The interceptor's `beforePhase` probe
+   * already ran before that window opened, so obstructions appearing
+   * during discovery would otherwise survive into ACTION, where a force
+   * click is dispatched at coordinates the overlay owns and reports
+   * success without ever reaching the trigger. Clearing here — the last
+   * point still holding a mediator — closes that window.
+   */
   public async pre(
     _ctx: IPipelineContext,
     input: IPipelineContext,
@@ -50,6 +61,7 @@ class HomePhase extends BasePhase {
     const result = await resolveHomeWithRecovery(args);
     if (!result.success) return result;
     this._discovery = result.value;
+    await dismissPopups(input.mediator.value, input.logger);
     return succeed(input);
   }
 

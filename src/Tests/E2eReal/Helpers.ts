@@ -217,21 +217,98 @@ function formatTxnRow(t: ITransaction): string {
 }
 
 /**
+ * Epoch milliseconds for a transaction, or NaN when it carries no date.
+ * @param t - Transaction record.
+ * @returns Epoch ms, or NaN.
+ */
+function txnTime(t: ITransaction): number {
+  return t.date ? new Date(t.date).getTime() : Number.NaN;
+}
+
+/**
+ * Sort key for a transaction, with undated rows ranked oldest.
+ *
+ * <p>Never returns NaN: a NaN comparator result is a tie under
+ * `Array.sort`, which would leave valid rows around an undated one in
+ * emission order instead of newest-first.
+ *
+ * @param t - Transaction record.
+ * @returns Epoch ms, or `-Infinity` when the row carries no usable date.
+ */
+function sortKey(t: ITransaction): number {
+  const ms = txnTime(t);
+  return isRealTime(ms) ? ms : Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * Newest-first comparator for log rows.
+ * @param a - Left transaction.
+ * @param b - Right transaction.
+ * @returns Negative when `a` is newer.
+ */
+function byDateDesc(a: ITransaction, b: ITransaction): number {
+  const left = sortKey(a);
+  const right = sortKey(b);
+  if (left === right) return 0;
+  return left > right ? -1 : 1;
+}
+
+/**
+ * Type guard for real (non-NaN) timestamps.
+ * @param ms - Candidate epoch ms.
+ * @returns True when the value is a usable timestamp.
+ */
+function isRealTime(ms: number): boolean {
+  return !Number.isNaN(ms);
+}
+
+/**
+ * Renders an epoch timestamp as an unambiguous ISO calendar day.
+ * @param ms - Epoch ms.
+ * @returns `YYYY-MM-DD`.
+ */
+function isoDay(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Oldest..newest ISO date span across an account's transactions.
+ *
+ * <p>Printed in the block header so the window a run actually covered is
+ * readable without scanning the rows, in an unambiguous format (the row
+ * dates are he-IL `d.M.yyyy`, which is easy to misread).
+ *
+ * @param txns - The account's transactions.
+ * @returns `YYYY-MM-DD .. YYYY-MM-DD`, or a placeholder when undated.
+ */
+function formatSpan(txns: readonly ITransaction[]): string {
+  const times = txns.map(txnTime).filter(isRealTime);
+  if (times.length === 0) return 'no dates';
+  const oldest = Math.min(...times);
+  const newest = Math.max(...times);
+  return `${isoDay(oldest)} .. ${isoDay(newest)}`;
+}
+
+/**
  * Renders one account's full transaction list as a multi-line block.
  *
- * <p>Header line carries the masked account id + total txn count; body
- * lines are one per transaction (no slicing). All transactions in the
- * 180-day window appear so the visible date range matches the
- * deduplicated result the scraper returned.
+ * <p>Header line carries the masked account id, the total txn count, and
+ * the oldest..newest ISO date span; body lines are one per transaction
+ * (no slicing), sorted newest-first. Both matter: card scrapers emit
+ * transactions grouped by billing cycle, so in emission order the final
+ * row is the open cycle's *oldest* entry and the log tail reads as if
+ * recent data were missing.
  *
  * @param account - One scraper-returned account record.
  * @returns Masked block string ready for console.log.
  */
 function formatAccountBlock(account: ITransactionsAccount): string {
-  const rows = account.txns.map(formatTxnRow);
+  const ordered = [...account.txns].sort(byDateDesc);
+  const rows = ordered.map(formatTxnRow);
   const txnCount = String(account.txns.length);
   const acct = maskAccount(account.accountNumber);
-  return `\n--- Account ${acct} | ${txnCount} txns ---\n${rows.join('\n')}`;
+  const span = formatSpan(account.txns);
+  return `\n--- Account ${acct} | ${txnCount} txns | ${span} ---\n${rows.join('\n')}`;
 }
 
 /**

@@ -163,6 +163,34 @@ describe('GraphQLFetchStrategy.query — transport behaviour', () => {
     expect(headers.Authorization).toBe('Bearer a7f4b2c8d3e9');
   });
 
+  it('sends the constructor default headers on every query', async () => {
+    const impl = respondWith(200, '{"data":{}}');
+    const fetchMock = installFetchMock(impl);
+    const defaults = { 'user-agent': 'okhttp/4.12.0' };
+    const strategy = new GraphQLFetchStrategy('https://gql.example/graphql', defaults);
+    const result = await strategy.query('{ x }', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    const capturedCall = firstCall(fetchMock);
+    const headers = capturedCall.init.headers as Record<string, string>;
+    expect(headers['user-agent']).toBe('okhttp/4.12.0');
+  });
+
+  it('lets per-call extraHeaders win over the constructor defaults', async () => {
+    const impl = respondWith(200, '{"data":{}}');
+    const fetchMock = installFetchMock(impl);
+    const defaults = { 'user-agent': 'okhttp/4.12.0', 'x-floor': 'default' };
+    const strategy = new GraphQLFetchStrategy('https://gql.example/graphql', defaults);
+    const opts = { extraHeaders: { 'user-agent': 'per-call' } };
+    const result = await strategy.query('{ x }', {}, opts);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    const capturedCall = firstCall(fetchMock);
+    const headers = capturedCall.init.headers as Record<string, string>;
+    expect(headers['user-agent']).toBe('per-call');
+    expect(headers['x-floor']).toBe('default');
+  });
+
   it('propagates transport failure (fetch throws) as fail — not silently swallowed', async () => {
     const impl = rejectWith(new Error('socket hang up'));
     installFetchMock(impl);

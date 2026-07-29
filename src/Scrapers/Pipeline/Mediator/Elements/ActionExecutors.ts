@@ -214,8 +214,8 @@ function alwaysFalse(): false {
   return false;
 }
 
-/** Bundled args for clickForceCascade — fits the 3-param ceiling. */
-interface IForceCascadeArgs {
+/** Bundled args for the click cascades — fits the 3-param ceiling. */
+interface IClickCascadeArgs {
   readonly locator: ReturnType<Page['locator']>;
   readonly selector: string;
   readonly frame: Page | Frame;
@@ -228,7 +228,7 @@ interface IForceCascadeArgs {
  * @param args - Bundled cascade args (locator, selector, frame).
  * @returns True after a tier succeeds (Tier 3 always returns true).
  */
-async function clickForceCascade(args: IForceCascadeArgs): Promise<true> {
+async function clickForceCascade(args: IClickCascadeArgs): Promise<true> {
   const { locator, selector, frame } = args;
   const forensics = await captureClickForensics(locator, frame);
   const opts = { force: true, timeout: ELEMENTS_CLICK_TIMEOUT_MS };
@@ -253,7 +253,7 @@ async function clickElementImpl(args: IClickArgs): Promise<true> {
   await humanDelay(200, 500);
   const base = frame.locator(selector);
   const locator = narrowLocator(base, nth);
-  if (!isForce) return clickNaturalPath(locator, selector, frame);
+  if (!isForce) return clickNaturalPath({ locator, selector, frame });
   return clickForceCascade({ locator, selector, frame });
 }
 
@@ -261,19 +261,25 @@ async function clickElementImpl(args: IClickArgs): Promise<true> {
  * Natural click path: Tier 1 (click) → Tier 3 (JS evaluate).
  * Captures forensics before the click so the post-click URL + clicked DOM
  * identity surface in the success log.
- * @param locator - Playwright locator.
- * @param selector - Selector string for logging.
- * @param frame - Page or Frame the click runs in (for forensics + post-URL).
- * @returns True after click (throws on failure — callers rely on throw).
+ *
+ * <p>An intercepted click (pointer events swallowed by an overlay/backdrop)
+ * degrades to the JS tier rather than propagating the actionability
+ * timeout. The resolver deliberately returns a merely-visible winner when
+ * every candidate fails the hit-test — see `Create/Hittest.ts#resolveWinner`
+ * ("cookie-banner parity") — so the natural path MUST tolerate an occluded
+ * target the same way {@link clickForceCascade} does. Phase POST gates, not
+ * a click exception, decide whether the interaction actually worked.
+ * @param args - Bundled cascade args (locator, selector, frame).
+ * @returns True after the click lands on some tier.
  */
-async function clickNaturalPath(
-  locator: ReturnType<Page['locator']>,
-  selector: string,
-  frame: Page | Frame,
-): Promise<true> {
+async function clickNaturalPath(args: IClickCascadeArgs): Promise<true> {
+  const { locator, selector, frame } = args;
   const forensics = await captureClickForensics(locator, frame);
-  await locator.click({ timeout: ELEMENTS_CLICK_TIMEOUT_MS });
-  return emitClickForensics({ tier: 'natural-1', selector, frame, forensics });
+  const opts = { timeout: ELEMENTS_CLICK_TIMEOUT_MS };
+  const didClick = await locator.click(opts).then(alwaysTrue).catch(alwaysFalse);
+  if (didClick) return emitClickForensics({ tier: 'natural-1', selector, frame, forensics });
+  LOG.debug({ message: `Tier natural-1 (click): FAIL — ${selector}` });
+  return evaluateJsClick(locator, selector, frame);
 }
 
 /**

@@ -22,6 +22,7 @@ import type {
   IApiMediator,
   IBrowserBackedHeadlessMediatorArgs,
   IBrowserBackedStrategies,
+  IGraphQLTransportArgs,
   IHeadlessMediatorArgs,
   IHeadlessStrategies,
 } from './ApiMediator.types.js';
@@ -42,13 +43,23 @@ function applyStaticAuth(
 }
 
 /**
+ * Construct the shared GraphQL transport with the bank's optional header floor.
+ * @param args - Anything carrying the GraphQL URL + optional default headers.
+ * @returns GraphQL fetch strategy.
+ */
+function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
+  const headers = args.graphqlHeaders ?? {};
+  return Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl, headers]);
+}
+
+/**
  * Construct the native + GraphQL strategies for a headless mediator.
  * @param args - Mediator args bundle.
  * @returns Strategy pair.
  */
 function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategies {
   const fetch: NativeFetchStrategy = Reflect.construct(NativeFetchStrategy, [args.identityBaseUrl]);
-  const gql: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl]);
+  const gql = buildGqlStrategy(args);
   return { fetch, gql };
 }
 
@@ -96,7 +107,7 @@ function buildBrowserBackedStrategies(
   args: IBrowserBackedHeadlessMediatorArgs,
 ): IBrowserBackedStrategies {
   const fetch = buildCamoufoxFetch(args);
-  const gql: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl]);
+  const gql = buildGqlStrategy(args);
   return { fetch, gql };
 }
 
