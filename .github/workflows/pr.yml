@@ -274,9 +274,11 @@ jobs:
         if: needs.changes.outputs.ci_scripts == 'true'
         run: bash .github/scripts/ci/tests/scripts-smoke.sh
 
+      # `npx tsc` would resolve the `typescript` alias (the TS 6 API package),
+      # not the TS 7 native compiler. Go through the script instead.
       - name: Type check
         if: needs.changes.outputs.src == 'true'
-        run: npx tsc --noEmit
+        run: npm run type-check
 
       - name: Acyclic-dependencies gate
         if: needs.changes.outputs.src == 'true'
