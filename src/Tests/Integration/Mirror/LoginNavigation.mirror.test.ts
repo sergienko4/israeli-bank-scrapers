@@ -232,8 +232,10 @@ async function probeFieldInsideAnchor(
 ): Promise<boolean> {
   const fieldLoc = page.locator(selector).first();
   const anchorLoc = page.locator(anchorSelector).first();
+  // playwright-core 1.62 made `Locator.elementHandle()` non-nullable: it now
+  // rejects on timeout instead of resolving to `null`, so a missing anchor
+  // surfaces as a failed probe rather than a `false` result.
   const anchorHandle = await anchorLoc.elementHandle();
-  if (anchorHandle === null) return false;
   const isInside = await fieldLoc.evaluate(
     (el: Element, anchor: Element): boolean => anchor.contains(el),
     anchorHandle,

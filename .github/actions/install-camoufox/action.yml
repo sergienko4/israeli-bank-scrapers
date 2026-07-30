@@ -9,31 +9,38 @@ inputs:
 runs:
   using: composite
   steps:
-    # Camoufox is pinned to the v135 stable line (v135.0.1-beta.24),
-    # matching @hieutran094/camoufox-js 0.6.8 and playwright-core
-    # ~1.61.1 in package.json (Firefox 135 juggler protocol). playwright
-    # 1.61 needs two compat shims for this Firefox: viewport:null (avoids
-    # the unsupported Browser.setDefaultViewport) and the patch-package
-    # guard on pageError.location (Camoufox omits it) — see
-    # patches/playwright-core+1.61.1.patch. Both the primary camoufox-js
-    # fetch AND the gh-release fallback below resolve to v135, so CI stays
+    # Camoufox is pinned to the v152 stable line (v152.0.4-beta.28),
+    # matching @hieutran094/camoufox-js ^0.11.2 and playwright-core
+    # ^1.62.0 in package.json (Firefox 152 juggler protocol). playwright
+    # 1.61 shipped the Firefox 151 client and 1.62 ships Firefox 153, so
+    # v152 is the only Camoufox line inside that window. Upstream
+    # declared the previous v135 pin obsolete ("terribly out of date and
+    # unsuitable for modern anti-bot systems"), and v152.0.4-beta.26
+    # restored locale-from-launch-argument handling plus the screenshot,
+    # popup-event and tap/touch paths Firefox 152 initially broke.
+    # playwright still needs the patch-package guard on
+    # pageError.location (Camoufox omits it) — see
+    # patches/playwright-core+1.62.0.patch. Both the primary camoufox-js
+    # fetch AND the gh-release fallback below resolve to v152, so CI stays
     # deterministic on a cache miss or a rate-limited primary fetch. Do
     # NOT let the fallback track LATEST: v150.0.2's locale handling
     # regressed `navigator.language` (returned `en-US` even when the
     # context declared `he-IL`), breaking `AntiDetection.e2e-mocked.test.ts`.
+    # From v152.0.2-alpha upstream no longer builds 32-bit or macOS
+    # x86_64 assets; CI only consumes `camoufox-*-lin.x86_64.zip`.
     - name: Resolve pinned Camoufox tag
       id: camoufox-tag
       shell: bash
-      # Single source of truth for the pinned tag (v135 stable line). The
+      # Single source of truth for the pinned tag (v152 stable line). The
       # cache key AND the gh-release fallback below both derive from this
       # output, so a tag bump invalidates the cache and re-pins the
       # fallback in one edit; never hardcode the version in two places.
-      run: echo "tag=v135.0.1-beta.24" >> "$GITHUB_OUTPUT"
+      run: echo "tag=v152.0.4-beta.28" >> "$GITHUB_OUTPUT"
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
-        # Cache the deterministic v135 binary, keyed by the exact pinned
+        # Cache the deterministic v152 binary, keyed by the exact pinned
         # tag so a cache hit can never restore a different build than the
         # fallback step downloads.
         key: camoufox-bin-${{ steps.camoufox-tag.outputs.tag }}
@@ -57,10 +64,10 @@ runs:
             ASSET_DIR=$(mktemp -d)
             # PINNED_TAG comes from the step env (single source of truth,
             # see the resolve-tag step). It pins the fallback to the SAME
-            # stable v135 tag camoufox-js 0.6.8 resolves to. LATEST is
-            # currently v150.0.2-beta.25, whose locale regression
+            # stable v152 tag camoufox-js ^0.11.2 resolves to. Never track
+            # LATEST here: v150.0.2-beta.25's locale regression
             # (navigator.language he-IL to en-US) breaks
-            # AntiDetection.e2e-mocked.test.ts; never track it here.
+            # AntiDetection.e2e-mocked.test.ts.
             echo "Falling back to daijro/camoufox release: ${PINNED_TAG}"
             gh release download "${PINNED_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
             mkdir -p ~/.cache/camoufox

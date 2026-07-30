@@ -1,6 +1,12 @@
 {
+  // Consumed only by tsup (see tsup.config.ts). tsup's DTS rollup injects
+  // `baseUrl: compilerOptions.baseUrl || "."` unconditionally, and it runs
+  // against the TypeScript 6 API, which errors TS5101 on that injected
+  // `baseUrl` unless deprecations are silenced. `tsconfig.json` — the config
+  // the TypeScript 7 `type-check` gate uses — stays free of this suppression.
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },

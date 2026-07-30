@@ -158,7 +158,7 @@ fi
 log ""
 log "⚡ Phase 2: All gates parallel..."
 
-bg_gate "tsc"          "yes" npx tsc --noEmit
+bg_gate "tsc"          "yes" npm run type-check
 bg_gate "eslint"       "yes" npx eslint src/Scrapers/Pipeline --max-warnings=0
 bg_gate "biome"        "yes" npx biome lint src --max-diagnostics=50
 bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
