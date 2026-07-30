@@ -20,9 +20,11 @@ runs:
     # popup-event and tap/touch paths Firefox 152 initially broke.
     # playwright still needs the patch-package guard on
     # pageError.location (Camoufox omits it) — see
-    # patches/playwright-core+1.62.0.patch. Both the primary camoufox-js
-    # fetch AND the gh-release fallback below resolve to v152, so CI stays
-    # deterministic on a cache miss or a rate-limited primary fetch. Do
+    # patches/playwright-core+1.62.0.patch. camoufox-js resolves the
+    # newest release inside its own supported range rather than an exact
+    # tag, so the install step below rejects anything but the pinned tag
+    # and re-installs it from the release asset, keeping the pinned cache
+    # key deterministic. Do
     # NOT let the fallback track LATEST: v150.0.2's locale handling
     # regressed `navigator.language` (returned `en-US` even when the
     # context declared `he-IL`), breaking `AntiDetection.e2e-mocked.test.ts`.
@@ -41,8 +43,8 @@ runs:
       with:
         path: ~/.cache/camoufox
         # Cache the deterministic v152 binary, keyed by the exact pinned
-        # tag so a cache hit can never restore a different build than the
-        # fallback step downloads.
+        # tag; the install step below refuses to populate this key with
+        # any other release.
         key: camoufox-bin-${{ steps.camoufox-tag.outputs.tag }}
     - name: Install Camoufox browser
       shell: bash
@@ -53,28 +55,43 @@ runs:
         PINNED_TAG: ${{ steps.camoufox-tag.outputs.tag }}
       run: |
         set -euo pipefail
-        if [ -f ~/.cache/camoufox/camoufox-bin ]; then
-          echo "Camoufox already cached, skipping fetch"
+        CACHE_DIR="$HOME/.cache/camoufox"
+        # camoufox-js records the install as {"version","release"} and reads
+        # it back on launch; `<version>-<release>` is the tag minus the `v`.
+        EXPECTED="${PINNED_TAG#v}"
+
+        installed_version() {
+          [ -f "$CACHE_DIR/version.json" ] || return 1
+          node -e 'const fs = require("fs");
+            const v = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            process.stdout.write(v.version + "-" + v.release);' "$CACHE_DIR/version.json"
+        }
+
+        install_pinned_release() {
+          # PINNED_TAG comes from the step env (single source of truth, see
+          # the resolve-tag step). Never track LATEST here: v150.0.2-beta.25's
+          # locale regression (navigator.language he-IL to en-US) breaks
+          # AntiDetection.e2e-mocked.test.ts.
+          echo "Downloading pinned daijro/camoufox release: ${PINNED_TAG}"
+          ASSET_DIR=$(mktemp -d)
+          gh release download "${PINNED_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
+          rm -rf "$CACHE_DIR"
+          mkdir -p "$CACHE_DIR"
+          unzip -o "$ASSET_DIR"/*.zip -d "$CACHE_DIR/"
+          rm -rf "$ASSET_DIR"
+          printf '{"version":"%s","release":"%s"}' "${EXPECTED%%-*}" "${EXPECTED#*-}" > "$CACHE_DIR/version.json"
+          chmod -R 755 "$CACHE_DIR"
+        }
+
+        if [ "$(installed_version || true)" = "$EXPECTED" ]; then
+          echo "Camoufox ${PINNED_TAG} already cached, skipping fetch"
         else
           echo "Cache miss — attempting camoufox-js fetch..."
-          if npx @hieutran094/camoufox-js fetch; then
-            echo "Camoufox installed via camoufox-js"
+          if npx @hieutran094/camoufox-js fetch && [ "$(installed_version || true)" = "$EXPECTED" ]; then
+            echo "Camoufox ${PINNED_TAG} installed via camoufox-js"
           else
-            echo "camoufox-js fetch failed (likely rate-limited) — falling back to gh release download"
-            ASSET_DIR=$(mktemp -d)
-            # PINNED_TAG comes from the step env (single source of truth,
-            # see the resolve-tag step). It pins the fallback to the SAME
-            # stable v152 tag camoufox-js ^0.11.2 resolves to. Never track
-            # LATEST here: v150.0.2-beta.25's locale regression
-            # (navigator.language he-IL to en-US) breaks
-            # AntiDetection.e2e-mocked.test.ts.
-            echo "Falling back to daijro/camoufox release: ${PINNED_TAG}"
-            gh release download "${PINNED_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
-            mkdir -p ~/.cache/camoufox
-            unzip -o "$ASSET_DIR"/*.zip -d ~/.cache/camoufox/
-            rm -rf "$ASSET_DIR"
-            chmod -R 755 ~/.cache/camoufox
-            test -f ~/.cache/camoufox/camoufox-bin || (echo "ERROR: camoufox-bin not found after fallback" && exit 1)
-            echo "Camoufox installed via authenticated gh fallback"
+            echo "camoufox-js produced '$(installed_version || echo none)', want ${EXPECTED} — installing the pinned asset instead"
+            install_pinned_release
           fi
         fi
+        test -f "$CACHE_DIR/camoufox-bin" || (echo "ERROR: camoufox-bin not found in $CACHE_DIR" && exit 1)
