@@ -59,7 +59,7 @@ function emitLoginSignal(
   logger: ScraperLogger,
 ): IPipelineContext {
   const diag = { ...input.diagnostics, loginUrl };
-  logger.debug({ url: maskVisibleText(loginUrl), didNavigate: true });
+  logger.debug({ url: maskVisibleText(loginUrl) });
   return { ...input, diagnostics: diag };
 }
 

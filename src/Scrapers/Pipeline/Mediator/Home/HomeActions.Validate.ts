@@ -13,6 +13,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { type DidNavigate, hasLeftHomepage } from './HomeNavigationTruth.js';
 
 /** Bundled args for login area validation. */
 interface IValidateLoginAreaArgs {
@@ -24,7 +25,7 @@ interface IValidateLoginAreaArgs {
 
 /** Aggregated diagnostic signals used to decide login-area presence. */
 interface ILoginAreaSignals {
-  readonly didNavigate: boolean;
+  readonly didNavigate: DidNavigate;
   readonly frameCount: number;
   readonly hasLoginForm: boolean;
 }
@@ -53,22 +54,36 @@ async function probeLoginForm(mediator: IElementMediator): Promise<boolean> {
 }
 
 /**
- * Decide whether ANY of the three signals indicates the login area is present.
+ * Decide whether HOME reached the login area.
+ *
+ * <p>Two proofs, both meaningful: the browser left the homepage for a login
+ * route, or a login form is now visible (the gate searches every frame, so an
+ * embedded cross-origin widget counts).
+ *
+ * <p>A third term — `frameCount > 1` — was removed. Every bank carries iframes
+ * for analytics, chat and ads, so it could not distinguish a login widget from
+ * a tracking pixel: live HOME.POST reports 9 frames for Amex, 12 for VisaCal
+ * and 2 for Max. Amex and VisaCal never needed it (both report a visible login
+ * form); Max was the only bank it carried, and carrying Max was the defect —
+ * it masked a click swallowed by a marketing overlay and let the phase report
+ * success having navigated nowhere.
+ *
  * @param signals - Aggregated nav / frame / form signals.
- * @returns True when any signal indicates login-area presence.
+ * @returns True when the login area is provably present.
  */
 function loginAreaDetected(signals: ILoginAreaSignals): boolean {
-  return signals.didNavigate || signals.frameCount > 1 || signals.hasLoginForm;
+  return signals.didNavigate || signals.hasLoginForm;
 }
 
 /**
- * Collect the three login-area presence signals.
- * Pulled out so {@link executeValidateLoginArea} stays a thin guard + delegate.
+ * Collect the login-area presence signals. `frameCount` is retained as a
+ * diagnostic only — see {@link loginAreaDetected} for why it no longer votes.
  * @param args - Bundled validation arguments.
  * @returns Aggregated nav / frame / form signals.
  */
 async function collectLoginAreaSignals(args: IValidateLoginAreaArgs): Promise<ILoginAreaSignals> {
-  const didNavigate = args.mediator.getCurrentUrl() !== args.homepageUrl;
+  const currentUrl = args.mediator.getCurrentUrl();
+  const didNavigate = hasLeftHomepage(currentUrl, args.homepageUrl);
   const frameCount = countBrowserFrames(args.input);
   const hasLoginForm = await probeLoginForm(args.mediator);
   args.logger.debug({ didNavigate, frames: frameCount, loginForm: hasLoginForm });
@@ -89,4 +104,4 @@ async function executeValidateLoginArea(
 }
 
 export type { ILoginAreaSignals, IValidateLoginAreaArgs };
-export { executeValidateLoginArea };
+export { collectLoginAreaSignals, executeValidateLoginArea };

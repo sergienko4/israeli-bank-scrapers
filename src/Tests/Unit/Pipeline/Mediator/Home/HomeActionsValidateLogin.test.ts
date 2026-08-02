@@ -138,7 +138,7 @@ describe('HomeActions.executeValidateLoginArea — Phase 7d branches', () => {
     if (!result.success) expect(result.errorMessage).toContain('login area not detected');
   });
 
-  it('passes when multi-frame page detected (browser.has + frames > 1)', async () => {
+  it('fails on a multi-frame page with no nav and no login form', async () => {
     const mediator = makeStubMediator({
       currentUrl: 'https://bank.fake.example/',
       probeFound: false,
@@ -165,8 +165,7 @@ describe('HomeActions.executeValidateLoginArea — Phase 7d branches', () => {
       homepageUrl: 'https://bank.fake.example/',
       logger: STUB_LOGGER,
     });
-    const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it('treats probe rejection as no-form-detected (catch branch)', async () => {
