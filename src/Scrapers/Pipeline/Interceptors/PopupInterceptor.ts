@@ -8,12 +8,8 @@
  * Best-effort: never fails the pipeline. Popup absence is valid.
  */
 
-import type { Page } from 'playwright-core';
-
-import type { IElementMediator, IRaceResult } from '../Mediator/Elements/ElementMediator.js';
-import { computeContextId, MAIN_CONTEXT_ID } from '../Mediator/Elements/FrameRegistry.js';
+import type { IElementMediator } from '../Mediator/Elements/ElementMediator.js';
 import { dismissPopups } from '../Mediator/Elements/PopupDismiss.js';
-import { WK_CLOSE_POPUP } from '../Registry/WK/SharedWK.js';
 import type { Brand } from '../Types/Brand.js';
 import type { ScraperLogger } from '../Types/Debug.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
@@ -26,8 +22,6 @@ type IsInCooldown = Brand<boolean, 'IsInCooldown'>;
 
 /** Cooldown between popup probes (ms). */
 const POPUP_COOLDOWN_MS = 2000;
-/** Budget for the close-control provenance probe (ms) — a gate, not a wait. */
-const FRAME_GATE_TIMEOUT_MS = 2000;
 
 /**
  * Log network endpoint delta after popup dismissal.
@@ -60,87 +54,17 @@ function traceNetworkDelta(
  * the SPA from firing the `account/init` request and ACCOUNT-RESOLVE
  * times out empty.
  *
- * <p>`pre-login` added 2026-07-29: Max renders a marketing bottom-sheet
- * behind a full-page dark backdrop AFTER the HOME probe already ran, so
- * the backdrop intercepts every PRE-LOGIN click until it is dismissed.
- * This entry is only safe together with {@link MAIN_FRAME_ONLY_PHASES}.
+ * <p>`pre-login` was added 2026-07-29 for Max's marketing bottom-sheet
+ * and REVERTED 2026-08-02: PRE-LOGIN runs on the bank's login page, so
+ * every candidate the probe can click is a control the login UI owns.
+ * The iframe-provenance veto shipped alongside it only covered banks
+ * whose login lives in a child iframe (CAL); Amex renders its login in
+ * the MAIN frame, so the veto was inert and Amex regressed to
+ * `PRE-LOGIN: no password field` between 8.6.0 and 8.6.1. Max's
+ * obstruction needs a guard keyed on "does this control belong to the
+ * login UI", not on which frame it lives in — see `tasks/`.
  */
-const POPUP_PHASES: ReadonlySet<string> = new Set([
-  'home',
-  'pre-login',
-  'account-resolve',
-  'dashboard',
-]);
-
-/**
- * Phases where a close control living inside a CHILD IFRAME vetoes dismissal.
- *
- * <p>Rationale (2026-07-29): whitelisting `pre-login` without this veto
- * regressed VisaCal from PASS to FAIL. Banks that embed their login UI in
- * a cross-origin widget iframe (CAL: `connect.cal-online.co.il/send-otp`)
- * expose that widget's OWN close button (`<button class="x-close">`) as the
- * only visible close control, so the probe closed the login form itself and
- * PRE-LOGIN then reported "no password field".
- *
- * <p>The discriminator is provenance, not appearance: what PRE-LOGIN needs
- * to unblock is a HOST-PAGE overlay covering the reveal control (Max's
- * marketing sheet resolves at the page URL). A control rendered inside the
- * bank's own embedded widget is part of the login UI, never an obstruction.
- *
- * <p>Deliberately scoped to `pre-login` only — `home`, `account-resolve`
- * and `dashboard` keep their pre-existing all-frames behaviour.
- */
-const MAIN_FRAME_ONLY_PHASES: ReadonlySet<string> = new Set(['pre-login']);
-
-/** Why a probe was skipped, or `false` when it should run. */
-type SkipReason = 'cooldown' | 'widget-frame' | false;
-
-/**
- * Narrow a probe result to "the winning close control is inside a child iframe".
- * @param found - Result of the provenance probe, or false when it rejected.
- * @param page - Main page, used for main-context identity.
- * @returns True when the winner lives outside the main frame.
- */
-function isSubFrameWinner(found: IRaceResult | false, page: Page): boolean {
-  if (found === false || !found.found || !found.context) return false;
-  return computeContextId(found.context, page) !== MAIN_CONTEXT_ID;
-}
-
-/**
- * Whether the only visible close control belongs to an embedded widget.
- * @param ctx - Pipeline context (mediator + browser page).
- * @param nextPhase - Phase about to run.
- * @returns True when dismissal must be vetoed.
- */
-async function isCloseControlInSubFrame(
-  ctx: IPipelineContext,
-  nextPhase: string,
-): Promise<boolean> {
-  if (!MAIN_FRAME_ONLY_PHASES.has(nextPhase)) return false;
-  if (!ctx.mediator.has || !ctx.browser.has) return false;
-  const found = await ctx.mediator.value
-    .resolveVisible(WK_CLOSE_POPUP, FRAME_GATE_TIMEOUT_MS)
-    .catch((): false => false);
-  return isSubFrameWinner(found, ctx.browser.value.page);
-}
-
-/**
- * Decide whether to skip this probe, and why.
- * @param ctx - Pipeline context.
- * @param lastRunMs - Epoch-ms of the previous probe.
- * @param nextPhase - Phase about to run.
- * @returns Skip reason, or false to run the probe.
- */
-async function resolveSkipReason(
-  ctx: IPipelineContext,
-  lastRunMs: number,
-  nextPhase: string,
-): Promise<SkipReason> {
-  if (isInCooldown(lastRunMs)) return 'cooldown';
-  const isWidgetOwned = await isCloseControlInSubFrame(ctx, nextPhase);
-  if (isWidgetOwned) return 'widget-frame';
-  return false;
-}
+const POPUP_PHASES: ReadonlySet<string> = new Set(['home', 'account-resolve', 'dashboard']);
 
 /**
  * Check whether cooldown has elapsed.
@@ -191,9 +115,8 @@ async function tryDismiss(
   nextPhase: string,
 ): Promise<Procedure<IPipelineContext>> {
   if (!ctx.mediator.has || !POPUP_PHASES.has(nextPhase)) return succeed(ctx);
-  const skip = await resolveSkipReason(ctx, lastRunMs.value, nextPhase);
-  if (skip !== false) {
-    ctx.logger.debug({ event: 'popup.skip', phase: nextPhase, reason: skip });
+  if (isInCooldown(lastRunMs.value)) {
+    ctx.logger.debug({ event: 'popup.skip', phase: nextPhase, reason: 'cooldown' });
     return succeed(ctx);
   }
   lastRunMs.value = Date.now();
