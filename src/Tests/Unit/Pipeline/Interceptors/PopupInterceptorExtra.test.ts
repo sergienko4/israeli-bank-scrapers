@@ -13,6 +13,71 @@ import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/Pipel
 import { isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../Infrastructure/MockFactories.js';
 
+/** URL every stub mediator reports before and after a dismissal. */
+const STUB_URL = 'https://bank.example/';
+
+/** URL a promo "close" control strands the page on (Max's real behaviour). */
+const STRANDED_URL = 'https://bank.example/cards/giftcards';
+
+/** Stub mediator whose dismissal navigates, plus the observed restore target. */
+interface INavigatingMediator {
+  readonly mediator: IElementMediator;
+  readonly nav: { restoredTo: string };
+}
+
+/**
+ * Build a mediator whose "close" click navigates away, so the interceptor's
+ * navigation-safety has something to undo.
+ * @returns Mediator plus the recorded restore target.
+ */
+function makeNavigatingMediator(): INavigatingMediator {
+  const nav = { restoredTo: '' };
+  const state = { url: STUB_URL };
+  const mediator = {
+    /**
+     * Clicking the promo "close" strands the page on another route.
+     * @returns Succeed with a found result.
+     */
+    resolveAndClick: (): Promise<unknown> => {
+      state.url = STRANDED_URL;
+      const clicked = succeed({ ...NOT_FOUND_RESULT, found: true as const, value: 'X' });
+      return Promise.resolve(clicked);
+    },
+    /**
+     * waitForNetworkIdle.
+     * @returns Succeed.
+     */
+    waitForNetworkIdle: (): Promise<unknown> => {
+      const idle = succeed(undefined);
+      return Promise.resolve(idle);
+    },
+    network: {
+      /**
+       * getAllEndpoints.
+       * @returns Empty pool.
+       */
+      getAllEndpoints: (): unknown[] => [],
+    },
+    /**
+     * Current URL, mutated by the stranding click.
+     * @returns The live stub URL.
+     */
+    getCurrentUrl: (): string => state.url,
+    /**
+     * Records the restore navigation the interceptor issues.
+     * @param url - Target URL.
+     * @returns Resolved once recorded.
+     */
+    navigateTo: (url: string): Promise<unknown> => {
+      nav.restoredTo = url;
+      state.url = url;
+      const navigated = succeed(undefined);
+      return Promise.resolve(navigated);
+    },
+  } as unknown as IElementMediator;
+  return { mediator, nav };
+}
+
 /**
  * Build a stub mediator whose resolveAndClick returns a found or not-found result.
  * @param clickFinds - Whether the resolver finds a popup.
@@ -50,6 +115,11 @@ function makeMediator(clickFinds: boolean): IElementMediator {
        */
       getAllEndpoints: (): unknown[] => Array(networkState.eps).fill({}),
     },
+    /**
+     * Dismissal never navigates here.
+     * @returns A stable URL.
+     */
+    getCurrentUrl: (): string => STUB_URL,
   } as unknown as IElementMediator;
 }
 
@@ -110,6 +180,16 @@ describe('PopupInterceptor — dismissal paths', () => {
     expect(isOkResult7).toBe(true);
   });
 
+  it('restores the entry URL when the "close" control navigated away', async () => {
+    const interceptor = createPopupInterceptor();
+    const { mediator, nav } = makeNavigatingMediator();
+    const ctx: IPipelineContext = { ...makeMockContext(), mediator: some(mediator) };
+    const result = await interceptor.beforePhase(ctx, 'home');
+    const isOkRestore = isOk(result);
+    expect(isOkRestore).toBe(true);
+    expect(nav.restoredTo).toBe(STUB_URL);
+  });
+
   it('traces network delta when endpoints grow after dismiss', async () => {
     const interceptor = createPopupInterceptor();
     const base = makeMockContext();
@@ -144,6 +224,11 @@ describe('PopupInterceptor — dismissal paths', () => {
          */
         getAllEndpoints: (): unknown[] => new Array(networkState.eps).fill({}),
       },
+      /**
+       * Dismissal never navigates here.
+       * @returns A stable URL.
+       */
+      getCurrentUrl: (): string => STUB_URL,
     } as unknown as IElementMediator;
     const ctx: IPipelineContext = {
       ...base,
@@ -191,6 +276,11 @@ describe('PopupInterceptor — dismissal paths', () => {
          */
         getAllEndpoints: (): unknown[] => [],
       },
+      /**
+       * Dismissal never navigates here.
+       * @returns A stable URL.
+       */
+      getCurrentUrl: (): string => STUB_URL,
     } as unknown as IElementMediator;
     const ctx: IPipelineContext = {
       ...base,
@@ -226,6 +316,11 @@ describe('PopupInterceptor — dismissal paths', () => {
          */
         getAllEndpoints: (): unknown[] => [],
       },
+      /**
+       * Dismissal never navigates here.
+       * @returns A stable URL.
+       */
+      getCurrentUrl: (): string => STUB_URL,
     } as unknown as IElementMediator;
     const ctx: IPipelineContext = {
       ...base,

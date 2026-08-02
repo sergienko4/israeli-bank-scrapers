@@ -22,6 +22,9 @@ interface IClickProbeOutcome {
   readonly handled: boolean;
 }
 
+/** URL the stub mediator reports before and after every dismissal. */
+const STUB_URL = 'https://bank.example/';
+
 /** Bundled stub mediator + observable call counter. */
 interface IRecordingMediator {
   readonly mediator: IElementMediator;
@@ -66,6 +69,11 @@ function makeRecordingMediator(hasFoundPopup: boolean): IRecordingMediator {
     },
     resolveAndClick: stubResolveAndClick,
     waitForNetworkIdle: stubWaitForNetworkIdle,
+    /**
+     * Dismissal never navigates in this scenario.
+     * @returns A stable URL.
+     */
+    getCurrentUrl: (): string => STUB_URL,
   } as unknown as IElementMediator;
   return { mediator, calls };
 }

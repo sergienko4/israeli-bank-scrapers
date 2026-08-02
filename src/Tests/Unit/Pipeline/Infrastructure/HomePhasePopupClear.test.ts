@@ -50,13 +50,22 @@ const TRIGGER_FOUND: IRaceResult = {
 /** Every `resolveAndClick` candidate group seen during a phase run. */
 type ClickLog = SelectorCandidate[][];
 
+/** What HOME.PRE was observed doing during one run. */
+interface IProbeLog {
+  /** Candidate groups HOME.PRE tried to click — must stay empty. */
+  readonly clicks: ClickLog;
+  /** Trigger matches handed to the resolver, in call order. */
+  readonly discovered: IRaceResult[];
+}
+
 /**
- * Build a HOME context whose mediator records every click attempt.
- * @param clicks - Mutable log of candidate groups passed to resolveAndClick.
+ * Build a HOME context whose mediator records every click attempt and
+ * every trigger match discovery consumed.
+ * @param probes - Mutable observation log.
  * @returns Pipeline context wired to the recording mediator.
  */
-function makeCtx(clicks: ClickLog): IPipelineContext {
-  const page = makeMockPage('https://www.max.co.il/');
+function makeCtx(probes: IProbeLog): IPipelineContext {
+  const page = makeMockPage(MOCK_CONFIG.urls.base);
   const browserState: IBrowserState = {
     page,
     context: {} as unknown as IBrowserState['context'],
@@ -67,7 +76,7 @@ function makeCtx(clicks: ClickLog): IPipelineContext {
      * URL mock.
      * @returns Homepage URL.
      */
-    getCurrentUrl: (): string => 'https://www.max.co.il/',
+    getCurrentUrl: (): string => MOCK_CONFIG.urls.base,
     /**
      * Single-winner probe used by the resolver's prefer-direct step.
      * @returns The located trigger.
@@ -77,14 +86,17 @@ function makeCtx(clicks: ClickLog): IPipelineContext {
      * Enumerated trigger matches consumed by HomeResolver.
      * @returns One found trigger.
      */
-    resolveAllVisible: () => Promise.resolve([TRIGGER_FOUND]),
+    resolveAllVisible: () => {
+      probes.discovered.push(TRIGGER_FOUND);
+      return Promise.resolve([TRIGGER_FOUND]);
+    },
     /**
      * Records the candidate group of every click HOME.PRE attempts.
      * @param candidates - Candidate group being clicked.
      * @returns Success reporting nothing found.
      */
     resolveAndClick: (candidates: readonly SelectorCandidate[]) => {
-      clicks.push([...candidates]);
+      probes.clicks.push([...candidates]);
       const outcome = succeed(NOT_FOUND_RESULT);
       return Promise.resolve(outcome);
     },
@@ -101,19 +113,36 @@ function makeCtx(clicks: ClickLog): IPipelineContext {
   });
 }
 
+/**
+ * Fresh observation log for one phase run.
+ * @returns Empty click + discovery log.
+ */
+function newProbeLog(): IProbeLog {
+  return { clicks: [], discovered: [] };
+}
+
 describe('HomePhase.pre — strictly passive (T-HOMEPRE)', () => {
   it('T-HOMEPRE-1 (FIRING): issues zero clicks', async () => {
-    const clicks: ClickLog = [];
-    const ctx = makeCtx(clicks);
+    const probes = newProbeLog();
+    const ctx = makeCtx(probes);
     await new HomePhase().pre(ctx, ctx);
-    expect(clicks).toEqual([]);
+    expect(probes.clicks).toEqual([]);
   });
 
-  it('T-HOMEPRE-2: still succeeds with the discovered trigger', async () => {
-    const clicks: ClickLog = [];
-    const ctx = makeCtx(clicks);
+  it('T-HOMEPRE-2: succeeds having consumed the discovered trigger', async () => {
+    const probes = newProbeLog();
+    const ctx = makeCtx(probes);
     const result = await new HomePhase().pre(ctx, ctx);
     const wasOk = isOk(result);
-    expect(wasOk).toBe(true);
+    // Discovery consults `resolveAllVisible` twice — once in
+    // `resolveHomeTrigger`, once in `preferDirectEntry` — so assert the
+    // content of every match rather than the call count.
+    const didDiscover = probes.discovered.length > 0;
+    const isEveryMatchTheTrigger = probes.discovered.every((r): boolean => r === TRIGGER_FOUND);
+    expect({ wasOk, didDiscover, isEveryMatchTheTrigger }).toEqual({
+      wasOk: true,
+      didDiscover: true,
+      isEveryMatchTheTrigger: true,
+    });
   });
 });
