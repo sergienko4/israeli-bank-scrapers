@@ -16,31 +16,26 @@ import { makeMockContext } from '../Infrastructure/MockFactories.js';
 /** URL every stub mediator reports before and after a dismissal. */
 const STUB_URL = 'https://bank.example/';
 
-/** URL a promo "close" control strands the page on (Max's real behaviour). */
-const STRANDED_URL = 'https://bank.example/cards/giftcards';
-
-/** Stub mediator whose dismissal navigates, plus the observed restore target. */
-interface INavigatingMediator {
+/** Stub mediator plus the observed dismissal-probe call count. */
+interface ICountingMediator {
   readonly mediator: IElementMediator;
-  readonly nav: { restoredTo: string };
+  readonly calls: { count: number };
 }
 
 /**
- * Build a mediator whose "close" click navigates away, so the interceptor's
- * navigation-safety has something to undo.
- * @returns Mediator plus the recorded restore target.
+ * Build a mediator that records whether a dismissal probe ran at all.
+ * @returns Mediator plus the probe counter.
  */
-function makeNavigatingMediator(): INavigatingMediator {
-  const nav = { restoredTo: '' };
-  const state = { url: STUB_URL };
+function makeCountingMediator(): ICountingMediator {
+  const calls = { count: 0 };
   const mediator = {
     /**
-     * Clicking the promo "close" strands the page on another route.
-     * @returns Succeed with a found result.
+     * Records the probe and reports nothing to close.
+     * @returns Succeed with a not-found result.
      */
     resolveAndClick: (): Promise<unknown> => {
-      state.url = STRANDED_URL;
-      const clicked = succeed({ ...NOT_FOUND_RESULT, found: true as const, value: 'X' });
+      calls.count += 1;
+      const clicked = succeed(NOT_FOUND_RESULT);
       return Promise.resolve(clicked);
     },
     /**
@@ -59,23 +54,12 @@ function makeNavigatingMediator(): INavigatingMediator {
       getAllEndpoints: (): unknown[] => [],
     },
     /**
-     * Current URL, mutated by the stranding click.
-     * @returns The live stub URL.
+     * Current URL.
+     * @returns A stable URL.
      */
-    getCurrentUrl: (): string => state.url,
-    /**
-     * Records the restore navigation the interceptor issues.
-     * @param url - Target URL.
-     * @returns Resolved once recorded.
-     */
-    navigateTo: (url: string): Promise<unknown> => {
-      nav.restoredTo = url;
-      state.url = url;
-      const navigated = succeed(undefined);
-      return Promise.resolve(navigated);
-    },
+    getCurrentUrl: (): string => STUB_URL,
   } as unknown as IElementMediator;
-  return { mediator, nav };
+  return { mediator, calls };
 }
 
 /**
@@ -180,14 +164,12 @@ describe('PopupInterceptor — dismissal paths', () => {
     expect(isOkResult7).toBe(true);
   });
 
-  it('restores the entry URL when the "close" control navigated away', async () => {
+  it('does not probe on the login screen', async () => {
     const interceptor = createPopupInterceptor();
-    const { mediator, nav } = makeNavigatingMediator();
+    const { mediator, calls } = makeCountingMediator();
     const ctx: IPipelineContext = { ...makeMockContext(), mediator: some(mediator) };
-    const result = await interceptor.beforePhase(ctx, 'home');
-    const isOkRestore = isOk(result);
-    expect(isOkRestore).toBe(true);
-    expect(nav.restoredTo).toBe(STUB_URL);
+    await interceptor.beforePhase(ctx, 'pre-login');
+    expect(calls.count).toBe(0);
   });
 
   it('traces network delta when endpoints grow after dismiss', async () => {
