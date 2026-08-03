@@ -125,10 +125,10 @@ async function buildSuccessfulLaunch(
   input: IPipelineContext,
   browser: Browser,
 ): Promise<Procedure<IPipelineContext>> {
-  const launched = await createContextAndPage(browser);
+  const launched = await createContextAndPage(browser, input.options.companyId);
   await applyPostLaunchSetup(launched, input);
   await logEnvSnapshot({ browser, page: launched.page, logger: input.logger });
-  const state = buildBrowserState(launched.page, launched.context, browser);
+  const state = buildBrowserState({ ...launched, browser, companyId: input.options.companyId });
   return succeed({ ...input, browser: some(state) });
 }
 

@@ -55,6 +55,13 @@ removed the obsolete `MOCK_MODE` route-install branch from
 post-launch path now runs only the DUMP_SNAPSHOTS cold-start scrub
 and `setupPage`. None of the navigation forensics surface changed.
 
+`buildSuccessfulLaunch` additionally restores the bank's saved browser
+session before the first navigation (see
+`Mediator/Browser/BrowserSessionStore.ts`), so an origin behind an edge
+WAF sees a returning visitor rather than a cold one. It is opt-in via
+`BROWSER_SESSION_ROOT`; with the variable unset the context is built
+exactly as before and nothing in this document changes.
+
 ## Log envelope
 
 The warn log carries an `INavFailureSnapshot`. Fields are stable across

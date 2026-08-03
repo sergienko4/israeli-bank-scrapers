@@ -7,6 +7,10 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../../Base/Interface.js';
 import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
+import {
+  loadSessionState,
+  saveSessionStateSafe,
+} from '../../Mediator/Browser/BrowserSessionStore.js';
 import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IBrowserState } from '../../Types/PipelineContext.js';
@@ -30,14 +34,18 @@ async function launchBrowser(options: ScraperOptions): Promise<Browser> {
 }
 
 /**
- * Create browser context and page from a browser.
+ * Create browser context and page from a browser, restoring the bank's saved
+ * session when one exists so the origin sees a returning visitor.
  * @param browser - The browser to create context from.
+ * @param companyId - Bank identifier keying the saved session.
  * @returns Object with context and page.
  */
 async function createContextAndPage(
   browser: Browser,
+  companyId: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
-  const contextOpts = buildContextOptions();
+  const saved = loadSessionState(companyId);
+  const contextOpts = buildContextOptions(saved);
   const context = await browser.newContext(contextOpts);
   try {
     const page = await context.newPage();
@@ -79,31 +87,45 @@ function closeHandler(closeable: ICloseable): () => Promise<Procedure<void>> {
     closeable.close().then((): Procedure<void> => succeed(undefined));
 }
 
+/** Launched browser handles plus the bank they belong to. */
+interface ILaunchedBrowser {
+  readonly page: Page;
+  readonly context: BrowserContext;
+  readonly browser: Browser;
+  readonly companyId: string;
+}
+
+/**
+ * Cleanup that persists the session before anything is torn down — ordered
+ * first because closing the browser takes the context's cookies with it.
+ * @param launched - Launched handles + bank id.
+ * @returns Async cleanup returning Procedure.
+ */
+function saveHandler(launched: ILaunchedBrowser): () => Promise<Procedure<void>> {
+  return (): Promise<Procedure<void>> =>
+    saveSessionStateSafe(launched.context, launched.companyId).then((): Procedure<void> =>
+      succeed(undefined),
+    );
+}
+
 /**
  * Build cleanup handlers for browser lifecycle.
- * @param thePage - The page to close.
- * @param theContext - The browser context to close.
- * @param theBrowser - The browser to close.
+ * @param launched - Launched handles + bank id.
  * @returns Ordered cleanup array.
  */
-function buildCleanups(
-  thePage: Page,
-  theContext: BrowserContext,
-  theBrowser: Browser,
-): IBrowserState['cleanups'] {
-  return [closeHandler(theBrowser), closeHandler(theContext), closeHandler(thePage)];
+function buildCleanups(launched: ILaunchedBrowser): IBrowserState['cleanups'] {
+  const { page, context, browser } = launched;
+  return [saveHandler(launched), closeHandler(browser), closeHandler(context), closeHandler(page)];
 }
 
 /**
  * Build the browser state from launched components.
- * @param page - The Playwright page.
- * @param context - The browser context.
- * @param browser - The browser instance.
+ * @param launched - Launched handles + bank id.
  * @returns IBrowserState with page, context, and cleanups.
  */
-function buildBrowserState(page: Page, context: BrowserContext, browser: Browser): IBrowserState {
-  const cleanups = buildCleanups(page, context, browser);
-  return { page, context, cleanups };
+function buildBrowserState(launched: ILaunchedBrowser): IBrowserState {
+  const cleanups = buildCleanups(launched);
+  return { page: launched.page, context: launched.context, cleanups };
 }
 
 /**
@@ -119,4 +141,5 @@ async function closeBrowserSafe(browser: Browser | false): Promise<DidLifecycleS
     .catch((): DidLifecycleStep => false as DidLifecycleStep);
 }
 
+export type { ILaunchedBrowser };
 export { buildBrowserState, closeBrowserSafe, createContextAndPage, launchBrowser, setupPage };

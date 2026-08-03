@@ -119,3 +119,6 @@ __pycache__/
 # placeholder values IS committed so tests have a default to load from.
 .pii-secrets.json
 .pii-secrets.local.json
+
+# Browser session state (live WAF clearance cookies) - never commit
+*.session.json
