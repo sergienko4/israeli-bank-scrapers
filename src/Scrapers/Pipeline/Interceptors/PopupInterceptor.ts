@@ -116,6 +116,23 @@ async function runDismissProbe(args: IProbeArgs): Promise<true> {
 }
 
 /**
+ * Whether a probe may run for this phase now: phase whitelisted and the
+ * cooldown elapsed. Logs the cooldown skip so pipeline.log shows why no
+ * probe ran.
+ *
+ * @param ctx - Current pipeline context.
+ * @param lastRunMs - Epoch-ms of the last probe.
+ * @param nextPhase - Name of the phase about to run.
+ * @returns True when the probe should run.
+ */
+function canProbeNow(ctx: IPipelineContext, lastRunMs: number, nextPhase: string): boolean {
+  if (!POPUP_PHASES.has(nextPhase)) return false;
+  if (!isInCooldown(lastRunMs)) return true;
+  ctx.logger.debug({ event: 'popup.skip', phase: nextPhase, reason: 'cooldown' });
+  return false;
+}
+
+/**
  * Dismiss popups if cooldown elapsed and phase is in whitelist.
  *
  * @param ctx - Current pipeline context.
@@ -129,11 +146,7 @@ async function tryDismiss(
   lastRunMs: { value: number },
   nextPhase: string,
 ): Promise<Procedure<IPipelineContext>> {
-  if (!ctx.mediator.has || !POPUP_PHASES.has(nextPhase)) return succeed(ctx);
-  if (isInCooldown(lastRunMs.value)) {
-    ctx.logger.debug({ event: 'popup.skip', phase: nextPhase, reason: 'cooldown' });
-    return succeed(ctx);
-  }
+  if (!ctx.mediator.has || !canProbeNow(ctx, lastRunMs.value, nextPhase)) return succeed(ctx);
   lastRunMs.value = Date.now();
   await runDismissProbe({ mediator: ctx.mediator.value, logger: ctx.logger, nextPhase });
   return succeed(ctx);
