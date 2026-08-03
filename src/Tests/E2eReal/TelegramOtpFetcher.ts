@@ -283,6 +283,14 @@ function extractMessageId(bundle: ISendResponseContext): number {
 
 /**
  * Convert a rejected send into a loggable record.
+ *
+ * <p>`status` is what {@link isRetryablePromptFailure} classifies
+ * on, so it must reflect the real response: an HTTP 200 carrying an
+ * `ok:false` envelope is a Telegram-level refusal that answers
+ * identically on every attempt, and must never be confused with the
+ * `status: 0` sentinel {@link describeThrownFailure} reserves for
+ * "no response was ever produced".
+ *
  * @param bundle - Response context.
  * @returns Structured failure detail with the token redacted.
  */
@@ -664,6 +672,179 @@ function computeBackoffMs(consecutiveFailures: number): number {
   return Math.min(BACKOFF_MAX_MS, raw);
 }
 
+/** Prompt send attempts before the fetcher gives up. */
+const PROMPT_MAX_ATTEMPTS = 3;
+/**
+ * Ceiling on a single inter-attempt wait.
+ *
+ * <p>Telegram advertises `retry_after` values far larger than this
+ * flow can absorb (flood-control commonly answers 30-60 s). The
+ * bank's own OTP acceptance window is the binding constraint, so
+ * honouring a wait that long is worse than failing: the code the
+ * user already received would expire before the prompt reached them.
+ */
+const PROMPT_RETRY_CAP_MS = 5_000;
+/** Sentinel status for a request that never produced a response. */
+const NO_RESPONSE_STATUS = 0;
+/** Telegram's flood-control status. */
+const TOO_MANY_REQUESTS_STATUS = 429;
+/** Lowest status treated as a retryable server-side fault. */
+const SERVER_ERROR_FLOOR = 500;
+/** `retry_after` is advertised in seconds; waits are milliseconds. */
+const MS_PER_SECOND = 1_000;
+/**
+ * Upper bound of the random spread added to every retry wait.
+ *
+ * <p>Telegram hands every rate-limited caller the same whole-second
+ * `retry_after`, so six CI jobs rejected in one burst would otherwise
+ * wake in lockstep and rebuild the very burst that rejected them.
+ * Spreading the wake-ups over an extra second lets the chat's ~1 msg/s
+ * allowance drain them one at a time.
+ */
+const PROMPT_RETRY_JITTER_MS = 1_000;
+
+/**
+ * Is this failure worth another attempt?
+ *
+ * <p>Retries are limited to faults where Telegram itself told us the
+ * message was *not* accepted: flood control (429) and server-side
+ * faults (5xx). Every other 4xx is a caller defect — a revoked token
+ * (401), a wrong chat id (400), a bot the user blocked (403) — and
+ * retrying one only burns the OTP window without ever changing the
+ * answer.
+ *
+ * <p>A transport fault ({@link NO_RESPONSE_STATUS}) is deliberately
+ * NOT retried even though it looks the most transient of all. A
+ * rejected `fetch` proves only that *we* saw no response — the POST
+ * may well have reached Telegram and delivered the prompt, since the
+ * {@link HTTP_TIMEOUT_MS} abort fires client-side. Re-sending then
+ * puts a second prompt in the chat with a different `message_id`,
+ * and the fetcher matches replies against the id it last received.
+ * A user replying to the first prompt they saw would be ignored —
+ * reintroducing the exact silent-OTP-loss this retry exists to fix.
+ * Sending once and failing loudly is the safer trade.
+ *
+ * @param failure - Structured send failure.
+ * @returns `true` when another attempt is justified.
+ */
+function isRetryablePromptFailure(failure: IPromptFailure): boolean {
+  if (failure.status === NO_RESPONSE_STATUS) return false;
+  if (failure.status === TOO_MANY_REQUESTS_STATUS) return true;
+  return failure.status >= SERVER_ERROR_FLOOR;
+}
+
+/**
+ * How long to wait before the next prompt attempt.
+ *
+ * <p>Telegram's advertised `retry_after` wins when present —
+ * ignoring it entirely guarantees the next attempt is rejected on
+ * the same grounds — otherwise the poll loop's exponential schedule
+ * applies. Either way the wait is capped at
+ * {@link PROMPT_RETRY_CAP_MS}.
+ *
+ * <p>The cap knowingly re-sends before a long advertised cooldown
+ * expires, which may simply be rejected again. That is the intended
+ * trade: honouring a 30-600 s cooldown guarantees the user is never
+ * prompted at all and the run is forfeit, whereas an early retry
+ * costs one cheap round-trip and sometimes wins. The caller-side
+ * jitter in {@link sendPromptWithRetry} keeps those early retries
+ * from landing simultaneously across the CI matrix.
+ *
+ * @param failure - Structured send failure.
+ * @param attempt - 1-based number of the attempt that just failed.
+ * @returns Milliseconds to wait; never above the cap.
+ */
+function computePromptRetryMs(failure: IPromptFailure, attempt: number): number {
+  const advertised = failure.retryAfterSeconds * MS_PER_SECOND;
+  const scheduled = computeBackoffMs(attempt);
+  const wait = advertised > 0 ? advertised : scheduled;
+  return Math.min(PROMPT_RETRY_CAP_MS, wait);
+}
+
+/** Bundle for the retry log — preserves the 3-param ceiling. */
+interface IPromptRetryLogArgs {
+  readonly args: ITelegramFetchArgs;
+  readonly failure: IPromptFailure;
+  readonly attempt: number;
+  readonly waitMs: number;
+}
+
+/**
+ * Prompt-retry log emission (warn-level).
+ *
+ * <p>Emitted once per retried attempt so `pipeline.log` records how
+ * much of the budget a run consumed. A prompt that only succeeded on
+ * attempt 3 still signals that the CI matrix is saturating the
+ * chat's flood-control allowance and that the parallel-group size
+ * needs revisiting — a silent retry would hide that.
+ *
+ * @param bundle - Args, failure, 1-based attempt and pending wait.
+ * @returns Always `true` (matches the project's no-void return rule).
+ */
+function logPromptRetry(bundle: IPromptRetryLogArgs): true {
+  bundle.args.log.warn(
+    {
+      event: 'telegram.otp.fetch.prompt-retry',
+      chatIdSuffix: tailMask(bundle.args.chatId),
+      bankName: bundle.args.bankName,
+      attempt: bundle.attempt,
+      maxAttempts: PROMPT_MAX_ATTEMPTS,
+      status: bundle.failure.status,
+      errorCode: bundle.failure.errorCode,
+      description: bundle.failure.description,
+      retryAfterSeconds: bundle.failure.retryAfterSeconds,
+      waitMs: bundle.waitMs,
+    },
+    'Telegram sendMessage failed — retrying prompt',
+  );
+  return true;
+}
+
+/**
+ * Send the prompt, retrying transient failures a bounded number of
+ * times. Recursive form (no `while + await`) to satisfy the
+ * project's no-await-in-loop rule, matching {@link runPollLoop}.
+ *
+ * <p>CI run 30850794919 lost a real Beinleumi OTP because a single
+ * `sendMessage` rejection aborted the fetcher outright. Six
+ * real-bank jobs share one Telegram chat and each sends a prompt
+ * plus an ack, so overlapping jobs routinely cross Telegram's
+ * ~1 msg/s per-chat ceiling. The rejected status was discarded by
+ * the code of the day, so flood control is a hypothesis rather than
+ * a proven cause — but the bank had already sent the SMS and the
+ * user had the code in hand, so spending a second attempt is far
+ * cheaper than forfeiting the run.
+ *
+ * <p>The budget is deliberately small. The waits run BEFORE
+ * `deadline` is computed in {@link fetchOtpFromTelegram}, so they
+ * extend total runtime beyond `timeoutMs` rather than eating into
+ * the poll window. At {@link PROMPT_MAX_ATTEMPTS} attempts the
+ * retry *waits* total at most
+ * `2 × (PROMPT_RETRY_CAP_MS + PROMPT_RETRY_JITTER_MS)` — about 12 s,
+ * which the bank's OTP acceptance window absorbs. Only statuses
+ * Telegram returned itself are retried, so no attempt can burn a
+ * full {@link HTTP_TIMEOUT_MS} abort before the next one starts.
+ *
+ * @param args - Fetcher input bundle.
+ * @param attempt - Internal: 1-based attempt counter threaded by
+ *   recursion. Default 1 — public callers omit it.
+ * @returns Bot's sent message_id, or the final {@link IPromptFailure}
+ *   once the budget is spent or the fault proves non-retryable.
+ */
+async function sendPromptWithRetry(
+  args: ITelegramFetchArgs,
+  attempt = 1,
+): Promise<number | IPromptFailure> {
+  const outcome = await sendPromptMessage(args);
+  if (typeof outcome === 'number') return outcome;
+  if (attempt >= PROMPT_MAX_ATTEMPTS) return outcome;
+  if (!isRetryablePromptFailure(outcome)) return outcome;
+  const waitMs = computePromptRetryMs(outcome, attempt);
+  logPromptRetry({ args, failure: outcome, attempt, waitMs });
+  await humanDelay(waitMs, waitMs + PROMPT_RETRY_JITTER_MS);
+  return sendPromptWithRetry(args, attempt + 1);
+}
+
 /**
  * Drive the short-poll loop until match or deadline. Recursive form
  * (no `while + await`) to satisfy the project's no-await-in-loop
@@ -722,6 +903,11 @@ function logSkip(args: ITelegramFetchArgs, reason: TelegramSkipReason): true {
  * recoverable from `pipeline.log` alone — 429 flood control, an
  * expired token (401), a bad chat id (400) and a transport hang
  * (`status: 0`) are all distinguishable without replaying the call.
+ *
+ * <p>Reaching this point means the send was either non-retryable or
+ * failed on every one of {@link PROMPT_MAX_ATTEMPTS} attempts. The
+ * preceding `prompt-retry` records — one per retried attempt, none
+ * at all when the fault was non-retryable — carry the true count.
  *
  * @param args - Fetcher args.
  * @param failure - Structured reason the send failed.
@@ -1009,7 +1195,7 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     logSkip(args, skip);
     return false;
   }
-  const promptMessageId = await sendPromptMessage(args);
+  const promptMessageId = await sendPromptWithRetry(args);
   if (typeof promptMessageId !== 'number') {
     logPromptFailed(args, promptMessageId);
     return false;

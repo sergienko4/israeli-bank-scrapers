@@ -41,6 +41,11 @@ let originalFetch: typeof fetch | undefined;
 
 /**
  * Build a Response-shaped stub.
+ *
+ * <p>Carries `status` / `statusText` because a real `Response`
+ * always does; a stub without them makes an envelope-level
+ * rejection indistinguishable from a transport fault.
+ *
  * @param body - Body to expose via `json()`.
  * @returns Response stub.
  */
@@ -52,7 +57,7 @@ function makeFetchResponse(body: Record<string, unknown>): Response {
    * @returns The body.
    */
   const json = (): Promise<unknown> => Promise.resolve(body);
-  return { ok: true, json } as unknown as Response;
+  return { ok: true, status: 200, statusText: 'OK', json } as unknown as Response;
 }
 
 /** Mock fetch responses — separate queues per Telegram endpoint. */
@@ -1060,9 +1065,11 @@ describe('fetchOtpFromTelegram', () => {
     const args = makeArgs(overrides);
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
+    // Scan EVERY warn payload, not just the terminal failure: a leak
+    // confined to the retry log would otherwise slip through.
+    const emitted = JSON.stringify(log.warn.mock.calls);
+    expect(emitted).not.toContain(LEAK_PROBE_TOKEN);
     const payload = readPromptFailedPayload(log);
-    const serialized = JSON.stringify(payload);
-    expect(serialized).not.toContain(LEAK_PROBE_TOKEN);
     const described = String(payload.description);
     expect(described).toContain('***');
   });
