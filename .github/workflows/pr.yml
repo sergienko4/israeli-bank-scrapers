@@ -274,8 +274,10 @@ jobs:
         if: needs.changes.outputs.ci_scripts == 'true'
         run: bash .github/scripts/ci/tests/scripts-smoke.sh
 
-      # `npx tsc` would resolve the `typescript` alias (the TS 6 API package),
-      # not the TS 7 native compiler. Go through the script instead.
+      # Both `typescript` (the TS 6 API alias) and `@typescript/native`
+      # (the TS 7 native compiler) declare a `tsc` bin, so `npx tsc`
+      # resolves to whichever won the node_modules/.bin race at install
+      # time. Go through the script, which names TS 7 explicitly.
       - name: Type check
         if: needs.changes.outputs.src == 'true'
         run: npm run type-check
