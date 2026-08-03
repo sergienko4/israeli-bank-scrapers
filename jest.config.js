@@ -20,7 +20,6 @@ export default {
       { useESM: true, diagnostics: false, tsconfig: { allowJs: true, checkJs: false } },
     ],
   },
-  transformIgnorePatterns: ['/node_modules/(?!@faker-js/faker)'],
   setupFilesAfterEnv: ['./Tests/JestSetup.ts'],
   testEnvironment: 'node',
   testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/', 'E2eSmoke/', 'E2eFull/', 'Tests/Integration/'],
