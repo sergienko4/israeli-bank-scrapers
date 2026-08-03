@@ -110,9 +110,11 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@eslint/js": "^10.0.1",
+    "@jest/globals": "^30.4.1",
     "@json2csv/plainjs": "^7.0.6",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.24",
+    "@types/node": "^26.1.2",
     "@types/source-map-support": "^0.5.10",
     "@types/tmp": "^0.2.6",
     "@typescript/native": "npm:typescript@^7.0.2",
@@ -131,6 +133,7 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "fast-check": "^4.8.0",
     "fs-extra": "^11.3.5",
+    "glob": "^13.0.6",
     "globals": "^17.6.0",
     "husky": "^9.1.7",
     "jest": "^30.4.2",
@@ -150,7 +153,8 @@
     "tsx": "^4.22.1",
     "typedoc": "^0.28.17",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.59.3"
+    "typescript-eslint": "^8.59.3",
+    "yaml": "^2.9.0"
   },
   "dependencies": {
     "@hieutran094/camoufox-js": "^0.11.2",
