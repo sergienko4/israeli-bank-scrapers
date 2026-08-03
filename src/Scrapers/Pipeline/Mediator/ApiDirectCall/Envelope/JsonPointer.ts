@@ -233,4 +233,4 @@ function walkPointer(doc: JsonValue, pointer: string): Procedure<JsonValue> {
 
 export type { IJsonObject, JsonArray, JsonPrimitive, JsonValue };
 export default walkPointer;
-export { walkPointer };
+export { isPlainObject, walkPointer };

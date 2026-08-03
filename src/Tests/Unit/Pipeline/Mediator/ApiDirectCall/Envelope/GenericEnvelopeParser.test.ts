@@ -127,3 +127,33 @@ describe('GenericEnvelopeParser.extractFields — deep + escaped paths', () => {
     if (result.success) expect(result.value.slashed).toBe('slash');
   });
 });
+
+/**
+ * T-ENV — a rejected call still answers HTTP 200, so the selector simply
+ * misses. PayBox's `pinValidation` returned `explanation/code/name/message`
+ * and the pipeline reported only "envelope selector miss: accessToken2 at
+ * /content/access_token" — the one field saying WHY was discarded, leaving the
+ * failure undiagnosable from a log.
+ */
+describe('GenericEnvelopeParser.extractFields — error envelopes (T-ENV)', () => {
+  it('T-ENV-1 (FIRING): surfaces the reason the bank gave', () => {
+    const doc = { code: 'E123', name: 'PinError', message: 'pin is not valid' };
+    const result = extractFields(doc, { accessToken2: '/content/access_token' });
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toContain('pin is not valid');
+  });
+
+  it('T-ENV-2: still names the selector that missed', () => {
+    const doc = { explanation: 'session expired' };
+    const result = extractFields(doc, { accessToken2: '/content/access_token' });
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toContain('accessToken2 at /content/access_token');
+  });
+
+  it('T-ENV-3: leaves the message unchanged when the envelope explains nothing', () => {
+    const doc = { content: { other: 1 } };
+    const result = extractFields(doc, { accessToken2: '/content/access_token' });
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toBe('envelope selector miss: accessToken2 at /content/access_token');
+  });
+});

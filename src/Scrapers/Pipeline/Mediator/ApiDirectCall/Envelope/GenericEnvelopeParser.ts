@@ -10,11 +10,12 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { maskVisibleText } from '../../../Types/LogEvent.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IEnvelopeSelectors } from '../IApiDirectCallConfig.js';
-import type { JsonValue } from './JsonPointer.js';
-import { walkPointer } from './JsonPointer.js';
+import type { IJsonObject, JsonValue } from './JsonPointer.js';
+import { isPlainObject, walkPointer } from './JsonPointer.js';
 
 /** Plucked record — arbitrary JSON-value shape, indexed by selector name. */
 type ExtractedFields = Record<string, JsonValue>;
@@ -30,13 +31,44 @@ interface IAbsorbArgs {
 }
 
 /**
+ * Root fields a bank may use to explain a rejection, in preference order.
+ * Names only — no bank-specific shape, per Rule #11.
+ */
+const ERROR_FIELDS = ['message', 'explanation', 'error'] as const;
+
+/**
+ * The bank's own rejection text, when the envelope carries one.
+ *
+ * <p>A rejected call still answers HTTP 200 with an error envelope, so the
+ * selector simply misses. Reporting only the missing pointer threw away the
+ * one field that says WHY: PayBox's `pinValidation` returned
+ * `explanation/code/name/message` and the pipeline reported
+ * "envelope selector miss: accessToken2", which is undiagnosable from a log.
+ *
+ * @param doc - Response envelope.
+ * @returns The reason string, or false when the envelope explains nothing.
+ */
+function envelopeError(doc: JsonValue): string | false {
+  if (!isPlainObject(doc)) return false;
+  const record: IJsonObject = doc;
+  const hit = ERROR_FIELDS.find((field: string): boolean => typeof record[field] === 'string');
+  if (hit === undefined) return false;
+  const value = record[hit];
+  return typeof value === 'string' ? value : false;
+}
+
+/**
  * Build the deterministic miss-failure for a selector entry.
- * @param entry - [selectorName, pointer] tuple that failed.
+ * @param args - {@link IAbsorbArgs} bundle carrying the entry and envelope.
  * @returns ScraperError-shaped failure procedure.
  */
-function missFailure(entry: readonly [string, string]): Procedure<Record<string, JsonValue>> {
-  const [name, pointer] = entry;
-  return fail(ScraperErrorTypes.Generic, `envelope selector miss: ${name} at ${pointer}`);
+function missFailure(args: IAbsorbArgs): Procedure<Record<string, JsonValue>> {
+  const [name, pointer] = args.entry;
+  const at = `${name} at ${pointer}`;
+  const reason = envelopeError(args.doc);
+  if (reason === false) return fail(ScraperErrorTypes.Generic, `envelope selector miss: ${at}`);
+  const masked = maskVisibleText(reason);
+  return fail(ScraperErrorTypes.Generic, `envelope selector miss: ${at} — bank said: ${masked}`);
 }
 
 /**
@@ -48,7 +80,7 @@ function missFailure(entry: readonly [string, string]): Procedure<Record<string,
 function absorbSelector(args: IAbsorbArgs): Procedure<Record<string, JsonValue>> {
   const [name, pointer] = args.entry;
   const walked = walkPointer(args.doc, pointer);
-  if (!isOk(walked)) return missFailure(args.entry);
+  if (!isOk(walked)) return missFailure(args);
   args.acc[name] = walked.value;
   return succeed(args.acc);
 }
