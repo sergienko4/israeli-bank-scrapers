@@ -51,13 +51,33 @@ function primeRetry(name: PhaseName, logger: IPipelineContext['logger']): true {
  */
 const TWO_PULSE_PHASES: ReadonlySet<PhaseName> = new Set<PhaseName>(['home']);
 
+/** Pulses granted to a phase listed in {@link TWO_PULSE_PHASES}. */
+const TWO_PULSE_BUDGET = 2 as const;
+
+/** Pulses every other phase keeps — the pipeline-wide single retry. */
+const ONE_PULSE_BUDGET = 1 as const;
+
 /**
  * Recovery pulses a failed phase may consume.
  * @param name - Phase that failed.
  * @returns Pulse budget for that phase.
  */
 function pulseBudget(name: PhaseName): number {
-  return TWO_PULSE_PHASES.has(name) ? 2 : 1;
+  return TWO_PULSE_PHASES.has(name) ? TWO_PULSE_BUDGET : ONE_PULSE_BUDGET;
+}
+
+/**
+ * Record which pulse is about to run and how many the phase may spend.
+ * @param args - Bundled pulse arguments.
+ * @param attempt - 1-based pulse number.
+ * @returns True once the line is written.
+ */
+function logPulse(args: IPulseArgs, attempt: number): boolean {
+  const { ctx, step } = args;
+  const budget = pulseBudget(step.name);
+  const nth = `${String(attempt)}/${String(budget)}`;
+  ctx.logger.debug({ message: `sanitization-pulse: ${step.name} (${nth})` });
+  return true;
 }
 
 /**
@@ -69,9 +89,7 @@ function pulseBudget(name: PhaseName): number {
  */
 async function pulseOnce(args: IPulseArgs, attempt: number): Promise<IPipelineContext | false> {
   const { tracker, ctx, step } = args;
-  const budget = pulseBudget(step.name);
-  const nth = `${String(attempt)}/${String(budget)}`;
-  ctx.logger.debug({ message: `sanitization-pulse: ${step.name} (${nth})` });
+  logPulse(args, attempt);
   const pulsed = await applyInterceptors(tracker, ctx, step.name);
   if (!isOk(pulsed)) return false;
   primeRetry(step.name, ctx.logger);

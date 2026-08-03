@@ -118,6 +118,17 @@ async function readBox(handle: ElementHandle): Promise<IFrameBox | false> {
 }
 
 /**
+ * Resolve the checkbox's on-page box straight from its frame.
+ * @param frame - The challenge frame.
+ * @returns The box, or false when the frame is detached or has no box.
+ */
+async function resolveFrameBox(frame: Frame): Promise<IFrameBox | false> {
+  const handle = await getFrameElement(frame);
+  if (handle === false) return false;
+  return readBox(handle);
+}
+
+/**
  * Run the documented Camoufox auto-pass recipe on a hCaptcha checkbox.
  *
  * <p>Settles again after the click: the click only submits the token, and the
@@ -130,9 +141,7 @@ async function readBox(handle: ElementHandle): Promise<IFrameBox | false> {
  */
 async function solveHCaptchaCheckbox(args: ISolverArgs): Promise<DidSolve> {
   await waitForSettle(args.page);
-  const handle = await getFrameElement(args.frame);
-  if (handle === false) return DID_SOLVE_FALSE;
-  const box = await readBox(handle);
+  const box = await resolveFrameBox(args.frame);
   if (box === false) return DID_SOLVE_FALSE;
   const clicked = await clickCentreSafe(args.page, box);
   if (!clicked) return DID_SOLVE_FALSE;
