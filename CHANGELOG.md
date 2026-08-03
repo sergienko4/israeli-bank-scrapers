@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.6.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.1...v8.6.2) (2026-08-03)
+
+
+### Bug Fixes
+
+* **pipeline:** stop popup probe closing login UI ([#440](https://github.com/sergienko4/israeli-bank-scrapers/issues/440)) ([5c398c0](https://github.com/sergienko4/israeli-bank-scrapers/commit/5c398c0a8d3b6cc4161585dd0aa08bc8caf3d780))
+
 ## [8.6.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.0...v8.6.1) (2026-07-29)
 
 
