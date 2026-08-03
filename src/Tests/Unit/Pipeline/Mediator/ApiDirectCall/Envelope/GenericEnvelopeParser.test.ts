@@ -156,4 +156,18 @@ describe('GenericEnvelopeParser.extractFields — error envelopes (T-ENV)', () =
     const reason = result.success ? '' : result.errorMessage;
     expect(reason).toBe('envelope selector miss: accessToken2 at /content/access_token');
   });
+
+  it('T-ENV-4 (FIRING): skips a blank field for one that carries the reason', () => {
+    const doc = { message: '   ', explanation: 'card is blocked' };
+    const result = extractFields(doc, { accessToken2: '/content/access_token' });
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toContain('card is blocked');
+  });
+
+  it('T-ENV-5: explains nothing when every error field is blank', () => {
+    const doc = { message: '', explanation: '   ', error: '' };
+    const result = extractFields(doc, { accessToken2: '/content/access_token' });
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toBe('envelope selector miss: accessToken2 at /content/access_token');
+  });
 });

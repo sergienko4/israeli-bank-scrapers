@@ -37,6 +37,20 @@ interface IAbsorbArgs {
 const ERROR_FIELDS = ['message', 'explanation', 'error'] as const;
 
 /**
+ * Whether the field carries text a human could act on.
+ *
+ * <p>Blank counts as absent. Banks send the whole set and leave the ones they
+ * did not fill as `""`, so matching on type alone reported `bank said:` with
+ * nothing after it and hid the field that actually held the reason.
+ * @param value - Candidate field value.
+ * @returns True when the value is a non-blank string.
+ */
+function isReasonText(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  return value.trim().length > 0;
+}
+
+/**
  * The bank's own rejection text, when the envelope carries one.
  *
  * <p>A rejected call still answers HTTP 200 with an error envelope, so the
@@ -51,7 +65,7 @@ const ERROR_FIELDS = ['message', 'explanation', 'error'] as const;
 function envelopeError(doc: JsonValue): string | false {
   if (!isPlainObject(doc)) return false;
   const record: IJsonObject = doc;
-  const hit = ERROR_FIELDS.find((field: string): boolean => typeof record[field] === 'string');
+  const hit = ERROR_FIELDS.find((field: string): boolean => isReasonText(record[field]));
   if (hit === undefined) return false;
   const value = record[hit];
   return typeof value === 'string' ? value : false;
