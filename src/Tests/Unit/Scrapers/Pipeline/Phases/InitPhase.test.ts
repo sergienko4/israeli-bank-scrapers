@@ -26,6 +26,27 @@ jest.unstable_mockModule(
   }),
 );
 
+/**
+ * Ordered record of cleanup side effects, appended by the mocked session
+ * store and the close stubs so the drain order is assertable.
+ */
+const CLEANUP_ORDER: string[] = [];
+
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserSessionStore.js',
+  () => ({
+    loadSessionState: jest.fn().mockReturnValue(false),
+    /**
+     * Stand-in save that records when it ran relative to the closes.
+     * @returns True — a session file was written.
+     */
+    saveSessionStateSafe: jest.fn((): Promise<boolean> => {
+      CLEANUP_ORDER.push('save');
+      return Promise.resolve(true);
+    }),
+  }),
+);
+
 /** Mock mediator shape for createElementMediator. */
 const MOCK_MEDIATOR = {
   resolveField: jest.fn(),
@@ -50,6 +71,8 @@ jest.unstable_mockModule(
 const CAMOUFOX_MOD =
   await import('../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const INIT_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/InitPhaseFactory.js');
+const TERMINATE_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Terminate/TerminateActions.js');
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -103,6 +126,25 @@ const MAKE_BROWSER_MOCK = (): IMockBrowserStack => {
   };
   return { mockBrowser, mockContext, mockPage };
 };
+
+/** Mock exposing a jest `close`, used to record the cleanup drain order. */
+interface ICloseableMock {
+  readonly close: jest.Mock;
+}
+
+/**
+ * Re-wire a mock's close to append its label to {@link CLEANUP_ORDER}.
+ * @param closeable - Mock whose close should be recorded.
+ * @param label - Name recorded when close runs.
+ * @returns True once the recorder is installed.
+ */
+function recordCloseOrder(closeable: ICloseableMock, label: string): boolean {
+  closeable.close.mockImplementation((): Promise<boolean> => {
+    CLEANUP_ORDER.push(label);
+    return Promise.resolve(true);
+  });
+  return true;
+}
 
 // ── Tests ─────────────────────────────────────────────────
 
@@ -242,26 +284,28 @@ describe('InitPhase/success', () => {
 });
 
 describe('InitPhase/cleanups', () => {
-  it('cleanup functions close page, context, browser', async () => {
+  it('drains LIFO so the session is saved before anything closes', async () => {
+    CLEANUP_ORDER.length = 0;
     const { mockBrowser, mockContext, mockPage } = MAKE_BROWSER_MOCK();
     const launchFn = CAMOUFOX_MOD.launchCamoufox as jest.Mock;
     launchFn.mockResolvedValue(mockBrowser);
+    recordCloseOrder(mockPage, 'page');
+    recordCloseOrder(mockContext, 'context');
+    recordCloseOrder(mockBrowser, 'browser');
     const ctx = MAKE_MOCK_CONTEXT();
     const result = await INIT_MOD.INIT_STEP.execute(ctx, ctx);
     assertOk(result);
     const browserState = result.value.browser;
     assertHas(browserState);
     const cleanups = browserState.value.cleanups;
-    expect(cleanups).toHaveLength(3);
-    const didCloseBrowser = await cleanups[0]();
-    expect(didCloseBrowser.success).toBe(true);
-    expect(mockBrowser.close).toHaveBeenCalled();
-    const didCloseContext = await cleanups[1]();
-    expect(didCloseContext.success).toBe(true);
-    expect(mockContext.close).toHaveBeenCalled();
-    const didClosePage = await cleanups[2]();
-    expect(didClosePage.success).toBe(true);
-    expect(mockPage.close).toHaveBeenCalled();
+    const count = await TERMINATE_MOD.runAllCleanups(cleanups, ctx.logger);
+    // The drain is LIFO, so the save must sit LAST in the array to run
+    // FIRST. Anywhere else it runs after browser.close() and persists
+    // nothing — storageState throws on a closed context.
+    expect({ count, order: CLEANUP_ORDER }).toEqual({
+      count: 4,
+      order: ['save', 'page', 'context', 'browser'],
+    });
   });
 });
 

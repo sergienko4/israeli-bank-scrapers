@@ -96,8 +96,12 @@ interface ILaunchedBrowser {
 }
 
 /**
- * Cleanup that persists the session before anything is torn down — ordered
- * first because closing the browser takes the context's cookies with it.
+ * Cleanup that persists the session while the context is still alive.
+ *
+ * <p>Ordered LAST in {@link buildCleanups} on purpose: the pipeline drains
+ * cleanups LIFO, so the last entry runs first. Closing the browser takes the
+ * context's cookies with it, and `storageState` on a closed context throws —
+ * a save placed anywhere else would silently persist nothing.
  * @param launched - Launched handles + bank id.
  * @returns Async cleanup returning Procedure.
  */
@@ -109,13 +113,14 @@ function saveHandler(launched: ILaunchedBrowser): () => Promise<Procedure<void>>
 }
 
 /**
- * Build cleanup handlers for browser lifecycle.
+ * Build cleanup handlers for browser lifecycle. Consumers drain this array
+ * LIFO, so it reads back-to-front: save, page, context, browser.
  * @param launched - Launched handles + bank id.
  * @returns Ordered cleanup array.
  */
 function buildCleanups(launched: ILaunchedBrowser): IBrowserState['cleanups'] {
   const { page, context, browser } = launched;
-  return [saveHandler(launched), closeHandler(browser), closeHandler(context), closeHandler(page)];
+  return [closeHandler(browser), closeHandler(context), closeHandler(page), saveHandler(launched)];
 }
 
 /**
