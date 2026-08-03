@@ -312,11 +312,14 @@ jobs:
             || echo '{"note":"absent on base","cycleCount":0,"cycles":[]}' > "${base_file}"
           npx tsx src/Tests/Tools/lint-import-cycles.ts --guard-against "${base_file}"
 
+      # A lockfile-only bump (`deps` without `full_suite`) is precisely the
+      # change that can pull in a vulnerable transitive dependency, so these
+      # carry the same `|| deps` fallback as setup-node-deps above.
       - name: Audit production dependencies
-        if: needs.changes.outputs.full_suite == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         run: npm audit --audit-level=high --omit=dev
       - name: Audit all dependencies (informational)
-        if: needs.changes.outputs.full_suite == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         run: npm audit --audit-level=high
         continue-on-error: true
 

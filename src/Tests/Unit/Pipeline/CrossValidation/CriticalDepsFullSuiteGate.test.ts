@@ -48,9 +48,21 @@ const DETECTOR_OUTPUT_BRANCHES = 3;
 /** Flags that must be emitted on every one of those branches. */
 const DETECTOR_FLAGS = ['critical_deps', 'full_suite'] as const;
 
+/** Steps that must also fire on a lockfile-only bump, not just `full_suite`. */
+const AUDIT_STEP_NAMES = [
+  'Audit production dependencies',
+  'Audit all dependencies (informational)',
+] as const;
+
+interface IPrYamlStep {
+  readonly name?: string;
+  readonly if?: unknown;
+}
+
 interface IPrYamlJob {
   readonly if?: unknown;
   readonly outputs?: Readonly<Record<string, string>>;
+  readonly steps?: readonly IPrYamlStep[];
 }
 
 interface IPrYamlDoc {
@@ -115,6 +127,20 @@ function jobOutputKeys(key: string): readonly string[] {
 }
 
 /**
+ * Resolve the `if:` conditions of every identically named step in a job.
+ *
+ * @param jobKey - YAML job key under `jobs:`.
+ * @param stepName - Exact `name:` of the step to match.
+ * @returns One condition string per matching step.
+ */
+function stepConditions(jobKey: string, stepName: string): readonly string[] {
+  const matched = findJob(jobKey);
+  const steps = matched.flatMap((job): IPrYamlStep[] => [...(job.steps ?? [])]);
+  const named = steps.filter((step): boolean => step.name === stepName);
+  return named.map((step): string => (typeof step.if === 'string' ? step.if : ''));
+}
+
+/**
  * Count non-overlapping occurrences of a literal needle.
  *
  * @param haystack - Text to scan.
@@ -166,6 +192,17 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(condition).toContain("full_suite == 'true'");
     expect(condition).not.toContain("outputs.src == 'true'");
   });
+
+  it.each(AUDIT_STEP_NAMES)(
+    '[CI-CRIT-GATE] PrYaml_AuditStep_%s_ShouldCoverDepsOnlyBumps',
+    stepName => {
+      const conditions = stepConditions('lint-and-types', stepName);
+      expect(conditions).toHaveLength(1);
+      const condition = conditions.join('');
+      expect(condition).toContain("full_suite == 'true'");
+      expect(condition).toContain("deps == 'true'");
+    },
+  );
 
   it('[CI-CRIT-GATE] GateScript_RealGates_ShouldConsumeFullSuite', () => {
     const script = read(GATE_SCRIPT);
