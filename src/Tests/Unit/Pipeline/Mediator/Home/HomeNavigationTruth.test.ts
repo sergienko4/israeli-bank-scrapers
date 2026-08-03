@@ -96,6 +96,13 @@ const CASES: readonly INavCase[] = [
     expected: true,
     why: 'scheme upgrade is a move',
   },
+  {
+    id: 'T-NAVURL-12',
+    homepageUrl: 'https://x.co.il/he',
+    currentUrl: 'https://x.co.il/he///',
+    expected: false,
+    why: 'repeated trailing slashes collapse without backtracking',
+  },
 ];
 
 /**
@@ -117,7 +124,7 @@ describe('HOME navigation truth (T-NAVURL)', () => {
     });
   });
 
-  it('T-NAVURL-12: never throws on malformed input', () => {
+  it('T-NAVURL-13: never throws on malformed input', () => {
     expect(probeEmpty).not.toThrow();
   });
 });

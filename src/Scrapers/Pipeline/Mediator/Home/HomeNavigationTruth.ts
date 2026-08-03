@@ -15,15 +15,26 @@ import type { Brand } from '../../Types/Brand.js';
 /** True when the browser has left the configured homepage. */
 type DidNavigate = Brand<boolean, 'DidNavigate'>;
 
+/** Path separator, and the value a fully-trimmed path collapses to. */
+const SLASH = '/';
+
 /**
  * Collapse a trailing slash so `''`, `'/'` and `'/he/'` compare equal to their
  * unslashed forms.
+ *
+ * <p>Scans instead of using `/\/+$/` — that pattern backtracks super-linearly
+ * on a long run of slashes (typescript:S8786), and the URL here is attacker-
+ * influenced via redirects.
+ *
  * @param pathname - URL pathname component.
  * @returns Pathname without a trailing slash, or `'/'` when empty.
  */
 function normalizePath(pathname: string): string {
-  const trimmed = pathname.replace(/\/+$/u, '');
-  return trimmed.length === 0 ? '/' : trimmed;
+  let end = pathname.length;
+  while (end > 0 && pathname[end - 1] === SLASH) {
+    end -= 1;
+  }
+  return end === 0 ? SLASH : pathname.slice(0, end);
 }
 
 /**
