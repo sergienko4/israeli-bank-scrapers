@@ -1,23 +1,22 @@
 /**
- * T-DISMISS — the obstruction-clearing primitive, including the late-overlay
- * case that shipped unnoticed.
+ * T-DISMISS — the obstruction-clearing primitive, and the dwell budget it
+ * must never exceed.
  *
- * <p>Banks stagger their overlays. max.co.il paints its consent bar at once and
- * its marketing modal 21.3 s after DOMContentLoaded (measured). The probe used
- * the default race timeout for every attempt and returned at the first miss,
- * giving it a ~7 s window: it cleared the consent bar, looked once more, found
- * nothing, and reported the page clear — then the modal painted over it and
- * swallowed every click HOME made.
+ * <p>A follow-up attempt once waited 30 s for a late overlay. Every bank that
+ * shows any popup therefore held its homepage in a continuous multi-locator
+ * race for half a minute: measured at **34 457 ms** for one Discount probe
+ * against ~6 s before. Akamai answered a CI-runner IP with an edge block, and
+ * HOME failed with "no login nav link found" on a page that was never the
+ * homepage.
  *
- * <p>No layer caught that, because `dismissPopups` had no direct test at all.
- * T-DISMISS-1 fails against the pre-fix primitive.
+ * <p>T-DISMISS-2 pins the budget: the probe may never ask for a longer wait
+ * than the mediator's default. Late overlays belong to the sanitization
+ * pulse, which re-probes after HOME.POST fails — later in wall-clock time
+ * than any widened wait, at no idle cost.
  */
 
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import {
-  dismissPopups,
-  LATE_POPUP_WATCH_MS,
-} from '../../../../../Scrapers/Pipeline/Mediator/Elements/PopupDismiss.js';
+import { dismissPopups } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PopupDismiss.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -30,53 +29,32 @@ const SILENT = {
   debug: (): boolean => true,
 } as unknown as ScraperLogger;
 
-/**
- * One recorded dismissal attempt. `hasTimeout` keeps an omitted timeout
- * distinguishable from an explicit `0`, which a bare number cannot.
- */
-interface IProbeAttempt {
-  readonly hasTimeout: boolean;
-  readonly timeoutMs: number;
-}
-
-/** Records what each dismissal attempt asked for. */
+/** Records whether each attempt asked the mediator to wait longer than default. */
 interface IProbeRecorder {
   readonly mediator: IElementMediator;
-  readonly timeouts: IProbeAttempt[];
-}
-
-/** Describes when a scripted overlay becomes resolvable. */
-interface IOverlayScript {
-  /** Overlays visible immediately, consumed in order. */
-  readonly immediate: number;
-  /** True when one more overlay resolves only for a caller willing to wait. */
-  readonly hasLateOverlay: boolean;
+  readonly heldPage: boolean[];
 }
 
 /**
- * Build a mediator that mimics a page whose overlays appear on a schedule.
- * A late overlay resolves only when the caller passes a long enough timeout —
- * exactly how a real race behaves against an element that has not painted yet.
- * @param script - Which overlays exist and when.
- * @returns Stub mediator plus the recorded per-attempt timeouts.
+ * Build a mediator standing in for a page carrying `immediate` overlays,
+ * consumed one per attempt.
+ * @param immediate - How many overlays are visible right now.
+ * @returns Stub mediator plus one flag per attempt.
  */
-function makeRecordingMediator(script: IOverlayScript): IProbeRecorder {
-  const timeouts: IProbeAttempt[] = [];
-  const state = { immediateLeft: script.immediate };
+function makeRecordingMediator(immediate: number): IProbeRecorder {
+  const heldPage: boolean[] = [];
+  const state = { left: immediate };
   const mediator = {
     /**
-     * Resolve a close control if one is visible to this caller.
+     * Resolve a close control if one is still visible.
      * @param _candidates - Ignored; the script decides.
-     * @param timeoutMs - How long the caller is willing to wait.
-     * @returns Succeed with found=true when an overlay resolves.
+     * @param timeoutMs - Explicit race budget, when the caller supplies one.
+     * @returns Succeed with found=true while overlays remain.
      */
     resolveAndClick: (_candidates: unknown, timeoutMs?: number): Promise<unknown> => {
-      const waited = timeoutMs ?? 0;
-      timeouts.push({ hasTimeout: waited === timeoutMs, timeoutMs: waited });
-      const isPatient = waited >= LATE_POPUP_WATCH_MS;
-      const hasImmediate = state.immediateLeft > 0;
-      if (hasImmediate) state.immediateLeft -= 1;
-      const isFound = hasImmediate || (script.hasLateOverlay && isPatient);
+      heldPage.push(timeoutMs !== undefined);
+      const isFound = state.left > 0;
+      if (isFound) state.left -= 1;
       const outcome = succeed({ found: isFound, value: 'close' });
       return Promise.resolve(outcome);
     },
@@ -89,37 +67,31 @@ function makeRecordingMediator(script: IOverlayScript): IProbeRecorder {
       return Promise.resolve(idle);
     },
   } as unknown as IElementMediator;
-  return { mediator, timeouts };
+  return { mediator, heldPage };
 }
 
 describe('PopupDismiss — obstruction clearing (T-DISMISS)', () => {
-  it('T-DISMISS-1: clears a late overlay that paints after the first sweep', async () => {
-    const { mediator } = makeRecordingMediator({ immediate: 1, hasLateOverlay: true });
+  it('T-DISMISS-1: clears the overlays a page is showing', async () => {
+    const { mediator } = makeRecordingMediator(1);
     const dismissed = await dismissPopups(mediator, SILENT);
-    expect(dismissed).toBe(2);
+    expect(dismissed).toBe(1);
   });
 
-  it('T-DISMISS-2: widens the wait only after something was dismissed', async () => {
-    const { mediator, timeouts } = makeRecordingMediator({ immediate: 1, hasLateOverlay: true });
+  it('T-DISMISS-2 (FIRING): never holds the page beyond the default wait', async () => {
+    const { mediator, heldPage } = makeRecordingMediator(1);
     await dismissPopups(mediator, SILENT);
-    expect(timeouts).toEqual([
-      { hasTimeout: false, timeoutMs: 0 },
-      { hasTimeout: true, timeoutMs: LATE_POPUP_WATCH_MS },
-    ]);
+    expect(heldPage).toEqual([false, false]);
   });
 
-  it('T-DISMISS-3: a clean page pays no extended wait', async () => {
-    const { mediator, timeouts } = makeRecordingMediator({ immediate: 0, hasLateOverlay: false });
+  it('T-DISMISS-3: a clean page costs exactly one probe', async () => {
+    const { mediator, heldPage } = makeRecordingMediator(0);
     const dismissed = await dismissPopups(mediator, SILENT);
-    expect({ dismissed, probes: timeouts }).toEqual({
-      dismissed: 0,
-      probes: [{ hasTimeout: false, timeoutMs: 0 }],
-    });
+    expect({ dismissed, probes: heldPage.length }).toEqual({ dismissed: 0, probes: 1 });
   });
 
   it('T-DISMISS-4: stops at the attempt cap on an endlessly popping page', async () => {
-    const { mediator, timeouts } = makeRecordingMediator({ immediate: 99, hasLateOverlay: false });
+    const { mediator, heldPage } = makeRecordingMediator(99);
     const dismissed = await dismissPopups(mediator, SILENT);
-    expect({ dismissed, probeCount: timeouts.length }).toEqual({ dismissed: 2, probeCount: 2 });
+    expect({ dismissed, probes: heldPage.length }).toEqual({ dismissed: 2, probes: 2 });
   });
 });
