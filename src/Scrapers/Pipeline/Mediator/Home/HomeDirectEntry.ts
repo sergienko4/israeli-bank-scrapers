@@ -31,7 +31,7 @@ import { WK_HOME } from '../../Registry/WK/HomeWK.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
-import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 import type { NavStrategy } from './HomeStrategyClassify.js';
 import { classifyStrategy, NAV_STRATEGY } from './HomeStrategyClassify.js';
 
@@ -56,12 +56,19 @@ const ENTRY_AND_MENU = [
 
 /**
  * Resolve every visible entry or revealed menu candidate in DOM order.
+ *
+ * <p>Uses the short re-find budget, not the pre-click discovery budget: the
+ * primary trigger has already been resolved, so this only asks what is visible
+ * *now*. A revealed menu item exists the moment its toggle is clicked and never
+ * appears by waiting, so a long ceiling buys nothing and holds the homepage in
+ * a 41-locator race — the same shape that got a CI-runner IP edge-blocked.
+ *
  * @param mediator - Element mediator providing the visibility race.
  * @returns Up to one result per candidate, empty when none visible.
  */
 async function resolveAllEntries(mediator: IElementMediator): Promise<readonly IRaceResult[]> {
   const cap = ENTRY_AND_MENU.length;
-  return mediator.resolveAllVisible(ENTRY_AND_MENU, HOME_RESOLVER_ENTRY_TIMEOUT_MS, cap);
+  return mediator.resolveAllVisible(ENTRY_AND_MENU, HOME_ENTRY_TIMEOUT_MS, cap);
 }
 
 /**
