@@ -36,6 +36,7 @@ jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserSessionStore.js',
   () => ({
     loadSessionState: jest.fn().mockReturnValue(false),
+    isSessionEnabled: jest.fn().mockReturnValue(true),
     /**
      * Stand-in save that records when it ran relative to the closes.
      * @returns True — a session file was written.

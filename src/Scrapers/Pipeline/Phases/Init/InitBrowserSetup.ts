@@ -5,9 +5,11 @@
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../../Base/Interface.js';
 import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
 import {
+  isSessionEnabled,
   loadSessionState,
   saveSessionStateSafe,
 } from '../../Mediator/Browser/BrowserSessionStore.js';
@@ -15,7 +17,10 @@ import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IBrowserState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { succeed } from '../../Types/Procedure.js';
+import { fail, succeed } from '../../Types/Procedure.js';
+
+/** Static and PII-free: the bank id and path stay out of the log line. */
+const SESSION_SAVE_FAILED = 'Browser session save failed';
 
 /** Per-step browser-lifecycle outcome — branded so Rule #15 accepts it. */
 type DidLifecycleStep = Brand<boolean, 'DidLifecycleStep'>;
@@ -102,14 +107,20 @@ interface ILaunchedBrowser {
  * cleanups LIFO, so the last entry runs first. Closing the browser takes the
  * context's cookies with it, and `storageState` on a closed context throws —
  * a save placed anywhere else would silently persist nothing.
+ *
+ * <p>Reports a failed save rather than swallowing it. The drain tallies each
+ * cleanup and moves on, so this costs nothing but buys a log line the silent
+ * version never gave us. A disabled feature is not a failure, hence the
+ * {@link isSessionEnabled} guard.
  * @param launched - Launched handles + bank id.
  * @returns Async cleanup returning Procedure.
  */
 function saveHandler(launched: ILaunchedBrowser): () => Promise<Procedure<void>> {
-  return (): Promise<Procedure<void>> =>
-    saveSessionStateSafe(launched.context, launched.companyId).then((): Procedure<void> =>
-      succeed(undefined),
-    );
+  return async (): Promise<Procedure<void>> => {
+    const didWrite = await saveSessionStateSafe(launched.context, launched.companyId);
+    if (didWrite || !isSessionEnabled()) return succeed(undefined);
+    return fail(ScraperErrorTypes.Generic, SESSION_SAVE_FAILED);
+  };
 }
 
 /**
