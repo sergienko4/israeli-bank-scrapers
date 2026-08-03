@@ -53,29 +53,45 @@ interface IDismissState extends IDismissAttempt {
 }
 
 /**
- * Attempt to dismiss one popup via WK_CLOSE_POPUP.
- * @param root0 - Inputs for this attempt.
- * @param root0.mediator - Element mediator.
- * @param root0.logger - Pipeline logger.
- * @param root0.attempt - 1-based attempt index.
- * @param root0.timeoutMs - Race timeout for this attempt.
- * @returns True if a popup was found and clicked.
+ * Click the first close control that resolves for this attempt.
+ * @param input - Inputs for this attempt.
+ * @returns Masked text of the dismissed control, or false when none resolved.
  */
-async function tryDismissOnce({
-  mediator,
-  logger,
-  attempt,
-  timeoutMs,
-}: IDismissAttempt): Promise<boolean> {
-  const result = await mediator
-    .resolveAndClick(WK_CLOSE_POPUP, timeoutMs)
+async function clickCloseControl(input: IDismissAttempt): Promise<string | false> {
+  const result = await input.mediator
+    .resolveAndClick(WK_CLOSE_POPUP, input.timeoutMs)
     .catch((): false => false);
   if (result === false) return false;
   if (!result.success || !result.value.found) return false;
-  const masked = maskVisibleText(result.value.value);
-  logger.debug({ text: masked, attempt, max: MAX_POPUP_ATTEMPTS });
-  await mediator.waitForNetworkIdle(POPUP_SETTLE_MS).catch((): false => false);
+  return maskVisibleText(result.value.value);
+}
+
+/**
+ * Attempt to dismiss one popup via WK_CLOSE_POPUP.
+ * @param input - Inputs for this attempt.
+ * @returns True if a popup was found and clicked.
+ */
+async function tryDismissOnce(input: IDismissAttempt): Promise<boolean> {
+  const masked = await clickCloseControl(input);
+  if (masked === false) return false;
+  input.logger.debug({ text: masked, attempt: input.attempt, max: MAX_POPUP_ATTEMPTS });
+  await input.mediator.waitForNetworkIdle(POPUP_SETTLE_MS).catch((): false => false);
   return true;
+}
+
+/**
+ * Advance to the next attempt, widening the wait now that an overlay has been
+ * seen on this page.
+ * @param state - Current recursion state.
+ * @returns State for the following attempt.
+ */
+function nextAttempt(state: IDismissState): IDismissState {
+  return {
+    ...state,
+    attempt: state.attempt + 1,
+    dismissed: state.dismissed + 1,
+    timeoutMs: LATE_POPUP_WATCH_MS,
+  };
 }
 
 /**
@@ -98,12 +114,7 @@ async function dismissFrom(state: IDismissState): Promise<number> {
   if (state.attempt > MAX_POPUP_ATTEMPTS) return state.dismissed;
   const didDismiss = await tryDismissOnce(state);
   if (!didDismiss) return state.dismissed;
-  const next = {
-    ...state,
-    attempt: state.attempt + 1,
-    dismissed: state.dismissed + 1,
-    timeoutMs: LATE_POPUP_WATCH_MS,
-  };
+  const next = nextAttempt(state);
   return dismissFrom(next);
 }
 
