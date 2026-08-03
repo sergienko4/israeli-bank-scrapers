@@ -158,6 +158,7 @@ jobs:
       pipeline_ts: ${{ steps.changes.outputs.pipeline_ts }}
       ci_scripts: ${{ steps.changes.outputs.ci_scripts }}
       deps: ${{ steps.changes.outputs.deps }}
+      test_config: ${{ steps.changes.outputs.test_config }}
       # Single-source-of-truth booleans for downstream `if:` conditions.
       # `trusted_event` — true unless this is a PR from a fork (untrusted secrets).
       # `real_gates_enabled` — true only when ALL prerequisites for running real-network /
@@ -315,11 +316,17 @@ jobs:
   # Unit tests with coverage — parallel with the e2e and integration
   # jobs. Camoufox is NOT needed here (jest.pipeline.config.cjs
   # excludes the browser-driven suites).
+  #
+  # Also runs when only `deps` or `test_config` changed. A test-time
+  # dependency bump (`@jest/globals`, `@types/*`) or a Jest config edit
+  # (`transformIgnorePatterns`, `moduleNameMapper`, `testEnvironment`)
+  # can ONLY regress here, and neither touches a `src/` file — so
+  # gating on `src` alone let those land unvalidated.
   # ──────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit tests
     needs: changes
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

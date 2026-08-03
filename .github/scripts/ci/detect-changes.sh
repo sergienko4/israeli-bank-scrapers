@@ -16,6 +16,11 @@
 #                 (drives the docs-coverage canary)
 #   ci_scripts  — `.github/scripts/ci/**` or `.github/workflows/**`
 #                 was modified (drives the CI scripts smoke test)
+#   test_config — a Jest config (`jest.*.js` / `jest.*.cjs`) was modified.
+#                 These files sit at the repo root, so they match NO other
+#                 group: a change to `transformIgnorePatterns`, `moduleNameMapper`
+#                 or `testEnvironment` used to reach main with the unit suite
+#                 never having run under the new config. Forces `unit-tests`.
 #   deps        — `package.json`, `package-lock.json`, or
 #                 `.github/dependabot.yml` was modified. Forces the
 #                 browser E2E gates (e2e-mocked + e2e-factory) to RUN on
@@ -24,6 +29,9 @@
 #                 playwright-core could land UNvalidated against Camoufox
 #                 (the 1.61.0 `Browser.setDefaultViewport` regression that
 #                 broke `browser.newContext` slipped onto main this way).
+#                 Also forces `unit-tests`: a bump to a test-time dependency
+#                 (`@jest/globals`, `@types/*`, `ts-jest`) can only surface
+#                 there, and those bumps touch no `src/` file either.
 #
 # Why one detector instead of `paths:` filters per workflow:
 # Workflow-level `paths:` filters skip the WHOLE workflow on path
@@ -51,6 +59,7 @@ if [ -z "${BASE_SHA:-}" ] || [ "${BASE_SHA}" = "${ZERO_SHA}" ]; then
     echo "pipeline_ts=true"
     echo "ci_scripts=true"
     echo "deps=true"
+    echo "test_config=true"
   } >> "$GITHUB_OUTPUT"
   exit 0
 fi
@@ -80,6 +89,7 @@ if [ -z "${changed_files}" ]; then
     echo "pipeline_ts=false"
     echo "ci_scripts=false"
     echo "deps=false"
+    echo "test_config=false"
   } >> "$GITHUB_OUTPUT"
   exit 0
 fi
@@ -103,6 +113,7 @@ docs=false
 pipeline_ts=false
 ci_scripts=false
 deps=false
+test_config=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
@@ -110,6 +121,7 @@ if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then deps=true; fi
+if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
 
 {
   echo "src=${src}"
@@ -118,6 +130,7 @@ if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then d
   echo "pipeline_ts=${pipeline_ts}"
   echo "ci_scripts=${ci_scripts}"
   echo "deps=${deps}"
+  echo "test_config=${test_config}"
 } >> "$GITHUB_OUTPUT"
 
 echo "[detect-changes] decisions:"
@@ -127,3 +140,4 @@ echo "  docs=${docs}"
 echo "  pipeline_ts=${pipeline_ts}"
 echo "  ci_scripts=${ci_scripts}"
 echo "  deps=${deps}"
+echo "  test_config=${test_config}"
