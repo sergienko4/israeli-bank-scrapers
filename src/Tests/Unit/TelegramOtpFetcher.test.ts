@@ -11,29 +11,12 @@
 import { jest } from '@jest/globals';
 
 import { fetchOtpFromTelegram, type ITelegramFetchArgs } from '../E2eReal/TelegramOtpFetcher.js';
-
-/** Minimal pino-shaped logger for tests. */
-interface ITestLogger {
-  readonly trace: jest.Mock;
-  readonly debug: jest.Mock;
-  readonly info: jest.Mock;
-  readonly warn: jest.Mock;
-  readonly error: jest.Mock;
-}
-
-/**
- * Build a fresh stub logger.
- * @returns Logger with every method as `jest.fn()`.
- */
-function makeStubLogger(): ITestLogger {
-  return {
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  };
-}
+import {
+  type IHttpFailure,
+  type ITestLogger,
+  makeFailedResponse,
+  makeStubLogger,
+} from '../Helpers/TelegramOtpFixtures.js';
 
 /** Captures `fetch` calls per test. */
 let fetchSpy: jest.Mock;
@@ -386,13 +369,6 @@ function flushUntilUrlPresent(spy: jest.Mock, urlRegex: RegExp, maxTicks = 200):
 /** Token used only by the leak probe — never a real credential. */
 const LEAK_PROBE_TOKEN = '123456:AA-LEAK-PROBE-TOKEN';
 
-/** HTTP-level failure knobs for a `sendMessage` stub. */
-interface IHttpFailure {
-  readonly status: number;
-  readonly statusText: string;
-  readonly body: Record<string, unknown>;
-}
-
 /**
  * Named transport error for rejection fixtures. `AbortSignal.timeout`
  * really does throw a `DOMException` named `TimeoutError`, so this
@@ -405,23 +381,6 @@ interface IHttpFailure {
  */
 function makeTransportError(name: string, message: string): Error {
   return new DOMException(message, name);
-}
-
-/**
- * Build a rejected Response stub (`ok:false`) so the fetcher takes
- * its HTTP-error branch rather than the `ok:false` envelope branch.
- *
- * @param failure - Status/body knobs.
- * @returns Response stub.
- */
-function makeFailedResponse(failure: IHttpFailure): Response {
-  /**
-   * Body accessor for the stub.
-   * @returns The queued body.
-   */
-  const json = (): Promise<unknown> => Promise.resolve(failure.body);
-  const stub = { ok: false, status: failure.status, statusText: failure.statusText, json };
-  return stub as unknown as Response;
 }
 
 /**
@@ -479,49 +438,22 @@ function readPromptFailedPayload(log: ITestLogger): Record<string, unknown> {
 }
 
 /**
- * Failure taxonomy — one parameterized case per distinguishable
- * reason a prompt send can be rejected. Grouped as `it.each` per
- * SonarQube S5976 (three near-identical `it` blocks would otherwise
- * duplicate the same arrange/act/assert shape).
+ * TF-15 pins the non-retryable arm of the failure taxonomy: a 401 is
+ * a caller defect, so the fetcher gives up on the first rejection and
+ * the assertion costs no wall clock.
  *
- * <p>`retry_after` values are kept at 1 s so the retry ladder these
- * statuses trigger does not slow the unit suite.
+ * <p>The retryable arms (429, 5xx) moved to
+ * `TelegramOtpPromptRetry.test.ts`. Here they would drive the real
+ * `humanDelay` ladder — seconds of genuine sleep per run against
+ * Jest's default timeout; there `humanDelay` is mocked, so the same
+ * taxonomy assertions run instantly and additionally prove the
+ * payload survives the retry ladder.
  */
-const PROMPT_FAILURE_CASES = [
-  {
-    label: 'TF-14 flood control — 429 surfaces error_code and retry_after',
-    failure: {
-      status: 429,
-      statusText: 'Too Many Requests',
-      body: {
-        ok: false,
-        error_code: 429,
-        description: 'Too Many Requests: retry after 1',
-        parameters: { retry_after: 1 },
-      },
-    },
-    expected: {
-      status: 429,
-      errorCode: 429,
-      description: 'Too Many Requests: retry after 1',
-      retryAfterSeconds: 1,
-    },
-  },
-  {
-    label: 'TF-15 bad credentials — 401 surfaces the Telegram description',
-    failure: {
-      status: 401,
-      statusText: 'Unauthorized',
-      body: { ok: false, error_code: 401, description: 'Unauthorized' },
-    },
-    expected: { status: 401, errorCode: 401, description: 'Unauthorized', retryAfterSeconds: 0 },
-  },
-  {
-    label: 'TF-16 gateway error — description-less body falls back to status text',
-    failure: { status: 502, statusText: 'Bad Gateway', body: {} },
-    expected: { status: 502, errorCode: 0, description: 'Bad Gateway', retryAfterSeconds: 0 },
-  },
-] as const;
+const UNAUTHORIZED_FAILURE: IHttpFailure = {
+  status: 401,
+  statusText: 'Unauthorized',
+  body: { ok: false, error_code: 401, description: 'Unauthorized' },
+};
 
 afterEach(async (): Promise<void> => {
   // Drain any detached ack/GC chains BEFORE tearing the fetch mock
@@ -1025,14 +957,19 @@ describe('fetchOtpFromTelegram', () => {
     expect(didConfirmAt73).toBe(true);
   });
 
-  it.each(PROMPT_FAILURE_CASES)('$label', async ({ failure, expected }): Promise<void> => {
-    installFailingPrompt(failure);
+  it('TF-15 bad credentials — 401 surfaces the Telegram description', async (): Promise<void> => {
+    installFailingPrompt(UNAUTHORIZED_FAILURE);
     const log = makeStubLogger();
     const args = makeArgs({ log } as unknown as Partial<ITelegramFetchArgs>);
     const result = await fetchOtpFromTelegram(args);
     expect(result).toBe(false);
     const payload = readPromptFailedPayload(log);
-    expect(payload).toMatchObject(expected);
+    expect(payload).toMatchObject({
+      status: 401,
+      errorCode: 401,
+      description: 'Unauthorized',
+      retryAfterSeconds: 0,
+    });
   });
 
   it('TF-17 transport throw — records status 0 and the thrown error', async (): Promise<void> => {

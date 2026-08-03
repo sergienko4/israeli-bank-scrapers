@@ -8,14 +8,20 @@
  * retryable/non-retryable split and the `retry_after` cap.
  *
  * <p>Lives beside `TelegramOtpFetcher.test.ts` rather than inside it
- * for two reasons: that file is at 575 of its 600 effective-line
- * budget, and `humanDelay` is mocked here so the retry ladder runs
+ * because `humanDelay` is mocked here, so the retry ladder runs
  * instantly. TF-13 in the sibling file asserts real wall-clock poll
  * spacing and must keep the genuine implementation — Jest's module
  * registry is per-file, so both hold at once.
  */
 
 import { jest } from '@jest/globals';
+
+import {
+  type IHttpFailure,
+  type ITestLogger,
+  makeFailedResponse,
+  makeStubLogger,
+} from '../Helpers/TelegramOtpFixtures.js';
 
 const MOCK_HUMAN_DELAY = jest.fn();
 
@@ -32,29 +38,6 @@ const FETCHER_MODULE = await import('../E2eReal/TelegramOtpFetcher.js');
 const FETCH_OTP_FROM_TELEGRAM = FETCHER_MODULE.fetchOtpFromTelegram;
 
 type ITelegramFetchArgs = Parameters<typeof FETCH_OTP_FROM_TELEGRAM>[0];
-
-/** Minimal pino-shaped logger for tests. */
-interface ITestLogger {
-  readonly trace: jest.Mock;
-  readonly debug: jest.Mock;
-  readonly info: jest.Mock;
-  readonly warn: jest.Mock;
-  readonly error: jest.Mock;
-}
-
-/**
- * Build a fresh stub logger.
- * @returns Logger with every method as `jest.fn()`.
- */
-function makeStubLogger(): ITestLogger {
-  return {
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  };
-}
 
 /**
  * Build fetcher args pointed at the stub logger.
@@ -75,13 +58,6 @@ function makeArgs(log: ITestLogger): ITelegramFetchArgs {
     timeoutMs: 1,
     log,
   } as unknown as ITelegramFetchArgs;
-}
-
-/** HTTP-level rejection knobs for a stubbed `sendMessage`. */
-interface IHttpFailure {
-  readonly status: number;
-  readonly statusText: string;
-  readonly body: Record<string, unknown>;
 }
 
 /** Telegram flood-control rejection advertising a 1 s cooldown. */
@@ -131,21 +107,6 @@ const GATEWAY_FAULT: IHttpFailure = {
 /** Captures `fetch` calls per test. */
 let fetchSpy: jest.Mock;
 let originalFetch: typeof fetch | undefined;
-
-/**
- * Build a rejected Response stub (`ok:false`).
- * @param failure - Status/body knobs.
- * @returns Response stub.
- */
-function makeFailedResponse(failure: IHttpFailure): Response {
-  /**
-   * Body accessor for the stub.
-   * @returns The queued body.
-   */
-  const json = (): Promise<unknown> => Promise.resolve(failure.body);
-  const stub = { ok: false, status: failure.status, statusText: failure.statusText, json };
-  return stub as unknown as Response;
-}
 
 /**
  * Build a successful Response stub.
@@ -277,6 +238,35 @@ const RETRY_EVENT = 'telegram.otp.fetch.prompt-retry';
 
 /** Structured event emitted once the send budget is spent. */
 const FAILED_EVENT = 'telegram.otp.fetch.prompt-failed';
+
+/**
+ * Failure taxonomy for the retryable statuses — one parameterized
+ * case per distinguishable reason Telegram refuses a prompt.
+ *
+ * <p>These arms live here, not in `TelegramOtpFetcher.test.ts`,
+ * because both statuses now drive the retry ladder: with the real
+ * `humanDelay` each case would sleep for seconds of genuine wall
+ * clock and edge Jest's default timeout. `humanDelay` is mocked in
+ * this file, so the assertions cost nothing AND additionally prove
+ * the taxonomy survives the ladder rather than only the first send.
+ */
+const RETRYABLE_TAXONOMY_CASES = [
+  {
+    label: 'TR-10 flood control — 429 surfaces error_code and retry_after',
+    failure: FLOOD_CONTROL,
+    expected: {
+      status: 429,
+      errorCode: 429,
+      description: 'Too Many Requests: retry after 1',
+      retryAfterSeconds: 1,
+    },
+  },
+  {
+    label: 'TR-11 gateway error — description-less body falls back to status text',
+    failure: { status: 502, statusText: 'Bad Gateway', body: {} },
+    expected: { status: 502, errorCode: 0, description: 'Bad Gateway', retryAfterSeconds: 0 },
+  },
+] as const;
 
 const ORIGINAL_ENV = process.env;
 
@@ -445,5 +435,15 @@ describe('fetchOtpFromTelegram prompt retry', (): void => {
     expect(sends).toBe(1);
     const retries = readWarnEvents(log, RETRY_EVENT);
     expect(retries).toHaveLength(0);
+  });
+
+  it.each(RETRYABLE_TAXONOMY_CASES)('$label', async ({ failure, expected }): Promise<void> => {
+    installPromptScript([failure]);
+    const log = makeStubLogger();
+    const args = makeArgs(log);
+    const result = await FETCH_OTP_FROM_TELEGRAM(args);
+    expect(result).toBe(false);
+    const failures = readWarnEvents(log, FAILED_EVENT);
+    expect(failures[0]).toMatchObject(expected);
   });
 });
