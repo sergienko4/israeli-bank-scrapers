@@ -135,15 +135,17 @@ function isCookieEntry(value: unknown): boolean {
 /**
  * Whether the file still parses as the shape Playwright will be handed. A
  * truncated or hand-edited file would otherwise throw inside `newContext`
- * and strand every later run behind the same bad state.
+ * and strand every later run behind the same bad state. An empty jar is
+ * rejected too: it restores nothing, so reporting a reusable session for it
+ * only makes the logs claim a reuse that never happened.
  * @param file - Candidate session path.
- * @returns True when the file parses and carries a cookie array.
+ * @returns True when the file parses and carries at least one usable cookie.
  */
 function holdsSessionState(file: string): boolean {
   const parsed = readJsonSafely(file);
   if (typeof parsed !== 'object' || parsed === null) return false;
   const state = parsed as Partial<StorageState>;
-  if (!Array.isArray(state.cookies)) return false;
+  if (!Array.isArray(state.cookies) || state.cookies.length === 0) return false;
   return state.cookies.every(isCookieEntry);
 }
 

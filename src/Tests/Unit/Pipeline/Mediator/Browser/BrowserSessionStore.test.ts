@@ -101,6 +101,23 @@ function cookieName(cookie: IFakeCookie): string {
   return cookie.name;
 }
 
+/**
+ * Session-file contents that must all fall back to "no session".
+ *
+ * <p>One shape per way a file can be unusable — every row runs the identical
+ * assertion, so they are one parameterized case rather than four copies.
+ */
+const UNUSABLE_SESSION_FILES = [
+  { id: 'T-SESS-7', what: 'a truncated file', contents: '{ truncated' },
+  { id: 'T-SESS-7a', what: 'the JSON literal null', contents: 'null' },
+  {
+    id: 'T-SESS-7b',
+    what: 'a cookie Playwright would reject',
+    contents: '{"cookies":[null],"origins":[]}',
+  },
+  { id: 'T-SESS-7c', what: 'an empty cookie jar', contents: '{"cookies":[],"origins":[]}' },
+] as const;
+
 describe('BrowserSessionStore — per-bank session reuse (T-SESS)', () => {
   const original = process.env[SESSION_ROOT_ENV] ?? '';
 
@@ -171,29 +188,11 @@ describe('BrowserSessionStore — per-bank session reuse (T-SESS)', () => {
     });
   });
 
-  it('T-SESS-7: ignores a corrupted session file instead of replaying it', () => {
+  it.each(UNUSABLE_SESSION_FILES)('$id: ignores $what instead of replaying it', ({ contents }) => {
     const root = freshRoot();
     process.env[SESSION_ROOT_ENV] = root;
     const file = join(root, 'hapoalim.session.json');
-    writeFileSync(file, '{ truncated', 'utf8');
-    const loaded = loadSessionState('hapoalim');
-    expect(loaded).toBe(false);
-  });
-
-  it('T-SESS-7a (FIRING): ignores a file holding literal null without throwing', () => {
-    const root = freshRoot();
-    process.env[SESSION_ROOT_ENV] = root;
-    const file = join(root, 'hapoalim.session.json');
-    writeFileSync(file, 'null', 'utf8');
-    const loaded = loadSessionState('hapoalim');
-    expect(loaded).toBe(false);
-  });
-
-  it('T-SESS-7b (FIRING): ignores a cookie array Playwright would reject', () => {
-    const root = freshRoot();
-    process.env[SESSION_ROOT_ENV] = root;
-    const file = join(root, 'hapoalim.session.json');
-    writeFileSync(file, '{"cookies":[null],"origins":[]}', 'utf8');
+    writeFileSync(file, contents, 'utf8');
     const loaded = loadSessionState('hapoalim');
     expect(loaded).toBe(false);
   });
