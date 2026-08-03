@@ -34,6 +34,8 @@ interface IInterceptorState {
   readonly timers: WeakMap<Page, NodeJS.Timeout>;
   readonly solving: WeakSet<Page>;
   readonly lastSolveAtMs: WeakMap<Page, number>;
+  /** The poller tick currently running for a page, so a phase can await it. */
+  readonly inFlight: WeakMap<Page, Promise<DidTickWork>>;
 }
 
 /** Bundle handed into tick/attach helpers — keeps signatures short. */
@@ -60,6 +62,7 @@ export function makeState(): IInterceptorState {
     timers: new WeakMap<Page, NodeJS.Timeout>(),
     solving: new WeakSet<Page>(),
     lastSolveAtMs: new WeakMap<Page, number>(),
+    inFlight: new WeakMap<Page, Promise<DidTickWork>>(),
   };
 }
 
@@ -134,13 +137,15 @@ export async function tickOnce(args: ITickArgs): Promise<DidTickWork> {
 }
 
 /**
- * Build the interval handler — wraps async tick in a sync callback for setInterval.
+ * Build the interval handler — wraps async tick in a sync callback for
+ * setInterval, recording the tick so a phase can await it.
  * @param args - Tick bundle.
  * @returns Synchronous handler safe for setInterval.
  */
 export function buildIntervalHandler(args: ITickArgs): () => true {
   return (): true => {
-    tickOnce(args).catch((): false => false);
+    const pending = tickOnce(args).catch((): DidTickWork => false as DidTickWork);
+    args.state.inFlight.set(args.page, pending);
     return true;
   };
 }
@@ -192,19 +197,37 @@ export function attachPoller(args: ITickArgs): DidAttach {
 }
 
 /**
- * beforePhase implementation — attach the poller (once) when browser is available.
+ * Wait out any in-flight solve, then detect and solve once more, before the
+ * phase is allowed to run.
+ *
+ * <p>Without this the phase races the poller. Hapoalim's hCaptcha solved 1.5 s
+ * AFTER HOME.PRE had already scanned the challenge page and failed with "no
+ * login nav link found" — the solve worked, nobody waited for it.
+ *
+ * @param args - Tick bundle.
+ * @returns Whether a solve was attempted on this call.
+ */
+async function settleChallenge(args: ITickArgs): Promise<DidTickWork> {
+  const pending = args.state.inFlight.get(args.page);
+  if (pending) await pending;
+  return tickOnce(args);
+}
+
+/**
+ * beforePhase implementation — attach the poller (once), then hold the phase
+ * until any live challenge is settled.
  * @param ctx - Pipeline context.
  * @param state - Per-instance state.
  * @returns Always succeed(ctx) — interceptor never fails the pipeline.
  */
-export function runBeforePhase(
+export async function runBeforePhase(
   ctx: IPipelineContext,
   state: IInterceptorState,
-): Procedure<IPipelineContext> {
-  if (isDisabled()) return succeed(ctx);
-  if (!ctx.browser.has) return succeed(ctx);
+): Promise<Procedure<IPipelineContext>> {
+  if (isDisabled() || !ctx.browser.has) return succeed(ctx);
   const tick: ITickArgs = { page: ctx.browser.value.page, logger: ctx.logger, state };
   attachPoller(tick);
+  await settleChallenge(tick).catch((): DidTickWork => false as DidTickWork);
   return succeed(ctx);
 }
 

@@ -58,10 +58,9 @@ function wrapAsync<T>(value: T): Promise<T> {
 function buildBeforePhase(
   state: IInterceptorState,
 ): (ctx: IPipelineContext, nextPhase: string) => Promise<Procedure<IPipelineContext>> {
-  return (ctx: IPipelineContext, nextPhase: string): Promise<Procedure<IPipelineContext>> => {
+  return async (ctx: IPipelineContext, nextPhase: string): Promise<Procedure<IPipelineContext>> => {
     ctx.logger.trace({ event: 'waf.beforePhase', phase: nextPhase });
-    const result = runBeforePhase(ctx, state);
-    return wrapAsync(result);
+    return runBeforePhase(ctx, state);
   };
 }
 

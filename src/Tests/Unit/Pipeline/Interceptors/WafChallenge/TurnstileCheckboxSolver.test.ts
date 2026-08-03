@@ -78,6 +78,12 @@ describe('TurnstileCheckboxSolver.exports', () => {
     } as unknown as Frame;
     const result = await solveTurnstileCheckbox({ page, frame });
     expect(result).toBe(true);
-    expect(calls).toEqual(['waitForLoadState', 'waitForTimeout', 'mouse.click']);
+    expect(calls).toEqual([
+      'waitForLoadState',
+      'waitForTimeout',
+      'mouse.click',
+      'waitForLoadState',
+      'waitForTimeout',
+    ]);
   });
 });

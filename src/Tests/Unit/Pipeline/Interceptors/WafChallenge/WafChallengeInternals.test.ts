@@ -191,26 +191,26 @@ describe('WafChallengeInternals.runBeforePhase', () => {
     process.env[WAF_INTERCEPTOR_DISABLED_ENV] = originalValue ?? '';
   });
 
-  it('returns succeed when interceptor is disabled by env', () => {
+  it('returns succeed when interceptor is disabled by env', async () => {
     process.env[WAF_INTERCEPTOR_DISABLED_ENV] = '1';
     const state = makeState();
     const ctx = makeMockContext();
-    const result = runBeforePhase(ctx, state);
+    const result = await runBeforePhase(ctx, state);
     expect(result.success).toBe(true);
   });
 
-  it('returns succeed (no-op) when browser is not present', () => {
+  it('returns succeed (no-op) when browser is not present', async () => {
     clearDisableEnv();
     const state = makeState();
     const ctx = makeMockContext();
-    const result = runBeforePhase(ctx, state);
+    const result = await runBeforePhase(ctx, state);
     const dummy = {} as Page;
     const isStillUnattached = !state.attached.has(dummy);
     expect(result.success).toBe(true);
     expect(isStillUnattached).toBe(true);
   });
 
-  it('attaches when browser is present and a real page is on the context', () => {
+  it('attaches when browser is present and a real page is on the context', async () => {
     clearDisableEnv();
     const state = makeState();
     const page = makePageStub();
@@ -222,7 +222,7 @@ describe('WafChallengeInternals.runBeforePhase', () => {
     const browser: Option<IBrowserState> = some(browserState);
     const baseCtx = makeMockContext();
     const ctx = { ...baseCtx, browser };
-    const result = runBeforePhase(ctx, state);
+    const result = await runBeforePhase(ctx, state);
     const hasAttached = state.attached.has(page);
     expect(result.success).toBe(true);
     expect(hasAttached).toBe(true);

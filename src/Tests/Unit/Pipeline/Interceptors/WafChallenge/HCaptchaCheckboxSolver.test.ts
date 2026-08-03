@@ -251,14 +251,22 @@ function isClick(c: IMockCall): boolean {
 }
 
 describe('HCaptchaCheckboxSolver.solveHCaptchaCheckbox', () => {
-  it('runs the full recipe and returns DidSolve(true) on success', async () => {
+  it('runs the full recipe and settles again after the click', async () => {
     const m = makeMockPage();
     const handle = makeHandle({ x: 0, y: 0, width: 200, height: 100 });
     const frame = makeFrame(handle);
     const result = await solveHCaptchaCheckbox({ page: m.page, frame });
     const names = m.calls.map(nameOf);
     expect(result).toBe(true);
-    expect(names).toEqual(['waitForLoadState', 'waitForTimeout', 'mouse.click']);
+    // The trailing settle is the point: the click only submits the token, the
+    // origin still has to swap the challenge document for the real page.
+    expect(names).toEqual([
+      'waitForLoadState',
+      'waitForTimeout',
+      'mouse.click',
+      'waitForLoadState',
+      'waitForTimeout',
+    ]);
   });
 
   it('downgrades to DidSolve(false) when frameElement throws', async () => {

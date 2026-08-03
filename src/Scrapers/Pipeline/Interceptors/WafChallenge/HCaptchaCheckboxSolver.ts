@@ -119,8 +119,14 @@ async function readBox(handle: ElementHandle): Promise<IFrameBox | false> {
 
 /**
  * Run the documented Camoufox auto-pass recipe on a hCaptcha checkbox.
+ *
+ * <p>Settles again after the click: the click only submits the token, and the
+ * origin still has to swap the challenge document for the real page. Reporting
+ * success at click time told the pipeline the page was ready while it was still
+ * the challenge.
+ *
  * @param args - Page + frame bundle from the interceptor.
- * @returns DidSolve(true) on successful click, DidSolve(false) on any step failure.
+ * @returns DidSolve(true) once the post-click navigation settles.
  */
 async function solveHCaptchaCheckbox(args: ISolverArgs): Promise<DidSolve> {
   await waitForSettle(args.page);
@@ -128,7 +134,10 @@ async function solveHCaptchaCheckbox(args: ISolverArgs): Promise<DidSolve> {
   if (handle === false) return DID_SOLVE_FALSE;
   const box = await readBox(handle);
   if (box === false) return DID_SOLVE_FALSE;
-  return clickCentreSafe(args.page, box);
+  const clicked = await clickCentreSafe(args.page, box);
+  if (!clicked) return DID_SOLVE_FALSE;
+  await waitForSettle(args.page);
+  return DID_SOLVE_TRUE;
 }
 
 export {
