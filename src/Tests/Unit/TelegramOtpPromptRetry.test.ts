@@ -20,7 +20,9 @@ import {
   type IHttpFailure,
   type ITestLogger,
   makeFailedResponse,
+  makeOkResponse,
   makeStubLogger,
+  UNAUTHORIZED_FAILURE,
 } from '../Helpers/TelegramOtpFixtures.js';
 
 const MOCK_HUMAN_DELAY = jest.fn();
@@ -72,13 +74,6 @@ const FLOOD_CONTROL: IHttpFailure = {
   },
 };
 
-/** Revoked/!invalid token — a caller defect, never worth retrying. */
-const UNAUTHORIZED: IHttpFailure = {
-  status: 401,
-  statusText: 'Unauthorized',
-  body: { ok: false, error_code: 401, description: 'Unauthorized' },
-};
-
 /** Flood control advertising a cooldown far past the local cap. */
 const LONG_COOLDOWN: IHttpFailure = {
   status: 429,
@@ -118,20 +113,6 @@ const UNADVERTISED_COOLDOWN: IHttpFailure = {
 /** Captures `fetch` calls per test. */
 let fetchSpy: jest.Mock;
 let originalFetch: typeof fetch | undefined;
-
-/**
- * Build a successful Response stub.
- * @param body - Body to expose via `json()`.
- * @returns Response stub.
- */
-function makeOkResponse(body: Record<string, unknown>): Response {
-  /**
-   * Body accessor for the stub.
-   * @returns The queued body.
-   */
-  const json = (): Promise<unknown> => Promise.resolve(body);
-  return { ok: true, status: 200, statusText: 'OK', json } as unknown as Response;
-}
 
 /** Successful `sendMessage` envelope. */
 const PROMPT_OK = { ok: true, result: { message_id: PROMPT_ID } };
@@ -333,7 +314,7 @@ describe('fetchOtpFromTelegram prompt retry', (): void => {
   it('TR-2: never retries a non-retryable rejection', async (): Promise<void> => {
     // 401 is a caller defect — a revoked token answers identically
     // forever. Retrying only burns the bank's OTP window.
-    installPromptScript([UNAUTHORIZED]);
+    installPromptScript([UNAUTHORIZED_FAILURE]);
     const log = makeStubLogger();
     const args = makeArgs(log);
     await FETCH_OTP_FROM_TELEGRAM(args);

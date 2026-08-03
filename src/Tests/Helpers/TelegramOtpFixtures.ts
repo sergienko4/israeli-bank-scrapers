@@ -65,3 +65,30 @@ export function makeFailedResponse(failure: IHttpFailure): Response {
   const stub = { ok: false, status: failure.status, statusText: failure.statusText, json };
   return stub as unknown as Response;
 }
+
+/**
+ * Build a successful Response stub (`ok:true`, HTTP 200).
+ *
+ * <p>`status` / `statusText` are populated for the same reason
+ * {@link makeFailedResponse} populates them: the fetcher reads
+ * `statusText` when describing a rejection, so a stub omitting it
+ * would throw and be misreported as a transport fault.
+ *
+ * @param body - Body to expose via `json()`.
+ * @returns Response stub.
+ */
+export function makeOkResponse(body: Record<string, unknown>): Response {
+  /**
+   * Body accessor for the stub.
+   * @returns The queued body.
+   */
+  const json = (): Promise<unknown> => Promise.resolve(body);
+  return { ok: true, status: 200, statusText: 'OK', json } as unknown as Response;
+}
+
+/** Revoked or invalid token — a caller defect, never worth retrying. */
+export const UNAUTHORIZED_FAILURE: IHttpFailure = {
+  status: 401,
+  statusText: 'Unauthorized',
+  body: { ok: false, error_code: 401, description: 'Unauthorized' },
+};

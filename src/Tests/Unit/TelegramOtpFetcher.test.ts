@@ -15,33 +15,14 @@ import {
   type IHttpFailure,
   type ITestLogger,
   makeFailedResponse,
+  makeOkResponse,
   makeStubLogger,
+  UNAUTHORIZED_FAILURE,
 } from '../Helpers/TelegramOtpFixtures.js';
 
 /** Captures `fetch` calls per test. */
 let fetchSpy: jest.Mock;
 let originalFetch: typeof fetch | undefined;
-
-/**
- * Build a Response-shaped stub.
- *
- * <p>Carries `status` / `statusText` because a real `Response`
- * always does; a stub without them makes an envelope-level
- * rejection indistinguishable from a transport fault.
- *
- * @param body - Body to expose via `json()`.
- * @returns Response stub.
- */
-function makeFetchResponse(body: Record<string, unknown>): Response {
-  /**
-   * Body accessor — returns the queued payload synchronously
-   * wrapped in a resolved promise (matches the Response.json
-   * contract without a real await).
-   * @returns The body.
-   */
-  const json = (): Promise<unknown> => Promise.resolve(body);
-  return { ok: true, status: 200, statusText: 'OK', json } as unknown as Response;
-}
 
 /** Mock fetch responses — separate queues per Telegram endpoint. */
 interface IFetchQueues {
@@ -126,7 +107,7 @@ function installFetch(queues: IFetchQueues): jest.Mock {
     } else {
       throw new InstallFetchUnexpectedEndpointError(u);
     }
-    const response = makeFetchResponse(body);
+    const response = makeOkResponse(body);
     return Promise.resolve(response);
   };
   fetchSpy = jest.fn(impl);
@@ -436,24 +417,6 @@ function readPromptFailedPayload(log: ITestLogger): Record<string, unknown> {
   const found = hit === undefined ? {} : hit[0];
   return found as Record<string, unknown>;
 }
-
-/**
- * TF-15 pins the non-retryable arm of the failure taxonomy: a 401 is
- * a caller defect, so the fetcher gives up on the first rejection and
- * the assertion costs no wall clock.
- *
- * <p>The retryable arms (429, 5xx) moved to
- * `TelegramOtpPromptRetry.test.ts`. Here they would drive the real
- * `humanDelay` ladder — seconds of genuine sleep per run against
- * Jest's default timeout; there `humanDelay` is mocked, so the same
- * taxonomy assertions run instantly and additionally prove the
- * payload survives the retry ladder.
- */
-const UNAUTHORIZED_FAILURE: IHttpFailure = {
-  status: 401,
-  statusText: 'Unauthorized',
-  body: { ok: false, error_code: 401, description: 'Unauthorized' },
-};
 
 afterEach(async (): Promise<void> => {
   // Drain any detached ack/GC chains BEFORE tearing the fetch mock
@@ -883,13 +846,13 @@ describe('fetchOtpFromTelegram', () => {
       const u = typeof url === 'string' ? url : '';
       if (u.includes('/sendMessage')) {
         const sendBody = defaultPromptResponse();
-        const sendResponse = makeFetchResponse(sendBody);
+        const sendResponse = makeOkResponse(sendBody);
         return Promise.resolve(sendResponse);
       }
       const queue = queueAt();
       const visible = applyThrottle(queue);
       const body = { ok: true, result: visible };
-      const updatesResponse = makeFetchResponse(body);
+      const updatesResponse = makeOkResponse(body);
       return Promise.resolve(updatesResponse);
     };
     fetchSpy = jest.fn(throttledImpl);
@@ -940,7 +903,7 @@ describe('fetchOtpFromTelegram', () => {
     const stickyImpl = (url: unknown): Promise<Response> => {
       const u = typeof url === 'string' ? url : '';
       const body = u.includes('/sendMessage') ? defaultPromptResponse() : staleResp;
-      const response = makeFetchResponse(body);
+      const response = makeOkResponse(body);
       return Promise.resolve(response);
     };
     fetchSpy = jest.fn(stickyImpl);
@@ -958,6 +921,12 @@ describe('fetchOtpFromTelegram', () => {
   });
 
   it('TF-15 bad credentials — 401 surfaces the Telegram description', async (): Promise<void> => {
+    // Pins the non-retryable arm of the failure taxonomy: a 401 is a
+    // caller defect, so the fetcher gives up on the first rejection
+    // and the assertion costs no wall clock. The retryable arm (429)
+    // lives in TelegramOtpPromptRetry.test.ts, where `humanDelay` is
+    // mocked — here it would drive the real ladder, spending seconds
+    // of genuine sleep against Jest's default timeout.
     installFailingPrompt(UNAUTHORIZED_FAILURE);
     const log = makeStubLogger();
     const args = makeArgs({ log } as unknown as Partial<ITelegramFetchArgs>);
