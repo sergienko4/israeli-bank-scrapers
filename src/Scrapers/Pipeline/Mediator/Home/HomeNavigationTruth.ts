@@ -50,12 +50,9 @@ function normalizePath(pathname: string): string {
  * @returns Comparison key, or false when the URL cannot be parsed.
  */
 function toPageKey(url: string): string | false {
-  try {
-    const parsed = new URL(url);
-    return parsed.origin + normalizePath(parsed.pathname) + parsed.search;
-  } catch {
-    return false;
-  }
+  if (!URL.canParse(url)) return false;
+  const parsed = new URL(url);
+  return parsed.origin + normalizePath(parsed.pathname) + parsed.search;
 }
 
 /**
