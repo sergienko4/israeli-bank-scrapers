@@ -103,6 +103,36 @@ interface ITelegramUpdate {
 interface ITelegramSendMessageResponse {
   readonly ok: boolean;
   readonly result?: { readonly message_id: number };
+  /** Machine-readable failure code, present when `ok` is false. */
+  readonly error_code?: number;
+  /** Human-readable failure reason, present when `ok` is false. */
+  readonly description?: string;
+  /** Carries `retry_after` (seconds) on a 429 flood-control reply. */
+  readonly parameters?: { readonly retry_after?: number };
+}
+
+/**
+ * Why one `sendMessage` attempt failed, captured so the warn-level
+ * log is actionable.
+ *
+ * <p>Motivation — CI run 30850794919 (Beinleumi): the prompt send
+ * failed 298 ms after being issued and the log said only
+ * "sendMessage failed". Status, body and Telegram's `description`
+ * were all discarded by a bare `return false` / `catch {}`, so the
+ * failure could not be diagnosed from the forensic bundle at all —
+ * the payload had to be replayed by hand against the live API to
+ * learn anything. Per `logging-pii-guidlines.md` every failure must
+ * be actionable; this record is what makes it so.
+ */
+interface IPromptFailure {
+  /** HTTP status, or 0 when the request never produced a response. */
+  readonly status: number;
+  /** Telegram's `error_code`, or 0 when the body did not parse. */
+  readonly errorCode: number;
+  /** Telegram's `description`, the HTTP status text, or the throw. */
+  readonly description: string;
+  /** Honoured `parameters.retry_after` (seconds); 0 when absent. */
+  readonly retryAfterSeconds: number;
 }
 
 /** Telegram getUpdates response envelope. */
@@ -138,6 +168,24 @@ const HTTP_TIMEOUT_MS = 15_000;
 function tailMask(value: string): string {
   if (value.length <= 4) return '***';
   return `***${value.slice(-4)}`;
+}
+
+/**
+ * Strip the bot token from any string bound for a log sink.
+ *
+ * <p>The `sendMessage` URL embeds the token
+ * (`api.telegram.org/bot<TOKEN>/sendMessage`), and Node surfaces
+ * that URL inside some `fetch` rejection messages. Redacting before
+ * emission keeps a CI secret out of `pipeline.log` and out of the
+ * forensic bundle that gets uploaded to object storage.
+ *
+ * @param value - String about to be logged.
+ * @param botToken - Secret to remove.
+ * @returns `value` with every token occurrence replaced by `***`.
+ */
+function redactBotToken(value: string, botToken: string): string {
+  if (botToken.length === 0) return value;
+  return value.replaceAll(botToken, '***');
 }
 
 /**
@@ -178,6 +226,97 @@ function detectSkipReason(args: ITelegramFetchArgs): TelegramSkipReason | false 
   return false;
 }
 
+/** Envelope stand-in when the response body could not be parsed. */
+const UNPARSABLE_SEND_BODY: ITelegramSendMessageResponse = { ok: false };
+
+/** Description used when Telegram and the status line both say nothing. */
+const NO_DESCRIPTION = 'no description';
+
+/**
+ * Parse a `sendMessage` response body, tolerating a non-JSON payload
+ * (Cloudflare error pages are HTML, not JSON).
+ *
+ * @param res - Settled response.
+ * @returns Parsed envelope, or `false` when the body is not JSON.
+ */
+async function readSendMessageBody(res: Response): Promise<ITelegramSendMessageResponse | false> {
+  try {
+    return (await res.json()) as ITelegramSendMessageResponse;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build the user-facing prompt text.
+ *
+ * @param bankName - Display name surfaced to the user.
+ * @returns Markdown-formatted prompt body.
+ */
+function buildPromptText(bankName: string): string {
+  const safeBankName = escapeMarkdown(bankName);
+  const promptHeader = `🔔 *${safeBankName}* CI run is waiting for an OTP code.\n\n`;
+  const promptBody =
+    'Please *reply to this message* with the code from the SMS ' +
+    "(e.g. '123456'). The reply MUST use Telegram's Reply feature " +
+    'so the right CI job picks it up.';
+  return `${promptHeader}${promptBody}`;
+}
+
+/** Bundled response context — preserves the project's 3-param ceiling. */
+interface ISendResponseContext {
+  readonly res: Response;
+  readonly parsed: ITelegramSendMessageResponse | false;
+  readonly botToken: string;
+}
+
+/**
+ * Message id from a fully successful send, else 0.
+ * @param bundle - Response context.
+ * @returns Positive message_id on success, otherwise 0.
+ */
+function extractMessageId(bundle: ISendResponseContext): number {
+  const { res, parsed } = bundle;
+  if (!res.ok || parsed === false || !parsed.ok) return 0;
+  return parsed.result?.message_id ?? 0;
+}
+
+/**
+ * Convert a rejected send into a loggable record.
+ * @param bundle - Response context.
+ * @returns Structured failure detail with the token redacted.
+ */
+function describeSendFailure(bundle: ISendResponseContext): IPromptFailure {
+  const { res, parsed } = bundle;
+  const body = parsed === false ? UNPARSABLE_SEND_BODY : parsed;
+  const statusText = res.statusText.length > 0 ? res.statusText : NO_DESCRIPTION;
+  return {
+    status: res.status,
+    errorCode: body.error_code ?? 0,
+    description: redactBotToken(body.description ?? statusText, bundle.botToken),
+    retryAfterSeconds: body.parameters?.retry_after ?? 0,
+  };
+}
+
+/**
+ * Convert a thrown `fetch` rejection (DNS hang, TLS reset, or the
+ * {@link HTTP_TIMEOUT_MS} abort) into a loggable record. `status: 0`
+ * marks "no response was ever produced".
+ *
+ * @param error - Thrown value.
+ * @param botToken - Secret to redact from the message.
+ * @returns Structured failure detail.
+ */
+function describeThrownFailure(error: unknown, botToken: string): IPromptFailure {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return {
+    status: 0,
+    errorCode: 0,
+    description: redactBotToken(raw, botToken),
+    retryAfterSeconds: 0,
+  };
+}
+
 /**
  * Send the proactive prompt that tells the user "[bank] is waiting
  * for OTP — reply to THIS message with the code". The returned
@@ -186,20 +325,14 @@ function detectSkipReason(args: ITelegramFetchArgs): TelegramSkipReason | false 
  * parallel fetcher's prompts and replies stay isolated.
  *
  * @param args - Fetcher input bundle.
- * @returns Bot's sent message_id, or `false` on transport failure.
+ * @returns Bot's sent message_id, or an {@link IPromptFailure}
+ *   describing exactly why the attempt failed.
  */
-async function sendPromptMessage(args: ITelegramFetchArgs): Promise<number | false> {
+async function sendPromptMessage(args: ITelegramFetchArgs): Promise<number | IPromptFailure> {
   const url = `https://api.telegram.org/bot${args.botToken}/sendMessage`;
-  const safeBankName = escapeMarkdown(args.bankName);
-  const promptHeader = `🔔 *${safeBankName}* CI run is waiting for an OTP code.\n\n`;
-  const promptBody =
-    'Please *reply to this message* with the code from the SMS ' +
-    "(e.g. '123456'). The reply MUST use Telegram's Reply feature " +
-    'so the right CI job picks it up.';
-  const text = `${promptHeader}${promptBody}`;
   const body = JSON.stringify({
     chat_id: args.chatId,
-    text,
+    text: buildPromptText(args.bankName),
     parse_mode: 'Markdown',
     reply_markup: { force_reply: true, selective: true },
   });
@@ -211,12 +344,13 @@ async function sendPromptMessage(args: ITelegramFetchArgs): Promise<number | fal
       body,
       signal,
     });
-    if (!res.ok) return false;
-    const parsed = (await res.json()) as ITelegramSendMessageResponse;
-    if (!parsed.ok || !parsed.result) return false;
-    return parsed.result.message_id;
-  } catch {
-    return false;
+    const parsed = await readSendMessageBody(res);
+    const messageId = extractMessageId({ res, parsed, botToken: args.botToken });
+    return messageId > 0
+      ? messageId
+      : describeSendFailure({ res, parsed, botToken: args.botToken });
+  } catch (error) {
+    return describeThrownFailure(error, args.botToken);
   }
 }
 
@@ -582,15 +716,27 @@ function logSkip(args: ITelegramFetchArgs, reason: TelegramSkipReason): true {
 
 /**
  * Sent-message-failed log emission (warn-level).
+ *
+ * <p>Carries the HTTP status, Telegram's `error_code` /
+ * `description` and any advertised `retry_after` so the reason is
+ * recoverable from `pipeline.log` alone — 429 flood control, an
+ * expired token (401), a bad chat id (400) and a transport hang
+ * (`status: 0`) are all distinguishable without replaying the call.
+ *
  * @param args - Fetcher args.
+ * @param failure - Structured reason the send failed.
  * @returns Always `true` (matches the project's no-void return rule).
  */
-function logPromptFailed(args: ITelegramFetchArgs): true {
+function logPromptFailed(args: ITelegramFetchArgs, failure: IPromptFailure): true {
   args.log.warn(
     {
       event: 'telegram.otp.fetch.prompt-failed',
       chatIdSuffix: tailMask(args.chatId),
       bankName: args.bankName,
+      status: failure.status,
+      errorCode: failure.errorCode,
+      description: failure.description,
+      retryAfterSeconds: failure.retryAfterSeconds,
     },
     'Telegram sendMessage failed — cannot prompt user; aborting fetcher',
   );
@@ -864,8 +1010,8 @@ async function fetchOtpFromTelegram(args: ITelegramFetchArgs): Promise<string | 
     return false;
   }
   const promptMessageId = await sendPromptMessage(args);
-  if (promptMessageId === false) {
-    logPromptFailed(args);
+  if (typeof promptMessageId !== 'number') {
+    logPromptFailed(args, promptMessageId);
     return false;
   }
   logFetchStart({ args, promptMessageId });

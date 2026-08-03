@@ -378,6 +378,146 @@ function flushUntilUrlPresent(spy: jest.Mock, urlRegex: RegExp, maxTicks = 200):
   );
 }
 
+/** Token used only by the leak probe — never a real credential. */
+const LEAK_PROBE_TOKEN = '123456:AA-LEAK-PROBE-TOKEN';
+
+/** HTTP-level failure knobs for a `sendMessage` stub. */
+interface IHttpFailure {
+  readonly status: number;
+  readonly statusText: string;
+  readonly body: Record<string, unknown>;
+}
+
+/**
+ * Named transport error for rejection fixtures. `AbortSignal.timeout`
+ * really does throw a `DOMException` named `TimeoutError`, so this
+ * mirrors production shape without declaring a second class (the
+ * file is at its `max-classes-per-file` ceiling).
+ *
+ * @param name - Error name (e.g. `TimeoutError`).
+ * @param message - Error message.
+ * @returns Error instance carrying the requested name.
+ */
+function makeTransportError(name: string, message: string): Error {
+  return new DOMException(message, name);
+}
+
+/**
+ * Build a rejected Response stub (`ok:false`) so the fetcher takes
+ * its HTTP-error branch rather than the `ok:false` envelope branch.
+ *
+ * @param failure - Status/body knobs.
+ * @returns Response stub.
+ */
+function makeFailedResponse(failure: IHttpFailure): Response {
+  /**
+   * Body accessor for the stub.
+   * @returns The queued body.
+   */
+  const json = (): Promise<unknown> => Promise.resolve(failure.body);
+  const stub = { ok: false, status: failure.status, statusText: failure.statusText, json };
+  return stub as unknown as Response;
+}
+
+/**
+ * Install a fetch whose `sendMessage` always fails at HTTP level.
+ * @param failure - Status/body knobs.
+ * @returns The installed spy.
+ */
+function installFailingPrompt(failure: IHttpFailure): jest.Mock {
+  /**
+   * Always-failing implementation.
+   * @returns Rejected-status response stub.
+   */
+  const impl = (): Promise<Response> => {
+    const response = makeFailedResponse(failure);
+    return Promise.resolve(response);
+  };
+  fetchSpy = jest.fn(impl);
+  originalFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = fetchSpy;
+  return fetchSpy;
+}
+
+/**
+ * Install a fetch that rejects — simulates DNS hang / TLS reset /
+ * the {@link HTTP_TIMEOUT_MS} abort, none of which yield a Response.
+ *
+ * @param error - Rejection value.
+ * @returns The installed spy.
+ */
+function installThrowingPrompt(error: Error): jest.Mock {
+  /**
+   * Always-rejecting implementation.
+   * @returns Rejected promise.
+   */
+  const impl = (): Promise<Response> => Promise.reject(error);
+  fetchSpy = jest.fn(impl);
+  originalFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = fetchSpy;
+  return fetchSpy;
+}
+
+/**
+ * Read the payload of the `prompt-failed` warn emission.
+ * @param log - Stub logger handed to the fetcher.
+ * @returns The logged payload, or an empty record when absent.
+ */
+function readPromptFailedPayload(log: ITestLogger): Record<string, unknown> {
+  const calls = log.warn.mock.calls as readonly (readonly unknown[])[];
+  const hit = calls.find((call): boolean => {
+    const payload = call[0] as { event?: string };
+    return payload.event === 'telegram.otp.fetch.prompt-failed';
+  });
+  const found = hit === undefined ? {} : hit[0];
+  return found as Record<string, unknown>;
+}
+
+/**
+ * Failure taxonomy — one parameterized case per distinguishable
+ * reason a prompt send can be rejected. Grouped as `it.each` per
+ * SonarQube S5976 (three near-identical `it` blocks would otherwise
+ * duplicate the same arrange/act/assert shape).
+ *
+ * <p>`retry_after` values are kept at 1 s so the retry ladder these
+ * statuses trigger does not slow the unit suite.
+ */
+const PROMPT_FAILURE_CASES = [
+  {
+    label: 'TF-14 flood control — 429 surfaces error_code and retry_after',
+    failure: {
+      status: 429,
+      statusText: 'Too Many Requests',
+      body: {
+        ok: false,
+        error_code: 429,
+        description: 'Too Many Requests: retry after 1',
+        parameters: { retry_after: 1 },
+      },
+    },
+    expected: {
+      status: 429,
+      errorCode: 429,
+      description: 'Too Many Requests: retry after 1',
+      retryAfterSeconds: 1,
+    },
+  },
+  {
+    label: 'TF-15 bad credentials — 401 surfaces the Telegram description',
+    failure: {
+      status: 401,
+      statusText: 'Unauthorized',
+      body: { ok: false, error_code: 401, description: 'Unauthorized' },
+    },
+    expected: { status: 401, errorCode: 401, description: 'Unauthorized', retryAfterSeconds: 0 },
+  },
+  {
+    label: 'TF-16 gateway error — description-less body falls back to status text',
+    failure: { status: 502, statusText: 'Bad Gateway', body: {} },
+    expected: { status: 502, errorCode: 0, description: 'Bad Gateway', retryAfterSeconds: 0 },
+  },
+] as const;
+
 afterEach(async (): Promise<void> => {
   // Drain any detached ack/GC chains BEFORE tearing the fetch mock
   // down. Otherwise late-firing detached promises would hit the
@@ -878,5 +1018,52 @@ describe('fetchOtpFromTelegram', () => {
     // call. Wait until offset=73 specifically appears.
     const didConfirmAt73 = await flushUntilUrlPresent(fetchSpy, /offset=73(?!\d)/);
     expect(didConfirmAt73).toBe(true);
+  });
+
+  it.each(PROMPT_FAILURE_CASES)('$label', async ({ failure, expected }): Promise<void> => {
+    installFailingPrompt(failure);
+    const log = makeStubLogger();
+    const args = makeArgs({ log } as unknown as Partial<ITelegramFetchArgs>);
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe(false);
+    const payload = readPromptFailedPayload(log);
+    expect(payload).toMatchObject(expected);
+  });
+
+  it('TF-17 transport throw — records status 0 and the thrown error', async (): Promise<void> => {
+    // `AbortSignal.timeout` / DNS hang / TLS reset never produce a
+    // Response. `status: 0` is the sentinel that says so, and the
+    // description carries the throw so a hang is distinguishable
+    // from a Telegram-side rejection in `pipeline.log` alone.
+    const aborted = makeTransportError('TimeoutError', 'The operation was aborted');
+    installThrowingPrompt(aborted);
+    const log = makeStubLogger();
+    const args = makeArgs({ log } as unknown as Partial<ITelegramFetchArgs>);
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe(false);
+    const payload = readPromptFailedPayload(log);
+    expect(payload).toMatchObject({ status: 0, errorCode: 0, retryAfterSeconds: 0 });
+    const described = String(payload.description);
+    expect(described).toContain('The operation was aborted');
+  });
+
+  it('TF-18 secret hygiene — the bot token never reaches the log', async (): Promise<void> => {
+    // Node surfaces the request URL inside some `fetch` rejections,
+    // and that URL embeds the token (`/bot<TOKEN>/sendMessage`). The
+    // forensic bundle is uploaded to object storage, so a leak here
+    // would publish a live CI secret.
+    const leaky = `TypeError: fetch failed https://api.telegram.org/bot${LEAK_PROBE_TOKEN}/sendMessage`;
+    const thrown = makeTransportError('TypeError', leaky);
+    installThrowingPrompt(thrown);
+    const log = makeStubLogger();
+    const overrides = { log, botToken: LEAK_PROBE_TOKEN } as unknown as Partial<ITelegramFetchArgs>;
+    const args = makeArgs(overrides);
+    const result = await fetchOtpFromTelegram(args);
+    expect(result).toBe(false);
+    const payload = readPromptFailedPayload(log);
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain(LEAK_PROBE_TOKEN);
+    const described = String(payload.description);
+    expect(described).toContain('***');
   });
 });
