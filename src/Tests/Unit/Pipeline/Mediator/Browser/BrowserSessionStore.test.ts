@@ -30,6 +30,8 @@ import {
 interface IFakeCookie {
   readonly name: string;
   readonly value: string;
+  readonly domain: string;
+  readonly path: string;
 }
 
 /** The persisted shape the assertions read back. */
@@ -46,6 +48,19 @@ function freshRoot(): string {
   const base = tmpdir();
   const prefix = join(base, 'ibs-sess-');
   return mkdtempSync(prefix);
+}
+
+/**
+ * One cookie shaped the way a live `storageState()` reports it.
+ *
+ * <p>Playwright requires `domain` and `path` on every entry it is handed back,
+ * so the fixture carries them too — a name/value pair alone is drift.
+ * @param name - Cookie name.
+ * @param value - Cookie value.
+ * @returns A cookie the store will accept on reload.
+ */
+function cookie(name: string, value: string): IFakeCookie {
+  return { name, value, domain: 'bank.example', path: '/' };
 }
 
 /**
@@ -141,10 +156,10 @@ describe('BrowserSessionStore — per-bank session reuse (T-SESS)', () => {
     const root = freshRoot();
     process.env[SESSION_ROOT_ENV] = root;
     const context = contextHolding([
-      { name: 'cf_clearance', value: 'waf-verdict' },
-      { name: '_abck', value: 'akamai-verdict' },
-      { name: 'JSESSIONID', value: 'signed-in-customer' },
-      { name: 'auth-token', value: 'signed-in-customer' },
+      cookie('cf_clearance', 'waf-verdict'),
+      cookie('_abck', 'akamai-verdict'),
+      cookie('JSESSIONID', 'signed-in-customer'),
+      cookie('auth-token', 'signed-in-customer'),
     ]);
     const didWrite = await saveSessionStateSafe(context, 'hapoalim');
     const saved = readSaved(root, 'hapoalim');
@@ -165,10 +180,28 @@ describe('BrowserSessionStore — per-bank session reuse (T-SESS)', () => {
     expect(loaded).toBe(false);
   });
 
+  it('T-SESS-7a (FIRING): ignores a file holding literal null without throwing', () => {
+    const root = freshRoot();
+    process.env[SESSION_ROOT_ENV] = root;
+    const file = join(root, 'hapoalim.session.json');
+    writeFileSync(file, 'null', 'utf8');
+    const loaded = loadSessionState('hapoalim');
+    expect(loaded).toBe(false);
+  });
+
+  it('T-SESS-7b (FIRING): ignores a cookie array Playwright would reject', () => {
+    const root = freshRoot();
+    process.env[SESSION_ROOT_ENV] = root;
+    const file = join(root, 'hapoalim.session.json');
+    writeFileSync(file, '{"cookies":[null],"origins":[]}', 'utf8');
+    const loaded = loadSessionState('hapoalim');
+    expect(loaded).toBe(false);
+  });
+
   it('T-SESS-8: reloads a session it just wrote', async () => {
     const root = freshRoot();
     process.env[SESSION_ROOT_ENV] = root;
-    const context = contextHolding([{ name: 'cf_clearance', value: 'v' }]);
+    const context = contextHolding([cookie('cf_clearance', 'v')]);
     await saveSessionStateSafe(context, 'discount');
     const loaded = loadSessionState('discount');
     const expected = join(root, 'discount.session.json');

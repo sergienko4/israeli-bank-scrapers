@@ -21,7 +21,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { lstatSync, readFileSync } from 'node:fs';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import type { BrowserContext } from 'playwright-core';
@@ -60,6 +60,9 @@ const WAF_COOKIE_PREFIXES: readonly string[] = [
 
 /** Exactly the shape Playwright hands back, and expects to be handed. */
 type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
+
+/** One entry of that state's cookie jar, with every field Playwright requires. */
+type SavedCookie = StorageState['cookies'][number];
 
 /** The one cookie field the allow-list reads. */
 interface INamedCookie {
@@ -115,6 +118,21 @@ function readJsonSafely(file: string): unknown {
 }
 
 /**
+ * Whether the value is one cookie Playwright will accept back.
+ *
+ * <p>`newContext` reads every entry, so one malformed element strands the run
+ * just as surely as an unparseable file.
+ * @param value - Candidate cookie entry.
+ * @returns True when the entry carries the fields Playwright requires.
+ */
+function isCookieEntry(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const cookie = value as Partial<SavedCookie>;
+  const isNamed = typeof cookie.name === 'string' && typeof cookie.value === 'string';
+  return isNamed && typeof cookie.domain === 'string' && typeof cookie.path === 'string';
+}
+
+/**
  * Whether the file still parses as the shape Playwright will be handed. A
  * truncated or hand-edited file would otherwise throw inside `newContext`
  * and strand every later run behind the same bad state.
@@ -123,9 +141,10 @@ function readJsonSafely(file: string): unknown {
  */
 function holdsSessionState(file: string): boolean {
   const parsed = readJsonSafely(file);
-  if (typeof parsed !== 'object') return false;
+  if (typeof parsed !== 'object' || parsed === null) return false;
   const state = parsed as Partial<StorageState>;
-  return Array.isArray(state.cookies);
+  if (!Array.isArray(state.cookies)) return false;
+  return state.cookies.every(isCookieEntry);
 }
 
 /**
@@ -151,13 +170,30 @@ function isWafCookie(cookie: INamedCookie): boolean {
 }
 
 /**
+ * Stage the payload in a fresh owner-only file beside the target.
+ *
+ * <p>The `mode` argument only applies to a file being created, which is why
+ * the temp name has to be unique on every save.
+ * @param file - Destination session path.
+ * @param state - Cookies to persist.
+ * @returns Path of the temp file now holding the payload.
+ */
+async function writeTempFile(file: string, state: StorageState): Promise<string> {
+  const unique = randomUUID();
+  const temp = `${file}.${unique}.tmp`;
+  const payload = JSON.stringify(state);
+  await writeFile(temp, payload, { mode: SESSION_FILE_MODE });
+  return temp;
+}
+
+/**
  * Replace the session file atomically, owner-only.
  *
  * <p>Written under a fresh name and renamed over the target: `rename` replaces
  * whatever sits at the path rather than following it, so a planted symlink
  * cannot redirect the write and no reader observes a half-written file. The
- * `mode` argument only applies to a file being created, which is why the temp
- * name has to be unique on every save.
+ * directory is chmod'd separately because `mkdir`'s mode is ignored for a
+ * directory that already exists.
  * @param file - Destination session path.
  * @param state - Cookies to persist.
  * @returns True once the file is in place.
@@ -165,10 +201,8 @@ function isWafCookie(cookie: INamedCookie): boolean {
 async function writeSessionFile(file: string, state: StorageState): Promise<boolean> {
   const folder = dirname(file);
   await mkdir(folder, { recursive: true, mode: SESSION_DIR_MODE });
-  const unique = randomUUID();
-  const temp = `${file}.${unique}.tmp`;
-  const payload = JSON.stringify(state);
-  await writeFile(temp, payload, { mode: SESSION_FILE_MODE });
+  await chmod(folder, SESSION_DIR_MODE);
+  const temp = await writeTempFile(file, state);
   await rename(temp, file);
   return true;
 }
