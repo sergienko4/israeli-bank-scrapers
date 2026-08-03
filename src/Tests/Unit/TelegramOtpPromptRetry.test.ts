@@ -95,13 +95,24 @@ const LONG_COOLDOWN: IHttpFailure = {
 const PROMPT_ID = 5000;
 
 /**
- * Telegram gateway fault. Carries no `retry_after`, so it also
- * exercises the exponential fallback in `computePromptRetryMs`.
+ * Telegram gateway fault. Ambiguous about delivery, so the fetcher
+ * must fail loudly instead of risking a duplicate prompt.
  */
 const GATEWAY_FAULT: IHttpFailure = {
   status: 502,
   statusText: 'Bad Gateway',
   body: { ok: false, error_code: 502, description: 'Bad Gateway' },
+};
+
+/**
+ * Flood control that omits `parameters.retry_after`. Telegram does
+ * not always advertise a cooldown, which is what keeps the
+ * exponential fallback in `computePromptRetryMs` reachable.
+ */
+const UNADVERTISED_COOLDOWN: IHttpFailure = {
+  status: 429,
+  statusText: 'Too Many Requests',
+  body: { ok: false, error_code: 429, description: 'Too Many Requests' },
 };
 
 /** Captures `fetch` calls per test. */
@@ -403,19 +414,36 @@ describe('fetchOtpFromTelegram prompt retry', (): void => {
     expect(failures[0]).toMatchObject({ status: 200, description: 'bad token' });
   });
 
-  it('TR-8: retries a gateway fault on the fallback schedule', async (): Promise<void> => {
-    // A 5xx is Telegram failing to process a message it never
-    // accepted, so re-sending is safe. It carries no `retry_after`,
-    // which is what exercises the exponential fallback: 500 ms for
-    // the first failure.
-    installPromptScript([GATEWAY_FAULT, 'ok']);
+  it('TR-8: never re-sends after a gateway fault', async (): Promise<void> => {
+    // A 5xx does NOT prove Telegram dropped the message — a gateway
+    // can fault on the response path, after the prompt was already
+    // accepted. Re-sending would then add a second prompt, and the
+    // id of the first is unknowable because Telegram only returns a
+    // message_id on success. Same silent-OTP-loss risk as TR-9.
+    installPromptScript([GATEWAY_FAULT]);
+    const log = makeStubLogger();
+    const args = makeArgs(log);
+    const result = await FETCH_OTP_FROM_TELEGRAM(args);
+    expect(result).toBe(false);
+    const sends = countPromptSends();
+    expect(sends).toBe(1);
+    const retries = readWarnEvents(log, RETRY_EVENT);
+    expect(retries).toHaveLength(0);
+  });
+
+  it('TR-12: falls back to the schedule when no cooldown is advertised', async (): Promise<void> => {
+    // Flood control proves non-delivery, so it is retried even when
+    // Telegram omits `parameters.retry_after`. Without an advertised
+    // cooldown the wait comes from the exponential schedule: 500 ms
+    // for the first failure.
+    installPromptScript([UNADVERTISED_COOLDOWN, 'ok']);
     const log = makeStubLogger();
     const args = makeArgs(log);
     await FETCH_OTP_FROM_TELEGRAM(args);
     const sends = countPromptSends();
     expect(sends).toBe(2);
     const retries = readWarnEvents(log, RETRY_EVENT);
-    expect(retries[0]).toMatchObject({ status: 502, retryAfterSeconds: 0, waitMs: 500 });
+    expect(retries[0]).toMatchObject({ status: 429, retryAfterSeconds: 0, waitMs: 500 });
   });
 
   it('TR-9: never re-sends after a transport fault', async (): Promise<void> => {

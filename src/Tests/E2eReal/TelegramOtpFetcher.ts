@@ -318,7 +318,7 @@ function describeSendFailure(bundle: ISendResponseContext): IPromptFailure {
 function describeThrownFailure(error: unknown, botToken: string): IPromptFailure {
   const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return {
-    status: 0,
+    status: NO_RESPONSE_STATUS,
     errorCode: 0,
     description: redactBotToken(raw, botToken),
     retryAfterSeconds: 0,
@@ -688,8 +688,6 @@ const PROMPT_RETRY_CAP_MS = 5_000;
 const NO_RESPONSE_STATUS = 0;
 /** Telegram's flood-control status. */
 const TOO_MANY_REQUESTS_STATUS = 429;
-/** Lowest status treated as a retryable server-side fault. */
-const SERVER_ERROR_FLOOR = 500;
 /** `retry_after` is advertised in seconds; waits are milliseconds. */
 const MS_PER_SECOND = 1_000;
 /**
@@ -706,31 +704,38 @@ const PROMPT_RETRY_JITTER_MS = 1_000;
 /**
  * Is this failure worth another attempt?
  *
- * <p>Retries are limited to faults where Telegram itself told us the
- * message was *not* accepted: flood control (429) and server-side
- * faults (5xx). Every other 4xx is a caller defect — a revoked token
- * (401), a wrong chat id (400), a bot the user blocked (403) — and
- * retrying one only burns the OTP window without ever changing the
- * answer.
+ * <p>Only flood control (429) is retried. It is the one rejection
+ * that *proves* non-delivery: Telegram's rate limiter refuses the
+ * request before the message is ever processed, so re-sending cannot
+ * duplicate a prompt.
  *
- * <p>A transport fault ({@link NO_RESPONSE_STATUS}) is deliberately
- * NOT retried even though it looks the most transient of all. A
- * rejected `fetch` proves only that *we* saw no response — the POST
- * may well have reached Telegram and delivered the prompt, since the
- * {@link HTTP_TIMEOUT_MS} abort fires client-side. Re-sending then
- * puts a second prompt in the chat with a different `message_id`,
- * and the fetcher matches replies against the id it last received.
- * A user replying to the first prompt they saw would be ignored —
- * reintroducing the exact silent-OTP-loss this retry exists to fix.
- * Sending once and failing loudly is the safer trade.
+ * <p>Every other fault is left alone, for one of two reasons.
+ *
+ * <p>A 4xx is a caller defect — a revoked token (401), a wrong chat
+ * id (400), a bot the user blocked (403). Retrying one only burns the
+ * OTP window without ever changing the answer.
+ *
+ * <p>A 5xx or a transport fault ({@link NO_RESPONSE_STATUS}) is
+ * ambiguous about delivery, which is worse than useless here. Neither
+ * proves Telegram dropped the message: a gateway fault can land after
+ * the message was accepted, and a `fetch` rejection means only that
+ * *we* saw no response, since the {@link HTTP_TIMEOUT_MS} abort fires
+ * client-side. Re-sending then puts a SECOND prompt in the chat, and
+ * the fetcher matches replies against a single `message_id` — so a
+ * user replying to the first prompt they saw is ignored, which is the
+ * exact silent-OTP-loss this retry exists to prevent.
+ *
+ * <p>Tracking every prompt id cannot rescue those cases: an id is
+ * only ever returned by a SUCCESSFUL send, so the id of a prompt that
+ * slipped through a failed attempt is unknowable by construction.
+ * Sending once and failing loudly — with the full failure detail
+ * {@link describeSendFailure} captures — is the safer trade.
  *
  * @param failure - Structured send failure.
  * @returns `true` when another attempt is justified.
  */
 function isRetryablePromptFailure(failure: IPromptFailure): boolean {
-  if (failure.status === NO_RESPONSE_STATUS) return false;
-  if (failure.status === TOO_MANY_REQUESTS_STATUS) return true;
-  return failure.status >= SERVER_ERROR_FLOOR;
+  return failure.status === TOO_MANY_REQUESTS_STATUS;
 }
 
 /**
@@ -821,9 +826,10 @@ function logPromptRetry(bundle: IPromptRetryLogArgs): true {
  * the poll window. At {@link PROMPT_MAX_ATTEMPTS} attempts the
  * retry *waits* total at most
  * `2 × (PROMPT_RETRY_CAP_MS + PROMPT_RETRY_JITTER_MS)` — about 12 s,
- * which the bank's OTP acceptance window absorbs. Only statuses
- * Telegram returned itself are retried, so no attempt can burn a
- * full {@link HTTP_TIMEOUT_MS} abort before the next one starts.
+ * which the bank's OTP acceptance window absorbs. Only flood control
+ * is retried (see {@link isRetryablePromptFailure}), so no attempt
+ * can burn a full {@link HTTP_TIMEOUT_MS} abort before the next one
+ * starts.
  *
  * @param args - Fetcher input bundle.
  * @param attempt - Internal: 1-based attempt counter threaded by
