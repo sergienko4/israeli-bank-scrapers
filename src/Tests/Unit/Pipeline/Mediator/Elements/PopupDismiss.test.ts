@@ -16,7 +16,10 @@
  */
 
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import { dismissPopups } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PopupDismiss.js';
+import {
+  dismissPopups,
+  MAX_POPUP_ATTEMPTS,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/PopupDismiss.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -90,8 +93,11 @@ describe('PopupDismiss — obstruction clearing (T-DISMISS)', () => {
   });
 
   it('T-DISMISS-4: stops at the attempt cap on an endlessly popping page', async () => {
-    const { mediator, heldPage } = makeRecordingMediator(99);
+    const { mediator, heldPage } = makeRecordingMediator(MAX_POPUP_ATTEMPTS + 1);
     const dismissed = await dismissPopups(mediator, SILENT);
-    expect({ dismissed, probes: heldPage.length }).toEqual({ dismissed: 2, probes: 2 });
+    expect({ dismissed, probes: heldPage.length }).toEqual({
+      dismissed: MAX_POPUP_ATTEMPTS,
+      probes: MAX_POPUP_ATTEMPTS,
+    });
   });
 });
