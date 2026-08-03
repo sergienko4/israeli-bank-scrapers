@@ -158,10 +158,16 @@ jobs:
       pipeline_ts: ${{ steps.changes.outputs.pipeline_ts }}
       ci_scripts: ${{ steps.changes.outputs.ci_scripts }}
       deps: ${{ steps.changes.outputs.deps }}
+      test_config: ${{ steps.changes.outputs.test_config }}
+      critical_deps: ${{ steps.changes.outputs.critical_deps }}
+      # `full_suite` = src OR critical_deps. Every heavy job gates on THIS,
+      # so a playwright-core / Camoufox bump runs the same flow a src/ PR
+      # does — those packages are the runtime for all 17 banks.
+      full_suite: ${{ steps.changes.outputs.full_suite }}
       # Single-source-of-truth booleans for downstream `if:` conditions.
       # `trusted_event` — true unless this is a PR from a fork (untrusted secrets).
       # `real_gates_enabled` — true only when ALL prerequisites for running real-network /
-      # CPU-heavy gates hold: trusted_event AND non-dependabot author AND src/ touched.
+      # CPU-heavy gates hold: trusted_event AND non-dependabot author AND full_suite.
       # Use `needs.validate.outputs.<name>` from downstream jobs (validate re-emits these).
       trusted_event: ${{ steps.gate.outputs.trusted_event }}
       real_gates_enabled: ${{ steps.gate.outputs.real_gates_enabled }}
@@ -182,7 +188,7 @@ jobs:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           BASE_REPO: ${{ github.repository }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          SRC_TOUCHED: ${{ steps.changes.outputs.src }}
+          FULL_SUITE: ${{ steps.changes.outputs.full_suite }}
         run: bash .github/scripts/ci/compute-gate-booleans.sh
 
   # ──────────────────────────────────────────────────────────────
@@ -193,7 +199,10 @@ jobs:
   lint-and-types:
     name: Lint & Types
     needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.deps == 'true'
+    # `full_suite` already subsumes `src` (it is `src OR critical_deps`), so it
+    # stands in for it here — see CriticalDepsFullSuiteGate.test.ts, which pins
+    # that invariant so this umbrella cannot silently stop covering src PRs.
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -206,15 +215,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-node-deps
-        if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
-      - if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
+      - if: needs.changes.outputs.full_suite == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
       - name: ESLint (warnings as errors)
-        if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.full_suite == 'true'
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
       - name: Prettier check
-        if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
         if: needs.changes.outputs.md == 'true' || needs.changes.outputs.src == 'true'
@@ -274,14 +283,16 @@ jobs:
         if: needs.changes.outputs.ci_scripts == 'true'
         run: bash .github/scripts/ci/tests/scripts-smoke.sh
 
-      # `npx tsc` would resolve the `typescript` alias (the TS 6 API package),
-      # not the TS 7 native compiler. Go through the script instead.
+      # Both `typescript` (the TS 6 API alias) and `@typescript/native`
+      # (the TS 7 native compiler) declare a `tsc` bin, so `npx tsc`
+      # resolves to whichever won the node_modules/.bin race at install
+      # time. Go through the script, which names TS 7 explicitly.
       - name: Type check
-        if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.full_suite == 'true'
         run: npm run type-check
 
       - name: Acyclic-dependencies gate
-        if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.full_suite == 'true'
         run: npm run lint:cycles
 
       # Tamper-guard: the ratchet above trusts the working-tree baseline, so a
@@ -301,11 +312,14 @@ jobs:
             || echo '{"note":"absent on base","cycleCount":0,"cycles":[]}' > "${base_file}"
           npx tsx src/Tests/Tools/lint-import-cycles.ts --guard-against "${base_file}"
 
+      # A lockfile-only bump (`deps` without `full_suite`) is precisely the
+      # change that can pull in a vulnerable transitive dependency, so these
+      # carry the same `|| deps` fallback as setup-node-deps above.
       - name: Audit production dependencies
-        if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         run: npm audit --audit-level=high --omit=dev
       - name: Audit all dependencies (informational)
-        if: needs.changes.outputs.src == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         run: npm audit --audit-level=high
         continue-on-error: true
 
@@ -313,11 +327,17 @@ jobs:
   # Unit tests with coverage — parallel with the e2e and integration
   # jobs. Camoufox is NOT needed here (jest.pipeline.config.cjs
   # excludes the browser-driven suites).
+  #
+  # Also runs when only `deps` or `test_config` changed. A test-time
+  # dependency bump (`@jest/globals`, `@types/*`) or a Jest config edit
+  # (`transformIgnorePatterns`, `moduleNameMapper`, `testEnvironment`)
+  # can ONLY regress here, and neither touches a `src/` file — so
+  # gating on `src` alone let those land unvalidated.
   # ──────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit tests
     needs: changes
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -348,7 +368,7 @@ jobs:
   e2e-factory:
     name: E2E factory
     needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -377,7 +397,7 @@ jobs:
   e2e-mocked:
     name: E2E mocked
     needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -398,7 +418,7 @@ jobs:
   bank-coverage:
     name: Bank coverage gate
     needs: changes
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -436,7 +456,7 @@ jobs:
   integration:
     name: Integration Mode ${{ matrix.mode }} (${{ matrix.bank }})
     needs: changes
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -474,7 +494,7 @@ jobs:
   build:
     name: Build
     needs: changes
-    if: needs.changes.outputs.src == 'true'
+    if: needs.changes.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -532,6 +552,8 @@ jobs:
       md_touched: ${{ needs.changes.outputs.md }}
       docs_touched: ${{ needs.changes.outputs.docs }}
       pipeline_ts_touched: ${{ needs.changes.outputs.pipeline_ts }}
+      critical_deps: ${{ needs.changes.outputs.critical_deps }}
+      full_suite: ${{ needs.changes.outputs.full_suite }}
       # Re-emit the computed gate booleans so downstream jobs that already `needs: validate`
       # don't have to add `changes` to their needs list. See compute-gate-booleans.sh for
       # the exact predicate semantics.
@@ -567,8 +589,11 @@ jobs:
     name: E2E Smoke (${{ matrix.bank }})
     # Skip when only docs/CI/non-src files were touched — keeps non-src
     # PRs from spinning up 17 runners they cannot meaningfully exercise.
+    # A browser-stack bump (playwright-core / Camoufox) DOES qualify via
+    # `full_suite`: that is precisely the change these 17 runners exist
+    # to catch, and it touches no `src/` file.
     needs: validate
-    if: needs.validate.outputs.src_touched == 'true'
+    if: needs.validate.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -711,8 +736,10 @@ jobs:
     # Dependabot PRs SKIP the real-bank gate prerequisites — the validate
     # tier above (lint/types/unit/mocked/integration/build) is sufficient
     # to gate a dependency bump. The real-bank E2E happy-path remains
-    # optional (manual approval) on human-authored PRs only.
-    # `real_gates_enabled` = trusted_event AND non-dependabot AND src_touched
+    # optional (manual approval) on human-authored PRs only. To exercise
+    # the real gates for a browser-stack bump, re-raise it on a
+    # maintainer-owned branch: `full_suite` then unlocks them.
+    # `real_gates_enabled` = trusted_event AND non-dependabot AND full_suite
     # (see .github/scripts/ci/compute-gate-booleans.sh for the predicate).
     if: needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest

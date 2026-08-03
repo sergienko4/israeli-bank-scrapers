@@ -23,7 +23,6 @@ module.exports = {
       { useESM: true, diagnostics: false, tsconfig: { allowJs: true, checkJs: false } },
     ],
   },
-  transformIgnorePatterns: ['/node_modules/(?!@faker-js/faker)'],
   setupFilesAfterEnv: ['./Tests/JestSetup.ts'],
   testEnvironment: 'node',
   testPathIgnorePatterns: [

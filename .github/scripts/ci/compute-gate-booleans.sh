@@ -13,16 +13,24 @@
 #                           1. trusted_event             (excludes fork PRs)
 #                           2. PR author ? dependabot[bot] (stable across reruns; uses
 #                              pull_request.user.login, NOT github.actor)
-#                           3. src/ paths touched         (skips docs-only / chore PRs)
+#                           3. full_suite                 (src/ touched OR the browser
+#                              stack moved ? see detect-changes.sh `critical_deps`;
+#                              skips docs-only / chore PRs)
 #                         workflow_dispatch is treated as trusted + skips the src filter
 #                         (operator manually triggered ? assume intent).
+#
+# Note on (2): a Dependabot-authored playwright-core / camoufox bump still cannot
+# reach the real gates, because Dependabot PRs run with restricted secrets and the
+# bank credentials would resolve empty. The supported path for validating a browser
+# stack bump end-to-end is to re-raise it on a maintainer-owned branch, where
+# `full_suite` then unlocks the same gates a `src/` PR gets.
 #
 # Inputs come via env (set in the calling workflow step):
 #   EVENT_NAME   ? github.event_name
 #   HEAD_REPO    ? github.event.pull_request.head.repo.full_name
 #   BASE_REPO    ? github.repository
 #   PR_AUTHOR    ? github.event.pull_request.user.login
-#   SRC_TOUCHED  ? needs.changes.outputs.src ('true' or 'false')
+#   FULL_SUITE   ? needs.changes.outputs.full_suite ('true' or 'false')
 #
 # Downstream pattern:
 #   if: needs.validate.outputs.real_gates_enabled == 'true'   # heavy gates
@@ -40,9 +48,9 @@ is_dependabot_pr() {
   [[ "$EVENT_NAME" == "pull_request" && "$PR_AUTHOR" == "dependabot[bot]" ]]
 }
 
-src_touched_or_dispatch() {
+full_suite_or_dispatch() {
   [[ "$EVENT_NAME" == "workflow_dispatch" ]] && return 0
-  [[ "$SRC_TOUCHED" == "true" ]]
+  [[ "$FULL_SUITE" == "true" ]]
 }
 
 trusted="false"
@@ -51,11 +59,11 @@ if is_trusted_event; then
 fi
 
 real="false"
-if [[ "$trusted" == "true" ]] && ! is_dependabot_pr && src_touched_or_dispatch; then
+if [[ "$trusted" == "true" ]] && ! is_dependabot_pr && full_suite_or_dispatch; then
   real="true"
 fi
 
 echo "trusted_event=$trusted" >> "$GITHUB_OUTPUT"
 echo "real_gates_enabled=$real" >> "$GITHUB_OUTPUT"
 
-echo "[gate] event=$EVENT_NAME head=$HEAD_REPO base=$BASE_REPO author=$PR_AUTHOR src=$SRC_TOUCHED ? trusted=$trusted real=$real"
+echo "[gate] event=$EVENT_NAME head=$HEAD_REPO base=$BASE_REPO author=$PR_AUTHOR full_suite=$FULL_SUITE ? trusted=$trusted real=$real"
