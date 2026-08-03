@@ -30,10 +30,19 @@ const SILENT = {
   debug: (): boolean => true,
 } as unknown as ScraperLogger;
 
-/** Records the timeout each dismissal attempt asked for; 0 = library default. */
+/**
+ * One recorded dismissal attempt. `hasTimeout` keeps an omitted timeout
+ * distinguishable from an explicit `0`, which a bare number cannot.
+ */
+interface IProbeAttempt {
+  readonly hasTimeout: boolean;
+  readonly timeoutMs: number;
+}
+
+/** Records what each dismissal attempt asked for. */
 interface IProbeRecorder {
   readonly mediator: IElementMediator;
-  readonly timeouts: number[];
+  readonly timeouts: IProbeAttempt[];
 }
 
 /** Describes when a scripted overlay becomes resolvable. */
@@ -52,7 +61,7 @@ interface IOverlayScript {
  * @returns Stub mediator plus the recorded per-attempt timeouts.
  */
 function makeRecordingMediator(script: IOverlayScript): IProbeRecorder {
-  const timeouts: number[] = [];
+  const timeouts: IProbeAttempt[] = [];
   const state = { immediateLeft: script.immediate };
   const mediator = {
     /**
@@ -63,7 +72,7 @@ function makeRecordingMediator(script: IOverlayScript): IProbeRecorder {
      */
     resolveAndClick: (_candidates: unknown, timeoutMs?: number): Promise<unknown> => {
       const waited = timeoutMs ?? 0;
-      timeouts.push(waited);
+      timeouts.push({ hasTimeout: waited === timeoutMs, timeoutMs: waited });
       const isPatient = waited >= LATE_POPUP_WATCH_MS;
       const hasImmediate = state.immediateLeft > 0;
       if (hasImmediate) state.immediateLeft -= 1;
@@ -93,13 +102,19 @@ describe('PopupDismiss — obstruction clearing (T-DISMISS)', () => {
   it('T-DISMISS-2: widens the wait only after something was dismissed', async () => {
     const { mediator, timeouts } = makeRecordingMediator({ immediate: 1, hasLateOverlay: true });
     await dismissPopups(mediator, SILENT);
-    expect(timeouts).toEqual([0, LATE_POPUP_WATCH_MS]);
+    expect(timeouts).toEqual([
+      { hasTimeout: false, timeoutMs: 0 },
+      { hasTimeout: true, timeoutMs: LATE_POPUP_WATCH_MS },
+    ]);
   });
 
   it('T-DISMISS-3: a clean page pays no extended wait', async () => {
     const { mediator, timeouts } = makeRecordingMediator({ immediate: 0, hasLateOverlay: false });
     const dismissed = await dismissPopups(mediator, SILENT);
-    expect({ dismissed, probes: timeouts }).toEqual({ dismissed: 0, probes: [0] });
+    expect({ dismissed, probes: timeouts }).toEqual({
+      dismissed: 0,
+      probes: [{ hasTimeout: false, timeoutMs: 0 }],
+    });
   });
 
   it('T-DISMISS-4: stops at the attempt cap on an endlessly popping page', async () => {
