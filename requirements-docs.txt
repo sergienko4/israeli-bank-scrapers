@@ -1,6 +1,6 @@
 GitPython==3.1.57
 Jinja2==3.1.6
-Markdown==3.10.2
+Markdown==3.10.3
 Pygments==2.20.0
 ghp-import==2.1.0
 gitdb==4.0.12
