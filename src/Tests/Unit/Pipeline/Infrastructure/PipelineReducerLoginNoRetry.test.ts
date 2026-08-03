@@ -89,7 +89,7 @@ describe('PipelineReducer — narrow login no-retry', () => {
     async () => {
       const msg = `${LOGIN_NOT_COMPLETED_CODE} — login form still present after 15 attempts (75000ms)`;
       const failure = fail(ScraperErrorTypes.Generic, msg);
-      const run = await driveReducer('home', failure);
+      const run = await driveReducer('dashboard', failure);
       expect(run).toHaveBeenCalledTimes(2);
     },
     RETRY_TEST_TIMEOUT_MS,

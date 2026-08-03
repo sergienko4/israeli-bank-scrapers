@@ -86,7 +86,7 @@ describe('PipelineReducer — narrow auth-discovery no-retry', () => {
     'still retries a non-auth-discovery phase carrying the not-ready code',
     async () => {
       const failure = failAuthDiscovery('AUTH_DISCOVERY_DASHBOARD_NOT_READY', 'reveal missing');
-      const run = await driveReducer('home', failure);
+      const run = await driveReducer('dashboard', failure);
       expect(run).toHaveBeenCalledTimes(2);
     },
     RETRY_TEST_TIMEOUT_MS,
