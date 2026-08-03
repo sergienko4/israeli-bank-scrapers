@@ -90,13 +90,40 @@ const DECOY: IFakeElement = {
 };
 
 /**
+ * The production placeholder for an element that carries no DOM id. Real menu
+ * toggles frequently have none — Max's is `<a role="button">` with only a class.
+ */
+const NO_DOM_ID = '(none)';
+
+/** The same toggle as {@link TOGGLE}, but with no usable DOM id. */
+const TOGGLE_NO_ID: IFakeElement = {
+  id: NO_DOM_ID,
+  text: ENTRY_TEXT,
+  kind: 'ariaLabel',
+  href: '',
+};
+
+/**
  * Wrap a fake element as the race result shape the resolver consumes.
+ *
+ * <p>The identity mirrors what {@link IElementMediator} captures from a live
+ * element, not just its id — the preference falls back to those attributes when
+ * a control has no usable id.
  * @param element - Element to expose.
  * @returns Race result carrying the element and its matching candidate.
  */
 function toRaceResult(element: IFakeElement): IRaceResult {
   const candidate = { kind: element.kind, value: element.text } as SelectorCandidate;
-  const identity = { id: element.id } as IRaceResult['identity'];
+  const identity = {
+    tag: 'a',
+    id: element.id,
+    classes: '',
+    name: '',
+    type: '',
+    ariaLabel: element.text,
+    title: '',
+    href: element.href,
+  } as IRaceResult['identity'];
   return { ...NOT_FOUND_RESULT, found: true as const, value: element.id, candidate, identity };
 }
 
@@ -173,11 +200,15 @@ function makeMediator(visible: readonly IFakeElement[]): IElementMediator {
 /**
  * Run the production preference over a page state.
  * @param visible - Elements the page currently exposes, in DOM order.
+ * @param primaryElement - The race winner HOME is reconsidering.
  * @returns The DOM id the preference selected.
  */
-async function preferredIdFrom(visible: readonly IFakeElement[]): Promise<string> {
+async function preferredIdFrom(
+  visible: readonly IFakeElement[],
+  primaryElement: IFakeElement = TOGGLE,
+): Promise<string> {
   const mediator = makeMediator(visible);
-  const primary = toRaceResult(TOGGLE);
+  const primary = toRaceResult(primaryElement);
   const chosen = await preferDirectEntry({ mediator, primary, logger: SILENT });
   return chosen.value;
 }
@@ -206,5 +237,11 @@ describe('HOME entry preference across a revealed menu (T-HOMEMENU)', () => {
     };
     const preferredId = await preferredIdFrom([TOGGLE, MENU_LINK, navigable]);
     expect(preferredId).toBe(navigable.id);
+  });
+
+  it('T-HOMEMENU-5 (FIRING): skips an id-less toggle rather than re-clicking it', async () => {
+    const visible = [TOGGLE_NO_ID, MENU_LINK];
+    const preferredId = await preferredIdFrom(visible, TOGGLE_NO_ID);
+    expect(preferredId).toBe(MENU_LINK.id);
   });
 });

@@ -30,7 +30,11 @@ import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js
 import { WK_HOME } from '../../Registry/WK/HomeWK.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
+import type {
+  IElementIdentity,
+  IElementMediator,
+  IRaceResult,
+} from '../Elements/ElementMediator.js';
 import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
 import type { NavStrategy } from './HomeStrategyClassify.js';
 import { classifyStrategy, NAV_STRATEGY } from './HomeStrategyClassify.js';
@@ -91,16 +95,50 @@ async function firstDirect(
 const ACCESSIBLE_NAME_KIND = 'ariaLabel';
 
 /**
+ * Identity fields that still tell two controls apart once the DOM id is gone.
+ * Ordered widest-to-narrowest only for readability — all are compared.
+ */
+const IDENTITY_KEYS = ['tag', 'name', 'ariaLabel', 'title', 'href'] as const;
+
+/**
+ * Whether the identity carries a DOM id worth comparing.
+ * @param identity - Identity captured for a resolved element.
+ * @returns True when the id is present and not the no-id placeholder.
+ */
+function hasUsableId(identity: IElementIdentity): boolean {
+  return identity.id.length > 0 && identity.id !== NO_DOM_ID;
+}
+
+/**
+ * The identity reduced to its stable attributes, joined on a separator that
+ * cannot occur in an attribute value.
+ * @param identity - Identity captured for a resolved element.
+ * @returns Comparable fingerprint string.
+ */
+function identityFingerprint(identity: IElementIdentity): string {
+  const parts = IDENTITY_KEYS.map((key: (typeof IDENTITY_KEYS)[number]): string => identity[key]);
+  return parts.join('\u0000');
+}
+
+/**
  * True when both results resolved to the same DOM element.
+ *
+ * <p>Falls back to the stable attributes when either side has no usable id.
+ * Treating an id-less pair as "different" defeated the whole guard: Max's
+ * toggle is an `<a role="button">` that often carries no id, so the toggle
+ * compared unequal to itself and was re-selected — clicking shut the menu it
+ * had just opened.
+ *
  * @param left - First result.
  * @param right - Second result.
- * @returns True when a usable DOM id is shared.
+ * @returns True when both describe the same control.
  */
 function isSameElement(left: IRaceResult, right: IRaceResult): boolean {
   if (left.identity === false || right.identity === false) return false;
-  const id = left.identity.id;
-  if (id.length === 0 || id === NO_DOM_ID) return false;
-  return id === right.identity.id;
+  if (hasUsableId(left.identity) && hasUsableId(right.identity)) {
+    return left.identity.id === right.identity.id;
+  }
+  return identityFingerprint(left.identity) === identityFingerprint(right.identity);
 }
 
 /**
