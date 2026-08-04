@@ -8,7 +8,7 @@
 const CLUSTER_DEPTH = 4;
 
 function emptyCounts(files) {
-  return new Map(files.map((f) => [f, 0]));
+  return new Map(files.map(f => [f, 0]));
 }
 
 function instability(fanIn, fanOut) {
@@ -24,7 +24,7 @@ export function couplingByFile({ files, edges }) {
     fanOut.set(from, fanOut.get(from) + 1);
     fanIn.set(to, fanIn.get(to) + 1);
   }
-  return files.map((f) => ({
+  return files.map(f => ({
     file: f,
     fanIn: fanIn.get(f),
     fanOut: fanOut.get(f),
@@ -72,12 +72,12 @@ export function clusterMetrics({ files, edges, loc }) {
   }
   addClusterEdges(acc, edges);
   return [...acc.values()]
-    .map((c) => ({ ...c, cohesion: cohesion(c) }))
+    .map(c => ({ ...c, cohesion: cohesion(c) }))
     .sort((a, b) => b.loc - a.loc);
 }
 
 function adjacency(files, edges) {
-  const adj = new Map(files.map((f) => [f, []]));
+  const adj = new Map(files.map(f => [f, []]));
   for (const [from, to] of edges) adj.get(from)?.push(to);
   return adj;
 }

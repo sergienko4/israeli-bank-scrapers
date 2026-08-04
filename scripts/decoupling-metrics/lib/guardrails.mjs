@@ -24,7 +24,7 @@ function countIn(root, files, re) {
 function countCanaries(root) {
   const dir = join(root, 'src/Scrapers/Pipeline/EslintCanaries');
   if (!existsSync(dir)) return 0;
-  return readdirSync(dir).filter((f) => f.endsWith('.canary.ts')).length;
+  return readdirSync(dir).filter(f => f.endsWith('.canary.ts')).length;
 }
 
 function countEslintRules(root) {
