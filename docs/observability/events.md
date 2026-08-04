@@ -199,10 +199,13 @@ file owns one concern so the moving parts are independently testable:
   record so tests can assert the mixin contract directly without
   depending on transport-flush timing.
 - `Logging/RootLogger.ts` — `getRootLogger` builds (or returns the
-  cached) pino root the first time any child logger is read; the
-  companion `isRootLoggerCached` predicate lets the deferred-resolve
-  proxy decide whether the resolved child can be memoised yet or has
-  to keep resolving fresh until `setActiveBank` lands.
+  cached) pino root the first time any child logger is read. The cache is
+  keyed on the resolved log destination rather than gated on it, so the
+  terminal-only root used before `setActiveBank` lands is itself cached
+  and is rebuilt when — and only when — the destination actually changes.
+  The companion `getRootLoggerGeneration` counter advances on each
+  rebuild so the deferred-resolve proxy drops a memoised child on its
+  next access after the root behind it was replaced.
 - `Logging/ChildLoggerProxy.ts` — `buildDeferredLogger(name)` returns
   the lazy-resolve `Proxy` that backs both `getDebug` and
   `getDebugByName`. The internal `IProxyHandler` type documents the
