@@ -30,10 +30,15 @@ function load(path) {
  *
  * Backslashes are escaped first: a name already containing `\` would
  * otherwise combine with the inserted escape and render as a literal
- * backslash followed by an unescaped column separator.
+ * backslash followed by an unescaped column separator. Line breaks collapse
+ * to spaces because a raw newline would end the table row early — POSIX
+ * permits them in paths, and `git ls-files -z` passes them through intact.
  */
 function cell(value) {
-  return String(value).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\r\n?|\n/g, ' ')
+    .replace(/\|/g, '\\|');
 }
 
 function delta(before, after) {
