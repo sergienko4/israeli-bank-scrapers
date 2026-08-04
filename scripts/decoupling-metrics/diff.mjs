@@ -82,21 +82,30 @@ function indexClusters(snap) {
 }
 
 /**
- * Ranks how much a cluster moved.
+ * Cluster columns, in render order.
  *
- * <p>Cohesion and external fan-out are weighted so a coupling-only shift
- * outranks a trivial LoC change; ranking on LoC alone scored those at zero
- * and sliced them out of the table entirely.
+ * <p>This is the single source of truth: a field listed here is detected as a
+ * change, weighted in the ranking and rendered. Tracking a field without
+ * rendering it produced rows with no visible difference, and tracking it
+ * without weighting it scored the row zero so the cap sliced it away.
  */
-function rank(prev, cur) {
-  const cohesion = Math.abs(cur.cohesion - prev.cohesion) * COHESION_WEIGHT;
-  return (
-    Math.abs(cur.loc - prev.loc) + cohesion + Math.abs(cur.outgoing - prev.outgoing) * FANOUT_WEIGHT
-  );
-}
+const CLUSTER_COLS = [
+  ['LoC', 'loc', 1],
+  ['Cohesion', 'cohesion', COHESION_WEIGHT],
+  ['Fan-out (external)', 'outgoing', FANOUT_WEIGHT],
+  ['Fan-in', 'incoming', FANOUT_WEIGHT],
+  ['Internal edges', 'internalEdges', 1],
+];
 
 /** Fields whose movement makes a cluster worth showing. */
-const TRACKED = ['loc', 'cohesion', 'outgoing', 'incoming', 'internalEdges'];
+const TRACKED = CLUSTER_COLS.map(([, key]) => key);
+
+function rank(prev, cur) {
+  return CLUSTER_COLS.reduce(
+    (sum, [, key, weight]) => sum + Math.abs(cur[key] - prev[key]) * weight,
+    0,
+  );
+}
 
 function changedRow(prev, cur) {
   if (TRACKED.every(k => prev[k] === cur[k])) return null;
@@ -126,14 +135,10 @@ function clusterRows(a, b) {
   return rows.sort((x, y) => y.shift - x.shift);
 }
 
-/** Renders the three value cells, marking a cluster that only exists on one side. */
+/** Renders one value cell per tracked column, marking a one-sided cluster. */
 function arrowCells(prev, cur, mark) {
   const at = (o, k) => (o && o[k] !== undefined ? o[k] : '—');
-  return [
-    `${at(prev, 'loc')} → ${at(cur, 'loc')}${mark}`,
-    `${at(prev, 'cohesion')} → ${at(cur, 'cohesion')}`,
-    `${at(prev, 'outgoing')} → ${at(cur, 'outgoing')}`,
-  ];
+  return TRACKED.map((k, i) => `${at(prev, k)} → ${at(cur, k)}${i === 0 ? mark : ''}`);
 }
 
 function clusterCells(r) {
@@ -152,7 +157,8 @@ function omittedNote(total) {
 
 function renderClusters(rows) {
   if (rows.length === 0) return '_No cluster changed._';
-  const head = ['| Cluster | LoC | Cohesion | Fan-out (external) |', '|---|---|---|---|'];
+  const labels = CLUSTER_COLS.map(([label]) => label).join(' | ');
+  const head = [`| Cluster | ${labels} |`, `|${'---|'.repeat(CLUSTER_COLS.length + 1)}`];
   const body = rows
     .slice(0, CLUSTER_ROWS)
     .map(r => `| \`${cell(r.cluster)}\` | ${clusterCells(r).map(cell).join(' | ')} |`);
