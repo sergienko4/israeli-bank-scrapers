@@ -83,10 +83,13 @@ function report(snap, outPath) {
  * Keeps a caller-supplied output name inside `snapshots/`.
  *
  * `join` resolves `..` segments, so an unchecked name could write anywhere on
- * disk. A bare filename is the only legitimate input.
+ * disk. A bare filename is the only legitimate input. The empty string is
+ * rejected explicitly because `basename('')` is also `''`, which would
+ * otherwise pass the equality check and target the directory itself.
  */
 function safeName(name) {
-  if (name === basename(name) && name !== '.' && name !== '..') return name;
+  const bare = name.length > 0 && name === basename(name);
+  if (bare && name !== '.' && name !== '..') return name;
   throw new Error(`output name must be a bare filename, got: ${name}`);
 }
 
