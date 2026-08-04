@@ -39,11 +39,14 @@ keeps working, only the navigation features are missing.
 The config is read at startup, so a running Copilot CLI session will not pick it
 up:
 
-1. `/exit` to quit Copilot CLI.
-2. Re-launch `copilot` from the repo root.
-3. Run `/lsp` to confirm the server is attached.
+1. `/restart` to restart the CLI while preserving the session, or `/exit` and
+   re-launch `copilot` from the repo root.
+2. Run `/lsp` to confirm the server is attached.
 
 ## Configuration
+
+This is the committed file in full — copy it verbatim if you are setting up
+another repo, so every extension the tooling expects is mapped:
 
 ```json
 {
@@ -51,16 +54,26 @@ up:
     "typescript": {
       "command": "typescript-language-server",
       "args": ["--stdio"],
-      "fileExtensions": { ".ts": "typescript", ".tsx": "typescriptreact" }
+      "fileExtensions": {
+        ".ts": "typescript",
+        ".tsx": "typescriptreact",
+        ".mts": "typescript",
+        ".cts": "typescript",
+        ".js": "javascript",
+        ".jsx": "javascriptreact",
+        ".mjs": "javascript",
+        ".cjs": "javascript"
+      }
     }
   }
 }
 ```
 
-The committed file maps eight extensions (`.ts`, `.tsx`, `.mts`, `.cts`, `.js`,
-`.jsx`, `.mjs`, `.cjs`). A repo-level `lsp.json` takes precedence over a
-user-level `~/.copilot/lsp-config.json`, so this file governs for everyone
-working in this checkout.
+A repo-level config takes precedence over a user-level
+`~/.copilot/lsp-config.json`, so this file governs for everyone working in this
+checkout. Copilot CLI accepts a repo-level config at either `lsp.json` in the
+repo root or `.github/lsp.json`; this repo uses the root location, which is
+also the path the OODA agent contract names.
 
 ## Windows note
 
