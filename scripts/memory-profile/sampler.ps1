@@ -74,9 +74,9 @@ function New-Sample {
       -not $Baseline.Contains([int]$_.ProcessId)
     })
   # Detached browsers are the leak this profiler exists to surface, so their
-  # footprint is reported alongside the tree total rather than silently
-  # dropped — counting them while excluding their bytes would under-report
-  # exactly the runs that leak most.
+  # count and total working set are emitted as separate fields (strays,
+  # strayWs). The reporter prints them next to, but NOT inside, the tree
+  # total, so a leaking run stays visible without distorting the tree number.
   $strayWs = 0
   foreach ($s in $strays) { $strayWs += [int64]$s.WorkingSetSize }
   [pscustomobject]@{
@@ -98,10 +98,25 @@ function Get-BrowserBaseline {
 
 $baseline = Get-BrowserBaseline -Rows (Get-ProcessRows)
 
+# Orphaned browsers only become observable once the tree they belonged to is
+# gone, so sampling continues briefly past root exit. Bounded, so the sampler
+# always terminates even if the strays never do.
+$graceLeft = 10
+
 while ($true) {
   $rows = Get-ProcessRows
-  if (-not ($rows | Where-Object { [int]$_.ProcessId -eq $RootPid })) { break }
-  $ids = Get-DescendantIds -Rows $rows -Root $RootPid
-  (New-Sample -Rows $rows -Ids $ids -Baseline $baseline) | ConvertTo-Json -Compress -Depth 4
+  $rootAlive = [bool]($rows | Where-Object { [int]$_.ProcessId -eq $RootPid })
+  if ($rootAlive) {
+    $ids = Get-DescendantIds -Rows $rows -Root $RootPid
+  }
+  else {
+    $ids = New-Object System.Collections.Generic.HashSet[int]
+  }
+  $sample = New-Sample -Rows $rows -Ids $ids -Baseline $baseline
+  $sample | ConvertTo-Json -Compress -Depth 4
+  if (-not $rootAlive) {
+    if ($sample.strays -eq 0 -or $graceLeft -le 0) { break }
+    $graceLeft -= 1
+  }
   Start-Sleep -Milliseconds $IntervalMs
 }

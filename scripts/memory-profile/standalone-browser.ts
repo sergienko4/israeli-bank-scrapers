@@ -10,6 +10,8 @@
  * Run under the profiler:
  *   node scripts/memory-profile/profile-bank.mjs browser --mode=standalone
  */
+import type { Browser, BrowserContext } from 'playwright-core';
+
 import { launchCamoufox } from '../../src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 
 const HOLD_MS = 15_000;
@@ -28,17 +30,42 @@ function logNodeMemory(label: string): void {
   process.stdout.write(`[standalone] ${label}: node rss=${rss}MB heapUsed=${heap}MB\n`);
 }
 
-async function main(): Promise<void> {
-  logNodeMemory('before launch');
-  const browser = await launchCamoufox(true);
-  const context = await browser.newContext({ viewport: null });
+/**
+ * Open one page and hold it at steady state long enough for the sampler
+ * to capture the peak.
+ * @param context - Context to open the page in.
+ * @returns Resolves once the hold has elapsed.
+ */
+async function holdPage(context: BrowserContext): Promise<void> {
   const page = await context.newPage();
   await page.goto('about:blank');
   logNodeMemory('browser up');
-  await new Promise((resolve) => setTimeout(resolve, HOLD_MS));
+  await new Promise(resolve => setTimeout(resolve, HOLD_MS));
   logNodeMemory('steady state');
-  await context.close();
-  await browser.close();
+}
+
+/**
+ * Hold a browser at steady state, closing the context whatever happens.
+ * @param browser - Launched browser.
+ * @returns Resolves once the context has closed.
+ */
+async function holdSteadyState(browser: Browser): Promise<void> {
+  const context = await browser.newContext({ viewport: null });
+  try {
+    await holdPage(context);
+  } finally {
+    await context.close();
+  }
+}
+
+async function main(): Promise<void> {
+  logNodeMemory('before launch');
+  const browser = await launchCamoufox(true);
+  try {
+    await holdSteadyState(browser);
+  } finally {
+    await browser.close();
+  }
 }
 
 main().catch((error: unknown) => {

@@ -14,6 +14,9 @@
  * The scrape's own stdout is written to a gitignored run log and never
  * echoed, because real transaction output contains account-level PII.
  *
+ * Windows only: the sampler is a PowerShell/WMI script, because Node has
+ * no portable way to read the working set of a *sibling* process tree.
+ *
  * Usage:
  *   node scripts/memory-profile/profile-bank.mjs Discount --mode=mocked
  *   node scripts/memory-profile/profile-bank.mjs Discount --mode=real
@@ -37,12 +40,14 @@ const MB = 1024 * 1024;
  * Camoufox browser against local fixtures instead of a live bank.
  */
 const MODE_FILTERS = {
-  real: (bank) => ['--testPathIgnorePatterns=E2eMocked',
+  real: bank => [
+    '--testPathIgnorePatterns=E2eMocked',
     `--testPathPatterns=/${bank}\\.e2e-real\\.test\\.ts`,
-    `--testNamePattern=${HAPPY_PATH_TEST_NAME}`],
-  mocked: (bank) => [`--testPathPatterns=/${bank}\\.e2e-mocked\\.test\\.ts`],
+    `--testNamePattern=${HAPPY_PATH_TEST_NAME}`,
+  ],
+  mocked: bank => [`--testPathPatterns=/${bank}\\.e2e-mocked\\.test\\.ts`],
   suite: () => ['--testPathPatterns=e2e-mocked\\.test\\.ts'],
-  custom: (pattern) => [`--testPathPatterns=${pattern}`],
+  custom: pattern => [`--testPathPatterns=${pattern}`],
 };
 
 const TSX_CLI = join(REPO, 'node_modules', 'tsx', 'dist', 'cli.mjs');
@@ -63,7 +68,7 @@ const STANDALONE_SCRIPTS = {
  * @returns The value, or undefined when absent.
  */
 function flagValue(args, name) {
-  const hit = args.find((a) => a.startsWith(`--${name}=`));
+  const hit = args.find(a => a.startsWith(`--${name}=`));
   return hit ? hit.slice(name.length + 3) : undefined;
 }
 
@@ -76,7 +81,7 @@ function parseArgs() {
   const mode = flagValue(args, 'mode') ?? 'mocked';
   const known = [...Object.keys(MODE_FILTERS), ...Object.keys(STANDALONE_SCRIPTS)];
   if (!known.includes(mode)) throw new Error(`--mode must be one of ${known.join('|')}`);
-  const bank = args.find((a) => !a.startsWith('--')) ?? 'all';
+  const bank = args.find(a => !a.startsWith('--')) ?? 'all';
   const interval = Number.parseInt(flagValue(args, 'interval') ?? '500', 10);
   return { bank, mode, interval: Number.isNaN(interval) ? 500 : interval };
 }
@@ -88,7 +93,7 @@ function parseArgs() {
  * @param mode - A key of MODE_FILTERS or STANDALONE_SCRIPTS.
  * @returns Argv array for `node`.
  */
-function buildJestArgs(bank, mode) {
+function buildRunArgs(bank, mode) {
   if (STANDALONE_SCRIPTS[mode]) return [TSX_CLI, STANDALONE_SCRIPTS[mode]];
   return [
     '--experimental-vm-modules',
@@ -101,6 +106,17 @@ function buildJestArgs(bank, mode) {
 }
 
 /**
+ * Fail fast off Windows. The sampler is PowerShell-based, so elsewhere the
+ * spawn would fail into stderr and the run would still finish, reporting
+ * "No samples captured" — which misattributes the cause.
+ * @returns Nothing. Throws when the platform is unsupported.
+ */
+function requireWindows() {
+  if (process.platform === 'win32') return;
+  throw new Error(`the memory profiler requires Windows; platform=${process.platform}`);
+}
+
+/**
  * Start the PowerShell tree sampler against a root PID.
  * @param rootPid - PID of the spawned jest process.
  * @param interval - Sampling interval in milliseconds.
@@ -108,11 +124,20 @@ function buildJestArgs(bank, mode) {
  */
 function startSampler(rootPid, interval) {
   const script = join(HERE, 'sampler.ps1');
-  const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script,
-    '-RootPid', String(rootPid), '-IntervalMs', String(interval)];
+  const args = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    script,
+    '-RootPid',
+    String(rootPid),
+    '-IntervalMs',
+    String(interval),
+  ];
   const proc = spawn('powershell.exe', args, { windowsHide: true });
-  proc.stderr.on('data', (d) => process.stderr.write(`[sampler] ${d}`));
-  proc.on('error', (e) => process.stderr.write(`[sampler] spawn failed: ${e.message}\n`));
+  proc.stderr.on('data', d => process.stderr.write(`[sampler] ${d}`));
+  proc.on('error', e => process.stderr.write(`[sampler] spawn failed: ${e.message}\n`));
   return proc;
 }
 
@@ -134,7 +159,7 @@ function totals(sample) {
  */
 function collectSamples(sampler, sink) {
   const rl = readline.createInterface({ input: sampler.stdout });
-  rl.on('line', (line) => {
+  rl.on('line', line => {
     const text = line.trim();
     if (!text.startsWith('{')) return;
     try {
@@ -165,7 +190,10 @@ function breakdown(sample) {
  * @returns The peak sample, or undefined when nothing was sampled.
  */
 function peakSample(samples) {
-  return samples.reduce((best, s) => (!best || totals(s).ws > totals(best).ws ? s : best), undefined);
+  return samples.reduce(
+    (best, s) => (!best || totals(s).ws > totals(best).ws ? s : best),
+    undefined,
+  );
 }
 
 /**
@@ -175,6 +203,19 @@ function peakSample(samples) {
  */
 function mb(bytes) {
   return `${(bytes / MB).toFixed(1)} MB`;
+}
+
+/**
+ * Largest detached-browser footprint seen at any point in the run,
+ * including the grace samples taken after the root process exits — an
+ * orphan only becomes visible once its tree is gone.
+ * @param samples - All decoded samples.
+ * @returns Peak stray process count and working set in bytes.
+ */
+function peakStrays(samples) {
+  const count = samples.reduce((m, s) => Math.max(m, s.strays ?? 0), 0);
+  const ws = samples.reduce((m, s) => Math.max(m, s.strayWs ?? 0), 0);
+  return { count, ws };
 }
 
 /**
@@ -188,12 +229,19 @@ function report(ctx) {
   console.log(`\n=== PEAK MEMORY — ${ctx.bank} (${ctx.mode}) ===`);
   console.log(`exit code            ${ctx.exitCode}`);
   console.log(`samples              ${ctx.samples.length} @ ${ctx.interval}ms`);
-  console.log(`peak at              +${((peak.t - ctx.startedAt) / 1000).toFixed(1)}s into the run`);
-  console.log(`peak processes       ${t.count}  (detached: ${peak.strays}, ${mb(peak.strayWs ?? 0)} not counted below)`);
+  console.log(
+    `peak at              +${((peak.t - ctx.startedAt) / 1000).toFixed(1)}s into the run`,
+  );
+  const strays = peakStrays(ctx.samples);
+  console.log(`peak processes       ${t.count}`);
+  console.log(
+    `detached browsers    ${strays.count} peak, ${mb(strays.ws)} — excluded from the totals below`,
+  );
   console.log(`PEAK WORKING SET     ${mb(t.ws)}`);
   console.log(`peak private bytes   ${mb(t.pb)}`);
   console.log('\nComposition at peak:');
-  for (const r of breakdown(peak)) console.log(`  ${r.name.padEnd(24)} x${String(r.count).padEnd(3)} ${mb(r.ws)}`);
+  for (const r of breakdown(peak))
+    console.log(`  ${r.name.padEnd(24)} x${String(r.count).padEnd(3)} ${mb(r.ws)}`);
 }
 
 /**
@@ -215,32 +263,72 @@ function slug(label) {
 function persist(ctx) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const file = join(RUNS, `${slug(ctx.bank)}-${ctx.mode}-${stamp}.json`);
-  const timeline = ctx.samples.map((s) => ({ t: s.t, ...totals(s) }));
-  writeFileSync(file, JSON.stringify({ bank: ctx.bank, mode: ctx.mode, interval: ctx.interval, timeline }, null, 2));
+  const timeline = ctx.samples.map(s => ({ t: s.t, ...totals(s) }));
+  writeFileSync(
+    file,
+    JSON.stringify({ bank: ctx.bank, mode: ctx.mode, interval: ctx.interval, timeline }, null, 2),
+  );
   return file;
+}
+
+/**
+ * Wait until the child has actually spawned, so a failed spawn surfaces as
+ * a rejection through `main().catch` rather than an uncaught 'error' event.
+ * Keeping the listener attached also stops later errors being re-thrown.
+ * @param child - The spawned run process.
+ * @returns Resolves on 'spawn', rejects with the spawn error.
+ */
+function awaitSpawn(child) {
+  return new Promise((resolve, reject) => {
+    child.on('error', reject);
+    child.on('spawn', resolve);
+  });
+}
+
+/**
+ * Flush the run log to disk before reporting, so the file the summary
+ * points at is complete by the time the reader opens it. Piping the child
+ * output already ends the stream, so the close may have happened first.
+ * @param log - The run-log write stream.
+ * @returns Resolves once the stream has closed.
+ */
+function closeLog(log) {
+  if (log.closed) return Promise.resolve();
+  return new Promise(resolve => {
+    log.on('close', resolve);
+    log.on('error', resolve);
+    log.end();
+  });
 }
 
 async function main() {
   const { bank, mode, interval } = parseArgs();
+  requireWindows();
   mkdirSync(RUNS, { recursive: true });
   const logPath = join(RUNS, `${slug(bank)}-${mode}-scrape.log`);
   const log = createWriteStream(logPath);
   console.log(`Profiling ${bank} (${mode}) — run output goes to ${logPath}`);
-  const child = spawn('node', buildJestArgs(bank, mode), { cwd: REPO, env: process.env, shell: false });
+  const child = spawn('node', buildRunArgs(bank, mode), {
+    cwd: REPO,
+    env: process.env,
+    shell: false,
+  });
+  await awaitSpawn(child);
   child.stdout.pipe(log);
   child.stderr.pipe(log);
   const samples = [];
   const sampler = startSampler(child.pid, interval);
   collectSamples(sampler, samples);
   const startedAt = Date.now();
-  const exitCode = await new Promise((resolve) => child.on('close', resolve));
+  const exitCode = await new Promise(resolve => child.on('close', resolve));
   sampler.kill();
+  await closeLog(log);
   report({ bank, mode, samples, startedAt, exitCode, interval });
   console.log(`\nTimeline written to ${persist({ bank, mode, samples, interval })}`);
-  process.exit(exitCode ?? 1);
+  process.exitCode = exitCode ?? 1;
 }
 
-main().catch((e) => {
+main().catch(e => {
   process.stderr.write(`FATAL: ${e.message}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 });
