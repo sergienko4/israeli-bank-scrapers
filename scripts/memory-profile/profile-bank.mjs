@@ -37,6 +37,12 @@ const DEFAULT_INTERVAL_MS = 500;
 /** Post-exit grace samples the sampler takes. Mirrors `$graceLeft` in sampler.ps1. */
 const SAMPLER_GRACE_SAMPLES = 10;
 
+/** Largest delay `setTimeout` accepts before it wraps to 1ms. */
+const TIMEOUT_CEILING_MS = 2147483647;
+
+/** Largest interval whose shutdown budget still fits `setTimeout`. */
+const MAX_INTERVAL_MS = Math.floor(TIMEOUT_CEILING_MS / (SAMPLER_GRACE_SAMPLES * 2));
+
 /**
  * Process names counted as browsers. Owned here rather than in the sampler
  * so the pre-spawn baseline and the sampler's stray check cannot drift.
@@ -89,13 +95,19 @@ function flagValue(args, name) {
  * Coerce a flag to a strictly positive safe integer. Zero would turn the
  * sampler into a busy loop and a negative value would abort it outright, so
  * anything that is not a usable count falls back to the default.
+ *
+ * The upper bound matters because the interval also sizes the sampler's
+ * shutdown budget. A budget past the 32-bit `setTimeout` ceiling is clamped
+ * to 1ms, which would kill the sampler the instant the run exits and
+ * silently zero the detached-browser metric.
  * @param raw - Raw flag value, possibly undefined.
  * @param fallback - Value used when `raw` is unusable.
  * @returns The parsed interval in milliseconds.
  */
 function positiveInt(raw, fallback) {
   const n = Number(raw);
-  return Number.isSafeInteger(n) && n > 0 ? n : fallback;
+  const usable = Number.isSafeInteger(n) && n > 0 && n <= MAX_INTERVAL_MS;
+  return usable ? n : fallback;
 }
 
 /**
@@ -181,14 +193,13 @@ function samplerArgs(rootPid, interval, baseline) {
  * @param rootPid - PID of the spawned jest process.
  * @param interval - Sampling interval in milliseconds.
  * @param baseline - Browser PIDs captured before the run was spawned.
- * @returns The sampler child process.
+ * @returns The sampler process and a promise for its startup.
  */
 function startSampler(rootPid, interval, baseline) {
   const args = samplerArgs(rootPid, interval, baseline);
   const proc = spawn('powershell.exe', args, { windowsHide: true });
   proc.stderr.on('data', d => process.stderr.write(`[sampler] ${d}`));
-  proc.on('error', e => process.stderr.write(`[sampler] spawn failed: ${e.message}\n`));
-  return proc;
+  return { proc, started: awaitSpawn(proc) };
 }
 
 /**
@@ -386,6 +397,29 @@ function awaitSampler(sampler, closed, interval) {
 }
 
 /**
+ * Start the sampler and prove it is running before collection begins.
+ *
+ * A sampler that never spawns would otherwise leave the run to finish and
+ * report "No samples captured", blaming a fast run for a tooling failure —
+ * and `main` would still exit on the run's own code, so the profile would
+ * look successful. The run is killed first, so nothing is left behind.
+ * @param child - The already-spawned run process.
+ * @param interval - Sampling interval in milliseconds.
+ * @param baseline - Browser PIDs captured before the run was spawned.
+ * @returns The sampler process and a promise for its close.
+ */
+async function startedSampler(child, interval, baseline) {
+  const { proc, started } = startSampler(child.pid, interval, baseline);
+  const closed = new Promise(resolve => proc.on('close', resolve));
+  await started.catch(async e => {
+    child.kill();
+    await new Promise(resolve => child.on('close', resolve));
+    throw new Error(`sampler failed to start: ${e.message}`);
+  });
+  return { proc, closed };
+}
+
+/**
  * Run the profiled command under the sampler.
  *
  * The sampler is not killed when the run exits: it keeps sampling for a
@@ -399,9 +433,8 @@ function awaitSampler(sampler, closed, interval) {
 async function runAndSample({ bank, mode, interval }, log) {
   const baseline = browserBaseline();
   const child = await spawnRun(bank, mode, log);
+  const { proc: sampler, closed } = await startedSampler(child, interval, baseline);
   const samples = [];
-  const sampler = startSampler(child.pid, interval, baseline);
-  const closed = new Promise(resolve => sampler.on('close', resolve));
   collectSamples(sampler, samples);
   const startedAt = Date.now();
   const exitCode = await new Promise(resolve => child.on('close', resolve));
