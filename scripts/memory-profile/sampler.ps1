@@ -15,23 +15,34 @@
   Browser processes that appear after startup but are NOT in the tree
   are reported under "strays", so the caller can tell whether the walk
   missed a detached browser rather than silently under-reporting.
-  Browsers already running when sampling begins are excluded, otherwise
-  the operator's own everyday browser windows would swamp the signal.
+  Browsers that were already running before the profiled run was spawned
+  are excluded, otherwise the operator's own everyday browser windows
+  would swamp the signal. That baseline is supplied by the caller rather
+  than measured here, because by the time this script starts the profiled
+  run already exists and could have launched a browser of its own.
 
 .PARAMETER RootPid
   PID whose descendant tree (inclusive) is measured.
 
 .PARAMETER IntervalMs
   Delay between samples in milliseconds.
+
+.PARAMETER BaselinePids
+  Comma-separated PIDs of browser processes that were already running
+  before the profiled run was spawned. Excluded from the stray count.
+
+.PARAMETER BrowserPattern
+  Regex matched against process names to classify a process as a browser.
 #>
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][int]$RootPid,
-  [int]$IntervalMs = 500
+  [int]$IntervalMs = 500,
+  [string]$BaselinePids = '',
+  [string]$BrowserPattern = 'camoufox|firefox|chrome|chromium|msedge'
 )
 
 $ErrorActionPreference = 'Stop'
-$BrowserPattern = 'camoufox|firefox|chrome|chromium|msedge'
 
 function Get-ProcessRows {
   Get-CimInstance -ClassName Win32_Process -Property ProcessId, ParentProcessId, Name, WorkingSetSize, PrivatePageCount
@@ -87,16 +98,16 @@ function New-Sample {
   }
 }
 
-function Get-BrowserBaseline {
-  param($Rows)
+function Get-BaselineSet {
+  param([string]$Ids)
   $set = New-Object System.Collections.Generic.HashSet[int]
-  foreach ($r in $Rows | Where-Object { $_.Name -match $BrowserPattern }) {
-    [void]$set.Add([int]$r.ProcessId)
+  foreach ($id in ($Ids -split ',')) {
+    if ($id -match '^\d+$') { [void]$set.Add([int]$id) }
   }
   return , $set
 }
 
-$baseline = Get-BrowserBaseline -Rows (Get-ProcessRows)
+$baseline = Get-BaselineSet -Ids $BaselinePids
 
 # Orphaned browsers only become observable once the tree they belonged to is
 # gone, so sampling continues briefly past root exit. Bounded, so the sampler

@@ -21,7 +21,7 @@
  *   node scripts/memory-profile/profile-bank.mjs Discount --mode=mocked
  *   node scripts/memory-profile/profile-bank.mjs Discount --mode=real
  */
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, createWriteStream } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +32,19 @@ const REPO = join(HERE, '..', '..');
 const RUNS = join(HERE, 'runs');
 const HAPPY_PATH_TEST_NAME = 'scrapes transactions successfully';
 const MB = 1024 * 1024;
+const DEFAULT_INTERVAL_MS = 500;
+
+/** Post-exit grace samples the sampler takes. Mirrors `$graceLeft` in sampler.ps1. */
+const SAMPLER_GRACE_SAMPLES = 10;
+
+/**
+ * Process names counted as browsers. Owned here rather than in the sampler
+ * so the pre-spawn baseline and the sampler's stray check cannot drift.
+ */
+const BROWSER_PATTERN = 'camoufox|firefox|chrome|chromium|msedge';
+
+/** Image name and PID columns of one `tasklist /fo csv` row. */
+const TASK_ROW = /^"([^"]+)","(\d+)"/;
 
 /**
  * Jest path/name filters per run mode. The `real` mode mirrors
@@ -73,6 +86,19 @@ function flagValue(args, name) {
 }
 
 /**
+ * Coerce a flag to a strictly positive safe integer. Zero would turn the
+ * sampler into a busy loop and a negative value would abort it outright, so
+ * anything that is not a usable count falls back to the default.
+ * @param raw - Raw flag value, possibly undefined.
+ * @param fallback - Value used when `raw` is unusable.
+ * @returns The parsed interval in milliseconds.
+ */
+function positiveInt(raw, fallback) {
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 ? n : fallback;
+}
+
+/**
  * Read the target, run mode and sampling interval from argv.
  * @returns Parsed CLI options.
  */
@@ -82,8 +108,8 @@ function parseArgs() {
   const known = [...Object.keys(MODE_FILTERS), ...Object.keys(STANDALONE_SCRIPTS)];
   if (!known.includes(mode)) throw new Error(`--mode must be one of ${known.join('|')}`);
   const bank = args.find(a => !a.startsWith('--')) ?? 'all';
-  const interval = Number.parseInt(flagValue(args, 'interval') ?? '500', 10);
-  return { bank, mode, interval: Number.isNaN(interval) ? 500 : interval };
+  const interval = positiveInt(flagValue(args, 'interval'), DEFAULT_INTERVAL_MS);
+  return { bank, mode, interval };
 }
 
 /**
@@ -117,24 +143,48 @@ function requireWindows() {
 }
 
 /**
+ * PIDs of every browser process already running. Captured in Node *before*
+ * the profiled run is spawned, so a browser that the run itself launches can
+ * never be mistaken for a pre-existing one and dropped from the stray count.
+ * @returns Baseline PIDs as strings.
+ */
+function browserBaseline() {
+  const csv = execFileSync('tasklist', ['/fo', 'csv', '/nh'], { encoding: 'utf8' });
+  const matcher = new RegExp(BROWSER_PATTERN, 'i');
+  const rows = csv.split(/\r?\n/);
+  const fields = rows.map(row => TASK_ROW.exec(row));
+  return fields.filter(f => f && matcher.test(f[1])).map(f => f[2]);
+}
+
+/**
+ * Build the PowerShell argv for the sampler.
+ *
+ * The baseline flag is omitted rather than sent empty, because PowerShell's
+ * `-File` parser drops an empty argument and would then read the next flag
+ * as the value — so a machine with no browser running would fail to sample.
+ * @param rootPid - PID of the spawned run process.
+ * @param interval - Sampling interval in milliseconds.
+ * @param baseline - Browser PIDs captured before the run was spawned.
+ * @returns Argv array for `powershell.exe`.
+ */
+function samplerArgs(rootPid, interval, baseline) {
+  const script = join(HERE, 'sampler.ps1');
+  const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script];
+  args.push('-RootPid', String(rootPid), '-IntervalMs', String(interval));
+  args.push('-BrowserPattern', BROWSER_PATTERN);
+  if (baseline.length > 0) args.push('-BaselinePids', baseline.join(','));
+  return args;
+}
+
+/**
  * Start the PowerShell tree sampler against a root PID.
  * @param rootPid - PID of the spawned jest process.
  * @param interval - Sampling interval in milliseconds.
+ * @param baseline - Browser PIDs captured before the run was spawned.
  * @returns The sampler child process.
  */
-function startSampler(rootPid, interval) {
-  const script = join(HERE, 'sampler.ps1');
-  const args = [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    script,
-    '-RootPid',
-    String(rootPid),
-    '-IntervalMs',
-    String(interval),
-  ];
+function startSampler(rootPid, interval, baseline) {
+  const args = samplerArgs(rootPid, interval, baseline);
   const proc = spawn('powershell.exe', args, { windowsHide: true });
   proc.stderr.on('data', d => process.stderr.write(`[sampler] ${d}`));
   proc.on('error', e => process.stderr.write(`[sampler] spawn failed: ${e.message}\n`));
@@ -301,31 +351,77 @@ function closeLog(log) {
   });
 }
 
-async function main() {
-  const { bank, mode, interval } = parseArgs();
-  requireWindows();
-  mkdirSync(RUNS, { recursive: true });
-  const logPath = join(RUNS, `${slug(bank)}-${mode}-scrape.log`);
-  const log = createWriteStream(logPath);
-  console.log(`Profiling ${bank} (${mode}) — run output goes to ${logPath}`);
-  const child = spawn('node', buildRunArgs(bank, mode), {
-    cwd: REPO,
-    env: process.env,
-    shell: false,
-  });
+/**
+ * Spawn the profiled run and attach its output to the run log.
+ * @param bank - Capitalised bank stem, or "all".
+ * @param mode - Run mode key.
+ * @param log - The run-log write stream.
+ * @returns The spawned child, already piping into the log.
+ */
+async function spawnRun(bank, mode, log) {
+  const spawnOptions = { cwd: REPO, env: process.env, shell: false };
+  const child = spawn('node', buildRunArgs(bank, mode), spawnOptions);
   await awaitSpawn(child);
   child.stdout.pipe(log);
   child.stderr.pipe(log);
+  return child;
+}
+
+/**
+ * Wait for the sampler to finish its own post-exit grace period.
+ *
+ * The wait is bounded: Windows can recycle the exited run's PID, which would
+ * keep the sampler's liveness check true and leave it running forever with
+ * the report already collected. The budget covers the whole grace window
+ * with headroom, so the kill only ever fires in that pathological case.
+ * @param sampler - Sampler child process.
+ * @param closed - Resolves when the sampler emits 'close'.
+ * @param interval - Sampling interval in milliseconds.
+ * @returns Resolves once the sampler has closed or been timed out.
+ */
+function awaitSampler(sampler, closed, interval) {
+  const timer = setTimeout(() => sampler.kill(), interval * SAMPLER_GRACE_SAMPLES * 2);
+  timer.unref();
+  return closed.finally(() => clearTimeout(timer));
+}
+
+/**
+ * Run the profiled command under the sampler.
+ *
+ * The sampler is not killed when the run exits: it keeps sampling for a
+ * bounded grace period, because an orphaned browser only becomes observable
+ * once the tree it belonged to is gone. Killing it here would make the
+ * detached-browser metric permanently read zero.
+ * @param options - Parsed CLI options.
+ * @param log - The run-log write stream.
+ * @returns Samples, run start time and the run's exit code.
+ */
+async function runAndSample({ bank, mode, interval }, log) {
+  const baseline = browserBaseline();
+  const child = await spawnRun(bank, mode, log);
   const samples = [];
-  const sampler = startSampler(child.pid, interval);
+  const sampler = startSampler(child.pid, interval, baseline);
+  const closed = new Promise(resolve => sampler.on('close', resolve));
   collectSamples(sampler, samples);
   const startedAt = Date.now();
   const exitCode = await new Promise(resolve => child.on('close', resolve));
-  sampler.kill();
+  await awaitSampler(sampler, closed, interval);
+  return { samples, startedAt, exitCode };
+}
+
+async function main() {
+  const options = parseArgs();
+  requireWindows();
+  mkdirSync(RUNS, { recursive: true });
+  const logPath = join(RUNS, `${slug(options.bank)}-${options.mode}-scrape.log`);
+  const log = createWriteStream(logPath);
+  console.log(`Profiling ${options.bank} (${options.mode}) — run output goes to ${logPath}`);
+  const run = await runAndSample(options, log);
   await closeLog(log);
-  report({ bank, mode, samples, startedAt, exitCode, interval });
-  console.log(`\nTimeline written to ${persist({ bank, mode, samples, interval })}`);
-  process.exitCode = exitCode ?? 1;
+  const ctx = { ...options, ...run };
+  report(ctx);
+  console.log(`\nTimeline written to ${persist(ctx)}`);
+  process.exitCode = run.exitCode ?? 1;
 }
 
 main().catch(e => {
