@@ -11,7 +11,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildGraph, RUNTIME } from './lib/graph.mjs';
@@ -79,14 +79,25 @@ function report(snap, outPath) {
   console.log(`wrote      ${outPath}`);
 }
 
+/**
+ * Keeps a caller-supplied output name inside `snapshots/`.
+ *
+ * `join` resolves `..` segments, so an unchecked name could write anywhere on
+ * disk. A bare filename is the only legitimate input.
+ */
+function safeName(name) {
+  if (name === basename(name) && name !== '.' && name !== '..') return name;
+  throw new Error(`output name must be a bare filename, got: ${name}`);
+}
+
 function main() {
   const root = resolve(process.argv[2] ?? process.cwd());
   const label = process.argv[3] ?? 'baseline';
   const snap = buildSnapshot(root, label);
   const dir = join(HERE, 'snapshots');
   mkdirSync(dir, { recursive: true });
-  const name = process.argv[4] ?? `${snap.gitCommitHash.slice(0, 8)}-${label}.json`;
-  const outPath = join(dir, name);
+  const fallback = `${snap.gitCommitHash.slice(0, 8)}-${label}.json`;
+  const outPath = join(dir, safeName(process.argv[4] ?? fallback));
   writeFileSync(outPath, `${JSON.stringify(snap, null, 2)}\n`, 'utf8');
   report(snap, outPath);
 }
