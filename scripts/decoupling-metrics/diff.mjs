@@ -18,8 +18,16 @@ const CLUSTER_ROWS = 15;
  */
 const COHESION_WEIGHT = 1000;
 
+/** Weight applied to an external fan-out delta, so coupling shifts stay visible. */
+const FANOUT_WEIGHT = 10;
+
 function load(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+/** Escapes a value for a Markdown table cell so it cannot forge a column. */
+function cell(value) {
+  return String(value).replace(/\|/g, '\\|');
 }
 
 function delta(before, after) {
@@ -56,11 +64,11 @@ function surfaceLine(a, b) {
   const before = a.guardrails.publicSurface;
   const after = b.guardrails.publicSurface;
   if (!before.present || !after.present)
-    return '_Public surface: `lib/index.cjs` not built in one or both snapshots._';
+    return '_Build output: `lib/index.cjs` not built in one or both snapshots._';
   const same = before.sha256 === after.sha256;
   return same
-    ? '✅ Public surface byte-identical (`lib/index.cjs` sha256 unchanged).'
-    : `⚠️ Public surface CHANGED — ${before.bytes} → ${after.bytes} bytes. Confirm this was intended.`;
+    ? '✅ Build output byte-identical (`lib/index.cjs` sha256 unchanged; implementation bundle, not a declaration-level API diff).'
+    : `⚠️ Build output CHANGED — ${before.bytes} → ${after.bytes} bytes. Confirm this was intended.`;
 }
 
 function indexClusters(snap) {
@@ -70,16 +78,22 @@ function indexClusters(snap) {
 /**
  * Ranks how much a cluster moved.
  *
- * <p>Cohesion is weighted so a cohesion-only shift outranks a trivial LoC
- * change; ranking on LoC alone scored those at zero and sliced them out of
- * the table entirely.
+ * <p>Cohesion and external fan-out are weighted so a coupling-only shift
+ * outranks a trivial LoC change; ranking on LoC alone scored those at zero
+ * and sliced them out of the table entirely.
  */
 function rank(prev, cur) {
-  return Math.abs(cur.loc - prev.loc) + Math.abs(cur.cohesion - prev.cohesion) * COHESION_WEIGHT;
+  const cohesion = Math.abs(cur.cohesion - prev.cohesion) * COHESION_WEIGHT;
+  return (
+    Math.abs(cur.loc - prev.loc) + cohesion + Math.abs(cur.outgoing - prev.outgoing) * FANOUT_WEIGHT
+  );
 }
 
+/** Fields whose movement makes a cluster worth showing. */
+const TRACKED = ['loc', 'cohesion', 'outgoing', 'incoming', 'internalEdges'];
+
 function changedRow(prev, cur) {
-  if (prev.cohesion === cur.cohesion && prev.loc === cur.loc) return null;
+  if (TRACKED.every(k => prev[k] === cur[k])) return null;
   return { cluster: cur.cluster, prev, cur, shift: rank(prev, cur) };
 }
 
@@ -103,12 +117,12 @@ function clusterRows(a, b) {
   const before = indexClusters(a);
   const after = b.runtimeClusters;
   const rows = [...addedOrChanged(after, before), ...removedRows(before, after)];
-  return rows.sort((x, y) => y.shift - x.shift).slice(0, CLUSTER_ROWS);
+  return rows.sort((x, y) => y.shift - x.shift);
 }
 
 /** Renders the three value cells, marking a cluster that only exists on one side. */
 function arrowCells(prev, cur, mark) {
-  const at = (o, k) => (o ? o[k] : '—');
+  const at = (o, k) => (o && o[k] !== undefined ? o[k] : '—');
   return [
     `${at(prev, 'loc')} → ${at(cur, 'loc')}${mark}`,
     `${at(prev, 'cohesion')} → ${at(cur, 'cohesion')}`,
@@ -122,11 +136,21 @@ function clusterCells(r) {
   return arrowCells(r.prev, r.cur, '');
 }
 
+function omittedNote(total) {
+  if (total <= CLUSTER_ROWS) return [];
+  return [
+    '',
+    `_${total - CLUSTER_ROWS} further changed cluster(s) omitted; showing the ${CLUSTER_ROWS} largest shifts._`,
+  ];
+}
+
 function renderClusters(rows) {
   if (rows.length === 0) return '_No cluster changed._';
   const head = ['| Cluster | LoC | Cohesion | Fan-out (external) |', '|---|---|---|---|'];
-  const body = rows.map(r => `| \`${r.cluster}\` | ${clusterCells(r).join(' | ')} |`);
-  return [...head, ...body].join('\n');
+  const body = rows
+    .slice(0, CLUSTER_ROWS)
+    .map(r => `| \`${cell(r.cluster)}\` | ${clusterCells(r).map(cell).join(' | ')} |`);
+  return [...head, ...body, ...omittedNote(rows.length)].join('\n');
 }
 
 function render(a, b) {
