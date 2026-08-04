@@ -65,6 +65,11 @@ working in this checkout.
 ## Windows note
 
 If the bare command fails to resolve on Windows even though the package is
-installed, npm's shim may not be on `PATH` for the launching process. Point a
-**user-level** `~/.copilot/lsp-config.json` at the `.cmd` shim instead — keep
-the repo-level file portable rather than hardcoding a Windows path into it.
+installed, npm's shim directory is not on `PATH` for the launching process.
+Fix `PATH` — add the directory printed by `npm prefix -g` (it holds
+`typescript-language-server.cmd`) and restart the terminal.
+
+A user-level `~/.copilot/lsp-config.json` will **not** help here, because the
+repo-level `lsp.json` takes precedence over it. If you cannot change `PATH`,
+edit the `command` in this repo's `lsp.json` to the absolute `.cmd` path
+locally and leave that edit uncommitted, so the committed file stays portable.

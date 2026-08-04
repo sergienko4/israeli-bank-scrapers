@@ -40,6 +40,22 @@ pasting into a PR body.
 | `importCycles`      | Strongly-connected components (Tarjan). Must stay `0`.                        |
 | guardrails          | Canary count, ESLint rule count, `any` usages, `lib/index.cjs` hash.          |
 
+The `lib/index.cjs` hash detects whether the **built bundle** changed. It is an
+implementation-bundle hash, not a declaration-level API diff: a purely internal
+edit changes it, and it cannot by itself prove the exported type surface is
+unchanged. Treat a change as "confirm this was intended", not as "the public
+API broke".
+
+## Which files are measured
+
+File discovery is delegated to git
+(`git ls-files --cached --others --exclude-standard`), so the set is exactly
+tracked files plus untracked-but-not-ignored ones. Gitignored scratch files
+never enter a snapshot, which is what makes the committed baseline reproducible
+on any clean checkout. Imports are parsed with the TypeScript compiler's AST,
+not a regex, so the runtime/type-only split is accurate for mixed clauses such
+as `import Foo, { type Bar } from './m'`.
+
 ## Runtime vs type-only edges — read this before drawing conclusions
 
 Every edge is classified as `RUNTIME` or `TYPE_ONLY`. A `import type { X }`
@@ -47,9 +63,11 @@ edge is **erased at build time** and creates no runtime coupling — it only
 affects recompilation scope.
 
 This distinction is not cosmetic. `Types/PipelineContext.ts` has a fan-in of
-373 and the highest fan-out in the repo, which looks like a god-module. Every
-one of its imports is `import type`: it is a type barrel with **zero** runtime
-coupling. Judging it on total edges would have produced a wrong verdict.
+373 and the highest fan-out in the repo, which looks like a god-module. In
+fact 20 of its 25 outgoing edges are `import type`, and its 5 runtime edges
+are value re-exports to sibling `Types/Domain/*` modules; only 15 of the 373
+incoming edges are runtime. It is a type barrel, not a god-module. Judging it
+on total edges would have produced a wrong verdict.
 
 **Always read `runtimeSummary` / `runtimeClusters` when hunting coupling.** The
 all-edge `summary` / `clusters` are kept only to show recompilation scope.
