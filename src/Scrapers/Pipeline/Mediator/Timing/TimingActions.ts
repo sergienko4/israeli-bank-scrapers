@@ -32,25 +32,54 @@ export function createPromise<T>(
   return Reflect.construct(Promise, [executor]) as Promise<T>;
 }
 
+/** A pending timeout rejection plus the handle needed to cancel it. */
+interface ICancellableTimeout<T> {
+  readonly cancel: () => boolean;
+  readonly promise: Promise<T>;
+}
+
 /**
- * Build a promise that rejects with the supplied error after `ms`.
- * Extracted so {@link timeoutPromise} stays under the per-function cap.
+ * Clear a pending timer and report that cancellation happened.
+ * @param id - Timer handle returned by `setTimeout`.
+ * @returns Always true.
+ */
+function clearTimer(id: ReturnType<typeof globalThis.setTimeout>): boolean {
+  globalThis.clearTimeout(id);
+  return true;
+}
+
+/**
+ * Build a promise that rejects with the supplied error after `ms`, paired
+ * with a canceller for the underlying timer.
+ *
+ * <p>The canceller is essential: an uncancelled `setTimeout` keeps the Node
+ * event loop alive for its full duration even after the race has settled,
+ * so a long budget delays process exit and holds every value the closure
+ * captured. Extracted so {@link timeoutPromise} stays under the per-function
+ * cap.
  * @param ms - Delay in milliseconds before the rejection fires.
  * @param error - Error instance used to reject the returned promise.
- * @returns A promise that never resolves and rejects with `error`.
+ * @returns The rejection promise and its canceller.
  */
-function createTimeoutRejector<T>(ms: number, error: TimeoutError): Promise<T> {
-  return createPromise<T>((_resolve, reject): boolean => {
-    const id = globalThis.setTimeout((): boolean => {
-      clearTimeout(id);
-      return reject(error);
-    }, ms);
+function createTimeoutRejector<T>(ms: number, error: TimeoutError): ICancellableTimeout<T> {
+  let id: ReturnType<typeof globalThis.setTimeout>;
+  const promise = createPromise<T>((_resolve, reject): boolean => {
+    id = globalThis.setTimeout((): boolean => reject(error), ms);
     return true;
   });
+  /**
+   * Clear the pending timer so it cannot outlive the settled race.
+   * @returns Always true.
+   */
+  const cancel = (): boolean => clearTimer(id);
+  return { cancel, promise };
 }
 
 /**
  * Race a promise against a timeout, rejecting with TimeoutError if the timeout fires first.
+ *
+ * <p>Cancels the timer once the race settles so a pending timeout can never
+ * outlive the call that created it.
  * @param ms - The timeout duration in milliseconds.
  * @param promise - The promise to race against the timeout.
  * @param description - A description for the timeout error message.
@@ -63,7 +92,7 @@ export function timeoutPromise<T>(
 ): Promise<T> {
   const error = createTimeoutError(description);
   const timeout = createTimeoutRejector<T>(ms, error);
-  return Promise.race([promise, timeout]);
+  return Promise.race([promise, timeout.promise]).finally(timeout.cancel);
 }
 
 /** Sentinel indicating the race timed out before the promise resolved. */
