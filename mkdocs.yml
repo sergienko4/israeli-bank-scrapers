@@ -185,6 +185,7 @@ nav:
       - Pre-push hook: workflow/pre-push.md
       - Branch flow & release-please: workflow/branch-flow.md
       - Code-review tooling (CodeRabbit + SonarCloud): workflow/code-review-tooling.md
+      - LSP (code intelligence): workflow/lsp.md
   - Contributing:
       - Overview: contributing/index.md
       - Adding a new bank: contributing/new-bank.md
