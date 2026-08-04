@@ -109,12 +109,19 @@ describe('Feature — deferred proxy resolves its child once (worker-leak regres
  */
 describe('Feature — deferred proxy invalidates its child on root upgrade', () => {
   const originalCi = process.env.CI;
+  const originalForensicTrace = process.env.FORENSIC_TRACE;
+  const originalRunsRoot = process.env.RUNS_ROOT;
+  const originalLogLevel = process.env.LOG_LEVEL;
 
   afterEach(() => {
     if (originalCi === undefined) delete process.env.CI;
     else process.env.CI = originalCi;
-    delete process.env.FORENSIC_TRACE;
-    delete process.env.RUNS_ROOT;
+    if (originalForensicTrace === undefined) delete process.env.FORENSIC_TRACE;
+    else process.env.FORENSIC_TRACE = originalForensicTrace;
+    if (originalRunsRoot === undefined) delete process.env.RUNS_ROOT;
+    else process.env.RUNS_ROOT = originalRunsRoot;
+    if (originalLogLevel === undefined) delete process.env.LOG_LEVEL;
+    else process.env.LOG_LEVEL = originalLogLevel;
     jest.resetModules();
   });
 

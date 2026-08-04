@@ -59,9 +59,14 @@ describe('Feature — root logger is cached per destination (worker-leak regress
 });
 
 describe('Feature — root logger rebuilds exactly once on destination upgrade', () => {
+  const originalForensicTrace = process.env.FORENSIC_TRACE;
+  const originalRunsRoot = process.env.RUNS_ROOT;
+
   afterEach(() => {
-    delete process.env.FORENSIC_TRACE;
-    delete process.env.RUNS_ROOT;
+    if (originalForensicTrace === undefined) delete process.env.FORENSIC_TRACE;
+    else process.env.FORENSIC_TRACE = originalForensicTrace;
+    if (originalRunsRoot === undefined) delete process.env.RUNS_ROOT;
+    else process.env.RUNS_ROOT = originalRunsRoot;
     jest.resetModules();
   });
 
