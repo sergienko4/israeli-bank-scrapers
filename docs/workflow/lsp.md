@@ -3,18 +3,24 @@
 > **Who this is for:** contributors and coding agents that want
 > go-to-definition, find-references and hover while working in this repo.
 
-`lsp.json` at the repo root configures a TypeScript language server for
+`.github/lsp.json` configures a TypeScript language server for
 [GitHub Copilot CLI](https://docs.github.com/copilot). The OODA agent contract
 assumes it exists — agents are told to use `goToDefinition`, `findReferences`
 and `incomingCalls` during the OBSERVE phase to confirm who imports what before
 refactoring.
 
+> The agent contract refers to this as "`lsp.json` at the repo root". That names
+> the _contract's_ own reference, not a path Copilot CLI loads. Copilot CLI
+> documents exactly two configuration files — a user-level
+> `~/.copilot/lsp-config.json` and a **project-level `.github/lsp.json`** — so
+> the project config must live under `.github/` to take effect.
+
 ## Prerequisite — install the server
 
-`lsp.json` declares the server by **bare command name** so the same file works
-on macOS, Linux and Windows. That means the executable must be resolvable on
-your `PATH`; it is **not** installed by `npm install`, because it is a developer
-tool rather than a build or runtime dependency of the package.
+`.github/lsp.json` declares the server by **bare command name** so the same file
+works on macOS, Linux and Windows. That means the executable must be resolvable
+on your `PATH`; it is **not** installed by `npm install`, because it is a
+developer tool rather than a build or runtime dependency of the package.
 
 ```bash
 npm install -g typescript-language-server typescript
@@ -36,12 +42,15 @@ keeps working, only the navigation features are missing.
 
 ## Activate it
 
-The config is read at startup, so a running Copilot CLI session will not pick it
-up:
+A running Copilot CLI session does not pick up config changes on its own:
 
-1. `/restart` to restart the CLI while preserving the session, or `/exit` and
-   re-launch `copilot` from the repo root.
+1. `/lsp reload` to reload LSP configurations from disk. If that does not take
+   effect, `/restart` to restart the CLI while preserving the session, or
+   `/exit` and re-launch `copilot` from the repo root.
 2. Run `/lsp` to confirm the server is attached.
+
+`/lsp test typescript` starts a throwaway instance and reports why it failed,
+which is the quickest way to tell a missing binary from a bad config.
 
 ## Configuration
 
@@ -69,11 +78,10 @@ another repo, so every extension the tooling expects is mapped:
 }
 ```
 
-A repo-level config takes precedence over a user-level
+A project config takes precedence over a user-level
 `~/.copilot/lsp-config.json`, so this file governs for everyone working in this
-checkout. Copilot CLI accepts a repo-level config at either `lsp.json` in the
-repo root or `.github/lsp.json`; this repo uses the root location, which is
-also the path the OODA agent contract names.
+checkout. `.github/lsp.json` is the project path Copilot CLI documents; a file
+at the repo root is not loaded.
 
 ## Windows note
 
@@ -83,6 +91,7 @@ Fix `PATH` — add the directory printed by `npm prefix -g` (it holds
 `typescript-language-server.cmd`) and restart the terminal.
 
 A user-level `~/.copilot/lsp-config.json` will **not** help here, because the
-repo-level `lsp.json` takes precedence over it. If you cannot change `PATH`,
-edit the `command` in this repo's `lsp.json` to the absolute `.cmd` path
-locally and leave that edit uncommitted, so the committed file stays portable.
+project `.github/lsp.json` takes precedence over it. If you cannot change
+`PATH`, edit the `command` in this repo's `.github/lsp.json` to the absolute
+`.cmd` path locally and leave that edit uncommitted, so the committed file stays
+portable.
