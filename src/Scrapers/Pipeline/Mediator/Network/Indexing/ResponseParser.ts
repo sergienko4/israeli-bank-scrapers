@@ -141,8 +141,8 @@ async function readAndParseBody(
  */
 function decideDrop(meta: IRequestMeta, status: number): DropReason | false {
   if (isUnsupportedUrl(meta.url)) return 'unsupportedUrl';
-  if (!shouldRecordResponse(status, meta.contentType)) return 'shouldRecordResponse=false';
-  return false;
+  const record = shouldRecordResponse(status, meta.contentType, meta.resourceType);
+  return record ? false : 'shouldRecordResponse=false';
 }
 
 /** Bundled preflight result for {@link parseResponse}. */

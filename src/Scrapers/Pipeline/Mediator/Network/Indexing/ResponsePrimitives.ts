@@ -13,7 +13,7 @@
  * stays byte-identical for downstream consumers (Scoring, Discovery).
  */
 
-import type { Response } from 'playwright-core';
+import type { Request, Response } from 'playwright-core';
 
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
 import { getDebug } from '../../../Types/Debug.js';
@@ -28,6 +28,18 @@ const NO_POST_DATA = '';
 
 /** Content types that may contain a JSON API response. */
 const JSON_CONTENT_TYPES = ['application/json', 'text/json', 'text/plain', 'text/html'];
+
+/** Content type shared by bank JSON-over-HTML APIs and page documents. */
+const HTML_CONTENT_TYPE = 'text/html';
+
+/**
+ * Resource types whose body is an API payload rather than a rendered
+ * page document. Playwright reports `xhr` / `fetch` for programmatic
+ * traffic and `document` for navigations, so this is the discriminator
+ * that keeps the Leumi / Isracard JSON-over-HTML captures (see
+ * `LeumiShape.ts` and `IsracardShape.ts`) while excluding SPA pages.
+ */
+const API_RESOURCE_TYPES = ['xhr', 'fetch'] as const;
 
 /** WK allowed HTTP methods — CR PR #276 #6 validates request().method(). */
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT'] as const;
@@ -50,6 +62,7 @@ interface IRequestMeta {
   readonly postData: string;
   readonly contentType: string;
   readonly requestHeaders: Record<string, string>;
+  readonly resourceType: string;
 }
 
 /**
@@ -68,7 +81,20 @@ function validateMethod(raw: string): AllowedMethod {
 }
 
 /** Bundled args for {@link extractRequestParts} return-type alias. */
-type RequestParts = Pick<IRequestMeta, 'method' | 'postData' | 'requestHeaders'>;
+type RequestParts = Pick<IRequestMeta, 'method' | 'postData' | 'requestHeaders' | 'resourceType'>;
+
+/**
+ * Read `request.resourceType()` defensively. Playwright's real
+ * `Request` always implements it; the fallback is reachable only from
+ * hand-rolled test doubles, and resolves to an API type so those
+ * fixtures keep their pre-existing capture behaviour.
+ * @param request - Playwright request behind the response.
+ * @returns Resource type string.
+ */
+function readResourceType(request: Request): string {
+  if (typeof request.resourceType !== 'function') return API_RESOURCE_TYPES[0];
+  return request.resourceType();
+}
 
 /**
  * Extract the method + postData + requestHeaders triple from the
@@ -83,7 +109,8 @@ function extractRequestParts(response: Response): RequestParts {
   const method = validateMethod(rawMethod);
   const postData = request.postData() ?? NO_POST_DATA;
   const requestHeaders = request.headers();
-  return { method, postData, requestHeaders };
+  const resourceType = readResourceType(request);
+  return { method, postData, requestHeaders, resourceType };
 }
 
 /**
@@ -124,6 +151,22 @@ function parseTextOrNull(text: string): IParsedBody {
 }
 
 /**
+ * Detect an HTML *page document* — a navigation body that only ever
+ * fails `JSON.parse`. Admitting these made `response.text()` pull whole
+ * SPA documents across the CDP bridge into Node on every navigation,
+ * the unbounded allocation path behind the production OOM (13 GB to
+ * retrieve 3 transactions). Bank JSON-over-HTML APIs arrive as
+ * `xhr` / `fetch` and are unaffected.
+ * @param contentType - Response content-type header.
+ * @param resourceType - Playwright resource type of the request.
+ * @returns True when the body is a page document and must not be read.
+ */
+function isPageDocumentHtml(contentType: string, resourceType: string): boolean {
+  if (!contentType.toLowerCase().includes(HTML_CONTENT_TYPE)) return false;
+  return !(API_RESOURCE_TYPES as readonly string[]).includes(resourceType);
+}
+
+/**
  * Decision predicate for `parseResponse`. 2xx-no-content responses
  * (HTTP 204) carry no body and typically have no `content-type`
  * header — they fail the JSON filter and would be dropped before
@@ -132,10 +175,17 @@ function parseTextOrNull(text: string): IParsedBody {
  * handle. Treat 204 as intrinsically recordable.
  * @param status - HTTP status code.
  * @param contentType - Response content-type header (or `'none'`).
+ * @param resourceType - Playwright resource type; gates `text/html`
+ *   so page documents never reach `response.text()`.
  * @returns True when the response should enter the captured pool.
  */
-function shouldRecordResponse(status: number, contentType: string): ShouldRecordResponseSignal {
+function shouldRecordResponse(
+  status: number,
+  contentType: string,
+  resourceType: string = API_RESOURCE_TYPES[0],
+): ShouldRecordResponseSignal {
   if (status === 204) return true as ShouldRecordResponseSignal;
+  if (isPageDocumentHtml(contentType, resourceType)) return false as ShouldRecordResponseSignal;
   return isJsonContentType(contentType) as ShouldRecordResponseSignal;
 }
 
@@ -159,8 +209,10 @@ function isUnsupportedUrl(url: string): IsUnsupportedUrlSignal {
 
 export {
   ALLOWED_METHODS,
+  API_RESOURCE_TYPES,
   extractRequestMeta,
   isJsonContentType,
+  isPageDocumentHtml,
   isUnsupportedUrl,
   JSON_CONTENT_TYPES,
   NO_CONTENT_TYPE,

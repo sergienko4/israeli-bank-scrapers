@@ -67,8 +67,10 @@ export type {
 } from './ResponsePrimitives.js';
 export {
   ALLOWED_METHODS,
+  API_RESOURCE_TYPES,
   extractRequestMeta,
   isJsonContentType,
+  isPageDocumentHtml,
   isUnsupportedUrl,
   JSON_CONTENT_TYPES,
   NO_CONTENT_TYPE,
