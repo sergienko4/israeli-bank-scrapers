@@ -1,11 +1,11 @@
 {
   "label": "baseline",
-  "gitCommitHash": "066c9c47bdc1be6ecd248b8bba85d22e692496b4",
-  "capturedAt": "2026-08-04T09:37:44.781Z",
+  "gitCommitHash": "b83cf5549dd9c204895395b59f35e74e98a9f82d",
+  "capturedAt": "2026-08-04T10:21:51.314Z",
   "summary": {
-    "files": 1707,
-    "edges": 6216,
-    "avgFanOut": 3.64,
+    "files": 1643,
+    "edges": 6118,
+    "avgFanOut": 3.72,
     "topFanIn": [
       {
         "file": "src/Scrapers/Pipeline/Types/Procedure.ts",
@@ -39,7 +39,7 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Types/Debug.ts",
-        "fanIn": 154,
+        "fanIn": 153,
         "fanOut": 1,
         "instability": 0.006
       },
@@ -50,28 +50,28 @@
         "instability": 0
       },
       {
-        "file": "src/Definitions.ts",
-        "fanIn": 104,
-        "fanOut": 0,
-        "instability": 0
-      },
-      {
         "file": "src/Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.ts",
         "fanIn": 95,
         "fanOut": 5,
         "instability": 0.05
       },
       {
-        "file": "src/Scrapers/Base/Interface.ts",
-        "fanIn": 90,
-        "fanOut": 11,
-        "instability": 0.109
+        "file": "src/Definitions.ts",
+        "fanIn": 91,
+        "fanOut": 0,
+        "instability": 0
       },
       {
         "file": "src/Tests/Unit/Pipeline/Infrastructure/MockFactories.ts",
         "fanIn": 90,
         "fanOut": 12,
         "instability": 0.118
+      },
+      {
+        "file": "src/Scrapers/Base/Interface.ts",
+        "fanIn": 87,
+        "fanOut": 11,
+        "instability": 0.112
       },
       {
         "file": "src/Scrapers/Pipeline/Types/Brand.ts",
@@ -111,9 +111,9 @@
       },
       {
         "file": "src/Scrapers/Base/Config/LoginConfig.ts",
-        "fanIn": 62,
+        "fanIn": 61,
         "fanOut": 5,
-        "instability": 0.075
+        "instability": 0.076
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts",
@@ -129,15 +129,15 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.ts",
-        "fanIn": 53,
+        "fanIn": 52,
         "fanOut": 5,
-        "instability": 0.086
+        "instability": 0.088
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/ScrapeWK.ts",
-        "fanIn": 49,
+        "fanIn": 47,
         "fanOut": 1,
-        "instability": 0.02
+        "instability": 0.021
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
@@ -152,10 +152,10 @@
         "instability": 0
       },
       {
-        "file": "src/Common/CamoufoxLauncher.ts",
-        "fanIn": 41,
-        "fanOut": 1,
-        "instability": 0.024
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/TestHelpers.ts",
+        "fanIn": 39,
+        "fanOut": 6,
+        "instability": 0.133
       }
     ],
     "topFanOut": [
@@ -312,9 +312,9 @@
     ]
   },
   "runtimeSummary": {
-    "files": 1707,
-    "edges": 4211,
-    "avgFanOut": 2.47,
+    "files": 1643,
+    "edges": 4118,
+    "avgFanOut": 2.51,
     "topFanIn": [
       {
         "file": "src/Scrapers/Pipeline/Types/Procedure.ts",
@@ -347,22 +347,22 @@
         "instability": 0.022
       },
       {
-        "file": "src/Definitions.ts",
-        "fanIn": 89,
-        "fanOut": 0,
-        "instability": 0
-      },
-      {
         "file": "src/Scrapers/Pipeline/Types/Debug.ts",
-        "fanIn": 89,
+        "fanIn": 88,
         "fanOut": 1,
         "instability": 0.011
       },
       {
+        "file": "src/Definitions.ts",
+        "fanIn": 76,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
         "file": "src/Tests/Unit/Scrapers/Pipeline/MockPipelineFactories.ts",
         "fanIn": 67,
-        "fanOut": 8,
-        "instability": 0.107
+        "fanOut": 7,
+        "instability": 0.095
       },
       {
         "file": "src/Scrapers/Pipeline/Types/LogEvent.ts",
@@ -372,15 +372,9 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/ScrapeWK.ts",
-        "fanIn": 49,
+        "fanIn": 47,
         "fanOut": 1,
-        "instability": 0.02
-      },
-      {
-        "file": "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
-        "fanIn": 46,
-        "fanOut": 0,
-        "instability": 0
+        "instability": 0.021
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts",
@@ -389,16 +383,16 @@
         "instability": 0.042
       },
       {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
+        "fanIn": 45,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
         "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
         "fanIn": 45,
         "fanOut": 13,
         "instability": 0.224
-      },
-      {
-        "file": "src/Common/CamoufoxLauncher.ts",
-        "fanIn": 41,
-        "fanOut": 1,
-        "instability": 0.024
       },
       {
         "file": "src/Tests/Unit/Pipeline/Infrastructure/TestHelpers.ts",
@@ -408,9 +402,9 @@
       },
       {
         "file": "src/index.ts",
-        "fanIn": 37,
+        "fanIn": 35,
         "fanOut": 2,
-        "instability": 0.051
+        "instability": 0.054
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.ts",
@@ -420,15 +414,9 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.ts",
-        "fanIn": 32,
+        "fanIn": 31,
         "fanOut": 8,
-        "instability": 0.2
-      },
-      {
-        "file": "src/Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.ts",
-        "fanIn": 29,
-        "fanOut": 3,
-        "instability": 0.094
+        "instability": 0.205
       },
       {
         "file": "src/Scrapers/Pipeline/Types/ErrorUtils.ts",
@@ -441,6 +429,12 @@
         "fanIn": 28,
         "fanOut": 14,
         "instability": 0.333
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.ts",
+        "fanIn": 27,
+        "fanOut": 3,
+        "instability": 0.1
       },
       {
         "file": "src/Tests/TestConstants.ts",
@@ -465,6 +459,12 @@
         "fanIn": 22,
         "fanOut": 4,
         "instability": 0.154
+      },
+      {
+        "file": "src/Transactions.ts",
+        "fanIn": 21,
+        "fanOut": 0,
+        "instability": 0
       }
     ],
     "topFanOut": [
@@ -636,17 +636,8 @@
       "loc": 51255,
       "internalEdges": 1105,
       "outgoing": 803,
-      "incoming": 804,
+      "incoming": 770,
       "cohesion": 0.579
-    },
-    {
-      "cluster": "scripts",
-      "files": 64,
-      "loc": 10289,
-      "internalEdges": 0,
-      "outgoing": 96,
-      "incoming": 0,
-      "cohesion": 0
     },
     {
       "cluster": "src/Tests/Unit",
@@ -708,7 +699,7 @@
       "loc": 4256,
       "internalEdges": 110,
       "outgoing": 22,
-      "incoming": 1475,
+      "incoming": 1474,
       "cohesion": 0.833
     },
     {
@@ -735,7 +726,7 @@
       "loc": 3448,
       "internalEdges": 35,
       "outgoing": 76,
-      "incoming": 6,
+      "incoming": 5,
       "cohesion": 0.315
     },
     {
@@ -744,7 +735,7 @@
       "loc": 2470,
       "internalEdges": 14,
       "outgoing": 21,
-      "incoming": 189,
+      "incoming": 185,
       "cohesion": 0.4
     },
     {
@@ -753,7 +744,7 @@
       "loc": 2351,
       "internalEdges": 24,
       "outgoing": 52,
-      "incoming": 404,
+      "incoming": 401,
       "cohesion": 0.316
     },
     {
@@ -807,7 +798,7 @@
       "loc": 1747,
       "internalEdges": 11,
       "outgoing": 27,
-      "incoming": 141,
+      "incoming": 114,
       "cohesion": 0.289
     },
     {
@@ -816,7 +807,7 @@
       "loc": 1608,
       "internalEdges": 18,
       "outgoing": 37,
-      "incoming": 31,
+      "incoming": 28,
       "cohesion": 0.327
     },
     {
@@ -888,7 +879,7 @@
       "loc": 439,
       "internalEdges": 0,
       "outgoing": 0,
-      "incoming": 2,
+      "incoming": 1,
       "cohesion": 1
     },
     {
@@ -924,7 +915,7 @@
       "loc": 344,
       "internalEdges": 2,
       "outgoing": 18,
-      "incoming": 14,
+      "incoming": 8,
       "cohesion": 0.1
     },
     {
@@ -933,17 +924,8 @@
       "loc": 317,
       "internalEdges": 0,
       "outgoing": 0,
-      "incoming": 2,
+      "incoming": 1,
       "cohesion": 1
-    },
-    {
-      "cluster": "scripts/smoke",
-      "files": 1,
-      "loc": 316,
-      "internalEdges": 0,
-      "outgoing": 3,
-      "incoming": 0,
-      "cohesion": 0
     },
     {
       "cluster": "(root)",
@@ -969,7 +951,7 @@
       "loc": 200,
       "internalEdges": 1,
       "outgoing": 3,
-      "incoming": 208,
+      "incoming": 193,
       "cohesion": 0.25
     },
     {
@@ -978,7 +960,7 @@
       "loc": 196,
       "internalEdges": 1,
       "outgoing": 3,
-      "incoming": 12,
+      "incoming": 11,
       "cohesion": 0.25
     },
     {
@@ -1041,7 +1023,7 @@
       "loc": 108,
       "internalEdges": 2,
       "outgoing": 4,
-      "incoming": 108,
+      "incoming": 107,
       "cohesion": 0.333
     },
     {
@@ -1117,6 +1099,15 @@
       "cohesion": 0.625
     },
     {
+      "cluster": "scripts",
+      "files": 1,
+      "loc": 52,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
       "cluster": "src/Scrapers/Behatsdaa/Config",
       "files": 1,
       "loc": 32,
@@ -1159,7 +1150,7 @@
       "files": 498,
       "loc": 88832,
       "internalEdges": 258,
-      "outgoing": 1226,
+      "outgoing": 1228,
       "incoming": 2,
       "cohesion": 0.174
     },
@@ -1169,17 +1160,8 @@
       "loc": 51255,
       "internalEdges": 723,
       "outgoing": 491,
-      "incoming": 569,
+      "incoming": 538,
       "cohesion": 0.596
-    },
-    {
-      "cluster": "scripts",
-      "files": 64,
-      "loc": 10289,
-      "internalEdges": 0,
-      "outgoing": 92,
-      "incoming": 0,
-      "cohesion": 0
     },
     {
       "cluster": "src/Tests/Unit",
@@ -1204,9 +1186,9 @@
       "files": 95,
       "loc": 7215,
       "internalEdges": 119,
-      "outgoing": 78,
+      "outgoing": 76,
       "incoming": 131,
-      "cohesion": 0.604
+      "cohesion": 0.61
     },
     {
       "cluster": "src/Scrapers/Pipeline/EslintCanaries",
@@ -1222,9 +1204,9 @@
       "files": 20,
       "loc": 4560,
       "internalEdges": 11,
-      "outgoing": 63,
+      "outgoing": 61,
       "incoming": 56,
-      "cohesion": 0.149
+      "cohesion": 0.153
     },
     {
       "cluster": "src/Scrapers/Pipeline/Phases",
@@ -1239,10 +1221,10 @@
       "cluster": "src/Scrapers/Pipeline/Types",
       "files": 62,
       "loc": 4256,
-      "internalEdges": 58,
+      "internalEdges": 57,
       "outgoing": 4,
-      "incoming": 817,
-      "cohesion": 0.935
+      "incoming": 816,
+      "cohesion": 0.934
     },
     {
       "cluster": "src/Scrapers/Pipeline/Strategy",
@@ -1257,10 +1239,10 @@
       "cluster": "src/Tests/Integration/Tools",
       "files": 11,
       "loc": 3740,
-      "internalEdges": 10,
+      "internalEdges": 11,
       "outgoing": 16,
       "incoming": 10,
-      "cohesion": 0.385
+      "cohesion": 0.407
     },
     {
       "cluster": "src/Tests/E2eReal",
@@ -1268,7 +1250,7 @@
       "loc": 3448,
       "internalEdges": 35,
       "outgoing": 62,
-      "incoming": 6,
+      "incoming": 5,
       "cohesion": 0.361
     },
     {
@@ -1277,7 +1259,7 @@
       "loc": 2470,
       "internalEdges": 12,
       "outgoing": 6,
-      "incoming": 165,
+      "incoming": 161,
       "cohesion": 0.667
     },
     {
@@ -1286,7 +1268,7 @@
       "loc": 2351,
       "internalEdges": 16,
       "outgoing": 30,
-      "incoming": 316,
+      "incoming": 314,
       "cohesion": 0.348
     },
     {
@@ -1340,7 +1322,7 @@
       "loc": 1747,
       "internalEdges": 9,
       "outgoing": 18,
-      "incoming": 132,
+      "incoming": 105,
       "cohesion": 0.333
     },
     {
@@ -1349,7 +1331,7 @@
       "loc": 1608,
       "internalEdges": 13,
       "outgoing": 13,
-      "incoming": 30,
+      "incoming": 28,
       "cohesion": 0.5
     },
     {
@@ -1421,7 +1403,7 @@
       "loc": 439,
       "internalEdges": 0,
       "outgoing": 0,
-      "incoming": 2,
+      "incoming": 1,
       "cohesion": 1
     },
     {
@@ -1429,9 +1411,9 @@
       "files": 5,
       "loc": 419,
       "internalEdges": 5,
-      "outgoing": 5,
+      "outgoing": 6,
       "incoming": 5,
-      "cohesion": 0.5
+      "cohesion": 0.455
     },
     {
       "cluster": "src/Tests/Unit/Config",
@@ -1455,10 +1437,10 @@
       "cluster": "src/Scrapers/Registry",
       "files": 5,
       "loc": 344,
-      "internalEdges": 1,
+      "internalEdges": 2,
       "outgoing": 12,
-      "incoming": 14,
-      "cohesion": 0.077
+      "incoming": 8,
+      "cohesion": 0.143
     },
     {
       "cluster": "src/Tests/E2eMocked/Pepper",
@@ -1466,17 +1448,8 @@
       "loc": 317,
       "internalEdges": 0,
       "outgoing": 0,
-      "incoming": 2,
+      "incoming": 1,
       "cohesion": 1
-    },
-    {
-      "cluster": "scripts/smoke",
-      "files": 1,
-      "loc": 316,
-      "internalEdges": 0,
-      "outgoing": 2,
-      "incoming": 0,
-      "cohesion": 0
     },
     {
       "cluster": "(root)",
@@ -1502,7 +1475,7 @@
       "loc": 200,
       "internalEdges": 1,
       "outgoing": 2,
-      "incoming": 148,
+      "incoming": 133,
       "cohesion": 0.333
     },
     {
@@ -1511,7 +1484,7 @@
       "loc": 196,
       "internalEdges": 1,
       "outgoing": 2,
-      "incoming": 11,
+      "incoming": 10,
       "cohesion": 0.333
     },
     {
@@ -1574,7 +1547,7 @@
       "loc": 108,
       "internalEdges": 1,
       "outgoing": 0,
-      "incoming": 11,
+      "incoming": 9,
       "cohesion": 1
     },
     {
@@ -1650,6 +1623,15 @@
       "cohesion": 1
     },
     {
+      "cluster": "scripts",
+      "files": 1,
+      "loc": 52,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
       "cluster": "src/Scrapers/Behatsdaa/Config",
       "files": 1,
       "loc": 32,
@@ -1694,7 +1676,7 @@
   "guardrails": {
     "canaries": 75,
     "eslintRules": 170,
-    "anyUsages": 2,
+    "anyUsages": 1,
     "publicSurface": {
       "present": true,
       "sha256": "6eaa84da03bfa807a410005a56d893437abc1439e63c662ec50ed9755caab088",
