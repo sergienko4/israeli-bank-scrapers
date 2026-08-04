@@ -13,11 +13,13 @@
 
 import type { Logger } from 'pino';
 
-import { getRootLogger, isRootLoggerCached } from './RootLogger.js';
+import { getRootLogger, getRootLoggerGeneration } from './RootLogger.js';
 
 /** Per-name cached deferred-child entry. */
 interface IDeferredChildEntry {
   resolved: Logger | false;
+  /** Root generation `resolved` was derived from; `-1` when unresolved. */
+  generation: number;
 }
 
 /** Reflected value off a pino Logger — narrowed to the keyof-union shape. */
@@ -35,13 +37,33 @@ export interface IProxyHandler {
 }
 
 /**
- * Property-access handler for the lazy logger Proxy — first access builds
- * a child logger from the current root. The child is cached only once the
- * root itself is cached (which only happens when `getLogFile()` resolved a
- * real destination, i.e. `setActiveBank` has fired). Pre-`setActiveBank`
- * calls keep rebuilding the child each access (cheap, microseconds) so the
- * first post-`setActiveBank` access automatically picks up the file
- * transport without a manual refresh.
+ * Resolve (and memoise) the child logger for `name` against the current
+ * root generation, rebuilding only when the root itself was replaced.
+ * @param name - Module name attached to the resolved child.
+ * @param entry - Mutable cache slot for the resolved child.
+ * @returns The child logger to read the requested property from.
+ */
+function resolveChild(name: string, entry: IDeferredChildEntry): Logger {
+  const root = getRootLogger();
+  const generation = getRootLoggerGeneration();
+  if (entry.resolved && entry.generation === generation) return entry.resolved;
+  entry.resolved = root.child({ module: name });
+  entry.generation = generation;
+  return entry.resolved;
+}
+
+/**
+ * Property-access handler for the lazy logger Proxy — delegates to
+ * {@link resolveChild}, which memoises the child against the root's
+ * generation. The child is dropped only when the root is actually replaced
+ * (i.e. when `setActiveBank` upgrades the destination to a real file), so
+ * the first post-`setActiveBank` access still picks up the file transport.
+ *
+ * Memoising matters far more than it looks: pino reads ~22 internal symbols
+ * off `this` inside a single `LOG.info(...)`, and every one of those reads
+ * lands here. Rebuilding per access therefore multiplied the cost of one log
+ * statement by 23 — and in dev mode each rebuild started a `thread-stream`
+ * worker that was never closed.
  * @param name - Module name attached to the resolved child.
  * @param entry - Mutable cache slot for the resolved child.
  * @param prop - Property name being read on the proxy.
@@ -52,9 +74,7 @@ function reflectChildProperty(
   entry: IDeferredChildEntry,
   prop: string | symbol,
 ): LoggerProperty {
-  if (entry.resolved) return Reflect.get(entry.resolved, prop) as LoggerProperty;
-  const child = getRootLogger().child({ module: name });
-  if (isRootLoggerCached()) entry.resolved = child;
+  const child = resolveChild(name, entry);
   return Reflect.get(child, prop) as LoggerProperty;
 }
 
@@ -102,7 +122,7 @@ function makeChildProxyHandler(name: string, entry: IDeferredChildEntry): IProxy
  * @returns A pino-shaped logger that defers child creation.
  */
 export function buildDeferredLogger(name: string): Logger {
-  const entry: IDeferredChildEntry = { resolved: false };
+  const entry: IDeferredChildEntry = { resolved: false, generation: -1 };
   const target: object = {};
   const handler = makeChildProxyHandler(name, entry);
   return Reflect.construct(Proxy, [target, handler]) as Logger;

@@ -1,15 +1,28 @@
 /**
  * Unit tests for `Logging/RootLogger` — lazy pino instantiation and
- * cache-state predicate.
+ * destination-keyed caching.
  */
+
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+import { jest } from '@jest/globals';
 
 import {
   buildActiveOptions,
   buildPinoOptions,
   buildSilentOptions,
   getRootLogger,
-  isRootLoggerCached,
+  getRootLoggerGeneration,
 } from '../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+
+/** Portable RUNS_ROOT so Linux CI never creates a `C:\` directory. */
+const UPGRADE_TMP_ROOT = os.tmpdir();
+const UPGRADE_RUNS_ROOT = path.join(UPGRADE_TMP_ROOT, 'test-runs-rootlogger-upgrade');
+
+/** Property reads a single `LOG.info(...)` performs — pino reads ~22 of its
+ *  own internal symbols off `this`, and every one lands on the child proxy. */
+const READS_PER_LOG_CALL = 30;
 
 describe('Feature — getRootLogger', () => {
   it('returns a pino-shaped logger with the level/info/error methods', () => {
@@ -29,15 +42,53 @@ describe('Feature — getRootLogger', () => {
   });
 });
 
-describe('Feature — isRootLoggerCached', () => {
-  it('returns a boolean reflecting the cache slot', () => {
-    expect(typeof isRootLoggerCached()).toBe('boolean');
+describe('Feature — root logger is cached per destination (worker-leak regression)', () => {
+  it('returns the identical instance across repeated calls', () => {
+    const first = getRootLogger();
+    const second = getRootLogger();
+    expect(second).toBe(first);
   });
 
-  it('stays stable across repeated calls in the same tick', () => {
-    const wasCached = isRootLoggerCached();
-    const isCached = isRootLoggerCached();
-    expect(isCached).toBe(wasCached);
+  it('does not rebuild while the destination is unchanged', () => {
+    getRootLogger();
+    const before = getRootLoggerGeneration();
+    for (let i = 0; i < READS_PER_LOG_CALL; i += 1) getRootLogger();
+    const after = getRootLoggerGeneration();
+    expect(after).toBe(before);
+  });
+});
+
+describe('Feature — root logger rebuilds exactly once on destination upgrade', () => {
+  afterEach(() => {
+    delete process.env.FORENSIC_TRACE;
+    delete process.env.RUNS_ROOT;
+    jest.resetModules();
+  });
+
+  it('holds the pre-bank logger, then swaps once when setActiveBank lands', async () => {
+    process.env.FORENSIC_TRACE = 'true';
+    process.env.RUNS_ROOT = UPGRADE_RUNS_ROOT;
+    jest.resetModules();
+    const trace = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
+    const root = await import('../../../../Scrapers/Pipeline/Logging/RootLogger.js');
+    trace.resetTraceConfigCache();
+    const preBankFile = trace.getLogFile();
+    expect(preBankFile).toBe('');
+    const preBank = root.getRootLogger();
+    const preBankAgain = root.getRootLogger();
+    expect(preBankAgain).toBe(preBank);
+    const generationBeforeBank = root.getRootLoggerGeneration();
+    trace.setActiveBank('pepper');
+    const postBankFile = trace.getLogFile();
+    expect(postBankFile.length).toBeGreaterThan(0);
+    const postBank = root.getRootLogger();
+    expect(postBank).not.toBe(preBank);
+    const generationAfterBank = root.getRootLoggerGeneration();
+    expect(generationAfterBank).toBe(generationBeforeBank + 1);
+    const postBankAgain = root.getRootLogger();
+    expect(postBankAgain).toBe(postBank);
+    const generationSettled = root.getRootLoggerGeneration();
+    expect(generationSettled).toBe(generationAfterBank);
   });
 });
 

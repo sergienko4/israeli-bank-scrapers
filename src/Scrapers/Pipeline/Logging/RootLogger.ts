@@ -19,8 +19,8 @@ import { createCensorFn } from '../Types/PiiRedactor.js';
 import { getLogFile } from '../Types/TraceConfig.js';
 import { getBankMixin } from './BankContext.js';
 
-/** Brand for the cached-state predicate (Rule #15). */
-type IsRootLoggerCached = Brand<boolean, 'IsRootLoggerCached'>;
+/** Brand for the root-logger generation counter (Rule #15). */
+type RootLoggerGeneration = Brand<number, 'RootLoggerGeneration'>;
 
 const isDevMode = !process.env.CI && process.env.NODE_ENV !== 'production';
 
@@ -79,6 +79,17 @@ function buildTransport(
 /** Cached root pino instance — built lazily on first log call so file
  *  destination is resolved AFTER setActiveBank has fired in the orchestrator. */
 let rootLoggerCache: Logger | false = false;
+
+/** The `getLogFile()` value {@link rootLoggerCache} was built for. `false`
+ *  means "never built"; `''` is a legitimate key — it is the terminal-only
+ *  logger used off-trace and before `setActiveBank` fires. Keying on the
+ *  destination is what lets the cache hold in the `''` case while still
+ *  rebuilding once (and only once) when a real file path appears. */
+let rootLoggerKey: string | false = false;
+
+/** Incremented on every root rebuild so child proxies can invalidate their
+ *  memoised children without holding a reference to the superseded root. */
+let rootGeneration = 0;
 
 /**
  * Build the pino redact config from the single-source-of-truth censor.
@@ -142,28 +153,69 @@ export function buildPinoOptions(
 }
 
 /**
+ * Replace the cached root logger with one bound to `logFile`, flushing the
+ * superseded instance so buffered pre-upgrade records still reach their
+ * destination.
+ *
+ * The superseded logger is flushed but deliberately NOT closed. Closing it
+ * would terminate its `thread-stream` worker, and writes can still legally
+ * arrive on it: `LOG.child({...})` returns a *real* pino child rather than a
+ * proxy, so any sub-logger captured before the upgrade keeps writing to the
+ * old stream forever and would start throwing on a closed one. Flushing
+ * therefore trades a bounded leak for safety — and the bound is small: a run
+ * changes destination exactly once (`'' -> <file>`, when `setActiveBank`
+ * fires), so at most one logger is ever superseded, and in production
+ * (`NODE_ENV=production` with no file) the superseded logger is transportless
+ * and owns no worker at all.
+ * @param logFile - Resolved log file path (empty string for terminal-only).
+ * @returns The freshly built root logger.
+ */
+function rebuildRootLogger(logFile: string): Logger {
+  const previous = rootLoggerCache;
+  const transport = buildTransport(logFile);
+  const options = buildPinoOptions(transport);
+  rootLoggerCache = pino(options);
+  rootLoggerKey = logFile;
+  rootGeneration += 1;
+  if (previous) previous.flush();
+  return rootLoggerCache;
+}
+
+/**
  * Build (or return cached) root logger. Deferred so getLogFile() runs
  * after `executePipeline` has registered the active bank — only then can
  * TraceConfig produce a real `<RUNS_ROOT>/pipeline/<bank>/<stamp>/pipeline.log`
  * destination.
+ *
+ * The cache is keyed on the resolved destination rather than gated on it.
+ * Gating meant that off-trace runs — where `getLogFile()` returns `''`
+ * permanently — cached nothing and rebuilt a pino instance on *every*
+ * property access. In dev mode each rebuild started a `pino-pretty`
+ * `thread-stream` worker that nothing ever closed: one `LOG.info(...)`
+ * costs 23 property reads (pino reads its internal symbols off `this`),
+ * so a single log statement leaked 23 worker threads and ~92 MB of
+ * `SharedArrayBuffer`. Keying preserves the file-upgrade behaviour the
+ * gate was reaching for while holding a single logger for the current
+ * destination.
+ *
+ * This is a one-entry cache, so an `A -> B -> A` destination sequence
+ * rebuilds `A`. That is acceptable: the only transition a real run makes
+ * is `'' -> <file>`, once, when `setActiveBank` fires. Logging
+ * configuration read at construction time (notably `LOG_LEVEL`) is
+ * therefore start-up only for a given destination.
  * @returns Root pino instance.
  */
 export function getRootLogger(): Logger {
-  if (rootLoggerCache) return rootLoggerCache;
   const logFile = getLogFile();
-  const transport = buildTransport(logFile);
-  const options = buildPinoOptions(transport);
-  const logger = pino(options);
-  if (logFile) rootLoggerCache = logger;
-  return logger;
+  if (rootLoggerCache && rootLoggerKey === logFile) return rootLoggerCache;
+  return rebuildRootLogger(logFile);
 }
 
 /**
- * Read-only accessor for the root-logger cache state. Lets the child-proxy
- * resolver know whether it can store a child logger permanently or must
- * keep rebuilding on every access (pre-`setActiveBank` lifecycle window).
- * @returns True once `setActiveBank` has resolved a real file destination.
+ * Current root-logger generation. Child proxies memoise against this so a
+ * cached child is dropped exactly when the root it came from is replaced.
+ * @returns Monotonic counter, incremented on every root rebuild.
  */
-export function isRootLoggerCached(): IsRootLoggerCached {
-  return (rootLoggerCache !== false) as IsRootLoggerCached;
+export function getRootLoggerGeneration(): RootLoggerGeneration {
+  return rootGeneration as RootLoggerGeneration;
 }
