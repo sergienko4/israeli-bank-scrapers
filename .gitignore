@@ -106,6 +106,12 @@ scripts/**
 !scripts/decoupling-metrics/**
 scripts/decoupling-metrics/snapshots/*
 !scripts/decoupling-metrics/snapshots/baseline.json
+# Committed tooling: peak-memory profiler used to size a scrape before a
+# release. Captured run artifacts stay ignored — they are machine- and
+# run-specific, and the scrape log can contain account-level PII.
+!scripts/memory-profile/
+!scripts/memory-profile/**
+scripts/memory-profile/runs/
 
 # Stale lint-output left by an older verify-script version. Current
 # src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),
