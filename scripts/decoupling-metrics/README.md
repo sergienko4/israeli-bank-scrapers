@@ -14,25 +14,31 @@ repo so every contributor and every session can run it.
 # Capture a snapshot of the current checkout
 node scripts/decoupling-metrics/measure.mjs . baseline
 
+# Regenerate the committed baseline in place (no rename step needed)
+node scripts/decoupling-metrics/measure.mjs . baseline baseline.json
+
 # Compare two snapshots (before vs after a change)
 node scripts/decoupling-metrics/diff.mjs \
   scripts/decoupling-metrics/snapshots/<before>.json \
   scripts/decoupling-metrics/snapshots/<after>.json
 ```
 
-`measure.mjs` writes `snapshots/<sha8>-<label>.json`. `diff.mjs` prints a
-Markdown matrix suitable for pasting into a PR body.
+The third argument is an explicit output filename. Without it `measure.mjs`
+writes `snapshots/<sha8>-<label>.json`, which stays gitignored; passing
+`baseline.json` writes the one snapshot that _is_ committed and that every
+future diff compares against. `diff.mjs` prints a Markdown matrix suitable for
+pasting into a PR body.
 
 ## What it measures
 
-| Metric | Meaning |
-| --- | --- |
-| `fanIn` (afferent) | How many modules import this one — the blast radius of changing it. |
-| `fanOut` (efferent) | How many modules this one imports — how much it needs to know. |
-| `instability` | `fanOut / (fanIn + fanOut)`. `0` = stable contract, `1` = volatile leaf. |
-| `cohesion` | Per cluster: `internal / (internal + outgoing)`. Low means the cluster leaks. |
-| `importCycles` | Strongly-connected components (Tarjan). Must stay `0`. |
-| guardrails | Canary count, ESLint rule count, `any` usages, `lib/index.cjs` hash. |
+| Metric              | Meaning                                                                       |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `fanIn` (afferent)  | How many modules import this one — the blast radius of changing it.           |
+| `fanOut` (efferent) | How many modules this one imports — how much it needs to know.                |
+| `instability`       | `fanOut / (fanIn + fanOut)`. `0` = stable contract, `1` = volatile leaf.      |
+| `cohesion`          | Per cluster: `internal / (internal + outgoing)`. Low means the cluster leaks. |
+| `importCycles`      | Strongly-connected components (Tarjan). Must stay `0`.                        |
+| guardrails          | Canary count, ESLint rule count, `any` usages, `lib/index.cjs` hash.          |
 
 ## Runtime vs type-only edges — read this before drawing conclusions
 
@@ -60,9 +66,14 @@ are legal in TypeScript and harmless.
 - **Orchestration layers show low cohesion by design.** `Pipeline/Phases`,
   `Pipeline/Core` and `Pipeline/Strategy` are required to delegate outward —
   "a Phase should ONLY orchestrate, all logic via Mediator". Before treating
-  low cohesion as leakage, check *where* the outgoing edges land: edges into
+  low cohesion as leakage, check _where_ the outgoing edges land: edges into
   `Pipeline/Types` (stable contracts) and `Pipeline/Mediator` are the intended
   shape, not a defect.
+- **A cluster with no edges at all reports cohesion `1`.** Cohesion is
+  `internal / (internal + outgoing)`, which is undefined when both are zero, so
+  the code returns `1`. Type-only folders such as `Scrapers/Base/Interfaces`
+  therefore show a perfect score while carrying **no cohesion signal
+  whatsoever**. Read `internalEdges` and `outgoing` before trusting a `1`.
 - **`any` usages count the whole repo**, including root-level debug scripts —
   not just `src/`. Comments are stripped before counting, so JSDoc prose such
   as "Best-effort: any throw is swallowed" is not miscounted.

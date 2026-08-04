@@ -99,7 +99,9 @@ scripts/**
 # Committed tooling: the decoupling matrix required by post-pr-checklist C5.
 # It previously lived in an ephemeral agent session folder, so it vanished
 # between sessions and C5 was repeatedly skipped. Generated snapshots stay
-# ignored except the committed baseline every future diff compares against.
+# ignored except the committed baseline every future diff compares against,
+# regenerated with:
+#   node scripts/decoupling-metrics/measure.mjs . baseline baseline.json
 !scripts/decoupling-metrics/
 !scripts/decoupling-metrics/**
 scripts/decoupling-metrics/snapshots/*

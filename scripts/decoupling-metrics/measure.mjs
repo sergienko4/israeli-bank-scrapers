@@ -3,10 +3,11 @@
  * Captures a decoupling snapshot for the post-PR checklist (step C5).
  *
  * Usage:
- *   node scripts/decoupling-metrics/measure.mjs [repoRoot] [label]
+ *   node scripts/decoupling-metrics/measure.mjs [repoRoot] [label] [outFile]
  *
- * Writes `snapshots/<sha>-<label>.json` next to this script and prints a short
- * summary. Pair with `diff.mjs` to prove a change actually decoupled.
+ * Writes `snapshots/<outFile>` — defaulting to `<sha>-<label>.json` — next to
+ * this script and prints a short summary. Pair with `diff.mjs` to prove a
+ * change actually decoupled.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -42,7 +43,7 @@ function summarise(coupling) {
 
 function buildSnapshot(root, label) {
   const graph = buildGraph(root);
-  const runtime = { ...graph, edges: graph.edges.filter((e) => e[2] === RUNTIME) };
+  const runtime = { ...graph, edges: graph.edges.filter(e => e[2] === RUNTIME) };
   const cycles = importCycles(runtime);
   return {
     label,
@@ -52,7 +53,11 @@ function buildSnapshot(root, label) {
     runtimeSummary: summarise(couplingByFile(runtime)),
     clusters: clusterMetrics(graph),
     runtimeClusters: clusterMetrics(runtime),
-    cycles: { count: cycles.length, largest: cycles[0]?.length ?? 0, components: cycles.slice(0, 10) },
+    cycles: {
+      count: cycles.length,
+      largest: cycles[0]?.length ?? 0,
+      components: cycles.slice(0, 10),
+    },
     guardrails: guardrails(root, graph.files),
   };
 }
@@ -61,10 +66,16 @@ function report(snap, outPath) {
   const { summary, runtimeSummary: rt, clusters, cycles, guardrails: g } = snap;
   console.log(`snapshot   ${snap.label} @ ${snap.gitCommitHash.slice(0, 8)}`);
   console.log(`files      ${summary.files}`);
-  console.log(`edges      ${summary.edges} total | ${rt.edges} runtime (${summary.edges - rt.edges} type-only)`);
+  console.log(
+    `edges      ${summary.edges} total | ${rt.edges} runtime (${summary.edges - rt.edges} type-only)`,
+  );
   console.log(`avg fanout ${summary.avgFanOut} total | ${rt.avgFanOut} runtime`);
-  console.log(`clusters   ${clusters.length}   runtime cycles ${cycles.count} (largest ${cycles.largest})`);
-  console.log(`guardrails canaries ${g.canaries}  eslintRules ${g.eslintRules}  any ${g.anyUsages}`);
+  console.log(
+    `clusters   ${clusters.length}   runtime cycles ${cycles.count} (largest ${cycles.largest})`,
+  );
+  console.log(
+    `guardrails canaries ${g.canaries}  eslintRules ${g.eslintRules}  any ${g.anyUsages}`,
+  );
   console.log(`wrote      ${outPath}`);
 }
 
@@ -74,7 +85,8 @@ function main() {
   const snap = buildSnapshot(root, label);
   const dir = join(HERE, 'snapshots');
   mkdirSync(dir, { recursive: true });
-  const outPath = join(dir, `${snap.gitCommitHash.slice(0, 8)}-${label}.json`);
+  const name = process.argv[4] ?? `${snap.gitCommitHash.slice(0, 8)}-${label}.json`;
+  const outPath = join(dir, name);
   writeFileSync(outPath, `${JSON.stringify(snap, null, 2)}\n`, 'utf8');
   report(snap, outPath);
 }
