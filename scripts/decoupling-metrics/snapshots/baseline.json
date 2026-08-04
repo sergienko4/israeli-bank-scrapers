@@ -1,0 +1,1704 @@
+{
+  "label": "baseline",
+  "gitCommitHash": "fc460e75390673c164e74baeb14ebadf6b0d4c18",
+  "capturedAt": "2026-08-04T09:03:44.301Z",
+  "summary": {
+    "files": 1707,
+    "edges": 6216,
+    "avgFanOut": 3.64,
+    "topFanIn": [
+      {
+        "file": "src/Scrapers/Pipeline/Types/Procedure.ts",
+        "fanIn": 415,
+        "fanOut": 4,
+        "instability": 0.01
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/PipelineContext.ts",
+        "fanIn": 373,
+        "fanOut": 25,
+        "instability": 0.063
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/Option.ts",
+        "fanIn": 195,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Base/ErrorTypes.ts",
+        "fanIn": 164,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
+        "fanIn": 164,
+        "fanOut": 7,
+        "instability": 0.041
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/Debug.ts",
+        "fanIn": 154,
+        "fanOut": 1,
+        "instability": 0.006
+      },
+      {
+        "file": "src/Scrapers/Base/ScraperError.ts",
+        "fanIn": 111,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Definitions.ts",
+        "fanIn": 104,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.ts",
+        "fanIn": 95,
+        "fanOut": 5,
+        "instability": 0.05
+      },
+      {
+        "file": "src/Scrapers/Base/Interface.ts",
+        "fanIn": 90,
+        "fanOut": 11,
+        "instability": 0.109
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/MockFactories.ts",
+        "fanIn": 90,
+        "fanOut": 12,
+        "instability": 0.118
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/Brand.ts",
+        "fanIn": 86,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.ts",
+        "fanIn": 70,
+        "fanOut": 1,
+        "instability": 0.014
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.ts",
+        "fanIn": 70,
+        "fanOut": 2,
+        "instability": 0.028
+      },
+      {
+        "file": "src/Tests/Unit/Scrapers/Pipeline/MockPipelineFactories.ts",
+        "fanIn": 67,
+        "fanOut": 12,
+        "instability": 0.152
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/LogEvent.ts",
+        "fanIn": 66,
+        "fanOut": 3,
+        "instability": 0.043
+      },
+      {
+        "file": "src/Transactions.ts",
+        "fanIn": 66,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Base/Config/LoginConfig.ts",
+        "fanIn": 62,
+        "fanOut": 5,
+        "instability": 0.075
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts",
+        "fanIn": 60,
+        "fanOut": 4,
+        "instability": 0.063
+      },
+      {
+        "file": "src/Scrapers/Base/Interfaces/Config/LoginConfig.ts",
+        "fanIn": 58,
+        "fanOut": 5,
+        "instability": 0.079
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.ts",
+        "fanIn": 53,
+        "fanOut": 5,
+        "instability": 0.086
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Registry/WK/ScrapeWK.ts",
+        "fanIn": 49,
+        "fanOut": 1,
+        "instability": 0.02
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
+        "fanIn": 45,
+        "fanOut": 13,
+        "instability": 0.224
+      },
+      {
+        "file": "src/Scrapers/Base/Config/LoginConfigTypes.ts",
+        "fanIn": 44,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Common/CamoufoxLauncher.ts",
+        "fanIn": 41,
+        "fanOut": 1,
+        "instability": 0.024
+      }
+    ],
+    "topFanOut": [
+      {
+        "file": "src/Scrapers/Pipeline/Types/PipelineContext.ts",
+        "fanIn": 373,
+        "fanOut": 25,
+        "instability": 0.063
+      },
+      {
+        "file": "src/Scrapers/Base/BaseScraperWithBrowser.ts",
+        "fanIn": 6,
+        "fanOut": 18,
+        "instability": 0.75
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Core/Builder/StepResolvers.ts",
+        "fanIn": 2,
+        "fanOut": 16,
+        "instability": 0.889
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/Create/index.ts",
+        "fanIn": 2,
+        "fanOut": 16,
+        "instability": 0.889
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Phases/Base/BasePhase.ts",
+        "fanIn": 1,
+        "fanOut": 16,
+        "instability": 0.941
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Banks/AllBankPipelines.test.ts",
+        "fanIn": 0,
+        "fanOut": 16,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/BankLoginFixtures.ts",
+        "fanIn": 1,
+        "fanOut": 16,
+        "instability": 0.941
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Strategy/Scrape/Account/AccountScrapeStrategy.ts",
+        "fanIn": 6,
+        "fanOut": 15,
+        "instability": 0.714
+      },
+      {
+        "file": "src/Scrapers/Pipeline/index.ts",
+        "fanIn": 0,
+        "fanOut": 15,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Banks/FibiSiblingsShape.test.ts",
+        "fanIn": 0,
+        "fanOut": 15,
+        "instability": 1
+      },
+      {
+        "file": "src/Scrapers/Mizrahi/MizrahiScraper.ts",
+        "fanIn": 2,
+        "fanOut": 14,
+        "instability": 0.875
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Init/InitActions.ts",
+        "fanIn": 4,
+        "fanOut": 14,
+        "instability": 0.778
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/PiiRedactor.ts",
+        "fanIn": 29,
+        "fanOut": 14,
+        "instability": 0.326
+      },
+      {
+        "file": "src/Tests/Integration/Banks/BankLoginConfigs.ts",
+        "fanIn": 4,
+        "fanOut": 14,
+        "instability": 0.778
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts",
+        "fanIn": 6,
+        "fanOut": 13,
+        "instability": 0.684
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/Create/Resolve.ts",
+        "fanIn": 2,
+        "fanOut": 13,
+        "instability": 0.867
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
+        "fanIn": 45,
+        "fanOut": 13,
+        "instability": 0.224
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.ts",
+        "fanIn": 4,
+        "fanOut": 13,
+        "instability": 0.765
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Banks/PayBox/PayBoxShape.test.ts",
+        "fanIn": 0,
+        "fanOut": 13,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/OtpFillFactoryTest.test.ts",
+        "fanIn": 0,
+        "fanOut": 13,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.warmflag.test.ts",
+        "fanIn": 0,
+        "fanOut": 13,
+        "instability": 1
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts",
+        "fanIn": 6,
+        "fanOut": 12,
+        "instability": 0.667
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Core/Executor/PipelineReducer.ts",
+        "fanIn": 4,
+        "fanOut": 12,
+        "instability": 0.75
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.action.ts",
+        "fanIn": 2,
+        "fanOut": 12,
+        "instability": 0.857
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Dashboard/DashboardDiscovery.ts",
+        "fanIn": 12,
+        "fanOut": 12,
+        "instability": 0.5
+      }
+    ]
+  },
+  "runtimeSummary": {
+    "files": 1707,
+    "edges": 4211,
+    "avgFanOut": 2.47,
+    "topFanIn": [
+      {
+        "file": "src/Scrapers/Pipeline/Types/Procedure.ts",
+        "fanIn": 348,
+        "fanOut": 2,
+        "instability": 0.006
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/Option.ts",
+        "fanIn": 176,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Base/ErrorTypes.ts",
+        "fanIn": 160,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Base/ScraperError.ts",
+        "fanIn": 111,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/MockFactories.ts",
+        "fanIn": 90,
+        "fanOut": 2,
+        "instability": 0.022
+      },
+      {
+        "file": "src/Definitions.ts",
+        "fanIn": 89,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/Debug.ts",
+        "fanIn": 89,
+        "fanOut": 1,
+        "instability": 0.011
+      },
+      {
+        "file": "src/Tests/Unit/Scrapers/Pipeline/MockPipelineFactories.ts",
+        "fanIn": 67,
+        "fanOut": 8,
+        "instability": 0.107
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/LogEvent.ts",
+        "fanIn": 65,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Registry/WK/ScrapeWK.ts",
+        "fanIn": 49,
+        "fanOut": 1,
+        "instability": 0.02
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
+        "fanIn": 46,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts",
+        "fanIn": 46,
+        "fanOut": 2,
+        "instability": 0.042
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
+        "fanIn": 45,
+        "fanOut": 13,
+        "instability": 0.224
+      },
+      {
+        "file": "src/Common/CamoufoxLauncher.ts",
+        "fanIn": 41,
+        "fanOut": 1,
+        "instability": 0.024
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/TestHelpers.ts",
+        "fanIn": 39,
+        "fanOut": 3,
+        "instability": 0.071
+      },
+      {
+        "file": "src/index.ts",
+        "fanIn": 37,
+        "fanOut": 2,
+        "instability": 0.051
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.ts",
+        "fanIn": 32,
+        "fanOut": 4,
+        "instability": 0.111
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.ts",
+        "fanIn": 32,
+        "fanOut": 8,
+        "instability": 0.2
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.ts",
+        "fanIn": 29,
+        "fanOut": 3,
+        "instability": 0.094
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/ErrorUtils.ts",
+        "fanIn": 28,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/PiiRedactor.ts",
+        "fanIn": 28,
+        "fanOut": 14,
+        "instability": 0.333
+      },
+      {
+        "file": "src/Tests/TestConstants.ts",
+        "fanIn": 27,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Scrapers/Base/Errors.ts",
+        "fanIn": 24,
+        "fanOut": 1,
+        "instability": 0.04
+      },
+      {
+        "file": "src/Tests/Helpers/AssertProcedure.ts",
+        "fanIn": 24,
+        "fanOut": 0,
+        "instability": 0
+      },
+      {
+        "file": "src/Tests/E2eReal/Helpers.ts",
+        "fanIn": 22,
+        "fanOut": 4,
+        "instability": 0.154
+      }
+    ],
+    "topFanOut": [
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/Create/index.ts",
+        "fanIn": 2,
+        "fanOut": 16,
+        "instability": 0.889
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Banks/AllBankPipelines.test.ts",
+        "fanIn": 0,
+        "fanOut": 15,
+        "instability": 1
+      },
+      {
+        "file": "src/Scrapers/Base/BaseScraperWithBrowser.ts",
+        "fanIn": 6,
+        "fanOut": 14,
+        "instability": 0.7
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/PiiRedactor.ts",
+        "fanIn": 28,
+        "fanOut": 14,
+        "instability": 0.333
+      },
+      {
+        "file": "src/Scrapers/Mizrahi/MizrahiScraper.ts",
+        "fanIn": 2,
+        "fanOut": 13,
+        "instability": 0.867
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
+        "fanIn": 45,
+        "fanOut": 13,
+        "instability": 0.224
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Phases/Base/BasePhase.ts",
+        "fanIn": 1,
+        "fanOut": 13,
+        "instability": 0.929
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Strategy/Scrape/Account/AccountScrapeStrategy.ts",
+        "fanIn": 6,
+        "fanOut": 13,
+        "instability": 0.684
+      },
+      {
+        "file": "src/Tests/Integration/Banks/BankLoginConfigs.ts",
+        "fanIn": 4,
+        "fanOut": 13,
+        "instability": 0.765
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts",
+        "fanIn": 3,
+        "fanOut": 12,
+        "instability": 0.8
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Elements/Create/Resolve.ts",
+        "fanIn": 2,
+        "fanOut": 12,
+        "instability": 0.857
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Init/InitActions.ts",
+        "fanIn": 4,
+        "fanOut": 12,
+        "instability": 0.75
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Banks/FibiSiblingsShape.test.ts",
+        "fanIn": 0,
+        "fanOut": 12,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/BankLoginFixtures.ts",
+        "fanIn": 1,
+        "fanOut": 12,
+        "instability": 0.923
+      },
+      {
+        "file": "src/Scrapers/Pipeline/index.ts",
+        "fanIn": 0,
+        "fanOut": 11,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Banks/PayBox/PayBoxShape.test.ts",
+        "fanIn": 0,
+        "fanOut": 11,
+        "instability": 1
+      },
+      {
+        "file": "src/Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.ts",
+        "fanIn": 2,
+        "fanOut": 10,
+        "instability": 0.833
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Core/Executor/PipelineReducer.ts",
+        "fanIn": 4,
+        "fanOut": 10,
+        "instability": 0.714
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Strategy/Scrape/MatrixLoopStrategy.ts",
+        "fanIn": 3,
+        "fanOut": 10,
+        "instability": 0.769
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Types/PiiRedactor/Dispatch.ts",
+        "fanIn": 1,
+        "fanOut": 10,
+        "instability": 0.909
+      },
+      {
+        "file": "src/Tests/Integration/Mirror/LoginNavigation.mirror.test.ts",
+        "fanIn": 0,
+        "fanOut": 10,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Integration/Tools/HarvestBankHtml.ts",
+        "fanIn": 0,
+        "fanOut": 10,
+        "instability": 1
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/_FullFlowActions.ts",
+        "fanIn": 1,
+        "fanOut": 10,
+        "instability": 0.909
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/_PhaseContextBuilders.ts",
+        "fanIn": 1,
+        "fanOut": 10,
+        "instability": 0.909
+      },
+      {
+        "file": "src/Tests/Unit/Pipeline/Infrastructure/OtpFillFactoryTest.test.ts",
+        "fanIn": 0,
+        "fanOut": 10,
+        "instability": 1
+      }
+    ]
+  },
+  "clusters": [
+    {
+      "cluster": "src/Tests/Unit/Pipeline",
+      "files": 498,
+      "loc": 88832,
+      "internalEdges": 261,
+      "outgoing": 1758,
+      "incoming": 2,
+      "cohesion": 0.129
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Mediator",
+      "files": 454,
+      "loc": 51255,
+      "internalEdges": 1105,
+      "outgoing": 803,
+      "incoming": 804,
+      "cohesion": 0.579
+    },
+    {
+      "cluster": "scripts",
+      "files": 64,
+      "loc": 10289,
+      "internalEdges": 0,
+      "outgoing": 96,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Unit",
+      "files": 43,
+      "loc": 9060,
+      "internalEdges": 0,
+      "outgoing": 136,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Unit/Integration",
+      "files": 24,
+      "loc": 8110,
+      "internalEdges": 0,
+      "outgoing": 57,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Banks",
+      "files": 95,
+      "loc": 7215,
+      "internalEdges": 128,
+      "outgoing": 271,
+      "incoming": 136,
+      "cohesion": 0.321
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/EslintCanaries",
+      "files": 75,
+      "loc": 5386,
+      "internalEdges": 0,
+      "outgoing": 11,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Unit/Scrapers",
+      "files": 20,
+      "loc": 4560,
+      "internalEdges": 11,
+      "outgoing": 77,
+      "incoming": 56,
+      "cohesion": 0.125
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Phases",
+      "files": 38,
+      "loc": 4316,
+      "internalEdges": 30,
+      "outgoing": 188,
+      "incoming": 160,
+      "cohesion": 0.138
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Types",
+      "files": 62,
+      "loc": 4256,
+      "internalEdges": 110,
+      "outgoing": 22,
+      "incoming": 1475,
+      "cohesion": 0.833
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Strategy",
+      "files": 32,
+      "loc": 4182,
+      "internalEdges": 57,
+      "outgoing": 144,
+      "incoming": 127,
+      "cohesion": 0.284
+    },
+    {
+      "cluster": "src/Tests/Integration/Tools",
+      "files": 11,
+      "loc": 3740,
+      "internalEdges": 16,
+      "outgoing": 22,
+      "incoming": 16,
+      "cohesion": 0.421
+    },
+    {
+      "cluster": "src/Tests/E2eReal",
+      "files": 26,
+      "loc": 3448,
+      "internalEdges": 35,
+      "outgoing": 76,
+      "incoming": 6,
+      "cohesion": 0.315
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Registry",
+      "files": 26,
+      "loc": 2470,
+      "internalEdges": 14,
+      "outgoing": 21,
+      "incoming": 189,
+      "cohesion": 0.4
+    },
+    {
+      "cluster": "src/Scrapers/Base",
+      "files": 12,
+      "loc": 2351,
+      "internalEdges": 24,
+      "outgoing": 52,
+      "incoming": 404,
+      "cohesion": 0.316
+    },
+    {
+      "cluster": "src/Tests/Integration/Banks",
+      "files": 22,
+      "loc": 2319,
+      "internalEdges": 14,
+      "outgoing": 59,
+      "incoming": 8,
+      "cohesion": 0.192
+    },
+    {
+      "cluster": "src/Tests/Integration/Mirror",
+      "files": 7,
+      "loc": 2226,
+      "internalEdges": 8,
+      "outgoing": 21,
+      "incoming": 14,
+      "cohesion": 0.276
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Core",
+      "files": 22,
+      "loc": 2205,
+      "internalEdges": 31,
+      "outgoing": 108,
+      "incoming": 79,
+      "cohesion": 0.223
+    },
+    {
+      "cluster": "src/Tests/Tools",
+      "files": 8,
+      "loc": 2061,
+      "internalEdges": 4,
+      "outgoing": 1,
+      "incoming": 6,
+      "cohesion": 0.8
+    },
+    {
+      "cluster": "src/Tests/E2eMocked",
+      "files": 12,
+      "loc": 1823,
+      "internalEdges": 0,
+      "outgoing": 69,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Common",
+      "files": 19,
+      "loc": 1747,
+      "internalEdges": 11,
+      "outgoing": 27,
+      "incoming": 141,
+      "cohesion": 0.289
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Interceptors",
+      "files": 15,
+      "loc": 1608,
+      "internalEdges": 18,
+      "outgoing": 37,
+      "incoming": 31,
+      "cohesion": 0.327
+    },
+    {
+      "cluster": "src/Tests",
+      "files": 12,
+      "loc": 1184,
+      "internalEdges": 3,
+      "outgoing": 9,
+      "incoming": 49,
+      "cohesion": 0.25
+    },
+    {
+      "cluster": "src/Tests/Integration/Helpers",
+      "files": 5,
+      "loc": 789,
+      "internalEdges": 3,
+      "outgoing": 6,
+      "incoming": 37,
+      "cohesion": 0.333
+    },
+    {
+      "cluster": "src/Tests/E2eReal/Tools",
+      "files": 1,
+      "loc": 739,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Mizrahi",
+      "files": 4,
+      "loc": 663,
+      "internalEdges": 3,
+      "outgoing": 31,
+      "incoming": 3,
+      "cohesion": 0.088
+    },
+    {
+      "cluster": "src/Tests/Unit/Tools",
+      "files": 5,
+      "loc": 655,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Helpers",
+      "files": 6,
+      "loc": 606,
+      "internalEdges": 3,
+      "outgoing": 3,
+      "incoming": 30,
+      "cohesion": 0.5
+    },
+    {
+      "cluster": "src/Tests/Unit/Common",
+      "files": 4,
+      "loc": 442,
+      "internalEdges": 0,
+      "outgoing": 4,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/OneZero",
+      "files": 1,
+      "loc": 439,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 2,
+      "cohesion": 1
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Logging",
+      "files": 5,
+      "loc": 419,
+      "internalEdges": 5,
+      "outgoing": 8,
+      "incoming": 7,
+      "cohesion": 0.385
+    },
+    {
+      "cluster": "src/Tests/Unit/Config",
+      "files": 2,
+      "loc": 404,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eFull",
+      "files": 8,
+      "loc": 403,
+      "internalEdges": 7,
+      "outgoing": 12,
+      "incoming": 0,
+      "cohesion": 0.368
+    },
+    {
+      "cluster": "src/Scrapers/Registry",
+      "files": 5,
+      "loc": 344,
+      "internalEdges": 2,
+      "outgoing": 18,
+      "incoming": 14,
+      "cohesion": 0.1
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Pepper",
+      "files": 1,
+      "loc": 317,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 2,
+      "cohesion": 1
+    },
+    {
+      "cluster": "scripts/smoke",
+      "files": 1,
+      "loc": 316,
+      "internalEdges": 0,
+      "outgoing": 3,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "(root)",
+      "files": 4,
+      "loc": 291,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/BeyahadBishvilha",
+      "files": 1,
+      "loc": 275,
+      "internalEdges": 0,
+      "outgoing": 11,
+      "incoming": 2,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src",
+      "files": 5,
+      "loc": 200,
+      "internalEdges": 1,
+      "outgoing": 3,
+      "incoming": 208,
+      "cohesion": 0.25
+    },
+    {
+      "cluster": "src/Scrapers/Registry/Config",
+      "files": 2,
+      "loc": 196,
+      "internalEdges": 1,
+      "outgoing": 3,
+      "incoming": 12,
+      "cohesion": 0.25
+    },
+    {
+      "cluster": "src/Tests/Helpers",
+      "files": 4,
+      "loc": 191,
+      "internalEdges": 1,
+      "outgoing": 4,
+      "incoming": 26,
+      "cohesion": 0.2
+    },
+    {
+      "cluster": "src/Scrapers/Base/Interfaces",
+      "files": 12,
+      "loc": 180,
+      "internalEdges": 9,
+      "outgoing": 8,
+      "incoming": 97,
+      "cohesion": 0.529
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/ApiDirect",
+      "files": 1,
+      "loc": 159,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Integration",
+      "files": 1,
+      "loc": 140,
+      "internalEdges": 0,
+      "outgoing": 8,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Behatsdaa",
+      "files": 1,
+      "loc": 129,
+      "internalEdges": 0,
+      "outgoing": 10,
+      "incoming": 2,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eSmoke",
+      "files": 3,
+      "loc": 123,
+      "internalEdges": 2,
+      "outgoing": 8,
+      "incoming": 0,
+      "cohesion": 0.2
+    },
+    {
+      "cluster": "src/Scrapers/Base/Config",
+      "files": 4,
+      "loc": 108,
+      "internalEdges": 2,
+      "outgoing": 4,
+      "incoming": 108,
+      "cohesion": 0.333
+    },
+    {
+      "cluster": "src/Scrapers/Mizrahi/Config",
+      "files": 2,
+      "loc": 107,
+      "internalEdges": 0,
+      "outgoing": 7,
+      "incoming": 4,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Integration/Phases",
+      "files": 1,
+      "loc": 73,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 5,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Mocks",
+      "files": 3,
+      "loc": 71,
+      "internalEdges": 0,
+      "outgoing": 2,
+      "incoming": 2,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Discount",
+      "files": 1,
+      "loc": 70,
+      "internalEdges": 0,
+      "outgoing": 7,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Max",
+      "files": 1,
+      "loc": 68,
+      "internalEdges": 0,
+      "outgoing": 7,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/VisaCal",
+      "files": 1,
+      "loc": 68,
+      "internalEdges": 0,
+      "outgoing": 7,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Common/Config",
+      "files": 5,
+      "loc": 61,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 10,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Mizrahi/Interfaces",
+      "files": 6,
+      "loc": 61,
+      "internalEdges": 5,
+      "outgoing": 3,
+      "incoming": 8,
+      "cohesion": 0.625
+    },
+    {
+      "cluster": "src/Scrapers/Behatsdaa/Config",
+      "files": 1,
+      "loc": 32,
+      "internalEdges": 0,
+      "outgoing": 4,
+      "incoming": 3,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Config",
+      "files": 1,
+      "loc": 31,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 5,
+      "cohesion": 1
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline",
+      "files": 1,
+      "loc": 30,
+      "internalEdges": 0,
+      "outgoing": 15,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/BeyahadBishvilha/Config",
+      "files": 1,
+      "loc": 25,
+      "internalEdges": 0,
+      "outgoing": 4,
+      "incoming": 2,
+      "cohesion": 0
+    }
+  ],
+  "runtimeClusters": [
+    {
+      "cluster": "src/Tests/Unit/Pipeline",
+      "files": 498,
+      "loc": 88832,
+      "internalEdges": 258,
+      "outgoing": 1226,
+      "incoming": 2,
+      "cohesion": 0.174
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Mediator",
+      "files": 454,
+      "loc": 51255,
+      "internalEdges": 723,
+      "outgoing": 491,
+      "incoming": 569,
+      "cohesion": 0.596
+    },
+    {
+      "cluster": "scripts",
+      "files": 64,
+      "loc": 10289,
+      "internalEdges": 0,
+      "outgoing": 92,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Unit",
+      "files": 43,
+      "loc": 9060,
+      "internalEdges": 0,
+      "outgoing": 112,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Unit/Integration",
+      "files": 24,
+      "loc": 8110,
+      "internalEdges": 0,
+      "outgoing": 46,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Banks",
+      "files": 95,
+      "loc": 7215,
+      "internalEdges": 119,
+      "outgoing": 78,
+      "incoming": 131,
+      "cohesion": 0.604
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/EslintCanaries",
+      "files": 75,
+      "loc": 5386,
+      "internalEdges": 0,
+      "outgoing": 8,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Unit/Scrapers",
+      "files": 20,
+      "loc": 4560,
+      "internalEdges": 11,
+      "outgoing": 63,
+      "incoming": 56,
+      "cohesion": 0.149
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Phases",
+      "files": 38,
+      "loc": 4316,
+      "internalEdges": 19,
+      "outgoing": 103,
+      "incoming": 69,
+      "cohesion": 0.156
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Types",
+      "files": 62,
+      "loc": 4256,
+      "internalEdges": 58,
+      "outgoing": 4,
+      "incoming": 817,
+      "cohesion": 0.935
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Strategy",
+      "files": 32,
+      "loc": 4182,
+      "internalEdges": 42,
+      "outgoing": 90,
+      "incoming": 70,
+      "cohesion": 0.318
+    },
+    {
+      "cluster": "src/Tests/Integration/Tools",
+      "files": 11,
+      "loc": 3740,
+      "internalEdges": 10,
+      "outgoing": 16,
+      "incoming": 10,
+      "cohesion": 0.385
+    },
+    {
+      "cluster": "src/Tests/E2eReal",
+      "files": 26,
+      "loc": 3448,
+      "internalEdges": 35,
+      "outgoing": 62,
+      "incoming": 6,
+      "cohesion": 0.361
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Registry",
+      "files": 26,
+      "loc": 2470,
+      "internalEdges": 12,
+      "outgoing": 6,
+      "incoming": 165,
+      "cohesion": 0.667
+    },
+    {
+      "cluster": "src/Scrapers/Base",
+      "files": 12,
+      "loc": 2351,
+      "internalEdges": 16,
+      "outgoing": 30,
+      "incoming": 316,
+      "cohesion": 0.348
+    },
+    {
+      "cluster": "src/Tests/Integration/Banks",
+      "files": 22,
+      "loc": 2319,
+      "internalEdges": 11,
+      "outgoing": 57,
+      "incoming": 6,
+      "cohesion": 0.162
+    },
+    {
+      "cluster": "src/Tests/Integration/Mirror",
+      "files": 7,
+      "loc": 2226,
+      "internalEdges": 4,
+      "outgoing": 17,
+      "incoming": 13,
+      "cohesion": 0.19
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Core",
+      "files": 22,
+      "loc": 2205,
+      "internalEdges": 21,
+      "outgoing": 47,
+      "incoming": 48,
+      "cohesion": 0.309
+    },
+    {
+      "cluster": "src/Tests/Tools",
+      "files": 8,
+      "loc": 2061,
+      "internalEdges": 4,
+      "outgoing": 1,
+      "incoming": 6,
+      "cohesion": 0.8
+    },
+    {
+      "cluster": "src/Tests/E2eMocked",
+      "files": 12,
+      "loc": 1823,
+      "internalEdges": 0,
+      "outgoing": 68,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Common",
+      "files": 19,
+      "loc": 1747,
+      "internalEdges": 9,
+      "outgoing": 18,
+      "incoming": 132,
+      "cohesion": 0.333
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Interceptors",
+      "files": 15,
+      "loc": 1608,
+      "internalEdges": 13,
+      "outgoing": 13,
+      "incoming": 30,
+      "cohesion": 0.5
+    },
+    {
+      "cluster": "src/Tests",
+      "files": 12,
+      "loc": 1184,
+      "internalEdges": 1,
+      "outgoing": 4,
+      "incoming": 49,
+      "cohesion": 0.2
+    },
+    {
+      "cluster": "src/Tests/Integration/Helpers",
+      "files": 5,
+      "loc": 789,
+      "internalEdges": 3,
+      "outgoing": 3,
+      "incoming": 37,
+      "cohesion": 0.5
+    },
+    {
+      "cluster": "src/Tests/E2eReal/Tools",
+      "files": 1,
+      "loc": 739,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Mizrahi",
+      "files": 4,
+      "loc": 663,
+      "internalEdges": 3,
+      "outgoing": 23,
+      "incoming": 3,
+      "cohesion": 0.115
+    },
+    {
+      "cluster": "src/Tests/Unit/Tools",
+      "files": 5,
+      "loc": 655,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Helpers",
+      "files": 6,
+      "loc": 606,
+      "internalEdges": 3,
+      "outgoing": 2,
+      "incoming": 30,
+      "cohesion": 0.6
+    },
+    {
+      "cluster": "src/Tests/Unit/Common",
+      "files": 4,
+      "loc": 442,
+      "internalEdges": 0,
+      "outgoing": 4,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/OneZero",
+      "files": 1,
+      "loc": 439,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 2,
+      "cohesion": 1
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Logging",
+      "files": 5,
+      "loc": 419,
+      "internalEdges": 5,
+      "outgoing": 5,
+      "incoming": 5,
+      "cohesion": 0.5
+    },
+    {
+      "cluster": "src/Tests/Unit/Config",
+      "files": 2,
+      "loc": 404,
+      "internalEdges": 0,
+      "outgoing": 4,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eFull",
+      "files": 8,
+      "loc": 403,
+      "internalEdges": 7,
+      "outgoing": 10,
+      "incoming": 0,
+      "cohesion": 0.412
+    },
+    {
+      "cluster": "src/Scrapers/Registry",
+      "files": 5,
+      "loc": 344,
+      "internalEdges": 1,
+      "outgoing": 12,
+      "incoming": 14,
+      "cohesion": 0.077
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Pepper",
+      "files": 1,
+      "loc": 317,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 2,
+      "cohesion": 1
+    },
+    {
+      "cluster": "scripts/smoke",
+      "files": 1,
+      "loc": 316,
+      "internalEdges": 0,
+      "outgoing": 2,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "(root)",
+      "files": 4,
+      "loc": 291,
+      "internalEdges": 0,
+      "outgoing": 3,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/BeyahadBishvilha",
+      "files": 1,
+      "loc": 275,
+      "internalEdges": 0,
+      "outgoing": 10,
+      "incoming": 2,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src",
+      "files": 5,
+      "loc": 200,
+      "internalEdges": 1,
+      "outgoing": 2,
+      "incoming": 148,
+      "cohesion": 0.333
+    },
+    {
+      "cluster": "src/Scrapers/Registry/Config",
+      "files": 2,
+      "loc": 196,
+      "internalEdges": 1,
+      "outgoing": 2,
+      "incoming": 11,
+      "cohesion": 0.333
+    },
+    {
+      "cluster": "src/Tests/Helpers",
+      "files": 4,
+      "loc": 191,
+      "internalEdges": 1,
+      "outgoing": 2,
+      "incoming": 26,
+      "cohesion": 0.333
+    },
+    {
+      "cluster": "src/Scrapers/Base/Interfaces",
+      "files": 12,
+      "loc": 180,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 0,
+      "cohesion": 1
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/ApiDirect",
+      "files": 1,
+      "loc": 159,
+      "internalEdges": 0,
+      "outgoing": 4,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Integration",
+      "files": 1,
+      "loc": 140,
+      "internalEdges": 0,
+      "outgoing": 6,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Behatsdaa",
+      "files": 1,
+      "loc": 129,
+      "internalEdges": 0,
+      "outgoing": 8,
+      "incoming": 2,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eSmoke",
+      "files": 3,
+      "loc": 123,
+      "internalEdges": 2,
+      "outgoing": 6,
+      "incoming": 0,
+      "cohesion": 0.25
+    },
+    {
+      "cluster": "src/Scrapers/Base/Config",
+      "files": 4,
+      "loc": 108,
+      "internalEdges": 1,
+      "outgoing": 0,
+      "incoming": 11,
+      "cohesion": 1
+    },
+    {
+      "cluster": "src/Scrapers/Mizrahi/Config",
+      "files": 2,
+      "loc": 107,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 4,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Integration/Phases",
+      "files": 1,
+      "loc": 73,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 3,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Mocks",
+      "files": 3,
+      "loc": 71,
+      "internalEdges": 0,
+      "outgoing": 2,
+      "incoming": 2,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Discount",
+      "files": 1,
+      "loc": 70,
+      "internalEdges": 0,
+      "outgoing": 7,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/Max",
+      "files": 1,
+      "loc": 68,
+      "internalEdges": 0,
+      "outgoing": 7,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/VisaCal",
+      "files": 1,
+      "loc": 68,
+      "internalEdges": 0,
+      "outgoing": 7,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Common/Config",
+      "files": 5,
+      "loc": 61,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 10,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Mizrahi/Interfaces",
+      "files": 6,
+      "loc": 61,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 0,
+      "cohesion": 1
+    },
+    {
+      "cluster": "src/Scrapers/Behatsdaa/Config",
+      "files": 1,
+      "loc": 32,
+      "internalEdges": 0,
+      "outgoing": 3,
+      "incoming": 3,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Config",
+      "files": 1,
+      "loc": 31,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 5,
+      "cohesion": 1
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline",
+      "files": 1,
+      "loc": 30,
+      "internalEdges": 0,
+      "outgoing": 11,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/BeyahadBishvilha/Config",
+      "files": 1,
+      "loc": 25,
+      "internalEdges": 0,
+      "outgoing": 3,
+      "incoming": 2,
+      "cohesion": 0
+    }
+  ],
+  "cycles": {
+    "count": 0,
+    "largest": 0,
+    "components": []
+  },
+  "guardrails": {
+    "canaries": 75,
+    "eslintRules": 170,
+    "anyUsages": 2,
+    "publicSurface": {
+      "present": true,
+      "sha256": "6eaa84da03bfa807a410005a56d893437abc1439e63c662ec50ed9755caab088",
+      "bytes": 1151765
+    }
+  }
+}

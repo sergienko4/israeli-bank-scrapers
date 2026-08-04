@@ -96,6 +96,14 @@ scripts/**
 !scripts/pii-denylist.sha256
 !scripts/sweep-fixtures-pii.ts
 !scripts/validate-pr-body.mjs
+# Committed tooling: the decoupling matrix required by post-pr-checklist C5.
+# It previously lived in an ephemeral agent session folder, so it vanished
+# between sessions and C5 was repeatedly skipped. Generated snapshots stay
+# ignored except the committed baseline every future diff compares against.
+!scripts/decoupling-metrics/
+!scripts/decoupling-metrics/**
+scripts/decoupling-metrics/snapshots/*
+!scripts/decoupling-metrics/snapshots/baseline.json
 
 # Stale lint-output left by an older verify-script version. Current
 # src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),
