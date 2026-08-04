@@ -25,9 +25,15 @@ function load(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
-/** Escapes a value for a Markdown table cell so it cannot forge a column. */
+/**
+ * Escapes a value for a Markdown table cell so it cannot forge a column.
+ *
+ * Backslashes are escaped first: a name already containing `\` would
+ * otherwise combine with the inserted escape and render as a literal
+ * backslash followed by an unescaped column separator.
+ */
 function cell(value) {
-  return String(value).replace(/\|/g, '\\|');
+  return String(value).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 }
 
 function delta(before, after) {
