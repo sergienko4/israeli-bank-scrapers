@@ -582,8 +582,16 @@ jobs:
   # runs jest with --testNamePattern filtered to a single bank, and
   # returns. Wall time: ~3-5min matrix vs ~25min serial.
   #
-  # Per-test timeout is 90s (SMOKE_TIMEOUT) so any bank-specific hang
-  # cancels in 90s instead of the SCRAPE_TIMEOUT 15-min budget.
+  # Per-test timeout is SMOKE_TIMEOUT (180s, see TestTimingConfig.ts) so a
+  # bank-specific hang cancels there instead of the SCRAPE_TIMEOUT 15-min
+  # budget.
+  #
+  # Bank outcomes are still informational (`continue-on-error` on the jest
+  # step) while the known invalid-login hangs are fixed. The *matrix wiring*
+  # is NOT informational: the "Assert the bank test actually ran" step below
+  # has no continue-on-error, so a matrix entry that no longer matches a
+  # SMOKE_BANKS display name fails the job loudly instead of reporting a
+  # green cell that executed zero tests.
   # ──────────────────────────────────────────────────────────────
   e2e-smoke:
     name: E2E Smoke (${{ matrix.bank }})
@@ -630,20 +638,61 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # Smoke is INFORMATIONAL — bank-side rate limiting / SPA invalid-creds
-      # rejection latency is bank-specific and outside this PR's scope.
+      # Bank outcomes are INFORMATIONAL for now — the invalid-login hangs on
+      # Max / VisaCal / Amex / Isracard are tracked and fixed separately.
       # `continue-on-error: true` keeps the matrix runner reporting its
       # outcome on the PR without blocking the merge gate.
+      #
+      # `--testNamePattern` is ANCHORED at `^E2E Smoke: ` because the bare
+      # bank name substring-matches across banks: the unanchored
+      # `Leumi \(invalid login\)` also matched `Beinleumi (invalid login)`,
+      # so the Leumi cell silently ran two banks' tests and reported
+      # Beinleumi's result as Leumi's.
       - name: E2E smoke (${{ matrix.bank }})
         continue-on-error: true
+        env:
+          # Bank name via env (not direct `${{ }}` interpolation into the
+          # shell) so a matrix value can never be parsed as shell syntax.
+          BANK: ${{ matrix.bank }}
+          # Capture per-run artefacts (pipeline.log, network dumps) so an
+          # invalid-login hang is traceable to the phase that stalled.
+          # Smoke uses synthetic invalid credentials, so no real account
+          # data exists to capture; the sink is still the private store.
+          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
+          LOG_LEVEL: trace
+          RUNS_ROOT: /tmp/runs
         run: |
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
             --ci \
             --testPathPatterns='E2eSmoke' \
-            --testNamePattern='${{ matrix.bank }} \(invalid login\)' \
+            --testNamePattern="^E2E Smoke: ${BANK} \(invalid login\)" \
             --testPathIgnorePatterns='/node_modules/' \
             --verbose \
-            --forceExit
+            --forceExit \
+            --json --outputFile=smoke-result.json
+      # Guard against a silently-green cell. `--testNamePattern` matching
+      # nothing is NOT an error to jest: it reports every test as "skipped"
+      # and exits 0. A typo'd matrix entry would therefore report success
+      # having executed no test at all. Verified locally: a non-matching
+      # pattern yields numPassedTests=0, numFailedTests=0, success=true.
+      #
+      # Deliberately has NO continue-on-error: bank behaviour may be
+      # informational, but broken matrix wiring must fail loudly.
+      - name: Assert the bank test actually ran (${{ matrix.bank }})
+        if: ${{ !cancelled() }}
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/assert-smoke-ran.sh
+      - name: Upload smoke diagnostics to private store (${{ matrix.bank }})
+        if: ${{ !cancelled() }}
+        env:
+          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
+          DIAG_BANK: smoke-${{ matrix.bank }}
+          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
+        # Same write-only private sink the E2E-real gates use. Skips
+        # cleanly when the secret is absent (forks), so it can never
+        # fail the job.
+        run: bash .github/scripts/ci/upload-private-diagnostics.sh
 
   # ──────────────────────────────────────────────────────────────
   # E2E Real (live banks, real credentials) — 3-stage / 3-group design.

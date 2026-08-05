@@ -8,7 +8,7 @@ describe.each(SMOKE_BANKS)(
     // Per-test timeout MUST be the 3rd arg to it(): jest.setTimeout()
     // inside beforeAll runs after describe.each has already registered
     // the tests, so it has no effect on them. Passing SMOKE_TIMEOUT here
-    // is the only reliable way to hard-cap each smoke test at 90s.
+    // is the only reliable way to hard-cap each smoke test.
     it(
       'rejects invalid credentials',
       async () => {
