@@ -110,7 +110,10 @@ type BudgetRaceResult = Procedure<ITransactionsAccount> | IBudgetSentinel;
 
 /**
  * Race the dispatch against its budget, cancelling the budget timer once the
- * race settles. The dispatch arm itself is not cancellable — `dispatchOneAccount`
+ * race settles. `abort()` cancels **only** the timer: it rejects the pending
+ * `budgetElapsed` sleep, and that rejection is already observed by the
+ * `Promise.race` subscription, so it can never surface as an unhandled
+ * rejection. The dispatch arm itself is not cancellable — `dispatchOneAccount`
  * takes no signal — so a budget win leaves that work running to completion.
  * @param work - In-flight dispatch promise.
  * @param budgetMs - Budget in milliseconds.

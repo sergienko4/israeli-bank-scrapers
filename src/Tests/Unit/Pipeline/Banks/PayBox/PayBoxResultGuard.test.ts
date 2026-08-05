@@ -71,6 +71,10 @@ describe('payBoxResultGuard', () => {
 
   it('T-PBG-6: operator message names no cause the guard cannot observe', () => {
     expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/token is degraded/i);
+    // The guard sees only summary counters, so it cannot know whether a
+    // fresh login clears the signature — and run 31015484475 proves it
+    // does not. Any re-auth claim here would be unfounded.
+    expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/re-?authentication/i);
     expect(PAYBOX_DEGRADED_SCRAPE_MSG).toMatch(/respLength|errorCode/);
   });
 

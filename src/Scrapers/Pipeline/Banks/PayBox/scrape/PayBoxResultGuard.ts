@@ -36,12 +36,18 @@ import { fail, succeed } from '../../../Types/Procedure.js';
  * PII-free operator message. Contains no account identifiers, no balance
  * figures, and no digit run that could be mistaken for one — only the
  * diagnosis and the remedy.
+ *
+ * <p>It deliberately makes no claim about whether re-authentication
+ * clears the condition. The guard observes only the summary counters, so
+ * any statement about auth would be a guess — and a wrong one: forensic
+ * run 31015484475 hit this signature on a session that had just
+ * completed a full OTP login.
  */
 const PAYBOX_DEGRADED_SCRAPE_MSG =
   'PayBox scrape returned zero transactions while the balance fetch fell back ' +
-  'to its default. Re-authentication does not clear this — inspect the ' +
-  'api-direct fetch STATUS diagnostics (respLength / errorCode) to tell a ' +
-  'rejected request from a genuinely empty page.';
+  'to its default. Inspect the api-direct fetch STATUS diagnostics ' +
+  '(respLength / errorCode) to tell a rejected request from a genuinely ' +
+  'empty page.';
 
 /**
  * True when the scrape produced at least one account, zero transactions
