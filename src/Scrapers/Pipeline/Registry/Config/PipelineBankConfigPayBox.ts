@@ -24,9 +24,11 @@
  *   - otpKey = (deviceId16Hex + '|' + PIN_SUFFIX).slice(0,32). Used
  *     as the AES-256 key for OTP cipher (per-step cryptoField hook).
  *
- * PayBox has no bare-body probe endpoint — every post-login call
- * requires the class-y `auth: { … }` envelope which only the scrape
- * shape can hydrate. The customer step doubles as the smoke test.
+ * PayBox has no bare-body probe endpoint — the authenticated data
+ * calls require the class-y `auth: { … }` envelope which only the
+ * scrape shape can hydrate, while the balance call (`/sync`) must
+ * omit it (see `scrape/PayBoxAuthEnvelope.ts` for why). The customer
+ * step doubles as the smoke test.
  *
  * Zero PayBox-name leakage in the mediator (Rule #11): this file +
  * PipelineBankConfigPayBox*.ts is the entire bank surface for login.

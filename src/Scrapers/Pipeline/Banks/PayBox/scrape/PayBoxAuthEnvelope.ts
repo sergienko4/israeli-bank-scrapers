@@ -1,17 +1,21 @@
 /**
- * PayBox class-y `auth: { … }` body envelope — shared by EVERY
- * post-login call.
+ * PayBox class-y `auth: { … }` body envelope — shared by the
+ * AUTHENTICATED DATA calls, with `/sync` as an explicit exception.
  *
- * <p>PayBox rejects any post-login request whose body omits this
- * envelope; see the `PipelineBankConfigPayBox.ts` header — "every
- * post-login call requires the class-y `auth: { … }` envelope". A body
- * carrying only the signer's `/auth/signature` pointer is answered with
- * HTTP 400, which `fallbackOnFail` then silently masks.
+ * <p>PayBox carries no `Authorization` header on these calls, so
+ * `/getUserHistory` sends the caller's identity — `uId`,
+ * `access_token` and the device `uuid` — inside this body envelope
+ * instead.
  *
- * <p>Extracted here so the balance (`/sync`) and transactions
- * (`/getUserHistory`) steps cannot drift apart: a step that builds its
- * body by hand is a step that will eventually forget the envelope.
- * `signature` is intentionally blank — the shape-level AES signer
+ * <p><b>`/sync` (balance) must NOT use this envelope.</b> It answers
+ * HTTP 400 with or without one, but a rejected body carrying the live
+ * `access_token` makes PayBox invalidate the session — forensic run
+ * 31015484475 shows `/getUserHistory` returning `401 UNAUTHORIZED`
+ * 355 ms after a freshly minted token was sent to `/sync`. See
+ * `PayBoxShapeHelpers.ts` for the guard that keeps `balanceVars()`
+ * empty.
+ *
+ * <p>`signature` is intentionally blank — the shape-level AES signer
  * overwrites it at the `/auth/signature` pointer after hydration.
  */
 

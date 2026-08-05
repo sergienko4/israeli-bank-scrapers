@@ -1,23 +1,25 @@
 /**
  * PayBox post-login request-body contract.
  *
- * <p>PayBox rejects any post-login call whose body omits the class-y
- * `auth: { … }` envelope (see the `PipelineBankConfigPayBox.ts` header).
- * Until 2026-08 the balance step built `{}`, so `/sync` went on the wire
- * as `{"auth":{"signature":"…"}}` — signed, but with no `uId`,
- * `access_token` or device `uuid` — and PayBox answered HTTP 400. The
- * step's `fallbackOnFail: 0` swallowed the rejection as a zero balance,
- * so the defect stayed invisible in production for ten weeks.
+ * <p>PayBox carries no `Authorization` header after login, so the
+ * DATA calls identify themselves through a class-y `auth: { … }` body
+ * envelope. `T-PB-BODY-2` asserts every data step carries a populated
+ * one, so a step added later that forgets it fails here rather than in
+ * a live E2E run.
  *
- * <p>It also stayed invisible in CI: the existing phase-level
- * integration test stubs `apiPost` as `(urlTag) => route(urlTag)` and
- * therefore never inspects the body it was handed. Asserting the shape
- * of the REQUEST — not just the handling of the RESPONSE — is the gap
- * this file closes.
+ * <p><b>The balance call (`/sync`) is the exception</b> and
+ * `T-PB-BODY-3` pins it: it must ship `{}`. PayBox answers it 400
+ * either way, but a rejected body carrying the live `access_token`
+ * makes PayBox invalidate the session — forensic run 31015484475 shows
+ * `/getUserHistory` returning `401 UNAUTHORIZED` 355 ms later. A
+ * regression that "fixed" `/sync` by adding the envelope cost a full
+ * release cycle.
  *
- * <p>The invariant is asserted over EVERY post-login call the real
- * {@link PAYBOX_SHAPE} makes, so a step added later that forgets the
- * envelope fails here rather than in a live E2E run.
+ * <p>The gap this file closes is that the phase-level integration test
+ * stubs `apiPost` as `(urlTag) => route(urlTag)` and therefore never
+ * inspects the body it was handed. Asserting the shape of the REQUEST —
+ * not just the handling of the RESPONSE — is what pins both halves of
+ * the contract.
  */
 
 import { jest } from '@jest/globals';

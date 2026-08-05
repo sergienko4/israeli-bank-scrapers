@@ -30,9 +30,9 @@ const result = await scraper.scrape({
 
 ## Post-login auth envelope
 
-Every PayBox call made **after** login carries an auth envelope in its request **body** — PayBox does not use an `Authorization` header for these. `buildAuthEnvelope()` (`scrape/PayBoxAuthEnvelope.ts`) builds it from the session context so `/sync` and `/getUserHistory` cannot drift apart; `PAYBOX_AUTH_ENVELOPE_INTERNALS` exposes its two resolution steps for unit tests only.
+PayBox sends no `Authorization` header after login, so `/getUserHistory` identifies itself through an auth envelope in its request **body**. `buildAuthEnvelope()` (`scrape/PayBoxAuthEnvelope.ts`) builds it from the session context; `PAYBOX_AUTH_ENVELOPE_INTERNALS` exposes its two resolution steps for unit tests only.
 
-A call that omits the envelope is malformed by contract. `/sync` shipped without one for some time, which is why `PayBoxScrapeBodyContract.test.ts` now asserts the invariant over *every* post-login URL tag rather than any single call — a body-level contract is not something a URL-tag-keyed stub can catch.
+`/sync` (balance) **must omit the envelope**. It answers HTTP 400 either way, but a rejected body carrying the live `access_token` makes PayBox invalidate the session — a forensic run recorded `/getUserHistory` returning `401 UNAUTHORIZED` 355 ms after a freshly minted token was sent to `/sync`. `balanceVars()` therefore returns `{}`, and `PayBoxScrapeBodyContract.test.ts` pins both halves: the envelope is required on every data step and forbidden on the balance call.
 
-> **Note:** sending the envelope does **not** by itself make `/sync` return 200 — a live run with a correctly-formed envelope still returned HTTP 400. Treat the envelope as a precondition, not a cure. See [Response digest](../observability/response-digest.md) for reading what the server actually objected to.
+> **Note:** the balance step's `fallbackOnFail: 0` reports the 400 as a zero balance, so a degraded `/sync` is expected and is not by itself a failure. See [Response digest](../observability/response-digest.md) for reading what the server actually objected to.
 
