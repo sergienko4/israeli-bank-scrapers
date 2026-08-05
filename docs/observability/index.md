@@ -11,6 +11,7 @@ The package auto-redacts PII *before* any line is written and emits structured e
 | [Structured events](events.md) | Every event the library emits — name, level, fields, when it fires |
 | [PII redaction](redaction.md) | What gets redacted, what survives, the two enforcement layers |
 | [Forensic audit](forensic-audit.md) | The per-account `--- Account *** | N txns ---` line in `pipeline.log` |
+| [Response digest](response-digest.md) | Telling an empty bank response apart from a broken extraction, without logging the body |
 
 ## Two enforcement layers
 

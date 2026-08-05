@@ -22,6 +22,7 @@ import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { digestResponse } from './ResponseDigest.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -262,10 +263,12 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
     const reason = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `${args.verb} ${args.url} network error: ${reason}`);
   }
+  const digest = digestResponse(env.bodyText);
   LOG.debug({
     verb: args.verb,
     url: safeUrl,
     status: env.status,
+    ...digest,
     message: '[camoufox-identity] fetch STATUS',
   });
   emitSetCookies(env.setCookies, args.opts.onSetCookie);
