@@ -61,7 +61,7 @@ Two layers guarding against a repeat of the [#449](https://github.com/sergienko4
 
 Both layers are needed. A timer count can go green while retention is still broken, because the leak that matters is the closure the timer keeps alive — in production that closure pinned Playwright `Page` handles and captured response bodies.
 
-The retention layer needs Node's `--expose-gc`, which **every** jest script in `package.json` passes. It asserts the hook is present rather than skipping without it: a vacuous pass would be worse than no test.
+The retention layer needs Node's `--expose-gc`. Every script that can select it — `test`, `test:unit`, `test:pipeline`, `test:ci`, `test:memory` — passes the flag; the E2E and integration scripts don't, because their path patterns exclude the retention suite. It asserts the hook is present rather than skipping without it: a vacuous pass would be worse than no test.
 
 These run inside `test:unit` / `test:pipeline` automatically, so CI covers them. `npm run test:memory` is the narrow local loop.
 

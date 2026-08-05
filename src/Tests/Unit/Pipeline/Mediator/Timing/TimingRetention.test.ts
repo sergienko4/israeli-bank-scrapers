@@ -10,9 +10,9 @@
  * the outcome is worth asserting directly.
  *
  * <p>Uses `WeakRef` plus an explicit `global.gc()`, so it requires Node's
- * `--expose-gc`. Every jest entry point in package.json passes that flag, and
- * the suite asserts the hook exists rather than skipping — a vacuous pass here
- * would be worse than no test at all.
+ * `--expose-gc`. Every jest entry point that can select this suite passes that
+ * flag, and the suite asserts the hook exists rather than skipping — a vacuous
+ * pass here would be worse than no test at all.
  *
  * <p>Real timers on purpose: the point is that a *real* pending timer holds a
  * real reference. Under fake timers the pending callback is held by Jest's
@@ -27,6 +27,8 @@ const POLL_TIMEOUT_MS = 30;
 const SETTLE_TICKS = 10;
 /** Payload big enough that retaining it is unambiguous in a heap snapshot. */
 const PAYLOAD_SIZE = 50_000;
+/** Bounded collection passes — V8 may need more than one to reclaim. */
+const GC_ATTEMPTS = 5;
 
 /** Stand-in for the browser handles a real poll predicate closes over. */
 interface ICapturedHandle {
@@ -117,6 +119,50 @@ function makeCapturedHandle(): ICapturedHandle {
   return { payload };
 }
 
+/**
+ * Probe the weak reference without retaining what it points at.
+ *
+ * <p>Deliberately its own function: binding `deref()` to a local in a
+ * longer-lived frame keeps the object strongly reachable and would make the
+ * gate fail for the wrong reason.
+ * @param ref - Weak reference under observation.
+ * @returns True when the referent has been collected.
+ */
+function hasReferenceCleared(ref: WeakRef<ICapturedHandle>): boolean {
+  const survivor = ref.deref();
+  return survivor === undefined;
+}
+
+/**
+ * Sweep the collector until the weak reference clears, or the attempt budget
+ * runs out.
+ *
+ * <p>V8 does not guarantee a single `gc()` reclaims everything — the first
+ * pass may only demote the object to an older generation. Retrying with a
+ * macrotask yield between passes removes that source of CI flake. The budget
+ * is bounded, so a genuine leak still fails rather than looping forever.
+ * @param ref - Weak reference under observation.
+ * @param gc - Node's `--expose-gc` hook.
+ * @returns True once the reference has cleared.
+ */
+async function collectUntilCleared(ref: WeakRef<ICapturedHandle>, gc: GcHook): Promise<boolean> {
+  const attempts = Array.from({ length: GC_ATTEMPTS }, (): number => 0);
+  /**
+   * Run one collection pass, short-circuiting once the ref has cleared.
+   * @param memo - Previous pass's result.
+   * @returns True when the reference is gone.
+   */
+  const sweep = async (memo: Promise<boolean>): Promise<boolean> => {
+    const hasCleared = await memo;
+    if (hasCleared) return true;
+    gc?.();
+    await nextTick();
+    return hasReferenceCleared(ref);
+  };
+  const seed = Promise.resolve(false);
+  return attempts.reduce(sweep, seed);
+}
+
 describe('timing closure retention', () => {
   it('T-RETAIN-1 — releases the handle a timed-out poll captured', async () => {
     const gc = readGcHook();
@@ -127,10 +173,8 @@ describe('timing closure retention', () => {
     // is the only path to the payload, which is exactly what we measure.
     handle = undefined;
     await drainTicks(SETTLE_TICKS);
-    gc?.();
-    gc?.();
-    const survivor = ref.deref();
-    expect(survivor).toBeUndefined();
+    const hasCleared = await collectUntilCleared(ref, gc);
+    expect(hasCleared).toBe(true);
     expect(handle).toBeUndefined();
   });
 });
