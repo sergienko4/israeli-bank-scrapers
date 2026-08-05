@@ -76,16 +76,20 @@ function resolveToken(ctx: IActionContext): string {
 /**
  * Build the class-y `auth` envelope (signature is written by the
  * shape-level AES signer after dispatchStep hydrates the body).
+ * <p>The spread comes first so a live identity field can never be
+ * overwritten by a future addition to the defaults. The two sets do not
+ * overlap today; ordering it this way means they still cannot if someone
+ * adds an `access_token` default later.
  * @param ctx - Action context (used to read session-context + creds).
  * @returns Auth envelope object.
  */
 export function buildAuthEnvelope(ctx: IActionContext): Record<string, string> {
   const session = readSessionContext(ctx);
   return {
+    ...PAYBOX_AUTH_ENVELOPE_DEFAULTS,
     uuid: sessionString(session, 'deviceId16Hex'),
     uId: sessionString(session, 'uId'),
     access_token: resolveToken(ctx),
-    ...PAYBOX_AUTH_ENVELOPE_DEFAULTS,
     signature: '',
   };
 }
