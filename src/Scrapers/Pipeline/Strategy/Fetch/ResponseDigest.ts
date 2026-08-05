@@ -15,6 +15,13 @@
 
 /** PII-safe descriptor emitted alongside a fetch's status line. */
 export interface IResponseDigest {
+  /**
+   * UTF-8 **byte** length of the raw body. Deliberately not
+   * `String.length`, which counts UTF-16 code units: a Hebrew error
+   * envelope is ~2 bytes per character, so the code-unit count reads
+   * roughly half the true wire size and makes a substantial rejection
+   * body look like an empty page.
+   */
   readonly respLength: number;
   readonly respKeys: readonly string[];
   readonly errorCode: string;
@@ -70,7 +77,7 @@ function stringField(src: Record<string, unknown>, key: string): string {
 export function digestResponse(bodyText: string): IResponseDigest {
   const parsed = parseTopLevel(bodyText);
   return {
-    respLength: bodyText.length,
+    respLength: Buffer.byteLength(bodyText, 'utf8'),
     respKeys: Object.keys(parsed),
     errorCode: stringField(parsed, 'code'),
     errorName: stringField(parsed, 'name'),

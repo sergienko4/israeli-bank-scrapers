@@ -100,4 +100,19 @@ describe('digestResponse', () => {
     expect(digest.respLength).toBe(0);
     expect(digest.respKeys).toEqual([]);
   });
+
+  // Hebrew is the common case for Israeli-bank error envelopes, and it is
+  // exactly where UTF-16 code units and UTF-8 bytes diverge: reporting the
+  // code-unit count makes a substantial rejection body read as roughly
+  // half its wire size, which is how a real error page can be mistaken
+  // for an empty one.
+  it('T-DIGEST-11: reports UTF-8 bytes, not UTF-16 code units', () => {
+    const hebrewBody = JSON.stringify({ code: 4001, message: 'שגיאה' });
+    const expectedBytes = Buffer.byteLength(hebrewBody, 'utf8');
+
+    const digest = digestResponse(hebrewBody);
+
+    expect(digest.respLength).toBe(expectedBytes);
+    expect(digest.respLength).toBeGreaterThan(hebrewBody.length);
+  });
 });

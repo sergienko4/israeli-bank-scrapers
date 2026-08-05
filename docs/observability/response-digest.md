@@ -23,12 +23,14 @@ This is not a convention to be relied on by review alone: `T-DIGEST-6` in `Respo
 
 ## Reading it
 
-`respLength` is the discriminator:
+`respLength` is the strongest **signal**, not a proof. It is the UTF-8 byte length of the raw body, so a Hebrew rejection envelope measures roughly twice its character count — which is precisely why a code-unit count would understate it.
 
-| Observation                       | Reading                                                   |
-| --------------------------------- | --------------------------------------------------------- |
-| Large body, zero rows parsed      | The bank returned data — **our extraction is at fault**   |
-| Tiny body, zero rows parsed       | The page really was empty — **request-side or bank-side** |
-| `errorCode` / `errorName` present | The server named its own objection — start there          |
+| Observation                       | Signal                                                     |
+| --------------------------------- | ---------------------------------------------------------- |
+| Large body, zero rows parsed      | The bank likely returned data — suspect **our extraction** |
+| Small body, zero rows parsed      | Suspect a **rejection envelope**, not an empty page         |
+| `errorCode` / `errorName` present | The server named its own objection — start there            |
+
+Size alone settles nothing: PayBox answers a rejected `/sync` with a 327–336-byte `{code, name, message, explanation}` envelope, which is small enough to read as "empty page" until `respKeys` and `errorCode` are checked. Always read the three fields together.
 
 Because it is a standalone module rather than logic embedded in the fetch strategy, it is unit-tested in isolation and adds nothing to the strategy's size budget.
