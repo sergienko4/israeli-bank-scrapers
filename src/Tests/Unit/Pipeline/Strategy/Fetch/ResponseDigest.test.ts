@@ -225,4 +225,23 @@ describe('digestResponse row-level field names', () => {
 
     expect(digest.rowKeys).toEqual(['alpha', 'mid', 'zeta']);
   });
+
+  // Keys are only safe to log while they are SCHEMA. A body keyed by a
+  // value — a phone number, an account reference — turns the key space
+  // into the data space, and dropping bare digits alone does not catch it.
+  it('T-DIGEST-22: drops keys that are not identifier-shaped', () => {
+    const body = JSON.stringify({ rows: [{ '050-123-4567': 1, 'a b': 2, label: 3, _id: 4 }] });
+
+    const digest = digestResponse(body);
+
+    expect(digest.rowKeys).toEqual(['_id', 'label']);
+  });
+
+  it('T-DIGEST-23: drops an over-long key rather than logging it', () => {
+    const body = JSON.stringify({ rows: [{ [`k${'x'.repeat(60)}`]: 1, ok: 2 }] });
+
+    const digest = digestResponse(body);
+
+    expect(digest.rowKeys).toEqual(['ok']);
+  });
 });

@@ -22,7 +22,7 @@ An HTTP status alone cannot distinguish a bank returning **an empty page** from 
 
 `rowKeys` closes it. The digest scans the body one nesting level at a time, takes the first array holding records, and emits the **union of field names** across the first 5 rows (so a field present on only some rows — exactly the signal being hunted — still shows up), sorted and capped at 40 names.
 
-Field names are schema, not customer data, so the same allowlist argument that permits `respKeys` permits `rowKeys`. Two guards keep that true: values are never read at all, and **bare numeric key names are dropped regardless of length**, so a payload keyed by account or card number — including a four-digit card suffix — cannot leak that identifier through its keys. `T-DIGEST-16` and `T-DIGEST-17` pin both.
+Field names are schema, not customer data, so the same allowlist argument that permits `respKeys` permits `rowKeys`. That argument only holds while keys really are schema, so the guard is stated positively: values are never read at all, and a key is emitted **only when it is identifier-shaped** — a letter or underscore followed by word characters, at most 40 of them. Anything else is data wearing a key's clothes and is dropped: a bare account number, a four-digit card suffix, a `050-123-4567`, or a multi-kilobyte blob posing as a field name. `T-DIGEST-16`, `T-DIGEST-17`, `T-DIGEST-22` and `T-DIGEST-23` pin the four shapes.
 
 ## What it deliberately never emits
 

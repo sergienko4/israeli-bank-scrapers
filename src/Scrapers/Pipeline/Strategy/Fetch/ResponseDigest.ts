@@ -53,12 +53,25 @@ const MAX_ROW_SAMPLE = 5;
 const MAX_ROW_KEYS = 40;
 
 /**
- * Bare numeric keys are dropped: a payload keyed by account or card
- * number would otherwise leak that identifier through its key names.
- * Length is deliberately not part of the test — a four-digit key is a
- * card suffix, which is exactly the identifier this guard exists for.
+ * Keys are only safe to log while they are SCHEMA. A body keyed by a
+ * value — an account reference, a phone number — turns the key space
+ * into the data space, so only identifier-shaped names are kept.
+ * Rejecting bare digits alone is not enough: `050-123-4567` is neither
+ * numeric nor a field name.
  */
-const NUMERIC_KEY = /^\d+$/u;
+const SCHEMA_KEY = /^[A-Za-z_]\w*$/u;
+
+/** Upper bound on a single key, so a long value posing as one cannot ride along. */
+const MAX_KEY_LEN = 40;
+
+/**
+ * Decide whether a key names a schema field rather than data.
+ * @param key - Candidate key.
+ * @returns True when the key is identifier-shaped and short enough.
+ */
+function isSchemaKey(key: string): boolean {
+  return key.length <= MAX_KEY_LEN && SCHEMA_KEY.test(key);
+}
 
 /**
  * Narrow a value to a plain object.
@@ -111,7 +124,7 @@ function findRowArray(level: readonly unknown[], depth: number): readonly unknow
 function unionRowKeys(rows: readonly unknown[]): readonly string[] {
   const sampled = rows.slice(0, MAX_ROW_SAMPLE).filter(isPlainRecord);
   const allNames = sampled.flatMap(row => Object.keys(row));
-  const safeNames = allNames.filter(key => !NUMERIC_KEY.test(key));
+  const safeNames = allNames.filter(isSchemaKey);
   const unique = new Set(safeNames);
   const sorted = [...unique].sort((a, b) => a.localeCompare(b));
   return sorted.slice(0, MAX_ROW_KEYS);
