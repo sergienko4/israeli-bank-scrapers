@@ -18,7 +18,7 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { createPromise } from '../Timing/TimingActions.js';
+import { RACE_TIMED_OUT, raceTimeout } from '../Timing/TimingActions.js';
 import { TERMINATE_CLEANUP_BUDGET_MS } from '../Timing/TimingConfig.js';
 
 /** Type alias for the cleanup function signature from IBrowserState. */
@@ -39,29 +39,30 @@ function logCleanupResult(
   return result;
 }
 
+/** A raced cleanup outcome that may still be the timeout sentinel. */
+type RacedCleanup = Procedure<void> | typeof RACE_TIMED_OUT;
+
 /**
- * Build a wall-clock guard that resolves to a fail-loud Procedure
- * when the budget elapses. Constructs the timeout fail-Procedure
- * once outside the executor closure so the body stays small.
- *
- * @param ms - Wall-clock budget for the cleanup.
- * @returns Promise that resolves to a fail Procedure after `ms`.
+ * Map a raced cleanup outcome onto a Procedure, naming the budget when the
+ * timeout won.
+ * @param raced - The cleanup's Procedure, or the timeout sentinel.
+ * @param ms - Wall-clock budget used for the race.
+ * @returns The cleanup Procedure, or a fail naming the elapsed budget.
  */
-function cleanupTimeoutGuard(ms: number): Promise<Procedure<void>> {
-  const timeoutFail = fail(
-    ScraperErrorTypes.Generic,
-    `cleanup: budget elapsed after ${String(ms)}ms`,
-  );
-  return createPromise<Procedure<void>>((resolve): boolean => {
-    globalThis.setTimeout((): boolean => resolve(timeoutFail), ms);
-    return true;
-  });
+function toCleanupResult(raced: RacedCleanup, ms: number): Procedure<void> {
+  if (raced !== RACE_TIMED_OUT) return raced;
+  return fail(ScraperErrorTypes.Generic, `cleanup: budget elapsed after ${String(ms)}ms`);
 }
 
 /**
  * Execute a single cleanup with the wall-clock guard race. Extracted so
  * the surrounding {@link runCleanup} stays within the per-function cap.
  *
+ * <p>Delegates to {@link raceTimeout}, which clears its timer the moment the
+ * race settles. The previous hand-rolled guard discarded its timer handle, so
+ * every cleanup left one pending timer armed for the full budget. In TERMINATE
+ * those timers keep the Node event loop alive, so the host process lingers
+ * after the scrape has already produced its result.
  * @param cleanup - Cleanup function returning Procedure<void>.
  * @param logger - Logger for error reporting.
  * @returns The cleanup result (or the timeout fail Procedure).
@@ -71,8 +72,8 @@ async function runCleanupGuarded(
   logger: IPipelineContext['logger'],
 ): Promise<Procedure<void>> {
   const cleanupCall = cleanup();
-  const guard = cleanupTimeoutGuard(TERMINATE_CLEANUP_BUDGET_MS);
-  const result = await Promise.race([cleanupCall, guard]);
+  const raced = await raceTimeout(TERMINATE_CLEANUP_BUDGET_MS, cleanupCall);
+  const result = toCleanupResult(raced, TERMINATE_CLEANUP_BUDGET_MS);
   return logCleanupResult(result, logger);
 }
 
