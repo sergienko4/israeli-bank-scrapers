@@ -154,10 +154,13 @@ describe('Feature — Serial', () => {
 
 describe('raceTimeout — handleRaceError branch', () => {
   it('returns RACE_TIMED_OUT sentinel when inner promise resolves after timeout', async () => {
-    // raceTimeout rejects with a timeout error when inner hasn't resolved in time.
-    // We use a promise that resolves only after raceTimeout has already timed out.
+    // raceTimeout reports the sentinel when inner hasn't resolved in time. The
+    // fixture timer outlives the assertion, so it is cleared explicitly —
+    // otherwise it keeps the Jest worker's event loop alive after teardown.
+    type TimerHandle = ReturnType<typeof globalThis.setTimeout>;
+    let pending: TimerHandle | undefined;
     const slow = new Promise<number>((resolve): boolean => {
-      type TimerFn = (cb: () => boolean, ms: number) => unknown;
+      type TimerFn = (cb: () => boolean, ms: number) => TimerHandle;
       const scheduler = (globalThis as { setTimeout: TimerFn }).setTimeout;
       /**
        * Timer tick.
@@ -167,10 +170,11 @@ describe('raceTimeout — handleRaceError branch', () => {
         resolve(42);
         return true;
       };
-      scheduler(tick, 100);
+      pending = scheduler(tick, 100);
       return true;
     });
     const result = await raceTimeout(5, slow);
+    if (pending !== undefined) globalThis.clearTimeout(pending);
     expect(result).toBe(RACE_TIMED_OUT);
   });
 
