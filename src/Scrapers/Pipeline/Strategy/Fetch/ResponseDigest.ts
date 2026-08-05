@@ -11,6 +11,16 @@
  * are free-text fields that can embed customer data, so they are never
  * logged (`logging-pii-guidlines.md` §1 — allowlist, never blocklist).
  * `code` and `name` are stable enum-like identifiers and carry none.
+ *
+ * <p>`respKeys` names only the *envelope* fields, which for a successful
+ * collection fetch is uninformative — PayBox's wallet history digests to
+ * `["code","content"]` no matter what the rows contain. That blind spot
+ * is why a blank-description defect could not be diagnosed from any log:
+ * nothing ever named the row fields the bank actually sent. `rowKeys`
+ * closes it by naming the fields of the first collection found in the
+ * body. Field *names* are schema, not customer data, so the same
+ * allowlist argument that permits `respKeys` permits `rowKeys`; values
+ * are never read.
  */
 
 /** PII-safe descriptor emitted alongside a fetch's status line. */
@@ -24,8 +34,85 @@ export interface IResponseDigest {
    */
   readonly respLength: number;
   readonly respKeys: readonly string[];
+  /**
+   * Field names of the first collection found in the body, sorted and
+   * bounded. Empty when the body carries no array of records.
+   */
+  readonly rowKeys: readonly string[];
   readonly errorCode: string;
   readonly errorName: string;
+}
+
+/** Nesting levels searched for the first collection. */
+const MAX_ROW_DEPTH = 4;
+
+/** Rows sampled when unioning field names — enough to cover optional fields. */
+const MAX_ROW_SAMPLE = 5;
+
+/** Upper bound on emitted field names, so a wide row cannot flood a log line. */
+const MAX_ROW_KEYS = 40;
+
+/**
+ * Bare numeric keys are dropped: a payload keyed by account or card
+ * number would otherwise leak that identifier through its key names.
+ */
+const NUMERIC_KEY = /^\d{5,}$/u;
+
+/**
+ * Narrow a value to a plain object.
+ * @param value - Candidate value.
+ * @returns True when the value is a non-null, non-array object.
+ */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Decide whether a node is a collection carrying at least one record.
+ * @param node - Candidate node.
+ * @returns True for an array holding a record.
+ */
+function isRecordArray(node: unknown): boolean {
+  return Array.isArray(node) && node.some(isPlainRecord);
+}
+
+/**
+ * Expand one nesting level into the values of its records.
+ * @param level - Nodes at the current level.
+ * @returns Nodes one level deeper.
+ */
+function descend(level: readonly unknown[]): unknown[] {
+  const records = level.filter(isPlainRecord);
+  return records.flatMap(node => Object.values(node));
+}
+
+/**
+ * Locate the first array holding records, scanning one nesting level at
+ * a time so a shallow collection wins over a deeper incidental one.
+ * @param level - Nodes at the current level.
+ * @param depth - Levels already scanned.
+ * @returns First array holding at least one record; empty when none.
+ */
+function findRowArray(level: readonly unknown[], depth: number): readonly unknown[] {
+  const hit = level.find(isRecordArray);
+  if (Array.isArray(hit)) return hit as readonly unknown[];
+  if (depth >= MAX_ROW_DEPTH || level.length === 0) return [];
+  const deeper = descend(level);
+  return findRowArray(deeper, depth + 1);
+}
+
+/**
+ * Union the field names carried by the sampled rows.
+ * @param rows - Candidate collection.
+ * @returns Sorted, bounded field names — never any field value.
+ */
+function unionRowKeys(rows: readonly unknown[]): readonly string[] {
+  const sampled = rows.slice(0, MAX_ROW_SAMPLE).filter(isPlainRecord);
+  const allNames = sampled.flatMap(row => Object.keys(row));
+  const safeNames = allNames.filter(key => !NUMERIC_KEY.test(key));
+  const unique = new Set(safeNames);
+  const sorted = [...unique].sort((a, b) => a.localeCompare(b));
+  return sorted.slice(0, MAX_ROW_KEYS);
 }
 
 /**
@@ -35,21 +122,18 @@ export interface IResponseDigest {
  * @returns Top-level record (empty when not a plain object).
  */
 function coerceRecord(parsed: unknown): Record<string, unknown> {
-  if (parsed === null || typeof parsed !== 'object') return {};
-  if (Array.isArray(parsed)) return {};
-  return parsed as Record<string, unknown>;
+  return isPlainRecord(parsed) ? parsed : {};
 }
 
 /**
- * Reduce a body to a top-level record, tolerating non-JSON and
- * non-object payloads (HTML error pages, arrays, bare scalars).
+ * Parse a body, tolerating non-JSON payloads such as HTML error pages.
  * @param bodyText - Raw response text.
- * @returns Top-level record (empty when unparseable or not an object).
+ * @returns Parsed value; an empty record when the body is not JSON.
  */
-function parseTopLevel(bodyText: string): Record<string, unknown> {
+function parseUnknown(bodyText: string): unknown {
   try {
     const parsed: unknown = JSON.parse(bodyText);
-    return coerceRecord(parsed);
+    return parsed;
   } catch {
     return {};
   }
@@ -75,11 +159,14 @@ function stringField(src: Record<string, unknown>, key: string): string {
  * @returns Digest safe to emit at DEBUG level.
  */
 export function digestResponse(bodyText: string): IResponseDigest {
-  const parsed = parseTopLevel(bodyText);
+  const parsed = parseUnknown(bodyText);
+  const top = coerceRecord(parsed);
+  const rows = findRowArray([parsed], 0);
   return {
     respLength: Buffer.byteLength(bodyText, 'utf8'),
-    respKeys: Object.keys(parsed),
-    errorCode: stringField(parsed, 'code'),
-    errorName: stringField(parsed, 'name'),
+    respKeys: Object.keys(top),
+    rowKeys: unionRowKeys(rows),
+    errorCode: stringField(top, 'code'),
+    errorName: stringField(top, 'name'),
   };
 }

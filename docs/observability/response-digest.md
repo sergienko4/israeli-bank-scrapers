@@ -12,8 +12,17 @@ An HTTP status alone cannot distinguish a bank returning **an empty page** from 
 | ------------ | ------------------------------------ | --------------------------------- |
 | `respLength` | Body size in bytes                   | A number, never content           |
 | `respKeys`   | Top-level JSON key **names**         | Structure only — never values     |
+| `rowKeys`    | Field **names** of the first collection in the body | Structure only — never values |
 | `errorCode`  | Server error code, when present      | Machine identifier, not free text |
 | `errorName`  | Server error name/type, when present | Machine identifier, not free text |
+
+## Naming the row fields
+
+`respKeys` describes only the **envelope**, which is uninformative for a *successful* collection fetch: PayBox's wallet history digests to `["code","content"]` no matter what the rows contain. That blind spot has a cost — a defect that left transaction descriptions blank could not be diagnosed from any log, because nothing ever named the fields the bank actually sent.
+
+`rowKeys` closes it. The digest scans the body one nesting level at a time, takes the first array holding records, and emits the **union of field names** across the first 5 rows (so a field present on only some rows — exactly the signal being hunted — still shows up), sorted and capped at 40 names.
+
+Field names are schema, not customer data, so the same allowlist argument that permits `respKeys` permits `rowKeys`. Two guards keep that true: values are never read at all, and **bare numeric key names are dropped**, so a payload keyed by account or card number cannot leak that identifier through its keys. `T-DIGEST-16` and `T-DIGEST-17` pin both.
 
 ## What it deliberately never emits
 
@@ -30,6 +39,7 @@ This is not a convention to be relied on by review alone: `T-DIGEST-6` in `Respo
 | Large body, zero rows parsed      | The bank likely returned data — suspect **our extraction** |
 | Small body, zero rows parsed      | Suspect a **rejection envelope**, not an empty page         |
 | `errorCode` / `errorName` present | The server named its own objection — start there            |
+| Rows parsed but a field is blank  | Compare `rowKeys` against the field names the mapper reads  |
 
 Size alone settles nothing: PayBox answers a rejected `/sync` with a 327–336-byte `{code, name, message, explanation}` envelope, which is small enough to read as "empty page" until `respKeys` and `errorCode` are checked. Always read the three fields together.
 
