@@ -27,6 +27,22 @@ export const SCRAPE_TIMEOUT = 900_000;
  */
 export const SMOKE_TIMEOUT = 180_000;
 
+/** Smoke budget for banks that run a PRE-LOGIN phase (ms).
+ *
+ *   420_000 ms = 7 minutes. PRE-LOGIN is *pre-submit* navigation — reveal the
+ *   login area, wait for the form to mount — and its probe ceilings in
+ *   `PreLoginTimingConfig.ts` are 15 s apiece. Forensic `pipeline.log` captures
+ *   measured HOME + PRE-LOGIN alone at 211 s (Amex), 217 s (Max) and 221 s
+ *   (Isracard): over the flat 180 s budget before a credential is ever
+ *   submitted, so the test died mid-navigation and never reached a login
+ *   verdict. Adding the measured login round trip (21-35 s) puts the worst
+ *   observed floor near 256 s; 420 s leaves headroom for CI network latency to
+ *   Israeli banks while staying far below SCRAPE_TIMEOUT, so a genuine hang is
+ *   still bounded. `SmokeBudget.test.ts` derives which banks need this from the
+ *   real pipeline descriptors, so it cannot drift.
+ */
+export const SMOKE_TIMEOUT_PRE_LOGIN = 420_000;
+
 /** Default timeout for async Jest test operations (ms). */
 export const ASYNC_TIMEOUT = 240000;
 

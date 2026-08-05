@@ -11,16 +11,44 @@ export { SMOKE_TIMEOUT } from '../Config/TestTimingConfig.js';
 export const isCiEnvironment = !!process.env.CI;
 export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
 
-/** Error types that indicate a valid failure for invalid-credential smoke tests. */
+/**
+ * Error types that count as a genuine invalid-credential rejection.
+ *
+ * <p>`Timeout` is deliberately ABSENT. A timeout means the run never reached a
+ * login verdict, so accepting it would let a required gate pass without having
+ * tested anything — the exact silent-green failure mode the per-bank
+ * `smokeTimeoutMs` budgets exist to remove. Raising a budget must surface a
+ * real verdict, not convert an external jest timeout into an internal one that
+ * scores as a pass.
+ *
+ * <p>`WafBlocked` and `TwoFactorRetrieverMissing` ARE accepted: both are
+ * environmental outcomes of running from a shared CI IP with synthetic
+ * credentials, and neither is something a code change can fix. They are
+ * reported by `describeSmokeOutcome` so the per-bank mix stays visible rather
+ * than silently absorbed.
+ */
 export const FAILED_LOGIN_TYPES: string[] = [
   LOGIN_RESULTS.InvalidPassword,
   LOGIN_RESULTS.UnknownError,
   ScraperErrorTypes.Generic,
-  ScraperErrorTypes.Timeout,
   ScraperErrorTypes.ChangePassword,
   ScraperErrorTypes.WafBlocked,
   ScraperErrorTypes.TwoFactorRetrieverMissing,
 ];
+
+/**
+ * Emit the outcome so CI logs carry the per-bank error-type mix.
+ * Without this the suite asserts and discards, leaving no evidence of which
+ * banks reach a real credential rejection and which only ever produce an
+ * environmental outcome.
+ * @param result - The scraper result to describe.
+ * @returns The reported error type, or `(none)` when the result carries none.
+ */
+function describeSmokeOutcome(result: IScraperScrapingResult): string {
+  const errorType = result.errorType ?? '(none)';
+  process.stdout.write(`[smoke] success=${String(result.success)} errorType=${errorType}\n`);
+  return errorType;
+}
 
 /**
  * Assert that a scrape result indicates a failed login.
@@ -28,6 +56,7 @@ export const FAILED_LOGIN_TYPES: string[] = [
  * @returns True when all assertions pass.
  */
 export function assertFailedLogin(result: IScraperScrapingResult): boolean {
+  describeSmokeOutcome(result);
   expect(result.success).toBe(false);
   expect(FAILED_LOGIN_TYPES).toContain(result.errorType);
   return true;

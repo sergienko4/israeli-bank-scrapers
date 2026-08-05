@@ -1,5 +1,6 @@
 import { CompanyTypes } from '../../Definitions.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
+import { SMOKE_TIMEOUT_PRE_LOGIN } from '../Config/TestTimingConfig.js';
 import {
   INVALID_CREDS_DISCOUNT,
   INVALID_CREDS_HAPOALIM,
@@ -16,6 +17,11 @@ export interface IBankSmokeConfig {
   readonly displayName: string;
   readonly credentials: ScraperCredentials;
   readonly defaultTimeout?: number;
+  /** Jest per-test budget override (ms). Required for banks that run a
+   *  PRE-LOGIN phase — see `SMOKE_TIMEOUT_PRE_LOGIN`. Enforced by
+   *  `SmokeBudget.test.ts`, which derives the affected banks from the real
+   *  pipeline descriptors rather than a hard-coded list. */
+  readonly smokeTimeoutMs?: number;
 }
 
 /** Local re-export for clarity in the SMOKE_BANKS list. */
@@ -35,15 +41,31 @@ export const SMOKE_BANKS: readonly IBankSmokeConfig[] = [
   },
   { companyId: CompanyTypes.Leumi, displayName: 'Leumi', credentials: USER_PASS },
   { companyId: CompanyTypes.Mizrahi, displayName: 'Mizrahi', credentials: USER_PASS },
-  { companyId: CompanyTypes.Max, displayName: 'Max', credentials: USER_PASS },
-  { companyId: CompanyTypes.Isracard, displayName: 'Isracard', credentials: ID_CARD_PASS },
+  {
+    companyId: CompanyTypes.Max,
+    displayName: 'Max',
+    credentials: USER_PASS,
+    smokeTimeoutMs: SMOKE_TIMEOUT_PRE_LOGIN,
+  },
+  {
+    companyId: CompanyTypes.Isracard,
+    displayName: 'Isracard',
+    credentials: ID_CARD_PASS,
+    smokeTimeoutMs: SMOKE_TIMEOUT_PRE_LOGIN,
+  },
   {
     companyId: CompanyTypes.Amex,
     displayName: 'Amex',
     credentials: ID_CARD_PASS,
     defaultTimeout: 60000,
+    smokeTimeoutMs: SMOKE_TIMEOUT_PRE_LOGIN,
   },
-  { companyId: CompanyTypes.VisaCal, displayName: 'VisaCal', credentials: USER_PASS },
+  {
+    companyId: CompanyTypes.VisaCal,
+    displayName: 'VisaCal',
+    credentials: USER_PASS,
+    smokeTimeoutMs: SMOKE_TIMEOUT_PRE_LOGIN,
+  },
   { companyId: CompanyTypes.Discount, displayName: 'Discount', credentials: ID_PASS_NUM },
   { companyId: CompanyTypes.OtsarHahayal, displayName: 'Otsar Hahayal', credentials: USER_PASS },
   { companyId: CompanyTypes.Beinleumi, displayName: 'Beinleumi', credentials: USER_PASS },
@@ -71,3 +93,21 @@ export const SMOKE_BANKS: readonly IBankSmokeConfig[] = [
     credentials: INVALID_CREDS_ONEZERO,
   },
 ] as const;
+
+/**
+ * Registry banks deliberately absent from `SMOKE_BANKS`, with the reason.
+ *
+ * <p>The smoke matrix is a REQUIRED merge gate, so every bank is either
+ * covered or listed here — there is no silent third state. `SmokeBudget`'s
+ * coverage guard asserts `PIPELINE_REGISTRY == SMOKE_BANKS + this map`, so
+ * onboarding a bank forces a conscious choice instead of a quiet omission.
+ */
+export const SMOKE_EXCLUDED_BANKS: Readonly<Partial<Record<CompanyTypes, string>>> = {
+  [CompanyTypes.PayBox]:
+    'Auth is phone + OTP with no password to make synthetic-invalid. Without a ' +
+    'twoFactorRetriever the run fails as TwoFactorRetrieverMissing, which proves ' +
+    'nothing about credential rejection. Covered by the E2E-real gate-C instead.',
+  [CompanyTypes.Pepper]:
+    'Same OTP-only auth shape as PayBox — an invalid-credential smoke run cannot ' +
+    'reach a rejection verdict. Covered by the E2E-real gate-C instead.',
+};
