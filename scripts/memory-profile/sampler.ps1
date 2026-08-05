@@ -25,7 +25,8 @@
   PID whose descendant tree (inclusive) is measured.
 
 .PARAMETER IntervalMs
-  Delay between samples in milliseconds.
+  Delay between samples in milliseconds. Must be positive: zero would
+  turn the sampling loop into a busy loop that floods stdout.
 
 .PARAMETER BaselinePids
   Comma-separated PIDs of browser processes that were already running
@@ -37,7 +38,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][int]$RootPid,
-  [int]$IntervalMs = 500,
+  [ValidateRange(1, [int]::MaxValue)][int]$IntervalMs = 500,
   [string]$BaselinePids = '',
   [string]$BrowserPattern = 'camoufox|firefox|chrome|chromium|msedge'
 )
