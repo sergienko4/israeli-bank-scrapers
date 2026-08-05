@@ -172,7 +172,11 @@ describe('PayBox post-login body contract', () => {
   // The regression net. `/sync` shipped a body with no identity for ten
   // weeks; this fails the moment a data step does so again.
   it('T-PB-BODY-2 every data step carries a populated auth envelope', () => {
-    for (const call of dataCalls(calls)) {
+    const steps = dataCalls(calls);
+    // Without this the loop below passes vacuously if the shape ever
+    // stops dispatching a data step — the exact failure it must catch.
+    expect(steps.length).toBeGreaterThan(0);
+    for (const call of steps) {
       const auth = authOf(call);
       for (const field of IDENTITY_FIELDS) {
         expect(typeof auth[field]).toBe('string');
