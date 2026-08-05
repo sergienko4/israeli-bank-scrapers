@@ -2,6 +2,8 @@
  * Unit tests for Strategy/Scrape/Account/ScrapeDispatch — scrapeAllAccounts.
  */
 
+import { jest } from '@jest/globals';
+
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import type { IDiscoveredEndpoint } from '../../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
@@ -28,6 +30,9 @@ import {
   stubFetchGetFail,
   stubFetchGetOk,
 } from '../../StrategyTestHelpers.js';
+
+/** Bound on the abort test so a cancellation regression fails fast. */
+const ABORT_TEST_TIMEOUT_MS = 5_000;
 
 /**
  * Adapt a captured `IDiscoveredEndpoint` mock into the slim
@@ -320,5 +325,45 @@ describe('ScrapeDispatch per-account timeout helpers', () => {
       expect(result.errorType).toBe(ScraperErrorTypes.Timeout);
       expect(result.errorMessage).toContain('per-account');
     }
+  });
+
+  it(
+    'budgetElapsed rejects once its cancellation signal aborts',
+    async (): Promise<void> => {
+      const guard = new AbortController();
+      const pending = __budgetElapsed(__PER_ACCOUNT_TIMEOUT_MS, guard.signal);
+      const rejection = expect(pending).rejects.toThrow();
+      guard.abort();
+      await rejection;
+      // Bounded so a regression fails in seconds rather than idling out the
+      // whole 5-minute budget.
+    },
+    ABORT_TEST_TIMEOUT_MS,
+  );
+
+  it('dispatchWithTimeout cancels its budget arm once the work arm wins', async (): Promise<void> => {
+    // The losing budget arm would otherwise stay pending for the full
+    // 5-minute budget, keeping the settled race — and the account payload
+    // it resolved with — reachable. Aborting is the only observable proof.
+    const abortSpy = jest.spyOn(AbortController.prototype, 'abort');
+    const fetchGet = stubFetchGetOk({});
+    const api = makeApi({ fetchGet, transactionsUrl: 'https://example.com/txn' });
+    const network = makeNetwork({
+      /**
+       * Force the URL strategy so the stubbed fetchGet settles the work arm.
+       * @returns Always false.
+       */
+      discoverTransactionsEndpoint: (): false => false,
+    });
+    const txnEndpoint: ITxnEndpoint = { ...EMPTY_TXN_ENDPOINT, url: 'https://example.com/txn' };
+    const fc: IAccountFetchCtx = { api, network, startDate: '20260101', txnEndpoint };
+    await __dispatchWithTimeout({
+      fc,
+      accountId: 'a1',
+      opts: { accountRecord: { accountId: 'a1' } },
+      timeoutMs: __PER_ACCOUNT_TIMEOUT_MS,
+    });
+    expect(abortSpy).toHaveBeenCalled();
+    abortSpy.mockRestore();
   });
 });
