@@ -22,7 +22,10 @@
   run already exists and could have launched a browser of its own.
 
 .PARAMETER RootPid
-  PID whose descendant tree (inclusive) is measured.
+  PID whose descendant tree (inclusive) is measured. Omit it to have the
+  PID read from stdin instead, which lets a caller start this script -
+  and pay its startup cost - before the process it wants to measure
+  exists. See the readiness handshake below.
 
 .PARAMETER IntervalMs
   Delay between samples in milliseconds. Must be positive: zero would
@@ -37,7 +40,7 @@
 #>
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)][int]$RootPid,
+  [int]$RootPid = 0,
   [ValidateRange(1, [int]::MaxValue)][int]$IntervalMs = 500,
   [string]$BaselinePids = '',
   [string]$BrowserPattern = 'camoufox|firefox|chrome|chromium|msedge'
@@ -109,6 +112,22 @@ function Get-BaselineSet {
 }
 
 $baseline = Get-BaselineSet -Ids $BaselinePids
+
+# PowerShell startup plus the FIRST CIM query costs 1.2-1.8s (measured). A
+# caller that spawns its run and only then starts this script leaves that
+# whole window unsampled, so a short run can finish before the first sample
+# and be reported as if it were never observed. Paying the cost here and
+# announcing readiness lets the caller hold its run back until sampling is
+# genuinely warm, then send the PID on stdin. The process-creation event is
+# NOT a readiness signal: nearly all of the cost lands after it.
+[void](Get-ProcessRows)
+'{"ready":true}'
+
+if ($RootPid -le 0) {
+  $line = [Console]::In.ReadLine()
+  if ($line -notmatch '^\s*(\d+)\s*$') { throw "expected a root PID on stdin, got '$line'" }
+  $RootPid = [int]$Matches[1]
+}
 
 # Orphaned browsers only become observable once the tree they belonged to is
 # gone, so sampling continues briefly past root exit. Bounded, so the sampler

@@ -44,6 +44,13 @@ const TIMEOUT_CEILING_MS = 2147483647;
 const MAX_INTERVAL_MS = Math.floor(TIMEOUT_CEILING_MS / (SAMPLER_GRACE_SAMPLES * 2));
 
 /**
+ * How long to wait for the sampler to report it is warm. Startup measures
+ * around 1.1s, so this is pure headroom: it exists because a wedged WMI
+ * would otherwise leave the profiler waiting forever with nothing printed.
+ */
+const READY_TIMEOUT_MS = 60_000;
+
+/**
  * Process names counted as browsers. Owned here rather than in the sampler
  * so the pre-spawn baseline and the sampler's stray check cannot drift.
  */
@@ -171,35 +178,36 @@ function browserBaseline() {
 /**
  * Build the PowerShell argv for the sampler.
  *
+ * The root PID is deliberately absent: the sampler is started before the
+ * run exists and is told the PID on stdin once it reports readiness.
+ *
  * The baseline flag is omitted rather than sent empty, because PowerShell's
  * `-File` parser drops an empty argument and would then read the next flag
  * as the value — so a machine with no browser running would fail to sample.
- * @param rootPid - PID of the spawned run process.
  * @param interval - Sampling interval in milliseconds.
  * @param baseline - Browser PIDs captured before the run was spawned.
  * @returns Argv array for `powershell.exe`.
  */
-function samplerArgs(rootPid, interval, baseline) {
+function samplerArgs(interval, baseline) {
   const script = join(HERE, 'sampler.ps1');
   const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script];
-  args.push('-RootPid', String(rootPid), '-IntervalMs', String(interval));
+  args.push('-IntervalMs', String(interval));
   args.push('-BrowserPattern', BROWSER_PATTERN);
   if (baseline.length > 0) args.push('-BaselinePids', baseline.join(','));
   return args;
 }
 
 /**
- * Start the PowerShell tree sampler against a root PID.
- * @param rootPid - PID of the spawned jest process.
+ * Start the PowerShell tree sampler.
  * @param interval - Sampling interval in milliseconds.
  * @param baseline - Browser PIDs captured before the run was spawned.
- * @returns The sampler process and a promise for its startup.
+ * @returns The sampler process.
  */
-function startSampler(rootPid, interval, baseline) {
-  const args = samplerArgs(rootPid, interval, baseline);
+function startSampler(interval, baseline) {
+  const args = samplerArgs(interval, baseline);
   const proc = spawn('powershell.exe', args, { windowsHide: true });
   proc.stderr.on('data', d => process.stderr.write(`[sampler] ${d}`));
-  return { proc, started: awaitSpawn(proc) };
+  return proc;
 }
 
 /**
@@ -214,20 +222,57 @@ function totals(sample) {
 }
 
 /**
- * Collect sampler stdout lines into an array of decoded samples.
- * @param sampler - Sampler child process.
- * @param sink - Array that receives decoded samples.
+ * Decode one sampler stdout line.
+ * @param line - Raw line.
+ * @returns The parsed object, or undefined when the line is not JSON.
  */
-function collectSamples(sampler, sink) {
-  const rl = readline.createInterface({ input: sampler.stdout });
-  rl.on('line', line => {
-    const text = line.trim();
-    if (!text.startsWith('{')) return;
-    try {
-      sink.push(JSON.parse(text));
-    } catch {
-      /* partial line during teardown — skip */
-    }
+function parseLine(line) {
+  const text = line.trim();
+  if (!text.startsWith('{')) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined; /* partial line during teardown */
+  }
+}
+
+/**
+ * Route one decoded sampler line.
+ *
+ * The readiness announcement carries no `procs`, so it is answered rather
+ * than stored: letting it through would add a sample whose totals cannot be
+ * computed and would corrupt the peak.
+ * @param line - Raw stdout line.
+ * @param sink - Array that receives decoded samples.
+ * @param announce - Called when the sampler reports it is warm.
+ */
+function onLine(line, sink, announce) {
+  const msg = parseLine(line);
+  if (msg?.ready === true) announce();
+  else if (Array.isArray(msg?.procs)) sink.push(msg);
+}
+
+/**
+ * Wire the sampler's stdout and wait for it to warm up.
+ *
+ * The wait is bounded: a wedged CIM query would otherwise hang the profiler
+ * indefinitely with no output at all, which is the one failure mode this
+ * tool must never have.
+ * @param proc - Sampler child process.
+ * @param sink - Array that receives decoded samples.
+ * @returns Resolves once the sampler has announced readiness.
+ */
+function readSampler(proc, sink) {
+  return new Promise((resolve, reject) => {
+    const late = () => reject(new Error(`no readiness signal in ${READY_TIMEOUT_MS}ms`));
+    const timer = setTimeout(late, READY_TIMEOUT_MS);
+    const ready = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    proc.on('error', reject);
+    proc.on('close', () => reject(new Error('sampler exited before it was ready')));
+    readline.createInterface({ input: proc.stdout }).on('line', l => onLine(l, sink, ready));
   });
 }
 
@@ -403,49 +448,77 @@ function awaitSampler(sampler, closed, interval) {
 }
 
 /**
- * Start the sampler and prove it is running before collection begins.
+ * Start the sampler and prove it is sampling before the run is released.
  *
- * A sampler that never spawns would otherwise leave the run to finish and
- * report "No samples captured", blaming a fast run for a tooling failure —
- * and `main` would still exit on the run's own code, so the profile would
- * look successful. The run is killed first, so nothing is left behind.
- * @param child - The already-spawned run process.
+ * Readiness is the sampler's own announcement, not the process-creation
+ * event: 1.2-1.8s of PowerShell startup and first-CIM cost lands AFTER that
+ * event (measured), so gating on it would leave a run shorter than that
+ * window entirely unsampled and reported as "No samples captured" — blaming
+ * a fast run for a tooling failure, with `main` still exiting on the run's
+ * own code so the profile would look successful.
  * @param interval - Sampling interval in milliseconds.
  * @param baseline - Browser PIDs captured before the run was spawned.
+ * @param sink - Array that receives decoded samples.
  * @returns The sampler process and a promise for its close.
  */
-async function startedSampler(child, interval, baseline) {
-  const { proc, started } = startSampler(child.pid, interval, baseline);
+async function startedSampler(interval, baseline, sink) {
+  const proc = startSampler(interval, baseline);
   const closed = new Promise(resolve => proc.on('close', resolve));
-  await started.catch(async e => {
-    child.kill();
-    await new Promise(resolve => child.on('close', resolve));
+  await readSampler(proc, sink).catch(async e => {
+    proc.kill();
+    await closed;
     throw new Error(`sampler failed to start: ${e.message}`);
   });
   return { proc, closed };
 }
 
 /**
+ * Release the run to the already-warm sampler and collect until both are done.
+ * @param sampler - Sampler child process, already announced ready.
+ * @param closed - Resolves when the sampler emits 'close'.
+ * @param options - Parsed CLI options.
+ * @param log - The run-log write stream.
+ * @returns Run start time and the run's exit code.
+ */
+async function sampleUntilExit(sampler, closed, { bank, mode, interval }, log) {
+  const startedAt = Date.now();
+  const child = await spawnRun(bank, mode, log);
+  sampler.stdin.write(`${child.pid}\n`);
+  const exitCode = await new Promise(resolve => child.on('close', resolve));
+  await awaitSampler(sampler, closed, interval);
+  return { startedAt, exitCode };
+}
+
+/**
  * Run the profiled command under the sampler.
  *
- * The sampler is not killed when the run exits: it keeps sampling for a
- * bounded grace period, because an orphaned browser only becomes observable
- * once the tree it belonged to is gone. Killing it here would make the
- * detached-browser metric permanently read zero.
+ * The sampler starts FIRST and the run is released only once it reports it
+ * is warm, so no part of the run goes unsampled. See `startedSampler`.
+ *
+ * That ordering means a failure to spawn the run leaves a warm sampler
+ * behind, blocked on the PID it will now never receive. It is killed and
+ * reaped here, because the profiler only sets `process.exitCode` — with a
+ * live child still holding a pipe, the event loop would never drain and the
+ * reported failure would hang instead of exiting.
+ *
+ * The sampler is not killed when the run exits normally: it keeps sampling
+ * for a bounded grace period, because an orphaned browser only becomes
+ * observable once the tree it belonged to is gone. Killing it there would
+ * make the detached-browser metric permanently read zero.
  * @param options - Parsed CLI options.
  * @param log - The run-log write stream.
  * @returns Samples, run start time and the run's exit code.
  */
-async function runAndSample({ bank, mode, interval }, log) {
+async function runAndSample(options, log) {
   const baseline = browserBaseline();
-  const child = await spawnRun(bank, mode, log);
-  const { proc: sampler, closed } = await startedSampler(child, interval, baseline);
   const samples = [];
-  collectSamples(sampler, samples);
-  const startedAt = Date.now();
-  const exitCode = await new Promise(resolve => child.on('close', resolve));
-  await awaitSampler(sampler, closed, interval);
-  return { samples, startedAt, exitCode };
+  const { proc, closed } = await startedSampler(options.interval, baseline, samples);
+  const run = await sampleUntilExit(proc, closed, options, log).catch(async e => {
+    proc.kill();
+    await closed;
+    throw e;
+  });
+  return { samples, ...run };
 }
 
 async function main() {
