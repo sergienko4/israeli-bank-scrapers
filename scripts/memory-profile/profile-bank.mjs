@@ -318,13 +318,19 @@ function slug(label) {
 
 /**
  * Persist the raw timeline so a run can be re-analysed without rerunning.
+ *
+ * Detached-browser counters are kept per row: they are the reason this
+ * profiler exists, and `totals` covers only the tracked tree, so dropping
+ * them would leave the saved file unable to answer the question the run
+ * was made to answer.
  * @param ctx - Bank name and captured samples.
  * @returns Path of the written JSON file.
  */
 function persist(ctx) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const file = join(RUNS, `${slug(ctx.bank)}-${ctx.mode}-${stamp}.json`);
-  const timeline = ctx.samples.map(s => ({ t: s.t, ...totals(s) }));
+  const row = s => ({ t: s.t, ...totals(s), strays: s.strays, strayWs: s.strayWs });
+  const timeline = ctx.samples.map(row);
   writeFileSync(
     file,
     JSON.stringify({ bank: ctx.bank, mode: ctx.mode, interval: ctx.interval, timeline }, null, 2),
