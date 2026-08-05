@@ -33,6 +33,33 @@ function readSessionContext(ctx: IActionContext): Readonly<Record<string, unknow
 }
 
 /**
+ * Read a string field from the session-context bundle.
+ * @param session - Frozen session-context bundle.
+ * @param key - Field name to read.
+ * @returns The string value, or empty when absent or not a string.
+ */
+function sessionString(session: Readonly<Record<string, unknown>>, key: string): string {
+  const value = session[key];
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * Read the long-term token from the caller's credentials.
+ *
+ * <p>{@link IActionContext} marks `credentials` as always present, but
+ * unit fixtures may construct a partial context literal without it; the
+ * cast through `unknown` makes a missing field surface as `undefined`
+ * rather than throwing on a downstream property access.
+ * @param ctx - Action context.
+ * @returns JWT string (empty when the caller carries none).
+ */
+function tokenFromCreds(ctx: IActionContext): string {
+  const raw = (ctx as unknown as { readonly credentials?: unknown }).credentials;
+  const creds = (raw ?? {}) as IPayBoxCreds;
+  return creds.otpLongTermToken ?? '';
+}
+
+/**
  * Resolve the long-term token — prefer the post-login session-context
  * value, then fall back to `creds.otpLongTermToken` for warm-creds
  * callers and test fixtures that may not have the session bus wired.
@@ -41,15 +68,9 @@ function readSessionContext(ctx: IActionContext): Readonly<Record<string, unknow
  */
 function resolveToken(ctx: IActionContext): string {
   const session = readSessionContext(ctx);
-  const fromSession = typeof session.token === 'string' ? session.token : '';
+  const fromSession = sessionString(session, 'token');
   if (fromSession.length > 0) return fromSession;
-  // The IActionContext type marks `credentials` as always present, but
-  // unit fixtures may construct a partial context literal without it;
-  // cast through `unknown` so a missing field surfaces as `undefined`
-  // rather than throwing on a downstream property access.
-  const raw = (ctx as unknown as { readonly credentials?: unknown }).credentials;
-  const creds = (raw ?? {}) as IPayBoxCreds;
-  return creds.otpLongTermToken ?? '';
+  return tokenFromCreds(ctx);
 }
 
 /**
@@ -60,15 +81,11 @@ function resolveToken(ctx: IActionContext): string {
  */
 export function buildAuthEnvelope(ctx: IActionContext): Record<string, string> {
   const session = readSessionContext(ctx);
-  const uId = typeof session.uId === 'string' ? session.uId : '';
-  const deviceId = typeof session.deviceId16Hex === 'string' ? session.deviceId16Hex : '';
   return {
-    uuid: deviceId,
-    uId,
+    uuid: sessionString(session, 'deviceId16Hex'),
+    uId: sessionString(session, 'uId'),
     access_token: resolveToken(ctx),
-    appVer: PAYBOX_AUTH_ENVELOPE_DEFAULTS.appVer,
-    type: PAYBOX_AUTH_ENVELOPE_DEFAULTS.type,
-    os: PAYBOX_AUTH_ENVELOPE_DEFAULTS.os,
+    ...PAYBOX_AUTH_ENVELOPE_DEFAULTS,
     signature: '',
   };
 }

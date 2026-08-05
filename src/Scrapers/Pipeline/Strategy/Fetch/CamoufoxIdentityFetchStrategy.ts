@@ -22,7 +22,7 @@ import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
-import { digestResponse } from './ResponseDigest.js';
+import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -241,6 +241,25 @@ async function closeOrSwallow(browser: Browser): LifecyclePromise {
 }
 
 /**
+ * Logs the response status alongside a PII-safe digest of the body.
+ * @param verb - HTTP verb.
+ * @param safeUrl - Redacted URL for logs.
+ * @param env - In-page fetch envelope.
+ * @returns The PII-safe digest that was logged.
+ */
+function logFetchStatus(verb: string, safeUrl: string, env: IPageFetchEnvelope): IResponseDigest {
+  const digest = digestResponse(env.bodyText);
+  LOG.debug({
+    verb,
+    url: safeUrl,
+    status: env.status,
+    ...digest,
+    message: '[camoufox-identity] fetch STATUS',
+  });
+  return digest;
+}
+
+/**
  * Fires the in-page fetch and routes the envelope through parse/classify.
  * @param page - Active Camoufox page.
  * @param args - Dispatch args bundle.
@@ -263,14 +282,7 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
     const reason = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `${args.verb} ${args.url} network error: ${reason}`);
   }
-  const digest = digestResponse(env.bodyText);
-  LOG.debug({
-    verb: args.verb,
-    url: safeUrl,
-    status: env.status,
-    ...digest,
-    message: '[camoufox-identity] fetch STATUS',
-  });
+  logFetchStatus(args.verb, safeUrl, env);
   emitSetCookies(env.setCookies, args.opts.onSetCookie);
   if (!env.ok) return classifyNon2xx<T>(env, args.verb, args.url);
   return parseJsonEnvelope<T>(env, args.verb, args.url);
