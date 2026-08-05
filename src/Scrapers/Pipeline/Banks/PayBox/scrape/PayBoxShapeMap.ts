@@ -102,13 +102,37 @@ function firstNonBlank(candidates: readonly unknown[]): string {
 }
 
 /**
+ * Decide whether a value is a string carrying no visible content.
+ * @param value - Candidate value.
+ * @returns True only for an empty or whitespace-only string.
+ */
+function isBlankString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim() === '';
+}
+
+/**
+ * Stable per-row identity. PayBox names it `transactionId` on some row
+ * kinds and `_id` on others, and sends `''` rather than omitting the
+ * field — so the blank-means-absent rule applies here too.
+ * @param raw - Raw wallet row.
+ * @returns Row identity, or `''` when the row carries none.
+ */
+function walletRowId(raw: IWalletTxnRaw): string {
+  return firstNonBlank([raw.transactionId, raw._id]);
+}
+
+/**
  * Row copy with blank string values removed, so the canonical alias
  * search treats an empty `merchantName` as absent and keeps looking.
+ *
+ * Only blank STRINGS are dropped — nested records and arrays are kept,
+ * because the alias search descends into them and a peer transfer names
+ * its counterparty inside such a block.
  * @param raw - Raw wallet row.
  * @returns Row without its blank-valued keys.
  */
 function withoutBlanks(raw: IWalletTxnRaw): Record<string, unknown> {
-  const kept = Object.entries(raw).filter(([, v]): boolean => firstNonBlank([v]) !== '');
+  const kept = Object.entries(raw).filter(([, v]): boolean => !isBlankString(v));
   return Object.fromEntries(kept);
 }
 
@@ -173,7 +197,7 @@ function moneyOf(raw: IWalletTxnRaw): IMoney {
 export function mapWalletTxn(raw: IWalletTxnRaw): ITransaction {
   const date = dateOf(raw);
   return {
-    identifier: raw.transactionId ?? raw._id ?? '',
+    identifier: walletRowId(raw),
     date,
     processedDate: date,
     ...displayOf(raw),

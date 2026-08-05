@@ -42,9 +42,14 @@ PayBox sends no `Authorization` header after login, so `/getUserHistory` identif
 
 `/getUserHistory` is walked with a `{ts, page}` cursor seeded from a `'null'` sentinel. PayBox does **not** always honour the cursor: it can answer page 1 with page 0 verbatim. Because the pagination driver concatenates each page before evaluating the stop condition, an unguarded walk emitted **every transaction twice** — a real run produced 88 rows across only 44 distinct transactions.
 
-`dropCoveredRows()` (`scrape/PayBoxShapeTxns.ts`) filters each page after the first down to rows strictly older than the cursor timestamp. A re-served page then reduces to zero rows, which ends the walk cleanly. It degrades correctly under all three server behaviours — a cursor the server honours loses nothing, an inclusive cursor loses only the boundary row.
+`dropCoveredRows()` (`scrape/PayBoxShapeTxns.ts`) filters each page after the first down to rows an earlier page has not already emitted. A re-served page then reduces to zero rows, which ends the walk cleanly.
 
-> **Trade-off:** two genuinely distinct transactions sharing the exact boundary timestamp would collapse to one. That is strictly better than emitting the whole history twice, and no observed run has produced such a pair.
+Two rules decide each row, and identity outranks the clock:
+
+- **Identity is decisive.** The cursor carries `seenIds` — the identities (`transactionId`, else `_id`) of the previous page's *ambiguous* rows: those sitting exactly on the boundary timestamp, plus those whose own timestamp is unparseable. A row whose identity is remembered is a re-serve and is dropped. A distinct transaction that merely shares the boundary timestamp keeps its own identity, so it survives.
+- **The timestamp only settles what identity cannot.** A row strictly older than the boundary is new. A row with no parseable timestamp is kept — fail-open, because a malformed value is not evidence of a duplicate.
+
+The cursor advances on the oldest **parseable** timestamp in the page, never on a malformed one; a `NaN` boundary would silently disable filtering for the next page. When no timestamp on a page parses, the walk stops rather than continue blind.
 
 ### Blank fields are not absent fields
 

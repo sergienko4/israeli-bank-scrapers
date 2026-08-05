@@ -144,7 +144,7 @@ describe('PayBoxShape wallet pagination', () => {
     const seed = { ts: 'null', page: 0 };
     const items = [{ ts: '200' }, { ts: '150' }];
     const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items);
-    expect(next).toEqual({ ts: '150', page: 1 });
+    expect(next).toEqual({ ts: '150', page: 1, seenIds: [] });
   });
 
   it('txnsExtractPage maps wallet rows + advances cursor', () => {
@@ -155,7 +155,11 @@ describe('PayBoxShape wallet pagination', () => {
     };
     const page = txnsExtractPage({ body, cursor: false, acct: walletAcct, ctx });
     expect(page.items).toHaveLength(1);
-    expect(page.nextCursor).toEqual({ ts: '2026-05-14T07:00:29.037Z', page: 1 });
+    expect(page.nextCursor).toEqual({
+      ts: '2026-05-14T07:00:29.037Z',
+      page: 1,
+      seenIds: ['a'],
+    });
   });
 
   it('txnsExtractPage returns empty + false cursor when content missing', () => {

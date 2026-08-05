@@ -61,7 +61,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
     // emitted, so the page must contribute nothing and stop pagination.
     const page = txnsExtractPage({
       body: historyBody([...PAGE_ROWS]),
-      cursor: { ts: OLDEST_TS, page: 1 },
+      cursor: { ts: OLDEST_TS, page: 1, seenIds: ['q-3'] },
       acct: WALLET_ACCT,
       ctx: BARE_CTX,
     });
@@ -83,14 +83,20 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
       ctx: BARE_CTX,
     });
     expect(page.items).toHaveLength(2);
-    expect(page.nextCursor).toEqual({ ts: '2026-05-10T07:00:29.037Z', page: 2 });
+    // The new boundary row is remembered by identity so the next page can
+    // tell a re-serve from a distinct transaction sharing that timestamp.
+    expect(page.nextCursor).toEqual({
+      ts: '2026-05-10T07:00:29.037Z',
+      page: 2,
+      seenIds: ['q-5'],
+    });
   });
 
   it('T-PBQ-DUP-3 drops only the boundary row when the cursor is inclusive', () => {
     const inclusive = [PAGE_ROWS[2], { _id: 'q-6', ts: '2026-05-09T00:00:00.000Z', amt: 9 }];
     const page = txnsExtractPage({
       body: historyBody(inclusive),
-      cursor: { ts: OLDEST_TS, page: 1 },
+      cursor: { ts: OLDEST_TS, page: 1, seenIds: ['q-3'] },
       acct: WALLET_ACCT,
       ctx: BARE_CTX,
     });
@@ -138,6 +144,65 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
     const ids = txns.map((t): string => String(t.identifier ?? ''));
     expect(txns).toHaveLength(PAGE_ROWS.length);
     expect(new Set(ids).size).toBe(PAGE_ROWS.length);
+  });
+
+  it('T-PBQ-DUP-7 keeps a DISTINCT row that merely shares the boundary ts', () => {
+    // Two transactions can legitimately carry the same timestamp. Only
+    // the identities the previous page already emitted may be dropped —
+    // a timestamp match alone is not evidence of a duplicate.
+    const shared = [{ _id: 'q-9', ts: OLDEST_TS, amt: 99, type: 'incomingTransaction' }];
+    const page = txnsExtractPage({
+      body: historyBody(shared),
+      cursor: { ts: OLDEST_TS, page: 1, seenIds: ['q-3'] },
+      acct: WALLET_ACCT,
+      ctx: BARE_CTX,
+    });
+    expect(page.items).toHaveLength(1);
+  });
+
+  it('T-PBQ-DUP-8 a boundary-sharing transaction survives the full walk', async () => {
+    const shared = [
+      { _id: 'q-8', ts: OLDEST_TS, amt: 99, type: 'incomingTransaction' },
+      { _id: 'q-9', ts: '2026-05-11T07:00:29.037Z', amt: 5, type: 'incomingTransaction' },
+    ];
+    const firstPage = historyBody([...PAGE_ROWS]);
+    const secondPage = historyBody(shared);
+    const emptyPage = historyBody([]);
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed(firstPage), succeed(secondPage), succeed(emptyPage)],
+    });
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+
+    const scraped = await phase(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    const { txns } = scraped.value.scrape.value.accounts[0];
+    expect(txns).toHaveLength(PAGE_ROWS.length + shared.length);
+  });
+
+  it('T-PBQ-DUP-9 still de-duplicates when the oldest row carries a malformed ts', async () => {
+    // A malformed final ts must not become the cursor: it would make the
+    // boundary unparseable and silently disable duplicate filtering.
+    const withBadTail = [...PAGE_ROWS, { _id: 'q-bad', ts: 'not-a-date', amt: 1 }];
+    const servedOnce = historyBody(withBadTail);
+    const servedTwice = historyBody(withBadTail);
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed(servedOnce), succeed(servedTwice)],
+    });
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+
+    const scraped = await phase(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    const { txns } = scraped.value.scrape.value.accounts[0];
+    const ids = txns.map((t): string => String(t.identifier ?? ''));
+    const unique = new Set(ids);
+    expect(txns).toHaveLength(withBadTail.length);
+    expect(unique.size).toBe(withBadTail.length);
   });
 });
 
@@ -203,5 +268,19 @@ describe('PayBox wallet rows — blank description/memo regression (T-PBQ-DESC)'
     const mapped = mapWalletTxn({ _id: 'd-6', ts: '2026-05-14T07:00:29.037Z', amt: 12 });
     expect(mapped.description).toBe('');
     expect(mapped.memo).toBe('');
+  });
+
+  it('T-PBQ-DESC-7 recovers a description nested under a sub-object', () => {
+    // Peer transfers name their counterparty inside a nested block, so
+    // the alias search must still see nested records — stripping every
+    // non-string value to hide blanks would make it blind to them.
+    const mapped = mapWalletTxn({
+      _id: 'd-7',
+      ts: '2026-05-14T07:00:29.037Z',
+      amt: 12,
+      merchantName: '',
+      transfer: { businessName: 'רות לוי' },
+    });
+    expect(mapped.description).toBe('רות לוי');
   });
 });
