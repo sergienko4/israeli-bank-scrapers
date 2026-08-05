@@ -126,15 +126,32 @@ function lastParsableTs(items: readonly IWalletTxnRaw[]): string {
 }
 
 /**
+ * Decide whether a row's timestamp leaves its freshness undecided —
+ * either it sits exactly on the boundary, or it does not parse at all.
+ * @param ts - Raw row timestamp.
+ * @param boundaryMs - Boundary as epoch milliseconds.
+ * @returns True when only identity can settle the row.
+ */
+function isAmbiguousTs(ts: unknown, boundaryMs: number): boolean {
+  const parsed = parseTs(ts);
+  return Number.isNaN(parsed) || parsed === boundaryMs;
+}
+
+/**
  * Identities the next page cannot rule out by timestamp alone — rows on
  * the new boundary, plus rows whose `ts` does not parse (those are kept
  * fail-open, so only identity can recognise them a second time).
+ *
+ * Timestamps are compared as parsed instants, exactly as
+ * {@link isFreshRow} compares them, so two spellings of the same instant
+ * cannot disagree about which rows are ambiguous.
  * @param items - Raw items on the just-fetched page.
  * @param boundaryTs - Timestamp the next cursor will carry.
  * @returns Identities to remember; rows without one are omitted.
  */
 function ambiguousIds(items: readonly IWalletTxnRaw[], boundaryTs: string): readonly string[] {
-  const edge = items.filter((row): boolean => row.ts === boundaryTs || !isParsableTs(row.ts));
+  const boundaryMs = parseTs(boundaryTs);
+  const edge = items.filter((row): boolean => isAmbiguousTs(row.ts, boundaryMs));
   const ids = edge.map(rowIdentity);
   return ids.filter((id): boolean => id !== '');
 }

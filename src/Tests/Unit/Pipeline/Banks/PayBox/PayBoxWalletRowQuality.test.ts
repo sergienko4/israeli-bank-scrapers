@@ -204,6 +204,35 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
     expect(txns).toHaveLength(withBadTail.length);
     expect(unique.size).toBe(withBadTail.length);
   });
+
+  it('T-PBQ-DUP-10 recognises a re-serve that respells the boundary ts', async () => {
+    // Two rows share the oldest instant but spell it differently — `Z`
+    // versus a zero offset. The cursor can only carry one spelling, so
+    // deciding which rows are ambiguous by comparing timestamp TEXT
+    // remembers just one of them; the other returns on the re-served
+    // page sitting exactly on the boundary and is emitted twice.
+    const sameInstant = [
+      { _id: 'q-a', ts: '2026-05-12T07:00:29.037Z', amt: 12, type: 'incomingTransaction' },
+      { _id: 'q-b', ts: '2026-05-12T07:00:29.037+00:00', amt: 34, type: 'incomingTransaction' },
+    ];
+    const servedOnce = historyBody(sameInstant);
+    const servedTwice = historyBody(sameInstant);
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed(servedOnce), succeed(servedTwice)],
+    });
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+
+    const scraped = await phase(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    const { txns } = scraped.value.scrape.value.accounts[0];
+    const ids = txns.map((t): string => String(t.identifier ?? ''));
+    const unique = new Set(ids);
+    expect(txns).toHaveLength(sameInstant.length);
+    expect(unique.size).toBe(sameInstant.length);
+  });
 });
 
 describe('PayBox wallet rows — blank description/memo regression (T-PBQ-DESC)', () => {
