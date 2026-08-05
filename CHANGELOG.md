@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.6.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.3...v8.6.4) (2026-08-05)
+
+
+### Bug Fixes
+
+* close five retention leaks and add a memory regression gate ([#451](https://github.com/sergienko4/israeli-bank-scrapers/issues/451)) ([50124f6](https://github.com/sergienko4/israeli-bank-scrapers/commit/50124f6fd0f264534352571f594b5ff00ce61a46))
+* **paybox:** repair duplicate and blank wallet rows ([#453](https://github.com/sergienko4/israeli-bank-scrapers/issues/453)) ([3d0208f](https://github.com/sergienko4/israeli-bank-scrapers/commit/3d0208f78dc49f2bb766cbe6852cb710224c038a))
+
 ## [8.6.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.2...v8.6.3) (2026-08-05)
 
 
