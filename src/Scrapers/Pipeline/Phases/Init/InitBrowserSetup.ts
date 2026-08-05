@@ -7,6 +7,7 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../../Base/Interface.js';
+import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
 import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
 import {
   isSessionEnabled,
@@ -34,8 +35,33 @@ async function launchBrowser(options: ScraperOptions): Promise<Browser> {
   const opts = options as IDefaultBrowserOptions;
   const isHeadless = !opts.shouldShowBrowser;
   const browser = await launchCamoufox(isHeadless);
-  if (opts.prepareBrowser) await opts.prepareBrowser(browser);
-  return browser;
+  if (!opts.prepareBrowser) return browser;
+  return prepareOrClose(browser, opts.prepareBrowser);
+}
+
+/** The caller-supplied hook run against a freshly launched browser. */
+type PrepareBrowserHook = (browser: Browser) => LifecyclePromise;
+
+/**
+ * Run the caller's `prepareBrowser` hook, closing the browser if it throws.
+ *
+ * <p>The hook runs after launch but before {@link launchBrowser} returns, so a
+ * rejection propagates while the caller still holds no handle. Its catch block
+ * therefore has nothing to close and the Camoufox process is orphaned for the
+ * life of the host process. Closing here is the only place that can see both
+ * the handle and the failure.
+ * @param browser - The freshly launched browser.
+ * @param prepare - Caller-supplied preparation hook.
+ * @returns The same browser once preparation succeeds.
+ */
+async function prepareOrClose(browser: Browser, prepare: PrepareBrowserHook): Promise<Browser> {
+  try {
+    await prepare(browser);
+    return browser;
+  } catch (error) {
+    await closeBrowserSafe(browser);
+    throw error;
+  }
 }
 
 /**
