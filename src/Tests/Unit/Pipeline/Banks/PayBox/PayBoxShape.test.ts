@@ -129,22 +129,22 @@ describe('PayBoxShape wallet pagination', () => {
 
   it('nextWalletCursor returns false when items are empty', () => {
     const seed = { ts: 'null', page: 0 };
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, []);
+    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, [], []);
     expect(next).toBe(false);
   });
 
   it('nextWalletCursor returns false when oldest ts stalls', () => {
-    const seed = { ts: '100', page: 0 };
-    const items = [{ ts: '200' }, { ts: '100' }];
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items);
+    const seed = { ts: '2024-01-01T00:00:00Z', page: 0 };
+    const items = [{ ts: '2024-01-02T00:00:00Z' }, { ts: '2024-01-01T00:00:00Z' }];
+    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items, items);
     expect(next).toBe(false);
   });
 
   it('nextWalletCursor advances to oldest ts when distinct', () => {
     const seed = { ts: 'null', page: 0 };
-    const items = [{ ts: '200' }, { ts: '150' }];
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items);
-    expect(next).toEqual({ ts: '150', page: 1, seenIds: [] });
+    const items = [{ ts: '2024-01-02T00:00:00Z' }, { ts: '2024-01-01T00:00:00Z' }];
+    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items, items);
+    expect(next).toMatchObject({ ts: '2024-01-01T00:00:00Z', page: 1 });
   });
 
   it('txnsExtractPage maps wallet rows + advances cursor', () => {
@@ -249,7 +249,7 @@ describe('PayBoxShape pagination terminators', () => {
     // page+1 === WALLET_PAGE_CAP triggers the cap-guard.
     const seed = { ts: 'seed', page: 23 };
     const items = [{ ts: 'newer' }];
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items);
+    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items, items);
     expect(next).toBe(false);
   });
 });

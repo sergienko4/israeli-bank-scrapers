@@ -9,7 +9,7 @@
 
 import type { ITransaction } from '../../../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../Transactions.js';
-import { findFieldValue } from '../../../Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
+import { findAllFieldValues } from '../../../Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 
 /** Raw wallet row returned by /getUserHistory `content.nc[i]`. */
@@ -47,7 +47,7 @@ const WALLET_TXN_TYPE = TransactionTypes.Normal;
  */
 function signedAmount(raw: IWalletTxnRaw): number {
   const amt = typeof raw.amt === 'number' ? raw.amt : 0;
-  const type = raw.type ?? '';
+  const type = typeof raw.type === 'string' ? raw.type : '';
   if (type.startsWith('outgoing')) return -amt;
   return amt;
 }
@@ -137,17 +137,34 @@ function withoutBlanks(raw: IWalletTxnRaw): Record<string, unknown> {
 }
 
 /**
+ * First non-blank value for one canonical alias, anywhere in the row.
+ * @param searchable - Row with its top-level blanks already removed.
+ * @param alias - Canonical field name to look for.
+ * @returns Non-blank hit, or `''` when the alias yields none.
+ */
+function aliasHit(searchable: Record<string, unknown>, alias: string): string {
+  const hits = findAllFieldValues(searchable, [alias]);
+  return firstNonBlank(hits);
+}
+
+/**
  * Last-resort description lookup via the shared well-known alias search
  * — the same list every other bank resolves descriptions through. Used
  * only when PayBox's own two description fields are blank, so rows whose
  * counterparty lives under a different canonical alias still read.
+ *
+ * Searched one alias at a time, because the shared search returns a
+ * single hit per record: a nested blank under a high-priority alias
+ * would otherwise end the search and shadow a populated lower-priority
+ * peer. {@link withoutBlanks} cannot prevent that — it only sees the top
+ * level — so alias priority is re-applied here over non-blank hits only.
  * @param raw - Raw wallet row.
- * @returns Alias hit, or `''` when the row carries none.
+ * @returns First non-blank alias hit, or `''` when the row carries none.
  */
 function aliasDescription(raw: IWalletTxnRaw): string {
   const searchable = withoutBlanks(raw);
-  const hit = findFieldValue(searchable, WK.description);
-  return firstNonBlank([hit]);
+  const perAlias = WK.description.map((alias): string => aliasHit(searchable, alias));
+  return firstNonBlank(perAlias);
 }
 
 /**

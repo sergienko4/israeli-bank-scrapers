@@ -233,6 +233,124 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
     expect(txns).toHaveLength(sameInstant.length);
     expect(unique.size).toBe(sameInstant.length);
   });
+
+  it('T-PBQ-DUP-11 remembers a malformed-ts row the page dropped by identity', async () => {
+    // A row with an unparseable ts is kept fail-open, so ONLY its identity
+    // can recognise it a second time. When such a row is dropped by
+    // identity it never reaches the emitted rows, so deriving the next
+    // cursor's memory from those alone forgets it — and the very next
+    // re-serve sails through the fail-open rule and emits it twice.
+    const badTs = { _id: 'q-x', ts: 'not-a-date', amt: 12, type: 'incomingTransaction' };
+    const newest = {
+      _id: 'q-a',
+      ts: '2026-05-14T07:00:29.037Z',
+      amt: 34,
+      type: 'incomingTransaction',
+    };
+    const older = {
+      _id: 'q-z',
+      ts: '2026-05-13T07:00:29.037Z',
+      amt: 56,
+      type: 'incomingTransaction',
+    };
+    const page0 = historyBody([newest, badTs]);
+    const page1 = historyBody([newest, badTs, older]);
+    const reserve = historyBody([badTs, older]);
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed(page0), succeed(page1), succeed(reserve)],
+    });
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+
+    const scraped = await phase(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    const { txns } = scraped.value.scrape.value.accounts[0];
+    const ids = txns.map((t): string => String(t.identifier ?? ''));
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(3);
+  });
+
+  it('T-PBQ-DUP-12 takes the boundary from the oldest row, not the last one', () => {
+    // Nothing guarantees the server sorts a page. Reading the boundary
+    // positionally trusts an ordering the payload never promised: with
+    // the true oldest row in the middle, the cursor lands too new and a
+    // re-serve replays every row below it.
+    const unsorted = [
+      { _id: 'u-1', ts: '2026-05-14T00:00:00.000Z', amt: 1 },
+      { _id: 'u-2', ts: '2026-05-12T00:00:00.000Z', amt: 2 },
+      { _id: 'u-3', ts: '2026-05-13T00:00:00.000Z', amt: 3 },
+    ];
+    const page = txnsExtractPage({
+      body: historyBody(unsorted),
+      cursor: { ts: 'null', page: 0 },
+      acct: WALLET_ACCT,
+      ctx: BARE_CTX,
+    });
+    expect(page.nextCursor).toMatchObject({ ts: '2026-05-12T00:00:00.000Z' });
+  });
+
+  it('T-PBQ-DUP-13 refuses a non-ISO ts as the pagination boundary', () => {
+    // `Date.parse('1')` yields a valid instant in 2001. Accepting it as
+    // the boundary would make every genuine 2026 row look NEWER than the
+    // cursor, so the next page would discard real transactions.
+    const withJunk = [
+      { _id: 'j-1', ts: '2026-05-14T00:00:00.000Z', amt: 1 },
+      { _id: 'j-2', ts: '1', amt: 2 },
+    ];
+    const page = txnsExtractPage({
+      body: historyBody(withJunk),
+      cursor: { ts: 'null', page: 0 },
+      acct: WALLET_ACCT,
+      ctx: BARE_CTX,
+    });
+    expect(page.nextCursor).toMatchObject({ ts: '2026-05-14T00:00:00.000Z' });
+  });
+
+  it('T-PBQ-DUP-14 keeps an id-less boundary row but not its re-serve', async () => {
+    // A row carrying no identity cannot be told apart from a re-serve by
+    // id. Dropping it loses a real transaction, so it must survive when
+    // it is new — while a verbatim re-serve must still not emit it twice.
+    const idless = { ts: '2026-05-12T00:00:00.000Z', amt: 7, merchantName: 'קיוסק' };
+    const page0 = historyBody([
+      { _id: 'k-1', ts: '2026-05-14T00:00:00.000Z', amt: 1 },
+      { _id: 'k-2', ts: '2026-05-12T00:00:00.000Z', amt: 2 },
+    ]);
+    const page1 = historyBody([idless, { _id: 'k-3', ts: '2026-05-11T00:00:00.000Z', amt: 3 }]);
+    const reserve = historyBody([idless, { _id: 'k-3', ts: '2026-05-11T00:00:00.000Z', amt: 3 }]);
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed(page0), succeed(page1), succeed(reserve)],
+    });
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+
+    const scraped = await phase(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    const { txns } = scraped.value.scrape.value.accounts[0];
+    expect(txns).toHaveLength(4);
+  });
+
+  it('T-PBQ-DUP-15 survives a row whose `type` is not a string', () => {
+    // `servedRows` casts parsed JSON without validating it, so a row can
+    // reach the mapper with any runtime type. A `type` that is not a
+    // string must not throw — one malformed row cannot fail the scrape.
+    const badType = [{ _id: 'b-1', ts: '2026-05-14T00:00:00.000Z', amt: 5, type: 42 }];
+    /**
+     * Run the extractor over the malformed row.
+     * @returns Extraction outcome, discarded — only throwing matters here.
+     */
+    const extract = (): unknown =>
+      txnsExtractPage({
+        body: historyBody(badType),
+        cursor: { ts: 'null', page: 0 },
+        acct: WALLET_ACCT,
+        ctx: BARE_CTX,
+      });
+    expect(extract).not.toThrow();
+  });
 });
 
 describe('PayBox wallet rows — blank description/memo regression (T-PBQ-DESC)', () => {
@@ -311,5 +429,20 @@ describe('PayBox wallet rows — blank description/memo regression (T-PBQ-DESC)'
       transfer: { businessName: 'רות לוי' },
     });
     expect(mapped.description).toBe('רות לוי');
+  });
+
+  it('T-PBQ-DESC-8 skips a blank nested alias and keeps searching', () => {
+    // `withoutBlanks` only strips blanks at the top level, so a blank
+    // alias nested one level down still wins the search and shadows a
+    // populated peer. Taking the first NON-BLANK hit is what makes the
+    // blank-means-absent rule hold at every depth, not just the root.
+    const mapped = mapWalletTxn({
+      _id: 'd-8',
+      ts: '2026-05-14T07:00:29.037Z',
+      amt: 12,
+      merchantName: '',
+      transfer: { merchantName: '   ', businessName: 'אבי כהן' },
+    });
+    expect(mapped.description).toBe('אבי כהן');
   });
 });

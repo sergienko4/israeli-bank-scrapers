@@ -80,31 +80,68 @@ export function txnsVars(
 }
 
 /**
+ * Content fingerprint for a row PayBox gave no id. Key order is
+ * normalised so a re-serve that reorders fields still fingerprints
+ * identically, while a genuinely different transaction does not.
+ * @param raw - Raw wallet row.
+ * @returns Stable synthetic identity.
+ */
+function rowFingerprint(raw: IWalletTxnRaw): string {
+  const entries = Object.entries(raw);
+  const ordered = [...entries].sort(([a], [b]): number => a.localeCompare(b));
+  return JSON.stringify(ordered);
+}
+
+/**
  * Stable per-row identity, read from the canonical mapping rather than
  * the raw row. Deduplicating on the very value the caller receives as
  * `identifier` keeps the two definitions from drifting apart.
+ *
+ * Rows PayBox gave no id fall back to a content fingerprint, so every
+ * row has an identity. Without one the filter would have to choose
+ * between dropping a genuine transaction and letting a re-serve through.
  * @param raw - Raw wallet row.
- * @returns Row identity, or `''` when the row carries none.
+ * @returns Row identity; never empty.
  */
 function rowIdentity(raw: IWalletTxnRaw): string {
   const txn = mapWalletTxn(raw);
-  return String(txn.identifier ?? '');
+  const id = String(txn.identifier ?? '');
+  return id === '' ? rowFingerprint(raw) : id;
 }
+
+/**
+ * Keep whichever of two parseable stamps names the earlier instant.
+ * @param acc - Best stamp so far, or `''` before the first.
+ * @param ts - Candidate stamp.
+ * @returns The older of the two.
+ */
+function olderTs(acc: string, ts: string): string {
+  if (acc === '') return ts;
+  return parseTs(ts) < parseTs(acc) ? ts : acc;
+}
+
+/**
+ * Shape PayBox stamps a row with: an ISO-8601 date followed by a time.
+ * `Date.parse` alone is far too permissive for a cursor boundary — it
+ * reads `'1'` as the year 2001, which would place every genuine row in
+ * the future of the boundary and silently discard the next page.
+ */
+const ISO_TS = /^\d{4}-\d{2}-\d{2}T/u;
 
 /**
  * Parse a raw row timestamp to epoch milliseconds.
  * @param ts - Raw row timestamp.
- * @returns Epoch ms; `NaN` when absent, non-string, or malformed.
+ * @returns Epoch ms; `NaN` when absent, non-string, or not ISO-8601.
  */
 function parseTs(ts: unknown): number {
-  if (typeof ts !== 'string') return Number.NaN;
+  if (typeof ts !== 'string' || !ISO_TS.test(ts)) return Number.NaN;
   return Date.parse(ts);
 }
 
 /**
  * Decide whether a raw `ts` yields a usable boundary.
  * @param ts - Raw row timestamp.
- * @returns True when the value parses as a date.
+ * @returns True when the value parses as an ISO-8601 date.
  */
 function isParsableTs(ts: unknown): boolean {
   const parsed = parseTs(ts);
@@ -112,17 +149,21 @@ function isParsableTs(ts: unknown): boolean {
 }
 
 /**
- * Oldest timestamp on the page that actually parses. Pages arrive
- * newest-first, so the last usable value is the oldest one. Advancing on
- * a malformed value would produce a cursor whose boundary is `NaN`,
- * which silently disables {@link dropCoveredRows} for the next page.
- * @param items - Raw items on the just-fetched page.
+ * Oldest timestamp on the page that actually parses.
+ *
+ * Chosen by instant rather than by position: nothing in the payload
+ * promises the rows are sorted, and reading the last one would leave the
+ * boundary too new, so a re-serve would replay every row below it.
+ * Advancing on a malformed value is refused outright — the boundary
+ * would be `NaN`, which silently disables {@link dropCoveredRows}.
+ * @param items - Rows to draw the boundary from.
  * @returns Oldest parseable ts, or `''` when the page carries none.
  */
 function lastParsableTs(items: readonly IWalletTxnRaw[]): string {
   const stamps = items.map((row): unknown => row.ts);
   const usable = stamps.filter((ts): ts is string => isParsableTs(ts));
-  return usable.at(-1) ?? '';
+  const oldest = usable.reduce(olderTs, '');
+  return oldest;
 }
 
 /**
@@ -142,58 +183,65 @@ function isAmbiguousTs(ts: unknown, boundaryMs: number): boolean {
  * the new boundary, plus rows whose `ts` does not parse (those are kept
  * fail-open, so only identity can recognise them a second time).
  *
+ * Reads the rows the server SERVED, not the ones that survived the
+ * filter: a row already dropped by identity is exactly the one a further
+ * re-serve will offer again, and forgetting it re-opens the fail-open
+ * rule it was caught by.
+ *
  * Timestamps are compared as parsed instants, exactly as
  * {@link isFreshRow} compares them, so two spellings of the same instant
  * cannot disagree about which rows are ambiguous.
- * @param items - Raw items on the just-fetched page.
+ * @param served - Every raw item the server put on the page.
  * @param boundaryTs - Timestamp the next cursor will carry.
  * @returns Identities to remember; rows without one are omitted.
  */
-function ambiguousIds(items: readonly IWalletTxnRaw[], boundaryTs: string): readonly string[] {
+function ambiguousIds(served: readonly IWalletTxnRaw[], boundaryTs: string): readonly string[] {
   const boundaryMs = parseTs(boundaryTs);
-  const edge = items.filter((row): boolean => isAmbiguousTs(row.ts, boundaryMs));
-  const ids = edge.map(rowIdentity);
-  return ids.filter((id): boolean => id !== '');
+  const edge = served.filter((row): boolean => isAmbiguousTs(row.ts, boundaryMs));
+  return edge.map(rowIdentity);
 }
 
 /**
- * Compute the next ts cursor — uses the oldest parseable ts in the page
- * to advance, terminating when the page is empty, no ts parses, the
- * cursor stalls, or the page cap (24) is reached.
+ * Compute the next ts cursor — uses the oldest parseable ts among the
+ * rows this page actually emitted to advance, terminating when nothing
+ * survived, no ts parses, the cursor stalls, or the page cap (24) is
+ * reached.
  * @param prev - Previous wallet cursor.
- * @param items - Raw items on the just-fetched page.
+ * @param fresh - Rows that survived {@link dropCoveredRows}.
+ * @param served - Every raw item the server put on the page.
  * @returns Next cursor or `false` when pagination should stop.
  */
 function nextWalletCursor(
   prev: IPayBoxCursor,
-  items: readonly IWalletTxnRaw[],
+  fresh: readonly IWalletTxnRaw[],
+  served: readonly IWalletTxnRaw[],
 ): IPayBoxCursor | false {
-  if (items.length === 0) return false;
+  if (fresh.length === 0) return false;
   if (prev.page + 1 >= WALLET_PAGE_CAP) return false;
-  const oldest = lastParsableTs(items);
+  const oldest = lastParsableTs(fresh);
   if (oldest === '' || oldest === prev.ts) return false;
-  return { ts: oldest, page: prev.page + 1, seenIds: ambiguousIds(items, oldest) };
+  return { ts: oldest, page: prev.page + 1, seenIds: ambiguousIds(served, oldest) };
 }
 
 /**
  * Decide whether a raw row is one an earlier page has not emitted.
  *
- * Identity is decisive when the row carries one; the timestamp only
- * settles rows the cursor has provably moved past. A row exactly on the
- * boundary is kept when its identity proves it is a different
- * transaction that merely shares the timestamp.
+ * Identity is decisive, and every row has one (see {@link rowIdentity}),
+ * so a re-serve is always recognisable. The timestamp only settles rows
+ * the cursor has provably moved past; a row on the boundary that
+ * identity did not recognise is a different transaction that merely
+ * shares the instant, and is kept.
  * @param raw - Raw row under test.
  * @param boundaryMs - Cursor timestamp as epoch milliseconds.
  * @param seen - Identities the previous page already emitted.
  * @returns True when the row still belongs on this page.
  */
 function isFreshRow(raw: IWalletTxnRaw, boundaryMs: number, seen: ReadonlySet<string>): boolean {
-  const id = rowIdentity(raw);
-  if (id !== '' && seen.has(id)) return false;
+  const identity = rowIdentity(raw);
+  if (seen.has(identity)) return false;
   const parsed = parseTs(raw.ts);
   if (Number.isNaN(parsed)) return true;
-  if (parsed !== boundaryMs) return parsed < boundaryMs;
-  return id !== '';
+  return parsed <= boundaryMs;
 }
 
 /**
@@ -259,7 +307,7 @@ export function txnsExtractPage(
   const served = servedRows(args.body);
   const raws = dropCoveredRows(cursor, served);
   const mapped = raws.map(mapWalletTxn);
-  return { items: mapped, nextCursor: nextWalletCursor(cursor, raws) };
+  return { items: mapped, nextCursor: nextWalletCursor(cursor, raws, served) };
 }
 
 /** Internals exposed for unit-test reach. */
