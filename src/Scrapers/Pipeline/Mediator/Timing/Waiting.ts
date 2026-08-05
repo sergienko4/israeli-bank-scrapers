@@ -6,7 +6,7 @@
 
 import { createTimeoutError, TimeoutError, timeoutPromise } from './TimingActions.js';
 import { DEFAULT_WAIT_INTERVAL_MS, DEFAULT_WAIT_TIMEOUT_MS } from './TimingConfig.js';
-import { buildWaitPromise } from './WaitTickFactory.js';
+import { buildWaitPromise, type ICancellablePoll } from './WaitTickFactory.js';
 
 export {
   humanDelay,
@@ -105,17 +105,17 @@ function rethrowWithContext(caught: Error, state: ITrackingState): never {
 function buildTrackedPoll<T>(
   asyncTest: () => Promise<T>,
   opts: IWaitUntilOpts,
-): { promise: Promise<NonNullable<T>>; state: ITrackingState } {
+): { poll: ICancellablePoll<T>; state: ITrackingState } {
   const interval = opts.interval ?? DEFAULT_WAIT_INTERVAL_MS;
   const state: ITrackingState = { lastSeen: '' };
   const trackingTest = createTrackingTest(asyncTest, state);
-  const promise = buildWaitPromise(trackingTest, interval);
-  return { promise, state };
+  const poll = buildWaitPromise(trackingTest, interval);
+  return { poll, state };
 }
 
 /** Bundled args for {@link awaitTrackedPoll} — keeps params ≤ 3. */
 interface IAwaitTrackedPollArgs<T> {
-  readonly promise: Promise<NonNullable<T>>;
+  readonly poll: ICancellablePoll<T>;
   readonly state: ITrackingState;
   readonly timeout: number;
   readonly description: string;
@@ -124,14 +124,21 @@ interface IAwaitTrackedPollArgs<T> {
 /**
  * Await the tracked poll with timeout enrichment. Pulled out so
  * {@link executeWaitUntil} stays under the per-function LoC budget.
+ *
+ * <p>The `finally` cancel is load-bearing, not hygiene: the poll loop has no
+ * deadline of its own, so when the timeout arm of {@link timeoutPromise} wins
+ * an uncancelled loop keeps re-arming forever and pins the Playwright handles
+ * its predicate closed over.
  * @param args - Bundled poll/state/timeout/description.
  * @returns First truthy value from the tracked poll.
  */
 async function awaitTrackedPoll<T>(args: IAwaitTrackedPollArgs<T>): Promise<NonNullable<T>> {
   try {
-    return await timeoutPromise(args.timeout, args.promise, args.description);
+    return await timeoutPromise(args.timeout, args.poll.promise, args.description);
   } catch (error_) {
     rethrowWithContext(error_ as Error, args.state);
+  } finally {
+    args.poll.cancel();
   }
 }
 
@@ -148,8 +155,8 @@ async function executeWaitUntil<T>(
   opts: IWaitUntilOpts,
 ): Promise<NonNullable<T>> {
   const timeout = opts.timeout ?? DEFAULT_WAIT_TIMEOUT_MS;
-  const { promise, state } = buildTrackedPoll(asyncTest, opts);
-  return awaitTrackedPoll<T>({ promise, state, timeout, description });
+  const { poll, state } = buildTrackedPoll(asyncTest, opts);
+  return awaitTrackedPoll<T>({ poll, state, timeout, description });
 }
 
 /**

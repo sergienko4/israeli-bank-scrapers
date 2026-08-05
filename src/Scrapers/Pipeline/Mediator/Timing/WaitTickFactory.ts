@@ -26,14 +26,53 @@ function handlePollResult<T>(value: T, cbs: IWaitCallbacks<T>, nextFn: () => boo
 }
 
 /**
- * Schedule the next polling iteration after a delay.
+ * Mutable cancellation state shared by every tick of one poll loop.
+ *
+ * <p>Without it the loop is unstoppable: {@link scheduleNext} dropped the
+ * `setTimeout` handle, so once the caller lost its race against a timeout the
+ * recursion kept re-arming forever — still invoking `asyncTest` and still
+ * pinning whatever Playwright handle the closure had captured.
+ */
+interface IPollState {
+  /** Set by {@link cancelPoll}; every later tick short-circuits. */
+  cancelled: boolean;
+  /** Handle of the pending next-tick timer, when one is armed. */
+  timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+}
+
+/** A running poll loop plus the handle needed to stop it. */
+interface ICancellablePoll<T> {
+  /** Resolves with the first truthy poll value. */
+  readonly promise: Promise<NonNullable<T>>;
+  /** Stops further ticks and clears any armed timer. Idempotent. */
+  readonly cancel: () => boolean;
+}
+
+/**
+ * Schedule the next polling iteration after a delay, retaining the timer
+ * handle so {@link cancelPoll} can clear it.
  * @param wait - The polling function to call.
  * @param interval - Delay in ms.
- * @returns True after scheduling.
+ * @param state - Shared cancellation state for this loop.
+ * @returns True when a tick was armed, false when the loop is cancelled.
  */
-function scheduleNext(wait: () => boolean, interval: number): boolean {
-  globalThis.setTimeout(wait, interval);
+function scheduleNext(wait: () => boolean, interval: number, state: IPollState): boolean {
+  if (state.cancelled) return false;
+  state.timer = globalThis.setTimeout(wait, interval);
   return true;
+}
+
+/**
+ * Stop a poll loop: block future ticks and clear any armed timer.
+ * @param state - Shared cancellation state for this loop.
+ * @returns True when an armed timer was cleared, false when none was pending.
+ */
+function cancelPoll(state: IPollState): boolean {
+  const hasArmedTimer = state.timer !== undefined;
+  state.cancelled = true;
+  if (state.timer !== undefined) globalThis.clearTimeout(state.timer);
+  state.timer = undefined;
+  return hasArmedTimer;
 }
 
 /** Bundled args for creating a wait-tick. */
@@ -41,6 +80,7 @@ interface ITickArgs<T> {
   readonly asyncTest: () => Promise<T>;
   readonly interval: number;
   readonly cbs: IWaitCallbacks<T>;
+  readonly state: IPollState;
 }
 
 /** Self-reference holder for recursive scheduling. */
@@ -53,14 +93,15 @@ interface ISelfRef {
  * Execute one poll cycle: run async test, handle result or reject.
  * @param args - Bundled tick arguments.
  * @param self - Self-reference holder for recursive scheduling.
- * @returns True after dispatching.
+ * @returns True after dispatching, false when the loop is already cancelled.
  */
 function runOnePoll<T>(args: ITickArgs<T>, self: ISelfRef): boolean {
+  if (args.state.cancelled) return false;
   /**
    * Schedule the next tick iteration.
    * @returns True after scheduling next tick.
    */
-  const next = (): boolean => scheduleNext(self.fn, args.interval);
+  const next = (): boolean => scheduleNext(self.fn, args.interval, args.state);
   args
     .asyncTest()
     .then((v): boolean => handlePollResult(v, args.cbs, next))
@@ -127,37 +168,66 @@ function buildWaitCallbacks<T>(
 interface IWaitExecutorArgs<T> {
   readonly asyncTest: () => Promise<T>;
   readonly interval: number;
+  readonly state: IPollState;
   readonly resolve: (value: NonNullable<T>) => boolean;
   readonly reject: (reason: Error) => boolean;
 }
 
 /**
  * Build callbacks + first tick for the poll loop. Hoisted so
- * {@link buildWaitPromise} stays a single delegation line.
- * @param args - Bundled executor args (asyncTest + interval + resolve + reject).
+ * {@link startPollPromise} stays a single delegation line.
+ * @param args - Bundled executor args (asyncTest + interval + state + resolve + reject).
  * @returns Always true (sentinel for the createPromise executor).
  */
 function runWaitTickExecutor<T>(args: IWaitExecutorArgs<T>): boolean {
+  const { asyncTest, interval, state } = args;
   const cbs = buildWaitCallbacks<T>(args.resolve, args.reject);
-  const tick = createTickFn({ asyncTest: args.asyncTest, interval: args.interval, cbs });
+  const tick = createTickFn({ asyncTest, interval, cbs, state });
   tick();
   return true;
 }
 
+/** Bundled args for {@link startPollPromise} — keeps params ≤ 3. */
+interface IStartPollArgs<T> {
+  readonly asyncTest: () => Promise<T>;
+  readonly interval: number;
+  readonly state: IPollState;
+}
+
 /**
- * Build a promise that polls asyncTest until truthy.
+ * Start the poll loop and expose it as a promise.
+ * @param args - Bundled asyncTest + interval + cancellation state.
+ * @returns A promise resolving with the first truthy poll value.
+ */
+function startPollPromise<T>(args: IStartPollArgs<T>): Promise<NonNullable<T>> {
+  const { asyncTest, interval, state } = args;
+  return createPromise<NonNullable<T>>((resolve, reject): boolean =>
+    runWaitTickExecutor<T>({ asyncTest, interval, state, resolve, reject }),
+  );
+}
+
+/**
+ * Build a cancellable poll that resolves with the first truthy `asyncTest` value.
+ *
+ * <p>Callers MUST invoke {@link ICancellablePoll.cancel} once they stop caring
+ * about the result — typically in a `finally` around the race that consumes it.
+ * The poll has no internal deadline, so an uncancelled loop outlives its caller
+ * and keeps the captured Playwright handles reachable forever.
  * @param asyncTest - The async predicate to poll.
  * @param interval - The polling interval in milliseconds.
- * @returns A promise that resolves with the first truthy value.
+ * @returns The poll promise paired with its canceller.
  */
-function buildWaitPromise<T>(
-  asyncTest: () => Promise<T>,
-  interval: number,
-): Promise<NonNullable<T>> {
-  return createPromise<NonNullable<T>>((resolve, reject): boolean =>
-    runWaitTickExecutor<T>({ asyncTest, interval, resolve, reject }),
-  );
+function buildWaitPromise<T>(asyncTest: () => Promise<T>, interval: number): ICancellablePoll<T> {
+  const state: IPollState = { cancelled: false, timer: undefined };
+  const promise = startPollPromise<T>({ asyncTest, interval, state });
+  /**
+   * Stop this poll loop.
+   * @returns True when an armed timer was cleared.
+   */
+  const cancel = (): boolean => cancelPoll(state);
+  return { promise, cancel };
 }
 
 export default buildWaitPromise;
 export { buildWaitPromise };
+export type { ICancellablePoll };
