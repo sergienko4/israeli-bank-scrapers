@@ -333,6 +333,34 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
     expect(txns).toHaveLength(4);
   });
 
+  it('T-PBQ-DUP-16 fingerprints an id-less row through nested key order', async () => {
+    // The fingerprint is only an identity if it survives re-serialisation.
+    // A nested object whose keys come back in a different order is the
+    // same transaction, so it must fingerprint the same and be dropped.
+    const nested = { merchantName: 'קיוסק', businessName: 'דוכן' };
+    const reordered = { businessName: 'דוכן', merchantName: 'קיוסק' };
+    const idless = { ts: '2026-05-11T00:00:00.000Z', amt: 7, transfer: nested };
+    const shuffled = { ts: '2026-05-11T00:00:00.000Z', amt: 7, transfer: reordered };
+    const page0 = historyBody([
+      { _id: 'n-1', ts: '2026-05-14T00:00:00.000Z', amt: 1 },
+      { _id: 'n-2', ts: '2026-05-12T00:00:00.000Z', amt: 2 },
+    ]);
+    const page1 = historyBody([idless, { _id: 'n-3', ts: '2026-05-11T00:00:00.000Z', amt: 3 }]);
+    const reserve = historyBody([shuffled, { _id: 'n-3', ts: '2026-05-11T00:00:00.000Z', amt: 3 }]);
+    const bus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 100 } } })],
+      transactions: [succeed(page0), succeed(page1), succeed(reserve)],
+    });
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+
+    const scraped = await phase(ctx);
+    assertOk(scraped);
+    assertHas(scraped.value.scrape);
+    const { txns } = scraped.value.scrape.value.accounts[0];
+    expect(txns).toHaveLength(4);
+  });
+
   it('T-PBQ-DUP-15 survives a row whose `type` is not a string', () => {
     // `servedRows` casts parsed JSON without validating it, so a row can
     // reach the mapper with any runtime type. A `type` that is not a

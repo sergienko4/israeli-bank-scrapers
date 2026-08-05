@@ -80,15 +80,32 @@ export function txnsVars(
 }
 
 /**
+ * Order every record key in a parsed JSON value, leaving arrays in
+ * place. Arrays are sequence data, so their order is meaning, not
+ * spelling — only key order is noise.
+ * @param value - Parsed JSON value.
+ * @returns Structurally identical value with all record keys ordered.
+ */
+function keyOrdered(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(keyOrdered);
+  if (value === null || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  const entries = Object.entries(record);
+  entries.sort(([a], [b]): number => a.localeCompare(b));
+  const ordered = entries.map(([key, val]): [string, unknown] => [key, keyOrdered(val)]);
+  return Object.fromEntries(ordered);
+}
+
+/**
  * Content fingerprint for a row PayBox gave no id. Key order is
- * normalised so a re-serve that reorders fields still fingerprints
- * identically, while a genuinely different transaction does not.
+ * normalised at every depth so a re-serve that reorders fields — nested
+ * ones included — still fingerprints identically, while a genuinely
+ * different transaction does not.
  * @param raw - Raw wallet row.
  * @returns Stable synthetic identity.
  */
 function rowFingerprint(raw: IWalletTxnRaw): string {
-  const entries = Object.entries(raw);
-  const ordered = [...entries].sort(([a], [b]): number => a.localeCompare(b));
+  const ordered = keyOrdered(raw);
   return JSON.stringify(ordered);
 }
 
@@ -162,7 +179,7 @@ function isParsableTs(ts: unknown): boolean {
 function lastParsableTs(items: readonly IWalletTxnRaw[]): string {
   const stamps = items.map((row): unknown => row.ts);
   const usable = stamps.filter((ts): ts is string => isParsableTs(ts));
-  const oldest = usable.reduce(olderTs, '');
+  const oldest = usable.reduce((acc, ts): string => olderTs(acc, ts), '');
   return oldest;
 }
 

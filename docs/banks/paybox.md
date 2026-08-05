@@ -1,20 +1,20 @@
 # PayBox (by Discount Bank)
 
-| | |
-|---|---|
-| `CompanyTypes` | `PayBox` |
-| Engine | **API-direct** (no browser) |
-| Credentials | `phoneNumber`, `otpCodeRetriever` (plus optional `otpLongTermToken`) |
-| OTP | Required (cached long-term token supported) |
-| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
-| Phone format | `international-dash` (`972-000000000`) |
-| Source | [`Banks/PayBox/PayBoxPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PayBox/PayBoxPipeline.ts) |
+|                |                                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `PayBox`                                                                                                                                                     |
+| Engine         | **API-direct** (no browser)                                                                                                                                  |
+| Credentials    | `phoneNumber`, `otpCodeRetriever` (plus optional `otpLongTermToken`)                                                                                         |
+| OTP            | Required (cached long-term token supported)                                                                                                                  |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |
+| Phone format   | `international-dash` (`972-000000000`)                                                                                                                       |
+| Source         | [`Banks/PayBox/PayBoxPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PayBox/PayBoxPipeline.ts) |
 
 ## Quick example
 
 ```typescript
 const result = await scraper.scrape({
-  phoneNumber: '972-000000000',                      // international-dash (with -)
+  phoneNumber: '972-000000000', // international-dash (with -)
   otpCodeRetriever: async () => await myInbox.getCode(),
 });
 
@@ -46,8 +46,8 @@ PayBox sends no `Authorization` header after login, so `/getUserHistory` identif
 
 Two rules decide each row, and identity outranks the clock:
 
-- **Identity is decisive.** The cursor carries `seenIds` — the identities of the previous page's *ambiguous* rows: those sitting exactly on the boundary instant, plus those whose own timestamp is unparseable. A row whose identity is remembered is a re-serve and is dropped. A distinct transaction that merely shares the boundary timestamp keeps its own identity, so it survives.
-- **Identity is total.** `transactionId`, else `_id`, else a fingerprint of the row's own content — its fields sorted by name so key order cannot change the answer. A row without an id is therefore still comparable, so it is neither dropped as unidentifiable nor waved through on every re-serve.
+- **Identity is decisive.** The cursor carries `seenIds` — the identities of the previous page's _ambiguous_ rows: those sitting exactly on the boundary instant, plus those whose own timestamp is unparseable. A row whose identity is remembered is a re-serve and is dropped. A distinct transaction that merely shares the boundary timestamp keeps its own identity, so it survives.
+- **Identity is total.** `transactionId`, else `_id`, else a fingerprint of the row's own content — its keys ordered at every depth, so a re-serve that respells the row cannot masquerade as a new one. Array order is left alone: a sequence's order is meaning, not spelling. A row without an id is therefore still comparable, so it is neither dropped as unidentifiable nor waved through on every re-serve.
 - **The remembered set is drawn from the rows PayBox served, not the rows that survived.** A row already dropped by identity is precisely the one a further re-serve will offer again; forgetting it would re-open the fail-open rule that caught it. Remembering more can never cost a genuine transaction, because identities are unique.
 - **The timestamp only settles what identity cannot.** A row strictly older than the boundary is new. A row with no parseable timestamp is kept — fail-open, because a malformed value is not evidence of a duplicate.
 
@@ -60,4 +60,3 @@ PayBox sends `""` rather than omitting a field, so a `??` chain never reaches it
 The alias fallback searches **one alias at a time**. The shared field search returns a single hit per record, so a blank value under a high-priority alias would otherwise end the search and shadow a populated lower-priority peer in the same nested object. Stripping blanks before the search cannot prevent that, because it only sees the row's top level. Alias priority is therefore re-applied afterwards, over non-blank hits only.
 
 `PayBoxWalletRowQuality.test.ts` pins both behaviours. If a future run still shows blank descriptions, read `rowKeys` from the [response digest](../observability/response-digest.md) to find the field name the row actually uses.
-
