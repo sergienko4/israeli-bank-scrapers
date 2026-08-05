@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.6.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.2...v8.6.3) (2026-08-05)
+
+
+### Bug Fixes
+
+* **e2e-real:** retry a rejected Telegram OTP prompt ([#446](https://github.com/sergienko4/israeli-bank-scrapers/issues/446)) ([fc460e7](https://github.com/sergienko4/israeli-bank-scrapers/commit/fc460e75390673c164e74baeb14ebadf6b0d4c18))
+* stop the scrape memory blow-up at its source ([#449](https://github.com/sergienko4/israeli-bank-scrapers/issues/449)) ([6e43abc](https://github.com/sergienko4/israeli-bank-scrapers/commit/6e43abc3d7512f44300f2b56d49676d99f674786))
+
 ## [8.6.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.1...v8.6.2) (2026-08-03)
 
 
