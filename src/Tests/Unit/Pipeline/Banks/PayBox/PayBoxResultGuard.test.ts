@@ -33,8 +33,10 @@ describe('payBoxResultGuard', () => {
     const observed = summaryOf({ totalTxns: 0, balanceDegraded: true });
 
     const result = payBoxResultGuard(observed);
+    const message = result.success ? '' : result.errorMessage;
 
     expect(result.success).toBe(false);
+    expect(message).toBe(PAYBOX_DEGRADED_SCRAPE_MSG);
   });
 
   it('T-PBG-2: passes a healthy empty wallet (0 txns, balance NOT degraded)', () => {
@@ -70,11 +72,12 @@ describe('payBoxResultGuard', () => {
   });
 
   it('T-PBG-6: operator message names no cause the guard cannot observe', () => {
-    expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/token is degraded/i);
-    // The guard sees only summary counters, so it cannot know whether a
-    // fresh login clears the signature — and run 31015484475 proves it
-    // does not. Any re-auth claim here would be unfounded.
-    expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/re-?authentication/i);
+    // The guard sees only summary counters, so it can say nothing about
+    // the token — not that it is degraded, valid, or anything else.
+    expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/token/i);
+    // Nor whether a fresh login clears the signature — and run
+    // 31015484475 proves it does not. Any re-auth claim would be unfounded.
+    expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/re-?auth/i);
     expect(PAYBOX_DEGRADED_SCRAPE_MSG).toMatch(/respLength|errorCode/);
   });
 
