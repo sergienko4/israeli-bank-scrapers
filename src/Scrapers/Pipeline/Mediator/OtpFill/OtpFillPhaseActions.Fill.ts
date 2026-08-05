@@ -14,36 +14,18 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IActionMediator } from '../Elements/ElementMediator.js';
 import { readDiagString, readDiagTarget } from '../Otp/OtpShared.js';
-import { createPromise } from '../Timing/TimingActions.js';
+import { RACE_TIMED_OUT, raceTimeout } from '../Timing/TimingActions.js';
 import {
   DEFAULT_OTP_TIMEOUT_MS,
   OTP_PHASE_SETTLE_TIMEOUT_MS,
   OTP_RETRIEVER_SETTLE_MS,
 } from '../Timing/TimingConfig.js';
 
-/** Sentinel for timeout — distinguishes from empty string code. */
-const OTP_TIMED_OUT = '__OTP_TIMEOUT__';
-
 /**
  * False-returning catch handler — silences expected Playwright rejects.
  * @returns Always false.
  */
 const CATCH_FALSE = (): false => false;
-
-/**
- * Create a promise that resolves to the timeout sentinel after ms.
- * @param ms - Timeout duration.
- * @returns Promise that resolves to OTP_TIMED_OUT.
- */
-function createTimeoutPromise(ms: number): Promise<string> {
-  return createPromise<string>((resolve): true => {
-    globalThis.setTimeout((): true => {
-      resolve(OTP_TIMED_OUT);
-      return true;
-    }, ms);
-    return true;
-  });
-}
 
 /** Retriever callback type — accepts a hint, returns a code promise. */
 type OtpRetriever = (hint: string) => Promise<string>;
@@ -60,14 +42,19 @@ interface IRaceArgs {
 
 /**
  * Race the OTP retriever against a timeout.
+ *
+ * <p>Uses {@link raceTimeout}, which clears its timer once the race settles.
+ * The previous hand-rolled sentinel promise discarded its timer handle, so a
+ * retriever that answered promptly still left a timer armed for the whole OTP
+ * budget — holding the surrounding closure, and the event loop, alive.
  * @param args - Bundled retriever + hint + timeoutMs.
  * @returns The OTP code, or false if timed out.
  */
 async function raceRetrieverWithTimeout(args: IRaceArgs): RaceResult {
-  const timer = createTimeoutPromise(args.timeoutMs);
-  const result = await Promise.race([args.retriever(args.hint), timer]);
-  if (result === OTP_TIMED_OUT) return false;
-  return result;
+  const retrieval = args.retriever(args.hint);
+  const raced = await raceTimeout(args.timeoutMs, retrieval);
+  if (raced === RACE_TIMED_OUT) return false;
+  return raced;
 }
 
 /**
