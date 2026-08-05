@@ -160,4 +160,22 @@ describe('buildWaitPromise cancellation', () => {
     expect(didClearFirst).toBe(true);
     expect(didClearAgain).toBe(false);
   });
+
+  it('T-POLL-5 — reports no armed timer while a fired tick is still in flight', async () => {
+    let calls = 0;
+    /**
+     * Falsy on the first call, then never settles — parking the loop inside
+     * a dispatched tick with no timer armed.
+     * @returns Falsy once, then a forever-pending promise.
+     */
+    const asyncTest = (): Promise<boolean> => {
+      calls += 1;
+      if (calls < 2) return Promise.resolve(false);
+      return new Promise<boolean>((): boolean => true);
+    };
+    const poll = buildWaitPromise(asyncTest, POLL_MS);
+    await jest.advanceTimersByTimeAsync(POLL_MS);
+    const didClear = poll.cancel();
+    expect(didClear).toBe(false);
+  });
 });

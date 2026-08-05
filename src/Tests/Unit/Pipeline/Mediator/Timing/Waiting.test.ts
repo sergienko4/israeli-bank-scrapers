@@ -173,9 +173,12 @@ describe('raceTimeout — handleRaceError branch', () => {
       pending = scheduler(tick, 100);
       return true;
     });
-    const result = await raceTimeout(5, slow);
-    if (pending !== undefined) globalThis.clearTimeout(pending);
-    expect(result).toBe(RACE_TIMED_OUT);
+    try {
+      const result = await raceTimeout(5, slow);
+      expect(result).toBe(RACE_TIMED_OUT);
+    } finally {
+      if (pending !== undefined) globalThis.clearTimeout(pending);
+    }
   });
 
   it('rethrows non-timeout errors', async () => {

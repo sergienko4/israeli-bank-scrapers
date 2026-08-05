@@ -90,14 +90,11 @@ describe('launchBrowser prepareBrowser failure', () => {
   it('T-LAUNCH-2 — returns the browser when prepareBrowser resolves', async () => {
     const fake = makeFakeBrowser();
     LAUNCH_CAMOUFOX_MOCK.mockResolvedValue(fake.browser);
-    /**
-     * Hook that succeeds.
-     * @returns Resolved promise.
-     */
-    const prepare = (): Promise<void> => Promise.resolve();
+    const prepare = jest.fn(async (): Promise<void> => Promise.resolve());
     const options = makeOptions(prepare);
     const launched = await SETUP_MOD.launchBrowser(options);
     const isClosed = fake.wasClosed();
+    expect(prepare).toHaveBeenCalledWith(fake.browser);
     expect(launched).toBe(fake.browser);
     expect(isClosed).toBe(false);
   });

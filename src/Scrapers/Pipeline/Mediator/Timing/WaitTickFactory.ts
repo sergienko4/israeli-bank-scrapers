@@ -90,23 +90,38 @@ interface ISelfRef {
 }
 
 /**
+ * Dispatch the async predicate and route its outcome to the wait callbacks.
+ * @param args - Bundled tick arguments.
+ * @param next - Arms the following tick when the predicate stays falsy.
+ * @returns Always true — the dispatch itself never fails synchronously.
+ */
+function dispatchPoll<T>(args: ITickArgs<T>, next: () => boolean): boolean {
+  args
+    .asyncTest()
+    .then((v): boolean => handlePollResult(v, args.cbs, next))
+    .catch((): boolean => args.cbs.reject());
+  return true;
+}
+
+/**
  * Execute one poll cycle: run async test, handle result or reject.
+ *
+ * <p>Forgets the timer handle before dispatching: that timer has already
+ * fired, so leaving it recorded would make {@link cancelPoll} report an
+ * armed tick and clear a dead handle.
  * @param args - Bundled tick arguments.
  * @param self - Self-reference holder for recursive scheduling.
  * @returns True after dispatching, false when the loop is already cancelled.
  */
 function runOnePoll<T>(args: ITickArgs<T>, self: ISelfRef): boolean {
   if (args.state.cancelled) return false;
+  args.state.timer = undefined;
   /**
    * Schedule the next tick iteration.
    * @returns True after scheduling next tick.
    */
   const next = (): boolean => scheduleNext(self.fn, args.interval, args.state);
-  args
-    .asyncTest()
-    .then((v): boolean => handlePollResult(v, args.cbs, next))
-    .catch((): boolean => args.cbs.reject());
-  return true;
+  return dispatchPoll(args, next);
 }
 
 /**
