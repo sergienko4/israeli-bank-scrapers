@@ -542,6 +542,7 @@ jobs:
       - bank-coverage
       - integration
       - build
+      - e2e-smoke
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -572,6 +573,16 @@ jobs:
             echo "::error::Validate gate FAILED — these jobs reported failure or cancelled: $FAILED"
             exit 1
           fi
+          # `skipped` counts as green above, which is correct for gates that
+          # legitimately do not apply to a docs-only PR. But when full_suite is
+          # on, e2e-smoke is REQUIRED and a skip would be a silent hole: an
+          # `if: false` or a matrix wiring mistake would skip all 17 cells and
+          # still report this gate green. Demand an explicit success instead.
+          SMOKE=$(echo "$NEEDS_JSON" | jq -r '."e2e-smoke".result')
+          if [ "${{ needs.changes.outputs.full_suite }}" = "true" ] && [ "$SMOKE" != "success" ]; then
+            echo "::error::Validate gate FAILED — full_suite is on but e2e-smoke reported '$SMOKE' (expected 'success')."
+            exit 1
+          fi
           echo "✅ All parallel validate gates green (success or skipped)."
 
   # ──────────────────────────────────────────────────────────────
@@ -582,16 +593,31 @@ jobs:
   # runs jest with --testNamePattern filtered to a single bank, and
   # returns. Wall time: ~3-5min matrix vs ~25min serial.
   #
-  # Per-test timeout is SMOKE_TIMEOUT (180s, see TestTimingConfig.ts) so a
-  # bank-specific hang cancels there instead of the SCRAPE_TIMEOUT 15-min
-  # budget.
+  # Per-test timeout is per-bank (see SmokeConfig.ts `smokeTimeoutMs`):
+  # SMOKE_TIMEOUT (180s) by default, SMOKE_TIMEOUT_PRE_LOGIN (420s) for the
+  # banks that run a PRE-LOGIN phase. Those spend 211-221s on pre-submit
+  # navigation alone, so the flat 180s budget killed them mid-navigation
+  # before they ever reached a login verdict — which is what the four
+  # long-standing red cells (Max / VisaCal / Amex / Isracard) actually were.
+  # `timeout-minutes` below must stay above the widest per-bank budget plus
+  # dependency/camoufox install.
   #
-  # Bank outcomes are still informational (`continue-on-error` on the jest
-  # step) while the known invalid-login hangs are fixed. The *matrix wiring*
-  # is NOT informational: the "Assert the bank test actually ran" step below
-  # has no continue-on-error, so a matrix entry that no longer matches a
-  # SMOKE_BANKS display name fails the job loudly instead of reporting a
-  # green cell that executed zero tests.
+  # REQUIRED GATE. This job feeds `validate`, which is the branch-protection
+  # check, so a red bank now blocks the merge. It runs BEFORE `validate` and
+  # alongside the other gates — it deliberately does NOT depend on `validate`
+  # (that would be a dependency cycle). It depends on the four cheapest gates
+  # (`lint-and-types`, `unit-tests`, `build`, plus `changes`) so a broken build
+  # never reaches 17 live-bank runners. It does NOT wait on `integration`,
+  # `e2e-mocked`, `e2e-factory` or `bank-coverage`: those are slower, and
+  # blocking 17 runners on them would cost more wall time than the wasted
+  # minutes they would occasionally save. GitHub implicitly ANDs `success()`
+  # into a custom `if` that contains no status function, so a red cheap gate
+  # skips smoke and `validate` still fails on the cheap gate itself.
+  #
+  # The "Assert the bank test actually ran" step guards the matrix wiring
+  # itself: a matrix entry that no longer matches a SMOKE_BANKS display
+  # name fails the job loudly instead of reporting a green cell that
+  # executed zero tests.
   # ──────────────────────────────────────────────────────────────
   e2e-smoke:
     name: E2E Smoke (${{ matrix.bank }})
@@ -600,10 +626,11 @@ jobs:
     # A browser-stack bump (playwright-core / Camoufox) DOES qualify via
     # `full_suite`: that is precisely the change these 17 runners exist
     # to catch, and it touches no `src/` file.
-    needs: validate
-    if: needs.validate.outputs.full_suite == 'true'
+    needs: [changes, lint-and-types, unit-tests, build]
+    if: needs.changes.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Widest per-bank budget (420s) + deps/camoufox install + checkout.
+    timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
@@ -638,10 +665,10 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # Bank outcomes are INFORMATIONAL for now — the invalid-login hangs on
-      # Max / VisaCal / Amex / Isracard are tracked and fixed separately.
-      # `continue-on-error: true` keeps the matrix runner reporting its
-      # outcome on the PR without blocking the merge gate.
+      # Bank outcomes are BLOCKING. `continue-on-error` was removed once the
+      # four red cells were root-caused to a budget mismatch rather than a
+      # scraper defect (see the per-bank `smokeTimeoutMs` in SmokeConfig.ts).
+      # A red bank here now fails `validate` and blocks the merge.
       #
       # `--testNamePattern` is ANCHORED at `^E2E Smoke: ` because the bare
       # bank name substring-matches across banks: the unanchored
@@ -649,7 +676,6 @@ jobs:
       # so the Leumi cell silently ran two banks' tests and reported
       # Beinleumi's result as Leumi's.
       - name: E2E smoke (${{ matrix.bank }})
-        continue-on-error: true
         env:
           # Bank name via env (not direct `${{ }}` interpolation into the
           # shell) so a matrix value can never be parsed as shell syntax.
@@ -685,6 +711,13 @@ jobs:
         run: bash .github/scripts/ci/assert-smoke-ran.sh
       - name: Upload smoke diagnostics to private store (${{ matrix.bank }})
         if: ${{ !cancelled() }}
+        # Best-effort sink: it must never turn a green bank red. Now that
+        # e2e-smoke is a REQUIRED gate, an upload that hangs would burn the
+        # job's `timeout-minutes` and cancel a bank that had already passed.
+        # Bounded twice over — `continue-on-error` for failure, a step timeout
+        # for duration (the script itself also caps its curl retry budget).
+        continue-on-error: true
+        timeout-minutes: 3
         env:
           OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
           DIAG_BANK: smoke-${{ matrix.bank }}
@@ -1479,10 +1512,14 @@ jobs:
 
   dependency-review:
     name: Dependency Review
-    needs: validate
+    # Depends on `changes`, NOT `validate`. This is a manifest-diff security
+    # scan — it needs no build output, and coupling it to `validate` would let
+    # one flaky live-bank smoke cell suppress a dependency-security check now
+    # that e2e-smoke is a required input to `validate`.
+    needs: changes
     if: >-
       github.event_name == 'pull_request' &&
-      needs.validate.outputs.src_touched == 'true'
+      needs.changes.outputs.src == 'true'
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

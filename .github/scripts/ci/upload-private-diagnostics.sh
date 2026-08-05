@@ -55,7 +55,14 @@ else
 fi
 
 obj="${bank}/${run_tag}/$(basename "$archive")"
-if curl -sS --fail-with-body --connect-timeout 10 --max-time 300 --retry 3 --retry-delay 2 -T "$archive" "${OCI_DIAG_PAR_URL}${obj}"; then
+# Retry budget must be bounded in AGGREGATE. `--max-time` is per attempt, so
+# `--max-time 300 --retry 3` can burn ~20 min and starve the job's
+# `timeout-minutes`, cancelling a bank that had already passed. `--retry-max-time`
+# caps total retry wall time; the step is also `continue-on-error` so this
+# best-effort sink can never turn a green bank red.
+if curl -sS --fail-with-body --connect-timeout 10 --max-time 120 \
+  --retry 3 --retry-delay 2 --retry-max-time 60 \
+  -T "$archive" "${OCI_DIAG_PAR_URL}${obj}"; then
   echo "uploaded ${obj} ($(wc -c <"$archive" | tr -d ' ') bytes)"
 else
   echo "WARN: upload failed for ${obj}"

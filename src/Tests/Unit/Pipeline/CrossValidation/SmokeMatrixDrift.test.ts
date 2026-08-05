@@ -48,6 +48,12 @@ const SMOKE_STEP = 'E2E smoke';
 /** Step that fails the cell when the pattern matched zero tests. */
 const ASSERT_STEP = 'Assert the bank test actually ran';
 
+/** Best-effort diagnostics sink — must never fail a required gate. */
+const UPLOAD_STEP = 'Upload smoke diagnostics';
+
+/** The `validate` aggregator step that decides the required check. */
+const VERIFY_STEP = 'Verify all gates green';
+
 interface IPrYamlStep {
   readonly name?: string;
   readonly run?: string;
@@ -55,6 +61,7 @@ interface IPrYamlStep {
 }
 
 interface IPrYamlJob {
+  readonly needs?: readonly string[] | string;
   readonly strategy?: { readonly matrix?: { readonly bank?: readonly string[] } };
   readonly steps?: readonly IPrYamlStep[];
 }
@@ -64,13 +71,32 @@ interface IPrYaml {
 }
 
 /**
+ * Parse a job out of the PR workflow.
+ * @param id - Job key under `jobs:`.
+ * @returns The parsed job definition.
+ */
+function job(id: string): IPrYamlJob {
+  const source = readFileSync(PR_YAML, 'utf8');
+  const yaml = parse(source) as IPrYaml;
+  return yaml.jobs[id];
+}
+
+/**
  * Parse the `e2e-smoke` job out of the PR workflow.
  * @returns The parsed job definition.
  */
 function smokeJob(): IPrYamlJob {
-  const source = readFileSync(PR_YAML, 'utf8');
-  const yaml = parse(source) as IPrYaml;
-  return yaml.jobs['e2e-smoke'];
+  return job('e2e-smoke');
+}
+
+/**
+ * Normalise a job's `needs` into a list.
+ * @param id - Job key under `jobs:`.
+ * @returns Declared upstream job ids.
+ */
+function needsOf(id: string): readonly string[] {
+  const declared = job(id).needs ?? [];
+  return typeof declared === 'string' ? [declared] : declared;
 }
 
 /**
@@ -146,5 +172,53 @@ describe('E2E smoke zero-test guard', () => {
   it('never lets the assert-ran step be swallowed by continue-on-error', () => {
     const step = requireStep(ASSERT_STEP);
     expect(step['continue-on-error']).toBeUndefined();
+  });
+});
+
+describe('E2E smoke is a required gate', () => {
+  it('feeds the Validate aggregator that branch protection requires', () => {
+    const validateNeeds = needsOf('validate');
+    expect(validateNeeds).toContain('e2e-smoke');
+  });
+
+  it('never lets a red bank be swallowed by continue-on-error', () => {
+    const step = requireStep(SMOKE_STEP);
+    expect(step['continue-on-error']).toBeUndefined();
+  });
+
+  it('does not depend on validate, which would be a dependency cycle', () => {
+    const smokeNeeds = needsOf('e2e-smoke');
+    expect(smokeNeeds).not.toContain('validate');
+  });
+
+  it('still runs after the cheap gates so a broken build skips 17 live runners', () => {
+    const needs = needsOf('e2e-smoke');
+    expect(needs).toContain('lint-and-types');
+    expect(needs).toContain('unit-tests');
+    expect(needs).toContain('build');
+  });
+
+  it('never lets the best-effort diagnostics upload fail a green bank', () => {
+    const step = requireStep(UPLOAD_STEP);
+    expect(step['continue-on-error']).toBe(true);
+  });
+
+  it('rejects a skipped smoke run when the full suite is on', () => {
+    // `skipped` counts as green in the aggregator's failure filter, which is
+    // correct for gates that do not apply to a docs-only PR. Without this
+    // explicit check an `if: false` would skip all 17 cells and still report
+    // Validate green — a required gate that proves nothing.
+    const steps = job('validate').steps ?? [];
+    const found = steps.find(step => step.name?.startsWith(VERIFY_STEP) === true);
+    const run = found?.run ?? '';
+    expect(run).toContain('"e2e-smoke".result');
+    expect(run).toContain('!= "success"');
+  });
+});
+
+describe('security gates stay independent of live-bank flakiness', () => {
+  it('keeps dependency-review off the validate chain', () => {
+    const needs = needsOf('dependency-review');
+    expect(needs).not.toContain('validate');
   });
 });
