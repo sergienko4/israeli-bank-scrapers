@@ -4,6 +4,8 @@
  * canonical-shaped by `mapWalletTxn` (split into PayBoxShapeMap.ts) so
  * the downstream `autoMapTransaction` keeps them. Pagination terminates
  * on empty page, on cursor stall, or at the server-imposed 24-page cap.
+ * Rows an earlier page already covered are dropped before mapping —
+ * see `dropCoveredRows` for why the server makes that necessary.
  */
 
 import type {
@@ -91,6 +93,43 @@ function nextWalletCursor(
 }
 
 /**
+ * Decide whether a raw row lies strictly beyond the cursor boundary.
+ * Rows whose `ts` cannot be parsed are kept — fail-open, because a
+ * malformed timestamp is not evidence that the row is a duplicate.
+ * @param ts - Raw row timestamp.
+ * @param boundaryMs - Cursor timestamp as epoch milliseconds.
+ * @returns True when the row still belongs on this page.
+ */
+function isBeyondCursor(ts: unknown, boundaryMs: number): boolean {
+  const parsed = typeof ts === 'string' ? Date.parse(ts) : Number.NaN;
+  if (Number.isNaN(parsed)) return true;
+  return parsed < boundaryMs;
+}
+
+/**
+ * Drop rows an earlier page already emitted.
+ *
+ * `/getUserHistory` does not reliably honour the `ts` cursor — it can
+ * answer a later request with the previous page verbatim — while
+ * `fetchPaginated` concatenates every page into the accumulator
+ * unconditionally. Without this filter a re-served page emits each
+ * transaction a second time (observed live: 88 rows for 44 distinct
+ * transactions). Filtering also terminates pagination cleanly, because
+ * an emptied page makes {@link nextWalletCursor} return `false`.
+ * @param cursor - Cursor this page was requested with.
+ * @param raws - Raw rows the server returned.
+ * @returns Rows strictly older than the cursor; all rows on page 0.
+ */
+function dropCoveredRows(
+  cursor: IPayBoxCursor,
+  raws: readonly IWalletTxnRaw[],
+): readonly IWalletTxnRaw[] {
+  const boundaryMs = Date.parse(cursor.ts);
+  if (cursor.page === 0 || Number.isNaN(boundaryMs)) return raws;
+  return raws.filter((raw): boolean => isBeyondCursor(raw.ts, boundaryMs));
+}
+
+/**
  * Read the `content` block from a class-y response with no schema
  * assumption beyond it being an object.
  * @param resp - Response body.
@@ -118,7 +157,8 @@ export function txnsExtractPage(
   const cursor = walletCursorOf(args.cursor);
   const content = readContent(args.body);
   const rawNc = content.nc;
-  const raws = (Array.isArray(rawNc) ? rawNc : []) as readonly IWalletTxnRaw[];
+  const served = (Array.isArray(rawNc) ? rawNc : []) as readonly IWalletTxnRaw[];
+  const raws = dropCoveredRows(cursor, served);
   const mapped = raws.map(mapWalletTxn);
   const nextCursor = nextWalletCursor(cursor, raws);
   return { items: mapped, nextCursor };
@@ -128,6 +168,7 @@ export function txnsExtractPage(
 export const PAYBOX_TXNS_INTERNALS = {
   nextWalletCursor,
   walletCursorOf,
+  dropCoveredRows,
   buildAuthEnvelope,
   mapWalletTxn,
 } as const;

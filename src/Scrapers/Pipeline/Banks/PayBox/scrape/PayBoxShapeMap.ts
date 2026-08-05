@@ -9,6 +9,8 @@
 
 import type { ITransaction } from '../../../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../Transactions.js';
+import { findFieldValue } from '../../../Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 
 /** Raw wallet row returned by /getUserHistory `content.nc[i]`. */
 export interface IWalletTxnRaw {
@@ -23,6 +25,14 @@ export interface IWalletTxnRaw {
   readonly text?: string;
   readonly comment?: string;
   readonly userComment?: string;
+  /**
+   * PayBox sends more per-row fields than this contract models, and the
+   * set varies by transaction kind (a peer transfer names its
+   * counterparty somewhere other than `merchantName`). The index
+   * signature keeps those rows readable by the canonical alias search in
+   * {@link displayOf} without inventing field names we have not observed.
+   */
+  readonly [field: string]: unknown;
 }
 
 /** Wallet rows never split into installments — every row is `Normal`. */
@@ -76,14 +86,57 @@ interface IDisplay {
 }
 
 /**
+ * Pick the first candidate carrying visible content.
+ *
+ * PayBox sends `''` as often as it omits a field, so `??` chains are
+ * wrong here: `raw.merchantName ?? raw.text` never reaches `text` once
+ * `merchantName` is present-but-empty, which left live rows with a blank
+ * description. Blank means "absent" — the same rule
+ * `TxnMapper.coerceIdentifier` already applies to sentinel identifiers.
+ * @param candidates - Values in priority order.
+ * @returns First trimmed-non-empty candidate, or `''` when all are blank.
+ */
+function firstNonBlank(candidates: readonly unknown[]): string {
+  const hit = candidates.find((v): boolean => typeof v === 'string' && v.trim() !== '');
+  return typeof hit === 'string' ? hit : '';
+}
+
+/**
+ * Row copy with blank string values removed, so the canonical alias
+ * search treats an empty `merchantName` as absent and keeps looking.
+ * @param raw - Raw wallet row.
+ * @returns Row without its blank-valued keys.
+ */
+function withoutBlanks(raw: IWalletTxnRaw): Record<string, unknown> {
+  const kept = Object.entries(raw).filter(([, v]): boolean => firstNonBlank([v]) !== '');
+  return Object.fromEntries(kept);
+}
+
+/**
+ * Last-resort description lookup via the shared well-known alias search
+ * — the same list every other bank resolves descriptions through. Used
+ * only when PayBox's own two description fields are blank, so rows whose
+ * counterparty lives under a different canonical alias still read.
+ * @param raw - Raw wallet row.
+ * @returns Alias hit, or `''` when the row carries none.
+ */
+function aliasDescription(raw: IWalletTxnRaw): string {
+  const searchable = withoutBlanks(raw);
+  const hit = findFieldValue(searchable, WK.description);
+  return firstNonBlank([hit]);
+}
+
+/**
  * Resolve canonical `description` / `memo` with PayBox's fallback chain.
  * @param raw - Raw wallet row.
  * @returns Display bundle (description + memo).
  */
 function displayOf(raw: IWalletTxnRaw): IDisplay {
+  const primary = firstNonBlank([raw.merchantName, raw.text]);
+  const description = primary === '' ? aliasDescription(raw) : primary;
   return {
-    description: raw.merchantName ?? raw.text ?? '',
-    memo: raw.comment ?? raw.userComment ?? '',
+    description,
+    memo: firstNonBlank([raw.comment, raw.userComment]),
   };
 }
 
