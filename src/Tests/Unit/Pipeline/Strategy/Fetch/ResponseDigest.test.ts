@@ -179,9 +179,10 @@ describe('digestResponse row-level field names', () => {
   });
 
   // A payload keyed by account number would otherwise leak that number
-  // through its key names alone.
-  it('T-DIGEST-17: drops bare numeric field names', () => {
-    const body = JSON.stringify({ rows: [{ '12345678': 1, label: 'ok' }] });
+  // through its key names alone. A short numeric key is just as
+  // identifying (a card suffix) and carries no schema information.
+  it('T-DIGEST-17: drops bare numeric field names of any length', () => {
+    const body = JSON.stringify({ rows: [{ '12345678': 1, '1234': 2, label: 'ok' }] });
 
     const digest = digestResponse(body);
 
@@ -213,5 +214,15 @@ describe('digestResponse row-level field names', () => {
     const digest = digestResponse(body);
 
     expect(digest.rowKeys).toHaveLength(40);
+  });
+
+  // Every other fixture happens to declare its keys alphabetically, so
+  // the sorted contract would survive removing the sort. This one cannot.
+  it('T-DIGEST-21: sorts field names regardless of declaration order', () => {
+    const body = JSON.stringify({ rows: [{ zeta: 1, alpha: 2 }, { mid: 3 }] });
+
+    const digest = digestResponse(body);
+
+    expect(digest.rowKeys).toEqual(['alpha', 'mid', 'zeta']);
   });
 });

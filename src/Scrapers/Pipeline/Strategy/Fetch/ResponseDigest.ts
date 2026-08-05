@@ -55,8 +55,10 @@ const MAX_ROW_KEYS = 40;
 /**
  * Bare numeric keys are dropped: a payload keyed by account or card
  * number would otherwise leak that identifier through its key names.
+ * Length is deliberately not part of the test — a four-digit key is a
+ * card suffix, which is exactly the identifier this guard exists for.
  */
-const NUMERIC_KEY = /^\d{5,}$/u;
+const NUMERIC_KEY = /^\d+$/u;
 
 /**
  * Narrow a value to a plain object.
@@ -153,6 +155,27 @@ function stringField(src: Record<string, unknown>, key: string): string {
 }
 
 /**
+ * Field names of the first collection found anywhere in the body.
+ * @param parsed - Parsed body, of any shape.
+ * @returns Sorted, bounded field names; empty when no collection exists.
+ */
+function rowKeysOf(parsed: unknown): readonly string[] {
+  const rows = findRowArray([parsed], 0);
+  return unionRowKeys(rows);
+}
+
+/**
+ * Read the envelope's rejection fields.
+ * @param top - Parsed top-level record.
+ * @returns Error code and name; empty strings when absent.
+ */
+function errorFields(
+  top: Record<string, unknown>,
+): Pick<IResponseDigest, 'errorCode' | 'errorName'> {
+  return { errorCode: stringField(top, 'code'), errorName: stringField(top, 'name') };
+}
+
+/**
  * Summarise a response body for logging without emitting any value that
  * could carry customer data.
  * @param bodyText - Raw response text.
@@ -161,12 +184,10 @@ function stringField(src: Record<string, unknown>, key: string): string {
 export function digestResponse(bodyText: string): IResponseDigest {
   const parsed = parseUnknown(bodyText);
   const top = coerceRecord(parsed);
-  const rows = findRowArray([parsed], 0);
   return {
     respLength: Buffer.byteLength(bodyText, 'utf8'),
     respKeys: Object.keys(top),
-    rowKeys: unionRowKeys(rows),
-    errorCode: stringField(top, 'code'),
-    errorName: stringField(top, 'name'),
+    rowKeys: rowKeysOf(parsed),
+    ...errorFields(top),
   };
 }
