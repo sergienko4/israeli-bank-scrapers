@@ -35,7 +35,7 @@
     "clean": "rimraf lib",
     "test": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js",
     "test:unit": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2eSmoke --testPathIgnorePatterns=E2eFull",
-    "test:memory": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --config=jest.pipeline.config.cjs --testPathPatterns=TimerLeakInvariants --testPathPatterns=TimingRetention --testPathPatterns=RaceTimeoutCancellation",
+    "test:memory": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --config=jest.pipeline.config.cjs --testPathPatterns=TimerLeakInvariants --testPathPatterns=TimingRetention --testPathPatterns=RaceTimeoutCancellation --testPathPatterns=Account/ScrapeDispatch",
     "memory:profile": "node scripts/memory-profile/profile-bank.mjs",
     "test:pipeline": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --config=jest.pipeline.config.cjs --ci --coverage --maxWorkers=2 --testPathIgnorePatterns=E2eReal/ --testPathIgnorePatterns=E2eMocked/ --testPathIgnorePatterns=E2eSmoke/ --testPathIgnorePatterns=E2eFull/ --testPathIgnorePatterns=E2e.test --testPathIgnorePatterns=Tests/Integration/",
     "test:e2e:mock": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=E2eReal --testPathPatterns=E2eMocked --maxWorkers=2",

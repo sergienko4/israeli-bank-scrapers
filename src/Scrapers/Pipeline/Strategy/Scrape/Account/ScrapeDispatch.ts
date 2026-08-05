@@ -109,7 +109,9 @@ async function budgetElapsed(ms: number, signal?: AbortSignal): Promise<IBudgetS
 type BudgetRaceResult = Procedure<ITransactionsAccount> | IBudgetSentinel;
 
 /**
- * Race the dispatch against its budget, cancelling whichever arm loses.
+ * Race the dispatch against its budget, cancelling the budget timer once the
+ * race settles. The dispatch arm itself is not cancellable — `dispatchOneAccount`
+ * takes no signal — so a budget win leaves that work running to completion.
  * @param work - In-flight dispatch promise.
  * @param budgetMs - Budget in milliseconds.
  * @returns Whichever arm settled first.
