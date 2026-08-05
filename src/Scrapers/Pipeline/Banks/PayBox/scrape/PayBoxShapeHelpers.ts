@@ -8,11 +8,11 @@
  * post-login session-context.
  *
  * The balance for both accounts comes from the same `/sync` endpoint.
- * `/sync` is post-login, so — like every other post-login PayBox call —
- * its body MUST carry the class-y `auth: { … }` envelope (built by
- * PayBoxAuthEnvelope.ts); a body without it is answered with HTTP 400.
- * Pagination state for transactions lives in PayBoxShapeTxns.ts (per
- * the 150-LOC ceiling).
+ * `/sync` is answered with HTTP 400 regardless of body shape, and its
+ * body MUST NOT carry the class-y `auth: { … }` envelope — a rejected
+ * request that carried the live token makes PayBox invalidate the whole
+ * session (see {@link balanceVars}). Pagination state for transactions
+ * lives in PayBoxShapeTxns.ts (per the 150-LOC ceiling).
  */
 
 import type {
@@ -21,8 +21,6 @@ import type {
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
-import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { buildAuthEnvelope } from './PayBoxAuthEnvelope.js';
 
 /** Account display number — branded for Rule #15. */
 type AccountNumberDisplay = Brand<string, 'PayBoxAccountNumberDisplay'>;
@@ -81,21 +79,21 @@ export function customerVars(): VarsMap {
 }
 
 /**
- * Balance vars builder — `/sync` is a post-login call, so its body is
- * the class-y `auth: { … }` envelope. The step declares no
- * `bodyTemplate`, which makes these vars the literal wire body; the
- * AES signer then writes `/auth/signature`.
+ * Balance vars builder — `/sync` takes no per-account variables.
  *
- * Returning `{}` here (as this builder did until 2026-08) produced the
- * body `{"auth":{"signature":"…"}}` — signed, but carrying no `uId`,
- * `access_token` or device `uuid` — which PayBox rejects with HTTP 400.
- * `fallbackOnFail: 0` masked that rejection as a zero balance.
- * @param _acct - PayBox account (unused — `/sync` is per-session).
- * @param ctx - Action context (source of session-context + creds).
- * @returns Body bundle carrying the auth envelope.
+ * <p>`/sync` MUST NOT carry the class-y `auth: { … }` envelope. It is
+ * answered with HTTP 400 either way, but a 400 on a body that carried
+ * the live `access_token` makes PayBox reject every later call in the
+ * session: `/getUserHistory` then answers `401 UNAUTHORIZED` (and
+ * `404 UNAUTHORIZED_TOKEN` on a warm token) instead of returning rows.
+ * Forensic run 31015484475 shows the token minted 355 ms earlier by a
+ * successful `loginBySms` refused immediately after `/sync` 400'd.
+ * Sending no envelope keeps the rejection inert: `fallbackOnFail: 0`
+ * degrades the balance to 0 and the transaction scrape still succeeds.
+ * @returns Empty variables map.
  */
-export function balanceVars(_acct: IPayBoxAcct, ctx: IActionContext): VarsMap {
-  return { auth: buildAuthEnvelope(ctx) };
+export function balanceVars(): VarsMap {
+  return {};
 }
 
 /**

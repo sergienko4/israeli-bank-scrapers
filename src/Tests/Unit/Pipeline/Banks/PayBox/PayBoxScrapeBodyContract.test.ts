@@ -47,8 +47,18 @@ const PAYBOX_SESSION: Readonly<Record<string, unknown>> = Object.freeze({
   token: FIXT_TOKEN,
 });
 
-/** Every post-login URL tag the wallet flow dispatches. */
-const POST_LOGIN_URL_TAGS = ['data.sync', 'data.getUserHistory'] as const;
+/**
+ * The balance URL tag, read from the production shape rather than
+ * restated here — a test that hardcodes it would keep passing if the
+ * shape moved the balance call to another endpoint. PayBox declares it
+ * as a literal; a function form would mean the tag is per-account and
+ * this whole file's premise no longer holds, so fail loudly.
+ */
+const RAW_BALANCE_TAG: unknown = PAYBOX_SHAPE.balance.urlTag;
+if (typeof RAW_BALANCE_TAG !== 'string') {
+  throw new TypeError('PAYBOX_SHAPE.balance.urlTag must be a literal tag');
+}
+const BALANCE_URL_TAG: string = RAW_BALANCE_TAG;
 
 /** Envelope fields that carry caller identity — must never be blank. */
 const IDENTITY_FIELDS = ['uId', 'uuid', 'access_token'] as const;
@@ -129,6 +139,17 @@ function callFor(calls: readonly ICapturedCall[], url: string): ICapturedCall {
   return found ?? MISSING_CALL;
 }
 
+/**
+ * Every recorded dispatch that is not the balance call — the post-login
+ * data steps, derived from what the shape actually dispatched rather
+ * than from a hardcoded tag list that could drift from production.
+ * @param calls - All recorded dispatches.
+ * @returns Data-step dispatches.
+ */
+function dataCalls(calls: readonly ICapturedCall[]): readonly ICapturedCall[] {
+  return calls.filter(c => c.url !== BALANCE_URL_TAG);
+}
+
 describe('PayBox post-login body contract', () => {
   let calls: ICapturedCall[] = [];
 
@@ -142,37 +163,39 @@ describe('PayBox post-login body contract', () => {
     assertOk(result);
   });
 
-  it('T-PB-BODY-1 dispatches every post-login step exactly once', () => {
+  it('T-PB-BODY-1 dispatches the balance step and at least one data step', () => {
     const urls = calls.map(c => c.url);
-    const expected: unknown = expect.arrayContaining([...POST_LOGIN_URL_TAGS]);
-    expect(urls).toEqual(expected);
+    expect(urls).toContain(BALANCE_URL_TAG);
+    expect(dataCalls(calls).length).toBeGreaterThan(0);
   });
 
   // The regression net. `/sync` shipped a body with no identity for ten
-  // weeks; this fails the moment any post-login step does so again.
-  it.each([...POST_LOGIN_URL_TAGS])('T-PB-BODY-2 %s carries a populated auth envelope', url => {
-    const call = callFor(calls, url);
-    const auth = authOf(call);
-    for (const field of IDENTITY_FIELDS) {
-      expect(typeof auth[field]).toBe('string');
-      expect(auth[field]).not.toBe('');
+  // weeks; this fails the moment a data step does so again.
+  it('T-PB-BODY-2 every data step carries a populated auth envelope', () => {
+    for (const call of dataCalls(calls)) {
+      const auth = authOf(call);
+      for (const field of IDENTITY_FIELDS) {
+        expect(typeof auth[field]).toBe('string');
+        expect(auth[field]).not.toBe('');
+      }
+      for (const field of CLIENT_FIELDS) expect(auth[field]).not.toBe('');
     }
-    for (const field of CLIENT_FIELDS) expect(auth[field]).not.toBe('');
   });
 
-  it('T-PB-BODY-3 /sync carries the same identity as /getUserHistory', () => {
-    const syncCall = callFor(calls, 'data.sync');
-    const txnsCall = callFor(calls, 'data.getUserHistory');
-    const syncAuth = authOf(syncCall);
-    const txnsAuth = authOf(txnsCall);
-    expect(syncAuth.uId).toBe(txnsAuth.uId);
-    expect(syncAuth.uuid).toBe(txnsAuth.uuid);
-    expect(syncAuth.access_token).toBe(txnsAuth.access_token);
+  // The counter-regression net, and the more expensive one to get wrong.
+  // `/sync` is answered with HTTP 400 whatever the body holds, but a 400
+  // on a body carrying the live `access_token` makes PayBox invalidate
+  // the session — the next `/getUserHistory` then returns
+  // `401 UNAUTHORIZED` instead of rows (forensic run 31015484475, 0 txns
+  // against 88 in the preceding green run 30977091315).
+  it('T-PB-BODY-3 the balance step carries NO auth envelope', () => {
+    const syncCall = callFor(calls, BALANCE_URL_TAG);
+    expect(syncCall.body).not.toHaveProperty('auth');
   });
 
   it('T-PB-BODY-4 identity fields are sourced from the live session-context', () => {
-    const syncCall = callFor(calls, 'data.sync');
-    const auth = authOf(syncCall);
+    const [dataCall] = dataCalls(calls);
+    const auth = authOf(dataCall);
     expect(auth.uId).toBe(FIXT_UID);
     expect(auth.uuid).toBe(FIXT_DEVICE);
     expect(auth.access_token).toBe(FIXT_TOKEN);
