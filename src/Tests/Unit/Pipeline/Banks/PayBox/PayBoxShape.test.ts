@@ -136,11 +136,32 @@ describe('PayBoxShape integration — wallet', () => {
 });
 
 describe('PayBoxShape helpers — bare data', () => {
-  it('customerVars + balanceVars return empty maps', () => {
+  it('customerVars returns an empty map (customer step skips the fetch)', () => {
     const customerResult = customerVars();
-    const balanceResult = balanceVars();
     expect(customerResult).toEqual({});
-    expect(balanceResult).toEqual({});
+  });
+
+  it('balanceVars builds the class-y auth envelope for /sync', () => {
+    // `/sync` is a post-login call, so its body IS the auth envelope.
+    // This previously asserted `{}`, pinning a violation of the
+    // documented post-login contract. Sending the envelope does NOT by
+    // itself stop `/sync` returning HTTP 400 — a live run proved that —
+    // so this asserts contract compliance, not a fix.
+    const bus = makePayBoxBus({});
+    const acct: IPayBoxAcct = { accountNumber: FIXT_UID };
+    const ctx = ctxOf(bus);
+    const balanceResult = balanceVars(acct, ctx);
+    expect(balanceResult).toEqual({
+      auth: {
+        uuid: FIXT_DEVICE,
+        uId: FIXT_UID,
+        access_token: FIXT_TOKEN,
+        appVer: '5.6.6',
+        type: 'pb',
+        os: 'android-13',
+        signature: '',
+      },
+    });
   });
 
   it('accountNumberOf surfaces the wallet display number', () => {

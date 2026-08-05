@@ -11,12 +11,10 @@ import type {
   TxnsUrlTag,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { PAYBOX_AUTH_ENVELOPE_DEFAULTS } from '../../../Registry/Config/PipelineBankConfigPayBox.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
-import { isSome } from '../../../Types/Option.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import type { IPayBoxCreds } from '../PayBoxCreds.js';
+import { buildAuthEnvelope } from './PayBoxAuthEnvelope.js';
 import type { IPayBoxAcct } from './PayBoxShapeHelpers.js';
 import type { IWalletTxnRaw } from './PayBoxShapeMap.js';
 import { mapWalletTxn } from './PayBoxShapeMap.js';
@@ -30,10 +28,6 @@ const WALLET_PAGE_CAP = 24;
  * other value returns an empty `nc` page.
  */
 const WALLET_TS_FIRST = 'null';
-// Auth envelope defaults (appVer / os / type) are read from
-// `PAYBOX_AUTH_ENVELOPE_DEFAULTS` in `PipelineBankConfigPayBox.ts`
-// per the project's "constants from configuration" rule — bumping
-// the captured app version is a config-only change.
 
 /** Wallet ts cursor — opaque cursor string + zero-based page index. */
 export interface IPayBoxCursor {
@@ -48,59 +42,6 @@ export interface IPayBoxCursor {
  */
 export const TXNS_URL_TAG: TxnsUrlTag<IPayBoxAcct, IPayBoxCursor> = (): WKUrlGroup =>
   'data.getUserHistory';
-
-/**
- * Read the post-login session-context from the bus on ctx, falling
- * back to an empty object when the mediator slot is empty (test
- * fixtures may omit it).
- * @param ctx - Action context.
- * @returns Frozen session-context bundle.
- */
-function readSessionContext(ctx: IActionContext): Readonly<Record<string, unknown>> {
-  if (!isSome(ctx.apiMediator)) return {};
-  return ctx.apiMediator.value.getSessionContext();
-}
-
-/**
- * Resolve the long-term token — prefer the post-login session-context
- * value, then fall back to `creds.otpLongTermToken` for warm-creds
- * callers and test fixtures that may not have the session bus wired.
- * @param ctx - Action context.
- * @returns JWT string (empty when neither source carries one).
- */
-function resolveToken(ctx: IActionContext): string {
-  const session = readSessionContext(ctx);
-  const fromSession = typeof session.token === 'string' ? session.token : '';
-  if (fromSession.length > 0) return fromSession;
-  // The IActionContext type marks `credentials` as always present, but
-  // unit fixtures may construct a partial context literal without it;
-  // cast through `unknown` so a missing field surfaces as `undefined`
-  // rather than throwing on a downstream property access.
-  const raw = (ctx as unknown as { readonly credentials?: unknown }).credentials;
-  const creds = (raw ?? {}) as IPayBoxCreds;
-  return creds.otpLongTermToken ?? '';
-}
-
-/**
- * Build the class-y `auth` envelope (signature is written by the
- * shape-level AES signer after dispatchStep hydrates the body).
- * @param ctx - Action context (used to read session-context + creds).
- * @returns Auth envelope object.
- */
-function buildAuthEnvelope(ctx: IActionContext): Record<string, string> {
-  const session = readSessionContext(ctx);
-  const uId = typeof session.uId === 'string' ? session.uId : '';
-  const deviceId = typeof session.deviceId16Hex === 'string' ? session.deviceId16Hex : '';
-  return {
-    uuid: deviceId,
-    uId,
-    access_token: resolveToken(ctx),
-    appVer: PAYBOX_AUTH_ENVELOPE_DEFAULTS.appVer,
-    type: PAYBOX_AUTH_ENVELOPE_DEFAULTS.type,
-    os: PAYBOX_AUTH_ENVELOPE_DEFAULTS.os,
-    signature: '',
-  };
-}
 
 /**
  * Resolve the active cursor for the wallet, defaulting to the first-

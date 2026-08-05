@@ -2,13 +2,19 @@
  * PayBox fail-closed scrape guard — pure data + predicate consumed by
  * the generic ApiDirectScrape POST stage via `PAYBOX_SHAPE.resultGuard`.
  *
- * <p>Why this exists: PayBox runs warm-session-token auth. A token that
- * is structurally fresh but server-side degraded makes `/sync` reject
- * (HTTP 4xx). The balance step's `fallbackOnFail: 0` masks that rejection
- * as `balance === 0`, and `/getUserHistory` then returns an empty page,
- * so the run completes as a SILENT `success([])` — zero transactions, no
- * error. This guard converts that exact shape into a LOUD, typed failure
- * so a degraded session surfaces instead of looking like an empty wallet.
+ * <p>Why this exists: the balance step's `fallbackOnFail: 0` masks a
+ * rejected `/sync` as `balance === 0`. When `/getUserHistory` then yields
+ * an empty page, the run completes as a SILENT `success([])` — zero
+ * transactions, no error. This guard converts that exact shape into a
+ * LOUD, typed failure so a broken scrape surfaces instead of looking
+ * like an empty wallet.
+ *
+ * <p>The guard deliberately names no cause. An earlier revision blamed a
+ * degraded warm-session token, but a real run reproduced the identical
+ * signature immediately after a full re-authentication with a
+ * seconds-old token, so the token is not implicated. The message points
+ * at the api-direct response diagnostics instead of asserting a
+ * diagnosis the guard cannot make from a summary alone.
  *
  * <p>The guard keys on the balance-step OUTCOME (`balanceDegraded`), never
  * on the balance VALUE: with `fallbackOnFail: 0` the value is `0` whether
@@ -31,9 +37,11 @@ import { fail, succeed } from '../../../Types/Procedure.js';
  * figures, and no digit run that could be mistaken for one — only the
  * diagnosis and the remedy.
  */
-const PAYBOX_DEGRADED_TOKEN_MSG =
+const PAYBOX_DEGRADED_SCRAPE_MSG =
   'PayBox scrape returned zero transactions while the balance fetch fell back ' +
-  'to its default — the warm-session token is degraded; re-authenticate.';
+  'to its default. Re-authentication does not clear this — inspect the ' +
+  'api-direct fetch STATUS diagnostics (respLength / errorCode) to tell a ' +
+  'rejected request from a genuinely empty page.';
 
 /**
  * True when the scrape produced at least one account, zero transactions
@@ -48,12 +56,12 @@ function isDegradedEmpty(summary: IApiDirectScrapeGuardSummary): boolean {
 /**
  * Fail-closed guard for PayBox scrape results.
  * @param summary - PII-free scrape summary from the POST stage.
- * @returns Failure when the degraded warm-session signature is present;
- *   otherwise a pass-through success.
+ * @returns Failure when the zero-txns + degraded-balance signature is
+ *   present; otherwise a pass-through success.
  */
 export function payBoxResultGuard(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
-  if (isDegradedEmpty(summary)) return fail(ScraperErrorTypes.Generic, PAYBOX_DEGRADED_TOKEN_MSG);
+  if (isDegradedEmpty(summary)) return fail(ScraperErrorTypes.Generic, PAYBOX_DEGRADED_SCRAPE_MSG);
   return succeed(undefined);
 }
 
-export { PAYBOX_DEGRADED_TOKEN_MSG };
+export { PAYBOX_DEGRADED_SCRAPE_MSG };
