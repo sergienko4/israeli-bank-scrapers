@@ -21,6 +21,12 @@
   than measured here, because by the time this script starts the profiled
   run already exists and could have launched a browser of its own.
 
+.NOTES
+  Windows-only: process accounting comes from Get-CimInstance
+  Win32_Process. CI runs on ubuntu-latest, so this stays a local
+  diagnostic rather than a gate. The automated memory regression check
+  is `npm run test:memory`, which is cross-platform.
+
 .PARAMETER RootPid
   PID whose descendant tree (inclusive) is measured. Omit it to have the
   PID read from stdin instead, which lets a caller start this script -

@@ -10,6 +10,7 @@ Five test suites, picked by **what you're testing**.
 | One phase's action / extractor / planner | Unit tests + the bank-factory test | `test:unit` + `test:pipeline` |
 | New bank's pipeline config | Mocked-E2E with fixtures | `test:e2e:mock` + `test:pipeline` |
 | Cross-phase invariant | Integration test under `Tests/Unit/Pipeline/CrossValidation/` | `test:pipeline` |
+| Timing, cleanup, or cancellation code | Add a case to the memory regression gate | `test:memory` |
 | Public API surface (types in `Base/Interface.ts`) | Update both unit + e2e expectations | `test:unit` + `test:e2e:mock` |
 | Real-bank behavior (live network) | E2eReal suite — `Tests/E2eReal/<Bank>/` | `test:e2e:real:single` (needs `.env`) |
 
@@ -48,6 +49,28 @@ Five test suites, picked by **what you're testing**.
 - Single bank: `npm run test:e2e:real:single -- --testPathPatterns=<Bank>`.
 - Not run in CI — gates require maintainer-side creds.
 
+### Memory regression gate (`test:memory`)
+
+Two layers guarding against a repeat of the [#449](https://github.com/sergienko4/israeli-bank-scrapers/pull/449) OOM, both under `src/Tests/Unit/Pipeline/Mediator/Timing/`:
+
+| Layer | File | Asserts |
+|---|---|---|
+| Mechanism | `TimerLeakInvariants.test.ts` | `jest.getTimerCount() === 0` after every timing operation settles — no timer stays armed. |
+| Consequence | `TimingRetention.test.ts` | A `WeakRef` to the object a timed-out poll captured is cleared after `gc()` — the closure is actually released. |
+| Cancellation | `RaceTimeoutCancellation.test.ts` | The losing arm of a `raceTimeout` is cancelled, not abandoned. |
+
+Both layers are needed. A timer count can go green while retention is still broken, because the leak that matters is the closure the timer keeps alive — in production that closure pinned Playwright `Page` handles and captured response bodies.
+
+The retention layer needs Node's `--expose-gc`, which **every** jest script in `package.json` passes. It asserts the hook is present rather than skipping without it: a vacuous pass would be worse than no test.
+
+These run inside `test:unit` / `test:pipeline` automatically, so CI covers them. `npm run test:memory` is the narrow local loop.
+
+### Memory profiler (`memory:profile`, Windows-only)
+
+`npm run memory:profile -- --bank=<bank>` samples working-set and private-bytes for the Node process **and every browser child** over a real scrape, writing a timeline under `scripts/memory-profile/runs/`.
+
+It is a **local diagnostic, not a gate** — the sampler uses PowerShell `Get-CimInstance`, and all CI runners are `ubuntu-latest`. Use it to get an absolute number for a bank; use `test:memory` to catch regressions.
+
 ## Test fixtures
 
 Captured under `src/Tests/E2eMocked/<Bank>/fixtures/` and `Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/<bank>/`. Always **pre-redacted** via `PiiRedactor` at capture time — committing a fixture should never leak real PII.
@@ -60,6 +83,7 @@ If you need to add fixtures, use the [`SnapshotInterceptor`](https://github.com/
 |---|---|
 | `npm run test:unit` (manual) | Unit |
 | `npm run test:pipeline` (manual or pre-commit) | Pipeline + coverage |
+| `npm run test:memory` (manual) | Memory regression gate (also inside Unit / Pipeline) |
 | `npm run test:e2e:mock` (CI + pre-commit) | Mocked E2E |
 | Push to PR (GitHub Actions) | Everything above + canaries + dead-code + lint + biome + tsc + format + build |
 | Maintainer ad-hoc (`scripts/run-real-suite.ts`) | Real-bank E2E with credentials |
