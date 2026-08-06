@@ -1,3 +1,4 @@
+import type { LoginResults } from '../../Scrapers/Base/BaseScraperHelpers.js';
 import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
@@ -26,15 +27,23 @@ export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
  * credentials, and neither is something a code change can fix. They are
  * reported by `describeSmokeOutcome` so the per-bank mix stays visible rather
  * than silently absorbed.
+ *
+ * <p>Typed as the error-type union rather than `as const`: a bare `as const`
+ * infers a tuple naming `LoginBaseResults`, an enum that is NOT exported from
+ * `BaseScraperHelpers`, so exporting the value fails with TS4023. Widening to
+ * `string[]` would compile but accept any string, defeating the point. The
+ * union keeps the annotation nameable AND non-widening — only real error-type
+ * members may be listed — and membership here is a runtime `toContain` check,
+ * so literal tuple narrowing would buy nothing anyway.
  */
-export const FAILED_LOGIN_TYPES: readonly string[] = [
+export const FAILED_LOGIN_TYPES: readonly (ScraperErrorTypes | LoginResults)[] = [
   LOGIN_RESULTS.InvalidPassword,
   LOGIN_RESULTS.UnknownError,
   ScraperErrorTypes.Generic,
   ScraperErrorTypes.ChangePassword,
   ScraperErrorTypes.WafBlocked,
   ScraperErrorTypes.TwoFactorRetrieverMissing,
-] as const;
+];
 
 /**
  * Emit the outcome so CI logs carry the per-bank error-type mix.

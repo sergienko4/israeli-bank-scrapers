@@ -229,7 +229,11 @@ describe('E2E smoke is a required gate', () => {
     const run = found?.run ?? '';
     const env = found?.env ?? {};
     expect(run).not.toContain(INTERPOLATION_OPEN);
-    expect(env).toHaveProperty('FULL_SUITE');
+    // Assert the exact binding, not merely that the key exists: a hard-coded
+    // `true` or an unrelated expression would satisfy a presence check while
+    // silently decoupling the gate from the real full_suite output.
+    const expectedBinding = INTERPOLATION_OPEN.concat(' needs.changes.outputs.full_suite }}');
+    expect(env.FULL_SUITE).toBe(expectedBinding);
     expect(run).toContain('"$FULL_SUITE"');
   });
 });

@@ -138,11 +138,13 @@ describe('smoke budget: the suite honours the per-bank value', () => {
   it('reports budget headroom for every cell', () => {
     // Without this the suite prints pass/fail only, so a cell running at 95 %
     // of budget is indistinguishable from one at 40 % — exactly how four cells
-    // sat on the cliff while the matrix read "all green". Assert the CALL, not
-    // the bare name: matching the name alone would still pass if only the
-    // now-unused import survived.
-    expect(source).toContain('reportSmokeHeadroom(displayName');
-    expect(source).toContain('budgetMs)');
+    // sat on the cliff while the matrix read "all green". Match the WHOLE call
+    // expression: independent substring checks would still pass if only the
+    // now-unused import survived, or if the budget argument were swapped for
+    // the flat SMOKE_TIMEOUT while `budgetMs` lingered elsewhere in the file.
+    expect(source).toMatch(
+      /reportSmokeHeadroom\(\s*displayName,\s*Date\.now\(\) - startedAt,\s*budgetMs\s*\)/,
+    );
   });
 });
 
