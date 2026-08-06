@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.6.5](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.4...v8.6.5) (2026-08-06)
+
+
+### Bug Fixes
+
+* make the E2E-smoke matrix honest and required ([#454](https://github.com/sergienko4/israeli-bank-scrapers/issues/454)) ([2817e9f](https://github.com/sergienko4/israeli-bank-scrapers/commit/2817e9f8ae36ee193de834bb618ebeed35731ee9))
+
 ## [8.6.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.3...v8.6.4) (2026-08-05)
 
 
