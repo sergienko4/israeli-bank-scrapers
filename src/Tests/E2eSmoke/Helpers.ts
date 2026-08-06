@@ -27,14 +27,14 @@ export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
  * reported by `describeSmokeOutcome` so the per-bank mix stays visible rather
  * than silently absorbed.
  */
-export const FAILED_LOGIN_TYPES: string[] = [
+export const FAILED_LOGIN_TYPES: readonly string[] = [
   LOGIN_RESULTS.InvalidPassword,
   LOGIN_RESULTS.UnknownError,
   ScraperErrorTypes.Generic,
   ScraperErrorTypes.ChangePassword,
   ScraperErrorTypes.WafBlocked,
   ScraperErrorTypes.TwoFactorRetrieverMissing,
-];
+] as const;
 
 /**
  * Emit the outcome so CI logs carry the per-bank error-type mix.

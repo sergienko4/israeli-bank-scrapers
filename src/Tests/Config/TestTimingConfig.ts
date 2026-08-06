@@ -43,6 +43,16 @@ export const SMOKE_TIMEOUT = 180_000;
  */
 export const SMOKE_TIMEOUT_PRE_LOGIN = 420_000;
 
+/** Scraper-internal navigation timeout for the Amex smoke run (ms).
+ *
+ *   Distinct from the jest budgets above: this is passed to `createScraper()`
+ *   as `defaultTimeout`, so it caps each individual Playwright navigation
+ *   rather than the whole test. Amex needs a wider per-navigation ceiling than
+ *   the Playwright default because its multi-frame API login stalls on slow
+ *   frame mounts.
+ */
+export const SMOKE_NAV_TIMEOUT_AMEX = 60_000;
+
 /** Default timeout for async Jest test operations (ms). */
 export const ASYNC_TIMEOUT = 240000;
 

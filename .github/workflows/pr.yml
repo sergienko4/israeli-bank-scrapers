@@ -564,6 +564,11 @@ jobs:
       - name: Verify all gates green
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
+          # Passed via env rather than interpolated into the script body:
+          # a `${{ }}` expansion inside `run:` is a template-injection sink
+          # (zizmor/template-injection), even when the value is
+          # workflow-computed rather than attacker-controlled.
+          FULL_SUITE: ${{ needs.changes.outputs.full_suite }}
         run: |
           set -euo pipefail
           echo "Aggregator inputs:"
@@ -579,7 +584,7 @@ jobs:
           # `if: false` or a matrix wiring mistake would skip all 17 cells and
           # still report this gate green. Demand an explicit success instead.
           SMOKE=$(echo "$NEEDS_JSON" | jq -r '."e2e-smoke".result')
-          if [ "${{ needs.changes.outputs.full_suite }}" = "true" ] && [ "$SMOKE" != "success" ]; then
+          if [ "$FULL_SUITE" = "true" ] && [ "$SMOKE" != "success" ]; then
             echo "::error::Validate gate FAILED — full_suite is on but e2e-smoke reported '$SMOKE' (expected 'success')."
             exit 1
           fi

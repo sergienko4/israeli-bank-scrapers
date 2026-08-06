@@ -53,10 +53,13 @@ const UPLOAD_STEP = 'Upload smoke diagnostics';
 
 /** The `validate` aggregator step that decides the required check. */
 const VERIFY_STEP = 'Verify all gates green';
+/** Opening delimiter of a GitHub Actions expression, built to avoid literal use. */
+const INTERPOLATION_OPEN = '$'.concat('{{');
 
 interface IPrYamlStep {
   readonly name?: string;
   readonly run?: string;
+  readonly env?: Readonly<Record<string, string>>;
   readonly 'continue-on-error'?: boolean;
 }
 
@@ -213,6 +216,21 @@ describe('E2E smoke is a required gate', () => {
     const run = found?.run ?? '';
     expect(run).toContain('"e2e-smoke".result');
     expect(run).toContain('!= "success"');
+  });
+
+  it('reads the full-suite flag from env, not inline interpolation', () => {
+    // A `${{ ... }}` expansion inside a `run:` body is a template-injection
+    // sink (zizmor / CodeQL): the expression is pasted into the shell before
+    // the shell ever sees it. The repo convention is to bind it to `env:` and
+    // dereference `$VAR`, which the shell treats as data. Asserting it here
+    // stops a future edit from quietly reintroducing the sink.
+    const steps = job('validate').steps ?? [];
+    const found = steps.find(step => step.name?.startsWith(VERIFY_STEP) === true);
+    const run = found?.run ?? '';
+    const env = found?.env ?? {};
+    expect(run).not.toContain(INTERPOLATION_OPEN);
+    expect(env).toHaveProperty('FULL_SUITE');
+    expect(run).toContain('"$FULL_SUITE"');
   });
 });
 

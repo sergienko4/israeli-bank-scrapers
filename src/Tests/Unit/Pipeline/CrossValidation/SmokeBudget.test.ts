@@ -20,6 +20,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import PIPELINE_REGISTRY from '../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
 import { SMOKE_TIMEOUT } from '../../../Config/TestTimingConfig.js';
 import { SMOKE_BANKS, SMOKE_EXCLUDED_BANKS } from '../../../E2eSmoke/SmokeConfig.js';
@@ -60,13 +61,21 @@ function isPipelineDriven(bank: SmokeBank): boolean {
  * Resolve the phase names a bank's real pipeline descriptor declares.
  * @param companyId - Company whose pipeline factory to build.
  * @returns Ordered phase names, or an empty list when the bank has no pipeline.
+ * @throws ScraperError when a registered factory fails to build, which would
+ *   otherwise misreport the bank as PRE-LOGIN-free.
  */
 function phaseNamesOf(companyId: SmokeBank['companyId']): readonly string[] {
   const factory = PIPELINE_REGISTRY[companyId];
   if (!factory) return [];
-  const options = makeMockOptions();
-  const built = factory(options);
-  return built.success ? built.value.phases.map((p): string => p.name) : [];
+  const mockOptions = makeMockOptions();
+  const built = factory(mockOptions);
+  if (!built.success) {
+    // Returning [] here would classify the bank as PRE-LOGIN-free and let a
+    // future PRE-LOGIN bank skip the extended-budget check entirely — the
+    // same silent-hole class this suite exists to close.
+    throw new ScraperError(`Could not build pipeline descriptor for ${companyId}`);
+  }
+  return built.value.phases.map((phase): string => phase.name);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { CompanyTypes } from '../../Definitions.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import { SMOKE_TIMEOUT_PRE_LOGIN } from '../Config/TestTimingConfig.js';
+import { SMOKE_NAV_TIMEOUT_AMEX, SMOKE_TIMEOUT_PRE_LOGIN } from '../Config/TestTimingConfig.js';
 import {
   INVALID_CREDS_DISCOUNT,
   INVALID_CREDS_HAPOALIM,
@@ -57,7 +57,7 @@ export const SMOKE_BANKS: readonly IBankSmokeConfig[] = [
     companyId: CompanyTypes.Amex,
     displayName: 'Amex',
     credentials: ID_CARD_PASS,
-    defaultTimeout: 60000,
+    defaultTimeout: SMOKE_NAV_TIMEOUT_AMEX,
     smokeTimeoutMs: SMOKE_TIMEOUT_PRE_LOGIN,
   },
   {
