@@ -12,20 +12,30 @@ export const SCRAPE_TIMEOUT = 900_000;
 
 /** Maximum time allowed for an invalid-credentials smoke test (ms).
  *
- *   180_000 ms = 3 minutes. Smoke tests use *synthetic* invalid creds, so
- *   the bank's auth endpoint MUST reject within reasonable time. Per-bank
- *   floor observed in the matrix CI (fresh ubuntu runner + camoufox cold
- *   start + Israel-bank network latency):
- *     - fast banks  (Mizrahi/OneZero/Yahav/Mercantile): 30-90s
- *     - slow banks  (Hapoalim/VisaCal/Beinleumi/Amex/Isracard/Max/Leumi
- *                    /Discount/Massad/OtsarHahayal/Pagi): 90-180s
- *   These slow banks run multi-step Angular SPA logins (cal-online stack,
- *   Hapoalim Angular, Beinleumi modal, Amex/Isracard multi-frame API)
- *   that legitimately need 2-3 minutes for invalid-creds round trips.
- *   We hard-cap at 180s to catch CAPTCHA-loops / WAF stalls / true
- *   network hangs FAST instead of burning SCRAPE_TIMEOUT (15min).
+ *   300_000 ms = 5 minutes. Smoke tests use *synthetic* invalid creds, so the
+ *   bank's auth endpoint MUST reject within a bounded time; this cap exists to
+ *   catch CAPTCHA loops, WAF stalls and true network hangs FAST rather than
+ *   burning SCRAPE_TIMEOUT (15 min).
+ *
+ *   <p>Raised from 180_000 after measuring the real jest durations of all 17
+ *   matrix cells across consecutive CI runs. The flat 180 s cap was not a
+ *   ceiling with headroom — it was sitting *on* the FIBI group:
+ *     Otsar Hahayal 180 s (killed)   Pagi 180 s (killed)
+ *     Massad        171 s (95 %)     Leumi 166 s (92 %)
+ *     Yahav         125 s (70 %)     Hapoalim 116 s (64 %)
+ *   Everything else finishes under 110 s. A run where all 17 cells passed was
+ *   therefore luck, not proof: four cells were within 8 % of the cliff, so the
+ *   gate would have flapped red on ordinary bank-latency variance once it
+ *   became a required merge check.
+ *
+ *   <p>300 s is ~1.67x the observed 180 s ceiling — the same headroom ratio
+ *   `SMOKE_TIMEOUT_PRE_LOGIN` gives its own 254 s peak — and still only a third
+ *   of SCRAPE_TIMEOUT, so a genuine hang stays bounded. `reportSmokeHeadroom`
+ *   now prints each cell's budget usage and annotates any run above
+ *   `SMOKE_HEADROOM_WARN_RATIO`, so the next bank to creep toward the cap is
+ *   visible BEFORE it turns the gate red.
  */
-export const SMOKE_TIMEOUT = 180_000;
+export const SMOKE_TIMEOUT = 300_000;
 
 /** Smoke budget for banks that run a PRE-LOGIN phase (ms).
  *

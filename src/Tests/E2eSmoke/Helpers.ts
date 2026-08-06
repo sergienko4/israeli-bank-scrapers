@@ -51,6 +51,42 @@ function describeSmokeOutcome(result: IScraperScrapingResult): string {
 }
 
 /**
+ * Fraction of a cell's budget above which the run is treated as at-risk.
+ *
+ * <p>0.75 sits above every healthy cell's measured usage and below the 92-100 %
+ * band that produced the Otsar Hahayal / Pagi failures, so it fires on a bank
+ * drifting toward its cap without firing on normal variance.
+ */
+export const SMOKE_HEADROOM_WARN_RATIO = 0.75;
+
+/**
+ * Report how much of its budget a smoke cell consumed.
+ *
+ * <p>WHY THIS EXISTS — a cell at 95 % of budget passes green and looks
+ * identical to one at 40 %. That is how a matrix with four cells sitting on the
+ * cliff was read as "all 17 green". Emitting the ratio, and annotating the
+ * at-risk band, turns a silent near-miss into a visible signal one run BEFORE
+ * it becomes a red required gate.
+ * @param bank - Display name of the bank being reported.
+ * @param elapsedMs - Wall time the scrape actually consumed.
+ * @param budgetMs - Budget the cell was given.
+ * @returns Percentage of the budget consumed, rounded.
+ */
+export function reportSmokeHeadroom(bank: string, elapsedMs: number, budgetMs: number): number {
+  const usedRatio = elapsedMs / budgetMs;
+  const usedPct = Math.round(usedRatio * 100);
+  process.stdout.write(
+    `[smoke] bank=${bank} elapsedMs=${String(elapsedMs)} budgetMs=${String(budgetMs)} used=${String(usedPct)}%\n`,
+  );
+  if (usedRatio >= SMOKE_HEADROOM_WARN_RATIO) {
+    process.stdout.write(
+      `::warning title=Smoke budget headroom::${bank} used ${String(usedPct)}% of its budget\n`,
+    );
+  }
+  return usedPct;
+}
+
+/**
  * Assert that a scrape result indicates a failed login.
  * @param result - The scraper result to validate.
  * @returns True when all assertions pass.

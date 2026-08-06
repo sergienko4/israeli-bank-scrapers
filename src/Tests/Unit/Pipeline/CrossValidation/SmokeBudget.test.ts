@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import PIPELINE_REGISTRY from '../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
 import { SMOKE_TIMEOUT } from '../../../Config/TestTimingConfig.js';
+import { SMOKE_HEADROOM_WARN_RATIO } from '../../../E2eSmoke/Helpers.js';
 import { SMOKE_BANKS, SMOKE_EXCLUDED_BANKS } from '../../../E2eSmoke/SmokeConfig.js';
 import { makeMockOptions } from '../Infrastructure/MockFactories.js';
 
@@ -132,6 +133,42 @@ describe('smoke budget: the suite honours the per-bank value', () => {
 
   it('falls back to SMOKE_TIMEOUT when a bank declares no budget', () => {
     expect(source).toContain('smokeTimeoutMs ?? SMOKE_TIMEOUT');
+  });
+
+  it('reports budget headroom for every cell', () => {
+    // Without this the suite prints pass/fail only, so a cell running at 95 %
+    // of budget is indistinguishable from one at 40 % — exactly how four cells
+    // sat on the cliff while the matrix read "all green". Assert the CALL, not
+    // the bare name: matching the name alone would still pass if only the
+    // now-unused import survived.
+    expect(source).toContain('reportSmokeHeadroom(displayName');
+    expect(source).toContain('budgetMs)');
+  });
+});
+
+describe('smoke budget: headroom telemetry', () => {
+  it('warns below the band that produced the observed failures', () => {
+    // Otsar Hahayal and Pagi failed at 100 % and Massad ran at 95 %. The
+    // threshold must fire inside that band, and low enough to give a run of
+    // warning before the cell turns red.
+    expect(SMOKE_HEADROOM_WARN_RATIO).toBeLessThan(0.92);
+    expect(SMOKE_HEADROOM_WARN_RATIO).toBeGreaterThan(0.5);
+  });
+
+  it('leaves the healthiest measured cells unflagged', () => {
+    // Hapoalim's measured peak is 116 s. Under the 300 s budget that is 39 %,
+    // so a correct threshold must not annotate it.
+    const hapoalimPeakMs = 116_000;
+    const usedRatio = hapoalimPeakMs / SMOKE_TIMEOUT;
+    expect(usedRatio).toBeLessThan(SMOKE_HEADROOM_WARN_RATIO);
+  });
+
+  it('gives the previously failing cells real headroom', () => {
+    // Otsar Hahayal and Pagi were killed at 180 s. The new budget must leave
+    // them comfortably inside the warn threshold, not merely inside the cap.
+    const observedCeilingMs = 180_000;
+    const usedRatio = observedCeilingMs / SMOKE_TIMEOUT;
+    expect(usedRatio).toBeLessThan(SMOKE_HEADROOM_WARN_RATIO);
   });
 });
 
