@@ -20,10 +20,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import PIPELINE_REGISTRY from '../../../../Scrapers/Pipeline/Banks/PipelineRegistry.js';
 import { SMOKE_TIMEOUT } from '../../../Config/TestTimingConfig.js';
-import { SMOKE_HEADROOM_WARN_RATIO } from '../../../E2eSmoke/Helpers.js';
+import { FAILED_LOGIN_TYPES, SMOKE_HEADROOM_WARN_RATIO } from '../../../E2eSmoke/Helpers.js';
 import { SMOKE_BANKS, SMOKE_EXCLUDED_BANKS } from '../../../E2eSmoke/SmokeConfig.js';
 import { makeMockOptions } from '../Infrastructure/MockFactories.js';
 
@@ -171,6 +172,32 @@ describe('smoke budget: headroom telemetry', () => {
     const observedCeilingMs = 180_000;
     const usedRatio = observedCeilingMs / SMOKE_TIMEOUT;
     expect(usedRatio).toBeLessThan(SMOKE_HEADROOM_WARN_RATIO);
+  });
+});
+
+describe('smoke budget: a timeout never scores as a pass', () => {
+  it('excludes Timeout from the accepted failure types', () => {
+    // The budgets only mean anything if a run that never reached a login
+    // verdict fails. Accepting Timeout would let a raised budget convert a
+    // hang into a green required gate — the silent-green mode these budgets
+    // exist to remove. The narrowed annotation on FAILED_LOGIN_TYPES makes
+    // adding it a compile error; this proves the runtime list agrees.
+    expect(FAILED_LOGIN_TYPES).not.toContain(ScraperErrorTypes.Timeout);
+  });
+
+  it('accepts only outcomes that reached a real verdict', () => {
+    // Pins the whole set: a future edit that quietly admits NetworkError or
+    // AccountBlocked would also let an unreached-verdict run score green.
+    const accepted = [...FAILED_LOGIN_TYPES].sort();
+    const expected = [
+      'CHANGE_PASSWORD',
+      'GENERIC',
+      'INVALID_PASSWORD',
+      'TWO_FACTOR_RETRIEVER_MISSING',
+      'UNKNOWN_ERROR',
+      'WAF_BLOCKED',
+    ].sort();
+    expect(accepted).toStrictEqual(expected);
   });
 });
 

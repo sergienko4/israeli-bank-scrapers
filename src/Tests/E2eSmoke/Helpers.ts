@@ -28,15 +28,17 @@ export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
  * reported by `describeSmokeOutcome` so the per-bank mix stays visible rather
  * than silently absorbed.
  *
- * <p>Typed as the error-type union rather than `as const`: a bare `as const`
- * infers a tuple naming `LoginBaseResults`, an enum that is NOT exported from
- * `BaseScraperHelpers`, so exporting the value fails with TS4023. Widening to
- * `string[]` would compile but accept any string, defeating the point. The
- * union keeps the annotation nameable AND non-widening — only real error-type
- * members may be listed — and membership here is a runtime `toContain` check,
- * so literal tuple narrowing would buy nothing anyway.
+ * <p>Typed as `LoginResults` plus the two non-login members actually used,
+ * rather than `as const`: a bare `as const` infers a tuple naming
+ * `LoginBaseResults`, an enum that is NOT exported from `BaseScraperHelpers`,
+ * so exporting the value fails with TS4023. Widening to `string[]`, or to the
+ * whole `ScraperErrorTypes` enum, would compile but let `Timeout` back in and
+ * silently undo the contract above. `LoginResults` already excludes `Timeout`,
+ * so this annotation makes that exclusion a compile error, not a comment.
  */
-export const FAILED_LOGIN_TYPES: readonly (ScraperErrorTypes | LoginResults)[] = [
+export const FAILED_LOGIN_TYPES: readonly (
+  LoginResults | ScraperErrorTypes.Generic | ScraperErrorTypes.WafBlocked
+)[] = [
   LOGIN_RESULTS.InvalidPassword,
   LOGIN_RESULTS.UnknownError,
   ScraperErrorTypes.Generic,
