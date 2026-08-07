@@ -202,6 +202,39 @@ export interface IPipelineBankConfig {
    */
   readonly installDiscoveredHeaders?: boolean;
   /**
+   * Scope the discovered-header donor pool to the bank's own data-API family.
+   *
+   * <p>`buildDiscoveredHeadersFromCapture` adopts the FIRST captured request
+   * carrying a wanted header. When a bank's login journey spans several
+   * origins — VisaCal touches a marketing site, an SSO origin and the SPA —
+   * that can donate a header minted for a DIFFERENT service, and the gateway
+   * rejects the call with an opaque 5xx that reads like an expired session.
+   * Declaring the data-API substring (e.g. `'api.cal-online.co.il'`) makes a
+   * wrong-family donor impossible: only requests the SPA sent to the very API
+   * we are about to call may donate. Their `Origin` / `Referer` are then
+   * correct by construction too.
+   *
+   * <p>Same rule as {@link authHeaderUrlMatch}, applied to the negotiation
+   * headers rather than the Authorization header. Absent ⇒ unscoped (every
+   * bank that has not opted in keeps its existing behaviour).
+   */
+  readonly discoveredHeadersUrlMatch?: string;
+  /**
+   * Values for discovered headers the scoped pool could not supply.
+   *
+   * <p>A last-resort fallback, never an override — discovery always wins, so
+   * a pin only fills a GAP. It exists because a bank's SPA can stop issuing
+   * the request we harvest (a server-side change we cannot control), which
+   * would otherwise leave a REQUIRED header absent. Pinning keeps the scrape
+   * working, and the accompanying `LOG.warn` breadcrumb names which header
+   * fell back so the regression is visible rather than silent.
+   *
+   * <p>Only ever hold values the bank's own client compiles in as constants
+   * (VisaCal's `X-Site-Id` is an Angular class field, and its `Origin` /
+   * `Referer` are its fixed SPA origin). Absent ⇒ no fallback.
+   */
+  readonly pinnedDiscoveredHeaders?: Readonly<Record<string, string>>;
+  /**
    * Post-login auth-header sniff — for banks whose API Bearer is injected by the
    * SPA's own HTTP interceptor and appears in NO login response body nor a
    * parseable sessionStorage shape (FIBI's `appsng` BFF: the token rides only

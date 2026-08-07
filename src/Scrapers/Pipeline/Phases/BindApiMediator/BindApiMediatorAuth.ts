@@ -25,6 +25,10 @@ import type { IApiMediator } from '../../Mediator/Api/ApiMediator.types.js';
 import { discoverFromHeaders } from '../../Mediator/Network/AuthDiscovery/HeadersTier.js';
 import discoverAuthThreeTier from '../../Mediator/Network/AuthDiscovery/Orchestrator.js';
 import buildDiscoveredHeadersFromCapture from '../../Mediator/Network/DiscoveryHeaders/DiscoveryHeaders.js';
+import {
+  applyPinnedHeaders,
+  scopeHeaderDonorPool,
+} from '../../Mediator/Network/DiscoveryHeaders/HeaderPolicy.js';
 import type { IDiscoveredEndpoint } from '../../Mediator/Network/Types/Endpoint.js';
 import type { IPipelineBankConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 
@@ -108,7 +112,11 @@ async function primeTokenAuth(
  * Build the discovered-header bag installed on every hard-model call for banks
  * that opt in via `installDiscoveredHeaders`. Reuses the proven generic
  * `buildDiscoveredHeadersFromCapture` (SPA content-negotiation headers +
- * Origin / Referer / X-Site-Id, plus the token as Authorization when found).
+ * Origin / Referer / X-Site-Id, plus the token as Authorization when found),
+ * under the bank's declared donor policy: the pool is first scoped to the
+ * bank's own data-API family so a wrong-family header can never be adopted,
+ * then any header the scoped pool did not supply falls back to its configured
+ * pin. Both knobs are absent for most banks, leaving their bag unchanged.
  * Returns an empty bag — a transparent pass-through — when not opted in.
  * @param config - Resolved bank config carrying `installDiscoveredHeaders`.
  * @param pool - Login-inclusive capture pool the headers are drawn from.
@@ -121,8 +129,9 @@ function buildDiscoveredHeaderBag(
   token: string | false,
 ): Record<string, string> {
   if (!config.installDiscoveredHeaders) return {};
-  const opts = buildDiscoveredHeadersFromCapture(pool, token);
-  return opts.extraHeaders;
+  const scoped = scopeHeaderDonorPool(pool, config.discoveredHeadersUrlMatch);
+  const opts = buildDiscoveredHeadersFromCapture(scoped, token);
+  return applyPinnedHeaders(opts.extraHeaders, config.pinnedDiscoveredHeaders);
 }
 
 export default primeTokenAuth;

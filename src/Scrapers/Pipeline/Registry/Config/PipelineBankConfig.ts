@@ -7,6 +7,7 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import { ANGULAR_LOGIN_POLL } from '../../Mediator/Timing/LoginTimingConfig.js';
+import { calConfig } from './PipelineBankConfigCal.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
   AuthStrategyKind,
@@ -108,10 +109,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     ...defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
     bancsSessionCapture: true,
   },
-  [CompanyTypes.VisaCal]: {
-    ...defineBank('https://www.cal-online.co.il/', CARD_CYCLE, TOKEN),
-    installDiscoveredHeaders: true,
-  },
+  [CompanyTypes.VisaCal]: calConfig('https://www.cal-online.co.il/'),
   [CompanyTypes.Amex]: {
     urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,
