@@ -196,36 +196,79 @@ describe('PayBoxShape auth envelope', () => {
 });
 
 describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
-  it('flips amount sign for outgoing-type rows', () => {
+  it('negates the magnitude for debit-type rows (pay)', () => {
     const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
       _id: 'fixt-0',
       ts: '2026-01-01T00:00:00.000Z',
       amt: 50,
-      type: 'outgoingTransaction',
+      type: 'pay',
     });
     expect(mapped.chargedAmount).toBe(-50);
     expect(mapped.originalAmount).toBe(-50);
   });
 
-  it('keeps incoming-type amount positive and maps `done` state to Completed', () => {
+  it('negates the magnitude for a wallet purchase (money leaves the balance)', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-0b',
+      ts: '2026-01-02T00:00:00.000Z',
+      amt: 30,
+      type: 'purchase',
+      state: 'clearance',
+    });
+    expect(mapped.chargedAmount).toBe(-30);
+    expect(mapped.status).toBe('completed');
+  });
+
+  it('keeps credit-type amount positive and reads an absent state as Completed', () => {
     const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
       _id: 'fixt-1',
       ts: '2026-02-02T00:00:00.000Z',
       amt: 25,
       type: 'incomingTransaction',
-      state: 'done',
     });
     expect(mapped.chargedAmount).toBe(25);
     expect(mapped.status).toBe('completed');
   });
 
-  it('maps non-done state to Pending (only Completed/Pending are canonical)', () => {
+  it('keeps a top-up positive (money enters the balance)', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-1b',
+      ts: '2026-02-03T00:00:00.000Z',
+      amt: 200,
+      type: 'topUp',
+    });
+    expect(mapped.chargedAmount).toBe(200);
+  });
+
+  it('forces interest income positive even on a debit-looking type (subType wins)', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-1c',
+      ts: '2026-02-04T00:00:00.000Z',
+      amt: 3,
+      type: 'purchase',
+      subType: 'interestIncome',
+    });
+    expect(mapped.chargedAmount).toBe(3);
+  });
+
+  it('maps a filtered purchase to Pending (not yet settled)', () => {
     const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
       _id: 'fixt-2',
       ts: '2026-03-03T00:00:00.000Z',
       amt: 10,
-      type: 'incomingTransaction',
-      state: 'pending',
+      type: 'purchase',
+      state: 'filtered',
+    });
+    expect(mapped.status).toBe('pending');
+  });
+
+  it('maps a rejected purchase to Pending', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-2b',
+      ts: '2026-03-04T00:00:00.000Z',
+      amt: 10,
+      type: 'purchase',
+      state: 'rejected',
     });
     expect(mapped.status).toBe('pending');
   });
