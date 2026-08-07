@@ -36,6 +36,32 @@ PayBox sends no `Authorization` header after login, so `/getUserHistory` identif
 
 > **Note:** the balance step's `fallbackOnFail: 0` reports the 400 as a zero balance, so a degraded `/sync` is expected and is not by itself a failure. See [Response digest](../observability/response-digest.md) for reading what the server actually objected to.
 
+## HMAC request signing (getKey bootstrap)
+
+PayBox's API rejects authenticated reads (e.g. `/getUserHistory`) with
+`401 "missing signature headers"` unless each request carries
+`X-Timestamp`, `X-Nonce` and an HMAC-SHA256 `X-Signature` over the
+canonical request. The signing key is **per-session**: it is not the
+login token but a 32-byte key delivered — AES-CBC encrypted — by an
+unsigned `getKey` exchange call the client makes first.
+
+The generic [`bootstrap` step](../phases/api-direct-scrape.md#bootstrap--one-shot-session-context-seeding)
+runs `getKey` before the account walk. `getKeyVars()`
+(`scrape/PayBoxBootstrap.ts`) builds the unsigned exchange request's
+auth envelope; `extractHmacKeyPatch()` derives the AES key from the
+caller's phone (formatted `international-dash`) plus the static
+key-exchange salt, decrypts the exchange ciphertext into the raw HMAC
+key, and returns a session-context patch carrying the key and its
+signer. The mediator then signs every subsequent data request. The
+derivation is fail-closed: a wrong seed/salt or an unexpected exchange
+envelope aborts the run rather than scraping unsigned, and the HMAC key
+is never logged.
+
+The crypto primitives are generic and bank-agnostic (no bank-name
+strings): `HmacKeyExchange` (derive + decrypt) and `HmacRequestSigner`
+(canonical + sign) live under `Mediator/ApiDirectCall/Crypto`; the seed
+formatting, salt and header names live in `Registry/Config`.
+
 ## Wallet history rows
 
 ### Pagination re-serves the first page

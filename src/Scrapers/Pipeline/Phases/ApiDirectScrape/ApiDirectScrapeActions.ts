@@ -16,6 +16,7 @@ import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import runBootstrap from './ApiDirectScrapeBootstrap.js';
 import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
 import runPrime from './ApiDirectScrapePrime.js';
 import {
@@ -123,6 +124,8 @@ async function runScrape<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
   await runPrime(d);
+  const primed = await runBootstrap(d);
+  if (!isOk(primed)) return primed;
   const accts = await fetchAccounts(d);
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);

@@ -8,7 +8,7 @@ import type { PostData } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type {
-  IApiMediatorDeps,
+  IFireGetArgs,
   IFirePostArgs,
   IFireQueryArgs,
   IGraphQLEnvelope,
@@ -119,18 +119,12 @@ async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
 
 /**
  * Execute apiGet after URL resolution has succeeded.
- * @param deps - Bundled collaborators.
- * @param url - Resolved URL.
- * @param rawAuth - Current Authorization header value.
+ * @param args - Bundled fireGet arguments (deps + url + auth + extras).
  * @returns Typed Procedure from the transport.
  */
-async function fireGet<T>(
-  deps: IApiMediatorDeps,
-  url: string,
-  rawAuth: string,
-): Promise<Procedure<T>> {
-  const extraHeaders = buildHeaders(rawAuth);
-  return deps.fetchStrategy.fetchGet<T>(url, { extraHeaders });
+async function fireGet<T>(args: IFireGetArgs): Promise<Procedure<T>> {
+  const extraHeaders = mergeHeaders(args.rawAuth, args.extraHeaders);
+  return args.deps.fetchStrategy.fetchGet<T>(args.url, { extraHeaders });
 }
 
 /**

@@ -6,13 +6,13 @@
  * post-login session-context (uId). PayBox has no `/getAccounts`
  * endpoint; the login already gives us everything we need.
  *
- * Balance step: POST `/sync` (class-y body) — same call shared by both
- * wallet + debit accounts. PayBox's `/sync` returns one `userFunds.balance`
- * for the wallet; the debit virtual card has its own balance via the
- * pre-paid float but we report the wallet balance for both
- * (debit txns deduct from the wallet — the user's mental model). The
- * balance call is signed via the shared shape-level AES signer at
- * `/auth/signature`.
+ * Balance step: SKIPPED (`skipFetch: true`). PayBox's `/sync` answers
+ * HTTP 400 for every body shape tried, so it never yields a balance —
+ * and the rejection poisons the session: `/getUserHistory` then answers
+ * `401 UNAUTHORIZED` within ~200 ms. Removing the `auth` envelope from
+ * its body was not enough (the 400 alone suffices), so the call is not
+ * made at all and `balanceExtract` runs against `{}` for a deterministic
+ * 0. See {@link balanceVars} for the forensic trail.
  *
  * Transactions step: dispatches per acct.kind via the function-form
  * `urlTag` (wallet → /getUserHistory, debit → /virtualCardTranRequest).
@@ -28,6 +28,7 @@ import {
   PAYBOX_SCRAPE_SIGNER,
   PAYBOX_SECRETS,
 } from '../../../Registry/Config/PipelineBankConfigPayBoxCrypto.js';
+import { extractHmacKeyPatch, getKeyVars } from './PayBoxBootstrap.js';
 import { payBoxResultGuard } from './PayBoxResultGuard.js';
 import {
   accountNumberOf,
@@ -45,6 +46,11 @@ const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
   signer: PAYBOX_SCRAPE_SIGNER,
   secrets: PAYBOX_SECRETS,
   accountNumberOf,
+  bootstrap: {
+    urlTag: 'data.getKey',
+    buildVars: getKeyVars,
+    extractPatch: extractHmacKeyPatch,
+  },
   customer: {
     skipFetch: true,
     buildVars: customerVars,
@@ -52,6 +58,7 @@ const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
   },
   balance: {
     urlTag: 'data.sync',
+    skipFetch: true,
     buildVars: balanceVars,
     extract: balanceExtract,
     fallbackOnFail: 0,

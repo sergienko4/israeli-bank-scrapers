@@ -82,6 +82,14 @@ interface IFirePostArgs {
   readonly onSetCookie?: (setCookies: readonly string[]) => number;
 }
 
+/** Args for fireGet — bundled so extraHeaders (HMAC) fit the 3-param ceiling. */
+interface IFireGetArgs {
+  readonly deps: IApiMediatorDeps;
+  readonly url: string;
+  readonly rawAuth: string;
+  readonly extraHeaders: Record<string, string>;
+}
+
 /** Args for fireQuery — bundled to satisfy the 3-parameter ceiling. */
 interface IFireQueryArgs {
   readonly deps: IApiMediatorDeps;
@@ -172,6 +180,7 @@ export type {
   IApiQueryOpts,
   IAuthMethods,
   ICallMethods,
+  IFireGetArgs,
   IFirePostArgs,
   IFireQueryArgs,
   IGraphQLEnvelope,

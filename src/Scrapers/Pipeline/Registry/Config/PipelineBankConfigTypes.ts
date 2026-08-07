@@ -18,6 +18,7 @@ export type AuthPathKey =
   | 'auth.assert'
   | 'auth.logout'
   | 'data.sync'
+  | 'data.getKey'
   | 'data.getUserHistory'
   | 'data.virtualCardTranRequest';
 

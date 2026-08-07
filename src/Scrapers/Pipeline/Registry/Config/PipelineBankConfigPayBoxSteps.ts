@@ -34,7 +34,7 @@ const DEVICE_INFO = {
   osVer: { $literal: '13' as const },
   platform: { $literal: 'google sdk_gphone64_x86_64' as const },
   platformVer: { $literal: 'TE1A.240213.009' as const },
-  appVer: { $literal: '5.6.6' as const },
+  appVer: { $literal: '5.7.3' as const },
   uuid: { $ref: 'carry.deviceId16Hex' as const },
 } as const;
 

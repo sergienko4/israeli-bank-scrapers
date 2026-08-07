@@ -160,6 +160,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
         'identity.pinValidation': 'https://apipin.payboxapp.com/api/2.0/pinValidation',
         'identity.loginBySms': 'https://apipin.payboxapp.com/api/2.0/loginBySms',
         'data.sync': 'https://apipin.payboxapp.com/api/2.0/sync',
+        'data.getKey': 'https://apipin.payboxapp.com/api/2.0/getKey',
         'data.getUserHistory': 'https://apipin.payboxapp.com/api/2.0/getUserHistory',
         'data.virtualCardTranRequest':
           'https://apipin.payboxapp.com/api/2.0/virtualCardTranRequest',

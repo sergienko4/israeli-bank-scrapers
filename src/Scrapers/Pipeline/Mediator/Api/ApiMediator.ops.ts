@@ -8,6 +8,7 @@ import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import { resolveWkUrl } from '../../Registry/WK/UrlsWK.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
+import { buildHmacHeaders } from './ApiMediator.hmacHeaders.js';
 import { retryOn401Op } from './ApiMediator.retry.js';
 import { fireGet, firePost, fireQuery, NO_EXTRA_HEADERS } from './ApiMediator.transport.js';
 import type {
@@ -33,22 +34,40 @@ function buildFirePostExtras(
   };
 }
 
+/** Optional-extras subset merged into firePost args. */
+type FirePostExtras = Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie'>;
+
+/**
+ * Merge the per-request HMAC signature headers into the POST extras.
+ * @param args - apiPost op args (carries session context + body).
+ * @param url - Resolved POST URL.
+ * @param extras - Base optional-extras subset.
+ * @returns Extras with HMAC headers folded into `extraHeaders`.
+ */
+function withHmacExtras(args: IApiPostOpArgs, url: string, extras: FirePostExtras): FirePostExtras {
+  const hmac = buildHmacHeaders({
+    session: args.ctx.state.sessionContext,
+    method: 'POST',
+    url,
+    body: args.body,
+  });
+  return { ...extras, extraHeaders: { ...extras.extraHeaders, ...hmac } };
+}
+
 /**
  * Build the per-attempt firePost args so retry-on-401 can re-read
- * `state.rawAuth` after a refresh installs a new header.
+ * `state.rawAuth` after a refresh installs a new header. HMAC signature
+ * headers are (re)computed here so each attempt carries a fresh
+ * timestamp + nonce.
  * @param args - apiPost op args.
  * @param urlValue - Resolved URL.
  * @returns Fresh firePost args.
  */
 function buildFirePostArgs(args: IApiPostOpArgs, urlValue: string): IFirePostArgs {
-  const extras = buildFirePostExtras(args);
-  return {
-    deps: args.ctx.deps,
-    url: urlValue,
-    body: args.body,
-    rawAuth: args.ctx.state.rawAuth,
-    ...extras,
-  };
+  const baseExtras = buildFirePostExtras(args);
+  const extras = withHmacExtras(args, urlValue, baseExtras);
+  const { ctx, body } = args;
+  return { deps: ctx.deps, url: urlValue, body, rawAuth: ctx.state.rawAuth, ...extras };
 }
 
 /**
@@ -81,7 +100,18 @@ async function apiPostOp<T>(args: IApiPostOpArgs): Promise<Procedure<T>> {
 }
 
 /**
- * Build the per-attempt fireOnce for `apiGet`.
+ * Build the empty-body HMAC headers for a GET attempt.
+ * @param ctx - Per-call context.
+ * @param url - Resolved GET URL.
+ * @returns HMAC header map (empty when no key is set).
+ */
+function buildGetHmacHeaders(ctx: IApiCallContext, url: string): Record<string, string> {
+  return buildHmacHeaders({ session: ctx.state.sessionContext, method: 'GET', url });
+}
+
+/**
+ * Build the per-attempt fireOnce for `apiGet`. GET bodies are empty, so
+ * the HMAC body hash is the empty-body constant.
  * @param ctx - Per-call context.
  * @param urlValue - Resolved URL.
  * @returns Async fire-once callable.
@@ -90,7 +120,10 @@ function makeApiGetFireOnce<T>(
   ctx: IApiCallContext,
   urlValue: string,
 ): () => Promise<Procedure<T>> {
-  return async (): Promise<Procedure<T>> => fireGet<T>(ctx.deps, urlValue, ctx.state.rawAuth);
+  return async (): Promise<Procedure<T>> => {
+    const extraHeaders = buildGetHmacHeaders(ctx, urlValue);
+    return fireGet<T>({ deps: ctx.deps, url: urlValue, rawAuth: ctx.state.rawAuth, extraHeaders });
+  };
 }
 
 /**

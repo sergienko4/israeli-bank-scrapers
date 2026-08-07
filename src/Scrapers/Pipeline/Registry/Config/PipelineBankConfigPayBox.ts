@@ -106,7 +106,7 @@ const PAYBOX_AUTH_ENVELOPE_DEFAULTS: Readonly<{
   readonly os: string;
   readonly type: string;
 }> = Object.freeze({
-  appVer: '5.6.6',
+  appVer: '5.7.3',
   os: 'android-13',
   type: 'pb',
 });

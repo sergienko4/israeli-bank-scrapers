@@ -79,17 +79,20 @@ export function customerVars(): VarsMap {
 }
 
 /**
- * Balance vars builder — `/sync` takes no per-account variables.
+ * Balance vars builder — the `/sync` call is skipped, so this is only
+ * consulted if a future caller flips `skipFetch` off.
  *
- * <p>`/sync` MUST NOT carry the class-y `auth: { … }` envelope. It is
- * answered with HTTP 400 either way, but a 400 on a body that carried
- * the live `access_token` makes PayBox reject every later call in the
- * session: `/getUserHistory` then answers `401 UNAUTHORIZED` (and
- * `404 UNAUTHORIZED_TOKEN` on a warm token) instead of returning rows.
- * Forensic run 31015484475 shows the token minted 355 ms earlier by a
- * successful `loginBySms` refused immediately after `/sync` 400'd.
- * Sending no envelope keeps the rejection inert: `fallbackOnFail: 0`
- * degrades the balance to 0 and the transaction scrape still succeeds.
+ * <p>`/sync` answers HTTP 400 `{"errors":"Validation Error"}` for every
+ * body shape tried — including an empty object — so its schema is opaque
+ * and it never yields a balance. The call is therefore skipped outright
+ * and the balance degrades to a deterministic 0.
+ *
+ * <p>An earlier revision of this note claimed the `/sync` 400 also
+ * *poisoned* the session, causing the later `/getUserHistory` to answer
+ * `401`. That is disproven: forensic run 31158757897 skipped `/sync`
+ * entirely and `/getUserHistory` still answered `401`. The two failures
+ * are independent — see {@link txnsExtractPage}'s note on the
+ * server-side signature-header requirement for the real cause.
  * @returns Empty variables map.
  */
 export function balanceVars(): VarsMap {
