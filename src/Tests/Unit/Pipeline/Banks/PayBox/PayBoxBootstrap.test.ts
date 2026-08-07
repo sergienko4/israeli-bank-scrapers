@@ -24,6 +24,7 @@ import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import {
   ctxOf,
+  ctxOfNoPhone,
   ctxOfWithPhone,
   FIXT_GETKEY_TSIV,
   FIXT_GETKEY_TSKEY,
@@ -63,6 +64,21 @@ describe('PayBoxBootstrap — getKey crypto (edge)', () => {
   it('fails closed when tsKey/tsIv are missing', () => {
     const ctx = freshCtx();
     const result = extractHmacKeyPatch({ body: { content: {} }, ctx });
+    expect(result.success).toBe(false);
+  });
+
+  it('fails closed when content is null, summarising the numeric code', () => {
+    const ctx = freshCtx();
+    const result = extractHmacKeyPatch({ body: { content: null, code: 7 }, ctx });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('code=7');
+    }
+  });
+
+  it('fails closed when the caller context carries no phone number', () => {
+    const bus = makePayBoxBus({});
+    const result = extractHmacKeyPatch({ body: GOOD_BODY, ctx: ctxOfNoPhone(bus) });
     expect(result.success).toBe(false);
   });
 

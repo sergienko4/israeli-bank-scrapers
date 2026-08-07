@@ -132,3 +132,15 @@ export function ctxOfWithPhone(bus: IApiMediator, phone: string): IActionContext
 export function ctxOf(bus: IApiMediator): IActionContext {
   return ctxOfWithPhone(bus, FIXT_PHONE);
 }
+
+/**
+ * Build an IActionContext whose credentials carry NO phoneNumber, so the
+ * getKey bootstrap's phone read falls back to empty and key derivation
+ * fails closed. Exercises the missing-credential edge.
+ * @param bus - Mock mediator.
+ * @returns Action context with credential-less phone.
+ */
+export function ctxOfNoPhone(bus: IApiMediator): IActionContext {
+  const base = makeMockContext({ apiMediator: some(bus) });
+  return { ...base, credentials: {} } as unknown as IActionContext;
+}

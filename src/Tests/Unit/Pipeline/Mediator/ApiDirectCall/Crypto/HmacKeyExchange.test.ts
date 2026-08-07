@@ -10,6 +10,8 @@
  * round-trips without embedding any real user PII in the repo.
  */
 
+import { createCipheriv } from 'node:crypto';
+
 import {
   decryptExchangedHmacKey,
   deriveExchangeKey,
@@ -73,6 +75,23 @@ describe('HmacKeyExchange.decryptExchangedHmacKey (synthetic vector)', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('key-exchange decrypt failed');
+    }
+  });
+
+  it('fails when the decrypted plaintext is not a 32-byte hex key', () => {
+    const keyBytes = deriveExchangeKey({ seed: SEED, salt: SALT, length: 32, padChar: 'a' });
+    const iv = Buffer.from(IV_HEX, 'hex');
+    const cipher = createCipheriv('aes-256-cbc', keyBytes, iv);
+    const shortHexPlaintext = '0011';
+    const ct = Buffer.concat([cipher.update(shortHexPlaintext, 'utf8'), cipher.final()]);
+    const result = decryptExchangedHmacKey({
+      ciphertextB64: ct.toString('base64'),
+      ivHex: IV_HEX,
+      keyBytes,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('32 bytes');
     }
   });
 });

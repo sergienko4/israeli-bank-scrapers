@@ -125,6 +125,21 @@ describe('HmacRequestSigner.signRequest (composition)', () => {
       expect(result.value.bodyHash).toBe(EMPTY_BODY_HASH);
     }
   });
+
+  it('fails closed when the HMAC key is not 32 bytes', () => {
+    const result = signRequest({
+      method: 'POST',
+      path: '/api/2.0/getUserHistory',
+      bodyBytes: Buffer.from('{}', 'utf8'),
+      hmacKey: Buffer.from('short', 'utf8'),
+      timestamp: '1',
+      nonce: 'n',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('32 bytes');
+    }
+  });
 });
 
 describe('HmacRequestSigner minting helpers', () => {
