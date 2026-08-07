@@ -24,6 +24,7 @@ import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import {
   ctxOf,
+  ctxOfWithPhone,
   FIXT_GETKEY_TSIV,
   FIXT_GETKEY_TSKEY,
   FIXT_HMAC_KEY_HEX,
@@ -49,6 +50,14 @@ describe('PayBoxBootstrap — getKey crypto (edge)', () => {
     assertOk(result);
     expect(result.value[HMAC_KEY_SLOT]).toBe(FIXT_HMAC_KEY_HEX);
     expect(result.value[HMAC_SIGNER_SLOT]).toBeDefined();
+  });
+
+  it('derives the same key when the edge already wire-formatted the phone', () => {
+    const bus = makePayBoxBus({});
+    const ctx = ctxOfWithPhone(bus, '972-500000000');
+    const result = extractHmacKeyPatch({ body: GOOD_BODY, ctx });
+    assertOk(result);
+    expect(result.value[HMAC_KEY_SLOT]).toBe(FIXT_HMAC_KEY_HEX);
   });
 
   it('fails closed when tsKey/tsIv are missing', () => {

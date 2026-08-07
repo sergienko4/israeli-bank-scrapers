@@ -129,13 +129,27 @@ interface IKeyMaterial {
 }
 
 /**
+ * Strip wire-format separators so seed derivation is idempotent. The
+ * ApiDirectCall ACTION stage rewrites `credentials.phoneNumber` into the
+ * `972-<national>` wire form BEFORE the scrape phase runs, but
+ * {@link formatPhoneNumber} requires digits-only input — sanitise first
+ * so a raw or already-dashed phone both yield the same seed.
+ * @param phone - Phone in raw digits or wire (`972-…`) form.
+ * @returns Digits-only international form.
+ */
+function toDigitsOnly(phone: string): string {
+  return phone.replaceAll(/\D+/g, '');
+}
+
+/**
  * Derive the 32-byte HMAC key: normalise phone → `972-<national>`,
  * derive the AES key from `phone + salt`, then AES-256-CBC decrypt tsKey.
  * @param m - Phone + ciphertext + IV.
  * @returns Procedure with the 32-byte HMAC key.
  */
 function deriveHmacKey(m: IKeyMaterial): Procedure<Buffer> {
-  const dash = formatPhoneNumber(m.phone, 'international-dash');
+  const digits = toDigitsOnly(m.phone);
+  const dash = formatPhoneNumber(digits, 'international-dash');
   if (!isOk(dash)) return dash;
   const args = { seed: dash.value, salt: KEY_EXCHANGE_SALT, length: HMAC_KEY_LEN, padChar: 'a' };
   const keyBytes = deriveExchangeKey(args);

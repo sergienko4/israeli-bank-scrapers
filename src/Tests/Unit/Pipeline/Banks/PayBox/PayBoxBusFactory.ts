@@ -109,14 +109,26 @@ export function makePayBoxBus(router: PayBoxRouter): IApiMediator {
 }
 
 /**
+ * Build an IActionContext wired with the PayBox bus, injecting an explicit
+ * phone string. Lets suites exercise both the canonical digits-only form and
+ * the `972-<national>` wire form the ApiDirectCall edge leaves on ctx.
+ * @param bus - Mock mediator.
+ * @param phone - Phone digits (canonical or wire form) to seed on credentials.
+ * @returns Action context.
+ */
+export function ctxOfWithPhone(bus: IApiMediator, phone: string): IActionContext {
+  const overrides: Partial<IPipelineContext> = { apiMediator: some(bus) };
+  const base = makeMockContext(overrides);
+  const credentials = { phoneNumber: phone } as unknown as typeof base.credentials;
+  return { ...base, credentials } as unknown as IActionContext;
+}
+
+/**
  * Build an IActionContext wired with the PayBox bus. Injects the live
  * fixture phone so the getKey bootstrap can derive its AES key.
  * @param bus - Mock mediator.
  * @returns Action context.
  */
 export function ctxOf(bus: IApiMediator): IActionContext {
-  const overrides: Partial<IPipelineContext> = { apiMediator: some(bus) };
-  const base = makeMockContext(overrides);
-  const credentials = { phoneNumber: FIXT_PHONE } as unknown as typeof base.credentials;
-  return { ...base, credentials } as unknown as IActionContext;
+  return ctxOfWithPhone(bus, FIXT_PHONE);
 }
