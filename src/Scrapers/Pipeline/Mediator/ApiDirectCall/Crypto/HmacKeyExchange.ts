@@ -128,6 +128,9 @@ function decryptExchangedHmacKey(args: IDecryptExchangeArgs): Procedure<Buffer> 
   const plaintextProc = tryDecryptToPlaintext(args);
   if (!isOk(plaintextProc)) return plaintextProc;
   const hmacKey = Buffer.from(plaintextProc.value, 'hex');
+  if (hmacKey.toString('hex') !== plaintextProc.value.toLowerCase()) {
+    return fail(ScraperErrorTypes.Generic, 'exchanged HMAC key must be canonical hexadecimal');
+  }
   return ensureHmacKeyLength(hmacKey);
 }
 
