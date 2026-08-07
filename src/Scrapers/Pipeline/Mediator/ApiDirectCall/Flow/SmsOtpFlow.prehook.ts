@@ -1,59 +1,21 @@
 /**
- * Pre-step hook helpers: invoke a creds callback and deposit the result
- * into carry[hook.intoCarryField] for the next step's body template.
+ * Pre-step hook helpers: resolve the creds callback named by a step's
+ * `preHook`, acquire its value (reusing this flow's prior acquisition by
+ * default) and deposit the result into `carry[hook.intoCarryField]` for the
+ * next step's body template.
+ *
+ * <p>Acquisition lives in `SmsOtpFlow.prehookCache.ts`; invocation and
+ * coercion live in `SmsOtpFlow.prehookInvoke.ts`. This module only wires
+ * resolution → acquisition → carry deposit.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IPreStepHook } from '../IApiDirectCallConfig.js';
+import type { IPreStepHook } from '../ConfigContracts/EnvelopeTypes.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
-import type {
-  IApplyPreHookArgs,
-  IInvokePreHookArgs,
-  IPreHookCoerceArgs,
-} from './SmsOtpFlow.types.js';
-
-/**
- * Coerce the pre-hook callback return to a string Procedure.
- * @param args - Raw value + hook bundle.
- * @returns Procedure with the string or a fail.
- */
-function coercePreHookResult(args: IPreHookCoerceArgs): Procedure<string> {
-  if (typeof args.raw !== 'string') {
-    const msg = `preHook: creds.${args.hook.awaitCredsField}() did not return a string`;
-    return fail(ScraperErrorTypes.Generic, msg);
-  }
-  return succeed(args.raw);
-}
-
-/**
- * Build the standard preHook-throw failure procedure.
- * @param hook - Pre-step hook config.
- * @param message - Error message text.
- * @returns Procedure failure.
- */
-function preHookThrowFail(hook: IPreStepHook, message: string): Procedure<string> {
-  const msg = `preHook: creds.${hook.awaitCredsField}() threw: ${message}`;
-  return fail(ScraperErrorTypes.Generic, msg);
-}
-
-/**
- * Invoke the creds callback and coerce the result to a string.
- * @param args - Bound creds fn + hook config bundle.
- * @returns Procedure with the string result or a fail.
- */
-async function invokePreHookFn(args: IInvokePreHookArgs): Promise<Procedure<string>> {
-  try {
-    const raw = (await args.fn()) as JsonValue;
-    return coercePreHookResult({ raw, hook: args.hook });
-  } catch (error) {
-    const message = toErrorMessage(error as Error);
-    return preHookThrowFail(args.hook, message);
-  }
-}
+import { acquirePreHookValue } from './SmsOtpFlow.prehookCache.js';
+import type { IApplyPreHookArgs } from './SmsOtpFlow.types.js';
 
 /**
  * Build the standard preHook missing-function failure procedure.
@@ -91,21 +53,27 @@ function resolvePreHookFn(
   return succeed(fn as () => Promise<unknown>);
 }
 
-// Re-export for parity with the original surface (used by an internal test).
-
 /**
- * Await the creds function named in preHook and deposit the string
- * result into carry[intoCarryField]. Non-string returns fail.
- * @param args - Scope + creds + hook bundle.
+ * Acquire the hook's credential and deposit the string result into
+ * `carry[intoCarryField]`. Non-string returns fail.
+ *
+ * <p>Acquisition is flow-scoped by default, so several steps awaiting the same
+ * credential share one acquisition rather than asking the caller repeatedly
+ * for a secret the bank delivered once.
+ * @param args - Scope + creds + hook + flow-cache bundle.
  * @returns Updated scope or fail.
  */
 async function applyPreHook(args: IApplyPreHookArgs): Promise<Procedure<ITemplateScope>> {
   const fnProc = resolvePreHookFn(args.creds, args.hook);
   if (!isOk(fnProc)) return fnProc;
-  const valueProc = await invokePreHookFn({ fn: fnProc.value, hook: args.hook });
+  const acquireArgs = { cache: args.cache, hook: args.hook, fn: fnProc.value };
+  const valueProc = await acquirePreHookValue(acquireArgs);
   if (!isOk(valueProc)) return valueProc;
   const nextCarry = { ...args.scope.carry, [args.hook.intoCarryField]: valueProc.value };
   return succeed({ ...args.scope, carry: nextCarry });
 }
 
-export { applyPreHook, invokePreHookFn, preHookMissingFnFail };
+export { applyPreHook, preHookMissingFnFail };
+
+// Re-export for parity with the original surface (used by an internal test).
+export { default as invokePreHookFn } from './SmsOtpFlow.prehookInvoke.js';
