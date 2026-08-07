@@ -121,15 +121,6 @@ function signRequest(args: ISignRequestArgs): Procedure<ISignedRequest> {
 }
 
 /**
- * Mint the millisecond timestamp string (`X-Timestamp`).
- * @param nowMs - Current epoch milliseconds (injectable for tests).
- * @returns Decimal millisecond string.
- */
-function mintTimestamp(nowMs: number): string {
-  return String(nowMs);
-}
-
-/**
  * Mint a fresh lowercase, hyphenated UUID v4 nonce (`X-Nonce`).
  * @returns UUID v4 string.
  */
@@ -138,4 +129,4 @@ function mintNonce(): string {
 }
 
 export type { IHmacCanonicalArgs, ISignedRequest, ISignRequestArgs };
-export { buildHmacCanonical, hashBody, mintNonce, mintTimestamp, signCanonicalHmac, signRequest };
+export { buildHmacCanonical, hashBody, mintNonce, signCanonicalHmac, signRequest };

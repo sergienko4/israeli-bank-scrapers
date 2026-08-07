@@ -15,11 +15,7 @@ import type {
   ISignedRequest,
   ISignRequestArgs,
 } from '../ApiDirectCall/Crypto/HmacRequestSigner.js';
-import {
-  mintNonce,
-  mintTimestamp,
-  signRequest,
-} from '../ApiDirectCall/Crypto/HmacRequestSigner.js';
+import { mintNonce, signRequest } from '../ApiDirectCall/Crypto/HmacRequestSigner.js';
 import type { SessionContext } from './ApiMediator.types.js';
 
 /** Session-context slot carrying the 32-byte HMAC key as lowercase hex. */
@@ -107,7 +103,7 @@ function buildSignArgs(resolved: IResolvedSigning): ISignRequestArgs {
   const nowMs = Date.now();
   const bodyBytes = toBodyBytes(resolved.args.body);
   const hmacKey = Buffer.from(resolved.keyHex, 'hex');
-  const timestamp = mintTimestamp(nowMs);
+  const timestamp = String(nowMs);
   const nonce = mintNonce();
   return { method: resolved.args.method, path: url.pathname, bodyBytes, hmacKey, timestamp, nonce };
 }

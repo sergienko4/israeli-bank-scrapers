@@ -31,7 +31,7 @@ const SALT = '%as2@1FaY$)(mLq%!cx';
 describe('HmacKeyExchange.deriveExchangeKey', () => {
   it('builds the exact 32-byte AES key from the seed + salt', () => {
     const key = deriveExchangeKey({ seed: SEED, salt: SALT, length: 32, padChar: 'a' });
-    expect(key.length).toBe(32);
+    expect(key).toHaveLength(32);
     const keyStr = key.toString('utf8');
     expect(keyStr).toBe('972-500000000%as2@1FaY$)(mLq%!cx');
   });
@@ -59,7 +59,7 @@ describe('HmacKeyExchange.decryptExchangedHmacKey (synthetic vector)', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.value.length).toBe(32);
+      expect(result.value).toHaveLength(32);
       const hex = result.value.toString('hex');
       expect(hex).toBe(EXPECTED_HMAC_KEY_HEX);
     }

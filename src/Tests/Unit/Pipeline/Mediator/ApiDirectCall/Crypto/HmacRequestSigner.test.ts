@@ -13,7 +13,6 @@ import {
   buildHmacCanonical,
   hashBody,
   mintNonce,
-  mintTimestamp,
   signCanonicalHmac,
   signRequest,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/HmacRequestSigner.js';
@@ -143,11 +142,6 @@ describe('HmacRequestSigner.signRequest (composition)', () => {
 });
 
 describe('HmacRequestSigner minting helpers', () => {
-  it('mintTimestamp stringifies the epoch millis', () => {
-    const stamp = mintTimestamp(1786107043346);
-    expect(stamp).toBe('1786107043346');
-  });
-
   it('mintNonce returns a lowercase hyphenated UUID', () => {
     const nonce = mintNonce();
     expect(nonce).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
