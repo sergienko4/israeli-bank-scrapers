@@ -135,7 +135,7 @@ describe('BIND-API-MEDIATOR discovered-header bag — donor scoping', () => {
     expect(siteId).not.toBe(MARKETING_SITE_ID);
   });
 
-  it('DHS-3 falls back to the pin when the scoped pool yields no donor', () => {
+  it('DHS-3 supplies the pin when the scoped pool yields no donor', () => {
     const bag = buildBag([MARKETING_CAPTURE], API_HOST, PINNED);
     const siteId = readHeader(bag, 'X-Site-Id');
     expect(siteId).toBe(API_SITE_ID);
@@ -153,11 +153,17 @@ describe('BIND-API-MEDIATOR discovered-header bag — donor scoping', () => {
     expect(siteId).toBe(ABSENT);
   });
 
-  it('DHS-6 lets a scoped donor win over the pin', () => {
-    const losingPin = { 'X-Site-Id': 'pin-must-not-win' };
-    const bag = buildBag([MARKETING_CAPTURE, API_CAPTURE], API_HOST, losingPin);
+  it('DHS-6 lets the pin win over a same-host sibling service donor', () => {
+    const bag = buildBag([MARKETING_CAPTURE, API_CAPTURE], API_HOST, PINNED);
     const siteId = readHeader(bag, 'X-Site-Id');
     expect(siteId).toBe(API_SITE_ID);
+  });
+
+  it('DHS-6b overrides a discovered value that differs from the pin', () => {
+    const winningPin = { 'X-Site-Id': 'pin-must-win' };
+    const bag = buildBag([MARKETING_CAPTURE, API_CAPTURE], API_HOST, winningPin);
+    const siteId = readHeader(bag, 'X-Site-Id');
+    expect(siteId).toBe('pin-must-win');
   });
 
   it('DHS-7 leaves an unscoped bank on its pre-existing first-match behaviour', () => {

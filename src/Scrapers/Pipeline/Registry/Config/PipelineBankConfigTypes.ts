@@ -220,18 +220,21 @@ export interface IPipelineBankConfig {
    */
   readonly discoveredHeadersUrlMatch?: string;
   /**
-   * Values for discovered headers the scoped pool could not supply.
+   * Known-correct values for discovered headers, applied as an OVERRIDE.
    *
-   * <p>A last-resort fallback, never an override — discovery always wins, so
-   * a pin only fills a GAP. It exists because a bank's SPA can stop issuing
-   * the request we harvest (a server-side change we cannot control), which
-   * would otherwise leave a REQUIRED header absent. Pinning keeps the scrape
-   * working, and the accompanying `LOG.warn` breadcrumb names which header
-   * fell back so the regression is visible rather than silent.
+   * <p>Pins WIN over discovery: pinning declares that the correct value is
+   * already known, so discovery only governs headers nobody pinned. The
+   * reverse rule cannot work for an identifier the bank's client compiles in
+   * rather than serves — it never appears on a harvestable request, while
+   * sibling services on the SAME host mint their own variants that hostname
+   * scoping cannot separate. Deferring to discovery would then send another
+   * service's identifier and draw an opaque 5xx that reads like an expired
+   * session. A `LOG.warn` breadcrumb names any header whose discovered value a
+   * pin displaced, so that mismatch is visible rather than silent.
    *
    * <p>Only ever hold values the bank's own client compiles in as constants
-   * (VisaCal's `X-Site-Id` is an Angular class field, and its `Origin` /
-   * `Referer` are its fixed SPA origin). Absent ⇒ no fallback.
+   * (VisaCal's `X-Site-Id` is an Angular class field). Absent ⇒ discovery
+   * alone.
    */
   readonly pinnedDiscoveredHeaders?: Readonly<Record<string, string>>;
   /**

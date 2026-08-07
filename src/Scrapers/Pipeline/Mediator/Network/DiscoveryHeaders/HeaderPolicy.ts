@@ -13,9 +13,13 @@
  * shared orchestration keeps zero bank coupling:
  * <ul>
  *   <li>SCOPE — restrict the donor pool to the bank's own data-API family, so
- *       a wrong-family donor is impossible by construction.</li>
- *   <li>PIN — supply the value when the scoped pool is empty because the SPA
- *       never issued a qualifying request (its boot can fail server-side).</li>
+ *       a wrong-FAMILY donor is impossible by construction. Scoping is by
+ *       hostname, so it cannot separate sibling services sharing one host —
+ *       that residual gap is what PIN closes.</li>
+ *   <li>PIN — declare the known-correct value. Pins OVERRIDE discovery,
+ *       because a header the SPA compiles in rather than serves is never
+ *       harvestable, so any discovered value for it belongs to another
+ *       service.</li>
  * </ul>
  *
  * <p>Mirrors the family-scoped `authHeaderUrlMatch` sniff already applied to
@@ -92,40 +96,40 @@ function hasHeaderName(bag: Readonly<Record<string, string>>, name: string): boo
 }
 
 /**
- * Emit the PII-free breadcrumb naming which headers fell back to their pin.
+ * Emit the PII-free breadcrumb naming which headers a pin displaced.
  *
- * <p>A pin firing means scoped discovery found no qualifying donor — the
- * early-warning signal that the bank's SPA stopped issuing the request we
- * harvest. Header NAMES only; values are bank-issued identifiers.
- * @param names - Header names that were supplied from the pin.
+ * <p>Discovery having produced a value for a PINNED header is the
+ * early-warning signal that the host serves a sibling service minting its own
+ * variant of that identifier — the exact condition host scoping cannot see.
+ * Header NAMES only; values are bank-issued identifiers.
+ * @param names - Header names whose discovered value the pin replaced.
  * @returns True when a breadcrumb was emitted.
  */
-function logPinnedFallback(names: readonly string[]): boolean {
+function logPinnedOverride(names: readonly string[]): boolean {
   if (names.length === 0) return false;
   const list = names.join(', ');
-  LOG.warn({ message: `discovered-header pin used (no scoped donor): ${list}` });
+  LOG.warn({ message: `discovered-header pin overrode a discovered value: ${list}` });
   return true;
 }
 
 /**
- * Select the pinned entries the bag has not already resolved.
+ * Select the pinned names that displaced a non-blank discovered value.
  *
- * <p>A present-but-blank header does NOT count as resolved. Discovery can
- * adopt a donor that carried the header name with an empty value; treating
- * that as resolved would suppress the pin and ship a blank identifier, which
- * the gateway rejects as an unauthenticated call.
+ * <p>Reported for diagnosis only — the pin is applied either way. A blank
+ * discovered value is not counted: it carries no competing identifier, so
+ * overwriting it is an ordinary gap-fill rather than a service mismatch.
  * @param bag - Assembled header bag.
  * @param pinned - Configured header name → value map.
- * @returns Entries whose header is absent or blank in the bag.
+ * @returns Names whose discovered value was non-blank before pinning.
  */
-function selectMissingPins(
+function selectOverriddenPins(
   bag: Readonly<Record<string, string>>,
   pinned?: Readonly<Record<string, string>>,
-): readonly [string, string][] {
-  const entries = Object.entries(pinned ?? {});
-  return entries.filter(([name]): boolean => {
+): readonly string[] {
+  const names = Object.keys(pinned ?? {});
+  return names.filter((name): boolean => {
     const key = findHeaderKey(bag, name);
-    return key === '' || bag[key].trim() === '';
+    return key !== '' && bag[key].trim() !== '';
   });
 }
 
@@ -155,11 +159,16 @@ function writePin(bag: Record<string, string>, name: string, value: string): boo
 }
 
 /**
- * Supply configured values for headers scoped discovery did not resolve.
+ * Apply configured header values, overriding whatever discovery produced.
  *
- * <p>Discovery always wins: a pin fills a GAP, it never overrides a value the
- * bank's own traffic provided. Mutates and returns `bag` for chaining, the
- * same convention the sibling header layers use.
+ * <p>A pin is an explicit declaration that the correct value is already known,
+ * so it WINS; discovery is the fallback for headers nobody pinned. The reverse
+ * rule — discovery wins, pin fills gaps — cannot work for an identifier the
+ * SPA compiles in rather than serves: the value is never present on any
+ * request we can harvest, while sibling services on the SAME host mint their
+ * own variants that host scoping cannot tell apart. Under that rule the
+ * gateway receives a well-formed identifier belonging to another service and
+ * answers 5xx, which reads like an expired session.
  * @param bag - Assembled header bag (mutated).
  * @param pinned - Configured header name → value map, or undefined.
  * @returns The mutated bag.
@@ -168,10 +177,9 @@ function applyPinnedHeaders(
   bag: Record<string, string>,
   pinned?: Readonly<Record<string, string>>,
 ): Record<string, string> {
-  const missing = selectMissingPins(bag, pinned);
-  for (const [name, value] of missing) writePin(bag, name, value);
-  const pinnedNames = missing.map(([name]): string => name);
-  logPinnedFallback(pinnedNames);
+  const overridden = selectOverriddenPins(bag, pinned);
+  for (const [name, value] of Object.entries(pinned ?? {})) writePin(bag, name, value);
+  logPinnedOverride(overridden);
   return bag;
 }
 

@@ -18,9 +18,11 @@
  *       wanted header. Unscoped, the marketing site's public widget identifier
  *       wins over the gateway one. Restricting donors to the data-API family
  *       makes a wrong-family donor impossible by construction.</li>
- *   <li>PIN — when the SPA still fails to boot it issues no request to harvest,
- *       so the gateway identifier is supplied from config. Fallback only:
- *       scoped discovery wins whenever CAL's own traffic provides it.</li>
+ *   <li>PIN — the gateway identifier is supplied from config and OVERRIDES
+ *       discovery. It is compiled into the SPA rather than served, so it never
+ *       appears on a request we can harvest; meanwhile sibling services on the
+ *       SAME host mint their own variants, which host scoping cannot tell
+ *       apart. Letting discovery win therefore guarantees a wrong value.</li>
  * </ul>
  */
 
