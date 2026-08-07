@@ -96,12 +96,12 @@ function signedAmount(raw: IWalletTxnRaw): number {
  * `rejected` (not settled). Most non-purchase rows omit `state`
  * entirely and are settled history, so an absent value reads Completed.
  */
-const STATE_STATUS: Readonly<Record<string, TransactionStatuses>> = {
-  clearance: TransactionStatuses.Completed,
-  refund: TransactionStatuses.Completed,
-  filtered: TransactionStatuses.Pending,
-  rejected: TransactionStatuses.Pending,
-};
+const STATE_STATUS: ReadonlyMap<string, TransactionStatuses> = new Map([
+  ['clearance', TransactionStatuses.Completed],
+  ['refund', TransactionStatuses.Completed],
+  ['filtered', TransactionStatuses.Pending],
+  ['rejected', TransactionStatuses.Pending],
+]);
 
 /**
  * Map PayBox's `state` field to the canonical {@link TransactionStatuses}.
@@ -111,7 +111,7 @@ const STATE_STATUS: Readonly<Record<string, TransactionStatuses>> = {
  */
 export function statusOf(raw: IWalletTxnRaw): TransactionStatuses {
   const state = typeof raw.state === 'string' ? raw.state : '';
-  return STATE_STATUS[state] ?? TransactionStatuses.Completed;
+  return STATE_STATUS.get(state) ?? TransactionStatuses.Completed;
 }
 
 /**

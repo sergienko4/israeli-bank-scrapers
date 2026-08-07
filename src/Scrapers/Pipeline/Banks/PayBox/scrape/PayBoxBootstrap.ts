@@ -39,6 +39,7 @@ import { buildAuthEnvelope } from './PayBoxAuthEnvelope.js';
 
 /** Derived-key length (bytes) — HMAC-SHA256 uses a 32-byte key. */
 const HMAC_KEY_LEN = 32;
+const EXCHANGE_KEY_PAD_CHAR = 'a';
 
 /**
  * getKey request body — the same class-y `auth` envelope every PayBox
@@ -151,7 +152,12 @@ function deriveHmacKey(m: IKeyMaterial): Procedure<Buffer> {
   const digits = toDigitsOnly(m.phone);
   const dash = formatPhoneNumber(digits, 'international-dash');
   if (!isOk(dash)) return dash;
-  const args = { seed: dash.value, salt: KEY_EXCHANGE_SALT, length: HMAC_KEY_LEN, padChar: 'a' };
+  const args = {
+    seed: dash.value,
+    salt: KEY_EXCHANGE_SALT,
+    length: HMAC_KEY_LEN,
+    padChar: EXCHANGE_KEY_PAD_CHAR,
+  };
   const keyBytes = deriveExchangeKey(args);
   return decryptExchangedHmacKey({ ciphertextB64: m.tsKey, ivHex: m.tsIv, keyBytes });
 }
