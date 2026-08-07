@@ -22,10 +22,10 @@
  * fell back from a rejection (degraded token — MUST fire). The value
  * cannot distinguish the two; the outcome can.
  *
- * <p>The balance step is now `skipFetch: true` (`/sync` always 400s AND
- * poisons the session — see `PayBoxShapeHelpers.balanceVars`), so
- * `balanceDegraded` no longer fires for PayBox in practice. A rejected
- * transactions page is caught earlier and far more precisely, by
+ * <p>The balance step is now `skipFetch: true` (`/sync` always 400s —
+ * see `PayBoxShapeHelpers.balanceVars`), so `balanceDegraded` no longer
+ * fires for PayBox in practice. A rejected transactions page is caught
+ * earlier and far more precisely, by
  * `PayBoxShapeTxns.txnsExtractPage`, which refuses to read an error
  * envelope as an empty page. This guard is retained as the backstop for
  * any future path that re-enables a balance fetch.

@@ -87,12 +87,10 @@ export function customerVars(): VarsMap {
  * and it never yields a balance. The call is therefore skipped outright
  * and the balance degrades to a deterministic 0.
  *
- * <p>An earlier revision of this note claimed the `/sync` 400 also
- * *poisoned* the session, causing the later `/getUserHistory` to answer
- * `401`. That is disproven: forensic run 31158757897 skipped `/sync`
- * entirely and `/getUserHistory` still answered `401`. The two failures
- * are independent — see {@link txnsExtractPage}'s note on the
- * server-side signature-header requirement for the real cause.
+ * <p>The `/sync` 400 and a `/getUserHistory` `401` are independent
+ * conditions: the transaction refusal reflects a missing server-side
+ * signature-header requirement, not a side effect of `/sync` — see
+ * {@link txnsExtractPage}.
  * @returns Empty variables map.
  */
 export function balanceVars(): VarsMap {

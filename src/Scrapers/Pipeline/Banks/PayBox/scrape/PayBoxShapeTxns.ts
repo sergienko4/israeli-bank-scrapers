@@ -328,23 +328,18 @@ function refusalNameOf(body: Record<string, unknown>): string {
  * Pass a response body through, rejecting an ERROR ENVELOPE.
  *
  * <p>Because {@link servedRows} only looks for `content.nc`, a refusal
- * would otherwise read as a legitimately empty page and the run would
- * report zero transactions as a SILENT success — indistinguishable from
- * an unused wallet, and the exact way forensic run 31158757897 lost its
- * data (`name: "UNAUTHORIZED"`, `code: "401"`).
+ * envelope (`{name, code, message}` with no `content`) would otherwise
+ * read as a legitimately empty page and the run would report zero
+ * transactions as a SILENT success — indistinguishable from an unused
+ * wallet. This guard rejects that envelope so the failure surfaces
+ * loudly instead.
  *
- * <p><b>Known live refusal (2026-08-07).</b> PayBox began enforcing a
- * request signature carried in HTTP <i>headers</i> on authenticated data
- * reads; its own reject text is `"missing signature headers"`. Evidence
- * that this is server-side and not a credential fault: a valid token and
- * `uId` yield this `401`, whereas a corrupted token or `uId` yields `404`
- * — so both are accepted and only the headers are missing. The refusal is
- * also invariant to every body mutation (IV placement, canonical-string
- * variants, and omitting the body `signature` outright), which places the
- * check ahead of body-signature validation. The unauthenticated login
- * routes are unaffected. The header names are not derivable by probing
- * and need a fresh capture of the mobile client; until then this guard
- * makes the failure loud instead of silent.
+ * <p>Authenticated reads require HMAC signature headers (`X-Timestamp`,
+ * `X-Nonce`, `X-Signature`); without them PayBox refuses with `401`
+ * (`"missing signature headers"`). This is a server-side requirement,
+ * not a credential fault — a valid token and `uId` still yield the `401`.
+ * The getKey bootstrap seeds the signing key so signed reads succeed;
+ * this guard is the backstop for any remaining refusal.
  * @param body - Response body.
  * @returns The same body when it is a real page.
  * @throws ScraperError when the body is an error envelope.

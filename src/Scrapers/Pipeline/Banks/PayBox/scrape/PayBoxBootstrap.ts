@@ -181,8 +181,7 @@ export function extractHmacKeyPatch(args: IBootstrapExtractArgs): Procedure<Sess
   const tsKey = readString(content, 'tsKey');
   const tsIv = readString(content, 'tsIv');
   if (tsKey === '' || tsIv === '') return missingKeyMaterial(args.body);
-  const phone = readPhone(args.ctx);
-  const key = deriveHmacKey({ phone, tsKey, tsIv });
+  const key = deriveHmacKey({ phone: readPhone(args.ctx), tsKey, tsIv });
   if (!isOk(key)) return key;
   const patch = buildPatch(key.value);
   return succeed(patch);

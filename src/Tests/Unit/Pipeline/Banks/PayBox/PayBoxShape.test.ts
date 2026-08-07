@@ -306,7 +306,7 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
    * error envelope PayBox returns for a rejected read (`{code, name,
    * message}` and no `content`). Because the row reader only looks for
    * `content.nc`, this shape would otherwise pass as a legitimately empty
-   * page and lose the run's data silently — forensic run 31158757897.
+   * page and lose the run's data silently.
    *
    * <p>Replaces the former `degradedBus`, which forced the `/sync`
    * balance call to fail. That path is unreachable now the balance step

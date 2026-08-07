@@ -132,10 +132,10 @@ walk and merges its result into the mediator session context.
 
 `buildBootstrapDispatchArgs` turns the step's shape into the same
 dispatch args the scrape steps use (so the bootstrap call rides the
-identical transport). The step's `extract(args: IBootstrapExtractArgs)`
+identical transport). The step's `extractPatch(args: IBootstrapExtractArgs)`
 reads the response body plus the current context and returns a
-`SessionContextPatch` — a partial context that the phase read-merges
-onto the live session context, preserving `uId` / `token` /
-`deviceId16Hex` while adding the new material. The extract is
-fail-closed: a missing or malformed exchange response aborts the run
-rather than scraping unsigned.
+`Procedure<SessionContextPatch>` — a procedure carrying the partial
+context that the phase read-merges onto the live session context,
+preserving `uId` / `token` / `deviceId16Hex` while adding the new
+material. The extract is fail-closed: a missing or malformed exchange
+response aborts the run rather than scraping unsigned.

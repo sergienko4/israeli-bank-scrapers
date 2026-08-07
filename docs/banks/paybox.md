@@ -32,7 +32,7 @@ const result = await scraper.scrape({
 
 PayBox sends no `Authorization` header after login, so `/getUserHistory` identifies itself through an auth envelope in its request **body**. `buildAuthEnvelope()` (`scrape/PayBoxAuthEnvelope.ts`) builds it from the session context; `PAYBOX_AUTH_ENVELOPE_INTERNALS` exposes its two resolution steps for unit tests only.
 
-`/sync` (balance) **must omit the envelope**. It answers HTTP 400 either way, but a rejected body carrying the live `access_token` makes PayBox invalidate the session — a forensic run recorded `/getUserHistory` returning `401 UNAUTHORIZED` 355 ms after a freshly minted token was sent to `/sync`. `balanceVars()` therefore returns `{}`, and `PayBoxScrapeBodyContract.test.ts` pins both halves: the envelope is required on every data step and forbidden on the balance call.
+`/sync` (balance) **must omit the envelope**. It answers HTTP 400 for every body shape tried — including an empty object — so it never yields a balance; `balanceVars()` returns `{}` and the step is skipped (`fallbackOnFail: 0` degrades the balance to `0`). This is independent of transaction reads: `/getUserHistory` refuses with `401 "missing signature headers"` when the HMAC signature headers are absent (see [HMAC request signing](#hmac-request-signing-getkey-bootstrap)), not because of anything `/sync` did. `PayBoxScrapeBodyContract.test.ts` pins the envelope contract: it is required on every data step and omitted on the balance call.
 
 > **Note:** the balance step's `fallbackOnFail: 0` reports the 400 as a zero balance, so a degraded `/sync` is expected and is not by itself a failure. See [Response digest](../observability/response-digest.md) for reading what the server actually objected to.
 
