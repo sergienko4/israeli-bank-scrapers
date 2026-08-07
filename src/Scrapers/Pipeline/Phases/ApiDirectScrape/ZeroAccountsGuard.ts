@@ -29,17 +29,19 @@ import type { IApiDirectScrapeGuardSummary } from './IApiDirectScrapeShape.js';
  * failure — `accountCount === 0` cannot prove one. A parser or schema
  * regression, or a genuinely empty response, produces the same count, so
  * naming authorization as the diagnosis would misdirect incident response.
- * Naming the rejected-header case matters too: a wrong request header (e.g. a
- * site/tenant identifier adopted from the wrong origin) is rejected by some
- * gateways with an opaque 5xx indistinguishable from a dead session. No
- * identifiers, no figures.
+ * For the same reason it prescribes no remedy: renewing the session is a fix
+ * for one of the four candidates, and suggesting it up front invites an
+ * operator to skip the other three. Naming the rejected-header case matters
+ * too: a wrong request header (e.g. a site/tenant identifier adopted from the
+ * wrong origin) is rejected by some gateways with an opaque 5xx
+ * indistinguishable from a dead session. No identifiers, no figures.
  */
 const ZERO_ACCOUNTS_MSG =
   'Hard-model scrape resolved zero accounts — a logged-in customer always has ' +
   'at least one. Check, in order: the response status and envelope (a bank ' +
-  'error body or a non-200), the session (it may be invalid — re-authenticate), ' +
-  'a required request header that may have been rejected, and the accounts ' +
-  'parser (a schema change can yield zero without any error).';
+  'error body or a non-200), session validity, a required request header that ' +
+  'may have been rejected, and the accounts parser (a schema change can yield ' +
+  'zero without any error).';
 
 /**
  * Fail-closed guard: rejects a scrape that resolved no accounts.

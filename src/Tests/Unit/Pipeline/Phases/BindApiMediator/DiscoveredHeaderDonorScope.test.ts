@@ -6,7 +6,7 @@
  * wanted header. A bank whose login journey spans several origins can
  * therefore donate a header minted for a DIFFERENT service; the gateway
  * rejects the call with an opaque 5xx that reads like an expired session, so
- * the run fails as "zero accounts / re-authenticate" and the real cause stays
+ * the run fails as "zero accounts" and the real cause stays
  * invisible. These tests assert the resolved header VALUE — not merely its
  * presence, which is what the pre-existing coverage checked and why the
  * defect shipped green.
