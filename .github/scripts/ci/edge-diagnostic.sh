@@ -13,11 +13,19 @@
 # Usage:
 #   bash .github/scripts/ci/edge-diagnostic.sh "$BANK"   # BANK = CompanyTypes key
 #
-# NEVER fatal: always exits 0 so it can never turn a green bank red. The
-# bank host is extracted from the single source of truth
-# (PipelineBankConfig.ts) with the same grep/sed shape dns-warmup.sh uses,
-# so adding a new bank needs zero edits here.
+# NEVER fatal: always exits 0 so it can never turn a green bank red. This
+# exit-0 contract is the ONLY non-fatality mechanism — the callers may not
+# use `continue-on-error`, which PrYamlGateHardening bans on every E2E-Real
+# step (a mask there once hid a real Isracard failure, release PR #172).
+#
+# The bank host is extracted from the single source of truth
+# (PipelineBankConfig.ts), so adding a new bank needs zero edits here.
 
+# NOTE: `-e` is deliberately omitted (every other script in this directory
+# uses `set -euo pipefail`). Under `-e` the first failing command — an
+# offline origin, a DNS miss — would abort before the final `exit 0` and
+# fail the bank's job. A diagnostic must never do that. Non-zero exits are
+# absorbed per-command below (`|| echo …` / `|| true`) instead.
 set -uo pipefail
 
 BANK_FILTER="${1:-}"
