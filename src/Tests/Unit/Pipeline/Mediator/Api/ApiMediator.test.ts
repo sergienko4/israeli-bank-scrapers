@@ -266,7 +266,10 @@ describe('ApiMediator/apiQuery', () => {
     const result = await mediator.apiQuery('transactions', {});
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toContain('[Movements]');
+    if (!isOk(result))
+      expect(result.errorMessage).toBe(
+        'graphql errors [Movements]: Request failed with status code 500',
+      );
   });
 
   it('omits the operation label for an anonymous query document', async () => {
@@ -278,6 +281,43 @@ describe('ApiMediator/apiQuery', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors: bad');
+  });
+
+  it('ignores an operation name that appears only inside a comment', async () => {
+    registerWkQuery('transactions', HINT, '# query Stale\n{ movements { id } }');
+    const recorder = makeRecorder();
+    recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('transactions', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors: bad');
+  });
+
+  it('ignores an operation name that appears only inside a string literal', async () => {
+    registerWkQuery('transactions', HINT, '{ movements(note: "query Stale") { id } }');
+    const recorder = makeRecorder();
+    recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('transactions', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors: bad');
+  });
+
+  it('names a real operation that follows a comment', async () => {
+    registerWkQuery(
+      'transactions',
+      HINT,
+      '# fetches movements\nquery Movements { movements { id } }',
+    );
+    const recorder = makeRecorder();
+    recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('transactions', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors [Movements]: bad');
   });
 
   it('response missing data and no errors returns "missing data"', async () => {

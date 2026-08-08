@@ -80,15 +80,39 @@ function firstErrorMessage(errors: readonly IGraphQLError[]): string {
 const OPERATION_NAME_RE = /\b(?:query|mutation|subscription)\s+([A-Za-z_]\w*)/u;
 
 /**
+ * Matches the spans of a GraphQL document that are not executable code:
+ * `#` line comments, `"""block strings"""` and `"string literals"`.
+ *
+ * <p>Block strings are listed before plain strings so a `"""` opener is
+ * never mis-read as an empty `""` literal.
+ */
+const NON_CODE_RE = /#[^\n]*|"""[\s\S]*?"""|"(?:[^"\\\n]|\\.)*"/gu;
+
+/**
+ * Blank out every non-executable span of a GraphQL document.
+ *
+ * <p>Prose is free to mention `query Something`; without this filter such
+ * a mention would be picked up as the document's operation name and would
+ * mislabel the failing call.
+ * @param queryString - Raw GraphQL document.
+ * @returns Document with comments and string literals replaced by a space.
+ */
+function stripNonCode(queryString: string): string {
+  return queryString.replaceAll(NON_CODE_RE, ' ');
+}
+
+/**
  * Extract the GraphQL operation name from a query document.
  *
  * <p>Anonymous documents (`{ field }`) carry no name, so the caller omits the
- * label and the long-standing message stays byte-identical.
+ * label and the long-standing message stays byte-identical. Names mentioned
+ * only inside a comment or a string literal do not count as a definition.
  * @param queryString - Raw GraphQL document sent to the bank.
  * @returns Operation name, or '' when the document is anonymous.
  */
 function operationName(queryString: string): string {
-  const match = OPERATION_NAME_RE.exec(queryString);
+  const executable = stripNonCode(queryString);
+  const match = OPERATION_NAME_RE.exec(executable);
   if (match === null) return '';
   return match[1];
 }
