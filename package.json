@@ -174,7 +174,6 @@
     "ua-parser-js": "1.0.41",
     "@babel/core": "^7.29.6",
     "esbuild": "^0.28.1",
-    "js-yaml": "^4.2.0",
     "ws": "^8.21.0",
     "minimatch": "^10"
   },
