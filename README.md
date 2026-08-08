@@ -371,7 +371,7 @@ Camoufox passes most challenges automatically. If you still get `WAF_BLOCKED`:
 
 ## Configuration
 
-All configuration goes through `ScraperOptions` at construction time and `ScraperCredentials` at scrape time. Nothing else reads from disk or env.
+All configuration goes through `ScraperOptions` at construction time and `ScraperCredentials` at scrape time. Nothing else reads from disk, and the only env vars read are the operational ones listed below.
 
 <details open>
 <summary><strong>Scraper options</strong> — <code>createScraper({ ... })</code></summary>
@@ -405,10 +405,11 @@ Field names per bank live in the [Supported Institutions](#supported-institution
 <details>
 <summary><strong>Environment variables</strong> (optional)</summary>
 
-| Variable        | Default | Effect                                                             |
-| --------------- | ------- | ------------------------------------------------------------------ |
-| `PII_REDACTION` | `on`    | Set `off` for real-bank E2E only; unit tests always run default-on |
-| `MOCK_MODE`     | unset   | `1` switches `test:mock` to fixture-driven path                    |
+| Variable                     | Default  | Effect                                                             |
+| ---------------------------- | -------- | ------------------------------------------------------------------ |
+| `PII_REDACTION`              | `on`     | Set `off` for real-bank E2E only; unit tests always run default-on |
+| `MOCK_MODE`                  | unset    | `1` switches `test:mock` to fixture-driven path                    |
+| `CAMOUFOX_LAUNCH_TIMEOUT_MS` | `300000` | Bounds browser launch; generous so a first-run download can finish |
 
 </details>
 
