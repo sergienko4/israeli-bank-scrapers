@@ -31,7 +31,6 @@
     }
   },
   "scripts": {
-    "postinstall": "patch-package",
     "clean": "rimraf lib",
     "test": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js",
     "test:unit": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2eFull",
@@ -79,7 +78,7 @@
     "build": "npm run lint && tsup",
     "postbuild": "rimraf lib/Common lib/Scrapers lib/Tests",
     "prepare:default": "git reset --hard && npm ci && npm run build",
-    "prepare": "tsup && rimraf lib/Common lib/Scrapers lib/Tests",
+    "prepare": "patch-package && tsup && rimraf lib/Common lib/Scrapers lib/Tests",
     "reset": "git reset --hard && npm ci",
     "docs": "typedoc",
     "lint:architecture": "npx tsx src/Tests/Tools/lint-and-validate.ts"
