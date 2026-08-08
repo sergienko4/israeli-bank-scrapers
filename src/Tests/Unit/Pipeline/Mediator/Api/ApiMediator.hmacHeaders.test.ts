@@ -42,6 +42,20 @@ const SIGNED_SESSION: SessionContext = {
 /** Header names the signer must emit, sorted. */
 const SIGNED_HEADER_KEYS = ['X-Nonce', 'X-Signature', 'X-Timestamp'];
 
+/** Header-name fields a complete HMAC directive must carry. */
+const REQUIRED_HEADER_FIELDS = ['timestampHeader', 'nonceHeader', 'signatureHeader'] as const;
+
+/**
+ * Build a signer directive with one header-name field removed.
+ * @param field - Header-name field to omit.
+ * @returns Directive carrying the algorithm tag but missing `field`.
+ */
+function signerWithout(field: string): Record<string, unknown> {
+  const entries = Object.entries(SIGNER);
+  const kept = entries.filter(([key]) => key !== field);
+  return Object.fromEntries(kept);
+}
+
 describe('ApiMediator.hmacHeaders.buildHmacHeaders — fail-closed (edge)', () => {
   it('returns the no-headers singleton when the session carries no key', () => {
     const result = buildHmacHeaders({ session: {}, method: 'POST', url: REQUEST_URL });
@@ -87,6 +101,28 @@ describe('ApiMediator.hmacHeaders.buildHmacHeaders — fail-closed (edge)', () =
       url: REQUEST_URL,
       body: { k: 'v' },
     });
+    expect(result).toBe(NO_HMAC_HEADERS);
+  });
+});
+
+/**
+ * A directive carrying the right algorithm tag but an incomplete set of
+ * header NAMES must be refused. `toHeaderMap` spreads the names as computed
+ * keys, so accepting a partial directive would emit a header literally
+ * called `undefined` and silently drop the real one.
+ */
+describe('ApiMediator.hmacHeaders.buildHmacHeaders — partial directive (edge)', () => {
+  it.each(REQUIRED_HEADER_FIELDS)('returns no headers when %s is absent', field => {
+    const signer = signerWithout(field);
+    const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX, [HMAC_SIGNER_SLOT]: signer };
+    const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
+    expect(result).toBe(NO_HMAC_HEADERS);
+  });
+
+  it.each(REQUIRED_HEADER_FIELDS)('returns no headers when %s is an empty string', field => {
+    const signer = { ...SIGNER, [field]: '' };
+    const session: SessionContext = { [HMAC_KEY_SLOT]: VALID_KEY_HEX, [HMAC_SIGNER_SLOT]: signer };
+    const result = buildHmacHeaders({ session, method: 'POST', url: REQUEST_URL });
     expect(result).toBe(NO_HMAC_HEADERS);
   });
 });

@@ -46,14 +46,33 @@ function readKeyHex(session: SessionContext): string {
 }
 
 /**
+ * Report whether a value is a usable HTTP header name.
+ * @param value - Candidate header name from the signer directive.
+ * @returns True for a non-empty string.
+ */
+function isHeaderName(value: unknown): boolean {
+  return typeof value === 'string' && value !== '';
+}
+
+/**
  * Narrow an unknown session value to the header-signer directive.
+ *
+ * <p>The three header NAMES are validated, not just the algorithm tag:
+ * {@link toHeaderMap} spreads them as computed keys, so a directive that
+ * carries the tag but omits a name would silently emit a header literally
+ * called `undefined` and drop the real one — a signed request the bank
+ * rejects for a reason nothing in the log explains.
  * @param value - Raw session-context value.
- * @returns True when the value carries the HMAC-SHA256 tag.
+ * @returns True when the value is a complete HMAC-SHA256 directive.
  */
 function isHmacSigner(value: unknown): value is IHmacHeaderSignerConfig {
   if (value === null || typeof value !== 'object') return false;
-  const tag = (value as { algorithm?: unknown }).algorithm;
-  return tag === 'HMAC-SHA256';
+  const candidate = value as Partial<IHmacHeaderSignerConfig>;
+  if (candidate.algorithm !== 'HMAC-SHA256') return false;
+  const hasTimestamp = isHeaderName(candidate.timestampHeader);
+  const hasNonce = isHeaderName(candidate.nonceHeader);
+  const hasSignature = isHeaderName(candidate.signatureHeader);
+  return hasTimestamp && hasNonce && hasSignature;
 }
 
 /**
