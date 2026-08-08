@@ -74,7 +74,22 @@ function applyGuards(source) {
 }
 
 /**
+ * Decide whether every guard is already present in the bundle source.
+ *
+ * @param source - Current `coreBundle.js` contents.
+ * @returns True only when all guarded forms are found.
+ */
+function isAlreadyGuarded(source) {
+  return GUARDS.every(guard => source.includes(guard.to));
+}
+
+/**
  * Rewrite the bundle in place when at least one guard is missing.
+ *
+ * <p>Zero substitutions is ambiguous: the guard may already be applied, or
+ * the resolved build may simply not contain the expected forms. Reporting
+ * "already guarded" for the second case would promise protection that is
+ * not there, so the guarded forms are confirmed before claiming success.
  *
  * @param bundlePath - Absolute path to `coreBundle.js`.
  * @returns Human-readable outcome for the install log.
@@ -82,9 +97,12 @@ function applyGuards(source) {
 function patchBundle(bundlePath) {
   const source = readFileSync(bundlePath, 'utf8');
   const result = applyGuards(source);
-  if (result.count === 0) return 'already guarded';
-  writeFileSync(bundlePath, result.text, 'utf8');
-  return `guarded ${result.count} pageError.location read(s)`;
+  if (result.count > 0) {
+    writeFileSync(bundlePath, result.text, 'utf8');
+    return `guarded ${result.count} pageError.location read(s)`;
+  }
+  if (isAlreadyGuarded(source)) return 'already guarded';
+  return 'NOT APPLIED — no known pageError.location read in this build';
 }
 
 /**
