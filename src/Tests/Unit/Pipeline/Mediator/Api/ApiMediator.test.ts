@@ -232,6 +232,36 @@ describe('ApiMediator/apiGet', () => {
   });
 });
 
+/**
+ * The operation label exists to make a bank-side GraphQL failure traceable,
+ * so it must derive **only** from an executable operation definition. A name
+ * that merely appears in a comment or a string literal is not the operation
+ * being run, and labelling with it would break the anonymous-error contract
+ * that callers match on.
+ */
+const OPERATION_LABEL_CASES: readonly { label: string; document: string; expected: string }[] = [
+  {
+    label: 'omits the label for an anonymous document',
+    document: '{ movements { id } }',
+    expected: 'graphql errors: bad',
+  },
+  {
+    label: 'ignores an operation name that appears only inside a comment',
+    document: '# query Stale\n{ movements { id } }',
+    expected: 'graphql errors: bad',
+  },
+  {
+    label: 'ignores an operation name that appears only inside a string literal',
+    document: '{ movements(note: "query Stale") { id } }',
+    expected: 'graphql errors: bad',
+  },
+  {
+    label: 'names a real operation that follows a comment',
+    document: '# fetches movements\nquery Movements { movements { id } }',
+    expected: 'graphql errors [Movements]: bad',
+  },
+];
+
 describe('ApiMediator/apiQuery', () => {
   it('unwraps {data: T} to succeed(data)', async () => {
     registerWkQuery('customer', HINT, 'query Customer { me { id } }');
@@ -272,52 +302,15 @@ describe('ApiMediator/apiQuery', () => {
       );
   });
 
-  it('omits the operation label for an anonymous query document', async () => {
-    registerWkQuery('transactions', HINT, '{ movements { id } }');
+  it.each(OPERATION_LABEL_CASES)('$label', async ({ document, expected }) => {
+    registerWkQuery('transactions', HINT, document);
     const recorder = makeRecorder();
     recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
     const mediator = buildMediator(recorder);
     const result = await mediator.apiQuery('transactions', {});
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors: bad');
-  });
-
-  it('ignores an operation name that appears only inside a comment', async () => {
-    registerWkQuery('transactions', HINT, '# query Stale\n{ movements { id } }');
-    const recorder = makeRecorder();
-    recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
-    const mediator = buildMediator(recorder);
-    const result = await mediator.apiQuery('transactions', {});
-    const isOkResult = isOk(result);
-    expect(isOkResult).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors: bad');
-  });
-
-  it('ignores an operation name that appears only inside a string literal', async () => {
-    registerWkQuery('transactions', HINT, '{ movements(note: "query Stale") { id } }');
-    const recorder = makeRecorder();
-    recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
-    const mediator = buildMediator(recorder);
-    const result = await mediator.apiQuery('transactions', {});
-    const isOkResult = isOk(result);
-    expect(isOkResult).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors: bad');
-  });
-
-  it('names a real operation that follows a comment', async () => {
-    registerWkQuery(
-      'transactions',
-      HINT,
-      '# fetches movements\nquery Movements { movements { id } }',
-    );
-    const recorder = makeRecorder();
-    recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
-    const mediator = buildMediator(recorder);
-    const result = await mediator.apiQuery('transactions', {});
-    const isOkResult = isOk(result);
-    expect(isOkResult).toBe(false);
-    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors [Movements]: bad');
+    if (!isOk(result)) expect(result.errorMessage).toBe(expected);
   });
 
   it('response missing data and no errors returns "missing data"', async () => {
