@@ -7,6 +7,7 @@ import {
   ISRAEL_LOCALE,
 } from '../../../../Common/Config/BrowserConfig.js';
 import type { Brand } from '../../Types/Brand.js';
+import { timeoutPromise } from '../Timing/TimingActions.js';
 
 export { ISRAEL_LOCALE } from '../../../../Common/Config/BrowserConfig.js';
 
@@ -163,6 +164,128 @@ export function buildLaunchOptions(headless: boolean): CamoufoxLaunchOptions {
 }
 
 /**
+ * Failure signatures emitted when camoufox-js cannot load the native
+ * `better-sqlite3` binding it uses for WebGL fingerprint sampling.
+ *
+ * The `bindings` package throws "Could not locate the bindings file";
+ * a partially-built or architecture-mismatched artefact surfaces as a
+ * module-resolution or ELF-header error instead.
+ */
+const NATIVE_BINDING_FAILURE =
+  /Could not locate the bindings file|better_sqlite3\.node|invalid ELF header/i;
+
+/**
+ * Actionable remedy for a missing native binding.
+ *
+ * Written for the case that actually bites: an install performed with
+ * `--ignore-scripts`, which skips better-sqlite3's prebuild download and
+ * leaves camoufox-js unable to start the browser.
+ */
+const NATIVE_BINDING_REMEDY = [
+  'Camoufox could not start: the native better-sqlite3 binding is missing.',
+  'camoufox-js requires it for WebGL fingerprint sampling.',
+  'Fix: run `npm rebuild better-sqlite3`.',
+  'If that build fails on Linux, install the toolchain first:',
+  '`sudo apt-get install -y python3 make g++`.',
+  'Note: installing with `--ignore-scripts` skips the prebuild and causes this.',
+].join(' ');
+
+/**
+ * Replace an opaque native-binding failure with an actionable one.
+ *
+ * Any other failure is passed through untouched so real launch errors
+ * are never masked by this diagnostic.
+ *
+ * @param error - The error thrown while importing or launching Camoufox.
+ * @returns An enriched error for binding failures, else the original.
+ * @internal Exported for unit testing; not part of the public API.
+ */
+export function withNativeBindingDiagnostic(error: unknown): unknown {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!NATIVE_BINDING_FAILURE.test(message)) {
+    return error;
+  }
+  return new Error(NATIVE_BINDING_REMEDY, { cause: error });
+}
+
+/**
+ * Env var overriding {@link DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS}.
+ *
+ * Raise it on a slow link where Camoufox still has to download its ~1.3 GB
+ * browser bundle on first launch.
+ */
+export const CAMOUFOX_LAUNCH_TIMEOUT_ENV = 'CAMOUFOX_LAUNCH_TIMEOUT_MS';
+
+/**
+ * Upper bound on a Camoufox launch, in milliseconds.
+ *
+ * Deliberately generous: a cold cache downloads the browser bundle during
+ * the first launch, so a tight bound would abort a legitimate install.
+ */
+export const DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS = 300_000;
+
+/**
+ * Resolve the launch bound from {@link CAMOUFOX_LAUNCH_TIMEOUT_ENV}.
+ *
+ * @returns A positive millisecond bound; the default for unset or invalid values.
+ */
+function resolveLaunchTimeoutMs(): number {
+  const raw = Number(process.env[CAMOUFOX_LAUNCH_TIMEOUT_ENV]);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS;
+}
+
+/**
+ * Build the message for a launch that exceeded its bound.
+ *
+ * Deliberately not exported: Rule #15 reserves module boundaries for
+ * nominal types, and the message is verifiable through the rejection
+ * that {@link withLaunchBound} produces.
+ *
+ * @param timeoutMs - The bound that was exceeded.
+ * @returns Operator-facing text naming the likely causes and the override.
+ */
+function launchTimeoutMessage(timeoutMs: number): string {
+  return [
+    `Camoufox did not finish launching within ${String(timeoutMs)}ms.`,
+    'Common causes: the browser bundle is still downloading on a cold cache,',
+    'a required native dependency is missing, or the browser process died on startup.',
+    `Raise ${CAMOUFOX_LAUNCH_TIMEOUT_ENV} if a first-run download needs longer.`,
+  ].join(' ');
+}
+
+/**
+ * Import camoufox-js and start the browser, with no bound of its own.
+ *
+ * Separated so {@link launchCamoufox} stays a thin timeout wrapper.
+ *
+ * @param headless - Whether to launch in headless mode.
+ * @returns A Playwright-compatible Browser instance.
+ */
+async function startCamoufox(headless: boolean): Promise<Browser> {
+  const camoufoxModule = await import('@hieutran094/camoufox-js');
+  const launchOptions = buildLaunchOptions(headless);
+  return camoufoxModule.Camoufox(launchOptions);
+}
+
+/**
+ * Bound an in-flight launch so it can never stay unsettled.
+ *
+ * Delegates to the shared {@link timeoutPromise} primitive, which cancels
+ * its timer once the race settles so a pending bound can never outlive the
+ * call that created it. Kept generic and injectable so the bounding policy
+ * is unit-testable without starting a browser process.
+ *
+ * @param launch - The in-flight launch promise.
+ * @param timeoutMs - Millisecond bound to apply.
+ * @returns The launch result when it wins the race.
+ * @throws TimeoutError carrying {@link launchTimeoutMessage} when the bound elapses.
+ */
+export function withLaunchBound<T>(launch: Promise<T>, timeoutMs: number): Promise<T> {
+  const message = launchTimeoutMessage(timeoutMs);
+  return timeoutPromise(timeoutMs, launch, message);
+}
+
+/**
  * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).
  * Uses dynamic import() because camoufox-js is ESM-only.
  *
@@ -182,11 +305,23 @@ export function buildLaunchOptions(headless: boolean): CamoufoxLaunchOptions {
  * these knobs auto-pass Cloudflare/Incapsula adaptive scoring on
  * Bank Hapoalim + Amex.
  *
+ * <p>The launch is bounded by {@link DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS}.
+ * Without a bound, a browser that never comes up leaves this promise
+ * permanently unsettled; the event loop then drains and an ESM caller
+ * using top-level await dies with a bare `exit 13` and no diagnosis.
+ * The bound converts that silence into an actionable rejection.
+ *
  * @param headless - Whether to launch in headless mode.
  * @returns A Playwright-compatible Browser instance.
+ * @throws Error naming the native-binding remedy when better-sqlite3 is
+ *   unavailable, or {@link launchTimeoutMessage} when the bound elapses.
  */
 export async function launchCamoufox(headless: boolean): Promise<Browser> {
-  const camoufoxModule = await import('@hieutran094/camoufox-js');
-  const options = buildLaunchOptions(headless);
-  return camoufoxModule.Camoufox(options);
+  const launch = startCamoufox(headless);
+  const timeoutMs = resolveLaunchTimeoutMs();
+  try {
+    return await withLaunchBound(launch, timeoutMs);
+  } catch (error) {
+    throw withNativeBindingDiagnostic(error);
+  }
 }

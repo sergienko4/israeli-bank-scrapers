@@ -15,9 +15,9 @@ describe('distillHeaders', () => {
   });
 
   it('keeps x-site-id header', () => {
-    const result = distillHeaders({ 'x-site-id': '5B5160DD' });
+    const result = distillHeaders({ 'x-site-id': 'site-abc' });
     assertOk(result);
-    expect(result.value['x-site-id']).toBe('5B5160DD');
+    expect(result.value['x-site-id']).toBe('site-abc');
   });
 
   it('keeps x-xsrf-token header', () => {
@@ -77,16 +77,16 @@ describe('distillHeaders', () => {
   it('handles Cal auth scenario: keeps CALAuthScheme + X-Site-Id', () => {
     const headers = {
       authorization: 'CALAuthScheme eyJhbGciOi...',
-      'x-site-id': '5B5160DD-F84A-4D72-B67E-65891BA194FF',
+      'x-site-id': '09031987-273E-2311-906C-8AF85B17C8D9',
       'content-type': 'application/json',
       'user-agent': 'Mozilla/5.0',
       cookie: 'sid=abc',
-      host: 'connect.cal-online.co.il',
+      host: 'api.cal-online.co.il',
     };
     const result = distillHeaders(headers);
     assertOk(result);
     expect(result.value.authorization).toBe('CALAuthScheme eyJhbGciOi...');
-    expect(result.value['x-site-id']).toBe('5B5160DD-F84A-4D72-B67E-65891BA194FF');
+    expect(result.value['x-site-id']).toBe('09031987-273E-2311-906C-8AF85B17C8D9');
     const calKeys = Object.keys(result.value);
     expect(calKeys).toHaveLength(2);
   });

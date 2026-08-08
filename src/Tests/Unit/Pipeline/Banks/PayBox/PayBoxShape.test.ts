@@ -11,7 +11,6 @@
  * context) are unit-pinned at the end of the file.
  */
 
-import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import {
@@ -39,7 +38,7 @@ import type {
   IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { ctxOf, FIXT_DEVICE, FIXT_TOKEN, FIXT_UID, makePayBoxBus } from './PayBoxBusFactory.js';
@@ -63,7 +62,11 @@ describe('PayBoxShape integration — wallet', () => {
     assertHas(scr);
     expect(scr.value.accounts).toHaveLength(1);
     expect(scr.value.accounts[0].accountNumber).toBe(FIXT_UID);
-    expect(scr.value.accounts[0].balance).toBe(100);
+    // Balance is a deterministic 0: the `/sync` fetch is skipped, so the
+    // mocked response above is never consumed. Asserting 0 (not 100)
+    // pins that the balance probe really is gone — a regression that
+    // re-enabled it would return 100 and fail here.
+    expect(scr.value.accounts[0].balance).toBe(0);
   });
 
   it('returns zero accounts when session-context lacks uId', () => {
@@ -84,11 +87,11 @@ describe('PayBoxShape helpers — bare data', () => {
     // a 400 on a body carrying the live `access_token` makes PayBox
     // invalidate the session: the very next `/getUserHistory` returns
     // `401 UNAUTHORIZED` (`404 UNAUTHORIZED_TOKEN` on a warm token)
-    // instead of rows. Forensic run 31015484475 shows a token minted
-    // 355 ms earlier by a successful `loginBySms` refused immediately
-    // after `/sync` 400'd, scraping 0 txns. With an empty body the 400
-    // stays inert, `fallbackOnFail: 0` degrades the balance, and the
-    // transaction scrape still returns rows (88 in run 30977091315).
+    // instead of rows — observed with a token minted well under a second
+    // earlier by a successful `loginBySms`, refused immediately after
+    // `/sync` 400'd, scraping 0 txns. With an empty body the 400 stays
+    // inert, `fallbackOnFail: 0` degrades the balance, and the
+    // transaction scrape still returns rows.
     const balanceResult = balanceVars();
     expect(balanceResult).toEqual({});
     expect(balanceResult).not.toHaveProperty('auth');
@@ -177,7 +180,7 @@ describe('PayBoxShape auth envelope', () => {
     expect(envelope.uId).toBe(FIXT_UID);
     expect(envelope.uuid).toBe(FIXT_DEVICE);
     expect(envelope.access_token).toBe(FIXT_TOKEN);
-    expect(envelope.appVer).toBe('5.6.6');
+    expect(envelope.appVer).toBe('5.7.3');
     expect(envelope.type).toBe('pb');
     expect(envelope.os).toBe('android-13');
   });
@@ -193,36 +196,79 @@ describe('PayBoxShape auth envelope', () => {
 });
 
 describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
-  it('flips amount sign for outgoing-type rows', () => {
+  it('negates the magnitude for debit-type rows (pay)', () => {
     const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
       _id: 'fixt-0',
       ts: '2026-01-01T00:00:00.000Z',
       amt: 50,
-      type: 'outgoingTransaction',
+      type: 'pay',
     });
     expect(mapped.chargedAmount).toBe(-50);
     expect(mapped.originalAmount).toBe(-50);
   });
 
-  it('keeps incoming-type amount positive and maps `done` state to Completed', () => {
+  it('negates the magnitude for a wallet purchase (money leaves the balance)', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-0b',
+      ts: '2026-01-02T00:00:00.000Z',
+      amt: 30,
+      type: 'purchase',
+      state: 'clearance',
+    });
+    expect(mapped.chargedAmount).toBe(-30);
+    expect(mapped.status).toBe('completed');
+  });
+
+  it('keeps credit-type amount positive and reads an absent state as Completed', () => {
     const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
       _id: 'fixt-1',
       ts: '2026-02-02T00:00:00.000Z',
       amt: 25,
       type: 'incomingTransaction',
-      state: 'done',
     });
     expect(mapped.chargedAmount).toBe(25);
     expect(mapped.status).toBe('completed');
   });
 
-  it('maps non-done state to Pending (only Completed/Pending are canonical)', () => {
+  it('keeps a top-up positive (money enters the balance)', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-1b',
+      ts: '2026-02-03T00:00:00.000Z',
+      amt: 200,
+      type: 'topUp',
+    });
+    expect(mapped.chargedAmount).toBe(200);
+  });
+
+  it('forces interest income positive even on a debit-looking type (subType wins)', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-1c',
+      ts: '2026-02-04T00:00:00.000Z',
+      amt: 3,
+      type: 'purchase',
+      subType: 'interestIncome',
+    });
+    expect(mapped.chargedAmount).toBe(3);
+  });
+
+  it('maps a filtered purchase to Pending (not yet settled)', () => {
     const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
       _id: 'fixt-2',
       ts: '2026-03-03T00:00:00.000Z',
       amt: 10,
-      type: 'incomingTransaction',
-      state: 'pending',
+      type: 'purchase',
+      state: 'filtered',
+    });
+    expect(mapped.status).toBe('pending');
+  });
+
+  it('maps a rejected purchase to Pending', () => {
+    const mapped = PAYBOX_TXNS_INTERNALS.mapWalletTxn({
+      _id: 'fixt-2b',
+      ts: '2026-03-04T00:00:00.000Z',
+      amt: 10,
+      type: 'purchase',
+      state: 'rejected',
     });
     expect(mapped.status).toBe('pending');
   });
@@ -256,17 +302,41 @@ describe('PayBoxShape pagination terminators', () => {
 
 describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
   /**
-   * Build a degraded PayBox scrape bus: the `/sync` balance call is
-   * rejected (the masked 400) so `fallbackOnFail: 0` engages, and the
-   * history page is empty — the exact silent-success shape the guard
-   * converts into a loud, typed failure.
-   * @returns Mock mediator pre-seeded for the degraded path.
+   * Build a REFUSED PayBox scrape bus: `/getUserHistory` answers with the
+   * error envelope PayBox returns for a rejected read (`{code, name,
+   * message}` and no `content`). Because the row reader only looks for
+   * `content.nc`, this shape would otherwise pass as a legitimately empty
+   * page and lose the run's data silently.
+   *
+   * <p>Replaces the former `degradedBus`, which forced the `/sync`
+   * balance call to fail. That path is unreachable now the balance step
+   * is `skipFetch: true`, so the scenario it stood for (a rejected read
+   * masquerading as an empty wallet) is pinned here instead, where the
+   * rejection is detected directly rather than inferred from the balance.
+   * @returns Mock mediator pre-seeded for the refused path.
    */
-  function degradedBus(): IApiMediator {
+  function refusedBus(): IApiMediator {
     return makePayBoxBus({
-      balance: [fail(ScraperErrorTypes.Generic, 'sync rejected (masked by fallbackOnFail)')],
-      transactions: [succeed({ content: { nc: [] } })],
+      balance: [succeed({ content: { userFunds: { balance: 0 } } })],
+      transactions: [succeed({ code: '401', name: 'UNAUTHORIZED', message: 'refused' })],
     });
+  }
+
+  /**
+   * Run the PayBox scrape and reduce it to a pass/fail verdict, treating
+   * a thrown rejection and a failure Procedure alike — both are "loud".
+   * @param bus - Pre-seeded mediator.
+   * @returns Whether the scrape refused to produce a result.
+   */
+  async function scrapeVerdict(bus: IApiMediator): Promise<'failed' | 'succeeded'> {
+    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const ctx = ctxOf(bus);
+    try {
+      const scraped = await scrapeFn(ctx);
+      return scraped.success ? 'succeeded' : 'failed';
+    } catch {
+      return 'failed';
+    }
   }
 
   /**
@@ -286,11 +356,10 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
     return phase.post(pctx, pctx);
   }
 
-  it('PB-GUARD-1 degraded warm token + zero txns FAILS the post stage', async () => {
-    const bus = degradedBus();
-    const result = await postAfterScrape(bus);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+  it('PB-GUARD-1 a refused transactions page fails loudly, never as an empty page', async () => {
+    const bus = refusedBus();
+    const verdict = await scrapeVerdict(bus);
+    expect(verdict).toBe('failed');
   });
 
   it('PB-GUARD-2 healthy wallet with zero txns does NOT fire (empty is legal)', async () => {
@@ -341,20 +410,15 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
     expect(PEPPER_SHAPE.resultGuard).toBeUndefined();
   });
 
-  it('PB-GUARD-4 same degraded scrape FAILS PayBox but PASSES OneZero', async () => {
-    const bus = degradedBus();
-    const scrapeFn = createApiDirectScrapePhase(PAYBOX_SHAPE);
-    const ctx = ctxOf(bus);
-    const scraped = await scrapeFn(ctx);
-    assertOk(scraped);
-    const base = makeMockContext();
-    const pctx: IPipelineContext = { ...base, scrape: scraped.value.scrape };
-    const payboxPhase = buildApiDirectScrapePhase(PAYBOX_SHAPE);
-    const oneZeroPhase = buildApiDirectScrapePhase(ONE_ZERO_SHAPE);
-    const payboxPost = await payboxPhase.post(pctx, pctx);
-    const oneZeroPost = await oneZeroPhase.post(pctx, pctx);
-    expect(payboxPost.success).toBe(false);
-    expect(oneZeroPost.success).toBe(true);
+  it('PB-GUARD-4 a refusal fails while a genuinely empty page still succeeds', async () => {
+    const emptyBus = makePayBoxBus({
+      balance: [succeed({ content: { userFunds: { balance: 0 } } })],
+      transactions: [succeed({ content: { nc: [] } })],
+    });
+    const refused = refusedBus();
+    const refusedVerdict = await scrapeVerdict(refused);
+    const emptyVerdict = await scrapeVerdict(emptyBus);
+    expect([refusedVerdict, emptyVerdict]).toEqual(['failed', 'succeeded']);
   });
 
   it('PB-GUARD-6 absent balanceDegraded reads as not-degraded (guard stays silent)', async () => {

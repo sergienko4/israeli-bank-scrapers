@@ -214,6 +214,40 @@ export interface IApiDirectScrapePrime {
   readonly navUrl: (ctx: IActionContext) => string;
 }
 
+/**
+ * Session-context patch a bootstrap step deposits. The driver MERGES it
+ * into the existing session-context snapshot (never replaces), so the
+ * post-login identity fields (`uId`, `token`, `deviceId16Hex`) survive.
+ */
+export type SessionContextPatch = Readonly<Record<string, unknown>>;
+
+/** Bundle handed to a bootstrap step's patch extractor. */
+export interface IBootstrapExtractArgs {
+  readonly body: ApiBody;
+  readonly ctx: IActionContext;
+}
+
+/**
+ * Optional pre-scrape BOOTSTRAP step. Dispatched exactly once, after
+ * `prime` and before the customer step, through the same signed-POST
+ * machinery the scrape steps use (shape-level `signer` + `secrets`). Its
+ * parsed response body is handed to `extractPatch`, whose returned patch
+ * is merged into the mediator session-context so later steps — and the
+ * transport-level request signer — can read the deposited values.
+ *
+ * <p>PayBox uses this to fetch + decrypt its per-session HMAC signing key
+ * (`getKey`) before the authenticated reads that now require signed
+ * request headers. Absent ⇒ no bootstrap (every other bank).
+ */
+export interface IApiDirectScrapeBootstrapStep {
+  readonly urlTag: WKUrlOrLiteral;
+  readonly method?: ScrapeHttpMethod;
+  readonly buildVars: (ctx: IActionContext) => VarsMap;
+  readonly bodyTemplate?: JsonValueTemplate;
+  readonly extraHeaders?: ApiDirectScrapeHeadersLike;
+  readonly extractPatch: (args: IBootstrapExtractArgs) => Procedure<SessionContextPatch>;
+}
+
 /** Shape a bank plugs into createApiDirectScrapePhase. */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
@@ -223,6 +257,13 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * Absent ⇒ no prime (cookie-only session banks + headless banks).
    */
   readonly prime?: IApiDirectScrapePrime;
+  /**
+   * Optional pre-scrape bootstrap step — see
+   * {@link IApiDirectScrapeBootstrapStep}. Runs once after `prime` and
+   * before the customer step; its patch is merged into session-context.
+   * Absent ⇒ no bootstrap (every bank except PayBox getKey).
+   */
+  readonly bootstrap?: IApiDirectScrapeBootstrapStep;
   /**
    * Optional class-y body-pointer signer applied to every scrape-step
    * body before POST. Same `IAesSignerConfig` type used by the login

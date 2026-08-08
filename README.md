@@ -139,18 +139,65 @@ Replace `userCode` and `password` with real credentials. See [Supported Institut
 | **Node.js**          | `>= 22.14.0`                            | ESM-by-default + `node:crypto` `randomUUID` used by the pipeline correlationId.                             |
 | **npm**              | `>= 10`                                 | Workspaces + `--access public` provenance.                                                                  |
 | **OS**               | Windows / macOS / Linux                 | Camoufox ships native binaries for all three (downloaded on `npm install`).                                 |
-| **Disk**             | ~500 MB for the Camoufox browser bundle | Cached under `~/.cache/camoufox` after first install.                                                       |
+| **Install scripts**  | Must be allowed to run                  | `--ignore-scripts` skips the native `better-sqlite3` prebuild camoufox-js needs, and the `playwright-core` null guard. See [Troubleshooting](#troubleshooting-native-binding). |
+| **Disk**             | ~1.3 GB for the Camoufox browser bundle | Cached under `~/.cache/camoufox` after first launch (measured on Ubuntu 24.04).                              |
 | **Bank credentials** | Per-bank, real                          | See [Supported Institutions](#supported-institutions). The library never registers accounts on your behalf. |
 | **OTP callback**     | For banks that require it               | A `Promise<string>` returning the SMS code. See [OTP](#otp-two-factor-authentication).                      |
 
 Environment variables (all optional):
 
-| Variable        | Default | Effect                                                                                                       |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `PII_REDACTION` | `on`    | Set to `off` to disable redaction _for real-bank E2E only_. Unit tests always run with redaction default-on. |
-| `MOCK_MODE`     | unset   | `1` switches `test:mock` to its fixture-driven path.                                                         |
+| Variable                     | Default  | Effect                                                                                                       |
+| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `PII_REDACTION`              | `on`     | Set to `off` to disable redaction _for real-bank E2E only_. Unit tests always run with redaction default-on. |
+| `MOCK_MODE`                  | unset    | `1` switches `test:mock` to its fixture-driven path.                                                         |
+| `CAMOUFOX_LAUNCH_TIMEOUT_MS` | `300000` | Bounds browser launch. Generous by default because the first launch downloads the browser bundle.            |
 
 Per-phase navigation timeout is controlled by the `defaultTimeout` scraper **option** (not an env var) — see [Configuration → Scraper options](#configuration).
+
+<a id="troubleshooting-native-binding"></a>
+
+### Troubleshooting: `Could not locate the bindings file`
+
+Camoufox fails to launch with this error when the native `better-sqlite3`
+module was never built. camoufox-js uses it for WebGL fingerprint sampling.
+
+The usual cause is installing with `--ignore-scripts`, which skips
+better-sqlite3's prebuild download.
+
+```bash
+npm rebuild better-sqlite3
+```
+
+If that has to compile from source (no prebuild for your platform), install a
+toolchain first:
+
+```bash
+sudo apt-get install -y python3 make g++   # Debian / Ubuntu
+```
+
+<a id="troubleshooting-pageerror-guard"></a>
+
+### Troubleshooting: `Cannot read properties of undefined (reading 'url')`
+
+A scrape dies inside `playwright-core` with this `TypeError` and no stack
+frame of ours in the trace.
+
+This library listens for uncaught page errors. Playwright forwards every one
+of them and reads `pageError.location.url` without a null check, but Camoufox
+(Firefox) can report an uncaught error that carries no location — so the read
+throws. Upstream still ships the unguarded read as of `playwright-core`
+1.62.1.
+
+A `postinstall` step adds the missing null guard for you. It is skipped when
+you install with `--ignore-scripts`, so apply it by hand:
+
+```bash
+node node_modules/@sergienko4/israeli-bank-scrapers/scripts/patch-playwright-core.mjs
+```
+
+The script is idempotent and never fails an install — re-running it on an
+already-guarded tree is a no-op. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out
+entirely if you manage `playwright-core` patches yourself.
 
 ## Usage
 
@@ -370,7 +417,7 @@ Field names per bank live in the [Supported Institutions](#supported-institution
 
 | Path                       | Purpose                                                                         |
 | -------------------------- | ------------------------------------------------------------------------------- |
-| `~/.cache/camoufox/`       | Camoufox browser bundle (~500 MB, downloaded on first install)                  |
+| `~/.cache/camoufox/`       | Camoufox browser bundle (~1.3 GB, downloaded on first launch)                  |
 | `<cwd>/pipeline.log`       | Pino transcript (PII-redacted)                                                  |
 | `<cwd>/network/*.json`     | Captured HTTP bodies (redacted before write)                                    |
 | `<cwd>/screenshots/*.html` | DOM snapshots per phase (redacted in place)                                     |

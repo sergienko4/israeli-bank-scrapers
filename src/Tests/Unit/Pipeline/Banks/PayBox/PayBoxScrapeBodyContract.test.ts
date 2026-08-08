@@ -37,6 +37,7 @@ import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
+import { FIXT_GETKEY_TSIV, FIXT_GETKEY_TSKEY, FIXT_PHONE } from './PayBoxBusFactory.js';
 
 const FIXT_UID = 'pb-uid-fixture-1';
 const FIXT_DEVICE = 'fixt-device-pb-0001';
@@ -75,17 +76,28 @@ interface ICapturedCall {
 }
 
 /**
- * Canned responses keyed by URL tag — shaped to satisfy the real
- * PayBox extractors so the phase completes its full walk.
+ * Canned response bodies keyed by URL tag — shaped to satisfy the real
+ * PayBox extractors so the phase completes its full walk. A map (OCP)
+ * rather than a URL `if` chain: a new step is one entry, not a new branch.
+ *
+ * The `getUserHistory` row's `ts` equals the first-page sentinel, which
+ * stalls the cursor and so terminates pagination after one fetch.
+ */
+const CANNED_BODIES: ReadonlyMap<string, unknown> = new Map([
+  ['data.getKey', { content: { tsKey: FIXT_GETKEY_TSKEY, tsIv: FIXT_GETKEY_TSIV } }],
+  ['data.sync', { content: { userFunds: { balance: 100 } } }],
+  ['data.getUserHistory', { content: { nc: [{ ts: 'null' }] } }],
+]);
+
+/**
+ * Resolve the canned response for a dispatched URL tag.
  * @param url - WK URL tag apiPost was called with.
  * @returns Procedure the stub resolves with.
  */
 function respondTo(url: string): Procedure<unknown> {
-  if (url === 'data.sync') return succeed({ content: { userFunds: { balance: 100 } } });
-  // A row whose `ts` equals the first-page sentinel stalls the cursor,
-  // terminating pagination after one fetch.
-  if (url === 'data.getUserHistory') return succeed({ content: { nc: [{ ts: 'null' }] } });
-  return fail(ScraperErrorTypes.Generic, `unexpected url=${url}`);
+  const body = CANNED_BODIES.get(url);
+  if (body === undefined) return fail(ScraperErrorTypes.Generic, `unexpected url=${url}`);
+  return succeed(body);
 }
 
 /**
@@ -105,7 +117,7 @@ function makeRecordingBus(sink: ICapturedCall[]): IApiMediator {
     apiQuery: jest.fn(),
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
-    setSessionContext: jest.fn(),
+    setSessionContext: jest.fn((): boolean => true),
     ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => PAYBOX_SESSION),
   } as unknown as IApiMediator;
@@ -120,25 +132,6 @@ function authOf(call: ICapturedCall): Record<string, unknown> {
   const auth = call.body.auth;
   if (auth === null || typeof auth !== 'object') return {};
   return auth as Record<string, unknown>;
-}
-
-/**
- * Stand-in returned when a URL tag was never dispatched. The preceding
- * `expect(found).toBeDefined()` is what reports the miss; this keeps the
- * helper total so no assertion nor type escape hatch is needed.
- */
-const MISSING_CALL: ICapturedCall = { url: '(not dispatched)', body: {} };
-
-/**
- * Locate the recorded dispatch for a URL tag.
- * @param calls - All recorded dispatches.
- * @param url - WK URL tag to find.
- * @returns The matching call.
- */
-function callFor(calls: readonly ICapturedCall[], url: string): ICapturedCall {
-  const found = calls.find(c => c.url === url);
-  expect(found).toBeDefined();
-  return found ?? MISSING_CALL;
 }
 
 /**
@@ -159,15 +152,17 @@ describe('PayBox post-login body contract', () => {
     calls = [];
     const bus = makeRecordingBus(calls);
     const overrides: Partial<IPipelineContext> = { apiMediator: some(bus) };
-    const ctx = makeMockContext(overrides) as unknown as IActionContext;
+    const base = makeMockContext(overrides);
+    const credentials = { phoneNumber: FIXT_PHONE } as unknown as typeof base.credentials;
+    const ctx = { ...base, credentials } as unknown as IActionContext;
     const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
     const result = await phase(ctx);
     assertOk(result);
   });
 
-  it('T-PB-BODY-1 dispatches the balance step and at least one data step', () => {
+  it('T-PB-BODY-1 dispatches at least one data step and skips the balance step', () => {
     const urls = calls.map(c => c.url);
-    expect(urls).toContain(BALANCE_URL_TAG);
+    expect(urls).not.toContain(BALANCE_URL_TAG);
     expect(dataCalls(calls).length).toBeGreaterThan(0);
   });
 
@@ -189,14 +184,15 @@ describe('PayBox post-login body contract', () => {
   });
 
   // The counter-regression net, and the more expensive one to get wrong.
-  // `/sync` is answered with HTTP 400 whatever the body holds, but a 400
-  // on a body carrying the live `access_token` makes PayBox invalidate
-  // the session — the next `/getUserHistory` then returns
-  // `401 UNAUTHORIZED` instead of rows (forensic run 31015484475, 0 txns
-  // against 88 in the preceding green run 30977091315).
-  it('T-PB-BODY-3 the balance step carries NO auth envelope', () => {
-    const syncCall = callFor(calls, BALANCE_URL_TAG);
-    expect(syncCall.body).not.toHaveProperty('auth');
+  // `/sync` is answered with HTTP 400 whatever the body holds, and the
+  // rejection poisons the session: `/getUserHistory` then returns
+  // `401 UNAUTHORIZED` instead of rows — observed across two runs that
+  // scraped 0 txns where the preceding green run scraped a full page.
+  // Withholding the auth envelope was NOT enough; the bare 400 suffices.
+  // The call is therefore never made, which this pins.
+  it('T-PB-BODY-3 the balance step is never dispatched', () => {
+    const syncCalls = calls.filter(c => c.url === BALANCE_URL_TAG);
+    expect(syncCalls).toHaveLength(0);
   });
 
   it('T-PB-BODY-4 identity fields are sourced from the live session-context', () => {
@@ -205,5 +201,26 @@ describe('PayBox post-login body contract', () => {
     expect(auth.uId).toBe(FIXT_UID);
     expect(auth.uuid).toBe(FIXT_DEVICE);
     expect(auth.access_token).toBe(FIXT_TOKEN);
+  });
+});
+
+/**
+ * The bootstrap deposits the request-signing key into session-context.
+ * If the mediator refuses to store it the scrape MUST abort: every later
+ * read would otherwise go out unsigned and come back as an opaque bank
+ * rejection, hiding the real cause behind a transport-looking error.
+ */
+describe('PayBox bootstrap merge is fail-closed', () => {
+  it('T-PB-BODY-5 aborts the scrape when session-context refuses the patch', async () => {
+    const calls: ICapturedCall[] = [];
+    const bus = makeRecordingBus(calls);
+    const refusing = { ...bus, setSessionContext: jest.fn((): boolean => false) };
+    const overrides: Partial<IPipelineContext> = { apiMediator: some(refusing) };
+    const base = makeMockContext(overrides);
+    const credentials = { phoneNumber: FIXT_PHONE } as unknown as typeof base.credentials;
+    const ctx = { ...base, credentials } as unknown as IActionContext;
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const result = await phase(ctx);
+    expect(result.success).toBe(false);
   });
 });

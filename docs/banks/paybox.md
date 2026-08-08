@@ -32,9 +32,35 @@ const result = await scraper.scrape({
 
 PayBox sends no `Authorization` header after login, so `/getUserHistory` identifies itself through an auth envelope in its request **body**. `buildAuthEnvelope()` (`scrape/PayBoxAuthEnvelope.ts`) builds it from the session context; `PAYBOX_AUTH_ENVELOPE_INTERNALS` exposes its two resolution steps for unit tests only.
 
-`/sync` (balance) **must omit the envelope**. It answers HTTP 400 either way, but a rejected body carrying the live `access_token` makes PayBox invalidate the session — a forensic run recorded `/getUserHistory` returning `401 UNAUTHORIZED` 355 ms after a freshly minted token was sent to `/sync`. `balanceVars()` therefore returns `{}`, and `PayBoxScrapeBodyContract.test.ts` pins both halves: the envelope is required on every data step and forbidden on the balance call.
+`/sync` (balance) **must omit the envelope**. It answers HTTP 400 for every body shape tried — including an empty object — so it never yields a balance; `balanceVars()` returns `{}` and the step is skipped (`fallbackOnFail: 0` degrades the balance to `0`). This is independent of transaction reads: `/getUserHistory` refuses with `401 "missing signature headers"` when the HMAC signature headers are absent (see [HMAC request signing](#hmac-request-signing-getkey-bootstrap)), not because of anything `/sync` did. `PayBoxScrapeBodyContract.test.ts` pins the envelope contract: it is required on every data step and omitted on the balance call.
 
 > **Note:** the balance step's `fallbackOnFail: 0` reports the 400 as a zero balance, so a degraded `/sync` is expected and is not by itself a failure. See [Response digest](../observability/response-digest.md) for reading what the server actually objected to.
+
+## HMAC request signing (getKey bootstrap)
+
+PayBox's API rejects authenticated reads (e.g. `/getUserHistory`) with
+`401 "missing signature headers"` unless each request carries
+`X-Timestamp`, `X-Nonce` and an HMAC-SHA256 `X-Signature` over the
+canonical request. The signing key is **per-session**: it is not the
+login token but a 32-byte key delivered — AES-CBC encrypted — by an
+unsigned `getKey` exchange call the client makes first.
+
+The generic [`bootstrap` step](../phases/api-direct-scrape.md#bootstrap--one-shot-session-context-seeding)
+runs `getKey` before the account walk. `getKeyVars()`
+(`scrape/PayBoxBootstrap.ts`) builds the unsigned exchange request's
+auth envelope; `extractHmacKeyPatch()` derives the AES key from the
+caller's phone (formatted `international-dash`) plus the static
+key-exchange salt, decrypts the exchange ciphertext into the raw HMAC
+key, and returns a session-context patch carrying the key and its
+signer. The mediator then signs every subsequent data request. The
+derivation is fail-closed: a wrong seed/salt or an unexpected exchange
+envelope aborts the run rather than scraping unsigned, and the HMAC key
+is never logged.
+
+The crypto primitives are generic and bank-agnostic (no bank-name
+strings): `HmacKeyExchange` (derive + decrypt) and `HmacRequestSigner`
+(canonical + sign) live under `Mediator/ApiDirectCall/Crypto`; the seed
+formatting, salt and header names live in `Registry/Config`.
 
 ## Wallet history rows
 

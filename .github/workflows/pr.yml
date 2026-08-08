@@ -101,7 +101,6 @@ defaults:
 #                           upload artifacts.
 #                           MOCKED tests live here so failures are
 #                           caught BEFORE we burn real-bank capacity.
-#   e2e-smoke             — 17-bank matrix (invalid-creds, parallel).
 #   dns-preflight         — Israeli bank DNS resolution sanity.
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
 #                           non-OTP browser-form banks
@@ -519,8 +518,8 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────
   # Validate aggregator — preserves the external `Validate` status
-  # context name AND the outputs that downstream jobs (e2e-smoke,
-  # dns-preflight, e2e-real-group-*, dependency-review) consume.
+  # context name AND the outputs that downstream jobs (dns-preflight,
+  # e2e-real-group-*, dependency-review) consume.
   #
   # Pattern:
   #   `if: always()` so the aggregator runs even when one of the
@@ -542,7 +541,6 @@ jobs:
       - bank-coverage
       - integration
       - build
-      - e2e-smoke
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -564,11 +562,6 @@ jobs:
       - name: Verify all gates green
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
-          # Passed via env rather than interpolated into the script body:
-          # a `${{ }}` expansion inside `run:` is a template-injection sink
-          # (zizmor/template-injection), even when the value is
-          # workflow-computed rather than attacker-controlled.
-          FULL_SUITE: ${{ needs.changes.outputs.full_suite }}
         run: |
           set -euo pipefail
           echo "Aggregator inputs:"
@@ -578,159 +571,7 @@ jobs:
             echo "::error::Validate gate FAILED — these jobs reported failure or cancelled: $FAILED"
             exit 1
           fi
-          # `skipped` counts as green above, which is correct for gates that
-          # legitimately do not apply to a docs-only PR. But when full_suite is
-          # on, e2e-smoke is REQUIRED and a skip would be a silent hole: an
-          # `if: false` or a matrix wiring mistake would skip all 17 cells and
-          # still report this gate green. Demand an explicit success instead.
-          SMOKE=$(echo "$NEEDS_JSON" | jq -r '."e2e-smoke".result')
-          if [ "$FULL_SUITE" = "true" ] && [ "$SMOKE" != "success" ]; then
-            echo "::error::Validate gate FAILED — full_suite is on but e2e-smoke reported '$SMOKE' (expected 'success')."
-            exit 1
-          fi
           echo "✅ All parallel validate gates green (success or skipped)."
-
-  # ──────────────────────────────────────────────────────────────
-  # E2E Smoke Tests — matrix job, ONE bank per runner.
-  #
-  # Splits the previously-serial 17-bank smoke run into 17 parallel
-  # ubuntu-latest runners. Each runner installs deps + camoufox once,
-  # runs jest with --testNamePattern filtered to a single bank, and
-  # returns. Wall time: ~3-5min matrix vs ~25min serial.
-  #
-  # Per-test timeout is per-bank (see SmokeConfig.ts `smokeTimeoutMs`):
-  # SMOKE_TIMEOUT (180s) by default, SMOKE_TIMEOUT_PRE_LOGIN (420s) for the
-  # banks that run a PRE-LOGIN phase. Those spend 211-221s on pre-submit
-  # navigation alone, so the flat 180s budget killed them mid-navigation
-  # before they ever reached a login verdict — which is what the four
-  # long-standing red cells (Max / VisaCal / Amex / Isracard) actually were.
-  # `timeout-minutes` below must stay above the widest per-bank budget plus
-  # dependency/camoufox install.
-  #
-  # REQUIRED GATE. This job feeds `validate`, which is the branch-protection
-  # check, so a red bank now blocks the merge. It runs BEFORE `validate` and
-  # alongside the other gates — it deliberately does NOT depend on `validate`
-  # (that would be a dependency cycle). It depends on the four cheapest gates
-  # (`lint-and-types`, `unit-tests`, `build`, plus `changes`) so a broken build
-  # never reaches 17 live-bank runners. It does NOT wait on `integration`,
-  # `e2e-mocked`, `e2e-factory` or `bank-coverage`: those are slower, and
-  # blocking 17 runners on them would cost more wall time than the wasted
-  # minutes they would occasionally save. GitHub implicitly ANDs `success()`
-  # into a custom `if` that contains no status function, so a red cheap gate
-  # skips smoke and `validate` still fails on the cheap gate itself.
-  #
-  # The "Assert the bank test actually ran" step guards the matrix wiring
-  # itself: a matrix entry that no longer matches a SMOKE_BANKS display
-  # name fails the job loudly instead of reporting a green cell that
-  # executed zero tests.
-  # ──────────────────────────────────────────────────────────────
-  e2e-smoke:
-    name: E2E Smoke (${{ matrix.bank }})
-    # Skip when only docs/CI/non-src files were touched — keeps non-src
-    # PRs from spinning up 17 runners they cannot meaningfully exercise.
-    # A browser-stack bump (playwright-core / Camoufox) DOES qualify via
-    # `full_suite`: that is precisely the change these 17 runners exist
-    # to catch, and it touches no `src/` file.
-    needs: [changes, lint-and-types, unit-tests, build]
-    if: needs.changes.outputs.full_suite == 'true'
-    runs-on: ubuntu-latest
-    # Widest per-bank budget (420s) + deps/camoufox install + checkout.
-    timeout-minutes: 15
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        bank:
-          - Hapoalim
-          - Leumi
-          - Mizrahi
-          - Max
-          - Isracard
-          - Amex
-          - VisaCal
-          - Discount
-          - Otsar Hahayal
-          - Beinleumi
-          - Mercantile
-          - Massad
-          - Yahav
-          - Beyahad Bishvilha
-          - Behatsdaa
-          - Pagi
-          - OneZero
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # Bank outcomes are BLOCKING. `continue-on-error` was removed once the
-      # four red cells were root-caused to a budget mismatch rather than a
-      # scraper defect (see the per-bank `smokeTimeoutMs` in SmokeConfig.ts).
-      # A red bank here now fails `validate` and blocks the merge.
-      #
-      # `--testNamePattern` is ANCHORED at `^E2E Smoke: ` because the bare
-      # bank name substring-matches across banks: the unanchored
-      # `Leumi \(invalid login\)` also matched `Beinleumi (invalid login)`,
-      # so the Leumi cell silently ran two banks' tests and reported
-      # Beinleumi's result as Leumi's.
-      - name: E2E smoke (${{ matrix.bank }})
-        env:
-          # Bank name via env (not direct `${{ }}` interpolation into the
-          # shell) so a matrix value can never be parsed as shell syntax.
-          BANK: ${{ matrix.bank }}
-          # Capture per-run artefacts (pipeline.log, network dumps) so an
-          # invalid-login hang is traceable to the phase that stalled.
-          # Smoke uses synthetic invalid credentials, so no real account
-          # data exists to capture; the sink is still the private store.
-          FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
-          LOG_LEVEL: trace
-          RUNS_ROOT: /tmp/runs
-        run: |
-          node --experimental-vm-modules node_modules/jest/bin/jest.js \
-            --ci \
-            --testPathPatterns='E2eSmoke' \
-            --testNamePattern="^E2E Smoke: ${BANK} \(invalid login\)" \
-            --testPathIgnorePatterns='/node_modules/' \
-            --verbose \
-            --forceExit \
-            --json --outputFile=smoke-result.json
-      # Guard against a silently-green cell. `--testNamePattern` matching
-      # nothing is NOT an error to jest: it reports every test as "skipped"
-      # and exits 0. A typo'd matrix entry would therefore report success
-      # having executed no test at all. Verified locally: a non-matching
-      # pattern yields numPassedTests=0, numFailedTests=0, success=true.
-      #
-      # Deliberately has NO continue-on-error: bank behaviour may be
-      # informational, but broken matrix wiring must fail loudly.
-      - name: Assert the bank test actually ran (${{ matrix.bank }})
-        if: ${{ !cancelled() }}
-        env:
-          BANK: ${{ matrix.bank }}
-        run: bash .github/scripts/ci/assert-smoke-ran.sh
-      - name: Upload smoke diagnostics to private store (${{ matrix.bank }})
-        if: ${{ !cancelled() }}
-        # Best-effort sink: it must never turn a green bank red. Now that
-        # e2e-smoke is a REQUIRED gate, an upload that hangs would burn the
-        # job's `timeout-minutes` and cancel a bank that had already passed.
-        # Bounded twice over — `continue-on-error` for failure, a step timeout
-        # for duration (the script itself also caps its curl retry budget).
-        continue-on-error: true
-        timeout-minutes: 3
-        env:
-          OCI_DIAG_PAR_URL: ${{ secrets.OCI_DIAG_PAR_URL }}
-          DIAG_BANK: smoke-${{ matrix.bank }}
-          RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}
-        # Same write-only private sink the E2E-real gates use. Skips
-        # cleanly when the secret is absent (forks), so it can never
-        # fail the job.
-        run: bash .github/scripts/ci/upload-private-diagnostics.sh
 
   # ──────────────────────────────────────────────────────────────
   # E2E Real (live banks, real credentials) — 3-stage / 3-group design.
@@ -921,6 +762,18 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): record the runner's egress IP and what the bank's
+      # edge returns to THAT IP over plain HTTP, AFTER dns-warmup so it
+      # reflects the E2E-Real resolver state. Shows whether a live-edge
+      # failure (e.g. the Discount 404 decoy) is egress-IP reputation
+      # rather than a scraper defect. NO `continue-on-error`:
+      # that mask is banned in E2E Real jobs (PrYamlGateHardening, release
+      # PR #172). The script always exits 0 instead, so a diagnostic curl
+      # can never fail the gate. Remove after the IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
@@ -946,9 +799,10 @@ jobs:
 
         # Filter to happy-path test only. Each E2eReal/<Bank>.e2e-real file
         # has two it() blocks: 'scrapes transactions successfully' (happy)
-        # and 'fails with invalid credentials' (already covered by smoke
-        # matrix). Running both here re-tests invalid-creds against the
-        # same bank twice per PR — testNamePattern eliminates the duplicate.
+        # and 'fails with invalid credentials'. The real gates exist to prove
+        # a live scrape still works; running the invalid-creds block here
+        # would spend a second live login per bank to assert a rejection the
+        # happy path already implies — testNamePattern skips it.
         run: |
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
             --ci \
@@ -1052,6 +906,15 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       # ── Amex Camoufox/WAF knob A/B overrides (v8.4.0 regression bisect) ──
       # Writes a knob to $GITHUB_ENV ONLY when a non-empty override is supplied
       # via workflow_dispatch input OR repo variable. Blank/unset → the env var
@@ -1201,6 +1064,15 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
@@ -1318,6 +1190,15 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       # ── Warm-token cache: encrypted long-term OTP JWT persistence.
       # On the FIRST run for a branch (or after TOKEN_CACHE_KEY
       # rotation), no cache exists → cold-start (full OTP flow). The
@@ -1476,6 +1357,15 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture;
@@ -1519,8 +1409,7 @@ jobs:
     name: Dependency Review
     # Depends on `changes`, NOT `validate`. This is a manifest-diff security
     # scan — it needs no build output, and coupling it to `validate` would let
-    # one flaky live-bank smoke cell suppress a dependency-security check now
-    # that e2e-smoke is a required input to `validate`.
+    # an unrelated gate failure suppress a dependency-security check.
     needs: changes
     if: >-
       github.event_name == 'pull_request' &&

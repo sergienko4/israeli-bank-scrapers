@@ -13,6 +13,7 @@ import type { IDispatchArgs } from './ApiDirectScrapeDispatch.js';
 import type {
   ApiDirectScrapeHeadersLike,
   HeaderMap,
+  IApiDirectScrapeBootstrapStep,
   IApiDirectScrapeShape,
 } from './IApiDirectScrapeShape.js';
 
@@ -66,6 +67,27 @@ function pickShapeSigning<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): Pick<IDispatchArgs, 'signer' | 'secrets'> {
   return { signer: shape.signer ?? false, secrets: shape.secrets };
+}
+
+/**
+ * Build the bootstrap-step dispatch args bundle. Mirrors the customer
+ * step but sources its fields from the shape-level `bootstrap` literal.
+ * Signed through the same shape-level signer + secrets, so the bootstrap
+ * body (PayBox getKey `auth` envelope) gets its `/auth/signature`.
+ * @param d - Driver context.
+ * @param step - The shape's bootstrap step literal.
+ * @returns Dispatch args ready for {@link dispatchStep}.
+ */
+export function buildBootstrapDispatchArgs<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  step: IApiDirectScrapeBootstrapStep,
+): IDispatchArgs {
+  const head = { bus: d.bus, ctx: d.ctx, queryTag: 'customer' as const, urlTag: step.urlTag };
+  const vars = step.buildVars(d.ctx);
+  const method = step.method ?? 'POST';
+  const bodyTemplate = step.bodyTemplate ?? false;
+  const opts = toOpts(d.ctx, step.extraHeaders);
+  return { ...head, method, vars, bodyTemplate, ...pickShapeSigning(d.shape), opts };
 }
 
 /**

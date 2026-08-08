@@ -61,6 +61,16 @@ type IProbeConfig =
  * creds and deposit the result into scope.carry[intoCarryField].
  * Used for OTP retriever callbacks (carry.otpCode).
  */
+/**
+ * How often a `preHook` acquires its credential during one login flow.
+ *
+ * <p>`per-flow` (the default) acquires once and reuses the value across every
+ * step awaiting the same credential field — correct when the bank delivers a
+ * single secret that several steps must each submit. `per-step` re-acquires
+ * for every step, for a bank that genuinely issues a distinct secret per step.
+ */
+type PreHookReuse = 'per-flow' | 'per-step';
+
 interface IPreStepHook {
   readonly awaitCredsField: string;
   readonly intoCarryField: string;
@@ -71,6 +81,19 @@ interface IPreStepHook {
    * debug traces or replay artifacts.
    */
   readonly cryptoField?: ICryptoFieldConfig;
+  /**
+   * Optional reuse mode. Defaults to `'per-flow'`: the credential is
+   * acquired once per login and reused by every step awaiting the same
+   * field, so a one-time secret is never requested twice.
+   */
+  readonly reuse?: PreHookReuse;
 }
 
-export type { AuthScheme, IFingerprintConfig, IJwtClaimsConfig, IPreStepHook, IProbeConfig };
+export type {
+  AuthScheme,
+  IFingerprintConfig,
+  IJwtClaimsConfig,
+  IPreStepHook,
+  IProbeConfig,
+  PreHookReuse,
+};

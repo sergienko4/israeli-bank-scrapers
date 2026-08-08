@@ -252,7 +252,7 @@ function makeRestBus(router: PostRouter, captures: IPostCapture[]): IApiMediator
     apiQuery: jest.fn(),
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
-    setSessionContext: jest.fn(),
+    setSessionContext: jest.fn((): boolean => true),
     ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn(restSessionContext),
   } as unknown as IApiMediator;

@@ -11,9 +11,16 @@
  *   loginBySms     ≈ assertOtp       (submits OTP again, returns final JWT + uId)
  *
  * Both pinValidation and loginBySms encrypt the user's OTP digits into
- * the body `/pin` pointer via the per-step `cryptoField` hook. The
- * OTP retriever is invoked once and the result memoised inside the
- * OtpPoller helper so a single SMS code drives both calls.
+ * the body `/pin` pointer via the per-step `cryptoField` hook. PayBox
+ * delivers ONE SMS, so both steps need the same digits: the flow-scoped
+ * preHook cache (`SmsOtpFlow.prehookCache.ts`) acquires the code once per
+ * login and reuses it for the second step. That reuse is library behaviour —
+ * callers supply an ordinary single-shot retriever and are asked once.
+ *
+ * <p>Historical note: this comment previously credited the memoisation to the
+ * `OtpPoller` helper. That helper is test-only (`src/Tests/E2eReal/`), so the
+ * guarantee held in our E2E run and nowhere else — real callers were asked
+ * twice for a one-time code. See `SmsOtpFlow.prehookCache.ts`.
  *
  * Zero PayBox-name leakage in the mediator (Rule #11): every detail
  * lives in this data literal.
@@ -27,7 +34,7 @@ const DEVICE_INFO = {
   osVer: { $literal: '13' as const },
   platform: { $literal: 'google sdk_gphone64_x86_64' as const },
   platformVer: { $literal: 'TE1A.240213.009' as const },
-  appVer: { $literal: '5.6.6' as const },
+  appVer: { $literal: '5.7.3' as const },
   uuid: { $ref: 'carry.deviceId16Hex' as const },
 } as const;
 

@@ -23,7 +23,8 @@ async function resolveStepScope(
   step: IApiDirectCallConfig['steps'][number],
 ): Promise<Procedure<ITemplateScope>> {
   if (step.preHook === undefined) return succeed(scope);
-  return applyPreHook({ scope, creds: args.creds, hook: step.preHook });
+  const hook = step.preHook;
+  return applyPreHook({ scope, creds: args.creds, hook, cache: args.preHookCache });
 }
 
 /**

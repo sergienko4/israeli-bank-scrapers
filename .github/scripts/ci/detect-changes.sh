@@ -34,7 +34,7 @@
 #                 there, and those bumps touch no `src/` file either.
 #   critical_deps — the BROWSER STACK moved: `playwright-core` or Camoufox
 #                 (`@hieutran094/camoufox-js`, the pinned browser binary, or
-#                 the `patches/playwright-core+*.patch` overlay). `deps` alone
+#                 the `scripts/patch-playwright-core.mjs` guard). `deps` alone
 #                 says "a manifest moved" — it cannot say WHICH package, so it
 #                 only buys the two browser E2E jobs. These packages ARE the
 #                 runtime for all 17 banks: a bump changes real navigation,
@@ -127,11 +127,14 @@ has() {
 # every bank, so a bump there needs the same coverage as a `src/` edit.
 # Two independent signals feed `critical_deps`:
 #
-#   1. A pinning FILE moved: the patch overlay we apply to
-#      playwright-core, or the composite action that pins the Camoufox
-#      browser build. Neither is under `src/`, and `.github/actions/**`
-#      is not covered by `ci_scripts` either — so both used to be
-#      completely invisible to this detector.
+#   1. A pinning FILE moved: the script that applies our playwright-core
+#      patch, or the composite action that pins the Camoufox browser
+#      build. Neither is under `src/`, and `.github/actions/**` is not
+#      covered by `ci_scripts` either — so both used to be completely
+#      invisible to this detector. The patch signal was `^patches/`
+#      until the `patch-package` overlay was replaced by the
+#      dependency-free `scripts/patch-playwright-core.mjs`, which now
+#      carries the same guard for consumers as well as CI.
 #   2. The declared range or the resolved version of a critical package
 #      actually MOVED between base and HEAD.
 #
@@ -143,7 +146,7 @@ has() {
 # "camoufox" without the browser stack having moved at all. Both fired as
 # false positives in testing, which would have degraded `critical_deps`
 # into a second, noisier copy of `deps`.
-CRITICAL_DEP_PATHS='^patches/|^\.github/actions/install-camoufox/'
+CRITICAL_DEP_PATHS='^scripts/patch-playwright-core\.mjs|^\.github/actions/install-camoufox/'
 CRITICAL_PACKAGES=('playwright-core' '@hieutran094/camoufox-js')
 
 # Declared range from package.json, e.g. `"playwright-core": "^1.62.1"`.

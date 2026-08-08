@@ -71,6 +71,23 @@ interface IAesSignerConfig {
   readonly outputPostfix?: string;
 }
 
+/**
+ * HMAC-SHA256 per-request header signer variant — transport-attached.
+ *
+ * Some bank clients sign every authenticated call with an HMAC over a
+ * canonical `METHOD:PATH:TS:NONCE:BODYHASH` descriptor and carry the
+ * result across three HTTP headers. The session HMAC key is a runtime
+ * artifact (deposited into the mediator session context by a bootstrap
+ * step), never a static literal — so this config only names the header
+ * fields, keeping the variant fully bank-agnostic (Rule #11).
+ */
+interface IHmacHeaderSignerConfig {
+  readonly algorithm: 'HMAC-SHA256';
+  readonly timestampHeader: string;
+  readonly nonceHeader: string;
+  readonly signatureHeader: string;
+}
+
 /** Bank crypto configuration — discriminated by `algorithm`. */
 type ISignerConfig = IAsymmetricSignerConfig | IAesSignerConfig;
 
@@ -105,6 +122,7 @@ export type {
   IAsymmetricSignerConfig,
   ICanonicalStringConfig,
   ICryptoFieldConfig,
+  IHmacHeaderSignerConfig,
   ISignerConfig,
   SignerAlgorithm,
   SignerEncoding,

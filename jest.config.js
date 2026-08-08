@@ -22,7 +22,7 @@ export default {
   },
   setupFilesAfterEnv: ['./Tests/JestSetup.ts'],
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/', 'E2eSmoke/', 'E2eFull/', 'Tests/Integration/'],
+  testPathIgnorePatterns: ['/node_modules/', 'E2ePublic/', 'E2eCredentials/', 'E2eOtp/', 'E2eFull/', 'Tests/Integration/'],
   collectCoverageFrom: ['**/*.ts', '!Tests/**', '!**/*.test.ts'],
   coveragePathIgnorePatterns: ['EslintCanaries'],
   coverageReporters: ['text', 'lcov'],

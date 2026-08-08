@@ -18,6 +18,7 @@ export interface IWalletTxnRaw {
   readonly _id?: string;
   readonly ts?: string;
   readonly type?: string;
+  readonly subType?: string;
   readonly state?: string;
   readonly amt?: number;
   readonly transactionCurrency?: string;
@@ -39,30 +40,78 @@ export interface IWalletTxnRaw {
 const WALLET_TXN_TYPE = TransactionTypes.Normal;
 
 /**
- * Resolve the sign-adjusted amount per PayBox's type convention: rows
- * whose `type` starts with `outgoing` are debits (`-amt`); everything
- * else is treated as credit (`+amt`).
+ * PayBox `type` values whose wallet effect is a debit (money leaves the
+ * balance). Grounded in the app's own row model (`PbNotification`): the
+ * Sent-tab classifier (`pay`, `groupBalanceUp`, `userBalanceDown`,
+ * `withdrawCreated`) plus the wallet outflows a purchase, a completed
+ * withdrawal, an external payment and a card tap represent. Every other
+ * `type` is treated as a credit.
+ */
+const DEBIT_TYPES: ReadonlySet<string> = new Set([
+  'pay',
+  'purchase',
+  'groupBalanceUp',
+  'userBalanceDown',
+  'withdrawCreated',
+  'withdrawCompleted',
+  'externalPayment',
+  'tap',
+]);
+
+/**
+ * `subType` values that force a credit regardless of `type` — interest
+ * and loan income always add to the wallet balance.
+ */
+const CREDIT_SUBTYPES: ReadonlySet<string> = new Set(['interestIncome', 'loanIncome']);
+
+/**
+ * Decide whether a row debits the wallet. A credit `subType` wins over
+ * the `type` table so interest / loan income is never mis-signed.
+ * @param raw - Raw wallet row.
+ * @returns True when the row reduces the wallet balance.
+ */
+function isDebit(raw: IWalletTxnRaw): boolean {
+  const subType = typeof raw.subType === 'string' ? raw.subType : '';
+  if (CREDIT_SUBTYPES.has(subType)) return false;
+  const type = typeof raw.type === 'string' ? raw.type : '';
+  return DEBIT_TYPES.has(type);
+}
+
+/**
+ * Resolve the sign-adjusted amount. PayBox sends `amt` as an unsigned
+ * magnitude — the app itself calls `Math.abs(amt)` and injects the sign
+ * by `type` — so debit rows negate the magnitude and credit rows keep
+ * it positive.
  * @param raw - Raw wallet row.
  * @returns Sign-adjusted amount.
  */
 function signedAmount(raw: IWalletTxnRaw): number {
-  const amt = typeof raw.amt === 'number' ? raw.amt : 0;
-  const type = typeof raw.type === 'string' ? raw.type : '';
-  if (type.startsWith('outgoing')) return -amt;
-  return amt;
+  const magnitude = typeof raw.amt === 'number' ? Math.abs(raw.amt) : 0;
+  return isDebit(raw) ? -magnitude : magnitude;
 }
 
 /**
+ * PayBox `state` (a `PurchaseStat`) mapped to canonical statuses. Real
+ * values are `clearance` / `refund` (settled) and `filtered` /
+ * `rejected` (not settled). Most non-purchase rows omit `state`
+ * entirely and are settled history, so an absent value reads Completed.
+ */
+const STATE_STATUS: ReadonlyMap<string, TransactionStatuses> = new Map([
+  ['clearance', TransactionStatuses.Completed],
+  ['refund', TransactionStatuses.Completed],
+  ['filtered', TransactionStatuses.Pending],
+  ['rejected', TransactionStatuses.Pending],
+]);
+
+/**
  * Map PayBox's `state` field to the canonical {@link TransactionStatuses}.
- * Only `Completed` / `Pending` exist canonically — non-done rows
- * (`pending` / `rejected` / `cancelled`) fold into `Pending`.
+ * Unknown or absent states default to Completed — a settled history row.
  * @param raw - Raw wallet row.
  * @returns Canonical status.
  */
 export function statusOf(raw: IWalletTxnRaw): TransactionStatuses {
-  const state = raw.state ?? '';
-  if (state === 'done') return TransactionStatuses.Completed;
-  return TransactionStatuses.Pending;
+  const state = typeof raw.state === 'string' ? raw.state : '';
+  return STATE_STATUS.get(state) ?? TransactionStatuses.Completed;
 }
 
 /**
@@ -206,8 +255,8 @@ function moneyOf(raw: IWalletTxnRaw): IMoney {
 /**
  * Map one raw wallet row to the canonical ITransaction shape so
  * `autoMapTransaction` accepts it. PayBox's `ts` is an ISO-8601 string,
- * `amt` is the amount (sign derived from `type` prefix), and
- * `merchantName` carries the human-readable description.
+ * `amt` is an unsigned magnitude (sign derived from `type` / `subType`),
+ * and `merchantName` carries the human-readable description.
  * @param raw - Raw row from `content.nc[i]`.
  * @returns Canonical transaction.
  */

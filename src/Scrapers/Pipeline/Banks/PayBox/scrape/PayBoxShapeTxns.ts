@@ -8,6 +8,7 @@
  * see `dropCoveredRows` for why the server makes that necessary.
  */
 
+import ScraperError from '../../../../Base/ScraperError.js';
 import type {
   IExtractPageArgs,
   TxnsUrlTag,
@@ -308,6 +309,51 @@ function servedRows(body: Record<string, unknown>): readonly IWalletTxnRaw[] {
 }
 
 /**
+ * Name of the refusal an ERROR ENVELOPE carries, or `''` for a real page.
+ *
+ * <p>PayBox answers a refused read with HTTP 200 carrying
+ * `{explanation, code, name, message}` and no `content` block. Keyed on
+ * the presence of an error `name` with no `content`, so a genuinely
+ * empty page (which does carry `content`) reads as `''` and stays legal.
+ * @param body - Response body.
+ * @returns The refusal name, or `''` when the body is a real page.
+ */
+function refusalNameOf(body: Record<string, unknown>): string {
+  const name = body.name;
+  if (body.content !== undefined || typeof name !== 'string') return '';
+  return name;
+}
+
+/**
+ * Pass a response body through, rejecting an ERROR ENVELOPE.
+ *
+ * <p>Because {@link servedRows} only looks for `content.nc`, a refusal
+ * envelope (`{name, code, message}` with no `content`) would otherwise
+ * read as a legitimately empty page and the run would report zero
+ * transactions as a SILENT success — indistinguishable from an unused
+ * wallet. This guard rejects that envelope so the failure surfaces
+ * loudly instead.
+ *
+ * <p>Authenticated reads require HMAC signature headers (`X-Timestamp`,
+ * `X-Nonce`, `X-Signature`); without them PayBox refuses with `401`
+ * (`"missing signature headers"`). This is a server-side requirement,
+ * not a credential fault — a valid token and `uId` still yield the `401`.
+ * The getKey bootstrap seeds the signing key so signed reads succeed;
+ * this guard is the backstop for any remaining refusal.
+ * @param body - Response body.
+ * @returns The same body when it is a real page.
+ * @throws ScraperError when the body is an error envelope.
+ */
+function assertPageBody(body: Record<string, unknown>): Record<string, unknown> {
+  const refusal = refusalNameOf(body);
+  if (refusal.length > 0) {
+    const why = `PayBox transactions request was refused (${refusal});`;
+    throw new ScraperError(`${why} no page was returned.`);
+  }
+  return body;
+}
+
+/**
  * Extract one transactions page from a /getUserHistory response. Raw
  * rows are mapped to canonical ITransaction so `autoMapTransaction`
  * downstream recognises them.
@@ -320,8 +366,9 @@ function servedRows(body: Record<string, unknown>): readonly IWalletTxnRaw[] {
 export function txnsExtractPage(
   args: IExtractPageArgs<IPayBoxAcct, IPayBoxCursor>,
 ): IPage<object, IPayBoxCursor> {
+  const pageBody = assertPageBody(args.body);
   const cursor = walletCursorOf(args.cursor);
-  const served = servedRows(args.body);
+  const served = servedRows(pageBody);
   const raws = dropCoveredRows(cursor, served);
   const mapped = raws.map(mapWalletTxn);
   return { items: mapped, nextCursor: nextWalletCursor(cursor, raws, served) };

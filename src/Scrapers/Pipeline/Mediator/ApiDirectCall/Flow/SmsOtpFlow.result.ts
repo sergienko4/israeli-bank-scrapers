@@ -11,6 +11,7 @@ import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { createSimpleCookieJar } from './RunStep.js';
+import { createPreHookCache } from './SmsOtpFlow.prehookCache.js';
 import { seedScope } from './SmsOtpFlow.prep.js';
 import { reduceSteps } from './SmsOtpFlow.reduce.js';
 import type {
@@ -112,6 +113,7 @@ function buildReduceArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): IStepReduceAr
     keypair: selectSigningKeypair(args.config, prep.keypairs),
     creds: args.creds,
     cookieJar: createSimpleCookieJar(),
+    preHookCache: createPreHookCache(),
   };
 }
 

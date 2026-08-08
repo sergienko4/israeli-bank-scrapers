@@ -72,7 +72,7 @@ function makeOneShotBus(resp: Procedure<unknown>): IApiMediator {
     apiQuery: jest.fn(),
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
-    setSessionContext: jest.fn(),
+    setSessionContext: jest.fn((): boolean => true),
     getSessionContext: jest.fn(stubSessionContext),
   } as unknown as IApiMediator;
 }

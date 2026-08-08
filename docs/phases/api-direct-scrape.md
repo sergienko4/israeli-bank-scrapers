@@ -121,3 +121,21 @@ Beyond the three required steps (`customer` / `balance` / `transactions`), `IApi
 - `bodyTemplate` (per step) — a `JsonValueTemplate` hydrated against the post-login scope and POSTed as the request body (PayBox class-y `auth` envelopes).
 - `signer` + `secrets` (shape root) — an `IAesSignerConfig` body-pointer signer applied to every scrape-step body before POST (PayBox).
 - `resultGuard` — a fail-closed POST-stage guard over a PII-free `IApiDirectScrapeGuardSummary` that aborts a degraded run (e.g. zero transactions from a warm session).
+- `bootstrap` — an `IApiDirectScrapeBootstrapStep` that runs **once before** the per-account scrape to seed the session context with material later steps need (PayBox's per-session HMAC key). See below.
+
+## bootstrap — one-shot session-context seeding
+
+Some api-direct banks cannot sign their first data call until an
+**unsigned** exchange call hands back per-session key material. The
+optional `bootstrap` hook runs a single dispatch before the account
+walk and merges its result into the mediator session context.
+
+`buildBootstrapDispatchArgs` turns the step's shape into the same
+dispatch args the scrape steps use (so the bootstrap call rides the
+identical transport). The step's `extractPatch(args: IBootstrapExtractArgs)`
+reads the response body plus the current context and returns a
+`Procedure<SessionContextPatch>` — a procedure carrying the partial
+context that the phase read-merges onto the live session context,
+preserving `uId` / `token` / `deviceId16Hex` while adding the new
+material. The extract is fail-closed: a missing or malformed exchange
+response aborts the run rather than scraping unsigned.

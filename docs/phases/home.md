@@ -23,7 +23,7 @@ Banks rendered on the Wix platform (e.g. Isracard marketing site) auto-flip cros
 
 ### Client-side-crash recovery (PR #347)
 
-Some bank homepages are React/Next.js SPAs that render a top-level error boundary — "Application error: a client-side exception has occurred" — when an async chunk or analytics script throws while the scraper dwells on HOME waiting for the login trigger. The trigger DOM unmounts, so `.pre` passive discovery matches nothing and the phase fails with `HOME PRE: no login nav link found`. Observed for Hapoalim on throttled CI runners; the same homepage passes E2E Smoke + Integration because those probes do not dwell long enough to hit the crash.
+Some bank homepages are React/Next.js SPAs that render a top-level error boundary — "Application error: a client-side exception has occurred" — when an async chunk or analytics script throws while the scraper dwells on HOME waiting for the login trigger. The trigger DOM unmounts, so `.pre` passive discovery matches nothing and the phase fails with `HOME PRE: no login nav link found`. Observed for Hapoalim on throttled CI runners; the same homepage passes Integration because those probes do not dwell long enough to hit the crash.
 
 [`HomeCrashRecovery.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Home/HomeCrashRecovery.ts) wraps `.pre` discovery with a single reload-and-retry heal:
 

@@ -30,6 +30,24 @@ export interface IAuthFlowInfo {
   readonly bearer: string;
 }
 
+/**
+ * Contract for the credential-side `otpCodeRetriever`.
+ *
+ * <p>By default the library calls it **at most once per login attempt**, even
+ * when the bank's login chain submits the code in several requests (PayBox
+ * submits it to both `/pinValidation` and `/loginBySms`). Implementations may
+ * therefore be single-shot — consuming the inbound SMS, chat message or push
+ * prompt — without needing their own cache.
+ *
+ * <p>One documented opt-out exists: a step declaring
+ * `preHook.reuse: 'per-step'` acquires afresh, so a retriever CAN be called
+ * again within the same flow. That is reserved for a bank that genuinely
+ * delivers a distinct secret per step; no bank declares it today.
+ *
+ * <p>It IS called again for a genuinely new code when a login is retried after
+ * the bank rejects the previous one.
+ */
+
 export type ScraperCredentials =
   | { userCode: string; password: string }
   | { username: string; password: string }
@@ -169,6 +187,14 @@ export type ScraperOptions = ScraperBrowserOptions & {
   /**
    * Called when an OTP/2FA screen is detected after login form submission.
    * Return the one-time code to continue scraping automatically.
+   *
+   * Called at most once per successful acquisition per login attempt — see the
+   * `otpCodeRetriever` contract note above `ScraperCredentials`. A single-shot
+   * implementation (one SMS in, one code out) is sufficient for every bank
+   * shipped today. Two documented exceptions can call it again within one
+   * login: an acquisition that rejects is not cached, so a retry re-prompts;
+   * and a step config may opt out with `preHook.reuse: 'per-step'`, which no
+   * bank currently does.
    * @param phoneHint masked phone number shown on the page, e.g. "*******1200" (empty string if none)
    */
   otpCodeRetriever?: (phoneHint: string) => Promise<string>;

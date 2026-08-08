@@ -17,6 +17,7 @@
 import type {
   IAesSignerConfig,
   ICanonicalStringConfig,
+  IHmacHeaderSignerConfig,
 } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 
 /**
@@ -29,6 +30,26 @@ const SIGN_KEY = 'Z4B4&45la23kz23)-432aa1@#^4hjdss';
 
 /** OTP-encryption key suffix (32 ASCII bytes). */
 const PIN_SUFFIX = '|<>?xdo34^mnbjh(54hnaGqaOgndsYTa';
+
+/**
+ * Key-exchange salt (19 ASCII bytes). Appended to the `972-<national>`
+ * phone seed to derive the AES-256 key that decrypts the `getKey`
+ * response into the per-session HMAC key. Public Android-client
+ * constant (same class as `SIGN_KEY`), not a user secret.
+ */
+const KEY_EXCHANGE_SALT = '%as2@1FaY$)(mLq%!cx';
+
+/**
+ * HMAC-SHA256 request-header signer for post-`getKey` authenticated
+ * reads. Names only the three transport header fields; the session
+ * HMAC key is deposited at runtime by the getKey bootstrap step.
+ */
+const PAYBOX_HMAC_HEADER_SIGNER: IHmacHeaderSignerConfig = {
+  algorithm: 'HMAC-SHA256',
+  timestampHeader: 'X-Timestamp',
+  nonceHeader: 'X-Nonce',
+  signatureHeader: 'X-Signature',
+};
 
 /** Canonical-string config shared by the class-z + class-y signers. */
 const PAYBOX_CANONICAL: ICanonicalStringConfig = {
@@ -67,10 +88,13 @@ const PAYBOX_SCRAPE_SIGNER: IAesSignerConfig = {
 const PAYBOX_SECRETS: Readonly<Record<string, string>> = Object.freeze({
   signKey: SIGN_KEY,
   pinSuffix: PIN_SUFFIX,
+  keyExchangeSalt: KEY_EXCHANGE_SALT,
 });
 
 export {
+  KEY_EXCHANGE_SALT,
   PAYBOX_CANONICAL,
+  PAYBOX_HMAC_HEADER_SIGNER,
   PAYBOX_LOGIN_SIGNER,
   PAYBOX_SCRAPE_SIGNER,
   PAYBOX_SECRETS,
