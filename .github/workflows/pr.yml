@@ -673,12 +673,13 @@ jobs:
       # DIAG (throwaway): record the runner's egress IP and what each bank's
       # edge returns to THAT IP over plain HTTP. Lets us compare Smoke-vs-Real
       # jobs at the IP level — proves whether a Real live-edge failure (e.g.
-      # the Discount 404 decoy) is egress-IP reputation. continue-on-error so
-      # it can never turn a green bank red. Remove after the IP question is
-      # settled. (Multi-word matrix banks whose CompanyTypes key is camelCase
-      # print host=UNRESOLVED but still record the egress IP.)
+      # the Discount 404 decoy) is egress-IP reputation. The script itself
+      # always exits 0, so it can never turn a green bank red WITHOUT a
+      # `continue-on-error` mask (banned in E2E Real jobs by
+      # PrYamlGateHardening — see release PR #172). Remove after the IP
+      # question is settled. (Multi-word matrix banks whose CompanyTypes key
+      # is camelCase print host=UNRESOLVED but still record the egress IP.)
       - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        continue-on-error: true
         env:
           BANK: ${{ matrix.bank }}
         run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
@@ -937,10 +938,11 @@ jobs:
       # edge returns to THAT IP over plain HTTP, AFTER dns-warmup so it
       # reflects the E2E-Real resolver state. Compared against the Smoke
       # job's DIAG, this proves whether a Real live-edge failure (e.g. the
-      # Discount 404 decoy) is egress-IP reputation. continue-on-error so it
+      # Discount 404 decoy) is egress-IP reputation. NO `continue-on-error`:
+      # that mask is banned in E2E Real jobs (PrYamlGateHardening, release
+      # PR #172). The script always exits 0 instead, so a diagnostic curl
       # can never fail the gate. Remove after the IP question is settled.
       - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        continue-on-error: true
         env:
           BANK: ${{ matrix.bank }}
         run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
@@ -1076,10 +1078,11 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. continue-on-error so it can never fail the gate. Remove
-      # after the egress-IP question is settled.
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
       - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        continue-on-error: true
         env:
           BANK: ${{ matrix.bank }}
         run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
@@ -1233,10 +1236,11 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. continue-on-error so it can never fail the gate. Remove
-      # after the egress-IP question is settled.
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
       - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        continue-on-error: true
         env:
           BANK: ${{ matrix.bank }}
         run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
@@ -1358,10 +1362,11 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. continue-on-error so it can never fail the gate. Remove
-      # after the egress-IP question is settled.
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
       - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        continue-on-error: true
         env:
           BANK: ${{ matrix.bank }}
         run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
@@ -1524,10 +1529,11 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. continue-on-error so it can never fail the gate. Remove
-      # after the egress-IP question is settled.
+      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
+      # PrYamlGateHardening); the script always exits 0 instead, so a
+      # diagnostic curl can never fail the gate. Remove after the
+      # egress-IP question is settled.
       - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        continue-on-error: true
         env:
           BANK: ${{ matrix.bank }}
         run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
