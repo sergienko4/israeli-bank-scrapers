@@ -286,6 +286,28 @@ export function withLaunchBound<T>(launch: Promise<T>, timeoutMs: number): Promi
 }
 
 /**
+ * Close a browser that arrives after its launch bound already elapsed.
+ *
+ * <p>{@link withLaunchBound} races the launch against a timer, so losing
+ * the race abandons — but does not cancel — the launch. A browser that
+ * finishes starting afterwards would otherwise stay open with no reference
+ * to close it, leaking a Firefox process for the life of the host process.
+ * Every outcome is swallowed: this runs on a path that is already failing,
+ * and the timeout is the error the caller must see.
+ *
+ * @param launch - The abandoned launch promise.
+ * @returns True once a late browser was closed; false when the launch
+ *   itself failed or the close did.
+ */
+function closeAbandonedLaunch(launch: Promise<Browser>): Promise<boolean> {
+  const closed = launch.then(browser => browser.close());
+  return closed.then(
+    () => true,
+    () => false,
+  );
+}
+
+/**
  * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).
  * Uses dynamic import() because camoufox-js is ESM-only.
  *
@@ -309,7 +331,9 @@ export function withLaunchBound<T>(launch: Promise<T>, timeoutMs: number): Promi
  * Without a bound, a browser that never comes up leaves this promise
  * permanently unsettled; the event loop then drains and an ESM caller
  * using top-level await dies with a bare `exit 13` and no diagnosis.
- * The bound converts that silence into an actionable rejection.
+ * The bound converts that silence into an actionable rejection, and
+ * {@link closeAbandonedLaunch} disposes of a browser that still arrives
+ * after the bound elapsed.
  *
  * @param headless - Whether to launch in headless mode.
  * @returns A Playwright-compatible Browser instance.
@@ -322,6 +346,7 @@ export async function launchCamoufox(headless: boolean): Promise<Browser> {
   try {
     return await withLaunchBound(launch, timeoutMs);
   } catch (error) {
+    closeAbandonedLaunch(launch).catch(() => false);
     throw withNativeBindingDiagnostic(error);
   }
 }
