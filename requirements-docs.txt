@@ -1,4 +1,4 @@
-GitPython==3.1.57
+GitPython==3.1.58
 Jinja2==3.1.6
 Markdown==3.10.3
 Pygments==2.20.0
