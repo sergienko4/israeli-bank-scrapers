@@ -93,6 +93,9 @@ tasks/
 scripts/**
 !scripts/audit-fixtures-pii.cjs
 !scripts/check-staged-pii.cjs
+# Published tooling: named in package.json "files", so it ships in the
+# tarball and runs from postinstall on every consumer install.
+!scripts/patch-playwright-core.mjs
 !scripts/pii-denylist.sha256
 !scripts/sweep-fixtures-pii.ts
 !scripts/validate-pr-body.mjs

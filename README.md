@@ -139,7 +139,7 @@ Replace `userCode` and `password` with real credentials. See [Supported Institut
 | **Node.js**          | `>= 22.14.0`                            | ESM-by-default + `node:crypto` `randomUUID` used by the pipeline correlationId.                             |
 | **npm**              | `>= 10`                                 | Workspaces + `--access public` provenance.                                                                  |
 | **OS**               | Windows / macOS / Linux                 | Camoufox ships native binaries for all three (downloaded on `npm install`).                                 |
-| **Install scripts**  | Must be allowed to run                  | `--ignore-scripts` skips the native `better-sqlite3` prebuild camoufox-js needs. See [Troubleshooting](#troubleshooting-native-binding). |
+| **Install scripts**  | Must be allowed to run                  | `--ignore-scripts` skips the native `better-sqlite3` prebuild camoufox-js needs, and the `playwright-core` null guard. See [Troubleshooting](#troubleshooting-native-binding). |
 | **Disk**             | ~1.3 GB for the Camoufox browser bundle | Cached under `~/.cache/camoufox` after first launch (measured on Ubuntu 24.04).                              |
 | **Bank credentials** | Per-bank, real                          | See [Supported Institutions](#supported-institutions). The library never registers accounts on your behalf. |
 | **OTP callback**     | For banks that require it               | A `Promise<string>` returning the SMS code. See [OTP](#otp-two-factor-authentication).                      |
@@ -174,6 +174,30 @@ toolchain first:
 ```bash
 sudo apt-get install -y python3 make g++   # Debian / Ubuntu
 ```
+
+<a id="troubleshooting-pageerror-guard"></a>
+
+### Troubleshooting: `Cannot read properties of undefined (reading 'url')`
+
+A scrape dies inside `playwright-core` with this `TypeError` and no stack
+frame of ours in the trace.
+
+This library listens for uncaught page errors. Playwright forwards every one
+of them and reads `pageError.location.url` without a null check, but Camoufox
+(Firefox) can report an uncaught error that carries no location — so the read
+throws. Upstream still ships the unguarded read as of `playwright-core`
+1.62.1.
+
+A `postinstall` step adds the missing null guard for you. It is skipped when
+you install with `--ignore-scripts`, so apply it by hand:
+
+```bash
+node node_modules/@sergienko4/israeli-bank-scrapers/scripts/patch-playwright-core.mjs
+```
+
+The script is idempotent and never fails an install — re-running it on an
+already-guarded tree is a no-op. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out
+entirely if you manage `playwright-core` patches yourself.
 
 ## Usage
 
