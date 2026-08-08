@@ -762,18 +762,6 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # DIAG (throwaway): record the runner's egress IP and what the bank's
-      # edge returns to THAT IP over plain HTTP, AFTER dns-warmup so it
-      # reflects the E2E-Real resolver state. Shows whether a live-edge
-      # failure (e.g. the Discount 404 decoy) is egress-IP reputation
-      # rather than a scraper defect. NO `continue-on-error`:
-      # that mask is banned in E2E Real jobs (PrYamlGateHardening, release
-      # PR #172). The script always exits 0 instead, so a diagnostic curl
-      # can never fail the gate. Remove after the IP question is settled.
-      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        env:
-          BANK: ${{ matrix.bank }}
-        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
@@ -906,15 +894,6 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
-      # PrYamlGateHardening); the script always exits 0 instead, so a
-      # diagnostic curl can never fail the gate. Remove after the
-      # egress-IP question is settled.
-      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        env:
-          BANK: ${{ matrix.bank }}
-        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       # ── Amex Camoufox/WAF knob A/B overrides (v8.4.0 regression bisect) ──
       # Writes a knob to $GITHUB_ENV ONLY when a non-empty override is supplied
       # via workflow_dispatch input OR repo variable. Blank/unset → the env var
@@ -1064,15 +1043,6 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
-      # PrYamlGateHardening); the script always exits 0 instead, so a
-      # diagnostic curl can never fail the gate. Remove after the
-      # egress-IP question is settled.
-      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        env:
-          BANK: ${{ matrix.bank }}
-        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
@@ -1190,15 +1160,6 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
-      # PrYamlGateHardening); the script always exits 0 instead, so a
-      # diagnostic curl can never fail the gate. Remove after the
-      # egress-IP question is settled.
-      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        env:
-          BANK: ${{ matrix.bank }}
-        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       # ── Warm-token cache: encrypted long-term OTP JWT persistence.
       # On the FIRST run for a branch (or after TOKEN_CACHE_KEY
       # rotation), no cache exists → cold-start (full OTP flow). The
@@ -1357,15 +1318,6 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
-      # dns-warmup. NO `continue-on-error` (banned in E2E Real jobs by
-      # PrYamlGateHardening); the script always exits 0 instead, so a
-      # diagnostic curl can never fail the gate. Remove after the
-      # egress-IP question is settled.
-      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
-        env:
-          BANK: ${{ matrix.bank }}
-        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture;
