@@ -17,6 +17,7 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { HMAC_KEY_SLOT, HMAC_SIGNER_SLOT } from '../../../Mediator/Api/ApiMediator.hmacHeaders.js';
+import type { IDeriveExchangeKeyArgs } from '../../../Mediator/ApiDirectCall/Crypto/HmacKeyExchange.js';
 import {
   decryptExchangedHmacKey,
   deriveExchangeKey,
@@ -143,6 +144,15 @@ function toDigitsOnly(phone: string): string {
 }
 
 /**
+ * Build the AES exchange-key derivation args for a dashed phone seed.
+ * @param seed - `972-<national>` dashed phone number.
+ * @returns Derivation args (seed + fixed salt, length, and pad char).
+ */
+function buildExchangeKeyArgs(seed: string): IDeriveExchangeKeyArgs {
+  return { seed, salt: KEY_EXCHANGE_SALT, length: HMAC_KEY_LEN, padChar: EXCHANGE_KEY_PAD_CHAR };
+}
+
+/**
  * Derive the 32-byte HMAC key: normalise phone → `972-<national>`,
  * derive the AES key from `phone + salt`, then AES-256-CBC decrypt tsKey.
  * @param m - Phone + ciphertext + IV.
@@ -152,12 +162,7 @@ function deriveHmacKey(m: IKeyMaterial): Procedure<Buffer> {
   const digits = toDigitsOnly(m.phone);
   const dash = formatPhoneNumber(digits, 'international-dash');
   if (!isOk(dash)) return dash;
-  const args = {
-    seed: dash.value,
-    salt: KEY_EXCHANGE_SALT,
-    length: HMAC_KEY_LEN,
-    padChar: EXCHANGE_KEY_PAD_CHAR,
-  };
+  const args = buildExchangeKeyArgs(dash.value);
   const keyBytes = deriveExchangeKey(args);
   return decryptExchangedHmacKey({ ciphertextB64: m.tsKey, ivHex: m.tsIv, keyBytes });
 }
