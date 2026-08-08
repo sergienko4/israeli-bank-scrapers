@@ -124,3 +124,17 @@ updates:
           - 'GitPython'
           - 'gitdb'
           - 'ghp-import'
+    # MkDocs 2.0 is a hard break, not an upgrade. Upstream removed the
+    # plugin system outright, rewrote theming so every override breaks,
+    # ships no migration path, and is currently unlicensed:
+    # https://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/
+    # Our docs build depends on mkdocs-material plus the
+    # git-revision-date-localized, mermaid2 and minify plugins, so a 2.0
+    # bump would fail the `mkdocs build --strict` gate with no way
+    # forward. Block the major only; minor, patch and security updates
+    # still flow through the mkdocs-toolchain group above. Revisit once
+    # the plugin ecosystem and licensing are settled.
+    ignore:
+      - dependency-name: 'mkdocs'
+        update-types:
+          - 'version-update:semver-major'
