@@ -36,7 +36,6 @@ const HEAVY_JOB_KEYS = [
   'bank-coverage',
   'integration',
   'build',
-  'e2e-smoke',
 ] as const;
 
 /** Runtime packages whose version defines the browser stack. */

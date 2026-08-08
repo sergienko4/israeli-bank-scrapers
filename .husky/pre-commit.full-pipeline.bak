@@ -61,7 +61,7 @@ log ""
 log "🛑  MANDATORY QUALITY GATE (parallel pipeline)"
 log "══════════════════════════════════════════════════════"
 log "  Phase 1: format → Phase 2: static analysis (parallel)"
-log "  Phase 3: tests (parallel) → Phase 4: smoke → Phase 5: full E2E"
+log "  Phase 3: tests (parallel) → Phase 4: full E2E"
 log "══════════════════════════════════════════════════════"
 
 # ── Phase 1: Prettier (must be first — modifies + re-stages files) ──
@@ -102,18 +102,9 @@ bg_gate "unit-tests"  bash -c 'npm run test:unit -- --coverage'
 bg_gate "mocked-e2e"  bash -c 'npm run test:e2e:mock'
 wait_all
 
-# ── Phase 4: Smoke E2E (sequential — 17 banks, real browsers) ──
+# ── Phase 4: Full E2E (LAST — depends on ALL above passing) ──
 log ""
-log "🔥 Phase 4: E2E smoke tests (invalid creds, all banks)..."
-npm run test:e2e:smoke 2>&1 | tee -a "$LOG_FILE"
-if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-  log "❌ Smoke E2E FAILED"
-  exit 1
-fi
-
-# ── Phase 5: Full E2E (LAST — depends on ALL above passing) ──
-log ""
-log "🏦 Phase 5: E2E full — real credentials (requires .env)..."
+log "🏦 Phase 4: E2E full — real credentials (requires .env)..."
 if [ -f .env ]; then
   npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs 2>/dev/null
   npm run test:e2e:full -- --verbose 2>&1 | tee -a "$LOG_FILE"

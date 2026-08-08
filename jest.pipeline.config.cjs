@@ -30,7 +30,6 @@ module.exports = {
     'E2ePublic/',
     'E2eCredentials/',
     'E2eOtp/',
-    'E2eSmoke/',
     'E2eFull/',
   ],
   collectCoverageFrom: [
