@@ -72,7 +72,7 @@ function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): I
     apiQuery,
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
-    setSessionContext: jest.fn(),
+    setSessionContext: jest.fn((): boolean => true),
     ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
   } as unknown as IApiMediator;

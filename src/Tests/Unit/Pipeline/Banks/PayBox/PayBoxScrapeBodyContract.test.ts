@@ -76,20 +76,28 @@ interface ICapturedCall {
 }
 
 /**
- * Canned responses keyed by URL tag — shaped to satisfy the real
- * PayBox extractors so the phase completes its full walk.
+ * Canned response bodies keyed by URL tag — shaped to satisfy the real
+ * PayBox extractors so the phase completes its full walk. A map (OCP)
+ * rather than a URL `if` chain: a new step is one entry, not a new branch.
+ *
+ * The `getUserHistory` row's `ts` equals the first-page sentinel, which
+ * stalls the cursor and so terminates pagination after one fetch.
+ */
+const CANNED_BODIES: ReadonlyMap<string, unknown> = new Map([
+  ['data.getKey', { content: { tsKey: FIXT_GETKEY_TSKEY, tsIv: FIXT_GETKEY_TSIV } }],
+  ['data.sync', { content: { userFunds: { balance: 100 } } }],
+  ['data.getUserHistory', { content: { nc: [{ ts: 'null' }] } }],
+]);
+
+/**
+ * Resolve the canned response for a dispatched URL tag.
  * @param url - WK URL tag apiPost was called with.
  * @returns Procedure the stub resolves with.
  */
 function respondTo(url: string): Procedure<unknown> {
-  if (url === 'data.getKey') {
-    return succeed({ content: { tsKey: FIXT_GETKEY_TSKEY, tsIv: FIXT_GETKEY_TSIV } });
-  }
-  if (url === 'data.sync') return succeed({ content: { userFunds: { balance: 100 } } });
-  // A row whose `ts` equals the first-page sentinel stalls the cursor,
-  // terminating pagination after one fetch.
-  if (url === 'data.getUserHistory') return succeed({ content: { nc: [{ ts: 'null' }] } });
-  return fail(ScraperErrorTypes.Generic, `unexpected url=${url}`);
+  const body = CANNED_BODIES.get(url);
+  if (body === undefined) return fail(ScraperErrorTypes.Generic, `unexpected url=${url}`);
+  return succeed(body);
 }
 
 /**
@@ -109,7 +117,7 @@ function makeRecordingBus(sink: ICapturedCall[]): IApiMediator {
     apiQuery: jest.fn(),
     setBearer: jest.fn(),
     setRawAuth: jest.fn(),
-    setSessionContext: jest.fn(),
+    setSessionContext: jest.fn((): boolean => true),
     ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => PAYBOX_SESSION),
   } as unknown as IApiMediator;
@@ -178,10 +186,10 @@ describe('PayBox post-login body contract', () => {
   // The counter-regression net, and the more expensive one to get wrong.
   // `/sync` is answered with HTTP 400 whatever the body holds, and the
   // rejection poisons the session: `/getUserHistory` then returns
-  // `401 UNAUTHORIZED` instead of rows (forensic runs 31015484475 and
-  // 31158757897 — 0 txns against 88 in the preceding green run
-  // 30977091315). Withholding the auth envelope was NOT enough; the bare
-  // 400 suffices. The call is therefore never made, which this pins.
+  // `401 UNAUTHORIZED` instead of rows — observed across two runs that
+  // scraped 0 txns where the preceding green run scraped a full page.
+  // Withholding the auth envelope was NOT enough; the bare 400 suffices.
+  // The call is therefore never made, which this pins.
   it('T-PB-BODY-3 the balance step is never dispatched', () => {
     const syncCalls = calls.filter(c => c.url === BALANCE_URL_TAG);
     expect(syncCalls).toHaveLength(0);
@@ -193,5 +201,26 @@ describe('PayBox post-login body contract', () => {
     expect(auth.uId).toBe(FIXT_UID);
     expect(auth.uuid).toBe(FIXT_DEVICE);
     expect(auth.access_token).toBe(FIXT_TOKEN);
+  });
+});
+
+/**
+ * The bootstrap deposits the request-signing key into session-context.
+ * If the mediator refuses to store it the scrape MUST abort: every later
+ * read would otherwise go out unsigned and come back as an opaque bank
+ * rejection, hiding the real cause behind a transport-looking error.
+ */
+describe('PayBox bootstrap merge is fail-closed', () => {
+  it('T-PB-BODY-5 aborts the scrape when session-context refuses the patch', async () => {
+    const calls: ICapturedCall[] = [];
+    const bus = makeRecordingBus(calls);
+    const refusing = { ...bus, setSessionContext: jest.fn((): boolean => false) };
+    const overrides: Partial<IPipelineContext> = { apiMediator: some(refusing) };
+    const base = makeMockContext(overrides);
+    const credentials = { phoneNumber: FIXT_PHONE } as unknown as typeof base.credentials;
+    const ctx = { ...base, credentials } as unknown as IActionContext;
+    const phase = createApiDirectScrapePhase(PAYBOX_SHAPE);
+    const result = await phase(ctx);
+    expect(result.success).toBe(false);
   });
 });
