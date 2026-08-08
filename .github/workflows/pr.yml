@@ -670,23 +670,18 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # DIAG (Discount only, throwaway): record the runner's egress IP and
-      # what Discount's PerimeterX edge returns to THAT IP over plain HTTP.
-      # Lets us compare Smoke-vs-Real Discount jobs at the IP level — proves
-      # whether the Real 404 is egress-IP reputation. continue-on-error so it
-      # can never turn a green bank red. Remove after the IP question is settled.
-      - name: 'DIAG: egress IP + Discount edge (Discount only)'
-        if: ${{ matrix.bank == 'Discount' }}
+      # DIAG (throwaway): record the runner's egress IP and what each bank's
+      # edge returns to THAT IP over plain HTTP. Lets us compare Smoke-vs-Real
+      # jobs at the IP level — proves whether a Real live-edge failure (e.g.
+      # the Discount 404 decoy) is egress-IP reputation. continue-on-error so
+      # it can never turn a green bank red. Remove after the IP question is
+      # settled. (Multi-word matrix banks whose CompanyTypes key is camelCase
+      # print host=UNRESOLVED but still record the egress IP.)
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
         continue-on-error: true
-        run: |
-          echo "=== DISCOUNT EDGE DIAGNOSTIC (smoke) ==="
-          echo "egress_ip=$(curl -sS --max-time 15 https://api.ipify.org || echo unknown)"
-          code=$(curl -sS --max-time 30 -o /tmp/discount-diag.html -w '%{http_code}' -L https://www.discountbank.co.il/ || echo 000)
-          echo "discount_http_status=${code}"
-          echo "discount_body_bytes=$(wc -c < /tmp/discount-diag.html 2>/dev/null || echo 0)"
-          echo "has_login_link=$(grep -c 'start.telebank.co.il' /tmp/discount-diag.html 2>/dev/null || echo 0)"
-          echo "has_404_marker=$(grep -c '404' /tmp/discount-diag.html 2>/dev/null || echo 0)"
-          echo "=== END DIAGNOSTIC ==="
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       # Bank outcomes are BLOCKING. `continue-on-error` was removed once the
       # four red cells were root-caused to a budget mismatch rather than a
       # scraper defect (see the per-bank `smokeTimeoutMs` in SmokeConfig.ts).
@@ -938,24 +933,17 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # DIAG (Discount only, throwaway): record the runner's egress IP and
-      # what Discount's PerimeterX edge returns to THAT IP over plain HTTP,
-      # AFTER dns-warmup so it reflects the E2E-Real resolver state. Compared
-      # against the Smoke job's DIAG, this proves whether the Real 404 is
-      # egress-IP reputation. continue-on-error so it can never fail the gate.
-      # Remove after the IP question is settled.
-      - name: 'DIAG: egress IP + Discount edge (Discount only)'
-        if: ${{ matrix.bank == 'Discount' }}
+      # DIAG (throwaway): record the runner's egress IP and what the bank's
+      # edge returns to THAT IP over plain HTTP, AFTER dns-warmup so it
+      # reflects the E2E-Real resolver state. Compared against the Smoke
+      # job's DIAG, this proves whether a Real live-edge failure (e.g. the
+      # Discount 404 decoy) is egress-IP reputation. continue-on-error so it
+      # can never fail the gate. Remove after the IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
         continue-on-error: true
-        run: |
-          echo "=== DISCOUNT EDGE DIAGNOSTIC (real) ==="
-          echo "egress_ip=$(curl -sS --max-time 15 https://api.ipify.org || echo unknown)"
-          code=$(curl -sS --max-time 30 -o /tmp/discount-diag.html -w '%{http_code}' -L https://www.discountbank.co.il/ || echo 000)
-          echo "discount_http_status=${code}"
-          echo "discount_body_bytes=$(wc -c < /tmp/discount-diag.html 2>/dev/null || echo 0)"
-          echo "has_login_link=$(grep -c 'start.telebank.co.il' /tmp/discount-diag.html 2>/dev/null || echo 0)"
-          echo "has_404_marker=$(grep -c '404' /tmp/discount-diag.html 2>/dev/null || echo 0)"
-          echo "=== END DIAGNOSTIC ==="
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
@@ -1087,6 +1075,14 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. continue-on-error so it can never fail the gate. Remove
+      # after the egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        continue-on-error: true
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       # ── Amex Camoufox/WAF knob A/B overrides (v8.4.0 regression bisect) ──
       # Writes a knob to $GITHUB_ENV ONLY when a non-empty override is supplied
       # via workflow_dispatch input OR repo variable. Blank/unset → the env var
@@ -1236,6 +1232,14 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. continue-on-error so it can never fail the gate. Remove
+      # after the egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        continue-on-error: true
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
@@ -1353,6 +1357,14 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. continue-on-error so it can never fail the gate. Remove
+      # after the egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        continue-on-error: true
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       # ── Warm-token cache: encrypted long-term OTP JWT persistence.
       # On the FIRST run for a branch (or after TOKEN_CACHE_KEY
       # rotation), no cache exists → cold-start (full OTP flow). The
@@ -1511,6 +1523,14 @@ jobs:
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # DIAG (throwaway): egress IP + bank edge over plain HTTP, AFTER
+      # dns-warmup. continue-on-error so it can never fail the gate. Remove
+      # after the egress-IP question is settled.
+      - name: 'DIAG: egress IP + bank edge (${{ matrix.bank }})'
+        continue-on-error: true
+        env:
+          BANK: ${{ matrix.bank }}
+        run: bash .github/scripts/ci/edge-diagnostic.sh "$BANK"
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture;
