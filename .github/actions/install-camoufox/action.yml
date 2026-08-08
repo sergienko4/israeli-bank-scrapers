@@ -18,9 +18,9 @@ runs:
     # unsuitable for modern anti-bot systems"), and v152.0.4-beta.26
     # restored locale-from-launch-argument handling plus the screenshot,
     # popup-event and tap/touch paths Firefox 152 initially broke.
-    # playwright still needs the patch-package guard on
-    # pageError.location (Camoufox omits it) — see
-    # patches/playwright-core+1.62.0.patch. camoufox-js resolves the
+    # playwright still needs the guard on pageError.location (Camoufox
+    # omits it) — see scripts/patch-playwright-core.mjs. camoufox-js
+    # resolves the
     # newest release inside its own supported range rather than an exact
     # tag, so the install step below rejects anything but the pinned tag
     # and re-installs it from the release asset, keeping the pinned cache

@@ -175,7 +175,7 @@ describe('CriticalDepsFullSuiteGate', () => {
 
   it('[CI-CRIT-GATE] Detector_PatchAndBrowserPinPaths_ShouldFeedCriticalDeps', () => {
     const script = read(DETECTOR);
-    expect(script).toContain('^patches/');
+    expect(script).toContain('^scripts/patch-playwright-core\\.mjs');
     expect(script).toContain('.github/actions/install-camoufox/');
   });
 
