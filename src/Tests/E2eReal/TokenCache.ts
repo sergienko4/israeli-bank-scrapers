@@ -40,6 +40,7 @@ interface ITokenCacheHandle {
   readonly enabled: boolean;
   read: () => Promise<string>;
   write: (token: string) => Promise<boolean>;
+  invalidate: () => Promise<boolean>;
   readonly writer: (info: IAuthFlowInfo) => Promise<void>;
 }
 
@@ -103,6 +104,28 @@ async function writeCacheSafe(
 }
 
 /**
+ * Remove the cache file so the next run re-authenticates from cold.
+ *
+ * <p>Called when the bank rejects a cached long-term token: leaving the
+ * stale value on disk would make every later run pick the warm path and
+ * fail the same way, which is how an expired token masquerades as a code
+ * regression.
+ * @param cachePath - Absolute path.
+ * @param log - Logger for WARN diagnostics.
+ * @returns True when the file is gone, false on an unlink error.
+ */
+async function deleteCacheSafe(cachePath: string, log: ScraperLogger): Promise<boolean> {
+  try {
+    await fs.rm(cachePath, { force: true });
+    return true;
+  } catch (error) {
+    const e = error as NodeJS.ErrnoException;
+    log.warn({ cachePath, code: e.code ?? 'UNKNOWN' }, 'TokenCache invalidate failure');
+    return false;
+  }
+}
+
+/**
  * Build the ScraperOptions.onAuthFlowComplete writer bound to the
  * cache. Callback is safe to pass verbatim; throws are captured by
  * the mediator-side invoker.
@@ -151,12 +174,26 @@ function noopWriter(): Promise<void> {
 }
 
 /**
+ * Disabled-cache invalidate — resolves to false.
+ * @returns False Promise.
+ */
+function noopInvalidate(): Promise<boolean> {
+  return Promise.resolve(false);
+}
+
+/**
  * Create a disabled (no-op) cache handle used when the env flag is
  * unset. All operations return '' / false / no-op writer.
  * @returns No-op cache handle.
  */
 function createDisabledCache(): ITokenCacheHandle {
-  return { enabled: false, read: noopRead, write: noopWrite, writer: noopWriter };
+  return {
+    enabled: false,
+    read: noopRead,
+    write: noopWrite,
+    invalidate: noopInvalidate,
+    writer: noopWriter,
+  };
 }
 
 /**
@@ -186,7 +223,12 @@ function createTokenCache(args: ITokenCacheArgs): ITokenCacheHandle {
     return writeCacheSafe(cachePath, token, log);
   };
   const writer = buildWriter(cachePath, log);
-  return { enabled: true, read, write, writer };
+  /**
+   * Delete the cached token so the next run re-authenticates cold.
+   * @returns True once the file is gone.
+   */
+  const invalidate = (): Promise<boolean> => deleteCacheSafe(cachePath, log);
+  return { enabled: true, read, write, invalidate, writer };
 }
 
 export type { BankKey, ITokenCacheArgs, ITokenCacheHandle };

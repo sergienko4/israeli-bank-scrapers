@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
-import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
+import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import { getDebug } from '../../Scrapers/Pipeline/Types/Debug.js';
 import {
   assertSuccessfulScrape,
@@ -13,6 +13,7 @@ import {
 } from './Helpers.js';
 import { createBankOtpPoller } from './OtpPoller.js';
 import { createTokenCache } from './TokenCache.js';
+import { scrapeWithWarmFallback } from './WarmPathFallback.js';
 
 dotenv.config();
 
@@ -58,11 +59,15 @@ DESCRIBE_IF('E2E: PayBox (real credentials, config-driven)', () => {
       otpLongTermToken: cachedToken,
       otpCodeRetriever: retrieve,
     } as unknown as ScraperCredentials;
-    const coldCreds = {
-      phoneNumber,
-      otpCodeRetriever: retrieve,
-    } as unknown as ScraperCredentials;
-    const creds: ScraperCredentials = cachedToken.length > 0 ? warmCreds : coldCreds;
+    /**
+     * Build cold (SMS-OTP) credentials with a fresh OTP retriever.
+     * @returns Cold credential shape.
+     */
+    const buildColdCreds = (): ScraperCredentials =>
+      ({
+        phoneNumber,
+        otpCodeRetriever: createBankOtpPoller('PayBox', LOG),
+      }) as unknown as ScraperCredentials;
     LOG.info(
       {
         cacheEnabled: cache.enabled,
@@ -71,14 +76,29 @@ DESCRIBE_IF('E2E: PayBox (real credentials, config-driven)', () => {
       },
       'PayBox creds shape',
     );
-    const scraper = createScraper({
-      companyId: CompanyTypes.PayBox,
-      startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
-      onAuthFlowComplete: cache.writer,
+    /**
+     * Run one PayBox scrape with a fresh scraper instance.
+     * @param creds - Warm or cold credential shape.
+     * @returns Scrape result.
+     */
+    const runScrape = async (creds: ScraperCredentials): Promise<IScraperScrapingResult> => {
+      const scraper = createScraper({
+        companyId: CompanyTypes.PayBox,
+        startDate: defaultStartDate(),
+        shouldShowBrowser: false,
+        args: BROWSER_ARGS,
+        onAuthFlowComplete: cache.writer,
+      });
+      return scraper.scrape(creds);
+    };
+    const result = await scrapeWithWarmFallback({
+      cache,
+      cachedToken,
+      warmCreds,
+      coldCreds: buildColdCreds,
+      attempt: runScrape,
+      log: LOG,
     });
-    const result = await scraper.scrape(creds);
     if (!result.success) {
       LOG.error(
         { errorType: result.errorType, errorMessage: result.errorMessage },
