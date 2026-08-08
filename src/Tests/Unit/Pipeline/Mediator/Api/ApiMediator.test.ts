@@ -255,6 +255,31 @@ describe('ApiMediator/apiQuery', () => {
     if (!isOk(result)) expect(result.errorMessage).toContain('graphql errors');
   });
 
+  it('names the failing operation so the bank-side error is traceable', async () => {
+    const doc = 'query Movements($id: ID!) { movements(id: $id) { id } }';
+    registerWkQuery('transactions', HINT, doc);
+    const recorder = makeRecorder();
+    recorder.queryResult = succeed({
+      errors: [{ message: 'Request failed with status code 500' }],
+    });
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('transactions', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toContain('[Movements]');
+  });
+
+  it('omits the operation label for an anonymous query document', async () => {
+    registerWkQuery('transactions', HINT, '{ movements { id } }');
+    const recorder = makeRecorder();
+    recorder.queryResult = succeed({ errors: [{ message: 'bad' }] });
+    const mediator = buildMediator(recorder);
+    const result = await mediator.apiQuery('transactions', {});
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toBe('graphql errors: bad');
+  });
+
   it('response missing data and no errors returns "missing data"', async () => {
     registerWkQuery('balance', HINT, 'query Bal { balance }');
     const recorder = makeRecorder();
