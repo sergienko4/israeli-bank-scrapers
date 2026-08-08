@@ -1,17 +1,12 @@
 import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
-import { CompanyTypes, createScraper } from '../../index.js';
-import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
+import { CompanyTypes } from '../../index.js';
+import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import { getDebug } from '../../Scrapers/Pipeline/Types/Debug.js';
-import {
-  assertSuccessfulScrape,
-  BROWSER_ARGS,
-  defaultStartDate,
-  logScrapedTransactions,
-  SCRAPE_TIMEOUT,
-} from './Helpers.js';
+import { assertSuccessfulScrape, logScrapedTransactions, SCRAPE_TIMEOUT } from './Helpers.js';
 import { createBankOtpPoller } from './OtpPoller.js';
+import { createScrapeAttempt } from './ScrapeAttempt.js';
 import { createTokenCache } from './TokenCache.js';
 import { scrapeWithWarmFallback } from './WarmPathFallback.js';
 
@@ -69,21 +64,10 @@ DESCRIBE_IF('E2E: OneZero (real credentials, config-driven)', () => {
       },
       'OneZero creds shape',
     );
-    /**
-     * Run one OneZero scrape with a fresh scraper instance.
-     * @param creds - Warm or cold credential shape.
-     * @returns Scrape result.
-     */
-    const runScrape = async (creds: ScraperCredentials): Promise<IScraperScrapingResult> => {
-      const scraper = createScraper({
-        companyId: CompanyTypes.OneZero,
-        startDate: defaultStartDate(),
-        shouldShowBrowser: false,
-        args: BROWSER_ARGS,
-        onAuthFlowComplete: cache.writer,
-      });
-      return scraper.scrape(creds);
-    };
+    const runScrape = createScrapeAttempt({
+      companyId: CompanyTypes.OneZero,
+      onAuthFlowComplete: cache.writer,
+    });
     const result = await scrapeWithWarmFallback({
       cache,
       cachedToken,
