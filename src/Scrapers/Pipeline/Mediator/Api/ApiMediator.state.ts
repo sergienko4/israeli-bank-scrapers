@@ -25,6 +25,7 @@ function makeInitialMediatorState(): IMediatorState {
     resolver: NULL_RESOLVER,
     sessionContext: Object.freeze({}),
     sessionWarm: false,
+    isRefreshing: false,
   };
 }
 

@@ -106,6 +106,8 @@ interface IMediatorState {
   sessionContext: SessionContext;
   sessionWarm: boolean;
   onRecovered?: RecoveredHook;
+  /** True while a token re-mint is in flight — blocks refresh re-entrancy. */
+  isRefreshing: boolean;
 }
 
 /** Per-call context shared by apiPost/apiGet/apiQuery operations. */
