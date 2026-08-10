@@ -13,22 +13,60 @@ import {
   type IApiMediator,
 } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
+import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
-/** Pair of URLs + flags needed to wire the headless ApiMediator. */
-interface IHeadlessWiring {
-  readonly identity: string;
-  readonly graphql: string;
-  readonly graphqlHeaders?: Readonly<Record<string, string>>;
-  readonly staticAuth?: string;
+/** Identity-transport flags decoded from the optional headless config block. */
+interface IWiringFlags {
   readonly requiresBrowserTls: boolean;
   /** When true, wire the mTLS client-cert mediator instead of the Camoufox one. */
   readonly requiresClientCert: boolean;
   /** When true, the Camoufox strategy route-intercepts the initial origin nav. */
   readonly bypassOriginChallenge: boolean;
+}
+
+/** Pair of URLs + flags needed to wire the headless ApiMediator. */
+interface IHeadlessWiring extends IWiringFlags {
+  readonly identity: string;
+  readonly graphql: string;
+  readonly graphqlHeaders?: Readonly<Record<string, string>>;
+  readonly staticAuth?: string;
+}
+
+/** Arg bundle accepted by both headless mediator factories. */
+type TMediatorArgs = Parameters<typeof createBrowserBackedHeadlessApiMediator>[0];
+
+/** Identity-transport slice of the mediator args. */
+type TIdentityArgs = Pick<TMediatorArgs, 'bankHint' | 'identityBaseUrl' | 'identityOriginUrl'>;
+
+/** GraphQL slice of the mediator args. */
+type TGraphqlArgs = Pick<TMediatorArgs, 'graphqlUrl' | 'graphqlHeaders' | 'staticAuth'>;
+
+/**
+ * Decode the optional transport flags into explicit booleans.
+ * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
+ * @returns The three transport flags, each defaulted to false when absent.
+ */
+function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
+  return {
+    requiresBrowserTls: headless.requiresBrowserTls === true,
+    requiresClientCert: headless.requiresClientCert === true,
+    bypassOriginChallenge: headless.bypassOriginChallenge === true,
+  };
+}
+
+/**
+ * Map a headless config block onto the wiring shape the factories consume.
+ * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
+ * @returns Resolved wiring (URLs + decoded flags).
+ */
+function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
+  const flags = toWiringFlags(headless);
+  const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
+  return { identity: identityBase, graphql, graphqlHeaders, staticAuth, ...flags };
 }
 
 /**
@@ -40,16 +78,31 @@ interface IHeadlessWiring {
 function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadlessWiring | false {
   const config = resolvePipelineBankConfig(companyId);
   if (config === false || !config.headless) return false;
-  const headless = config.headless;
-  return {
-    identity: headless.identityBase,
-    graphql: headless.graphql,
-    graphqlHeaders: headless.graphqlHeaders,
-    staticAuth: headless.staticAuth,
-    requiresBrowserTls: headless.requiresBrowserTls === true,
-    requiresClientCert: headless.requiresClientCert === true,
-    bypassOriginChallenge: headless.bypassOriginChallenge === true,
-  };
+  return toHeadlessWiring(config.headless);
+}
+
+/**
+ * Build the identity-transport slice of the mediator args.
+ * @param companyId - Target bank company type.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns bankHint plus the identity base + origin URLs.
+ */
+function toIdentityArgs(
+  companyId: IPipelineContext['companyId'],
+  wiring: IHeadlessWiring,
+): TIdentityArgs {
+  const { origin } = new URL(wiring.identity);
+  return { bankHint: companyId, identityBaseUrl: wiring.identity, identityOriginUrl: origin };
+}
+
+/**
+ * Build the GraphQL slice of the mediator args.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns GraphQL endpoint plus its optional headers + static auth.
+ */
+function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
+  const { graphql, graphqlHeaders, staticAuth } = wiring;
+  return { graphqlUrl: graphql, graphqlHeaders, staticAuth };
 }
 
 /**
@@ -61,17 +114,10 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
 function buildMediatorArgsForWiring(
   companyId: IPipelineContext['companyId'],
   wiring: IHeadlessWiring,
-): Parameters<typeof createBrowserBackedHeadlessApiMediator>[0] {
-  const identityOriginUrl = new URL(wiring.identity).origin;
-  return {
-    bankHint: companyId,
-    identityBaseUrl: wiring.identity,
-    identityOriginUrl,
-    graphqlUrl: wiring.graphql,
-    graphqlHeaders: wiring.graphqlHeaders,
-    staticAuth: wiring.staticAuth,
-    bypassOriginChallenge: wiring.bypassOriginChallenge,
-  };
+): TMediatorArgs {
+  const identityArgs = toIdentityArgs(companyId, wiring);
+  const graphqlArgs = toGraphqlArgs(wiring);
+  return { ...identityArgs, ...graphqlArgs, bypassOriginChallenge: wiring.bypassOriginChallenge };
 }
 
 /** Message when a bank misconfigures two identity transports at once. */

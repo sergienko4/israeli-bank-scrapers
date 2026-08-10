@@ -152,6 +152,17 @@ function emptyResultSlots(): IResultSlots {
 }
 
 /**
+ * Assemble the phase slots, wiring in the resolved headless ApiMediator.
+ * @param descriptor - The pipeline descriptor.
+ * @returns Empty phase slots with apiMediator populated for headless banks.
+ */
+function buildPhaseSlots(descriptor: IPipelineDescriptor): IPhaseSlots {
+  const emptySlots = emptyPhaseSlots();
+  const apiMediator = resolveHeadlessApiMediator(descriptor);
+  return { ...emptySlots, apiMediator };
+}
+
+/**
  * Build the initial pipeline context from descriptor.
  * @param descriptor - The pipeline descriptor.
  * @param credentials - User credentials.
@@ -164,9 +175,7 @@ function buildInitialContext(
   const credKeyCount = String(Object.keys(credentials).length);
   const core = resolveCoreDeps(descriptor, credentials);
   const diag = createDiagnostics(credKeyCount);
-  const emptySlots = emptyPhaseSlots();
-  const apiMediator = resolveHeadlessApiMediator(descriptor);
-  const phases: IPhaseSlots = { ...emptySlots, apiMediator };
+  const phases = buildPhaseSlots(descriptor);
   const results: IResultSlots = emptyResultSlots();
   return { ...core, diagnostics: diag, ...phases, ...results, loginAreaReady: false };
 }
