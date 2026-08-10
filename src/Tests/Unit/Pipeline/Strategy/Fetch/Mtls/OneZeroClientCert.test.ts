@@ -1,9 +1,11 @@
 /**
  * Unit tests for Strategy/Fetch/Mtls/OneZeroClientCert.resolveOneZeroClientCert.
- * Covers: bundled base64 default decode; inline-PEM env override; path env
- * override; invalid path (read failure) fallback; non-PEM file fallback;
- * near-expiry WARN branch (Date.now mocked near the bundled validTo); and the
- * unparseable-cert expiry-skip branch. Env overrides are snapshotted/restored.
+ * Covers: bundled base64 default decode; inline-PEM and path env overrides; the
+ * fail-closed paths (unreadable override, non-PEM override, half-configured
+ * override pair, cert/key mismatch); the near-expiry WARN branch (Date.now
+ * mocked near the bundled validTo); the unparseable-cert expiry skip; and
+ * per-branch expiry message selection.
+ * Env overrides are snapshotted and restored around the suite.
  */
 
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -14,12 +16,24 @@ import { jest } from '@jest/globals';
 
 import {
   emitExpiryWarning,
+  EXPIRED_MSG,
+  expiryMessage,
+  NEAR_EXPIRY_MSG,
   resolveOneZeroClientCert,
   warnIfExpiring,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
+import { MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
 
 const CERT_ENV = 'ONEZERO_MTLS_CERT';
 const KEY_ENV = 'ONEZERO_MTLS_KEY';
+
+/**
+ * A syntactically valid PEM private key from an unrelated keypair (the loopback
+ * test fixture), used to prove the cert/key pairing check actually rejects.
+ */
+const MISMATCHED_KEY_B64 = MTLS_TEST_KEY_B64.replaceAll(/\s+/g, '');
+const MISMATCHED_KEY_BYTES = Buffer.from(MISMATCHED_KEY_B64, 'base64');
+const MISMATCHED_KEY_PEM = MISMATCHED_KEY_BYTES.toString('utf8');
 
 /** Snapshot of one env var: whether it was present and its value. */
 interface IEnvSnapshot {
@@ -96,6 +110,7 @@ describe('resolveOneZeroClientCert', () => {
   it('uses an inline-PEM env override verbatim for the cert', () => {
     const reference = resolveOneZeroClientCert();
     process.env[CERT_ENV] = reference.cert;
+    process.env[KEY_ENV] = reference.key;
     const bundle = resolveOneZeroClientCert();
     expect(bundle.cert).toBe(reference.cert);
   });
@@ -104,23 +119,43 @@ describe('resolveOneZeroClientCert', () => {
     const reference = resolveOneZeroClientCert();
     const filePath = writeTempFile(reference.cert);
     process.env[CERT_ENV] = filePath;
+    process.env[KEY_ENV] = reference.key;
     const bundle = resolveOneZeroClientCert();
     expect(bundle.cert).toBe(reference.cert);
   });
 
-  it('falls back to the bundled default when the override path cannot be read', () => {
+  it('throws rather than falling back when the override path cannot be read', () => {
     const base = tmpdir();
     const missing = join(base, 'oz-mtls-does-not-exist.pem');
     process.env[CERT_ENV] = missing;
-    const bundle = resolveOneZeroClientCert();
-    expect(bundle.cert).toContain('BEGIN CERTIFICATE');
+    process.env[KEY_ENV] = missing;
+    expect(resolveOneZeroClientCert).toThrow(/read failed/);
   });
 
-  it('falls back to the bundled default when the override file holds no PEM', () => {
+  it('throws rather than falling back when the override file holds no PEM', () => {
     const filePath = writeTempFile('this file has no pem material');
     process.env[CERT_ENV] = filePath;
-    const bundle = resolveOneZeroClientCert();
-    expect(bundle.cert).toContain('BEGIN CERTIFICATE');
+    process.env[KEY_ENV] = filePath;
+    expect(resolveOneZeroClientCert).toThrow(/not PEM material/);
+  });
+
+  it('throws when only the cert override is set (incomplete pair)', () => {
+    const reference = resolveOneZeroClientCert();
+    process.env[CERT_ENV] = reference.cert;
+    expect(resolveOneZeroClientCert).toThrow(/set both/);
+  });
+
+  it('throws when only the key override is set (incomplete pair)', () => {
+    const reference = resolveOneZeroClientCert();
+    process.env[KEY_ENV] = reference.key;
+    expect(resolveOneZeroClientCert).toThrow(/set both/);
+  });
+
+  it('throws when the override key does not match the override cert', () => {
+    const reference = resolveOneZeroClientCert();
+    process.env[CERT_ENV] = reference.cert;
+    process.env[KEY_ENV] = MISMATCHED_KEY_PEM;
+    expect(resolveOneZeroClientCert).toThrow(/do not match/);
   });
 
   it('emits the near-expiry branch and reports a warning when now is within the window', () => {
@@ -132,12 +167,34 @@ describe('resolveOneZeroClientCert', () => {
     const didWarn = warnIfExpiring(bundle.cert);
     expect(didWarn).toBe(true);
   });
+});
 
-  it('skips the expiry check when the resolved cert is unparseable', () => {
+describe('warnIfExpiring', () => {
+  it('skips the expiry check when the cert is unparseable', () => {
     const junkPem = '-----BEGIN CERTIFICATE-----\nnot-real-der\n-----END CERTIFICATE-----';
-    process.env[CERT_ENV] = junkPem;
-    const bundle = resolveOneZeroClientCert();
-    expect(bundle.cert).toBe(junkPem);
+    const didWarn = warnIfExpiring(junkPem);
+    expect(didWarn).toBe(false);
+  });
+});
+
+describe('expiryMessage', () => {
+  it('selects no message comfortably before the warn window', () => {
+    const message = expiryMessage(90);
+    expect(message).toBe('');
+  });
+
+  it('selects the near-expiry message inside the window', () => {
+    const message = expiryMessage(15);
+    expect(message).toBe(NEAR_EXPIRY_MSG);
+  });
+
+  it('selects the expired message for negative days', () => {
+    const message = expiryMessage(-5);
+    expect(message).toBe(EXPIRED_MSG);
+  });
+
+  it('keeps the expired and near-expiry texts distinguishable', () => {
+    expect(EXPIRED_MSG).not.toBe(NEAR_EXPIRY_MSG);
   });
 });
 

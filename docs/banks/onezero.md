@@ -31,12 +31,12 @@ rejected at the transport layer with `403` and a Cloudflare block page — no
 application-layer header, cookie, or user-agent change can satisfy it.
 
 The scraper therefore presents a client certificate on every OneZero request
-(`MtlsTransport` over `node:https`). Resolution order, per part:
+(`MtlsTransport` over `node:https`). Resolution:
 
-| Step | Source                                   | Notes                                                                                                                                                                      |
-| ---- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `ONEZERO_MTLS_CERT` / `ONEZERO_MTLS_KEY` | Inline PEM **or** a filesystem path to a PEM file. A value containing `-----BEGIN` is treated as inline PEM; anything else is read from disk.                              |
-| 2    | Bundled base64 default                   | The app-shared certificate extracted from the public OneZero APK. Used when no override is set, or when an override is unreadable/invalid (logged as `WARN`, never fatal). |
+| Step | Source                                   | Notes                                                                                                                                                                        |
+| ---- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `ONEZERO_MTLS_CERT` + `ONEZERO_MTLS_KEY` | Inline PEM **or** a filesystem path to a PEM file. A value containing `-----BEGIN` is treated as inline PEM; anything else is read from disk. **Both must be set together.** |
+| 2    | Bundled base64 default                   | The app-shared certificate extracted from the public OneZero APK. Used **only when neither override is set**.                                                                |
 
 ```bash
 # Inline PEM
@@ -48,12 +48,22 @@ export ONEZERO_MTLS_CERT=/etc/onezero/client.crt
 export ONEZERO_MTLS_KEY=/etc/onezero/client.key
 ```
 
-**Security note.** The bundled key is a shared _application_ credential that
-identifies the OneZero mobile client — not the account holder. It is not user
-PII, not a per-user secret, and is already publicly extractable from the APK;
-shipping it is what lets the scraper work out of the box. Deployments that need
-their own identity supply the overrides above. Certificate and key contents are
-never logged — only the env-var _name_ appears in diagnostics.
+**Fail closed.** Configuring an override is a statement of intent, so a broken
+one is an error rather than a hint. Initialization throws when only one half of
+the pair is set, when either value is unreadable or is not PEM, or when the key
+does not match the certificate. It never silently falls back to the bundled
+identity — a typo'd path or a failed secret mount would otherwise send
+production traffic under a credential you never chose, and the resulting `403`
+would be indistinguishable from a WAF block.
+
+**Security.** A private key is confidential material and is handled as such: it
+is never logged, and diagnostics carry only the env-var _name_ and the
+days-to-expiry. The bundled key is not user PII and not a per-user secret — it
+is a shared _application_ credential identifying the OneZero mobile client
+rather than the account holder, and is already extractable from the public APK,
+which is what lets the scraper work out of the box. Being public does not make
+it non-confidential: a key you supply via the overrides above is a real secret,
+so keep it in your secret store and mount it read-only.
 
 **Rotation.** The certificate is valid roughly one year. A `WARN` is emitted when
 it is within 30 days of expiry (`near expiry — rotate soon`) and a distinct
