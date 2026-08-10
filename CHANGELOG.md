@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.6.6](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.5...v8.6.6) (2026-08-10)
+
+
+### Bug Fixes
+
+* **deps:** drop stale js-yaml override, guard MkDocs 2.0 ([#457](https://github.com/sergienko4/israeli-bank-scrapers/issues/457)) ([9aa67a5](https://github.com/sergienko4/israeli-bank-scrapers/commit/9aa67a5ea6bbe52bea4232ac97aae66730c3bbd7))
+* **onezero:** mTLS client cert + WAF-block retry-storm guard ([#466](https://github.com/sergienko4/israeli-bank-scrapers/issues/466)) ([b284f17](https://github.com/sergienko4/israeli-bank-scrapers/commit/b284f17a4e741406942894bec51fa9c5535ad5dc))
+
 ## [8.6.5](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.4...v8.6.5) (2026-08-08)
 
 
