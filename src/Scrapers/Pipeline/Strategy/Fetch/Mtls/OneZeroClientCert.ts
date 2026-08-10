@@ -1,12 +1,22 @@
 /**
  * Resolves the OneZero client certificate + key used for the Cloudflare
  * API Shield mutual-TLS handshake. Order of resolution per part (cert, key):
- *   1. Env override (`ONEZERO_MTLS_CERT` / `ONEZERO_MTLS_KEY`) — inline PEM or
- *      a filesystem path to a PEM file. Enables rotation without a release.
- *   2. Bundled base64 default (the app-shared cert extracted from the public
- *      OneZero APK, valid ~yearly).
- * The cert is a shared application credential, not user PII. A near-expiry
- * WARN is logged so rotation is visible before the gate starts 403-ing.
+ *   1. Env override — inline PEM or a filesystem path to a PEM file:
+ *        - `ONEZERO_MTLS_CERT` — client certificate (PEM text or file path).
+ *        - `ONEZERO_MTLS_KEY`  — matching private key (PEM text or file path).
+ *      A value containing `-----BEGIN` is treated as inline PEM; otherwise it is
+ *      read from disk. Enables rotation (or per-deployment isolation) without a
+ *      release. An invalid/unreadable override logs a WARN and falls back to the
+ *      bundled default rather than failing the scrape.
+ *   2. Bundled base64 default (see OneZeroClientCertData) — the app-shared cert
+ *      extracted from the public OneZero APK, valid ~yearly.
+ *
+ * SECURITY: the bundled key is NOT user PII and NOT a per-user secret. It is a
+ * shared *application* credential that authenticates the OneZero mobile client
+ * (not the account holder) and is already publicly extractable from the APK, so
+ * shipping it is what lets the scraper work out of the box. Deployments that
+ * require their own identity can supply the env overrides above. A near-expiry
+ * (or expired) WARN is logged so rotation is visible before the gate 403s.
  */
 
 import { X509Certificate } from 'node:crypto';
@@ -126,12 +136,17 @@ function daysUntil(date: Date): number {
 }
 
 /**
- * Emit a near-expiry WARN when within the threshold.
- * @param days - Days until expiry.
+ * Emit a WARN when the cert is at/near expiry, distinguishing already-expired
+ * from soon-to-expire so operators can triage urgency.
+ * @param days - Days until expiry (negative when already expired).
  * @returns True when a warning was emitted.
  */
 function emitExpiryWarning(days: number): boolean {
   if (days > EXPIRY_WARN_DAYS) return false;
+  if (days < 0) {
+    LOG.warn({ days, message: '[mtls] OneZero client cert EXPIRED — rotate now' });
+    return true;
+  }
   LOG.warn({ days, message: '[mtls] OneZero client cert near expiry — rotate soon' });
   return true;
 }
@@ -170,4 +185,4 @@ function resolveOneZeroClientCert(): ICertBundle {
 }
 
 export type { ICertBundle };
-export { resolveOneZeroClientCert };
+export { emitExpiryWarning, resolveOneZeroClientCert, warnIfExpiring };

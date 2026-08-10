@@ -17,6 +17,8 @@
  * globalThis.fetch override.
  */
 
+import { setMtlsFetchFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import { invokeFetch } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
@@ -454,6 +456,7 @@ export function installOneZeroFetchMock(): IMockHandle {
   const mockFetch = makeMockFetch(tally);
   (globalThis as unknown as { fetch: typeof mockFetch }).fetch = mockFetch;
   setFakePageEvalMode(true);
+  setMtlsFetchFallback(invokeFetch);
   /**
    * Restore the original fetch implementation and reset the Camoufox mock.
    * @returns True once restoration completes.
@@ -461,6 +464,7 @@ export function installOneZeroFetchMock(): IMockHandle {
   const dispose = (): boolean => {
     globalThis.fetch = previousFetch;
     setFakePageEvalMode(false);
+    setMtlsFetchFallback();
     return true;
   };
   /**

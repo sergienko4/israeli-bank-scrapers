@@ -6,6 +6,7 @@
  * PipelineContextFactory to keep that file under the strict 150-LoC cap.
  */
 
+import ScraperError from '../../Base/ScraperError.js';
 import {
   createBrowserBackedHeadlessApiMediator,
   createMtlsHeadlessApiMediator,
@@ -73,6 +74,27 @@ function buildMediatorArgsForWiring(
   };
 }
 
+/** Message when a bank misconfigures two identity transports at once. */
+const TRANSPORT_CONFLICT_MSG =
+  'Conflicting headless transport: mTLS and browser-TLS are mutually exclusive';
+
+/**
+ * Guard against a bank requesting two mutually-exclusive identity transports.
+ * mTLS (node:https client cert) and browser-TLS (Camoufox) cannot both drive
+ * identity, so a config with both flags is a wiring bug we fail fast.
+ * @param companyId - Target bank company type (for the error message).
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns True when the transport selection is unambiguous.
+ */
+function assertSingleTransport(
+  companyId: IPipelineContext['companyId'],
+  wiring: IHeadlessWiring,
+): boolean {
+  const hasConflict = wiring.requiresClientCert && wiring.requiresBrowserTls;
+  if (hasConflict) throw new ScraperError(`${TRANSPORT_CONFLICT_MSG} (${companyId})`);
+  return true;
+}
+
 /**
  * Select + invoke the headless mediator factory for the resolved wiring.
  * mTLS banks present a bundled client cert over node:https; all others route
@@ -85,6 +107,7 @@ function selectHeadlessMediator(
   companyId: IPipelineContext['companyId'],
   wiring: IHeadlessWiring,
 ): IApiMediator {
+  assertSingleTransport(companyId, wiring);
   const args = buildMediatorArgsForWiring(companyId, wiring);
   if (wiring.requiresClientCert) return createMtlsHeadlessApiMediator(args);
   return createBrowserBackedHeadlessApiMediator(args);

@@ -14,11 +14,29 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import type { FetchInvoke } from '../NativeFetchStrategy.js';
+import type { FetchInvoke, HttpVerb } from '../NativeFetchStrategy.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
 
-/** HTTP verbs this transport supports (mirrors NativeFetchStrategy). */
-type HttpVerb = 'GET' | 'POST';
+/**
+ * Optional transport override used ONLY by the E2E-mocked suites. When set, the
+ * mTLS invoke path delegates to this fallback (which routes through the mocked
+ * `globalThis.fetch`) instead of opening a real node:https socket, so the
+ * OneZero mocked pipeline runs fully offline. Production leaves this null,
+ * keeping the node:https path byte-identical. Mirrors the setFakePageEvalMode
+ * test seam already used by the mocked Camoufox layer.
+ */
+let mtlsFetchFallback: FetchInvoke | null = null;
+
+/**
+ * Install (or clear) the E2E-mocked transport fallback. Call with no argument
+ * (or undefined) to clear it and restore the node:https path.
+ * @param fallback - FetchInvoke to route mTLS requests through; omit to clear.
+ * @returns True when a fallback is now active, false when cleared.
+ */
+function setMtlsFetchFallback(fallback?: FetchInvoke): boolean {
+  mtlsFetchFallback = fallback ?? null;
+  return mtlsFetchFallback !== null;
+}
 
 /** Fully-specified mTLS request bundle — keeps params under the 3-ceiling. */
 interface IMtlsRequest {
@@ -26,6 +44,28 @@ interface IMtlsRequest {
   readonly url: string;
   readonly init: RequestInit;
   readonly verb: HttpVerb;
+}
+
+/**
+ * Hard ceiling for a single mTLS request (connect + full response). A hung
+ * Cloudflare socket would otherwise leave mtlsInvoke pending forever; the
+ * AbortSignal.timeout aborts the request so the catch in mtlsInvoke surfaces a
+ * network failure the Pipeline can retry/report instead of stalling.
+ */
+const MTLS_REQUEST_TIMEOUT_MS = 30_000;
+
+/** Active per-request timeout (ms). Overridable for tuning + deterministic tests. */
+let requestTimeoutMs: number = MTLS_REQUEST_TIMEOUT_MS;
+
+/**
+ * Override the per-request mTLS timeout (ms). Production keeps the default;
+ * the mTLS test suites lower it to prove the abort path deterministically.
+ * @param ms - New timeout in milliseconds.
+ * @returns The timeout now in effect.
+ */
+function setMtlsRequestTimeoutMs(ms: number): number {
+  requestTimeoutMs = ms;
+  return requestTimeoutMs;
 }
 
 /**
@@ -61,7 +101,7 @@ function headersToRecord(headers?: HeadersInit): Record<string, string> {
  */
 function buildOptions(agent: Agent, init: RequestInit, verb: HttpVerb): RequestOptions {
   const headers = headersToRecord(init.headers);
-  return { agent, method: verb, headers };
+  return { agent, method: verb, headers, signal: AbortSignal.timeout(requestTimeoutMs) };
 }
 
 /**
@@ -94,12 +134,14 @@ function sendRequest(request: IMtlsRequest): Promise<IncomingMessage> {
 }
 
 /**
- * Buffer the full response body as a UTF-8 string.
+ * Buffer the full response body as a UTF-8 string. Rejects on a stream error or
+ * a premature close (socket dropped mid-body) so a truncated Cloudflare response
+ * surfaces as a network failure instead of a silently-empty body.
  * @param message - The response IncomingMessage.
- * @returns Promise resolving with the decoded body.
+ * @returns Promise resolving with the decoded body, or rejecting on stream error.
  */
 function collectBody(message: IncomingMessage): Promise<string> {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     message.on('data', (chunk: Buffer) => {
       chunks.push(chunk);
@@ -108,6 +150,10 @@ function collectBody(message: IncomingMessage): Promise<string> {
       const buffer = Buffer.concat(chunks);
       const body = buffer.toString('utf8');
       resolve(body);
+    });
+    message.on('error', reject);
+    message.on('close', () => {
+      if (!message.readableEnded) reject(new Error('mtls response closed before end'));
     });
   });
 }
@@ -204,9 +250,21 @@ function makeMtlsInvoke(agent: Agent): FetchInvoke {
    * @param verb - HTTP verb (for error-message prefixing).
    * @returns Procedure carrying the synthesised Response, or a network failure.
    */
-  const invoke: FetchInvoke = (url, init, verb) => mtlsInvoke({ agent, url, init, verb });
+  const invoke: FetchInvoke = (url, init, verb) => {
+    if (mtlsFetchFallback) return mtlsFetchFallback(url, init, verb);
+    return mtlsInvoke({ agent, url, init, verb });
+  };
   return invoke;
 }
 
 export type { HttpVerb, IMtlsRequest };
-export { buildMtlsAgent, makeMtlsInvoke, mtlsInvoke, toResponse };
+export {
+  buildMtlsAgent,
+  collectBody,
+  makeMtlsInvoke,
+  MTLS_REQUEST_TIMEOUT_MS,
+  mtlsInvoke,
+  setMtlsFetchFallback,
+  setMtlsRequestTimeoutMs,
+  toResponse,
+};

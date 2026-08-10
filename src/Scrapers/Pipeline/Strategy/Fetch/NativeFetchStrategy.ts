@@ -271,5 +271,5 @@ class NativeFetchStrategy implements IFetchStrategy {
 }
 
 export default NativeFetchStrategy;
-export { NativeFetchStrategy };
+export { invokeFetch, NativeFetchStrategy };
 export type { FetchInvoke, HttpVerb };

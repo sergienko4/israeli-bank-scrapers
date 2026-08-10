@@ -3,9 +3,12 @@
  * server that simulates the Cloudflare API Shield mutual-TLS gate: a request
  * that presents NO client certificate is answered with 403 + an HTML block
  * body (mirroring Cloudflare); a request that DOES present one is answered with
- * 200 JSON + Set-Cookie lines. The bundled OneZero cert/key is reused as the
- * server's TLS identity purely so the suite needs no cert generation; test
- * client agents set `rejectUnauthorized: false` to trust the self-signed host.
+ * 200 JSON + Set-Cookie lines. The server's TLS identity is a dedicated,
+ * self-signed loopback fixture (`MtlsTestCertData`, SAN `IP:127.0.0.1`) — NOT
+ * the production OneZero credential — so the suite is decoupled from cert
+ * rotation and from `ONEZERO_MTLS_*` env overrides. Because the fixture SAN
+ * pins `127.0.0.1`, client agents validate the server with
+ * `rejectUnauthorized: true` and need no hostname-check override.
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -13,7 +16,7 @@ import { Agent, createServer, type Server } from 'node:https';
 import type { TLSSocket } from 'node:tls';
 
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
-import { resolveOneZeroClientCert } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
+import { MTLS_TEST_CERT_B64, MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
 
 /** A running gate server plus the URLs + teardown callers need. */
 interface IGateServer {
@@ -27,11 +30,24 @@ interface IGateServer {
 const GATE_COOKIES: readonly string[] = ['MTLS_SESSION=1; Path=/; HttpOnly', 'MTLS_CSRF=2; Path=/'];
 
 /**
- * Resolve the bundled OneZero cert bundle for use as test TLS material.
- * @returns The decoded cert + key PEM pair.
+ * Decode a base64-wrapped PEM back to its text form.
+ * @param b64 - Base64 of the PEM (embedded whitespace is tolerated).
+ * @returns The decoded PEM text.
+ */
+function decodePem(b64: string): string {
+  const compact = b64.replaceAll(/\s+/g, '');
+  const buffer = Buffer.from(compact, 'base64');
+  return buffer.toString('utf8');
+}
+
+/**
+ * Decode the self-signed loopback TEST cert bundle. This never touches the
+ * production OneZero credential and is never affected by `ONEZERO_MTLS_*` env
+ * overrides, so the suite stays deterministic across cert rotations.
+ * @returns The decoded test cert + key PEM pair.
  */
 function testCertBundle(): ICertBundle {
-  return resolveOneZeroClientCert();
+  return { cert: decodePem(MTLS_TEST_CERT_B64), key: decodePem(MTLS_TEST_KEY_B64) };
 }
 
 /**
@@ -76,6 +92,28 @@ function sendOk(req: IncomingMessage, res: ServerResponse): boolean {
 }
 
 /**
+ * Never write a response — leaves the request hanging so the client-side
+ * AbortSignal.timeout is exercised deterministically.
+ * @returns True (the socket is intentionally left open).
+ */
+function sendHang(): boolean {
+  return true;
+}
+
+/**
+ * Write response headers + a partial body, then destroy the socket so the
+ * client observes a premature close (truncated body) mid-stream.
+ * @param res - The response to write then abort.
+ * @returns True once the partial write + destroy is issued.
+ */
+function sendPremature(res: ServerResponse): boolean {
+  res.writeHead(200, { 'content-type': 'application/json' });
+  res.write('{"partial":');
+  res.socket?.destroy();
+  return true;
+}
+
+/**
  * Route one request through the simulated mTLS gate.
  * @param req - The incoming request.
  * @param res - The response to write.
@@ -83,8 +121,11 @@ function sendOk(req: IncomingMessage, res: ServerResponse): boolean {
  */
 function handleGate(req: IncomingMessage, res: ServerResponse): boolean {
   const isAuthed = hasClientCert(req);
-  if (isAuthed) return sendOk(req, res);
-  return sendBlocked(res);
+  if (!isAuthed) return sendBlocked(res);
+  const url = req.url ?? '/';
+  if (url.includes('hang')) return sendHang();
+  if (url.includes('premature')) return sendPremature(res);
+  return sendOk(req, res);
 }
 
 /**
@@ -140,7 +181,11 @@ function startGateServer(): Promise<IGateServer> {
   const options = {
     cert: bundle.cert,
     key: bundle.key,
+    ca: [bundle.cert],
     requestCert: true,
+    // Accept a certless handshake so the handler can return the app-layer 403
+    // that is the behaviour under test (mirrors Cloudflare). This does NOT
+    // relax server-cert validation — clients still verify via `ca` below.
     rejectUnauthorized: false,
   };
   const server = createServer(options, handleGate);
@@ -153,25 +198,29 @@ function startGateServer(): Promise<IGateServer> {
 }
 
 /**
- * Build a client agent that presents the bundled client certificate.
+ * Build a client agent that presents the test client certificate and fully
+ * validates the loopback server against the self-signed CA (SAN `127.0.0.1`).
  * @param bundle - The cert + key to present on the handshake.
- * @returns An HTTPS agent that trusts the self-signed test host.
+ * @returns An HTTPS agent that trusts the test host via its self-CA.
  */
 function buildCertAgent(bundle: ICertBundle): Agent {
   return new Agent({
     cert: bundle.cert,
     key: bundle.key,
-    rejectUnauthorized: false,
+    ca: [bundle.cert],
+    rejectUnauthorized: true,
     keepAlive: false,
   });
 }
 
 /**
- * Build a client agent that presents NO client certificate.
- * @returns An HTTPS agent that trusts the self-signed test host.
+ * Build a client agent that presents NO client certificate but still fully
+ * validates the loopback server against the self-signed CA (SAN `127.0.0.1`).
+ * @returns An HTTPS agent that trusts the test host via its self-CA.
  */
 function buildNoCertAgent(): Agent {
-  return new Agent({ rejectUnauthorized: false, keepAlive: false });
+  const { cert } = testCertBundle();
+  return new Agent({ ca: [cert], rejectUnauthorized: true, keepAlive: false });
 }
 
 export type { IGateServer };

@@ -6,13 +6,17 @@
  * normalisation branches, socket-failure handling, and the makeMtlsInvoke seam.
  */
 
+import { EventEmitter } from 'node:events';
 import type { IncomingMessage } from 'node:http';
 import { Agent } from 'node:https';
 
 import {
   buildMtlsAgent,
+  collectBody,
   makeMtlsInvoke,
+  MTLS_REQUEST_TIMEOUT_MS,
   mtlsInvoke,
+  setMtlsRequestTimeoutMs,
   toResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -173,6 +177,94 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value.status).toBe(200);
+  });
+});
+
+describe('MtlsTransport.mtlsInvoke — timeout + premature close', () => {
+  let server: IGateServer;
+  let certAgent: Agent;
+
+  beforeAll(async () => {
+    server = await startGateServer();
+  });
+  afterAll(async () => {
+    setMtlsRequestTimeoutMs(MTLS_REQUEST_TIMEOUT_MS);
+    await server.close();
+  });
+  beforeEach(() => {
+    const bundle = testCertBundle();
+    certAgent = buildCertAgent(bundle);
+  });
+  afterEach(() => {
+    certAgent.destroy();
+    setMtlsRequestTimeoutMs(MTLS_REQUEST_TIMEOUT_MS);
+  });
+
+  it('fails with an "mtls error" Procedure when the server never responds (timeout)', async () => {
+    setMtlsRequestTimeoutMs(150);
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const result = await mtlsInvoke({
+      agent: certAgent,
+      url: `${server.baseUrl}hang`,
+      init,
+      verb: 'GET',
+    });
+    const didSucceed = isOk(result);
+    expect(didSucceed).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toContain('mtls error');
+  });
+
+  it('fails with an "mtls error" Procedure on a premature close mid-body', async () => {
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const result = await mtlsInvoke({
+      agent: certAgent,
+      url: `${server.baseUrl}premature`,
+      init,
+      verb: 'GET',
+    });
+    const didSucceed = isOk(result);
+    expect(didSucceed).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toContain('mtls error');
+  });
+});
+
+/**
+ * Build a minimal IncomingMessage stand-in (EventEmitter + readableEnded).
+ * @returns An EventEmitter typed as IncomingMessage with readableEnded=false.
+ */
+function fakeMessage(): IncomingMessage & { readableEnded: boolean } {
+  const emitter = new EventEmitter() as IncomingMessage & { readableEnded: boolean };
+  emitter.readableEnded = false;
+  return emitter;
+}
+
+describe('MtlsTransport.collectBody — stream failure branches', () => {
+  it('rejects when the response stream emits an error', async () => {
+    const message = fakeMessage();
+    const promise = collectBody(message);
+    message.emit('error', new Error('boom'));
+    await expect(promise).rejects.toThrow('boom');
+  });
+
+  it('rejects on a premature close (body truncated before end)', async () => {
+    const message = fakeMessage();
+    const promise = collectBody(message);
+    const partial = Buffer.from('{"partial":');
+    message.emit('data', partial);
+    message.emit('close');
+    await expect(promise).rejects.toThrow('closed before end');
+  });
+
+  it('resolves on end and ignores the trailing close event', async () => {
+    const message = fakeMessage();
+    const promise = collectBody(message);
+    const chunk = Buffer.from('{"ok":true}');
+    message.emit('data', chunk);
+    message.readableEnded = true;
+    message.emit('end');
+    message.emit('close');
+    const body = await promise;
+    expect(body).toBe('{"ok":true}');
   });
 });
 

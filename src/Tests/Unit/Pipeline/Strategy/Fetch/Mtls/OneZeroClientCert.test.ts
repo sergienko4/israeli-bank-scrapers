@@ -12,7 +12,11 @@ import { join } from 'node:path';
 
 import { jest } from '@jest/globals';
 
-import { resolveOneZeroClientCert } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
+import {
+  emitExpiryWarning,
+  resolveOneZeroClientCert,
+  warnIfExpiring,
+} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
 
 const CERT_ENV = 'ONEZERO_MTLS_CERT';
 const KEY_ENV = 'ONEZERO_MTLS_KEY';
@@ -119,12 +123,14 @@ describe('resolveOneZeroClientCert', () => {
     expect(bundle.cert).toContain('BEGIN CERTIFICATE');
   });
 
-  it('emits the near-expiry branch when now is within the warn window', () => {
+  it('emits the near-expiry branch and reports a warning when now is within the window', () => {
     const nearDate = new Date('2027-06-20T00:00:00Z');
     const nearMs = nearDate.getTime();
     jest.spyOn(Date, 'now').mockReturnValue(nearMs);
     const bundle = resolveOneZeroClientCert();
     expect(bundle.cert).toContain('BEGIN CERTIFICATE');
+    const didWarn = warnIfExpiring(bundle.cert);
+    expect(didWarn).toBe(true);
   });
 
   it('skips the expiry check when the resolved cert is unparseable', () => {
@@ -132,5 +138,22 @@ describe('resolveOneZeroClientCert', () => {
     process.env[CERT_ENV] = junkPem;
     const bundle = resolveOneZeroClientCert();
     expect(bundle.cert).toBe(junkPem);
+  });
+});
+
+describe('emitExpiryWarning', () => {
+  it('does not warn when the cert is comfortably before the warn window', () => {
+    const didWarn = emitExpiryWarning(90);
+    expect(didWarn).toBe(false);
+  });
+
+  it('warns when the cert is within the near-expiry window', () => {
+    const didWarn = emitExpiryWarning(15);
+    expect(didWarn).toBe(true);
+  });
+
+  it('warns when the cert is already expired (negative days)', () => {
+    const didWarn = emitExpiryWarning(-5);
+    expect(didWarn).toBe(true);
   });
 });
