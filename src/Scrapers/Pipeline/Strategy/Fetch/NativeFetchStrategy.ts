@@ -44,6 +44,14 @@ function safeUrlForLog(url: string): SafeUrlForLog {
 type HttpVerb = 'GET' | 'POST';
 
 /**
+ * Transport seam — performs the raw request and yields a Procedure<Response>.
+ * The default binds to globalThis.fetch; mTLS subclasses override it to route
+ * the request through a client-certificate agent while reusing all downstream
+ * response parsing, cookie emission, and logging.
+ */
+type FetchInvoke = (url: string, init: RequestInit, verb: HttpVerb) => Promise<Procedure<Response>>;
+
+/**
  * Merge the default JSON content-type with caller-supplied headers.
  * Caller wins on collision (e.g., text/plain overrides application/json).
  * @param extraHeaders - Caller-supplied headers (may override defaults).
@@ -158,6 +166,7 @@ interface IDispatchArgs {
   readonly url: string;
   readonly init: RequestInit;
   readonly verb: HttpVerb;
+  readonly invoke: FetchInvoke;
   readonly onSetCookie?: IFetchOpts['onSetCookie'];
 }
 
@@ -166,13 +175,13 @@ interface IDispatchArgs {
  * Emits PII-safe DEBUG traces at fire and after-status. Per
  * `logging-pii-guidlines.txt`, the URL is stripped of query string
  * (which may carry session ids / tokens) before logging.
- * @param args - url + init + verb + optional cookie hook.
+ * @param args - url + init + verb + invoke transport + optional cookie hook.
  * @returns Procedure with parsed body or structured failure.
  */
 async function dispatchFetch<T>(args: IDispatchArgs): Promise<Procedure<T>> {
   const safeUrl = safeUrlForLog(args.url);
   LOG.debug({ verb: args.verb, url: safeUrl, message: '[fetch] FIRE' });
-  const fetchResult = await invokeFetch(args.url, args.init, args.verb);
+  const fetchResult = await args.invoke(args.url, args.init, args.verb);
   if (!fetchResult.success) {
     LOG.debug({
       verb: args.verb,
@@ -193,6 +202,14 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected readonly _baseUrl: string;
 
   /**
+   * Transport seam — performs the raw request. Defaults to globalThis.fetch;
+   * mTLS subclasses replace it in their constructor with a client-cert
+   * transport. All downstream response parsing, cookie emission, and logging
+   * stay in the shared dispatchFetch pipeline regardless of transport.
+   */
+  protected _invoke: FetchInvoke = invokeFetch;
+
+  /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
    */
@@ -201,7 +218,7 @@ class NativeFetchStrategy implements IFetchStrategy {
   }
 
   /**
-   * POST a JSON body via globalThis.fetch.
+   * POST a JSON body via the configured transport.
    * @param url - Target URL (absolute, or relative to baseUrl).
    * @param data - POST body, serialised as JSON.
    * @param opts - Fetch options (caller extraHeaders override defaults).
@@ -212,11 +229,18 @@ class NativeFetchStrategy implements IFetchStrategy {
     const headers = mergeHeaders(opts.extraHeaders);
     const body = JSON.stringify(data);
     const init: RequestInit = { method: 'POST', headers, body };
-    return dispatchFetch<T>({ url: fullUrl, init, verb: 'POST', onSetCookie: opts.onSetCookie });
+    const invoke = this._invoke;
+    return dispatchFetch<T>({
+      url: fullUrl,
+      init,
+      verb: 'POST',
+      invoke,
+      onSetCookie: opts.onSetCookie,
+    });
   }
 
   /**
-   * GET via globalThis.fetch.
+   * GET via the configured transport.
    * @param url - Target URL (absolute, or relative to baseUrl).
    * @param opts - Fetch options (caller extraHeaders override defaults).
    * @returns Procedure with parsed response or structured failure.
@@ -225,7 +249,14 @@ class NativeFetchStrategy implements IFetchStrategy {
     const fullUrl = this.resolveUrl(url);
     const headers = mergeHeaders(opts.extraHeaders);
     const init: RequestInit = { method: 'GET', headers };
-    return dispatchFetch<T>({ url: fullUrl, init, verb: 'GET', onSetCookie: opts.onSetCookie });
+    const invoke = this._invoke;
+    return dispatchFetch<T>({
+      url: fullUrl,
+      init,
+      verb: 'GET',
+      invoke,
+      onSetCookie: opts.onSetCookie,
+    });
   }
 
   /**
@@ -241,3 +272,4 @@ class NativeFetchStrategy implements IFetchStrategy {
 
 export default NativeFetchStrategy;
 export { NativeFetchStrategy };
+export type { FetchInvoke, HttpVerb };

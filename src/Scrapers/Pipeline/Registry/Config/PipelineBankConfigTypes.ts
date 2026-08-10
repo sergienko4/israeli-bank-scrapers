@@ -80,6 +80,16 @@ export interface IHeadlessUrlsConfig {
    */
   readonly requiresBrowserTls?: boolean;
   /**
+   * When true, identity + graphql calls present a bundled client certificate
+   * over `node:https` (mutual-TLS) to satisfy a Cloudflare API Shield mTLS
+   * gate. Default: undefined (treated as false). Mutually exclusive with
+   * `requiresBrowserTls` — an mTLS host is gated by the client cert, not by
+   * the Node-TLS fingerprint, so it does NOT need the Camoufox route.
+   * Only set for banks whose identity host returns 403 without a client cert
+   * (e.g. OneZero's `*.tfd-bank.com`).
+   */
+  readonly requiresClientCert?: boolean;
+  /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank
    * HTML stub (`<!doctype html><html><head></head><body></body></html>`).

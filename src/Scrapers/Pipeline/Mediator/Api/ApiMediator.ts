@@ -8,6 +8,7 @@
 export {
   createBrowserBackedHeadlessApiMediator,
   createHeadlessApiMediator,
+  createMtlsHeadlessApiMediator,
 } from './ApiMediator.factories.js';
 export { createApiMediator } from './ApiMediator.factory.js';
 export type {

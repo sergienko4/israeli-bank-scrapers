@@ -3,11 +3,11 @@
  */
 
 import type { ScraperCredentials } from '../../Base/Interface.js';
-import { createBrowserBackedHeadlessApiMediator } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import { getDebug as createLogger } from '../Types/Debug.js';
-import { none, some } from '../Types/Option.js';
+import { none } from '../Types/Option.js';
 import type { IDiagnosticsState, IPipelineContext } from '../Types/PipelineContext.js';
+import { resolveHeadlessApiMediator } from './HeadlessMediatorWiring.js';
 import type {
   BalanceSlotKey,
   DiscoverySlotKey,
@@ -165,85 +165,10 @@ function buildInitialContext(
   const core = resolveCoreDeps(descriptor, credentials);
   const diag = createDiagnostics(credKeyCount);
   const emptySlots = emptyPhaseSlots();
-  const phases = wireHeadlessMediator(descriptor, emptySlots);
+  const apiMediator = resolveHeadlessApiMediator(descriptor);
+  const phases: IPhaseSlots = { ...emptySlots, apiMediator };
   const results: IResultSlots = emptyResultSlots();
   return { ...core, diagnostics: diag, ...phases, ...results, loginAreaReady: false };
-}
-
-/** Pair of URLs + optional staticAuth needed to wire the headless ApiMediator. */
-interface IHeadlessWiring {
-  readonly identity: string;
-  readonly graphql: string;
-  readonly graphqlHeaders?: Readonly<Record<string, string>>;
-  readonly staticAuth?: string;
-  readonly requiresBrowserTls: boolean;
-  /** When true, the Camoufox strategy route-intercepts the initial origin nav
-   * with a blank HTML stub so subsequent same-origin fetches are not blocked
-   * by the bank's Cloudflare interstitial CSP. */
-  readonly bypassOriginChallenge: boolean;
-}
-
-/**
- * Resolve identity + graphql URLs + optional staticAuth from PIPELINE_BANK_CONFIG.
- * Returns false when the bank is not registered or has no headless block.
- * @param companyId - Target bank company type.
- * @returns Resolved wiring, or false when the lookup fails.
- */
-function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadlessWiring | false {
-  const config = resolvePipelineBankConfig(companyId);
-  if (config === false || !config.headless) return false;
-  const headless = config.headless;
-  return {
-    identity: headless.identityBase,
-    graphql: headless.graphql,
-    graphqlHeaders: headless.graphqlHeaders,
-    staticAuth: headless.staticAuth,
-    requiresBrowserTls: headless.requiresBrowserTls === true,
-    bypassOriginChallenge: headless.bypassOriginChallenge === true,
-  };
-}
-
-/**
- * Build the `createBrowserBackedHeadlessApiMediator` arg literal from
- * the resolved wiring + companyId. Extracted so the call site below
- * stays inside the project's max-lines-per-function cap.
- * @param companyId - Target bank company type.
- * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Args bundle ready to pass into the browser-backed mediator factory.
- */
-function buildMediatorArgsForWiring(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): Parameters<typeof createBrowserBackedHeadlessApiMediator>[0] {
-  const identityOriginUrl = new URL(wiring.identity).origin;
-  return {
-    bankHint: companyId,
-    identityBaseUrl: wiring.identity,
-    identityOriginUrl,
-    graphqlUrl: wiring.graphql,
-    graphqlHeaders: wiring.graphqlHeaders,
-    staticAuth: wiring.staticAuth,
-    bypassOriginChallenge: wiring.bypassOriginChallenge,
-  };
-}
-
-/**
- * Inject an ApiMediator into the phase slots when the descriptor is headless.
- * All currently-registered headless banks (OneZero, Pepper, PayBox) opt into
- * `requiresBrowserTls: true` — each identity host either gates Node TLS or
- * sits behind a Cloudflare edge bypassed by the Camoufox strategy's optional
- * origin-challenge route-intercept.
- * @param descriptor - The pipeline descriptor (isHeadless flag).
- * @param slots - Empty phase slots from emptyPhaseSlots().
- * @returns Phase slots with apiMediator populated when applicable.
- */
-function wireHeadlessMediator(descriptor: IPipelineDescriptor, slots: IPhaseSlots): IPhaseSlots {
-  if (descriptor.isHeadless !== true) return slots;
-  const wiring = resolveHeadlessWiring(descriptor.options.companyId);
-  if (wiring === false) return slots;
-  const args = buildMediatorArgsForWiring(descriptor.options.companyId, wiring);
-  const apiMediator = createBrowserBackedHeadlessApiMediator(args);
-  return { ...slots, apiMediator: some(apiMediator) };
 }
 
 export default buildInitialContext;

@@ -14,8 +14,14 @@
  * placed in the factory by design."
  */
 
+import type { Agent } from 'node:https';
+
 import { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
+import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
+import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
+import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
+import { resolveOneZeroClientCert } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type {
@@ -135,4 +141,37 @@ function createBrowserBackedHeadlessApiMediator(
   return Object.assign(mediator, { dispose });
 }
 
-export { createBrowserBackedHeadlessApiMediator, createHeadlessApiMediator };
+/**
+ * Construct the mTLS native + GraphQL strategies sharing one client-cert agent.
+ * @param args - Mediator args bundle (identity + graphql URLs + headers).
+ * @param agent - HTTPS agent presenting the shared client certificate.
+ * @returns Strategy pair whose transports perform mutual-TLS.
+ */
+function buildMtlsStrategies(args: IHeadlessMediatorArgs, agent: Agent): IHeadlessStrategies {
+  const fetch = Reflect.construct(MtlsFetchStrategy, [args.identityBaseUrl, agent]);
+  const headers = args.graphqlHeaders ?? {};
+  const gql = Reflect.construct(MtlsGraphQLFetchStrategy, [args.graphqlUrl, agent, headers]);
+  return { fetch, gql };
+}
+
+/**
+ * Build an ApiMediator whose identity + GraphQL transports present a client
+ * certificate (mutual-TLS) to pass a Cloudflare API Shield mTLS gate. The
+ * bundled OneZero cert is the only mTLS identity currently registered; if a
+ * second bank needs mTLS, hoist the cert resolver into the args bundle (OCP).
+ * @param args - Bank hint + URLs + optional staticAuth header.
+ * @returns A fully-wired IApiMediator using node:https client-cert transport.
+ */
+function createMtlsHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMediator {
+  const bundle = resolveOneZeroClientCert();
+  const agent = buildMtlsAgent(bundle);
+  const { fetch, gql } = buildMtlsStrategies(args, agent);
+  const mediator = createApiMediator(args.bankHint, fetch, gql);
+  return applyStaticAuth(mediator, args);
+}
+
+export {
+  createBrowserBackedHeadlessApiMediator,
+  createHeadlessApiMediator,
+  createMtlsHeadlessApiMediator,
+};

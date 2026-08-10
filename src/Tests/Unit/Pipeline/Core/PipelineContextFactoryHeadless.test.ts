@@ -79,15 +79,15 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
    * bank must expose a `dispose` hook on its headless ApiMediator so
    * the pipeline can tear down the browser-backed TLS context. Driven
    * via a single config array per CLAUDE.md's "config arrays mapped
-   * with .map() — no duplication" rule.
+   * with .map() — no duplication" rule. OneZero is intentionally absent:
+   * it moved to a node:https client-cert (mTLS) transport with no browser
+   * to tear down, so it exposes NO dispose hook (see OZ-PCF-01 below).
    */
   const tlsDisposeCases = [
-    { testId: 'OZ-PCF-01', bankName: 'OneZero', companyId: CompanyTypes.OneZero },
     { testId: 'PP-PCF-02', bankName: 'Pepper', companyId: CompanyTypes.Pepper },
     // PayBox lives in the same matrix because its dispose contract is
-    // identical to OneZero/Pepper — the `bypassOriginChallenge`
-    // route-intercept detail is exercised at the strategy-level tests,
-    // not here.
+    // identical to Pepper — the `bypassOriginChallenge` route-intercept
+    // detail is exercised at the strategy-level tests, not here.
     { testId: 'PB-PCF-04', bankName: 'PayBox', companyId: CompanyTypes.PayBox },
   ] as const;
 
@@ -103,6 +103,18 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
         expect(typeof ctx.apiMediator.value.dispose).toBe('function');
       }
     });
+  });
+
+  it('OZ-PCF-01 — OneZero (requiresClientCert=true): mTLS mediator exposes no dispose hook', () => {
+    const descriptor = makeDescriptor(true, CompanyTypes.OneZero);
+    const ctx = buildInitialContext(
+      descriptor,
+      {} as unknown as Parameters<typeof buildInitialContext>[1],
+    );
+    expect(ctx.apiMediator.has).toBe(true);
+    if (ctx.apiMediator.has) {
+      expect(ctx.apiMediator.value.dispose).toBeUndefined();
+    }
   });
 
   it('OZ-PCF-03 — Hapoalim (non-headless): apiMediator slot stays none', () => {
