@@ -29,6 +29,33 @@ writes `snapshots/<sha8>-<label>.json`, which stays gitignored; passing
 future diff compares against. `diff.mjs` prints a Markdown matrix suitable for
 pasting into a PR body.
 
+## When to regenerate the baseline — read this before running C5
+
+`baseline.json` is a _rolling_ reference, not a program-start marker.
+Regenerate it on `main` after a merge, so the next PR's diff measures only that
+PR.
+
+If it is left to drift, C5 silently stops answering the question it was built
+for. A baseline eight days stale reported `+48 files / +138 runtime edges` for a
+PR that touched no production code at all — that delta was every PR merged in
+between, not the one under review. The verdict looked alarming and meant
+nothing.
+
+To judge an **open** PR, do not diff against `baseline.json` at all unless it
+happens to sit on the PR's merge base. Snapshot the merge base directly:
+
+```bash
+git worktree add /tmp/base "$(git merge-base origin/main HEAD)"
+node scripts/decoupling-metrics/measure.mjs /tmp/base pre
+node scripts/decoupling-metrics/measure.mjs . post
+node scripts/decoupling-metrics/diff.mjs \
+  scripts/decoupling-metrics/snapshots/<pre>.json \
+  scripts/decoupling-metrics/snapshots/<post>.json
+git worktree remove /tmp/base
+```
+
+Both snapshots are gitignored, so this leaves the committed baseline untouched.
+
 ## What it measures
 
 | Metric              | Meaning                                                                       |
