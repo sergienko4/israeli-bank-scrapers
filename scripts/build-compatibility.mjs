@@ -46,11 +46,15 @@ export function readData() {
 
 /**
  * Rejects entries whose `impact` has no rendering label.
+ *
+ * Uses `Object.hasOwn` rather than a truthiness test on the lookup:
+ * `IMPACT_LABEL['toString']` resolves through `Object.prototype` and would
+ * otherwise pass validation, then render a function into the page.
  * @param entries Entry list from the data file.
  * @throws When an entry uses an unknown impact value.
  */
-function assertKnownImpacts(entries) {
-  const bad = entries.filter((e) => !IMPACT_LABEL[e.impact]);
+export function assertKnownImpacts(entries) {
+  const bad = entries.filter((e) => !Object.hasOwn(IMPACT_LABEL, e.impact));
   if (bad.length === 0) return;
   const detail = bad.map((e) => `${e.version} -> "${e.impact}"`).join(', ');
   throw new Error(`unknown impact value(s): ${detail}`);

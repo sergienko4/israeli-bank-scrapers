@@ -21,18 +21,20 @@
  *   2  - usage error (no version supplied)
  */
 import { argv, exit, stderr, stdout } from 'node:process';
+import { pathToFileURL } from 'node:url';
 import { IMPACT_LABEL, readData } from './build-compatibility.mjs';
 
 const DOCS_URL = 'https://sergienko4.github.io/israeli-bank-scrapers/compatibility/';
 
 /**
  * Extracts the target version from `--version` or `--tag`.
+ * @param args Argument vector to read; defaults to the process argv.
  * @returns Version string without a leading `v`, or null.
  */
-function parseVersion() {
-  const flag = argv.findIndex((a) => a === '--version' || a === '--tag');
-  if (flag === -1 || !argv[flag + 1]) return null;
-  return argv[flag + 1].replace(/^v/, '');
+export function parseVersion(args = argv) {
+  const flag = args.findIndex((a) => a === '--version' || a === '--tag');
+  if (flag === -1 || !args[flag + 1]) return null;
+  return args[flag + 1].replace(/^v/, '');
 }
 
 /**
@@ -74,7 +76,7 @@ function renderNoAction() {
  * @param data Parsed compatibility document.
  * @returns Complete Markdown section.
  */
-function renderSection(version, data) {
+export function renderSection(version, data) {
   const entry = data.entries.find((e) => e.version === version);
   const body = entry ? renderAction(entry) : renderNoAction();
   const lines = [`## Upgrading to ${version}`, '', ...body, '', `Requires Node ${data.runtime.node}.`, '', `Full upgrade notes: ${DOCS_URL}`];
@@ -91,4 +93,8 @@ function main() {
   stdout.write(renderSection(version, readData()));
 }
 
-main();
+// Only run the CLI when invoked directly, so the renderer above can be
+// imported by tests without printing to stdout or exiting on a missing flag.
+if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
+  main();
+}
