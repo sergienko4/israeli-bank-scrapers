@@ -101,6 +101,9 @@ scripts/**
 !scripts/patch-playwright-core.mjs
 !scripts/pii-denylist.sha256
 !scripts/sweep-fixtures-pii.ts
+# Run by the release workflow to append the Upgrading section to the
+# GitHub release body.
+!scripts/upgrade-notes.mjs
 !scripts/validate-pr-body.mjs
 # Committed tooling: the decoupling matrix required by post-pr-checklist C5.
 # It previously lived in an ephemeral agent session folder, so it vanished

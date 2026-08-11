@@ -22,7 +22,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { argv, exit, stderr, stdout } from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,7 +30,7 @@ const DATA = join(ROOT, 'compatibility.json');
 const PAGE = join(ROOT, 'docs', 'compatibility.md');
 
 /** Impact label rendered next to each entry. */
-const IMPACT_LABEL = {
+export const IMPACT_LABEL = {
   breaking: 'Breaking',
   dependency: 'Dependency',
   behavior: 'Behavior',
@@ -40,7 +40,7 @@ const IMPACT_LABEL = {
  * Reads and parses the compatibility data file.
  * @returns Parsed data document.
  */
-function readData() {
+export function readData() {
   return JSON.parse(readFileSync(DATA, 'utf8'));
 }
 
@@ -167,9 +167,13 @@ function main() {
   stdout.write(`wrote ${PAGE}\n`);
 }
 
-try {
-  main();
-} catch (error) {
-  stderr.write(`compatibility build failed: ${error.message}\n`);
-  exit(1);
+// Only run the CLI when invoked directly, so upgrade-notes.mjs can import
+// the data helpers above without triggering a page write.
+if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
+  try {
+    main();
+  } catch (error) {
+    stderr.write(`compatibility build failed: ${error.message}\n`);
+    exit(1);
+  }
 }

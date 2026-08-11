@@ -21,10 +21,18 @@ on:
 permissions:
   contents: read
 
+# Two merges landing close together must not race two publishes for the
+# same version. Releases are never cancelled mid-flight — a half-published
+# release is worse than a queued one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 # ──────────────────────────────────────────────────────────────
 # Job DAG:
 #
-#   release-please → publish (if release_created)
+#   release-please ─┬─→ upgrade-notes (if release_created)
+#                   └─→ publish       (if release_created)
 #
 # No validate job — PR checks already passed before merge.
 # Publish uses npm ci + build (clean reproducible build for
@@ -43,6 +51,8 @@ jobs:
       pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created || inputs.force_publish }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
@@ -50,6 +60,38 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN }} # PAT with contents:write — needed for cross-branch release commits
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # release-please writes the changelog (what changed); this adds the part a
+  # consumer actually needs on upgrade (whether they must do anything). Runs
+  # only for real releases — a `force_publish` dispatch has no tag to edit.
+  upgrade-notes:
+    name: Append upgrade notes
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true' && needs.release-please.outputs.tag_name != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Append the Upgrading section to the release body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --json body --jq .body > body.md
+          # Re-runs of this workflow must not stack duplicate sections.
+          if grep -qF "## Upgrading to ${VERSION}" body.md; then
+            echo "Upgrading section already present for ${VERSION} — nothing to do."
+            exit 0
+          fi
+          printf '\n\n' >> body.md
+          node scripts/upgrade-notes.mjs --version "$VERSION" >> body.md
+          gh release edit "$TAG" --notes-file body.md
 
   publish:
     name: Publish to NPM
