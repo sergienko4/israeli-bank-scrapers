@@ -95,6 +95,8 @@ scripts/**
 # Generates docs/compatibility.md from compatibility.json; CI runs it with
 # --check, so it has to be in the tree for the docs gate to work.
 !scripts/build-compatibility.mjs
+# Enforced by the PR-body compliance workflow, so it must be in the tree.
+!scripts/check-breaking-note.mjs
 !scripts/check-staged-pii.cjs
 # Published tooling: named in package.json "files", so it ships in the
 # tarball and runs from postinstall on every consumer install.

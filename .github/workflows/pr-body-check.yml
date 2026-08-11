@@ -5,6 +5,7 @@ on:
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
+  contents: read
   pull-requests: read
 
 jobs:
@@ -15,6 +16,12 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
+      # Checked out for the migration-note gate below, which needs commit
+      # history. `fetch-depth: 0` because the PR base may be far behind.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Assert mandatory PR-body sections
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
@@ -70,3 +77,16 @@ jobs:
               return;
             }
             core.info('PR body contains all mandatory sections ✓');
+
+      # Lives here rather than in pr.yml because this workflow runs on every
+      # PR unconditionally. In pr.yml the enclosing job is path-filtered, so a
+      # breaking change arriving through an unfiltered path would skip the
+      # gate entirely - the exact silent-omission failure this prevents.
+      #
+      # Applies to bot PRs too: the exemption above covers the guideline
+      # table, which bots cannot author, not the migration note, which is a
+      # correctness requirement for consumers.
+      - name: Breaking changes carry a migration note
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/check-breaking-note.mjs
