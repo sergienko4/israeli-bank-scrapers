@@ -231,6 +231,14 @@ jobs:
           globs: '*.md docs/**/*.md tasks/**/*.md'
           config: '.markdownlint.json'
 
+      # docs/compatibility.md is generated from compatibility.json. Regenerating
+      # here and diffing proves the committed page still matches its source, so
+      # upgrade notes cannot silently rot the way the 8.3.0 removal of the
+      # `OneZeroScraper` export did.
+      - name: Compatibility page is in sync
+        if: needs.changes.outputs.docs == 'true'
+        run: node scripts/build-compatibility.mjs --check
+
       - name: Substitute {{BRANCH}} placeholders for Lychee
         if: needs.changes.outputs.md == 'true'
         run: |

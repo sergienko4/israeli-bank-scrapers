@@ -69,6 +69,8 @@
     "lint:docs-strict": "python -m mkdocs build --strict --site-dir .mkdocs-strict-out",
     "lint:phases:strict": "eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0",
     "lint:pr-body": "node scripts/validate-pr-body.mjs",
+    "compat:build": "node scripts/build-compatibility.mjs",
+    "compat:check": "node scripts/build-compatibility.mjs --check",
     "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md}\"",

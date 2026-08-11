@@ -1,0 +1,38 @@
+{
+  "$comment": "Source of truth for docs/compatibility.md. Edit this file, then run `npm run compat:build`. CI fails if the generated page drifts from this data (`npm run compat:check`).",
+  "package": "@sergienko4/israeli-bank-scrapers",
+  "runtime": {
+    "node": ">= 22.14.0",
+    "since": "8.0.0",
+    "note": "Unchanged for every 8.x release. Enforced by the `engines` field, so npm warns (or errors under `engine-strict`) on older runtimes."
+  },
+  "entries": [
+    {
+      "version": "8.6.1",
+      "impact": "dependency",
+      "title": "Camoufox browser engine upgraded to 0.11.x",
+      "detail": "`@hieutran094/camoufox-js` moved from ^0.6.8 to ^0.11.2. Camoufox supplies the hardened Firefox build used to get past bank WAFs, so this changes which browser binary is downloaded on first run.",
+      "action": "Clear any cached Camoufox download so the new engine is fetched. If scraping starts failing right after this upgrade, remove the cache directory and re-run once.",
+      "before": null,
+      "after": null
+    },
+    {
+      "version": "8.3.0",
+      "impact": "breaking",
+      "title": "`OneZeroScraper` is no longer exported",
+      "detail": "OneZero moved onto the declarative Pipeline, and the standalone `OneZeroScraper` class was removed from the public surface. This shipped in a minor release without a breaking-change note - it is recorded here so the gap is visible.",
+      "action": "Construct OneZero through the factory instead of importing the class directly. Every other bank already used this form, so most callers are unaffected.",
+      "before": "import { OneZeroScraper } from '@sergienko4/israeli-bank-scrapers';\n\nconst scraper = new OneZeroScraper(options);",
+      "after": "import createScraper, { CompanyTypes } from '@sergienko4/israeli-bank-scrapers';\n\nconst scraper = createScraper({ ...options, companyId: CompanyTypes.oneZero });"
+    },
+    {
+      "version": "8.0.6",
+      "impact": "dependency",
+      "title": "Switched from `playwright` to `playwright-core`",
+      "detail": "`playwright` bundles a browser download step; `playwright-core` does not. Browsers for this library come from Camoufox, so the download was redundant and made installs much heavier.",
+      "action": "None for normal use. If your own code imported `playwright` transitively through this package, add it to your dependencies explicitly.",
+      "before": null,
+      "after": null
+    }
+  ]
+}

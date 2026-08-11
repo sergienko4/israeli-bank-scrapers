@@ -127,6 +127,7 @@ nav:
   - Configuration: configuration.md
   - Troubleshooting: troubleshooting.md
   - Advanced usage: advanced-usage.md
+  - Compatibility: compatibility.md
   - Architecture:
       - Overview: architecture/index.md
       - Pipeline architecture: architecture/pipeline.md

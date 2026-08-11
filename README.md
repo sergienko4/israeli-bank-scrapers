@@ -53,9 +53,12 @@ rewritten onto a typed phase-based pipeline using
 [Camoufox](https://github.com/daijro/camoufox) (Firefox anti-detect),
 Playwright, and TypeScript strict mode.
 
+<!-- Regenerate the TOC below with:
+     npx doctoc README.md --title '## Table of Contents'
+     (doctoc strips comments inside its own markers, so this note lives outside them) -->
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**
+## Table of Contents
 
 - [Why this fork](#why-this-fork)
 - [Requirements](#requirements)
@@ -71,7 +74,6 @@ Playwright, and TypeScript strict mode.
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
 
 ## Why this fork
 
@@ -250,12 +252,15 @@ a shared context. See
 | [Configuration](https://sergienko4.github.io/israeli-bank-scrapers/configuration/) | Every option, credential, and env var |
 | [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) | Errors by symptom, WAF remedies |
 | [Advanced usage](https://sergienko4.github.io/israeli-bank-scrapers/advanced-usage/) | Parallel scraping, timeouts, upstream migration |
+| [Compatibility](https://sergienko4.github.io/israeli-bank-scrapers/compatibility/) | Upgrade notes and breaking changes |
 | [Banks](https://sergienko4.github.io/israeli-bank-scrapers/banks/) | Per-bank behaviour and quirks |
 | [Architecture](https://sergienko4.github.io/israeli-bank-scrapers/architecture/pipeline/) | Pipeline phases and contracts |
 | [PII redaction](https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/) | What is masked, and how it stays correct |
 | [API reference](https://sergienko4.github.io/israeli-bank-scrapers/api/) | Generated TypeDoc |
 
-Version-to-version upgrade notes are in the [changelog](./CHANGELOG.md).
+Upgrading? [Compatibility](https://sergienko4.github.io/israeli-bank-scrapers/compatibility/)
+lists the releases that need action; everything else is a drop-in. Full
+per-release detail is in the [changelog](./CHANGELOG.md).
 
 ## Contributing
 
