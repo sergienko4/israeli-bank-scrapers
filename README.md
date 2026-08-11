@@ -22,7 +22,7 @@ const result = await scraper.scrape({ userCode: '1234567', password: 'secret' })
 
 if (result.success) {
   for (const account of result.accounts ?? []) {
-    console.log(`${account.accountNumber}: ${account.txns.length} txns, balance ${account.balance}`);
+    console.log(`${account.accountNumber}: ${account.txns.length} txns, balance ${account.balance ?? 'n/a'}`);
   }
 }
 ```
@@ -38,7 +38,7 @@ fields differ.
 
 [![npm version](https://img.shields.io/npm/v/@sergienko4/israeli-bank-scrapers?logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
 [![npm downloads](https://img.shields.io/npm/dm/@sergienko4/israeli-bank-scrapers?logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
-[![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/pr.yml?logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/main-pipeline.yml?branch=main&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/main-pipeline.yml)
 [![Quality Gate](https://img.shields.io/sonar/quality_gate/sergienko4_israeli-bank-scrapers?server=https%3A%2F%2Fsonarcloud.io&logo=sonarcloud&logoColor=white)](https://sonarcloud.io/summary/overall?id=sergienko4_israeli-bank-scrapers)
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A5%2022.14-green?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/github/license/sergienko4/israeli-bank-scrapers)](./LICENSE)
@@ -65,6 +65,8 @@ Playwright, and TypeScript strict mode.
 - [Supported institutions](#supported-institutions)
 - [OTP (two-factor authentication)](#otp-two-factor-authentication)
 - [What you get back](#what-you-get-back)
+  - [The same data, on disk](#the-same-data-on-disk)
+- [Your credentials](#your-credentials)
 - [Handling failures](#handling-failures)
 - [How it works](#how-it-works)
 - [Documentation](#documentation)
@@ -171,42 +173,100 @@ for you.
 
 ## What you get back
 
+Every bank — browser or API-direct — returns the same `IScraperScrapingResult`:
+
 ```json
 {
   "success": true,
   "accounts": [
     {
-      "accountNumber": "****1234",
-      "balance": 0,
-      "txns": [{ "date": "2024-01-15", "description": "<merchant:12>", "chargedAmount": -*** }]
+      "accountNumber": "12-345-678901234",
+      "balance": 15234.5,
+      "txns": [
+        {
+          "type": "normal",
+          "identifier": 20240115001,
+          "date": "2024-01-15T00:00:00.000Z",
+          "processedDate": "2024-01-16T00:00:00.000Z",
+          "originalAmount": -249.9,
+          "originalCurrency": "ILS",
+          "chargedAmount": -249.9,
+          "description": "SUPERMARKET TLV",
+          "status": "completed"
+        }
+      ]
     }
   ]
 }
 ```
 
-This is the **redacted** shape — real balances, amounts, and merchant names are
-masked, and account numbers are tail-only. That is what lands in your logs, so
-they are safe to share. The values in memory are unredacted.
+Optional fields — `memo`, `category`, `installments`, `chargedCurrency`,
+`rawTransaction` — appear when the bank supplies them. `futureDebits`,
+`persistentOtpToken`, and `diagnostics` sit alongside `accounts`.
+
+### The same data, on disk
+
+Those values are only ever unredacted **in memory**. Anything written to disk
+goes through the redactor first, so `pipeline.log` from a real run reads:
+
+```text
+--- Account ***9617 | 4 txns ---
+***9617 txns:
+  17.6.2026          -*** ILS  <merchant:17>
+  5.7.2026           -*** ILS  <merchant:64>
+  5.7.2026           +*** ILS  <merchant:54>
+  4.8.2026           -*** ILS  <merchant:64>
+```
+
+Account numbers keep a 4-digit tail so you can tell accounts apart. Amounts
+keep only their sign, so a missing debit is still visible in a bug report.
+Merchant names collapse to a length class, which is enough to spot a parser
+splitting one description into two. Attach that file to an issue as-is — see
+[PII redaction](https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/)
+for the full field-by-field table.
+
+## Your credentials
+
+Credentials are read from the arguments you pass and used to log into the bank.
+They are never written to disk, never logged, and never sent anywhere else.
+
+- **No telemetry, no analytics, no remote error reporting.** The word
+  "telemetry" in this codebase means the local `pipeline.log` file.
+- **Outbound traffic goes to your bank only** — plus a one-time Camoufox
+  browser download on first launch.
+- **Runtime dependencies are `camoufox-js`, `lodash`, `moment`,
+  `moment-timezone`, `pino`, and `playwright-core`.** None of them phone home.
+- **Credential-shaped fields are redacted before any write**, including
+  `password`, `otpLongTermToken`, cookies, and bearer tokens.
+
+Found a security issue? Please follow [SECURITY.md](./SECURITY.md) rather than
+opening a public issue.
 
 ## Handling failures
 
 ```typescript
 if (!result.success) {
   console.error(result.errorType, result.errorMessage);
+
+  // Populated only when errorType is WAF_BLOCKED.
   console.error(result.errorDetails?.suggestions);
 }
 ```
 
-| `errorType` | Meaning |
-| --- | --- |
-| `INVALID_PASSWORD` | Wrong credentials |
-| `INVALID_OTP` | Wrong or expired OTP code |
-| `WAF_BLOCKED` | Cloudflare block — read `errorDetails.suggestions` |
-| `TIMEOUT` | Page load timeout — raise `defaultTimeout` |
-| `TWO_FACTOR_RETRIEVER_MISSING` | OTP required but no callback supplied |
-| `GENERIC` | Pipeline phase failure — read `errorMessage` |
+| `errorType` | Meaning | First thing to try |
+| --- | --- | --- |
+| `INVALID_PASSWORD` | Wrong credentials | Re-check the credential *field names* for that bank — they differ |
+| `INVALID_OTP` | Wrong or expired OTP code | Codes expire fast; return them from `otpCodeRetriever` promptly |
+| `TWO_FACTOR_RETRIEVER_MISSING` | OTP required, no callback supplied | Add `otpCodeRetriever` |
+| `CHANGE_PASSWORD` | Bank is forcing a password reset | Log in through the bank's own site once |
+| `ACCOUNT_BLOCKED` | Bank locked the account | Contact the bank — retrying will not help |
+| `WAF_BLOCKED` | Cloudflare block | Read `errorDetails.suggestions` |
+| `TIMEOUT` | Page load timeout | Raise `defaultTimeout` |
+| `NETWORK_ERROR` | Transport failure before a response | Check connectivity, then retry |
+| `GENERIC` | Pipeline phase failure | Read `errorMessage` |
 
-Full remedies, including WAF-specific ones, are in
+`GENERAL_ERROR` is a deprecated alias of `GENERIC`, still emitted for
+backwards compatibility. Full remedies, including WAF-specific ones, are in
 [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/).
 
 ## How it works
