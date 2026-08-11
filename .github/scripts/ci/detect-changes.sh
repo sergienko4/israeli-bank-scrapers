@@ -10,8 +10,13 @@
 #          downstream jobs):
 #   src         — any file under `src/` was modified
 #   md          — any `*.md` was modified
-#   docs        — `docs/**`, `mkdocs.yml`, or `requirements-docs.txt`
-#                 was modified (drives the mkdocs strict-build step)
+#   docs        — `docs/**`, `mkdocs.yml`, `requirements-docs.txt`,
+#                 `typedoc.json`, or either half of the compatibility page
+#                 (`compatibility.json` data + `build-compatibility.mjs`
+#                 renderer) was modified. Both halves must be listed: the
+#                 page is generated, so a renderer-only change drifts it
+#                 just as a data-only change does, and omitting the
+#                 renderer let it bypass the `--check` drift gate.
 #   pipeline_ts — `src/Scrapers/Pipeline/**/*.ts` was modified
 #                 (drives the docs-coverage canary)
 #   ci_scripts  — `.github/scripts/ci/**` or `.github/workflows/**`
@@ -186,7 +191,7 @@ full_suite=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
-if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$'; then docs=true; fi
+if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then deps=true; fi
