@@ -43,7 +43,7 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/7: shellcheck ──"
+echo "── 1/8: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
   for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/7: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/8: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -115,7 +115,7 @@ fi
 # ── 3. docs-site link guard ──
 # Behavioural test, not just shellcheck: the guard's whole value is that
 # it FAILS on a link with no backing page, so assert both directions.
-echo "── 3/7: docs-site link guard ──"
+echo "── 3/8: docs-site link guard ──"
 GUARD="$SCRIPT_DIR/check-docs-links.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -154,7 +154,7 @@ assert_eq "README restored after negative test" "1" "$guard_restored"
 # its exit status is what stops a red merge looking green. Assert the verdict
 # in both directions, plus the release wording that distinguishes "shipped"
 # from "only refreshed the Release PR".
-echo "── 4/7: post-merge pipeline summary ──"
+echo "── 4/8: post-merge pipeline summary ──"
 SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
 SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/pipeline-summary-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE"' EXIT
@@ -195,7 +195,7 @@ assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
 # sides of the limit. The "not measured" path matters just as much: a
 # measurement that did not happen must never be reported as a 0 MB win, and
 # must never fail a PR for a reason the author cannot act on.
-echo "── 5/7: memory regression verdict ──"
+echo "── 5/8: memory regression verdict ──"
 MEMCMP="$SCRIPT_DIR/memory-compare.sh"
 MEM_FILE="$(mktemp "${TMPDIR:-/tmp}/memory-compare-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"' EXIT
@@ -255,7 +255,7 @@ assert_eq "the delta percentage is shown" "1" "$pct_shown"
 # strengthening must pass. The distinction between "could not measure"
 # (skip, exit 0) and "measured garbage" (fail loudly, exit 2) is asserted
 # too — collapsing the two would let a broken tool disable the gate.
-echo "── 6/7: decoupling regression verdict ──"
+echo "── 6/8: decoupling regression verdict ──"
 DECCMP="$SCRIPT_DIR/decoupling-compare.sh"
 DEC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/decoupling-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR"' EXIT
@@ -337,7 +337,7 @@ fi
 
 # ── 7. cited-path gate ──
 echo ""
-echo "── 7/7: cited-path gate ──"
+echo "── 7/8: cited-path gate ──"
 DOC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/doc-paths-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR" "$DOC_DIR"' EXIT
 
@@ -384,15 +384,74 @@ else
 
   assert_eq "no arguments is a usage error" "2" "$(doc_check)"
 
+  # A valueless flag must not silently disable removed-path handling, which
+  # would report a legitimate deletion as drift.
+  assert_eq "--diff-base without a ref is a usage error" "2" \
+    "$(doc_check "$DOC_DIR/good.md" --diff-base)"
+  assert_eq "--diff-base followed by a flag is a usage error" "2" \
+    "$(doc_check --diff-base --other "$DOC_DIR/good.md")"
+
   # Regression: an early build derived the file list from the flag index,
   # so the first file was silently dropped. Both forms must read the file.
   assert_eq "--diff-base does not swallow the file list" "1" \
     "$(doc_check --diff-base origin/main "$DOC_DIR/phantom.md")"
 
+  # A body may describe a file it deletes or renames away. Build a throwaway
+  # history so the removed path is real rather than mocked.
+  DOC_REPO="$DOC_DIR/repo"
+  mkdir -p "$DOC_REPO"
+  (
+    cd "$DOC_REPO" || exit 1
+    git init -q .
+    git config user.email smoke@example.com
+    git config user.name smoke
+    mkdir -p old
+    printf 'x\n' > old/gone.ts
+    printf 'y\n' > old/moved.ts
+    git add -A && git commit -qm base
+    git branch -q doc-base
+    git rm -q old/gone.ts
+    git mv old/moved.ts old/renamed.ts
+    git commit -qm remove
+  ) > /dev/null 2>&1
+  printf 'Removes `old/gone.ts` and renames `old/moved.ts`.\n' > "$DOC_REPO/body.md"
+  (cd "$DOC_REPO" && node "$DOCPATHS" --diff-base doc-base body.md) > /dev/null 2>&1
+  assert_eq "a deleted and a renamed path are accepted" "0" "$?"
+  (cd "$DOC_REPO" && node "$DOCPATHS" body.md) > /dev/null 2>&1
+  assert_eq "the same paths fail without --diff-base" "1" "$?"
+
   # The gate is only worth having if the docs it guards actually pass, so
   # a future move that rots a citation fails here too.
   assert_eq "the gated agent docs all resolve" "0" \
     "$(doc_check README.md CLAUDE.md CLEAN_CODE.md CONTRIBUTING.md .github/copilot-instructions.md)"
+fi
+
+# ── 8. bot-PR exemption ──
+echo ""
+echo "── 8/8: bot-PR exemption ──"
+if ! command -v node >/dev/null 2>&1; then
+  echo "  ⚠ node not found — skipping bot-exemption tests"
+else
+  # The exemption decides whether a PR skips the body gates, so a branch-name
+  # bypass would let a fork opt out of them entirely.
+  is_bot() {
+    node -e '
+      const isBotPr = require(process.argv[1]);
+      process.stdout.write(String(isBotPr(JSON.parse(process.argv[2]))));
+    ' "$REPO_ROOT/.github/scripts/ci/is-bot-pr.cjs" "$1"
+  }
+  SAME='{"repo":{"full_name":"o/r"}}'
+
+  assert_eq "a bot author is exempt" "true" \
+    "$(is_bot "{\"user\":{\"login\":\"dependabot[bot]\"},\"head\":$SAME,\"base\":$SAME}")"
+  assert_eq "a same-repo bot branch is exempt" "true" \
+    "$(is_bot "{\"user\":{\"login\":\"human\"},\"head\":{\"ref\":\"release-please--x\",\"repo\":{\"full_name\":\"o/r\"}},\"base\":$SAME}")"
+  assert_eq "a fork cannot claim a bot branch" "false" \
+    "$(is_bot "{\"user\":{\"login\":\"human\"},\"head\":{\"ref\":\"dependabot/x\",\"repo\":{\"full_name\":\"fork/r\"}},\"base\":$SAME}")"
+  assert_eq "an ordinary PR is not exempt" "false" \
+    "$(is_bot "{\"user\":{\"login\":\"human\"},\"head\":{\"ref\":\"fix/thing\",\"repo\":{\"full_name\":\"o/r\"}},\"base\":$SAME}")"
+  assert_eq "a payload missing repo data is not exempt" "false" \
+    "$(is_bot '{"user":{"login":"human"},"head":{"ref":"dependabot/x"}}')"
 fi
 
 # ── Final summary ──

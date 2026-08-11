@@ -87,7 +87,8 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 > that gate fails until this list is updated — see
 > [docs/workflow/doc-paths.md](./docs/workflow/doc-paths.md).
 
-- `src/Common/Browser.ts` — `buildContextOptions()`: Hebrew UA/locale, Israel timezone, client hints for the Playwright context
+- `src/Common/Browser.ts` — `buildContextOptions()`: Israel locale + timezone, `viewport: null` so the render surface follows the Camoufox launch window
+- `src/Scrapers/Base/Errors.ts` — `WafBlockError` with structured `IWafErrorDetails` (provider, httpStatus, pageTitle, pageUrl, suggestions)
 - `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts` — `launchCamoufox()`; re-exported by `src/Common/CamoufoxLauncher.ts`
 - `src/Scrapers/Pipeline/Mediator/Network/Fetch/PageFetchPost.ts` — `fetchPostWithinPage()` with HTTP status capture; re-exported by `src/Common/Fetch.ts`
 - `src/Scrapers/Pipeline/Mediator/Network/Fetch/WafDetection.ts` — `detectWafBlock()`: classifies a response as a WAF block
@@ -95,15 +96,14 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractionConfig.ts` — delay ranges (fill-input 200–600 ms)
 - `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.ts` — fill, click, capture, presence check
 - `src/Scrapers/Base/BaseScraperWithBrowser.ts` — base class; `launchCamoufox()` → `newContext()` → `newPage()`
-- `src/Scrapers/Base/Errors.ts` — `WafBlockError` with structured `WafErrorDetails` (provider, suggestions)
 - `src/Scrapers/Base/Interface.ts` — type definitions (`ScraperOptions`, `ScraperCredentials`, etc.)
 - `src/Scrapers/Registry/ScraperRegistryAmexToIsracard.ts` — Amex→Isracard scraper registry entries
 
 ## Changes from upstream
 
-- Browser engine: Playwright instead of Puppeteer — bypasses Cloudflare WAF natively, no stealth needed
-- `src/Common/Browser.ts`: `buildContextOptions()` with Hebrew UA, locale, timezone, client hints (no stealth overrides)
+- Browser engine: Camoufox (Firefox anti-detect) driven through Playwright, replacing Puppeteer — clears Cloudflare without a stealth plugin
+- `src/Common/Browser.ts`: `buildContextOptions()` sets locale, timezone and `viewport: null`; it deliberately sets no `userAgent`, leaving Camoufox's own fingerprint intact
 - `src/Scrapers/Base/BaseScraperWithBrowser.ts`: `launchCamoufox()` → `browser.newContext()` → `context.newPage()`
 - `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts`: `humanDelay()` behind form interactions (fill-input 200–600 ms)
-- `src/Scrapers/Base/Errors.ts`: `WafBlockError` with `WafErrorDetails` (provider, httpStatus, pageTitle, suggestions)
-- CI/CD: release-please + npm publish pipeline, Playwright browser install in CI
+- `src/Scrapers/Base/Errors.ts`: `WafBlockError` carrying `IWafErrorDetails`
+- CI/CD: release-please + npm publish pipeline, Camoufox browser install in CI

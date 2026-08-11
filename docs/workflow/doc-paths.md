@@ -31,8 +31,20 @@ Deliberately **not** checked:
 | --- | --- |
 | Markdown link labels — ``[`Banks/X.ts`](url)`` | `docs/` shortens the label relative to a documented base while the link target carries the full path. Treating the label as repo-relative reports drift that is not there. |
 | Bare prose tokens without a `/` or extension | Too many ordinary words look like paths; the false-positive rate would make the gate noise. |
+| Root-level files — `package.json`, `CLAUDE.md` | No `/`, so they do not match the path shape. They are also the least likely citations to rot. |
+| Globs — `src/**/*.ts`, `scripts/*.mjs` | No single path to resolve. Expanding them would need a matcher and would turn an empty match into a failure the author cannot act on. |
+| Paths inside fenced code blocks | Command examples cite files that do not exist yet, or exist only on another machine. Gating them would fight the docs. |
+| Citations split across a line break | The scanner reads one line at a time. A wrapped span is skipped rather than reported as a truncated phantom. |
 | `node_modules/`, `http(s)://`, `.git/` | Installed, remote, or ephemeral — never committed. |
 | `.github/PR_BODY.md` | A run-time handoff file the pre-push hook *searches for*. Documenting it is correct even when absent; gating it would pass locally and fail in CI. |
+
+A line-and-column suffix is tolerated rather than skipped: `src/Common/Browser.ts:17`
+and `src/Common/Browser.ts#L17` both resolve to the file. That form is common in
+agent docs, and dropping the suffix is cheaper than losing the coverage.
+
+These gaps are deliberate. Closing them needs a real Markdown parser, and each
+would trade a class of silent rot for a class of false positives — which is the
+failure mode that gets a gate switched off.
 
 ## Scope
 
@@ -55,11 +67,16 @@ misleading. Two entry points:
 - **CI** — the `Validate PR body sections` job in
   [`pr-body-check.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.github/workflows/pr-body-check.yml).
   Bot PRs are exempt: generated changelogs cite paths from across history,
-  including files since moved.
+  including files since moved. The exemption trusts a branch prefix only for
+  same-repo PRs — otherwise any fork contributor could opt out by naming a
+  branch `dependabot/x`.
 - **Local** — the pre-push hook, when it finds a PR body file.
 
-`--diff-base <ref>` additionally accepts paths the diff *deletes*, so a body
-may legitimately describe a file it is removing.
+`--diff-base <ref>` additionally accepts paths the diff *removes*, so a body may
+legitimately describe a file it deletes or renames away. The hook defaults to
+`origin/main`; set `PR_BODY_DIFF_BASE` to override it when the PR targets
+another branch. If the ref is not present locally the hook skips the flag and
+says so, rather than failing on a citation it cannot classify.
 
 ## Running it
 

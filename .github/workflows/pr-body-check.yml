@@ -29,29 +29,12 @@ jobs:
             // Bot-authored PRs (Dependabot, release-please) cannot generate the §10
             // guideline-compliance table by design. Exempt them so dependency bumps and
             // release PRs are not blocked from auto-merge. Human PRs remain enforced.
-            //
-            // Bot signals — ANY match exempts the PR:
-            //   - pull_request.user.login matches a known bot account
-            //   - pull_request.head.ref matches a known bot branch prefix
-            //     (release-please uses a human PAT, so user.login alone is unreliable)
+            // Shared with the cited-path check below so both gates exempt the same set.
+            const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);
             const pr = context.payload.pull_request;
-            const author = (pr.user && pr.user.login) || '';
-            const headRef = (pr.head && pr.head.ref) || '';
-            const BOT_AUTHORS = new Set([
-              'dependabot[bot]',
-              'release-please[bot]',
-              'github-actions[bot]',
-            ]);
-            const BOT_BRANCH_PREFIXES = [
-              'dependabot/',
-              'release-please--',
-            ];
-            const isBotPr =
-              BOT_AUTHORS.has(author) ||
-              BOT_BRANCH_PREFIXES.some((prefix) => headRef.startsWith(prefix));
-            if (isBotPr) {
+            if (isBotPr(pr)) {
               core.info(
-                `PR-body check skipped — bot-authored PR (author='${author}', head='${headRef}').`,
+                `PR-body check skipped — bot-authored PR (author='${pr.user?.login ?? ''}', head='${pr.head?.ref ?? ''}').`,
               );
               return;
             }
@@ -110,17 +93,13 @@ jobs:
         with:
           script: |
             const fs = require('node:fs');
+            const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);
             const pr = context.payload.pull_request;
-            const author = (pr.user && pr.user.login) || '';
-            const headRef = (pr.head && pr.head.ref) || '';
-            const isBot =
-              ['dependabot[bot]', 'release-please[bot]', 'github-actions[bot]'].includes(author) ||
-              ['dependabot/', 'release-please--'].some((p) => headRef.startsWith(p));
             // Bot bodies are generated changelogs citing paths across the whole
             // history, including files since moved. Holding them to this gate
             // would block release PRs for drift they did not introduce.
-            if (isBot) {
-              core.info(`PR-body path check skipped — bot PR (author='${author}').`);
+            if (isBotPr(pr)) {
+              core.info(`PR-body path check skipped — bot PR (author='${pr.user?.login ?? ''}').`);
               core.setOutput('skip', 'true');
               return;
             }

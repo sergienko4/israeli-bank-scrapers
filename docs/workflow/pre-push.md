@@ -48,7 +48,15 @@ gh pr view 336 --json body -q .body | node scripts/validate-pr-body.mjs --stdin
 | `1` | At least one mandatory section is missing |
 | `2` | Usage error (no source provided / file unreadable) |
 
-The hook then runs [`check-doc-paths.mjs`](doc-paths.md) over the same body, so a path cited in `## What` must actually exist. Paths the diff *deletes* are accepted, since a body may legitimately describe a removal.
+The hook then runs [`check-doc-paths.mjs`](doc-paths.md) over the same body, so a path cited in `## What` must actually exist. Paths the diff *removes* are accepted, since a body may legitimately describe a deletion or a rename.
+
+The comparison base defaults to `origin/main`. Export `PR_BODY_DIFF_BASE` to override it when the PR targets another branch:
+
+```bash
+PR_BODY_DIFF_BASE=origin/release-8.x git push -u origin HEAD
+```
+
+If the base ref is missing locally the hook notes it and continues without the flag; a citation of a removed file may then report as unresolved.
 
 ## Why this hook exists
 

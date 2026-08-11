@@ -100,20 +100,42 @@ function extractPaths(body) {
 }
 
 /**
- * Paths deleted by the diff, which a PR body may legitimately cite.
+ * Paths the diff removes, which a PR body may legitimately cite.
+ *
+ * Renames count: a PR that moves a file and describes the move cites the old
+ * path, which no longer exists. `--diff-filter=DR` with `-z` gives both the
+ * deletions and the source side of each rename, NUL-delimited so a path with
+ * a space cannot split a record.
  * @param base - Git ref to diff against.
- * @returns Set of deleted paths (empty when git is unavailable).
+ * @returns Set of removed paths (empty when git is unavailable).
  */
 function deletedInDiff(base) {
+  let out;
   try {
-    const out = execFileSync('git', ['diff', '--name-only', '--diff-filter=D', `${base}...HEAD`], {
-      encoding: 'utf8',
-    });
-    return new Set(out.split('\n').filter(Boolean));
+    out = execFileSync(
+      'git',
+      ['diff', '--name-status', '--diff-filter=DR', '--find-renames', '-z', `${base}...HEAD`],
+      { encoding: 'utf8' },
+    );
   } catch {
-    stderr.write(`  ! could not read diff against ${base}; deleted paths will report as missing\n`);
+    stderr.write(`  ! could not read diff against ${base}; removed paths will report as missing\n`);
     return new Set();
   }
+  // Records are NUL-separated: `D<NUL>path` for a delete, and
+  // `R100<NUL>old<NUL>new` for a rename. Only the old side interests us.
+  const fields = out.split('\0').filter(Boolean);
+  const removed = new Set();
+  for (let i = 0; i < fields.length; i += 1) {
+    const status = fields[i];
+    if (status.startsWith('D')) {
+      removed.add(fields[i + 1]);
+      i += 1;
+    } else if (status.startsWith('R')) {
+      removed.add(fields[i + 1]);
+      i += 2;
+    }
+  }
+  return removed;
 }
 
 /**
@@ -133,11 +155,18 @@ function checkFile(file, deleted) {
 
 const args = argv.slice(2);
 const baseIdx = args.indexOf('--diff-base');
-const base = baseIdx === -1 ? null : args[baseIdx + 1];
-// Guard on `baseIdx !== -1`: without it the value index collapses to 0
-// when the flag is absent, silently discarding the first file argument.
+// Guard on `baseIdx !== -1`: without it the value index collapses to 0 when
+// the flag is absent, silently discarding the first file argument.
 const valueIdx = baseIdx === -1 ? -1 : baseIdx + 1;
+const base = baseIdx === -1 ? null : args[valueIdx];
 const files = args.filter((a, i) => !a.startsWith('--') && i !== valueIdx);
+
+if (baseIdx !== -1 && (base === undefined || base.startsWith('--'))) {
+  // Silently treating a valueless flag as "no base" would disable
+  // removed-path handling and report a legitimate deletion as drift.
+  stderr.write('--diff-base requires a ref, e.g. --diff-base origin/main\n');
+  exit(2);
+}
 
 if (files.length === 0) {
   stderr.write('Usage: node scripts/check-doc-paths.mjs [--diff-base <ref>] <file.md> ...\n');

@@ -46,10 +46,21 @@ if ! node scripts/validate-pr-body.mjs --file "${PR_BODY_PATH}"; then
 fi
 
 # Paths cited in the body must resolve, so a body that survived a mid-review
-# change of approach cannot ship pointing at files it never touched. Deleted
-# paths are accepted via --diff-base, since a body may describe a removal.
-# Mirrors the CI step in .github/workflows/pr-body-check.yml.
-if ! node scripts/check-doc-paths.mjs --diff-base origin/main "${PR_BODY_PATH}"; then
+# change of approach cannot ship pointing at files it never touched. Removed
+# paths are accepted via --diff-base, since a body may describe a deletion or
+# a rename. The base is overridable, and skipped entirely when the ref is not
+# present locally — a missing ref would otherwise report legitimate deletion
+# citations as drift.
+DOC_PATH_BASE="${PR_BODY_DIFF_BASE:-origin/main}"
+# An array, not `set --`: git passes the remote name and URL as $1/$2 to a
+# pre-push hook, and clobbering them would silently break anything added below.
+doc_path_args=()
+if git rev-parse --verify --quiet "${DOC_PATH_BASE}" > /dev/null; then
+    doc_path_args+=(--diff-base "${DOC_PATH_BASE}")
+else
+    echo "ℹ️  pre-push: ${DOC_PATH_BASE} not found locally — citations of removed files may report as missing"
+fi
+if ! node scripts/check-doc-paths.mjs "${doc_path_args[@]}" "${PR_BODY_PATH}"; then
     echo ""
     echo "❌ pre-push: PR body cites a path that does not exist."
     echo "   Update the citation, or drop it if the file was never touched."
