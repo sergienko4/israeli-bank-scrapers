@@ -31,3 +31,17 @@ jobs:
           languages: javascript-typescript
           config-file: ./.github/codeql/codeql-config.yml
       - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          # Pinned because the category otherwise defaults to
+          # "<caller-workflow-path>:<job-name>". This workflow has two callers:
+          # `pull_request` here, and `main-pipeline.yml` via `workflow_call`.
+          # Letting it default gave the post-merge run a different category from
+          # the PR run, so main advertised a second code scanning configuration
+          # that no pull request could ever produce, and code scanning reported
+          # "1 configuration not found" on every one of them.
+          #
+          # Merge protection requires *every* configuration present on main, so
+          # renaming this to anything else only swaps which one is missing. The
+          # value is therefore the long-lived category shared by the existing
+          # analyses — keep it stable.
+          category: .github/workflows/codeql.yml:analyze
