@@ -13,12 +13,16 @@ module.exports = {
   rootDir: './src',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    '^(\.{1,2}/.*)\.js$': '$1',
+    // Escapes must be doubled: in a JS string `'\.'` collapses to `'.'`,
+    // which turns the intended `\.js$` into "any char + js" and so also
+    // strips `.mjs`. That broke dynamic imports of `scripts/*.mjs`, which
+    // resolve through Node rather than through the mapper.
+    '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@hieutran094/camoufox-js$': '<rootDir>/Tests/Mocks/CamoufoxJsMock.js',
   },
   transform: {
-    '^.+\.ts$': ['ts-jest', { useESM: true }],
-    '@faker-js.+\.js$': [
+    '^.+\\.ts$': ['ts-jest', { useESM: true }],
+    '@faker-js.+\\.js$': [
       'ts-jest',
       { useESM: true, diagnostics: false, tsconfig: { allowJs: true, checkJs: false } },
     ],
