@@ -13,6 +13,11 @@
 # never noisy downward, so the minimum is the most stable estimator of the
 # workload's true footprint.
 #
+# Observed on ubuntu-24.04: the first sample lands ~30% above the rest on
+# both sides of the comparison, a cold-start effect. Taking the minimum
+# discards it, which is why more than two samples are worth the seconds -
+# with two, only one warm reading survives.
+#
 # Usage:
 #   bash .github/scripts/ci/memory-measure.sh <workdir>
 #
@@ -66,12 +71,18 @@ for i in $(seq 1 "$SAMPLES"); do
 
   # "Maximum resident set size (kbytes): 1234567"
   kb="$(awk -F': ' '/Maximum resident set size/ { print $2; exit }' "$report")"
-  rm -f "$report"
 
   if [ "$status" -ne 0 ]; then
     log "sample $i: workload exited $status - discarding"
+    # Without this the failure reason dies with the report file, leaving a
+    # maintainer with a discarded sample and no way to tell why.
+    log "--- last 20 lines of workload output ---"
+    tail -n 20 "$report" >&2
+    rm -f "$report"
     continue
   fi
+  rm -f "$report"
+
   if ! [[ "$kb" =~ ^[0-9]+$ ]]; then
     log "sample $i: could not parse peak RSS - discarding"
     continue

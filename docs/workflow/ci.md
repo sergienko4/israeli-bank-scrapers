@@ -42,7 +42,7 @@ out, and fails only when the PR's peak grows by more than `THRESHOLD_PCT`
 | Knob | Default | Meaning |
 | --- | --- | --- |
 | `MEMORY_WORKLOAD` | `test:memory` | The npm script that gets measured |
-| `MEMORY_SAMPLES` | `2` | Runs per side; the **lowest** is kept |
+| `MEMORY_SAMPLES` | `3` | Runs per side; the **lowest** is kept |
 | `THRESHOLD_PCT` | `10` | Growth above this percentage fails the gate |
 
 Two details worth knowing when reading a result:
@@ -52,7 +52,9 @@ Two details worth knowing when reading a result:
   inside Node would miss them entirely.
 - **The lowest sample wins.** Peak memory is noisy upward (GC timing, page
   cache pressure, a slow worker start) and never downward, so the minimum is
-  the most stable estimate of what the code actually needs.
+  the most stable estimate of what the code actually needs. On `ubuntu-24.04`
+  the first sample runs about 30% above the rest on both sides — a cold-start
+  effect that the minimum discards.
 
 If either side cannot be measured, the gate reports "not measured" and
 passes. A measurement that never happened must not masquerade as a 0 MB win,
