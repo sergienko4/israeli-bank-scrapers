@@ -4,13 +4,13 @@ name: Release & Publish
 # its own, so a merge to main produces exactly one run containing both the
 # verification scans and the release.
 #
-# npm Trusted Publishing: npm validates the OIDC token's *caller* claim
-# (`workflow_ref`) — not `job_workflow_ref`, the file that actually contains
-# the publish step (npm/documentation#1755 tracks supporting the latter).
-# Because this file is invoked from `main-pipeline.yml`, the trusted publisher
-# configured on npmjs.com must name **main-pipeline.yml**. Giving this file a
-# `push:` trigger again without repointing that setting would publish under a
-# claim npm rejects.
+# npm Trusted Publishing: for `workflow_call`, npm validates the *calling*
+# workflow's name, not this file — and requires `id-token: write` on both the
+# parent and the child (https://docs.npmjs.com/trusted-publishers/,
+# Troubleshooting). Because this file is invoked from `main-pipeline.yml`, the
+# trusted publisher configured on npmjs.com must name **main-pipeline.yml**.
+# Giving this file a `push:` trigger again without repointing that setting
+# would publish under a claim npm rejects.
 on:
   workflow_call:
     inputs:
@@ -68,7 +68,11 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      release_created: ${{ steps.release.outputs.release_created || inputs.force_publish }}
+      # `release-please` emits the *string* `'false'` when it cuts no release,
+      # and every non-empty string is truthy in a GitHub expression — so a bare
+      # `||` fallback would always pick `'false'` and silently ignore
+      # `force_publish`. Compare both sides explicitly.
+      release_created: ${{ steps.release.outputs.release_created == 'true' || inputs.force_publish == 'true' }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
