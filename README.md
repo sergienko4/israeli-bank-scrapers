@@ -208,8 +208,9 @@ Optional fields — `memo`, `category`, `installments`, `chargedCurrency`,
 
 ### The same data, on disk
 
-Those values are only ever unredacted **in memory**. Anything written to disk
-goes through the redactor first, so `pipeline.log` from a real run reads:
+Those values are only ever unredacted **in memory**. Every *text* artifact the
+run writes — `pipeline.log`, `network/*.json`, `screenshots/*.html` — goes
+through the redactor first, so `pipeline.log` from a real run reads:
 
 ```text
 --- Account ***9617 | 4 txns ---
@@ -224,14 +225,24 @@ Account numbers keep a 4-digit tail so you can tell accounts apart. Amounts
 keep only their sign, so a missing debit is still visible in a bug report.
 Merchant names collapse to a length class, which is enough to spot a parser
 splitting one description into two. With redaction left on, attach that file to
-an issue as-is — see
+an issue as-is — but not the `.png` screenshots beside it, which are raster and
+never scrubbed. See
 [PII redaction](https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/)
 for the full field-by-field table.
 
 ## Your credentials
 
-Credentials are read from the arguments you pass and used to log into the bank.
-They are never written to disk, never logged, and never sent anywhere else.
+The credentials you pass in are used to log into the bank and are never
+persisted by this library — no credential store, no cache file, no config
+written back.
+
+Your bank's own login exchange is a different thing, and it *is* captured. The
+session material it returns — cookies, bearer tokens, `otpLongTermToken` — and
+the submitted `password` field itself flow through `network/*.json` and
+`pipeline.log`. Every one of those is routed through the redactor before the
+write, so what lands on disk is `[REDACTED]`. Run with `PII_REDACTION=off` and
+that protection is gone; see
+[Configuration](https://sergienko4.github.io/israeli-bank-scrapers/configuration/).
 
 - **No telemetry, no analytics, no remote error reporting.** The word
   "telemetry" in this codebase means the local `pipeline.log` file.
@@ -239,8 +250,6 @@ They are never written to disk, never logged, and never sent anywhere else.
   browser download on first launch.
 - **Runtime dependencies are `camoufox-js`, `lodash`, `moment`,
   `moment-timezone`, `pino`, and `playwright-core`.** None of them phone home.
-- **Credential-shaped fields are redacted before any write**, including
-  `password`, `otpLongTermToken`, cookies, and bearer tokens.
 
 Found a security issue? Please follow [SECURITY.md](./SECURITY.md) rather than
 opening a public issue.
@@ -355,10 +364,11 @@ release-please cuts the next version automatically.
 
 **Filing a bug?** Attach `pipeline.log`, `network/*.json`, and
 `screenshots/*.html`. With redaction left at its default (`PII_REDACTION=on`)
-all three are scrubbed at write time and safe to share. If you ran with
-`PII_REDACTION=off` they hold **real** account numbers, balances and tokens —
-regenerate them with redaction on rather than sharing them. Skip the `.png`
-files either way; raster images are not OCR-scrubbed.
+those three text artifacts are scrubbed at write time and safe to share. If you
+ran with `PII_REDACTION=off` they hold **real** account numbers, balances and
+tokens — regenerate them with redaction on rather than sharing them. Never
+attach the `.png` files: redaction does not reach them in either mode, because
+raster is not OCR-scrubbed.
 
 ## Contributors
 

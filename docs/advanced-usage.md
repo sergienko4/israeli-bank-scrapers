@@ -22,6 +22,17 @@ try {
       }
     }),
   );
+
+  results.forEach((result, i) => {
+    const { companyId } = banks[i];
+    if (result.status === 'rejected') {
+      console.error(companyId, 'threw', result.reason);
+    } else if (!result.value.success) {
+      console.error(companyId, 'failed', result.value.errorType, result.value.errorMessage);
+    } else {
+      console.log(companyId, (result.value.accounts ?? []).length, 'accounts');
+    }
+  });
 } finally {
   await browser.close();
 }
@@ -33,8 +44,10 @@ would stay open for the rest of the run. Without the outer one a throw anywhere
 leaves the ~1.3 GB browser process alive.
 
 `allSettled` rather than `all` because one bank failing should not discard the
-results of the banks that succeeded; inspect each entry's `status` before
-reading `value`.
+results of the banks that succeeded. That leaves two failure shapes to handle,
+as the loop above does: `status: 'rejected'` when the scrape threw, and
+`status: 'fulfilled'` carrying `value.success === false` when it returned a
+handled error such as `INVALID_PASSWORD`.
 
 !!! warning "Parallelism raises WAF risk"
     Several banks fingerprint concurrent sessions from one IP. If parallel runs

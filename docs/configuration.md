@@ -45,14 +45,16 @@ All optional. These are the **only** environment variables the library reads.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
-| `PII_REDACTION` | `on` | Set to `off` for real-bank E2E **only** — it disables redaction entirely, so every artifact below then contains real PII. Unit tests always run with redaction default-on. |
+| `PII_REDACTION` | `on` | Set to `off` for real-bank E2E **only**. It governs the three text artifacts below — `pipeline.log`, `network/*.json`, `screenshots/*.html` — so turning it off means each holds real PII. It does not govern the browser cache or `.png` screenshots, which behave the same in both modes. Unit tests always run with redaction default-on. |
 | `MOCK_MODE` | unset | `1` switches `test:mock` to its fixture-driven path |
 | `CAMOUFOX_LAUNCH_TIMEOUT_MS` | `300000` | Bounds browser launch — see [Quick Start](quick-start.md#tuning-the-launch) |
 
 ## Files written to disk
 
 The "Redacted?" column assumes the default `PII_REDACTION=on`. Setting it to
-`off` turns every ✅ below into a ❌.
+`off` turns each ✅ below into a ❌. The two non-✅ rows are unaffected: the
+browser cache holds no scrape output, and `.png` screenshots are never scrubbed
+in either mode.
 
 | Path | Contents | Redacted? |
 | --- | --- | --- |
