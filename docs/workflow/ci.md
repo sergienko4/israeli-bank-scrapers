@@ -2,8 +2,9 @@
 
 GitHub Actions runs every gate on every PR. The matrix below is the source of truth.
 
-Post-merge is a different pipeline: one `Main Pipeline` run per merge, covered
-in [Main pipeline (post-merge CI)](main-pipeline.md).
+Post-merge is a different pipeline: one `Main Pipeline` run per merge — scans
+and release together — covered in
+[Main pipeline (post-merge CI)](main-pipeline.md).
 
 ## Gate matrix
 
