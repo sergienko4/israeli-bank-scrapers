@@ -118,8 +118,14 @@ head_fanout=$(read_metric "$HEAD_SNAPSHOT" ".runtimeSummary.avgFanOut") || exit 
 # A zero base would make the percentage undefined; treat it as no signal.
 pct=$(awk -v b="$base_fanout" -v h="$head_fanout" \
   'BEGIN { if (b <= 0) { print "na"; exit } printf "%.1f", ((h - b) * 100) / b }')
-over=$(awk -v p="$pct" -v t="$THRESHOLD_PCT" \
-  'BEGIN { if (p == "na") { print "no"; exit } print (p > t) ? "yes" : "no" }')
+# The verdict reads the raw ratio, never `pct`. `pct` is rounded to one decimal
+# for display, so a genuine 10.04% rise prints as "10.0" and would slip under a
+# 10% limit. Comparing by multiplication also avoids a second division.
+over=$(awk -v b="$base_fanout" -v h="$head_fanout" -v t="$THRESHOLD_PCT" \
+  'BEGIN {
+     if (b <= 0) { print "no"; exit }
+     print (((h - b) * 100) > (b * t)) ? "yes" : "no"
+   }')
 
 if [ "$over" = "yes" ]; then
   rows+=("| Avg runtime fan-out | ${base_fanout} | ${head_fanout} | ${pct}% | ❌ |")

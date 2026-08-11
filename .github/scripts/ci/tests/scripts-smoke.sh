@@ -303,6 +303,14 @@ JSON
   assert_eq "fan-out growth beyond tolerance fails" "1" \
     "$(decoupling '.runtimeSummary.avgFanOut = 3.2')"
 
+  # Either side of the limit, where the reported percentage rounds to exactly
+  # "10.0" both times. Judging by that display value passed 2.751 — a real
+  # 10.04% rise — so these two pin the verdict to the raw ratio.
+  assert_eq "fan-out growth just past the limit fails" "1" \
+    "$(decoupling '.runtimeSummary.avgFanOut = 2.751')"
+  assert_eq "fan-out growth just under the limit passes" "0" \
+    "$(decoupling '.runtimeSummary.avgFanOut = 2.7499')"
+
   # Growth itself is not a regression — a feature adds files and edges.
   assert_eq "proportional growth passes" "0" \
     "$(decoupling '.summary.files += 50 | .summary.edges += 250 | .runtimeSummary.edges += 125')"
