@@ -105,10 +105,11 @@ everything merged since it was taken instead of what this PR did.
 The split is deliberate. A guardrail has no legitimate "slightly weaker"
 state, so those four have no tolerance band at all: deleting a canary or an
 ESLint rule fails the PR outright, which is the
-[never-weaken-a-rule guideline](../../CLEAN_CODE.md) made executable. Coupling
-is different — files and edges grow whenever a feature lands, so only the
-_average_ fan-out is bounded, and only against a generous band that catches
-new code being markedly more coupled than the code already there.
+[never-weaken-a-rule guideline](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/CLEAN_CODE.md)
+made executable. Coupling is different — files and edges grow whenever a
+feature lands, so only the _average_ fan-out is bounded, and only against a
+generous band that catches new code being markedly more coupled than the code
+already there.
 
 Exit codes distinguish two situations that must not be collapsed:
 

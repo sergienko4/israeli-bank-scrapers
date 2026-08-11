@@ -516,12 +516,10 @@ jobs:
           # commit has to be present locally rather than just the tip.
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
-        with:
-          node-version-file: .nvmrc
-      # No `npm ci`: the measuring tool imports only Node builtins and its own
-      # lib/, so both trees can be measured without installing anything. That
-      # is what keeps this gate at seconds rather than minutes.
+      - uses: ./.github/actions/setup-node-deps
+      # HEAD's `node_modules` serves both measurements: the tool is always
+      # HEAD's copy, so `typescript` resolves from HEAD's tree even when the
+      # target is the base worktree. The base tree needs no install of its own.
       - name: Measure this PR
         run: node scripts/decoupling-metrics/measure.mjs . head head.json
       - name: Check out the merge base
