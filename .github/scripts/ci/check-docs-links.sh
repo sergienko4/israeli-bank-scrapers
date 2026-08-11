@@ -21,7 +21,7 @@
 #   0  every site link resolves to a source page
 #   1  at least one link has no backing page
 
-set -uo pipefail
+set -euo pipefail
 
 SITE_PREFIX='https://sergienko4.github.io/israeli-bank-scrapers/'
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -62,8 +62,11 @@ while IFS= read -r line; do
   path="${path%%#*}"
   path="${path%/}"
 
-  [ -z "$path" ] && continue
-  [ "$path" = "$TYPEDOC_PATH" ] && continue
+  # `if` rather than `[ … ] && continue`: under `errexit` a bare AND-OR
+  # guard whose test fails is a footgun waiting for the next edit.
+  if [ -z "$path" ] || [ "$path" = "$TYPEDOC_PATH" ]; then
+    continue
+  fi
 
   CHECKED=$((CHECKED + 1))
 
