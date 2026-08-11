@@ -35,12 +35,14 @@ Deliberately **not** checked:
 | Globs — `src/**/*.ts`, `scripts/*.mjs` | No single path to resolve. Expanding them would need a matcher and would turn an empty match into a failure the author cannot act on. |
 | Paths inside fenced code blocks | Command examples cite files that do not exist yet, or exist only on another machine. Gating them would fight the docs. |
 | Citations split across a line break | The scanner reads one line at a time. A wrapped span is skipped rather than reported as a truncated phantom. |
+| Paths that escape the repository — `../../etc/passwd` | The CI job scans contributor-controlled PR-body text. Probing them would report through the exit status whether a file outside the repo exists. Citations are repo-relative by definition, so refusing to traverse upward costs nothing. |
 | `node_modules/`, `http(s)://`, `.git/` | Installed, remote, or ephemeral — never committed. |
 | `.github/PR_BODY.md` | A run-time handoff file the pre-push hook *searches for*. Documenting it is correct even when absent; gating it would pass locally and fail in CI. |
 
-A line-and-column suffix is tolerated rather than skipped: `src/Common/Browser.ts:17`
-and `src/Common/Browser.ts#L17` both resolve to the file. That form is common in
-agent docs, and dropping the suffix is cheaper than losing the coverage.
+A trailing locator is stripped rather than skipped: `src/Common/Browser.ts:17`
+and `src/Common/Browser.ts#L17` both resolve to the file. Both forms appear in
+agent docs, and dropping the suffix is cheaper than losing the coverage. The
+suffix itself is not verified — a citation may name a line that has since moved.
 
 These gaps are deliberate. Closing them needs a real Markdown parser, and each
 would trade a class of silent rot for a class of false positives — which is the

@@ -34,6 +34,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { argv, exit, stderr, stdout } from 'node:process';
 
 /**
@@ -66,14 +67,32 @@ const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
 const OPTIONAL_PATHS = new Set(['.github/PR_BODY.md']);
 
 /**
- * Strip a trailing locator (`:42`, `:analyze`) so `file.ts:12` resolves
- * against `file.ts`. The suffix itself is not verified.
+ * Strip a trailing locator (`:42`, `:analyze`, `#L17`) so `file.ts:12` and
+ * `file.ts#L17` both resolve against `file.ts`. The suffix itself is not
+ * verified. Both forms appear in agent docs, and dropping the suffix is
+ * cheaper than losing the coverage.
  * @param token - Raw inline-code token.
- * @returns Token without a trailing `:suffix`.
+ * @returns Token without a trailing locator.
  */
 function stripLocator(token) {
-  const idx = token.indexOf(':');
-  return idx === -1 ? token : token.slice(0, idx);
+  const cut = [token.indexOf(':'), token.indexOf('#')].filter((i) => i !== -1);
+  return cut.length === 0 ? token : token.slice(0, Math.min(...cut));
+}
+
+/**
+ * Whether a candidate stays inside the repository.
+ *
+ * The CI job scans PR-body text, which any contributor controls. Without this
+ * a citation of `../../../etc/passwd` would report through the exit status and
+ * output whether that file exists — a filesystem existence oracle. Paths are
+ * repo-relative by definition here, so refusing to traverse upward costs
+ * nothing.
+ * @param token - Candidate path.
+ * @returns True when the path resolves inside the repo root.
+ */
+function withinRepo(token) {
+  if (token.split('/').includes('..')) return false;
+  return !isAbsolute(token);
 }
 
 /**
@@ -92,6 +111,7 @@ function extractPaths(body) {
     if (body.startsWith('](', match.index + match[0].length)) continue;
     const token = stripLocator(match[1].trim());
     if (!PATH_SHAPE.test(token)) continue;
+    if (!withinRepo(token)) continue;
     if (IGNORED_PREFIXES.some((p) => token.startsWith(p))) continue;
     if (OPTIONAL_PATHS.has(token)) continue;
     found.add(token);

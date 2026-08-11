@@ -415,10 +415,29 @@ else
     git commit -qm remove
   ) > /dev/null 2>&1
   printf 'Removes `old/gone.ts` and renames `old/moved.ts`.\n' > "$DOC_REPO/body.md"
-  (cd "$DOC_REPO" && node "$DOCPATHS" --diff-base doc-base body.md) > /dev/null 2>&1
-  assert_eq "a deleted and a renamed path are accepted" "0" "$?"
-  (cd "$DOC_REPO" && node "$DOCPATHS" body.md) > /dev/null 2>&1
-  assert_eq "the same paths fail without --diff-base" "1" "$?"
+  # Keep the checker output: on an unexpected result the exit status alone
+  # says nothing about which citation the run disagreed on.
+  (cd "$DOC_REPO" && node "$DOCPATHS" --diff-base doc-base body.md) > "$DOC_DIR/removed.log" 2>&1
+  removed_status=$?
+  if [ "$removed_status" -ne 0 ]; then cat "$DOC_DIR/removed.log"; fi
+  assert_eq "a deleted and a renamed path are accepted" "0" "$removed_status"
+  (cd "$DOC_REPO" && node "$DOCPATHS" body.md) > "$DOC_DIR/removed-nobase.log" 2>&1
+  nobase_status=$?
+  if [ "$nobase_status" -ne 1 ]; then cat "$DOC_DIR/removed-nobase.log"; fi
+  assert_eq "the same paths fail without --diff-base" "1" "$nobase_status"
+
+  # A `#L` locator is documented as supported, so it must actually resolve
+  # rather than fail the path shape and be skipped as a non-path.
+  printf 'See `src/Common/Browser.ts#L17` and `src/Common/Browser.ts:17`.\n' > "$DOC_DIR/locator.md"
+  assert_eq "a #L locator resolves to the file" "0" "$(doc_check "$DOC_DIR/locator.md")"
+  printf 'Gone: `src/helpers/browser.ts#L17`.\n' > "$DOC_DIR/locator-bad.md"
+  assert_eq "a #L locator on a phantom path still fails" "1" \
+    "$(doc_check "$DOC_DIR/locator-bad.md")"
+
+  # PR-body text is contributor-controlled, so a citation must not be able to
+  # probe for files outside the repo and report the answer via the exit status.
+  printf 'Escape: `../../../etc/passwd` and `../outside/file.md`.\n' > "$DOC_DIR/escape.md"
+  assert_eq "a path escaping the repo is not probed" "0" "$(doc_check "$DOC_DIR/escape.md")"
 
   # The gate is only worth having if the docs it guards actually pass, so
   # a future move that rots a citation fails here too.
