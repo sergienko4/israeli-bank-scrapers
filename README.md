@@ -208,9 +208,10 @@ Optional fields — `memo`, `category`, `installments`, `chargedCurrency`,
 
 ### The same data, on disk
 
-Those values are only ever unredacted **in memory**. Every *text* artifact the
-run writes — `pipeline.log`, `network/*.json`, `screenshots/*.html` — goes
-through the redactor first, so `pipeline.log` from a real run reads:
+With redaction on (the default), those values are only ever unredacted **in
+memory**: every *text* artifact the run writes — `pipeline.log`,
+`network/*.json`, `screenshots/*.html` — goes through the redactor first, so
+`pipeline.log` from a real run reads:
 
 ```text
 --- Account ***9617 | 4 txns ---
