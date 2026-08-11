@@ -1,6 +1,9 @@
 # CI gates
 
-GitHub Actions runs every gate on every PR. The matrix below is the source of truth.
+GitHub Actions runs these gates on every PR, except for the heavier jobs that
+are skipped when the changed files cannot affect them —
+`.github/scripts/ci/detect-changes.sh` classifies the diff and each job's `if:`
+in `pr.yml` states its own condition. The matrix below is the source of truth.
 
 Post-merge is a different pipeline: one `Main Pipeline` run per merge — scans
 and release together — covered in
@@ -38,6 +41,11 @@ nothing to do with the change under review. The `Memory` job instead measures
 **both** sides in the same job on the same runner, which cancels the machine
 out, and fails only when the PR's peak grows by more than `THRESHOLD_PCT`
 (default 10%).
+
+The job runs when a PR touches source, dependencies, the test configuration or
+the CI scripts themselves (`full_suite`, `deps`, `test_config`, `ci_scripts`).
+A docs-only PR cannot move memory, so it is skipped rather than measured twice
+to prove nothing.
 
 | Knob | Default | Meaning |
 | --- | --- | --- |

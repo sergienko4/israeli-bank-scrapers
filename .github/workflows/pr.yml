@@ -451,11 +451,24 @@ jobs:
           # Reinstalling is only needed when the PR moved the lockfile.
           # Otherwise the resolved tree is identical, and sharing it keeps the
           # two sides comparable as well as fast.
+          #
+          # Both paths are guarded because a broken symlink or a registry blip
+          # says nothing about the PR's memory use. Like the two failure modes
+          # above, that degrades to "not measured" instead of failing a gate
+          # the change under review did not break.
           if git diff --quiet "$BASE_SHA" HEAD -- package.json package-lock.json; then
-            ln -s "$PWD/node_modules" ../base/node_modules
+            if ! ln -s "$PWD/node_modules" ../base/node_modules; then
+              echo "::notice::Could not share the resolved dependencies - skipping the comparison."
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           else
             echo "Dependencies changed - installing the base tree separately."
-            (cd ../base && npm ci --no-audit --no-fund)
+            if ! (cd ../base && npm ci --no-audit --no-fund); then
+              echo "::notice::Could not install the base dependencies - skipping the comparison."
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
       - name: Measure the merge base
