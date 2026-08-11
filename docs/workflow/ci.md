@@ -2,6 +2,9 @@
 
 GitHub Actions runs every gate on every PR. The matrix below is the source of truth.
 
+Post-merge is a different pipeline: one `Main Pipeline` run per merge, covered
+in [Main pipeline (post-merge CI)](main-pipeline.md).
+
 ## Gate matrix
 
 | Gate | npm script | Failure mode | Where to look |
@@ -39,7 +42,8 @@ A PR that drops any threshold fails `test:pipeline`. The post-Commit-1 numbers (
 |---|---|
 | Local `npm run <script>` | stdout |
 | Pre-commit hook | `.pre-commit-output.log` at repo root (overwritten each run) |
-| GitHub Actions | The PR's "Checks" tab → workflow logs |
+| GitHub Actions (PR) | The PR's "Checks" tab → workflow logs |
+| GitHub Actions (after merge) | The [`Main Pipeline`](main-pipeline.md) run → summary table names the failing stage |
 
 ## Forensic diagnostics artifacts
 

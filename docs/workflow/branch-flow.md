@@ -12,7 +12,7 @@
 
 Every commit subject must follow the Conventional Commits format:
 
-```
+```text
 <type>(<scope>): <subject>
 
 [optional body]
@@ -32,10 +32,12 @@ Every commit subject must follow the Conventional Commits format:
 
 1. Branch from `main`: `git checkout -b <type>/<short-name>`
 2. Make the change. Run `npm run test:unit` + `npm run lint` locally.
-3. Commit (the pre-commit hook runs the full 12 gates).
+3. Commit (the [pre-commit hook](pre-commit.md) runs the full gate suite).
 4. Push + open the PR. CI re-runs the same gates.
 5. Wait for `@sergienko4` (CODEOWNER) review.
 6. Squash-merge once approved + CI green. Commit subject must still be Conventional.
+7. Watch the [`Main Pipeline`](main-pipeline.md) run for the merge commit — one
+   run, one summary, covering CodeQL, SonarCloud, workflow security and docs.
 
 ## release-please cadence
 
