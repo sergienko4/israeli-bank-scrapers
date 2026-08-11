@@ -244,6 +244,16 @@ jobs:
         if: needs.changes.outputs.docs == 'true'
         run: node scripts/build-compatibility.mjs --check
 
+      # Lychee (below) cannot check links into our own docs site — a PR
+      # that adds a page links to it before it is deployed, so every docs
+      # PR would fail. That exclusion left README links to the site
+      # unchecked entirely, and `/configuration/` sat 404-ing until a
+      # human noticed. This maps each site URL back to the docs/ page
+      # that must render it.
+      - name: Docs-site links resolve to a page
+        if: needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true'
+        run: bash .github/scripts/ci/check-docs-links.sh
+
       - name: Substitute {{BRANCH}} placeholders for Lychee
         if: needs.changes.outputs.md == 'true'
         run: |

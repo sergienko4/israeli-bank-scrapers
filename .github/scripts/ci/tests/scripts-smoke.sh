@@ -43,9 +43,9 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/2: shellcheck ──"
+echo "── 1/3: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in decrypt-token-cache.sh encrypt-token-cache.sh; do
+  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/2: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/3: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -111,6 +111,43 @@ else
   rm -f /tmp/roundtripbank-token.cache
   rm -f /tmp/nokeybank-token.cache
 fi
+
+# ── 3. docs-site link guard ──
+# Behavioural test, not just shellcheck: the guard's whole value is that
+# it FAILS on a link with no backing page, so assert both directions.
+echo "── 3/3: docs-site link guard ──"
+GUARD="$SCRIPT_DIR/check-docs-links.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+if bash "$GUARD" >/dev/null 2>&1; then
+  guard_clean=1
+else
+  guard_clean=0
+fi
+assert_eq "guard passes on the committed tree" "1" "$guard_clean"
+
+# Append a deliberately dangling site link, assert non-zero, restore.
+GUARD_BAK="$(mktemp)"
+cp "$REPO_ROOT/README.md" "$GUARD_BAK"
+printf '\n[dangling](https://sergienko4.github.io/israeli-bank-scrapers/no-such-page/)\n' \
+  >> "$REPO_ROOT/README.md"
+if bash "$GUARD" >/dev/null 2>&1; then
+  guard_catches=0
+else
+  guard_catches=1
+fi
+cp "$GUARD_BAK" "$REPO_ROOT/README.md"
+rm -f "$GUARD_BAK"
+assert_eq "guard fails on a dangling site link" "1" "$guard_catches"
+
+# Restoring must leave the tree exactly as found, or the smoke test
+# itself would dirty the working copy it just validated.
+if bash "$GUARD" >/dev/null 2>&1; then
+  guard_restored=1
+else
+  guard_restored=0
+fi
+assert_eq "README restored after negative test" "1" "$guard_restored"
 
 # ── Final summary ──
 echo ""
