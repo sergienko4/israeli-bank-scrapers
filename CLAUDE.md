@@ -83,20 +83,27 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Key Files
 
-- `src/helpers/browser.ts` — `buildContextOptions()`: Hebrew UA/locale, Israel timezone, client hints for Playwright context
-- `src/helpers/elements-interactions.ts` — human-like delays on fillInput/clickButton
-- `src/helpers/fetch.ts` — HTTP status capture, WAF block detection in fetchPostWithinPage
-- `src/scrapers/base-isracard-amex.ts` — shared Amex/Isracard scraper with human delay before API calls
-- `src/scrapers/base-scraper-with-browser.ts` — base class, Playwright browser engine (`chromium.launch` → `newContext` → `newPage`)
-- `src/scrapers/errors.ts` — WafBlockError class with structured WafErrorDetails (provider, suggestions)
-- `src/scrapers/interface.ts` — type definitions (ScraperOptions, ScraperCredentials, etc.)
+> Paths here are verified by `npm run lint:doc-paths`. If you move a file,
+> that gate fails until this list is updated — see
+> [docs/workflow/doc-paths.md](./docs/workflow/doc-paths.md).
+
+- `src/Common/Browser.ts` — `buildContextOptions()`: Hebrew UA/locale, Israel timezone, client hints for the Playwright context
+- `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts` — `launchCamoufox()`; re-exported by `src/Common/CamoufoxLauncher.ts`
+- `src/Scrapers/Pipeline/Mediator/Network/Fetch/PageFetchPost.ts` — `fetchPostWithinPage()` with HTTP status capture; re-exported by `src/Common/Fetch.ts`
+- `src/Scrapers/Pipeline/Mediator/Network/Fetch/WafDetection.ts` — `detectWafBlock()`: classifies a response as a WAF block
+- `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `humanDelay(min, max)`, the source of every human-like pause
+- `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractionConfig.ts` — delay ranges (fill-input 200–600 ms)
+- `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.ts` — fill, click, capture, presence check
+- `src/Scrapers/Base/BaseScraperWithBrowser.ts` — base class; `launchCamoufox()` → `newContext()` → `newPage()`
+- `src/Scrapers/Base/Errors.ts` — `WafBlockError` with structured `WafErrorDetails` (provider, suggestions)
+- `src/Scrapers/Base/Interface.ts` — type definitions (`ScraperOptions`, `ScraperCredentials`, etc.)
+- `src/Scrapers/Registry/ScraperRegistryAmexToIsracard.ts` — Amex→Isracard scraper registry entries
 
 ## Changes from upstream
 
 - Browser engine: Playwright instead of Puppeteer — bypasses Cloudflare WAF natively, no stealth needed
-- `src/helpers/browser.ts`: `buildContextOptions()` with Hebrew UA, locale, timezone, client hints (no stealth overrides)
-- `src/scrapers/base-scraper-with-browser.ts`: `chromium.launch()` → `browser.newContext()` → `context.newPage()`
-- `src/helpers/elements-interactions.ts`: Human-like delays (300-1200ms) on form interactions
-- `src/scrapers/base-isracard-amex.ts`: Human delay before API calls
-- `src/scrapers/errors.ts`: WafBlockError with WafErrorDetails (provider, httpStatus, pageTitle, suggestions)
+- `src/Common/Browser.ts`: `buildContextOptions()` with Hebrew UA, locale, timezone, client hints (no stealth overrides)
+- `src/Scrapers/Base/BaseScraperWithBrowser.ts`: `launchCamoufox()` → `browser.newContext()` → `context.newPage()`
+- `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts`: `humanDelay()` behind form interactions (fill-input 200–600 ms)
+- `src/Scrapers/Base/Errors.ts`: `WafBlockError` with `WafErrorDetails` (provider, httpStatus, pageTitle, suggestions)
 - CI/CD: release-please + npm publish pipeline, Playwright browser install in CI
