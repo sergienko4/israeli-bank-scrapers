@@ -43,9 +43,9 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/3: shellcheck ──"
+echo "── 1/4: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh; do
+  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/3: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/4: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -115,7 +115,7 @@ fi
 # ── 3. docs-site link guard ──
 # Behavioural test, not just shellcheck: the guard's whole value is that
 # it FAILS on a link with no backing page, so assert both directions.
-echo "── 3/3: docs-site link guard ──"
+echo "── 3/4: docs-site link guard ──"
 GUARD="$SCRIPT_DIR/check-docs-links.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -148,6 +148,45 @@ else
   guard_restored=0
 fi
 assert_eq "README restored after negative test" "1" "$guard_restored"
+
+# ── 4. post-merge pipeline summary ──
+# This is the one artifact a maintainer reads when a merge goes wrong, and
+# its exit status is what stops a red merge looking green. Assert the verdict
+# in both directions, plus the release wording that distinguishes "shipped"
+# from "only refreshed the Release PR".
+echo "── 4/4: post-merge pipeline summary ──"
+SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
+
+render() {
+  rm -f /tmp/pipeline-summary-smoke.md
+  env "$@" SHA=abc1234def GITHUB_STEP_SUMMARY=/tmp/pipeline-summary-smoke.md \
+    bash "$SUMMARY" >/dev/null 2>&1
+  echo "$?"
+}
+
+clean_exit=$(render R_CHANGES=success R_CODEQL=success R_SONAR=success \
+  R_WFSEC=success R_DOCS=skipped R_RELEASE=success RELEASED=false VERSION=)
+assert_eq "clean run exits 0" "0" "$clean_exit"
+if grep -qF "no new version" /tmp/pipeline-summary-smoke.md; then no_rel=1; else no_rel=0; fi
+assert_eq "no-release merge is labelled, not just 'success'" "1" "$no_rel"
+
+pub_exit=$(render R_CHANGES=success R_CODEQL=success R_SONAR=success \
+  R_WFSEC=success R_DOCS=success R_RELEASE=success RELEASED=true VERSION=9.9.9)
+assert_eq "published run exits 0" "0" "$pub_exit"
+if grep -qF "published v9.9.9" /tmp/pipeline-summary-smoke.md; then pub_lbl=1; else pub_lbl=0; fi
+assert_eq "published version appears in the table" "1" "$pub_lbl"
+
+# A failing release must fail the summary — the whole point of folding
+# release into the pipeline is that it can no longer fail unnoticed.
+rel_fail_exit=$(render R_CHANGES=success R_CODEQL=success R_SONAR=success \
+  R_WFSEC=success R_DOCS=skipped R_RELEASE=failure RELEASED= VERSION=)
+assert_eq "failed release exits non-zero" "1" "$rel_fail_exit"
+
+scan_fail_exit=$(render R_CHANGES=success R_CODEQL=failure R_SONAR=success \
+  R_WFSEC=success R_DOCS=skipped R_RELEASE=success RELEASED=false VERSION=)
+assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
+
+rm -f /tmp/pipeline-summary-smoke.md
 
 # ── Final summary ──
 echo ""

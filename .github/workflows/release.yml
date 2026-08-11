@@ -1,16 +1,35 @@
 name: Release & Publish
 
+# Called by `main-pipeline.yml`. This workflow deliberately has no trigger of
+# its own, so a merge to main produces exactly one run containing both the
+# verification scans and the release.
+#
+# npm Trusted Publishing: npm validates the OIDC token's *caller* claim
+# (`workflow_ref`) — not `job_workflow_ref`, the file that actually contains
+# the publish step (npm/documentation#1755 tracks supporting the latter).
+# Because this file is invoked from `main-pipeline.yml`, the trusted publisher
+# configured on npmjs.com must name **main-pipeline.yml**. Giving this file a
+# `push:` trigger again without repointing that setting would publish under a
+# claim npm rejects.
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       force_publish:
-        description: 'Force npm publish without a new release (recover from release-please tag glitches)'
+        description: 'Publish to npm even when release-please cut no release (recovers from tag glitches)'
         required: false
         default: 'false'
-        type: choice
-        options: ['false', 'true']
+        type: string
+    outputs:
+      release_created:
+        description: 'true when release-please cut a release on this run'
+        value: ${{ jobs.release-please.outputs.release_created }}
+      version:
+        description: 'Version released on this run; empty when no release was cut'
+        value: ${{ jobs.release-please.outputs.version }}
+    secrets:
+      RELEASE_TOKEN:
+        description: 'PAT with contents:write — release-please needs it for cross-branch release commits'
+        required: true
 
 # Top-level least-privilege baseline — closes CodeQL alert #32
 # (TokenPermissionsID). The release-please job overrides locally to
@@ -21,12 +40,11 @@ on:
 permissions:
   contents: read
 
-# Two merges landing close together must not race two publishes for the
-# same version. Releases are never cancelled mid-flight — a half-published
+# No `concurrency:` here on purpose. A called workflow is governed by the
+# caller's concurrency group, so declaring a second one would add a nested
+# queue that can deadlock against it. `main-pipeline.yml` carries the policy
+# this workflow needs — `cancel-in-progress: false`, because a half-published
 # release is worse than a queued one.
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
 
 # ──────────────────────────────────────────────────────────────
 # Job DAG:

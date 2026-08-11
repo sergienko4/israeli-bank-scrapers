@@ -9,39 +9,53 @@ name: Main Pipeline
 # separately - and PR Validation re-ran ~22 jobs that had already passed on
 # the PR minutes earlier.
 #
-# Now: post-merge verification is one DAG with one summary. `Release &
-# Publish` stays a separate workflow on purpose - see the note below.
+# Now: one merge, one run, one summary — verification *and* release.
 #
 # ──────────────────────────────────────────────────────────────
-#   changes ─┬─→ codeql ──────────┐
-#            ├─→ sonarcloud ──────┤
-#            ├─→ workflow-security┼─→ summary (always)
-#            └─→ docs (if needed) ┘
+#   changes ──→ docs (if needed) ─┐
+#   codeql ───────────────────────┤
+#   sonarcloud ───────────────────┼─→ summary (always)
+#   workflow-security ────────────┤
+#   release ──────────────────────┘
 # ──────────────────────────────────────────────────────────────
 #
-# Why release is NOT called from here: `release.yml` publishes to npm with
-# Trusted Publishing (`npm publish --provenance`), which authenticates via
-# OIDC. npm validates the token's workflow claim against the configured
-# publisher. Invoking release.yml as a reusable workflow changes that claim
-# from `release.yml` to `main-pipeline.yml`, which breaks publishing and can
-# only be repaired by reconfiguring the trusted publisher on npmjs.com.
-# Nesting it would buy a tidier graph at the cost of the release pipeline,
-# so release keeps its own `push: main` trigger.
+# Only `docs` is gated, on `changes` — it republishes the site solely when
+# docs-relevant files moved. Everything else starts immediately.
+#
+# `release` is not gated on the scans finishing. That is deliberate: it
+# preserves the behaviour release had as a standalone workflow, where a
+# flaky Sonar run could never block cutting a release. The DAG reports both
+# branches; it does not couple them.
+#
+# npm Trusted Publishing: this file is the publisher identity. npm validates
+# the OIDC token's *caller* claim (`workflow_ref`), not the file containing
+# the publish step (`job_workflow_ref` — npm/documentation#1755). Because
+# `release.yml` is invoked from here, the trusted publisher configured on
+# npmjs.com must name **main-pipeline.yml**. Renaming this file, or moving
+# the release call into another workflow, breaks publishing until that
+# setting is repointed.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_publish:
+        description: 'Publish to npm even when release-please cut no release (recovers from tag glitches)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 permissions: {}
 
-# A newer merge supersedes an older one for verification purposes: the newer
-# commit contains the older commit's code, so cancelling the stale run loses
-# no coverage. This is the opposite of release.yml, where a cancelled run
-# could leave a half-published release.
+# `cancel-in-progress: false` because this run can publish to npm, and a
+# cancelled publish is worse than a queued one. Verification alone would be
+# safe to supersede — a newer merge contains the older commit's code — but
+# concurrency is a workflow-level setting, so the release constraint wins.
 concurrency:
   group: main-pipeline-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   changes:
@@ -125,13 +139,36 @@ jobs:
       pages: write
       id-token: write
 
+  # Cutting a release is independent of the scans above — see the header note.
+  # On an ordinary merge this only opens or refreshes the Release PR; the npm
+  # publish happens on the merge of that Release PR, when `release_created`
+  # flips to true.
+  release:
+    name: Release
+    uses: ./.github/workflows/release.yml
+    # The union of what the called jobs need: release-please writes release
+    # commits and PRs, publish exchanges the OIDC token. A called workflow
+    # cannot exceed the permissions granted here, and each of its jobs
+    # narrows further.
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    with:
+      # `inputs` is null on push, so the dispatch-only knob defaults off.
+      force_publish: ${{ inputs.force_publish || 'false' }}
+    # Explicit passthrough, not `secrets: inherit` — same reasoning as
+    # sonarcloud above.
+    secrets:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
   # The whole point of the pipeline: one place that answers "did this merge
   # land cleanly?". Runs even when something upstream fails, otherwise the
   # summary would be missing exactly when it is most needed.
   summary:
     name: Pipeline summary
     if: always()
-    needs: [changes, codeql, sonarcloud, workflow-security, docs]
+    needs: [changes, codeql, sonarcloud, workflow-security, docs, release]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -148,5 +185,8 @@ jobs:
           R_SONAR: ${{ needs.sonarcloud.result }}
           R_WFSEC: ${{ needs.workflow-security.result }}
           R_DOCS: ${{ needs.docs.result }}
+          R_RELEASE: ${{ needs.release.result }}
+          RELEASED: ${{ needs.release.outputs.release_created }}
+          VERSION: ${{ needs.release.outputs.version }}
           SHA: ${{ github.sha }}
         run: bash .github/scripts/ci/pipeline-summary.sh

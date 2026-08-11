@@ -8,7 +8,8 @@
 # environment so it can be exercised locally:
 #
 #   R_CHANGES=success R_CODEQL=failure R_SONAR=success \
-#   R_WFSEC=success R_DOCS=skipped SHA=abc1234 \
+#   R_WFSEC=success R_DOCS=skipped R_RELEASE=success RELEASED=true \
+#   VERSION=8.6.7 SHA=abc1234 \
 #   GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/pipeline-summary.sh
 set -euo pipefail
 
@@ -36,10 +37,26 @@ icon() {
   esac
 }
 
+# On an ordinary merge release-please only opens or refreshes the Release PR,
+# so a green release stage that published nothing is the common case — say so
+# explicitly rather than leaving "success" to be misread as "shipped".
+release_detail() {
+  if [ "${R_RELEASE:-}" != "success" ]; then
+    echo ""
+  elif [ "${RELEASED:-}" = "true" ] && [ -n "${VERSION:-}" ]; then
+    echo " — published v${VERSION}"
+  elif [ "${RELEASED:-}" = "true" ]; then
+    echo " — published"
+  else
+    echo " — no new version (Release PR updated)"
+  fi
+}
+
 # A merge is only clean if nothing failed. `skipped` is a legitimate outcome
 # (docs are not always republished), so it does not count against the run.
 overall="clean"
-for r in "${R_CHANGES:-}" "${R_CODEQL:-}" "${R_SONAR:-}" "${R_WFSEC:-}" "${R_DOCS:-}"; do
+for r in "${R_CHANGES:-}" "${R_CODEQL:-}" "${R_SONAR:-}" "${R_WFSEC:-}" \
+  "${R_DOCS:-}" "${R_RELEASE:-}"; do
   case "$r" in
     success | skipped | '') ;;
     *) overall="problems" ;;
@@ -62,12 +79,14 @@ done
   echo "  sonar[\"SonarCloud\"]:::$(node_class "${R_SONAR:-}")"
   echo "  wfsec[\"Workflow security\"]:::$(node_class "${R_WFSEC:-}")"
   echo "  docs[\"Docs\"]:::$(node_class "${R_DOCS:-}")"
+  echo "  release[\"Release\"]:::$(node_class "${R_RELEASE:-}")"
   echo "  summary[\"Summary\"]:::ok"
   echo "  changes --> docs"
   echo "  codeql --> summary"
   echo "  sonar --> summary"
   echo "  wfsec --> summary"
   echo "  docs --> summary"
+  echo "  release --> summary"
   echo "  classDef ok fill:#1a7f37,stroke:#1a7f37,color:#fff;"
   echo "  classDef bad fill:#cf222e,stroke:#cf222e,color:#fff;"
   echo "  classDef skip fill:#6e7781,stroke:#6e7781,color:#fff;"
@@ -80,9 +99,11 @@ done
   echo "| SonarCloud | $(icon "${R_SONAR:-}") ${R_SONAR:-unknown} |"
   echo "| Workflow security | $(icon "${R_WFSEC:-}") ${R_WFSEC:-unknown} |"
   echo "| Docs | $(icon "${R_DOCS:-}") ${R_DOCS:-unknown} |"
+  echo "| Release | $(icon "${R_RELEASE:-}") ${R_RELEASE:-unknown}$(release_detail) |"
   echo ""
-  echo "Release and npm publish run in the separate **Release & Publish**"
-  echo "workflow (npm Trusted Publishing binds its OIDC claim to that file)."
+  echo "Everything a merge does is in this run — there is no second workflow to"
+  echo "open. \`Release\` cuts the release; npm publish happens inside it, on the"
+  echo "merge of the Release PR."
 } >> "$GITHUB_STEP_SUMMARY"
 
 # The summary must never be the reason a merge looks green, so mirror the
