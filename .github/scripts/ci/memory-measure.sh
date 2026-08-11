@@ -24,11 +24,15 @@
 # Prints the peak in whole MB to stdout, or `unavailable` when the workload
 # could not be measured. Never exits non-zero for a failed workload: this is
 # a metric, and the suites themselves are gated by other jobs.
+#
+# `errexit` is deliberately absent. Every failure path here degrades to
+# "unavailable" on purpose, and aborting mid-script would turn an unmeasurable
+# sample into a failed job — the opposite of the contract above.
 set -uo pipefail
 
 WORKDIR="${1:?usage: memory-measure.sh <workdir>}"
 WORKLOAD="${MEMORY_WORKLOAD:-test:memory}"
-SAMPLES="${MEMORY_SAMPLES:-2}"
+SAMPLES="${MEMORY_SAMPLES:-3}"
 TIME_BIN="${TIME_BIN:-/usr/bin/time}"
 
 log() { echo "[memory-measure] $*" >&2; }

@@ -47,9 +47,12 @@ out, and fails only when the PR's peak grows by more than `THRESHOLD_PCT`
 
 Two details worth knowing when reading a result:
 
-- **Peak resident set size**, read from `/usr/bin/time -v`, covers the process
-  _and_ its children — so Jest workers are counted. `process.memoryUsage()`
-  inside Node would miss them entirely.
+- **Peak resident set size**, read from `/usr/bin/time -v`, is the largest
+  resident set reached by any _single_ process in the tree — the parent or any
+  Jest worker — not the sum of the concurrent ones. That catches a process
+  that grows, which is what a leak looks like, but not memory spent purely by
+  running more workers side by side. `process.memoryUsage()` inside Node would
+  miss the workers entirely.
 - **The lowest sample wins.** Peak memory is noisy upward (GC timing, page
   cache pressure, a slow worker start) and never downward, so the minimum is
   the most stable estimate of what the code actually needs. On `ubuntu-24.04`

@@ -53,7 +53,11 @@ delta=$((HEAD_MB - BASE_MB))
 # bash has no float arithmetic, and a percentage rounded to a whole number
 # hides small drifts near the threshold, so awk does the division.
 pct=$(awk -v d="$delta" -v b="$BASE_MB" 'BEGIN { printf "%.1f", (d * 100) / b }')
-over=$(awk -v p="$pct" -v t="$THRESHOLD_PCT" 'BEGIN { print (p > t) ? "yes" : "no" }')
+# The verdict deliberately uses the unrounded values: comparing the formatted
+# percentage lets a real regression of 10.04% print as "10.0" and slip under a
+# 10% limit.
+over=$(awk -v d="$delta" -v b="$BASE_MB" -v t="$THRESHOLD_PCT" \
+  'BEGIN { print ((d * 100) > (b * t)) ? "yes" : "no" }')
 
 if [ "$over" = "yes" ]; then
   heading="## ❌ Memory: regression"
@@ -77,8 +81,9 @@ fi
   echo "| This PR | ${HEAD_MB} MB |"
   echo "| Delta | ${delta} MB (${pct}%) |"
   echo ""
-  echo "Peak resident set size of the whole \`npm run ${WORKLOAD}\` process tree,"
-  echo "including Jest workers. Both sides run on this same runner, so the"
+  echo "Largest resident set size reached by any single process in the"
+  echo "\`npm run ${WORKLOAD}\` tree, including Jest workers, rather than the sum"
+  echo "of concurrent ones. Both sides run on this same runner, so the"
   echo "comparison reflects the change rather than the machine."
 } >> "$GITHUB_STEP_SUMMARY"
 

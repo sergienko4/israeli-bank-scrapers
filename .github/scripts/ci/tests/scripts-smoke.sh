@@ -218,6 +218,12 @@ assert_eq "exactly at the limit passes" "0" \
 assert_eq "one MB over the limit fails" "1" \
   "$(memory BASE_MB=400 HEAD_MB=441 THRESHOLD_PCT=10)"
 
+# A regression that rounds down to exactly the limit must still fail. 2001 ->
+# 2202 is 10.04%, which prints as "10.0"; comparing the formatted percentage
+# instead of the raw numbers let this through.
+assert_eq "a regression that rounds to the limit fails" "1" \
+  "$(memory BASE_MB=2001 HEAD_MB=2202 THRESHOLD_PCT=10)"
+
 assert_eq "an improvement passes" "0" \
   "$(memory BASE_MB=400 HEAD_MB=350 THRESHOLD_PCT=10)"
 if grep -qF "improved" "$MEM_FILE"; then improved=1; else improved=0; fi

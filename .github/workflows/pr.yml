@@ -433,7 +433,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           # The base SHA comes from the event rather than `HEAD^1`: if the PR
           # is not cleanly mergeable there is no merge commit to take a first
           # parent from, and that would silently compare against the wrong
