@@ -1,17 +1,10 @@
 name: Publish Docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'docs/**'
-      - 'README.md'
-      - 'mkdocs.yml'
-      - 'requirements-docs.txt'
-      - 'typedoc.json'
-      - 'package.json'
-      - '.github/workflows/docs.yml'
+  # `push: main` intentionally absent — main-pipeline.yml calls this via
+  # workflow_call and gates the call on the same file groups the old
+  # `paths:` filter listed, since a reusable call cannot carry `paths:`.
+  workflow_call:
   workflow_dispatch:
 
 permissions: {}

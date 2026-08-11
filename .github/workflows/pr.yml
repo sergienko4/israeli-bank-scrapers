@@ -7,8 +7,13 @@ on:
   # via a `pr-docs.yml` echo-shim. Folded in 2026-05-28 CI consolidation
   # (PR #275): the validate job now always runs, and `detect-changes`
   # below short-circuits the heavy steps when no src/** is touched.
-  push:
-    branches: [main]
+  #
+  # `push: main` was removed in the CI-DAG consolidation: re-running the
+  # whole PR suite after merge duplicated ~22 jobs that had already passed
+  # on the PR, and it was the main reason a merge produced a wall of
+  # hard-to-read check runs. Post-merge verification now lives in
+  # main-pipeline.yml. The required `Validate` context is a PR context and
+  # is unaffected by this.
   pull_request:
     branches: [main]
   workflow_dispatch:

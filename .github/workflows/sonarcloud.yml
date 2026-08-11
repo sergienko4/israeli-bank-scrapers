@@ -8,8 +8,13 @@ name: SonarCloud
 # scan steps gate on a `detect-changes` step output. Non-src PRs see
 # the `SonarCloud Scan` context report green within ~30s.
 on:
-  push:
-    branches: [main]
+  # `push: main` intentionally absent — main-pipeline.yml calls this via
+  # workflow_call. The main-branch analysis still runs on every merge (it
+  # is what establishes SonarCloud's new-code baseline); it just runs
+  # inside the pipeline DAG. The `SonarCloud Scan` context that branch
+  # protection requires comes from the `pull_request` trigger below and is
+  # unaffected.
+  workflow_call:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:

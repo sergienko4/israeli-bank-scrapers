@@ -1,8 +1,10 @@
 name: CodeQL
 
 on:
-  push:
-    branches: [main]
+  # `push: main` intentionally absent — main-pipeline.yml calls this via
+  # workflow_call so the post-merge run appears as one DAG instead of a
+  # separate check. PR and scheduled runs are unchanged.
+  workflow_call:
   pull_request:
     branches: [main]
   schedule:

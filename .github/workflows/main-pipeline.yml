@@ -1,0 +1,146 @@
+name: Main Pipeline
+
+# Single post-merge entry point.
+#
+# Before this workflow, one merge to main fanned out into six independent
+# workflow runs (PR Validation, CodeQL, SonarCloud, Workflow Security,
+# Publish Docs, Release & Publish). Nothing tied them together, so answering
+# "did this merge land cleanly?" meant opening six runs and reading them
+# separately - and PR Validation re-ran ~22 jobs that had already passed on
+# the PR minutes earlier.
+#
+# Now: post-merge verification is one DAG with one summary. `Release &
+# Publish` stays a separate workflow on purpose - see the note below.
+#
+# ──────────────────────────────────────────────────────────────
+#   changes ─┬─→ codeql ──────────┐
+#            ├─→ sonarcloud ──────┤
+#            ├─→ workflow-security┼─→ summary (always)
+#            └─→ docs (if needed) ┘
+# ──────────────────────────────────────────────────────────────
+#
+# Why release is NOT called from here: `release.yml` publishes to npm with
+# Trusted Publishing (`npm publish --provenance`), which authenticates via
+# OIDC. npm validates the token's workflow claim against the configured
+# publisher. Invoking release.yml as a reusable workflow changes that claim
+# from `release.yml` to `main-pipeline.yml`, which breaks publishing and can
+# only be repaired by reconfiguring the trusted publisher on npmjs.com.
+# Nesting it would buy a tidier graph at the cost of the release pipeline,
+# so release keeps its own `push: main` trigger.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# A newer merge supersedes an older one for verification purposes: the newer
+# commit contains the older commit's code, so cancelling the stale run loses
+# no coverage. This is the opposite of release.yml, where a cancelled run
+# could leave a half-published release.
+concurrency:
+  group: main-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      docs_publish: ${{ steps.gate.outputs.docs_publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect changed file groups
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: bash .github/scripts/ci/detect-changes.sh
+
+      # A reusable workflow call cannot carry a `paths:` filter, so the file
+      # groups that used to gate docs.yml's `push:` trigger are recomputed
+      # here. src/docs/md/deps/ci_scripts together cover the old path list
+      # (src/**, docs/**, README.md, mkdocs.yml, requirements-docs.txt,
+      # typedoc.json, package.json, .github/workflows/docs.yml).
+      - name: Decide whether docs need publishing
+        id: gate
+        env:
+          SRC: ${{ steps.changes.outputs.src }}
+          DOCS: ${{ steps.changes.outputs.docs }}
+          MD: ${{ steps.changes.outputs.md }}
+          DEPS: ${{ steps.changes.outputs.deps }}
+          CI_SCRIPTS: ${{ steps.changes.outputs.ci_scripts }}
+        run: |
+          set -euo pipefail
+          publish=false
+          for flag in "$SRC" "$DOCS" "$MD" "$DEPS" "$CI_SCRIPTS"; do
+            if [ "$flag" = "true" ]; then publish=true; fi
+          done
+          echo "docs_publish=${publish}" >> "$GITHUB_OUTPUT"
+          echo "docs_publish=${publish}"
+
+  codeql:
+    name: CodeQL
+    uses: ./.github/workflows/codeql.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  sonarcloud:
+    name: SonarCloud
+    uses: ./.github/workflows/sonarcloud.yml
+    permissions:
+      contents: read
+      pull-requests: read
+    secrets: inherit
+
+  workflow-security:
+    name: Workflow security
+    uses: ./.github/workflows/workflow-security.yml
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+  docs:
+    name: Docs
+    needs: changes
+    if: needs.changes.outputs.docs_publish == 'true'
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+  # The whole point of the pipeline: one place that answers "did this merge
+  # land cleanly?". Runs even when something upstream fails, otherwise the
+  # summary would be missing exactly when it is most needed.
+  summary:
+    name: Pipeline summary
+    if: always()
+    needs: [changes, codeql, sonarcloud, workflow-security, docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Render the pipeline DAG and result table
+        env:
+          R_CHANGES: ${{ needs.changes.result }}
+          R_CODEQL: ${{ needs.codeql.result }}
+          R_SONAR: ${{ needs.sonarcloud.result }}
+          R_WFSEC: ${{ needs.workflow-security.result }}
+          R_DOCS: ${{ needs.docs.result }}
+          SHA: ${{ github.sha }}
+        run: bash .github/scripts/ci/pipeline-summary.sh

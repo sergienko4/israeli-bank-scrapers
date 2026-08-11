@@ -1,12 +1,14 @@
 name: Workflow Security Scan
 
 on:
+  # `push: main` intentionally absent — main-pipeline.yml calls this via
+  # workflow_call. A reusable call cannot carry a `paths:` filter, so the
+  # post-merge scan now runs on every merge rather than only on workflow
+  # edits. That is deliberate: it is a ~1 minute security scan, and always
+  # verifying hardening on main is worth more than the saved minute.
+  # PR runs keep the path filter below and are unchanged.
+  workflow_call:
   pull_request:
-    paths:
-      - '.github/workflows/**'
-      - '.github/actions/**'
-  push:
-    branches: [main]
     paths:
       - '.github/workflows/**'
       - '.github/actions/**'

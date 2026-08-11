@@ -186,7 +186,7 @@ full_suite=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
-if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^compatibility\.json$'; then docs=true; fi
+if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then deps=true; fi
