@@ -24,7 +24,45 @@ and release together — covered in
 | **Mock suite (orchestrated)** | `test:mock` | `scripts/run-mock-suite.ts` driving all configured banks | Same fixtures |
 | **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
 | **Build** | `build` | `tsup` ESM + CJS bundle | `lib/index.{mjs,cjs,d.ts,d.cts}` produced |
+| **Memory** | `test:memory` | Peak memory grows more than 10% against the merge base | `.github/scripts/ci/memory-measure.sh` + [`memory-compare.sh`](#memory-regression-gate) |
 | **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
+
+## Memory regression gate
+
+BLUF: the gate compares this PR against its own merge base, not against a
+fixed ceiling.
+
+Peak memory depends on the runner's CPU count, kernel and Node build, so an
+absolute megabyte limit drifts and eventually fails for reasons that have
+nothing to do with the change under review. The `Memory` job instead measures
+**both** sides in the same job on the same runner, which cancels the machine
+out, and fails only when the PR's peak grows by more than `THRESHOLD_PCT`
+(default 10%).
+
+| Knob | Default | Meaning |
+| --- | --- | --- |
+| `MEMORY_WORKLOAD` | `test:memory` | The npm script that gets measured |
+| `MEMORY_SAMPLES` | `2` | Runs per side; the **lowest** is kept |
+| `THRESHOLD_PCT` | `10` | Growth above this percentage fails the gate |
+
+Two details worth knowing when reading a result:
+
+- **Peak resident set size**, read from `/usr/bin/time -v`, covers the process
+  _and_ its children — so Jest workers are counted. `process.memoryUsage()`
+  inside Node would miss them entirely.
+- **The lowest sample wins.** Peak memory is noisy upward (GC timing, page
+  cache pressure, a slow worker start) and never downward, so the minimum is
+  the most stable estimate of what the code actually needs.
+
+If either side cannot be measured, the gate reports "not measured" and
+passes. A measurement that never happened must not masquerade as a 0 MB win,
+and must never block a PR for a reason its author cannot act on.
+
+Reproduce a comparison locally:
+
+```bash
+BASE_MB=512 HEAD_MB=600 THRESHOLD_PCT=10 bash .github/scripts/ci/memory-compare.sh
+```
 
 ## Coverage thresholds
 

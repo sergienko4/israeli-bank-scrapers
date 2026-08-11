@@ -43,9 +43,9 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/4: shellcheck ──"
+echo "── 1/5: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh; do
+  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/4: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/5: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -115,7 +115,7 @@ fi
 # ── 3. docs-site link guard ──
 # Behavioural test, not just shellcheck: the guard's whole value is that
 # it FAILS on a link with no backing page, so assert both directions.
-echo "── 3/4: docs-site link guard ──"
+echo "── 3/5: docs-site link guard ──"
 GUARD="$SCRIPT_DIR/check-docs-links.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -154,7 +154,7 @@ assert_eq "README restored after negative test" "1" "$guard_restored"
 # its exit status is what stops a red merge looking green. Assert the verdict
 # in both directions, plus the release wording that distinguishes "shipped"
 # from "only refreshed the Release PR".
-echo "── 4/4: post-merge pipeline summary ──"
+echo "── 4/5: post-merge pipeline summary ──"
 SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
 SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/pipeline-summary-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE"' EXIT
@@ -189,6 +189,59 @@ assert_eq "failed release exits non-zero" "1" "$rel_fail_exit"
 scan_fail_exit=$(render R_CHANGES=success R_CODEQL=failure R_SONAR=success \
   R_WFSEC=success R_DOCS=skipped R_RELEASE=success RELEASED=false VERSION=)
 assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
+
+# ── 5. memory regression verdict ──
+# This gate can block a PR, so its threshold behaviour is asserted on both
+# sides of the limit. The "not measured" path matters just as much: a
+# measurement that did not happen must never be reported as a 0 MB win, and
+# must never fail a PR for a reason the author cannot act on.
+echo "── 5/5: memory regression verdict ──"
+MEMCMP="$SCRIPT_DIR/memory-compare.sh"
+MEM_FILE="$(mktemp "${TMPDIR:-/tmp}/memory-compare-smoke.XXXXXX")"
+trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"' EXIT
+
+memory() {
+  : > "$MEM_FILE"
+  env "$@" GITHUB_STEP_SUMMARY="$MEM_FILE" bash "$MEMCMP" >/dev/null 2>&1
+  echo "$?"
+}
+
+assert_eq "small growth is allowed" "0" \
+  "$(memory BASE_MB=400 HEAD_MB=420 THRESHOLD_PCT=10)"
+assert_eq "growth beyond the limit fails" "1" \
+  "$(memory BASE_MB=400 HEAD_MB=520 THRESHOLD_PCT=10)"
+
+# Exactly at the limit must pass: the gate fires on "more than", so a PR
+# sitting on the boundary is not blocked by a rounding artefact.
+assert_eq "exactly at the limit passes" "0" \
+  "$(memory BASE_MB=400 HEAD_MB=440 THRESHOLD_PCT=10)"
+assert_eq "one MB over the limit fails" "1" \
+  "$(memory BASE_MB=400 HEAD_MB=441 THRESHOLD_PCT=10)"
+
+assert_eq "an improvement passes" "0" \
+  "$(memory BASE_MB=400 HEAD_MB=350 THRESHOLD_PCT=10)"
+if grep -qF "improved" "$MEM_FILE"; then improved=1; else improved=0; fi
+assert_eq "an improvement is reported as such" "1" "$improved"
+
+# A missing measurement must be visible rather than silently green.
+assert_eq "unmeasured base does not fail the PR" "0" \
+  "$(memory BASE_MB=unavailable HEAD_MB=420 THRESHOLD_PCT=10)"
+if grep -qF "not measured" "$MEM_FILE"; then unmeasured=1; else unmeasured=0; fi
+assert_eq "unmeasured run says so in the summary" "1" "$unmeasured"
+assert_eq "unmeasured head does not fail the PR" "0" \
+  "$(memory BASE_MB=400 HEAD_MB=unavailable THRESHOLD_PCT=10)"
+
+# A zero base would make the percentage a division by zero.
+assert_eq "zero base is treated as unmeasured" "0" \
+  "$(memory BASE_MB=0 HEAD_MB=420 THRESHOLD_PCT=10)"
+
+# The regression summary must carry the numbers, not just a verdict, so the
+# author can see how far over the line the PR is without opening the log.
+memory BASE_MB=400 HEAD_MB=520 THRESHOLD_PCT=10 >/dev/null
+if grep -qF "120 MB" "$MEM_FILE"; then delta_shown=1; else delta_shown=0; fi
+assert_eq "the delta in MB is shown" "1" "$delta_shown"
+if grep -qF "30.0%" "$MEM_FILE"; then pct_shown=1; else pct_shown=0; fi
+assert_eq "the delta percentage is shown" "1" "$pct_shown"
 
 # ── Final summary ──
 echo ""

@@ -382,6 +382,90 @@ jobs:
           retention-days: 7
 
   # ──────────────────────────────────────────────────────────────
+  # Memory regression — measures peak RSS of the memory-sensitive suites
+  # for this PR AND for its merge base, on the SAME runner inside the SAME
+  # job. Peak memory varies with the runner's CPU count and kernel, so an
+  # absolute MB ceiling drifts and eventually fails for reasons unrelated
+  # to the change; measuring both sides together cancels the machine out
+  # and leaves only what the PR did. See memory-compare.sh for the verdict.
+  # ──────────────────────────────────────────────────────────────
+  memory:
+    name: Memory
+    needs: changes
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      MEMORY_WORKLOAD: test:memory
+      MEMORY_SAMPLES: '2'
+      THRESHOLD_PCT: '10'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The base tree is checked out as a second worktree, so the base
+          # commit has to be present locally rather than just the tip.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-test-runner
+        with:
+          camoufox: 'false'
+      - name: Ensure GNU time is available
+        run: |
+          set -euo pipefail
+          # Measured explicitly rather than relying on the runner image: if
+          # this binary silently disappeared the gate would report "not
+          # measured" forever and stop protecting anything.
+          if ! command -v /usr/bin/time > /dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq time
+          fi
+          /usr/bin/time --version
+      - name: Measure this PR
+        id: head
+        run: echo "mb=$(bash .github/scripts/ci/memory-measure.sh .)" >> "$GITHUB_OUTPUT"
+      - name: Check out the merge base
+        id: base_tree
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -uo pipefail
+          # The base SHA comes from the event rather than `HEAD^1`: if the PR
+          # is not cleanly mergeable there is no merge commit to take a first
+          # parent from, and that would silently compare against the wrong
+          # tree instead of failing loudly.
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "::notice::Base commit ${BASE_SHA} is not available - skipping the comparison."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git worktree add ../base "$BASE_SHA"; then
+            echo "::notice::Could not materialise the base tree - skipping the comparison."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Reinstalling is only needed when the PR moved the lockfile.
+          # Otherwise the resolved tree is identical, and sharing it keeps the
+          # two sides comparable as well as fast.
+          if git diff --quiet "$BASE_SHA" HEAD -- package.json package-lock.json; then
+            ln -s "$PWD/node_modules" ../base/node_modules
+          else
+            echo "Dependencies changed - installing the base tree separately."
+            (cd ../base && npm ci --no-audit --no-fund)
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Measure the merge base
+        id: base
+        if: steps.base_tree.outputs.ready == 'true'
+        run: echo "mb=$(bash .github/scripts/ci/memory-measure.sh ../base)" >> "$GITHUB_OUTPUT"
+      - name: Compare against the merge base
+        env:
+          BASE_MB: ${{ steps.base.outputs.mb }}
+          HEAD_MB: ${{ steps.head.outputs.mb }}
+        run: bash .github/scripts/ci/memory-compare.sh
+
+  # ──────────────────────────────────────────────────────────────
   # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
   # Also runs on dependency-only PRs (`deps`) so runtime-dep bumps that
   # touch no `src/` file are still validated against the real Camoufox
@@ -559,6 +643,7 @@ jobs:
       - changes
       - lint-and-types
       - unit-tests
+      - memory
       - e2e-factory
       - e2e-mocked
       - bank-coverage
