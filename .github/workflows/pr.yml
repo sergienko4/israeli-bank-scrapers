@@ -392,7 +392,10 @@ jobs:
   memory:
     name: Memory
     needs: changes
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true'
+    # `ci_scripts` is included so that a change to this gate always exercises
+    # it. Without that, the job that measures memory could be modified and
+    # merged without ever having run.
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
