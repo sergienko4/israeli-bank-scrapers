@@ -99,7 +99,13 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    secrets: inherit
+    # Explicit passthrough, not `secrets: inherit` — inherit would hand the
+    # callee every repo secret (npm tokens, bank E2E credentials) when it
+    # only needs these three. Closes zizmor `secrets-inherit`.
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORG: ${{ secrets.SONAR_ORG }}
+      SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
 
   workflow-security:
     name: Workflow security

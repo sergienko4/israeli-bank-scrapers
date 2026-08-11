@@ -15,6 +15,20 @@ on:
   # protection requires comes from the `pull_request` trigger below and is
   # unaffected.
   workflow_call:
+    # Declared explicitly rather than relying on `secrets: inherit` at the
+    # call site: inherit hands the callee *every* repo secret, which zizmor
+    # flags (`secrets-inherit`) because it widens the blast radius of a
+    # compromised action far beyond the three Sonar credentials this
+    # workflow actually reads. Optional so the `pull_request` /
+    # `workflow_dispatch` triggers below keep resolving them from repo
+    # secrets; the "Verify secrets" step already fails loudly if unset.
+    secrets:
+      SONAR_TOKEN:
+        required: false
+      SONAR_ORG:
+        required: false
+      SONAR_PROJECT_KEY:
+        required: false
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
