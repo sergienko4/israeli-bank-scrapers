@@ -27,11 +27,13 @@ name: Main Pipeline
 # flaky Sonar run could never block cutting a release. The DAG reports both
 # branches; it does not couple them.
 #
-# npm Trusted Publishing: this file is the publisher identity. npm validates
-# the OIDC token's *caller* claim (`workflow_ref`), not the file containing
-# the publish step (`job_workflow_ref` — npm/documentation#1755). Because
-# `release.yml` is invoked from here, the trusted publisher configured on
-# npmjs.com must name **main-pipeline.yml**. Renaming this file, or moving
+# npm Trusted Publishing: this file is the publisher identity. npm's docs are
+# explicit that for `workflow_call`, "validation checks the calling workflow's
+# name instead of the workflow that actually contains the publish command", and
+# that `id-token: write` "must also be given to both parent and child
+# workflows" (https://docs.npmjs.com/trusted-publishers/, Troubleshooting).
+# Because `release.yml` is invoked from here, the trusted publisher configured
+# on npmjs.com must name **main-pipeline.yml**. Renaming this file, or moving
 # the release call into another workflow, breaks publishing until that
 # setting is repointed.
 

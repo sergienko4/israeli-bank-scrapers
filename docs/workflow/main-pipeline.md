@@ -82,16 +82,36 @@ Six post-merge workflows became one.
 
 ## npm Trusted Publishing — the one external prerequisite
 
-`release.yml` publishes with `npm publish --provenance` using **npm Trusted
-Publishing**, which authenticates over OIDC. npm validates the token's
-**caller** claim (`workflow_ref`) — *not* `job_workflow_ref`, the file that
-actually contains the publish step. Supporting the latter is still an open
-request ([npm/documentation#1755](https://github.com/npm/documentation/issues/1755)).
+`release.yml` publishes with **npm Trusted Publishing**, which authenticates
+over OIDC. npm validates the token's **caller** claim — the workflow that
+*starts* the run, not the file that contains the publish step. npm's own
+[troubleshooting guide](https://docs.npmjs.com/trusted-publishers/) is explicit:
+
+> Some GitHub Actions workflows use `workflow_call` to invoke other workflows
+> that run `npm publish` […] validation checks the calling workflow's name
+> instead of the workflow that actually contains the publish command […] The
+> `id-token: write` permission must also be given to both parent and child
+> workflows.
 
 So calling `release.yml` from here moves the publisher identity to the caller:
 
 > The trusted publisher configured on npmjs.com must name
 > **`main-pipeline.yml`**, not `release.yml`.
+
+### What the workflows must keep satisfying
+
+| Requirement | Where it is met |
+|---|---|
+| `id-token: write` on the **parent** | the `release` job in `main-pipeline.yml` |
+| `id-token: write` on the **child** | the `publish` job in `release.yml` |
+| GitHub-hosted runner (self-hosted unsupported) | `runs-on: ubuntu-latest` |
+| npm ≥ 11.5.1 for the OIDC exchange | `npm install -g npm@11.11.0`, pinned and signature-checked |
+| Node from a single source of truth | `node-version-file: .nvmrc` |
+| `repository.url` matching the GitHub repo exactly | `package.json` |
+
+Dropping any row breaks publishing with `ENEEDAUTH`. The parent/child
+`id-token` pair is the easy one to lose, because the parent grant looks
+redundant until you remember the token is minted for the *caller*.
 
 Consequences to keep in mind:
 
