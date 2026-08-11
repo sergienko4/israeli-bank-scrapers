@@ -30,10 +30,15 @@ a Markdown matrix suitable for pasting into a PR body.
 
 ## On a pull request, CI does this for you
 
-The `Decoupling` job in `pr.yml` is a required check. On every PR it measures
-the branch, measures the merge base in a worktree, and fails when a ratchet
-goes backwards (import cycles, canaries, ESLint rules, `any` usages) or average
-fan-out grows by more than 10%. The full matrix is posted to the job summary.
+The `Decoupling` job in `pr.yml` is a required dependency of `Validate`. It
+measures the branch, measures the merge base in a worktree, and fails when a
+ratchet goes backwards (import cycles, canaries, ESLint rules, `any` usages) or
+average fan-out grows by more than 10%. The full matrix is posted to the job
+summary.
+
+It is skipped when the changed files cannot move the numbers — it runs only for
+the `full_suite`, `metrics` and `ci_scripts` file groups, so a docs-only PR does
+not pay for a measurement whose result is known in advance.
 
 It compares against the **merge base**, not `baseline.json`, and that is
 deliberate — see the next section. You do not need to run anything by hand to
@@ -57,12 +62,23 @@ rather than diffing against `baseline.json`:
 
 ```bash
 git worktree add /tmp/base "$(git merge-base origin/main HEAD)"
-node scripts/decoupling-metrics/measure.mjs /tmp/base pre
-node scripts/decoupling-metrics/measure.mjs . post
+node scripts/decoupling-metrics/measure.mjs /tmp/base pre pre.json
+node scripts/decoupling-metrics/measure.mjs . post post.json
 node scripts/decoupling-metrics/diff.mjs \
-  scripts/decoupling-metrics/snapshots/<pre>.json \
-  scripts/decoupling-metrics/snapshots/<post>.json
+  scripts/decoupling-metrics/snapshots/pre.json \
+  scripts/decoupling-metrics/snapshots/post.json
 git worktree remove /tmp/base
+```
+
+The third argument names the output file; without it `measure.mjs` falls back to
+`<sha>-<label>.json` and the paths above cannot be copied verbatim. `diff.mjs`
+prints the matrix — to get the pass/fail verdict CI reports, run the gate
+itself over the same two snapshots:
+
+```bash
+BASE_SNAPSHOT=scripts/decoupling-metrics/snapshots/pre.json \
+HEAD_SNAPSHOT=scripts/decoupling-metrics/snapshots/post.json \
+GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/decoupling-compare.sh
 ```
 
 Both snapshots are gitignored, so this leaves the committed baseline untouched.

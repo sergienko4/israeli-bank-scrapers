@@ -75,7 +75,8 @@ and must never block a PR for a reason its author cannot act on.
 Reproduce a comparison locally:
 
 ```bash
-BASE_MB=512 HEAD_MB=600 THRESHOLD_PCT=10 bash .github/scripts/ci/memory-compare.sh
+BASE_MB=512 HEAD_MB=600 THRESHOLD_PCT=10 \
+GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/memory-compare.sh
 ```
 
 ## Decoupling regression gate
@@ -85,8 +86,9 @@ never get weaker.
 
 The `Decoupling` job measures the architecture of the PR **and** of its merge
 base, using HEAD's copy of the measuring tool for both sides so a change to
-the tool cannot masquerade as a change in the code. It runs in seconds because
-`measure.mjs` imports only Node builtins — neither tree needs `npm ci`.
+the tool cannot masquerade as a change in the code. `measure.mjs` parses
+TypeScript, so HEAD's dependencies are installed before it runs. The base
+worktree needs no install of its own: it is only ever read by HEAD's tool.
 
 Comparison is against the merge base rather than the committed
 `snapshots/baseline.json`. That baseline is a rolling reference refreshed by
@@ -127,7 +129,7 @@ Reproduce a comparison locally:
 
 ```bash
 node scripts/decoupling-metrics/measure.mjs . head head.json
-git worktree add ../base origin/main
+git worktree add ../base "$(git merge-base origin/main HEAD)"
 node scripts/decoupling-metrics/measure.mjs ../base base base.json
 BASE_SNAPSHOT=scripts/decoupling-metrics/snapshots/base.json \
 HEAD_SNAPSHOT=scripts/decoupling-metrics/snapshots/head.json \
