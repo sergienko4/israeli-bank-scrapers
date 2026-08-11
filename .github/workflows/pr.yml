@@ -164,6 +164,7 @@ jobs:
       deps: ${{ steps.changes.outputs.deps }}
       test_config: ${{ steps.changes.outputs.test_config }}
       critical_deps: ${{ steps.changes.outputs.critical_deps }}
+      metrics: ${{ steps.changes.outputs.metrics }}
       # `full_suite` = src OR critical_deps. Every heavy job gates on THIS,
       # so a playwright-core / Camoufox bump runs the same flow a src/ PR
       # does — those packages are the runtime for all 17 banks.
@@ -482,6 +483,100 @@ jobs:
         run: bash .github/scripts/ci/memory-compare.sh
 
   # ──────────────────────────────────────────────────────────────
+  # Decoupling regression — measures the architecture of this PR AND of its
+  # merge base, then refuses changes that loosen it.
+  #
+  # Against the merge base rather than the committed baseline snapshot: that
+  # baseline is refreshed by hand, so it drifts behind main and a diff against
+  # it measures everything merged since it was taken. The merge base is exact
+  # and needs no maintenance.
+  #
+  # Guardrail metrics are ratchets, not budgets — a new import cycle, a new
+  # `any`, or a deleted canary / ESLint rule fails outright. See
+  # decoupling-compare.sh for the policy.
+  # ──────────────────────────────────────────────────────────────
+  decoupling:
+    name: Decoupling
+    needs: changes
+    # `metrics` and `ci_scripts` are included so a change to the measuring
+    # tool or to this gate always exercises it. Without them the thing that
+    # detects architectural regressions could be weakened and merged without
+    # ever having run.
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.metrics == 'true' || needs.changes.outputs.ci_scripts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      THRESHOLD_PCT: '10'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The base tree is checked out as a second worktree, so the base
+          # commit has to be present locally rather than just the tip.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .nvmrc
+      # No `npm ci`: the measuring tool imports only Node builtins and its own
+      # lib/, so both trees can be measured without installing anything. That
+      # is what keeps this gate at seconds rather than minutes.
+      - name: Measure this PR
+        run: node scripts/decoupling-metrics/measure.mjs . head head.json
+      - name: Check out the merge base
+        id: base_tree
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # The base SHA comes from the event rather than `HEAD^1`: if the PR
+          # is not cleanly mergeable there is no merge commit to take a first
+          # parent from, and that would silently compare against the wrong
+          # tree instead of failing loudly.
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "::notice::Base commit ${BASE_SHA} is not available - skipping the comparison."
+            exit 0
+          fi
+          git worktree add ../base "$BASE_SHA" \
+            || echo "::notice::Could not materialise the base tree - skipping the comparison."
+      # HEAD's copy of the tool measures BOTH trees, so a change to the tool
+      # itself cannot masquerade as a change in the architecture.
+      - name: Measure the merge base
+        run: |
+          set -euo pipefail
+          if [ ! -d ../base ]; then
+            exit 0
+          fi
+          # A base tree that cannot be measured must not block the PR. Drop any
+          # half-written snapshot so the comparison reports "not measured"
+          # rather than failing on invalid JSON, which is reserved for a tool
+          # that is genuinely broken.
+          if ! node scripts/decoupling-metrics/measure.mjs ../base base base.json; then
+            rm -f scripts/decoupling-metrics/snapshots/base.json
+            echo "::notice::Could not measure the merge base - skipping the comparison."
+          fi
+      - name: Compare against the merge base
+        env:
+          BASE_SNAPSHOT: scripts/decoupling-metrics/snapshots/base.json
+          HEAD_SNAPSHOT: scripts/decoupling-metrics/snapshots/head.json
+        run: bash .github/scripts/ci/decoupling-compare.sh
+      - name: Append the full decoupling matrix
+        if: hashFiles('scripts/decoupling-metrics/snapshots/base.json') != ''
+        run: |
+          set -euo pipefail
+          {
+            echo ""
+            echo "<details><summary>Full decoupling matrix</summary>"
+            echo ""
+            node scripts/decoupling-metrics/diff.mjs \
+              scripts/decoupling-metrics/snapshots/base.json \
+              scripts/decoupling-metrics/snapshots/head.json
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ──────────────────────────────────────────────────────────────
   # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
   # Also runs on dependency-only PRs (`deps`) so runtime-dep bumps that
   # touch no `src/` file are still validated against the real Camoufox
@@ -660,6 +755,7 @@ jobs:
       - lint-and-types
       - unit-tests
       - memory
+      - decoupling
       - e2e-factory
       - e2e-mocked
       - bank-coverage

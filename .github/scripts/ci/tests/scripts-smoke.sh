@@ -43,9 +43,9 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/5: shellcheck ──"
+echo "── 1/6: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh; do
+  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/5: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/6: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -115,7 +115,7 @@ fi
 # ── 3. docs-site link guard ──
 # Behavioural test, not just shellcheck: the guard's whole value is that
 # it FAILS on a link with no backing page, so assert both directions.
-echo "── 3/5: docs-site link guard ──"
+echo "── 3/6: docs-site link guard ──"
 GUARD="$SCRIPT_DIR/check-docs-links.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -154,7 +154,7 @@ assert_eq "README restored after negative test" "1" "$guard_restored"
 # its exit status is what stops a red merge looking green. Assert the verdict
 # in both directions, plus the release wording that distinguishes "shipped"
 # from "only refreshed the Release PR".
-echo "── 4/5: post-merge pipeline summary ──"
+echo "── 4/6: post-merge pipeline summary ──"
 SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
 SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/pipeline-summary-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE"' EXIT
@@ -195,7 +195,7 @@ assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
 # sides of the limit. The "not measured" path matters just as much: a
 # measurement that did not happen must never be reported as a 0 MB win, and
 # must never fail a PR for a reason the author cannot act on.
-echo "── 5/5: memory regression verdict ──"
+echo "── 5/6: memory regression verdict ──"
 MEMCMP="$SCRIPT_DIR/memory-compare.sh"
 MEM_FILE="$(mktemp "${TMPDIR:-/tmp}/memory-compare-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"' EXIT
@@ -248,6 +248,84 @@ if grep -qF "120 MB" "$MEM_FILE"; then delta_shown=1; else delta_shown=0; fi
 assert_eq "the delta in MB is shown" "1" "$delta_shown"
 if grep -qF "30.0%" "$MEM_FILE"; then pct_shown=1; else pct_shown=0; fi
 assert_eq "the delta percentage is shown" "1" "$pct_shown"
+
+# ── 6. decoupling regression verdict ──
+# This gate can also block a PR. Guardrails here are RATCHETS rather than
+# budgets, so each one is asserted in both directions: weakening must fail,
+# strengthening must pass. The distinction between "could not measure"
+# (skip, exit 0) and "measured garbage" (fail loudly, exit 2) is asserted
+# too — collapsing the two would let a broken tool disable the gate.
+echo "── 6/6: decoupling regression verdict ──"
+DECCMP="$SCRIPT_DIR/decoupling-compare.sh"
+DEC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/decoupling-smoke.XXXXXX")"
+trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR"' EXIT
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "  ! jq not installed — skipping decoupling assertions"
+else
+  cat > "$DEC_DIR/base.json" <<'JSON'
+{
+  "summary": { "files": 1000, "edges": 5000 },
+  "runtimeSummary": { "files": 1000, "edges": 2500, "avgFanOut": 2.5 },
+  "cycles": { "count": 0, "largest": 0 },
+  "guardrails": { "canaries": 75, "eslintRules": 170, "anyUsages": 1 }
+}
+JSON
+
+  # Each case starts from the same base and mutates exactly one thing, so a
+  # failure names the metric that broke rather than a whole snapshot.
+  decoupling() {
+    local filter="$1"
+    jq "$filter" "$DEC_DIR/base.json" > "$DEC_DIR/head.json"
+    BASE_SNAPSHOT="$DEC_DIR/base.json" HEAD_SNAPSHOT="$DEC_DIR/head.json" \
+      THRESHOLD_PCT=10 GITHUB_STEP_SUMMARY="$DEC_DIR/summary.md" \
+      bash "$DECCMP" >/dev/null 2>&1
+    echo "$?"
+  }
+
+  assert_eq "an unchanged architecture passes" "0" "$(decoupling '.')"
+
+  # Ratchets — the weakening direction must fail.
+  assert_eq "a new import cycle fails" "1" "$(decoupling '.cycles.count = 1')"
+  assert_eq "a new any usage fails" "1" "$(decoupling '.guardrails.anyUsages += 1')"
+  assert_eq "a deleted canary fails" "1" "$(decoupling '.guardrails.canaries -= 1')"
+  assert_eq "a deleted eslint rule fails" "1" "$(decoupling '.guardrails.eslintRules -= 1')"
+
+  # Ratchets — the strengthening direction must pass, or the gate would
+  # punish exactly the changes it exists to encourage.
+  assert_eq "removing an any passes" "0" "$(decoupling '.guardrails.anyUsages = 0')"
+  assert_eq "adding a canary passes" "0" "$(decoupling '.guardrails.canaries += 1')"
+  assert_eq "adding an eslint rule passes" "0" "$(decoupling '.guardrails.eslintRules += 1')"
+
+  # Fan-out is a tolerance band, not a ratchet: adding code moves it a little.
+  assert_eq "fan-out drift within tolerance passes" "0" \
+    "$(decoupling '.runtimeSummary.avgFanOut = 2.6')"
+  assert_eq "fan-out growth beyond tolerance fails" "1" \
+    "$(decoupling '.runtimeSummary.avgFanOut = 3.2')"
+
+  # Growth itself is not a regression — a feature adds files and edges.
+  assert_eq "proportional growth passes" "0" \
+    "$(decoupling '.summary.files += 50 | .summary.edges += 250 | .runtimeSummary.edges += 125')"
+
+  # Degradation paths.
+  BASE_SNAPSHOT="$DEC_DIR/missing.json" HEAD_SNAPSHOT="$DEC_DIR/base.json" \
+    GITHUB_STEP_SUMMARY="$DEC_DIR/summary.md" bash "$DECCMP" >/dev/null 2>&1
+  assert_eq "an unmeasured base does not fail the PR" "0" "$?"
+  if grep -qF "not measured" "$DEC_DIR/summary.md"; then dec_unmeasured=1; else dec_unmeasured=0; fi
+  assert_eq "an unmeasured run says so in the summary" "1" "$dec_unmeasured"
+
+  # A present-but-unparseable snapshot is a broken tool, not a skip.
+  printf 'not json' > "$DEC_DIR/garbage.json"
+  BASE_SNAPSHOT="$DEC_DIR/base.json" HEAD_SNAPSHOT="$DEC_DIR/garbage.json" \
+    GITHUB_STEP_SUMMARY="$DEC_DIR/summary.md" bash "$DECCMP" >/dev/null 2>&1
+  assert_eq "a malformed snapshot fails loudly" "2" "$?"
+
+  # The summary must carry the numbers so the author can act without
+  # opening the job log.
+  decoupling '.cycles.count = 2' >/dev/null
+  if grep -qF "Runtime import cycles" "$DEC_DIR/summary.md"; then dec_named=1; else dec_named=0; fi
+  assert_eq "the failing metric is named in the summary" "1" "$dec_named"
+fi
 
 # ── Final summary ──
 echo ""

@@ -25,9 +25,47 @@ node scripts/decoupling-metrics/diff.mjs \
 
 The third argument is an explicit output filename. Without it `measure.mjs`
 writes `snapshots/<sha8>-<label>.json`, which stays gitignored; passing
-`baseline.json` writes the one snapshot that _is_ committed and that every
-future diff compares against. `diff.mjs` prints a Markdown matrix suitable for
-pasting into a PR body.
+`baseline.json` writes the one snapshot that _is_ committed. `diff.mjs` prints
+a Markdown matrix suitable for pasting into a PR body.
+
+## On a pull request, CI does this for you
+
+The `Decoupling` job in `pr.yml` is a required check. On every PR it measures
+the branch, measures the merge base in a worktree, and fails when a ratchet
+goes backwards (import cycles, canaries, ESLint rules, `any` usages) or average
+fan-out grows by more than 10%. The full matrix is posted to the job summary.
+
+It compares against the **merge base**, not `baseline.json`, and that is
+deliberate — see the next section. You do not need to run anything by hand to
+get a per-PR verdict.
+
+## Why the committed baseline is not the reference for a PR
+
+`baseline.json` is a _rolling_ reference for judging `main` over time, not a
+per-PR yardstick. Regenerate it on `main` after a merge so it keeps tracking
+reality.
+
+Left to drift, it silently stops answering the question it was built for. A
+baseline eight days stale reported `+48 files / +138 runtime edges` for a PR
+that touched no production code at all — that delta was every PR merged in
+between, not the one under review. The verdict looked alarming and meant
+nothing. That failure is exactly why the CI gate diffs against the merge base
+instead.
+
+To reproduce the gate's verdict locally, snapshot the merge base directly
+rather than diffing against `baseline.json`:
+
+```bash
+git worktree add /tmp/base "$(git merge-base origin/main HEAD)"
+node scripts/decoupling-metrics/measure.mjs /tmp/base pre
+node scripts/decoupling-metrics/measure.mjs . post
+node scripts/decoupling-metrics/diff.mjs \
+  scripts/decoupling-metrics/snapshots/<pre>.json \
+  scripts/decoupling-metrics/snapshots/<post>.json
+git worktree remove /tmp/base
+```
+
+Both snapshots are gitignored, so this leaves the committed baseline untouched.
 
 ## What it measures
 

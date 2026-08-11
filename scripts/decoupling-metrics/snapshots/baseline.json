@@ -1,33 +1,33 @@
 {
   "label": "baseline",
-  "gitCommitHash": "b83cf5549dd9c204895395b59f35e74e98a9f82d",
-  "capturedAt": "2026-08-04T10:21:51.314Z",
+  "gitCommitHash": "3969720223786485049abfa4ab6d3cc14db304ba",
+  "capturedAt": "2026-08-11T15:36:25.227Z",
   "summary": {
-    "files": 1643,
-    "edges": 6118,
-    "avgFanOut": 3.72,
+    "files": 1691,
+    "edges": 6306,
+    "avgFanOut": 3.73,
     "topFanIn": [
       {
         "file": "src/Scrapers/Pipeline/Types/Procedure.ts",
-        "fanIn": 415,
+        "fanIn": 435,
         "fanOut": 4,
-        "instability": 0.01
+        "instability": 0.009
       },
       {
         "file": "src/Scrapers/Pipeline/Types/PipelineContext.ts",
-        "fanIn": 373,
+        "fanIn": 382,
         "fanOut": 25,
-        "instability": 0.063
+        "instability": 0.061
       },
       {
         "file": "src/Scrapers/Pipeline/Types/Option.ts",
-        "fanIn": 195,
+        "fanIn": 199,
         "fanOut": 0,
         "instability": 0
       },
       {
         "file": "src/Scrapers/Base/ErrorTypes.ts",
-        "fanIn": 164,
+        "fanIn": 174,
         "fanOut": 0,
         "instability": 0
       },
@@ -39,39 +39,39 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Types/Debug.ts",
-        "fanIn": 153,
+        "fanIn": 157,
         "fanOut": 1,
         "instability": 0.006
       },
       {
         "file": "src/Scrapers/Base/ScraperError.ts",
-        "fanIn": 111,
+        "fanIn": 114,
         "fanOut": 0,
         "instability": 0
       },
       {
         "file": "src/Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.ts",
-        "fanIn": 95,
+        "fanIn": 98,
         "fanOut": 5,
-        "instability": 0.05
+        "instability": 0.049
       },
       {
         "file": "src/Definitions.ts",
-        "fanIn": 91,
+        "fanIn": 93,
         "fanOut": 0,
         "instability": 0
       },
       {
         "file": "src/Tests/Unit/Pipeline/Infrastructure/MockFactories.ts",
-        "fanIn": 90,
+        "fanIn": 92,
         "fanOut": 12,
-        "instability": 0.118
+        "instability": 0.115
       },
       {
         "file": "src/Scrapers/Base/Interface.ts",
-        "fanIn": 87,
+        "fanIn": 90,
         "fanOut": 11,
-        "instability": 0.112
+        "instability": 0.109
       },
       {
         "file": "src/Scrapers/Pipeline/Types/Brand.ts",
@@ -80,16 +80,16 @@
         "instability": 0
       },
       {
-        "file": "src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.ts",
-        "fanIn": 70,
-        "fanOut": 1,
-        "instability": 0.014
+        "file": "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.ts",
+        "fanIn": 72,
+        "fanOut": 2,
+        "instability": 0.027
       },
       {
-        "file": "src/Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.ts",
-        "fanIn": 70,
-        "fanOut": 2,
-        "instability": 0.028
+        "file": "src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.ts",
+        "fanIn": 69,
+        "fanOut": 1,
+        "instability": 0.014
       },
       {
         "file": "src/Tests/Unit/Scrapers/Pipeline/MockPipelineFactories.ts",
@@ -117,9 +117,9 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts",
-        "fanIn": 60,
+        "fanIn": 61,
         "fanOut": 4,
-        "instability": 0.063
+        "instability": 0.062
       },
       {
         "file": "src/Scrapers/Base/Interfaces/Config/LoginConfig.ts",
@@ -135,15 +135,15 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/ScrapeWK.ts",
-        "fanIn": 47,
+        "fanIn": 48,
         "fanOut": 1,
-        "instability": 0.021
+        "instability": 0.02
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
-        "fanIn": 45,
+        "fanIn": 46,
         "fanOut": 13,
-        "instability": 0.224
+        "instability": 0.22
       },
       {
         "file": "src/Scrapers/Base/Config/LoginConfigTypes.ts",
@@ -153,23 +153,23 @@
       },
       {
         "file": "src/Tests/Unit/Pipeline/Infrastructure/TestHelpers.ts",
-        "fanIn": 39,
+        "fanIn": 40,
         "fanOut": 6,
-        "instability": 0.133
+        "instability": 0.13
       }
     ],
     "topFanOut": [
       {
         "file": "src/Scrapers/Pipeline/Types/PipelineContext.ts",
-        "fanIn": 373,
+        "fanIn": 382,
         "fanOut": 25,
-        "instability": 0.063
+        "instability": 0.061
       },
       {
         "file": "src/Scrapers/Base/BaseScraperWithBrowser.ts",
-        "fanIn": 6,
+        "fanIn": 5,
         "fanOut": 18,
-        "instability": 0.75
+        "instability": 0.783
       },
       {
         "file": "src/Scrapers/Pipeline/Core/Builder/StepResolvers.ts",
@@ -232,6 +232,12 @@
         "instability": 0.778
       },
       {
+        "file": "src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.ts",
+        "fanIn": 4,
+        "fanOut": 14,
+        "instability": 0.778
+      },
+      {
         "file": "src/Scrapers/Pipeline/Types/PiiRedactor.ts",
         "fanIn": 29,
         "fanOut": 14,
@@ -257,15 +263,9 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
-        "fanIn": 45,
+        "fanIn": 46,
         "fanOut": 13,
-        "instability": 0.224
-      },
-      {
-        "file": "src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.ts",
-        "fanIn": 4,
-        "fanOut": 13,
-        "instability": 0.765
+        "instability": 0.22
       },
       {
         "file": "src/Tests/Unit/Pipeline/Banks/PayBox/PayBoxShape.test.ts",
@@ -312,49 +312,49 @@
     ]
   },
   "runtimeSummary": {
-    "files": 1643,
-    "edges": 4118,
-    "avgFanOut": 2.51,
+    "files": 1691,
+    "edges": 4256,
+    "avgFanOut": 2.52,
     "topFanIn": [
       {
         "file": "src/Scrapers/Pipeline/Types/Procedure.ts",
-        "fanIn": 348,
+        "fanIn": 367,
         "fanOut": 2,
-        "instability": 0.006
+        "instability": 0.005
       },
       {
         "file": "src/Scrapers/Pipeline/Types/Option.ts",
-        "fanIn": 176,
+        "fanIn": 180,
         "fanOut": 0,
         "instability": 0
       },
       {
         "file": "src/Scrapers/Base/ErrorTypes.ts",
-        "fanIn": 160,
+        "fanIn": 170,
         "fanOut": 0,
         "instability": 0
       },
       {
         "file": "src/Scrapers/Base/ScraperError.ts",
-        "fanIn": 111,
+        "fanIn": 114,
         "fanOut": 0,
         "instability": 0
       },
       {
         "file": "src/Tests/Unit/Pipeline/Infrastructure/MockFactories.ts",
-        "fanIn": 90,
+        "fanIn": 92,
         "fanOut": 2,
-        "instability": 0.022
+        "instability": 0.021
       },
       {
         "file": "src/Scrapers/Pipeline/Types/Debug.ts",
-        "fanIn": 88,
+        "fanIn": 90,
         "fanOut": 1,
         "instability": 0.011
       },
       {
         "file": "src/Definitions.ts",
-        "fanIn": 76,
+        "fanIn": 78,
         "fanOut": 0,
         "instability": 0
       },
@@ -372,15 +372,21 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/ScrapeWK.ts",
-        "fanIn": 47,
+        "fanIn": 48,
         "fanOut": 1,
-        "instability": 0.021
+        "instability": 0.02
       },
       {
         "file": "src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts",
-        "fanIn": 46,
+        "fanIn": 47,
         "fanOut": 2,
-        "instability": 0.042
+        "instability": 0.041
+      },
+      {
+        "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
+        "fanIn": 46,
+        "fanOut": 13,
+        "instability": 0.22
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Elements/ElementMediator.ts",
@@ -389,16 +395,10 @@
         "instability": 0
       },
       {
-        "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
-        "fanIn": 45,
-        "fanOut": 13,
-        "instability": 0.224
-      },
-      {
         "file": "src/Tests/Unit/Pipeline/Infrastructure/TestHelpers.ts",
-        "fanIn": 39,
+        "fanIn": 40,
         "fanOut": 3,
-        "instability": 0.071
+        "instability": 0.07
       },
       {
         "file": "src/index.ts",
@@ -420,7 +420,7 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Types/ErrorUtils.ts",
-        "fanIn": 28,
+        "fanIn": 30,
         "fanOut": 0,
         "instability": 0
       },
@@ -437,28 +437,28 @@
         "instability": 0.1
       },
       {
-        "file": "src/Tests/TestConstants.ts",
+        "file": "src/Tests/Helpers/AssertProcedure.ts",
         "fanIn": 27,
         "fanOut": 0,
         "instability": 0
       },
       {
-        "file": "src/Scrapers/Base/Errors.ts",
-        "fanIn": 24,
-        "fanOut": 1,
-        "instability": 0.04
-      },
-      {
-        "file": "src/Tests/Helpers/AssertProcedure.ts",
-        "fanIn": 24,
+        "file": "src/Tests/TestConstants.ts",
+        "fanIn": 26,
         "fanOut": 0,
         "instability": 0
       },
       {
         "file": "src/Tests/E2eReal/Helpers.ts",
-        "fanIn": 22,
+        "fanIn": 24,
         "fanOut": 4,
-        "instability": 0.154
+        "instability": 0.143
+      },
+      {
+        "file": "src/Scrapers/Base/Errors.ts",
+        "fanIn": 23,
+        "fanOut": 1,
+        "instability": 0.042
       },
       {
         "file": "src/Transactions.ts",
@@ -482,9 +482,9 @@
       },
       {
         "file": "src/Scrapers/Base/BaseScraperWithBrowser.ts",
-        "fanIn": 6,
+        "fanIn": 5,
         "fanOut": 14,
-        "instability": 0.7
+        "instability": 0.737
       },
       {
         "file": "src/Scrapers/Pipeline/Types/PiiRedactor.ts",
@@ -500,9 +500,9 @@
       },
       {
         "file": "src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts",
-        "fanIn": 45,
+        "fanIn": 46,
         "fanOut": 13,
-        "instability": 0.224
+        "instability": 0.22
       },
       {
         "file": "src/Scrapers/Pipeline/Phases/Base/BasePhase.ts",
@@ -623,28 +623,28 @@
   "clusters": [
     {
       "cluster": "src/Tests/Unit/Pipeline",
-      "files": 498,
-      "loc": 88832,
-      "internalEdges": 261,
-      "outgoing": 1758,
+      "files": 525,
+      "loc": 93289,
+      "internalEdges": 272,
+      "outgoing": 1846,
       "incoming": 2,
-      "cohesion": 0.129
+      "cohesion": 0.128
     },
     {
       "cluster": "src/Scrapers/Pipeline/Mediator",
-      "files": 454,
-      "loc": 51255,
-      "internalEdges": 1105,
-      "outgoing": 803,
-      "incoming": 770,
-      "cohesion": 0.579
+      "files": 460,
+      "loc": 52490,
+      "internalEdges": 1119,
+      "outgoing": 817,
+      "incoming": 804,
+      "cohesion": 0.578
     },
     {
       "cluster": "src/Tests/Unit",
-      "files": 43,
-      "loc": 9060,
+      "files": 46,
+      "loc": 9404,
       "internalEdges": 0,
-      "outgoing": 136,
+      "outgoing": 142,
       "incoming": 0,
       "cohesion": 0
     },
@@ -659,12 +659,12 @@
     },
     {
       "cluster": "src/Scrapers/Pipeline/Banks",
-      "files": 95,
-      "loc": 7215,
-      "internalEdges": 128,
-      "outgoing": 271,
-      "incoming": 136,
-      "cohesion": 0.321
+      "files": 97,
+      "loc": 7858,
+      "internalEdges": 131,
+      "outgoing": 283,
+      "incoming": 144,
+      "cohesion": 0.316
     },
     {
       "cluster": "src/Scrapers/Pipeline/EslintCanaries",
@@ -674,6 +674,15 @@
       "outgoing": 11,
       "incoming": 0,
       "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Strategy",
+      "files": 38,
+      "loc": 5096,
+      "internalEdges": 66,
+      "outgoing": 152,
+      "incoming": 141,
+      "cohesion": 0.303
     },
     {
       "cluster": "src/Tests/Unit/Scrapers",
@@ -686,12 +695,12 @@
     },
     {
       "cluster": "src/Scrapers/Pipeline/Phases",
-      "files": 38,
-      "loc": 4316,
-      "internalEdges": 30,
-      "outgoing": 188,
-      "incoming": 160,
-      "cohesion": 0.138
+      "files": 39,
+      "loc": 4499,
+      "internalEdges": 34,
+      "outgoing": 193,
+      "incoming": 168,
+      "cohesion": 0.15
     },
     {
       "cluster": "src/Scrapers/Pipeline/Types",
@@ -699,17 +708,8 @@
       "loc": 4256,
       "internalEdges": 110,
       "outgoing": 22,
-      "incoming": 1474,
+      "incoming": 1516,
       "cohesion": 0.833
-    },
-    {
-      "cluster": "src/Scrapers/Pipeline/Strategy",
-      "files": 32,
-      "loc": 4182,
-      "internalEdges": 57,
-      "outgoing": 144,
-      "incoming": 127,
-      "cohesion": 0.284
     },
     {
       "cluster": "src/Tests/Integration/Tools",
@@ -722,29 +722,29 @@
     },
     {
       "cluster": "src/Tests/E2eReal",
-      "files": 26,
-      "loc": 3448,
-      "internalEdges": 35,
-      "outgoing": 76,
-      "incoming": 5,
-      "cohesion": 0.315
+      "files": 28,
+      "loc": 3634,
+      "internalEdges": 43,
+      "outgoing": 80,
+      "incoming": 9,
+      "cohesion": 0.35
     },
     {
       "cluster": "src/Scrapers/Pipeline/Registry",
-      "files": 26,
-      "loc": 2470,
-      "internalEdges": 14,
+      "files": 27,
+      "loc": 2626,
+      "internalEdges": 16,
       "outgoing": 21,
-      "incoming": 185,
-      "cohesion": 0.4
+      "incoming": 191,
+      "cohesion": 0.432
     },
     {
       "cluster": "src/Scrapers/Base",
       "files": 12,
-      "loc": 2351,
+      "loc": 2376,
       "internalEdges": 24,
       "outgoing": 52,
-      "incoming": 401,
+      "incoming": 415,
       "cohesion": 0.316
     },
     {
@@ -757,6 +757,15 @@
       "cohesion": 0.192
     },
     {
+      "cluster": "src/Scrapers/Pipeline/Core",
+      "files": 23,
+      "loc": 2302,
+      "internalEdges": 33,
+      "outgoing": 113,
+      "incoming": 81,
+      "cohesion": 0.226
+    },
+    {
       "cluster": "src/Tests/Integration/Mirror",
       "files": 7,
       "loc": 2226,
@@ -764,15 +773,6 @@
       "outgoing": 21,
       "incoming": 14,
       "cohesion": 0.276
-    },
-    {
-      "cluster": "src/Scrapers/Pipeline/Core",
-      "files": 22,
-      "loc": 2205,
-      "internalEdges": 31,
-      "outgoing": 108,
-      "incoming": 79,
-      "cohesion": 0.223
     },
     {
       "cluster": "src/Tests/Tools",
@@ -816,8 +816,17 @@
       "loc": 1184,
       "internalEdges": 3,
       "outgoing": 9,
-      "incoming": 49,
+      "incoming": 48,
       "cohesion": 0.25
+    },
+    {
+      "cluster": "src/Tests/Unit/Tools",
+      "files": 6,
+      "loc": 851,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
     },
     {
       "cluster": "src/Tests/Integration/Helpers",
@@ -847,15 +856,6 @@
       "cohesion": 0.088
     },
     {
-      "cluster": "src/Tests/Unit/Tools",
-      "files": 5,
-      "loc": 655,
-      "internalEdges": 0,
-      "outgoing": 5,
-      "incoming": 0,
-      "cohesion": 0
-    },
-    {
       "cluster": "src/Tests/E2eMocked/Helpers",
       "files": 6,
       "loc": 606,
@@ -865,6 +865,24 @@
       "cohesion": 0.5
     },
     {
+      "cluster": "src/Scrapers/Pipeline/Logging",
+      "files": 5,
+      "loc": 487,
+      "internalEdges": 5,
+      "outgoing": 8,
+      "incoming": 8,
+      "cohesion": 0.385
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/OneZero",
+      "files": 1,
+      "loc": 443,
+      "internalEdges": 0,
+      "outgoing": 2,
+      "incoming": 1,
+      "cohesion": 0
+    },
+    {
       "cluster": "src/Tests/Unit/Common",
       "files": 4,
       "loc": 442,
@@ -872,24 +890,6 @@
       "outgoing": 4,
       "incoming": 0,
       "cohesion": 0
-    },
-    {
-      "cluster": "src/Tests/E2eMocked/OneZero",
-      "files": 1,
-      "loc": 439,
-      "internalEdges": 0,
-      "outgoing": 0,
-      "incoming": 1,
-      "cohesion": 1
-    },
-    {
-      "cluster": "src/Scrapers/Pipeline/Logging",
-      "files": 5,
-      "loc": 419,
-      "internalEdges": 5,
-      "outgoing": 8,
-      "incoming": 7,
-      "cohesion": 0.385
     },
     {
       "cluster": "src/Tests/Unit/Config",
@@ -951,7 +951,7 @@
       "loc": 200,
       "internalEdges": 1,
       "outgoing": 3,
-      "incoming": 193,
+      "incoming": 195,
       "cohesion": 0.25
     },
     {
@@ -969,7 +969,7 @@
       "loc": 191,
       "internalEdges": 1,
       "outgoing": 4,
-      "incoming": 26,
+      "incoming": 29,
       "cohesion": 0.2
     },
     {
@@ -978,7 +978,7 @@
       "loc": 180,
       "internalEdges": 9,
       "outgoing": 8,
-      "incoming": 97,
+      "incoming": 98,
       "cohesion": 0.529
     },
     {
@@ -1007,15 +1007,6 @@
       "outgoing": 10,
       "incoming": 2,
       "cohesion": 0
-    },
-    {
-      "cluster": "src/Tests/E2eSmoke",
-      "files": 3,
-      "loc": 123,
-      "internalEdges": 2,
-      "outgoing": 8,
-      "incoming": 0,
-      "cohesion": 0.2
     },
     {
       "cluster": "src/Scrapers/Base/Config",
@@ -1081,6 +1072,15 @@
       "cohesion": 0
     },
     {
+      "cluster": "scripts/memory-profile",
+      "files": 1,
+      "loc": 67,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
       "cluster": "src/Common/Config",
       "files": 5,
       "loc": 61,
@@ -1117,15 +1117,6 @@
       "cohesion": 0
     },
     {
-      "cluster": "src/Tests/Config",
-      "files": 1,
-      "loc": 31,
-      "internalEdges": 0,
-      "outgoing": 0,
-      "incoming": 5,
-      "cohesion": 1
-    },
-    {
       "cluster": "src/Scrapers/Pipeline",
       "files": 1,
       "loc": 30,
@@ -1142,33 +1133,42 @@
       "outgoing": 4,
       "incoming": 2,
       "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Config",
+      "files": 1,
+      "loc": 15,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 4,
+      "cohesion": 1
     }
   ],
   "runtimeClusters": [
     {
       "cluster": "src/Tests/Unit/Pipeline",
-      "files": 498,
-      "loc": 88832,
-      "internalEdges": 258,
-      "outgoing": 1228,
+      "files": 525,
+      "loc": 93289,
+      "internalEdges": 269,
+      "outgoing": 1292,
       "incoming": 2,
-      "cohesion": 0.174
+      "cohesion": 0.172
     },
     {
       "cluster": "src/Scrapers/Pipeline/Mediator",
-      "files": 454,
-      "loc": 51255,
-      "internalEdges": 723,
-      "outgoing": 491,
-      "incoming": 538,
-      "cohesion": 0.596
+      "files": 460,
+      "loc": 52490,
+      "internalEdges": 730,
+      "outgoing": 504,
+      "incoming": 562,
+      "cohesion": 0.592
     },
     {
       "cluster": "src/Tests/Unit",
-      "files": 43,
-      "loc": 9060,
+      "files": 46,
+      "loc": 9404,
       "internalEdges": 0,
-      "outgoing": 112,
+      "outgoing": 115,
       "incoming": 0,
       "cohesion": 0
     },
@@ -1183,12 +1183,12 @@
     },
     {
       "cluster": "src/Scrapers/Pipeline/Banks",
-      "files": 95,
-      "loc": 7215,
-      "internalEdges": 119,
-      "outgoing": 76,
-      "incoming": 131,
-      "cohesion": 0.61
+      "files": 97,
+      "loc": 7858,
+      "internalEdges": 122,
+      "outgoing": 85,
+      "incoming": 138,
+      "cohesion": 0.589
     },
     {
       "cluster": "src/Scrapers/Pipeline/EslintCanaries",
@@ -1198,6 +1198,15 @@
       "outgoing": 8,
       "incoming": 0,
       "cohesion": 0
+    },
+    {
+      "cluster": "src/Scrapers/Pipeline/Strategy",
+      "files": 38,
+      "loc": 5096,
+      "internalEdges": 48,
+      "outgoing": 98,
+      "incoming": 81,
+      "cohesion": 0.329
     },
     {
       "cluster": "src/Tests/Unit/Scrapers",
@@ -1210,12 +1219,12 @@
     },
     {
       "cluster": "src/Scrapers/Pipeline/Phases",
-      "files": 38,
-      "loc": 4316,
-      "internalEdges": 19,
-      "outgoing": 103,
-      "incoming": 69,
-      "cohesion": 0.156
+      "files": 39,
+      "loc": 4499,
+      "internalEdges": 22,
+      "outgoing": 106,
+      "incoming": 75,
+      "cohesion": 0.172
     },
     {
       "cluster": "src/Scrapers/Pipeline/Types",
@@ -1223,17 +1232,8 @@
       "loc": 4256,
       "internalEdges": 57,
       "outgoing": 4,
-      "incoming": 816,
+      "incoming": 845,
       "cohesion": 0.934
-    },
-    {
-      "cluster": "src/Scrapers/Pipeline/Strategy",
-      "files": 32,
-      "loc": 4182,
-      "internalEdges": 42,
-      "outgoing": 90,
-      "incoming": 70,
-      "cohesion": 0.318
     },
     {
       "cluster": "src/Tests/Integration/Tools",
@@ -1246,29 +1246,29 @@
     },
     {
       "cluster": "src/Tests/E2eReal",
-      "files": 26,
-      "loc": 3448,
-      "internalEdges": 35,
-      "outgoing": 62,
-      "incoming": 5,
-      "cohesion": 0.361
+      "files": 28,
+      "loc": 3634,
+      "internalEdges": 42,
+      "outgoing": 63,
+      "incoming": 8,
+      "cohesion": 0.4
     },
     {
       "cluster": "src/Scrapers/Pipeline/Registry",
-      "files": 26,
-      "loc": 2470,
-      "internalEdges": 12,
+      "files": 27,
+      "loc": 2626,
+      "internalEdges": 13,
       "outgoing": 6,
-      "incoming": 161,
-      "cohesion": 0.667
+      "incoming": 166,
+      "cohesion": 0.684
     },
     {
       "cluster": "src/Scrapers/Base",
       "files": 12,
-      "loc": 2351,
+      "loc": 2376,
       "internalEdges": 16,
       "outgoing": 30,
-      "incoming": 314,
+      "incoming": 325,
       "cohesion": 0.348
     },
     {
@@ -1281,6 +1281,15 @@
       "cohesion": 0.162
     },
     {
+      "cluster": "src/Scrapers/Pipeline/Core",
+      "files": 23,
+      "loc": 2302,
+      "internalEdges": 22,
+      "outgoing": 50,
+      "incoming": 49,
+      "cohesion": 0.306
+    },
+    {
       "cluster": "src/Tests/Integration/Mirror",
       "files": 7,
       "loc": 2226,
@@ -1288,15 +1297,6 @@
       "outgoing": 17,
       "incoming": 13,
       "cohesion": 0.19
-    },
-    {
-      "cluster": "src/Scrapers/Pipeline/Core",
-      "files": 22,
-      "loc": 2205,
-      "internalEdges": 21,
-      "outgoing": 47,
-      "incoming": 48,
-      "cohesion": 0.309
     },
     {
       "cluster": "src/Tests/Tools",
@@ -1340,8 +1340,17 @@
       "loc": 1184,
       "internalEdges": 1,
       "outgoing": 4,
-      "incoming": 49,
+      "incoming": 48,
       "cohesion": 0.2
+    },
+    {
+      "cluster": "src/Tests/Unit/Tools",
+      "files": 6,
+      "loc": 851,
+      "internalEdges": 0,
+      "outgoing": 5,
+      "incoming": 0,
+      "cohesion": 0
     },
     {
       "cluster": "src/Tests/Integration/Helpers",
@@ -1371,15 +1380,6 @@
       "cohesion": 0.115
     },
     {
-      "cluster": "src/Tests/Unit/Tools",
-      "files": 5,
-      "loc": 655,
-      "internalEdges": 0,
-      "outgoing": 5,
-      "incoming": 0,
-      "cohesion": 0
-    },
-    {
       "cluster": "src/Tests/E2eMocked/Helpers",
       "files": 6,
       "loc": 606,
@@ -1389,6 +1389,24 @@
       "cohesion": 0.6
     },
     {
+      "cluster": "src/Scrapers/Pipeline/Logging",
+      "files": 5,
+      "loc": 487,
+      "internalEdges": 5,
+      "outgoing": 6,
+      "incoming": 6,
+      "cohesion": 0.455
+    },
+    {
+      "cluster": "src/Tests/E2eMocked/OneZero",
+      "files": 1,
+      "loc": 443,
+      "internalEdges": 0,
+      "outgoing": 2,
+      "incoming": 1,
+      "cohesion": 0
+    },
+    {
       "cluster": "src/Tests/Unit/Common",
       "files": 4,
       "loc": 442,
@@ -1396,24 +1414,6 @@
       "outgoing": 4,
       "incoming": 0,
       "cohesion": 0
-    },
-    {
-      "cluster": "src/Tests/E2eMocked/OneZero",
-      "files": 1,
-      "loc": 439,
-      "internalEdges": 0,
-      "outgoing": 0,
-      "incoming": 1,
-      "cohesion": 1
-    },
-    {
-      "cluster": "src/Scrapers/Pipeline/Logging",
-      "files": 5,
-      "loc": 419,
-      "internalEdges": 5,
-      "outgoing": 6,
-      "incoming": 5,
-      "cohesion": 0.455
     },
     {
       "cluster": "src/Tests/Unit/Config",
@@ -1475,7 +1475,7 @@
       "loc": 200,
       "internalEdges": 1,
       "outgoing": 2,
-      "incoming": 133,
+      "incoming": 135,
       "cohesion": 0.333
     },
     {
@@ -1493,7 +1493,7 @@
       "loc": 191,
       "internalEdges": 1,
       "outgoing": 2,
-      "incoming": 26,
+      "incoming": 29,
       "cohesion": 0.333
     },
     {
@@ -1531,15 +1531,6 @@
       "outgoing": 8,
       "incoming": 2,
       "cohesion": 0
-    },
-    {
-      "cluster": "src/Tests/E2eSmoke",
-      "files": 3,
-      "loc": 123,
-      "internalEdges": 2,
-      "outgoing": 6,
-      "incoming": 0,
-      "cohesion": 0.25
     },
     {
       "cluster": "src/Scrapers/Base/Config",
@@ -1605,6 +1596,15 @@
       "cohesion": 0
     },
     {
+      "cluster": "scripts/memory-profile",
+      "files": 1,
+      "loc": 67,
+      "internalEdges": 0,
+      "outgoing": 1,
+      "incoming": 0,
+      "cohesion": 0
+    },
+    {
       "cluster": "src/Common/Config",
       "files": 5,
       "loc": 61,
@@ -1641,15 +1641,6 @@
       "cohesion": 0
     },
     {
-      "cluster": "src/Tests/Config",
-      "files": 1,
-      "loc": 31,
-      "internalEdges": 0,
-      "outgoing": 0,
-      "incoming": 5,
-      "cohesion": 1
-    },
-    {
       "cluster": "src/Scrapers/Pipeline",
       "files": 1,
       "loc": 30,
@@ -1666,6 +1657,15 @@
       "outgoing": 3,
       "incoming": 2,
       "cohesion": 0
+    },
+    {
+      "cluster": "src/Tests/Config",
+      "files": 1,
+      "loc": 15,
+      "internalEdges": 0,
+      "outgoing": 0,
+      "incoming": 4,
+      "cohesion": 1
     }
   ],
   "cycles": {
@@ -1679,8 +1679,8 @@
     "anyUsages": 1,
     "publicSurface": {
       "present": true,
-      "sha256": "6eaa84da03bfa807a410005a56d893437abc1439e63c662ec50ed9755caab088",
-      "bytes": 1151765
+      "sha256": "d6db3f42bdcb80498a50e556fbf3adc7ff0e2632adbaab3421287dfe19059ff5",
+      "bytes": 1194554
     }
   }
 }

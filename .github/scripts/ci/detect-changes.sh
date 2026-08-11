@@ -21,6 +21,12 @@
 #                 (drives the docs-coverage canary)
 #   ci_scripts  — `.github/scripts/ci/**` or `.github/workflows/**`
 #                 was modified (drives the CI scripts smoke test)
+#   metrics     — `scripts/decoupling-metrics/**` was modified. That tree
+#                 sits outside both `src/` and `.github/`, so it matched NO
+#                 other group: the tool that measures architectural
+#                 regressions could itself be weakened and merged without
+#                 the gate that depends on it ever running. Same
+#                 self-testing role `ci_scripts` plays for the memory gate.
 #   test_config — a Jest config (`jest.*.js` / `jest.*.cjs`) was modified.
 #                 These files sit at the repo root, so they match NO other
 #                 group: a change to `transformIgnorePatterns`, `moduleNameMapper`
@@ -78,6 +84,7 @@ if [ -z "${BASE_SHA:-}" ] || [ "${BASE_SHA}" = "${ZERO_SHA}" ]; then
     echo "deps=true"
     echo "test_config=true"
     echo "critical_deps=true"
+    echo "metrics=true"
     echo "full_suite=true"
   } >> "$GITHUB_OUTPUT"
   exit 0
@@ -110,6 +117,7 @@ if [ -z "${changed_files}" ]; then
     echo "deps=false"
     echo "test_config=false"
     echo "critical_deps=false"
+    echo "metrics=false"
     echo "full_suite=false"
   } >> "$GITHUB_OUTPUT"
   exit 0
@@ -187,6 +195,7 @@ ci_scripts=false
 deps=false
 test_config=false
 critical_deps=false
+metrics=false
 full_suite=false
 
 if has '^src/'; then src=true; fi
@@ -196,6 +205,7 @@ if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
+if has '^scripts/decoupling-metrics/'; then metrics=true; fi
 
 # Compare against the merge-base, mirroring the `...HEAD` semantics used
 # for `changed_files`: main bumping playwright-core meanwhile must not be
@@ -216,6 +226,7 @@ if [ "${src}" = "true" ] || [ "${critical_deps}" = "true" ]; then full_suite=tru
   echo "deps=${deps}"
   echo "test_config=${test_config}"
   echo "critical_deps=${critical_deps}"
+  echo "metrics=${metrics}"
   echo "full_suite=${full_suite}"
 } >> "$GITHUB_OUTPUT"
 
@@ -228,4 +239,5 @@ echo "  ci_scripts=${ci_scripts}"
 echo "  deps=${deps}"
 echo "  test_config=${test_config}"
 echo "  critical_deps=${critical_deps}"
+echo "  metrics=${metrics}"
 echo "  full_suite=${full_suite}"

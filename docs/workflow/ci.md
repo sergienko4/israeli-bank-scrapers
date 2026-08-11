@@ -28,6 +28,7 @@ and release together — covered in
 | **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
 | **Build** | `build` | `tsup` ESM + CJS bundle | `lib/index.{mjs,cjs,d.ts,d.cts}` produced |
 | **Memory** | `test:memory` | Peak memory grows more than 10% against the merge base | `.github/scripts/ci/memory-measure.sh` + [`memory-compare.sh`](#memory-regression-gate) |
+| **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
 | **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
 
 ## Memory regression gate
@@ -75,6 +76,61 @@ Reproduce a comparison locally:
 
 ```bash
 BASE_MB=512 HEAD_MB=600 THRESHOLD_PCT=10 bash .github/scripts/ci/memory-compare.sh
+```
+
+## Decoupling regression gate
+
+BLUF: guardrails are ratchets. They may get stronger on any PR; they may
+never get weaker.
+
+The `Decoupling` job measures the architecture of the PR **and** of its merge
+base, using HEAD's copy of the measuring tool for both sides so a change to
+the tool cannot masquerade as a change in the code. It runs in seconds because
+`measure.mjs` imports only Node builtins — neither tree needs `npm ci`.
+
+Comparison is against the merge base rather than the committed
+`snapshots/baseline.json`. That baseline is a rolling reference refreshed by
+hand, so it drifts behind `main`; diffing against a stale one measures
+everything merged since it was taken instead of what this PR did.
+
+| Metric | Kind | Fails when |
+|---|---|---|
+| Runtime import cycles | ratchet | increases |
+| `any` usages | ratchet | increases |
+| ESLint canaries | ratchet | decreases |
+| ESLint rules | ratchet | decreases |
+| Avg runtime fan-out | tolerance | grows more than `THRESHOLD_PCT` (default 10%) |
+| Files, runtime edges | context | never — reported to explain the rows above |
+
+The split is deliberate. A guardrail has no legitimate "slightly weaker"
+state, so those four have no tolerance band at all: deleting a canary or an
+ESLint rule fails the PR outright, which is the
+[never-weaken-a-rule guideline](../../CLEAN_CODE.md) made executable. Coupling
+is different — files and edges grow whenever a feature lands, so only the
+_average_ fan-out is bounded, and only against a generous band that catches
+new code being markedly more coupled than the code already there.
+
+Exit codes distinguish two situations that must not be collapsed:
+
+- **A snapshot is missing** (exit 0). The base tree could not be materialised —
+  for instance on a PR that is not cleanly mergeable. Reported, never blocking.
+- **A snapshot is present but unparseable** (exit 2). The measuring tool
+  produced garbage; failing loudly is what stops a broken tool from silently
+  disabling the gate.
+
+The job also appends the full cluster-level matrix from `diff.mjs` to the run
+summary, so per-cluster LoC, cohesion and fan-out shifts are visible without
+running anything locally.
+
+Reproduce a comparison locally:
+
+```bash
+node scripts/decoupling-metrics/measure.mjs . head head.json
+git worktree add ../base origin/main
+node scripts/decoupling-metrics/measure.mjs ../base base base.json
+BASE_SNAPSHOT=scripts/decoupling-metrics/snapshots/base.json \
+HEAD_SNAPSHOT=scripts/decoupling-metrics/snapshots/head.json \
+GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/decoupling-compare.sh
 ```
 
 ## Coverage thresholds
