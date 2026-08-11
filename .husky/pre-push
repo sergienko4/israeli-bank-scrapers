@@ -45,4 +45,16 @@ if ! node scripts/validate-pr-body.mjs --file "${PR_BODY_PATH}"; then
     exit 1
 fi
 
+# Paths cited in the body must resolve, so a body that survived a mid-review
+# change of approach cannot ship pointing at files it never touched. Deleted
+# paths are accepted via --diff-base, since a body may describe a removal.
+# Mirrors the CI step in .github/workflows/pr-body-check.yml.
+if ! node scripts/check-doc-paths.mjs --diff-base origin/main "${PR_BODY_PATH}"; then
+    echo ""
+    echo "❌ pre-push: PR body cites a path that does not exist."
+    echo "   Update the citation, or drop it if the file was never touched."
+    echo "   See docs/workflow/doc-paths.md."
+    exit 1
+fi
+
 echo "✅ pre-push: PR body OK"

@@ -1,0 +1,91 @@
+# Doc path gate
+
+`npm run lint:doc-paths` asserts that every repo-relative path cited in the
+agent-facing docs actually exists.
+
+## Why this gate exists
+
+`CLAUDE.md` is loaded by every agent session as the canonical rule source.
+When `src/` was restructured — `src/helpers/` → `src/Common/`,
+`src/scrapers/` → `src/Scrapers/` — **all seven** entries in its "Key Files"
+list silently rotted. Nothing caught it:
+
+- The paths are inline code spans, not Markdown links, so no link checker
+  looks at them.
+- [`check-docs-links.sh`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.github/scripts/ci/check-docs-links.sh)
+  only resolves published site URLs.
+- `mkdocs build --strict` only validates links *inside* `docs/`.
+
+The cost is not cosmetic. An agent that trusts a phantom path spends a whole
+investigation on a file that is not there, and can reach a confidently wrong
+conclusion. This gate was written after exactly that happened.
+
+## What it checks
+
+For each file it scans, every inline-code token shaped like a repo-relative
+path (contains `/`, ends in an extension) must resolve on disk.
+
+Deliberately **not** checked:
+
+| Skipped | Why |
+| --- | --- |
+| Markdown link labels — ``[`Banks/X.ts`](url)`` | `docs/` shortens the label relative to a documented base while the link target carries the full path. Treating the label as repo-relative reports drift that is not there. |
+| Bare prose tokens without a `/` or extension | Too many ordinary words look like paths; the false-positive rate would make the gate noise. |
+| `node_modules/`, `http(s)://`, `.git/` | Installed, remote, or ephemeral — never committed. |
+| `.github/PR_BODY.md` | A run-time handoff file the pre-push hook *searches for*. Documenting it is correct even when absent; gating it would pass locally and fail in CI. |
+
+## Scope
+
+Gated files are listed in the `lint:doc-paths` script in `package.json`:
+`README.md`, `CLAUDE.md`, `CLEAN_CODE.md`, `CONTRIBUTING.md`, and
+`.github/copilot-instructions.md` — the docs that address agents and use
+repo-root-relative paths by convention.
+
+The `docs/` tree is **not** gated. It uses base-relative citations in prose
+(for example `Banks/Amex/scrape/AmexShape.ts`, relative to
+`src/Scrapers/Pipeline/`), which are more readable in a table and are already
+backed by a full link target. Converting that convention would be a large
+change unrelated to the drift this gate prevents.
+
+## PR bodies
+
+The same checker runs against the PR body, where a stale path is equally
+misleading. Two entry points:
+
+- **CI** — the `Validate PR body sections` job in
+  [`pr-body-check.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.github/workflows/pr-body-check.yml).
+  Bot PRs are exempt: generated changelogs cite paths from across history,
+  including files since moved.
+- **Local** — the pre-push hook, when it finds a PR body file.
+
+`--diff-base <ref>` additionally accepts paths the diff *deletes*, so a body
+may legitimately describe a file it is removing.
+
+## Running it
+
+```bash
+npm run lint:doc-paths                                     # gated docs
+node scripts/check-doc-paths.mjs path/to/file.md           # any file
+node scripts/check-doc-paths.mjs --diff-base origin/main .git/PR_BODY.md
+```
+
+Exit codes: `0` all cited paths resolve, `1` at least one does not, `2` usage
+error.
+
+## When it fails
+
+```text
+CLAUDE.md: 9 cited, 1 unresolved
+  ✗ src/scrapers/errors.ts
+```
+
+Update the citation to the current location — do not delete the entry. If the
+file genuinely moved, that is the gate doing its job; find the new home (the
+LSP `workspaceSymbol` operation is the fastest way) and fix the reference.
+
+## Known limitation
+
+This verifies that cited paths **resolve**. It cannot judge whether the
+surrounding prose is true. A PR body describing an abandoned approach while
+citing valid paths passes this gate — that class of drift is caught by review,
+not by tooling.

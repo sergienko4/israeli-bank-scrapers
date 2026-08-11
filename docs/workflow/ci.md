@@ -30,6 +30,7 @@ and release together — covered in
 | **Memory** | `test:memory` | Peak memory grows more than 10% against the merge base | `.github/scripts/ci/memory-measure.sh` + [`memory-compare.sh`](#memory-regression-gate) |
 | **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
 | **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
+| **Cited paths** | `lint:doc-paths` | An agent doc or PR body cites a repo path that does not exist | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md) |
 
 ## Memory regression gate
 

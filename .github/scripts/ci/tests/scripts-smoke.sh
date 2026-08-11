@@ -43,7 +43,7 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/6: shellcheck ──"
+echo "── 1/7: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
   for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/6: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/7: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -115,7 +115,7 @@ fi
 # ── 3. docs-site link guard ──
 # Behavioural test, not just shellcheck: the guard's whole value is that
 # it FAILS on a link with no backing page, so assert both directions.
-echo "── 3/6: docs-site link guard ──"
+echo "── 3/7: docs-site link guard ──"
 GUARD="$SCRIPT_DIR/check-docs-links.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -154,7 +154,7 @@ assert_eq "README restored after negative test" "1" "$guard_restored"
 # its exit status is what stops a red merge looking green. Assert the verdict
 # in both directions, plus the release wording that distinguishes "shipped"
 # from "only refreshed the Release PR".
-echo "── 4/6: post-merge pipeline summary ──"
+echo "── 4/7: post-merge pipeline summary ──"
 SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
 SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/pipeline-summary-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE"' EXIT
@@ -195,7 +195,7 @@ assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
 # sides of the limit. The "not measured" path matters just as much: a
 # measurement that did not happen must never be reported as a 0 MB win, and
 # must never fail a PR for a reason the author cannot act on.
-echo "── 5/6: memory regression verdict ──"
+echo "── 5/7: memory regression verdict ──"
 MEMCMP="$SCRIPT_DIR/memory-compare.sh"
 MEM_FILE="$(mktemp "${TMPDIR:-/tmp}/memory-compare-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"' EXIT
@@ -255,7 +255,7 @@ assert_eq "the delta percentage is shown" "1" "$pct_shown"
 # strengthening must pass. The distinction between "could not measure"
 # (skip, exit 0) and "measured garbage" (fail loudly, exit 2) is asserted
 # too — collapsing the two would let a broken tool disable the gate.
-echo "── 6/6: decoupling regression verdict ──"
+echo "── 6/7: decoupling regression verdict ──"
 DECCMP="$SCRIPT_DIR/decoupling-compare.sh"
 DEC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/decoupling-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR"' EXIT
@@ -333,6 +333,66 @@ JSON
   decoupling '.cycles.count = 2' >/dev/null
   if grep -qF "Runtime import cycles" "$DEC_DIR/summary.md"; then dec_named=1; else dec_named=0; fi
   assert_eq "the failing metric is named in the summary" "1" "$dec_named"
+fi
+
+# ── 7. cited-path gate ──
+echo ""
+echo "── 7/7: cited-path gate ──"
+DOC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/doc-paths-smoke.XXXXXX")"
+trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR" "$DOC_DIR"' EXIT
+
+# The fixtures below embed literal Markdown backticks, which is the whole
+# point of the gate — SC2016 would have us "fix" them into expansions.
+# shellcheck disable=SC2016
+if ! command -v node >/dev/null 2>&1; then
+  echo "  ⚠ node not found — skipping cited-path gate tests"
+else
+  DOCPATHS="$REPO_ROOT/scripts/check-doc-paths.mjs"
+  # Every case runs from the repo root: a cited path is repo-relative by
+  # definition and is resolved against the cwd.
+  doc_check() {
+    (cd "$REPO_ROOT" && node "$DOCPATHS" "$@" > "$DOC_DIR/out.txt" 2>&1)
+    echo "$?"
+  }
+
+  printf 'See `src/Common/Browser.ts` for the context builder.\n' > "$DOC_DIR/good.md"
+  printf 'See `src/helpers/browser.ts` for the context builder.\n' > "$DOC_DIR/phantom.md"
+
+  assert_eq "a resolving path passes" "0" "$(doc_check "$DOC_DIR/good.md")"
+
+  # The exact drift that motivated the gate: the pre-restructure path
+  # from CLAUDE.md's Key Files list.
+  assert_eq "a phantom path fails" "1" "$(doc_check "$DOC_DIR/phantom.md")"
+
+  doc_check "$DOC_DIR/phantom.md" > /dev/null
+  if grep -qF 'src/helpers/browser.ts' "$DOC_DIR/out.txt"; then doc_named=1; else doc_named=0; fi
+  assert_eq "the unresolved path is named in the output" "1" "$doc_named"
+
+  # docs/ shortens the label relative to a documented base while the link
+  # target carries the full path, so a label is not a repo-relative claim.
+  printf 'See [`Banks/Amex/AmexPipeline.ts`](https://example.com/x) for detail.\n' \
+    > "$DOC_DIR/label.md"
+  assert_eq "a link label is not treated as a repo path" "0" "$(doc_check "$DOC_DIR/label.md")"
+
+  # Absent by default; gating it would pass on a machine with one lying
+  # around and fail in CI.
+  printf 'The hook looks for `.github/PR_BODY.md` before validating.\n' > "$DOC_DIR/optional.md"
+  assert_eq "a run-time artefact is not gated" "0" "$(doc_check "$DOC_DIR/optional.md")"
+
+  printf 'Run `npm run lint` and set `PR_BODY_FILE` first.\n' > "$DOC_DIR/prose.md"
+  assert_eq "tokens without a path shape are ignored" "0" "$(doc_check "$DOC_DIR/prose.md")"
+
+  assert_eq "no arguments is a usage error" "2" "$(doc_check)"
+
+  # Regression: an early build derived the file list from the flag index,
+  # so the first file was silently dropped. Both forms must read the file.
+  assert_eq "--diff-base does not swallow the file list" "1" \
+    "$(doc_check --diff-base origin/main "$DOC_DIR/phantom.md")"
+
+  # The gate is only worth having if the docs it guards actually pass, so
+  # a future move that rots a citation fails here too.
+  assert_eq "the gated agent docs all resolve" "0" \
+    "$(doc_check README.md CLAUDE.md CLEAN_CODE.md CONTRIBUTING.md .github/copilot-instructions.md)"
 fi
 
 # ── Final summary ──

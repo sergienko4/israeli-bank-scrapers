@@ -48,6 +48,8 @@ gh pr view 336 --json body -q .body | node scripts/validate-pr-body.mjs --stdin
 | `1` | At least one mandatory section is missing |
 | `2` | Usage error (no source provided / file unreadable) |
 
+The hook then runs [`check-doc-paths.mjs`](doc-paths.md) over the same body, so a path cited in `## What` must actually exist. Paths the diff *deletes* are accepted, since a body may legitimately describe a removal.
+
 ## Why this hook exists
 
 CR cycle PR #336 #1 paired a CodeRabbit code finding with a CI failure on `Validate PR body sections` — the PR was opened without the mandatory headers because nothing validated the body locally. This hook closes the gap so contributors and agents (who write the body file before invoking `gh pr create --body-file …`) get the same enforcement the CI workflow applies after the PR is opened.

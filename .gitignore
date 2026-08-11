@@ -97,6 +97,9 @@ scripts/**
 !scripts/build-compatibility.mjs
 # Enforced by the PR-body compliance workflow, so it must be in the tree.
 !scripts/check-breaking-note.mjs
+# Same: run by the PR-body workflow and by the pre-push hook, and by
+# `npm run lint:doc-paths` over the agent docs.
+!scripts/check-doc-paths.mjs
 !scripts/check-staged-pii.cjs
 # Published tooling: named in package.json "files", so it ships in the
 # tarball and runs from postinstall on every consumer install.
@@ -149,3 +152,6 @@ __pycache__/
 
 # Browser session state (live WAF clearance cookies) - never commit
 *.session.json
+
+# PR body staged by pr-body-check.yml for the cited-path gate (CI only)
+pr-body-ci.md

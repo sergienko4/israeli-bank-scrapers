@@ -69,6 +69,7 @@
     "lint:docs-strict": "python -m mkdocs build --strict --site-dir .mkdocs-strict-out",
     "lint:phases:strict": "eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0",
     "lint:pr-body": "node scripts/validate-pr-body.mjs",
+    "lint:doc-paths": "node scripts/check-doc-paths.mjs README.md CLAUDE.md CLEAN_CODE.md CONTRIBUTING.md .github/copilot-instructions.md",
     "compat:build": "node scripts/build-compatibility.mjs",
     "compat:check": "node scripts/build-compatibility.mjs --check",
     "lint:fix": "eslint src  --ignore-pattern '**/*.cjs' && npm run format",
