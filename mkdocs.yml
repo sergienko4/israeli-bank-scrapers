@@ -124,6 +124,9 @@ extra:
 nav:
   - Home: index.md
   - Quick Start: quick-start.md
+  - Configuration: configuration.md
+  - Troubleshooting: troubleshooting.md
+  - Advanced usage: advanced-usage.md
   - Architecture:
       - Overview: architecture/index.md
       - Pipeline architecture: architecture/pipeline.md
