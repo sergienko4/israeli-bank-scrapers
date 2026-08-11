@@ -174,6 +174,13 @@ describe('upgrade-notes', () => {
     expect(parsed).toBeNull();
   });
 
+  // Regression: the candidate was taken verbatim, so this rendered notes
+  // headed "Upgrading to --tag" instead of showing the usage error.
+  it('yields null when the next argument is another option', () => {
+    const parsed = mod.parseVersion(['node', 'upgrade-notes.mjs', '--version', '--tag', 'v9.0.0']);
+    expect(parsed).toBeNull();
+  });
+
   it('renders the impact, detail and action for a matching entry', () => {
     const data = buildData([buildEntry()]);
     const section = mod.renderSection('9.0.0', data);

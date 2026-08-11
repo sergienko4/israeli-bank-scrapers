@@ -33,8 +33,12 @@ const DOCS_URL = 'https://sergienko4.github.io/israeli-bank-scrapers/compatibili
  */
 export function parseVersion(args = argv) {
   const flag = args.findIndex((a) => a === '--version' || a === '--tag');
-  if (flag === -1 || !args[flag + 1]) return null;
-  return args[flag + 1].replace(/^v/, '');
+  if (flag === -1) return null;
+  const value = args[flag + 1];
+  // Reject a candidate that is itself an option: `--version --tag v9.0.0`
+  // would otherwise render notes headed "Upgrading to --tag".
+  if (!value || value.startsWith('--')) return null;
+  return value.replace(/^v/, '');
 }
 
 /**
