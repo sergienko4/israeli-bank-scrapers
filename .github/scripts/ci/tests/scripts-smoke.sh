@@ -156,10 +156,14 @@ assert_eq "README restored after negative test" "1" "$guard_restored"
 # from "only refreshed the Release PR".
 echo "── 4/4: post-merge pipeline summary ──"
 SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
+SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/pipeline-summary-smoke.XXXXXX")"
+trap 'rm -f "$SUMMARY_FILE"' EXIT
 
 render() {
-  rm -f /tmp/pipeline-summary-smoke.md
-  env "$@" SHA=abc1234def GITHUB_STEP_SUMMARY=/tmp/pipeline-summary-smoke.md \
+  # The renderer appends, so truncate between cases or later greps would
+  # match output left over from an earlier render.
+  : > "$SUMMARY_FILE"
+  env "$@" SHA=abc1234def GITHUB_STEP_SUMMARY="$SUMMARY_FILE" \
     bash "$SUMMARY" >/dev/null 2>&1
   echo "$?"
 }
@@ -167,13 +171,13 @@ render() {
 clean_exit=$(render R_CHANGES=success R_CODEQL=success R_SONAR=success \
   R_WFSEC=success R_DOCS=skipped R_RELEASE=success RELEASED=false VERSION=)
 assert_eq "clean run exits 0" "0" "$clean_exit"
-if grep -qF "no new version" /tmp/pipeline-summary-smoke.md; then no_rel=1; else no_rel=0; fi
+if grep -qF "no new version" "$SUMMARY_FILE"; then no_rel=1; else no_rel=0; fi
 assert_eq "no-release merge is labelled, not just 'success'" "1" "$no_rel"
 
 pub_exit=$(render R_CHANGES=success R_CODEQL=success R_SONAR=success \
   R_WFSEC=success R_DOCS=success R_RELEASE=success RELEASED=true VERSION=9.9.9)
 assert_eq "published run exits 0" "0" "$pub_exit"
-if grep -qF "published v9.9.9" /tmp/pipeline-summary-smoke.md; then pub_lbl=1; else pub_lbl=0; fi
+if grep -qF "published v9.9.9" "$SUMMARY_FILE"; then pub_lbl=1; else pub_lbl=0; fi
 assert_eq "published version appears in the table" "1" "$pub_lbl"
 
 # A failing release must fail the summary — the whole point of folding
@@ -185,8 +189,6 @@ assert_eq "failed release exits non-zero" "1" "$rel_fail_exit"
 scan_fail_exit=$(render R_CHANGES=success R_CODEQL=failure R_SONAR=success \
   R_WFSEC=success R_DOCS=skipped R_RELEASE=success RELEASED=false VERSION=)
 assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
-
-rm -f /tmp/pipeline-summary-smoke.md
 
 # ── Final summary ──
 echo ""
