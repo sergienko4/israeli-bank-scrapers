@@ -14,7 +14,7 @@ ones listed at the bottom of this page.
 | `defaultTimeout` | `number` (ms) | `30000` | Per-phase navigation timeout |
 | `navigationRetryCount` | `number` | `0` | Retries on `TIMEOUT` from any phase before failing |
 | `browserContext` | `Playwright.BrowserContext` | Camoufox-launched per run | Reuse a shared context for parallel runs |
-| `otpCodeRetriever` | `() => Promise<string>` | (none) | **Browser banks** — callback invoked when OTP is required |
+| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Browser banks** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted |
 | `headless` | `boolean` | `true` | Run Camoufox headless |
 | `proxy` | `{ server, username?, password? }` | (none) | Residential proxy override — helps when datacenter IPs get WAF-blocked |
 
@@ -45,19 +45,22 @@ All optional. These are the **only** environment variables the library reads.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
-| `PII_REDACTION` | `on` | Set to `off` for real-bank E2E **only**. Unit tests always run with redaction default-on. |
+| `PII_REDACTION` | `on` | Set to `off` for real-bank E2E **only** — it disables redaction entirely, so every artifact below then contains real PII. Unit tests always run with redaction default-on. |
 | `MOCK_MODE` | unset | `1` switches `test:mock` to its fixture-driven path |
 | `CAMOUFOX_LAUNCH_TIMEOUT_MS` | `300000` | Bounds browser launch — see [Quick Start](quick-start.md#tuning-the-launch) |
 
 ## Files written to disk
 
-| Path | Contents |
-| --- | --- |
-| `~/.cache/camoufox/` | Camoufox browser bundle (~1.3 GB, downloaded on first launch) |
-| `<cwd>/pipeline.log` | Pino transcript — PII-redacted |
-| `<cwd>/network/*.json` | Captured HTTP bodies — redacted before write |
-| `<cwd>/screenshots/*.html` | DOM snapshots per phase — redacted in place |
-| `<cwd>/screenshots/*.png` | Raster screenshots — **not redacted** |
+The "Redacted?" column assumes the default `PII_REDACTION=on`. Setting it to
+`off` turns every ✅ below into a ❌.
+
+| Path | Contents | Redacted? |
+| --- | --- | --- |
+| `~/.cache/camoufox/` | Camoufox browser bundle (~1.3 GB, downloaded on first launch) | n/a |
+| `<cwd>/pipeline.log` | Pino transcript | ✅ censored before any transport writes |
+| `<cwd>/network/*.json` | Captured HTTP bodies | ✅ redacted before write |
+| `<cwd>/screenshots/*.html` | DOM snapshots per phase | ✅ redacted in place |
+| `<cwd>/screenshots/*.png` | Raster screenshots | ❌ **never** — raster is not OCR-scrubbed |
 
 !!! warning "PNG screenshots are not redacted"
     Raster images are not OCR-scrubbed. They can contain unredacted PII

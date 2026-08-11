@@ -43,6 +43,12 @@ The script is idempotent and never fails an install — re-running it on an
 already-guarded tree is a no-op. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out
 entirely if you manage `playwright-core` patches yourself.
 
+!!! note "Why a `scripts/` path exists in an installed package"
+    Only `lib/**` ships normally. `scripts/patch-playwright-core.mjs` is the
+    one deliberate exception in the package `files` allowlist, because the
+    `postinstall` hook has to be able to run it from `node_modules`. No other
+    repo script is published.
+
 ## `WAF_BLOCKED`
 
 Camoufox passes most Cloudflare challenges automatically. When it does not:
@@ -66,10 +72,17 @@ Returned as `result.errorType` when `result.success` is `false`.
 | --- | --- |
 | `INVALID_PASSWORD` | Wrong credentials |
 | `INVALID_OTP` | Wrong or expired OTP code |
+| `TWO_FACTOR_RETRIEVER_MISSING` | OTP required but no `otpCodeRetriever` supplied |
+| `CHANGE_PASSWORD` | The bank is forcing a password change — log in manually first |
+| `ACCOUNT_BLOCKED` | The bank locked the account |
 | `WAF_BLOCKED` | Cloudflare block — read `errorDetails.suggestions` |
 | `TIMEOUT` | Page load timeout — raise `defaultTimeout` |
-| `TWO_FACTOR_RETRIEVER_MISSING` | OTP required but no `otpCodeRetriever` supplied |
+| `NETWORK_ERROR` | Transport failure reaching the bank |
 | `GENERIC` | Pipeline phase failure — read `errorMessage` |
+| `GENERAL_ERROR` | Deprecated alias of `GENERIC`, kept for older consumers |
+
+`errorDetails` is populated for `WAF_BLOCKED` only; every other type carries its
+context in `errorMessage`.
 
 ## Still stuck?
 
@@ -79,6 +92,12 @@ Attach **all three** of these to an issue:
 2. `network/*.json` — captured HTTP bodies
 3. `screenshots/*.html` — DOM snapshots per phase
 
-All three are redacted at write time and safe to share publicly. Skip the
-`.png` files. See [PII redaction](observability/redaction.md) for exactly what
-survives redaction and why.
+With redaction left at its default (`PII_REDACTION=on`) all three are scrubbed
+at write time and safe to share publicly. Skip the `.png` files. See
+[PII redaction](observability/redaction.md) for exactly what survives redaction
+and why.
+
+!!! danger "Artifacts from a `PII_REDACTION=off` run are not shareable"
+    That switch disables redaction outright, so the same three files hold real
+    account numbers, balances and auth tokens. Re-run with redaction on and
+    attach the fresh artifacts instead of scrubbing the old ones by hand.

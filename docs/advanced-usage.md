@@ -10,17 +10,31 @@ keeping cookies and storage isolated between them.
 import { Camoufox } from '@hieutran094/camoufox-js';
 
 const browser = await Camoufox({ headless: true });
-const results = await Promise.all(
-  banks.map(async ({ companyId, credentials }) => {
-    const ctx = await browser.newContext();
-    const scraper = createScraper({ companyId, startDate, browserContext: ctx });
-    const result = await scraper.scrape(credentials);
-    await ctx.close();
-    return result;
-  }),
-);
-await browser.close();
+try {
+  const results = await Promise.allSettled(
+    banks.map(async ({ companyId, credentials }) => {
+      const ctx = await browser.newContext();
+      try {
+        const scraper = createScraper({ companyId, startDate, browserContext: ctx });
+        return await scraper.scrape(credentials);
+      } finally {
+        await ctx.close();
+      }
+    }),
+  );
+} finally {
+  await browser.close();
+}
 ```
+
+Both `finally` blocks matter. Without the inner one a rejected scrape leaks its
+context — and because `Promise.allSettled` waits for every entry, that context
+would stay open for the rest of the run. Without the outer one a throw anywhere
+leaves the ~1.3 GB browser process alive.
+
+`allSettled` rather than `all` because one bank failing should not discard the
+results of the banks that succeeded; inspect each entry's `status` before
+reading `value`.
 
 !!! warning "Parallelism raises WAF risk"
     Several banks fingerprint concurrent sessions from one IP. If parallel runs

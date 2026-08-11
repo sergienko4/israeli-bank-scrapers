@@ -1,8 +1,9 @@
 # Main pipeline (post-merge CI)
 
-BLUF: every merge to `main` runs **one** workflow — `Main Pipeline` — that
-calls the individual scans and ends with a single summary answering "did this
-merge land cleanly?". Release and npm publish stay in their own workflow.
+BLUF: every merge to `main` runs **one verification workflow** — `Main Pipeline`
+— that calls the individual scans and ends with a single summary answering "did
+this merge land cleanly?". Release and npm publish stay in `release.yml`, which
+still triggers on the same merge, so a merge starts two runs rather than six.
 
 ## The problem this solves
 
@@ -27,7 +28,7 @@ merge produced a wall of unreadable check runs.
 
 ```mermaid
 flowchart LR
-  merge([merge to main]) --> mp[Main Pipeline]
+  merge([merge to main]) --> mp
   merge --> rel[Release &amp; Publish]
 
   subgraph mp [Main Pipeline]

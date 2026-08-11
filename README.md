@@ -27,8 +27,10 @@ if (result.success) {
 }
 ```
 
-That is the whole API. Every bank uses the same two calls — only the credential
-fields differ.
+That is the whole API. Every bank uses the same two calls, and every one returns
+the same result shape — what varies is which credential fields you pass, and
+whether the OTP callback belongs in the options or the credentials
+([details below](#otp-two-factor-authentication)).
 
 <!-- ALL-CONTRIBUTORS-BADGE:START -->
 
@@ -221,7 +223,8 @@ goes through the redactor first, so `pipeline.log` from a real run reads:
 Account numbers keep a 4-digit tail so you can tell accounts apart. Amounts
 keep only their sign, so a missing debit is still visible in a bug report.
 Merchant names collapse to a length class, which is enough to spot a parser
-splitting one description into two. Attach that file to an issue as-is — see
+splitting one description into two. With redaction left on, attach that file to
+an issue as-is — see
 [PII redaction](https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/)
 for the full field-by-field table.
 
@@ -273,7 +276,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Browser banks (16)"]
+    subgraph BB["Pipeline browser banks (13)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -289,16 +292,28 @@ flowchart LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end
 
+    subgraph LEG["Legacy banks (3) — Behatsdaa · Beyahad Bishvilha · Mizrahi"]
+      direction LR
+      LLOGIN["Declarative login"] --> LFETCH["Bank API or DOM parse"]
+    end
+
     BB -.->|"unified result shape"| RESULT(["IScraperScrapingResult"])
     API -.->|"unified result shape"| RESULT
+    LEG -.->|"unified result shape"| RESULT
 ```
 
-Every bank scrapes **direct API after login**. On browser banks, once
+**Every bank on the pipeline scrapes direct API after login.** Once
 `AUTH-DISCOVERY` proves the session, `BIND-API-MEDIATOR` attaches an
 authenticated client to the live page and `API-DIRECT-SCRAPE` walks a typed
 list of REST/GraphQL calls — no post-login navigation, no DOM scraping. The
-API-direct banks reach the same phase through a headless JSON login instead of
+API-direct banks reach that same phase through a headless JSON login instead of
 the browser prefix.
+
+The three legacy banks predate the phase chain. Behatsdaa and Mizrahi call the
+bank's API from the page; Beyahad Bishvilha still parses its transaction table
+out of the DOM. All three return the same `IScraperScrapingResult`, so callers
+cannot tell the difference — but they do not gain pipeline-only behaviour such
+as phase-scoped retries.
 
 Phases never read one another's state; they communicate through typed fields on
 a shared context. See
@@ -339,8 +354,11 @@ The pre-commit hook runs those plus mocked E2E. PRs are squash-merged and
 release-please cuts the next version automatically.
 
 **Filing a bug?** Attach `pipeline.log`, `network/*.json`, and
-`screenshots/*.html` — all three are redacted at write time and safe to share.
-Skip the `.png` files; raster images are not OCR-scrubbed.
+`screenshots/*.html`. With redaction left at its default (`PII_REDACTION=on`)
+all three are scrubbed at write time and safe to share. If you ran with
+`PII_REDACTION=off` they hold **real** account numbers, balances and tokens —
+regenerate them with redaction on rather than sharing them. Skip the `.png`
+files either way; raster images are not OCR-scrubbed.
 
 ## Contributors
 
