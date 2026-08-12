@@ -132,13 +132,26 @@ The ESLint canary `test-per-bank-duplication.canary.ts` (T7.10 — SHIPPED) make
 
 Per the master plan and the user's "preserve real per-bank edge cases" directive, the following tests stay as per-bank suites because the bank's contract genuinely differs from peers:
 
-| Bank     | Suite                                            | Why it cannot collapse into `it.each(BANKS)`                                                                                              |
-| -------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Hapoalim | `src/Tests/Banks/Hapoalim/WafBlock.test.ts`      | WAF block detection + recovery is Hapoalim-specific (provider = Imperva). No other bank uses Imperva.                                     |
-| OneZero  | `src/Tests/Banks/OneZero/OtpFlow.test.ts`        | OneZero's OTP flow has unique long-term token caching (`PAYBOX_OTP_LONG_TERM`); the assertion shape doesn't apply to OTP-on-demand banks. |
-| Discount | `src/Tests/Banks/Discount/AuthDiscovery.test.ts` | Discount uses a multi-step auth-discovery contract that no other bank exposes.                                                            |
+| Bank      | Suite                                                                     | Why it cannot collapse into `it.each(BANKS)`                                                            |
+| --------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Hapoalim  | `src/Tests/Unit/Pipeline/Infrastructure/HapoalimDashboardEntry.test.ts`   | Hapoalim reaches its dashboard through an entry step no other bank performs.                            |
+| Beinleumi | `src/Tests/Unit/Pipeline/Infrastructure/BeinleumiCrossEndpointScan.test.ts` | The Beinleumi group scans across endpoints; peers resolve from a single endpoint.                       |
+| OneZero   | `src/Tests/Unit/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.test.ts`   | OneZero is the only bank requiring an mTLS client certificate.                                           |
+| Discount  | `src/Tests/E2eReal/SelectorFallbackDiscount.e2e-real.test.ts`             | Per-bank selector-fallback suites assert against one bank's live DOM by design.                          |
 
 These stay verbatim; only the **truly-duplicated** per-bank tests collapse.
+
+> **Correction (post-#473 citation audit).** The rows above originally named
+> `src/Tests/Banks/{Hapoalim/WafBlock,OneZero/OtpFlow,Discount/AuthDiscovery}.test.ts`.
+> No such files, and no `src/Tests/Banks/` directory, exist in any branch's
+> history — they were planned paths in the drafting pass, not real suites. The
+> rationale was wrong too: WAF handling is **cross-bank**
+> (`src/Tests/Unit/Pipeline/Interceptors/WafChallenge/`,
+> `src/Tests/Unit/Pipeline/Mediator/Api/ApiMediator.waf-block-storm.test.ts`),
+> not Hapoalim-specific. The table now names the real per-bank preserves — the
+> same ones the "Bank-named files" bullet above already listed, which is where
+> the inconsistency showed. The phase verdict (preserve genuine per-bank edge
+> cases, collapse only duplicates) is unchanged.
 
 ---
 

@@ -61,6 +61,41 @@ The `docs/` tree is **not** gated. It uses base-relative citations in prose
 backed by a full link target. Converting that convention would be a large
 change unrelated to the drift this gate prevents.
 
+### Why `docs/` stays ungated — measured
+
+That exclusion was an assumption until it was measured. Running the checker
+across all 70 files under `docs/` reported **56 unresolved citations**.
+Classifying each by whether any tracked file *ends with* the cited token:
+
+| Class                                                          | Count | Verdict                         |
+| -------------------------------------------------------------- | ----- | ------------------------------- |
+| Base-relative shorthand (exactly one suffix match)             | 37    | Legitimate — the convention     |
+| External planning/session files outside the repo               | 5     | Legitimate — not repo paths     |
+| Prose ellipsis — a filename abbreviated with `...` in a table  | 3     | Not a path at all               |
+| ESM specifier `.js` resolving to a `.ts` source                | 2     | Legitimate — TypeScript ESM     |
+| A removed path the prose explicitly describes as removed       | 2     | Legitimate — deliberate         |
+| Planned files the prose itself says were never created         | 2     | Legitimate — hypothetical       |
+| A path that existed and was later deleted                      | 1     | Legitimate — historical record  |
+| A legacy module named approximately in a historical row        | 1     | Stale, but self-evidently past  |
+| **Named as existing test suites, but never created**           | **3** | **Real drift — fixed here**     |
+
+So **53 of 56 are correct**, and gating `docs/` as-is would report 53 false
+positives to surface 3 real ones — the exact trade the "Known gaps" section
+above refuses, because a gate that cries wolf gets switched off.
+
+The 3 real ones sat in `docs/phase-7-consolidation-map.md`, a historical
+record of a shipped phase, and are corrected in place. Note what found them:
+not this gate, but a knowledge-graph re-analysis. Closing the remaining gap
+needs base-awareness — a per-file "paths here are relative to X" declaration —
+not a wider glob. Until something declares that base, `docs/` stays out of
+scope by evidence rather than by assumption.
+
+Reproduce (expect 53 after this change, all classified above as legitimate):
+
+```bash
+node scripts/check-doc-paths.mjs $(git ls-files 'docs/**/*.md')
+```
+
 ## PR bodies
 
 The same checker runs against the PR body, where a stale path is equally
