@@ -26,6 +26,7 @@ REQ_FILE="${REQUIREMENTS_FILE:-requirements-docs.txt}"
 declare -A SCORECARD_ACCEPTED=(
   ['ghp-import']='Mandatory transitive of mkdocs (mkdocs>=1.6 hard-requires ghp-import>=1.0). Used by `mkdocs gh-deploy` and indirectly by GitHub-Pages publishing. Last upstream release 2.1.0 in 2022-05-02; low Scorecard reflects maintenance cadence, not a security advisory. No maintained alternative exists (verified PyPI 2026-05-28). License: Apache-2.0.'
   ['mkdocs-material-extensions']='Mandatory transitive of mkdocs-material (mkdocs-material 9.x hard-requires mkdocs-material-extensions>=1.3 per its requires_dist). Provides the SVG/twemoji emoji generators that pymdownx.emoji + mkdocs.yml reference. Maintained by the same author (facelessuser) as pymdown-extensions; low Scorecard reflects maintenance cadence on a small support package, not a security advisory. No maintained alternative exists (verified PyPI 2026-05-28). License: MIT.'
+  ['mkdocs-mermaid2-plugin']='De-facto standard mkdocs mermaid plugin (fralau/mkdocs-mermaid2-plugin); the docs site renders mermaid diagrams through it (mkdocs.yml plugins entry). Last upstream release 1.2.3 on 2025-10-17 and no newer version exists (verified PyPI 2026-08-19), so no higher-scoring release is available to pin. Score 2.9 (API 2026-08-17: Maintained=0, Code-Review=1) reflects single-maintainer cadence and missing signed releases, not a security advisory; no maintained alternative exists. License: MIT.'
 )
 
 FAIL=0
