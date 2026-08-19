@@ -1,5 +1,15 @@
 # Changelog
 
+## [8.6.7](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.6...v8.6.7) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ci:** accept mkdocs-mermaid2-plugin scorecard 2.9 (no newer release exists) ([#482](https://github.com/sergienko4/israeli-bank-scrapers/issues/482)) ([0052d98](https://github.com/sergienko4/israeli-bank-scrapers/commit/0052d98326c07cd127dcf97471276c9792230efa))
+* **ci:** pin the CodeQL analysis category ([#471](https://github.com/sergienko4/israeli-bank-scrapers/issues/471)) ([e5a64ca](https://github.com/sergienko4/israeli-bank-scrapers/commit/e5a64ca282c4b3047a9e72a18ac8fc9960bfe5ff))
+* **mapper:** card charges were recorded as income ([#483](https://github.com/sergienko4/israeli-bank-scrapers/issues/483)) ([84a72ac](https://github.com/sergienko4/israeli-bank-scrapers/commit/84a72ac1dc6a0d2777804a323caf23a12af2ba61))
+* **mapper:** restore provider fields for all banks ([#484](https://github.com/sergienko4/israeli-bank-scrapers/issues/484)) ([d53d7ae](https://github.com/sergienko4/israeli-bank-scrapers/commit/d53d7ae540f8700ab2ffd2f05175d337d7abf639))
+
 ## [8.6.6](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.5...v8.6.6) (2026-08-10)
 
 
