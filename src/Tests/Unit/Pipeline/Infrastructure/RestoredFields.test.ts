@@ -106,6 +106,23 @@ describe('restoreProviderFields', () => {
     expect(mapped({ moreInfo: 'REF 12 34' }).installments).toBeUndefined();
   });
 
+  // The next three assert the ordinal contract rather than a captured payload.
+  // Across the 1305 rows that carry a payments total, none is fractional and
+  // none places the payment past the end of the plan — so these guard against
+  // publishing an `installments` object the interface cannot honestly carry,
+  // the same defect class as an instalment type with no ordinals behind it.
+  it('rejects a note placing the payment past the end of the plan', () => {
+    expect(mapped({ moreInfo: 'תשלום 11 מתוך 10' }).installments).toBeUndefined();
+  });
+
+  it('rejects explicit ordinals placing the payment past the end of the plan', () => {
+    expect(mapped({ numOfPayments: 10, curPaymentNum: 11 }).installments).toBeUndefined();
+  });
+
+  it('rejects a fractional plan length', () => {
+    expect(mapped({ numOfPayments: 3.5, curPaymentNum: 1 }).installments).toBeUndefined();
+  });
+
   it('maps the instalment transaction type', () => {
     expect(mapped({ numOfPayments: 10, curPaymentNum: 3 }).type).toBe(
       TransactionTypes.Installments,

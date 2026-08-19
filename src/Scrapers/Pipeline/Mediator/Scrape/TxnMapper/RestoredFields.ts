@@ -38,11 +38,13 @@ import { type ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
  * own miss-sentinel convention.
  */
 
-/** Instalment ordinals, in the shape {@link ITransaction} declares. */
-interface IInstallments {
-  readonly number: number;
-  readonly total: number;
-}
+/**
+ * Instalment ordinals, bound to the shape {@link ITransaction} declares.
+ *
+ * Derived from the consuming field rather than restated, so a change to the
+ * published interface cannot leave this module compiling against a stale copy.
+ */
+type IInstallments = NonNullable<ITransaction['installments']>;
 
 /** Hebrew keyword marking an instalment memo on the Isracard/Amex payloads. */
 const INSTALLMENTS_KEYWORD = 'תשלום';
@@ -65,19 +67,39 @@ function asText(value: unknown): string | false {
 }
 
 /**
+ * Reject an ordinal pair that cannot describe a position within a real plan.
+ *
+ * Shared by both resolution paths so neither can publish an `installments`
+ * object the interface cannot honestly carry — the same class of defect as
+ * emitting an instalment *type* with no ordinals behind it. A usable pair is
+ * whole, positive, and does not place the current payment past the end of the
+ * plan. No captured row violates any of the three: of the 1305 rows carrying a
+ * payments total, none is fractional and none has `number > total`. This
+ * guards the published contract rather than an observed payload.
+ *
+ * @param number - Candidate current-payment ordinal.
+ * @param total - Candidate plan length.
+ * @returns `true` when the pair is a usable position within a plan.
+ */
+function areSaneOrdinals(number: number, total: number): boolean {
+  if (!Number.isInteger(number) || !Number.isInteger(total)) return false;
+  if (number <= 0 || total <= 0) return false;
+  return number <= total;
+}
+
+/**
  * Parse the leading two integers out of a free-text instalment note.
  *
  * @param text - Provider comment/note text.
- * @returns Ordinals, or `false` when the text carries fewer than two.
+ * @returns Ordinals, or `false` when the text carries fewer than two usable
+ *   ones.
  */
 function twoOrdinals(text: string): IInstallments | false {
   const matches = text.match(/\d+/g);
   if (matches === null || matches.length < 2) return false;
   const number = Number.parseInt(matches[0], 10);
   const total = Number.parseInt(matches[1], 10);
-  if (!Number.isFinite(number) || !Number.isFinite(total)) return false;
-  if (number <= 0 || total <= 0) return false;
-  return { number, total };
+  return areSaneOrdinals(number, total) ? { number, total } : false;
 }
 
 /**
@@ -179,9 +201,7 @@ function explicitInstallments(raw: ApiRecord): IInstallments | false {
   // A pending row carries only the total, and the per-institution scraper
   // treats it as payment 1.
   const number = raw.numOfPayments === undefined ? 1 : Number(raw.curPaymentNum);
-  if (!Number.isFinite(total) || !Number.isFinite(number)) return false;
-  if (total <= 0 || number <= 0) return false;
-  return { number, total };
+  return areSaneOrdinals(number, total) ? { number, total } : false;
 }
 
 /**
