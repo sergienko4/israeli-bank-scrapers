@@ -21,6 +21,7 @@ import {
 } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { findFieldValue } from '../BfsFieldSearch/BfsFieldSearch.js';
 import { coerceNumber, coerceString, parseAutoDate } from '../Coercion/Coercion.js';
+import { signCardAmounts } from './TxnSign.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -70,31 +71,6 @@ function isVoidedTransaction(raw: ApiRecord): boolean {
 }
 
 /**
- * Flip a card issuer's sign convention to the caller-facing one.
- *
- * Card issuers report a charge as a positive number — "you owe 122.17" — while
- * consumers expect spend to be negative. So the sign is INVERTED, not forced.
- *
- * `-Math.abs(amount)` was wrong: a refund arrives from the issuer as a negative
- * number, and forcing the sign turned it straight back into a charge. A charge
- * and its later refund therefore both mapped to charges, so the refunded money
- * never came back. Inverting handles both directions, and matches what the
- * per-institution scrapers in the original `israeli-bank-scrapers` do
- * (`chargedAmount: -actualPaymentAmount`).
- *
- * @param amount - Raw amount from API.
- * @param isCardTxn - Whether this is a card company transaction.
- * @returns Sign-inverted amount for cards, original for banks.
- */
-function maybeNegateAmount(amount: number, isCardTxn: boolean): number {
-  if (!isCardTxn) return amount;
-  // Guarded so zero cannot become -0, which serialises as "-0" and is unequal
-  // to a stored 0 under Object.is.
-  if (amount === 0) return 0;
-  return -amount;
-}
-
-/**
  * Resolve amount — single field or split debit/credit netting.
  * Generic: if WK.amount not found, falls back to credit - debit.
  * @param raw - Raw transaction record.
@@ -108,21 +84,6 @@ function resolveAmount(raw: ApiRecord, singleAmount: ScalarFieldHit): number {
   const debitNum = coerceNumber(debit, 0);
   const creditNum = coerceNumber(credit, 0);
   return creditNum - debitNum;
-}
-
-/**
- * Apply WK.direction sign convention. Debit indicators flip a positive
- * amount to negative; missing / non-debit directions leave the amount
- * untouched.
- * @param raw - Raw transaction record.
- * @param amount - Amount already resolved via resolveAmount + maybeNegateAmount.
- * @returns Sign-corrected amount.
- */
-function applyDirectionWk(raw: ApiRecord, amount: number): number {
-  const direction = findFieldValue(raw, WK.direction);
-  if (typeof direction !== 'string') return amount;
-  if (!/^debit$/i.test(direction)) return amount;
-  return -Math.abs(amount);
 }
 
 /**
@@ -230,23 +191,22 @@ function extractRawTxnFields(raw: ApiRecord): IRawTxnFields {
 }
 
 /**
- * Compute the signed charged + original amounts. Runs the
- * card-negation + direction-WK pipeline on both `amount` and
- * `originalAmount`, falling back to `amount` for `originalAmount`
- * when the record omits it.
+ * Compute the signed charged + original amounts.
+ *
+ * `originalAmount` falls back to the RAW charged amount when the record
+ * omits it. Seeding it from the already-negated value instead left the two
+ * fields with opposite signs, and would now also manufacture a false sign
+ * disagreement in {@link signCardAmounts}.
+ *
  * @param raw - Raw API record (needed for direction-WK lookup).
  * @param fields - Pre-extracted scalar hits.
- * @param isCard - True for Isracard/Amex (debit-as-positive).
+ * @param isCard - True when the institution declares itself a card issuer.
  * @returns Signed amounts ready to assign to the mapped txn.
  */
 function computeAmounts(raw: ApiRecord, fields: IRawTxnFields, isCard: boolean): IResolvedAmounts {
-  const rawAmt = resolveAmount(raw, fields.amount);
-  const negAmt = maybeNegateAmount(rawAmt, isCard);
-  const amtNum = applyDirectionWk(raw, negAmt);
-  const rawOrig = coerceNumber(fields.originalAmount, amtNum);
-  const negOrig = maybeNegateAmount(rawOrig, isCard);
-  const origNum = applyDirectionWk(raw, negOrig);
-  return { amtNum, origNum };
+  const amount = resolveAmount(raw, fields.amount);
+  const original = coerceNumber(fields.originalAmount, amount);
+  return signCardAmounts({ raw, amount, original, isCard });
 }
 
 /**

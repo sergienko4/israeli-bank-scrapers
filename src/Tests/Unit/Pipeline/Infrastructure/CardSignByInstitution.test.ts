@@ -76,3 +76,96 @@ describe('charge sign by declared institution', () => {
     expect(mapped({ ...CHARGE, amount: -401.55 }, true).chargedAmount).toBe(401.55);
   });
 });
+
+/**
+ * A VisaCal row at the shape the API actually sends: `trnAmt` is an UNSIGNED
+ * magnitude and the minus lives on `amtBeforeConvAndIndex`. Shape taken from a
+ * real capture whose credit rows carry `trnType: "זיכוי"`, `refundInd: true`
+ * and `trnTypeCode: "6"`. Amounts here are representative, not real.
+ */
+const VISACAL_REFUND = {
+  date: '2026-01-05',
+  trnAmt: 250,
+  amtBeforeConvAndIndex: -250,
+  description: 'MERCHANT',
+};
+
+/**
+ * An Isracard row at its real shape: every amount field is signed, and the
+ * original-currency amount differs from the billed one on a foreign purchase.
+ */
+const ISRACARD_FX_REFUND = {
+  date: '2026-02-11',
+  ilsAmount: -96.4,
+  originalAmount: -25,
+  description: 'MERCHANT',
+};
+
+describe('charge sign when only one of the two amount fields is signed', () => {
+  it('returns a VisaCal refund as money back, in BOTH amount fields', () => {
+    // The gap this covers. VisaCal never signs `trnAmt` — it is a magnitude —
+    // so inverting it alone booked the refund as a 250 expense, while
+    // `originalAmount` came out +250. The row contradicted itself.
+    const txn = mapped(VISACAL_REFUND, true);
+    expect(txn.chargedAmount).toBe(250);
+    expect(txn.originalAmount).toBe(250);
+  });
+
+  it('keeps a VisaCal charge negative — both fields positive means a charge', () => {
+    // Regression guard. The rows this must not touch are the ordinary charges
+    // that happen to carry a non-default `trnTypeCode`: in the real payload
+    // `trnTypeCode: "9"` rows are charges with `refundInd: false`, NOT credits.
+    const charge = {
+      ...VISACAL_REFUND,
+      trnAmt: 180.5,
+      amtBeforeConvAndIndex: 180.5,
+      trnTypeCode: '9',
+    };
+    const txn = mapped(charge, true);
+    expect(txn.chargedAmount).toBe(-180.5);
+    expect(txn.originalAmount).toBe(-180.5);
+  });
+
+  it('carries the sign across currencies on a foreign refund', () => {
+    // Both fields are signed here and differ in magnitude and currency. They
+    // agree in direction, so nothing is reconciled — the amounts only invert.
+    const txn = mapped(ISRACARD_FX_REFUND, true);
+    expect(txn.chargedAmount).toBe(96.4);
+    expect(txn.originalAmount).toBe(25);
+  });
+
+  it('carries the sign across currencies on a foreign charge', () => {
+    const txn = mapped({ ...ISRACARD_FX_REFUND, ilsAmount: 148.8, originalAmount: 40 }, true);
+    expect(txn.chargedAmount).toBe(-148.8);
+    expect(txn.originalAmount).toBe(-40);
+  });
+
+  it('reconciles a foreign refund whose billed amount is unsigned', () => {
+    const txn = mapped({ ...VISACAL_REFUND, trnAmt: 100, amtBeforeConvAndIndex: -25 }, true);
+    expect(txn.chargedAmount).toBe(100);
+    expect(txn.originalAmount).toBe(25);
+  });
+
+  it('keeps both amounts on the same side when the record omits the original', () => {
+    // The original amount falls back to the charged one. Seeding that fallback
+    // from the already-inverted value left the two fields with opposite signs
+    // on every card row that omits an original amount.
+    const txn = mapped(CHARGE, true);
+    expect(txn.chargedAmount).toBe(-122.17);
+    expect(txn.originalAmount).toBe(-122.17);
+  });
+
+  it('leaves a bank record alone even when its two amounts disagree', () => {
+    // Reconciliation is scoped to declared card issuers. Banks net debit and
+    // credit into an already-signed amount and must not be second-guessed.
+    const txn = mapped({ ...VISACAL_REFUND, trnAmt: 250, amtBeforeConvAndIndex: -250 }, false);
+    expect(txn.chargedAmount).toBe(250);
+    expect(txn.originalAmount).toBe(-250);
+  });
+
+  it('does not produce negative zero when reconciling a zero amount', () => {
+    const txn = mapped({ ...VISACAL_REFUND, trnAmt: 0 }, true);
+    const isNegativeZero = Object.is(txn.chargedAmount, -0);
+    expect(isNegativeZero).toBe(false);
+  });
+});

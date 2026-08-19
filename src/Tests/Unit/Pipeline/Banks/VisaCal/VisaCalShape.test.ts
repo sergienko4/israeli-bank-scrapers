@@ -25,11 +25,14 @@ import {
   txnsUrl,
   txnsVars,
 } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeTxns.js';
+import type { ApiRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
+import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { ITransaction } from '../../../../../Transactions.js';
 
 const CARD: IVisaCalCard = { cardUniqueId: 'CARD-1', displayNumber: '1234' };
 
@@ -229,5 +232,76 @@ describe('VISACAL_SHAPE wiring', () => {
 
   it('carries the VisaCalScrape step name', () => {
     expect(VISACAL_SHAPE.stepName).toBe('VisaCalScrape');
+  });
+});
+
+/**
+ * A CAL credit row at the shape the API actually sends: `trnAmt` is an
+ * UNSIGNED magnitude and the minus lives on `amtBeforeConvAndIndex`. The real
+ * payload also carries `refundInd: true`, `trnTypeCode: "6"` and
+ * `trnType: "זיכוי"`, none of which the mapper reads — the sign disagreement
+ * between the two amount fields is what identifies the row as a credit.
+ * Values are synthetic; only the shape is real.
+ */
+const CREDIT_ROW = {
+  trnIntId: 'CREDIT-1',
+  trnPurchaseDate: '2026-01-12T17:07:00',
+  merchantName: 'MERCHANT',
+  trnAmt: 250,
+  amtBeforeConvAndIndex: -250,
+  refundInd: true,
+  trnTypeCode: '6',
+};
+
+/**
+ * An ordinary charge that happens to carry a non-default `trnTypeCode`. In
+ * the real payload `trnTypeCode: "9"` rows are charges with
+ * `refundInd: false` — the code is NOT a credit marker.
+ */
+const CHARGE_ROW = {
+  trnIntId: 'CHARGE-1',
+  trnPurchaseDate: '2026-01-13T10:00:00',
+  merchantName: 'MERCHANT',
+  trnAmt: 180.5,
+  amtBeforeConvAndIndex: 180.5,
+  refundInd: false,
+  trnTypeCode: '9',
+};
+
+/**
+ * Run one raw CAL row through the shape's own page extractor and then the
+ * mapper, as a VisaCal scrape does — so the shape's `isCardIssuer`
+ * declaration is what decides the sign, not a payload sniff.
+ *
+ * @param row - Raw CAL transaction row.
+ * @returns The mapped transaction.
+ */
+function scrapeRow(row: Record<string, unknown>): ITransaction {
+  const body = { result: { bankAccounts: [{ debitDates: [{ transactions: [row] }] }] } };
+  const ctx = ctxWith(new Date(2000, 0, 1), 0);
+  const page = txnsExtractPage({ body, cursor: false, acct: CARD, ctx });
+  const mapped = autoMapTransaction(page.items[0] as ApiRecord, VISACAL_SHAPE.isCardIssuer);
+  if (mapped === false) throw new TypeError('row was rejected by the mapper');
+  return mapped;
+}
+
+describe('VisaCal charge sign, end to end through the shape', () => {
+  it('declares itself a card issuer', () => {
+    expect(VISACAL_SHAPE.isCardIssuer).toBe(true);
+  });
+
+  it('books a charge as money spent', () => {
+    const txn = scrapeRow(CHARGE_ROW);
+    expect(txn.chargedAmount).toBe(-180.5);
+    expect(txn.originalAmount).toBe(-180.5);
+  });
+
+  it('books a credit as money returned, in BOTH amount fields', () => {
+    // CAL leaves `trnAmt` unsigned, so inverting it alone booked this refund
+    // as a 250 expense while `originalAmount` came out +250 — a row that
+    // contradicted itself. Both fields must land on the same side.
+    const txn = scrapeRow(CREDIT_ROW);
+    expect(txn.chargedAmount).toBe(250);
+    expect(txn.originalAmount).toBe(250);
   });
 });

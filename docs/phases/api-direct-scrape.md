@@ -122,6 +122,22 @@ Beyond the three required steps (`customer` / `balance` / `transactions`), `IApi
 - `signer` + `secrets` (shape root) — an `IAesSignerConfig` body-pointer signer applied to every scrape-step body before POST (PayBox).
 - `resultGuard` — a fail-closed POST-stage guard over a PII-free `IApiDirectScrapeGuardSummary` that aborts a degraded run (e.g. zero transactions from a warm session).
 - `bootstrap` — an `IApiDirectScrapeBootstrapStep` that runs **once before** the per-account scrape to seed the session context with material later steps need (PayBox's per-session HMAC key). See below.
+- `isCardIssuer` — declares that this shape's rows are **card** transactions, so the mapper inverts the issuer's sign convention. See below.
+
+## isCardIssuer — card amount signs
+
+A card issuer reports a charge as a **positive** magnitude ("you owe 122.17"), the opposite of the account convention the canonical shape uses, where spend is negative. `isCardIssuer: true` (Amex, Isracard, Max, VisaCal) declares that convention on the shape; `ApiDirectScrapeActions.mapTxns` forwards it to `autoMapTransaction`, which routes **both** raw amounts — charged and original — through `signCardAmounts` (`Mediator/Scrape/TxnMapper/TxnSign.ts`). That function takes an `ICardSignArgs` (the two raw amounts plus the flag) and returns the resolved pair as `ISignedAmounts`.
+
+The sign is inverted rather than forced, because forcing it (`-Math.abs`) turns a refund back into a charge — a charge and its later refund would both map to spend, so refunded money never returns.
+
+Two issuer styles exist and one rule covers both:
+
+| Issuer | how a refund row is signed |
+| --- | --- |
+| VisaCal | charged amount is an **unsigned** magnitude; only the original-currency amount carries the minus |
+| Isracard / Amex | **both** amounts are already negative |
+
+So a card row counts as a credit when **exactly one of its two amounts is negative** — a disagreement only a refund produces, since a refund is a refund in both currencies (Isracard proves it even on a foreign-currency refund, where the two amounts differ in magnitude and currency yet agree in sign). A negative value is unambiguous evidence of a credit, while a positive one cannot distinguish a charge from an unsigned magnitude, so the negative side wins. Both amounts are normalised negative before the inversion, which flips them back to positive for the refund and leaves ordinary charges negative. Rows whose fields already agree are untouched, so the rule is idempotent across both styles.
 
 ## bootstrap — one-shot session-context seeding
 
