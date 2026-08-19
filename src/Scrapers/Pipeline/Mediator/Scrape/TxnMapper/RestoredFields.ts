@@ -67,6 +67,20 @@ function asText(value: unknown): string | false {
 }
 
 /**
+ * Report whether the provider sent no value for a field.
+ *
+ * `null` and `undefined` both mean absent, so every absence test in this
+ * module must treat them identically: a branch that accepts one where its
+ * neighbour rejects it reads a field the neighbour considers missing.
+ *
+ * @param value - Candidate raw value.
+ * @returns `true` when the provider sent no value.
+ */
+function isAbsent(value: unknown): boolean {
+  return value === undefined || value === null;
+}
+
+/**
  * Reject an ordinal pair that cannot describe a position within a real plan.
  *
  * Shared by both resolution paths so neither can publish an `installments`
@@ -90,15 +104,24 @@ function areSaneOrdinals(number: number, total: number): boolean {
 /**
  * Parse the leading two integers out of a free-text instalment note.
  *
+ * Reads whole numeric tokens rather than digit runs, so a separator cannot be
+ * silently dropped: a digit-run scan reads `1.5` as the ordinals `1` and `5`,
+ * and a grouped amount such as `1,250.00` as `1` and `250` — inventing a plan
+ * the note never described. A token carrying a separator converts to either a
+ * fraction or `NaN`, and {@link areSaneOrdinals} rejects both. The sign class
+ * is left out on purpose: a hyphen in these notes separates the ordinals
+ * (`מ-2`) rather than negating them, so matching it would reject a legitimate
+ * note.
+ *
  * @param text - Provider comment/note text.
  * @returns Ordinals, or `false` when the text carries fewer than two usable
  *   ones.
  */
 function twoOrdinals(text: string): IInstallments | false {
-  const matches = text.match(/\d+/g);
+  const matches = text.match(/\d+(?:[.,]\d+)?/g);
   if (matches === null || matches.length < 2) return false;
-  const number = Number.parseInt(matches[0], 10);
-  const total = Number.parseInt(matches[1], 10);
+  const number = Number(matches[0]);
+  const total = Number(matches[1]);
   return areSaneOrdinals(number, total) ? { number, total } : false;
 }
 
@@ -196,11 +219,11 @@ function resolveMemo(raw: ApiRecord): string | false {
  */
 function explicitInstallments(raw: ApiRecord): IInstallments | false {
   const explicitTotal = raw.numOfPayments ?? raw.numberOfPayments;
-  if (explicitTotal === undefined || explicitTotal === null) return false;
+  if (isAbsent(explicitTotal)) return false;
   const total = Number(explicitTotal);
-  // A pending row carries only the total, and the per-institution scraper
-  // treats it as payment 1.
-  const number = raw.numOfPayments === undefined ? 1 : Number(raw.curPaymentNum);
+  // A pending row carries only the total, and the scraper treats it as payment
+  // 1; `??` above already discarded a null total, so this test must match it.
+  const number = isAbsent(raw.numOfPayments) ? 1 : Number(raw.curPaymentNum);
   return areSaneOrdinals(number, total) ? { number, total } : false;
 }
 

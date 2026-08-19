@@ -123,6 +123,27 @@ describe('restoreProviderFields', () => {
     expect(mapped({ numOfPayments: 3.5, curPaymentNum: 1 }).installments).toBeUndefined();
   });
 
+  // The next three guard the same contract at the parse level rather than a
+  // captured payload: across 5745 captured files no instalment note carries a
+  // decimal or a grouped number, and no record sends a null plan length. A
+  // digit-run scan would still read `1.5` as `1 of 5` and `1,250.00` as
+  // `1 of 250`, and an absence test that accepted `null` on one line while the
+  // line above discarded it would drop a valid pending row.
+  it('rejects a fractional ordinal in a note', () => {
+    expect(mapped({ moreInfo: 'תשלום 1.5 מתוך 3' }).installments).toBeUndefined();
+  });
+
+  it('does not read a grouped amount in a note as ordinals', () => {
+    expect(mapped({ moreInfo: 'תשלום בסך 1,250.00' }).installments).toBeUndefined();
+  });
+
+  it('treats a null plan length as absent and falls back to the pending total', () => {
+    expect(mapped({ numOfPayments: null, numberOfPayments: 10 }).installments).toEqual({
+      number: 1,
+      total: 10,
+    });
+  });
+
   it('maps the instalment transaction type', () => {
     expect(mapped({ numOfPayments: 10, curPaymentNum: 3 }).type).toBe(
       TransactionTypes.Installments,
