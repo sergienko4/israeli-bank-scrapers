@@ -38,6 +38,35 @@ Both live in [`.github/workflows/release.yml`](https://github.com/sergienko4/isr
 | Supported Node range | `engines.node` | Unit suite runs on the floor, latest 22.x and latest 24.x; `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
 | Upgrade notes | `compatibility.json` | `npm run compat:check` diffs the generated page against its source |
 
+## Node support policy
+
+Two claims are easy to conflate, and only one of them can break someone:
+
+| Claim | Declared in | May move |
+| --- | --- | --- |
+| What we **build and publish on** | `.nvmrc` (consumed by `release.yml`, `docs.yml`, CI) | Any time — it is invisible to consumers |
+| What we **require of consumers** | `engines.node`, plus `target` in `tsup.config.ts` | Only in a **major** — raising the floor breaks working installs |
+
+Raising `engines.node` also moves `tsup`'s `target` from `node22` to `node24`,
+because the emitted bundle is downlevelled to the **oldest** runtime we promise,
+not the one we develop on. Those two move together or we ship a bundle using
+syntax the advertised floor cannot parse.
+
+**Current state**, against Node's
+[release schedule](https://github.com/nodejs/release#release-schedule):
+
+| Node | Upstream status | Our position |
+| --- | --- | --- |
+| 22.x | Maintenance LTS, EOL 2027-04-30 | The `engines.node` floor; supported for all of `8.x` |
+| 24.x | Active LTS since 2025-10-28 | Tested on every PR; the intended floor after the next major |
+| 26.x | Current, LTS from 2026-10-28 | Not tested yet; a candidate leg once it reaches LTS |
+
+So the roadmap is: **a future major raises the floor to `>= 24` and drops 22.x.**
+It is announced in the README rather than done quietly at the moment 22 goes
+EOL, because a consumer who reads `>= 22.14.0` today should not discover the
+change from a failed install. `npm run lint:node-support` fails the build if only
+some of these declarations move.
+
 ## Why the Dependabot compatibility score says "unknown"
 
 This is the most common "our release is broken" report, and it is neither a
