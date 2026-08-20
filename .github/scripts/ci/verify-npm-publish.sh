@@ -41,8 +41,10 @@ PKG_VERSION="${2:?version required}"
 ENCODED_NAME="${PKG_NAME//\//%2f}"
 REGISTRY_URL="https://registry.npmjs.org/${ENCODED_NAME}"
 
-readonly MAX_ATTEMPTS=12
-readonly SLEEP_SECONDS=10
+# Overridable so the smoke test can exercise the give-up path in milliseconds
+# instead of the two minutes a real release is willing to wait.
+readonly MAX_ATTEMPTS="${VERIFY_MAX_ATTEMPTS:-12}"
+readonly SLEEP_SECONDS="${VERIFY_SLEEP_SECONDS:-10}"
 
 # Reads the registry's package document on stdin and prints two fields:
 # the version's own `version` string (empty when absent) and `dist-tags.latest`.
@@ -92,13 +94,25 @@ done
 # by this workflow from this commit. package.json asks for it via
 # `publishConfig.provenance`, so its absence means the OIDC exchange degraded
 # silently and the supply-chain claim in our README is no longer true.
+# Read it out of the package document already fetched above rather than asking
+# `npm view` for the field. `npm view <pkg> <missing.field>` prints nothing and
+# still exits 0, so a `! npm view ...` guard never fires and an unsigned publish
+# would sail through the very check meant to catch it.
+readonly READ_PROVENANCE='
+  const doc = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  const dist = doc.versions?.[process.argv[1]]?.dist ?? {};
+  process.stdout.write(dist.attestations?.provenance?.predicateType ?? "");
+'
+
 echo "Verifying provenance attestation"
-if ! npm view "${PKG_NAME}@${PKG_VERSION}" dist.attestations.provenance.predicateType > /dev/null 2>&1; then
+predicate=$(printf '%s' "${body}" | node -e "${READ_PROVENANCE}" "${PKG_VERSION}")
+
+if [ -z "${predicate}" ]; then
   echo "ERROR: ${PKG_NAME}@${PKG_VERSION} published without a provenance attestation." >&2
   echo "       package.json sets publishConfig.provenance=true, so the OIDC token" >&2
   echo "       exchange degraded to an unsigned publish instead of failing." >&2
   exit 1
 fi
 
-echo "  ✓ provenance attestation present"
+echo "  ✓ provenance attestation present (${predicate})"
 echo "${PKG_NAME}@${PKG_VERSION} is installable, tagged latest, and signed."

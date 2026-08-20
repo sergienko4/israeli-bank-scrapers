@@ -43,9 +43,9 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/8: shellcheck ──"
+echo "── 1/9: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh; do
+  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh verify-npm-publish.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/8: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/9: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -115,7 +115,7 @@ fi
 # ── 3. docs-site link guard ──
 # Behavioural test, not just shellcheck: the guard's whole value is that
 # it FAILS on a link with no backing page, so assert both directions.
-echo "── 3/8: docs-site link guard ──"
+echo "── 3/9: docs-site link guard ──"
 GUARD="$SCRIPT_DIR/check-docs-links.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -154,7 +154,7 @@ assert_eq "README restored after negative test" "1" "$guard_restored"
 # its exit status is what stops a red merge looking green. Assert the verdict
 # in both directions, plus the release wording that distinguishes "shipped"
 # from "only refreshed the Release PR".
-echo "── 4/8: post-merge pipeline summary ──"
+echo "── 4/9: post-merge pipeline summary ──"
 SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
 SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/pipeline-summary-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE"' EXIT
@@ -195,7 +195,7 @@ assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
 # sides of the limit. The "not measured" path matters just as much: a
 # measurement that did not happen must never be reported as a 0 MB win, and
 # must never fail a PR for a reason the author cannot act on.
-echo "── 5/8: memory regression verdict ──"
+echo "── 5/9: memory regression verdict ──"
 MEMCMP="$SCRIPT_DIR/memory-compare.sh"
 MEM_FILE="$(mktemp "${TMPDIR:-/tmp}/memory-compare-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"' EXIT
@@ -255,7 +255,7 @@ assert_eq "the delta percentage is shown" "1" "$pct_shown"
 # strengthening must pass. The distinction between "could not measure"
 # (skip, exit 0) and "measured garbage" (fail loudly, exit 2) is asserted
 # too — collapsing the two would let a broken tool disable the gate.
-echo "── 6/8: decoupling regression verdict ──"
+echo "── 6/9: decoupling regression verdict ──"
 DECCMP="$SCRIPT_DIR/decoupling-compare.sh"
 DEC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/decoupling-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR"' EXIT
@@ -337,7 +337,7 @@ fi
 
 # ── 7. cited-path gate ──
 echo ""
-echo "── 7/8: cited-path gate ──"
+echo "── 7/9: cited-path gate ──"
 DOC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/doc-paths-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR" "$DOC_DIR"' EXIT
 
@@ -447,7 +447,7 @@ fi
 
 # ── 8. bot-PR exemption ──
 echo ""
-echo "── 8/8: bot-PR exemption ──"
+echo "── 8/9: bot-PR exemption ──"
 if ! command -v node >/dev/null 2>&1; then
   echo "  ⚠ node not found — skipping bot-exemption tests"
 else
@@ -472,6 +472,60 @@ else
   assert_eq "a payload missing repo data is not exempt" "false" \
     "$(is_bot '{"user":{"login":"human"},"head":{"ref":"dependabot/x"}}')"
 fi
+
+# ── 9. npm publish verification ──
+# `verify-npm-publish.sh` is what turns "npm publish exited 0" into "a consumer
+# can actually install this". It can't be pointed at the live registry from CI
+# or from a machine behind a proxy, so the package document is served from a
+# fixture through a stub `curl` on PATH — the script itself runs unmodified.
+echo "── 9/9: npm publish verification ──"
+NPM_TMP="$(mktemp -d)"
+mkdir -p "$NPM_TMP/bin"
+cat > "$NPM_TMP/bin/curl" <<'STUB_CURL'
+#!/usr/bin/env bash
+# Stands in for registry.npmjs.org: ignores curl's flags, serves the fixture.
+cat "${FIXTURE_PACKUMENT}"
+STUB_CURL
+chmod +x "$NPM_TMP/bin/curl"
+
+# $1 file, $2 dist-tags.latest, $3 extra `dist` members (leading comma, or empty)
+write_packument() {
+  cat > "$1" <<EOF
+{
+  "dist-tags": { "latest": "$2" },
+  "versions": {
+    "9.9.9": {
+      "version": "9.9.9",
+      "dist": { "shasum": "deadbeef", "tarball": "https://example.invalid/p.tgz"$3 }
+    }
+  }
+}
+EOF
+}
+
+ATTESTED=', "attestations": { "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } }'
+write_packument "$NPM_TMP/signed.json" "9.9.9" "$ATTESTED"
+write_packument "$NPM_TMP/unsigned.json" "9.9.9" ""
+write_packument "$NPM_TMP/stale.json" "8.8.8" "$ATTESTED"
+
+run_verify() {
+  PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$1" \
+    VERIFY_MAX_ATTEMPTS=1 VERIFY_SLEEP_SECONDS=0 \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" >/dev/null 2>&1
+  echo "$?"
+}
+
+assert_eq "a published, latest-tagged, attested version passes" "0" \
+  "$(run_verify "$NPM_TMP/signed.json")"
+# Regression guard: this failed open until the provenance read moved off
+# `npm view`, which prints nothing and still exits 0 for an absent field, so
+# the `! npm view ...` guard could never fire on an unsigned publish.
+assert_eq "a publish carrying no provenance attestation fails" "1" \
+  "$(run_verify "$NPM_TMP/unsigned.json")"
+assert_eq "a version the registry does not serve as latest fails" "1" \
+  "$(run_verify "$NPM_TMP/stale.json")"
+
+rm -rf "$NPM_TMP"
 
 # ── Final summary ──
 echo ""
