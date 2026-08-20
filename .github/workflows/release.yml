@@ -153,3 +153,47 @@ jobs:
       - uses: ./.github/actions/build-package
       - name: Publish with provenance (Trusted Publishing OIDC)
         run: npm publish --access public --provenance
+
+      # `npm publish` exiting 0 proves the registry accepted the tarball, not
+      # that consumers can install it — `dist-tags.latest` can still point at
+      # the previous release, and a degraded OIDC exchange publishes without
+      # provenance rather than failing. Read it back as a consumer would.
+      - name: Verify the release is installable
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          PKG_NAME=$(node -p "require('./package.json').name")
+          bash .github/scripts/ci/verify-npm-publish.sh "$PKG_NAME" "$VERSION"
+
+  # A release-please release that never reaches npm is the worst outcome
+  # available: the tag, the GitHub release and the changelog all exist, so
+  # every human signal says "shipped", while `npm install` still serves the
+  # previous version. That happens whenever `publish` is SKIPPED rather than
+  # failed — a skipped job is not a red workflow, so nothing raises a hand.
+  # This job runs whenever a release was created and fails unless `publish`
+  # actually succeeded, converting silence into a failed run.
+  release-complete:
+    name: Release reached npm
+    needs: [release-please, publish]
+    if: always() && needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Publish job must have succeeded
+        env:
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$PUBLISH_RESULT" = "success" ]; then
+            echo "v${VERSION} published and verified on npm."
+            exit 0
+          fi
+          echo "ERROR: release v${VERSION} was created but the publish job" >&2
+          echo "       reported '${PUBLISH_RESULT}'. The git tag, GitHub release" >&2
+          echo "       and CHANGELOG all claim this version shipped, but npm is" >&2
+          echo "       still serving the previous one." >&2
+          exit 1
