@@ -31,6 +31,34 @@ and release together — covered in
 | **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
 | **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
 | **Cited paths** | `lint:doc-paths` | An agent doc or PR body cites a repo path that does not exist | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md) |
+| **Fork PRs** | n/a (server-side `gh`) | A pull request opened from a fork is commented on and closed automatically — see [Pull requests come from this repository only](#pull-requests-come-from-this-repository-only) | `.github/workflows/no-fork-prs.yml` |
+
+## Pull requests come from this repository only
+
+Pull requests are accepted **only from branches in this repository**. A PR
+opened from a fork is commented on and closed automatically by
+`.github/workflows/no-fork-prs.yml`.
+
+The reason is that a fork PR cannot clear this matrix. GitHub never exposes
+repository secrets to a cross-repository PR, so every gate that needs one —
+the real-bank E2E matrices above all — is skipped or fails. A fork PR can
+therefore never produce the evidence this project merges on.
+`.github/scripts/ci/compute-gate-booleans.sh` already encodes that split as
+`trusted_event`; closing on arrival simply stops the dead end from being
+opened in the first place.
+
+Two notes on the mechanism:
+
+- It runs on `pull_request_target`, not `pull_request`. A fork PR running
+  under `pull_request` gets a read-only token and cannot close itself. The
+  job never checks out, installs, or builds the head commit — it calls the
+  GitHub API and nothing else — so the usual `pull_request_target` hazard of
+  running untrusted code with a writable token does not apply.
+- It fires on `opened` and `reopened` only. `synchronize` is deliberately
+  excluded so the policy can never close a PR a maintainer is mid-review on.
+
+Contributors without write access should open an issue instead; the
+[Contributing overview](../contributing/index.md) says the same thing.
 
 ## Memory regression gate
 

@@ -14,9 +14,17 @@ See also: [CONTRIBUTING.md](https://github.com/sergienko4/israeli-bank-scrapers/
 
 ## Quick start (contributor)
 
+> **Pull requests are accepted only from branches in this repository.** A PR
+> opened from a fork is closed automatically — CI gates on real-bank E2E runs
+> that need repository secrets, and GitHub never exposes those to a
+> cross-repository PR, so a fork PR can never go green. If you do not have
+> write access, open an issue with the change and the reasoning behind it;
+> a pasted diff is enough to act on and you will be credited in the commit.
+> See [CI gates → Pull requests come from this repository only](../workflow/ci.md#pull-requests-come-from-this-repository-only).
+
 ```sh
-# 1. Fork + clone
-git clone https://github.com/<your-username>/israeli-bank-scrapers.git
+# 1. Clone (write access required to open a PR — otherwise open an issue)
+git clone https://github.com/sergienko4/israeli-bank-scrapers.git
 cd israeli-bank-scrapers
 
 # 2. Install
