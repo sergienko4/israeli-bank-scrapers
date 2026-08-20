@@ -13,6 +13,22 @@
 # auto-review responsive on the FIRST few commits of a PR while pausing
 # automatically afterwards (devs trigger a fresh review manually with
 # `@coderabbitai review` when a batch of fixes is ready).
+#
+# === EVERY `auto_review` KEY BELOW IS CURRENTLY INERT ==================
+# Measured 2026-08-20: this repository has 5 stars. CodeRabbit's status
+# comment on every PR states verbatim:
+#
+#   "This repository does not receive automatic reviews because it has
+#    fewer than 10 stars."
+#
+# So no push triggers a review, and `auto_pause_after_reviewed_commits`
+# has nothing to pause. A review happens ONLY when a maintainer posts
+# `@coderabbitai review` or ticks "Trigger review" in the status comment.
+#
+# The keys are kept, not deleted: they cost nothing while dormant and
+# become live the moment the repo reaches 10 stars, which is a community
+# metric no repository change can set. See
+# `docs/workflow/code-review-tooling.md` for the full consequence list.
 # =======================================================================
 
 language: en-US

@@ -94,7 +94,25 @@ This repository is a public MIT-licensed fork. CodeRabbit auto-classifies it as 
 
 | Plan | PR reviews / hour / developer | Files / review | Chat / hour |
 |---|---|---|---|
-| OSS (this repo) | **1-10** (varies with community size) | 150 | 25 |
+| OSS (this repo) | **1-10** (varies with community size) | **100-300** (same) | 25 |
+
+### Automatic review is gated on star count — and we are below it
+
+Measured 2026-08-20: this repository has **5 stars**. CodeRabbit's status comment on every PR says, verbatim:
+
+> This repository does not receive automatic reviews because it has fewer than 10 stars.
+
+That threshold is [documented policy](https://docs.coderabbit.ai/management/plans): *"For public repositories with less than 10 stars, CodeRabbit requires reviews to be triggered manually."* It is keyed on the GitHub star count alone — **no repository change satisfies it.** Not config, not code quality, not a paid plan: the status comment already reports `Plan: Pro Plus`, which is what the OSS tier grants. Stars are a community metric, so the only honest levers are the ones that earn them (discoverability: topics, README, npm keywords, the docs site).
+
+Three consequences follow, and each has bitten us:
+
+| Consequence | Detail |
+|---|---|
+| **A push never produces a review** | Someone must post `@coderabbitai review` (or tick *Trigger review*). A PR left alone gets a status comment and a walkthrough, never a verdict. |
+| **The `auto_review` block in `.coderabbit.yaml` is inert** | `auto_pause_after_reviewed_commits: 3` cannot pause what never started. The keys stay because they go live at 10 stars. |
+| **The 150-file PR cap may be optimistic** | OSS files/review is **100-300** by popularity. At 5 stars, assume the low end: a 150-file PR risks ~50 files silently unreviewed. Prefer splitting well before 150. |
+
+Because of the first row, the general "a normal push auto-reviews itself, so do nothing" guidance does **not** hold in this repository. Following it here means never receiving a review at all.
 
 PR #281 exhausted the per-hour cap when 6 incremental commits were pushed within ~90 min. CodeRabbit's default `auto_pause_after_reviewed_commits` of **5** was too high to throttle that burst.
 
@@ -106,7 +124,7 @@ The current `.coderabbit.yaml` is tuned for the OSS plan with the following deli
 | `language` | `en-US` | matches schema enum default |
 | `reviews.profile` | `assertive` | high signal on refactor PRs |
 | `reviews.request_changes_workflow` | `true` | auto-approves once all CR threads resolve |
-| `auto_review.auto_pause_after_reviewed_commits` | **`3`** | pauses after 3 reviewed pushes; final batch triggers via `@coderabbitai review` |
+| `auto_review.auto_pause_after_reviewed_commits` | **`3`** | pauses after 3 reviewed pushes — dormant below 10 stars (see above), live once auto-review switches on |
 | `auto_review.ignore_title_keywords` | `["WIP", "DO NOT MERGE", "[skip review]", "[skip-ci]"]` | lightweight quota saver |
 | `reviews.poem`, `in_progress_fortune` | `false` | token-spend with no review value |
 | `tools.ruff/phpstan/swiftlint/hadolint` | `false` | not used in this TypeScript-only repo |
@@ -115,7 +133,7 @@ The current `.coderabbit.yaml` is tuned for the OSS plan with the following deli
 | `path_filters` | excludes `lib/`, `dist/`, `coverage/`, `docs/api/` (TypeDoc gen), `*.snap`, `.understand-anything/`, `.copilot/`, `tasks/`, `.husky/`, `*.min.*` | stop CR from re-analyzing generated / local-only paths |
 | `path_instructions[EslintCanaries/**]` | tells CR canaries are deliberate rule-breakers | prevents CR from flagging intentional lint violations as bugs |
 
-**Workflow implication:** batch fixes into **1-3 commits per PR cycle**, not 6+. After 3 reviewed commits CR auto-pauses; comment `@coderabbitai review` on the final cleanup batch to get the verdict review.
+**Workflow implication (today, below 10 stars):** nothing reviews itself. Post `@coderabbitai review` once per batch of fixes, and still batch those fixes into **1-3 commits per cycle** so each trigger covers meaningful ground and stays inside the 1-10/hour cap. At 10+ stars the `auto_review` keys above take over and the same batching keeps a push burst from exhausting the cap — which is exactly what PR #281 did.
 
 ---
 
