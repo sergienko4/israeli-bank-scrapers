@@ -64,6 +64,7 @@ Playwright, and TypeScript strict mode.
 
 - [Why this fork](#why-this-fork)
 - [Requirements](#requirements)
+  - [Tested Node versions](#tested-node-versions)
 - [Supported institutions](#supported-institutions)
 - [OTP (two-factor authentication)](#otp-two-factor-authentication)
 - [What you get back](#what-you-get-back)
@@ -105,6 +106,23 @@ Playwright, and TypeScript strict mode.
 | Install scripts | must be allowed | `--ignore-scripts` breaks the native build — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
 
 Windows, macOS, and Linux are all supported.
+
+### Tested Node versions
+
+`engines.node` advertises a range; these are the versions CI actually runs the
+full unit suite against on every pull request. Anything outside this list may
+work, but nothing here proves it.
+
+<!-- node-support:start -->
+| Node | Why this leg |
+| --- | --- |
+| `22.14.0` | The declared minimum in `engines.node` — the oldest version we promise |
+| `22` | Latest 22.x, so a patched LTS cannot regress us unnoticed |
+| `24` | Latest 24.x, so the open-ended `>=` is an evidenced claim, not a hope |
+<!-- node-support:end -->
+
+`npm run lint:node-support` fails the build if this table, `.nvmrc`,
+`engines.node` and the CI matrix ever disagree.
 
 ## Supported institutions
 

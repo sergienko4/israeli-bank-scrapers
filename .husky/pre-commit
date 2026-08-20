@@ -199,6 +199,11 @@ bg_gate "test-duplication"  "yes" npm run lint:test-duplication
 bg_gate "bank-coverage"     "yes" npm run lint:bank-coverage
 bg_gate "fixtures-pii"      "yes" npm run lint:fixtures-pii
 bg_gate "pii-staged"        "yes" npm run lint:pii-staged
+# Cheap, dependency-free consistency check: .nvmrc, engines.node, the CI
+# matrix and the README table must all name the same Node range. Runs
+# unconditionally because a README-only commit is the likeliest way to
+# drift it.
+bg_gate "node-support"      "yes" npm run lint:node-support
 
 # docs-strict — fires when docs/** or any root .md file (consumed by
 # mkdocs.yml's nav / referenced via relative link) changed. Catches the

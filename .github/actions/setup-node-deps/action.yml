@@ -1,12 +1,34 @@
 name: Setup Node & Dependencies
-description: Setup Node.js from .nvmrc and install npm dependencies. Caller must run actions/checkout first.
+description: Setup Node.js (from .nvmrc unless overridden) and install npm dependencies. Caller must run actions/checkout first.
+
+inputs:
+  node-version:
+    description: >-
+      Explicit Node.js version to install. Leave empty (the default) to use the
+      repository's canonical .nvmrc version. Set only by the unit-test matrix,
+      which proves the range advertised in package.json `engines.node`.
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
+    # `actions/setup-node` accepts BOTH `node-version` and `node-version-file`,
+    # and its precedence when both are supplied is an implementation detail we
+    # would rather not depend on. Resolving to one explicit value here keeps the
+    # behaviour deterministic: an explicit caller override wins, .nvmrc otherwise.
+    # The input is read through the environment rather than interpolated into the
+    # script body, so a malicious value cannot break out into shell commands.
+    - id: resolve
+      shell: bash
+      env:
+        NODE_VERSION_INPUT: ${{ inputs.node-version }}
+      run: |
+        set -euo pipefail
+        echo "version=${NODE_VERSION_INPUT:-$(cat .nvmrc)}" >> "$GITHUB_OUTPUT"
     - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
       with:
-        node-version-file: .nvmrc
+        node-version: ${{ steps.resolve.outputs.version }}
         cache: npm
     - run: npm ci --prefer-offline
       shell: bash

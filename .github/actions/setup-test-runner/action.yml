@@ -7,6 +7,10 @@ description: >-
   action paths cannot resolve otherwise).
 
 inputs:
+  node-version:
+    description: Explicit Node.js version, forwarded to setup-node-deps. Empty (default) uses .nvmrc.
+    required: false
+    default: ''
   camoufox:
     description: Install the Camoufox browser (skip for unit-tests / bank-coverage / build / lint-only jobs).
     required: false
@@ -24,6 +28,8 @@ runs:
   using: composite
   steps:
     - uses: ./.github/actions/setup-node-deps
+      with:
+        node-version: ${{ inputs.node-version }}
     - if: inputs.camoufox == 'true'
       uses: ./.github/actions/install-camoufox
       with:

@@ -245,6 +245,14 @@ jobs:
         if: needs.changes.outputs.docs == 'true'
         run: node scripts/build-compatibility.mjs --check
 
+      # The Node range we advertise and the range we test drift apart in four
+      # different ways (see the script header). This is a pure file-consistency
+      # check, so it runs whenever any of its four inputs could have moved —
+      # it needs no dependencies installed and costs a second.
+      - name: Advertised Node range matches the tested one
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        run: npm run lint:node-support
+
       # Lychee (below) cannot check links into our own docs site — a PR
       # that adds a page links to it before it is deployed, so every docs
       # PR would fail. That exclusion left README links to the site
@@ -356,15 +364,32 @@ jobs:
   # (`transformIgnorePatterns`, `moduleNameMapper`, `testEnvironment`)
   # can ONLY regress here, and neither touches a `src/` file — so
   # gating on `src` alone let those land unvalidated.
+  #
+  # The suite runs across the Node range that `package.json`
+  # `engines.node` advertises, not just the single `.nvmrc` version we
+  # develop against. Publishing `">= 22.14.0"` while testing exactly
+  # 22.14.0 is an untested claim: a consumer on 24.x has our word and
+  # nothing else. The legs are the declared floor, the newest 22.x and
+  # the newest 24.x; `scripts/check-node-support.mjs` fails the build if
+  # this list, `.nvmrc`, `engines.node` and the README table disagree.
+  #
+  # `fail-fast: false` so one bad leg reports every other leg's result
+  # too — knowing 24 fails while 22 passes is the whole point. A failing
+  # leg still fails the job (no `continue-on-error`), so `validate` and
+  # therefore the merge stay blocked.
   # ──────────────────────────────────────────────────────────────
   unit-tests:
-    name: Unit tests
+    name: Unit tests (Node ${{ matrix.node }})
     needs: changes
     if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.14.0', '22', '24']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -372,10 +397,14 @@ jobs:
       - uses: ./.github/actions/setup-test-runner
         with:
           camoufox: 'false'
+          node-version: ${{ matrix.node }}
       - name: Unit tests with coverage
         run: npm run test:pipeline
+      # Only the floor leg publishes coverage. All legs run the same suite,
+      # so the extra copies add nothing, and `actions/upload-artifact` v4+
+      # rejects a duplicate artifact name outright.
       - name: Upload coverage artifact
-        if: always()
+        if: always() && matrix.node == '22.14.0'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
