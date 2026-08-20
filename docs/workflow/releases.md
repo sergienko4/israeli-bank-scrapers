@@ -16,7 +16,7 @@ flowchart LR
 
     MERGE --> RP -->|"release_created"| PUB --> VER --> OK
     VER -.->|"registry disagrees"| FAIL[Workflow fails]
-    PUB -.->|"skipped"| OK
+    PUB -.->|"skipped"| FAIL
 ```
 
 Two guards exist because `npm publish` exiting `0` is a weaker claim than it

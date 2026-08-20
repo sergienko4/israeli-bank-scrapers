@@ -9,7 +9,9 @@ This repo runs two automated review tools on every PR:
 | **CodeRabbit** | Walkthrough comment + inline review threads + summary review | `.coderabbit.yaml` (root) — see [config rationale](#coderabbit-config-rationale) below |
 | **SonarCloud Scan** | New-issue list bound to the PR | `sonar-project.properties` + the `SonarCloud Scan` CI job |
 
-Both tools surface findings on PR-open and on every push. The C8 step of the [post-PR checklist](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/PULL_REQUEST_TEMPLATE.md) requires the maintainer to **pull every open finding, verify against the current working tree, and either fix or document a disposition before requesting re-review**.
+SonarCloud surfaces findings on PR-open and on every push. CodeRabbit does not:
+below 10 stars it reviews only when asked — see [Automatic review is gated on
+star count](#automatic-review-is-gated-on-star-count). The C8 step of the [post-PR checklist](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/PULL_REQUEST_TEMPLATE.md) requires the maintainer to **pull every open finding, verify against the current working tree, and either fix or document a disposition before requesting re-review**.
 
 The query commands below are the canonical way to do that pull — they do not depend on the GitHub web UI rendering finished by the time you check.
 
@@ -96,9 +98,9 @@ This repository is a public MIT-licensed fork. CodeRabbit auto-classifies it as 
 |---|---|---|---|
 | OSS (this repo) | **1-10** (varies with community size) | **100-300** (same) | 25 |
 
-### Automatic review is gated on star count — and we are below it
+### Automatic review is gated on star count
 
-Measured 2026-08-20: this repository has **5 stars**. CodeRabbit's status comment on every PR says, verbatim:
+Measured 2026-08-20: this repository has **5 stars**, below the threshold. CodeRabbit's status comment on every PR says, verbatim:
 
 > This repository does not receive automatic reviews because it has fewer than 10 stars.
 
@@ -108,7 +110,7 @@ Three consequences follow, and each has bitten us:
 
 | Consequence | Detail |
 |---|---|
-| **A push never produces a review** | Someone must post `@coderabbitai review` (or tick *Trigger review*). A PR left alone gets a status comment and a walkthrough, never a verdict. |
+| **A push alone never produces a CodeRabbit review** | Someone must post `@coderabbitai review` (or tick *Trigger review*). A PR left alone gets a status comment and a walkthrough, never a verdict. SonarCloud is unaffected and still runs per push. |
 | **The `auto_review` block in `.coderabbit.yaml` is inert** | `auto_pause_after_reviewed_commits: 3` cannot pause what never started. The keys stay because they go live at 10 stars. |
 | **The 150-file PR cap may be optimistic** | OSS files/review is **100-300** by popularity. At 5 stars, assume the low end: a 150-file PR risks ~50 files silently unreviewed. Prefer splitting well before 150. |
 
@@ -124,8 +126,8 @@ The current `.coderabbit.yaml` is tuned for the OSS plan with the following deli
 | `language` | `en-US` | matches schema enum default |
 | `reviews.profile` | `assertive` | high signal on refactor PRs |
 | `reviews.request_changes_workflow` | `true` | auto-approves once all CR threads resolve |
-| `auto_review.auto_pause_after_reviewed_commits` | **`3`** | pauses after 3 reviewed pushes — dormant below 10 stars (see above), live once auto-review switches on |
-| `auto_review.ignore_title_keywords` | `["WIP", "DO NOT MERGE", "[skip review]", "[skip-ci]"]` | lightweight quota saver |
+| `reviews.auto_review.auto_pause_after_reviewed_commits` | **`3`** | pauses after 3 reviewed pushes — dormant below 10 stars (see above), live once auto-review switches on |
+| `reviews.auto_review.ignore_title_keywords` | `["WIP", "DO NOT MERGE", "[skip review]", "[skip-ci]"]` | lightweight quota saver |
 | `reviews.poem`, `in_progress_fortune` | `false` | token-spend with no review value |
 | `tools.ruff/phpstan/swiftlint/hadolint` | `false` | not used in this TypeScript-only repo |
 | `tools.biome/markdownlint/shellcheck/languagetool/github-checks/ast-grep` | `true` | actually used here |
