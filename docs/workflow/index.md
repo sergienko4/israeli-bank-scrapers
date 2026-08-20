@@ -10,6 +10,7 @@
 | [Pre-commit hook](pre-commit.md)               | 12 quality gates run in parallel before any commit lands locally                                         |
 | [Pre-push hook](pre-push.md)                   | Opt-in PR-body validator mirroring the `Validate PR body sections` CI gate                               |
 | [Branch flow & release-please](branch-flow.md) | Branch policy, PR rules, release-please automated versioning                                             |
+| [Releases & consumer signals](releases.md)     | What a publish proves, the guards behind it, and the compatibility score                                 |
 | [Code-review tooling](code-review-tooling.md)  | How to query CodeRabbit + SonarCloud findings via API + the OSS rate-limit posture in `.coderabbit.yaml` |
 | [LSP (code intelligence)](lsp.md)              | `.github/lsp.json`, the `typescript-language-server` prerequisite, and how to activate it                |
 
