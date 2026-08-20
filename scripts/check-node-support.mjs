@@ -115,7 +115,7 @@ if (!matrix.includes(dev)) {
   fail(`matrix gap — ${NVMRC} pins ${dev}, which the unit-test matrix never runs: [${matrix.join(', ')}].`);
 }
 if (readme.join(',') !== matrix.join(',')) {
-  fail(`README drift — the table advertises [${readme.join(', ')}] but CI runs [${matrix.join(', ')}].`);
+  fail(`README drift — the table advertises [${readme.join(', ')}] but CI runs [${matrix.join(', ')}]. ` + 'Both lists must agree in the same order, so the table reads as the run order.');
 }
 
 stdout.write(`check-node-support: floor ${floor}, matrix [${matrix.join(', ')}], README in sync ✓\n`);

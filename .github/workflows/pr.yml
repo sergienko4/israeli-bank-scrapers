@@ -389,6 +389,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Keep this list inline. `scripts/check-node-support.mjs` reads it with
+        # a regex that matches `node: [...]` only; a block-style list would make
+        # the drift gate fail loudly rather than silently, but it would still
+        # need fixing there first.
         node: ['22.14.0', '22', '24']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
