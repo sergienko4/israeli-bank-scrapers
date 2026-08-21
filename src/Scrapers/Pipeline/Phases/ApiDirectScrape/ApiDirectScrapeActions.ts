@@ -12,6 +12,7 @@ import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { reportMapRejects } from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { applyStartWindow } from '../../Mediator/Scrape/StartWindow.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
@@ -57,8 +58,12 @@ function mapTxns(raws: readonly object[], isCardIssuer?: boolean): readonly ITra
  * rows and believed them transactions, so a non-zero count is data that
  * reached us and was dropped — invisible in the totals alone.
  *
+ * Then trims the result to the caller's requested `startDate`. Providers
+ * return whole billing cycles rather than a date range, so without this the
+ * caller receives months of history it never asked for.
+ *
  * @param a - Per-account context.
- * @returns Mapped transactions procedure.
+ * @returns Mapped, in-window transactions procedure.
  */
 async function fetchAccountTxns<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
@@ -70,7 +75,8 @@ async function fetchAccountTxns<TAcct, TCursor>(
   const mapped = mapTxns(paged.value, a.shape.isCardIssuer);
   const label = `${a.ctx.companyId}/txns`;
   reportMapRejects({ extracted: paged.value.length, mapped: mapped.length, label });
-  return succeed(mapped);
+  const windowed = applyStartWindow({ txns: mapped, startDate: a.ctx.options.startDate, label });
+  return succeed(windowed.kept);
 }
 
 /**

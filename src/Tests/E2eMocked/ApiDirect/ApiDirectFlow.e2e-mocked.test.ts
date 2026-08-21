@@ -16,8 +16,17 @@ import { installOneZeroFetchMock, ONEZERO_MOCK_CREDS } from '../OneZero/OneZeroF
 import type { IMockHandle as IPepperMockHandle } from '../Pepper/PepperFetchMock.js';
 import { installPepperFetchMock, PEPPER_MOCK_CREDS } from '../Pepper/PepperFetchMock.js';
 
-/** Lookback window matching the original Pepper spec. */
-const PEPPER_START_DATE = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+/**
+ * Fixed window opening before the Pepper fixture's synthetic rows
+ * (`2026-03-10` / `2026-03-15` in `PepperFetchMock.ts`).
+ *
+ * Was `Date.now() - 90 days`. A relative window against static fixture rows
+ * silently ages out: once the phase began honouring `startDate`
+ * ({@link applyStartWindow}), the rows fell outside it and the scrape returned
+ * zero transactions. Fixed dates on both sides keep the case deterministic —
+ * the same reason its OneZero sibling below already uses one.
+ */
+const PEPPER_START_DATE = new Date('2026-01-01');
 
 /** Fixed window matching the original OneZero spec. */
 const ONEZERO_START_DATE = new Date('2026-01-01');

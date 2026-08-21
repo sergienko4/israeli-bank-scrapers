@@ -139,6 +139,27 @@ Two issuer styles exist and one rule covers both:
 
 So a card row counts as a credit when **exactly one of its two amounts is negative** — a disagreement only a refund produces, since a refund is a refund in both currencies (Isracard proves it even on a foreign-currency refund, where the two amounts differ in magnitude and currency yet agree in sign). A negative value is unambiguous evidence of a credit, while a positive one cannot distinguish a charge from an unsigned magnitude, so the negative side wins. Both amounts are normalised negative before the inversion, which flips them back to positive for the refund and leaves ordinary charges negative. Rows whose fields already agree are untouched, so the rule is idempotent across both styles.
 
+## Start-date window — honouring the caller's `startDate`
+
+`ScraperOptions.startDate` means "give me transactions from this date onwards". Every shape formats it into the outbound request, but providers treat it as a **hint**, not a contract — and card issuers ignore it almost entirely. Isracard and Amex are queried per *billing cycle* (`startOf('month')` of `startDate`, walked forward to `now + futureMonthsToScrape`), and a cycle carries rows whose purchase date can be far older than the cycle itself: installments and out-of-statement charges. Measured against captured Isracard traffic, a 180-day request returned **15 months** of history — 61 of 239 rows predated the window.
+
+The generic path had a client-side filter for exactly this (`filterAfterStart`, in `Strategy/Scrape/ScrapeData/ScrapeDataDedup.ts`), but no api-direct bank ever reached it: `withApiDirect` / `withBrowserApiDirect` short-circuit the builder straight to this phase, bypassing the legacy `Strategy/Scrape` chain. So the window was silently unenforced for all api-direct banks.
+
+`applyStartWindow` (`Mediator/Scrape/StartWindow.ts`) closes that gap. `fetchAccountTxns` calls it immediately after `mapTxns`, passing an `IStartWindowArgs` (`txns`, `startDate`, `label`) and receiving an `IStartWindowResult` (`kept`, `dropped`).
+
+Three deliberate choices:
+
+| Choice | Why |
+| --- | --- |
+| **Lower bound only** | `futureMonthsToScrape` means callers explicitly request charges dated after today — VisaCal's newest billing date sits two weeks past the run date. An upper bound would delete data the caller asked for. |
+| **Filters on `date`** | Isracard exposes no distinct billing-date field, so its mapped `processedDate` is a copy of `date`. Windowing on `processedDate` would be identical there and inconsistent across banks. |
+| **A missing bound passes rows through** | Deleting every row because a test fixture omitted `startDate` would turn a fixture gap into silent data loss — the exact failure this phase's guardrails exist to catch. |
+| **An undated row passes through** | `filterAfterStart` compares `NaN >= startMs`, which is always false, so a row whose date the mapper could not parse is dropped without trace. A row we cannot classify has not been *proven* out of window, so the window fails open and leaves it to the mapper-reject counter. This is why the legacy helper is deliberately not reused. "Undated" also covers the epoch sentinel: `ITransaction.date` is a required ISO string with no representation for "unknown", so a mapper facing an unreadable value must invent one (see PayBox's `dateOf`), and no real transaction or caller `startDate` predates 1970. |
+
+The log line is `debug`, not `warn`: card issuers trim rows on every run, so a warning would fire forever and train reviewers to ignore it. The one actionable case — a window that removes *every* row, meaning either a mistaken `startDate` or dates the mapper failed to parse — does warn.
+
+This pairs with the [coverage audit](../observability/coverage-audit.md): the audit proves the shape read every container the response carried, and the window proves the caller receives only what it asked for. Both are needed — on Isracard the container fix recovers 52 in-window rows (49% of the caller's requested data) that the pre-fix shape silently dropped.
+
 ## bootstrap — one-shot session-context seeding
 
 Some api-direct banks cannot sign their first data call until an
