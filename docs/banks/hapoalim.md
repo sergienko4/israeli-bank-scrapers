@@ -58,6 +58,19 @@ the cap. The brand exists so the cursor cannot be confused with the other
 Credit for identifying the defect and the backwards-walk remedy:
 [@danielbenzvi](https://github.com/danielbenzvi).
 
+Two mechanisms now answer this defect, and both are kept. The shape walk above
+is the more precise of the two, because it reads the cap the bank itself
+states rather than inferring truncation after the fact — so it never spends a
+probe request on an account that was simply quiet. Beneath it sits the generic
+[coverage backfill](../phases/api-direct-scrape.md#coverage-backfill--asking-again-for-the-slice-that-did-not-arrive),
+which watches the rows that survive the walk and narrows the window again if
+they still fall short. They compose rather than compete: once the shape walk
+has reached the requested start the window assesses as covered, so the generic
+loop asks for nothing. `HapoalimBackfillComposition.test.ts` runs the real
+extractor against a stand-in bank that caps like the real one and asserts
+exactly that — and, given only the first page, that both paths independently
+derive the same next bound.
+
 The general form of this problem is not Hapoalim-specific — see
 [coverage audit](../observability/coverage-audit.md) for the window-coverage
 check that detects it on every bank.

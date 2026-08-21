@@ -202,6 +202,13 @@ The coverage assessment runs **per account**, not per page, and on the raw rows 
 
 For a quiet `windowEnd` account whose rows genuinely stop short of `startDate`, the loop spends exactly one extra request: it comes back with nothing older, the bound fails to move, and the walk ends. That request is the point — it converts an `unproven` verdict into a proven one.
 
+A shape may also walk backwards on its own, using a cap the bank states in the response — [Hapoalim](../banks/hapoalim.md#truncated-transaction-windows) does. The two compose rather than compete: the shape walk runs first and exhausts the window, the window then assesses as `covered`, and `planBackfill` asks for nothing. A shape-level walk is the more precise of the two where a bank declares a cap, because it never spends the probe request on a quiet account; the generic loop is the floor beneath every bank that declares nothing.
+
+Two limits are worth stating plainly, because neither raises an error:
+
+- **A `covered` verdict is not a guarantee the bank never truncates.** It says the rows in hand reach the requested start on this run. An account quiet enough to fit under a provider's cap will read `covered` every time until it is not.
+- **`periodEnumeration` gaps are reported, not closed.** The loop refuses with the bank's own reason and the shortfall stays in the log rather than being silently absorbed.
+
 ## Duplicate collapse — opt-in, and only when redundancy is proven
 
 `fetchPaginated` concatenates pages blindly, so a provider that ignores the cursor and re-serves a page emits every row on it twice. PayBox solves that inside its own cursor logic; nothing solves it generically.
