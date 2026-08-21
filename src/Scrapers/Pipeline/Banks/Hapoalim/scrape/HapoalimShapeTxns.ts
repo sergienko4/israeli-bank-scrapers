@@ -52,6 +52,8 @@ const TXN_PAGE_SIZE = '1000';
 const SERVER_PAGE_SIZE_FIELD = 'numItemsPerPage';
 /** Row field carrying the transaction's date (YYYYMMDD as a number). */
 const ROW_DATE_FIELD = 'eventDate';
+/** A usable date token: exactly eight digits, matching {@link HAPOALIM_DATE_FMT}. */
+const DATE_TOKEN = /^\d{8}$/;
 /** Fixed anti-replay pageUuid (upstream fetchPoalimXSRFWithinPage). */
 const TXN_PAGE_UUID = '/current-account/transactions';
 /** X-XSRF-TOKEN header value — cookie-echo sentinel resolved at dispatch. */
@@ -93,6 +95,19 @@ function endOf(ctx: IActionContext): string {
 }
 
 /**
+ * The query string for one transactions page.
+ * @param acct - Hapoalim account.
+ * @param endDate - End date this page asks for.
+ * @param ctx - Action context (carries startDate).
+ * @returns Encoded query string, without the leading `?`.
+ */
+function txnsQuery(acct: IHapoalimAcct, endDate: string, ctx: IActionContext): string {
+  const paging = `numItemsPerPage=${TXN_PAGE_SIZE}&sortCode=1`;
+  const range = `retrievalEndDate=${endDate}&retrievalStartDate=${startOf(ctx)}`;
+  return `${paging}&${range}&accountId=${acct.composite}&lang=he`;
+}
+
+/**
  * Transactions URL — one date window against current-account/transactions.
  * @param acct - Hapoalim account.
  * @param cursor - End date for this page, or false for the first (today).
@@ -104,12 +119,9 @@ export function txnsUrl(
   cursor: HapoalimCursor | false,
   ctx: IActionContext,
 ): WKUrlOrLiteral {
-  const base = `${HAPOALIM_API}/current-account/transactions`;
   const endDate = cursor === false ? endOf(ctx) : cursor;
-  const range = `retrievalEndDate=${endDate}&retrievalStartDate=${startOf(ctx)}`;
-  const paging = `numItemsPerPage=${TXN_PAGE_SIZE}&sortCode=1`;
-  const tail = `accountId=${acct.composite}&lang=he`;
-  return literalUrl(`${base}?${paging}&${range}&${tail}`);
+  const query = txnsQuery(acct, endDate, ctx);
+  return literalUrl(`${HAPOALIM_API}/current-account/transactions?${query}`);
 }
 
 /**
@@ -158,18 +170,43 @@ function pageWasCapped(resp: ITxnsResp, rowCount: number): boolean {
  * rows than the cap — derives this same cursor again, and the paginator halts
  * on a repeated cursor rather than recursing.
  *
+ * <p>Only well-formed tokens are considered. A row carrying `0`, an empty
+ * string, or a differently-formatted date is not a dated transaction, and
+ * `String` renders each of those below every real `YYYYMMDD` token. Letting one
+ * through would win the minimum, read as older than the caller's start, and end
+ * the walk with the rest of the window unasked for — silently.
+ *
  * @param rows - Rows on the current page.
- * @returns Next end date (YYYYMMDD), or false when no row carried a date.
+ * @returns Next end date (YYYYMMDD), or false when no row carried a usable date.
  */
 function oldestDay(rows: readonly HapoalimTxn[]): HapoalimCursor | false {
   const dates = rows
     .map((row): unknown => row[ROW_DATE_FIELD])
-    .filter((value): value is number | string => value !== undefined && value !== null)
-    .map(String);
+    .map(String)
+    .filter((value): boolean => DATE_TOKEN.test(value));
   if (dates.length === 0) return false;
   const [firstDate] = dates;
   const oldest = dates.reduce((a, b): string => (a < b ? a : b), firstDate);
   return oldest as HapoalimCursor;
+}
+
+/**
+ * The end date the next page should ask for, or false when none is owed.
+ *
+ * Two distinct reasons return false, and both must keep the rows already
+ * gathered rather than fail: a full page whose rows carry no usable date
+ * cannot be walked backwards (recursing would re-ask the same window forever),
+ * and a page that reached past the caller's start date is finished, not
+ * truncated.
+ *
+ * @param rows - Rows the capped page returned.
+ * @param ctx - Action context (carries startDate).
+ * @returns The next window's end date, or false to stop.
+ */
+function nextEndFor(rows: readonly HapoalimTxn[], ctx: IActionContext): HapoalimCursor | false {
+  const nextEnd = oldestDay(rows);
+  if (nextEnd === false) return false;
+  return nextEnd < startOf(ctx) ? false : nextEnd;
 }
 
 /**
@@ -184,15 +221,7 @@ export function txnsExtractPage(
   const resp = args.body as unknown as ITxnsResp;
   const rows = resp.transactions ?? [];
   if (!pageWasCapped(resp, rows.length)) return { items: rows, nextCursor: false };
-
-  const nextEnd = oldestDay(rows);
-  // A full page whose rows carry no usable date cannot be walked backwards.
-  // Stopping keeps the rows already gathered; recursing would repeat this page
-  // forever.
-  if (nextEnd === false) return { items: rows, nextCursor: false };
-  // Walked past the window the caller asked for — done, not truncated.
-  if (nextEnd < startOf(args.ctx)) return { items: rows, nextCursor: false };
-  return { items: rows, nextCursor: nextEnd };
+  return { items: rows, nextCursor: nextEndFor(rows, args.ctx) };
 }
 
 /**

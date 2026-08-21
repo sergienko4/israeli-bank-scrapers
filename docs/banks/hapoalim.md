@@ -51,9 +51,26 @@ Because the bank exposes no way to ask for "the next page", the only way to reac
 the older rows is to ask for an **earlier window**. `HapoalimShapeTxns.ts` walks
 backwards: when a page comes back at the declared cap it mints a
 `HapoalimCursor` — the branded `retrievalEndDate` for the next request, set to
-the day before the oldest row returned — and repeats until a page arrives under
-the cap. The brand exists so the cursor cannot be confused with the other
-`YYYYMMDD` strings the shape handles.
+**the oldest day the page returned, inclusive** — and repeats until a page
+arrives under the cap. The brand exists so the cursor cannot be confused with
+the other `YYYYMMDD` strings the shape handles.
+
+The bound is inclusive rather than "the day before the oldest row" because the
+cap is a **row count, not a day boundary**: a day busy enough to fill the page
+is cut mid-day, and excluding it would drop every remaining row on it with no
+trace. Re-asking for that same day re-serves the rows already held, so the shape
+declares `pagesMayOverlap`, and the paginator's merge spends one held copy per
+re-served row — leaving exactly the rows the cap withheld. The walk still
+terminates: if a re-ask yields nothing new the oldest day is unchanged, the
+bound repeats, and the paginator's cursor-repeat guard stops it. The one case it
+cannot narrow — a single day holding more rows than the page cap — is reported
+rather than silently truncated.
+
+Only a token of exactly eight digits is accepted as a date. A malformed one
+(`0`, an empty string, an ISO date) would win the lexicographic minimum against
+every real `YYYYMMDD` value, and the walk would read the resulting bound as
+"already past the requested start" and stop — losing the rest of the window
+silently, which is the failure class this whole mechanism exists to remove.
 
 Credit for identifying the defect and the backwards-walk remedy:
 [@danielbenzvi](https://github.com/danielbenzvi).

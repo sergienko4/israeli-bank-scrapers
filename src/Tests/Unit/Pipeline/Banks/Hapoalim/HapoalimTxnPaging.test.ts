@@ -109,6 +109,34 @@ describe('Hapoalim/transactions paging', () => {
     expect(page.nextCursor).toBe(false);
   });
 
+  it('ignores a row whose date is unusable rather than letting it become the cursor', () => {
+    // A row carrying `0` is not a dated transaction. Left in, `String(0)` is
+    // `'0'`, which wins the lexicographic minimum against every YYYYMMDD token
+    // and reads as older than the requested start — so the walk would call the
+    // window served and drop the rest of it silently.
+    const body = {
+      numItemsPerPage: 3,
+      transactions: [{ ...row(20260317), eventDate: 0 }, row(20260401), row(20260820)],
+    };
+    const args = argsFor(body, '2026-02-20');
+    const page = txnsExtractPage(args);
+    expect(page.nextCursor).toBe('20260401');
+  });
+
+  it('ignores a short or non-numeric date token the same way', () => {
+    const body = {
+      numItemsPerPage: 3,
+      transactions: [
+        { ...row(20260317), eventDate: '' },
+        { ...row(20260401), eventDate: '2026-04-01' },
+        row(20260820),
+      ],
+    };
+    const args = argsFor(body, '2026-02-20');
+    const page = txnsExtractPage(args);
+    expect(page.nextCursor).toBe('20260820');
+  });
+
   it('does not guess a cap when the bank states none', () => {
     const body = { transactions: [row(20260317), row(20260401)] };
     const args = argsFor(body);
