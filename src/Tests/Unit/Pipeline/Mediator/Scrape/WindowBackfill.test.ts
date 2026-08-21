@@ -130,8 +130,13 @@ describe('planBackfill/stance', () => {
 });
 
 describe('planBackfill/kill switch', () => {
+  // Restore rather than delete: an operator running the suite with the switch
+  // already set would otherwise have it silently cleared for every later test.
+  const original = process.env.WINDOW_BACKFILL;
+
   afterEach(() => {
-    delete process.env.WINDOW_BACKFILL;
+    if (original === undefined) delete process.env.WINDOW_BACKFILL;
+    else process.env.WINDOW_BACKFILL = original;
   });
 
   it('issues no extra request when an operator turns backfill off', () => {

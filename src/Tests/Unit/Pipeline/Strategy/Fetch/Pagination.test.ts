@@ -228,7 +228,10 @@ describe('Pagination.fetchPaginated/walks that stop making progress', () => {
     const fetchPage = makeStuckFetcher([]);
     const args: IFetchPaginatedArgs<string, string> = { fetchPage, stop: NEVER_STOP };
     const result = await fetchPaginated(args);
-    if (isOk(result)) expect(result.value).toEqual(['same', 'same']);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    const rows = isOkResult ? result.value : [];
+    expect(rows).toEqual(['same', 'same']);
   });
 
   it('lets a merge collapse the rows a repeated ask re-served', async () => {
@@ -241,6 +244,9 @@ describe('Pagination.fetchPaginated/walks that stop making progress', () => {
       merge: dropAlreadyHeld,
     };
     const result = await fetchPaginated(args);
-    if (isOk(result)) expect(result.value).toEqual(['same']);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    const rows = isOkResult ? result.value : [];
+    expect(rows).toEqual(['same']);
   });
 });
