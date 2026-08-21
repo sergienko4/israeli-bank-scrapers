@@ -182,3 +182,65 @@ describe('Pagination.fetchPaginated', () => {
     }
   });
 });
+
+/**
+ * A page fetcher that always answers with the same cursor it was handed.
+ *
+ * This is what a provider does when the bound it is given cannot split the data
+ * any further — the shape derives the same cursor from the same rows, for ever.
+ *
+ * @param seen - Cursors the walk asked under, appended to as it goes.
+ * @returns A fetchPage that never exhausts.
+ */
+function makeStuckFetcher(seen: (string | false)[]): PageFetcher<string, string> {
+  return (cursor: string | false): Promise<Procedure<IPage<string, string>>> => {
+    seen.push(cursor);
+    const page: IPage<string, string> = { items: ['same'], nextCursor: 'stuck' };
+    const ok = succeed(page);
+    return Promise.resolve(ok);
+  };
+}
+
+/**
+ * A merge that appends only the rows not already held.
+ * @param held - Rows accumulated so far.
+ * @param incoming - Rows the new page carried.
+ * @returns The held rows plus whatever was genuinely new.
+ */
+function dropAlreadyHeld(held: readonly string[], incoming: readonly string[]): readonly string[] {
+  const fresh = incoming.filter((item): boolean => !held.includes(item));
+  return [...held, ...fresh];
+}
+
+describe('Pagination.fetchPaginated/walks that stop making progress', () => {
+  it('halts instead of looping when the cursor stops moving', async () => {
+    const seen: (string | false)[] = [];
+    const fetchPage = makeStuckFetcher(seen);
+    const args: IFetchPaginatedArgs<string, string> = { fetchPage, stop: NEVER_STOP };
+    const result = await fetchPaginated(args);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    // Seed ask, then the ask under 'stuck' which hands 'stuck' straight back.
+    expect(seen).toEqual([false, 'stuck']);
+  });
+
+  it('keeps the rows it gathered before halting', async () => {
+    const fetchPage = makeStuckFetcher([]);
+    const args: IFetchPaginatedArgs<string, string> = { fetchPage, stop: NEVER_STOP };
+    const result = await fetchPaginated(args);
+    if (isOk(result)) expect(result.value).toEqual(['same', 'same']);
+  });
+
+  it('lets a merge collapse the rows a repeated ask re-served', async () => {
+    // What an overlap-declaring shape gets: the second ask re-serves the row,
+    // and the merge drops it rather than reporting the same transaction twice.
+    const fetchPage = makeStuckFetcher([]);
+    const args: IFetchPaginatedArgs<string, string> = {
+      fetchPage,
+      stop: NEVER_STOP,
+      merge: dropAlreadyHeld,
+    };
+    const result = await fetchPaginated(args);
+    if (isOk(result)) expect(result.value).toEqual(['same']);
+  });
+});

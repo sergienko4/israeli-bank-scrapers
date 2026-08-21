@@ -144,24 +144,31 @@ function pageWasCapped(resp: ITxnsResp, rowCount: number): boolean {
 }
 
 /**
- * The day before the oldest row on this page, as the next window's end.
+ * The oldest day on this page, as the next window's end.
  *
- * Exclusive on purpose. An inclusive bound would re-fetch every row sharing
- * that date and emit them twice, and this library must not hand a consumer the
- * same purchase under two rows.
+ * <p>Inclusive of that day. The bank caps a page by **row count**
+ * ({@link pageWasCapped}), not by date, so the cut lands part-way through a day
+ * whenever that day holds more rows than the page budget left. Resuming at
+ * `oldest - 1` would step over the rows the cap withheld and lose them with no
+ * trace — the silent loss this walk exists to prevent. Re-asking the same day
+ * re-serves rows already held, and the step declares `pagesMayOverlap` so the
+ * paginator drops them by raw row identity.
+ *
+ * <p>The walk still terminates: a day that cannot be split — one holding more
+ * rows than the cap — derives this same cursor again, and the paginator halts
+ * on a repeated cursor rather than recursing.
  *
  * @param rows - Rows on the current page.
  * @returns Next end date (YYYYMMDD), or false when no row carried a date.
  */
-function dayBeforeOldest(rows: readonly HapoalimTxn[]): HapoalimCursor | false {
+function oldestDay(rows: readonly HapoalimTxn[]): HapoalimCursor | false {
   const dates = rows
     .map((row): unknown => row[ROW_DATE_FIELD])
     .filter((value): value is number | string => value !== undefined && value !== null)
     .map((value): string => String(value));
   if (dates.length === 0) return false;
   const oldest = dates.reduce((a, b): string => (a < b ? a : b));
-  const previousDay = moment(oldest, HAPOALIM_DATE_FMT).subtract(1, 'day');
-  return previousDay.format(HAPOALIM_DATE_FMT) as HapoalimCursor;
+  return oldest as HapoalimCursor;
 }
 
 /**
@@ -177,7 +184,7 @@ export function txnsExtractPage(
   const rows = resp.transactions ?? [];
   if (!pageWasCapped(resp, rows.length)) return { items: rows, nextCursor: false };
 
-  const nextEnd = dayBeforeOldest(rows);
+  const nextEnd = oldestDay(rows);
   // A full page whose rows carry no usable date cannot be walked backwards.
   // Stopping keeps the rows already gathered; recursing would repeat this page
   // forever.

@@ -52,6 +52,9 @@ const HAPOALIM_SHAPE: IApiDirectScrapeShape<IHapoalimAcct, HapoalimCursor> = {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
     windowNarrowing: 'windowEnd',
+    // The walk re-asks the oldest day inclusively, so page N+1 re-serves rows
+    // page N already delivered — see `oldestDay` in HapoalimShapeTxns.ts.
+    pagesMayOverlap: true,
     urlTag: txnsUrl,
     method: 'POST',
     extraHeaders: txnsHeaders,

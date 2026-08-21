@@ -120,6 +120,12 @@ function reportCoverage(label: string, result: ICoverageResult): ICoverageResult
  * corruption. The correct repair is always to teach the bank shape the
  * container it is missing, which is a reviewed code change.
  *
+ * Deliberately has **no kill-switch**, unlike `WINDOW_BACKFILL`. That switch
+ * guards an action — extra requests to a provider — which an operator may have
+ * a real reason to stop. This is the detection layer, and it mutates nothing:
+ * the only thing turning it off can achieve is hiding the shortfall it exists
+ * to surface. Its cost is one walk of a body already in memory.
+ *
  * @param args - Response body, extracted rows, and log identity.
  * @returns Counts for the round.
  */

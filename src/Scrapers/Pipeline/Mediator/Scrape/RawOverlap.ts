@@ -1,9 +1,10 @@
 /**
  * Overlap collapse for multi-request accounts.
  *
- * A backfill request asks for `[startDate … oldest-1]`, but providers answer
- * in whole periods, so the reply routinely re-serves rows the first request
- * already delivered. Concatenating would double them.
+ * A backfill request re-asks the boundary day inclusively, so the reply always
+ * re-serves rows the previous request already delivered. Concatenating would
+ * double them; dropping the whole day would lose the rows a row-count cap
+ * withheld. The collapse is what makes the inclusive re-ask safe.
  *
  * The collapse is a multiset difference on the *raw* row, before mapping:
  * a row from the newer reply is dropped only while an unconsumed byte-identical
@@ -42,17 +43,41 @@ export interface IOverlapResult {
 }
 
 /**
+ * Rebuild a value with every object's keys in sorted order, recursively.
+ *
+ * `JSON.stringify` preserves insertion order, so two rows carrying identical
+ * data serialize differently when the provider's serializer emits their keys in
+ * a different order between replies. That would let a re-served row read as
+ * fresh and be returned twice. Sorting first makes the identity depend on the
+ * data alone.
+ *
+ * @param value - Any JSON-shaped value.
+ * @returns The same value with object keys ordered.
+ */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  const isPlainObject = value !== null && typeof value === 'object';
+  if (!isPlainObject) return value;
+  const entries = Object.entries(value as Record<string, unknown>);
+  entries.sort((a, b): number => (a[0] < b[0] ? -1 : 1));
+  const ordered: Record<string, unknown> = {};
+  for (const [key, nested] of entries) ordered[key] = canonical(nested);
+  return ordered;
+}
+
+/**
  * Serialize a raw row for identity comparison.
  *
- * Provider replies are plain JSON with stable key order within one endpoint,
- * so the serialized form is a faithful identity for rows from the same account
- * and step.
+ * Key order is normalised first — see {@link canonical}. Provider replies are
+ * plain JSON, so the ordered serialized form is a faithful identity for rows
+ * from the same account and step.
  *
  * @param row - One raw row as the shape extracted it.
  * @returns Stable string identity.
  */
 function keyOf(row: object): string {
-  return JSON.stringify(row);
+  const ordered = canonical(row);
+  return JSON.stringify(ordered);
 }
 
 /**

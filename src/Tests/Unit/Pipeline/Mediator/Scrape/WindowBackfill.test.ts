@@ -39,20 +39,36 @@ function argsFor(over: Partial<IBackfillPlanArgs> = {}): IBackfillPlanArgs {
 }
 
 describe('planBackfill/asks again', () => {
-  it('re-asks for the day before the oldest row held', () => {
+  it('re-asks the oldest day held, inclusively', () => {
     const args = argsFor();
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(true);
-    // Exclusive on purpose: an inclusive bound would re-serve that day's rows.
+    // Inclusive on purpose: a row-count cap can cut part-way through a day, so
+    // resuming the day before would step over the rows it withheld. The
+    // re-served rows are dropped by raw identity in dropOverlap.
     const bound = isSome(plan.nextEnd) ? plan.nextEnd.value : new Date(0);
     const asDay = [bound.getFullYear(), bound.getMonth(), bound.getDate()];
-    expect(asDay).toEqual([2026, 2, 31]);
+    expect(asDay).toEqual([2026, 3, 1]);
+  });
+
+  it('puts the bound at the end of that day, not its start', () => {
+    // Seven of the eight backfillable banks render the bound day-granularly, to
+    // which the time is invisible. Leumi puts it on the wire as an RFC-1123
+    // instant, so a start-of-day bound would exclude that whole day.
+    const args = argsFor();
+    const plan = planBackfill(args);
+    const fallback = new Date(0);
+    const bound = isSome(plan.nextEnd) ? plan.nextEnd.value : fallback;
+    const hours = bound.getHours();
+    const minutes = bound.getMinutes();
+    expect(hours).toBe(23);
+    expect(minutes).toBe(59);
   });
 
   it('names the new bound in the reason it logs', () => {
     const args = argsFor();
     const plan = planBackfill(args);
-    expect(plan.reason).toContain('2026-03-31');
+    expect(plan.reason).toContain('2026-04-01');
   });
 });
 

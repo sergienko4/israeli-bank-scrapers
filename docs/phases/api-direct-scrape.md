@@ -186,7 +186,7 @@ Two findings from writing that contract are worth keeping:
 
 The coverage audit deliberately calls a shortfall `unproven`, never `truncated`, because one response cannot tell a quiet account from a capped one. Only a second request can. `collectAccountRows` (`Phases/ApiDirectScrape/ApiDirectScrapeBackfill.ts`) owns that loop: it runs the normal paginated walk, assesses what arrived, and — when the bank's declared stance allows it — narrows `ctx.windowEnd` and walks again.
 
-The decision itself is a pure function, `planBackfill` (`Mediator/Scrape/WindowBackfill.ts`), which returns an `IBackfillPlan` (`shouldAsk`, `nextEnd`, `reason`) from an `IBackfillPlanArgs` bundle. It refuses in a fixed order, and the reason is logged either way — "we asked and could not get more" and "we never asked" are different facts:
+The decision itself is one function, `planBackfill` (`Mediator/Scrape/WindowBackfill.ts`), which returns an `IBackfillPlan` (`shouldAsk`, `nextEnd`, `reason`) from an `IBackfillPlanArgs` bundle. It decides and reports in one step — it reads the kill-switch below from the environment and logs the outcome, so it is deliberately not a pure function; a decision an operator cannot see in the log is worse than no decision. It refuses in a fixed order, and the reason is logged either way — "we asked and could not get more" and "we never asked" are different facts:
 
 1. `WINDOW_BACKFILL=off` — operator kill-switch. Any other value leaves backfill on, so a typo cannot silently disable it.
 2. The window is already covered.
@@ -194,7 +194,11 @@ The decision itself is a pure function, `planBackfill` (`Mediator/Scrape/WindowB
 4. The stance cannot be narrowed. The reason comes from `BACKFILL_EXCLUSION` (`Types/WindowNarrowing.ts`), a map over `UnbackfillableStance` rather than a branch, so adding a stance is a compile error instead of a bank that silently drops out.
 5. `MAX_BACKFILL_ASKS` (12, one per month of the longest supported window) has been reached.
 
-Otherwise the next bound is the **day before** the oldest row held — exclusive, because an inclusive bound would re-serve rows already in hand. **That single rule is also the loop's termination guarantee:** a request that returns nothing new leaves `oldest` where it was, which derives the same bound again, and a bound that does not move strictly backwards stops the walk. No separate zero-progress counter is needed.
+Otherwise the next bound is the **end of the oldest day held** — inclusive, so that day is asked for again. The exclusive bound this replaced (the day *before* the oldest row) assumed provider truncation is day-aligned. It is not: a bank that caps by row count can hand back the first `N` rows of a day and withhold the rest, and a bound set before that day makes those withheld rows unreachable for good. Re-asking the day costs the rows already held being re-served, which `dropOverlap` removes below.
+
+**The loop's termination guarantee survives that change:** if the re-ask yields nothing genuinely new, `oldest` stays where it was, the same bound is derived again, and a bound that does not move strictly backwards stops the walk. No separate zero-progress counter is needed. The bound is set to the *end* of the day rather than its start because one bank — Leumi — encodes the bound as an instant (RFC 1123) rather than a date; for every other bank both render identically under `YYYYMMDD`.
+
+One case stays out of reach by construction: a **single day holding more rows than the provider's page cap**. No date bound can split a day, so narrowing cannot recover it. That is a reporting problem, not a narrowing one.
 
 Providers answer in whole periods, so a narrowed request routinely re-serves rows the previous one already delivered. `dropOverlap` (`Mediator/Scrape/RawOverlap.ts`) removes them, returning an `IOverlapResult` from an `IOverlapArgs` bundle. It is a **multiset** difference on the raw row, not a set difference: a row is dropped only while an unconsumed byte-identical copy is still held. Two genuinely distinct purchases can serialize identically — same day, same merchant, same amount — and a set difference would delete one of them silently. This is narrower than [duplicate collapse](#duplicate-collapse--opt-in-and-only-when-redundancy-is-proven) on purpose: there the redundancy is the provider's and needs a declared key; here we caused it by asking twice, so identity is the whole test.
 
@@ -202,7 +206,9 @@ The coverage assessment runs **per account**, not per page, and on the raw rows 
 
 For a quiet `windowEnd` account whose rows genuinely stop short of `startDate`, the loop spends exactly one extra request: it comes back with nothing older, the bound fails to move, and the walk ends logging `bound did not move`. That request is the point — it is what distinguishes a quiet account from a capped one, which a single response never can.
 
-A shape may also walk backwards on its own, using a cap the bank states in the response — [Hapoalim](../banks/hapoalim.md#truncated-transaction-windows) does. The two compose rather than compete: the shape walk runs first and exhausts the window, the window then assesses as `covered`, and `planBackfill` asks for nothing. A shape-level walk is the more precise of the two where a bank declares a cap, because it never spends the probe request on a quiet account; the generic loop is the floor beneath every bank that declares nothing.
+A shape may also walk backwards on its own, using a cap the bank states in the response — [Hapoalim](../banks/hapoalim.md#truncated-transaction-windows) does. A shape-level walk is the more precise of the two where a bank declares a cap, because it never spends the probe request on a quiet account; the generic loop is the floor beneath every bank that declares nothing.
+
+The two do **not** compose safely by default, and it is worth being blunt about why. A shape walk reaches past `startDate` on its own, so the window afterwards assesses as `covered` and `planBackfill` asks for nothing — the generic loop is masked. Anything the shape walk lost is therefore lost for the run. That is not a reason to remove either mechanism; it is the reason a shape that walks its own pages must declare `pagesMayOverlap: true`, which makes each page boundary an inclusive re-ask joined by `dropOverlap` (see [Hapoalim](../banks/hapoalim.md#truncated-transaction-windows)). A shape that walks pages under an exclusive boundary and declares nothing is silently trusting its own walk to be lossless.
 
 Two limits are worth stating plainly, because neither raises an error:
 
@@ -220,7 +226,9 @@ A canary (`WindowDeclaredCanary.test.ts`) keeps the cross-bank contract from dri
 
 ## Duplicate collapse — opt-in, and only when redundancy is proven
 
-`fetchPaginated` concatenates pages blindly, so a provider that ignores the cursor and re-serves a page emits every row on it twice. PayBox solves that inside its own cursor logic. [`dropOverlap`](#coverage-backfill) now removes the echo a *backfill* re-ask produces, but it is scoped to that one re-ask and does not see a provider replaying pages inside a single walk — that case remains unsolved generically.
+`fetchPaginated` joins pages with a `PageMerge` — a two-argument function over the accumulated rows and the page just fetched. Its default is `concatPages` (`Strategy/Fetch/Pagination.ts`), which appends blindly, so under that default a provider that ignores the cursor and re-serves a page emits every row on it twice. A shape declaring `pagesMayOverlap: true` gets `buildOverlapMerge` (`Mediator/Scrape/OverlapMerge.ts`) instead, which runs each page through `dropOverlap` against the rows already held — the same multiset difference the backfill re-ask uses, applied at every page boundary rather than once at the end. PayBox solves the problem a third way, inside its own cursor logic.
+
+The paginator also halts on a **repeated cursor**: if a provider hands back the cursor it was just given, the walk stops and keeps what it has rather than spinning to `MAX_PAGES`. The guard is cursor identity and not accumulator length on purpose — Yahav walks month chunks and an empty month is legitimate, so a length-based guard would truncate it at the first quiet month.
 
 `collapseDuplicates` (`Mediator/Scrape/TxnDedup.ts`) is the generic mechanism, and it is **off unless a shape declares `transactions.dedupKeyFields`**. `refineTxns` passes an `IDedupArgs` (`txns`, `keyFields`, `label`) and receives an `IDedupResult` (`kept`, `collapsed`, `collisions`). **No bank declares a key today**, so behaviour is unchanged for all of them.
 

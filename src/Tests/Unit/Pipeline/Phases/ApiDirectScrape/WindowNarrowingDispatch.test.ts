@@ -96,7 +96,7 @@ describe('stance dispatch across every bank', () => {
 describe('banks that can narrow', () => {
   const narrowable = CASE_ROWS.filter(([, c]) => c.txns.windowNarrowing === 'windowEnd');
 
-  it.each(narrowable)('[%s] is asked again just before the oldest row held', (_bank, testCase) => {
+  it.each(narrowable)('[%s] is asked again from the oldest row held', (_bank, testCase) => {
     const plan = planBackfill({
       stance: testCase.txns.windowNarrowing,
       coverage: SHORTFALL,
@@ -105,7 +105,7 @@ describe('banks that can narrow', () => {
       label: 'contract/txns',
     });
     const bound = plan.nextEnd.has ? dayOf(plan.nextEnd.value) : '';
-    expect(bound).toBe('2026-04-09');
+    expect(bound).toBe('2026-04-10');
   });
 });
 

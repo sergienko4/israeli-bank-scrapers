@@ -179,6 +179,16 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
    * error rather than a silent `undefined` that skips the backfill.
    */
   readonly windowNarrowing: WindowNarrowing;
+  /**
+   * Whether consecutive pages of this step's walk can re-serve the same rows.
+   *
+   * A shape whose cursor re-asks a boundary **inclusively** — the only way to
+   * recover rows a row-count cap withheld part-way through a day — receives
+   * rows it already holds. Declaring this makes the paginator drop them by raw
+   * row identity instead of concatenating. Absent means pages are disjoint and
+   * concatenation is safe, which is true of every date-chunked walk.
+   */
+  readonly pagesMayOverlap?: boolean;
   readonly stop?: (acc: readonly object[], ctx: IActionContext) => boolean;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('transactions'). */

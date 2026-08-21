@@ -19,6 +19,7 @@ import {
   txnsExtractPage,
 } from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimShapeTxns.js';
 import { assessWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
+import { buildOverlapMerge } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/OverlapMerge.js';
 import { planBackfill } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
 import type { IExtractPageArgs } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -92,15 +93,22 @@ function extractAt(cursor: HapoalimCursor | false): ReturnType<typeof txnsExtrac
 }
 
 /**
- * Run the shape's own walk to exhaustion.
+ * Run the shape's own walk to exhaustion, joining pages the way production does.
+ *
+ * The shape declares `pagesMayOverlap`, so the collection loop joins pages with
+ * {@link buildOverlapMerge} rather than concatenating. Reaching for the same
+ * function here keeps this a test of the real composition: were the declaration
+ * dropped, or the merge changed, this walk would double the boundary rows.
+ *
  * @returns Every row the walk gathered, in arrival order.
  */
 function walkShape(): readonly object[] {
+  const merge = buildOverlapMerge(LABEL);
   let cursor: HapoalimCursor | false = false;
   let gathered: readonly object[] = [];
   for (let step = 0; step <= BANK_ROWS.length; step += 1) {
     const extracted = extractAt(cursor);
-    gathered = [...gathered, ...extracted.items];
+    gathered = merge(gathered, extracted.items);
     if (extracted.nextCursor === false) return gathered;
     cursor = extracted.nextCursor;
   }
@@ -174,5 +182,63 @@ describe('the generic loop as the safety net beneath the shape walk', () => {
     const generic = plan.nextEnd.has ? dayOf(plan.nextEnd.value) : '';
     const extracted = extractAt(false);
     expect(generic).toBe(extracted.nextCursor);
+  });
+});
+
+/**
+ * A bank whose page cap falls in the middle of a day.
+ *
+ * {@link BANK_ROWS} holds one row per date, which cannot express the case the
+ * cap actually creates: the bank counts rows, not days, so the cut lands
+ * part-way through a date whenever that date carries more rows than the page
+ * budget left. Two rows share 20260317 here, and the cap of 3 separates them.
+ */
+const SPLIT_DAY_ROWS: readonly number[] = [20260820, 20260401, 20260317, 20260317, 20260225];
+
+/**
+ * Serve from {@link SPLIT_DAY_ROWS} under the same cap the real bank states.
+ * @param end - Upper bound of the request, or false for the first call.
+ * @returns A response body carrying at most {@link SERVER_CAP} rows.
+ */
+function serveSplitDay(end: HapoalimCursor | false): Record<string, unknown> {
+  const bound = end === false ? '99999999' : String(end);
+  const inWindow = SPLIT_DAY_ROWS.filter((date): boolean => String(date) <= bound);
+  return { numItemsPerPage: SERVER_CAP, transactions: inWindow.slice(0, SERVER_CAP).map(row) };
+}
+
+/**
+ * Walk {@link SPLIT_DAY_ROWS} exactly as production walks a real account.
+ * @returns Every row the walk gathered.
+ */
+function walkSplitDay(): readonly object[] {
+  const merge = buildOverlapMerge(LABEL);
+  let cursor: HapoalimCursor | false = false;
+  let gathered: readonly object[] = [];
+  for (let step = 0; step <= SPLIT_DAY_ROWS.length; step += 1) {
+    const body = serveSplitDay(cursor);
+    const pageArgs = argsFor(body, cursor);
+    const extracted = txnsExtractPage(pageArgs);
+    gathered = merge(gathered, extracted.items);
+    if (extracted.nextCursor === false) return gathered;
+    cursor = extracted.nextCursor;
+  }
+  return gathered;
+}
+
+describe('a page cap that falls in the middle of a day', () => {
+  it('loses none of the rows sharing the boundary date', () => {
+    // Resuming at the day *before* the oldest row held would step straight over
+    // the second 20260317 row, and nothing downstream would ever report it
+    // missing. This is the transaction loss the inclusive re-ask exists to stop.
+    const gathered = walkSplitDay();
+    expect(gathered).toHaveLength(SPLIT_DAY_ROWS.length);
+  });
+
+  it('does not report the re-served rows twice', () => {
+    const gathered = walkSplitDay();
+    const onBoundary = gathered.filter(
+      (r): boolean => (r as { eventDate: number }).eventDate === 20260317,
+    );
+    expect(onBoundary).toHaveLength(2);
   });
 });

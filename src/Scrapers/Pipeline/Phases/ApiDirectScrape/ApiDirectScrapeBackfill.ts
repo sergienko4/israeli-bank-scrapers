@@ -17,9 +17,11 @@
  */
 
 import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
+import type { PageMerge } from '../../Mediator/Scrape/OverlapMerge.js';
+import { buildOverlapMerge } from '../../Mediator/Scrape/OverlapMerge.js';
 import { dropOverlap } from '../../Mediator/Scrape/RawOverlap.js';
 import { planBackfill } from '../../Mediator/Scrape/WindowBackfill.js';
-import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
+import { concatPages, fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import type { Option } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
@@ -37,6 +39,21 @@ interface IWalkState {
 }
 
 /**
+ * Page merge for this account's walk.
+ *
+ * Bound to the account's label so the collapse reports under the same identity
+ * as the rest of the walk. A shape that declares nothing keeps plain
+ * concatenation, which is correct for disjoint pages and costs nothing.
+ *
+ * @param a - Per-account context.
+ * @returns The merge the paginator should join pages with.
+ */
+function buildMerge<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): PageMerge {
+  if (a.shape.transactions.pagesMayOverlap !== true) return concatPages;
+  return buildOverlapMerge(`${a.ctx.companyId}/txns`);
+}
+
+/**
  * Run one full paginated transactions walk under the context's current bound.
  * @param a - Per-account context.
  * @returns Every raw row that walk produced.
@@ -46,7 +63,8 @@ async function fetchOnce<TAcct, TCursor>(
 ): Promise<Procedure<readonly object[]>> {
   const fetchPage = buildPageFetcher(a);
   const stop = buildStop(a);
-  return fetchPaginated<object, TCursor>({ fetchPage, stop });
+  const merge = buildMerge(a);
+  return fetchPaginated<object, TCursor>({ fetchPage, stop, merge });
 }
 
 /**

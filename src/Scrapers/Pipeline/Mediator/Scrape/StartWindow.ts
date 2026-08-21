@@ -26,12 +26,27 @@
  * <p>Fails open on a row with no usable date — see {@link isUndated}. This is
  * why the legacy `filterAfterStart` is deliberately **not** reused: its
  * `NaN >= startMs` comparison drops such rows silently.
+ *
+ * <p>Compares **calendar days**, not instants, because the two sides arrive in
+ * different calendars. A provider's date-only value ('2026-02-20') is parsed
+ * by `parseAutoDate` through *local* midnight, while the documented caller
+ * form `new Date('2026-02-20')` is *UTC* midnight. Comparing those as instants
+ * puts the row two hours before the bound in Israel and deletes every
+ * transaction dated on the very day the caller asked for. Reducing both sides
+ * to a local day label is exact wherever the run and the bank share a
+ * calendar, and elsewhere errs one day wide — which keeps a row the caller may
+ * not have wanted rather than destroying one they did.
  */
+
+import moment from 'moment';
 
 import type { ITransaction } from '../../../../Transactions.js';
 import { getDebug } from '../../Logging/Debug.js';
 
 const LOG = getDebug(import.meta.url);
+
+/** Calendar-day label both sides of the comparison are reduced to. */
+const DAY = 'YYYY-MM-DD';
 
 /** Inputs for one windowing round. */
 export interface IStartWindowArgs {
@@ -52,7 +67,7 @@ export interface IStartWindowResult {
 }
 
 /**
- * Resolve the window lower bound.
+ * Resolve the window lower bound as a calendar day.
  *
  * Returns `false` when no usable bound was supplied so the caller can pass the
  * rows through untouched. Dropping every row because a mock omitted `startDate`
@@ -60,15 +75,15 @@ export interface IStartWindowResult {
  * module exists to prevent.
  *
  * @param startDate - Caller-supplied window lower bound.
- * @returns Epoch milliseconds, or `false` when the bound is unusable.
+ * @returns Local calendar-day label, or `false` when the bound is unusable.
  */
-function windowStartMs(startDate: Date): number | false {
+function windowStartDay(startDate: Date): string | false {
   const isDateValue = startDate instanceof Date;
   if (!isDateValue) return false;
   const ms = startDate.getTime();
   const isRealDate = Number.isFinite(ms);
   if (!isRealDate) return false;
-  return ms;
+  return moment(startDate).format(DAY);
 }
 
 /**
@@ -124,24 +139,26 @@ function isUndated(ms: number): boolean {
  * without usable fields.
  *
  * @param txn - Mapped transaction under test.
- * @param startMs - Inclusive window lower bound as epoch ms.
+ * @param startDay - Inclusive window lower bound as a local day label.
  * @returns True when the row is in window or carries no usable date.
  */
-function isInWindow(txn: ITransaction, startMs: number): boolean {
-  const ms = new Date(txn.date).getTime();
+function isInWindow(txn: ITransaction, startDay: string): boolean {
+  const parsed = moment(txn.date, moment.ISO_8601);
+  const ms = parsed.valueOf();
   if (isUndated(ms)) return true;
-  return ms >= startMs;
+  const day = parsed.format(DAY);
+  return day >= startDay;
 }
 
 /**
  * Keep only the rows the caller's window admits.
  *
  * @param txns - Mapped transactions for one account.
- * @param startMs - Inclusive window lower bound as epoch ms.
+ * @param startDay - Inclusive window lower bound as a local day label.
  * @returns Rows on or after the bound, plus any row with no usable date.
  */
-function filterToWindow(txns: readonly ITransaction[], startMs: number): readonly ITransaction[] {
-  return txns.filter((t): boolean => isInWindow(t, startMs));
+function filterToWindow(txns: readonly ITransaction[], startDay: string): readonly ITransaction[] {
+  return txns.filter((t): boolean => isInWindow(t, startDay));
 }
 
 /**
@@ -172,9 +189,9 @@ function reportWindow(label: string, before: number, after: number): true {
  * @returns In-window transactions plus the dropped count.
  */
 export function applyStartWindow(args: IStartWindowArgs): IStartWindowResult {
-  const startMs = windowStartMs(args.startDate);
-  if (startMs === false) return { kept: args.txns, dropped: 0 };
-  const kept = filterToWindow(args.txns, startMs);
+  const startDay = windowStartDay(args.startDate);
+  if (startDay === false) return { kept: args.txns, dropped: 0 };
+  const kept = filterToWindow(args.txns, startDay);
   const before = args.txns.length;
   reportWindow(args.label, before, kept.length);
   return { kept, dropped: before - kept.length };

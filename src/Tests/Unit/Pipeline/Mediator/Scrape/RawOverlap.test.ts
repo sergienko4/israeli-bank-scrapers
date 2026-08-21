@@ -39,6 +39,25 @@ describe('dropOverlap/re-served rows', () => {
     expect(result.kept.length).toBe(2);
   });
 
+  it('recognises a re-served row whose fields arrived in a different order', () => {
+    // Identity is the row's data, not its serialization. A provider is free to
+    // emit the same row's keys in a different order between two replies, and
+    // insertion-order serialization would then read it as fresh and hand the
+    // caller the same transaction twice.
+    const collected = [{ date: '2026-04-02', amount: 20, description: 'DEMO' }];
+    const incoming = [{ description: 'DEMO', amount: 20, date: '2026-04-02' }];
+    const result = dropOverlap({ collected, incoming, label: LABEL });
+    expect(result.dropped).toBe(1);
+    expect(result.kept).toEqual([]);
+  });
+
+  it('looks past field order in nested objects too', () => {
+    const collected = [{ id: 1, meta: { a: 'x', b: 'y' } }];
+    const incoming = [{ meta: { b: 'y', a: 'x' }, id: 1 }];
+    const result = dropOverlap({ collected, incoming, label: LABEL });
+    expect(result.dropped).toBe(1);
+  });
+
   it('keeps everything when nothing has been collected yet', () => {
     const incoming = [row('2026-04-01', 10)];
     const result = dropOverlap({ collected: [], incoming, label: LABEL });

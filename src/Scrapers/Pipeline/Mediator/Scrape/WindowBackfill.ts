@@ -86,16 +86,32 @@ function blockingReason(args: IBackfillPlanArgs): string {
 }
 
 /**
- * The day before the oldest row we hold.
+ * The end of the oldest day we hold, as the next request's bound.
  *
- * One day earlier, not the same day: re-asking with `end = oldest` would
- * re-serve the rows already held and make no progress.
+ * <p>Inclusive of that day, not the day before it. Provider truncation is not
+ * always date-aligned: Hapoalim caps a page by **row count**, so a cut lands
+ * mid-day whenever the boundary day holds more rows than the page budget left.
+ * Resuming at `oldest - 1` would step straight over the rows the cap withheld
+ * and lose them permanently — the exact silent loss this module exists to
+ * close. Re-asking the boundary day instead re-serves rows we already hold, and
+ * {@link dropOverlap} — a multiset difference on raw row identity — spends one
+ * held copy per re-served row, so only the withheld ones survive.
+ *
+ * <p>End of day, not start of day, because not every consumer of this bound is
+ * day-granular. Seven of the eight backfillable banks render it through
+ * `format('YYYYMMDD')`, to which the time of day is invisible; Leumi puts it on
+ * the wire as an RFC-1123 *instant* (`toUTCString()`). A start-of-day instant
+ * would exclude everything that day after midnight local.
+ *
+ * <p>Termination is unaffected. A request that returns nothing new leaves
+ * `oldest` where it was, which derives this same bound again, and
+ * {@link isEarlier} refuses a non-strict step.
  *
  * @param oldest - Calendar day of the oldest row collected.
- * @returns Start of the preceding calendar day.
+ * @returns Last instant of that calendar day, local.
  */
-function dayBefore(oldest: string): Date {
-  const shifted = moment(oldest, DAY).subtract(1, 'day').startOf('day');
+function endOfOldest(oldest: string): Date {
+  const shifted = moment(oldest, DAY).endOf('day');
   return shifted.toDate();
 }
 
@@ -168,7 +184,7 @@ export function planBackfill(args: IBackfillPlanArgs): IBackfillPlan {
   const gap = `gapDays=${String(args.coverage.gapDays)}`;
   const blocked = blockingReason(args);
   if (blocked !== '') return refuse(args, `${gap} — ${blocked}`);
-  const next = dayBefore(args.coverage.oldest);
+  const next = endOfOldest(args.coverage.oldest);
   const didMove = isEarlier(next, args.previousEnd);
   if (!didMove) return refuse(args, `${gap} — bound did not move`);
   return accept(args, next, gap);

@@ -68,8 +68,20 @@ describe('Hapoalim/transactions paging', () => {
     const args = argsFor(body);
     const page = txnsExtractPage(args);
     expect(page.items.length).toBe(3);
-    // Day BEFORE the oldest row, so the next window cannot repeat it.
-    expect(page.nextCursor).toBe('20260316');
+    // The oldest day itself, not the day before it: the cap counts rows, so
+    // 20260317 may be cut in half and the withheld rows only come back if the
+    // next window still includes that day.
+    expect(page.nextCursor).toBe('20260317');
+  });
+
+  it('re-asks the oldest day even when it is the day the caller asked from', () => {
+    // The cap counts rows, so the start day can be cut just like any other. The
+    // walk cannot tell a fully-served start day from a truncated one, and only
+    // one of those two mistakes loses transactions.
+    const body = { numItemsPerPage: 2, transactions: [row(20260220), row(20260405)] };
+    const args = argsFor(body, '2026-02-20');
+    const page = txnsExtractPage(args);
+    expect(page.nextCursor).toBe('20260220');
   });
 
   it('stops on a short page — the window was fully served', () => {
@@ -80,8 +92,9 @@ describe('Hapoalim/transactions paging', () => {
   });
 
   it('stops once the next window would start before the caller asked', () => {
-    // Oldest row IS the window start, so there is nothing older to fetch.
-    const body = { numItemsPerPage: 2, transactions: [row(20260220), row(20260405)] };
+    // Every row predates the requested start, so there is nothing left to ask
+    // for inside the window.
+    const body = { numItemsPerPage: 2, transactions: [row(20260210), row(20260215)] };
     const args = argsFor(body, '2026-02-20');
     const page = txnsExtractPage(args);
     expect(page.nextCursor).toBe(false);
