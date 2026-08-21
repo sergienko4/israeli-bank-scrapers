@@ -13,6 +13,16 @@
  * measured and rejected. See docs/observability/coverage-audit.md for those
  * measurements and for the one container this catches today — the same
  * container whose omission lost ~47% of a real Isracard statement.
+ *
+ * **What this deliberately does not cover.** The comparison is declared count
+ * against the rows *present in the response*, not against the rows the shape
+ * returned. A container that arrives complete but that the shape fails to read
+ * therefore passes here with a zero shortfall. That half of the problem belongs
+ * to {@link auditCoverage}, which re-hunts the body and counts what the shape
+ * did not return; between them the two cover both directions. Extending this
+ * check to be extraction-aware would need a per-bank contract change, because
+ * extracted rows arrive as opaque objects with no back-reference to the
+ * container they came from — recorded as a follow-up rather than guessed at.
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
