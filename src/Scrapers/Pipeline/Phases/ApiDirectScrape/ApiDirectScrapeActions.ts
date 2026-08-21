@@ -11,6 +11,7 @@ import type { ITransaction, ITransactionsAccount } from '../../../../Transaction
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { reportMapRejects } from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
+import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyStartWindow } from '../../Mediator/Scrape/StartWindow.js';
 import { collapseDuplicates } from '../../Mediator/Scrape/TxnDedup.js';
@@ -53,6 +54,32 @@ function mapTxns(raws: readonly object[], isCardIssuer?: boolean): readonly ITra
 }
 
 /**
+ * Reconcile everything an account received against the window requested.
+ *
+ * The unit of this question is the account, not the page. A bank that walks
+ * month by month returns an August page that cannot reach a February start, so
+ * asking per page warns on almost every page of every card issuer by
+ * construction — measured at 31 of 69 pages across the captured traces — and a
+ * guardrail that noisy gets silenced within a week.
+ *
+ * Runs on the raw rows, before {@link applyStartWindow} trims them: assessing
+ * the trimmed set would be circular, because trimming is precisely what
+ * guarantees nothing predates the start.
+ *
+ * @param a - Per-account context.
+ * @param raws - Every raw row this account's pages yielded.
+ * @returns True once the assessment has reported.
+ */
+function auditAccountWindow<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  raws: readonly object[],
+): true {
+  const requestedStart = a.ctx.options.startDate.toISOString();
+  assessWindowCoverage({ requestedStart, rows: raws, label: `${a.ctx.companyId}/txns` });
+  return true;
+}
+
+/**
  * Refine one account's raw rows into the transactions the caller asked for.
  *
  * Reports the rows the mapper refused first. The shape found those rows and
@@ -72,6 +99,7 @@ function refineTxns<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   raws: readonly object[],
 ): readonly ITransaction[] {
+  auditAccountWindow(a, raws);
   const mapped = mapTxns(raws, a.shape.isCardIssuer);
   const label = `${a.ctx.companyId}/txns`;
   reportMapRejects({ extracted: raws.length, mapped: mapped.length, label });

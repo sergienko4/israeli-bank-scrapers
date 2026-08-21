@@ -109,4 +109,17 @@ describe('assessWindowCoverage', () => {
     expect(result.oldest).toBe('2026-04-14');
     expect(result.gapDays).toBe(64);
   });
+
+  it('proves the account, not the page, is the unit of the question', () => {
+    // A bank that walks month by month hands back one page per month. Judged
+    // alone, every page but the oldest falls short of the start by
+    // construction — across the captured traces that was 31 of 69 pages — so a
+    // per-page caller would warn on a complete scrape. The union is covered,
+    // which is why the pipeline assesses once per account after pagination.
+    const june = [isoRow('2026-06-02'), isoRow('2026-06-20')];
+    const feb = [isoRow('2026-02-09'), isoRow('2026-02-25')];
+    expect(assess('2026-02-09', june).verdict).toBe('unproven');
+    expect(assess('2026-02-09', feb).verdict).toBe('covered');
+    expect(assess('2026-02-09', [...june, ...feb]).verdict).toBe('covered');
+  });
 });

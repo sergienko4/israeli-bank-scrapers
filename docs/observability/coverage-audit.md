@@ -131,6 +131,14 @@ It reads **no provider metadata**. Of the nine banks whose live traffic was capt
 
 Row dates resolve through the shared `WK.date` aliases, the same list the mapper uses, so a bank is covered by existing rather than by opting in. A bank whose rows carry a date field the aliases do not know is not silently passed — it reports `unproven`, which is the honest answer.
 
+### Why it runs per account and not per page
+
+The other three audits are per-page questions: each compares one body against itself, so a page is the natural unit. This one is not. Several banks walk the window month by month, one request per month — an August page cannot reach a February start no matter how healthy the scrape is.
+
+Measured across the nine captured traces, asking per page warns on **31 of 69 pages** for each card issuer, and on every page for Yahav and Leumi — on scrapes that are complete. Per account, over the union of every page, the same traces resolve to four banks `covered` and the genuine Hapoalim gap still reported at 64 days. The noisy framing would have buried the one true positive.
+
+So the assessment happens once per account in `refineTxns` (`ApiDirectScrapeActions.ts`), after `fetchPaginated` has finished and **before** `applyStartWindow` trims the rows. Assessing the trimmed set would be circular: trimming is precisely what guarantees nothing predates the start.
+
 ### Why the verdict is `unproven`, not `truncated`
 
 A quiet account and a truncated one look identical in a single response: both return rows that stop short of the requested start. Nothing in the body distinguishes them.
@@ -143,10 +151,10 @@ window hapoalim/txns: UNPROVEN — no row carried a usable date
 
 So the verdict names the doubt rather than a diagnosis, and warns rather than errors. Only re-requesting the uncovered slice separates the two cases, and an empty answer to that request is what turns `unproven` into *quiet*.
 
-Two cases deliberately report `unproven` rather than `covered`: an empty page, and a page whose rows carry no resolvable date. Absence of evidence is not evidence the window was served — treating either as covered would reintroduce the exact silence this check exists to break.
+Two cases deliberately report `unproven` rather than `covered`: an account that returned no rows, and one whose rows carry no resolvable date. Absence of evidence is not evidence the window was served — treating either as covered would reintroduce the exact silence this check exists to break.
 
 ## Verifying a change to it
 
 `auditCoverage` is a pure function over a body and a row list, so it is unit-tested in isolation in `src/Tests/Unit/Pipeline/Mediator/Scrape/CoverageAudit.test.ts` — including the transforming-extractor case that pins the mapped-key decision, and the mapper-reject case that pins the over-collection decision. Both exist to fail loudly if someone "simplifies" the comparison back to reference equality or raw counts. `reportMapRejects` is covered alongside it in `src/Tests/Unit/Pipeline/Mediator/Scrape/MapRejects.test.ts`, and `auditDeclaredRows` in `src/Tests/Unit/Pipeline/Mediator/Scrape/DeclaredRows.test.ts` — where the surplus case and the declares-nothing case pin the two decisions above.
 
-`assessWindowCoverage` is covered in `src/Tests/Unit/Pipeline/Mediator/Scrape/WindowCoverage.test.ts`, which pins the two `unproven` cases above and carries the real numbers from the captured Hapoalim trace. One case exists solely to pin a subtle correctness point: the caller holds `startDate` as a `Date`, so the start arrives as a UTC instant while row dates are local calendar days. Reducing only one side to a calendar day truncates the difference by a partial day and understates `gapDays` by one — enough for a backfill bound derived from `oldest` to skip a day.
+`assessWindowCoverage` is covered in `src/Tests/Unit/Pipeline/Mediator/Scrape/WindowCoverage.test.ts`, which pins the two `unproven` cases above and carries the real numbers from the captured Hapoalim trace. Two cases exist solely to pin subtle correctness points. The first: the caller holds `startDate` as a `Date`, so the start arrives as a UTC instant while row dates are local calendar days. Reducing only one side to a calendar day truncates the difference by a partial day and understates `gapDays` by one — enough for a backfill bound derived from `oldest` to skip a day. The second pins the per-account unit: two month-slices that are each `unproven` alone are `covered` in union, which is the whole reason the call site sits after pagination.
