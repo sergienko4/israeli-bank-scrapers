@@ -121,7 +121,7 @@ function gapOf(requestedStart: string, oldest: string): number {
   const from = moment(startDay, DAY);
   const to = moment(oldest, DAY);
   const days = to.diff(from, 'days');
-  return days > 0 ? days : 0;
+  return Math.max(days, 0);
 }
 
 /**

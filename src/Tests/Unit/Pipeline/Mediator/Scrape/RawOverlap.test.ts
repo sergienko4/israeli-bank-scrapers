@@ -36,7 +36,7 @@ describe('dropOverlap/re-served rows', () => {
     const incoming = [row('2026-03-30', 30), row('2026-03-29', 40)];
     const result = dropOverlap({ collected, incoming, label: LABEL });
     expect(result.dropped).toBe(0);
-    expect(result.kept.length).toBe(2);
+    expect(result.kept).toHaveLength(2);
   });
 
   it('recognises a re-served row whose fields arrived in a different order', () => {
@@ -61,7 +61,7 @@ describe('dropOverlap/re-served rows', () => {
   it('keeps everything when nothing has been collected yet', () => {
     const incoming = [row('2026-04-01', 10)];
     const result = dropOverlap({ collected: [], incoming, label: LABEL });
-    expect(result.kept.length).toBe(1);
+    expect(result.kept).toHaveLength(1);
   });
 });
 
@@ -72,7 +72,7 @@ describe('dropOverlap/identical but distinct rows', () => {
     const incoming = [row('2026-04-01', 10), row('2026-04-01', 10)];
     const result = dropOverlap({ collected, incoming, label: LABEL });
     expect(result.dropped).toBe(1);
-    expect(result.kept.length).toBe(1);
+    expect(result.kept).toHaveLength(1);
   });
 
   it('cancels copy for copy when both sides hold duplicates', () => {
@@ -80,7 +80,7 @@ describe('dropOverlap/identical but distinct rows', () => {
     const incoming = [row('2026-04-01', 10), row('2026-04-01', 10)];
     const result = dropOverlap({ collected, incoming, label: LABEL });
     expect(result.dropped).toBe(2);
-    expect(result.kept.length).toBe(0);
+    expect(result.kept).toHaveLength(0);
   });
 
   it('does not spend an allowance twice across different rows', () => {
@@ -101,7 +101,7 @@ describe('dropOverlap/row identity', () => {
 
   it('handles an empty incoming page without error', () => {
     const result = dropOverlap({ collected: [row('2026-04-01', 10)], incoming: [], label: LABEL });
-    expect(result.kept.length).toBe(0);
+    expect(result.kept).toHaveLength(0);
     expect(result.dropped).toBe(0);
   });
 });

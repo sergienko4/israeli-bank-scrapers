@@ -62,7 +62,7 @@ describe('Isracard/outOfStatementChargeDateVouchers', () => {
   it('returns rows that post outside the statement cycle', () => {
     const body = response({ outOfStatement: [[txn(1, 'STREAMING CO'), txn(2, 'CLOUD CO')]] });
     const rows = mergeIsracardRows(body);
-    expect(rows.length).toBe(2);
+    expect(rows).toHaveLength(2);
   });
 
   it('merges all three containers into one list', () => {
@@ -81,13 +81,13 @@ describe('Isracard/outOfStatementChargeDateVouchers', () => {
   it('flattens several per-currency-date groups', () => {
     const body = response({ outOfStatement: [[txn(1, 'A')], [txn(2, 'B'), txn(3, 'C')]] });
     const rows = mergeIsracardRows(body);
-    expect(rows.length).toBe(3);
+    expect(rows).toHaveLength(3);
   });
 
   it('does not invent rows when the container is absent', () => {
     const body = response({ settled: [txn(20, 'SHOP')] });
     const rows = mergeIsracardRows(body);
-    expect(rows.length).toBe(1);
+    expect(rows).toHaveLength(1);
   });
 
   it('tolerates a group whose row list is null', () => {
@@ -101,11 +101,11 @@ describe('Isracard/outOfStatementChargeDateVouchers', () => {
       },
     };
     const rows = mergeIsracardRows(body);
-    expect(rows.length).toBe(0);
+    expect(rows).toHaveLength(0);
   });
 
   it('keeps returning nothing for an empty response', () => {
     const rows = mergeIsracardRows({ data: null });
-    expect(rows.length).toBe(0);
+    expect(rows).toHaveLength(0);
   });
 });

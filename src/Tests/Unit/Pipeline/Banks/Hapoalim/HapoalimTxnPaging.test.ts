@@ -67,7 +67,7 @@ describe('Hapoalim/transactions paging', () => {
     };
     const args = argsFor(body);
     const page = txnsExtractPage(args);
-    expect(page.items.length).toBe(3);
+    expect(page.items).toHaveLength(3);
     // The oldest day itself, not the day before it: the cap counts rows, so
     // 20260317 may be cut in half and the withheld rows only come back if the
     // next window still includes that day.
@@ -119,7 +119,7 @@ describe('Hapoalim/transactions paging', () => {
   it('returns no rows, and no cursor, for an empty response', () => {
     const args = argsFor({});
     const page = txnsExtractPage(args);
-    expect(page.items.length).toBe(0);
+    expect(page.items).toHaveLength(0);
     expect(page.nextCursor).toBe(false);
   });
 });

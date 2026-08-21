@@ -165,7 +165,7 @@ function oldestDay(rows: readonly HapoalimTxn[]): HapoalimCursor | false {
   const dates = rows
     .map((row): unknown => row[ROW_DATE_FIELD])
     .filter((value): value is number | string => value !== undefined && value !== null)
-    .map((value): string => String(value));
+    .map(String);
   if (dates.length === 0) return false;
   const [firstDate] = dates;
   const oldest = dates.reduce((a, b): string => (a < b ? a : b), firstDate);
