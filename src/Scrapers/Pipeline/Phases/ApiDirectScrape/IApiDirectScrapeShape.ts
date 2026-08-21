@@ -177,6 +177,22 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
    * step's `buildVars` output bundled under `carry.<varName>`.
    */
   readonly bodyTemplate?: JsonValueTemplate;
+  /**
+   * Canonical field names that identify one row, enabling duplicate
+   * collapse for this bank. Absent ⇒ no dedup, which is the default.
+   *
+   * Opt-in because collapsing is destructive and no obvious key is
+   * safe: measured across captured traffic, `identifier` repeats
+   * across distinct rows on three of nine banks, and a
+   * date + amount + description composite collides on two more. A
+   * declared key therefore only nominates candidates — a row is
+   * removed only when its key *and* its full content match one
+   * already kept, and a key that matches while content differs is
+   * reported as mis-declared rather than acted on. See
+   * `Mediator/Scrape/TxnDedup.ts` for the measurements a bank needs
+   * to reproduce before declaring one.
+   */
+  readonly dedupKeyFields?: readonly string[];
 }
 
 /** Balance fetch outcome: value + whether it came from `fallbackOnFail`. */

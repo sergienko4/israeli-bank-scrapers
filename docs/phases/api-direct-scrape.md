@@ -160,6 +160,23 @@ The log line is `debug`, not `warn`: card issuers trim rows on every run, so a w
 
 This pairs with the [coverage audit](../observability/coverage-audit.md): the audit proves the shape read every container the response carried, and the window proves the caller receives only what it asked for. Both are needed — on Isracard the container fix recovers 52 in-window rows (49% of the caller's requested data) that the pre-fix shape silently dropped.
 
+## Duplicate collapse — opt-in, and only when redundancy is proven
+
+`fetchPaginated` concatenates pages blindly, so a provider that ignores the cursor and re-serves a page emits every row on it twice. PayBox solves that inside its own cursor logic; nothing solves it generically.
+
+`collapseDuplicates` (`Mediator/Scrape/TxnDedup.ts`) is the generic mechanism, and it is **off unless a shape declares `transactions.dedupKeyFields`**. `refineTxns` passes an `IDedupArgs` (`txns`, `keyFields`, `label`) and receives an `IDedupResult` (`kept`, `collapsed`, `collisions`). **No bank declares a key today**, so behaviour is unchanged for all of them.
+
+That default is not caution for its own sake — it is what the captured traffic showed. Neither obvious key is safe:
+
+| Candidate key | Measured result |
+| --- | --- |
+| `identifier` | Not unique. Beinleumi repeats one identifier across **33 of 42** distinct rows; Leumi and Yahav repeat theirs too. Collapsing on it would have deleted most of a Beinleumi statement. |
+| `date` + `chargedAmount` + `description` | Collides on genuinely distinct rows — Isracard and Amex each carry one such pair. Two identical coffees on the same day are two transactions, not one. |
+
+So a declared key only nominates candidates. A row is removed **only when its key *and* its full content match a row already kept**. A key that matches while the content differs is a mis-declared key: the row is kept and `collisions` rises, which warns. Nothing is lost while a wrong key is in place — but the warning says the collapse cannot be trusted and the key must be corrected or withdrawn.
+
+Reproduce those measurements before declaring a key for a bank.
+
 ## bootstrap — one-shot session-context seeding
 
 Some api-direct banks cannot sign their first data call until an

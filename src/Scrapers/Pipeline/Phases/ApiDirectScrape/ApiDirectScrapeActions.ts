@@ -13,6 +13,7 @@ import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { reportMapRejects } from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyStartWindow } from '../../Mediator/Scrape/StartWindow.js';
+import { collapseDuplicates } from '../../Mediator/Scrape/TxnDedup.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
@@ -52,15 +53,37 @@ function mapTxns(raws: readonly object[], isCardIssuer?: boolean): readonly ITra
 }
 
 /**
+ * Refine one account's raw rows into the transactions the caller asked for.
+ *
+ * Reports the rows the mapper refused first. The shape found those rows and
+ * believed them transactions, so a non-zero count is data that reached us and
+ * was dropped — invisible in the totals alone.
+ *
+ * Then collapses proven duplicates (opt-in; no bank declares a key today) and
+ * trims to the caller's `startDate`. Providers return whole billing cycles
+ * rather than a date range, so without the window the caller receives months of
+ * history it never asked for.
+ *
+ * @param a - Per-account context.
+ * @param raws - Raw rows emitted by the shape's extractPage.
+ * @returns Mapped, deduplicated, in-window transactions.
+ */
+function refineTxns<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  raws: readonly object[],
+): readonly ITransaction[] {
+  const mapped = mapTxns(raws, a.shape.isCardIssuer);
+  const label = `${a.ctx.companyId}/txns`;
+  reportMapRejects({ extracted: raws.length, mapped: mapped.length, label });
+  const keyFields = a.shape.transactions.dedupKeyFields ?? [];
+  const unique = collapseDuplicates({ txns: mapped, keyFields, label });
+  const startDate = a.ctx.options.startDate;
+  const windowed = applyStartWindow({ txns: unique.kept, startDate, label });
+  return windowed.kept;
+}
+
+/**
  * Fetch + map one account's paginated transactions.
- *
- * Reports the rows the mapper refused before returning. The shape found those
- * rows and believed them transactions, so a non-zero count is data that
- * reached us and was dropped — invisible in the totals alone.
- *
- * Then trims the result to the caller's requested `startDate`. Providers
- * return whole billing cycles rather than a date range, so without this the
- * caller receives months of history it never asked for.
  *
  * @param a - Per-account context.
  * @returns Mapped, in-window transactions procedure.
@@ -72,11 +95,8 @@ async function fetchAccountTxns<TAcct, TCursor>(
   const stop = buildStop(a);
   const paged = await fetchPaginated<object, TCursor>({ fetchPage, stop });
   if (!isOk(paged)) return paged;
-  const mapped = mapTxns(paged.value, a.shape.isCardIssuer);
-  const label = `${a.ctx.companyId}/txns`;
-  reportMapRejects({ extracted: paged.value.length, mapped: mapped.length, label });
-  const windowed = applyStartWindow({ txns: mapped, startDate: a.ctx.options.startDate, label });
-  return succeed(windowed.kept);
+  const refined = refineTxns(a, paged.value);
+  return succeed(refined);
 }
 
 /**
