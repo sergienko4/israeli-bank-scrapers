@@ -1,9 +1,12 @@
 /**
  * Amex scrape shape — response row extraction. One GetTransactionsList
- * response carries transaction rows across two containers:
- * data.approvals.approvedTransactions[] (pending authorisations) and
+ * response carries transaction rows across THREE containers:
+ * data.approvals.approvedTransactions[] (pending authorisations),
  * data.israelAbroadVouchers.vouchers.israelAbroadVouchersList[] (settled
- * charges + installments). data.currentTransactionsList is NOT a row list —
+ * charges + installments), and
+ * data.israelAbroadVouchers.outOfStatementChargeDateVouchers[]
+ *   .immediateVouchersCurrencyDate[] — charges posting OUTSIDE the current
+ * statement cycle. data.currentTransactionsList is NOT a row list —
  * it is a per-currency cycle-summary object
  * (currentTransactionsBillingMonth[].totalTransactionsCurrency[] = totals
  * only), so it is intentionally excluded (grounded in the Amex scrape
@@ -20,8 +23,17 @@ interface IApprovals {
 interface IVouchers {
   readonly israelAbroadVouchersList?: readonly AmexTxn[];
 }
+/**
+ * One out-of-statement group. The rows sit a level deeper than the settled
+ * list, under a per-currency-date wrapper, but carry the identical row shape
+ * (seqVoucherNumber, billingAmount, businessName, purchaseDate…).
+ */
+interface IOutOfStatementGroup {
+  readonly immediateVouchersCurrencyDate?: readonly AmexTxn[] | null;
+}
 interface IIsraelAbroadVouchers {
   readonly vouchers?: IVouchers | null;
+  readonly outOfStatementChargeDateVouchers?: readonly IOutOfStatementGroup[] | null;
 }
 interface ITxnsData {
   readonly approvals?: IApprovals | null;
@@ -51,7 +63,26 @@ function voucherRows(data: ITxnsData): readonly AmexTxn[] {
 }
 
 /**
- * Merge both transaction containers from one GetTransactionsList response
+ * Charges whose charge-date falls outside the current statement
+ * (data.israelAbroadVouchers.outOfStatementChargeDateVouchers[]
+ *  .immediateVouchersCurrencyDate[]).
+ *
+ * Omitting this silently dropped real spend rather than erroring, so the loss
+ * looked like a quiet month rather than a bug. Measured against a live Amex
+ * capture set: 164 rows read from the settled list while 112 further rows sat
+ * unread here — a 40.6% loss on a run that logged no warning. The rows share
+ * no seqVoucherNumber with the settled list, so merging cannot double-count.
+ *
+ * @param data - Unwrapped response data.
+ * @returns Out-of-statement rows (empty when absent).
+ */
+function outOfStatementRows(data: ITxnsData): readonly AmexTxn[] {
+  const groups = data.israelAbroadVouchers?.outOfStatementChargeDateVouchers ?? [];
+  return groups.flatMap(group => group.immediateVouchersCurrencyDate ?? []);
+}
+
+/**
+ * Merge every transaction container from one GetTransactionsList response
  * into a single row list. Tolerates a null/absent data block.
  * @param body - Raw GetTransactionsList response body.
  * @returns Merged transaction rows.
@@ -61,7 +92,8 @@ export function mergeAmexRows(body: object): readonly object[] {
   if (!data) return [];
   const approved = approvedRows(data);
   const vouchers = voucherRows(data);
-  return [...approved, ...vouchers];
+  const outOfStatement = outOfStatementRows(data);
+  return [...approved, ...vouchers, ...outOfStatement];
 }
 
 export default mergeAmexRows;
