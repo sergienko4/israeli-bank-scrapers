@@ -102,7 +102,8 @@ function oldestOf(rows: readonly object[]): string {
   const days = rows.map(rowDay);
   const usable = days.filter((d): boolean => d !== '');
   if (usable.length === 0) return '';
-  return usable.reduce((a, b): string => (a < b ? a : b));
+  const [first] = usable;
+  return usable.reduce((a, b): string => (a < b ? a : b), first);
 }
 
 /**
