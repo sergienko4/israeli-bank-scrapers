@@ -93,6 +93,13 @@ function extractAt(cursor: HapoalimCursor | false): ReturnType<typeof txnsExtrac
 }
 
 /**
+ * Raised when a test walk exhausts its iteration budget without the shape
+ * signalling the end. Throwing rather than returning what was gathered keeps a
+ * non-terminating walk from passing as a short but plausible result.
+ */
+class WalkDidNotTerminateError extends Error {}
+
+/**
  * Run the shape's own walk to exhaustion, joining pages the way production does.
  *
  * The shape declares `pagesMayOverlap`, so the collection loop joins pages with
@@ -112,7 +119,9 @@ function walkShape(): readonly object[] {
     if (extracted.nextCursor === false) return gathered;
     cursor = extracted.nextCursor;
   }
-  return gathered;
+  throw new WalkDidNotTerminateError(
+    'walkShape did not terminate — the resume bound stopped making progress',
+  );
 }
 
 /**
@@ -222,7 +231,9 @@ function walkSplitDay(): readonly object[] {
     if (extracted.nextCursor === false) return gathered;
     cursor = extracted.nextCursor;
   }
-  return gathered;
+  throw new WalkDidNotTerminateError(
+    'walkSplitDay did not terminate — the resume bound stopped making progress',
+  );
 }
 
 describe('a page cap that falls in the middle of a day', () => {

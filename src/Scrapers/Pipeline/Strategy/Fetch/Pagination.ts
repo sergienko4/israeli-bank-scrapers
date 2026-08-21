@@ -11,16 +11,23 @@ import { isOk, succeed } from '../../Types/Procedure.js';
 const LOG = getDebug(import.meta.url);
 
 /**
- * Hard ceiling on pages per walk.
+ * Hard ceiling on pages per walk — a runaway backstop, not a budget.
  *
  * A shape derives its own cursor from the rows it just received, so a provider
  * that ignores the bound and re-serves the same page would otherwise walk for
  * ever. The cursor-repeat halt catches that exact case; this ceiling catches
  * the ones that creep — a cursor that moves by a day against an account whose
- * history outruns the window. Sized well above the longest legitimate walk (a
- * two-year month-chunked window is 24 pages).
+ * history outruns the window.
+ *
+ * Sized so it cannot fire on legitimate work, because hitting it truncates in
+ * whichever direction the shape walks. Month-chunked shapes (Yahav, Max) walk
+ * **oldest-first**, so a ceiling reached mid-walk drops the most RECENT months
+ * — and the window guardrails would not see it, since they assert the old end
+ * of the range against `startDate`. At 300 a month-chunked walk covers 25
+ * years, well beyond any Israeli bank's retention, while a genuine infinite
+ * loop still terminates.
  */
-const MAX_PAGES = 60;
+const MAX_PAGES = 300;
 
 /** A single page of items plus the cursor for the next page (false when exhausted). */
 interface IPage<TItem, TCursor> {

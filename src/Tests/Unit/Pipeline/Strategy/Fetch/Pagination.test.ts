@@ -250,3 +250,32 @@ describe('Pagination.fetchPaginated/walks that stop making progress', () => {
     expect(rows).toEqual(['same']);
   });
 });
+
+/**
+ * Build a fetcher whose cursor advances on every page, so it never exhausts and
+ * never repeats a cursor — only the page ceiling can stop the walk.
+ * @param asks - Collects the cursor of each fetch, so length is the ask count.
+ * @returns A fetchPage function matching the IFetchPaginatedArgs signature.
+ */
+function makeEndlessFetcher(asks: number[]): PageFetcher<string, number> {
+  return (cursor): Promise<Procedure<IPage<string, number>>> => {
+    const next = cursor === false ? 1 : cursor + 1;
+    asks.push(next);
+    const page = succeed({ items: ['row'], nextCursor: next });
+    return Promise.resolve(page);
+  };
+}
+
+describe('Pagination.fetchPaginated/the runaway ceiling', () => {
+  it('stops a never-exhausting walk and keeps what it gathered', async () => {
+    const asks: number[] = [];
+    const fetchPage = makeEndlessFetcher(asks);
+    const args: IFetchPaginatedArgs<string, number> = { fetchPage, stop: NEVER_STOP };
+    const result = await fetchPaginated(args);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    expect(asks).toHaveLength(300);
+    const rows = isOkResult ? result.value : [];
+    expect(rows).toHaveLength(300);
+  });
+});
