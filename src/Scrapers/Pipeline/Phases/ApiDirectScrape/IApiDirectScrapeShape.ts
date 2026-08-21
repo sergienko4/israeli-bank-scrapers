@@ -30,6 +30,7 @@ import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
 
 /** Opaque headers map (shape step may declare per-call extraHeaders). */
 export type HeaderMap = Record<string, string>;
@@ -162,27 +163,11 @@ export interface IExtractPageArgs<TAcct, TCursor> {
 }
 
 /**
- * How a bank's transactions request expresses the window's upper bound —
- * declared per the hard-model rule, never inferred.
- *
- * Probed across all 16 shapes (see `docs/observability/coverage-audit.md`):
- * the encodings share nothing — `YYYYMMDD` in a query param, `YYYY-MM-DD` in
- * a body, RFC-1123 inside a JSON string, a structured `{Day,Month,Year}`
- * filter, a billing month — so the stance cannot be read off the wire.
+ * How a bank's transactions request expresses the window's upper bound.
+ * Re-exported from `Types/WindowNarrowing.ts`, where it is shared with the
+ * Mediator that acts on the declaration.
  */
-export type WindowNarrowing =
-  /** Honours a narrowed `ctx.windowEnd`; a coverage gap can be backfilled. */
-  | 'windowEnd'
-  /**
-   * Request names a fixed provider period (a billing month) rather than a
-   * range. Every period covering the window is already requested and none can
-   * be sub-divided, so a gap *inside* one period has no narrower re-ask.
-   */
-  | 'periodEnumeration'
-  /** Request carries no upper bound to move; a gap can only be reported. */
-  | 'lowerBoundOnly'
-  /** Provider supplies the next-page token and owns completeness. */
-  | 'providerCursor';
+export type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
 
 /** Transactions-step shape — paginated per-account fetch. */
 export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {

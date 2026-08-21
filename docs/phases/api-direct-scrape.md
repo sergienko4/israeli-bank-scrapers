@@ -182,6 +182,26 @@ Two findings from writing that contract are worth keeping:
 - **A stance is a claim about the whole walk, not one request.** Yahav was nearly mis-declared: it always opens at chunk 0, so its _first_ request is byte-identical under any bound. Its chunk _list_ does shrink. The contract therefore samples cursor positions across the walk rather than probing the first call.
 - **`periodEnumeration` has no narrower re-ask.** A billing month cannot be subdivided, so a gap _inside_ one month has no follow-up request that would close it. This includes Isracard and Amex — for them, correct container extraction and honest reporting are the whole remedy, and the backfill path must not pretend otherwise.
 
+## Coverage backfill — asking again for the slice that did not arrive
+
+The coverage audit deliberately calls a shortfall `unproven`, never `truncated`, because one response cannot tell a quiet account from a capped one. Only a second request can. `collectAccountRows` (`Phases/ApiDirectScrape/ApiDirectScrapeBackfill.ts`) owns that loop: it runs the normal paginated walk, assesses what arrived, and — when the bank's declared stance allows it — narrows `ctx.windowEnd` and walks again.
+
+The decision itself is a pure function, `planBackfill` (`Mediator/Scrape/WindowBackfill.ts`), which returns an `IBackfillPlan` (`shouldAsk`, `nextEnd`, `reason`) from an `IBackfillPlanArgs` bundle. It refuses in a fixed order, and the reason is logged either way — "we asked and could not get more" and "we never asked" are different facts:
+
+1. `WINDOW_BACKFILL=off` — operator kill-switch. Any other value leaves backfill on, so a typo cannot silently disable it.
+2. The window is already covered.
+3. No row carried a usable date, so there is no bound to derive.
+4. The stance cannot be narrowed. The reason comes from `BACKFILL_EXCLUSION` (`Types/WindowNarrowing.ts`), a map over `UnbackfillableStance` rather than a branch, so adding a stance is a compile error instead of a bank that silently drops out.
+5. `MAX_BACKFILL_ASKS` (12, one per month of the longest supported window) has been reached.
+
+Otherwise the next bound is the **day before** the oldest row held — exclusive, because an inclusive bound would re-serve rows already in hand. **That single rule is also the loop's termination guarantee:** a request that returns nothing new leaves `oldest` where it was, which derives the same bound again, and a bound that does not move strictly backwards stops the walk. No separate zero-progress counter is needed.
+
+Providers answer in whole periods, so a narrowed request routinely re-serves rows the previous one already delivered. `dropOverlap` (`Mediator/Scrape/RawOverlap.ts`) removes them, returning an `IOverlapResult` from an `IOverlapArgs` bundle. It is a **multiset** difference on the raw row, not a set difference: a row is dropped only while an unconsumed byte-identical copy is still held. Two genuinely distinct purchases can serialize identically — same day, same merchant, same amount — and a set difference would delete one of them silently. This is narrower than [duplicate collapse](#duplicate-collapse--opt-in-and-only-when-redundancy-is-proven) on purpose: there the redundancy is the provider's and needs a declared key; here we caused it by asking twice, so identity is the whole test.
+
+The coverage assessment runs **per account**, not per page, and on the raw rows before the start-window trims them. Per page it would fire on almost every page of every card issuer by construction — an August page cannot reach a February start — and after trimming it would be circular, since trimming is precisely what guarantees nothing predates the start.
+
+For a quiet `windowEnd` account whose rows genuinely stop short of `startDate`, the loop spends exactly one extra request: it comes back with nothing older, the bound fails to move, and the walk ends. That request is the point — it converts an `unproven` verdict into a proven one.
+
 ## Duplicate collapse — opt-in, and only when redundancy is proven
 
 `fetchPaginated` concatenates pages blindly, so a provider that ignores the cursor and re-serves a page emits every row on it twice. PayBox solves that inside its own cursor logic; nothing solves it generically.
