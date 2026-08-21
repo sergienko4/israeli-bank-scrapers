@@ -60,7 +60,7 @@ export interface IDeclaredArgs {
 export interface IDeclaredResult {
   /** Groups that stated a count, so were checkable. */
   readonly checked: number;
-  /** Rows declared but not extracted, summed. Above zero means loss. */
+  /** Rows declared but not carried by the response, summed. Above zero means loss. */
   readonly shortfall: number;
 }
 

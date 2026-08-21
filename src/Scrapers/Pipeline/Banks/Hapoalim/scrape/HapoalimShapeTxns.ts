@@ -16,9 +16,12 @@
  * caps a response SERVER-SIDE at its own `numItemsPerPage` — it ignores the
  * larger size asked for below and returns the most RECENT N rows, silently
  * dropping everything older in the requested window. So the cursor is a date:
- * each full page is followed by another whose window ends the day before the
- * oldest row just seen, walking backwards until a short page arrives or the
- * caller's start date is reached.
+ * each full page is followed by another whose window ends ON the oldest day
+ * just seen, inclusively, walking backwards until a short page arrives or the
+ * caller's start date is reached. The bound is inclusive because the cap counts
+ * ROWS, not days — a busy day can be cut in half by it, so excluding that day
+ * would drop the untold remainder of it. Re-served rows are removed downstream
+ * by the overlap multiset difference.
  *
  * Wire body note: the SPA POSTs `[]` (empty array); the hard-model
  * dispatch path is object-typed, so it sends `{}`. Both serialise to an
@@ -70,7 +73,7 @@ interface ITxnsResp {
 /**
  * Cursor: the `retrievalEndDate` (YYYYMMDD) for the next page, walking back.
  * Branded so it cannot be confused with any other string this shape handles
- * (Rule #15), and minted only by {@link dayBeforeOldest}.
+ * (Rule #15), and minted only by {@link oldestDay}.
  */
 export type HapoalimCursor = Brand<string, 'HapoalimRetrievalEndDate'>;
 
