@@ -24,7 +24,13 @@ import {
   type IHapoalimAcct,
   noVars,
 } from './HapoalimShapeHelpers.js';
-import { type HapoalimCursor,txnsExtractPage, txnsHeaders, txnsUrl, txnsVars } from './HapoalimShapeTxns.js';
+import {
+  type HapoalimCursor,
+  txnsExtractPage,
+  txnsHeaders,
+  txnsUrl,
+  txnsVars,
+} from './HapoalimShapeTxns.js';
 
 /** Hapoalim hard-model shape — passed to `.withBrowserApiDirect(...)`. */
 const HAPOALIM_SHAPE: IApiDirectScrapeShape<IHapoalimAcct, HapoalimCursor> = {

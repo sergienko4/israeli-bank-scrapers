@@ -38,3 +38,26 @@ BALANCE-RESOLVE chain, the `HAPOALIM_SHAPE` `IApiDirectScrapeShape`
 (`Banks/Hapoalim/scrape/HapoalimShape.ts`) declares the exact accounts, balance,
 and transactions API calls, issued directly through the live login page. See
 [api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
+
+## Truncated transaction windows
+
+Hapoalim's transactions endpoint serves at most `numItemsPerPage` rows (150 in
+captured traffic) and offers **no next-page link, cursor or offset** to fetch the
+rest. A busy account therefore receives a silently short answer: the response is
+well-formed, every row in it is read, and the missing weeks are indistinguishable
+from a quiet month. A real account lost four weeks of history this way.
+
+Because the bank exposes no way to ask for "the next page", the only way to reach
+the older rows is to ask for an **earlier window**. `HapoalimShapeTxns.ts` walks
+backwards: when a page comes back at the declared cap it mints a
+`HapoalimCursor` — the branded `retrievalEndDate` for the next request, set to
+the day before the oldest row returned — and repeats until a page arrives under
+the cap. The brand exists so the cursor cannot be confused with the other
+`YYYYMMDD` strings the shape handles.
+
+Credit for identifying the defect and the backwards-walk remedy:
+[@danielbenzvi](https://github.com/danielbenzvi).
+
+The general form of this problem is not Hapoalim-specific — see
+[coverage audit](../observability/coverage-audit.md) for the window-coverage
+check that detects it on every bank.
