@@ -145,7 +145,7 @@ So a card row counts as a credit when **exactly one of its two amounts is negati
 
 The generic path had a client-side filter for exactly this (`filterAfterStart`, in `Strategy/Scrape/ScrapeData/ScrapeDataDedup.ts`), but no api-direct bank ever reached it: `withApiDirect` / `withBrowserApiDirect` short-circuit the builder straight to this phase, bypassing the legacy `Strategy/Scrape` chain. So the window was silently unenforced for all api-direct banks.
 
-`applyStartWindow` (`Mediator/Scrape/StartWindow.ts`) closes that gap. `fetchAccountTxns` calls it immediately after `mapTxns`, passing an `IStartWindowArgs` (`txns`, `startDate`, `label`) and receiving an `IStartWindowResult` (`kept`, `dropped`).
+`applyStartWindow` (`Mediator/Scrape/StartWindow.ts`) closes that gap. `refineTxns` applies it as the last step of refinement — after `mapTxns`, after the map-reject report, and after any duplicate collapse — passing an `IStartWindowArgs` (`txns`, `startDate`, `label`) and receiving an `IStartWindowResult` (`kept`, `dropped`).
 
 Three deliberate choices:
 
@@ -158,7 +158,7 @@ Three deliberate choices:
 
 The log line is `debug`, not `warn`: card issuers trim rows on every run, so a warning would fire forever and train reviewers to ignore it. The one actionable case — a window that removes _every_ row, meaning either a mistaken `startDate` or dates the mapper failed to parse — does warn.
 
-This pairs with the [coverage audit](../observability/coverage-audit.md): the audit proves the shape read every container the response carried, and the window proves the caller receives only what it asked for. Both are needed — on Isracard the container fix recovers 52 in-window rows (49% of the caller's requested data) that the pre-fix shape silently dropped.
+This pairs with the [coverage audit](../observability/coverage-audit.md): the audit warns when rows discoverable in the response are missing from the shape's output, and the window proves the caller receives only what it asked for. Both are needed — on Isracard the container fix recovers 52 in-window rows (49% of the caller's requested data) that the pre-fix shape silently dropped.
 
 ## Window upper bound — `scrapeWindowEnd` and the `windowNarrowing` declaration
 
@@ -200,7 +200,7 @@ Providers answer in whole periods, so a narrowed request routinely re-serves row
 
 The coverage assessment runs **per account**, not per page, and on the raw rows before the start-window trims them. Per page it would fire on almost every page of every card issuer by construction — an August page cannot reach a February start — and after trimming it would be circular, since trimming is precisely what guarantees nothing predates the start.
 
-For a quiet `windowEnd` account whose rows genuinely stop short of `startDate`, the loop spends exactly one extra request: it comes back with nothing older, the bound fails to move, and the walk ends. That request is the point — it converts an `unproven` verdict into a proven one.
+For a quiet `windowEnd` account whose rows genuinely stop short of `startDate`, the loop spends exactly one extra request: it comes back with nothing older, the bound fails to move, and the walk ends logging `bound did not move`. That request is the point — it is what distinguishes a quiet account from a capped one, which a single response never can.
 
 A shape may also walk backwards on its own, using a cap the bank states in the response — [Hapoalim](../banks/hapoalim.md#truncated-transaction-windows) does. The two compose rather than compete: the shape walk runs first and exhausts the window, the window then assesses as `covered`, and `planBackfill` asks for nothing. A shape-level walk is the more precise of the two where a bank declares a cap, because it never spends the probe request on a quiet account; the generic loop is the floor beneath every bank that declares nothing.
 

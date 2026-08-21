@@ -69,7 +69,7 @@ mapping visacal/txns: complete (extracted=435 mapped=435)
 mapping visacal/txns: UNREADABLE — rejected=7 (extracted=12 mapped=5)
 ```
 
-Measured against captured traffic, all nine pipeline banks score zero — which is the only reason the signal is worth emitting. If it ever becomes chatty for a healthy bank, the fix is to correct that bank's container list, not to soften the check.
+Measured against captured traffic, all nine captured bank traces score zero — which is the only reason the signal is worth emitting. If it ever becomes chatty for a healthy bank, the fix is to correct that bank's container list, not to soften the check.
 
 It reports and stops. A rejected row cannot be recovered at this layer: the mapper has already decided the row carries no date, amount or description it recognises, so any value invented here would be a guess written into a user's ledger.
 
@@ -137,7 +137,7 @@ The other three audits are per-page questions: each compares one body against it
 
 Measured across the nine captured traces, asking per page warns on **31 of 69 pages** for each card issuer, and on every page for Yahav and Leumi — on scrapes that are complete. Per account, over the union of every page, the same traces resolve to four banks `covered` and the genuine Hapoalim gap still reported at 64 days. The noisy framing would have buried the one true positive.
 
-So the assessment happens once per account in `refineTxns` (`ApiDirectScrapeActions.ts`), after `fetchPaginated` has finished and **before** `applyStartWindow` trims the rows. Assessing the trimmed set would be circular: trimming is precisely what guarantees nothing predates the start.
+So the assessment happens once per account in `walk` (`ApiDirectScrapeBackfill.ts`), after each full `fetchPaginated` walk and **before** the rows are mapped, deduplicated or trimmed by `applyStartWindow`. Assessing the trimmed set would be circular: trimming is precisely what guarantees nothing predates the start.
 
 ### Why the verdict is `unproven`, not `truncated`
 

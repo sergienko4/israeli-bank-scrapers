@@ -46,7 +46,7 @@ export type WindowVerdict = 'covered' | 'unproven';
 export interface IWindowArgs {
   /** Requested window start, as the caller asked for it. */
   readonly requestedStart: string;
-  /** Rows the shape extracted from this page. */
+  /** Every row the account has yielded so far, across all asks. */
   readonly rows: readonly object[];
   /** Bank + step identity for the log line. Never contains row content. */
   readonly label: string;
