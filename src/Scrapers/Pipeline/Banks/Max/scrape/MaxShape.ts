@@ -11,6 +11,7 @@
  */
 
 import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { OWNS_MAX_ROW } from './MaxShapeExtract.js';
 import {
   accountNumberOf,
   customerUrl,
@@ -50,6 +51,7 @@ const MAX_SHAPE: IApiDirectScrapeShape<IMaxCard, number> = {
   transactions: {
     buildVars: noVars,
     extractPage: txnsExtractPage,
+    auditOwnsRow: OWNS_MAX_ROW,
     windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,
     method: 'GET',

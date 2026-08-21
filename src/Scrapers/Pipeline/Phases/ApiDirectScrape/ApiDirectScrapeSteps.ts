@@ -112,6 +112,11 @@ type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage
  * amount of care in our own code prevents. It reports and returns; the page
  * is passed through untouched.
  *
+ * A shape whose response carries every account merged declares `auditOwnsRow`;
+ * bound to this account it becomes the audit's `ownsRow`, which narrows hunted
+ * rows to the ones this account owns. Without it the other accounts' rows would
+ * read as loss on every page. Banks with a per-account response declare nothing.
+ *
  * @param a - Per-account context.
  * @param body - Raw response body for this page.
  * @param items - Rows the shape extracted from that body.
@@ -123,8 +128,10 @@ function auditPageCoverage<TAcct, TCursor>(
   items: readonly object[],
 ): ICoverageResult {
   const label = `${a.ctx.companyId}/txns`;
-  const args = { body, extracted: items, isCardIssuer: a.shape.isCardIssuer, label };
-  return auditCoverage(args);
+  const declared = a.shape.transactions.auditOwnsRow;
+  const ownsRow = declared && ((row: object): boolean => declared(row, a.acct));
+  const isCardIssuer = a.shape.isCardIssuer;
+  return auditCoverage({ body, extracted: items, isCardIssuer, label, ownsRow });
 }
 
 /**

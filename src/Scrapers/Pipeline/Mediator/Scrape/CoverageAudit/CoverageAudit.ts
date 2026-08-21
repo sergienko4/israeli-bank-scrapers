@@ -19,7 +19,7 @@
 import type { ITransaction } from '../../../../../Transactions.js';
 import { getDebug } from '../../../Logging/Debug.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
-import { huntTransactionGroups } from '../FieldHunt/TxnHunt.js';
+import { huntTransactionGroups, type TxnGroup } from '../FieldHunt/TxnHunt.js';
 import { maxMerge, tallyBy } from '../Multiset.js';
 import { autoMapTransaction } from '../TxnMapper/TxnMapper.js';
 
@@ -27,13 +27,16 @@ const LOG = getDebug(import.meta.url);
 
 /** Outcome of one reconciliation round. Counts only — never row content. */
 export interface ICoverageResult {
-  /** Distinct transactions the bank shape returned. */
+  /** Transaction copies the bank shape returned. */
   readonly extracted: number;
-  /** Distinct transactions discoverable anywhere in the response body. */
+  /** Transaction copies discoverable anywhere in the response body. */
   readonly hunted: number;
-  /** Hunted transactions the shape did not return. Above zero means loss. */
+  /** Hunted copies the shape did not return. Above zero means loss. */
   readonly unread: number;
 }
+
+/** Whether a hunted row belongs to the account being audited. */
+export type OwnsRow = (row: object) => boolean;
 
 /** Inputs for one reconciliation round. */
 export interface ICoverageArgs {
@@ -45,7 +48,18 @@ export interface ICoverageArgs {
   readonly isCardIssuer?: boolean;
   /** Bank + step identity for the log line. Never contains row content. */
   readonly label: string;
+  /**
+   * Narrows hunted rows to the account being audited. Omit when the response
+   * is already per-account — only merged-response banks need it.
+   */
+  readonly ownsRow?: OwnsRow;
 }
+
+/**
+ * Default ownership: a per-account response carries this account's rows only.
+ * @returns Always true — every hunted row counts for the account being audited.
+ */
+const OWNS_EVERY_ROW: OwnsRow = (): boolean => true;
 
 /**
  * Reduce a raw row to the identity the consumer ultimately sees.
@@ -86,7 +100,13 @@ function countsOf(rows: readonly object[], isCardIssuer?: boolean): Map<string, 
 }
 
 /**
- * Every transaction the response carries, counted once per genuine copy.
+ * Every transaction the response carries **for this account**, counted once per
+ * genuine copy.
+ *
+ * Hunts the whole body first and narrows afterwards, rather than auditing a
+ * pre-filtered slice: a container the shape never reads is still discovered, so
+ * the guardrail keeps its teeth on merged-response banks instead of being
+ * quietly switched off for them.
  *
  * Merges the containers by largest count rather than by sum: a transaction
  * cross-listed in a summary container and a detail container is one
@@ -94,12 +114,14 @@ function countsOf(rows: readonly object[], isCardIssuer?: boolean): Map<string, 
  * never existed. Multiplicity inside a single container, by contrast, is real.
  *
  * @param body - Raw response body.
+ * @param ownsRow - Narrows hunted rows to the account being audited.
  * @param isCardIssuer - Card-issuer hint forwarded to the mapper.
  * @returns Mapped key to the number of genuine copies.
  */
-function huntedCounts(body: object, isCardIssuer?: boolean): Map<string, number> {
+function huntedCounts(body: object, ownsRow: OwnsRow, isCardIssuer?: boolean): Map<string, number> {
   const groups = huntTransactionGroups(body as ApiRecord);
-  const perContainer = groups.map((group): Map<string, number> => countsOf(group, isCardIssuer));
+  const owned = groups.map((group): TxnGroup => group.filter(ownsRow));
+  const perContainer = owned.map((group): Map<string, number> => countsOf(group, isCardIssuer));
   return maxMerge(perContainer);
 }
 
@@ -181,7 +203,8 @@ function reportCoverage(label: string, result: ICoverageResult): ICoverageResult
  */
 export function auditCoverage(args: ICoverageArgs): ICoverageResult {
   const extracted = countsOf(args.extracted, args.isCardIssuer);
-  const hunted = huntedCounts(args.body, args.isCardIssuer);
+  const ownsRow = args.ownsRow ?? OWNS_EVERY_ROW;
+  const hunted = huntedCounts(args.body, ownsRow, args.isCardIssuer);
   const unread = unreadCount(hunted, extracted);
   const result = { extracted: totalOf(extracted), hunted: totalOf(hunted), unread };
   return reportCoverage(args.label, result);

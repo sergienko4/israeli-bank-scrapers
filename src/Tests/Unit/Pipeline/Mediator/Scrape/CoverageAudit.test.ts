@@ -2,10 +2,11 @@
  * Coverage reconciliation — the guardrail that catches a bank shape reading
  * fewer containers than its response carries.
  *
- * The cases below encode the two ways a naive reconciler gets this wrong and
+ * The cases below encode the three ways a naive reconciler gets this wrong and
  * why this one does not: reference comparison would accuse every transforming
- * extractor of loss, and raw-count comparison would accuse every legitimately
- * filtering extractor of loss. Bodies are synthetic — zero PII.
+ * extractor of loss, raw-count comparison would collapse a repeated charge into
+ * one, and hunting an unnarrowed body would accuse a merged-response bank of
+ * losing every other account's rows. Bodies are synthetic — zero PII.
  */
 
 import {
@@ -32,6 +33,46 @@ function txn(name: string, amount: number): Record<string, unknown> {
 function audit(body: object, extracted: readonly object[]): ReturnType<typeof auditCoverage> {
   const args: ICoverageArgs = { body, extracted, label: 'test/txns' };
   return auditCoverage(args);
+}
+
+/**
+ * A row belonging to the card under audit.
+ * @param name - Merchant name.
+ * @param amount - Charged amount.
+ * @returns A synthetic row tagged with the audited card.
+ */
+function mine(name: string, amount: number): Record<string, unknown> {
+  return { ...txn(name, amount), shortCardNumber: '1111' };
+}
+
+/**
+ * A row belonging to a different card in the same merged response.
+ * @param name - Merchant name.
+ * @param amount - Charged amount.
+ * @returns A synthetic row tagged with another card.
+ */
+function theirs(name: string, amount: number): Record<string, unknown> {
+  return { ...txn(name, amount), shortCardNumber: '2222' };
+}
+
+/**
+ * The merged-response ownership predicate a card issuer declares: rows carry
+ * every card, and only card 1111's belong to the account under audit.
+ * @param row - Raw row from the merged response.
+ * @returns Whether the row belongs to card 1111.
+ */
+function ownsCard1111(row: object): boolean {
+  return (row as { shortCardNumber?: string }).shortCardNumber === '1111';
+}
+
+/**
+ * Run a round for a merged-response bank, narrowing hunted rows to card 1111.
+ * @param body - Response body carrying every card.
+ * @param extracted - Rows the shape returned for this card.
+ * @returns Coverage counts.
+ */
+function auditOwned(body: object, extracted: readonly object[]): ReturnType<typeof auditCoverage> {
+  return auditCoverage({ body, extracted, label: 'max/txns', ownsRow: ownsCard1111 });
 }
 
 describe('Coverage/auditCoverage', () => {
@@ -103,5 +144,27 @@ describe('Coverage/auditCoverage', () => {
     const result = audit({ data: { errorCode: '0' } }, []);
     expect(result.hunted).toBe(0);
     expect(result.unread).toBe(0);
+  });
+
+  it('does not accuse a merged-response bank of losing another card rows', () => {
+    // Max returns every card merged and its extractor narrows to one card, so
+    // hunted > extracted is that bank's correct steady state. Without the
+    // declared predicate this warns on every page of every run, forever.
+    const body = { result: { transactions: [mine('SHOP', 10), theirs('CAFE', 20)] } };
+    const result = auditOwned(body, [mine('SHOP', 10)]);
+    expect(result.hunted).toBe(1);
+    expect(result.unread).toBe(0);
+  });
+
+  it('still reports a container a merged-response bank never read', () => {
+    // Narrowing must not cost the guardrail its teeth: a container the shape
+    // skipped is still hunted, and its rows for this card still count as loss.
+    const seen = mine('SHOP', 10);
+    const body = {
+      result: { transactions: [seen, theirs('CAFE', 20)] },
+      pending: [mine('GYM', 40)],
+    };
+    const result = auditOwned(body, [seen]);
+    expect(result.unread).toBe(1);
   });
 });

@@ -14,13 +14,13 @@ Both sides are pushed through `autoMapTransaction` and reduced to a **mapped key
 date | chargedAmount | description
 ```
 
-Comparing object references instead would report a false 100% loss for every *transforming* extractor. Yahav's BaNCS normaliser returns new objects, so not one of its rows is reference-equal to the row it came from. The mapped key compares what actually reaches the caller, which is the only thing a consumer can observe.
+Comparing object references instead would report a false 100% loss for every _transforming_ extractor. Yahav's BaNCS normaliser returns new objects, so not one of its rows is reference-equal to the row it came from. The mapped key compares what actually reaches the caller, which is the only thing a consumer can observe.
 
-| Field of `ICoverageResult` | Meaning |
-| --- | --- |
-| `extracted` | Transaction copies the bank shape returned |
-| `hunted` | Transaction copies discoverable anywhere in the body |
-| `unread` | Hunted copies the shape did not return — above zero means loss |
+| Field of `ICoverageResult` | Meaning                                                        |
+| -------------------------- | -------------------------------------------------------------- |
+| `extracted`                | Transaction copies the bank shape returned                     |
+| `hunted`                   | Transaction copies discoverable anywhere in the body           |
+| `unread`                   | Hunted copies the shape did not return — above zero means loss |
 
 The call takes an `ICoverageArgs`: the raw `body` exactly as received, the `extracted` rows the shape produced from it, an `isCardIssuer` hint forwarded to the mapper so charge signs match, and a `label` naming the bank and step for the log line. The label is caller-supplied and must stay free of row content.
 
@@ -30,7 +30,7 @@ Two transactions can share a mapped key legitimately: the same amount, at the sa
 
 Counting is therefore a **multiset**, built by `tallyBy` (`src/Scrapers/Pipeline/Mediator/Scrape/Multiset.ts`).
 
-The correction cannot be a naive sum across the whole body, though, because a transaction cross-listed in a summary container *and* a detail container is one transaction seen twice. Summing would accuse a correct shape of losing a row that never existed. So the audit tallies **each container separately** and merges those tallies with `maxMerge`, which keeps each key's largest single-container count:
+The correction cannot be a naive sum across the whole body, though, because a transaction cross-listed in a summary container _and_ a detail container is one transaction seen twice. Summing would accuse a correct shape of losing a row that never existed. So the audit tallies **each container separately** and merges those tallies with `maxMerge`, which keeps each key's largest single-container count:
 
 - multiplicity **inside** one container is real — two rows, two transactions;
 - multiplicity **across** containers is a cross-listing — one transaction, listed twice.
@@ -39,13 +39,17 @@ The correction cannot be a naive sum across the whole body, though, because a tr
 
 The hunter deliberately over-collects: it scores arrays heuristically and will return schema descriptors, summary blocks and pagination envelopes alongside real rows. A row the mapper rejects is not a transaction, so it can never be a lost one. Excluding it **before** the comparison is what keeps the guardrail silent on healthy banks — without that step, every bank would warn on every page and the signal would be worthless within a day.
 
-Max is the sharpest case for the reverse reason: its extractor legitimately filters by `shortCardNumber`, so `hunted > extracted` is its normal, correct state per account. Reconciling the **union across accounts** on the mapped key reports zero for Max, where a raw-row count would have false-positived permanently.
+Max is the sharpest case for the reverse reason: one `getTransactionsAndGraphs` response carries **every** card merged, and the extractor legitimately narrows to the account's own card. Hunting the unnarrowed body would therefore report every _other_ card's rows as loss — a WARN on every page of every run, forever, which is precisely the discredited-warning-channel failure this guardrail exists to end.
+
+The fix is a declaration, not an inference. A shape whose response carries every account merged declares `auditOwnsRow` (`IApiDirectScrapeTxnsStep`), and the audit narrows hunted rows through it — the driver binds it to the account under audit and passes it as `ownsRow` (`OwnsRow` in `CoverageAudit.ts`), which defaults to accepting every row so per-account banks need declare nothing. Max declares `OWNS_MAX_ROW`, which delegates to the same private predicate `filterMaxRows` uses, so the audit's notion of "this card's rows" cannot drift from the extractor's. Every other bank omits it, because every other bank's response is already scoped to one account.
+
+Crucially the narrowing happens **after** the hunt, not before it. Auditing a pre-filtered slice would compare the extractor against itself and always report zero — switching the guardrail off for Max while looking like it was on. Hunting first means a container the shape never reads is still discovered, and the rows in it that belong to this card still count as loss.
 
 ## Why it never repairs
 
 It warns. It does not append the missing rows, and it must not be changed to.
 
-Hunted rows are found by heuristic, so their provenance and field semantics are unverified — a row may be a pending duplicate, a foreign-currency twin of a row already present, or a summary line that merely looks transactional. Injecting them would trade a *visible* shortfall for *invisible* corruption in the user's ledger, which is strictly the worse failure. The correct repair is always to teach the bank shape the container it is missing, which is a reviewed code change with a test.
+Hunted rows are found by heuristic, so their provenance and field semantics are unverified — a row may be a pending duplicate, a foreign-currency twin of a row already present, or a summary line that merely looks transactional. Injecting them would trade a _visible_ shortfall for _invisible_ corruption in the user's ledger, which is strictly the worse failure. The correct repair is always to teach the bank shape the container it is missing, which is a reviewed code change with a test.
 
 ## Reading the log line
 
@@ -58,14 +62,14 @@ coverage isracard/txns: INCOMPLETE — unread=111 (extracted=165 hunted=276)
 
 `complete` is emitted at `debug`, so healthy runs stay quiet. `INCOMPLETE` is emitted at `warn` and is the line to search for first when a total looks low.
 
-| Observation | Signal |
-| --- | --- |
-| `unread` above zero, on one step | The shape is missing a container **on that endpoint** |
-| `unread` above zero, every step of one bank | Suspect a provider-wide response change |
-| `unread` above zero across several banks at once | Suspect a regression in the mapper, not in the shapes |
-| Totals low but `unread=0` | The rows never arrived — look at the request window, not the shape |
+| Observation                                      | Signal                                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| `unread` above zero, on one step                 | The shape is missing a container **on that endpoint**              |
+| `unread` above zero, every step of one bank      | Suspect a provider-wide response change                            |
+| `unread` above zero across several banks at once | Suspect a regression in the mapper, not in the shapes              |
+| Totals low but `unread=0`                        | The rows never arrived — look at the request window, not the shape |
 
-That last row is the useful half of a silent verdict: it separates *we failed to read it* from *the bank did not send it*, which is the same ambiguity the [response digest](response-digest.md) resolves one layer lower down.
+That last row is the useful half of a silent verdict: it separates _we failed to read it_ from _the bank did not send it_, which is the same ambiguity the [response digest](response-digest.md) resolves one layer lower down.
 
 ## The blind spot: rows the mapper refuses
 
@@ -86,7 +90,7 @@ It reports and stops. A rejected row cannot be recovered at this layer: the mapp
 
 ## The stronger check: counts the provider declares
 
-Both audits above are *inferences*. The hunter guesses which arrays hold transactions; the reject counter infers a defect from a mapper refusal. Each can be argued with, which is why one warns only on a shortfall and the other only on a rejection.
+Both audits above are _inferences_. The hunter guesses which arrays hold transactions; the reject counter infers a defect from a mapper refusal. Each can be argued with, which is why one warns only on a shortfall and the other only on a rejection.
 
 Some responses need no inference at all, because they **state their own row count next to the rows**. Where that is true the comparison is not heuristic and cannot be disputed: a container that says it holds twelve rows and carries zero has lost twelve, provable from a single response with no second run to compare against.
 
@@ -100,9 +104,9 @@ The obvious candidate was the response-level total `data.currentTransactionsList
 
 The count that does hold is scoped to a single group:
 
-| Candidate | Scope | Groups agreeing |
-| --- | --- | --- |
-| `…currentTransactionsBillingMonth[].totalTransactionsCurrency[].transactionsCount` | Response-level | **0 of 69** — rejected |
+| Candidate                                                                                                                          | Scope          | Groups agreeing                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------ |
+| `…currentTransactionsBillingMonth[].totalTransactionsCurrency[].transactionsCount`                                                 | Response-level | **0 of 69** — rejected                           |
 | `outOfStatementChargeDateVouchers[].totalVouchersCurrencyDate.countImmediateVouchers` vs sibling `immediateVouchersCurrencyDate[]` | Sibling-scoped | **41 of 41 (100%)** — Isracard 20/20, Amex 21/21 |
 
 `IDeclaredRowSpec` therefore names three paths — `groups` (the array of groups), `rows` (each group's row array) and `count` (each group's declared count) — rather than a single response-level field. A bank adopts the guardrail by naming those three paths and nothing else; the traversal is shared, so a new adopter adds data and no code.
@@ -120,13 +124,13 @@ declared isracard/txns: complete (checked=20)
 declared isracard/txns: SHORTFALL — missing=12 (checked=20)
 ```
 
-A group that declares no count is skipped rather than counted as agreeing, so `checked=0` means *nothing was verifiable*, which is a different answer from *everything agreed*. Conflating the two would hide a renamed field.
+A group that declares no count is skipped rather than counted as agreeing, so `checked=0` means _nothing was verifiable_, which is a different answer from _everything agreed_. Conflating the two would hide a renamed field.
 
 Like the audits above it reports and never repairs. A shortfall means the shape reads the wrong path or the provider changed one — both are reviewed code changes with a test.
 
 ## The check none of the above can make: the window we asked for
 
-Every audit above compares the response against **itself**. The hunter asks whether we read every row the body contained; the reject counter asks whether the mapper accepted them; the declared count asks whether the body carried what it claimed. All three therefore score a *truncated* response as perfect — if a provider silently drops the oldest half of the requested window, every row that did arrive was found, mapped and counted.
+Every audit above compares the response against **itself**. The hunter asks whether we read every row the body contained; the reject counter asks whether the mapper accepted them; the declared count asks whether the body carried what it claimed. All three therefore score a _truncated_ response as perfect — if a provider silently drops the oldest half of the requested window, every row that did arrive was found, mapped and counted.
 
 That blind spot is not hypothetical. It cost a real Hapoalim account four weeks of history with no error, no warning and no failed assertion; the defect surfaced only because a contributor compared two runs by hand (PR #489, `danielbenzvi`).
 
@@ -160,7 +164,7 @@ window hapoalim/txns: UNPROVEN — oldest=2026-04-14 gapDays=64
 window hapoalim/txns: UNPROVEN — no row carried a usable date
 ```
 
-So the verdict names the doubt rather than a diagnosis, and warns rather than errors. Only re-requesting the uncovered slice separates the two cases, and an empty answer to that request is what turns `unproven` into *quiet*.
+So the verdict names the doubt rather than a diagnosis, and warns rather than errors. Only re-requesting the uncovered slice separates the two cases, and an empty answer to that request is what turns `unproven` into _quiet_.
 
 Two cases deliberately report `unproven` rather than `covered`: an account that returned no rows, and one whose rows carry no resolvable date. Absence of evidence is not evidence the window was served — treating either as covered would reintroduce the exact silence this check exists to break.
 

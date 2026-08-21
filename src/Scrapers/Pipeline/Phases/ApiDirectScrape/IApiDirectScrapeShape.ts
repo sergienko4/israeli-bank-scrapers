@@ -230,6 +230,20 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
    * every healthy run. See `Mediator/Scrape/CoverageAudit/DeclaredRows.ts`.
    */
   readonly declaredRowSpecs?: readonly IDeclaredRowSpec[];
+  /**
+   * Whether a hunted row belongs to this account.
+   *
+   * Declared only by banks whose response carries **every** account merged, so
+   * the per-account extractor legitimately returns a subset. Without it the
+   * coverage audit hunts the whole body and reports every *other* account's
+   * rows as loss — a WARN on every page of every run, forever.
+   *
+   * Absent means the response is already scoped to one account, which is the
+   * case for every bank but Max. Declared rather than inferred: whether a
+   * response is merged is part of a bank's hard model, not something the
+   * generic audit should guess at.
+   */
+  readonly auditOwnsRow?: (row: object, acct: TAcct) => boolean;
 }
 
 /** Balance fetch outcome: value + whether it came from `fallbackOnFail`. */
