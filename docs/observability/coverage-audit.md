@@ -113,6 +113,40 @@ A group that declares no count is skipped rather than counted as agreeing, so `c
 
 Like the audits above it reports and never repairs. A shortfall means the shape reads the wrong path or the provider changed one — both are reviewed code changes with a test.
 
+## The check none of the above can make: the window we asked for
+
+Every audit above compares the response against **itself**. The hunter asks whether we read every row the body contained; the reject counter asks whether the mapper accepted them; the declared count asks whether the body carried what it claimed. All three therefore score a *truncated* response as perfect — if a provider silently drops the oldest half of the requested window, every row that did arrive was found, mapped and counted.
+
+That blind spot is not hypothetical. It cost a real Hapoalim account four weeks of history with no error, no warning and no failed assertion; the defect surfaced only because a contributor compared two runs by hand (PR #489, `danielbenzvi`).
+
+The one question a truncated response cannot answer honestly compares the body against the **request**:
+
+> We asked for `[startDate … today]`. Do the returned rows reach back to `startDate`?
+
+`assessWindowCoverage()` (`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.ts`) asks exactly that. It takes an `IWindowArgs` — the `requestedStart`, the extracted `rows`, and a bank/step `label` — and returns an `IWindowResult` carrying a `WindowVerdict`, the `oldest` day returned, and the `gapDays` still unproven.
+
+### Why it applies to every bank without being adopted
+
+It reads **no provider metadata**. Of the nine banks whose live traffic was captured and measured, only Hapoalim declares a page size, and none offers a next-page link or cursor to follow — these are date-window APIs, not paged ones. A guardrail built on provider metadata would therefore protect one bank; a guardrail built on the requested window protects all of them.
+
+Row dates resolve through the shared `WK.date` aliases, the same list the mapper uses, so a bank is covered by existing rather than by opting in. A bank whose rows carry a date field the aliases do not know is not silently passed — it reports `unproven`, which is the honest answer.
+
+### Why the verdict is `unproven`, not `truncated`
+
+A quiet account and a truncated one look identical in a single response: both return rows that stop short of the requested start. Nothing in the body distinguishes them.
+
+```text
+window hapoalim/txns: covered
+window hapoalim/txns: UNPROVEN — oldest=2026-04-14 gapDays=64
+window hapoalim/txns: UNPROVEN — no row carried a usable date
+```
+
+So the verdict names the doubt rather than a diagnosis, and warns rather than errors. Only re-requesting the uncovered slice separates the two cases, and an empty answer to that request is what turns `unproven` into *quiet*.
+
+Two cases deliberately report `unproven` rather than `covered`: an empty page, and a page whose rows carry no resolvable date. Absence of evidence is not evidence the window was served — treating either as covered would reintroduce the exact silence this check exists to break.
+
 ## Verifying a change to it
 
 `auditCoverage` is a pure function over a body and a row list, so it is unit-tested in isolation in `src/Tests/Unit/Pipeline/Mediator/Scrape/CoverageAudit.test.ts` — including the transforming-extractor case that pins the mapped-key decision, and the mapper-reject case that pins the over-collection decision. Both exist to fail loudly if someone "simplifies" the comparison back to reference equality or raw counts. `reportMapRejects` is covered alongside it in `src/Tests/Unit/Pipeline/Mediator/Scrape/MapRejects.test.ts`, and `auditDeclaredRows` in `src/Tests/Unit/Pipeline/Mediator/Scrape/DeclaredRows.test.ts` — where the surplus case and the declares-nothing case pin the two decisions above.
+
+`assessWindowCoverage` is covered in `src/Tests/Unit/Pipeline/Mediator/Scrape/WindowCoverage.test.ts`, which pins the two `unproven` cases above and carries the real numbers from the captured Hapoalim trace. One case exists solely to pin a subtle correctness point: the caller holds `startDate` as a `Date`, so the start arrives as a UTC instant while row dates are local calendar days. Reducing only one side to a calendar day truncates the difference by a partial day and understates `gapDays` by one — enough for a backfill bound derived from `oldest` to skip a day.

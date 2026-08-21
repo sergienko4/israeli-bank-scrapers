@@ -8,6 +8,7 @@
 import type { ICoverageResult } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
 import { auditCoverage } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
 import { auditDeclaredRows } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
+import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -146,6 +147,37 @@ function auditPageDeclared<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: Ap
 }
 
 /**
+ * Reconcile one page against the window that was requested.
+ *
+ * Completes the trio: {@link auditPageCoverage} asks whether we read every row
+ * the body held and {@link auditPageDeclared} asks whether the body held every
+ * row it claimed — both compare the response against itself, so both score a
+ * truncated response as perfect. This one compares it against the request, the
+ * only question a truncated response cannot answer honestly.
+ *
+ * Reads no provider metadata, so it runs for every bank rather than only the
+ * ones that declare a page size. Reports and returns; the page passes through
+ * untouched.
+ *
+ * The reference is the caller's `startDate`, never a bank's rounded-down
+ * derivative of it: banks that widen the window to a month boundary are still
+ * judged against what the user actually asked for.
+ *
+ * @param a - Per-account context.
+ * @param items - Rows the shape extracted from that body.
+ * @returns True once the check has reported.
+ */
+function auditPageWindow<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  items: readonly object[],
+): true {
+  const requestedStart = a.ctx.options.startDate.toISOString();
+  const label = `${a.ctx.companyId}/txns`;
+  assessWindowCoverage({ requestedStart, rows: items, label });
+  return true;
+}
+
+/**
  * Run one paginated fetch + extract round for a given cursor.
  * @param a - Per-account context.
  * @param cursor - Cursor for the round, or false on the first call.
@@ -162,6 +194,7 @@ async function runPageFetch<TAcct, TCursor>(
   const page = a.shape.transactions.extractPage(args);
   auditPageCoverage(a, resp.value, page.items);
   auditPageDeclared(a, resp.value);
+  auditPageWindow(a, page.items);
   return succeed(page);
 }
 
