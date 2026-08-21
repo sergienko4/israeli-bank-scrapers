@@ -5,6 +5,8 @@
  * paginated transactions. Zero bank-name coupling.
  */
 
+import type { ICoverageResult } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
+import { auditCoverage } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -101,6 +103,30 @@ export async function fetchBalance<TAcct, TCursor>(
 type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage<object, TCursor>>>;
 
 /**
+ * Reconcile one page: compare the rows the bank shape returned against every
+ * transaction discoverable in the same response body.
+ *
+ * Runs on every page of every bank because the defect it catches is a
+ * provider-side change — a container added or renamed upstream — which no
+ * amount of care in our own code prevents. It reports and returns; the page
+ * is passed through untouched.
+ *
+ * @param a - Per-account context.
+ * @param body - Raw response body for this page.
+ * @param items - Rows the shape extracted from that body.
+ * @returns Coverage counts for the page.
+ */
+function auditPageCoverage<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  body: ApiBody,
+  items: readonly object[],
+): ICoverageResult {
+  const label = `${a.ctx.companyId}/txns`;
+  const args = { body, extracted: items, isCardIssuer: a.shape.isCardIssuer, label };
+  return auditCoverage(args);
+}
+
+/**
  * Run one paginated fetch + extract round for a given cursor.
  * @param a - Per-account context.
  * @param cursor - Cursor for the round, or false on the first call.
@@ -115,6 +141,7 @@ async function runPageFetch<TAcct, TCursor>(
   if (!isOk(resp)) return resp;
   const args = { body: resp.value, cursor, acct: a.acct, ctx: a.ctx };
   const page = a.shape.transactions.extractPage(args);
+  auditPageCoverage(a, resp.value, page.items);
   return succeed(page);
 }
 

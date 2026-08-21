@@ -183,6 +183,7 @@ nav:
       - Forensic audit: observability/forensic-audit.md
       - INIT navigation forensics: observability/init-navigation-forensics.md
       - Response digest: observability/response-digest.md
+      - Coverage audit: observability/coverage-audit.md
   - Workflow:
       - Overview: workflow/index.md
       - CI gates: workflow/ci.md
