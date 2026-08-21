@@ -23,7 +23,12 @@ const ONE_ZERO_SHAPE: IApiDirectScrapeShape<IOneZeroAcct, string> = {
   accountNumberOf,
   customer: { buildVars: customerVars, extractAccounts },
   balance: { buildVars: balanceVars, extract: balanceExtract, fallbackOnFail: 0 },
-  transactions: { buildVars: txnsVars, extractPage: txnsExtractPage, stop: stopPredicate },
+  transactions: {
+    buildVars: txnsVars,
+    extractPage: txnsExtractPage,
+    windowNarrowing: 'providerCursor',
+    stop: stopPredicate,
+  },
 };
 
 export default ONE_ZERO_SHAPE;

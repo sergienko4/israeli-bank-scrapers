@@ -47,6 +47,7 @@ const MASSAD_SHAPE: IApiDirectScrapeShape<IMassadAcct, never> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'windowEnd',
     urlTag: txnsUrl,
     method: 'POST',
   },

@@ -228,7 +228,22 @@ const NO_DIRECT_SCREENSHOT_RULE = {
     'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The src/Common/SafeScreenshot.ts shim is deprecated since v8.5; new imports MUST use the canonical Pipeline path.',
 };
 
-// §19.9 TEST-HELPER STATEMENT CAP — fires on any `function foo() { ...11+ stmts }`
+// SHAPE WINDOW-END FROM THE CLOCK — added 2026-06 with the window-coverage
+// backfill. Every api-direct bank that bounds its transactions request used to
+// derive that bound from a bare `moment()` / `new Date()`, once per shape, in
+// six different wire encodings. The backfill loop re-asks for an older slice by
+// handing the shape a context whose `windowEnd` is narrowed, which only works
+// while `scrapeWindowEnd(ctx)` is the single place "the end of the window" is
+// decided. A shape that reads the clock directly silently opts out of the
+// backfill and re-introduces the transaction loss the loop exists to close.
+const SHAPE_TXNS_WINDOW_END_RULE = {
+  selector:
+    "CallExpression[callee.name='moment'][arguments.length=0], NewExpression[callee.name='Date'][arguments.length=0], CallExpression[callee.object.name='Date'][callee.property.name='now']",
+  message:
+    'Reading the clock in a *ShapeTxns.ts file detaches it from the scrape window. Use scrapeWindowEnd(ctx) from src/Scrapers/Pipeline/Mediator/Scrape/ScrapeWindowEnd.ts so the coverage backfill can narrow the bound.',
+};
+
+
 // inside `src/Tests/**`. Scoped to `FunctionDeclaration` so legitimate
 // `describe('...', () => { ... })` / `it('...', () => { ... })` /
 // `it.each(cases)('...', (...) => { ... })` arrow callbacks stay
@@ -2919,6 +2934,43 @@ export default tseslint.config(
     plugins: { 'phase9-local': phase9LocalPlugin },
     rules: {
       'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],
+    },
+  },
+
+  // 20. SHAPE TRANSACTIONS WINDOW-END LOCK — added 2026-06 with the
+  //     window-coverage backfill.
+  //
+  //     The backfill re-asks a bank for an older slice by handing the shape a
+  //     context whose `windowEnd` is narrowed. That only reaches the wire while
+  //     `scrapeWindowEnd(ctx)` is the single place the window's end is decided,
+  //     so a shape that reads the clock directly silently opts out of the
+  //     backfill and re-introduces the transaction loss it exists to close.
+  //     The twelve historical call sites are tabulated in the audit's
+  //     HARD-MODEL-WINDOW.md §2; this rule keeps a thirteenth from appearing.
+  //
+  //     `RESTRICTED_SYNTAX_RULES` and `NO_DIRECT_SCREENSHOT_RULE` are re-spread
+  //     because flat config REPLACES a rule's options rather than merging them
+  //     — omitting them would silently weaken §6 and §14 on these files.
+  //
+  //     OneZeroShapeTxns.ts is excluded, not grandfathered: OneZero is declared
+  //     `providerCursor` and has no upper bound to narrow. Its single clock read
+  //     computes the provider's absolute one-year floor on the window's START
+  //     (`max(options.startDate, 1y ago)`), which must stay pinned to wall-clock
+  //     now — measuring it from a narrowed end would let the walk ask for data
+  //     older than the provider serves.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Banks/**/scrape/*ShapeTxns.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/shape-txns-window-end-from-clock.canary.ts',
+    ],
+    ignores: ['src/Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        NO_DIRECT_SCREENSHOT_RULE,
+        SHAPE_TXNS_WINDOW_END_RULE,
+      ],
     },
   },
 );

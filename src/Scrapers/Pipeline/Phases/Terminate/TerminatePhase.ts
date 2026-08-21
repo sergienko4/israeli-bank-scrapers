@@ -14,6 +14,7 @@ import {
   executeStartCleanup,
 } from '../../Mediator/Terminate/TerminateActions.js';
 import { BasePhase } from '../../Types/BasePhase.js';
+import { none } from '../../Types/Option.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
@@ -26,7 +27,7 @@ import { succeed } from '../../Types/Procedure.js';
  */
 function buildTerminateActionCtx(input: IPipelineContext): IActionContext {
   const noExecutor = { has: false } as IActionContext['executor'];
-  return { ...input, executor: noExecutor };
+  return { ...input, executor: noExecutor, windowEnd: none() };
 }
 
 /**

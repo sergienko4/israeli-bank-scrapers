@@ -43,6 +43,7 @@ const MERCANTILE_SHAPE: IApiDirectScrapeShape<IMercantileAcct, never> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'lowerBoundOnly',
     urlTag: txnsUrl,
     method: 'GET',
   },

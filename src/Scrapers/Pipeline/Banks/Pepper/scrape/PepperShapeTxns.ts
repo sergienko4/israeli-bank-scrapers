@@ -5,6 +5,7 @@
 
 import moment from 'moment';
 
+import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
   VarsMap,
@@ -48,7 +49,8 @@ export interface IWindow {
  */
 export function windowOf(ctx: IActionContext): IWindow {
   const from = moment(ctx.options.startDate).format(ISO_DATE_FMT);
-  const to = moment().format(ISO_DATE_FMT);
+  const windowEnd = scrapeWindowEnd(ctx);
+  const to = moment(windowEnd).format(ISO_DATE_FMT);
   return { from, to };
 }
 

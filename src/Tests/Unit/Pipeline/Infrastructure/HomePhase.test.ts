@@ -266,6 +266,7 @@ function toActionCtx(ctx: IPipelineContext, pageUrl?: string): IActionContext {
   const executor = makeMockExecutor(pageUrl);
   return {
     options: ctx.options,
+    windowEnd: none(),
     credentials: ctx.credentials,
     companyId: ctx.companyId,
     logger: ctx.logger,
@@ -314,6 +315,7 @@ describe('HomePhase/ACTION', () => {
       ...ctx,
       executor: none(),
       apiMediator: none(),
+      windowEnd: none(),
     };
     const result = await PHASE.action(actionCtx, actionCtx);
     const isSuccess = isOk(result);

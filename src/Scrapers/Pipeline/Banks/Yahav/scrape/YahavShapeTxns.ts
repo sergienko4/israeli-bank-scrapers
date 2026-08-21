@@ -14,6 +14,7 @@ import {
   generateMonthChunks,
   type IMonthChunk,
 } from '../../../Mediator/Scrape/ScrapeReplay/MonthChunking.js';
+import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IApiDirectScrapeTxnsStep,
   IExtractPageArgs,
@@ -43,7 +44,7 @@ export function txnsUrl(): WKUrlOrLiteral {
  */
 function scrapeChunks(ctx: IActionContext): readonly IMonthChunk[] {
   const start = new Date(ctx.options.startDate);
-  const end = new Date();
+  const end = scrapeWindowEnd(ctx);
   const chunks = generateMonthChunks(start, end);
   return chunks.length > 0 ? chunks : [{ start: end.toISOString(), end: end.toISOString() }];
 }
@@ -93,6 +94,7 @@ export function txnsExtractPage(args: IExtractPageArgs<IYahavAcct, number>): IPa
 export const YAHAV_TXNS: IApiDirectScrapeTxnsStep<IYahavAcct, number> = {
   buildVars: txnsVars,
   extractPage: txnsExtractPage,
+  windowNarrowing: 'windowEnd',
   urlTag: txnsUrl,
   method: 'POST',
   extraHeaders: bancsHeaders,

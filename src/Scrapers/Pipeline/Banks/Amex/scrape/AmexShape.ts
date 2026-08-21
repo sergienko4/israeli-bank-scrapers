@@ -74,6 +74,7 @@ const AMEX_SHAPE: IApiDirectScrapeShape<IAmexCard, number> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,
     method: 'POST',
     extraHeaders: digitalV3Headers,

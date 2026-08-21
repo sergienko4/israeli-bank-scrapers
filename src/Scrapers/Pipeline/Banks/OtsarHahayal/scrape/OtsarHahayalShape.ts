@@ -52,6 +52,7 @@ const OTSAR_HAHAYAL_SHAPE: IApiDirectScrapeShape<IOtsarHahayalAcct, never> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'windowEnd',
     urlTag: txnsUrl,
     method: 'POST',
   },

@@ -39,6 +39,7 @@ const DISCOUNT_SHAPE: IApiDirectScrapeShape<IDiscountAcct, never> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'lowerBoundOnly',
     urlTag: txnsUrl,
     method: 'GET',
   },

@@ -157,6 +157,7 @@ function makeRestShape(): IApiDirectScrapeShape<IRestAcct, string> {
     transactions: {
       buildVars: restIdVars,
       extractPage: restExtractPage,
+      windowNarrowing: 'windowEnd',
       urlTag: 'identity.otpVerify',
       bodyTemplate: BODY_TEMPLATE,
     },

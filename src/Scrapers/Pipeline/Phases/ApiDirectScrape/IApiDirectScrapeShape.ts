@@ -161,10 +161,39 @@ export interface IExtractPageArgs<TAcct, TCursor> {
   readonly ctx: IActionContext;
 }
 
+/**
+ * How a bank's transactions request expresses the window's upper bound —
+ * declared per the hard-model rule, never inferred.
+ *
+ * Probed across all 16 shapes (see `docs/observability/coverage-audit.md`):
+ * the encodings share nothing — `YYYYMMDD` in a query param, `YYYY-MM-DD` in
+ * a body, RFC-1123 inside a JSON string, a structured `{Day,Month,Year}`
+ * filter, a billing month — so the stance cannot be read off the wire.
+ */
+export type WindowNarrowing =
+  /** Honours a narrowed `ctx.windowEnd`; a coverage gap can be backfilled. */
+  | 'windowEnd'
+  /**
+   * Request names a fixed provider period (a billing month) rather than a
+   * range. Every period covering the window is already requested and none can
+   * be sub-divided, so a gap *inside* one period has no narrower re-ask.
+   */
+  | 'periodEnumeration'
+  /** Request carries no upper bound to move; a gap can only be reported. */
+  | 'lowerBoundOnly'
+  /** Provider supplies the next-page token and owns completeness. */
+  | 'providerCursor';
+
 /** Transactions-step shape — paginated per-account fetch. */
 export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => VarsMap;
   readonly extractPage: (args: IExtractPageArgs<TAcct, TCursor>) => IPage<object, TCursor>;
+  /**
+   * Whether a coverage gap on this bank can be backfilled by re-asking for an
+   * older slice. Required, so adding a bank without deciding is a compile
+   * error rather than a silent `undefined` that skips the backfill.
+   */
+  readonly windowNarrowing: WindowNarrowing;
   readonly stop?: (acc: readonly object[], ctx: IActionContext) => boolean;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('transactions'). */

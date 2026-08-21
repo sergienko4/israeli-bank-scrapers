@@ -37,7 +37,11 @@ function makeShape(): IApiDirectScrapeShape<ISynAcct, string> {
     accountNumberOf: accountNumberOfSyn,
     customer: { buildVars: emptyVars, extractAccounts: extractAccountsSyn },
     balance: { buildVars: balVarsSyn, extract: balExtractSyn },
-    transactions: { buildVars: txnVarsSyn, extractPage: extractPageSyn },
+    transactions: {
+      buildVars: txnVarsSyn,
+      extractPage: extractPageSyn,
+      windowNarrowing: 'windowEnd',
+    },
   };
 }
 

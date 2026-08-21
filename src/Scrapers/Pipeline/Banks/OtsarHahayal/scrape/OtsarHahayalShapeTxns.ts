@@ -15,6 +15,7 @@
 
 import moment from 'moment';
 
+import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
   VarsMap,
@@ -47,11 +48,14 @@ function startOf(ctx: IActionContext): string {
 }
 
 /**
- * Window end date (YYYY-MM-DD — today).
+ * Window end date (YYYY-MM-DD) — the window's upper bound, narrowed
+ * during a coverage backfill and otherwise today.
+ * @param ctx - Action context.
  * @returns Formatted endDate.
  */
-function endOf(): string {
-  return moment().format(TXN_DATE_FMT);
+function endOf(ctx: IActionContext): string {
+  const windowEnd = scrapeWindowEnd(ctx);
+  return moment(windowEnd).format(TXN_DATE_FMT);
 }
 
 /**
@@ -67,7 +71,7 @@ function buildInitialRequest(acct: IOtsarHahayalAcct, ctx: IActionContext): Vars
     accountType: acct.accountType,
     branch: acct.branch,
     startDate: startOf(ctx),
-    endDate: endOf(),
+    endDate: endOf(ctx),
     order: TXN_ORDER,
     language: TXN_LANGUAGE,
   };

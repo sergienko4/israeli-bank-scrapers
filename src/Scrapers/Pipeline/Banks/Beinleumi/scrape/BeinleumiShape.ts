@@ -54,6 +54,7 @@ const BEINLEUMI_SHAPE: IApiDirectScrapeShape<IBeinleumiAcct, never> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'windowEnd',
     urlTag: txnsUrl,
     method: 'POST',
   },

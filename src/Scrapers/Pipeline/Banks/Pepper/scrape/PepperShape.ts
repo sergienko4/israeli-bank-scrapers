@@ -87,6 +87,7 @@ const PEPPER_SHAPE: IApiDirectScrapeShape<IPepperAcct, number> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'windowEnd',
     extraHeaders: dynamicHeaders('Transactions'),
   },
 };

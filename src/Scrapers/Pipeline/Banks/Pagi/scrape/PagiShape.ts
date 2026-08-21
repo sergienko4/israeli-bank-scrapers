@@ -47,6 +47,7 @@ const PAGI_SHAPE: IApiDirectScrapeShape<IPagiAcct, never> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'windowEnd',
     urlTag: txnsUrl,
     method: 'POST',
   },

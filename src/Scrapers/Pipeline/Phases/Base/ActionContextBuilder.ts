@@ -109,6 +109,7 @@ export function buildBootstrapContext(ctx: IPipelineContext): IBootstrapContext 
   return {
     ...coreContextSlice(ctx),
     executor: none(),
+    windowEnd: none(),
     ...discoveryContextSlice(ctx),
     ...balanceContextSlice(ctx),
     browser: ctx.browser,
@@ -127,6 +128,7 @@ export function buildActionContext(ctx: IPipelineContext): IActionContext {
   return {
     ...coreContextSlice(ctx),
     executor: extractExecutor(ctx),
+    windowEnd: none(),
     ...discoveryContextSlice(ctx),
     ...balanceContextSlice(ctx),
   };

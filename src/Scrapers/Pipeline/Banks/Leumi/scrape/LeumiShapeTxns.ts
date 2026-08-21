@@ -14,6 +14,7 @@
 
 import moment from 'moment';
 
+import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
   VarsMap,
@@ -47,7 +48,7 @@ function txnVariant(ctx: IActionContext): IUcSo27Variant {
   return {
     requestType: 'OpersB',
     fromDateUtc: startDateOf(ctx),
-    toDateUtc: new Date().toUTCString(),
+    toDateUtc: scrapeWindowEnd(ctx).toUTCString(),
     periodType: '3',
   };
 }

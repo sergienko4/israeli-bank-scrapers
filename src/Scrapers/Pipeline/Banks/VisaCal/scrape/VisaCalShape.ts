@@ -68,6 +68,7 @@ const VISACAL_SHAPE: IApiDirectScrapeShape<IVisaCalCard, number> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,
     method: 'POST',
     extraHeaders: jsonHeaders,

@@ -50,6 +50,7 @@ const MAX_SHAPE: IApiDirectScrapeShape<IMaxCard, number> = {
   transactions: {
     buildVars: noVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,
     method: 'GET',
   },

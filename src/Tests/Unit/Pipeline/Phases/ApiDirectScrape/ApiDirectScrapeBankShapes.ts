@@ -145,7 +145,11 @@ const SYN_SHAPE: IApiDirectScrapeShape<ISynAcct, string> = {
   accountNumberOf: synAccountNumberOf,
   customer: { buildVars: synEmptyVars, extractAccounts: synExtractAccounts },
   balance: { buildVars: synBalVars, extract: synBalExtract },
-  transactions: { buildVars: synTxnVars, extractPage: synExtractPage },
+  transactions: {
+    buildVars: synTxnVars,
+    extractPage: synExtractPage,
+    windowNarrowing: 'windowEnd',
+  },
 };
 
 /** Synthetic case — fixtures shaped to mirror the legacy `makeShape` tests. */

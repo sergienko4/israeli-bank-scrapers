@@ -61,6 +61,7 @@ const LEUMI_SHAPE: IApiDirectScrapeShape<ILeumiAcct, never> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'windowEnd',
     urlTag: leumiBrokerUrl(UC_SO_27_MODULE),
     method: 'POST',
     extraHeaders: WCF_JSON_HEADERS,

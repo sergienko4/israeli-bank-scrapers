@@ -51,6 +51,7 @@ const HAPOALIM_SHAPE: IApiDirectScrapeShape<IHapoalimAcct, HapoalimCursor> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'windowEnd',
     urlTag: txnsUrl,
     method: 'POST',
     extraHeaders: txnsHeaders,

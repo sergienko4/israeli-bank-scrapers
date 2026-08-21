@@ -45,6 +45,13 @@ export interface IActionContext {
   readonly diagnostics: IDiagnosticsState;
   readonly config: IPipelineBankConfig;
   readonly fetchStrategy: Option<IFetchStrategy>;
+  /**
+   * Upper bound of the scrape window. `none()` on the ordinary pass, where
+   * every shape reaches today; set by the coverage backfill to re-request an
+   * older slice after a gap. Lives here rather than on `ScraperOptions`
+   * because it is an internal retry detail, not part of the public API.
+   */
+  readonly windowEnd: Option<Date>;
   /** Sealed executor — fill, click, navigate. NO resolveField/resolveVisible. */
   readonly executor: Option<IActionMediator>;
   /** Headless-mode API mediator (set by buildInitialContext when isHeadless). */

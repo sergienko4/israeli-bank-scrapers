@@ -14,7 +14,7 @@ Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-di
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.pre`    | Read `IApiDirectScrapeShape` from the bank's `PipelineDescriptor`: per-account txn query + per-account balance query + extractors.                                                                                                                                                                                                                                        |
 | `.action` | For each `accountId`, run `fetchAccountTransactions` (calls the txn endpoint, extracts via the bank's `txnExtract`) + `fetchBalance` (calls the balance endpoint, extracts via `balanceExtract`, returning an `IBalanceOutcome` that records whether the value is real or a `fallbackOnFail` mask). Per-account `balance` lands on `scrape.accounts[i].balance` directly. |
-| `.post`   | Forensic audit — emits the per-account `--- Account <masked> \| <N> txns ---` line via `logForensicAudit`, then runs the optional **result guard** (see below).                                                                                                                                                                                                             |
+| `.post`   | Forensic audit — emits the per-account `--- Account <masked> \| <N> txns ---` line via `logForensicAudit`, then runs the optional **result guard** (see below).                                                                                                                                                                                                           |
 | `.final`  | **Emit `balanceResolution` from `scrape.accounts`** — builds `Map<accountNumber, balance>` directly. `PipelineResult` reads it the same way as browser banks.                                                                                                                                                                                                             |
 
 ## Prime — post-login SPA navigation (browser banks only)
@@ -101,11 +101,11 @@ Each REST shape step carries an optional `method` of type `ScrapeHttpMethod` (`'
 
 TCS BaNCS banks (Yahav) POST a large `MessageEnvelope` whose session-specific fields cannot be templated. A bank opts in with `bancsSessionCapture: true` in its `PipelineBankConfig`; at BIND, `primeBancsSession` scans the login-boot network pool and stashes an `IBancsCapture` on the mediator session-context:
 
-| Field | Source | Rides |
-| --- | --- | --- |
-| `bancsSecToken` | pooled `/account` POST `SecToken` block | envelope `SecToken` |
-| `bancsPortfolioIorId` / `bancsPortfolioId` | pooled `Prtflio.Id` | every Payload |
-| `bancsAppVer` | pooled `AppVer` (per-deployment build string) | envelope version nodes |
+| Field                                      | Source                                        | Rides                  |
+| ------------------------------------------ | --------------------------------------------- | ---------------------- |
+| `bancsSecToken`                            | pooled `/account` POST `SecToken` block       | envelope `SecToken`    |
+| `bancsPortfolioIorId` / `bancsPortfolioId` | pooled `Prtflio.Id`                           | every Payload          |
+| `bancsAppVer`                              | pooled `AppVer` (per-deployment build string) | envelope version nodes |
 
 Two request-header sniffs run alongside it (both PII-safe — only per-session auth material, never the credential body):
 
@@ -132,16 +132,16 @@ The sign is inverted rather than forced, because forcing it (`-Math.abs`) turns 
 
 Two issuer styles exist and one rule covers both:
 
-| Issuer | how a refund row is signed |
-| --- | --- |
-| VisaCal | charged amount is an **unsigned** magnitude; only the original-currency amount carries the minus |
-| Isracard / Amex | **both** amounts are already negative |
+| Issuer          | how a refund row is signed                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| VisaCal         | charged amount is an **unsigned** magnitude; only the original-currency amount carries the minus |
+| Isracard / Amex | **both** amounts are already negative                                                            |
 
 So a card row counts as a credit when **exactly one of its two amounts is negative** — a disagreement only a refund produces, since a refund is a refund in both currencies (Isracard proves it even on a foreign-currency refund, where the two amounts differ in magnitude and currency yet agree in sign). A negative value is unambiguous evidence of a credit, while a positive one cannot distinguish a charge from an unsigned magnitude, so the negative side wins. Both amounts are normalised negative before the inversion, which flips them back to positive for the refund and leaves ordinary charges negative. Rows whose fields already agree are untouched, so the rule is idempotent across both styles.
 
 ## Start-date window — honouring the caller's `startDate`
 
-`ScraperOptions.startDate` means "give me transactions from this date onwards". Every shape formats it into the outbound request, but providers treat it as a **hint**, not a contract — and card issuers ignore it almost entirely. Isracard and Amex are queried per *billing cycle* (`startOf('month')` of `startDate`, walked forward to `now + futureMonthsToScrape`), and a cycle carries rows whose purchase date can be far older than the cycle itself: installments and out-of-statement charges. Measured against captured Isracard traffic, a 180-day request returned **15 months** of history — 61 of 239 rows predated the window.
+`ScraperOptions.startDate` means "give me transactions from this date onwards". Every shape formats it into the outbound request, but providers treat it as a **hint**, not a contract — and card issuers ignore it almost entirely. Isracard and Amex are queried per _billing cycle_ (`startOf('month')` of `startDate`, walked forward to `now + futureMonthsToScrape`), and a cycle carries rows whose purchase date can be far older than the cycle itself: installments and out-of-statement charges. Measured against captured Isracard traffic, a 180-day request returned **15 months** of history — 61 of 239 rows predated the window.
 
 The generic path had a client-side filter for exactly this (`filterAfterStart`, in `Strategy/Scrape/ScrapeData/ScrapeDataDedup.ts`), but no api-direct bank ever reached it: `withApiDirect` / `withBrowserApiDirect` short-circuit the builder straight to this phase, bypassing the legacy `Strategy/Scrape` chain. So the window was silently unenforced for all api-direct banks.
 
@@ -149,16 +149,38 @@ The generic path had a client-side filter for exactly this (`filterAfterStart`, 
 
 Three deliberate choices:
 
-| Choice | Why |
-| --- | --- |
-| **Lower bound only** | `futureMonthsToScrape` means callers explicitly request charges dated after today — VisaCal's newest billing date sits two weeks past the run date. An upper bound would delete data the caller asked for. |
-| **Filters on `date`** | Isracard exposes no distinct billing-date field, so its mapped `processedDate` is a copy of `date`. Windowing on `processedDate` would be identical there and inconsistent across banks. |
-| **A missing bound passes rows through** | Deleting every row because a test fixture omitted `startDate` would turn a fixture gap into silent data loss — the exact failure this phase's guardrails exist to catch. |
-| **An undated row passes through** | `filterAfterStart` compares `NaN >= startMs`, which is always false, so a row whose date the mapper could not parse is dropped without trace. A row we cannot classify has not been *proven* out of window, so the window fails open and leaves it to the mapper-reject counter. This is why the legacy helper is deliberately not reused. "Undated" also covers the epoch sentinel: `ITransaction.date` is a required ISO string with no representation for "unknown", so a mapper facing an unreadable value must invent one (see PayBox's `dateOf`), and no real transaction or caller `startDate` predates 1970. |
+| Choice                                  | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Lower bound only**                    | `futureMonthsToScrape` means callers explicitly request charges dated after today — VisaCal's newest billing date sits two weeks past the run date. An upper bound would delete data the caller asked for.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **Filters on `date`**                   | Isracard exposes no distinct billing-date field, so its mapped `processedDate` is a copy of `date`. Windowing on `processedDate` would be identical there and inconsistent across banks.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **A missing bound passes rows through** | Deleting every row because a test fixture omitted `startDate` would turn a fixture gap into silent data loss — the exact failure this phase's guardrails exist to catch.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **An undated row passes through**       | `filterAfterStart` compares `NaN >= startMs`, which is always false, so a row whose date the mapper could not parse is dropped without trace. A row we cannot classify has not been _proven_ out of window, so the window fails open and leaves it to the mapper-reject counter. This is why the legacy helper is deliberately not reused. "Undated" also covers the epoch sentinel: `ITransaction.date` is a required ISO string with no representation for "unknown", so a mapper facing an unreadable value must invent one (see PayBox's `dateOf`), and no real transaction or caller `startDate` predates 1970. |
 
-The log line is `debug`, not `warn`: card issuers trim rows on every run, so a warning would fire forever and train reviewers to ignore it. The one actionable case — a window that removes *every* row, meaning either a mistaken `startDate` or dates the mapper failed to parse — does warn.
+The log line is `debug`, not `warn`: card issuers trim rows on every run, so a warning would fire forever and train reviewers to ignore it. The one actionable case — a window that removes _every_ row, meaning either a mistaken `startDate` or dates the mapper failed to parse — does warn.
 
 This pairs with the [coverage audit](../observability/coverage-audit.md): the audit proves the shape read every container the response carried, and the window proves the caller receives only what it asked for. Both are needed — on Isracard the container fix recovers 52 in-window rows (49% of the caller's requested data) that the pre-fix shape silently dropped.
+
+## Window upper bound — `scrapeWindowEnd` and the `windowNarrowing` declaration
+
+The lower bound comes from the caller. The **upper** bound was, until now, decided twelve separate times: each `*ShapeTxns.ts` read the clock itself and encoded "today" in its own wire format — `YYYYMMDD` in a Hapoalim query string, RFC-1123 inside Leumi's JSON-in-a-string body, a `{Day,Month,Year}` triple in Yahav's filter, `DD/MM/YYYY` for the card issuers. That made the bound unreachable from outside the shape, so once the [coverage audit](../observability/coverage-audit.md) reported a gap, nothing could ask the provider for an older slice.
+
+The bound now lives on `IActionContext.windowEnd` (an `Option<Date>`) and is read through a single accessor, `scrapeWindowEnd` (`Mediator/Scrape/ScrapeWindowEnd.ts`), which falls back to `new Date()` when no bound is named. The accessor normalises an absent slot to `none()` rather than requiring every context builder to set one, mirroring `ApiMediatorAccessor.readSlot`: a context that never mentions a bound _is_ an unbounded one. The field itself stays required on the interface so the compiler keeps enumerating production builders. An ESLint rule (`eslint.config.mjs` §20) plus a canary stop a thirteenth shape from reading the clock again. `OneZeroShapeTxns` is the one exclusion, and it is not an upper bound at all: it clamps the window's _start_ to the provider's absolute one-year floor, which must stay pinned to wall-clock now.
+
+Moving the bound only helps where it reaches the wire, so every shape declares `transactions.windowNarrowing` — a claim about what a narrower bound would actually change:
+
+| Stance              | Banks                                                                 | Meaning                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `windowEnd`         | Hapoalim, Beinleumi, Massad, OtsarHahayal, Pagi, Leumi, Pepper, Yahav | The bound reaches the request. A gap can be closed by re-asking with an earlier end.                                              |
+| `periodEnumeration` | Isracard, Amex, Max, VisaCal                                          | The request names a fixed provider **billing period**, derived from `startDate`. The bound only decides how many periods to walk. |
+| `lowerBoundOnly`    | Discount, Mercantile                                                  | The provider accepts no upper bound at all.                                                                                       |
+| `providerCursor`    | OneZero, PayBox                                                       | The walk is driven by a provider cursor, not by dates.                                                                            |
+
+A declaration is worth exactly as much as the test behind it, so `WindowNarrowing.test.ts` builds each bank's real request twice under two different bounds and compares the bytes — in both directions, so a bank cannot be quietly under-claimed either.
+
+Two findings from writing that contract are worth keeping:
+
+- **A stance is a claim about the whole walk, not one request.** Yahav was nearly mis-declared: it always opens at chunk 0, so its _first_ request is byte-identical under any bound. Its chunk _list_ does shrink. The contract therefore samples cursor positions across the walk rather than probing the first call.
+- **`periodEnumeration` has no narrower re-ask.** A billing month cannot be subdivided, so a gap _inside_ one month has no follow-up request that would close it. This includes Isracard and Amex — for them, correct container extraction and honest reporting are the whole remedy, and the backfill path must not pretend otherwise.
 
 ## Duplicate collapse — opt-in, and only when redundancy is proven
 
@@ -168,12 +190,12 @@ This pairs with the [coverage audit](../observability/coverage-audit.md): the au
 
 That default is not caution for its own sake — it is what the captured traffic showed. Neither obvious key is safe:
 
-| Candidate key | Measured result |
-| --- | --- |
-| `identifier` | Not unique. Beinleumi repeats one identifier across **33 of 42** distinct rows; Leumi and Yahav repeat theirs too. Collapsing on it would have deleted most of a Beinleumi statement. |
-| `date` + `chargedAmount` + `description` | Collides on genuinely distinct rows — Isracard and Amex each carry one such pair. Two identical coffees on the same day are two transactions, not one. |
+| Candidate key                            | Measured result                                                                                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identifier`                             | Not unique. Beinleumi repeats one identifier across **33 of 42** distinct rows; Leumi and Yahav repeat theirs too. Collapsing on it would have deleted most of a Beinleumi statement. |
+| `date` + `chargedAmount` + `description` | Collides on genuinely distinct rows — Isracard and Amex each carry one such pair. Two identical coffees on the same day are two transactions, not one.                                |
 
-So a declared key only nominates candidates. A row is removed **only when its key *and* its full content match a row already kept**. A key that matches while the content differs is a mis-declared key: the row is kept and `collisions` rises, which warns. Nothing is lost while a wrong key is in place — but the warning says the collapse cannot be trusted and the key must be corrected or withdrawn.
+So a declared key only nominates candidates. A row is removed **only when its key _and_ its full content match a row already kept**. A key that matches while the content differs is a mis-declared key: the row is kept and `collisions` rises, which warns. Nothing is lost while a wrong key is in place — but the warning says the collapse cannot be trusted and the key must be corrected or withdrawn.
 
 Reproduce those measurements before declaring a key for a bank.
 

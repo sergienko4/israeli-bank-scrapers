@@ -103,7 +103,7 @@ function makeAdsShape(): IApiDirectScrapeShape<ISynAcct, string> {
     accountNumberOf,
     customer: { buildVars, extractAccounts },
     balance: { buildVars, extract: extractBalance },
-    transactions: { buildVars, extractPage },
+    transactions: { buildVars, extractPage, windowNarrowing: 'windowEnd' },
   };
 }
 

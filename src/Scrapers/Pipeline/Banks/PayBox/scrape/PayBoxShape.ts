@@ -67,6 +67,7 @@ const PAYBOX_SHAPE: IApiDirectScrapeShape<IPayBoxAcct, IPayBoxCursor> = {
     urlTag: TXNS_URL_TAG,
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    windowNarrowing: 'providerCursor',
   },
   resultGuard: payBoxResultGuard,
 };

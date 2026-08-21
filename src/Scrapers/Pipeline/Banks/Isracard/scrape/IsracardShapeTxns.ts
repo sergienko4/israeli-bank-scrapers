@@ -17,6 +17,7 @@
 
 import moment from 'moment';
 
+import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
   VarsMap,
@@ -45,7 +46,8 @@ function startMonth(ctx: IActionContext): moment.Moment {
  */
 function lastOffset(ctx: IActionContext): number {
   const future = getFutureMonths(ctx.options);
-  const end = moment().add(future, 'months').startOf('month');
+  const windowEnd = scrapeWindowEnd(ctx);
+  const end = moment(windowEnd).add(future, 'months').startOf('month');
   const start = startMonth(ctx);
   return end.diff(start, 'months');
 }

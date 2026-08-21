@@ -30,6 +30,7 @@ import { randomUUID } from 'node:crypto';
 
 import moment from 'moment';
 
+import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   HeaderMap,
   IExtractPageArgs,
@@ -81,11 +82,14 @@ function startOf(ctx: IActionContext): string {
 }
 
 /**
- * Retrieval end date (YYYYMMDD — today, upstream parity).
+ * Retrieval end date (YYYYMMDD) — the window's upper bound, narrowed during a
+ * coverage backfill and otherwise today (upstream parity).
+ * @param ctx - Action context.
  * @returns Formatted retrievalEndDate.
  */
-function endOf(): string {
-  return moment().format(HAPOALIM_DATE_FMT);
+function endOf(ctx: IActionContext): string {
+  const windowEnd = scrapeWindowEnd(ctx);
+  return moment(windowEnd).format(HAPOALIM_DATE_FMT);
 }
 
 /**
@@ -101,7 +105,7 @@ export function txnsUrl(
   ctx: IActionContext,
 ): WKUrlOrLiteral {
   const base = `${HAPOALIM_API}/current-account/transactions`;
-  const endDate = cursor === false ? endOf() : cursor;
+  const endDate = cursor === false ? endOf(ctx) : cursor;
   const range = `retrievalEndDate=${endDate}&retrievalStartDate=${startOf(ctx)}`;
   const paging = `numItemsPerPage=${TXN_PAGE_SIZE}&sortCode=1`;
   const tail = `accountId=${acct.composite}&lang=he`;
