@@ -1,3 +1,17 @@
+/**
+ * Pin the test time zone.
+ *
+ * This config is evaluated in the parent process before any worker forks, so
+ * workers inherit the value and honour it at startup — reassigning `TZ` from
+ * inside a test does not work. Asia/Jerusalem is the zone every supported bank
+ * reports in, and the zone the auto-mapper implicitly parses bank dates in.
+ *
+ * Without a pin, date behaviour differs between a maintainer's machine and a CI
+ * runner (which defaults to UTC), and a whole class of window/boundary defects
+ * is invisible on exactly one of the two.
+ */
+process.env.TZ = 'Asia/Jerusalem';
+
 /** @type {import('jest').Config} */
 export default {
   preset: 'ts-jest/presets/default-esm',

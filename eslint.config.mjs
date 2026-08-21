@@ -243,7 +243,7 @@ const SHAPE_TXNS_WINDOW_END_RULE = {
     'Reading the clock in a *ShapeTxns.ts file detaches it from the scrape window. Use scrapeWindowEnd(ctx) from src/Scrapers/Pipeline/Mediator/Scrape/ScrapeWindowEnd.ts so the coverage backfill can narrow the bound.',
 };
 
-
+// §19.9 TEST-HELPER STATEMENT CAP — fires on any `function foo() { ...11+ stmts }`
 // inside `src/Tests/**`. Scoped to `FunctionDeclaration` so legitimate
 // `describe('...', () => { ... })` / `it('...', () => { ... })` /
 // `it.each(cases)('...', (...) => { ... })` arrow callbacks stay
@@ -2945,8 +2945,10 @@ export default tseslint.config(
   //     `scrapeWindowEnd(ctx)` is the single place the window's end is decided,
   //     so a shape that reads the clock directly silently opts out of the
   //     backfill and re-introduces the transaction loss it exists to close.
-  //     The twelve historical call sites are tabulated in the audit's
-  //     HARD-MODEL-WINDOW.md §2; this rule keeps a thirteenth from appearing.
+  //     The rule's rationale, and the window contract it protects, are
+  //     documented in docs/phases/api-direct-scrape.md ("Window upper bound —
+  //     `scrapeWindowEnd` and the `windowNarrowing` declaration"); this rule
+  //     keeps a call site that bypasses it from appearing.
   //
   //     `RESTRICTED_SYNTAX_RULES` and `NO_DIRECT_SCREENSHOT_RULE` are re-spread
   //     because flat config REPLACES a rule's options rather than merging them
