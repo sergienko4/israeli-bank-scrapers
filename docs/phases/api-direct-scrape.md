@@ -209,9 +209,18 @@ Two limits are worth stating plainly, because neither raises an error:
 - **A `covered` verdict is not a guarantee the bank never truncates.** It says the rows in hand reach the requested start on this run. An account quiet enough to fit under a provider's cap will read `covered` every time until it is not.
 - **`periodEnumeration` gaps are reported, not closed.** The loop refuses with the bank's own reason and the shortfall stays in the log rather than being silently absorbed.
 
+### Where the audit cannot see
+
+The audit reads the rows a shape returns. Two known cases sit upstream of that, so a gap there is invisible to it:
+
+- **Leumi double-encodes its payload.** Transactions arrive as a JSON string inside the `jsonResp` field rather than as JSON. A parse that fails, or a schema drift inside that inner string, yields zero rows — which the audit reports as an empty account, indistinguishable from an account that genuinely had no activity.
+- **A provider may hold less than the caller asks for.** OneZero refuses movements older than roughly a year, so its walk stops at that floor and a caller asking for two years receives one. The floor is a property of the provider, fixed against the current date, so it is measured from the wall clock and deliberately exempt from ESLint §20 — measuring it from a narrowed window end would push it earlier than the provider actually serves. The shortfall is reported by the audit and refused by `planBackfill` with OneZero's `providerCursor` reason: reported, not closed.
+
+A canary (`WindowDeclaredCanary.test.ts`) keeps the cross-bank contract from drifting behind the product: every bank declaring a stance in the source tree must appear in it. ESLint §20 covers the other half, keeping a shape's window bound tied to `scrapeWindowEnd(ctx)`.
+
 ## Duplicate collapse — opt-in, and only when redundancy is proven
 
-`fetchPaginated` concatenates pages blindly, so a provider that ignores the cursor and re-serves a page emits every row on it twice. PayBox solves that inside its own cursor logic; nothing solves it generically.
+`fetchPaginated` concatenates pages blindly, so a provider that ignores the cursor and re-serves a page emits every row on it twice. PayBox solves that inside its own cursor logic. [`dropOverlap`](#coverage-backfill) now removes the echo a *backfill* re-ask produces, but it is scoped to that one re-ask and does not see a provider replaying pages inside a single walk — that case remains unsolved generically.
 
 `collapseDuplicates` (`Mediator/Scrape/TxnDedup.ts`) is the generic mechanism, and it is **off unless a shape declares `transactions.dedupKeyFields`**. `refineTxns` passes an `IDedupArgs` (`txns`, `keyFields`, `label`) and receives an `IDedupResult` (`kept`, `collapsed`, `collisions`). **No bank declares a key today**, so behaviour is unchanged for all of them.
 
