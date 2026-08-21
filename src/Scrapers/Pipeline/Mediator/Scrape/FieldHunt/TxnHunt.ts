@@ -14,6 +14,17 @@ import { MIN_TXN_SCORE, scoreTxnSignature } from '../BfsFieldSearch/TxnSignature
 /** Max depth for transaction hunting. */
 const MAX_HUNT_DEPTH = 20;
 
+/**
+ * One container of transaction-like rows, exactly as it sat in the response.
+ *
+ * Grouping is what lets a caller distinguish the same transaction cross-listed
+ * in two containers — one transaction — from two genuinely distinct
+ * transactions sitting side by side in one container. Flattening erases that
+ * difference, so the walk keeps it and {@link huntTransactions} discards it
+ * only for callers that never needed it.
+ */
+export type TxnGroup = readonly ApiRecord[];
+
 /** Stack entry for iterative tree walk. */
 interface IHuntEntry {
   readonly val: unknown;
@@ -24,7 +35,7 @@ interface IHuntEntry {
 interface IHuntArrayArgs {
   readonly objects: readonly unknown[];
   readonly depth: number;
-  readonly collected: ApiRecord[];
+  readonly collected: TxnGroup[];
   readonly stack: IHuntEntry[];
 }
 
@@ -54,7 +65,7 @@ function pushNonTxnObjects(objects: readonly unknown[], depth: number, stack: IH
  * @returns Always true (sentinel for callers).
  */
 function commitTxnArray(args: IHuntArrayArgs): true {
-  args.collected.push(...(args.objects as ApiRecord[]));
+  args.collected.push(args.objects as TxnGroup);
   return true;
 }
 
@@ -106,7 +117,7 @@ function processHuntObject(
 interface IArrayEntryArgs {
   readonly val: readonly unknown[];
   readonly depth: number;
-  readonly collected: ApiRecord[];
+  readonly collected: TxnGroup[];
   readonly stack: IHuntEntry[];
 }
 
@@ -132,11 +143,7 @@ function processArrayEntry(args: IArrayEntryArgs): boolean {
  * @param stack - Mutable hunt stack.
  * @returns True if the array was collected as a txn list.
  */
-function dispatchHuntArray(
-  entry: IHuntEntry,
-  collected: ApiRecord[],
-  stack: IHuntEntry[],
-): boolean {
+function dispatchHuntArray(entry: IHuntEntry, collected: TxnGroup[], stack: IHuntEntry[]): boolean {
   const val = entry.val as readonly unknown[];
   return processArrayEntry({ val, depth: entry.depth, collected, stack });
 }
@@ -151,11 +158,7 @@ function dispatchHuntArray(
  * @param stack - Mutable hunt stack.
  * @returns True if processed; false on overflow / non-object.
  */
-function dispatchHuntValue(
-  entry: IHuntEntry,
-  collected: ApiRecord[],
-  stack: IHuntEntry[],
-): boolean {
+function dispatchHuntValue(entry: IHuntEntry, collected: TxnGroup[], stack: IHuntEntry[]): boolean {
   const { val, depth } = entry;
   if (Array.isArray(val)) return dispatchHuntArray(entry, collected, stack);
   if (typeof val !== 'object' || val === null) return false;
@@ -169,7 +172,7 @@ function dispatchHuntValue(
  * @param stack - Mutable stack.
  * @returns True if processed.
  */
-function processHuntEntry(entry: IHuntEntry, collected: ApiRecord[], stack: IHuntEntry[]): boolean {
+function processHuntEntry(entry: IHuntEntry, collected: TxnGroup[], stack: IHuntEntry[]): boolean {
   if (entry.depth > MAX_HUNT_DEPTH) return false;
   return dispatchHuntValue(entry, collected, stack);
 }
@@ -184,7 +187,7 @@ function processHuntEntry(entry: IHuntEntry, collected: ApiRecord[], stack: IHun
  * @param collected - Mutable accumulator.
  * @returns True when an entry was processed, false when the stack was empty.
  */
-function popAndProcess(stack: IHuntEntry[], collected: ApiRecord[]): boolean {
+function popAndProcess(stack: IHuntEntry[], collected: TxnGroup[]): boolean {
   const entry = stack.pop();
   if (entry === undefined) return false;
   processHuntEntry(entry, collected, stack);
@@ -203,9 +206,9 @@ function popAndProcess(stack: IHuntEntry[], collected: ApiRecord[]): boolean {
  * loop that has the same semantics without stack risk.
  * @param stack - Mutable stack.
  * @param collected - Mutable collector.
- * @returns Collected transaction items.
+ * @returns Collected transaction containers.
  */
-function drainHuntStack(stack: IHuntEntry[], collected: ApiRecord[]): readonly ApiRecord[] {
+function drainHuntStack(stack: IHuntEntry[], collected: TxnGroup[]): readonly TxnGroup[] {
   while (stack.length > 0) {
     popAndProcess(stack, collected);
   }
@@ -213,14 +216,26 @@ function drainHuntStack(stack: IHuntEntry[], collected: ApiRecord[]): readonly A
 }
 
 /**
- * Stack-based iterative transaction hunter.
- * Walks the response tree. Collects arrays whose items score as transactions.
+ * Stack-based iterative transaction hunter, container by container.
+ *
+ * Walks the response tree. Collects arrays whose items score as transactions,
+ * keeping each container separate.
+ *
+ * @param responseBody - Raw API response.
+ * @returns One entry per transaction-like container, in discovery order.
+ */
+export function huntTransactionGroups(responseBody: ApiRecord): readonly TxnGroup[] {
+  const stack: IHuntEntry[] = [{ val: responseBody, depth: 0 }];
+  return drainHuntStack(stack, []);
+}
+
+/**
+ * Every transaction-like item in the response, container boundaries discarded.
  * @param responseBody - Raw API response.
  * @returns Flat array of transaction-like items.
  */
 function huntTransactions(responseBody: ApiRecord): readonly ApiRecord[] {
-  const stack: IHuntEntry[] = [{ val: responseBody, depth: 0 }];
-  return drainHuntStack(stack, []);
+  return huntTransactionGroups(responseBody).flat();
 }
 
 export default huntTransactions;

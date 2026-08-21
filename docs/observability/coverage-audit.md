@@ -4,7 +4,7 @@
 
 A scrape shape reads **named containers**. When a provider adds a container no shape knows about, every row inside it is dropped, every remaining row is well-formed, nothing throws, and the run reports success with a lower total. Two banks shipped in exactly that state: a single Isracard statement lost 58 of 139 rows, and the equivalent Amex response lost 116 — each around 41% — while emitting no `WARN`, no `ERROR` and no `FATAL`. The shortfall was not merely unnoticed; it was **unfalsifiable**, because no log line in the run carried a number that could contradict it.
 
-`auditCoverage()` (`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/CoverageAudit.ts`) closes that gap. After each page is fetched it re-reads the same response body with `huntTransactions` — the schema-agnostic hunter already in production for Yahav — and compares the result against what the shape returned.
+`auditCoverage()` (`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/CoverageAudit.ts`) closes that gap. After each page is fetched it re-reads the same response body with `huntTransactionGroups` — the schema-agnostic hunter already in production for Yahav, returning one `TxnGroup` per container it found — and compares the result against what the shape returned.
 
 ## What it compares
 
@@ -18,11 +18,22 @@ Comparing object references instead would report a false 100% loss for every *tr
 
 | Field of `ICoverageResult` | Meaning |
 | --- | --- |
-| `extracted` | Distinct transactions the bank shape returned |
-| `hunted` | Distinct transactions discoverable anywhere in the body |
-| `unread` | Hunted transactions the shape did not return — above zero means loss |
+| `extracted` | Transaction copies the bank shape returned |
+| `hunted` | Transaction copies discoverable anywhere in the body |
+| `unread` | Hunted copies the shape did not return — above zero means loss |
 
 The call takes an `ICoverageArgs`: the raw `body` exactly as received, the `extracted` rows the shape produced from it, an `isCardIssuer` hint forwarded to the mapper so charge signs match, and a `label` naming the bank and step for the log line. The label is caller-supplied and must stay free of row content.
+
+### Why it counts copies rather than distinct keys
+
+Two transactions can share a mapped key legitimately: the same amount, at the same merchant, on the same day is an ordinary double charge. An earlier version reduced both sides to a `Set`, so the second copy was invisible — a shape that returned one of two identical rows scored a perfect `unread: 0`. Precisely the silent loss the audit exists to catch.
+
+Counting is therefore a **multiset**, built by `tallyBy` (`src/Scrapers/Pipeline/Mediator/Scrape/Multiset.ts`).
+
+The correction cannot be a naive sum across the whole body, though, because a transaction cross-listed in a summary container *and* a detail container is one transaction seen twice. Summing would accuse a correct shape of losing a row that never existed. So the audit tallies **each container separately** and merges those tallies with `maxMerge`, which keeps each key's largest single-container count:
+
+- multiplicity **inside** one container is real — two rows, two transactions;
+- multiplicity **across** containers is a cross-listing — one transaction, listed twice.
 
 ## Why unmappable rows are dropped first
 

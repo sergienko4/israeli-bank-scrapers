@@ -10,16 +10,17 @@
  * Two banks shipped in exactly that state (Isracard and Amex, each losing
  * ~41% of a real statement while logging nothing above debug).
  *
- * This module re-reads the same response body with {@link huntTransactions},
- * the schema-agnostic hunter already running in production for Yahav, and
- * reports what the shape did not return. It only ever WARNS — see
- * {@link auditCoverage} for why it must never repair.
+ * This module re-reads the same response body with
+ * {@link huntTransactionGroups}, the schema-agnostic hunter already running in
+ * production for Yahav, and reports what the shape did not return. It only
+ * ever WARNS — see {@link auditCoverage} for why it must never repair.
  */
 
 import type { ITransaction } from '../../../../../Transactions.js';
 import { getDebug } from '../../../Logging/Debug.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
-import huntTransactions from '../FieldHunt/TxnHunt.js';
+import { huntTransactionGroups } from '../FieldHunt/TxnHunt.js';
+import { maxMerge, tallyBy } from '../Multiset.js';
 import { autoMapTransaction } from '../TxnMapper/TxnMapper.js';
 
 const LOG = getDebug(import.meta.url);
@@ -65,21 +66,70 @@ function mappedKey(raw: ApiRecord, isCardIssuer?: boolean): string | false {
 }
 
 /**
- * Map rows to their distinct mapped keys, dropping the unmappable.
+ * Count each row collection's mapped identities, dropping the unmappable.
  *
  * The hunter deliberately over-collects — it scores arrays heuristically and
  * will happily return schema descriptors or summary blocks. A row the mapper
  * rejects is not a transaction, so it can never be a lost one; dropping it
  * here is what keeps the guardrail quiet on healthy banks.
  *
+ * Counts rather than distinct keys because a repeated charge is two
+ * transactions. Collapsing to presence would let a shape return one of the two
+ * and still read as complete — the silent loss this module exists to surface.
+ *
  * @param rows - Raw rows to reduce.
  * @param isCardIssuer - Card-issuer hint forwarded to the mapper.
- * @returns Distinct mapped keys.
+ * @returns Mapped key to the number of rows carrying it.
  */
-function keysOf(rows: readonly object[], isCardIssuer?: boolean): ReadonlySet<string> {
-  const candidates = rows.map((row): string | false => mappedKey(row as ApiRecord, isCardIssuer));
-  const mappable = candidates.filter((key): key is string => key !== false);
-  return new Set(mappable);
+function countsOf(rows: readonly object[], isCardIssuer?: boolean): Map<string, number> {
+  return tallyBy(rows, (row): string | false => mappedKey(row as ApiRecord, isCardIssuer));
+}
+
+/**
+ * Every transaction the response carries, counted once per genuine copy.
+ *
+ * Merges the containers by largest count rather than by sum: a transaction
+ * cross-listed in a summary container and a detail container is one
+ * transaction, and summing would accuse a correct shape of losing a row that
+ * never existed. Multiplicity inside a single container, by contrast, is real.
+ *
+ * @param body - Raw response body.
+ * @param isCardIssuer - Card-issuer hint forwarded to the mapper.
+ * @returns Mapped key to the number of genuine copies.
+ */
+function huntedCounts(body: object, isCardIssuer?: boolean): Map<string, number> {
+  const groups = huntTransactionGroups(body as ApiRecord);
+  const perContainer = groups.map((group): Map<string, number> => countsOf(group, isCardIssuer));
+  return maxMerge(perContainer);
+}
+
+/**
+ * Total copies across every identity in a tally.
+ *
+ * Private by design: Rule #15 reserves nominal types for module boundaries,
+ * and a fold this small earns no export.
+ *
+ * @param counts - Tally to total.
+ * @returns Sum of all copy counts.
+ */
+function totalOf(counts: ReadonlyMap<string, number>): number {
+  const values = [...counts.values()];
+  return values.reduce((sum, count): number => sum + count, 0);
+}
+
+/**
+ * Copies of each hunted transaction the shape did not return.
+ *
+ * @param hunted - Genuine copies discoverable in the body.
+ * @param extracted - Copies the shape returned.
+ * @returns Total unreturned copies across every identity.
+ */
+function unreadCount(
+  hunted: ReadonlyMap<string, number>,
+  extracted: ReadonlyMap<string, number>,
+): number {
+  const shortfalls = [...hunted].map(([key, count]): number => count - (extracted.get(key) ?? 0));
+  return shortfalls.reduce((sum, short): number => sum + Math.max(0, short), 0);
 }
 
 /**
@@ -130,10 +180,9 @@ function reportCoverage(label: string, result: ICoverageResult): ICoverageResult
  * @returns Counts for the round.
  */
 export function auditCoverage(args: ICoverageArgs): ICoverageResult {
-  const extracted = keysOf(args.extracted, args.isCardIssuer);
-  const huntedRows = huntTransactions(args.body as ApiRecord);
-  const hunted = keysOf(huntedRows, args.isCardIssuer);
-  const missing = [...hunted].filter(key => !extracted.has(key));
-  const result = { extracted: extracted.size, hunted: hunted.size, unread: missing.length };
+  const extracted = countsOf(args.extracted, args.isCardIssuer);
+  const hunted = huntedCounts(args.body, args.isCardIssuer);
+  const unread = unreadCount(hunted, extracted);
+  const result = { extracted: totalOf(extracted), hunted: totalOf(hunted), unread };
   return reportCoverage(args.label, result);
 }

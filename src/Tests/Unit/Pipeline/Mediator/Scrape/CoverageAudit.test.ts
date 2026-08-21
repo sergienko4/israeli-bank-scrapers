@@ -73,6 +73,25 @@ describe('Coverage/auditCoverage', () => {
     expect(result.unread).toBe(0);
   });
 
+  it('reports the second of two identical transactions in one container', () => {
+    // A repeated charge is two transactions, not one. Comparing distinct keys
+    // would let the shape return either one of them and still read as complete,
+    // which is the loss this guardrail exists to surface.
+    const rows = [txn('SHOP', 10), txn('SHOP', 10)];
+    const result = audit({ data: { list: rows } }, [rows[0]]);
+    expect(result.hunted).toBe(2);
+    expect(result.unread).toBe(1);
+  });
+
+  it('does not double-count a transaction cross-listed in two containers', () => {
+    // The same charge appearing in a summary list and a detail list is one
+    // transaction. Counting both occurrences would accuse a correct shape.
+    const row = txn('SHOP', 10);
+    const body = { data: { summary: [row, txn('CAFE', 20)], detail: [{ ...row }] } };
+    const result = audit(body, [row, txn('CAFE', 20)]);
+    expect(result.unread).toBe(0);
+  });
+
   it('leaves the extracted rows untouched', () => {
     const read = [txn('SHOP', 10)];
     const body = { data: { readList: read, unreadList: [txn('STREAMING CO', 30)] } };

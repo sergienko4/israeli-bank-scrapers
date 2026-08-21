@@ -21,6 +21,7 @@
  */
 
 import { getDebug } from '../../Logging/Debug.js';
+import { tallyBy } from './Multiset.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -86,13 +87,7 @@ function keyOf(row: object): string {
  * @returns Row identity to remaining copy count.
  */
 function tally(rows: readonly object[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const key = keyOf(row);
-    const seen = counts.get(key) ?? 0;
-    counts.set(key, seen + 1);
-  }
-  return counts;
+  return tallyBy(rows, keyOf);
 }
 
 /**
