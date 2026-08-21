@@ -146,6 +146,49 @@ function auditPageDeclared<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: Ap
 }
 
 /**
+ * Run both guardrails over one fetched page.
+ *
+ * Kept together because they answer the same question from opposite ends —
+ * one re-reads the body to find rows the shape never returned, the other
+ * checks the count the provider itself declared. Neither repairs anything.
+ *
+ * @param a - Per-account context.
+ * @param body - Raw response body for this page.
+ * @param items - Rows the shape extracted from it.
+ * @returns True once both checks have reported.
+ */
+function auditPage<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  body: ApiBody,
+  items: readonly object[],
+): true {
+  auditPageCoverage(a, body, items);
+  return auditPageDeclared(a, body);
+}
+
+/**
+ * Extract one page from a response body and run both coverage guardrails.
+ *
+ * Extraction and auditing are bound together so no caller can obtain a page
+ * without the audit having run against the body that produced it.
+ *
+ * @param a - Per-account context.
+ * @param body - Raw response body for this round.
+ * @param cursor - Cursor that produced this round, or false on the first call.
+ * @returns The extracted page.
+ */
+function extractAudited<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  body: ApiBody,
+  cursor: TCursor | false,
+): IPage<object, TCursor> {
+  const args = { body, cursor, acct: a.acct, ctx: a.ctx };
+  const page = a.shape.transactions.extractPage(args);
+  auditPage(a, body, page.items);
+  return page;
+}
+
+/**
  * Run one paginated fetch + extract round for a given cursor.
  * @param a - Per-account context.
  * @param cursor - Cursor for the round, or false on the first call.
@@ -158,10 +201,7 @@ async function runPageFetch<TAcct, TCursor>(
   const dispatchArgs = buildTxnsDispatchArgs(a, cursor);
   const resp = await dispatchStep(dispatchArgs);
   if (!isOk(resp)) return resp;
-  const args = { body: resp.value, cursor, acct: a.acct, ctx: a.ctx };
-  const page = a.shape.transactions.extractPage(args);
-  auditPageCoverage(a, resp.value, page.items);
-  auditPageDeclared(a, resp.value);
+  const page = extractAudited(a, resp.value, cursor);
   return succeed(page);
 }
 

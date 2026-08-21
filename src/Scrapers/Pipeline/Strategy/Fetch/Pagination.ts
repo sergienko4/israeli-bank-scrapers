@@ -127,6 +127,37 @@ function halt<TItem>(acc: readonly TItem[], reason: string): Procedure<readonly 
 }
 
 /**
+ * Fetch the next page and fold it into the walk state.
+ * @param args - Caller-supplied fetchPage + merge.
+ * @param state - Current walk state.
+ * @returns The advanced state, or the propagated fail.
+ */
+async function advanceOnce<TItem, TCursor>(
+  args: IFetchPaginatedArgs<TItem, TCursor>,
+  state: IPaginationState<TItem, TCursor>,
+): Promise<Procedure<IPaginationState<TItem, TCursor>>> {
+  const pageResult = await args.fetchPage(state.cursor);
+  if (!isOk(pageResult)) return pageResult;
+  const advanced = advance(args, state, pageResult.value);
+  return succeed(advanced);
+}
+
+/**
+ * The walk's final answer for this page, or false when it may take another.
+ * @param next - State the fetched page produced.
+ * @param state - State the request was issued under.
+ * @returns The rows to return, or false to keep walking.
+ */
+function terminalOf<TItem, TCursor>(
+  next: IPaginationState<TItem, TCursor>,
+  state: IPaginationState<TItem, TCursor>,
+): Procedure<readonly TItem[]> | false {
+  if (next.cursor === false) return succeed(next.acc);
+  const reason = haltReason(next, state);
+  return reason === false ? false : halt(next.acc, reason);
+}
+
+/**
  * Recursive pagination step — fetches one page, merges, recurses or stops.
  * @param args - Caller-supplied fetchPage + stop predicate.
  * @param state - Current recursion state (accumulator + cursor).
@@ -137,13 +168,10 @@ async function paginateStep<TItem, TCursor>(
   state: IPaginationState<TItem, TCursor>,
 ): Promise<Procedure<readonly TItem[]>> {
   if (args.stop(state.acc)) return succeed(state.acc);
-  const pageResult = await args.fetchPage(state.cursor);
-  if (!isOk(pageResult)) return pageResult;
-  const next = advance(args, state, pageResult.value);
-  if (next.cursor === false) return succeed(next.acc);
-  const reason = haltReason(next, state);
-  if (reason !== false) return halt(next.acc, reason);
-  return paginateStep(args, next);
+  const stepped = await advanceOnce(args, state);
+  if (!isOk(stepped)) return stepped;
+  const terminal = terminalOf(stepped.value, state);
+  return terminal === false ? paginateStep(args, stepped.value) : terminal;
 }
 
 /**

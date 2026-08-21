@@ -48,16 +48,34 @@ function mapTxns(raws: readonly object[], isCardIssuer?: boolean): readonly ITra
 }
 
 /**
+ * Map the shape's raw rows, reporting any the mapper refused.
+ *
+ * The refusals are reported here rather than swallowed because the shape found
+ * those rows and believed them transactions — a non-zero count is data that
+ * reached us and was dropped, which the totals alone would never reveal.
+ *
+ * @param a - Per-account context.
+ * @param raws - Raw rows emitted by the shape's extractPage.
+ * @param label - Bank + step identity for the log line.
+ * @returns The rows the mapper accepted.
+ */
+function mapAndReport<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  raws: readonly object[],
+  label: string,
+): readonly ITransaction[] {
+  const mapped = mapTxns(raws, a.shape.isCardIssuer);
+  reportMapRejects({ extracted: raws.length, mapped: mapped.length, label });
+  return mapped;
+}
+
+/**
  * Refine one account's raw rows into the transactions the caller asked for.
  *
- * Reports the rows the mapper refused first. The shape found those rows and
- * believed them transactions, so a non-zero count is data that reached us and
- * was dropped — invisible in the totals alone.
- *
- * Then collapses proven duplicates (opt-in; no bank declares a key today) and
- * trims to the caller's `startDate`. Providers return whole billing cycles
- * rather than a date range, so without the window the caller receives months of
- * history it never asked for.
+ * Reports the rows the mapper refused first, then collapses proven duplicates
+ * (opt-in; no bank declares a key today) and trims to the caller's `startDate`.
+ * Providers return whole billing cycles rather than a date range, so without
+ * the window the caller receives months of history it never asked for.
  *
  * @param a - Per-account context.
  * @param raws - Raw rows emitted by the shape's extractPage.
@@ -67,14 +85,11 @@ function refineTxns<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   raws: readonly object[],
 ): readonly ITransaction[] {
-  const mapped = mapTxns(raws, a.shape.isCardIssuer);
   const label = `${a.ctx.companyId}/txns`;
-  reportMapRejects({ extracted: raws.length, mapped: mapped.length, label });
+  const mapped = mapAndReport(a, raws, label);
   const keyFields = a.shape.transactions.dedupKeyFields ?? [];
   const unique = collapseDuplicates({ txns: mapped, keyFields, label });
-  const startDate = a.ctx.options.startDate;
-  const windowed = applyStartWindow({ txns: unique.kept, startDate, label });
-  return windowed.kept;
+  return applyStartWindow({ txns: unique.kept, startDate: a.ctx.options.startDate, label }).kept;
 }
 
 /**

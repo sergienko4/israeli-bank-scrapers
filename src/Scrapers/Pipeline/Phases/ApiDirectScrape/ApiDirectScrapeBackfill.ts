@@ -39,6 +39,21 @@ interface IWalkState {
 }
 
 /**
+ * The correlation identity for one account's transactions walk.
+ *
+ * The paginator's overlap collapse, the window-coverage assessment and the
+ * backfill plan each log under this exact string — it is what ties those three
+ * lines together when reading a run, so it is derived once rather than spelled
+ * out at each site where a drifting copy would break the correlation.
+ *
+ * @param a - Per-account context.
+ * @returns Bank and step identity. Carries no account or row content.
+ */
+function labelOf<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): string {
+  return `${a.ctx.companyId}/txns`;
+}
+
+/**
  * Page merge for this account's walk.
  *
  * Bound to the account's label so the collapse reports under the same identity
@@ -50,7 +65,8 @@ interface IWalkState {
  */
 function buildMerge<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): PageMerge {
   if (a.shape.transactions.pagesMayOverlap !== true) return concatPages;
-  return buildOverlapMerge(`${a.ctx.companyId}/txns`);
+  const label = labelOf(a);
+  return buildOverlapMerge(label);
 }
 
 /**
@@ -77,13 +93,28 @@ async function extend<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   state: IWalkState,
 ): Promise<Procedure<IWalkState>> {
-  const narrowed = { ...a, ctx: { ...a.ctx, windowEnd: state.end } };
-  const more = await fetchOnce(narrowed);
+  const more = await fetchOnce({ ...a, ctx: { ...a.ctx, windowEnd: state.end } });
   if (!isOk(more)) return more;
-  const label = `${a.ctx.companyId}/txns`;
-  const fresh = dropOverlap({ collected: state.rows, incoming: more.value, label });
+  const fresh = dropOverlap({ collected: state.rows, incoming: more.value, label: labelOf(a) });
   const rows = [...state.rows, ...fresh.kept];
   return succeed({ rows, end: state.end, attempt: state.attempt + 1 });
+}
+
+/**
+ * Decide whether the window is already covered, and under what bound to re-ask.
+ * @param a - Per-account context.
+ * @param state - Rows held and the bound that produced them.
+ * @returns The backfill plan for this round.
+ */
+function planFor<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  state: IWalkState,
+): ReturnType<typeof planBackfill> {
+  const label = labelOf(a);
+  const requestedStart = a.ctx.options.startDate.toISOString();
+  const coverage = assessWindowCoverage({ requestedStart, rows: state.rows, label });
+  const spent = { attempt: state.attempt, previousEnd: state.end };
+  return planBackfill({ stance: a.shape.transactions.windowNarrowing, coverage, label, ...spent });
 }
 
 /**
@@ -96,12 +127,7 @@ async function walk<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   state: IWalkState,
 ): Promise<Procedure<readonly object[]>> {
-  const label = `${a.ctx.companyId}/txns`;
-  const requestedStart = a.ctx.options.startDate.toISOString();
-  const coverage = assessWindowCoverage({ requestedStart, rows: state.rows, label });
-  const stance = a.shape.transactions.windowNarrowing;
-  const spent = { attempt: state.attempt, previousEnd: state.end };
-  const plan = planBackfill({ stance, coverage, label, ...spent });
+  const plan = planFor(a, state);
   if (!plan.shouldAsk) return succeed(state.rows);
   const next = await extend(a, { ...state, end: plan.nextEnd });
   return isOk(next) ? walk(a, next.value) : next;
