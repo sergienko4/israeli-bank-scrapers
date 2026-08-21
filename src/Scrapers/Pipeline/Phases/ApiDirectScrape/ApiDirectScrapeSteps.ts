@@ -7,6 +7,7 @@
 
 import type { ICoverageResult } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
 import { auditCoverage } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
+import { auditDeclaredRows } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -127,6 +128,24 @@ function auditPageCoverage<TAcct, TCursor>(
 }
 
 /**
+ * Reconcile one page against the counts the provider itself declared.
+ *
+ * Complements {@link auditPageCoverage}: that audit hunts the body and can be
+ * argued with, this one quotes the provider back at itself and cannot. Runs
+ * only for banks whose response carries such a count.
+ *
+ * @param a - Per-account context.
+ * @param body - Raw response body for this page.
+ * @returns True once the check has reported.
+ */
+function auditPageDeclared<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: ApiBody): true {
+  const specs = a.shape.transactions.declaredRowSpecs ?? [];
+  const label = `${a.ctx.companyId}/txns`;
+  auditDeclaredRows({ body, specs, label });
+  return true;
+}
+
+/**
  * Run one paginated fetch + extract round for a given cursor.
  * @param a - Per-account context.
  * @param cursor - Cursor for the round, or false on the first call.
@@ -142,6 +161,7 @@ async function runPageFetch<TAcct, TCursor>(
   const args = { body: resp.value, cursor, acct: a.acct, ctx: a.ctx };
   const page = a.shape.transactions.extractPage(args);
   auditPageCoverage(a, resp.value, page.items);
+  auditPageDeclared(a, resp.value);
   return succeed(page);
 }
 

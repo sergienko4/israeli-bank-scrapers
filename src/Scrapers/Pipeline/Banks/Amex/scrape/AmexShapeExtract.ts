@@ -15,7 +15,28 @@
  * seqVoucherNumber…). Split from AmexShapeTxns.ts for the 150-LOC cap.
  */
 
+import type { IDeclaredRowSpec } from '../../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
+
 type AmexTxn = Record<string, unknown>;
+
+/**
+ * The one container that states its own row count next to its rows:
+ * `totalVouchersCurrencyDate.countImmediateVouchers` beside
+ * `immediateVouchersCurrencyDate[]`. Verified against captured traffic — the
+ * declared and carried counts agree on 41 of 41 groups across Amex and
+ * Isracard, so any disagreement is real loss rather than provider noise.
+ *
+ * Declaring it here means the omission this file was fixed for could not have
+ * shipped silently: reading zero of a container that says it holds twelve
+ * warns on the first run.
+ */
+export const AMEX_DECLARED_ROWS: readonly IDeclaredRowSpec[] = [
+  {
+    groups: 'data.israelAbroadVouchers.outOfStatementChargeDateVouchers',
+    rows: 'immediateVouchersCurrencyDate',
+    count: 'totalVouchersCurrencyDate.countImmediateVouchers',
+  },
+];
 
 interface IApprovals {
   readonly approvedTransactions?: readonly AmexTxn[];

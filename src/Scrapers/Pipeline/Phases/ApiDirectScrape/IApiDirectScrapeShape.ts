@@ -25,6 +25,7 @@ import type {
   IAesSignerConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
@@ -193,6 +194,18 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
    * to reproduce before declaring one.
    */
   readonly dedupKeyFields?: readonly string[];
+  /**
+   * Containers whose response states its own row count beside the rows,
+   * enabling authoritative loss detection for this bank. Absent ⇒ only the
+   * heuristic coverage audit applies, which is the default.
+   *
+   * A count is an oracle only when it sits beside the rows it counts.
+   * Response-level totals were measured and rejected: Isracard/Amex's
+   * `transactionsCount` summarises a whole billing cycle and never once
+   * matched the extracted row count, so checking against it would warn on
+   * every healthy run. See `Mediator/Scrape/CoverageAudit/DeclaredRows.ts`.
+   */
+  readonly declaredRowSpecs?: readonly IDeclaredRowSpec[];
 }
 
 /** Balance fetch outcome: value + whether it came from `fallbackOnFail`. */

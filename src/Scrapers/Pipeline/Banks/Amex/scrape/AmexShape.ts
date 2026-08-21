@@ -16,6 +16,7 @@ import type {
   HeaderMap,
   IApiDirectScrapeShape,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { AMEX_DECLARED_ROWS } from './AmexShapeExtract.js';
 import {
   accountNumberOf,
   customerUrl,
@@ -76,6 +77,7 @@ const AMEX_SHAPE: IApiDirectScrapeShape<IAmexCard, number> = {
     urlTag: txnsUrl,
     method: 'POST',
     extraHeaders: digitalV3Headers,
+    declaredRowSpecs: AMEX_DECLARED_ROWS,
   },
 };
 
