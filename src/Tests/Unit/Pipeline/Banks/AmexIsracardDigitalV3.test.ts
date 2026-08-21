@@ -4,7 +4,8 @@
  * merge. Both banks ride the identical Isracard-issued DigitalV3 backbone, so
  * ONE `describe.each` over the pair exercises card-list parsing (string-encoded
  * array, malformed, non-array, missing fields) and the
- * approvals+vouchers+out-of-statement merge (null data, absent containers).
+ * approvals+vouchers+out-of-statement merge (null data, absent containers), plus
+ * the declared-row reconciliation both banks adopt for that same container.
  * Bodies are synthetic — zero PII.
  */
 
@@ -12,6 +13,8 @@ import * as amexE from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShap
 import * as amexH from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShapeHelpers.js';
 import * as isracardE from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShapeExtract.js';
 import * as isracardH from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShapeHelpers.js';
+import type { IDeclaredRowSpec } from '../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.js';
+import { auditDeclaredRows } from '../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IExtractAccountsArgs } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 
 interface ICard {
@@ -33,6 +36,7 @@ interface IBank {
   readonly name: string;
   readonly api: string;
   readonly mod: IDigitalV3Mod;
+  readonly declared: readonly IDeclaredRowSpec[];
 }
 
 /**
@@ -46,11 +50,17 @@ function asMod(h: object, merge: (body: object) => readonly object[]): IDigitalV
 }
 
 const BANKS: readonly IBank[] = [
-  { name: 'Amex', api: amexH.AMEX_API, mod: asMod(amexH, amexE.mergeAmexRows) },
+  {
+    name: 'Amex',
+    api: amexH.AMEX_API,
+    mod: asMod(amexH, amexE.mergeAmexRows),
+    declared: amexE.AMEX_DECLARED_ROWS,
+  },
   {
     name: 'Isracard',
     api: isracardH.ISRACARD_API,
     mod: asMod(isracardH, isracardE.mergeIsracardRows),
+    declared: isracardE.ISRACARD_DECLARED_ROWS,
   },
 ];
 
@@ -180,5 +190,30 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
     };
     const merged = bank.mod.mergeRows(body);
     expect(merged).toEqual([]);
+  });
+
+  it('declares the out-of-statement container it reads', () => {
+    const paths = bank.declared.map((s): string => s.groups);
+    expect(paths).toContain('data.israelAbroadVouchers.outOfStatementChargeDateVouchers');
+  });
+
+  it('declared rows reconcile against a body that carries what it states', () => {
+    const group = {
+      totalVouchersCurrencyDate: { countImmediateVouchers: 2 },
+      immediateVouchersCurrencyDate: [{ o: 1 }, { o: 2 }],
+    };
+    const body = { data: { israelAbroadVouchers: { outOfStatementChargeDateVouchers: [group] } } };
+    const result = auditDeclaredRows({ body, specs: bank.declared, label: 'test/txns' });
+    expect(result).toEqual({ checked: 1, shortfall: 0 });
+  });
+
+  it('declared rows expose the container omission this suite exists for', () => {
+    const group = {
+      totalVouchersCurrencyDate: { countImmediateVouchers: 2 },
+      immediateVouchersCurrencyDate: [],
+    };
+    const body = { data: { israelAbroadVouchers: { outOfStatementChargeDateVouchers: [group] } } };
+    const result = auditDeclaredRows({ body, specs: bank.declared, label: 'test/txns' });
+    expect(result.shortfall).toBe(2);
   });
 });
