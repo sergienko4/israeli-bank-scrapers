@@ -10,6 +10,7 @@
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
+import { reportMapRejects } from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import { isSome, some } from '../../Types/Option.js';
@@ -51,6 +52,11 @@ function mapTxns(raws: readonly object[], isCardIssuer?: boolean): readonly ITra
 
 /**
  * Fetch + map one account's paginated transactions.
+ *
+ * Reports the rows the mapper refused before returning. The shape found those
+ * rows and believed them transactions, so a non-zero count is data that
+ * reached us and was dropped — invisible in the totals alone.
+ *
  * @param a - Per-account context.
  * @returns Mapped transactions procedure.
  */
@@ -62,6 +68,8 @@ async function fetchAccountTxns<TAcct, TCursor>(
   const paged = await fetchPaginated<object, TCursor>({ fetchPage, stop });
   if (!isOk(paged)) return paged;
   const mapped = mapTxns(paged.value, a.shape.isCardIssuer);
+  const label = `${a.ctx.companyId}/txns`;
+  reportMapRejects({ extracted: paged.value.length, mapped: mapped.length, label });
   return succeed(mapped);
 }
 
