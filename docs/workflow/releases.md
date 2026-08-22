@@ -35,7 +35,7 @@ Both live in [`.github/workflows/release.yml`](https://github.com/sergienko4/isr
 | --- | --- | --- |
 | Provenance attestation | `publishConfig.provenance` + Trusted Publishing OIDC | Release workflow fails if the published version has no attestation |
 | `dist-tags.latest` | `npm publish` | Polled back from the registry after every publish |
-| Supported Node range | `engines.node` | Unit suite runs on the floor, latest 22.x and latest 24.x; `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
+| Supported Node range | `engines.node` | Unit suite runs on the floor, latest 22.x, latest 24.x and latest 26.x; `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
 | Upgrade notes | `compatibility.json` | `npm run compat:check` diffs the generated page against its source |
 
 ## Node support policy
@@ -59,7 +59,7 @@ syntax the advertised floor cannot parse.
 | --- | --- | --- |
 | 22.x | Maintenance LTS, EOL 2027-04-30 | The `engines.node` floor; supported for all of `8.x` |
 | 24.x | Active LTS since 2025-10-28 | Tested on every PR; the intended floor after the next major |
-| 26.x | Current, LTS from 2026-10-28 | Not tested yet; a candidate leg once it reaches LTS |
+| 26.x | Current, LTS from 2026-10-28 | In the unit matrix, on the same trigger as 22.x and 24.x; not a candidate floor until it reaches LTS |
 
 So the roadmap is: **a future major raises the floor to `>= 24` and drops 22.x.**
 It is announced in the README rather than done quietly at the moment 22 goes

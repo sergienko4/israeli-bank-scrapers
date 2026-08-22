@@ -120,6 +120,7 @@ work, but nothing here proves it.
 | `22.14.0` | The declared minimum in `engines.node` — the oldest version we promise |
 | `22` | Latest 22.x, so a patched LTS cannot regress us unnoticed |
 | `24` | Latest 24.x, so the open-ended `>=` is an evidenced claim, not a hope |
+| `26` | Active LTS from Oct 2026 — we meet the next default before consumers do |
 <!-- node-support:end -->
 
 `npm run lint:node-support` fails the build if this table, `.nvmrc`,

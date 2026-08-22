@@ -381,7 +381,13 @@ jobs:
   unit-tests:
     name: Unit tests (Node ${{ matrix.node }})
     needs: changes
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true'
+    # `ci_scripts` (which covers `.github/workflows/**`) is included because
+    # this job's own definition — the matrix below, the timeout, the setup
+    # action it calls — lives in this file. Without it a PR could add, remove
+    # or break a matrix leg and never run the job that would have caught it,
+    # which is how the Node 26 leg was added: workflow + docs only, touching
+    # no `src/`, so every `full_suite` gate stayed false.
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -393,7 +399,7 @@ jobs:
         # a regex that matches `node: [...]` only; a block-style list would make
         # the drift gate fail loudly rather than silently, but it would still
         # need fixing there first.
-        node: ['22.14.0', '22', '24']
+        node: ['22.14.0', '22', '24', '26']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
