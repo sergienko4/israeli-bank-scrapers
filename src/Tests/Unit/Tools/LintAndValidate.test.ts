@@ -23,6 +23,8 @@ const SYNTHETIC_PIPELINE = 'src/Scrapers/Pipeline/TestOnly/synthetic.ts';
 const SYNTHETIC_PHASE = 'src/Scrapers/Pipeline/Phases/TestOnly/synthetic.ts';
 /** Synthetic non-Pipeline path. */
 const SYNTHETIC_OTHER = 'src/Common/synthetic.ts';
+/** Synthetic deep test path — the spelling real ApiDirectCall tests used. */
+const SYNTHETIC_DEEP_TEST = 'src/Tests/Unit/Pipeline/Mediator/ApiDirectCall/synthetic.test.ts';
 
 /** Primitive-return fixture code — has exactly ONE flagged return type. */
 const CODE_PRIMITIVE_ONE =
@@ -363,9 +365,10 @@ describe('issuesFromCode — Rule #16 zero-CSS interaction guard', () => {
   });
 });
 
-// Rule #17 fires repo-wide, so both a Pipeline row and a test-tree row assert
-// a hit — scoping it to Pipeline would miss the twenty-seven test importers
-// that had to be migrated, which is where most of the work actually was.
+// Rule #17 is scoped to whatever the CLI is pointed at; the pre-commit gate
+// adds a Rule-#17-only pass over all of `src`, so a Pipeline row and a
+// test-tree row both assert a hit — the twenty-seven test importers that had
+// to be migrated are where most of the work actually was.
 //
 // The four spellings below are the ones the ApiDirectCall shim was reached
 // through in the real tree. Counting only the '../../Mediator/...' spelling is
@@ -373,7 +376,7 @@ describe('issuesFromCode — Rule #16 zero-CSS interaction guard', () => {
 const RULE_17_CASES = [
   {
     label: 'retired config shim, same-dir spelling',
-    file: SYNTHETIC_PIPELINE,
+    file: 'src/Scrapers/Pipeline/Mediator/ApiDirectCall/synthetic.ts',
     code: "import type { IApiDirectCallConfig } from './IApiDirectCallConfig.js';\n",
     expected: 1,
   },
@@ -397,7 +400,7 @@ const RULE_17_CASES = [
   },
   {
     label: 'retired config shim, deep test spelling',
-    file: SYNTHETIC_OTHER,
+    file: SYNTHETIC_DEEP_TEST,
     code: "import type { FlowKind } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';\n",
     expected: 1,
   },
@@ -449,6 +452,32 @@ const RULE_17_CASES = [
     code: "import '../Mediator/Network/Fetch.js';\n",
     expected: 1,
   },
+  {
+    label: 'retired AuthDiscovery as a sibling import',
+    file: 'src/Scrapers/Pipeline/Mediator/Network/synthetic.ts',
+    code: "import { discoverAuth } from './AuthDiscovery.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'retired AuthFailureWatcher one level down',
+    file: 'src/Scrapers/Pipeline/Mediator/Network/Fetch/synthetic.ts',
+    code: "import { watch } from '../AuthFailureWatcher.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'live Common shim re-exporting its own neighbour',
+    file: 'src/Common/Fetch.ts',
+    code: "export * from './Fetch.js';\n",
+    expected: 0,
+  },
+];
+
+/** The retired modules, as repo-relative runtime specifiers. */
+const RETIRED_PATHS: readonly string[] = [
+  'src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js',
+  'src/Scrapers/Pipeline/Mediator/Network/Fetch.js',
+  'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
+  'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
 ];
 
 /** Root the Rule #17 replacement paths are written relative to. */
@@ -458,7 +487,10 @@ const PIPELINE_ROOT = 'src/Scrapers/Pipeline';
  * Turn a Rule #17 recommendation into the source file it names.
  *
  * Recommendations are runtime specifiers (`.js`) relative to the Pipeline
- * root; on disk the file is the TypeScript source.
+ * root; on disk the file is the TypeScript source. Only the `.js` → `.ts`
+ * mapping is handled, which covers every current row; a future row naming a
+ * `.tsx`, a `.mts`, or a bare directory would need this widened, and the
+ * caller's `isFile` assertion is what would catch that.
  * @param recommended - Specifier fragment taken from the rule message.
  * @returns Path to the source file the recommendation points at.
  */
@@ -466,6 +498,21 @@ function resolveRecommended(recommended: string): string {
   const asSource = recommended.replace(/\.js$/, '.ts');
   const repoRoot = process.cwd();
   return path.join(repoRoot, PIPELINE_ROOT, asSource);
+}
+
+/**
+ * Whether a path is an existing regular file.
+ *
+ * `existsSync` alone is not enough: it answers true for a directory, so a
+ * recommendation naming a folder rather than a module would pass while failing
+ * to resolve at runtime.
+ * @param candidate - Absolute path to test.
+ * @returns True only for a regular file.
+ */
+function isRegularFile(candidate: string): boolean {
+  if (!fs.existsSync(candidate)) return false;
+  const stats = fs.statSync(candidate);
+  return stats.isFile();
 }
 
 describe('issuesFromCode — Rule #17 retired specifier guard', () => {
@@ -485,14 +532,21 @@ describe('issuesFromCode — Rule #17 retired specifier guard', () => {
     expect(messages[0]).toContain('Mediator/Network/Fetch/index.js');
   });
 
-  it('skips its own machinery so the rule can reach zero', () => {
+  it('skips its own source but no longer needs to skip its fixtures', () => {
     const code = "import type { X } from './IApiDirectCallConfig.js';\n";
+    const validatorDir = 'src/Scrapers/Pipeline/Mediator/ApiDirectCall/synthetic.ts';
     const inValidator = issuesFromCode('src/Tests/Tools/LintValidator.ts', code, new Map());
-    const inTests = issuesFromCode('src/Tests/Unit/Tools/LintAndValidate.test.ts', code, new Map());
     const validatorHits = inValidator.filter((i): boolean => i.rule === 'Rule #17');
-    const testHits = inTests.filter((i): boolean => i.rule === 'Rule #17');
     expect(validatorHits).toHaveLength(0);
-    expect(testHits).toHaveLength(0);
+
+    const fixture = 'const sample = "import { x } from \'./IApiDirectCallConfig.js\';";\n';
+    const inFixture = issuesFromCode(validatorDir, fixture, new Map());
+    const fixtureHits = inFixture.filter((i): boolean => i.rule === 'Rule #17');
+    expect(fixtureHits).toHaveLength(0);
+
+    const real = issuesFromCode(validatorDir, code, new Map());
+    const realHits = real.filter((i): boolean => i.rule === 'Rule #17');
+    expect(realHits).toHaveLength(1);
   });
   it('ignores a retired path that is prose or data rather than a dependency', () => {
     const prose = ' * The legacy Mediator/Network/Fetch.js shim used to live here.\n';
@@ -516,20 +570,18 @@ describe('issuesFromCode — Rule #17 retired specifier guard', () => {
     expect(reExportHits).toHaveLength(1);
   });
 
-  it.each([
-    'IApiDirectCallConfig.js',
-    'Mediator/Network/Fetch.js',
-    'Mediator/Network/AuthDiscovery.js',
-    'Mediator/Network/AuthFailureWatcher.js',
-  ])('recommends a path that resolves on disk for %s', retired => {
-    const code = `import { x } from '../${retired}';\n`;
-    const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
+  it.each(RETIRED_PATHS)('recommends a path that resolves on disk for %s', retired => {
+    const dir = path.posix.dirname(retired);
+    const base = path.posix.basename(retired);
+    const importer = `${dir}/synthetic.ts`;
+    const code = `import { x } from './${base}';\n`;
+    const issues = issuesFromCode(importer, code, new Map());
     const hits = issues.filter((i): boolean => i.rule === 'Rule #17');
     expect(hits).toHaveLength(1);
     const recommended = hits[0].message.split(' — use ')[1];
     expect(recommended).toBeDefined();
     const sourcePath = resolveRecommended(recommended);
-    const isResolved = fs.existsSync(sourcePath);
+    const isResolved = isRegularFile(sourcePath);
     expect(isResolved).toBe(true);
   });
 });
