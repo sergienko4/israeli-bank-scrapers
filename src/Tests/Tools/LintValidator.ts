@@ -210,15 +210,21 @@ const SKIPPED_TEST_RE = /(?:^|\s)(?:it|describe|test)\.skip\(/gm;
 /** Regex: a `#nnn` issue reference near a skipped test, used as rationale. */
 const SKIP_RATIONALE_RE = /\/\/[^\n]*#\d+/;
 /**
- * Regex: a runtime (value) Playwright import in a Phase file.
+ * Regex: a Playwright import in a Phase file, capturing its binding clause.
  *
  * Matches both the `playwright` and `playwright-core` specifiers — this fork
  * imports the latter, so a rule anchored to the bare name guards nothing.
  * `import type` is deliberately excluded: it is erased at compile time and
  * creates no runtime coupling, so a Phase naming `Page` in a signature is
  * legitimate. Only a value import can actually drag the driver into a Phase.
+ *
+ * The capture group is required because the `import type` prefix is not the
+ * only type-only form: `import { type Page } from 'playwright-core'` is also
+ * fully erased, and is the dominant style in this repo. Matching the statement
+ * alone would flag it, so {@link hasRuntimePlaywrightImport} inspects the
+ * captured bindings rather than trusting the statement shape.
  */
-const PLAYWRIGHT_IMPORT_RE = /^\s*import\b(?!\s+type\b)[^;]*?['"]playwright(?:-core)?['"]/m;
+const PLAYWRIGHT_IMPORT_RE = /^\s*import\b(?!\s+type\b)([^;]*?)['"]playwright(?:-core)?['"]/gm;
 /** Regex: call positions at line start — execute/fetch/run/step family. */
 const CALL_POS_RE = /^.*(?:execute|fetch|run|step)\w+\(/gm;
 /** Regex: name of the called function. */
@@ -464,6 +470,49 @@ function asyncIssues(code: string): IIssue[] {
 }
 
 /**
+ * Whether one entry of a brace binding list survives to runtime.
+ * @param binding - A single comma-separated entry from an import clause.
+ * @returns True when the entry is a value rather than an erased type.
+ */
+function isRuntimeBinding(binding: string): boolean {
+  const trimmed = binding.trim();
+  return trimmed !== '' && !/^type\s/.test(trimmed);
+}
+
+/**
+ * Whether an import clause binds at least one runtime value.
+ *
+ * <p>A clause with no brace list is a default, namespace or side-effect
+ * import, all of which are runtime. A braced clause is runtime only if some
+ * binding is not `type`-prefixed; anything before the brace (a default
+ * binding) is itself runtime.
+ * @param clause - The text captured between `import` and the specifier.
+ * @returns True when a value crosses the module boundary.
+ */
+function hasRuntimeBinding(clause: string): boolean {
+  const open = clause.indexOf('{');
+  if (open < 0) return true;
+  if (clause.slice(0, open).replace(/[\s,]/g, '') !== '') return true;
+  const close = clause.indexOf('}');
+  const inner = clause.slice(open + 1, close);
+  return inner.split(',').some(isRuntimeBinding);
+}
+
+/**
+ * Whether a file imports Playwright as a runtime value.
+ *
+ * <p>Every Playwright import is inspected, not just the first: a Phase may
+ * legitimately type-import `Page` and still illegitimately value-import
+ * `chromium` further down.
+ * @param code - Full source text.
+ * @returns True when at least one Playwright value import exists.
+ */
+function hasRuntimePlaywrightImport(code: string): boolean {
+  const matches = [...code.matchAll(PLAYWRIGHT_IMPORT_RE)];
+  return matches.some((match): boolean => hasRuntimeBinding(match[1]));
+}
+
+/**
  * Analyse code text and produce raw issues (unfiltered by allowlist).
  * @param filePath - For scope detection (Pipeline/Phase).
  * @param code - Full source text.
@@ -474,7 +523,7 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   const fwd = normalisePath(filePath);
   const isInPipeline = fwd.includes(PIPELINE_DIR) || fwd.includes(PHASE_DIR);
   if (isInPipeline) issues.push(...ruleFifteenIssues(code));
-  if (fwd.includes(PHASE_DIR) && PLAYWRIGHT_IMPORT_RE.test(code)) {
+  if (fwd.includes(PHASE_DIR) && hasRuntimePlaywrightImport(code)) {
     issues.push({ rule: 'Rule #10', message: '[Rule #10] Playwright leaked into Phase.' });
   }
   if (isInPipeline) issues.push(...asyncIssues(code));

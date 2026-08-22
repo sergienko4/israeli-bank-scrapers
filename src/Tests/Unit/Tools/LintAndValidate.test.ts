@@ -202,6 +202,11 @@ describe('issuesFromCode — [Async] check', () => {
 // Type-only imports are erased at compile time and carry no runtime coupling;
 // a Phase naming `Page` in a signature is legitimate. Banning them would flag
 // five existing files for no safety gain — hence the `expected: 0` rows.
+//
+// `import type` is not the only erased form. `import { type Page }` is equally
+// erased and is the dominant style here (40+ files), so a statement-shape-only
+// check would flag the moment a Phase adopted the house style. The mixed row
+// pins the other side: one runtime binding among type bindings still leaks.
 const RULE_10_CASES = [
   {
     label: 'value import of playwright, Phase',
@@ -232,6 +237,18 @@ const RULE_10_CASES = [
     file: SYNTHETIC_PHASE,
     code: "import type { Page } from 'playwright';\n",
     expected: 0,
+  },
+  {
+    label: 'inline type-only import of playwright-core, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "import { type Frame, type Page } from 'playwright-core';\n",
+    expected: 0,
+  },
+  {
+    label: 'mixed type and value import of playwright-core, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "import { type Page, chromium } from 'playwright-core';\n",
+    expected: 1,
   },
   {
     label: 'value import of playwright, non-Phase',
