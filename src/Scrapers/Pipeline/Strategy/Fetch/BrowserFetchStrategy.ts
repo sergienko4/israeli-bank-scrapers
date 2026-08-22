@@ -14,7 +14,7 @@ import {
   fetchGetWithinPage,
   fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
-} from '../../Mediator/Network/Fetch.js';
+} from '../../Mediator/Network/Fetch/index.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
