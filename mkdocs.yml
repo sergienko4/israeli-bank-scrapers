@@ -133,6 +133,7 @@ nav:
       - Pipeline architecture: architecture/pipeline.md
       - Layer separation: architecture/layers.md
       - Config Contracts (api-direct-call): architecture/config-contracts.md
+      - In-page POST metadata: architecture/in-page-post-metadata.md
       - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
       - Legacy (deprecated): architecture/legacy.md
       - Migration strategy: architecture/migration.md

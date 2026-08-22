@@ -138,7 +138,7 @@ function hasContentType(headers: Record<string, string>): boolean {
  * @param extraHeaders - Caller-supplied headers, or undefined.
  * @returns Header map guaranteed to carry a Content-Type.
  */
-function withJsonContentType(extraHeaders?: Record<string, string>): Record<string, string> {
+export function withJsonContentType(extraHeaders?: Record<string, string>): Record<string, string> {
   if (!extraHeaders) return DEFAULT_JSON_HEADERS;
   if (hasContentType(extraHeaders)) return extraHeaders;
   return { ...extraHeaders, 'content-type': JSON_CONTENT_TYPE };

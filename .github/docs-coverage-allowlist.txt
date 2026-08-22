@@ -1550,3 +1550,7 @@ IBancsSpaHeaders
 # (CAMOUFOX_LAUNCH_TIMEOUT_MS) is documented in docs/quick-start.md.
 withLaunchBound
 withNativeBindingDiagnostic
+
+# Reason: internal Fetch-module helper, exported only so PageFetchPostMetadata
+# shares one Content-Type policy with PageFetchPost. Not a consumer surface.
+withJsonContentType

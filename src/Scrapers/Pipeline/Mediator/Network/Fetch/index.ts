@@ -11,5 +11,11 @@ export type { JsonValue } from './Headers.js';
 export { fetchGet, fetchGraphql, fetchPost, type IFetchGraphqlOptions } from './NativeFetch.js';
 export { fetchGetWithinPage, fetchGetWithinPageWithHeaders } from './PageFetchGet.js';
 export { fetchPostWithinPage, type IFetchPostOptions } from './PageFetchPost.js';
+export {
+  default as fetchPostWithinPageWithMetadata,
+  type IFetchPostWithMetadataOptions,
+  type IPostWithMetadata,
+  type IResponseMetadata,
+} from './PageFetchPostMetadata.js';
 export type { IParseGetOpts, IParsePostOpts } from './ParseResult.js';
 export { detectWafBlock } from './WafDetection.js';
