@@ -223,6 +223,20 @@ export function loadAllowlist(
  */
 const PRIMITIVE_RETURN_RE = /\)\s*:\s(?:boolean|string|number|void)(?=\s*\{)/g;
 /**
+ * Regex: the quoted module specifier of an import, a re-export, or a
+ * dynamic `import()`.
+ *
+ * Anchoring on the `from` / `import` keyword is what separates a real
+ * dependency from a path that merely appears in prose or in a data
+ * structure. Both quote styles are matched, and `import type` needs no
+ * special case because the keyword still precedes the specifier.
+ *
+ * This does not attempt to distinguish an import statement from a string
+ * that contains the text of one; `LintAndValidate.test.ts` holds exactly
+ * such fixtures and is exempted by path instead.
+ */
+const MODULE_SPECIFIER_RE = /(?:\bfrom|\bimport)\s*(?:\(\s*)?['"]([^'"]+)['"]/g;
+/**
  * Regex: bare-primitive type alias declaration (S6564 canary).
  * Matches `type X = string;` / `= number;` / `= boolean;` / `= unknown;`.
  * Excluded by SonarJS S6564 because the RHS is a TS keyword type;
@@ -484,6 +498,12 @@ function ruleFifteenIssues(code: string): IIssue[] {
  *    covered. Inside Pipeline they appear only in parsing/extraction code and
  *    in these helpers' own implementations — the documented exception. Banning
  *    them would flag eleven compliant files and force an allowlist.
+ *  - The `css` candidate kind in `Elements/Create/Locators.ts` is NOT a
+ *    violation and is deliberately not flagged. `CLAUDE.md` sanctions
+ *    selectors *built dynamically from metadata* collected after finding the
+ *    element by visible text; what it bans is a selector hardcoded by a
+ *    developer. This rule catches the latter, which is what a literal
+ *    argument at a call site is.
  *
  * @param code - Source text.
  * @returns Rule #16 issues (may be empty).
@@ -517,8 +537,8 @@ function ruleSixteenIssues(code: string): IIssue[] {
 const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   ['IApiDirectCallConfig.js', 'Mediator/ApiDirectCall/ConfigContracts/index.js'],
   ['Mediator/Network/Fetch.js', 'Mediator/Network/Fetch/index.js'],
-  ['Mediator/Network/AuthDiscovery.js', 'Mediator/Network/Auth/AuthDiscovery.js'],
-  ['Mediator/Network/AuthFailureWatcher.js', 'Mediator/Network/Auth/AuthFailureWatcher.js'],
+  ['Mediator/Network/AuthDiscovery.js', 'Mediator/Network/AuthDiscovery/index.js'],
+  ['Mediator/Network/AuthFailureWatcher.js', 'Mediator/Network/AuthFailureWatcher/index.js'],
 ]);
 
 /**
@@ -536,8 +556,20 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
  * `Mediator/Network/` prefix on purpose: a bare `Fetch.js` would also flag
  * `src/Common/Fetch.js`, a live legacy shim that must keep working.
  *
- * Runs repo-wide rather than Pipeline-only: most of the importers that had to
- * move were tests, which live outside the Pipeline tree.
+ * Matches only module specifiers — the quoted path of an `import`, an
+ * `export ... from`, or a dynamic `import()`. An earlier version compared the
+ * whole line, which flagged any prose or string that merely mentioned a
+ * retired path; the map immediately above this function is itself such a
+ * string, and so are the fixtures in `LintAndValidate.test.ts`.
+ *
+ * Scope is whatever the CLI is pointed at. The pre-commit gate points it at
+ * `src/Scrapers/Pipeline`, so this does NOT currently see `src/Tests` or
+ * `src/Common`. That gap is narrow but real: while a retired file is absent,
+ * type-check rejects any import of it from anywhere, so the only thing this
+ * rule adds outside the Pipeline tree is catching a *recreated* shim. Widening
+ * the gate to all of `src` is blocked on 27 pre-existing violations of other
+ * rules in non-Pipeline code, and is tracked separately rather than smuggled
+ * into the change that introduced this rule.
  *
  * @param code - Source text.
  * @returns Rule #17 issues (may be empty).
@@ -545,8 +577,11 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
 function ruleSeventeenIssues(code: string): IIssue[] {
   const out: IIssue[] = [];
   for (const [idx, line] of code.split('\n').entries()) {
+    const specifiers = [...line.matchAll(MODULE_SPECIFIER_RE)].map(m => m[1]);
+    if (specifiers.length === 0) continue;
     for (const [retired, replacement] of RETIRED_SPECIFIERS) {
-      if (!line.includes(retired)) continue;
+      const isRetired = specifiers.some((s): boolean => s.includes(retired));
+      if (!isRetired) continue;
       const where = String(idx + 1);
       out.push({
         rule: 'Rule #17',

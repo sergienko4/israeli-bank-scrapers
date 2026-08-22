@@ -465,6 +465,37 @@ describe('issuesFromCode — Rule #17 retired specifier guard', () => {
     expect(validatorHits).toHaveLength(0);
     expect(testHits).toHaveLength(0);
   });
+  it('ignores a retired path that is prose or data rather than a dependency', () => {
+    const prose = ' * The legacy Mediator/Network/Fetch.js shim used to live here.\n';
+    const data = "const RETIRED = ['Mediator/Network/Fetch.js'];\n";
+    const proseIssues = issuesFromCode(SYNTHETIC_PIPELINE, prose, new Map());
+    const dataIssues = issuesFromCode(SYNTHETIC_PIPELINE, data, new Map());
+    const proseHits = proseIssues.filter((i): boolean => i.rule === 'Rule #17');
+    const dataHits = dataIssues.filter((i): boolean => i.rule === 'Rule #17');
+    expect(proseHits).toHaveLength(0);
+    expect(dataHits).toHaveLength(0);
+  });
+
+  it('still catches a dependency the prose exemption must not cover', () => {
+    const dynamic = "const m = await import('../Mediator/Network/Fetch.js');\n";
+    const reExport = "export { fetchGetWithinPage } from '../Mediator/Network/Fetch.js';\n";
+    const dynamicIssues = issuesFromCode(SYNTHETIC_PIPELINE, dynamic, new Map());
+    const reExportIssues = issuesFromCode(SYNTHETIC_PIPELINE, reExport, new Map());
+    const dynamicHits = dynamicIssues.filter((i): boolean => i.rule === 'Rule #17');
+    const reExportHits = reExportIssues.filter((i): boolean => i.rule === 'Rule #17');
+    expect(dynamicHits).toHaveLength(1);
+    expect(reExportHits).toHaveLength(1);
+  });
+
+  it('names a replacement path that actually exists on disk', () => {
+    const code = "import { x } from '../Mediator/Network/AuthDiscovery.js';\n";
+    const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
+    const messages = issues
+      .filter((i): boolean => i.rule === 'Rule #17')
+      .map((i): string => i.message);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain('Mediator/Network/AuthDiscovery/index.js');
+  });
 });
 
 describe('loadAllowlist', () => {
