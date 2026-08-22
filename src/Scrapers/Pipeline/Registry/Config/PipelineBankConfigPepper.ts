@@ -16,7 +16,7 @@
  * whole bank surface for login (Rule #11).
  */
 
-import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   PEPPER_FINGERPRINT,
   STATIC_HEADERS,

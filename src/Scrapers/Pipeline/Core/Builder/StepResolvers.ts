@@ -4,7 +4,7 @@
  */
 
 import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
-import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { executeMatrixLoop } from '../../Mediator/Scrape/ScrapePhaseActions.js';
 import { createApiDirectCallPhase } from '../../Phases/ApiDirectCall/ApiDirectCallPhase.js';
 import { buildApiDirectScrapePhase } from '../../Phases/ApiDirectScrape/ApiDirectScrapePhase.js';

@@ -24,7 +24,7 @@
 import type {
   IAesSignerConfig,
   JsonValueTemplate,
-} from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';

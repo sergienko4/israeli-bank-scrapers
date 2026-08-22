@@ -36,7 +36,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { PAYBOX_LOGIN_SIGNER, PAYBOX_SECRETS } from './PipelineBankConfigPayBoxCrypto.js';
 import {
   LOGIN_BY_SMS_STEP,

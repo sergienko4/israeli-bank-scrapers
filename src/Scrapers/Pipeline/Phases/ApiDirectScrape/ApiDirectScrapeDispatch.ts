@@ -10,13 +10,13 @@ import { randomBytes } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
-import type { JsonValue } from '../../Mediator/ApiDirectCall/Envelope/JsonPointer.js';
-import { attachBodySignature } from '../../Mediator/ApiDirectCall/Flow/RunStepBodySigning.js';
 import type {
   IAesSignerConfig,
   IApiDirectCallConfig,
   JsonValueTemplate,
-} from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { JsonValue } from '../../Mediator/ApiDirectCall/Envelope/JsonPointer.js';
+import { attachBodySignature } from '../../Mediator/ApiDirectCall/Flow/RunStepBodySigning.js';
 import { hydrate } from '../../Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
