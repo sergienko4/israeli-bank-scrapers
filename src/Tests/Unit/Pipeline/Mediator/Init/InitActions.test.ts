@@ -50,6 +50,7 @@ function isFailurePayload(value: unknown): value is IFailureLogPayload {
  * @param script.title - Script title.
  * @param script.gotoThrows - Whether goto throws.
  * @param script.gotoErrorMessage - Custom error message for the goto rejection (default `nav-fail`).
+ * @param script.gotoStatus - HTTP status the scripted goto response reports (default `200`).
  * @param script.titleThrows - Whether title throws.
  * @returns Mock Page.
  */
@@ -58,6 +59,7 @@ function makePage(script: {
   title?: string;
   gotoThrows?: boolean;
   gotoErrorMessage?: string;
+  gotoStatus?: number;
   titleThrows?: boolean;
 }): Page {
   let currentUrl = script.url ?? 'https://bank.co.il';
@@ -69,16 +71,25 @@ function makePage(script: {
     url: (): string => currentUrl,
     /**
      * goto.
+     *
+     * <p>Resolves with a `Response`-shaped object because that is what
+     * Playwright's `page.goto` returns; the landing-status check reads
+     * `status()` off it.
      * @param newUrl - Target URL.
-     * @returns Scripted.
+     * @returns Scripted response.
      */
-    goto: (newUrl: string): Promise<boolean> => {
+    goto: (newUrl: string): Promise<{ status: () => number }> => {
       if (script.gotoThrows) {
         const message = script.gotoErrorMessage ?? 'nav-fail';
         return Promise.reject(new Error(message));
       }
       currentUrl = newUrl;
-      return Promise.resolve(true);
+      /**
+       * Report the scripted landing status.
+       * @returns The scripted status, defaulting to a healthy 200.
+       */
+      const status = (): number => script.gotoStatus ?? 200;
+      return Promise.resolve({ status });
     },
     /**
      * title.
@@ -168,6 +179,31 @@ describe('executeNavigateToBank', () => {
     const result = await executeNavigateToBank(ctx);
     const isOkResult2 = isOk(result);
     expect(isOkResult2).toBe(true);
+  });
+
+  // Wiring proof: the 404/410 policy is enforced through the real
+  // executeNavigateToBank path, not just in the LandingStatus unit.
+  // A Discount run previously logged INIT all-OK while sitting on the
+  // bank's branded 404 and only failed three phases later.
+  it.each([404, 410])('fails when the bank edge serves HTTP %i', async gotoStatus => {
+    const page = makePage({ gotoStatus, url: 'https://bank.co.il' });
+    const ctx = ctxWithPage(page);
+    const result = await executeNavigateToBank(ctx);
+    const isOkTerminal = isOk(result);
+    expect(isOkTerminal).toBe(false);
+    const expectedStatus = String(gotoStatus);
+    if (!result.success) expect(result.errorMessage).toContain(expectedStatus);
+  });
+
+  // A challenge page commits with a non-2xx status before it resolves;
+  // failing INIT there would break a working WAF bypass, so the
+  // pipeline-wide challenge interceptor keeps ownership of these.
+  it.each([403, 429, 503])('still succeeds on challenge-capable HTTP %i', async gotoStatus => {
+    const page = makePage({ gotoStatus, url: 'https://bank.co.il' });
+    const ctx = ctxWithPage(page);
+    const result = await executeNavigateToBank(ctx);
+    const isOkChallenge = isOk(result);
+    expect(isOkChallenge).toBe(true);
   });
 
   it('fails when goto throws', async () => {

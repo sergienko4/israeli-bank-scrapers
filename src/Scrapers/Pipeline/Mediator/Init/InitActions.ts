@@ -30,6 +30,11 @@ import {
   INIT_NAV_COMMIT_TIMEOUT_MS,
 } from '../Timing/TimingConfig.js';
 import { logEnvSnapshot } from './EnvSnapshot.js';
+import {
+  isTerminalLandingStatus,
+  landingFailureMessage,
+  readLandingStatus,
+} from './LandingStatus.js';
 import type {
   IConsoleErrorBuffer,
   IConsoleErrorEntry,
@@ -253,20 +258,48 @@ interface INavCommitInput {
 }
 
 /**
- * Run a single `page.goto` to commit. Extracted from
- * {@link runNavigationAttempt} so the try block has exactly one
- * awaited operation and the rejection is forwarded to the catch
- * cleanly via `return await`.
+ * Decide the INIT outcome from the committed landing status.
+ *
+ * <p>Logs the status on every navigation so a run is classifiable from
+ * the job log alone, then fails only on a terminal status. Extracted so
+ * {@link navigateAndCommit} stays within the function-size cap.
+ *
+ * @param bundle - Pipeline context + page + target URL.
+ * @param status - Landing status from {@link readLandingStatus}.
+ * @returns Same context when the landing is usable, else a typed fail.
+ */
+function commitLandingOutcome(
+  bundle: INavCommitInput,
+  status: number,
+): Procedure<IPipelineContext> {
+  const url = maskVisibleText(bundle.targetUrl);
+  bundle.input.logger.debug({ landingStatus: status, url });
+  if (!isTerminalLandingStatus(status)) return succeed(bundle.input);
+  const reason = landingFailureMessage(status, url);
+  return fail(ScraperErrorTypes.Generic, reason);
+}
+
+/**
+ * Run a single `page.goto` to commit and judge what came back.
+ * Extracted from {@link runNavigationAttempt} so the try block has
+ * exactly one awaited operation and the rejection is forwarded to the
+ * catch cleanly via `return await`.
+ *
+ * <p>The response `page.goto` returns was previously discarded, which
+ * made a bank-served error document indistinguishable from a healthy
+ * homepage; {@link commitLandingOutcome} now judges it.
  *
  * @param bundle - Context + page + bank URL to navigate to.
- * @returns Same context on commit, never returns on rejection (throws).
+ * @returns Context on a usable landing, typed fail on a terminal
+ *          status, and never returns on rejection (throws).
  */
 async function navigateAndCommit(bundle: INavCommitInput): Promise<Procedure<IPipelineContext>> {
-  await bundle.page.goto(bundle.targetUrl, {
+  const response = await bundle.page.goto(bundle.targetUrl, {
     waitUntil: 'commit',
     timeout: INIT_NAV_COMMIT_TIMEOUT_MS,
   });
-  return succeed(bundle.input);
+  const status = readLandingStatus(response);
+  return commitLandingOutcome(bundle, status);
 }
 
 /** Bundle of inputs to {@link handleGotoRejection} (`max-params: 3`). */

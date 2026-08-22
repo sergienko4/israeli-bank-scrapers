@@ -11,6 +11,18 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 | `module` | string | Module/logger name — kebab-cased from `import.meta.url` basename (e.g. `balance-resolve-actions`) or an explicit name passed to `getDebugByName`. NOT the phase name. |
 | `bankAccountTail4` | string | `***NNNN` — last-4 of a bankAccountUniqueId, never the full id |
 
+### Phase-stage records
+
+Every phase emits one record per sub-step (`PRE` / `ACTION` / `POST` / `FINAL`) carrying `phase`, `stage`, and a `result` tag. A failing stage additionally carries the reason, so a red run is diagnosable from the log alone:
+
+| Field | Type | Notes |
+|---|---|---|
+| `result` | string | `ok` / `fail` — the outcome tag |
+| `errorType` | string | Present only on failure. The `ScraperErrorTypes` member from the underlying `IProcedureFailure` |
+| `errorMessage` | string | Present only on failure. Masked through `maskVisibleText` before write |
+
+`traceReason` produces the two failure fields and returns an empty object on success, so callers spread it unconditionally. Before it existed a `fail` tag was terminal but silent — the log said a stage failed and nothing more.
+
 ## Per-phase events
 
 ### INIT

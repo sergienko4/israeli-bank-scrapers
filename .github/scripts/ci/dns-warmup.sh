@@ -66,6 +66,18 @@ probe_status() {
   echo "[diag]  ${host} -> http=${status:-NO_RESPONSE}"
 }
 
+# Report one labelled diagnostic field fetched over HTTP. An endpoint
+# that fails OR answers empty reports UNKNOWN, never a blank value — a
+# blank field is indistinguishable from a field that was never emitted.
+# $1   - field label.
+# $2.. - curl arguments (including the URL).
+report_field() {
+  local label="$1" value
+  shift
+  value=$(curl -s "$@" 2>/dev/null || true)
+  echo "${label}=${value:-UNKNOWN}"
+}
+
 # ── Override resolver ────────────────────────────────────────────
 sudo bash -c 'cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
@@ -214,11 +226,19 @@ for h in "${HOSTS[@]}"; do
 done
 echo ""
 
-# ── Azure runner region (diagnostic) ────────────────────────────
-echo "===Azure runner region==="
-curl -s -m 3 -H Metadata:true \
-  "http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text" \
-  || echo "(metadata endpoint unreachable — non-Azure or restricted)"
+# ── Runner egress identity (diagnostic) ─────────────────────────
+# The region alone does not identify us to a bank edge — reputation is
+# scored against the public IP. Two runs in the SAME region have been
+# observed to disagree (Discount passed and Isracard failed from one
+# westus3 pair), which rules region out as the discriminator and leaves
+# the egress address as the one field we never recorded. Logging it
+# makes `IP -> outcome` correlatable across runs; without it that
+# hypothesis cannot be tested at all. Non-fatal: a blocked lookup must
+# never fail the preflight.
+echo "===Runner egress identity==="
+report_field region -m 3 -H Metadata:true \
+  "http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text"
+report_field egress_ip -m 5 https://api.ipify.org
 echo ""
 
 if [ "$failed" -gt 0 ]; then

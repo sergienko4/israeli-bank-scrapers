@@ -35,7 +35,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { screenshotPath } from '../../Types/RunLabel.js';
 import { buildActionContext } from './ActionContextBuilder.js';
 import { logHandoffSummary } from './HandoffHelpers.js';
-import { PHASE_STAGE_EVENT, traceTag } from './PhaseTrace.js';
+import { PHASE_STAGE_EVENT, traceReason, traceTag } from './PhaseTrace.js';
 
 /** PRE-payload validation outcome — branded for Rule #15. */
 export type IsPrePayloadValid = Brand<boolean, 'IsPrePayloadValid'>;
@@ -416,13 +416,18 @@ abstract class BasePhase {
    * Centralizes the 4-key payload so each runX orchestrator collapses
    * to a single call site (drops 4 lines per stage runner — the lever
    * that brings runPre/runPost/runFinal inside the 10-line cap).
+   *
+   * <p>A FAIL additionally carries its reason via {@link traceReason};
+   * without it a failing stage logged a bare `FAIL` and the cause could
+   * only be recovered from a forensic bundle.
    * @param log - Logger instance.
    * @param stage - Uppercase stage tag emitted on the wire.
    * @param result - Procedure result whose success bit becomes the tag.
    */
   private logStage<T>(log: StageLogger, stage: StageTagUpper, result: Procedure<T>): void {
     const tag = traceTag(result);
-    log.debug({ event: PHASE_STAGE_EVENT, phase: this.name, stage, result: tag });
+    const base = { event: PHASE_STAGE_EVENT, phase: this.name, stage, result: tag };
+    log.debug({ ...base, ...traceReason(result) });
   }
 
   /**

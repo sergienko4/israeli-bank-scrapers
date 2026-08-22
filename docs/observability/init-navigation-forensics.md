@@ -319,6 +319,15 @@ covered by the L7 + ENV envelope described below.
 Treat this envelope as the _first_ triage step: rule transport
 in or out, then move up the stack with the matching envelope.
 
+There is one check that runs **outside** this envelope entirely:
+the landing-status gate. Everything documented on this page fires
+on the failure path, but a bank that answers `404` is a *success*
+as far as `page.goto` is concerned — nothing throws, so none of
+these observers ever run. INIT therefore reads the status off the
+`Response` that `page.goto` returns and fails fast on a terminal
+one. That check is always on, needs no gate, and is described in
+[INIT → Landing status](../phases/init.md#landing-status).
+
 ## L7 page-state envelope (frame tree, console errors, landing response)
 
 The failure snapshot is extended with three L7 fields that capture

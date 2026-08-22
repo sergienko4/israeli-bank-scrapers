@@ -631,6 +631,31 @@ assert_eq "a failed probe never aborts the preflight" "0" \
   "$( ( set -e; probe_status bank.example ) >/dev/null 2>&1; echo $? )"
 unset -f curl
 
+# Region alone never identified us to a bank edge — two runs in the same
+# region disagreed — so the egress IP is logged beside it. A field that
+# fails or answers empty must read UNKNOWN: a blank value cannot be told
+# apart from a field that was never emitted, which is exactly the
+# ambiguity that made the region log unusable on its own.
+eval "$(sed -n '/^report_field()/,/^}/p' "$REPO_ROOT/.github/scripts/ci/dns-warmup.sh")"
+
+curl() { echo "20.51.1.2"; }
+assert_eq "a reachable field is reported with its value" \
+  "egress_ip=20.51.1.2" "$(report_field egress_ip https://example.invalid)"
+
+curl() { echo ""; }
+assert_eq "an empty field reads UNKNOWN, not blank" \
+  "egress_ip=UNKNOWN" "$(report_field egress_ip https://example.invalid)"
+
+curl() { return 7; }
+assert_eq "a failed field lookup reads UNKNOWN" \
+  "region=UNKNOWN" "$(report_field region https://example.invalid)"
+
+# Same non-fatal contract as the reachability probe: identity is a
+# diagnostic, and a blocked lookup must never fail the preflight.
+assert_eq "a failed field lookup never aborts the preflight" "0" \
+  "$( ( set -e; report_field region https://example.invalid ) >/dev/null 2>&1; echo $? )"
+unset -f curl
+
 # ── Final summary ──
 echo ""
 echo "Smoke test summary: ${PASS} passed, ${FAIL} failed"
