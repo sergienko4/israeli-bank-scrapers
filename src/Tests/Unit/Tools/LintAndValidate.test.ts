@@ -208,6 +208,48 @@ describe('issuesFromCode — Rule #10 Playwright leak', () => {
     const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
     expect(r10.length).toBe(0);
   });
+
+  // The specifier every Phase file actually uses is `playwright-core`, not
+  // `playwright`. Until these cases existed, the rule and its tests agreed
+  // with each other about a specifier no source file imports, so the gate
+  // reported green while guarding nothing.
+  it('flags a value import of playwright-core in a Phase file', () => {
+    const code = "import { chromium } from 'playwright-core';\n";
+    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
+    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
+    expect(r10.length).toBe(1);
+  });
+
+  it('flags a bare side-effect import of playwright-core in a Phase file', () => {
+    const code = "import 'playwright-core';\n";
+    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
+    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
+    expect(r10.length).toBe(1);
+  });
+
+  // Type-only imports are erased at compile time and carry no runtime
+  // coupling; a Phase naming `Page` in a signature is legitimate. Banning
+  // them would flag five existing files for no safety gain.
+  it('does NOT flag a type-only import of playwright-core in a Phase file', () => {
+    const code = "import type { Page } from 'playwright-core';\n";
+    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
+    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
+    expect(r10.length).toBe(0);
+  });
+
+  it('does NOT flag a type-only import of playwright in a Phase file', () => {
+    const code = "import type { Page } from 'playwright';\n";
+    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
+    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
+    expect(r10.length).toBe(0);
+  });
+
+  it('does NOT flag playwright-core value imports outside Phase scope', () => {
+    const code = "import { chromium } from 'playwright-core';\n";
+    const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
+    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
+    expect(r10.length).toBe(0);
+  });
 });
 
 describe('loadAllowlist', () => {

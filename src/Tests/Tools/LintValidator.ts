@@ -209,8 +209,16 @@ const S3735_CANARY_RE = /^\s*void\s+\w/gm;
 const SKIPPED_TEST_RE = /(?:^|\s)(?:it|describe|test)\.skip\(/gm;
 /** Regex: a `#nnn` issue reference near a skipped test, used as rationale. */
 const SKIP_RATIONALE_RE = /\/\/[^\n]*#\d+/;
-/** Regex: Playwright import in a Phase file. */
-const PLAYWRIGHT_IMPORT_RE = /from ['"]playwright['"]/;
+/**
+ * Regex: a runtime (value) Playwright import in a Phase file.
+ *
+ * Matches both the `playwright` and `playwright-core` specifiers — this fork
+ * imports the latter, so a rule anchored to the bare name guards nothing.
+ * `import type` is deliberately excluded: it is erased at compile time and
+ * creates no runtime coupling, so a Phase naming `Page` in a signature is
+ * legitimate. Only a value import can actually drag the driver into a Phase.
+ */
+const PLAYWRIGHT_IMPORT_RE = /^\s*import\b(?!\s+type\b)[^;]*?['"]playwright(?:-core)?['"]/m;
 /** Regex: call positions at line start — execute/fetch/run/step family. */
 const CALL_POS_RE = /^.*(?:execute|fetch|run|step)\w+\(/gm;
 /** Regex: name of the called function. */
