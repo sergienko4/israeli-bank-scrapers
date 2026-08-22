@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.6.9](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.8...v8.6.9) (2026-08-22)
+
+
+### Bug Fixes
+
+* **lint:** repair Playwright guard and remove layer inversion ([#495](https://github.com/sergienko4/israeli-bank-scrapers/issues/495)) ([3e2a907](https://github.com/sergienko4/israeli-bank-scrapers/commit/3e2a907df300ee1c7d661c23f64c7ecbdbebde12))
+
 ## [8.6.8](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.7...v8.6.8) (2026-08-22)
 
 
