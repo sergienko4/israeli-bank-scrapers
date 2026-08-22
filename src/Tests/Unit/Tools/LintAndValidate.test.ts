@@ -194,61 +194,64 @@ describe('issuesFromCode — [Async] check', () => {
   });
 });
 
+// The specifier every Phase file actually uses is `playwright-core`, not
+// `playwright`. Until the `playwright-core` rows existed, the rule and its
+// tests agreed with each other about a specifier no source file imports, so
+// the gate reported green while guarding nothing.
+//
+// Type-only imports are erased at compile time and carry no runtime coupling;
+// a Phase naming `Page` in a signature is legitimate. Banning them would flag
+// five existing files for no safety gain — hence the `expected: 0` rows.
+const RULE_10_CASES = [
+  {
+    label: 'value import of playwright, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "import { Page } from 'playwright';\n",
+    expected: 1,
+  },
+  {
+    label: 'value import of playwright-core, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "import { chromium } from 'playwright-core';\n",
+    expected: 1,
+  },
+  {
+    label: 'side-effect import of playwright-core, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "import 'playwright-core';\n",
+    expected: 1,
+  },
+  {
+    label: 'type-only import of playwright-core, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "import type { Page } from 'playwright-core';\n",
+    expected: 0,
+  },
+  {
+    label: 'type-only import of playwright, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "import type { Page } from 'playwright';\n",
+    expected: 0,
+  },
+  {
+    label: 'value import of playwright, non-Phase',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { Page } from 'playwright';\n",
+    expected: 0,
+  },
+  {
+    label: 'value import of playwright-core, non-Phase',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { chromium } from 'playwright-core';\n",
+    expected: 0,
+  },
+];
+
 describe('issuesFromCode — Rule #10 Playwright leak', () => {
-  it('flags playwright imports in a Phase file', () => {
-    const code = "import { Page } from 'playwright';\n";
-    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
+  it.each(RULE_10_CASES)('$label → $expected issue(s)', ({ file, code, expected }) => {
+    const issues = issuesFromCode(file, code, new Map());
     const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
-    expect(r10.length).toBe(1);
-  });
-
-  it('does NOT flag playwright imports in non-Phase pipeline files', () => {
-    const code = "import { Page } from 'playwright';\n";
-    const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
-    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
-    expect(r10.length).toBe(0);
-  });
-
-  // The specifier every Phase file actually uses is `playwright-core`, not
-  // `playwright`. Until these cases existed, the rule and its tests agreed
-  // with each other about a specifier no source file imports, so the gate
-  // reported green while guarding nothing.
-  it('flags a value import of playwright-core in a Phase file', () => {
-    const code = "import { chromium } from 'playwright-core';\n";
-    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
-    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
-    expect(r10.length).toBe(1);
-  });
-
-  it('flags a bare side-effect import of playwright-core in a Phase file', () => {
-    const code = "import 'playwright-core';\n";
-    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
-    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
-    expect(r10.length).toBe(1);
-  });
-
-  // Type-only imports are erased at compile time and carry no runtime
-  // coupling; a Phase naming `Page` in a signature is legitimate. Banning
-  // them would flag five existing files for no safety gain.
-  it('does NOT flag a type-only import of playwright-core in a Phase file', () => {
-    const code = "import type { Page } from 'playwright-core';\n";
-    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
-    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
-    expect(r10.length).toBe(0);
-  });
-
-  it('does NOT flag a type-only import of playwright in a Phase file', () => {
-    const code = "import type { Page } from 'playwright';\n";
-    const issues = issuesFromCode(SYNTHETIC_PHASE, code, new Map());
-    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
-    expect(r10.length).toBe(0);
-  });
-
-  it('does NOT flag playwright-core value imports outside Phase scope', () => {
-    const code = "import { chromium } from 'playwright-core';\n";
-    const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
-    const r10 = issues.filter((i): boolean => i.rule === 'Rule #10');
-    expect(r10.length).toBe(0);
+    expect(r10).toHaveLength(expected);
   });
 });
 
