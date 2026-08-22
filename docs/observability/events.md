@@ -17,7 +17,7 @@ Every phase emits one record per sub-step (`PRE` / `ACTION` / `POST` / `FINAL`) 
 
 | Field | Type | Notes |
 |---|---|---|
-| `result` | string | `ok` / `fail` — the outcome tag |
+| `result` | string | `OK` / `FAIL` — the outcome tag (uppercase, as emitted by `traceTag`) |
 | `errorType` | string | Present only on failure. The `ScraperErrorTypes` member from the underlying `IProcedureFailure` |
 | `errorMessage` | string | Present only on failure. Masked through `maskVisibleText` before write |
 

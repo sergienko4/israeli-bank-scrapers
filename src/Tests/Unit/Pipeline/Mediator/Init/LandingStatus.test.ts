@@ -9,6 +9,7 @@
 
 import type { Response } from 'playwright-core';
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   isTerminalLandingStatus,
   landingFailureMessage,
@@ -56,6 +57,44 @@ describe('readLandingStatus', () => {
     const malformed = { status: 'not-a-function' } as unknown as Response;
     const status = readLandingStatus(malformed);
     expect(status).toBe(0);
+  });
+
+  // Same reasoning one level deeper: the method may exist and still
+  // throw (a disposed channel, for one). An escaping throw would be
+  // caught by the navigation handler and reported as a nav failure.
+  it('reports the sentinel when the response status method throws', () => {
+    /**
+     * Fail the way a disposed driver channel does.
+     * @returns Never — always throws.
+     */
+    const throwingStatus = (): number => {
+      throw new ScraperError('Target page, context or browser has been closed');
+    };
+    const hostile = { status: throwingStatus } as unknown as Response;
+    const status = readLandingStatus(hostile);
+    expect(status).toBe(0);
+  });
+
+  // `status()` is read off the response object, so it must stay bound to
+  // it — a bare function reference would lose `this` and throw inside a
+  // real driver. Modelled as a class because that is what the driver
+  // hands back: a method that resolves its answer through `this`.
+  it('preserves the response as the receiver when reading the status', () => {
+    /** Driver-shaped response that resolves its status through `this`. */
+    class DriverResponse {
+      public readonly code: number = 410;
+
+      /**
+       * Report the status through `this`, as a real driver does.
+       * @returns The owning instance's status code.
+       */
+      public status(): number {
+        return this.code;
+      }
+    }
+    const response = new DriverResponse() as unknown as Response;
+    const status = readLandingStatus(response);
+    expect(status).toBe(410);
   });
 
   it('reports the sentinel when status() yields a non-number', () => {

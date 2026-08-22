@@ -621,6 +621,14 @@ curl() { echo ""; }
 assert_eq "a silent origin is reported as NO_RESPONSE" \
   "[diag]  bank.example -> http=NO_RESPONSE" "$(probe_status bank.example)"
 
+# curl reports an unreachable origin as the sentinel `000`, not as an
+# empty string, so the `${status:-...}` default never fires for it. Left
+# unnormalised the log reads `http=000`, which looks like a status the
+# edge returned rather than a connection that never happened.
+curl() { echo "000"; }
+assert_eq "an unreachable origin is reported as NO_RESPONSE, not 000" \
+  "[diag]  bank.example -> http=NO_RESPONSE" "$(probe_status bank.example)"
+
 # It is a diagnostic, not a gate: a bank that blocks the probe but serves
 # the browser must never fail the preflight. The subshell re-enables the
 # `set -e` the real script runs under — without it a failed assignment

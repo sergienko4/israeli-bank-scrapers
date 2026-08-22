@@ -57,12 +57,16 @@ DIAG_USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefo
 
 # Report one host's first-hop HTTP status. An origin that answers
 # nothing is reported as NO_RESPONSE rather than an empty field, so the
-# line is never ambiguous in a job log.
+# line is never ambiguous in a job log. curl prints the sentinel `000`
+# (not an empty string) when the connection never produced a response,
+# so it is normalised here too — otherwise `http=000` would read like a
+# status the edge actually returned.
 # $1 - hostname to probe.
 probe_status() {
   local host="$1" status
   status=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
     -A "$DIAG_USER_AGENT" "https://${host}/" 2>/dev/null || true)
+  if [ "$status" = '000' ]; then status=''; fi
   echo "[diag]  ${host} -> http=${status:-NO_RESPONSE}"
 }
 

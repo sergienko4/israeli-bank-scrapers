@@ -22,6 +22,28 @@ type IsTerminalLanding = Brand<boolean, 'IsTerminalLanding'>;
 type LandingFailureText = Brand<string, 'LandingFailureText'>;
 
 /**
+ * Invoke a response's `status()` and normalise whatever comes back.
+ *
+ * <p>A driver method is not obliged to be total. Playwright can throw
+ * when the underlying channel is already disposed, and this runs on the
+ * INIT success path for every bank, so an escaping throw would be caught
+ * by the navigation handler and reported as "navigation failed" — the
+ * phantom failure this module exists to remove. A throw and a
+ * non-numeric answer are equally unusable, so both read as the sentinel.
+ *
+ * @param status - Bound `status` method from the candidate response.
+ * @returns The reported status, or {@link NO_LANDING_STATUS}.
+ */
+function callStatus(status: () => unknown): LandingStatus {
+  try {
+    const reported: unknown = status();
+    return typeof reported === 'number' ? (reported as LandingStatus) : NO_LANDING_STATUS;
+  } catch {
+    return NO_LANDING_STATUS;
+  }
+}
+
+/**
  * Read the HTTP status of the committed landing document.
  *
  * <p>Takes `unknown` deliberately. This runs on the critical path of
@@ -41,8 +63,8 @@ export function readLandingStatus(response: unknown): LandingStatus {
   if (response === null || typeof response !== 'object') return NO_LANDING_STATUS;
   const candidate = response as { status?: () => unknown };
   if (typeof candidate.status !== 'function') return NO_LANDING_STATUS;
-  const status: unknown = candidate.status();
-  return typeof status === 'number' ? (status as LandingStatus) : NO_LANDING_STATUS;
+  const boundStatus = candidate.status.bind(response);
+  return callStatus(boundStatus);
 }
 
 /**

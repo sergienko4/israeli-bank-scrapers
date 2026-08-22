@@ -54,6 +54,6 @@ navigation, unlike the opt-in forensics envelope described in
 | Symptom | Likely cause |
 |---|---|
 | `TIMEOUT` | Bank URL unreachable; increase `defaultTimeout` |
-| `GENERIC` "landing status" | The bank served 404/410 at `loginUrl` — the entry URL moved, or the bank's edge is serving a branded not-found page to this egress IP |
+| `GENERIC` "bank edge served HTTP ..." | The bank served 404/410 at `loginUrl` — the entry URL moved, or the bank's edge is serving a branded not-found page to this egress IP |
 | `WAF_BLOCKED` | Cloudflare challenge at the landing page — see [README → WAF Troubleshooting](https://github.com/sergienko4/israeli-bank-scrapers#error-types) |
 | `GENERIC` "companyId not registered" | The bank is legacy-only — falls back to `SCRAPER_REGISTRY` automatically; if you see this on a Pipeline-registered bank, the registry got out of sync |
