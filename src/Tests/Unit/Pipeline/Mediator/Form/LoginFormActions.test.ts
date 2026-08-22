@@ -492,3 +492,147 @@ describe('fillFromDiscovery', () => {
     expect(result.success).toBe(false);
   });
 });
+
+/** Two-field config, mirroring the shape every real bank declares. */
+const TWO_FIELD_CONFIG: ILoginConfig = {
+  ...CONFIG,
+  fields: [
+    { credentialKey: 'username', selectors: [] },
+    { credentialKey: 'password', selectors: [] },
+  ],
+};
+
+/** Canned resolved target reused across completeness cases. */
+const TARGET: IResolvedTarget = {
+  selector: '#u',
+  contextId: 'main',
+  kind: 'css',
+  candidateValue: '#u',
+};
+
+/**
+ * Build a discovery whose targets carry exactly the supplied keys.
+ * @param keys - Credential keys discovery managed to resolve.
+ * @returns Discovery stub with a submit target absent.
+ */
+function makeDiscovery(keys: readonly string[]): ILoginFieldDiscovery {
+  const entries = keys.map((key): readonly [string, IResolvedTarget] => [key, TARGET]);
+  return {
+    activeFrameId: 'main',
+    targets: new Map(entries),
+    submitTarget: { has: false },
+  } as unknown as ILoginFieldDiscovery;
+}
+
+/** Credentials covering both declared fields, so only resolution can fail. */
+const BOTH_CREDS = { username: 'u', password: 'p' };
+
+/** Shape of the structured record emitted when a declared field is unresolved. */
+interface IUnresolvedEvent {
+  readonly event: string;
+  readonly resolved: number;
+  readonly declared: number;
+}
+
+describe('fillFromDiscovery completeness assertion', () => {
+  it('succeeds when every declared field resolved', async () => {
+    const result = await fillFromDiscovery({
+      discovery: makeDiscovery(['username', 'password']),
+      executor: makeActionExecutor(),
+      config: TWO_FIELD_CONFIG,
+      creds: BOTH_CREDS,
+      logger: LOG,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('fails naming the field when one declared field never resolved', async () => {
+    const result = await fillFromDiscovery({
+      discovery: makeDiscovery(['username']),
+      executor: makeActionExecutor(),
+      config: TWO_FIELD_CONFIG,
+      creds: BOTH_CREDS,
+      logger: LOG,
+    });
+    expect(result.success).toBe(false);
+    expect(result).toHaveProperty('errorMessage', 'Login field not found on page: password');
+  });
+
+  it('fails when discovery resolved nothing at all', async () => {
+    const result = await fillFromDiscovery({
+      discovery: makeDiscovery([]),
+      executor: makeActionExecutor(),
+      config: TWO_FIELD_CONFIG,
+      creds: BOTH_CREDS,
+      logger: LOG,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('never fills when a declared field is unresolved', async () => {
+    let fillCount = 0;
+    const executor = makeActionExecutor({
+      /**
+       * Count fills so the short-circuit before the reducer is proven.
+       * @returns Resolved true.
+       */
+      fillInput: (): Promise<true> => {
+        fillCount += 1;
+        return Promise.resolve(true);
+      },
+    });
+    await fillFromDiscovery({
+      discovery: makeDiscovery(['username']),
+      executor,
+      config: TWO_FIELD_CONFIG,
+      creds: BOTH_CREDS,
+      logger: LOG,
+    });
+    expect(fillCount).toBe(0);
+  });
+
+  it('separates an unresolved field from a missing credential', async () => {
+    const unresolved = await fillFromDiscovery({
+      discovery: makeDiscovery(['username']),
+      executor: makeActionExecutor(),
+      config: TWO_FIELD_CONFIG,
+      creds: BOTH_CREDS,
+      logger: LOG,
+    });
+    const uncredentialed = await fillFromDiscovery({
+      discovery: makeDiscovery(['username', 'password']),
+      executor: makeActionExecutor(),
+      config: TWO_FIELD_CONFIG,
+      creds: { username: 'u' },
+      logger: LOG,
+    });
+    expect(unresolved).toHaveProperty('errorMessage', 'Login field not found on page: password');
+    expect(uncredentialed).toHaveProperty('errorMessage', 'Missing credentials: password');
+  });
+
+  it('emits login.fields_unresolved with resolved and declared counts', async () => {
+    const events: IUnresolvedEvent[] = [];
+    const logger = {
+      ...LOG,
+      /**
+       * Capture the structured failure payload for assertion.
+       * @param payload - Structured log record.
+       * @returns True.
+       */
+      error: (payload: IUnresolvedEvent): boolean => {
+        events.push(payload);
+        return true;
+      },
+    } as unknown as ScraperLogger;
+    await fillFromDiscovery({
+      discovery: makeDiscovery(['username']),
+      executor: makeActionExecutor(),
+      config: TWO_FIELD_CONFIG,
+      creds: BOTH_CREDS,
+      logger,
+    });
+    expect(events[0]?.event).toBe('login.fields_unresolved');
+    expect(events[0]?.resolved).toBe(1);
+    expect(events[0]?.declared).toBe(2);
+  });
+});

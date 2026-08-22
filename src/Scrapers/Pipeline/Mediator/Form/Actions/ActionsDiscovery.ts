@@ -45,6 +45,13 @@ interface IValidateArgs {
   readonly creds: Record<string, string>;
 }
 
+/** Bundled args for the discovery-completeness assertion. */
+interface IAssertResolvedArgs {
+  readonly entries: DiscoveryEntries;
+  readonly config: IFillFromDiscoveryArgs['config'];
+  readonly logger: ScraperLogger;
+}
+
 /** Bundled args for one reducer step in the discovery fill chain. */
 interface IProcessEntryArgs {
   readonly args: IFillFromDiscoveryArgs;
@@ -123,6 +130,46 @@ function validateDiscoveryCredentials(p: IValidateArgs): Procedure<boolean> {
   return fail(ScraperErrorTypes.Generic, `Missing credential: ${missingKey}`);
 }
 
+/** Sentinel returned when every field the bank declares resolved to a target. */
+const NO_UNRESOLVED_FIELD = '';
+
+/**
+ * Find the first field the bank declares that discovery never resolved.
+ * Extracted from {@link assertEveryFieldResolved} for cap drain.
+ * @param p - Bundled `entries` + `config`.
+ * @returns Credential key of the first unresolved field, or `''` when complete.
+ */
+function findUnresolvedFieldKey(p: IAssertResolvedArgs): string {
+  const resolvedKeys = p.entries.map(([key]): string => key);
+  const resolved = new Set(resolvedKeys);
+  const missing = p.config.fields.find((f): boolean => !resolved.has(f.credentialKey));
+  if (!missing) return NO_UNRESOLVED_FIELD;
+  return missing.credentialKey;
+}
+
+/**
+ * Assert every field the bank declares resolved to a fillable target.
+ *
+ * <p>{@link validateDiscoveryCredentials} only checks that a credential value
+ * exists for each field that DID resolve, so it cannot see a field that never
+ * resolved at all. A page carrying none of the expected inputs — a maintenance
+ * screen, an unexpected interstitial, a redesigned form — therefore yielded an
+ * empty entry list, filled nothing, clicked submit, and reported success. The
+ * run then died several phases later on an unrelated network error, with the
+ * real cause invisible. Every login field is required (no bank declares an
+ * optional one), so an incomplete discovery is always a failed login.
+ * @param p - Bundled `entries` + `config` + `logger`.
+ * @returns Succeed(true) when complete; a loud failure naming the field otherwise.
+ */
+function assertEveryFieldResolved(p: IAssertResolvedArgs): Procedure<boolean> {
+  const unresolved = findUnresolvedFieldKey(p);
+  if (unresolved === NO_UNRESOLVED_FIELD) return succeed(true);
+  const field = maskVisibleText(unresolved);
+  const counts = { resolved: p.entries.length, declared: p.config.fields.length };
+  p.logger.error({ event: 'login.fields_unresolved', field, ...counts });
+  return fail(ScraperErrorTypes.Generic, `Login field not found on page: ${unresolved}`);
+}
+
 /**
  * Build the per-field bundle for one discovery entry. Extracted from
  * {@link processDiscoveryEntry} to keep that function ≤10 LoC by
@@ -184,6 +231,8 @@ async function runDiscoveryReducer(p: IRunReducerArgs): Promise<Procedure<boolea
  */
 async function fillFieldsFromDiscovery(args: IFillFromDiscoveryArgs): Promise<Procedure<boolean>> {
   const entries = [...args.discovery.targets.entries()];
+  const complete = assertEveryFieldResolved({ entries, config: args.config, logger: args.logger });
+  if (!complete.success) return complete;
   const validation = validateDiscoveryCredentials({ entries, creds: args.creds });
   if (!validation.success) return validation;
   return runDiscoveryReducer({ args, entries });

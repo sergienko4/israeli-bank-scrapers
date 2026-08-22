@@ -26,6 +26,7 @@ Every phase emits structured Pino records. Each record carries an `event` field 
 | Event | Level | Fired when |
 |---|---|---|
 | `login.field.resolved` | debug | One credential field resolved via SelectorResolver |
+| `login.fields_unresolved` | error | A field the bank declares never resolved; LOGIN fails here rather than filling nothing and reporting success |
 | `login.field_not_form_control` | warn | A field resolved to an element that cannot hold text (e.g. an `<a>`); the resolution is dropped rather than filled silently |
 | `login.field_collision` | warn | A field resolved to an element another field already claimed; the later resolution is dropped |
 | `login.submit` | info | Submit button clicked |

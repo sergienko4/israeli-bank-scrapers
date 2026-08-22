@@ -2,9 +2,10 @@
  * Form-control guard for resolved field targets.
  *
  * A `textContent` candidate resolves by finding visible text and walking up to the
- * nearest interactive ancestor. On a marketing page that ancestor can be an anchor
- * rather than the credential box — Yahav's public homepage carries a
- * "תעודת זהות" link, which the walk-up happily returns as
+ * nearest interactive ancestor. When the page is not the expected login form — a
+ * maintenance screen, an interstitial, a redesigned layout — that ancestor can be an
+ * anchor rather than the credential box. Yahav served exactly this during a
+ * maintenance window: a "תעודת זהות" link that the walk-up returned as
  * `xpath=//a[.//text()[contains(., "תעודת זהות")]]`.
  *
  * Accepting a non-fillable element is silent: the later `.fill()` writes nothing,

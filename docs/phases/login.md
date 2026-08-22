@@ -26,13 +26,18 @@ Once the first field is resolved, **FormAnchor** scopes the remaining fields to 
 
 A field that resolves to the *wrong* element fails silently: `.fill()` writes nothing,
 the form stays client-side invalid, the submit click is a no-op, and the run ends with no
-warning and no error. Three guards convert each of those into a loud, greppable WARN.
+warning and no error. Four guards convert each of those into a loud, greppable failure.
 
 | Guard | Rejects | Event |
 |---|---|---|
-| `rejectNonFormControl` | An element that cannot hold text — strategy 2 walks up to the nearest *interactive* ancestor, which on a marketing or interstitial page can be an `<a>` or `<div>` | `login.field_not_form_control` |
+| `assertEveryFieldResolved` | A login where any field the bank declares never resolved — the page is not the expected form (maintenance screen, interstitial, redesign) | `login.fields_unresolved` |
+| `rejectNonFormControl` | An element that cannot hold text — strategy 2 walks up to the nearest *interactive* ancestor, which on a non-form page can be an `<a>` or `<div>` | `login.field_not_form_control` |
 | `rejectClaimedTarget` / `findClaimingField` | An element a previously resolved field already claimed, so a positional fallback cannot overwrite a semantically-resolved field | `login.field_collision` |
 | `LOGIN_FIELD_RERESOLVE_WAIT` | Nothing — it *retries*. Some banks reveal the second credential input only after the first renders, so the probe polls for the hot-path anchor and returns the moment it appears | — |
+
+Every login field is required — no bank declares an optional one — so an incomplete
+discovery is always a failed login, and `assertEveryFieldResolved` fails LOGIN where the
+evidence is rather than letting a later phase die on an unrelated error.
 
 `rejectNonFormControl` runs only on the credential-field seam, never on buttons or nav
 links, which legitimately resolve to `<a>`/`<button>`. Its predicate is tag-level
