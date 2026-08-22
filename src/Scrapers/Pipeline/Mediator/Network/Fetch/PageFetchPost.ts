@@ -9,7 +9,7 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
-import { JSON_CONTENT_TYPE } from '../FetchConfig.js';
+import { JSON_CONTENT_TYPE, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
 import type { JsonValue } from './Headers.js';
 import { LOG, logApiCall, logResponseIssues } from './Logging.js';
 import { parsePostResult } from './ParseResult.js';
@@ -26,11 +26,15 @@ interface IPostEvaluateArgs {
   innerUrl: string;
   innerDataJson: string;
   innerExtraHeaders: Record<string, string>;
+  timeoutMs: number;
 }
 
 /**
  * POST fetch inside the browser context (cookies + CORS handled by browser).
- * @param args - The URL, data, and extra headers.
+ *
+ * Serialised into the page, so it may reference only its argument and browser
+ * globals; the timeout arrives as data rather than a closed-over import.
+ * @param args - The URL, data, extra headers, and abort budget.
  * @returns [responseText, statusCode].
  */
 async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, number]> {
@@ -42,14 +46,12 @@ async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, n
   // live evidence: run 15-05-2026 — hardcoded `Content-Type`
   // value collided with captured `content-type`; only the
   // captured value gets the API to 200.
-  const response = await fetch(args.innerUrl, {
-    method: 'POST',
-    body: args.innerDataJson,
-    credentials: 'include',
-    headers: { ...args.innerExtraHeaders },
-  });
-  if (response.status === 204) return ['', 204] as const;
-  return [await response.text(), response.status] as const;
+  const headers = { ...args.innerExtraHeaders };
+  const signal = AbortSignal.timeout(args.timeoutMs);
+  const init = { method: 'POST', body: args.innerDataJson, credentials: 'include' as const };
+  const response = await fetch(args.innerUrl, { ...init, headers, signal });
+  const text = response.status === 204 ? '' : await response.text();
+  return [text, response.status] as const;
 }
 
 /** Pino payload shape for the doPostFetch.headers diagnostic. */
@@ -154,7 +156,8 @@ function withJsonContentType(extraHeaders?: Record<string, string>): Record<stri
  */
 function buildPostArgs(url: string, opts: IFetchPostOptions): IPostEvaluateArgs {
   const innerExtraHeaders = withJsonContentType(opts.extraHeaders);
-  return { innerUrl: url, innerDataJson: JSON.stringify(opts.data), innerExtraHeaders };
+  const innerDataJson = JSON.stringify(opts.data);
+  return { innerUrl: url, innerDataJson, innerExtraHeaders, timeoutMs: NETWORK_FETCH_TIMEOUT_MS };
 }
 
 /** Bundled args for {@link finalisePagePost} — keeps the sig under max-params. */
