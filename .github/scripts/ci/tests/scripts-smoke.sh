@@ -43,9 +43,9 @@ assert_eq() {
 }
 
 # ── 1. shellcheck ──
-echo "── 1/9: shellcheck ──"
+echo "── 1/10: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh verify-npm-publish.sh; do
+  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh verify-npm-publish.sh dns-warmup.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"
@@ -64,7 +64,7 @@ fi
 # hold the job's concurrency.group slot (per CR review on PR #300;
 # `actions/cache`-backed timestamps were PR-branch scoped and could
 # not enforce repo-wide cross-PR cooldown).
-echo "── 2/9: token cache encrypt/decrypt roundtrip ──"
+echo "── 2/10: token cache encrypt/decrypt roundtrip ──"
 if ! command -v gpg >/dev/null 2>&1; then
   echo "  ! gpg not installed — skipping roundtrip"
 else
@@ -115,7 +115,7 @@ fi
 # ── 3. docs-site link guard ──
 # Behavioural test, not just shellcheck: the guard's whole value is that
 # it FAILS on a link with no backing page, so assert both directions.
-echo "── 3/9: docs-site link guard ──"
+echo "── 3/10: docs-site link guard ──"
 GUARD="$SCRIPT_DIR/check-docs-links.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -154,7 +154,7 @@ assert_eq "README restored after negative test" "1" "$guard_restored"
 # its exit status is what stops a red merge looking green. Assert the verdict
 # in both directions, plus the release wording that distinguishes "shipped"
 # from "only refreshed the Release PR".
-echo "── 4/9: post-merge pipeline summary ──"
+echo "── 4/10: post-merge pipeline summary ──"
 SUMMARY="$SCRIPT_DIR/pipeline-summary.sh"
 SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/pipeline-summary-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE"' EXIT
@@ -195,7 +195,7 @@ assert_eq "failed scan exits non-zero" "1" "$scan_fail_exit"
 # sides of the limit. The "not measured" path matters just as much: a
 # measurement that did not happen must never be reported as a 0 MB win, and
 # must never fail a PR for a reason the author cannot act on.
-echo "── 5/9: memory regression verdict ──"
+echo "── 5/10: memory regression verdict ──"
 MEMCMP="$SCRIPT_DIR/memory-compare.sh"
 MEM_FILE="$(mktemp "${TMPDIR:-/tmp}/memory-compare-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"' EXIT
@@ -255,7 +255,7 @@ assert_eq "the delta percentage is shown" "1" "$pct_shown"
 # strengthening must pass. The distinction between "could not measure"
 # (skip, exit 0) and "measured garbage" (fail loudly, exit 2) is asserted
 # too — collapsing the two would let a broken tool disable the gate.
-echo "── 6/9: decoupling regression verdict ──"
+echo "── 6/10: decoupling regression verdict ──"
 DECCMP="$SCRIPT_DIR/decoupling-compare.sh"
 DEC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/decoupling-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR"' EXIT
@@ -337,7 +337,7 @@ fi
 
 # ── 7. cited-path gate ──
 echo ""
-echo "── 7/9: cited-path gate ──"
+echo "── 7/10: cited-path gate ──"
 DOC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/doc-paths-smoke.XXXXXX")"
 trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR" "$DOC_DIR"' EXIT
 
@@ -447,7 +447,7 @@ fi
 
 # ── 8. bot-PR exemption ──
 echo ""
-echo "── 8/9: bot-PR exemption ──"
+echo "── 8/10: bot-PR exemption ──"
 if ! command -v node >/dev/null 2>&1; then
   echo "  ⚠ node not found — skipping bot-exemption tests"
 else
@@ -478,7 +478,7 @@ fi
 # can actually install this". It can't be pointed at the live registry from CI
 # or from a machine behind a proxy, so the package document is served from a
 # fixture through a stub `curl` on PATH — the script itself runs unmodified.
-echo "── 9/9: npm publish verification ──"
+echo "── 9/10: npm publish verification ──"
 NPM_TMP="$(mktemp -d)"
 mkdir -p "$NPM_TMP/bin"
 cat > "$NPM_TMP/bin/curl" <<'STUB_CURL'
@@ -526,6 +526,63 @@ assert_eq "a version the registry does not serve as latest fails" "1" \
   "$(run_verify "$NPM_TMP/stale.json")"
 
 rm -rf "$NPM_TMP"
+
+# ── 10. DNS warm-up host extraction ──
+echo "── 10/10: DNS warm-up host extraction ──"
+
+# dns-warmup.sh runs BEFORE `npm install`, so it reads the bank registry
+# with awk/grep/sed instead of importing TypeScript. That puts its
+# extractors out of reach of both tsc and jest, and a silently-skipped
+# host is not a loud failure — it surfaces much later as the browser
+# failing to resolve an auth origin (NS_ERROR_UNKNOWN_HOST) mid-login.
+#
+# These assertions eval the REAL functions straight out of the shipped
+# script, so the test cannot drift away from what CI actually runs.
+DNS_SCRIPT="$SCRIPT_DIR/dns-warmup.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+CONFIG_DIR="${REPO_ROOT}/src/Scrapers/Pipeline/Registry/Config"
+CONFIG_FILE="${CONFIG_DIR}/PipelineBankConfig.ts"
+HOSTS_FILE="${CONFIG_DIR}/PipelineBankHosts.ts"
+
+eval "$(sed -n '/^bank_block()/,/^}/p' "$DNS_SCRIPT")"
+eval "$(sed -n '/^to_hostnames()/,/^}/p' "$DNS_SCRIPT")"
+eval "$(sed -n '/^extra_hosts()/,/^}/p' "$DNS_SCRIPT")"
+
+# Every host the warm-up loop would resolve for one bank: the base URL
+# extracted from its registry block, unioned with its declared extras.
+warm_set() {
+  { bank_block "$1" | to_hostnames; extra_hosts "$1"; } | grep -v '^$' | sort -u
+}
+
+contains() {
+  if printf '%s\n' "$2" | grep -qx "$1"; then echo "yes"; else echo "no"; fi
+}
+
+YAHAV_HOSTS="$(warm_set Yahav)"
+# Regression guard for the CI outage: Yahav's login iframe origin is set
+# at runtime by the marketing page, so it appears in no source file and
+# cannot be auto-extracted. It has to come from the manifest.
+assert_eq "Yahav warms its runtime-only login iframe origin" "yes" \
+  "$(contains login.yahav.co.il "$YAHAV_HOSTS")"
+
+VISACAL_HOSTS="$(warm_set VisaCal)"
+assert_eq "VisaCal warms its own apex" "yes" \
+  "$(contains www.cal-online.co.il "$VISACAL_HOSTS")"
+# The previous fixed-window `grep -A 2` read past the end of short
+# entries into the next bank, so VisaCal inherited Amex's apex.
+assert_eq "VisaCal does not bleed the neighbouring Amex apex" "no" \
+  "$(contains www.americanexpress.co.il "$VISACAL_HOSTS")"
+
+# A bank whose whole flow lives on urls.base has no manifest entry; that
+# is a valid answer, not an error, and must not abort under `set -e`.
+assert_eq "a bank with no declared extras still yields its base" "yes" \
+  "$(contains www.max.co.il "$(warm_set Max)")"
+
+PREFLIGHT_HOSTS="$({ to_hostnames < "$CONFIG_FILE"; extra_hosts; } | sort -u)"
+# he.isracard.co.il has no A record. The warm loop fails loud on an
+# unresolvable host, so declaring it would hold every E2E run red.
+assert_eq "preflight never warms the host that has no A record" "no" \
+  "$(contains he.isracard.co.il "$PREFLIGHT_HOSTS")"
 
 # ── Final summary ──
 echo ""

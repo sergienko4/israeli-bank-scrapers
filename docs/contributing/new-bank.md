@@ -102,7 +102,31 @@ const PIPELINE_REGISTRY_AMEX_TO_MAX: Partial<Record<CompanyTypes, PipelineFactor
 > the two halves into `PIPELINE_REGISTRY`. The `CoreBankIndependence`
 > architecture test fails if a bank import leaks into `Core/**`.
 
-### 6. Add the mocked-E2E test
+### 6. Declare any extra auth origins
+
+CI resolves every host a bank needs *before* the browser starts, because a
+cold lookup inside Camoufox times out in roughly six seconds and surfaces as
+`NS_ERROR_UNKNOWN_HOST` part-way through login. The warm-up already extracts
+each bank's `urls.base` from its config, so most banks need nothing here.
+
+Add an entry to `BANK_EXTRA_DNS_HOSTS` in
+[`Registry/Config/PipelineBankHosts.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/Config/PipelineBankHosts.ts)
+when the flow reaches an origin the config does not carry — a separate login
+host, an API subdomain, or an iframe whose `src` is only set at runtime and
+so appears in no source file:
+
+```typescript
+export const BANK_EXTRA_DNS_HOSTS: BankExtraDnsHosts = {
+  // ... existing entries ...
+  [CompanyTypes.NewBank]: ['login.newbank.co.il'],
+};
+```
+
+List only hosts that actually resolve: the warm-up exits non-zero on a host
+it cannot look up, so a dead entry fails every run. A bank whose whole flow
+lives on `urls.base` is correctly absent from the manifest.
+
+### 7. Add the mocked-E2E test
 
 Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts` that:
 
@@ -112,7 +136,7 @@ Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts` that:
 
 The existing [`Amex.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Amex.e2e-mocked.test.ts) is the template.
 
-### 7. Verify
+### 8. Verify
 
 ```sh
 npm run test:e2e:mock -- --testPathPatterns=NewBank
@@ -121,7 +145,7 @@ npm run test:pipeline             # coverage gates
 npm run test:e2e:real:single -- --testPathPatterns=NewBank   # requires .env credentials
 ```
 
-### 8. Open the PR
+### 9. Open the PR
 
 Conventional Commit subject: `feat(banks): add NewBank pipeline scraper`. The pre-commit hook runs everything; CI re-runs it. Squash-merge once green.
 

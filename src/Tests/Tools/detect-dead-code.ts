@@ -38,6 +38,10 @@ const PIPELINE_ROOT = path.join(SRC_ROOT, 'Scrapers', 'Pipeline');
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
   // Public barrel export — consumed via the npm package's entry.
   path.join(PIPELINE_ROOT, 'index.ts'),
+  // DNS warm-up manifest — its consumer is bash, not TypeScript.
+  // `.github/scripts/ci/dns-warmup.sh` reads it with grep/sed because
+  // the warm-up runs before `npm install`, so it cannot import TS.
+  path.join(PIPELINE_ROOT, 'Registry', 'Config', 'PipelineBankHosts.ts'),
 ]);
 
 /**
