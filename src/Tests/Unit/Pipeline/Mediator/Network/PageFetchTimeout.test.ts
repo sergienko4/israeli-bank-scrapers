@@ -13,6 +13,8 @@
  * factory is stubbed with a controller the test aborts on demand.
  */
 
+import * as vm from 'node:vm';
+
 import type { Page } from 'playwright-core';
 
 import {
@@ -20,7 +22,7 @@ import {
   fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
-import { NETWORK_FETCH_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
+import { NETWORK_FETCH_PAGE_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
 
 const REAL_FETCH = globalThis.fetch;
 const REAL_TIMEOUT_FACTORY = AbortSignal.timeout.bind(AbortSignal);
@@ -165,6 +167,56 @@ function createBudgetOverridingPage(budgetMs: number): Page {
 }
 
 /**
+ * A page whose evaluate runs the body in an isolated VM realm.
+ *
+ * The substituted-budget page proves the body READS its argument, but not that
+ * the body is SERIALISABLE. `AbortSignal.timeout(Math.min(args.timeoutMs,
+ * NETWORK_FETCH_PAGE_TIMEOUT_MS))` would satisfy the former and still break in a
+ * real page, because the imported constant does not cross into the browser.
+ *
+ * Compiling the callback's own source inside a fresh context reproduces that
+ * boundary: only the globals listed here exist, so any module-scope reference
+ * the body closed over raises a ReferenceError exactly as Playwright would.
+ * @returns Fake page.
+ */
+function createIsolatedPage(): Page {
+  /**
+   * Recompile the body in a bare realm, then invoke it.
+   * @param fn - The serialised in-page callback.
+   * @param args - Its single argument bundle.
+   * @returns Whatever the in-page body returns.
+   */
+  const evaluate = (fn: (a: unknown) => unknown, args: unknown): unknown => {
+    const globals = browserGlobals();
+    const realm = vm.createContext(globals);
+    const source = fn.toString();
+    const script = new vm.Script(`(${source})`);
+    const compiled = script.runInContext(realm) as (a: unknown) => unknown;
+    return compiled(args);
+  };
+  return { evaluate } as unknown as Page;
+}
+
+/**
+ * The globals a page body may legitimately reference.
+ *
+ * Deliberately minimal — anything absent here is something the body must not
+ * depend on.
+ * @returns Global object for the isolated realm.
+ */
+function browserGlobals(): Record<string, unknown> {
+  return {
+    fetch: globalThis.fetch,
+    AbortSignal,
+    Error,
+    Promise,
+    JSON,
+    Object,
+    Math,
+  };
+}
+
+/**
  * Every entry point that issues an in-page fetch.
  *
  * `fetchGetWithinPageWithHeaders` is a third in-page body, not a wrapper over
@@ -208,7 +260,7 @@ describe('in-page abort budget', () => {
     stubRespondingFetch('{"ok":true}');
     const page = createInvokingPage();
     await run(page);
-    expect(requestedBudgets).toEqual([NETWORK_FETCH_TIMEOUT_MS]);
+    expect(requestedBudgets).toEqual([NETWORK_FETCH_PAGE_TIMEOUT_MS]);
   });
 
   it.each(CARRIERS)('$label hands the abort signal to the in-page fetch', async ({ run }) => {
@@ -231,6 +283,13 @@ describe('in-page abort budget', () => {
     const page = createBudgetOverridingPage(SENTINEL_BUDGET_MS);
     await run(page);
     expect(requestedBudgets).toEqual([SENTINEL_BUDGET_MS]);
+  });
+
+  it.each(CARRIERS)('$label runs in a realm with no module scope', async ({ run }) => {
+    stubRespondingFetch('{"ok":true}');
+    const page = createIsolatedPage();
+    await run(page);
+    expect(requestedBudgets).toEqual([NETWORK_FETCH_PAGE_TIMEOUT_MS]);
   });
 });
 
