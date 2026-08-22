@@ -385,7 +385,7 @@ jobs:
     # this job's own definition — the matrix below, the timeout, the setup
     # action it calls — lives in this file. Without it a PR could add, remove
     # or break a matrix leg and never run the job that would have caught it,
-    # which is how the Node 26 leg was added: workflow + README only, touching
+    # which is how the Node 26 leg was added: workflow + docs only, touching
     # no `src/`, so every `full_suite` gate stayed false.
     if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
     runs-on: ubuntu-latest

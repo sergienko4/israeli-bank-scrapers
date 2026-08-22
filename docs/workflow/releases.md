@@ -59,7 +59,7 @@ syntax the advertised floor cannot parse.
 | --- | --- | --- |
 | 22.x | Maintenance LTS, EOL 2027-04-30 | The `engines.node` floor; supported for all of `8.x` |
 | 24.x | Active LTS since 2025-10-28 | Tested on every PR; the intended floor after the next major |
-| 26.x | Current, LTS from 2026-10-28 | Not tested yet; a candidate leg once it reaches LTS |
+| 26.x | Current, LTS from 2026-10-28 | In the unit matrix, on the same trigger as 22.x and 24.x; not a candidate floor until it reaches LTS |
 
 So the roadmap is: **a future major raises the floor to `>= 24` and drops 22.x.**
 It is announced in the README rather than done quietly at the moment 22 goes
