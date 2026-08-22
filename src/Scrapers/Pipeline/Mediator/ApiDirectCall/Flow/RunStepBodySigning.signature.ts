@@ -5,9 +5,9 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import type { IAesSignerConfig } from '../ConfigContracts/index.js';
 import { signAesCbcPkcs7 } from '../Crypto/AesSymmetricSigner.js';
 import { buildCanonical } from '../Crypto/GenericCanonicalStringBuilder.js';
-import type { IAesSignerConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
 import { resolveKeyBytes } from './RunStepBodySigning.refs.js';

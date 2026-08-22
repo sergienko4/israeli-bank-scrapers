@@ -4,7 +4,7 @@
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { runStep } from './RunStep.js';
 import { applyPreHook } from './SmsOtpFlow.prehook.js';

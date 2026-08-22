@@ -6,7 +6,7 @@
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';
-import type { IApiDirectCallConfig, IFingerprintConfig } from '../IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig, IFingerprintConfig } from '../ConfigContracts/index.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ICollectionResult, ITemplateScope } from '../Template/RefResolver.js';
 

@@ -12,8 +12,8 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import type { JsonValueTemplate, RefToken } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { JsonValueTemplate, RefToken } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from './RefResolver.js';
 import { resolveRef } from './RefResolver.js';
 

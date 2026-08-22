@@ -15,12 +15,12 @@ import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
 import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
 import { PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
+import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import {
   createTokenStrategyFromConfig,
   type GenericCreds,
   type IConfigTokenStrategy,
 } from './Flow/TokenStrategyFromConfig.js';
-import type { IApiDirectCallConfig } from './IApiDirectCallConfig.js';
 
 /** Booted ACTION bundle — bus + strategy + ctx + creds. */
 interface IBootedAction {

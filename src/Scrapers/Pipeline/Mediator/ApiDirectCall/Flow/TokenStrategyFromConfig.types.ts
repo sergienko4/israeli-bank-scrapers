@@ -5,8 +5,8 @@
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../Types/Domain/TokenContext.js';
 import type { ITokenStrategy } from '../../Api/ITokenStrategy.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 
 /** Generic creds shape — strategies read named fields via config. */
 type GenericCreds = Readonly<Record<string, unknown>>;

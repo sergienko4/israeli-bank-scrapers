@@ -7,7 +7,7 @@
  * supplied by config.
  */
 
-import type { IJwtClaimsConfig } from '../IApiDirectCallConfig.js';
+import type { IJwtClaimsConfig } from '../ConfigContracts/index.js';
 
 /** Decoded JWT payload — only the configured numeric claim matters. */
 type JwtPayload = Readonly<Record<string, unknown>>;

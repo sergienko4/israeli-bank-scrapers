@@ -12,7 +12,7 @@ import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from '../Api/ApiMediator.js';
 import { resolveApiMediator } from '../Api/ApiMediatorAccessor.js';
 import { PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
-import type { IApiDirectCallConfig, IProbeConfig } from './IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig, IProbeConfig } from './ConfigContracts/index.js';
 
 /** Probe response shape — opaque record so callers can introspect fields. */
 type ProbeResponse = Record<string, unknown>;

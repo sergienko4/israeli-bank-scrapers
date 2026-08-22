@@ -7,11 +7,11 @@ import { randomUUID } from 'node:crypto';
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { generateKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
 import { buildCollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { buildInitialCarry } from './FlowInitCarry.js';
 import type {

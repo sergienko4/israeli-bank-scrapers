@@ -13,7 +13,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IEnvelopeSelectors } from '../IApiDirectCallConfig.js';
+import type { IEnvelopeSelectors } from '../ConfigContracts/index.js';
 import type { IJsonObject, JsonValue } from './JsonPointer.js';
 import { isPlainObject, walkPointer } from './JsonPointer.js';
 

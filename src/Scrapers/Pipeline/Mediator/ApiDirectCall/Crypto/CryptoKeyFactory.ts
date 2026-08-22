@@ -12,7 +12,7 @@ import { createHash, generateKeyPairSync } from 'node:crypto';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import type { SignerAlgorithm } from '../IApiDirectCallConfig.js';
+import type { SignerAlgorithm } from '../ConfigContracts/index.js';
 
 /** Uniform keypair bundle returned for every supported algorithm. */
 interface IGenericKeypair {

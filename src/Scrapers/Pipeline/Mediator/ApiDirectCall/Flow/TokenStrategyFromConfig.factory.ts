@@ -5,8 +5,8 @@
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import {
   hasWarmStateImpl,
   primeFreshImpl,

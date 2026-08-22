@@ -6,7 +6,7 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type {
   CarryMut,
   Creds,

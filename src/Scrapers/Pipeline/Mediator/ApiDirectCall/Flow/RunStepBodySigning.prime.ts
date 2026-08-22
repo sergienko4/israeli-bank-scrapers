@@ -4,8 +4,8 @@
  */
 
 import { isOk } from '../../../Types/Procedure.js';
+import type { ICryptoFieldConfig, ISignerConfig, IStepConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { ICryptoFieldConfig, ISignerConfig, IStepConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { freshIvHex } from './RunStepBodySigning.iv.js';
 import { stripCarryPrefix } from './RunStepBodySigning.refs.js';

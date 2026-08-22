@@ -6,8 +6,8 @@
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk } from '../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import { applyDerivedCarry } from './FlowInitCarry.derived.js';
 import { applySeedCarry } from './FlowInitCarry.seed.js';
 import type { CarryMut, Creds } from './FlowInitCarry.types.js';

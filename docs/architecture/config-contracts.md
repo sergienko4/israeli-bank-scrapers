@@ -99,15 +99,12 @@ import type { IWarmStartConfig } from '<rel>/Mediator/ApiDirectCall/ConfigContra
 import type { IStepConfig, FlowKind } from '<rel>/Mediator/ApiDirectCall/ConfigContracts/FlowTypes.js';
 ```
 
-### Legacy (`@deprecated`, slated for removal in v8.6)
+### Legacy shim (removed in v8.6)
 
-```ts
-// Historical importers still resolve through this shim, which re-exports
-// the full barrel. New code MUST use the patterns above. The shim carries
-// an IDE/language-service `@deprecated` signal so call-sites surface the
-// warning in editors that honour the JSDoc tag.
-import type { IApiDirectCallConfig } from '<rel>/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
-```
+`Mediator/ApiDirectCall/IApiDirectCallConfig.ts` used to re-export the whole
+barrel so historical importers kept compiling. Every importer has since moved
+to one of the two patterns above and the shim is gone — there is no deprecated
+path left to choose. Anything still naming it is stale and will not resolve.
 
 ## Why the split
 
