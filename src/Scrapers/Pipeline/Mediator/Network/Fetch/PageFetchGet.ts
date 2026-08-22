@@ -10,7 +10,8 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
-import { NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
+import { timeoutPromise } from '../../Timing/TimingActions.js';
+import { NETWORK_FETCH_PAGE_TIMEOUT_MS, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
 import { logApiCall, logResponseIssues } from './Logging.js';
 import { parseGetResult } from './ParseResult.js';
 
@@ -42,7 +43,9 @@ async function evalGetBody(args: IGetArgs): Promise<readonly [string, number]> {
  * @returns A tuple of [responseBody, httpStatus].
  */
 async function evaluateGet(context: Page | Frame, url: string): Promise<readonly [string, number]> {
-  return context.evaluate(evalGetBody, { url, timeoutMs: NETWORK_FETCH_TIMEOUT_MS });
+  const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
+  const pending = context.evaluate(evalGetBody, { url, timeoutMs });
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${url}`);
 }
 
 /** Args for the in-page GET-with-headers evaluate callback. */
@@ -80,8 +83,9 @@ async function evaluateGetWithHeaders(
   url: string,
   headers: Record<string, string>,
 ): Promise<readonly [string, number]> {
-  const timeoutMs = NETWORK_FETCH_TIMEOUT_MS;
-  return context.evaluate(evalGetWithHeadersBody, { url, headers, timeoutMs });
+  const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
+  const pending = context.evaluate(evalGetWithHeadersBody, { url, headers, timeoutMs });
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${url}`);
 }
 
 /**

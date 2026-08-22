@@ -22,6 +22,11 @@ const { makeMockFullPage: MAKE_MOCK_FULL_PAGE } = await import('../MockPipelineF
 const { DEFAULT_FETCH_OPTS } =
   await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js');
 
+const { TimeoutError: TIMEOUT_ERROR } =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js');
+const { ScraperErrorTypes: ERROR_TYPES } =
+  await import('../../../../../Scrapers/Base/ErrorTypes.js');
+
 const OPTS_NO_HEADERS = DEFAULT_FETCH_OPTS;
 const OPTS_WITH_HEADERS = { extraHeaders: { Authorization: 'Bearer tok' } };
 
@@ -67,6 +72,24 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe('network error');
+  });
+
+  it('classifies an expired fetch deadline as Timeout, not Generic', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockRejectedValue(new TIMEOUT_ERROR('deadline exceeded'));
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorType).toBe(ERROR_TYPES.Timeout);
+  });
+
+  it('leaves an unmarked failure classified as Generic', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockRejectedValue(new Error('connection reset'));
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorType).toBe(ERROR_TYPES.Generic);
   });
 
   it('truncates long URL in empty response error at 80 chars', async () => {

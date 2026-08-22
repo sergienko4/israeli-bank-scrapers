@@ -9,7 +9,12 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
-import { JSON_CONTENT_TYPE, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
+import { timeoutPromise } from '../../Timing/TimingActions.js';
+import {
+  JSON_CONTENT_TYPE,
+  NETWORK_FETCH_PAGE_TIMEOUT_MS,
+  NETWORK_FETCH_TIMEOUT_MS,
+} from '../FetchConfig.js';
 import type { JsonValue } from './Headers.js';
 import { LOG, logApiCall, logResponseIssues } from './Logging.js';
 import { parsePostResult } from './ParseResult.js';
@@ -110,7 +115,8 @@ async function runPostEvaluate(
   args: IPostEvaluateArgs,
 ): Promise<readonly [string, number]> {
   logDoPostFetchHeaders(args);
-  return context.evaluate(doPostFetch, args);
+  const pending = context.evaluate(doPostFetch, args);
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page POST ${args.innerUrl}`);
 }
 
 /** Conservative defaults used ONLY when the caller omitted `extraHeaders`. */
@@ -157,7 +163,8 @@ function withJsonContentType(extraHeaders?: Record<string, string>): Record<stri
 function buildPostArgs(url: string, opts: IFetchPostOptions): IPostEvaluateArgs {
   const innerExtraHeaders = withJsonContentType(opts.extraHeaders);
   const innerDataJson = JSON.stringify(opts.data);
-  return { innerUrl: url, innerDataJson, innerExtraHeaders, timeoutMs: NETWORK_FETCH_TIMEOUT_MS };
+  const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
+  return { innerUrl: url, innerDataJson, innerExtraHeaders, timeoutMs };
 }
 
 /** Bundled args for {@link finalisePagePost} — keeps the sig under max-params. */
