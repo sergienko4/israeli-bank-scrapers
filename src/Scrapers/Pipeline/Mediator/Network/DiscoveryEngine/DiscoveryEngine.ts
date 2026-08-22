@@ -15,7 +15,7 @@
 import type { Page } from 'playwright-core';
 
 import { getDebug, type ScraperLogger } from '../../../Types/Debug.js';
-import { createAuthFailureWatcher } from '../AuthFailureWatcher.js';
+import { createAuthFailureWatcher } from '../AuthFailureWatcher/index.js';
 import { buildDashboardClickState } from '../EndpointState/EndpointState.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../NetworkDiscoveryTypes.js';
 import buildAuthCache from './AuthCache.js';

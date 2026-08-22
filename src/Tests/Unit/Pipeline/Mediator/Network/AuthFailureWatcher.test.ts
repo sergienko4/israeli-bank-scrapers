@@ -22,7 +22,7 @@ import {
   createFrozenAuthFailureWatcher,
   isAuthEndpointUrl,
   isFailureStatusCode,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/index.js';
 
 /** Synthetic Response shape used by the tests. */
 interface IMockResponse {

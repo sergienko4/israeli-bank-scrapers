@@ -7,7 +7,7 @@ import type { Page, Request } from 'playwright-core';
 import {
   AUTH_REQ_TRACE_ENV_VAR,
   createAuthFailureWatcher,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/index.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 
 type TraceEvent = 'response' | 'request' | 'requestfailed' | 'console' | 'pageerror';

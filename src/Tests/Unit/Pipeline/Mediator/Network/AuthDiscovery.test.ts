@@ -7,7 +7,7 @@ import type { Frame, Page } from 'playwright-core';
 import {
   discoverAuthThreeTier,
   discoverFromHeaders,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthDiscovery/index.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 
 /**

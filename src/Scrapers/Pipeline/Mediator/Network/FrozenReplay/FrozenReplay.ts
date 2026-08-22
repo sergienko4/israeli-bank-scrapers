@@ -13,7 +13,7 @@
  * {@link ./FrozenSlices.js}.
  */
 
-import { createFrozenAuthFailureWatcher } from '../AuthFailureWatcher.js';
+import { createFrozenAuthFailureWatcher } from '../AuthFailureWatcher/index.js';
 import {
   buildBucketingMethods,
   buildCoreMethods,
