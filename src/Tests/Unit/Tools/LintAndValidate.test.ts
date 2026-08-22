@@ -432,12 +432,29 @@ const RULE_17_CASES = [
     expected: 0,
   },
   {
-    label: 'canonical Auth sub-module',
+    label: 'canonical AuthDiscovery sub-module',
     file: SYNTHETIC_PIPELINE,
-    code: "import { discoverAuth } from '../Mediator/Network/Auth/AuthDiscovery.js';\n",
+    code: "import { discoverAuth } from '../Mediator/Network/AuthDiscovery/index.js';\n",
     expected: 0,
   },
 ];
+
+/** Root the Rule #17 replacement paths are written relative to. */
+const PIPELINE_ROOT = 'src/Scrapers/Pipeline';
+
+/**
+ * Turn a Rule #17 recommendation into the source file it names.
+ *
+ * Recommendations are runtime specifiers (`.js`) relative to the Pipeline
+ * root; on disk the file is the TypeScript source.
+ * @param recommended - Specifier fragment taken from the rule message.
+ * @returns Path to the source file the recommendation points at.
+ */
+function resolveRecommended(recommended: string): string {
+  const asSource = recommended.replace(/\.js$/, '.ts');
+  const repoRoot = process.cwd();
+  return path.join(repoRoot, PIPELINE_ROOT, asSource);
+}
 
 describe('issuesFromCode — Rule #17 retired specifier guard', () => {
   it.each(RULE_17_CASES)('$label → $expected issue(s)', ({ file, code, expected }) => {
@@ -487,14 +504,21 @@ describe('issuesFromCode — Rule #17 retired specifier guard', () => {
     expect(reExportHits).toHaveLength(1);
   });
 
-  it('names a replacement path that actually exists on disk', () => {
-    const code = "import { x } from '../Mediator/Network/AuthDiscovery.js';\n";
+  it.each([
+    'IApiDirectCallConfig.js',
+    'Mediator/Network/Fetch.js',
+    'Mediator/Network/AuthDiscovery.js',
+    'Mediator/Network/AuthFailureWatcher.js',
+  ])('recommends a path that resolves on disk for %s', retired => {
+    const code = `import { x } from '../${retired}';\n`;
     const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
-    const messages = issues
-      .filter((i): boolean => i.rule === 'Rule #17')
-      .map((i): string => i.message);
-    expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain('Mediator/Network/AuthDiscovery/index.js');
+    const hits = issues.filter((i): boolean => i.rule === 'Rule #17');
+    expect(hits).toHaveLength(1);
+    const recommended = hits[0].message.split(' — use ')[1];
+    expect(recommended).toBeDefined();
+    const sourcePath = resolveRecommended(recommended);
+    const isResolved = fs.existsSync(sourcePath);
+    expect(isResolved).toBe(true);
   });
 });
 
