@@ -437,6 +437,18 @@ const RULE_17_CASES = [
     code: "import { discoverAuth } from '../Mediator/Network/AuthDiscovery/index.js';\n",
     expected: 0,
   },
+  {
+    label: 'retired shim in a multi-line import',
+    file: SYNTHETIC_PIPELINE,
+    code: "import {\n  fetchGetWithinPage,\n} from '../Mediator/Network/Fetch.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'retired shim as a side-effect import',
+    file: SYNTHETIC_PIPELINE,
+    code: "import '../Mediator/Network/Fetch.js';\n",
+    expected: 1,
+  },
 ];
 
 /** Root the Rule #17 replacement paths are written relative to. */
