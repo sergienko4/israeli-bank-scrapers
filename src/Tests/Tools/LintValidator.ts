@@ -7,6 +7,7 @@
  *
  * Rule enforcement:
  *   Rule #15  — primitive return types in Pipeline/Phases
+ *   Rule #16  — selector-based interaction inside the Pipeline tree
  *   Rule #10  — Playwright imports in Phase files
  *   [Async]   — unawaited execute/fetch/run/step calls
  *   PII-Log   — raw PII identifier or full payload bucket in LOG.*
@@ -21,10 +22,42 @@ const PIPELINE_DIR = 'Scrapers/Pipeline';
 /** Path fragment that marks a file as a Phase. */
 const PHASE_DIR = 'Phases';
 
+/** The four interaction helpers whose contract is "give me a CSS selector". */
+const SELECTOR_INTERACTION_RE =
+  /\b(?:clickButton|clickLink|waitUntilElementFound|waitUntilElementDisappear)\s*\(/;
+/** Declaration site of those helpers — matched so it can be skipped. */
+const SELECTOR_INTERACTION_DECL_RE =
+  /\bfunction\s+(?:clickButton|clickLink|waitUntilElementFound|waitUntilElementDisappear)\s*\(/;
+
+/**
+ * Decide whether a line CALLS a selector-based interaction helper.
+ *
+ * Requiring an opening paren is what separates a call from a mention, and it
+ * is why no import/export guard is needed: `import { clickButton } from …`
+ * and `export { clickButton } from …` spell the name followed by `,` or `}`,
+ * never `(`. An explicit boundary check was written here first and removed
+ * once mutation testing showed it could never fire — a guard that cannot fail
+ * reads as load-bearing while protecting nothing. The import and export rows
+ * in RULE_16_CASES stay, so that broadening the pattern above re-tests them.
+ *
+ * Neither regex carries the `g` flag: `.test()` on a global regex advances
+ * `lastIndex` between calls, so a per-line predicate would skip every other
+ * match. Rule #15 works around that with explicit resets; not opting in is
+ * simpler and removes the failure mode entirely.
+ *
+ * @param line - One source line.
+ * @returns True when the line is a call site rather than a declaration.
+ */
+function isSelectorInteractionCall(line: string): boolean {
+  if (!SELECTOR_INTERACTION_RE.test(line)) return false;
+  return !SELECTOR_INTERACTION_DECL_RE.test(line);
+}
+
 /** Rule key enum — any future rule must be listed here. */
 export type RuleKey =
   | 'Rule #15'
   | 'Rule #10'
+  | 'Rule #16'
   | '[Async]'
   | 'PII-Log'
   | 'S6564-Canary'
@@ -162,6 +195,7 @@ export function loadAllowlist(
       (v): v is RuleKey =>
         v === 'Rule #15' ||
         v === 'Rule #10' ||
+        v === 'Rule #16' ||
         v === '[Async]' ||
         v === 'PII-Log' ||
         v === 'S6564-Canary' ||
@@ -423,6 +457,49 @@ function ruleFifteenIssues(code: string): IIssue[] {
 }
 
 /**
+ * Emit Rule #16 (zero-CSS interaction) issues for a file.
+ *
+ * The zero-CSS rule is absolute for Pipeline interaction code: elements are
+ * located by what a user can read (`getByText`/`getByRole`/`getByPlaceholder`),
+ * never by a CSS selector. The Pipeline tree honours that today with zero
+ * violations, but until now nothing enforced it, so a single `clickButton(ctx,
+ * '#submit')` could reintroduce brittle selector coupling unnoticed. This is a
+ * regression guard, not a cleanup.
+ *
+ * Scope is deliberately narrow — the four selector-taking interaction helpers,
+ * and only their CALL sites:
+ *
+ *  - Declarations are skipped. `ElementWaitAction.ts` and
+ *    `ElementsInteractions.ts` define these helpers inside the Pipeline tree;
+ *    flagging a definition would make the rule unsatisfiable.
+ *  - Import/export lines are skipped by construction: the pattern requires an
+ *    opening paren, and `import { clickButton } from …` never has one. The
+ *    helpers stay exported because `src/Common/ElementsInteractions.ts`
+ *    re-exports them to legacy callers. Ignoring legacy is the ruling;
+ *    breaking it is not.
+ *  - Raw DOM APIs (`querySelector`, `waitForSelector`, `pageEvalAll`) are NOT
+ *    covered. Inside Pipeline they appear only in parsing/extraction code and
+ *    in these helpers' own implementations — the documented exception. Banning
+ *    them would flag eleven compliant files and force an allowlist.
+ *
+ * @param code - Source text.
+ * @returns Rule #16 issues (may be empty).
+ */
+function ruleSixteenIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  const lines = code.split('\n');
+  for (const [idx, line] of lines.entries()) {
+    if (!isSelectorInteractionCall(line)) continue;
+    const where = String(idx + 1);
+    out.push({
+      rule: 'Rule #16',
+      message: `[Rule #16] Selector-based interaction at line ${where}: ${line.trim()}`,
+    });
+  }
+  return out;
+}
+
+/**
  * Emit PII-Log issues for a file. Catches T09 (PII identifier in LOG.*
  * template literal) and T16 (forbidden payload bucket passed to LOG.*).
  * Runs on ALL files (not Pipeline-scoped) — PII can leak from Common/,
@@ -523,6 +600,7 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   const fwd = normalisePath(filePath);
   const isInPipeline = fwd.includes(PIPELINE_DIR) || fwd.includes(PHASE_DIR);
   if (isInPipeline) issues.push(...ruleFifteenIssues(code));
+  if (isInPipeline) issues.push(...ruleSixteenIssues(code));
   if (fwd.includes(PHASE_DIR) && hasRuntimePlaywrightImport(code)) {
     issues.push({ rule: 'Rule #10', message: '[Rule #10] Playwright leaked into Phase.' });
   }
