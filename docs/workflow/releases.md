@@ -35,7 +35,7 @@ Both live in [`.github/workflows/release.yml`](https://github.com/sergienko4/isr
 | --- | --- | --- |
 | Provenance attestation | `publishConfig.provenance` + Trusted Publishing OIDC | Release workflow fails if the published version has no attestation |
 | `dist-tags.latest` | `npm publish` | Polled back from the registry after every publish |
-| Supported Node range | `engines.node` | Unit suite runs on the floor, latest 22.x and latest 24.x; `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
+| Supported Node range | `engines.node` | Unit suite runs on the floor, latest 22.x, latest 24.x and latest 26.x; `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
 | Upgrade notes | `compatibility.json` | `npm run compat:check` diffs the generated page against its source |
 
 ## Node support policy
