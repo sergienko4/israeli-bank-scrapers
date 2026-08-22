@@ -5,12 +5,12 @@
  */
 
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
-import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
-import { signCanonical } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCryptoSigner.js';
 import type {
   ICanonicalStringConfig,
   ISignerConfig,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import { signCanonical } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCryptoSigner.js';
 
 /** Minimal canonical config satisfying the new ISignerConfig requirement. */
 const CANONICAL_STUB: ICanonicalStringConfig = {

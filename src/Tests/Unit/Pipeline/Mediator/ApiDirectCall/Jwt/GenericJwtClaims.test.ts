@@ -3,7 +3,7 @@
  * driven by IJwtClaimsConfig. Zero bank knowledge.
  */
 
-import type { IJwtClaimsConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IJwtClaimsConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { isJwtFresh } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Jwt/GenericJwtClaims.js';
 
 const EXP_60S: IJwtClaimsConfig = {

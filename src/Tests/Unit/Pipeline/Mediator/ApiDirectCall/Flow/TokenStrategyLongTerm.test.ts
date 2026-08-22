@@ -10,8 +10,8 @@ import type {
   IApiMediator,
   IApiQueryOpts,
 } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { createTokenStrategyFromConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
-import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import type {
   WKUrlGroup,
   WKUrlOrLiteral,
