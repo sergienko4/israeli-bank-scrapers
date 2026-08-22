@@ -21,7 +21,8 @@ jest.unstable_mockModule(
   }),
 );
 
-const SETUP_MOD = await import('../../../../../Scrapers/Pipeline/Phases/Init/InitBrowserSetup.js');
+const SETUP_MOD =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserLifecycle.js');
 
 /** A fake browser that records whether it was closed. */
 interface IFakeBrowser {

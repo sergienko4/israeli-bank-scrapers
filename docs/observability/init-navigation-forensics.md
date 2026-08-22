@@ -62,6 +62,13 @@ WAF sees a returning visitor rather than a cold one. It is opt-in via
 `BROWSER_SESSION_ROOT`; with the variable unset the context is built
 exactly as before and nothing in this document changes.
 
+The browser-lifecycle helpers `InitActions.ts` builds on (`launchBrowser`,
+`createContextAndPage`, `setupPage`, `buildBrowserState`,
+`closeBrowserSafe`) live in `Mediator/Browser/BrowserLifecycle.ts`. They
+previously sat in `Phases/Init/InitBrowserSetup.ts`, which made the
+mediator import upward into the Phase layer; no Phase ever consumed them.
+The move is location-only — no navigation-forensics behaviour changed.
+
 ## Log envelope
 
 The warn log carries an `INavFailureSnapshot`. Fields are stable across

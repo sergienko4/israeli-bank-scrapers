@@ -6,13 +6,6 @@
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import {
-  buildBrowserState,
-  closeBrowserSafe,
-  createContextAndPage,
-  launchBrowser,
-  setupPage,
-} from '../../Phases/Init/InitBrowserSetup.js';
 import { createBrowserFetchStrategy } from '../../Strategy/Fetch/BrowserFetchStrategy.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
@@ -22,6 +15,13 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { INeterrorProbeResult } from '../Browser/BrowserErrorPage.js';
+import {
+  buildBrowserState,
+  closeBrowserSafe,
+  createContextAndPage,
+  launchBrowser,
+  setupPage,
+} from '../Browser/BrowserLifecycle.js';
 import createElementMediator from '../Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Elements/PagePrelude.js';
 import { awaitPagePrelude, probeFirefoxNeterror } from '../Elements/PagePrelude.js';

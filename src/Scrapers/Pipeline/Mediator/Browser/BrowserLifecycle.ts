@@ -1,6 +1,8 @@
 /**
- * Init browser setup — launch, context, page creation, cleanup handlers.
- * Extracted from InitPhase.ts to respect max-lines.
+ * Browser lifecycle — launch, context, page creation, cleanup handlers.
+ *
+ * <p>Owns the browser from launch to close so the Phase layer never holds a
+ * driver handle. Consumed by the Init mediator; no Phase imports it.
  */
 
 import type { Browser, BrowserContext, Page } from 'playwright-core';
@@ -8,17 +10,13 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IDefaultBrowserOptions, ScraperOptions } from '../../../Base/Interface.js';
 import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
-import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
-import {
-  isSessionEnabled,
-  loadSessionState,
-  saveSessionStateSafe,
-} from '../../Mediator/Browser/BrowserSessionStore.js';
-import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IBrowserState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { buildContextOptions } from './BrowserContextBuilder.js';
+import { isSessionEnabled, loadSessionState, saveSessionStateSafe } from './BrowserSessionStore.js';
+import { launchCamoufox } from './CamoufoxLauncher.js';
 
 /** Static and PII-free: the bank id and path stay out of the log line. */
 const SESSION_SAVE_FAILED = 'Browser session save failed';
@@ -65,6 +63,23 @@ async function prepareOrClose(browser: Browser, prepare: PrepareBrowserHook): Pr
 }
 
 /**
+ * Open a page, closing the context when page creation fails.
+ *
+ * <p>Without this the context would leak whenever `newPage` rejects, since
+ * the caller never receives a handle it could close itself.
+ * @param context - The freshly created context.
+ * @returns The opened page.
+ */
+async function openPageOrClose(context: BrowserContext): Promise<Page> {
+  try {
+    return await context.newPage();
+  } catch (error) {
+    await context.close().catch((): DidLifecycleStep => false as DidLifecycleStep);
+    throw error;
+  }
+}
+
+/**
  * Create browser context and page from a browser, restoring the bank's saved
  * session when one exists so the origin sees a returning visitor.
  * @param browser - The browser to create context from.
@@ -78,13 +93,8 @@ async function createContextAndPage(
   const saved = loadSessionState(companyId);
   const contextOpts = buildContextOptions(saved);
   const context = await browser.newContext(contextOpts);
-  try {
-    const page = await context.newPage();
-    return { context, page };
-  } catch (error) {
-    await context.close().catch((): DidLifecycleStep => false as DidLifecycleStep);
-    throw error;
-  }
+  const page = await openPageOrClose(context);
+  return { context, page };
 }
 
 /**

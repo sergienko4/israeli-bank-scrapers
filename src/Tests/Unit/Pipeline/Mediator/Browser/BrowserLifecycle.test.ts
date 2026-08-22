@@ -1,10 +1,10 @@
 /**
- * Unit tests for Phases/Init/InitBrowserSetup — safe close helper.
+ * Unit tests for Mediator/Browser/BrowserLifecycle — safe close helper.
  */
 
 import type { Browser } from 'playwright-core';
 
-import { closeBrowserSafe } from '../../../../../Scrapers/Pipeline/Phases/Init/InitBrowserSetup.js';
+import { closeBrowserSafe } from '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserLifecycle.js';
 
 describe('closeBrowserSafe', () => {
   it('returns false when browser handle is false', async () => {
