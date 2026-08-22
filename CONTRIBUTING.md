@@ -126,6 +126,10 @@ Make sure that you uncommented the company credentials in the test configuration
 
 ## Submitting PRs
 
+**Pull requests are accepted only from branches in this repository.** A PR opened from a fork is commented on and closed automatically by `.github/workflows/no-fork-prs.yml`. This is not a judgement on the change: CI gates on real-bank end-to-end runs that require repository secrets, and GitHub never exposes secrets to a cross-repository PR, so a fork PR can never reach a green state and can never be merged on the evidence this project requires.
+
+If you do not have write access, please open an issue describing the change and the reasoning behind it. For a bug fix, the diff pasted into the issue is enough to act on, and you will be credited in the resulting commit.
+
 PR titles **must** follow [Conventional Commits](https://www.conventionalcommits.org/) format:
 
 - `fix: description` — bug fix (patch release)

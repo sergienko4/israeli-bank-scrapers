@@ -1,0 +1,87 @@
+name: Block Fork PRs
+
+# Policy: pull requests are accepted only from branches in this repository.
+# Cross-repository (fork) PRs are commented on and closed automatically.
+#
+# Why this is a workflow and not a repository setting: GitHub's "Allow
+# forking" toggle can only be changed on org-owned *private* repositories.
+# This repo is a public, user-owned repo, so the REST API rejects the
+# change (HTTP 422) and forking cannot be disabled at the platform level.
+# Closing on arrival is therefore the only enforcement point we control.
+#
+# SECURITY — why `pull_request_target` is safe here:
+#   A fork PR running under `pull_request` gets a read-only token and so
+#   cannot close itself. `pull_request_target` runs in the context of the
+#   base branch with a writable token, which is what makes the close
+#   possible. The documented hazard of that trigger is executing untrusted
+#   head code with elevated permissions — this job never checks out, never
+#   installs, and never builds. It calls the GitHub API and nothing else.
+#   Untrusted PR fields are passed through `env:` rather than interpolated
+#   into the shell, so they cannot break out of the script.
+on:
+  # zizmor: ignore[dangerous-triggers] — no checkout of head code; see note above.
+  pull_request_target:
+    # `synchronize` is deliberately absent: the policy applies when a fork PR
+    # is opened or reopened, and must never close an already-open PR that a
+    # maintainer is mid-review on.
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  close-fork-pr:
+    name: Close PR from fork
+    # Same-repo PRs (including Dependabot and release-please, which push
+    # branches to this repo) never match and the job is skipped entirely.
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Explain the policy and close
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+
+          # Untrusted values are referenced as shell variables, never
+          # interpolated into the script body by the expression engine.
+          printf '@%s\n\n' "$PR_AUTHOR" > body.md
+
+          cat >> body.md <<'EOF'
+          ## This repository does not accept pull requests from forks
+
+          Thanks for taking the time to write this up — the policy is not a
+          judgement on the change itself.
+
+          Pull requests here are accepted **only from branches in this
+          repository**. A fork PR cannot be validated: the CI pipeline gates
+          on real-bank end-to-end runs that need repository secrets, and
+          those secrets are never exposed to a cross-repository PR. A fork
+          PR therefore can never go green, which means it can never be
+          merged on the evidence this project requires.
+
+          ### What to do instead
+
+          - **If you have write access** — push your branch to this
+            repository and open the PR from there.
+          - **If you do not** — open an issue describing the change, with
+            the reasoning and any evidence you gathered. If it is a fix,
+            the diff pasted into the issue is enough to act on and you will
+            be credited in the commit.
+
+          This PR is closed automatically. Nothing is lost: the branch and
+          its history remain in your fork, and reopening the same work from
+          an in-repository branch will pick up right where this left off.
+          EOF
+
+          printf '\n_Automated by `.github/workflows/no-fork-prs.yml`. Head repository: `%s`._\n' \
+            "$HEAD_REPO" >> body.md
+
+          gh pr comment "$PR_NUMBER" --body-file body.md
+          gh pr close "$PR_NUMBER"
