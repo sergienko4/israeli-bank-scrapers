@@ -95,8 +95,9 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
     const baseUrlByBank = await loadBaseUrls();
     const redundant: string[] = [];
     for (const [companyId, hosts] of Object.entries(manifest)) {
-      const base = baseUrlByBank.get(companyId) ?? '';
-      const duplicates = hosts.filter(host => base.includes(host));
+      const base = baseUrlByBank.get(companyId);
+      const baseHost = base === undefined ? '' : new URL(base).hostname;
+      const duplicates = hosts.filter(host => host === baseHost);
       redundant.push(...duplicates.map(host => `${companyId}:${host}`));
     }
     expect(redundant).toEqual([]);

@@ -547,6 +547,7 @@ HOSTS_FILE="${CONFIG_DIR}/PipelineBankHosts.ts"
 eval "$(sed -n '/^bank_block()/,/^}/p' "$DNS_SCRIPT")"
 eval "$(sed -n '/^to_hostnames()/,/^}/p' "$DNS_SCRIPT")"
 eval "$(sed -n '/^extra_hosts()/,/^}/p' "$DNS_SCRIPT")"
+eval "$(sed -n '/^require_readable()/,/^}/p' "$DNS_SCRIPT")"
 
 # Every host the warm-up loop would resolve for one bank: the base URL
 # extracted from its registry block, unioned with its declared extras.
@@ -583,6 +584,20 @@ PREFLIGHT_HOSTS="$({ to_hostnames < "$CONFIG_FILE"; extra_hosts; } | sort -u)"
 # unresolvable host, so declaring it would hold every E2E run red.
 assert_eq "preflight never warms the host that has no A record" "no" \
   "$(contains he.isracard.co.il "$PREFLIGHT_HOSTS")"
+
+# The extractor once pinned hostnames to .co.il/.com, which would drop a
+# future .net or .org auth origin without a word. Silent omission is the
+# whole failure mode here, so the pattern must stay TLD-agnostic.
+DNS_TMP="$(mktemp -d)"
+printf "  [CompanyTypes.Fake]: ['auth.example.net'],\n" > "$DNS_TMP/hosts.ts"
+assert_eq "an auth origin outside .co.il/.com is still warmed" "yes" \
+  "$(contains auth.example.net "$(HOSTS_FILE="$DNS_TMP/hosts.ts" extra_hosts Fake)")"
+rm -rf "$DNS_TMP"
+
+# An unreadable manifest must abort, not read as "this bank has no
+# extras" — that would quietly restore the original Yahav outage.
+assert_eq "an unreadable registry file fails loud" "1" \
+  "$( (require_readable "$REPO_ROOT/no-such-registry-file.ts") >/dev/null 2>&1; echo $? )"
 
 # ── Final summary ──
 echo ""

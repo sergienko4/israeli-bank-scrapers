@@ -75,6 +75,19 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
+# Both registry files are read with grep/awk before `npm install`, so an
+# unreadable one cannot surface as an import error the way it would in
+# TypeScript — it just yields nothing. For the manifest that is worse
+# than useless: it is the only source for origins no extractor can find
+# (Yahav's login iframe), so an empty read would silently shrink the
+# warm-up set back to the bug this script exists to prevent.
+require_readable() {
+  [ -r "$1" ] || { echo "❌ Registry file not readable: $1"; exit 1; }
+}
+
+require_readable "$CONFIG_FILE"
+require_readable "$HOSTS_FILE"
+
 # Print one bank's whole config entry: every line from its
 # `[CompanyTypes.<Bank>]` key up to the next bank key. A fixed
 # `grep -A N` window cannot do this — entries range from one line
@@ -97,13 +110,15 @@ BANK_FILTER="${1:-}"
 # Extra auth/API hosts from PipelineBankHosts.ts. Restricted to lines
 # carrying a `[CompanyTypes.X]` key so prose hostnames in the file's
 # doc comment (deliberately backticked, never quoted) can never leak
-# into the fail-loud set. Pass a bank name for one bank, or nothing
-# for every bank. Always succeeds: a bank with no extra hosts (Max)
-# is a valid, empty answer, not an error.
+# into the fail-loud set. Any TLD is accepted — pinning the pattern to
+# .co.il/.com would silently drop a future .net or .org origin. Pass a
+# bank name for one bank, or nothing for every bank. The `|| true`
+# covers grep's no-match exit only: a bank with no extra hosts (Max) is
+# a valid, empty answer. An unreadable manifest already exited above.
 extra_hosts() {
   local key="${1:-[A-Za-z]+}"
-  { grep -hE "\[CompanyTypes\.${key}\]" "$HOSTS_FILE" 2>/dev/null \
-      | grep -oE "'[a-zA-Z0-9.-]+\.(co\.il|com)'" \
+  { grep -hE "\[CompanyTypes\.${key}\]" "$HOSTS_FILE" \
+      | grep -oE "'[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'" \
       | tr -d "'" \
       | sort -u; } || true
 }
