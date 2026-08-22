@@ -131,17 +131,14 @@ describe('BrowserFetchStrategy/fetchGet', () => {
 
 // ── resolveContext (cross-origin frame resolution) ────────
 
-/** Page or frame URL string. */
-type FrameUrl = string;
-
 /** Frame fixture passed to makePageWithFrames. */
 interface IFrameFixture {
-  readonly url: FrameUrl;
+  readonly url: string;
 }
 
 /** Frame stub exposing only .url() (used by resolveContext). */
 interface IFrameStub {
-  url: () => FrameUrl;
+  url: () => string;
 }
 
 /** Page mock type — re-exports playwright Page from MAKE_MOCK_FULL_PAGE. */
@@ -161,12 +158,12 @@ function makePageWithFrames(pageUrl: string, frames: readonly IFrameFixture[]): 
    * @param fxUrl - Fixture URL.
    * @returns URL getter that returns the captured fixture URL.
    */
-  const stubUrlGetter = (fxUrl: FrameUrl): (() => FrameUrl) => {
+  const stubUrlGetter = (fxUrl: string): (() => string) => {
     /**
      * Frame URL getter — captures the fixture URL.
      * @returns The captured fixture URL.
      */
-    const getter = (): FrameUrl => fxUrl;
+    const getter = (): string => fxUrl;
     return getter;
   };
   /**
@@ -184,7 +181,7 @@ function makePageWithFrames(pageUrl: string, frames: readonly IFrameFixture[]): 
    * Page URL getter override.
    * @returns Configured pageUrl.
    */
-  const urlFn = (): FrameUrl => pageUrl;
+  const urlFn = (): string => pageUrl;
   return { ...base, url: urlFn, frames: framesFn } as MockPage;
 }
 
