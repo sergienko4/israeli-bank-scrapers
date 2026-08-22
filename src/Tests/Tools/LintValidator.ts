@@ -8,6 +8,7 @@
  * Rule enforcement:
  *   Rule #15  — primitive return types in Pipeline/Phases
  *   Rule #16  — selector-based interaction inside the Pipeline tree
+ *   Rule #17  — module specifiers retired by the shim sweep
  *   Rule #10  — Playwright imports in Phase files
  *   [Async]   — unawaited execute/fetch/run/step calls
  *   PII-Log   — raw PII identifier or full payload bucket in LOG.*
@@ -58,6 +59,7 @@ export type RuleKey =
   | 'Rule #15'
   | 'Rule #10'
   | 'Rule #16'
+  | 'Rule #17'
   | '[Async]'
   | 'PII-Log'
   | 'S6564-Canary'
@@ -196,6 +198,7 @@ export function loadAllowlist(
         v === 'Rule #15' ||
         v === 'Rule #10' ||
         v === 'Rule #16' ||
+        v === 'Rule #17' ||
         v === '[Async]' ||
         v === 'PII-Log' ||
         v === 'S6564-Canary' ||
@@ -500,6 +503,61 @@ function ruleSixteenIssues(code: string): IIssue[] {
 }
 
 /**
+ * Module specifiers retired during the Phase 3 shim sweep, mapped to what
+ * replaced them. Each was a deprecated re-export whose importers have all
+ * moved; the files are deleted.
+ *
+ * Deleting a shim is not self-enforcing. A revert, a merge from a long-lived
+ * branch, or an editor auto-import working from a stale index can recreate
+ * the file and quietly restore the indirection. Type-check only catches the
+ * window where the file is absent — recreate it and the tree compiles again.
+ * This map closes that window and, more usefully, answers "what do I import
+ * instead?" at the point of failure.
+ */
+const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
+  ['IApiDirectCallConfig.js', 'Mediator/ApiDirectCall/ConfigContracts/index.js'],
+  ['Mediator/Network/Fetch.js', 'Mediator/Network/Fetch/index.js'],
+  ['Mediator/Network/AuthDiscovery.js', 'Mediator/Network/Auth/AuthDiscovery.js'],
+  ['Mediator/Network/AuthFailureWatcher.js', 'Mediator/Network/Auth/AuthFailureWatcher.js'],
+]);
+
+/**
+ * Emit Rule #17 (retired module specifier) issues for a file.
+ *
+ * Matches the specifier as a substring so every spelling is caught. The
+ * ApiDirectCall shim alone was reached four ways — `./`, `../`, and two
+ * different `../../../` depths — and counting only one of them is what made
+ * the original migration estimate too low by a factor of three.
+ *
+ * Match keys are trimmed to the shortest unambiguous fragment, not left as
+ * full paths. `IApiDirectCallConfig.js` is a unique filename, so a bare match
+ * also catches the same-directory `./IApiDirectCallConfig.js` spelling that
+ * three files in the cluster used. The Network entries keep their
+ * `Mediator/Network/` prefix on purpose: a bare `Fetch.js` would also flag
+ * `src/Common/Fetch.js`, a live legacy shim that must keep working.
+ *
+ * Runs repo-wide rather than Pipeline-only: most of the importers that had to
+ * move were tests, which live outside the Pipeline tree.
+ *
+ * @param code - Source text.
+ * @returns Rule #17 issues (may be empty).
+ */
+function ruleSeventeenIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  for (const [idx, line] of code.split('\n').entries()) {
+    for (const [retired, replacement] of RETIRED_SPECIFIERS) {
+      if (!line.includes(retired)) continue;
+      const where = String(idx + 1);
+      out.push({
+        rule: 'Rule #17',
+        message: `[Rule #17] Retired specifier at line ${where}: ${retired} — use ${replacement}`,
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * Emit PII-Log issues for a file. Catches T09 (PII identifier in LOG.*
  * template literal) and T16 (forbidden payload bucket passed to LOG.*).
  * Runs on ALL files (not Pipeline-scoped) — PII can leak from Common/,
@@ -590,6 +648,41 @@ function hasRuntimePlaywrightImport(code: string): boolean {
 }
 
 /**
+ * Files that necessarily spell the retired specifiers: the rule's own lookup
+ * table, and the tests that prove it fires. A linter does not lint its own
+ * fixtures — without this the rule flags thirteen strings it is made of and
+ * can never be green.
+ *
+ * Path-based rather than syntactic on purpose. The test fixtures embed whole
+ * `import … from '…'` statements inside string literals, so no amount of
+ * "does this line look like an import" cleverness separates them from the
+ * real thing.
+ */
+const RULE_17_OWN_MACHINERY: readonly string[] = [
+  'Tests/Tools/LintValidator.ts',
+  'Tests/Unit/Tools/LintAndValidate.test.ts',
+];
+
+/**
+ * True when the file IS the retired-specifier machinery.
+ * @param fwd - Normalised (forward-slash) file path.
+ * @returns Whether Rule #17 must skip this file.
+ */
+function isRuleSeventeenMachinery(fwd: string): boolean {
+  return RULE_17_OWN_MACHINERY.some((p): boolean => fwd.includes(p));
+}
+
+/**
+ * Pipeline-scoped structural rules, grouped to keep the dispatcher under the
+ * ten-statement helper cap.
+ * @param code - Full source text.
+ * @returns Rule #15 and Rule #16 issues.
+ */
+function pipelineStructureIssues(code: string): IIssue[] {
+  return [...ruleFifteenIssues(code), ...ruleSixteenIssues(code)];
+}
+
+/**
  * Analyse code text and produce raw issues (unfiltered by allowlist).
  * @param filePath - For scope detection (Pipeline/Phase).
  * @param code - Full source text.
@@ -599,8 +692,8 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   const issues: IIssue[] = [];
   const fwd = normalisePath(filePath);
   const isInPipeline = fwd.includes(PIPELINE_DIR) || fwd.includes(PHASE_DIR);
-  if (isInPipeline) issues.push(...ruleFifteenIssues(code));
-  if (isInPipeline) issues.push(...ruleSixteenIssues(code));
+  if (isInPipeline) issues.push(...pipelineStructureIssues(code));
+  if (!isRuleSeventeenMachinery(fwd)) issues.push(...ruleSeventeenIssues(code));
   if (fwd.includes(PHASE_DIR) && hasRuntimePlaywrightImport(code)) {
     issues.push({ rule: 'Rule #10', message: '[Rule #10] Playwright leaked into Phase.' });
   }

@@ -363,6 +363,110 @@ describe('issuesFromCode — Rule #16 zero-CSS interaction guard', () => {
   });
 });
 
+// Rule #17 fires repo-wide, so both a Pipeline row and a test-tree row assert
+// a hit — scoping it to Pipeline would miss the twenty-seven test importers
+// that had to be migrated, which is where most of the work actually was.
+//
+// The four spellings below are the ones the ApiDirectCall shim was reached
+// through in the real tree. Counting only the '../../Mediator/...' spelling is
+// what put the plan's forecast at thirteen importers when there were forty-two.
+const RULE_17_CASES = [
+  {
+    label: 'retired config shim, same-dir spelling',
+    file: SYNTHETIC_PIPELINE,
+    code: "import type { IApiDirectCallConfig } from './IApiDirectCallConfig.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'type named IApiDirectCallConfig off the canonical barrel',
+    file: SYNTHETIC_PIPELINE,
+    code: "import type { IApiDirectCallConfig } from '../Mediator/ApiDirectCall/ConfigContracts/index.js';\n",
+    expected: 0,
+  },
+  {
+    label: 'live legacy Common/Fetch shim is untouched',
+    file: SYNTHETIC_OTHER,
+    code: "import { fetchPostWithinPage } from '../../Common/Fetch.js';\n",
+    expected: 0,
+  },
+  {
+    label: 'retired config shim, cluster-relative spelling',
+    file: SYNTHETIC_PIPELINE,
+    code: "import type { IStepConfig } from '../Mediator/ApiDirectCall/IApiDirectCallConfig.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'retired config shim, deep test spelling',
+    file: SYNTHETIC_OTHER,
+    code: "import type { FlowKind } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'retired Fetch shim',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { fetchPostWithinPage } from '../Mediator/Network/Fetch.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'retired AuthDiscovery shim',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { discoverAuth } from '../Mediator/Network/AuthDiscovery.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'retired AuthFailureWatcher shim',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { watch } from '../Mediator/Network/AuthFailureWatcher.js';\n",
+    expected: 1,
+  },
+  {
+    label: 'canonical ConfigContracts barrel',
+    file: SYNTHETIC_PIPELINE,
+    code: "import type { IStepConfig } from '../Mediator/ApiDirectCall/ConfigContracts/index.js';\n",
+    expected: 0,
+  },
+  {
+    label: 'canonical Fetch barrel',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { fetchPostWithinPage } from '../Mediator/Network/Fetch/index.js';\n",
+    expected: 0,
+  },
+  {
+    label: 'canonical Auth sub-module',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { discoverAuth } from '../Mediator/Network/Auth/AuthDiscovery.js';\n",
+    expected: 0,
+  },
+];
+
+describe('issuesFromCode — Rule #17 retired specifier guard', () => {
+  it.each(RULE_17_CASES)('$label → $expected issue(s)', ({ file, code, expected }) => {
+    const issues = issuesFromCode(file, code, new Map());
+    const r17 = issues.filter((i): boolean => i.rule === 'Rule #17');
+    expect(r17).toHaveLength(expected);
+  });
+
+  it('names the replacement so the fix is obvious at the failure', () => {
+    const code = "import { fetchPostWithinPage } from '../Mediator/Network/Fetch.js';\n";
+    const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
+    const messages = issues
+      .filter((i): boolean => i.rule === 'Rule #17')
+      .map((i): string => i.message);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain('Mediator/Network/Fetch/index.js');
+  });
+
+  it('skips its own machinery so the rule can reach zero', () => {
+    const code = "import type { X } from './IApiDirectCallConfig.js';\n";
+    const inValidator = issuesFromCode('src/Tests/Tools/LintValidator.ts', code, new Map());
+    const inTests = issuesFromCode('src/Tests/Unit/Tools/LintAndValidate.test.ts', code, new Map());
+    const validatorHits = inValidator.filter((i): boolean => i.rule === 'Rule #17');
+    const testHits = inTests.filter((i): boolean => i.rule === 'Rule #17');
+    expect(validatorHits).toHaveLength(0);
+    expect(testHits).toHaveLength(0);
+  });
+});
+
 describe('loadAllowlist', () => {
   it('returns an empty map when no file exists', () => {
     const map = loadAllowlist('non-existent-allowlist-xyz.json');
