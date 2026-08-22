@@ -599,6 +599,38 @@ rm -rf "$DNS_TMP"
 assert_eq "an unreadable registry file fails loud" "1" \
   "$( (require_readable "$REPO_ROOT/no-such-registry-file.ts") >/dev/null 2>&1; echo $? )"
 
+# The reachability diagnostic was once deleted along with a bank-specific
+# block, taking the only signal that separates "DNS resolved fine but the
+# edge served us an error page" from a generic scrape failure. Losing it
+# cost a forensic-bundle download to read a screenshot. `curl` is shadowed
+# so this asserts the reporting contract without touching the network.
+eval "$(sed -n '/^probe_status()/,/^}/p' "$REPO_ROOT/.github/scripts/ci/dns-warmup.sh")"
+DIAG_USER_AGENT='smoke-agent'
+
+curl() { echo "404"; }
+assert_eq "an edge-blocked host is reported with its status" \
+  "[diag]  bank.example -> http=404" "$(probe_status bank.example)"
+
+curl() { echo "200"; }
+assert_eq "a healthy host is reported with its status" \
+  "[diag]  bank.example -> http=200" "$(probe_status bank.example)"
+
+# An origin that answers nothing must not render as an empty field, or the
+# job log cannot be told apart from a probe that never ran.
+curl() { echo ""; }
+assert_eq "a silent origin is reported as NO_RESPONSE" \
+  "[diag]  bank.example -> http=NO_RESPONSE" "$(probe_status bank.example)"
+
+# It is a diagnostic, not a gate: a bank that blocks the probe but serves
+# the browser must never fail the preflight. The subshell re-enables the
+# `set -e` the real script runs under — without it a failed assignment
+# aborts nothing here, and this assertion could not tell the guard apart
+# from its absence.
+curl() { return 7; }
+assert_eq "a failed probe never aborts the preflight" "0" \
+  "$( ( set -e; probe_status bank.example ) >/dev/null 2>&1; echo $? )"
+unset -f curl
+
 # ── Final summary ──
 echo ""
 echo "Smoke test summary: ${PASS} passed, ${FAIL} failed"

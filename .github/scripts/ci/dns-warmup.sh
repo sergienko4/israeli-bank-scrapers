@@ -5,7 +5,9 @@
 # Tel-Aviv POPs and resolve IL bank authoritative DNS reliably from any
 # Azure runner region). Then extracts bank hostnames from the project's
 # two sources of truth and warms each via `dig +short`. Fails loud
-# (exit 1) if any host doesn't resolve.
+# (exit 1) if any host doesn't resolve. Then records a non-fatal
+# first-hop HTTP status per host, so a run that resolves fine but is
+# handed an edge/WAF error page is classifiable from the job log.
 #
 #   PipelineBankConfig*.ts  — each bank's `urls.base` marketing apex.
 #   PipelineBankHosts.ts    — the auth/API origins the login handshake
@@ -45,6 +47,24 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CONFIG_DIR="${REPO_ROOT}/src/Scrapers/Pipeline/Registry/Config"
 CONFIG_FILE="${CONFIG_DIR}/PipelineBankConfig.ts"
 HOSTS_FILE="${CONFIG_DIR}/PipelineBankHosts.ts"
+
+# Browser-like agent for the reachability diagnostic only. The point of
+# the probe is to predict what Camoufox will be served moments later, so
+# it must present the same agent class as the engine; a default
+# `curl/x.y` agent is a different client to these edges and its status
+# would not be comparable. Kept in sync with Camoufox (Firefox).
+DIAG_USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0'
+
+# Report one host's first-hop HTTP status. An origin that answers
+# nothing is reported as NO_RESPONSE rather than an empty field, so the
+# line is never ambiguous in a job log.
+# $1 - hostname to probe.
+probe_status() {
+  local host="$1" status
+  status=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+    -A "$DIAG_USER_AGENT" "https://${host}/" 2>/dev/null || true)
+  echo "[diag]  ${host} -> http=${status:-NO_RESPONSE}"
+}
 
 # ── Override resolver ────────────────────────────────────────────
 sudo bash -c 'cat > /etc/resolv.conf <<EOF
@@ -174,6 +194,23 @@ for h in "${HOSTS[@]}"; do
     echo "[FAIL]  $h — did not resolve after 3 attempts"
     failed=$((failed + 1))
   fi
+done
+echo ""
+
+# ── First-hop reachability (diagnostic, non-fatal) ──────────────
+# Resolving a name proves DNS works; it does NOT prove the origin will
+# serve us the real page. Israeli bank edges intermittently answer our
+# CI egress with a branded error page (observed: Discount returned its
+# 404 template with an appliance reference ID, from both westus and
+# westus3, while the same URL served HTTP 200 to Israeli egress).
+# Recording the first-hop status here lets a run be classified as DNS
+# vs reachability vs edge-block from the job log alone, instead of
+# downloading the forensic bundle to read a screenshot. NEVER touches
+# `failed` or the exit code — a bank that blocks this probe but serves
+# the browser must not fail the preflight.
+echo "===First-hop reachability (diagnostic, non-fatal)==="
+for h in "${HOSTS[@]}"; do
+  probe_status "$h"
 done
 echo ""
 
