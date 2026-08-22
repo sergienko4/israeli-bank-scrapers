@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.6.8](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.7...v8.6.8) (2026-08-22)
+
+
+### Bug Fixes
+
+* **init:** fail on terminal landing status; warm auth origins ([#493](https://github.com/sergienko4/israeli-bank-scrapers/issues/493)) ([8a3e764](https://github.com/sergienko4/israeli-bank-scrapers/commit/8a3e76404898cbc617bee8d9b5683c91e127e638))
+* **pipeline:** stop silent transaction loss across all API-direct banks ([#491](https://github.com/sergienko4/israeli-bank-scrapers/issues/491)) ([5fa3f13](https://github.com/sergienko4/israeli-bank-scrapers/commit/5fa3f1318d86cfb6e716bfddb6a4c8b56973f733))
+
 ## [8.6.7](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.6...v8.6.7) (2026-08-19)
 
 
