@@ -22,6 +22,27 @@ The mediator resolves each field declared in the bank's `LoginConfig` by trying 
 
 Once the first field is resolved, **FormAnchor** scopes the remaining fields to the discovered `<form>` so multi-form pages don't cross-pollute.
 
+## Resolution guards
+
+A field that resolves to the *wrong* element fails silently: `.fill()` writes nothing,
+the form stays client-side invalid, the submit click is a no-op, and the run ends with no
+warning and no error. Three guards convert each of those into a loud, greppable WARN.
+
+| Guard | Rejects | Event |
+|---|---|---|
+| `rejectNonFormControl` | An element that cannot hold text — strategy 2 walks up to the nearest *interactive* ancestor, which on a marketing or interstitial page can be an `<a>` or `<div>` | `login.field_not_form_control` |
+| `rejectClaimedTarget` / `findClaimingField` | An element a previously resolved field already claimed, so a positional fallback cannot overwrite a semantically-resolved field | `login.field_collision` |
+| `LOGIN_FIELD_RERESOLVE_WAIT` | Nothing — it *retries*. Some banks reveal the second credential input only after the first renders, so the probe polls for the hot-path anchor and returns the moment it appears | — |
+
+`rejectNonFormControl` runs only on the credential-field seam, never on buttons or nav
+links, which legitimately resolve to `<a>`/`<button>`. Its predicate is tag-level
+(`input` / `textarea`) rather than an input-type allowlist, so every input type —
+including `date`, used by dashboard date navigation — stays acceptable.
+
+`LOGIN_FIELD_RERESOLVE_WAIT` bounds that retry (see `Mediator/Timing/LoginTimingConfig.ts`).
+The budget is paid only when the field is genuinely absent; a field already present
+resolves on the first pass and costs nothing.
+
 ## Sub-step contract
 
 | Hook | What it does |

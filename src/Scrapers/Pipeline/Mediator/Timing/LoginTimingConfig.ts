@@ -8,6 +8,15 @@
 /** LOGIN form-frame scan budget per frame. */
 export const LOGIN_PER_FRAME_SCAN_TIMEOUT_MS = 3000;
 
+/**
+ * Poll window for re-probing a login field before it degrades to the
+ * positional heuristic. Some banks reveal their second credential input
+ * only after the first renders, so a single miss must not be treated as
+ * absence. Polling returns as soon as the anchor appears, so the timeout
+ * is only paid when the field genuinely is not there.
+ */
+export const LOGIN_FIELD_RERESOLVE_WAIT = { timeout: 1500, interval: 250 } as const;
+
 /** LOGIN post-submit settle ceiling. */
 export const LOGIN_POST_SUBMIT_SETTLE_TIMEOUT_MS = 15000;
 

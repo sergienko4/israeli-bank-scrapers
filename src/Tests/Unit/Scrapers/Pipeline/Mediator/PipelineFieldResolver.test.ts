@@ -6,8 +6,6 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
-type MockStr = string;
-
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolverPipeline.js',
   () => ({
@@ -23,7 +21,7 @@ jest.unstable_mockModule(
     isPage: jest.fn(),
     tryInContext: jest.fn(),
     tryInContextInternal: jest.fn(),
-    candidateToCss: jest.fn((c: { kind: MockStr; value: MockStr }) => c.value),
+    candidateToCss: jest.fn((c: { kind: string; value: string }) => c.value),
     extractCredentialKey: jest.fn((s: string) => s),
     queryWithTimeout: jest.fn(),
     toXpathLiteral: jest.fn((v: string) => `"${v}"`),
@@ -187,6 +185,29 @@ describe('resolveFieldPipeline/iframe-search', () => {
     });
     expect(SRP_MOD.probeMainPage).toHaveBeenCalled();
     expect(result.isResolved).toBe(true);
+  });
+});
+
+describe('resolveFieldPipeline/late-rendered-field', () => {
+  it('waits for a field that renders after the first probe instead of degrading', async () => {
+    const isPageFn = SR_MOD.isPage as unknown as jest.Mock;
+    isPageFn.mockReturnValue(false);
+    const probeMain = SRP_MOD.probeMainPage as jest.Mock;
+    probeMain
+      .mockResolvedValueOnce({ selector: '', context: MOCK_PAGE }) // absent on first pass
+      .mockResolvedValue(RESOLVED_CTX); // bank reveals it a moment later
+    const metaFn = META_MOD.extractMetadata as jest.Mock;
+    metaFn.mockResolvedValue(MOCK_META);
+
+    const result = await RESOLVER_MOD.resolveFieldPipeline({
+      pageOrFrame: MOCK_PAGE,
+      fieldKey: 'username',
+      bankCandidates: [],
+    });
+
+    expect(result.isResolved).toBe(true);
+    expect(result.resolvedVia).toBe('wellKnown');
+    expect(probeMain.mock.calls.length).toBeGreaterThan(1);
   });
 });
 

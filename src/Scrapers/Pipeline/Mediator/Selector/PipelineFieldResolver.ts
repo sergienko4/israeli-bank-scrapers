@@ -10,6 +10,7 @@
 import type { Option } from '../../Types/Option.js';
 import { logResolvedDetails } from './PipelineFieldResolver.diag.js';
 import { enrichWithMetadata } from './PipelineFieldResolver.enrich.js';
+import { rejectNonFormControl } from './PipelineFieldResolver.formControl.js';
 import { buildResolveOpts } from './PipelineFieldResolver.opts.js';
 import { probeAll } from './PipelineFieldResolver.probe.js';
 import { buildScopedCandidates, resolveWkCandidates } from './PipelineFieldResolver.scope.js';
@@ -44,13 +45,16 @@ function asOpts(args: IResolveAndEnrichArgs): ReturnType<typeof buildResolveOpts
 
 /**
  * Resolve and enrich; emit diagnostic and return.
+ * Vets the match through {@link rejectNonFormControl} before enrichment so a
+ * text walk-up that landed on a link cannot masquerade as a credential box.
  * @param args - Bundled resolution arguments.
  * @returns Enriched field context.
  */
 async function resolveAndEnrich(args: IResolveAndEnrichArgs): Promise<IPipelineFieldContext> {
   const opts = asOpts(args);
   const result = await probeAll(args.req.pageOrFrame, opts);
-  const enriched = await enrichWithMetadata(result);
+  const vetted = await rejectNonFormControl(result, args.req.fieldKey);
+  const enriched = await enrichWithMetadata(vetted);
   if (enriched.isResolved) logResolvedDetails(args.req.fieldKey, enriched, args.slot);
   return enriched;
 }

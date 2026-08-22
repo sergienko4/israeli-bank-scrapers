@@ -222,7 +222,11 @@ function drainHuntStack(stack: IHuntEntry[], collected: TxnGroup[]): readonly Tx
  * keeping each container separate.
  *
  * @param responseBody - Raw API response.
- * @returns One entry per transaction-like container, in discovery order.
+ * @returns One entry per transaction-like container. Order is the walk
+ * order of the LIFO stack (siblings surface last-key-first) and is
+ * deliberately not part of the contract — every consumer either
+ * flattens the groups or aggregates them per container, so no caller
+ * may rely on the sequence.
  */
 export function huntTransactionGroups(responseBody: ApiRecord): readonly TxnGroup[] {
   const stack: IHuntEntry[] = [{ val: responseBody, depth: 0 }];

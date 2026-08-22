@@ -6,8 +6,8 @@
 
 import type { IFieldConfig } from '../../../../Base/Interfaces/Config/FieldConfig.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
-import { none, type Option } from '../../../Types/Option.js';
-import type { LoginFieldKey } from '../../../Types/PipelineContext.js';
+import { none, type Option, some } from '../../../Types/Option.js';
+import type { IResolvedTarget, LoginFieldKey } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import type { IFormAnchor } from '../../Form/FormAnchor.js';
 import type { IFieldContext } from '../../Selector/SelectorResolverPipeline.js';
@@ -19,6 +19,57 @@ import {
   type IAnchorCheckArgs,
   type IFieldAccum,
 } from './FieldDiscoveryTypes.js';
+
+/** Targets accumulated so far — aliased to keep signatures single-line. */
+type TargetMap = ReadonlyMap<LoginFieldKey, IResolvedTarget>;
+
+/**
+ * Whether two resolutions point at the same element.
+ * @param a - First resolution.
+ * @param b - Second resolution.
+ * @returns True when selector and context match.
+ */
+function sameTarget(a: IResolvedTarget, b: IResolvedTarget): boolean {
+  return a.selector === b.selector && a.contextId === b.contextId;
+}
+
+/**
+ * Find the credential field that already claimed this element.
+ *
+ * <p>Two credential fields resolving to one element means a positional
+ * fallback claimed an input a semantically-resolved field already owns.
+ * Filling both silently overwrites the first, leaving the real field
+ * empty and the form invalid — with no error raised anywhere.
+ * @param targets - Targets accumulated so far.
+ * @param resolved - Candidate resolution to check.
+ * @returns Some(owner) when already claimed, none() when free.
+ */
+export function findClaimingField(
+  targets: TargetMap,
+  resolved: IResolvedTarget,
+): Option<LoginFieldKey> {
+  const entries = [...targets];
+  const hit = entries.find(([, target]): boolean => sameTarget(target, resolved));
+  return hit === undefined ? none() : some(hit[0]);
+}
+
+/**
+ * Drop a resolution that collides with a previously resolved field.
+ *
+ * <p>Rejecting is strictly safer than accepting: a missing field fails
+ * the login loudly, whereas a duplicated one corrupts a sibling field's
+ * value and produces a silent client-side validation stall.
+ * @param call - Bundled accumulate arguments.
+ * @returns The resolution, or false when it collides with a prior field.
+ */
+export function rejectClaimedTarget(call: IAccumulateCallArgs): IResolvedTarget | false {
+  if (!call.resolved) return false;
+  const owner = findClaimingField(call.accum.targets, call.resolved);
+  if (!owner.has) return call.resolved;
+  const field = maskVisibleText(call.field.credentialKey);
+  call.logger.warn({ event: 'login.field_collision', field, claimedBy: owner.value });
+  return false;
+}
 
 /**
  * Accumulate one resolved field into the targets map + emit trace log.
@@ -79,6 +130,23 @@ export async function maybeDiscoverAnchor(
 }
 
 /**
+ * Resolve one field, then drop it when a previously resolved field
+ * already claimed the same element.
+ * @param args - Discovery bundle.
+ * @param accum - Running accumulator.
+ * @param field - Field to resolve.
+ * @returns Accepted resolution, or false when missing or colliding.
+ */
+async function resolveUnclaimed(
+  args: IDiscoverFieldsArgs,
+  accum: IFieldAccum,
+  field: IFieldConfig,
+): Promise<IResolvedTarget | false> {
+  const resolved = await resolveOneField({ args, field, anchor: accum.formAnchor });
+  return rejectClaimedTarget({ accum, field, resolved, logger: args.logger });
+}
+
+/**
  * Resolve one field and accumulate into the discovery state.
  * @param args - Discovery bundle.
  * @param accum - Running accumulator.
@@ -90,7 +158,7 @@ export async function resolveAndAccumulate(
   accum: IFieldAccum,
   field: IFieldConfig,
 ): Promise<IFieldAccum> {
-  const resolved = await resolveOneField({ args, field, anchor: accum.formAnchor });
+  const resolved = await resolveUnclaimed(args, accum, field);
   accumulateField({ accum, field, resolved, logger: args.logger });
   const formAnchor = await maybeDiscoverAnchor(args, { accum, field, resolved });
   return { targets: accum.targets, formAnchor };
