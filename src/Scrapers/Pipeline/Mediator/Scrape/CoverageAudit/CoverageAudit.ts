@@ -59,7 +59,7 @@ export interface ICoverageArgs {
  * Default ownership: a per-account response carries this account's rows only.
  * @returns Always true — every hunted row counts for the account being audited.
  */
-const OWNS_EVERY_ROW: OwnsRow = (): boolean => true;
+export const OWNS_EVERY_ROW: OwnsRow = (): boolean => true;
 
 /**
  * Reduce a raw row to the identity the consumer ultimately sees.

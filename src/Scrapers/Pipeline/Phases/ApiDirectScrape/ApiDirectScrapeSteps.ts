@@ -5,8 +5,14 @@
  * paginated transactions. Zero bank-name coupling.
  */
 
-import type { ICoverageResult } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
-import { auditCoverage } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
+import type {
+  ICoverageResult,
+  OwnsRow,
+} from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
+import {
+  auditCoverage,
+  OWNS_EVERY_ROW,
+} from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
 import { auditDeclaredRows } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
@@ -104,6 +110,22 @@ export async function fetchBalance<TAcct, TCursor>(
 type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage<object, TCursor>>>;
 
 /**
+ * Bind a shape's declared row-ownership test to the account being audited.
+ *
+ * Only a shape whose response carries every account merged declares one. For
+ * the rest the audit's own default applies, and returning it here rather than
+ * nothing keeps a single definition of what "this row is mine" means.
+ *
+ * @param a - Per-account context.
+ * @returns The bound test, or the every-row default when none is declared.
+ */
+function ownsRowFor<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): OwnsRow {
+  const declared = a.shape.transactions.auditOwnsRow;
+  if (!declared) return OWNS_EVERY_ROW;
+  return (row: object): boolean => declared(row, a.acct);
+}
+
+/**
  * Reconcile one page: compare the rows the bank shape returned against every
  * transaction discoverable in the same response body.
  *
@@ -113,9 +135,9 @@ type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage
  * is passed through untouched.
  *
  * A shape whose response carries every account merged declares `auditOwnsRow`;
- * bound to this account it becomes the audit's `ownsRow`, which narrows hunted
- * rows to the ones this account owns. Without it the other accounts' rows would
- * read as loss on every page. Banks with a per-account response declare nothing.
+ * bound to this account by {@link ownsRowFor} it narrows hunted rows to the
+ * ones this account owns. Without it the other accounts' rows would read as
+ * loss on every page. Banks with a per-account response declare nothing.
  *
  * @param a - Per-account context.
  * @param body - Raw response body for this page.
@@ -128,9 +150,8 @@ function auditPageCoverage<TAcct, TCursor>(
   items: readonly object[],
 ): ICoverageResult {
   const label = `${a.ctx.companyId}/txns`;
-  const declared = a.shape.transactions.auditOwnsRow;
-  const ownsRow = declared && ((row: object): boolean => declared(row, a.acct));
   const isCardIssuer = a.shape.isCardIssuer;
+  const ownsRow = ownsRowFor(a);
   return auditCoverage({ body, extracted: items, isCardIssuer, label, ownsRow });
 }
 
