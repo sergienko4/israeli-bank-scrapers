@@ -7,8 +7,8 @@ The API-DIRECT-CALL config contract is the typed shape every API-direct bank
 (Pepper, PayBox, OneZero) compiles its `PipelineBankConfig.headless` literal
 against. As of **v8.5** that shape lives in **six focused concern-slice files**
 under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
-through a single barrel. The legacy `IApiDirectCallConfig.ts` file is now a
-**14-line deprecated re-export shim** scheduled for removal in **v8.6**.
+through a single barrel. The legacy `IApiDirectCallConfig.ts` file was reduced
+to a 14-line deprecated re-export shim in v8.5 and **deleted in v8.6**.
 
 ## File layout
 
@@ -22,7 +22,6 @@ src/Scrapers/Pipeline/Mediator/ApiDirectCall/
 │   ├── EnvelopeTypes.ts      ← deps TemplateTypes + SignerTypes
 │   ├── FlowTypes.ts          ← deps TemplateTypes + EnvelopeTypes
 │   └── ApiDirectCallConfig.ts ← composes all five
-└── IApiDirectCallConfig.ts   ← @deprecated shim (re-exports the barrel)
 ```
 
 The dependency graph is **acyclic** (`madge --circular` is part of the lint
@@ -122,23 +121,27 @@ canonical **150 LoC** file ceiling enforced everywhere else under
    tracks `ConfigContracts/**/*.ts` as the **4th** cluster
    (after `PiiRedactor`) with the canonical per-cluster profile
    (file 150 / per-fn 10 / complexity 10 / params 3).
-3. **Preserves the public surface.** `lib/index.cjs` is
+3. **Preserved the public surface.** `lib/index.cjs` was
    **byte-identical** pre- and post-split — the barrel re-export
-   keeps every existing name, every existing path through
-   `IApiDirectCallConfig.ts` still resolves, and every historical
-   importer compiles unchanged.
+   kept every existing name, and while the shim existed every
+   historical path through `IApiDirectCallConfig.ts` still resolved,
+   so every importer compiled unchanged until it was migrated.
 
-## Removal timeline (v8.6)
+## Removal (completed in v8.6)
 
-The `IApiDirectCallConfig.ts` shim ships with a `@deprecated` JSDoc tag in
-v8.5; IDEs and the TypeScript language service surface a deprecation
-indication at every import site. The removal sweep in v8.6 will:
+The `IApiDirectCallConfig.ts` shim shipped with a `@deprecated` JSDoc tag in
+v8.5, so IDEs and the TypeScript language service surfaced a deprecation
+indication at every import site. The v8.6 sweep then:
 
-- Rewrite each historical `IApiDirectCallConfig.ts` import to either the
+- Rewrote each historical `IApiDirectCallConfig.ts` import to either the
   barrel (`ConfigContracts/index.js`) or the narrow per-bucket form.
-- Delete `IApiDirectCallConfig.ts`.
-- Confirm `lib/index.cjs` remains byte-identical (only import paths in
-  the type-tree change — no public name is removed).
+- Deleted `IApiDirectCallConfig.ts`.
+- Confirmed `lib/index.cjs` remained byte-identical (only import paths in
+  the type-tree changed — no public name was removed).
+
+Deleting a file does not stop it being recreated, so the retired specifier is
+now also held down by a lint rule (`Rule #17` in `LintValidator.ts`), which
+fails the build and names the replacement path at the point of failure.
 
 See the master plan at `phase-8.5-canonical-10/` for the canonical-10
 sweep that lands alongside the shim removal.

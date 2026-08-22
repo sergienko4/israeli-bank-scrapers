@@ -11,8 +11,10 @@
  * `Pipeline/Mediator/Network/Fetch/index.ts`.
  *
  * The shim points at `Fetch/index.js` (the canonical destination of the
- * 8.5a Network split), bypassing the deprecated Pipeline-side shim at
- * `Pipeline/Mediator/Network/Fetch.ts`.
+ * 8.5a Network split). It used to be worth saying that this bypassed a
+ * second, Pipeline-side shim at `Pipeline/Mediator/Network/Fetch.ts`; that
+ * file was deleted in v8.6, so `Fetch/index.js` is now simply the only
+ * path there is.
  *
  * No brand-type wrappers are needed: all public signatures use plain
  * types (`Promise<TResult>`, `string`, `Record<string, string>`,
