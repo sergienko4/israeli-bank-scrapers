@@ -2,9 +2,10 @@
  * Unit tests for the form-control guard applied to resolved field targets.
  *
  * Reproduces the Yahav case where a `textContent` walk-up on "תעודת זהות" landed on
- * a marketing anchor instead of the credential input, and pins the deliberate
- * narrowness of the predicate: `<input type="date">` (dashboard date navigation)
- * must still be accepted even though its type is absent from FILLABLE_INPUT_TYPES.
+ * an anchor on a maintenance page instead of the credential input, and pins the
+ * deliberate narrowness of the predicate: `<input type="date">` (dashboard date
+ * navigation) must still be accepted even though its type is absent from
+ * FILLABLE_INPUT_TYPES.
  */
 
 import { jest } from '@jest/globals';
