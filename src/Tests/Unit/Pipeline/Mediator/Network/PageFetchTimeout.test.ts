@@ -17,6 +17,7 @@ import type { Page } from 'playwright-core';
 
 import {
   fetchGetWithinPage,
+  fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
 import { NETWORK_FETCH_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
@@ -136,58 +137,109 @@ afterEach(() => {
   AbortSignal.timeout = REAL_TIMEOUT_FACTORY;
 });
 
-describe('in-page GET abort budget', () => {
-  it('requests the same budget the native path uses', async () => {
+/** A budget no production path uses, so a captured constant cannot fake it. */
+const SENTINEL_BUDGET_MS = 1234;
+/** Target used by every carrier below. */
+const TARGET_URL = 'https://bank.co.il/api';
+
+/**
+ * A page whose evaluate substitutes the budget before invoking the body.
+ *
+ * The plain invoking page cannot tell an argument read from a closed-over
+ * constant, because both produce the same number. Rewriting the data and
+ * observing the result change is what proves the body honours its argument —
+ * the property real Playwright serialisation depends on.
+ * @param budgetMs - Sentinel budget to substitute.
+ * @returns Fake page.
+ */
+function createBudgetOverridingPage(budgetMs: number): Page {
+  /**
+   * Invoke the in-page body with the substituted budget.
+   * @param fn - The serialised in-page callback.
+   * @param args - Its single argument bundle.
+   * @returns Whatever the in-page body returns.
+   */
+  const evaluate = (fn: (a: unknown) => unknown, args: unknown): unknown =>
+    fn({ ...(args as object), timeoutMs: budgetMs });
+  return { evaluate } as unknown as Page;
+}
+
+/**
+ * Every entry point that issues an in-page fetch.
+ *
+ * `fetchGetWithinPageWithHeaders` is a third in-page body, not a wrapper over
+ * the plain GET, so it needs its own budget wiring and its own coverage — it is
+ * the path taken whenever discovered headers exist.
+ */
+const CARRIERS = [
+  {
+    label: 'GET',
+    /**
+     * Issue a plain in-page GET.
+     * @param page - Page under test.
+     * @returns The parsed body.
+     */
+    run: async (page: Page): Promise<unknown> => fetchGetWithinPage(page, TARGET_URL),
+  },
+  {
+    label: 'GET with headers',
+    /**
+     * Issue an in-page GET carrying discovered headers.
+     * @param page - Page under test.
+     * @returns The parsed body.
+     */
+    run: async (page: Page): Promise<unknown> =>
+      fetchGetWithinPageWithHeaders(page, TARGET_URL, { 'X-Discovered': 'v' }),
+  },
+  {
+    label: 'POST',
+    /**
+     * Issue an in-page POST.
+     * @param page - Page under test.
+     * @returns The parsed body.
+     */
+    run: async (page: Page): Promise<unknown> =>
+      fetchPostWithinPage(page, TARGET_URL, { data: {} }),
+  },
+] as const;
+
+describe('in-page abort budget', () => {
+  it.each(CARRIERS)('$label requests the same budget the native path uses', async ({ run }) => {
     stubRespondingFetch('{"ok":true}');
     const page = createInvokingPage();
-    await fetchGetWithinPage(page, 'https://bank.co.il/api');
+    await run(page);
     expect(requestedBudgets).toEqual([NETWORK_FETCH_TIMEOUT_MS]);
   });
 
-  it('hands the abort signal to the in-page fetch', async () => {
+  it.each(CARRIERS)('$label hands the abort signal to the in-page fetch', async ({ run }) => {
     stubRespondingFetch('{"ok":true}');
     const page = createInvokingPage();
-    await fetchGetWithinPage(page, 'https://bank.co.il/api');
+    await run(page);
     expect(capturedInit?.signal).toBe(controller.signal);
   });
 
-  it('surfaces an aborted request instead of hanging', async () => {
+  it.each(CARRIERS)('$label surfaces an aborted request instead of hanging', async ({ run }) => {
     stubStallingFetch();
     const page = createInvokingPage();
-    const pending = fetchGetWithinPage(page, 'https://bank.co.il/api');
+    const pending = run(page);
     controller.abort();
     await expect(pending).rejects.toThrow('TimeoutError');
   });
+
+  it.each(CARRIERS)('$label reads its budget from evaluate data', async ({ run }) => {
+    stubRespondingFetch('{"ok":true}');
+    const page = createBudgetOverridingPage(SENTINEL_BUDGET_MS);
+    await run(page);
+    expect(requestedBudgets).toEqual([SENTINEL_BUDGET_MS]);
+  });
 });
 
-describe('in-page POST abort budget', () => {
-  it('requests the same budget the native path uses', async () => {
-    stubRespondingFetch('{"ok":true}');
-    const page = createInvokingPage();
-    await fetchPostWithinPage(page, 'https://bank.co.il/api', { data: {} });
-    expect(requestedBudgets).toEqual([NETWORK_FETCH_TIMEOUT_MS]);
-  });
-
-  it('hands the abort signal to the in-page fetch', async () => {
-    stubRespondingFetch('{"ok":true}');
-    const page = createInvokingPage();
-    await fetchPostWithinPage(page, 'https://bank.co.il/api', { data: {} });
-    expect(capturedInit?.signal).toBe(controller.signal);
-  });
-
+describe('in-page POST payload', () => {
   it('keeps the captured SPA headers alongside the signal', async () => {
     stubRespondingFetch('{"ok":true}');
     const page = createInvokingPage();
     const opts = { data: {}, extraHeaders: { 'X-Captured': 'val' } };
-    await fetchPostWithinPage(page, 'https://bank.co.il/api', opts);
+    await fetchPostWithinPage(page, TARGET_URL, opts);
     expect(capturedInit?.headers).toMatchObject({ 'X-Captured': 'val' });
-  });
-
-  it('surfaces an aborted request instead of hanging', async () => {
-    stubStallingFetch();
-    const page = createInvokingPage();
-    const pending = fetchPostWithinPage(page, 'https://bank.co.il/api', { data: {} });
-    controller.abort();
-    await expect(pending).rejects.toThrow('TimeoutError');
   });
 });
