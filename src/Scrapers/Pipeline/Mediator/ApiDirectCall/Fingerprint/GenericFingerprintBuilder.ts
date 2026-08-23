@@ -39,6 +39,6 @@ function buildCollectionResult(
   return hydrate(fpConfig.shape, scope);
 }
 
-export type { ICollectionResult };
+export type { ICollectionResult } from '../Template/RefResolver.js';
 export default buildCollectionResult;
 export { buildCollectionResult };

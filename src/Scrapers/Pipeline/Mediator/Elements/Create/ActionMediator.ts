@@ -27,7 +27,7 @@ import {
 } from '../ActionExecutors.js';
 import { type IActionMediator, type IElementMediator } from '../ElementMediator.js';
 
-export type { FrameRegistryMap };
+export type { FrameRegistryMap } from '../ActionExecutors.js';
 
 /**
  * Snapshot sessionStorage into a plain object inside the browser context.

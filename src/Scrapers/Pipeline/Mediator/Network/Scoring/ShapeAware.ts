@@ -215,4 +215,4 @@ function discoverShapeAware(
 }
 
 export default discoverShapeAware;
-export type { ShapeAwareTier };
+export type { ShapeAwareTier } from './ShapeAwareLogs.js';

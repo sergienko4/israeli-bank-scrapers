@@ -231,4 +231,5 @@ function buildSequential(
 
 export type { IHomeDiscovery };
 export default resolveHomeStrategy;
-export { NAV_STRATEGY, resolveHomeStrategy };
+export { resolveHomeStrategy };
+export { NAV_STRATEGY } from './HomeStrategyClassify.js';

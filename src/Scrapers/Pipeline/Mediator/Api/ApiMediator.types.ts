@@ -165,6 +165,7 @@ type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
 
 /** Args bundle for the headless-mediator factory — re-exported from {@link IHeadlessMediatorArgs}. */
 // (definitions live in ./ApiMediator.headless.types.ts to keep this file ≤150 LoC)
+export type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 export type {
   IBrowserBackedHeadlessMediatorArgs,
   IBrowserBackedStrategies,
@@ -179,7 +180,6 @@ export type {
   IApiMediatorDeps,
   IApiPostOpArgs,
   IApiQueryOpArgs,
-  IApiQueryOpts,
   IAuthMethods,
   ICallMethods,
   IFireGetArgs,

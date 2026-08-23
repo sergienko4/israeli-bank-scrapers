@@ -240,6 +240,7 @@ function createNetworkDiscovery(page: Page, opts: INetworkDiscoveryOpts = {}): I
   return assembleLiveDiscovery(buckets, d, io);
 }
 
-export { buildBucketingMethods, buildCoreMethods, buildEndpointMethods, createNetworkDiscovery };
+export { createNetworkDiscovery };
 export type { HeaderMethods } from './MethodBundles.js';
+export { buildBucketingMethods, buildCoreMethods, buildEndpointMethods } from './MethodBundles.js';
 export type { INetworkDiscoveryOpts };

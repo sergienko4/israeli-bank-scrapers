@@ -159,13 +159,14 @@ export type {
   IRespDescriptor,
   IRunStepArgs,
   ISignerInput,
-  IStepConfig,
   IStepCookieJar,
   IStepLogContext,
-  ITemplateScope,
-  JsonValue,
   MutableHeaderMap,
   NonAesSignerConfig,
   OnSetCookie,
   QueryRecord,
 };
+
+export type { IStepConfig } from '../ConfigContracts/index.js';
+export type { JsonValue } from '../Envelope/JsonPointer.js';
+export type { ITemplateScope } from '../Template/RefResolver.js';

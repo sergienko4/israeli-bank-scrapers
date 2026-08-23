@@ -124,4 +124,6 @@ function findAllFieldValues(
 
 export type { ISearchItem } from './BfsFieldSearch.Flatten.js';
 export { isSearchableObject, matchField } from './BfsFieldSearch.Match.js';
-export { findAllFieldValues, findFieldValue, flattenObjectTree, matchFieldInRecord };
+export { findAllFieldValues, findFieldValue };
+export { flattenObjectTree } from './BfsFieldSearch.Flatten.js';
+export { matchFieldInRecord } from './BfsFieldSearch.Match.js';

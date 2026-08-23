@@ -205,6 +205,6 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
   toDate: ['toTransDate', 'toDate', 'ToDate', 'endDate', 'retrievalEndDate'],
 } satisfies Record<string, string[]>;
 
+export { DISPLAY_ID_FIELDS, QUERY_ID_FIELDS } from './ScrapeIdFields.js';
 export { PIPELINE_WELL_KNOWN_MONTHLY_FIELDS } from './ScrapeMonthlyFields.js';
-export { DISPLAY_ID_FIELDS, QUERY_ID_FIELDS };
 export type AccountContainerName = (typeof PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS.containers)[number];

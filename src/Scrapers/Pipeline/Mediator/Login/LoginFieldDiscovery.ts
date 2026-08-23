@@ -41,5 +41,5 @@ async function executeDiscoverFields(args: IDiscoverFieldsArgs): Promise<ILoginF
   return { targets: final.targets, formAnchor: final.formAnchor, activeFrameId, submitTarget };
 }
 
-export type { IDiscoverFieldsArgs };
+export type { IDiscoverFieldsArgs } from './LoginFieldDiscovery.types.js';
 export { executeDiscoverFields };

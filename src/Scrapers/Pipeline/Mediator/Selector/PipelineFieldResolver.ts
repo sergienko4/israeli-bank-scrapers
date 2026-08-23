@@ -70,5 +70,5 @@ async function resolveFieldPipeline(args: IResolveFieldArgs): Promise<IPipelineF
   return resolveAndEnrich({ req: args, candidates, slot });
 }
 
-export type { IPipelineFieldContext, IResolveFieldArgs };
+export type { IPipelineFieldContext, IResolveFieldArgs } from './PipelineFieldResolver.types.js';
 export { resolveFieldPipeline };

@@ -112,5 +112,5 @@ function executeBalanceResolvePost(input: IPipelineContext): Promise<Procedure<I
   return Promise.resolve(outcome);
 }
 
-export type { IBalanceValidation as IBalancePostReport };
+export type { IBalanceValidation as IBalancePostReport } from '../../Types/PipelineContext.js';
 export { executeBalanceResolvePost };

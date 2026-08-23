@@ -109,10 +109,11 @@ interface IReduceDerivationCtx {
 }
 
 /** Re-export of the public bootstrap kind for sibling consumers. */
+export type { IApiDirectCallConfig, SeedCarryBootstrapKind } from '../ConfigContracts/index.js';
+
 export type {
   CarryMut,
   Creds,
-  IApiDirectCallConfig,
   IDerivationSharedCtx,
   IEvalDerivedArgs,
   IJwtClaimArgs,
@@ -126,6 +127,5 @@ export type {
   IStepJsonPathArgs,
   IWalkConfigArgs,
   IWalkJsonCtx,
-  SeedCarryBootstrapKind,
   SeedSourceEntry,
 };

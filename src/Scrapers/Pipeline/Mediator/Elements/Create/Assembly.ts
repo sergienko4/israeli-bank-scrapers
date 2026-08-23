@@ -18,7 +18,7 @@ import { buildCountCluster } from './Observation.js';
 import { buildStaticCluster } from './PhaseControls.js';
 import { buildFormCluster, buildResolveCluster } from './Resolve.js';
 
-export type { IFormCache };
+export type { IFormCache } from './FieldResolve.js';
 
 /**
  * Compose the full method bundle for IElementMediator (everything

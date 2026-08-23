@@ -37,6 +37,6 @@ function discoverAccountsInPool(pool: readonly IDiscoveredEndpoint[]): IAccountD
   return buildDiscoveryFromEndpoint(endpoint);
 }
 
-export type { IAccountDiscoveryResult };
+export type { IAccountDiscoveryResult } from './AccountFromPool.Types.js';
 export { discoverAccountsInPool };
 export { poolMaxContainer } from './AccountFromPool.Picker.js';

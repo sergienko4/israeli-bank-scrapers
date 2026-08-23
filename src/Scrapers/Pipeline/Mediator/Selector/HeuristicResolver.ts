@@ -89,4 +89,5 @@ async function tryHeuristicProbe(
 }
 
 export default tryHeuristicProbe;
-export { heuristicResolveInFrame, tryHeuristicProbe };
+export { tryHeuristicProbe };
+export { heuristicResolveInFrame } from './HeuristicResolver.context.js';

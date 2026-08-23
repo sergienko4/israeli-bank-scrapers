@@ -257,7 +257,8 @@ function makeMtlsInvoke(agent: Agent): FetchInvoke {
   return invoke;
 }
 
-export type { HttpVerb, IMtlsRequest };
+export type { IMtlsRequest };
+export type { HttpVerb } from '../NativeFetchStrategy.js';
 export {
   buildMtlsAgent,
   collectBody,

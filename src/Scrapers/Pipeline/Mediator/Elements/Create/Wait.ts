@@ -36,7 +36,7 @@ const LOG = getDebug(import.meta.url);
  * action callers share the same delay), but its only OTHER consumer
  * (the parent mediator) has migrated to importing it from here.
  */
-export { ELEMENTS_LOADING_DELAY_MS };
+export { ELEMENTS_LOADING_DELAY_MS } from '../ActionExecutors.js';
 
 /**
  * Map a single locator to a non-rejecting "is visible" probe.

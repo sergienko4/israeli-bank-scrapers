@@ -182,4 +182,5 @@ function extractAccountIds(responseBody: ApiRecord): readonly string[] {
   return records.map(extractValidIdentifier).filter(Boolean);
 }
 
-export { extractAccountIds, extractAccountRecords, extractAllContainers, isUsableIdentifier };
+export { extractAccountIds, extractAccountRecords, isUsableIdentifier };
+export { extractAllContainers } from './ContainerClaim.js';
