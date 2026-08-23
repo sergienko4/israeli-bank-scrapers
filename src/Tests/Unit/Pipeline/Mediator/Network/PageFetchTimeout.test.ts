@@ -134,6 +134,39 @@ function stubStallingFetch(): boolean {
   return true;
 }
 
+/**
+ * Body accessor for a 204, which a correct in-page body never calls.
+ * @returns Always rejects.
+ */
+function rejectBodyRead(): Promise<string> {
+  return Promise.reject(new Error('read the body of a 204 response'));
+}
+
+/**
+ * Stub fetch with a no-content response whose body must never be read.
+ *
+ * Each in-page body branches on `response.status === 204`, and every other test
+ * here drives the other arm. A module-scope reference on this one — the literal
+ * replaced by an imported constant, say — would satisfy the whole suite and
+ * still throw on the first real no-content response.
+ * @returns True once installed.
+ */
+function stubNoContentFetch(): boolean {
+  /**
+   * Capture init, then resolve a 204 that rejects if its body is read.
+   * @param _url - Ignored; assertions target the branch taken.
+   * @param init - Init built by the in-page body.
+   * @returns Resolved mock response.
+   */
+  const stub = (_url: string, init: RequestInit): Promise<Response> => {
+    capturedInit = init;
+    const response = { status: 204, text: rejectBodyRead } as unknown as Response;
+    return Promise.resolve(response);
+  };
+  globalThis.fetch = stub as unknown as typeof fetch;
+  return true;
+}
+
 beforeEach(() => {
   requestedBudgets = [];
   capturedInit = undefined;
@@ -380,6 +413,16 @@ describe('in-page abort budget', () => {
 
   it.each(CARRIERS)('$label runs in a realm with no module scope', async ({ run }) => {
     stubRespondingFetch('{"ok":true}');
+    const page = createIsolatedPage();
+    await run(page);
+    expect(requestedBudgets).toEqual([NETWORK_FETCH_PAGE_TIMEOUT_MS]);
+  });
+
+  // The realm check above only ever drives the body-bearing arm. Resolving
+  // without reading the body is the proof the no-content arm was taken, since
+  // the stub rejects on read.
+  it.each(CARRIERS)('$label runs its no-content arm in that realm too', async ({ run }) => {
+    stubNoContentFetch();
     const page = createIsolatedPage();
     await run(page);
     expect(requestedBudgets).toEqual([NETWORK_FETCH_PAGE_TIMEOUT_MS]);
