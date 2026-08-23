@@ -57,6 +57,38 @@ const PATH_SHAPE = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+$/;
 const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
 
 /**
+ * Strip a leading `./` and normalise separators.
+ *
+ * A manifest may spell the same file `lib/index.cjs` (as `main` does) or
+ * `./lib/index.cjs` (as `exports` must), and a document may cite either.
+ * Canonicalising both sides is what makes the comparison a fact about the
+ * file rather than about the spelling.
+ * @param entry - Path as written in the manifest or the document.
+ * @returns Repo-relative path, forward slashes, no `./` prefix.
+ */
+function canonicalisePath(entry) {
+  const slashed = entry.split('\\').join('/');
+  return slashed.startsWith('./') ? slashed.slice(2) : slashed;
+}
+
+/**
+ * Collect every string *target* under `exports`, at any nesting depth.
+ *
+ * Deliberately reads values only. A subpath key such as `"./widget"` is a
+ * public specifier, not a file on disk; exempting one would let a citation of
+ * a nonexistent path pass and reinstate the fail-open behaviour this whole
+ * change exists to remove.
+ * @param node - An `exports` subtree: string, array, object, or null.
+ * @returns Declared target paths, unnormalised.
+ */
+function exportTargets(node) {
+  if (typeof node === 'string') return [node];
+  if (Array.isArray(node)) return node.flatMap(exportTargets);
+  if (node !== null && typeof node === 'object') return Object.values(node).flatMap(exportTargets);
+  return [];
+}
+
+/**
  * The published entry points, read from the manifest rather than listed here.
  *
  * These are build output: present on any machine that has run a build, absent
@@ -67,17 +99,16 @@ const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
  *
  * Derived, not hardcoded, so the gate cannot drift from what npm actually
  * publishes. Exempting the whole `lib/` directory instead would be the easy
- * fix and the wrong one: it would silently accept `lib/indexs.d.ts`, turning
- * a typo a reviewer wants flagged into a pass.
- * @returns Declared entry-point paths, repo-relative.
+ * fix and the wrong one: it would silently accept a one-character typo in a
+ * citation, turning something a reviewer wants flagged into a pass.
+ * @returns Declared entry-point paths, repo-relative and canonical.
  */
 function publishedEntryPoints() {
   const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
-  const nested = JSON.stringify(manifest.exports ?? {});
-  const quoted = nested.match(/"\.\/[^"]+"/g) ?? [];
-  const fromExports = quoted.map(token => token.slice(3, -1));
+  const fromExports = exportTargets(manifest.exports ?? {});
   const flat = [manifest.main, manifest.module, manifest.types];
-  return [...flat, ...fromExports].filter(entry => typeof entry === 'string');
+  const declared = [...flat, ...fromExports].filter(entry => typeof entry === 'string');
+  return declared.map(canonicalisePath);
 }
 
 /**
@@ -137,7 +168,8 @@ function extractPaths(body) {
     if (!PATH_SHAPE.test(token)) continue;
     if (!withinRepo(token)) continue;
     if (IGNORED_PREFIXES.some(p => token.startsWith(p))) continue;
-    if (OPTIONAL_PATHS.has(token)) continue;
+    const canonical = canonicalisePath(token);
+    if (OPTIONAL_PATHS.has(canonical)) continue;
     found.add(token);
   }
   return [...found].sort();
