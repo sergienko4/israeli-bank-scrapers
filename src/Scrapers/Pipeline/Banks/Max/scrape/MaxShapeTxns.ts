@@ -12,58 +12,20 @@
  * MaxShapeHelpers.ts for the 150-LOC cap.
  */
 
-import moment from 'moment';
+import type moment from 'moment';
 
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import {
+  lastOffset,
+  monthAt,
+  nextCursorOf,
+  offsetOf,
+} from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type { IExtractPageArgs } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { getFutureMonths } from '../../../Types/ScraperDefaults.js';
 import { filterMaxRows } from './MaxShapeExtract.js';
 import { clientVersionOf, type IMaxCard, MAX_API, withVersion } from './MaxShapeHelpers.js';
-
-/**
- * First transaction month of the scrape window (from ScraperOptions.startDate).
- * @param ctx - Action context.
- * @returns Start-of-month moment for the window start.
- */
-function startMonth(ctx: IActionContext): moment.Moment {
-  return moment(ctx.options.startDate).startOf('month');
-}
-
-/**
- * Highest in-window month offset — months from the start month to
- * now + futureMonthsToScrape (inclusive of the upcoming cycle).
- * @param ctx - Action context.
- * @returns Last 0-based month offset.
- */
-function lastOffset(ctx: IActionContext): number {
-  const future = getFutureMonths(ctx.options);
-  const windowEnd = scrapeWindowEnd(ctx);
-  const end = moment(windowEnd).add(future, 'months').startOf('month');
-  const start = startMonth(ctx);
-  return end.diff(start, 'months');
-}
-
-/**
- * Resolve the 0-based month offset for this round (0 on the first call).
- * @param cursor - Incoming cursor (false on first call).
- * @returns Month offset.
- */
-function offsetOf(cursor: number | false): number {
-  return cursor === false ? 0 : cursor;
-}
-
-/**
- * Target transaction month for a given offset.
- * @param ctx - Action context.
- * @param offset - 0-based month offset.
- * @returns Moment for the target month.
- */
-function monthAt(ctx: IActionContext, offset: number): moment.Moment {
-  return startMonth(ctx).add(offset, 'months');
-}
 
 /**
  * getTransactionsAndGraphs "show all cards" filterData template — the exact
@@ -130,24 +92,16 @@ export function txnsUrl(
 }
 
 /**
- * Next cursor — advance one month until the last in-window month, then stop.
- * Driven by offset (not row count), so empty months keep the walk going.
- * @param offset - Offset just fetched.
- * @param ctx - Action context.
- * @returns Next cursor, or false when the window is exhausted.
- */
-function nextCursorOf(offset: number, ctx: IActionContext): number | false {
-  return offset < lastOffset(ctx) ? offset + 1 : false;
-}
-
-/**
  * Extract one month's transactions for the account's card + the next month
  * cursor. The monthly call returns all cards; rows are filtered by last-4.
+ * Max declares no open-cycle floor, so `lastOffset` takes no floor argument.
  * @param args - Bundle carrying the unwrapped body + cursor + acct + ctx.
  * @returns Page rows + next cursor.
  */
 export function txnsExtractPage(args: IExtractPageArgs<IMaxCard, number>): IPage<object, number> {
   const rows = filterMaxRows(args.body, args.acct.last4);
   const offset = offsetOf(args.cursor);
-  return { items: rows, nextCursor: nextCursorOf(offset, args.ctx) };
+  const ceiling = lastOffset(args.ctx);
+  const nextCursor = nextCursorOf(offset, ceiling);
+  return { items: rows, nextCursor };
 }

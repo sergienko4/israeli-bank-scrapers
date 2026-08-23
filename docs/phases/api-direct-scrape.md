@@ -100,6 +100,20 @@ Two constraints shape that split, and both are load-bearing:
 
 The pattern generalises: any set of brands sharing one portal belongs behind one family factory on these terms.
 
+## Shared card-issuer cursor — one calendar walk, four issuers
+
+The four card issuers (Amex, Isracard, Max, VisaCal) do not page by an opaque server token. They page by **billing month**, walking the scrape window one month at a time. That walk is the *fallback* path: when the billing-cycle catalog detector resolves a real cycle catalog, SCRAPE uses it instead and these helpers are not consulted.
+
+Each issuer previously kept a private copy of the same arithmetic, so the walk now lives once in [`Phases/ApiDirectScrape/CardIssuer/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer).
+
+`startMonth` floors the window start to the first of its month. `offsetOf` maps the `TMonthCursor` pagination cursor — `false` on the first call, otherwise a 0-based month offset — onto a branded `TMonthOffset`. `monthAt` resolves the target month, and `billingMonthAt` renders the branded `TBillingMonth`, the composite `01/MM/YYYY` form that the Amex and Isracard request bodies carry. `lastOffset` computes the highest in-window offset, and `nextCursorOf` advances the cursor until that ceiling is reached.
+
+Three constraints shape the split, and all three are load-bearing:
+
+- **The module is named `*ShapeTxns.ts` under `Phases/ApiDirectScrape/`.** That path is what keeps it inside the window-end ESLint rule's glob, which bans reading the clock and forces the bound to come from `scrapeWindowEnd(ctx)`. A shared module outside the glob would silently opt out of the coverage backfill and re-introduce the transaction loss the backfill exists to close.
+- **The open-cycle floor is an optional argument, not a defaulted `0`.** `getFutureMonths` does not clamp, and `futureMonthsToScrape` is an unconstrained public option, so a negative value reaches the walk. Flooring at `0` would *widen* the window for the three unfloored issuers rather than preserve their behaviour; omitting the floor passes the request through untouched.
+- **The ceiling is passed to `nextCursorOf`, never recomputed inside it.** VisaCal floors its walk at one month because CAL indexes a billing month by its *debit* date, so a purchase made today belongs to next month's cycle. Taking the ceiling as an argument lets that divergence live at VisaCal's call site instead of becoming a branch in shared code.
+
 ## urlTag resolution — WK token or inline literal URL
 
 Each shape step (`customer`, `balance`, `transactions`) carries a `urlTag` of type `WKUrlOrLiteral` — either a Well-Known `WKUrlGroup` token resolved through the WK registry, or an absolute REST URL declared inline. Browser banks migrating to the hard-model post-auth path keep their whole API contract in one shape by wrapping each endpoint with `literalUrl(url)` (a branded `LiteralUrl`); GraphQL and Well-Known-registered banks keep using their `WKUrlGroup` token unchanged.
