@@ -145,10 +145,10 @@ function rejectBodyRead(): Promise<string> {
 /**
  * Stub fetch with a no-content response whose body must never be read.
  *
- * Each in-page body branches on `response.status === 204`, and every other test
- * here drives the other arm. A module-scope reference on this one — the literal
- * replaced by an imported constant, say — would satisfy the whole suite and
- * still throw on the first real no-content response.
+ * Each in-page body branches on `response.status === 204`, and until the
+ * no-content realm check below, every test here drove the other arm. A
+ * module-scope reference on this one satisfied the whole suite and would still
+ * have thrown on the first real no-content response.
  * @returns True once installed.
  */
 function stubNoContentFetch(): boolean {
