@@ -55,7 +55,7 @@ function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Proc
 /**
  * Build a failure from a caught fetch exception.
  *
- * The deadline is enforced in Node (`FetchDeadline.ts`), so the timeout arrives
+ * The deadline is enforced in Node by `timeoutPromise`, so the timeout arrives
  * as a real {@link TimeoutError} rather than engine-specific abort text — the
  * classification is a type check, not a string match.
  * @param error - The caught error.
