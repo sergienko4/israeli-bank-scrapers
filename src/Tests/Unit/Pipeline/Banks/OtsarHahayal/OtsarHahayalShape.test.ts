@@ -87,11 +87,10 @@ describe('OtsarHahayalShape accounts', () => {
     expect(accounts).toEqual([{ accountNumber: '555001', branch: '770', accountType: 105 }]);
   });
 
-  it('extractAccounts defaults accountType to 0 when the secondary body is absent', () => {
+  it('extractAccounts rejects a row when the accountType lookup is absent', () => {
     const body = { accounts: [{ account: '555001', branch: '770', selected: true }] };
     const args = accountsArgs(body);
-    const accounts = extractAccounts(args);
-    expect(accounts).toEqual([{ accountNumber: '555001', branch: '770', accountType: 0 }]);
+    expect(() => extractAccounts(args)).toThrow(/no usable type code/);
   });
 
   it('extractAccounts returns an empty list when userData accounts are absent', () => {

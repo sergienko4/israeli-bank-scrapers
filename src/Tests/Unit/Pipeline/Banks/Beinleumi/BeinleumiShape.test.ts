@@ -86,11 +86,10 @@ describe('BeinleumiShape accounts', () => {
     expect(accounts).toEqual([{ accountNumber: '555001', branch: '770', accountType: 105 }]);
   });
 
-  it('extractAccounts defaults accountType to 0 when the secondary body is absent', () => {
+  it('extractAccounts rejects a row when the accountType lookup is absent', () => {
     const body = { accounts: [{ account: '555001', branch: '770', selected: true }] };
     const args = accountsArgs(body);
-    const accounts = extractAccounts(args);
-    expect(accounts).toEqual([{ accountNumber: '555001', branch: '770', accountType: 0 }]);
+    expect(() => extractAccounts(args)).toThrow(/no usable type code/);
   });
 
   it('extractAccounts returns an empty list when userData accounts are absent', () => {
@@ -99,12 +98,19 @@ describe('BeinleumiShape accounts', () => {
     expect(accounts).toEqual([]);
   });
 
-  it('extractAccounts defaults missing account/branch fields to empty strings', () => {
+  it('extractAccounts rejects a userData row carrying no account number', () => {
     const body = { accounts: [{ selected: true }] };
     const secondary = { accountType: [{ accountType: 105 }] };
     const args = accountsArgs(body, secondary);
+    expect(() => extractAccounts(args)).toThrow(/missing its account number/);
+  });
+
+  it('extractAccounts defaults a missing branch to an empty string', () => {
+    const body = { accounts: [{ account: '555001', selected: true }] };
+    const secondary = { accountType: [{ accountType: 105 }] };
+    const args = accountsArgs(body, secondary);
     const accounts = extractAccounts(args);
-    expect(accounts).toEqual([{ accountNumber: '', branch: '', accountType: 105 }]);
+    expect(accounts).toEqual([{ accountNumber: '555001', branch: '', accountType: 105 }]);
   });
 
   it('accountNumberOf returns the display account number', () => {
