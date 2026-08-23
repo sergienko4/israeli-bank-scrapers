@@ -57,7 +57,25 @@ const PATH_SHAPE = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+$/;
 const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
 
 /**
- * Normalise a path to the one spelling everything downstream compares against.
+ * Reduce a path to one structural spelling without changing what it denotes.
+ *
+ * Converts `\` to `/`, drops empty segments left by `//`, and drops interior
+ * `.` segments. A leading `.` is kept: it is what marks `./README.md` as a
+ * path rather than prose, and `PATH_SHAPE` needs that slash to match. A leading
+ * empty segment is kept too, so an absolute path stays absolute and is still
+ * rejected downstream. `..` is never touched — the containment check must see
+ * it.
+ * @param entry - Path as written in a manifest or a document.
+ * @returns Same path, forward slashes, no redundant separators or `.` segments.
+ */
+function normaliseSeparators(entry) {
+  const parts = entry.split('\\').join('/').split('/');
+  const kept = parts.filter((part, index) => index === 0 || (part !== '' && part !== '.'));
+  return kept.join('/');
+}
+
+/**
+ * Reduce a path to the one spelling everything downstream compares against.
  *
  * Three spellings denote the same file. A manifest writes `lib/index.cjs` for
  * `main` but must write `./lib/index.cjs` under `exports`; a document may cite
@@ -65,16 +83,19 @@ const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
  * always reports one form — no prefix, forward slashes — so that is the form
  * chosen here.
  *
- * Applied before every downstream check, not just the exemption: `existsSync`,
- * the removed-path set and the ignored-prefix list all compare against this.
- * Canonicalising for only one of them is what made a `./`-spelled deletion
- * report as drift.
+ * `existsSync`, the removed-path set and the ignored-prefix list all compare
+ * against this. Canonicalising for only one of them is what made a `./`-spelled
+ * deletion report as drift.
+ *
+ * Callers that also need to *recognise* the path must normalise separators
+ * first and canonicalise only afterwards: stripping the `./` from a root-level
+ * citation leaves a bare filename, which `PATH_SHAPE` deliberately rejects.
  * @param entry - Path as written in a manifest or a document.
  * @returns Repo-relative path: forward slashes, no leading `./`.
  */
 function canonicalisePath(entry) {
-  const slashed = entry.split('\\').join('/');
-  return slashed.replace(/^(?:\.\/)+/, '');
+  const normalised = normaliseSeparators(entry);
+  return normalised.replace(/^\.\//, '');
 }
 
 /**
@@ -164,10 +185,10 @@ function withinRepo(token) {
  * documented base while the link target carries the full repo path, so
  * treating the label as repo-relative reports drift that is not there.
  *
- * Canonicalisation happens first, so `PATH_SHAPE`, the traversal guard and the
- * ignored-prefix list all see the same spelling the caller will later resolve.
- * A `\`-separated citation reached none of those checks before, so a broken one
- * was silently skipped.
+ * Separators are normalised before the shape and containment checks so a
+ * `\`-separated citation is recognised at all, but the `./` prefix is stripped
+ * only afterwards: `./README.md` needs its slash to look like a path, and would
+ * vanish if reduced to a bare filename first.
  * @param body - Markdown text.
  * @returns Sorted unique candidate repo-relative paths.
  */
@@ -176,9 +197,10 @@ function extractPaths(body) {
   for (const match of body.matchAll(CODE_SPAN)) {
     if (body.startsWith('](', match.index + match[0].length)) continue;
     const stripped = stripLocator(match[1].trim());
-    const token = canonicalisePath(stripped);
-    if (!PATH_SHAPE.test(token)) continue;
-    if (!withinRepo(token)) continue;
+    const shaped = normaliseSeparators(stripped);
+    if (!PATH_SHAPE.test(shaped)) continue;
+    if (!withinRepo(shaped)) continue;
+    const token = canonicalisePath(shaped);
     if (IGNORED_PREFIXES.some(p => token.startsWith(p))) continue;
     if (OPTIONAL_PATHS.has(token)) continue;
     found.add(token);

@@ -87,23 +87,33 @@ function writeBody(body: string): { dir: string; file: string } {
 }
 
 /**
- * Run the gate over a body, resolving cited paths against `root`.
+ * Run the gate as a child process.
  *
  * `process.execPath` is used rather than a bare `node` so the spawn cannot
  * silently pick a different runtime, and a spawn failure throws instead of
  * being coerced to 1 — which would let the rejection cases pass for the
  * wrong reason.
+ * @param file - Markdown file to check.
+ * @param root - Working directory to resolve cited paths against.
+ * @returns Exit status, with `-1` for a signalled exit, and stdout.
+ */
+function spawnGate(file: string, root: string): { status: number; stdout: string } {
+  const options = { encoding: 'utf8', cwd: root } as const;
+  const result = spawnSync(process.execPath, [GATE, file], options);
+  if (result.error) throw result.error;
+  return { status: result.status ?? -1, stdout: result.stdout };
+}
+
+/**
+ * Run the gate against a body, in a chosen working directory.
  * @param body - Markdown source to check.
- * @param root - Working directory the gate resolves against.
+ * @param root - Working directory to resolve cited paths against.
  * @returns Exit code the gate reported.
  */
 function runGateIn(body: string, root: string): number {
   const written = writeBody(body);
   try {
-    const options = { encoding: 'utf8', cwd: root } as const;
-    const result = spawnSync(process.execPath, [GATE, written.file], options);
-    if (result.error) throw result.error;
-    return result.status ?? -1;
+    return spawnGate(written.file, root).status;
   } finally {
     fs.rmSync(written.dir, { recursive: true, force: true });
   }
@@ -154,10 +164,7 @@ function runGate(body: string): number {
 function gateOutput(body: string): string {
   const written = writeBody(body);
   try {
-    const options = { encoding: 'utf8', cwd: REPO_ROOT } as const;
-    const result = spawnSync(process.execPath, [GATE, written.file], options);
-    if (result.error) throw result.error;
-    return result.stdout;
+    return spawnGate(written.file, REPO_ROOT).stdout;
   } finally {
     fs.rmSync(written.dir, { recursive: true, force: true });
   }
@@ -250,12 +257,37 @@ describe('check-doc-paths — one canonical spelling reaches every check', () =>
   });
 
   it('accepts a resolving citation written with `\\` separators', () => {
-    const code = runGate('See `scripts\\check-doc-paths.mjs` for detail.\n');
-    expect(code).toBe(0);
+    // Exit 0 alone cannot tell recognition from a silent skip — the failure
+    // this whole change exists to remove — so assert the path was counted.
+    const out = gateOutput('See `scripts\\check-doc-paths.mjs` for detail.\n');
+    expect(out).toContain('1 cited, 0 unresolved');
   });
 
   it('still refuses to traverse upward through `\\` separators', () => {
     const code = runGate('See `..\\outside\\secrets.ts` for detail.\n');
     expect(code).toBe(0);
+  });
+
+  // Stripping `./` before the shape check reduces a root-level citation to a
+  // bare filename, which `PATH_SHAPE` rejects for having no slash — so the
+  // citation vanishes instead of being checked.
+  it('still checks a `./`-prefixed file at the repository root', () => {
+    const code = runGate('See `./DefinitelyMissing.md` for detail.\n');
+    expect(code).toBe(1);
+  });
+
+  it('resolves a `./`-prefixed root file that does exist', () => {
+    const out = gateOutput('See `./README.md` for detail.\n');
+    expect(out).toContain('1 cited, 0 unresolved');
+  });
+
+  it('collapses an interior `.` segment to the spelling git reports', () => {
+    const out = gateOutput('See `src/./Nope/Missing.ts` for detail.\n');
+    expect(out).toContain('✗ src/Nope/Missing.ts');
+  });
+
+  it('collapses a doubled separator to the spelling git reports', () => {
+    const out = gateOutput('See `src//Nope/Missing.ts` for detail.\n');
+    expect(out).toContain('✗ src/Nope/Missing.ts');
   });
 });
