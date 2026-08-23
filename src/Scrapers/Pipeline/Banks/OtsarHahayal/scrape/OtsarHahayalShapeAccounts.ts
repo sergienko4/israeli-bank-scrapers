@@ -6,15 +6,16 @@
  */
 
 import {
-  accountNumberOf,
   customerUrl as fibiCustomerUrl,
-  extractAccounts,
   secondaryUrl as fibiSecondaryUrl,
 } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import { OTSAR_HAHAYAL_CONFIG } from './OtsarHahayalShapeHelpers.js';
 
-export { accountNumberOf, extractAccounts };
+export {
+  accountNumberOf,
+  extractAccounts,
+} from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 
 /**
  * Customer URL — the userData accounts endpoint on the Otsar Hahayal origin.

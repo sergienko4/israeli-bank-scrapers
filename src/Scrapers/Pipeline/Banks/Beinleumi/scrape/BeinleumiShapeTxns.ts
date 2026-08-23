@@ -6,15 +6,14 @@
  * backfill keeps reaching the wire for every FIBI brand at once.
  */
 
-import {
-  txnsExtractPage,
-  txnsUrl as fibiTxnsUrl,
-  txnsVars,
-} from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
+import { txnsUrl as fibiTxnsUrl } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
 import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import { BEINLEUMI_CONFIG } from './BeinleumiShapeHelpers.js';
 
-export { txnsExtractPage, txnsVars };
+export {
+  txnsExtractPage,
+  txnsVars,
+} from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
 
 /**
  * Transactions URL — the fixed BFF list endpoint (params ride the body).

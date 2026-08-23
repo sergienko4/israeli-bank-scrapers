@@ -6,15 +6,16 @@
  */
 
 import {
-  accountNumberOf,
   customerUrl as fibiCustomerUrl,
-  extractAccounts,
   secondaryUrl as fibiSecondaryUrl,
 } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import { MASSAD_CONFIG } from './MassadShapeHelpers.js';
 
-export { accountNumberOf, extractAccounts };
+export {
+  accountNumberOf,
+  extractAccounts,
+} from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 
 /**
  * Customer URL — the userData accounts endpoint on the Massad origin.

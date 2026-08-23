@@ -6,15 +6,16 @@
  */
 
 import {
-  accountNumberOf,
   customerUrl as fibiCustomerUrl,
-  extractAccounts,
   secondaryUrl as fibiSecondaryUrl,
 } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import { PAGI_CONFIG } from './PagiShapeHelpers.js';
 
-export { accountNumberOf, extractAccounts };
+export {
+  accountNumberOf,
+  extractAccounts,
+} from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeAccounts.js';
 
 /**
  * Customer URL — the userData accounts endpoint on the Pagi origin.
