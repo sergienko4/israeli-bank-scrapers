@@ -14,9 +14,12 @@
  * Mapper unchanged. Split from VisaCalShapeHelpers.ts for the 150-LOC cap.
  */
 
-import moment from 'moment';
-
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import {
+  lastOffset,
+  monthAt,
+  nextCursorOf,
+  offsetOf,
+} from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type {
   IExtractPageArgs,
   VarsMap,
@@ -24,7 +27,6 @@ import type {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { getFutureMonths } from '../../../Types/ScraperDefaults.js';
 import { CAL_API, type IVisaCalCard } from './VisaCalShapeHelpers.js';
 
 type VisaCalTxn = Record<string, unknown>;
@@ -44,58 +46,16 @@ interface ITxnsResp {
 }
 
 /**
- * First billing month of the scrape window (from ScraperOptions.startDate).
- * @param ctx - Action context.
- * @returns Start-of-month moment for the window start.
- */
-function startMonth(ctx: IActionContext): moment.Moment {
-  return moment(ctx.options.startDate).startOf('month');
-}
-
-/**
  * Month offset of the still-open billing cycle relative to the current
- * calendar month. CAL indexes a billing month by its debit date, so a
- * cycle covers purchases made from roughly the previous month up to its
- * debit day — purchases made today therefore belong to next month's
- * cycle. Flooring the window end here keeps `futureMonthsToScrape: 0`
- * meaning "no cycles beyond the open one" instead of silently dropping
- * up to a month of already-made purchases.
+ * calendar month, passed to the shared `lastOffset` as its floor. CAL
+ * indexes a billing month by its debit date, so a cycle covers purchases
+ * made from roughly the previous month up to its debit day — purchases
+ * made today therefore belong to next month's cycle. Flooring the window
+ * end here keeps `futureMonthsToScrape: 0` meaning "no cycles beyond the
+ * open one" instead of silently dropping up to a month of already-made
+ * purchases. CAL is the only issuer that declares such a floor.
  */
 const OPEN_CYCLE_MONTHS = 1;
-
-/**
- * Highest in-window month offset — months from the start month to
- * now + futureMonthsToScrape, never earlier than the still-open cycle.
- * @param ctx - Action context.
- * @returns Last 0-based month offset.
- */
-function lastOffset(ctx: IActionContext): number {
-  const requested = getFutureMonths(ctx.options);
-  const future = Math.max(requested, OPEN_CYCLE_MONTHS);
-  const windowEnd = scrapeWindowEnd(ctx);
-  const end = moment(windowEnd).add(future, 'months').startOf('month');
-  const start = startMonth(ctx);
-  return end.diff(start, 'months');
-}
-
-/**
- * Resolve the 0-based month offset for this round (0 on the first call).
- * @param cursor - Incoming cursor (false on first call).
- * @returns Month offset.
- */
-function offsetOf(cursor: number | false): number {
-  return cursor === false ? 0 : cursor;
-}
-
-/**
- * Target billing month for a given offset.
- * @param ctx - Action context.
- * @param offset - 0-based month offset.
- * @returns Moment for the target month.
- */
-function monthAt(ctx: IActionContext, offset: number): moment.Moment {
-  return startMonth(ctx).add(offset, 'months');
-}
 
 /**
  * Build txns POST body for one card-month: {cardUniqueId, month, year}
@@ -163,19 +123,9 @@ function flattenTxns(resp: ITxnsResp): readonly VisaCalTxn[] {
 }
 
 /**
- * Next cursor — advance one month until the last in-window month, then
- * stop. Driven by offset (not row count), so empty months keep the walk
- * going until the window is exhausted.
- * @param offset - Offset just fetched.
- * @param ctx - Action context.
- * @returns Next cursor, or false when the window is exhausted.
- */
-function nextCursorOf(offset: number, ctx: IActionContext): number | false {
-  return offset < lastOffset(ctx) ? offset + 1 : false;
-}
-
-/**
- * Extract one month's transactions page + the next month cursor.
+ * Extract one month's transactions page + the next month cursor. CAL
+ * floors its window end at the still-open cycle, so the ceiling is
+ * resolved with {@link OPEN_CYCLE_MONTHS}.
  * @param args - Bundle carrying the unwrapped body + cursor + ctx.
  * @returns Page rows + next cursor.
  */
@@ -185,5 +135,7 @@ export function txnsExtractPage(
   const resp = args.body as unknown as ITxnsResp;
   const rows = flattenTxns(resp);
   const offset = offsetOf(args.cursor);
-  return { items: rows, nextCursor: nextCursorOf(offset, args.ctx) };
+  const ceiling = lastOffset(args.ctx, OPEN_CYCLE_MONTHS);
+  const nextCursor = nextCursorOf(offset, ceiling);
+  return { items: rows, nextCursor };
 }
