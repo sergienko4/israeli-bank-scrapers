@@ -164,6 +164,5 @@ export function regimeFailure(
   const actual = observedCap(value);
   const expected = expectedCap(path, ruleId);
   if (actual === expected) return [];
-  const reason = mismatchReason(actual, expected);
-  return [{ path, ruleId, reason }];
+  return [{ path, ruleId, reason: mismatchReason(actual, expected) }];
 }

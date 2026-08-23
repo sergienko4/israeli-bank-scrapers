@@ -21,11 +21,21 @@
  * the most specific statement about a path governs it — and is deliberately NOT
  * a model of how `eslint.config.mjs` resolves. Flat config is ordered: a LATER
  * block wins even when it is BROADER, so a broad grandfather placed after a
- * narrow tightening silently overrides it. Because the two rules differ, the
- * table must record what each tree ACTUALLY resolves to, never what a config
- * block appears to declare. Any divergence surfaces as a loud mismatch rather
- * than a silent pass, which is precisely the signal this gate exists to give. A
- * path with no matching entry must resolve to the canonical CLEAN_CODE.md cap.
+ * narrow tightening silently overrides it.
+ *
+ * <p>Because the two rules differ, an entry records the cap a maintainer has
+ * REVIEWED and intends for that tree — never what a single config block appears
+ * to declare, since a later block may override it. ESLint supplies the cap that
+ * is actually in force, and the gate asserts the two agree.
+ *
+ * <p>Agreement therefore proves the config has not DRIFTED from a reviewed
+ * decision. It does not prove the decision was right: if an entry is authored by
+ * copying the resolved value instead of reviewing it, both sides agree and the
+ * gate passes. That is exactly how the `Types/Domain` 10 → 30 relaxation stayed
+ * hidden. Author entries from CLEAN_CODE.md and the config's stated rationale,
+ * and treat a mismatch as the question "which side is wrong?" — not as a
+ * prompt to overwrite the table. A path with no matching entry must resolve to
+ * the canonical CLEAN_CODE.md cap.
  */
 
 /** Canonical caps from CLEAN_CODE.md — the default for every production tree. */

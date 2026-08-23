@@ -1849,8 +1849,13 @@ export default tseslint.config(
   // TxnShape, LifoCrawl, TxnHunt) into a phase-mismatched refactor.
   // §12B below raises the bar to **10** for the drained canonical-10
   // sub-folders (ScrapePhase/**, ScrapeReplay/**, FrozenScrapeAction,
-  // UrlDateRange). Pre-existing files retain cap 20 here until their
-  // own dedicated drain phase.
+  // UrlDateRange). §14b.4 later re-scopes ALL of `Mediator/Scrape/**`
+  // to 10 as part of the Phase 2e drain, and flat config is last-wins,
+  // so no production file under this glob resolves to 20 any more.
+  // The `max-lines-per-function` rule is therefore NOT declared here:
+  // a dead 20 would read as the effective cap and mislead the next
+  // maintainer, which is precisely the failure the cap-regime gate in
+  // `src/Tests/Tools/` exists to surface.
   //
   // File-size cap stays at **150 effective lines** so every Scrape
   // sub-module still fits in a single reviewer's working memory.
@@ -1859,23 +1864,18 @@ export default tseslint.config(
   // unconstrained — Section 7 already allows it, and this guard is
   // about preventing regression of the new homes, not the facade.
   //
-  // Two canary files enforce both halves of the cap: the
+  // One canary enforces the file half of the cap: the
   // `no-scrape-mapper-blob.canary.ts` over-sizes the file to prove
-  // `max-lines` fires, and the
-  // `scrape-cluster-fn-over-cap.canary.ts` over-sizes a single
-  // function to prove `max-lines-per-function` fires.
+  // `max-lines` fires. The function half is proved by
+  // `scrape-cluster-fn-over-cap.canary.ts`, which now sits in §14b.4
+  // beside the cap it actually certifies (10, not the dead 20).
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/Scrape/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/no-scrape-mapper-blob.canary.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/scrape-cluster-fn-over-cap.canary.ts',
     ],
     rules: {
       'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': [
-        'error',
-        { max: 20, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
     },
   },
 
@@ -2321,6 +2321,7 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Mediator/Timing/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-file-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/scrape-cluster-fn-over-cap.canary.ts',
     ],
     rules: {
       'max-statements': ['error', 10],
@@ -2700,10 +2701,14 @@ export default tseslint.config(
   //   leaving `Types/BasePhase.ts` as a thin re-export shim for the v8.5
   //   release window.
   //
-  //   SCOPE NARROWED + DRAINED (CR PR #338 iteration 2): all six stage
+  //   SCOPE NARROWED + DRAINED (CR PR #338 iteration 2): the eight stage
   //   orchestrators (`runStages`, `runStagesAfterPre`, `handleStage`,
   //   `takePhaseScreenshot`, `runPre`, `runAction`, `runPost`, `runFinal`)
-  //   have been refactored to ≤10 LoC each by extracting six new helpers:
+  //   were reduced to fit the §19.3 cap of 15 by extracting six helpers.
+  //   They are NOT all ≤10: `runStagesAfterPre` (15), `runPost` (13),
+  //   `runFinal` (13), `handleStage` (12) and `takePhaseScreenshot` (11)
+  //   still exceed the canonical 10 and await the Base cap-10 rollout.
+  //   The six extracted helpers are:
   //     • `wrapStageThrow<T>`     — try/catch envelope (CR F3 — promotes
   //       thrown stage exceptions into structured Procedure failures so
   //       the runtime contract is uniform across happy + sad paths)
@@ -2725,7 +2730,10 @@ export default tseslint.config(
     rules: {
       // ~520 LoC Template Method abstract class. Same `max-lines: off`
       // precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.
-      // Per-function caps (10/10) inherited from §19.3 — no override.
+      // Per-function caps inherited from §19.3 — no override. Those are
+      // `max-lines-per-function: 15` and `max-statements: 10`, NOT 10/10:
+      // six methods here still measure 11–15 effective lines, so this file
+      // awaits the Base cap-10 rollout CLEAN_CODE.md tracks as follow-up.
       'max-lines': 'off',
     },
   },
