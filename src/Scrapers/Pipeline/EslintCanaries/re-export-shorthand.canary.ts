@@ -2,13 +2,16 @@
  * Canary — closes spec.txt §1 RC-8 (`typescript:S7763`).
  *
  * <p>Verifies the `unicorn/prefer-export-from` rule fires on
- * the import-then-export anti-pattern. With
- * `ignoreUsedVariables: false` (the scoped flip applied under
- * `src/Scrapers/Base/**`), the rule catches every manual
- * re-export — the canary file would also surface the rule if placed
- * in that scope. Lives in the canary directory so the harness
- * invokes ESLint with `--no-ignore` regardless of the scope
- * gate.
+ * the import-then-export anti-pattern. The rule is enforced
+ * repo-wide with `checkUsedVariables: true` (eslint.config.mjs
+ * §12e), so it catches every manual re-export — including this
+ * one, where `redactAccount` is imported, used locally by
+ * `anchor()`, and then re-exported. That "used locally" detail is
+ * what makes this canary sensitive to the flag: loosening
+ * `checkUsedVariables` back to `false` silences the rule here and
+ * `verify.sh` then fails the canary as dead. Lives in the canary
+ * directory so the harness invokes ESLint with `--no-ignore`
+ * regardless of the global ignore.
  *
  * <p>Applicable guidelines (per spec.txt §1 RC-8):
  * <ul>

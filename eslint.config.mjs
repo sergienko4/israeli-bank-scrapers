@@ -1524,7 +1524,10 @@ export default tseslint.config(
       'sonarjs/use-type-alias': 'error', // S4323
       'sonarjs/no-skipped-tests': 'error', // S1607
       // Unicorn — modern-JS rules SonarCloud wraps
-      'unicorn/prefer-export-from': ['error', { checkUsedVariables: false }], // S7763
+      // NOTE: `unicorn/prefer-export-from` (S7763) is NOT declared here.
+      // It is enforced repo-wide and strict by §12e below, which is a
+      // superset of this block's scope. Declaring it twice would let the
+      // two copies drift apart — the exact failure that caused PR #500.
       'unicorn/prefer-string-replace-all': 'error', // S7781
       'unicorn/prefer-string-raw': 'error', // S7780
       'unicorn/prefer-at': 'error', // S7755
@@ -1600,43 +1603,48 @@ export default tseslint.config(
     },
   },
 
-  // 12e. RE-EXPORT SHORTHAND (Security Hardening 2026-05) — scoped
-  //      flip of `unicorn/prefer-export-from` `checkUsedVariables`
-  //      under `src/Scrapers/Base/**` AND `src/Scrapers/Pipeline/Types/**`.
-  //      Decide §4 RC-8 OPTION-B: keeps the global default at `false`
-  //      (loose — equivalent to legacy `ignoreUsedVariables: true`)
-  //      to avoid surfacing the 10 collateral hits as in-scope; flips
-  //      locally so the rule fires on `BaseScraperWithBrowser.ts` after
-  //      the manual rewrite.
+  // 12e. RE-EXPORT SHORTHAND (`unicorn/prefer-export-from`, Sonar
+  //      `typescript:S7763`) — REPO-WIDE AND STRICT.
   //
-  //      PR #274 extension — Pipeline/Types covered to match Sonar
-  //      `typescript:S7763`. The PR #274 review surfaced 11 instances of
-  //      `import type { X } from './Domain/...js'; export type { ..., X }`
-  //      in `PipelineContext.ts`; with `checkUsedVariables: false` the
-  //      global rule treats the barrel-export reference as "used" and
-  //      skips. Flipping the flag for `Pipeline/Types/**` makes ESLint
-  //      catch the same anti-pattern locally on the next commit so the
-  //      Sonar failure cannot recur. Production code base is unchanged
-  //      by this extension (the 11 PR #274 sites are converted to direct
-  //      `export type ... from` in the same commit).
+  //      This is the SINGLE declaration of the rule. §11 deliberately
+  //      omits it and points here.
+  //
+  //      History — why the scope is now global:
+  //      • 2026-05 (Security Hardening) introduced this block scoped to
+  //        `src/Scrapers/Base/**` only, keeping the global default loose
+  //        so the collateral hits elsewhere stayed out of that PR.
+  //      • PR #274 extended the scope to `src/Scrapers/Pipeline/Types/**`
+  //        after 11 more instances surfaced there, and recorded that the
+  //        Sonar failure "cannot recur".
+  //      • It recurred. PR #500 hit 32 S7763 issues under
+  //        `src/Scrapers/Pipeline/Banks/**` — a folder no one had
+  //        enumerated. Enumerating folders one incident at a time only
+  //        ever covers the folders that already failed.
+  //
+  //      The whole `src` tree was converted to `export ... from` in the
+  //      commits preceding this one, so the strict rule starts from a
+  //      verified zero-violation baseline and no grandfather override is
+  //      needed. `files: ['src/**/*.ts']` intentionally also covers the
+  //      Sonar-excluded paths (`src/Tests/**`, `src/Common/**`, legacy
+  //      scrapers, `src/Scrapers/Registry/**`): keeping them clean costs
+  //      nothing now and removes the next enumeration gap.
+  //
+  //      Canary: `re-export-shorthand.canary.ts`. `EslintCanaries/**` is
+  //      globally ignored (§1), but `verify.sh` lints with `--no-ignore`,
+  //      so `files:` matching still governs — `src/**/*.ts` covers it and
+  //      the previous single-file entry is no longer required. The canary
+  //      exports a locally-used imported binding, so it only fires while
+  //      `checkUsedVariables` is `true`; if that flag is ever loosened the
+  //      canary goes silent and `verify.sh` fails it as dead.
   //
   //      2026-06-08 compat: eslint-plugin-unicorn v65 renamed the legacy
   //      `ignoreUsedVariables: boolean` option to `checkUsedVariables`
   //      with inverted semantics. Mapping: `ignoreUsedVariables: true`
   //      ↔ `checkUsedVariables: false` (loose); `ignoreUsedVariables:
-  //      false` ↔ `checkUsedVariables: true` (strict).
+  //      false` ↔ `checkUsedVariables: true` (strict). v65 rejects the
+  //      legacy key outright ("should NOT have additional properties").
   {
-    files: [
-      'src/Scrapers/Base/**/*.ts',
-      'src/Scrapers/Pipeline/Types/**/*.ts',
-      // Phase 8.5c / Commit T1 — extend scope to the re-export-shorthand
-      // canary so it can trip its target rule. Without this single-file
-      // entry the canary lives outside §12e's scope and silently passes
-      // (errorCount=0 with --no-ignore). T1's rewritten verify.sh now
-      // rejects any canary that produces zero real rule-IDs, so the
-      // canary must be made functional alongside the harness fix.
-      'src/Scrapers/Pipeline/EslintCanaries/re-export-shorthand.canary.ts',
-    ],
+    files: ['src/**/*.ts'],
     plugins: { unicorn },
     rules: {
       'unicorn/prefer-export-from': ['error', { checkUsedVariables: true }],
