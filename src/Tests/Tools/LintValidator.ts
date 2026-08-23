@@ -240,8 +240,13 @@ const PRIMITIVE_RETURN_RE = /\)\s*:\s(?:boolean|string|number|void)(?=\s*\{)/g;
  * import-shaped strings that had to be exempted by path, and a dynamic
  * `import(\n  '...'\n)` was silently skipped.
  *
- * Template-literal specifiers are intentionally absent: they are not statically
- * resolvable, so no path-based rule can judge them either way.
+ * A template-literal specifier with no substitutions is resolved like any other
+ * string, because it names exactly one path. Only an interpolated specifier is
+ * out of reach: its target is not known until runtime, so no path-based rule
+ * can judge it either way.
+ *
+ * Covers static imports and exports, type-position imports, dynamic `import()`
+ * and `require()`.
  * @param code - Source text.
  * @returns One entry per specifier, in source order.
  */
@@ -289,7 +294,7 @@ function specifierLiteral(node: ts.Node): ts.StringLiteralLike[] {
     return isLiteral ? [spec] : [];
   }
   if (ts.isImportTypeNode(node)) return importTypeLiteral(node);
-  if (ts.isCallExpression(node)) return dynamicImportLiteral(node);
+  if (ts.isCallExpression(node)) return callSpecifierLiteral(node);
   return [];
 }
 
@@ -306,12 +311,28 @@ function importTypeLiteral(node: ts.ImportTypeNode): ts.StringLiteralLike[] {
 }
 
 /**
- * Return the literal of a dynamic `import('...')` call.
+ * Report whether a call expression loads a module by name.
+ *
+ * Covers dynamic `import(...)` and CommonJS `require(...)`. `require` is
+ * included because the rule's promise is that a retired path cannot be
+ * reached, and that promise should not depend on which module syntax the
+ * caller happened to use.
+ * @param node - A call expression.
+ * @returns True when the callee loads a module.
+ */
+function isModuleLoadingCall(node: ts.CallExpression): boolean {
+  if (node.expression.kind === ts.SyntaxKind.ImportKeyword) return true;
+  const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+  return isRequire;
+}
+
+/**
+ * Return the literal specifier of an `import(...)` or `require(...)` call.
  * @param node - A call expression.
  * @returns A single-entry list, or empty.
  */
-function dynamicImportLiteral(node: ts.CallExpression): ts.StringLiteralLike[] {
-  if (node.expression.kind !== ts.SyntaxKind.ImportKeyword) return [];
+function callSpecifierLiteral(node: ts.CallExpression): ts.StringLiteralLike[] {
+  if (!isModuleLoadingCall(node)) return [];
   if (node.arguments.length === 0) return [];
   const first = node.arguments[0];
   if (!ts.isStringLiteralLike(first)) return [];
