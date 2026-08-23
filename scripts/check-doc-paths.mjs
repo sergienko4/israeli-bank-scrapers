@@ -52,9 +52,16 @@ const PATH_SHAPE = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+$/;
 
 /**
  * Prefixes that never live in this repo, so a citation of them is not a
- * broken path. `node_modules/` is installed, not committed.
+ * broken path. `node_modules/` is installed, not committed; `lib/` is the
+ * build output and is gitignored.
+ *
+ * `lib/` matters because it is present on any machine that has run a build
+ * and absent on a fresh CI checkout — the pass-locally/fail-in-CI flake
+ * this module's `OPTIONAL_PATHS` comment already warns about. A PR body
+ * asserting the published bundle is unchanged is a legitimate citation,
+ * and it must not depend on whether a build happens to have run.
  */
-const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
+const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/', 'lib/'];
 
 /**
  * Artefacts created at run time, which a doc may legitimately cite while
