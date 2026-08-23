@@ -15,9 +15,12 @@
  * network trace (billingMonth "01/06/2026", companyCode 11).
  */
 
-import moment from 'moment';
-
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
+import {
+  billingMonthAt,
+  lastOffset,
+  nextCursorOf,
+  offsetOf,
+} from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type {
   IExtractPageArgs,
   VarsMap,
@@ -25,53 +28,8 @@ import type {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { getFutureMonths } from '../../../Types/ScraperDefaults.js';
 import { mergeIsracardRows } from './IsracardShapeExtract.js';
 import { type IIsracardCard, ISRACARD_API } from './IsracardShapeHelpers.js';
-
-/**
- * First billing month of the scrape window (from ScraperOptions.startDate).
- * @param ctx - Action context.
- * @returns Start-of-month moment for the window start.
- */
-function startMonth(ctx: IActionContext): moment.Moment {
-  return moment(ctx.options.startDate).startOf('month');
-}
-
-/**
- * Highest in-window month offset — months from the start month to
- * now + futureMonthsToScrape (inclusive of the upcoming cycle).
- * @param ctx - Action context.
- * @returns Last 0-based month offset.
- */
-function lastOffset(ctx: IActionContext): number {
-  const future = getFutureMonths(ctx.options);
-  const windowEnd = scrapeWindowEnd(ctx);
-  const end = moment(windowEnd).add(future, 'months').startOf('month');
-  const start = startMonth(ctx);
-  return end.diff(start, 'months');
-}
-
-/**
- * Resolve the 0-based month offset for this round (0 on the first call).
- * @param cursor - Incoming cursor (false on first call).
- * @returns Month offset.
- */
-function offsetOf(cursor: number | false): number {
-  return cursor === false ? 0 : cursor;
-}
-
-/**
- * Isracard composite billing month `01/MM/YYYY` (first-of-month) for an
- * offset.
- * @param ctx - Action context.
- * @param offset - 0-based month offset.
- * @returns billingMonth string.
- */
-function billingMonthAt(ctx: IActionContext, offset: number): string {
-  const mm = startMonth(ctx).add(offset, 'months').format('MM/YYYY');
-  return `01/${mm}`;
-}
 
 /**
  * Assemble the GetTransactionsList body from its resolved parts.
@@ -120,19 +78,8 @@ export function txnsUrl(): WKUrlOrLiteral {
 }
 
 /**
- * Next cursor — advance one month until the last in-window month, then
- * stop. Driven by offset (not row count) so empty months keep the walk
- * going until the window is exhausted.
- * @param offset - Offset just fetched.
- * @param ctx - Action context.
- * @returns Next cursor, or false when the window is exhausted.
- */
-function nextCursorOf(offset: number, ctx: IActionContext): number | false {
-  return offset < lastOffset(ctx) ? offset + 1 : false;
-}
-
-/**
- * Extract one month's transactions page + the next month cursor.
+ * Extract one month's transactions page + the next month cursor. Isracard
+ * declares no open-cycle floor, so `lastOffset` takes no floor argument.
  * @param args - Bundle carrying the unwrapped body + cursor + ctx.
  * @returns Page rows + next cursor.
  */
@@ -141,5 +88,7 @@ export function txnsExtractPage(
 ): IPage<object, number> {
   const rows = mergeIsracardRows(args.body);
   const offset = offsetOf(args.cursor);
-  return { items: rows, nextCursor: nextCursorOf(offset, args.ctx) };
+  const ceiling = lastOffset(args.ctx);
+  const nextCursor = nextCursorOf(offset, ceiling);
+  return { items: rows, nextCursor };
 }
