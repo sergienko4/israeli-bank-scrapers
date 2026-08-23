@@ -10,27 +10,30 @@
  * <p>No check derived only from the current `eslint.config.mjs` can catch that,
  * because the expectation disappears together with the deleted declaration. So
  * the expectation is restated here, independently, and the gate asserts the two
- * agree EXACTLY for every production directory.
+ * agree EXACTLY for every production file.
  *
  * <p>Exact equality is deliberate in both directions. A looser resolved cap is a
  * regression. A tighter one means a tree was drained without updating this
  * table, which `eslint-rules-guidlines.md` §1 requires in the same PR.
  *
- * <p>Entries are recursive directory prefixes; the LONGEST match wins, mirroring
- * flat config's last-wins precedence. A directory with no matching entry must
- * resolve to the canonical CLEAN_CODE.md cap.
+ * <p>An entry is either a recursive directory prefix or an exact file path, and
+ * the LONGEST match wins, mirroring flat config's last-wins precedence. Exact
+ * file entries exist because several config blocks scope a cap to one filename
+ * beside a differently-capped sibling directory; being longer, they win over
+ * the directory entry exactly as the later config block does. A path with no
+ * matching entry must resolve to the canonical CLEAN_CODE.md cap.
  */
 
 /** A resolved numeric cap, or `'off'` when the rule is disabled for the tree. */
 export type TResolvedCap = number | 'off';
 
-/** One tree whose resolved cap deliberately differs from the canonical value. */
+/** One path whose resolved cap deliberately differs from the canonical value. */
 export interface ICapOverride {
-  /** Repo-relative directory prefix; matches the directory itself and any child. */
+  /** Repo-relative directory prefix, or an exact file path for a scoped block. */
   readonly prefix: string;
-  /** The cap that tree must resolve to — matched exactly, not as an upper bound. */
+  /** The cap that path must resolve to — matched exactly, not as an upper bound. */
   readonly cap: TResolvedCap;
-  /** Why this tree differs, and which `eslint.config.mjs` block establishes it. */
+  /** Why this path differs, and which `eslint.config.mjs` block establishes it. */
   readonly reason: string;
 }
 
@@ -46,6 +49,8 @@ const LEGACY_FILE_CAP = 'Legacy non-Pipeline tree; drained by its own phase, not
 const MEDIATOR_FILE_OFF = 'Mediator grandfather: file cap off pending a drain phase.';
 const STRATEGY_FILE_OFF = 'Strategy grandfather: file cap off pending a drain phase.';
 const PIPELINE_FN_DEFAULT = 'Pipeline default of 15 LoC per function, not yet drained to 10.';
+const DRAINED_FILE_PIN = 'Drained file pinned back to the canonical file cap.';
+const DRAINED_FN_PIN = 'Drained file pinned back to the canonical function cap.';
 
 /** File-size expectations that deviate from the canonical `max-lines: 150`. */
 const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
@@ -89,6 +94,29 @@ const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
     prefix: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData',
     cap: 150,
     reason: 'Drained sub-tree pinned back to the canonical file cap.',
+  },
+  // FILENAME-SCOPED ENTRIES — `eslint.config.mjs` pins these individual files
+  // beside a differently-capped sibling directory. They are why the audit walks
+  // files rather than one representative per directory.
+  {
+    prefix: 'src/Scrapers/Pipeline/Mediator/Init/NavigationTransportProbe.ts',
+    cap: 150,
+    reason: DRAINED_FILE_PIN,
+  },
+  {
+    prefix: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
+    cap: 150,
+    reason: DRAINED_FILE_PIN,
+  },
+  {
+    prefix: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
+    cap: 150,
+    reason: DRAINED_FILE_PIN,
+  },
+  {
+    prefix: 'src/Scrapers/Pipeline/Phases/Base/BasePhase.ts',
+    cap: 'off',
+    reason: 'Template Method base class; file cap off pending a drain phase.',
   },
 ];
 
@@ -162,11 +190,22 @@ const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
     cap: 10,
     reason: 'Drained sub-tree pinned back to the canonical function cap.',
   },
+  // FILENAME-SCOPED ENTRIES — see the note in MAX_LINES_OVERRIDES.
+  {
+    prefix: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
+    cap: 10,
+    reason: DRAINED_FN_PIN,
+  },
+  {
+    prefix: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
+    cap: 10,
+    reason: DRAINED_FN_PIN,
+  },
 ];
 
 /**
  * Per-rule override lists. A rule absent from this map has no exceptions at
- * all: every production directory must resolve it to the canonical cap.
+ * all: every production file must resolve it to the canonical cap.
  */
 export const CAP_OVERRIDES: Readonly<Record<string, readonly ICapOverride[]>> = {
   'max-lines': MAX_LINES_OVERRIDES,
@@ -196,13 +235,12 @@ export const CANARY_DIR = 'EslintCanaries';
 export const NON_PRODUCTION_DIRS: readonly string[] = [CANARY_DIR, 'mocks'];
 
 /**
- * File suffixes that carry a non-production cap regime, so they never represent
- * a directory.
+ * File suffixes that carry a non-production cap regime, so they are skipped.
  *
  * The same `eslint.config.mjs:900` block relaxes those two caps for
  * `src/**\/*.test.ts` and `src/**\/*.spec.ts`. No such file exists under
  * {@link PRODUCTION_ROOTS} today, so this is a guard against a future one
- * silently becoming a directory's representative and reporting its regime.
+ * being audited against the production table it does not belong to.
  * `.d.ts` is excluded because it declares no function bodies to cap.
  */
 export const NON_PRODUCTION_SUFFIXES: readonly string[] = ['.d.ts', '.test.ts', '.spec.ts'];

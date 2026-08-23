@@ -39,11 +39,14 @@ function countCanaries(root) {
  * different per-cluster options (`max-lines`, `max-lines-per-function`), and a
  * name-based count no longer notices one of those scoped declarations being
  * deleted. `lint:guideline-coverage` closes that gap for the four numeric caps:
- * it resolves the effective config for EVERY production directory under
+ * it resolves the effective config for EVERY production file under
  * `src/Common` and `src/Scrapers` and fails when a cap does not match
- * `src/Tests/Tools/CapRegimeTable.ts` exactly. Deleting a scoped declaration
- * changes the resolved cap of every directory beneath it, so that gate names
- * each affected directory and rule and exits non-zero.
+ * `src/Tests/Tools/CapRegimeTable.ts` exactly. The unit is the file, not the
+ * directory, because this config also scopes caps to individual filenames
+ * beside a differently-capped sibling directory; sampling one file per
+ * directory would leave those regimes unmeasured. Deleting a scoped
+ * declaration changes the resolved cap of every file it governed, so that
+ * gate names each affected file and rule and exits non-zero.
  *
  * It is not a complete substitute, and the residue is worth stating plainly.
  * That gate checks four rules: `max-lines`, `max-lines-per-function`,

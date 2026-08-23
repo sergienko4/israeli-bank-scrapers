@@ -102,11 +102,15 @@ config per cluster and fails by name when a cap goes missing or laxer — that i
 what catches a deleted _scoped_ declaration, which this count cannot see.
 
 That gate is **complete for the four numeric caps**: it resolves the effective
-config for every production directory under `src/Common` and `src/Scrapers` and
-fails unless each cap matches `src/Tests/Tools/CapRegimeTable.ts` exactly. Exact
-matching is what catches a deleted block that pins a drained sub-tree back to the
-canonical cap — for example `Strategy/Scrape/Executor/**`, which `§19.1` would
-otherwise leave grandfathered at 40 LoC per function. It also catches the
+config for every production _file_ under `src/Common` and `src/Scrapers` — 862
+of them — and fails unless each cap matches `src/Tests/Tools/CapRegimeTable.ts`
+exactly. The unit is the file rather than the directory because this config also
+scopes caps to individual filenames beside a differently-capped sibling
+directory (`Strategy/Scrape/ScrapeExecutor.ts` next to `Strategy/Scrape/**`, for
+one); sampling a single file per directory would leave those regimes unmeasured.
+Exact matching is what catches a deleted block that pins a drained sub-tree back
+to the canonical cap — for example `Strategy/Scrape/Executor/**`, which `§19.1`
+would otherwise leave grandfathered at 40 LoC per function. It also catches the
 reverse: draining a tree without recording it, which `eslint-rules-guidlines.md`
 §1 requires in the same PR. Rules outside those four — notably scoped
 `no-restricted-syntax` and `max-statements` — stay outside the reach of both

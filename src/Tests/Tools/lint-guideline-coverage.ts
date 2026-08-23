@@ -16,12 +16,14 @@
  *
  *   1. CLUSTER SAMPLE — a named, documented cluster must hold at
  *      least the canonical caps (upper-bound check).
- *   2. CAP REGIME AUDIT — EVERY production directory must resolve
- *      each cap to EXACTLY the value `CapRegimeTable.ts` predicts.
+ *   2. CAP REGIME AUDIT — EVERY production FILE must resolve each
+ *      cap to EXACTLY the value `CapRegimeTable.ts` predicts.
  *      This is what catches a deleted grandfather-then-tighten block:
  *      flat config is last-wins, so removing a block that pins a
  *      drained sub-tree back to canonical silently RELAXES shipped
- *      code. Sampling cannot see that; a complete check can.
+ *      code. Sampling cannot see that; a complete check can. Files
+ *      are the unit because several blocks scope a cap to a single
+ *      filename beside a differently-capped directory.
  *
  * Called by:
  *   - `npm run lint:guideline-coverage`
@@ -210,24 +212,45 @@ const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
 ];
 
 /**
+ * Describe a cap that exceeds its canonical maximum.
+ * @param expectation - The rule + cap being enforced.
+ * @param actualMax - The resolved maximum.
+ * @returns Failure reason.
+ */
+function overMaxReason(expectation: IRuleExpectation, actualMax: number): FailureReason {
+  const actual = String(actualMax);
+  const allowed = String(expectation.maxAllowed);
+  return `rule '${expectation.ruleId}' max=${actual} > canonical ${allowed}`;
+}
+
+/**
  * Check ONE expectation against the cluster's resolved rule set.
- * @param resolved - Rules object from `ESLint.calculateConfigForFile`.
+ * @param ruleValue - Raw resolved entry for the expected rule.
  * @param expectation - The rule + cap to enforce.
  * @returns Empty string when expectation holds, else a failure reason.
  */
-function checkExpectation(
-  resolved: Record<string, unknown>,
-  expectation: IRuleExpectation,
-): FailureReason {
-  const ruleValue = resolved[expectation.ruleId];
+function checkExpectation(ruleValue: unknown, expectation: IRuleExpectation): FailureReason {
   if (ruleValue === undefined) return `rule '${expectation.ruleId}' is NOT configured`;
   if (isRuleOff(ruleValue)) return `rule '${expectation.ruleId}' is OFF`;
   const actualMax = extractRuleMax(ruleValue);
   if (actualMax < 0) return `rule '${expectation.ruleId}' has no inspectable max option`;
-  if (actualMax > expectation.maxAllowed) {
-    return `rule '${expectation.ruleId}' max=${String(actualMax)} > canonical ${String(expectation.maxAllowed)}`;
-  }
+  if (actualMax > expectation.maxAllowed) return overMaxReason(expectation, actualMax);
   return NO_FAILURE;
+}
+
+/**
+ * Build a cluster failure record.
+ * @param cluster - Cluster the expectation belongs to.
+ * @param ruleId - Rule that failed.
+ * @param reason - Why it failed.
+ * @returns One failure record.
+ */
+function clusterFailure(
+  cluster: IClusterExpectations,
+  ruleId: string,
+  reason: string,
+): ICoverageFailure {
+  return { cluster: cluster.clusterName, file: cluster.representativeFile, ruleId, reason };
 }
 
 /**
@@ -242,23 +265,35 @@ function failuresFor(
   cluster: IClusterExpectations,
   expectation: IRuleExpectation,
 ): readonly ICoverageFailure[] {
-  const reason = checkExpectation(resolved, expectation);
+  const ruleValue = resolved[expectation.ruleId];
+  const reason = checkExpectation(ruleValue, expectation);
   if (reason === NO_FAILURE) return [];
-  const failure: ICoverageFailure = {
-    cluster: cluster.clusterName,
-    file: cluster.representativeFile,
-    ruleId: expectation.ruleId,
-    reason,
-  };
-  return [failure];
+  return [clusterFailure(cluster, expectation.ruleId, reason)];
+}
+
+/**
+ * Audit one expectation unless the cluster explicitly defers that rule.
+ * @param resolved - Effective rules for the cluster's representative file.
+ * @param cluster - Cluster the expectation belongs to.
+ * @param expectation - Single rule cap being checked.
+ * @returns Failure records, empty when deferred or satisfied.
+ */
+function auditExpectation(
+  resolved: Record<string, unknown>,
+  cluster: IClusterExpectations,
+  expectation: IRuleExpectation,
+): readonly ICoverageFailure[] {
+  const deferred = cluster.deferredRules ?? [];
+  if (deferred.includes(expectation.ruleId)) return [];
+  return failuresFor(resolved, cluster, expectation);
 }
 
 /**
  * Audit ONE Pipeline cluster against its expectation list.
  *
  * Only the rules named in `deferredRules` are skipped. Every other cap in
- * the cluster is enforced, so removing a scoped declaration lowers the
- * resolved cap and fails here.
+ * the cluster is enforced, so removing a scoped declaration weakens the
+ * resolved rule — raising its maximum or turning it off — and fails here.
  * @param eslint - ESLint instance loading `eslint.config.mjs`.
  * @param cluster - Cluster definition (name + representative file + caps).
  * @returns Failure records (empty when all enforced expectations hold).
@@ -268,12 +303,9 @@ async function auditCluster(
   cluster: IClusterExpectations,
 ): Promise<readonly ICoverageFailure[]> {
   const resolved = await resolveRulesForFile(eslint, cluster.representativeFile);
-  const deferred = cluster.deferredRules ?? [];
-  return cluster.expectations.flatMap((expectation): readonly ICoverageFailure[] => {
-    const isDeferred = deferred.includes(expectation.ruleId);
-    if (isDeferred) return [];
-    return failuresFor(resolved, cluster, expectation);
-  });
+  return cluster.expectations.flatMap((expectation): readonly ICoverageFailure[] =>
+    auditExpectation(resolved, cluster, expectation),
+  );
 }
 
 /**
@@ -322,51 +354,42 @@ function printStatusTable(rows: readonly IClusterStatusRow[]): number {
 }
 
 /**
+ * Summarise the cluster status line, accounting for deferrals.
+ * @param rows - Per-cluster status rows.
+ * @returns The formatted cluster summary line.
+ */
+function clusterSummary(rows: readonly IClusterStatusRow[]): string {
+  const partial = rows.filter(r => r.deferred.length > 0);
+  const enforced = String(rows.length - partial.length);
+  const total = String(rows.length);
+  const suffix = partial.length === 0 ? '' : `, ${String(partial.length)} partial`;
+  return `✅ Guideline coverage: ${enforced}/${total} clusters enforce every cap${suffix}\n`;
+}
+
+/**
  * Emit the success summary, counting clusters that defer a rule.
  *
  * The table printed just above can carry `partial` rows, so a blanket "all
  * clusters enforce every cap" line would contradict it on the same screen and
  * hide the deferrals a reader is meant to act on.
  * @param rows - Per-cluster status rows.
- * @param dirCount - Production directories checked by the cap-regime audit.
+ * @param fileCount - Production files checked by the cap-regime audit.
  * @returns Exit code 0.
  */
-function printSuccess(rows: readonly IClusterStatusRow[], dirCount: number): number {
-  const partial = rows.filter(r => r.deferred.length > 0);
-  const enforced = String(rows.length - partial.length);
-  const total = String(rows.length);
-  const partialCount = String(partial.length);
-  const suffix = partial.length === 0 ? '' : `, ${partialCount} partial`;
+function printSuccess(rows: readonly IClusterStatusRow[], fileCount: number): number {
+  const summary = clusterSummary(rows);
+  process.stdout.write(summary);
   process.stdout.write(
-    `✅ Guideline coverage: ${enforced}/${total} clusters enforce every cap${suffix}\n`,
-  );
-  process.stdout.write(
-    `✅ Cap regimes: ${String(dirCount)} production directories match the cap table exactly\n`,
+    `✅ Cap regimes: ${String(fileCount)} production files match the cap table exactly\n`,
   );
   return 0;
 }
 
 /**
- * Format and emit the audit report to stdout / stderr.
- * @param failures - All accumulated failure records.
- * @param rows - Per-cluster status rows, used for the enforced/partial split.
- * @param dirCount - Production directories checked by the cap-regime audit.
- * @returns Process exit code (0 = success, 1 = at least one failure).
+ * Emit the remediation guidance that follows a failure list.
+ * @returns Exit code 1, so callers can return it directly.
  */
-function printReport(
-  failures: readonly ICoverageFailure[],
-  rows: readonly IClusterStatusRow[],
-  dirCount: number,
-): number {
-  if (failures.length === 0) return printSuccess(rows, dirCount);
-  process.stderr.write('\n❌ GUIDELINE COVERAGE FAILURES\n');
-  process.stderr.write('═══════════════════════════════════════════════════════\n\n');
-  for (const f of failures) {
-    process.stderr.write(`Cluster: ${f.cluster}\n`);
-    process.stderr.write(`  File:   ${f.file}\n`);
-    process.stderr.write(`  Rule:   ${f.ruleId}\n`);
-    process.stderr.write(`  Issue:  ${f.reason}\n\n`);
-  }
+function printFixHint(): number {
   process.stderr.write('Fix: update eslint.config.mjs so the cluster block includes the rule.\n');
   process.stderr.write('A cap-regime failure means eslint.config.mjs and CapRegimeTable.ts\n');
   process.stderr.write('disagree — restore the deleted block, or update the table if the\n');
@@ -375,12 +398,53 @@ function printReport(
   return 1;
 }
 
+/**
+ * Emit one failure record.
+ * @param failure - The record to print.
+ * @returns The rule id printed, so callers can chain.
+ */
+function printFailure(failure: ICoverageFailure): string {
+  process.stderr.write(`Cluster: ${failure.cluster}\n`);
+  process.stderr.write(`  File:   ${failure.file}\n`);
+  process.stderr.write(`  Rule:   ${failure.ruleId}\n`);
+  process.stderr.write(`  Issue:  ${failure.reason}\n\n`);
+  return failure.ruleId;
+}
+
+/**
+ * Emit the failure-report header banner.
+ * @returns The number of header lines written.
+ */
+function printFailureHeader(): number {
+  process.stderr.write('\n❌ GUIDELINE COVERAGE FAILURES\n');
+  process.stderr.write('═══════════════════════════════════════════════════════\n\n');
+  return 2;
+}
+
+/**
+ * Format and emit the audit report to stdout / stderr.
+ * @param failures - All accumulated failure records.
+ * @param rows - Per-cluster status rows, used for the enforced/partial split.
+ * @param fileCount - Production files checked by the cap-regime audit.
+ * @returns Process exit code (0 = success, 1 = at least one failure).
+ */
+function printReport(
+  failures: readonly ICoverageFailure[],
+  rows: readonly IClusterStatusRow[],
+  fileCount: number,
+): number {
+  if (failures.length === 0) return printSuccess(rows, fileCount);
+  printFailureHeader();
+  for (const f of failures) printFailure(f);
+  return printFixHint();
+}
+
 const ESLINT_RUNNER = new ESLint();
 const REGIME_RESULT = await auditCapRegimes(ESLINT_RUNNER);
 const REGIME_FAILURES: readonly ICoverageFailure[] = REGIME_RESULT.failures.map(
   (f): ICoverageFailure => ({
-    cluster: `cap regime: ${f.dir}`,
-    file: f.file,
+    cluster: `cap regime: ${f.path}`,
+    file: f.path,
     ruleId: f.ruleId,
     reason: f.reason,
   }),
@@ -393,5 +457,5 @@ const ALL_FAILURES: readonly ICoverageFailure[] = [...CLUSTER_FAILURES.flat(), .
 const STATUS_ROWS: readonly IClusterStatusRow[] = PIPELINE_CLUSTERS.map(buildStatusRow);
 const PRINTED_ROW_COUNT = printStatusTable(STATUS_ROWS);
 process.stdout.write(`(reported ${String(PRINTED_ROW_COUNT)} cluster status rows)\n`);
-const EXIT_CODE = printReport(ALL_FAILURES, STATUS_ROWS, REGIME_RESULT.dirCount);
+const EXIT_CODE = printReport(ALL_FAILURES, STATUS_ROWS, REGIME_RESULT.fileCount);
 process.exit(EXIT_CODE);
