@@ -167,6 +167,64 @@ function createBudgetOverridingPage(budgetMs: number): Page {
 }
 
 /**
+ * Identifier shape Istanbul gives its per-file coverage counter.
+ *
+ * The name is a hash of the file, so it cannot be listed literally.
+ */
+const COVERAGE_COUNTER = /\bcov_[0-9a-z]+\b/g;
+
+/**
+ * A stand-in for Istanbul's counter object.
+ *
+ * Instrumented code performs `cov_x().f[0]++`, `.s[1]++` and `.b[0][1]++`, so
+ * every lookup must yield something indexable and assignable. Values are never
+ * read back — the realm exists to prove the body resolves, not to measure it.
+ * @returns Callable that yields an accept-anything counter bag.
+ */
+function createCoverageStub(): () => unknown {
+  /**
+   * Yield a readable zero for any counter slot.
+   * @returns Zero.
+   */
+  const readSlot = (): number => 0;
+  /**
+   * Accept any counter increment.
+   * @returns True, so the assignment succeeds.
+   */
+  const acceptWrite = (): boolean => true;
+  const leaf = new Proxy({}, { get: readSlot, set: acceptWrite });
+  /**
+   * Yield the same leaf for `f`, `s` and `b` alike.
+   * @returns The shared leaf.
+   */
+  const readGroup = (): unknown => leaf;
+  const bag = new Proxy({}, { get: readGroup, set: acceptWrite });
+  return (): unknown => bag;
+}
+
+/**
+ * Admit the coverage counter, and nothing else, into the realm.
+ *
+ * Under `--coverage` the body's own source carries a reference to a module-scope
+ * counter that the instrumenter injected. That reference is an artefact of the
+ * harness, not a dependency of the module, so failing on it would make this test
+ * report a defect that does not exist — while passing without coverage, which is
+ * the worst combination.
+ *
+ * Only names present in this source AND matching the counter shape are defined,
+ * so a real module-scope reference still raises a ReferenceError.
+ * @param globals - Realm globals to extend.
+ * @param source - The body's own source text.
+ * @returns How many counter names were admitted.
+ */
+function admitCoverageCounter(globals: Record<string, unknown>, source: string): number {
+  const names = source.match(COVERAGE_COUNTER) ?? [];
+  const stub = createCoverageStub();
+  for (const name of names) globals[name] = stub;
+  return names.length;
+}
+
+/**
  * A page whose evaluate runs the body in an isolated VM realm.
  *
  * The substituted-budget page proves the body READS its argument, but not that
@@ -188,8 +246,9 @@ function createIsolatedPage(): Page {
    */
   const evaluate = (fn: (a: unknown) => unknown, args: unknown): unknown => {
     const globals = browserGlobals();
-    const realm = vm.createContext(globals);
     const source = fn.toString();
+    admitCoverageCounter(globals, source);
+    const realm = vm.createContext(globals);
     const script = new vm.Script(`(${source})`);
     const compiled = script.runInContext(realm) as (a: unknown) => unknown;
     return compiled(args);
