@@ -9,9 +9,14 @@ import type { Brand } from './Brand.js';
 type ErrorMessageString = Brand<string, 'ErrorMessageString'>;
 
 /**
- * Safely extract a message string from an unknown thrown value.
- * @param error - The unknown caught value.
- * @returns A string message: Error.message for Error instances, the string itself for strings, or `String(error)` for other values.
+ * Safely extract a message string from an Error or a string.
+ *
+ * Accepts only those two types by signature. For a genuinely unknown caught
+ * value use {@link toError} instead: casting `unknown` to `Error` to satisfy
+ * this signature returns the value unchanged, so a thrown `Symbol` throws
+ * again on interpolation and escapes the very catch block meant to contain it.
+ * @param error - The caught Error or string.
+ * @returns `Error.message` for Error instances, otherwise the string itself.
  */
 function toErrorMessage(error: Error | string): ErrorMessageString {
   if (error instanceof Error) return error.message as ErrorMessageString;

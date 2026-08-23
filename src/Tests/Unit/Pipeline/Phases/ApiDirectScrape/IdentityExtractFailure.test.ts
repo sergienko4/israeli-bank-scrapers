@@ -10,6 +10,11 @@
  * identity body would abort the whole multi-account scrape instead of
  * re-logging in and retrying once. `isScrapeSuspicious` keys on a failed
  * Procedure, so the conversion is what keeps that recovery path reachable.
+ *
+ * <p>The boundary must also survive a non-`Error` throw. JavaScript allows
+ * throwing any value, and a `Symbol` throws a second time the moment it is
+ * interpolated into the failure message — escaping the catch block that was
+ * supposed to contain it. Normalising through `toError` is what prevents that.
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
@@ -54,6 +59,16 @@ describe('fetchAccounts identity-extraction failure contract', () => {
     const result = await fetchAccounts(d);
     const message = isOk(result) ? '' : result.errorMessage;
     expect(message).toMatch(/extractAccounts threw: .*missing its branch code/);
+  });
+
+  it('converts a non-Error throw into a failed Procedure', async () => {
+    const unstringifiable: unknown = Symbol('unstringifiable');
+    const d = driverWith(() => {
+      throw unstringifiable;
+    });
+    const result = await fetchAccounts(d);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
   });
 
   it('still succeeds when the extractor returns accounts', async () => {

@@ -17,7 +17,7 @@ import {
 import { auditDeclaredRows } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toError } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
@@ -77,7 +77,7 @@ function runExtract<TAcct, TCursor>(
     const accts = d.shape.customer.extractAccounts({ body, secondaryBody, sessionContext });
     return succeed(accts);
   } catch (error) {
-    const message = toErrorMessage(error as Error);
+    const message = toError(error).message;
     return fail(ScraperErrorTypes.Generic, `extractAccounts threw: ${message}`);
   }
 }
