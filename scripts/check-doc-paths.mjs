@@ -138,7 +138,9 @@ function exportTargets(node) {
  */
 function readManifest() {
   try {
-    return JSON.parse(readFileSync('package.json', 'utf8'));
+    const parsed = JSON.parse(readFileSync('package.json', 'utf8'));
+    const isUsable = typeof parsed === 'object' && parsed !== null;
+    return isUsable ? parsed : {};
   } catch {
     return {};
   }

@@ -455,10 +455,13 @@ else
   printf 'Removes `old/gone.ts` and renames `old/moved.ts`.\n' > "$DOC_REPO/body.md"
   # Keep the checker output: on an unexpected result the exit status alone
   # says nothing about which citation the run disagreed on.
+  # This repo has no package.json, so the run also covers the manifest-free
+  # checkout the entry-point exemption must tolerate. Naming that here keeps
+  # the failure legible: a crash on load reads as a parse problem otherwise.
   (cd "$DOC_REPO" && node "$DOCPATHS" --diff-base doc-base body.md) > "$DOC_DIR/removed.log" 2>&1
   removed_status=$?
   if [ "$removed_status" -ne 0 ]; then cat "$DOC_DIR/removed.log"; fi
-  assert_eq "a deleted and a renamed path are accepted" "0" "$removed_status"
+  assert_eq "a deleted and a renamed path are accepted with no manifest" "0" "$removed_status"
   (cd "$DOC_REPO" && node "$DOCPATHS" body.md) > "$DOC_DIR/removed-nobase.log" 2>&1
   nobase_status=$?
   if [ "$nobase_status" -ne 1 ]; then cat "$DOC_DIR/removed-nobase.log"; fi
