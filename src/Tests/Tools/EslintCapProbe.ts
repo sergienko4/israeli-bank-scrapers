@@ -132,9 +132,13 @@ function governsPath(path: string, prefix: string): boolean {
 }
 
 /**
- * The single cap-table entry that wins for a path: LONGEST matching prefix,
- * mirroring flat config's last-wins precedence. An exact-file entry is always
- * longer than the directory containing it, so it wins — exactly as ESLint does.
+ * The single cap-table entry that wins for a path: the LONGEST matching prefix,
+ * i.e. the most specific statement the table makes about that path.
+ *
+ * This is the TABLE's precedence rule, not a model of ESLint's. Flat config is
+ * ordered, so a later-but-broader block beats an earlier narrow one. Entries
+ * must therefore record the cap a tree actually RESOLVES to; where the two
+ * rules disagree the audit reports a mismatch rather than passing silently.
  * @param path - Repo-relative file path.
  * @param ruleId - Rule being predicted.
  * @returns A one-element list, or empty when no entry matches.

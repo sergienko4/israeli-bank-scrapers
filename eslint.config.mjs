@@ -2655,6 +2655,29 @@ export default tseslint.config(
     },
   },
 
+  // 19.2a RE-TIGHTEN — Pipeline/Types/Domain back to the canonical 10.
+  //   §19.2 above is BROADER than the earlier `Types/Domain/**` block
+  //   (which sets `max-lines-per-function: 10`) and lands LATER, so
+  //   flat-config last-wins silently raised Domain from 10 to 30. The
+  //   earlier block's own comment states the intent — "any future
+  //   runtime code in this folder must fit within 10 LoC" — and its
+  //   canary lives outside `Types/**`, so it kept firing at 10 while
+  //   production Domain files resolved to 30, hiding the regression.
+  //   All 20 Domain files already satisfy 10, so this restores the
+  //   declared intent without draining anything.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Types/Domain/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/types-domain-fn-over-10.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+    },
+  },
+
   // 19.3 GRANDFATHER — Pipeline/Core + Phases + Interceptors + Banks + Registry.
   {
     files: [

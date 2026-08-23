@@ -17,10 +17,14 @@
  * table, which `eslint-rules-guidlines.md` §1 requires in the same PR.
  *
  * <p>An entry is either a recursive directory prefix or an exact file path, and
- * the LONGEST match wins, mirroring flat config's last-wins precedence. Exact
- * file entries exist because several config blocks scope a cap to one filename
- * beside a differently-capped sibling directory; being longer, they win over
- * the directory entry exactly as the later config block does. A path with no
+ * the LONGEST match wins. That is this table's OWN policy — the most specific
+ * statement about a path governs it — and is deliberately NOT a model of how
+ * `eslint.config.mjs` resolves. Flat config is ordered: a LATER block wins even
+ * when it is BROADER, so a broad grandfather placed after a narrow tightening
+ * silently overrides it. Because the two rules differ, the table must record
+ * what each tree ACTUALLY resolves to, never what a config block appears to
+ * declare. Any divergence surfaces as a loud mismatch rather than a silent
+ * pass, which is precisely the signal this gate exists to give. A path with no
  * matching entry must resolve to the canonical CLEAN_CODE.md cap.
  */
 
@@ -190,6 +194,11 @@ const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
     cap: 10,
     reason: 'Drained sub-tree pinned back to the canonical function cap.',
   },
+  {
+    prefix: 'src/Scrapers/Pipeline/Types/Domain',
+    cap: 10,
+    reason: 'Type-only tree re-tightened after §19.2 broadened it to 30.',
+  },
   // FILENAME-SCOPED ENTRIES — see the note in MAX_LINES_OVERRIDES.
   {
     prefix: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
@@ -241,6 +250,9 @@ export const NON_PRODUCTION_DIRS: readonly string[] = [CANARY_DIR, 'mocks'];
  * `src/**\/*.test.ts` and `src/**\/*.spec.ts`. No such file exists under
  * {@link PRODUCTION_ROOTS} today, so this is a guard against a future one
  * being audited against the production table it does not belong to.
- * `.d.ts` is excluded because it declares no function bodies to cap.
+ *
+ * `.d.ts` is deliberately NOT listed. ESLint applies the production caps to
+ * declaration files like any other source, and `max-lines` binds even without
+ * function bodies, so excluding them would leave an unaudited category.
  */
-export const NON_PRODUCTION_SUFFIXES: readonly string[] = ['.d.ts', '.test.ts', '.spec.ts'];
+export const NON_PRODUCTION_SUFFIXES: readonly string[] = ['.test.ts', '.spec.ts'];
