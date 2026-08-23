@@ -83,6 +83,23 @@ Each api-direct bank declares its own `IApiDirectScrapeShape`:
 
 The shape interface (`balanceVars`, `balanceExtract`, `txnVars`, `txnExtract`) is uniform; only the per-bank closures differ.
 
+## Shared family shapes — one contract, several brands
+
+Some banks are not independent institutions but **brands of one bank running one portal**. The four First-International brands (Beinleumi, Massad, Pagi, OtsarHahayal) all serve the same Mataf/`appsng` BFF: the same `userData` identity GET, the same `accountType` lookup, the same `balances/{type}` path, the same single full-window `POST .../transactions/list` envelope. Only the origin differs.
+
+Declaring that contract once per brand means a wire change has to land four times, and a fix applied to three of the four drifts silently. So the family contract lives in one neutral factory — [`Phases/ApiDirectScrape/FibiGroup/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup) — and each brand declares only what is genuinely its own.
+
+`makeFibiGroupShape` takes an `IFibiGroupShapeArgs` and returns the assembled `IApiDirectScrapeShape`. The factory owns everything origin-independent: the request envelope, the two-GET identity merge over `IFibiAcct`, and the response extractors. The brand supplies its step name, its four origin-bound URL producers, and its own `windowNarrowing` stance. The URL producers are built from an `IFibiGroupConfig` — one per brand, e.g. `MASSAD_CONFIG` — which carries nothing but the post-login origin.
+
+Two constraints shape that split, and both are load-bearing:
+
+- **The factory lives under `Phases/`, not `Banks/`.** Two gates enumerate directories under `Banks/` and treat each one as a bank (`CheckBankIntegrationCoverage`, `WindowDeclaredCanary`); a shared folder there would be mistaken for a fifth brand. `Phases/` also inherits the same ESLint size caps, so the move costs no guardrail strength.
+- **`windowNarrowing` is passed in, never inherited.** Each brand keeps declaring its own backfill stance in its own `scrape/` folder, where the WINDOW-CANARY gate scans for it — a shared default would turn a conscious per-bank decision into an invisible one.
+
+**No bank imports another bank.** A brand depends on the neutral factory; never on a sibling. The values that cross module boundaries are branded (`FibiUid` for the per-request cache-busting GUID, `FibiAccountBalance`, `FibiAccountNumberDisplay`) so a raw string cannot be substituted for a parsed one.
+
+The pattern generalises: any set of brands sharing one portal belongs behind one family factory on these terms.
+
 ## urlTag resolution — WK token or inline literal URL
 
 Each shape step (`customer`, `balance`, `transactions`) carries a `urlTag` of type `WKUrlOrLiteral` — either a Well-Known `WKUrlGroup` token resolved through the WK registry, or an absolute REST URL declared inline. Browser banks migrating to the hard-model post-auth path keep their whole API contract in one shape by wrapping each endpoint with `literalUrl(url)` (a branded `LiteralUrl`); GraphQL and Well-Known-registered banks keep using their `WKUrlGroup` token unchanged.

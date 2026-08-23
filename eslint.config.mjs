@@ -2960,9 +2960,17 @@ export default tseslint.config(
   //     (`max(options.startDate, 1y ago)`), which must stay pinned to wall-clock
   //     now — measuring it from a narrowed end would let the walk ask for data
   //     older than the provider serves.
+  //
+  //     Widened 2026-08 (Phase 4) from `Banks/**/scrape/` to also cover
+  //     `Phases/ApiDirectScrape/**`: a bank family that shares one neutral
+  //     `*ShapeTxns.ts` factory moves the wire's window bound out of the bank
+  //     folder, and a path-keyed rule would have dropped the guardrail exactly
+  //     where several banks now depend on it at once. The glob is widened, never
+  //     narrowed — coverage only grows (eslint-rules-guidlines.md §1/§4).
   {
     files: [
       'src/Scrapers/Pipeline/Banks/**/scrape/*ShapeTxns.ts',
+      'src/Scrapers/Pipeline/Phases/ApiDirectScrape/**/*ShapeTxns.ts',
       'src/Scrapers/Pipeline/EslintCanaries/shape-txns-window-end-from-clock.canary.ts',
     ],
     ignores: ['src/Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.ts'],
