@@ -290,4 +290,18 @@ describe('check-doc-paths — one canonical spelling reaches every check', () =>
     const out = gateOutput('See `src//Nope/Missing.ts` for detail.\n');
     expect(out).toContain('✗ src/Nope/Missing.ts');
   });
+
+  // A trailing separator is the one spelling whose meaning is not preserved:
+  // POSIX reads `Missing.ts/` as a directory. The leniency is deliberate, and
+  // these two pin what it may and may not do — a citation of a file that does
+  // not exist must still fail, however it is punctuated.
+  it('still reports a missing file cited with a trailing separator', () => {
+    const out = gateOutput('See `src/Nope/Missing.ts/` for detail.\n');
+    expect(out).toContain('✗ src/Nope/Missing.ts');
+  });
+
+  it('resolves an existing file cited with a trailing separator', () => {
+    const out = gateOutput('See `scripts/check-doc-paths.mjs/` for detail.\n');
+    expect(out).toContain('1 cited, 0 unresolved');
+  });
 });

@@ -57,16 +57,26 @@ const PATH_SHAPE = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+$/;
 const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
 
 /**
- * Reduce a path to one structural spelling without changing what it denotes.
+ * Reduce a path to one structural spelling for the checks that follow.
  *
- * Converts `\` to `/`, drops empty segments left by `//`, and drops interior
- * `.` segments. A leading `.` is kept: it is what marks `./README.md` as a
- * path rather than prose, and `PATH_SHAPE` needs that slash to match. A leading
+ * Converts `\` to `/`, then drops empty and `.` segments everywhere except
+ * index 0. A leading `.` is kept: it is what marks `./README.md` as a path
+ * rather than prose, and `PATH_SHAPE` needs that slash to match. A leading
  * empty segment is kept too, so an absolute path stays absolute and is still
  * rejected downstream. `..` is never touched — the containment check must see
  * it.
+ *
+ * Dropping *trailing* separators is a deliberate leniency, not an oversight:
+ * `Browser.ts/` reduces to `Browser.ts`. Under POSIX those denote different
+ * things, so this is the one case where the spelling's meaning is not
+ * preserved. It cannot admit a phantom path — a citation of a file that does
+ * not exist still fails whether or not it carries a trailing slash — and
+ * rejecting the form instead would report "path does not exist" against a file
+ * that plainly does, which is the more misleading of the two failures.
  * @param entry - Path as written in a manifest or a document.
- * @returns Same path, forward slashes, no redundant separators or `.` segments.
+ * @returns Same path, forward slashes, no redundant separators or interior
+ * `.` segments. A separator-only input reduces to the empty string, which
+ * `PATH_SHAPE` then rejects.
  */
 function normaliseSeparators(entry) {
   const parts = entry.split('\\').join('/').split('/');
