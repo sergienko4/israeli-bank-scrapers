@@ -38,24 +38,21 @@ function countCanaries(root) {
  * The trade-off is deliberate. This config declares some rules many times with
  * different per-cluster options (`max-lines`, `max-lines-per-function`), and a
  * name-based count no longer notices one of those scoped declarations being
- * deleted. `lint:guideline-coverage` covers the load-bearing half of that gap:
- * it resolves the effective config for a representative file in each of ten
- * sampled clusters and fails when any of the four numeric caps is missing or
- * laxer than CLEAN_CODE.md. Deleting a scoped declaration that one of those
- * ten resolves through lowers its cap, so that gate names the rule and the
- * cluster and exits non-zero.
+ * deleted. `lint:guideline-coverage` closes that gap for the four numeric caps:
+ * it resolves the effective config for EVERY production directory under
+ * `src/Common` and `src/Scrapers` and fails when a cap does not match
+ * `src/Tests/Tools/CapRegimeTable.ts` exactly. Deleting a scoped declaration
+ * changes the resolved cap of every directory beneath it, so that gate names
+ * each affected directory and rule and exits non-zero.
  *
  * It is not a complete substitute, and the residue is worth stating plainly.
- * That gate SAMPLES: ten representative files against thirty-one config blocks
- * that declare a numeric cap. A scoped declaration no sampled file resolves
- * through can still be deleted without either measure noticing, and so can any
- * scoped `no-restricted-syntax` or `max-statements` declaration, which the gate
- * does not check at all. The sampled set is chosen to cover the blocks that
- * pin drained sub-trees back to the canonical cap, because those are the ones
- * whose deletion silently relaxes shipped code. Telling "consolidated, so scope
- * widened" apart from "deleted, so scope shrank" needs glob resolution, which
- * no text count can do. What stays with this ratchet is the coarse question it
- * answers reliably: did a rule disappear from the config altogether?
+ * That gate checks four rules: `max-lines`, `max-lines-per-function`,
+ * `complexity` and `@typescript-eslint/max-params`. A scoped
+ * `no-restricted-syntax` or `max-statements` declaration can still be deleted
+ * without either measure noticing, and so can any other rule. Telling
+ * "consolidated, so scope widened" apart from "deleted, so scope shrank" needs
+ * glob resolution, which no text count can do. What stays with this ratchet is
+ * the coarse question it answers reliably: did a rule disappear altogether?
  */
 function countEslintRules(root) {
   const cfg = join(root, 'eslint.config.mjs');

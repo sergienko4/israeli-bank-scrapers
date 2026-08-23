@@ -99,16 +99,18 @@ re-scoping a rule cannot register as deleting one. It answers "did a rule leave
 the config?" only. Whether each cluster's caps are still strict enough is
 asserted directly by `lint:guideline-coverage`, which resolves the effective
 config per cluster and fails by name when a cap goes missing or laxer — that is
-what catches a deleted *scoped* declaration, which this count cannot see.
+what catches a deleted _scoped_ declaration, which this count cannot see.
 
-That gate **samples**: ten representative files against the thirty-one config
-blocks that declare a numeric cap. It is aimed at the blocks that pin a drained
-sub-tree back to the canonical cap, since deleting one of those silently relaxes
-shipped code — for example `Strategy/Scrape/Executor/**`, which `§19.1` would
-otherwise leave grandfathered at 40 LoC per function. A scoped declaration that
-no sampled file resolves through is still outside the reach of both measures, as
-is any scoped `no-restricted-syntax` or `max-statements` declaration, which the
-gate does not check at all; removing one of those needs review to catch.
+That gate is **complete for the four numeric caps**: it resolves the effective
+config for every production directory under `src/Common` and `src/Scrapers` and
+fails unless each cap matches `src/Tests/Tools/CapRegimeTable.ts` exactly. Exact
+matching is what catches a deleted block that pins a drained sub-tree back to the
+canonical cap — for example `Strategy/Scrape/Executor/**`, which `§19.1` would
+otherwise leave grandfathered at 40 LoC per function. It also catches the
+reverse: draining a tree without recording it, which `eslint-rules-guidlines.md`
+§1 requires in the same PR. Rules outside those four — notably scoped
+`no-restricted-syntax` and `max-statements` — stay outside the reach of both
+measures; removing one of those still needs review to catch.
 
 The `lib/index.cjs` hash detects whether the **built bundle** changed. It is an
 implementation-bundle hash, not a declaration-level API diff: a purely internal
