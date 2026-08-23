@@ -13,9 +13,13 @@
  * shape are armed, while OneZero (a documented exclusion — it is
  * `providerCursor` and has no upper bound to narrow) and a non-transactions
  * module in the same folder are not. Asserting the negatives is what keeps a
- * lazy "match everything" glob from passing this test.
+ * lazy "match everything" glob from passing this test. Because a missing file
+ * also resolves to "not armed", every probe target is checked for existence
+ * first — otherwise renaming one would silently turn its assertion into a
+ * tautology.
  */
 
+import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,9 +48,30 @@ const EXPECTED = {
   'non-transactions module beside the factory': false,
 } as const;
 
+type CaseLabel = keyof typeof CASES;
+
+/** Every probe target must exist — see `probePresence` for why that matters. */
+const PRESENT_PAIRS = Object.keys(CASES).map((l): readonly [string, boolean] => [l, true]);
+const ALL_PRESENT: Readonly<Record<string, boolean>> = Object.fromEntries(PRESENT_PAIRS);
+
 /** Shape of the resolved flat config this test reads — ESLint types it as `any`. */
 interface IResolvedConfig {
   readonly rules?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Maps every probe target to whether it exists on disk.
+ *
+ * <p>Two of the four cases assert `false`. A renamed or deleted probe file
+ * resolves to `false` as well, so those assertions would keep passing while
+ * guarding nothing. Existence is therefore asserted separately, as part of the
+ * contract rather than an assumption.
+ * @param labels - The `CASES` keys to check.
+ * @returns Each label mapped to whether its probe file exists on disk.
+ */
+function probePresence(labels: readonly CaseLabel[]): Record<string, boolean> {
+  const pairs = labels.map((l): readonly [string, boolean] => [l, existsSync(CASES[l])]);
+  return Object.fromEntries(pairs);
 }
 
 /**
@@ -56,16 +81,17 @@ interface IResolvedConfig {
  * @returns True when `no-restricted-syntax` carries the window-end rule.
  */
 async function isWindowRuleArmed(engine: ESLint, file: string): Promise<boolean> {
-  const resolved = (await engine.calculateConfigForFile(file)) as IResolvedConfig;
-  const rule = resolved.rules?.['no-restricted-syntax'] ?? null;
-  const restricted = JSON.stringify(rule);
-  return restricted.includes(WINDOW_RULE_MARKER);
+  const resolved = (await engine.calculateConfigForFile(file)) as IResolvedConfig | undefined;
+  const rule = resolved?.rules?.['no-restricted-syntax'] ?? null;
+  return JSON.stringify(rule).includes(WINDOW_RULE_MARKER);
 }
 
 describe('§20 window-end lock — path coverage', () => {
   it('arms the rule on every transactions shape, and only there', async () => {
     const engine = new ESLint();
-    const labels = Object.keys(CASES) as readonly (keyof typeof CASES)[];
+    const labels = Object.keys(CASES) as readonly CaseLabel[];
+    const present = probePresence(labels);
+    expect(present).toEqual(ALL_PRESENT);
     const probes = labels.map((l): Promise<boolean> => isWindowRuleArmed(engine, CASES[l]));
     const armed = await Promise.all(probes);
     const pairs = labels.map((l, i): readonly [string, boolean] => [l, armed[i] ?? false]);
