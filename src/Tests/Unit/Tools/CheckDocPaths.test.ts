@@ -57,6 +57,23 @@ const FIXTURE_MANIFEST = {
 };
 
 /**
+ * Write the body into a directory, removing the directory if the write fails.
+ * @param dir - Directory to write into.
+ * @param body - Markdown source.
+ * @returns Path of the written file.
+ */
+function writeOrClean(dir: string, body: string): string {
+  const file = path.join(dir, 'body.md');
+  try {
+    fs.writeFileSync(file, body, 'utf8');
+  } catch (error) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
+  return file;
+}
+
+/**
  * Make a throwaway directory holding a Markdown body.
  * @param body - Markdown source to check.
  * @returns Directory path and the file written into it.
@@ -65,13 +82,7 @@ function writeBody(body: string): { dir: string; file: string } {
   const tmp = os.tmpdir();
   const prefix = path.join(tmp, 'doc-paths-');
   const dir = fs.mkdtempSync(prefix);
-  const file = path.join(dir, 'body.md');
-  try {
-    fs.writeFileSync(file, body, 'utf8');
-  } catch (error) {
-    fs.rmSync(dir, { recursive: true, force: true });
-    throw error;
-  }
+  const file = writeOrClean(dir, body);
   return { dir, file };
 }
 
@@ -130,6 +141,28 @@ function runGate(body: string): number {
   return runGateIn(body, REPO_ROOT);
 }
 
+/**
+ * Capture what the gate prints, run against this repository.
+ *
+ * Exit codes cannot show which *spelling* reached the caller, and that is the
+ * whole question: the removed-path set comes from git, which always reports a
+ * path with no prefix and forward slashes. A citation echoed back in any other
+ * form would never match it.
+ * @param body - Markdown source to check.
+ * @returns The gate's stdout.
+ */
+function gateOutput(body: string): string {
+  const written = writeBody(body);
+  try {
+    const options = { encoding: 'utf8', cwd: REPO_ROOT } as const;
+    const result = spawnSync(process.execPath, [GATE, written.file], options);
+    if (result.error) throw result.error;
+    return result.stdout;
+  } finally {
+    fs.rmSync(written.dir, { recursive: true, force: true });
+  }
+}
+
 describe('check-doc-paths — published entry points are exempt', () => {
   // Each manifest field is asserted on its own, against paths that appear in
   // neither the fixture's filesystem nor the real manifest. Dropping any one
@@ -186,6 +219,43 @@ describe('check-doc-paths — published entry points are exempt', () => {
 
   it('still accepts a source path that does resolve', () => {
     const code = runGate('See `scripts/check-doc-paths.mjs` for detail.\n');
+    expect(code).toBe(0);
+  });
+});
+
+describe('check-doc-paths — one canonical spelling reaches every check', () => {
+  // Git reports a removed path with no prefix, so a citation echoed back with
+  // one could never match it — a legitimate deletion would report as drift.
+  it('reports a `./`-prefixed citation in the spelling git uses', () => {
+    const out = gateOutput('See `./src/Nope/Missing.ts` for detail.\n');
+    expect(out).toContain('✗ src/Nope/Missing.ts');
+  });
+
+  it('strips a repeated `./` prefix, not just the first', () => {
+    const out = gateOutput('See `././src/Nope/Missing.ts` for detail.\n');
+    expect(out).toContain('✗ src/Nope/Missing.ts');
+  });
+
+  it('applies the ignored-prefix list to a `./`-prefixed dependency path', () => {
+    const code = runGate('Patched `./node_modules/pkg/never-installed.js` upstream.\n');
+    expect(code).toBe(0);
+  });
+
+  // A `\`-separated citation matched no path shape, so a broken one was
+  // silently skipped and the gate passed — fail-open, the exact failure this
+  // gate exists to prevent.
+  it('rejects a broken citation written with `\\` separators', () => {
+    const code = runGate('See `src\\Nope\\Missing.ts` for detail.\n');
+    expect(code).toBe(1);
+  });
+
+  it('accepts a resolving citation written with `\\` separators', () => {
+    const code = runGate('See `scripts\\check-doc-paths.mjs` for detail.\n');
+    expect(code).toBe(0);
+  });
+
+  it('still refuses to traverse upward through `\\` separators', () => {
+    const code = runGate('See `..\\outside\\secrets.ts` for detail.\n');
     expect(code).toBe(0);
   });
 });

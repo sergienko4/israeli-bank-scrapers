@@ -57,18 +57,24 @@ const PATH_SHAPE = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+$/;
 const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
 
 /**
- * Strip a leading `./` and normalise separators.
+ * Normalise a path to the one spelling everything downstream compares against.
  *
- * A manifest may spell the same file `lib/index.cjs` (as `main` does) or
- * `./lib/index.cjs` (as `exports` must), and a document may cite either.
- * Canonicalising both sides is what makes the comparison a fact about the
- * file rather than about the spelling.
- * @param entry - Path as written in the manifest or the document.
- * @returns Repo-relative path, forward slashes, no `./` prefix.
+ * Three spellings denote the same file. A manifest writes `lib/index.cjs` for
+ * `main` but must write `./lib/index.cjs` under `exports`; a document may cite
+ * either; and a Windows author may write separators as `\`. Git, by contrast,
+ * always reports one form — no prefix, forward slashes — so that is the form
+ * chosen here.
+ *
+ * Applied before every downstream check, not just the exemption: `existsSync`,
+ * the removed-path set and the ignored-prefix list all compare against this.
+ * Canonicalising for only one of them is what made a `./`-spelled deletion
+ * report as drift.
+ * @param entry - Path as written in a manifest or a document.
+ * @returns Repo-relative path: forward slashes, no leading `./`.
  */
 function canonicalisePath(entry) {
   const slashed = entry.split('\\').join('/');
-  return slashed.startsWith('./') ? slashed.slice(2) : slashed;
+  return slashed.replace(/^(?:\.\/)+/, '');
 }
 
 /**
@@ -157,6 +163,11 @@ function withinRepo(token) {
  * — are skipped. `docs/` deliberately shortens the label relative to a
  * documented base while the link target carries the full repo path, so
  * treating the label as repo-relative reports drift that is not there.
+ *
+ * Canonicalisation happens first, so `PATH_SHAPE`, the traversal guard and the
+ * ignored-prefix list all see the same spelling the caller will later resolve.
+ * A `\`-separated citation reached none of those checks before, so a broken one
+ * was silently skipped.
  * @param body - Markdown text.
  * @returns Sorted unique candidate repo-relative paths.
  */
@@ -164,12 +175,12 @@ function extractPaths(body) {
   const found = new Set();
   for (const match of body.matchAll(CODE_SPAN)) {
     if (body.startsWith('](', match.index + match[0].length)) continue;
-    const token = stripLocator(match[1].trim());
+    const stripped = stripLocator(match[1].trim());
+    const token = canonicalisePath(stripped);
     if (!PATH_SHAPE.test(token)) continue;
     if (!withinRepo(token)) continue;
     if (IGNORED_PREFIXES.some(p => token.startsWith(p))) continue;
-    const canonical = canonicalisePath(token);
-    if (OPTIONAL_PATHS.has(canonical)) continue;
+    if (OPTIONAL_PATHS.has(token)) continue;
     found.add(token);
   }
   return [...found].sort();
