@@ -126,6 +126,25 @@ function exportTargets(node) {
 }
 
 /**
+ * Parse the package manifest, or nothing when it cannot be read.
+ *
+ * This gate is also pointed at throwaway fixture checkouts that carry no
+ * manifest, and it reads the manifest relative to the working directory. An
+ * unhandled `ENOENT` there aborts with a stack trace that says nothing about
+ * the citation being checked. Degrading to "nothing declared" keeps the gate
+ * fail-closed: a `lib/` citation simply loses its exemption and is reported as
+ * unresolved, which is loud and reviewable, rather than silently accepted.
+ * @returns Parsed manifest, or an empty object when absent or malformed.
+ */
+function readManifest() {
+  try {
+    return JSON.parse(readFileSync('package.json', 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+/**
  * The published entry points, read from the manifest rather than listed here.
  *
  * These are build output: present on any machine that has run a build, absent
@@ -141,7 +160,7 @@ function exportTargets(node) {
  * @returns Declared entry-point paths, repo-relative and canonical.
  */
 function publishedEntryPoints() {
-  const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+  const manifest = readManifest();
   const fromExports = exportTargets(manifest.exports ?? {});
   const flat = [manifest.main, manifest.module, manifest.types];
   const declared = [...flat, ...fromExports].filter(entry => typeof entry === 'string');
