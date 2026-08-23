@@ -45,7 +45,7 @@ async function evalGetBody(args: IGetArgs): Promise<readonly [string, number]> {
 async function evaluateGet(context: Page | Frame, url: string): Promise<readonly [string, number]> {
   const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
   const pending = context.evaluate(evalGetBody, { url, timeoutMs });
-  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${url}`);
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${redactUrlFull(url)}`);
 }
 
 /** Args for the in-page GET-with-headers evaluate callback. */
@@ -85,7 +85,7 @@ async function evaluateGetWithHeaders(
 ): Promise<readonly [string, number]> {
   const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
   const pending = context.evaluate(evalGetWithHeadersBody, { url, headers, timeoutMs });
-  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${url}`);
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${redactUrlFull(url)}`);
 }
 
 /**

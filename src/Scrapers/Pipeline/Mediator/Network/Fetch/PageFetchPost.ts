@@ -116,7 +116,8 @@ async function runPostEvaluate(
 ): Promise<readonly [string, number]> {
   logDoPostFetchHeaders(args);
   const pending = context.evaluate(doPostFetch, args);
-  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page POST ${args.innerUrl}`);
+  const description = `in-page POST ${redactUrlFull(args.innerUrl)}`;
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, description);
 }
 
 /** Conservative defaults used ONLY when the caller omitted `extraHeaders`. */

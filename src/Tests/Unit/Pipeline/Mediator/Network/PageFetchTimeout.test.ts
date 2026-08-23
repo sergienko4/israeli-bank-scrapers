@@ -22,6 +22,7 @@
 
 import * as vm from 'node:vm';
 
+import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
 import {
@@ -29,7 +30,10 @@ import {
   fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
-import { NETWORK_FETCH_PAGE_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
+import {
+  NETWORK_FETCH_PAGE_TIMEOUT_MS,
+  NETWORK_FETCH_TIMEOUT_MS,
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
 
 const REAL_FETCH = globalThis.fetch;
 const REAL_TIMEOUT_FACTORY = AbortSignal.timeout.bind(AbortSignal);
@@ -55,6 +59,24 @@ function createInvokingPage(): Page {
    * @returns Whatever the in-page body returns.
    */
   const evaluate = (fn: (a: unknown) => unknown, args: unknown): unknown => fn(args);
+  return { evaluate } as unknown as Page;
+}
+
+/**
+ * A page whose evaluate never settles, so the Node-side deadline decides.
+ *
+ * The in-page abort is deliberately given a later budget than the Node timer
+ * ({@link NETWORK_FETCH_PAGE_TIMEOUT_MS} > {@link NETWORK_FETCH_TIMEOUT_MS}),
+ * so a page that never resolves is exactly the condition under which callers
+ * observe the Node-classified `TimeoutError` — and therefore its message.
+ * @returns Fake page.
+ */
+function createHangingPage(): Page {
+  /**
+   * Never settle, mimicking a request the page never completes.
+   * @returns A promise that stays pending.
+   */
+  const evaluate = (): Promise<never> => new Promise<never>(() => undefined);
   return { evaluate } as unknown as Page;
 }
 
@@ -184,6 +206,26 @@ afterEach(() => {
 const SENTINEL_BUDGET_MS = 1234;
 /** Target used by every carrier below. */
 const TARGET_URL = 'https://bank.co.il/api';
+
+/**
+ * A URL carrying PII in both places {@link redactUrlFull} masks: an
+ * account-shaped path segment and a known-PII query key.
+ *
+ * A timeout message is built from the URL the caller passed, so an unredacted
+ * label would put a live account number and bearer token into every log that
+ * records the failure. The values below are synthetic — never copy a real
+ * account number or token into a fixture.
+ */
+const PII_URL = 'https://bank.co.il/api/accounts/1234567890?token=sample-token';
+
+/** Synthetic account digits that must never reach a log. */
+const PII_ACCOUNT = '1234567890';
+
+/** Synthetic token value that must never reach a log. */
+const PII_TOKEN = 'sample-token';
+
+/** Last-4 hint `redactUrlFull` leaves in place of the account segment. */
+const REDACTED_ACCOUNT_HINT = '***7890';
 
 /**
  * A page whose evaluate substitutes the budget before invoking the body.
@@ -356,29 +398,33 @@ const CARRIERS = [
     /**
      * Issue a plain in-page GET.
      * @param page - Page under test.
+     * @param url - URL to request.
      * @returns The parsed body.
      */
-    run: async (page: Page): Promise<unknown> => fetchGetWithinPage(page, TARGET_URL),
+    run: async (page: Page, url: string = TARGET_URL): Promise<unknown> =>
+      fetchGetWithinPage(page, url),
   },
   {
     label: 'GET with headers',
     /**
      * Issue an in-page GET carrying discovered headers.
      * @param page - Page under test.
+     * @param url - URL to request.
      * @returns The parsed body.
      */
-    run: async (page: Page): Promise<unknown> =>
-      fetchGetWithinPageWithHeaders(page, TARGET_URL, { 'X-Discovered': 'v' }),
+    run: async (page: Page, url: string = TARGET_URL): Promise<unknown> =>
+      fetchGetWithinPageWithHeaders(page, url, { 'X-Discovered': 'v' }),
   },
   {
     label: 'POST',
     /**
      * Issue an in-page POST.
      * @param page - Page under test.
+     * @param url - URL to request.
      * @returns The parsed body.
      */
-    run: async (page: Page): Promise<unknown> =>
-      fetchPostWithinPage(page, TARGET_URL, { data: {} }),
+    run: async (page: Page, url: string = TARGET_URL): Promise<unknown> =>
+      fetchPostWithinPage(page, url, { data: {} }),
   },
 ] as const;
 
@@ -437,5 +483,49 @@ describe('in-page POST payload', () => {
     const opts = { data: {}, extraHeaders: { 'X-Captured': 'val' } };
     await fetchPostWithinPage(page, TARGET_URL, opts);
     expect(capturedInit?.headers).toMatchObject({ 'X-Captured': 'val' });
+  });
+});
+
+// The success path already redacts before logging, so an unredacted timeout
+// label is the asymmetry worth pinning: the failure path is precisely where a
+// URL gets written out, and a bank URL carries the account in its path and the
+// bearer token in its query.
+describe('in-page timeout message redaction', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  /**
+   * Drive a carrier against a page that never settles until the Node deadline
+   * fires, and hand back the resulting error.
+   * @param run - Carrier entry point.
+   * @returns The rejection the caller would observe.
+   */
+  async function timeoutError(run: (page: Page, url?: string) => Promise<unknown>): Promise<Error> {
+    const hangingPage = createHangingPage();
+    const pending = run(hangingPage, PII_URL);
+    const captured = pending.then(
+      (value: unknown): unknown => value,
+      (error: unknown): unknown => error,
+    );
+    await jest.advanceTimersByTimeAsync(NETWORK_FETCH_TIMEOUT_MS);
+    const settled = await captured;
+    expect(settled).toBeInstanceOf(Error);
+    return settled as Error;
+  }
+
+  it.each(CARRIERS)('$label masks the account and token it timed out on', async ({ run }) => {
+    const error = await timeoutError(run);
+    expect(error.message).not.toContain(PII_ACCOUNT);
+    expect(error.message).not.toContain(PII_TOKEN);
+  });
+
+  it.each(CARRIERS)('$label still identifies the request it timed out on', async ({ run }) => {
+    const error = await timeoutError(run);
+    expect(error.message).toContain(REDACTED_ACCOUNT_HINT);
   });
 });
