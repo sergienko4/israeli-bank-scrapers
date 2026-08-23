@@ -52,16 +52,33 @@ const PATH_SHAPE = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+$/;
 
 /**
  * Prefixes that never live in this repo, so a citation of them is not a
- * broken path. `node_modules/` is installed, not committed; `lib/` is the
- * build output and is gitignored.
- *
- * `lib/` matters because it is present on any machine that has run a build
- * and absent on a fresh CI checkout — the pass-locally/fail-in-CI flake
- * this module's `OPTIONAL_PATHS` comment already warns about. A PR body
- * asserting the published bundle is unchanged is a legitimate citation,
- * and it must not depend on whether a build happens to have run.
+ * broken path. `node_modules/` is installed, not committed.
  */
-const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/', 'lib/'];
+const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
+
+/**
+ * The published entry points, read from the manifest rather than listed here.
+ *
+ * These are build output: present on any machine that has run a build, absent
+ * on a fresh CI checkout. A PR body asserting the published surface is
+ * unchanged is a legitimate citation, and must not depend on whether a build
+ * happens to have run — that is the pass-locally/fail-in-CI flake described
+ * below, and it is what motivated this.
+ *
+ * Derived, not hardcoded, so the gate cannot drift from what npm actually
+ * publishes. Exempting the whole `lib/` directory instead would be the easy
+ * fix and the wrong one: it would silently accept `lib/indexs.d.ts`, turning
+ * a typo a reviewer wants flagged into a pass.
+ * @returns Declared entry-point paths, repo-relative.
+ */
+function publishedEntryPoints() {
+  const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+  const nested = JSON.stringify(manifest.exports ?? {});
+  const quoted = nested.match(/"\.\/[^"]+"/g) ?? [];
+  const fromExports = quoted.map(token => token.slice(3, -1));
+  const flat = [manifest.main, manifest.module, manifest.types];
+  return [...flat, ...fromExports].filter(entry => typeof entry === 'string');
+}
 
 /**
  * Artefacts created at run time, which a doc may legitimately cite while
@@ -71,7 +88,7 @@ const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/', 'lib/
  * gate would pass on a machine that happens to have one lying around and
  * fail in CI — a flake, which is worse than no gate at all.
  */
-const OPTIONAL_PATHS = new Set(['.github/PR_BODY.md']);
+const OPTIONAL_PATHS = new Set(['.github/PR_BODY.md', ...publishedEntryPoints()]);
 
 /**
  * Strip a trailing locator (`:42`, `:analyze`, `#L17`) so `file.ts:12` and
@@ -82,7 +99,7 @@ const OPTIONAL_PATHS = new Set(['.github/PR_BODY.md']);
  * @returns Token without a trailing locator.
  */
 function stripLocator(token) {
-  const cut = [token.indexOf(':'), token.indexOf('#')].filter((i) => i !== -1);
+  const cut = [token.indexOf(':'), token.indexOf('#')].filter(i => i !== -1);
   return cut.length === 0 ? token : token.slice(0, Math.min(...cut));
 }
 
@@ -119,7 +136,7 @@ function extractPaths(body) {
     const token = stripLocator(match[1].trim());
     if (!PATH_SHAPE.test(token)) continue;
     if (!withinRepo(token)) continue;
-    if (IGNORED_PREFIXES.some((p) => token.startsWith(p))) continue;
+    if (IGNORED_PREFIXES.some(p => token.startsWith(p))) continue;
     if (OPTIONAL_PATHS.has(token)) continue;
     found.add(token);
   }
@@ -174,7 +191,7 @@ function deletedInDiff(base) {
 function checkFile(file, deleted) {
   const body = readFileSync(file, 'utf8');
   const candidates = extractPaths(body);
-  const missing = candidates.filter((p) => !existsSync(p) && !deleted.has(p));
+  const missing = candidates.filter(p => !existsSync(p) && !deleted.has(p));
   stdout.write(`${file}: ${candidates.length} cited, ${missing.length} unresolved\n`);
   for (const p of missing) stdout.write(`  ✗ ${p}\n`);
   return missing.length;
