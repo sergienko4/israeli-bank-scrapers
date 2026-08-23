@@ -7,10 +7,11 @@
  * extracting the FIBI group's shared transactions module into
  * `Phases/ApiDirectScrape/FibiGroup/` would have dropped the guardrail exactly
  * where four banks came to depend on it at once — with no test failing. The
- * glob was widened; this test is what notices if it is ever narrowed back.
+ * glob was widened; this test is what notices if it is ever narrowed back. The
+ * card-issuer cursor module is the second shared shape to rely on that widening.
  *
- * <p>It asserts coverage in both directions: the shared factory and a per-bank
- * shape are armed, while OneZero (a documented exclusion — it is
+ * <p>It asserts coverage in both directions: the two shared factories and a
+ * per-bank shape are armed, while OneZero (a documented exclusion — it is
  * `providerCursor` and has no upper bound to narrow) and a non-transactions
  * module in the same folder are not. Asserting the negatives is what keeps a
  * lazy "match everything" glob from passing this test. Because a missing file
@@ -29,6 +30,7 @@ const HERE_URL = fileURLToPath(import.meta.url);
 const HERE = path.dirname(HERE_URL);
 const PIPELINE_ROOT = path.join(HERE, '..', '..', '..', '..', 'Scrapers', 'Pipeline');
 const FIBI_GROUP = path.join(PIPELINE_ROOT, 'Phases', 'ApiDirectScrape', 'FibiGroup');
+const CARD_ISSUER = path.join(PIPELINE_ROOT, 'Phases', 'ApiDirectScrape', 'CardIssuer');
 const BANKS = path.join(PIPELINE_ROOT, 'Banks');
 
 /** Stable fragment of the rule's message — cheaper to match than its selector. */
@@ -36,6 +38,7 @@ const WINDOW_RULE_MARKER = 'detaches it from the scrape window';
 
 const CASES = {
   'shared FIBI transactions factory': path.join(FIBI_GROUP, 'FibiGroupShapeTxns.ts'),
+  'shared card-issuer cursor policy': path.join(CARD_ISSUER, 'CardIssuerShapeTxns.ts'),
   'per-bank transactions shape': path.join(BANKS, 'Massad', 'scrape', 'MassadShapeTxns.ts'),
   'OneZero (documented exclusion)': path.join(BANKS, 'OneZero', 'scrape', 'OneZeroShapeTxns.ts'),
   'non-transactions module beside the factory': path.join(FIBI_GROUP, 'FibiGroupShape.ts'),
@@ -43,6 +46,7 @@ const CASES = {
 
 const EXPECTED = {
   'shared FIBI transactions factory': true,
+  'shared card-issuer cursor policy': true,
   'per-bank transactions shape': true,
   'OneZero (documented exclusion)': false,
   'non-transactions module beside the factory': false,
