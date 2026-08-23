@@ -11,6 +11,13 @@
  * the real in-page body runs in Node and the abort wiring is exercised rather
  * than mocked away. The 30 s budget itself is never waited on: the timeout
  * factory is stubbed with a controller the test aborts on demand.
+ *
+ * LIMIT of the bare-realm serialisability check below: it catches a
+ * module-scope reference only on a path the call actually EXECUTES. A
+ * reference sitting on a short-circuited branch (`args.x || MODULE_CONST`)
+ * would not throw here, yet would still break in the browser once that branch
+ * is taken. Verified by mutation — the `||` form passed, the unconditional
+ * form failed. Keep the in-page bodies branch-free of module scope.
  */
 
 import * as vm from 'node:vm';
@@ -167,37 +174,59 @@ function createBudgetOverridingPage(budgetMs: number): Page {
 }
 
 /**
- * Identifier shape Istanbul gives its per-file coverage counter.
+ * Identifier shape Istanbul gives its per-file coverage counter, in the call
+ * position it always appears in.
  *
- * The name is a hash of the file, so it cannot be listed literally.
+ * The name is a hash of the file — it differs between machines and between CI
+ * runs — so it cannot be listed literally. Requiring the trailing `(` keeps a
+ * bare identifier of the same shape from being admitted, so the only thing
+ * that gets a stub is something being *called* the way a counter is.
  */
-const COVERAGE_COUNTER = /\bcov_[0-9a-z]+\b/g;
+const COVERAGE_COUNTER = /\bcov_[0-9a-z]+(?=\()/g;
 
 /**
  * A stand-in for Istanbul's counter object.
  *
  * Instrumented code performs `cov_x().f[0]++`, `.s[1]++` and `.b[0][1]++`, so
- * every lookup must yield something indexable and assignable. Values are never
- * read back — the realm exists to prove the body resolves, not to measure it.
+ * the stub mirrors that exact shape: statement and function groups index
+ * straight to a counter, while the branch group indexes to a *row* of counters
+ * first. Modelling it faithfully keeps every leaf a real number.
+ *
+ * A single self-referential proxy is tempting and wrong: `++` on it would look
+ * up `Symbol.toPrimitive`, receive the proxy rather than a function, and throw
+ * `object is not a function`. Returning a primitive at the leaf also makes the
+ * nested branch write safe under strict mode, where assigning through a
+ * primitive would throw rather than be silently discarded.
+ *
+ * Values are never read back — the realm exists to prove the body resolves,
+ * not to measure it.
  * @returns Callable that yields an accept-anything counter bag.
  */
 function createCoverageStub(): () => unknown {
   /**
-   * Yield a readable zero for any counter slot.
+   * Accept any counter increment.
+   * @returns True, so the assignment succeeds even under strict mode.
+   */
+  const acceptWrite = (): boolean => true;
+  /**
+   * Yield a real number, so `++` coerces without consulting the proxy.
    * @returns Zero.
    */
   const readSlot = (): number => 0;
+  const slot = new Proxy({}, { get: readSlot, set: acceptWrite });
   /**
-   * Accept any counter increment.
-   * @returns True, so the assignment succeeds.
+   * Yield a counter row, for the two-level branch form.
+   * @returns The slot proxy.
    */
-  const acceptWrite = (): boolean => true;
-  const leaf = new Proxy({}, { get: readSlot, set: acceptWrite });
+  const readRow = (): unknown => slot;
+  const row = new Proxy({}, { get: readRow, set: acceptWrite });
   /**
-   * Yield the same leaf for `f`, `s` and `b` alike.
-   * @returns The shared leaf.
+   * Route `b` to a row of counters and `f`/`s` straight to a counter.
+   * @param _target - Unused proxy target.
+   * @param key - Counter group being read.
+   * @returns Row proxy for branches, slot proxy otherwise.
    */
-  const readGroup = (): unknown => leaf;
+  const readGroup = (_target: object, key: string | symbol): unknown => (key === 'b' ? row : slot);
   const bag = new Proxy({}, { get: readGroup, set: acceptWrite });
   return (): unknown => bag;
 }
@@ -211,17 +240,22 @@ function createCoverageStub(): () => unknown {
  * report a defect that does not exist — while passing without coverage, which is
  * the worst combination.
  *
- * Only names present in this source AND matching the counter shape are defined,
- * so a real module-scope reference still raises a ReferenceError.
+ * Only names called in this specific source AND matching the counter shape are
+ * defined, so a real module-scope reference still raises a ReferenceError. A
+ * provider that injects a differently-shaped name fails closed, which is the
+ * right direction for a guard.
  * @param globals - Realm globals to extend.
  * @param source - The body's own source text.
- * @returns How many counter names were admitted.
+ * @returns The globals, with any counter admitted.
  */
-function admitCoverageCounter(globals: Record<string, unknown>, source: string): number {
+function admitCoverageCounter(
+  globals: Record<string, unknown>,
+  source: string,
+): Record<string, unknown> {
   const names = source.match(COVERAGE_COUNTER) ?? [];
   const stub = createCoverageStub();
   for (const name of names) globals[name] = stub;
-  return names.length;
+  return globals;
 }
 
 /**
@@ -245,9 +279,9 @@ function createIsolatedPage(): Page {
    * @returns Whatever the in-page body returns.
    */
   const evaluate = (fn: (a: unknown) => unknown, args: unknown): unknown => {
-    const globals = browserGlobals();
     const source = fn.toString();
-    admitCoverageCounter(globals, source);
+    const bare = browserGlobals();
+    const globals = admitCoverageCounter(bare, source);
     const realm = vm.createContext(globals);
     const script = new vm.Script(`(${source})`);
     const compiled = script.runInContext(realm) as (a: unknown) => unknown;
