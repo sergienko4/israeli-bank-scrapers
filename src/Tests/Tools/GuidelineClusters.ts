@@ -96,7 +96,9 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
     representativeFile: 'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeRouter.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
-      { ruleId: 'max-lines-per-function', maxAllowed: 20 },
+      // §12 declares the file cap; the function cap comes from the later,
+      // broader §14b.4, which drained this whole tree to canonical.
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],

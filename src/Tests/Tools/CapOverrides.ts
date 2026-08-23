@@ -20,7 +20,8 @@ export interface ICapOverride {
   readonly reason: string;
 }
 
-const LEGACY_FILE_CAP = 'Legacy non-Pipeline tree; drained by its own phase, not this table.';
+const LEGACY_TREE_CAP = 'Legacy non-Pipeline tree; drained by its own phase, not this table.';
+const TYPES_FILE_OFF = 'Types grandfather: file cap off pending a drain phase.';
 const MEDIATOR_FILE_OFF = 'Mediator grandfather: file cap off pending a drain phase.';
 const STRATEGY_FILE_OFF = 'Strategy grandfather: file cap off pending a drain phase.';
 const PIPELINE_FN_DEFAULT = 'Pipeline default of 15 LoC per function, not yet drained to 10.';
@@ -31,13 +32,13 @@ const DRAINED_TREE_FN_PIN = 'Drained sub-tree pinned back to the canonical funct
 
 /** File-size expectations that deviate from the canonical `max-lines: 150`. */
 const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
-  { prefix: 'src/Common', cap: 300, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Base', cap: 300, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Behatsdaa', cap: 300, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/BeyahadBishvilha', cap: 300, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Mizrahi', cap: 300, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Registry', cap: 300, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Pipeline/Types', cap: 'off', reason: MEDIATOR_FILE_OFF },
+  { prefix: 'src/Common', cap: 300, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Base', cap: 300, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Behatsdaa', cap: 300, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/BeyahadBishvilha', cap: 300, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Mizrahi', cap: 300, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Registry', cap: 300, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Pipeline/Types', cap: 'off', reason: TYPES_FILE_OFF },
   { prefix: 'src/Scrapers/Pipeline/Mediator/Completion', cap: 'off', reason: MEDIATOR_FILE_OFF },
   { prefix: 'src/Scrapers/Pipeline/Mediator/Elements', cap: 'off', reason: MEDIATOR_FILE_OFF },
   { prefix: 'src/Scrapers/Pipeline/Mediator/Form', cap: 'off', reason: MEDIATOR_FILE_OFF },
@@ -95,12 +96,12 @@ const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
 
 /** Function-size expectations that deviate from the canonical `max-lines-per-function: 10`. */
 const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
-  { prefix: 'src/Common', cap: 20, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Base', cap: 20, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Behatsdaa', cap: 20, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/BeyahadBishvilha', cap: 20, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Mizrahi', cap: 20, reason: LEGACY_FILE_CAP },
-  { prefix: 'src/Scrapers/Registry', cap: 20, reason: LEGACY_FILE_CAP },
+  { prefix: 'src/Common', cap: 20, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Base', cap: 20, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Behatsdaa', cap: 20, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/BeyahadBishvilha', cap: 20, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Mizrahi', cap: 20, reason: LEGACY_TREE_CAP },
+  { prefix: 'src/Scrapers/Registry', cap: 20, reason: LEGACY_TREE_CAP },
   { prefix: 'src/Scrapers/Pipeline/Banks', cap: 15, reason: PIPELINE_FN_DEFAULT },
   { prefix: 'src/Scrapers/Pipeline/Core', cap: 15, reason: PIPELINE_FN_DEFAULT },
   { prefix: 'src/Scrapers/Pipeline/Interceptors', cap: 15, reason: PIPELINE_FN_DEFAULT },
