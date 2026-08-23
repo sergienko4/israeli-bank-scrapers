@@ -12,8 +12,11 @@ import {
   analyzeFile,
   expandToFiles,
   isExcluded,
+  isRuleKey,
   issuesFromCode,
   loadAllowlist,
+  parseOnlyArgs,
+  RULE_KEYS,
   type RuleKey,
 } from '../../../Tests/Tools/LintValidator.js';
 
@@ -360,6 +363,54 @@ describe('issuesFromCode — Rule #16 zero-CSS interaction guard', () => {
     const issues = issuesFromCode(file, code, new Map());
     const r16 = issues.filter((i): boolean => i.rule === 'Rule #16');
     expect(r16).toHaveLength(expected);
+  });
+});
+
+describe('parseOnlyArgs — --only flag validation', () => {
+  it('returns every argument as a path when the flag is absent', () => {
+    const parsed = parseOnlyArgs(['src', 'docs']);
+    expect(parsed).toEqual({ rule: '', paths: ['src', 'docs'], error: '' });
+  });
+
+  it('extracts a valid rule and leaves the paths behind', () => {
+    const parsed = parseOnlyArgs(['--only', 'Rule #17', 'src']);
+    expect(parsed).toEqual({ rule: 'Rule #17', paths: ['src'], error: '' });
+  });
+
+  it('rejects an unknown rule instead of filtering every issue away', () => {
+    const parsed = parseOnlyArgs(['--only', 'Rule #99', 'src']);
+    expect(parsed.error).toContain('unknown rule');
+    expect(parsed.rule).toBe('');
+  });
+
+  it('rejects the flag when no value follows it', () => {
+    const parsed = parseOnlyArgs(['src', '--only']);
+    expect(parsed.error).toContain('needs a rule key');
+    expect(parsed.rule).toBe('');
+  });
+
+  // Removal has to be positional: filtering argv by VALUE would delete this
+  // path, because it is spelled exactly like the rule key that precedes it.
+  it('keeps a path spelled like the rule key', () => {
+    const parsed = parseOnlyArgs(['--only', 'Rule #17', 'Rule #17']);
+    expect(parsed).toEqual({ rule: 'Rule #17', paths: ['Rule #17'], error: '' });
+  });
+
+  it('removes only the flag pair, keeping paths on both sides', () => {
+    const parsed = parseOnlyArgs(['before', '--only', 'Rule #15', 'after']);
+    expect(parsed.paths).toEqual(['before', 'after']);
+  });
+});
+
+describe('isRuleKey', () => {
+  it.each(RULE_KEYS)('accepts the emitted key %s', key => {
+    const isKnown = isRuleKey(key);
+    expect(isKnown).toBe(true);
+  });
+
+  it.each(['Rule 17', 'rule #17', 'Rule #99', ''])('rejects %p', candidate => {
+    const isKnown = isRuleKey(candidate);
+    expect(isKnown).toBe(false);
   });
 });
 

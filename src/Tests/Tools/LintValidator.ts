@@ -56,17 +56,75 @@ function isSelectorInteractionCall(line: string): boolean {
   return !SELECTOR_INTERACTION_DECL_RE.test(line);
 }
 
-/** Rule key enum — any future rule must be listed here. */
-export type RuleKey =
-  | 'Rule #15'
-  | 'Rule #10'
-  | 'Rule #16'
-  | 'Rule #17'
-  | '[Async]'
-  | 'PII-Log'
-  | 'S6564-Canary'
-  | 'S3735-Canary'
-  | 'S1607-Canary';
+/**
+ * Every rule key the analyser can emit.
+ *
+ * Runtime data rather than a bare type, because `--only` has to validate a
+ * key that arrives as text. {@link RuleKey} is derived from this array, so a
+ * rule cannot be renamed in one place and left stale in the other.
+ */
+export const RULE_KEYS = [
+  'Rule #15',
+  'Rule #10',
+  'Rule #16',
+  'Rule #17',
+  '[Async]',
+  'PII-Log',
+  'S6564-Canary',
+  'S3735-Canary',
+  'S1607-Canary',
+] as const;
+
+/** Rule key enum — any future rule must be listed in {@link RULE_KEYS}. */
+export type RuleKey = (typeof RULE_KEYS)[number];
+
+/**
+ * Narrow arbitrary text to a rule the analyser can actually emit.
+ * @param value - Candidate text, typically an argv entry.
+ * @returns True when the value names a known rule.
+ */
+export function isRuleKey(value: string): value is RuleKey {
+  const known: readonly string[] = RULE_KEYS;
+  return known.includes(value);
+}
+
+/** Flag selecting a single rule, so one guard can run at a wider scope. */
+const ONLY_FLAG = '--only';
+
+/** Outcome of splitting argv into a rule selector and path arguments. */
+export interface IArgvParse {
+  readonly rule: RuleKey | '';
+  readonly paths: readonly string[];
+  readonly error: string;
+}
+
+/**
+ * Split argv into the `--only` rule and the paths to walk.
+ *
+ * The key is validated HERE because downstream an unknown one is
+ * indistinguishable from a clean run: every issue filters away, no report is
+ * written, and the gate exits 0 — reporting success while enforcing nothing.
+ * `lint:retired-shims` invokes exactly this shape, so renaming a rule without
+ * updating the script would silently retire the guard rather than break it.
+ *
+ * Removal is POSITIONAL. Dropping argv entries by VALUE would also delete a
+ * path that happens to be spelled like the rule key.
+ * @param argv - Arguments after the node/script pair.
+ * @returns The rule, the paths, and a usage error when the flag is malformed.
+ */
+export function parseOnlyArgs(argv: readonly string[]): IArgvParse {
+  const at = argv.indexOf(ONLY_FLAG);
+  if (at === -1) return { rule: '', paths: [...argv], error: '' };
+  const paths = [...argv.slice(0, at), ...argv.slice(at + 2)];
+  // A length check, not `=== undefined`: without `noUncheckedIndexedAccess`
+  // the index signature is typed `string`, so comparing to undefined reads as
+  // dead code to the linter even though a trailing `--only` produces exactly
+  // that at runtime.
+  if (at + 1 >= argv.length) return { rule: '', paths, error: `${ONLY_FLAG} needs a rule key` };
+  const value = argv[at + 1];
+  if (isRuleKey(value)) return { rule: value, paths, error: '' };
+  return { rule: '', paths, error: `${ONLY_FLAG} got unknown rule ${value}` };
+}
 
 /** One violation emitted by the analyser. */
 export interface IIssue {

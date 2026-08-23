@@ -13,7 +13,14 @@
 
 import * as fs from 'node:fs';
 
-import { analyzeFile, expandToFiles, isExcluded, loadAllowlist } from './LintValidator.js';
+import {
+  analyzeFile,
+  expandToFiles,
+  isExcluded,
+  loadAllowlist,
+  parseOnlyArgs,
+  RULE_KEYS,
+} from './LintValidator.js';
 
 /** Output log filename (consumed by the pre-commit hook for diagnostics). */
 const LOG_FILE = '.architecture-violations.log';
@@ -24,22 +31,19 @@ interface IFileReport {
   readonly violations: string[];
 }
 
-/** Flag selecting a single rule, so one guard can run at a wider scope. */
-const ONLY_FLAG = '--only';
+/** Exit code for a malformed invocation, kept distinct from a violation (1). */
+const USAGE_EXIT = 2;
 
-/**
- * The rule key requested via `--only`, if any.
- * @returns The rule key, or an empty string when the flag is absent.
- */
-function requestedRule(): string {
-  const at = process.argv.indexOf(ONLY_FLAG);
-  if (at === -1) return '';
-  return process.argv[at + 1] ?? '';
+const RAW_ARGV = process.argv.slice(2);
+const PARSED = parseOnlyArgs(RAW_ARGV);
+
+if (PARSED.error !== '') {
+  process.stderr.write(`❌ ${PARSED.error}\n   known rules: ${RULE_KEYS.join(', ')}\n`);
+  process.exit(USAGE_EXIT);
 }
 
-const ONLY_RULE = requestedRule();
-const RAW_ARGV = process.argv.slice(2);
-const ARGV_PATHS = RAW_ARGV.filter((a): boolean => a !== ONLY_FLAG && a !== ONLY_RULE);
+const ONLY_RULE = PARSED.rule;
+const ARGV_PATHS = PARSED.paths;
 const ALLOWLIST = loadAllowlist();
 const FILES = expandToFiles(ARGV_PATHS);
 const REPORTS: IFileReport[] = [];
