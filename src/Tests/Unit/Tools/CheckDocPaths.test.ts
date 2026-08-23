@@ -251,9 +251,13 @@ describe('check-doc-paths — published entry points are exempt', () => {
  * Manifests that parse cleanly but cannot be read as a manifest.
  *
  * `JSON.parse` returns each of these without throwing, so the `try/catch`
- * around it never fires. The shape guard after it is the only thing between
- * the gate and a `TypeError` raised while dereferencing `exports` — and a
- * crash there would abort before a single citation was checked.
+ * around it never fires; only the shape guard after it stands between the gate
+ * and a manifest it cannot use. The three are not equivalent. `null` is the one
+ * that would raise a `TypeError` on dereferencing `exports`, aborting before a
+ * single citation was checked. An array and a bare string dereference to
+ * `undefined` instead, so they pin the fail-closed BEHAVIOUR rather than a
+ * crash: the gate must report the citation unresolved, never treat an unusable
+ * manifest as one that simply exports nothing.
  */
 const UNUSABLE_MANIFESTS = [
   { label: 'a manifest that is literally `null`', manifest: 'null' },
