@@ -1,108 +1,25 @@
 /**
- * Beinleumi (FIBI) scrape shape — transactions helpers. A single POST to
- * `bff-balancetransactions/api/v1/transactions/list` with the account
- * number (numeric), account type, branch, and the scrape date window in
- * an `initialRequest` envelope. The captured trace returned the full
- * window in one page, so the cursor is terminal (`never`) — matching the
- * Hapoalim/Leumi single-page precedent. Raw rows flow downstream to the
- * field-mapping Data Mapper unchanged (amount = creditAmount −
- * debitAmount, date from dateOfRegistration).
- *
- * Split from BeinleumiShapeHelpers.ts to respect the 150-LOC ceiling.
+ * Beinleumi (FIBI group) scrape shape — the transactions URL bound to the
+ * Beinleumi origin. The request envelope and page extractor are
+ * origin-independent and live in the neutral FibiGroup factory, which also owns
+ * the window's upper bound (`scrapeWindowEnd`, never the clock) so the coverage
+ * backfill keeps reaching the wire for every FIBI brand at once.
  */
 
-import moment from 'moment';
+import {
+  txnsExtractPage,
+  txnsUrl as fibiTxnsUrl,
+  txnsVars,
+} from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeTxns.js';
+import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import { BEINLEUMI_CONFIG } from './BeinleumiShapeHelpers.js';
 
-import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
-import type {
-  IExtractPageArgs,
-  VarsMap,
-} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
-import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
-import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { BEINLEUMI_API, BFF_BASE, type IBeinleumiAcct } from './BeinleumiShapeHelpers.js';
-
-/** Transaction date format (YYYY-MM-DD, per the captured POST body). */
-const TXN_DATE_FMT = 'YYYY-MM-DD';
-/** Fixed sort order (ascending) the endpoint expects. */
-const TXN_ORDER = 1;
-/** Fixed response language code. */
-const TXN_LANGUAGE = 'HEB';
-
-type BeinleumiTxn = Record<string, unknown>;
-
-interface ITxnsResp {
-  readonly transactions?: readonly BeinleumiTxn[];
-}
-
-/**
- * Window start date (YYYY-MM-DD from ScraperOptions.startDate).
- * @param ctx - Action context.
- * @returns Formatted startDate.
- */
-function startOf(ctx: IActionContext): string {
-  return moment(ctx.options.startDate).format(TXN_DATE_FMT);
-}
-
-/**
- * Window end date (YYYY-MM-DD) — the window's upper bound, narrowed
- * during a coverage backfill and otherwise today.
- * @param ctx - Action context.
- * @returns Formatted endDate.
- */
-function endOf(ctx: IActionContext): string {
-  const windowEnd = scrapeWindowEnd(ctx);
-  return moment(windowEnd).format(TXN_DATE_FMT);
-}
-
-/**
- * Build the `initialRequest` envelope — account number is numeric on the
- * wire; branch is a string; dates span the scrape window.
- * @param acct - Beinleumi account.
- * @param ctx - Action context (carries startDate).
- * @returns Wire request payload.
- */
-function buildInitialRequest(acct: IBeinleumiAcct, ctx: IActionContext): VarsMap {
-  return {
-    accountNumber: Number(acct.accountNumber),
-    accountType: acct.accountType,
-    branch: acct.branch,
-    startDate: startOf(ctx),
-    endDate: endOf(ctx),
-    order: TXN_ORDER,
-    language: TXN_LANGUAGE,
-  };
-}
+export { txnsExtractPage, txnsVars };
 
 /**
  * Transactions URL — the fixed BFF list endpoint (params ride the body).
- * @returns Literal list URL.
+ * @returns Literal transactions-list URL.
  */
 export function txnsUrl(): WKUrlOrLiteral {
-  return literalUrl(`${BEINLEUMI_API}${BFF_BASE}/list`);
-}
-
-/**
- * Transactions POST body — the `initialRequest` envelope.
- * @param acct - Beinleumi account.
- * @param _cursor - Unused (single full-window call).
- * @param ctx - Action context (carries startDate).
- * @returns Variables map POSTed as the JSON body.
- */
-export function txnsVars(acct: IBeinleumiAcct, _cursor: false, ctx: IActionContext): VarsMap {
-  return { initialRequest: buildInitialRequest(acct, ctx) };
-}
-
-/**
- * Extract the single transactions page — raw rows, no next cursor (the
- * full-window call returns the whole range).
- * @param args - Bundle carrying the unwrapped response body.
- * @returns Page rows + terminal cursor.
- */
-export function txnsExtractPage(
-  args: IExtractPageArgs<IBeinleumiAcct, never>,
-): IPage<object, never> {
-  const resp = args.body as unknown as ITxnsResp;
-  return { items: resp.transactions ?? [], nextCursor: false };
+  return fibiTxnsUrl(BEINLEUMI_CONFIG);
 }

@@ -1,64 +1,42 @@
 /**
- * Beinleumi (FIBI) scrape shape — the `IApiDirectScrapeShape` data
- * declaration consumed by the generic buildGenericHeadlessScrape driver
- * via `withBrowserApiDirect`. balanceKind=account.
+ * Beinleumi (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
+ * declaration consumed by the generic buildGenericHeadlessScrape driver via
+ * `withBrowserApiDirect`. balanceKind=account.
  *
- * Account identity spans two cookie-authed GETs: `userData` (customer)
- * for the account number + branch, and a session-level `accountType`
- * lookup (customer.secondaryUrlTag) for the numeric type that the balance
- * path segment and the transactions body both need. Balance is a GET;
- * transactions a single full-window POST. Helpers split across
- * BeinleumiShapeHelpers.ts (host + balance), BeinleumiShapeAccounts.ts
- * (identity merge + identity urls), and BeinleumiShapeTxns.ts.
+ * Account identity spans two cookie-authed GETs: `userData` (customer) for the
+ * account number + branch, and a session-level `accountType` lookup
+ * (customer.secondaryUrlTag) for the numeric type that the balance path segment
+ * and the transactions body both need. Balance is a GET; transactions a single
+ * full-window POST. The family wiring — envelope, identity merge, extractors —
+ * comes from the neutral FibiGroup factory; this module supplies what is the
+ * brand’s own: its origin-bound URLs, its step name, and its
+ * coverage-backfill stance.
+ *
+ * The stance stays declared here, not inherited, so the WINDOW-CANARY gate
+ * keeps seeing a conscious per-bank decision.
  *
  * Contract grounded in the captured trace
  * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970). Replaces the
  * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain. AUTH-DISCOVERY now
  * performs the cross-origin appsng nav (config `postLoginNav`) so the
- * cookie-authed fetches run from the rendered app context, not FIBI's blank
+ * cookie-authed fetches run from the rendered app context, not FIBI’s blank
  * `/wps/` portal shell.
  */
 
-import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import {
-  accountNumberOf,
-  customerUrl,
-  extractAccounts,
-  secondaryUrl,
-} from './BeinleumiShapeAccounts.js';
-import {
-  balanceExtract,
-  balanceUrl,
-  type IBeinleumiAcct,
-  noVars,
-} from './BeinleumiShapeHelpers.js';
-import { txnsExtractPage, txnsUrl, txnsVars } from './BeinleumiShapeTxns.js';
+import { makeFibiGroupShape } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
+import { customerUrl, secondaryUrl } from './BeinleumiShapeAccounts.js';
+import { balanceUrl } from './BeinleumiShapeHelpers.js';
+import { txnsUrl } from './BeinleumiShapeTxns.js';
 
 /** Beinleumi hard-model shape — passed to `.withBrowserApiDirect(...)`. */
-const BEINLEUMI_SHAPE: IApiDirectScrapeShape<IBeinleumiAcct, never> = {
+const BEINLEUMI_SHAPE = makeFibiGroupShape({
   stepName: 'BeinleumiScrape',
-  accountNumberOf,
-  customer: {
-    buildVars: noVars,
-    extractAccounts,
-    urlTag: customerUrl,
-    secondaryUrlTag: secondaryUrl,
-    method: 'GET',
-  },
-  balance: {
-    buildVars: noVars,
-    extract: balanceExtract,
-    urlTag: balanceUrl,
-    method: 'GET',
-  },
-  transactions: {
-    buildVars: txnsVars,
-    extractPage: txnsExtractPage,
-    windowNarrowing: 'windowEnd',
-    urlTag: txnsUrl,
-    method: 'POST',
-  },
-};
+  windowNarrowing: 'windowEnd',
+  customerUrl,
+  secondaryUrl,
+  balanceUrl,
+  txnsUrl,
+});
 
 export default BEINLEUMI_SHAPE;
 export { BEINLEUMI_SHAPE };
