@@ -18,7 +18,9 @@
  *      least the canonical caps (upper-bound check). Clusters live
  *      in `GuidelineClusters.ts`.
  *   2. CAP REGIME AUDIT — EVERY production FILE must resolve each
- *      cap to EXACTLY the value `CapRegimeTable.ts` predicts.
+ *      cap to EXACTLY the value the cap table predicts, from the
+ *      canonical caps in `CapRegimeTable.ts` and the deliberate
+ *      deviations in `CapOverrides.ts`.
  *      This is what catches a deleted grandfather-then-tighten block:
  *      flat config is last-wins, so removing a block that pins a
  *      drained sub-tree back to canonical silently RELAXES shipped

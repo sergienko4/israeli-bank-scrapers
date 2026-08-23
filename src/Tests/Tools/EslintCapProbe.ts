@@ -2,9 +2,10 @@
  * ESLINT CAP PROBE — audits EVERY production file against the cap table.
  *
  * <p>Discovers the production file set, resolves each file's caps through
- * ESLint's own flat-config resolver, and compares the answer against
- * `CapRegimeTable.ts`. A deleted grandfather-then-tighten block therefore fails
- * by name instead of silently relaxing shipped code.
+ * ESLint's own flat-config resolver, and compares the answer against the cap
+ * table — the canonical caps in `CapRegimeTable.ts` plus the deliberate
+ * deviations in `CapOverrides.ts`. A deleted grandfather-then-tighten block
+ * therefore fails by name instead of silently relaxing shipped code.
  *
  * <p>Auditing per FILE rather than per directory is load-bearing. Several
  * blocks scope a cap to a single filename beside a differently-capped

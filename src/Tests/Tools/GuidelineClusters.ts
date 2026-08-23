@@ -3,7 +3,8 @@
  *
  * <p>Each entry names a cluster from CLEAN_CODE.md, one representative file, and
  * the caps that file's resolved config must hold. This is the SAMPLE half of the
- * gate; the exhaustive per-file half lives in `CapRegimeTable.ts`.
+ * gate; the exhaustive per-file half lives in `CapRegimeTable.ts` and
+ * `CapOverrides.ts`.
  */
 
 /** A single per-rule cap that must hold for the cluster's resolved config. */

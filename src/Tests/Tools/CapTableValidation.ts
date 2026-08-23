@@ -1,5 +1,5 @@
 /**
- * CAP TABLE VALIDATION — checks `CapRegimeTable.ts` against itself.
+ * CAP TABLE VALIDATION — checks `CapOverrides.ts` against itself.
  *
  * <p>The per-file audit in `EslintCapProbe.ts` only proves that ESLint and the
  * table AGREE. It cannot tell that an entry has stopped doing any work, because

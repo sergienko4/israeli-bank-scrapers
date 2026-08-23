@@ -89,9 +89,10 @@ function printSuccess(rows: readonly IClusterStatusRow[], fileCount: number): nu
  */
 function printFixHint(): number {
   process.stderr.write('Fix: update eslint.config.mjs so the cluster block includes the rule.\n');
-  process.stderr.write('A cap-regime failure means eslint.config.mjs and CapRegimeTable.ts\n');
-  process.stderr.write('disagree — restore the deleted block, or update the table if the\n');
-  process.stderr.write('tree was deliberately drained (eslint-rules-guidlines.md §1).\n');
+  process.stderr.write('A cap-regime failure means eslint.config.mjs and the cap table\n');
+  process.stderr.write('(CapRegimeTable.ts + CapOverrides.ts) disagree — restore the\n');
+  process.stderr.write('deleted block, or update the table if the tree was deliberately\n');
+  process.stderr.write('drained (eslint-rules-guidlines.md §1).\n');
   process.stderr.write('See CLEAN_CODE.md for the canonical caps.\n');
   return 1;
 }
