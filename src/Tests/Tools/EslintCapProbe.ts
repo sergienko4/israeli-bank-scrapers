@@ -16,10 +16,11 @@ import * as fs from 'node:fs';
 import type { ESLint } from 'eslint';
 
 import {
-  CANARY_DIR,
   CANONICAL_CAPS,
   CAP_OVERRIDES,
   type ICapOverride,
+  NON_PRODUCTION_DIRS,
+  NON_PRODUCTION_SUFFIXES,
   PRODUCTION_ROOTS,
   type TResolvedCap,
 } from './CapRegimeTable.js';
@@ -94,8 +95,11 @@ export async function resolveRulesForFile(
 /**
  * Collect ONE representative `.ts` file per production directory.
  *
- * A directory's resolved config is uniform across its own files, so one probe
- * per directory characterises its regime while keeping the walk cheap.
+ * Sound only because every file that carries its own cap regime is excluded
+ * first — see {@link NON_PRODUCTION_DIRS} and {@link NON_PRODUCTION_SUFFIXES}.
+ * Among what remains, no block in `eslint.config.mjs` scopes one of the four
+ * audited caps to a filename, so a directory's regime is uniform and one probe
+ * characterises it while keeping the walk cheap.
  * @param root - Directory to walk, repo-relative with forward slashes.
  * @param into - Accumulator mapping directory to its representative file.
  * @returns The accumulator, so callers can chain roots.
@@ -105,12 +109,14 @@ function collectRepresentatives(root: string, into: Map<string, string>): Map<st
   for (const entry of entries) {
     const full = `${root}/${entry.name}`;
     if (entry.isDirectory()) {
-      if (entry.name !== CANARY_DIR) collectRepresentatives(full, into);
+      if (!NON_PRODUCTION_DIRS.includes(entry.name)) collectRepresentatives(full, into);
       continue;
     }
-    const isSource = entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts');
+    const isProductionSource =
+      entry.name.endsWith('.ts') &&
+      !NON_PRODUCTION_SUFFIXES.some(suffix => entry.name.endsWith(suffix));
     const isFirstHere = !into.has(root);
-    if (isSource && isFirstHere) into.set(root, full);
+    if (isProductionSource && isFirstHere) into.set(root, full);
   }
   return into;
 }

@@ -185,3 +185,24 @@ export const PRODUCTION_ROOTS: readonly string[] = ['src/Common', 'src/Scrapers'
 
 /** Directory name that holds deliberate rule violations, so it is never audited. */
 export const CANARY_DIR = 'EslintCanaries';
+
+/**
+ * Directory names that carry a non-production cap regime, so they are skipped.
+ *
+ * `eslint.config.mjs:900` relaxes `max-lines-per-function` to `off` and
+ * `max-lines` to 600 for `**\/mocks/**\/*.ts`. Such a directory is not
+ * production code, so auditing it against the production table would be wrong.
+ */
+export const NON_PRODUCTION_DIRS: readonly string[] = [CANARY_DIR, 'mocks'];
+
+/**
+ * File suffixes that carry a non-production cap regime, so they never represent
+ * a directory.
+ *
+ * The same `eslint.config.mjs:900` block relaxes those two caps for
+ * `src/**\/*.test.ts` and `src/**\/*.spec.ts`. No such file exists under
+ * {@link PRODUCTION_ROOTS} today, so this is a guard against a future one
+ * silently becoming a directory's representative and reporting its regime.
+ * `.d.ts` is excluded because it declares no function bodies to cap.
+ */
+export const NON_PRODUCTION_SUFFIXES: readonly string[] = ['.d.ts', '.test.ts', '.spec.ts'];
