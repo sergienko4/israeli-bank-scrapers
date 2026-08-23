@@ -40,8 +40,10 @@ function countCanaries(root) {
  * name-based count no longer notices one of those scoped declarations being
  * deleted. `lint:guideline-coverage` closes that gap for the four numeric caps:
  * it resolves the effective config for EVERY production file under
- * `src/Common` and `src/Scrapers` and fails when a cap does not match
- * `src/Tests/Tools/CapRegimeTable.ts` exactly. The unit is the file, not the
+ * `src/Common` and `src/Scrapers` and fails when a cap does not match the
+ * expectation recorded across `src/Tests/Tools/CapRegimeTable.ts` (the policy
+ * anchor) and `src/Tests/Tools/CapOverrides.ts` (the per-path exceptions)
+ * exactly. The unit is the file, not the
  * directory, because this config also scopes caps to individual filenames
  * beside a differently-capped sibling directory; sampling one file per
  * directory would leave those regimes unmeasured. Deleting a scoped

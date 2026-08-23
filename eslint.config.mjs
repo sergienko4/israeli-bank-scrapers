@@ -1840,35 +1840,38 @@ export default tseslint.config(
   // the Scrape sub-folder, future commits could quietly re-blob one
   // of the new homes back toward four-digit line counts.
   //
-  // Per-function cap stays at **20** effective lines for the broad
-  // Mediator/Scrape/** surface — this matches the original Phase 5
-  // baseline and avoids forcing pre-existing files unrelated to
-  // Phase 8.5b's canonical-10 drain (AccountExtractor, BfsFieldSearch,
+  // Per-function cap: the Phase 5 baseline for this glob **was** 20
+  // effective lines, chosen so pre-existing files unrelated to Phase
+  // 8.5b's canonical-10 drain (AccountExtractor, BfsFieldSearch,
   // Coercion, ContainerPicker, EndpointResolver, ForensicAuditAction,
   // JsonTraversal, MirrorDetection, ScrapeUiTrigger, TxnMapper,
-  // TxnShape, LifoCrawl, TxnHunt) into a phase-mismatched refactor.
-  // §12B below raises the bar to **10** for the drained canonical-10
-  // sub-folders (ScrapePhase/**, ScrapeReplay/**, FrozenScrapeAction,
-  // UrlDateRange). §14b.4 later re-scopes ALL of `Mediator/Scrape/**`
-  // to 10 as part of the Phase 2e drain, and flat config is last-wins,
-  // so no production file under this glob resolves to 20 any more.
-  // The `max-lines-per-function` rule is therefore NOT declared here:
-  // a dead 20 would read as the effective cap and mislead the next
-  // maintainer, which is precisely the failure the cap-regime gate in
-  // `src/Tests/Tools/` exists to surface.
+  // TxnShape, LifoCrawl, TxnHunt) were not forced into a
+  // phase-mismatched refactor. That 20 is now dead: §12B below raises
+  // the bar to 10 for the drained canonical-10 sub-folders
+  // (ScrapePhase/**, ScrapeReplay/**, FrozenScrapeAction,
+  // UrlDateRange), §14b.4 re-scopes ALL of `Mediator/Scrape/**` to 10
+  // for the Phase 2e drain, and the §19.0 strict baseline — later
+  // still, and therefore the block that actually wins — resolves every
+  // one of the 65 production files under this glob to 10. Flat config
+  // is last-wins, so no production file here resolves to 20 any more.
+  // The `max-lines-per-function` rule is therefore NOT declared in this
+  // block: a dead 20 would read as the effective cap and mislead the
+  // next maintainer, which is precisely the failure the cap-regime gate
+  // in `src/Tests/Tools/` exists to surface.
   //
   // File-size cap stays at **150 effective lines** so every Scrape
-  // sub-module still fits in a single reviewer's working memory.
-  //
-  // The shim itself (`ScrapeAutoMapper.ts`) is intentionally left
-  // unconstrained — Section 7 already allows it, and this guard is
-  // about preventing regression of the new homes, not the facade.
+  // sub-module still fits in a single reviewer's working memory. The
+  // shim (`ScrapeAutoMapper.ts`) sits under this same glob and so is
+  // bound by that 150 too — Section 7 turns `max-lines` off across
+  // `Mediator/**`, and this block is what puts it back for Scrape.
   //
   // One canary enforces the file half of the cap: the
   // `no-scrape-mapper-blob.canary.ts` over-sizes the file to prove
   // `max-lines` fires. The function half is proved by
-  // `scrape-cluster-fn-over-cap.canary.ts`, which now sits in §14b.4
-  // beside the cap it actually certifies (10, not the dead 20).
+  // `scrape-cluster-fn-over-cap.canary.ts`, which is un-ignored in
+  // §19.0 so it resolves through the same block production does. It
+  // deliberately does NOT live here: this block declares no
+  // per-function cap, so there is nothing here for it to certify.
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/Scrape/**/*.ts',
@@ -2321,7 +2324,6 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Mediator/Timing/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-file-over-cap.canary.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/scrape-cluster-fn-over-cap.canary.ts',
     ],
     rules: {
       'max-statements': ['error', 10],
@@ -2554,6 +2556,13 @@ export default tseslint.config(
     ignores: [
       'src/scrapers/**',
       'src/Scrapers/Pipeline/EslintCanaries/**',
+      // …except the one canary that exists to certify THIS block. The
+      // directory-wide ignore above means no canary can normally resolve
+      // through §19.0, so the strict 10/10 baseline — the declaration that
+      // actually governs every production file — would have no canary
+      // coverage at all. Un-ignoring this single file lets it resolve
+      // exactly as production does, so relaxing §19.0 silences it.
+      '!src/Scrapers/Pipeline/EslintCanaries/scrape-cluster-fn-over-cap.canary.ts',
       'src/Scrapers/Registry/**',
     ],
     rules: {
@@ -2719,7 +2728,7 @@ export default tseslint.config(
   //     • `mergeActionResult`     — ACTION's IActionContext → IPipelineContext merge
   //   The per-function (`max-lines-per-function`) + per-method
   //   (`max-statements`) overrides have been DELETED entirely — global
-  //   §19.3 (10/10) now applies. Only `max-lines: 'off'` remains because
+  //   §19.3 (15/10) now applies. Only `max-lines: 'off'` remains because
   //   the abstract Template Method file legitimately exceeds the 300-LoC
   //   global cap (~520 LoC after all six extractions + their typedoc) —
   //   same precedent §7 grants to `Pipeline/{Mediator,Strategy,Types}/**`.

@@ -103,8 +103,10 @@ what catches a deleted _scoped_ declaration, which this count cannot see.
 
 That gate is **complete for the four numeric caps**: it resolves the effective
 config for every production _file_ under `src/Common` and `src/Scrapers` — 862
-of them — and fails unless each cap matches `src/Tests/Tools/CapRegimeTable.ts`
-exactly. The unit is the file rather than the directory because this config also
+of them — and fails unless each cap matches the expectation recorded across
+`src/Tests/Tools/CapRegimeTable.ts` (the policy anchor) and
+`src/Tests/Tools/CapOverrides.ts` (the per-path exceptions) exactly. The unit is
+the file rather than the directory because this config also
 scopes caps to individual filenames beside a differently-capped sibling
 directory (`Strategy/Scrape/ScrapeExecutor.ts` next to `Strategy/Scrape/**`, for
 one); sampling a single file per directory would leave those regimes unmeasured.

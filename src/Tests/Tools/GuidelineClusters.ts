@@ -37,7 +37,7 @@ export interface IClusterExpectations {
  *     canonical ≤10 LoC per function HARD CAP (post Phase 8.5a/b/c).
  *   • §3 Main Source Strict still resolves `max-lines` to 300, so that
  *     ONE rule is deferred by name; its other three caps are enforced.
- *   • §6 Pipeline Logic already resolves every cap it declares, so it
+ *   • §6 Pipeline Phases already resolves every cap it declares, so it
  *     is enforced outright. That is what makes deleting a per-cluster
  *     declaration fail this gate rather than pass unnoticed.
  *   • §19.1a/b/c are drained sub-trees of `Strategy/**`, which §19.1
@@ -62,7 +62,13 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
     deferredRules: ['max-lines'],
   },
   {
-    clusterName: 'Pipeline Logic (§6)',
+    // The §6 label is the config section, not the whole Pipeline tree: the
+    // 787 files under `src/Scrapers/Pipeline` span eight cap regimes, and
+    // this row measures only the `Phases/**` one that its representative
+    // sits in (15 per function, granted by the §19.3 grandfather rather
+    // than the canonical 10). The other seven regimes are covered by the
+    // per-file sweep in `lint:guideline-coverage`, not by this row.
+    clusterName: 'Pipeline Phases regime (§6)',
     representativeFile: 'src/Scrapers/Pipeline/Phases/AccountResolve/AccountResolvePhase.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },

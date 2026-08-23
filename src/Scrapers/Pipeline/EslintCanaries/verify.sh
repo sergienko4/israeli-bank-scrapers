@@ -40,6 +40,7 @@ node -e "
   const data = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
   const dead = [];
   const parsingOnly = [];
+  const wrongRule = [];
 
   data.forEach(f => {
     const name = f.filePath.replace(/.*[\\\\/]/, '');
@@ -50,6 +51,16 @@ node -e "
     // satisfied this harness.
     const realRuleHit = (f.messages || []).some(m => m.ruleId !== null);
     if (!realRuleHit) { parsingOnly.push(name); return; }
+    // T2 hardening — a canary may name the single rule it exists to
+    // certify via a \`canary-expects-rule: <id>\` comment. Without this,
+    // a canary that stopped triggering its target rule still passes on
+    // an incidental hit (jsdoc, prefer-default-export, …). Opt-in, so
+    // canaries that predate the annotation keep the T1 behaviour.
+    const src = fs.readFileSync(f.filePath, 'utf8');
+    const want = /canary-expects-rule:\s*([\w@/-]+)/.exec(src);
+    if (want === null) { return; }
+    const hitTarget = (f.messages || []).some(m => m.ruleId === want[1]);
+    if (!hitTarget) { wrongRule.push(name + ' (expected ' + want[1] + ')'); }
   });
 
   if (dead.length > 0) {
@@ -60,6 +71,12 @@ node -e "
     console.error('\n❌ SILENT-PASS FAILURE — Only Parsing errors (ruleId=null) for:', parsingOnly.join(', '));
     console.error('   These canaries triggered errors but NO real ESLint rule fired.');
     console.error('   Check tsconfig coverage + scope overrides for the targeted rule.');
+    process.exit(1);
+  }
+  if (wrongRule.length > 0) {
+    console.error('\n❌ WRONG-RULE FAILURE — declared target rule did not fire for:', wrongRule.join(', '));
+    console.error('   The canary errored, but on some OTHER rule than the one it certifies.');
+    console.error('   The guardrail it names is no longer active for this file.');
     process.exit(1);
   }
   console.log('\n✅ All ' + data.length + ' TS canaries triggered at least one real rule');
