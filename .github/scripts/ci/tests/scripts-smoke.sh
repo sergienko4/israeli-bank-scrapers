@@ -335,6 +335,44 @@ JSON
   assert_eq "the failing metric is named in the summary" "1" "$dec_named"
 fi
 
+# The rule ratchet reads a COUNT, so the thing that produces that count is
+# asserted too. The cases above only prove the verdict reacts to the number;
+# these prove the number means "rules enforced" and not "lines written".
+# Without them, merging two scoped declarations of one rule into a single
+# broader one — a widening — would register as a deleted rule and block the
+# PR. Needs node but not jq, so it sits outside the guard above.
+if ! command -v node >/dev/null 2>&1; then
+  echo "  ! node not installed — skipping rule-count assertions"
+else
+  # Both paths are passed as arguments, never interpolated into the script
+  # text: a shell that rewrites POSIX paths for a native node binary converts
+  # arguments correctly but mangles the same path inside a string literal.
+  rule_count() {
+    local root
+    root="$(mktemp -d "$DEC_DIR/cfg.XXXXXX")"
+    printf '%s\n' "$1" > "$root/eslint.config.mjs"
+    node --input-type=module -e "
+      import { pathToFileURL } from 'node:url';
+      const { guardrails } = await import(pathToFileURL(process.argv[2]).href);
+      process.stdout.write(String(guardrails(process.argv[1], []).eslintRules));
+    " "$root" "$REPO_ROOT/scripts/decoupling-metrics/lib/guardrails.mjs"
+  }
+
+  # Two narrow declarations of one rule, plus an unrelated second rule.
+  TWO_SCOPED="  'unicorn/prefer-export-from': ['error', { checkUsedVariables: false }],
+  'sonarjs/no-identical-functions': 'error',
+  'unicorn/prefer-export-from': ['error', { checkUsedVariables: true }],"
+  # The same coverage expressed once, more broadly. Strictly stronger.
+  ONE_WIDE="  'unicorn/prefer-export-from': ['error', { checkUsedVariables: true }],
+  'sonarjs/no-identical-functions': 'error',"
+  # The rule genuinely dropped. This must still be caught.
+  ONE_DELETED="  'sonarjs/no-identical-functions': 'error',"
+
+  assert_eq "two scoped declarations of one rule count once" "2" "$(rule_count "$TWO_SCOPED")"
+  assert_eq "widening a rule into one declaration does not regress" "2" "$(rule_count "$ONE_WIDE")"
+  assert_eq "deleting a rule outright still drops the count" "1" "$(rule_count "$ONE_DELETED")"
+fi
+
 # ── 7. cited-path gate ──
 echo ""
 echo "── 7/10: cited-path gate ──"

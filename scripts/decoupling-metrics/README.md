@@ -92,7 +92,12 @@ Both snapshots are gitignored, so this leaves the committed baseline untouched.
 | `instability`       | `fanOut / (fanIn + fanOut)`. `0` = stable contract, `1` = volatile leaf.      |
 | `cohesion`          | Per cluster: `internal / (internal + outgoing)`. Low means the cluster leaks. |
 | `importCycles`      | Strongly-connected components (Tarjan). Must stay `0`.                        |
-| guardrails          | Canary count, ESLint rule count, `any` usages, `lib/index.cjs` hash.          |
+| guardrails          | Canary count, distinct ESLint rule count, `any` usages, `lib/index.cjs` hash. |
+
+The ESLint figure counts **distinct rule names**, not declaration lines, so
+re-scoping a rule cannot register as deleting one. It answers "did a rule leave
+the config?" only; whether each cluster's caps are still strict enough is
+asserted directly by `lint:guideline-coverage` and pinned by the canaries.
 
 The `lib/index.cjs` hash detects whether the **built bundle** changed. It is an
 implementation-bundle hash, not a declaration-level API diff: a purely internal

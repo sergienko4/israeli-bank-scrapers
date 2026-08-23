@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { stripComments } from './graph.mjs';
 
 const ANY_RE = /:\s*any\b|<any>|as\s+any\b/g;
-const RULE_RE = /^\s*'[\w@/-]+(?:\/[\w-]+)*':\s*\[?\s*'(?:error|warn)'/gm;
+const RULE_RE = /^\s*'([\w@/-]+(?:\/[\w-]+)*)':\s*\[?\s*'(?:error|warn)'/gm;
 
 function countIn(root, files, re) {
   let total = 0;
@@ -27,10 +27,31 @@ function countCanaries(root) {
   return readdirSync(dir).filter(f => f.endsWith('.canary.ts')).length;
 }
 
+/**
+ * Distinct ESLint rules enforced at `error` or `warn`.
+ *
+ * Counts rule NAMES, not declaration lines. Counting lines made *widening* a
+ * rule read as a regression: replacing two narrowly-scoped declarations with a
+ * single broader one drops the line count while strictly increasing coverage,
+ * so the ratchet blocked exactly the change it exists to encourage.
+ *
+ * The trade-off is deliberate. This config declares some rules many times with
+ * different per-cluster options (`max-lines`, `max-lines-per-function`), and a
+ * name-based count no longer notices one of those scoped declarations being
+ * deleted. That case is not left unguarded: `lint:guideline-coverage` resolves
+ * the effective config for a representative file in every cluster and fails if
+ * a cap is missing or laxer than CLEAN_CODE.md, and each numeric rule is
+ * additionally pinned by a canary. Those gates judge enforced strictness
+ * directly, which a line count only ever approximated. What stays with this
+ * ratchet is the coarse question it answers well: did a rule disappear from
+ * the config altogether?
+ */
 function countEslintRules(root) {
   const cfg = join(root, 'eslint.config.mjs');
   if (!existsSync(cfg)) return 0;
-  return (readFileSync(cfg, 'utf8').match(RULE_RE) ?? []).length;
+  const names = new Set();
+  for (const match of readFileSync(cfg, 'utf8').matchAll(RULE_RE)) names.add(match[1]);
+  return names.size;
 }
 
 function publicSurface(root) {
