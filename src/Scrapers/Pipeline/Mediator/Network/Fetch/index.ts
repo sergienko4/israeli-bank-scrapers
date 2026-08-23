@@ -1,10 +1,12 @@
 /**
  * Fetch sub-module barrel — explicit re-export surface.
  *
- * Mirrors the named-export set of the legacy `Mediator/Network/Fetch.ts`
- * monolith so the back-compat shim + every external caller compile
- * unchanged. Per CR cycle-1 directive: barrels are EXPLICIT (not
- * `export *`) so newly-introduced internal helpers never leak through.
+ * Mirrored the named-export set of the legacy `Mediator/Network/Fetch.ts`
+ * monolith so that shim, and every external caller, compiled unchanged
+ * through the split. The shim was deleted in v8.6; this barrel is now the
+ * canonical wide-import surface, kept for callers that want the whole set.
+ * Per CR cycle-1 directive: barrels are EXPLICIT (not `export *`) so
+ * newly-introduced internal helpers never leak through.
  */
 
 export type { JsonValue } from './Headers.js';

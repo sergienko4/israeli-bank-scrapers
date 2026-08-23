@@ -2140,10 +2140,10 @@ export default tseslint.config(
   //     string literals (signer-algorithm tags, ref-token prefixes)
   //     before they harden into hardcoded constants.
   //
-  // The legacy `IApiDirectCallConfig.ts` shim itself is intentionally
-  // left unconstrained — Section 7 already allows it, and this guard
-  // is about preventing regression of the new homes, not the
-  // tombstone re-export.
+  // The legacy `IApiDirectCallConfig.ts` shim this guard was written
+  // alongside was deleted in Phase 3 (v8.6). The guard remains valid on
+  // its own terms: it is about preventing regression of the new homes,
+  // and never depended on the tombstone re-export existing.
   //
   // Canary:
   //   • `no-api-direct-call-blob.canary.ts` — proves `max-lines`
