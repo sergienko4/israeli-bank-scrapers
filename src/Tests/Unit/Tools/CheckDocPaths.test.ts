@@ -170,52 +170,53 @@ function gateOutput(body: string): string {
   }
 }
 
+/**
+ * Entry points a manifest declares, each cited on its own.
+ *
+ * Every path here is absent from both the fixture's filesystem and the real
+ * manifest, so dropping any one field from the derivation fails exactly its
+ * own row rather than the whole group.
+ */
+const EXEMPT_CITATIONS = [
+  { label: 'the path declared by `main`', citation: 'fixture-build/main.cjs' },
+  {
+    label: 'the path declared by `module`, which carries a `./` prefix',
+    citation: 'fixture-build/module.mjs',
+  },
+  { label: 'the path declared by `types`', citation: 'fixture-build/types.d.ts' },
+  {
+    label: 'a target nested under an `exports` condition',
+    citation: 'fixture-build/conditional.d.cts',
+  },
+  { label: 'a citation written with a `./` prefix', citation: './fixture-build/main.cjs' },
+] as const;
+
+/**
+ * Build-directory citations the exemption must still reject.
+ *
+ * An `exports` KEY is a public specifier, not a file, so exempting one would
+ * let a citation of a nonexistent path pass — the fail-open this exemption
+ * exists to avoid. The other two are why the exempt set is derived from the
+ * manifest rather than exempting the build directory wholesale: a typo there
+ * is exactly what a reviewer wants flagged.
+ */
+const REJECTED_BUILD_CITATIONS = [
+  {
+    label: 'an `exports` subpath key, which is a specifier and not a file',
+    citation: 'fixture-build/subpath-key.js',
+  },
+  { label: 'a typo in a declared entry point', citation: 'fixture-build/mian.cjs' },
+  { label: 'an undeclared file inside the build directory', citation: 'fixture-build/extra.d.ts' },
+] as const;
+
 describe('check-doc-paths — published entry points are exempt', () => {
-  // Each manifest field is asserted on its own, against paths that appear in
-  // neither the fixture's filesystem nor the real manifest. Dropping any one
-  // field from the derivation therefore fails exactly its own test.
-  it('exempts the path declared by `main`', () => {
-    const code = runGateWithoutBuild('Bundle `fixture-build/main.cjs` is unchanged.\n');
+  it.each(EXEMPT_CITATIONS)('exempts $label', ({ citation }) => {
+    const code = runGateWithoutBuild(`Bundle \`${citation}\` is unchanged.\n`);
     expect(code).toBe(0);
   });
 
-  it('exempts the path declared by `module`, which carries a `./` prefix', () => {
-    const code = runGateWithoutBuild('Bundle `fixture-build/module.mjs` is unchanged.\n');
-    expect(code).toBe(0);
-  });
-
-  it('exempts the path declared by `types`', () => {
-    const code = runGateWithoutBuild('Types `fixture-build/types.d.ts` are unchanged.\n');
-    expect(code).toBe(0);
-  });
-
-  it('exempts a target nested under an `exports` condition', () => {
-    const code = runGateWithoutBuild('Types `fixture-build/conditional.d.cts` are unchanged.\n');
-    expect(code).toBe(0);
-  });
-
-  it('exempts a citation written with a `./` prefix', () => {
-    const code = runGateWithoutBuild('Bundle `./fixture-build/main.cjs` is unchanged.\n');
-    expect(code).toBe(0);
-  });
-
-  // An `exports` KEY is a public specifier, not a file. Exempting one would
-  // let a citation of a nonexistent path pass — the fail-open behaviour this
-  // exemption exists to avoid.
-  it('rejects an `exports` subpath key, which is a specifier and not a file', () => {
-    const code = runGateWithoutBuild('See `fixture-build/subpath-key.js` for detail.\n');
-    expect(code).toBe(1);
-  });
-
-  // The whole point of deriving the exempt set rather than exempting the build
-  // directory wholesale: a typo there is exactly what a reviewer wants flagged.
-  it('still rejects a typo in a declared entry point', () => {
-    const code = runGateWithoutBuild('Bundle `fixture-build/mian.cjs` is unchanged.\n');
-    expect(code).toBe(1);
-  });
-
-  it('still rejects an undeclared file inside the build directory', () => {
-    const code = runGateWithoutBuild('The bundle `fixture-build/extra.d.ts` is out of scope.\n');
+  it.each(REJECTED_BUILD_CITATIONS)('still rejects $label', ({ citation }) => {
+    const code = runGateWithoutBuild(`See \`${citation}\` for detail.\n`);
     expect(code).toBe(1);
   });
 
@@ -230,17 +231,48 @@ describe('check-doc-paths — published entry points are exempt', () => {
   });
 });
 
-describe('check-doc-paths — one canonical spelling reaches every check', () => {
-  // Git reports a removed path with no prefix, so a citation echoed back with
-  // one could never match it — a legitimate deletion would report as drift.
-  it('reports a `./`-prefixed citation in the spelling git uses', () => {
-    const out = gateOutput('See `./src/Nope/Missing.ts` for detail.\n');
-    expect(out).toContain('✗ src/Nope/Missing.ts');
-  });
+/**
+ * Spellings of one missing path that must all report the form git uses.
+ *
+ * Git reports a removed path with no prefix and forward slashes, so a citation
+ * echoed back in any other form would never match it and a legitimate deletion
+ * would report as drift. The trailing separator is the one spelling whose
+ * meaning is not preserved — POSIX reads it as a directory — so it is pinned
+ * here to prove the leniency still cannot hide a file that does not exist.
+ */
+const EQUIVALENT_SPELLINGS = [
+  { label: 'a `./` prefix', citation: './src/Nope/Missing.ts' },
+  { label: 'a repeated `./` prefix', citation: '././src/Nope/Missing.ts' },
+  { label: 'an interior `.` segment', citation: 'src/./Nope/Missing.ts' },
+  { label: 'a doubled separator', citation: 'src//Nope/Missing.ts' },
+  { label: 'a trailing separator', citation: 'src/Nope/Missing.ts/' },
+] as const;
 
-  it('strips a repeated `./` prefix, not just the first', () => {
-    const out = gateOutput('See `././src/Nope/Missing.ts` for detail.\n');
-    expect(out).toContain('✗ src/Nope/Missing.ts');
+/**
+ * Spellings of files that do exist, which must be counted rather than skipped.
+ *
+ * Exit 0 alone cannot tell recognition from a silent skip — the failure this
+ * whole change exists to remove — so every row asserts the citation was
+ * counted, not merely that the gate passed.
+ */
+const RESOLVING_SPELLINGS = [
+  { label: '`\\` separators', citation: 'scripts\\check-doc-paths.mjs' },
+  { label: 'a `./` prefix at the repository root', citation: './README.md' },
+  { label: 'a trailing separator', citation: 'scripts/check-doc-paths.mjs/' },
+] as const;
+
+describe('check-doc-paths — one canonical spelling reaches every check', () => {
+  it.each(EQUIVALENT_SPELLINGS)(
+    'canonicalises a missing file cited with $label',
+    ({ citation }) => {
+      const out = gateOutput(`See \`${citation}\` for detail.\n`);
+      expect(out).toContain('✗ src/Nope/Missing.ts');
+    },
+  );
+
+  it.each(RESOLVING_SPELLINGS)('counts an existing file cited with $label', ({ citation }) => {
+    const out = gateOutput(`See \`${citation}\` for detail.\n`);
+    expect(out).toContain('1 cited, 0 unresolved');
   });
 
   it('applies the ignored-prefix list to a `./`-prefixed dependency path', () => {
@@ -256,13 +288,6 @@ describe('check-doc-paths — one canonical spelling reaches every check', () =>
     expect(code).toBe(1);
   });
 
-  it('accepts a resolving citation written with `\\` separators', () => {
-    // Exit 0 alone cannot tell recognition from a silent skip — the failure
-    // this whole change exists to remove — so assert the path was counted.
-    const out = gateOutput('See `scripts\\check-doc-paths.mjs` for detail.\n');
-    expect(out).toContain('1 cited, 0 unresolved');
-  });
-
   it('still refuses to traverse upward through `\\` separators', () => {
     const code = runGate('See `..\\outside\\secrets.ts` for detail.\n');
     expect(code).toBe(0);
@@ -274,34 +299,5 @@ describe('check-doc-paths — one canonical spelling reaches every check', () =>
   it('still checks a `./`-prefixed file at the repository root', () => {
     const code = runGate('See `./DefinitelyMissing.md` for detail.\n');
     expect(code).toBe(1);
-  });
-
-  it('resolves a `./`-prefixed root file that does exist', () => {
-    const out = gateOutput('See `./README.md` for detail.\n');
-    expect(out).toContain('1 cited, 0 unresolved');
-  });
-
-  it('collapses an interior `.` segment to the spelling git reports', () => {
-    const out = gateOutput('See `src/./Nope/Missing.ts` for detail.\n');
-    expect(out).toContain('✗ src/Nope/Missing.ts');
-  });
-
-  it('collapses a doubled separator to the spelling git reports', () => {
-    const out = gateOutput('See `src//Nope/Missing.ts` for detail.\n');
-    expect(out).toContain('✗ src/Nope/Missing.ts');
-  });
-
-  // A trailing separator is the one spelling whose meaning is not preserved:
-  // POSIX reads `Missing.ts/` as a directory. The leniency is deliberate, and
-  // these two pin what it may and may not do — a citation of a file that does
-  // not exist must still fail, however it is punctuated.
-  it('still reports a missing file cited with a trailing separator', () => {
-    const out = gateOutput('See `src/Nope/Missing.ts/` for detail.\n');
-    expect(out).toContain('✗ src/Nope/Missing.ts');
-  });
-
-  it('resolves an existing file cited with a trailing separator', () => {
-    const out = gateOutput('See `scripts/check-doc-paths.mjs/` for detail.\n');
-    expect(out).toContain('1 cited, 0 unresolved');
   });
 });
