@@ -38,16 +38,21 @@ function countCanaries(root) {
  * The trade-off is deliberate. This config declares some rules many times with
  * different per-cluster options (`max-lines`, `max-lines-per-function`), and a
  * name-based count no longer notices one of those scoped declarations being
- * deleted. `lint:guideline-coverage` covers the important half of that gap: it
- * resolves the effective config for a representative file in each of the seven
- * clusters and fails when any of the four numeric caps is missing or laxer than
- * CLEAN_CODE.md. Deleting a scoped declaration lowers the resolved cap, so that
- * gate names the rule and the cluster and exits non-zero.
+ * deleted. `lint:guideline-coverage` covers the load-bearing half of that gap:
+ * it resolves the effective config for a representative file in each of ten
+ * sampled clusters and fails when any of the four numeric caps is missing or
+ * laxer than CLEAN_CODE.md. Deleting a scoped declaration that one of those
+ * ten resolves through lowers its cap, so that gate names the rule and the
+ * cluster and exits non-zero.
  *
- * It is not a complete substitute, and the residue is worth stating plainly:
- * that gate checks four numeric rules against seven representative files, so a
- * scoped `no-restricted-syntax` or `max-statements` declaration can still be
- * removed without either measure noticing. Telling "consolidated, so scope
+ * It is not a complete substitute, and the residue is worth stating plainly.
+ * That gate SAMPLES: ten representative files against thirty-one config blocks
+ * that declare a numeric cap. A scoped declaration no sampled file resolves
+ * through can still be deleted without either measure noticing, and so can any
+ * scoped `no-restricted-syntax` or `max-statements` declaration, which the gate
+ * does not check at all. The sampled set is chosen to cover the blocks that
+ * pin drained sub-trees back to the canonical cap, because those are the ones
+ * whose deletion silently relaxes shipped code. Telling "consolidated, so scope
  * widened" apart from "deleted, so scope shrank" needs glob resolution, which
  * no text count can do. What stays with this ratchet is the coarse question it
  * answers reliably: did a rule disappear from the config altogether?

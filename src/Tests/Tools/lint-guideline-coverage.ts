@@ -79,6 +79,12 @@ type FailureReason = string;
  *   • §6 Pipeline Logic already resolves every cap it declares, so it
  *     is enforced outright. That is what makes deleting a per-cluster
  *     declaration fail this gate rather than pass unnoticed.
+ *   • §19.1a/b/c are drained sub-trees of `Strategy/**`, which §19.1
+ *     grandfathers to 40 LoC per function. Each is pinned back to the
+ *     canonical 10 by a LATER block, so deleting that block silently
+ *     relaxes shipped code from 10 to 40 — sampling them here is what
+ *     turns that into a gate failure. §19.1c pins only `max-lines`, so
+ *     its per-function cap is deferred by name rather than pretended.
  * Per-cluster overrides are allowed to be STRICTER but never laxer.
  */
 const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
@@ -153,6 +159,37 @@ const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],
+  },
+  {
+    clusterName: 'Strategy Scrape Executor (§19.1a)',
+    representativeFile: 'src/Scrapers/Pipeline/Strategy/Scrape/Executor/Account.ts',
+    expectations: [
+      { ruleId: 'max-lines', maxAllowed: 150 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
+      { ruleId: 'complexity', maxAllowed: 10 },
+      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
+    ],
+  },
+  {
+    clusterName: 'Strategy Scrape ScrapeData (§19.1b)',
+    representativeFile: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData/ScrapeDataAssembly.ts',
+    expectations: [
+      { ruleId: 'max-lines', maxAllowed: 150 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
+      { ruleId: 'complexity', maxAllowed: 10 },
+      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
+    ],
+  },
+  {
+    clusterName: 'Strategy Scrape Account (§19.1c)',
+    representativeFile: 'src/Scrapers/Pipeline/Strategy/Scrape/Account/AccountScrapeFirstWave.ts',
+    expectations: [
+      { ruleId: 'max-lines', maxAllowed: 150 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
+      { ruleId: 'complexity', maxAllowed: 10 },
+      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
+    ],
+    deferredRules: ['max-lines-per-function'],
   },
 ];
 
@@ -293,7 +330,7 @@ function statusCell(row: IClusterStatusRow): string {
 
 /**
  * Render the cluster-state markdown table (always emitted to stdout).
- * Phase 8.5c / C5 — surfaces the drained-vs-pending split required by
+ * Phase 8.5c / C5 — surfaces the enforced-vs-partial split required by
  * `sub-c-pii-types-docs/implementation.txt:100` (renderClusterTable).
  * @param rows - One status row per cluster.
  * @returns The number of rows rendered (matches `rows.length`).
@@ -310,18 +347,37 @@ function printStatusTable(rows: readonly IClusterStatusRow[]): number {
 }
 
 /**
+ * Emit the success summary, counting clusters that defer a rule.
+ *
+ * The table printed just above can carry `partial` rows, so a blanket "all
+ * clusters enforce every cap" line would contradict it on the same screen and
+ * hide the deferrals a reader is meant to act on.
+ * @param rows - Per-cluster status rows.
+ * @returns Exit code 0.
+ */
+function printSuccess(rows: readonly IClusterStatusRow[]): number {
+  const partial = rows.filter(r => r.deferred.length > 0);
+  const enforced = String(rows.length - partial.length);
+  const total = String(rows.length);
+  const partialCount = String(partial.length);
+  const suffix = partial.length === 0 ? '' : `, ${partialCount} partial`;
+  process.stdout.write(
+    `✅ Guideline coverage: ${enforced}/${total} clusters enforce every cap${suffix}\n`,
+  );
+  return 0;
+}
+
+/**
  * Format and emit the audit report to stdout / stderr.
  * @param failures - All accumulated failure records.
+ * @param rows - Per-cluster status rows, used for the enforced/partial split.
  * @returns Process exit code (0 = success, 1 = at least one failure).
  */
-function printReport(failures: readonly ICoverageFailure[]): number {
-  if (failures.length === 0) {
-    const clusterCount = String(PIPELINE_CLUSTERS.length);
-    process.stdout.write(
-      `✅ Guideline coverage: ${clusterCount} clusters all enforce CLEAN_CODE.md caps\n`,
-    );
-    return 0;
-  }
+function printReport(
+  failures: readonly ICoverageFailure[],
+  rows: readonly IClusterStatusRow[],
+): number {
+  if (failures.length === 0) return printSuccess(rows);
   process.stderr.write('\n❌ GUIDELINE COVERAGE FAILURES\n');
   process.stderr.write('═══════════════════════════════════════════════════════\n\n');
   for (const f of failures) {
@@ -343,5 +399,5 @@ const ALL_FAILURES: readonly ICoverageFailure[] = CLUSTER_FAILURES.flat();
 const STATUS_ROWS: readonly IClusterStatusRow[] = PIPELINE_CLUSTERS.map(buildStatusRow);
 const PRINTED_ROW_COUNT = printStatusTable(STATUS_ROWS);
 process.stdout.write(`(reported ${String(PRINTED_ROW_COUNT)} cluster status rows)\n`);
-const EXIT_CODE = printReport(ALL_FAILURES);
+const EXIT_CODE = printReport(ALL_FAILURES, STATUS_ROWS);
 process.exit(EXIT_CODE);
