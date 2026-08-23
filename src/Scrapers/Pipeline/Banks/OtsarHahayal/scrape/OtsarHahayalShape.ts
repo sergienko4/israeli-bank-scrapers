@@ -1,62 +1,40 @@
 /**
- * Otsar Hahayal (FIBI group) scrape shape — the `IApiDirectScrapeShape`
- * data declaration consumed by the generic buildGenericHeadlessScrape
- * driver via `withBrowserApiDirect`. balanceKind=account.
+ * Otsar Hahayal (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
+ * declaration consumed by the generic buildGenericHeadlessScrape driver via
+ * `withBrowserApiDirect`. balanceKind=account.
  *
- * Account identity spans two cookie-authed GETs: `userData` (customer)
- * for the account number + branch, and a session-level `accountType`
- * lookup (customer.secondaryUrlTag) for the numeric type that the balance
- * path segment and the transactions body both need. Balance is a GET;
- * transactions a single full-window POST. Helpers split across
- * OtsarHahayalShapeHelpers.ts (host + balance), OtsarHahayalShapeAccounts.ts
- * (identity merge + identity urls), and OtsarHahayalShapeTxns.ts.
+ * Account identity spans two cookie-authed GETs: `userData` (customer) for the
+ * account number + branch, and a session-level `accountType` lookup
+ * (customer.secondaryUrlTag) for the numeric type that the balance path segment
+ * and the transactions body both need. Balance is a GET; transactions a single
+ * full-window POST. The family wiring — envelope, identity merge, extractors —
+ * comes from the neutral FibiGroup factory; this module supplies what is the
+ * brand’s own: its origin-bound URLs, its step name, and its
+ * coverage-backfill stance.
  *
- * Contract shared with Beinleumi (same FIBI Mataf portal); cloned per the
- * zero-cross-bank-import convention. Grounded in the captured trace
+ * The stance stays declared here, not inherited, so the WINDOW-CANARY gate
+ * keeps seeing a conscious per-bank decision.
+ *
+ * Contract shared with Beinleumi (same FIBI Mataf portal), assembled by the
+ * neutral FibiGroup factory. Grounded in the captured trace
  * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970). Replaces the
  * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
  */
 
-import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import {
-  accountNumberOf,
-  customerUrl,
-  extractAccounts,
-  secondaryUrl,
-} from './OtsarHahayalShapeAccounts.js';
-import {
-  balanceExtract,
-  balanceUrl,
-  type IOtsarHahayalAcct,
-  noVars,
-} from './OtsarHahayalShapeHelpers.js';
-import { txnsExtractPage, txnsUrl, txnsVars } from './OtsarHahayalShapeTxns.js';
+import { makeFibiGroupShape } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
+import { customerUrl, secondaryUrl } from './OtsarHahayalShapeAccounts.js';
+import { balanceUrl } from './OtsarHahayalShapeHelpers.js';
+import { txnsUrl } from './OtsarHahayalShapeTxns.js';
 
 /** Otsar Hahayal hard-model shape — passed to `.withBrowserApiDirect(...)`. */
-const OTSAR_HAHAYAL_SHAPE: IApiDirectScrapeShape<IOtsarHahayalAcct, never> = {
+const OTSAR_HAHAYAL_SHAPE = makeFibiGroupShape({
   stepName: 'OtsarHahayalScrape',
-  accountNumberOf,
-  customer: {
-    buildVars: noVars,
-    extractAccounts,
-    urlTag: customerUrl,
-    secondaryUrlTag: secondaryUrl,
-    method: 'GET',
-  },
-  balance: {
-    buildVars: noVars,
-    extract: balanceExtract,
-    urlTag: balanceUrl,
-    method: 'GET',
-  },
-  transactions: {
-    buildVars: txnsVars,
-    extractPage: txnsExtractPage,
-    windowNarrowing: 'windowEnd',
-    urlTag: txnsUrl,
-    method: 'POST',
-  },
-};
+  windowNarrowing: 'windowEnd',
+  customerUrl,
+  secondaryUrl,
+  balanceUrl,
+  txnsUrl,
+});
 
 export default OTSAR_HAHAYAL_SHAPE;
 export { OTSAR_HAHAYAL_SHAPE };

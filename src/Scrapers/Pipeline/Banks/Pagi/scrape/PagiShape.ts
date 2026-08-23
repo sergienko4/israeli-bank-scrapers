@@ -1,57 +1,40 @@
 /**
  * Pagi (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
- * declaration consumed by the generic buildGenericHeadlessScrape driver
- * via `withBrowserApiDirect`. balanceKind=account.
+ * declaration consumed by the generic buildGenericHeadlessScrape driver via
+ * `withBrowserApiDirect`. balanceKind=account.
  *
- * Account identity spans two cookie-authed GETs: `userData` (customer)
- * for the account number + branch, and a session-level `accountType`
- * lookup (customer.secondaryUrlTag) for the numeric type that the balance
- * path segment and the transactions body both need. Balance is a GET;
- * transactions a single full-window POST. Helpers split across
- * PagiShapeHelpers.ts (host + balance), PagiShapeAccounts.ts (identity
- * merge + identity urls), and PagiShapeTxns.ts.
+ * Account identity spans two cookie-authed GETs: `userData` (customer) for the
+ * account number + branch, and a session-level `accountType` lookup
+ * (customer.secondaryUrlTag) for the numeric type that the balance path segment
+ * and the transactions body both need. Balance is a GET; transactions a single
+ * full-window POST. The family wiring — envelope, identity merge, extractors —
+ * comes from the neutral FibiGroup factory; this module supplies what is the
+ * brand’s own: its origin-bound URLs, its step name, and its
+ * coverage-backfill stance.
  *
- * Contract shared with Beinleumi (same FIBI Mataf portal); cloned per the
- * zero-cross-bank-import convention. Grounded in the captured trace
+ * The stance stays declared here, not inherited, so the WINDOW-CANARY gate
+ * keeps seeing a conscious per-bank decision.
+ *
+ * Contract shared with Beinleumi (same FIBI Mataf portal), assembled by the
+ * neutral FibiGroup factory. Grounded in the captured trace
  * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970). Replaces the
  * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
  */
 
-import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import {
-  accountNumberOf,
-  customerUrl,
-  extractAccounts,
-  secondaryUrl,
-} from './PagiShapeAccounts.js';
-import { balanceExtract, balanceUrl, type IPagiAcct, noVars } from './PagiShapeHelpers.js';
-import { txnsExtractPage, txnsUrl, txnsVars } from './PagiShapeTxns.js';
+import { makeFibiGroupShape } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
+import { customerUrl, secondaryUrl } from './PagiShapeAccounts.js';
+import { balanceUrl } from './PagiShapeHelpers.js';
+import { txnsUrl } from './PagiShapeTxns.js';
 
 /** Pagi hard-model shape — passed to `.withBrowserApiDirect(...)`. */
-const PAGI_SHAPE: IApiDirectScrapeShape<IPagiAcct, never> = {
+const PAGI_SHAPE = makeFibiGroupShape({
   stepName: 'PagiScrape',
-  accountNumberOf,
-  customer: {
-    buildVars: noVars,
-    extractAccounts,
-    urlTag: customerUrl,
-    secondaryUrlTag: secondaryUrl,
-    method: 'GET',
-  },
-  balance: {
-    buildVars: noVars,
-    extract: balanceExtract,
-    urlTag: balanceUrl,
-    method: 'GET',
-  },
-  transactions: {
-    buildVars: txnsVars,
-    extractPage: txnsExtractPage,
-    windowNarrowing: 'windowEnd',
-    urlTag: txnsUrl,
-    method: 'POST',
-  },
-};
+  windowNarrowing: 'windowEnd',
+  customerUrl,
+  secondaryUrl,
+  balanceUrl,
+  txnsUrl,
+});
 
 export default PAGI_SHAPE;
 export { PAGI_SHAPE };

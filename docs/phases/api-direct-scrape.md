@@ -89,7 +89,7 @@ Some banks are not independent institutions but **brands of one bank running one
 
 Declaring that contract once per brand means a wire change has to land four times, and a fix applied to three of the four drifts silently. So the family contract lives in one neutral factory — [`Phases/ApiDirectScrape/FibiGroup/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup) — and each brand declares only what is genuinely its own.
 
-`makeFibiGroupShape` takes an `IFibiGroupShapeArgs` and returns the assembled `IApiDirectScrapeShape`. The factory owns everything origin-independent: the request envelope, the two-GET identity merge over `IFibiAcct`, and the response extractors. The brand supplies its step name, its four origin-bound URL producers, and its own `windowNarrowing` stance. The URL producers are built from an `IFibiGroupConfig` — one per brand, e.g. `MASSAD_CONFIG` — which carries nothing but the post-login origin.
+`makeFibiGroupShape` takes an `IFibiGroupShapeArgs` and returns the assembled `IApiDirectScrapeShape`. The factory owns everything origin-independent: the request envelope, the two-GET identity merge over `IFibiAcct`, and the response extractors. The brand supplies its step name, its four origin-bound URL producers, and its own `windowNarrowing` stance. The URL producers are built from an `IFibiGroupConfig` — one per brand (`MASSAD_CONFIG`, `PAGI_CONFIG`, `OTSAR_HAHAYAL_CONFIG`, `BEINLEUMI_CONFIG`) — which carries nothing but the post-login origin.
 
 Two constraints shape that split, and both are load-bearing:
 

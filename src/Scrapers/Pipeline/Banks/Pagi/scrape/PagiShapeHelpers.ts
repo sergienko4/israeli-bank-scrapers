@@ -1,93 +1,49 @@
 /**
- * Pagi (FIBI group) scrape shape — shared primitives: the fixed API host,
- * per-request `uid` correlation GUID, the account reference type, the
- * balance extractor + balance urlTag, and the no-op vars builder.
- * Account-identity merge lives in PagiShapeAccounts.ts; transactions in
- * PagiShapeTxns.ts.
+ * Pagi (FIBI group) scrape shape — the brand's binding of the shared FIBI
+ * family contract: its post-login API origin, plus the origin-bound balance
+ * URL. The origin-independent primitives (paths, account shape, balance
+ * extractor, no-op vars) come from the neutral FibiGroup factory.
  *
- * Pagi is a First-International (FIBI) group brand sharing the identical
- * Mataf/appsng BFF contract with Beinleumi (userData +
- * bff-balancetransactions) — paths are cloned per the
- * zero-cross-bank-import convention and only the API host differs. The
- * host follows the proven FIBI `online.<login-domain>` transform: login
- * www.pagi.co.il -> API online.pagi.co.il (DNS-confirmed on the shared
- * FIBI subnet; same registrable domain, so the session cookies set at
- * login ride to the API host — the mechanism proven live for Beinleumi
- * www.fibi.co.il -> online.fibi.co.il). An earlier clone wrongly used a
- * bankpoalim.co.il host — Pagi is FIBI-group, not Hapoalim. Every
- * post-login call is cookie-authed and every GET carries a fresh random
- * `uid`. balanceKind=account. Raw txn rows normalise downstream via the
- * Data Mapper — never in the shape. Host DNS + pattern-grounded; a full
- * live-E2E on real credentials is still pending.
+ * Pagi is a First-International (FIBI) group brand. The Mataf/appsng BFF
+ * contract (userData + bff-balancetransactions) is shared with its siblings
+ * through the neutral FibiGroup factory — never imported from another bank —
+ * and only the API host differs. The host follows the proven FIBI
+ * `online.<login-domain>` transform: login www.pagi.co.il -> API
+ * online.pagi.co.il (DNS-confirmed on the shared FIBI subnet; same
+ * registrable domain, so the session cookies set at login ride to the API
+ * host — the mechanism proven live for Beinleumi www.fibi.co.il ->
+ * online.fibi.co.il). An earlier clone wrongly used a bankpoalim.co.il host
+ * — Pagi is FIBI-group, not Hapoalim. balanceKind=account. Host DNS +
+ * pattern-grounded; a full live-E2E on real credentials is still pending.
  */
 
-import { randomUUID } from 'node:crypto';
+import {
+  balanceExtract,
+  balanceUrl as fibiBalanceUrl,
+  BFF_BASE,
+  type IFibiAcct,
+  type IFibiGroupConfig,
+  noVars,
+  USER_DATA_PATH,
+} from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
+import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 
-import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
-import type { Brand } from '../../../Types/Brand.js';
+export { balanceExtract, BFF_BASE, noVars, USER_DATA_PATH };
 
-/** Pagi BFF origin — FIBI online.<login-domain> API host. */
+/** Pagi BFF origin — post-login API host (same registrable domain as login). */
 export const PAGI_API = 'https://online.pagi.co.il';
-/** userData path — accounts source (account number + branch). */
-export const USER_DATA_PATH = '/MatafAngularRestApiService/rest/utils/userData';
-/** BFF base — accountType, balances, and list all hang off this prefix. */
-export const BFF_BASE = '/appsng/bff-balancetransactions/api/v1/transactions';
 
-/** Current account balance — branded for Rule #15. */
-type AccountBalance = Brand<number, 'PagiAccountBalance'>;
+/** Pagi's binding of the shared FIBI contract. */
+export const PAGI_CONFIG: IFibiGroupConfig = { apiOrigin: PAGI_API };
 
-/** Correlation GUID for a `uid` query param — branded for Rule #15. */
-type Uid = Brand<string, 'PagiUid'>;
+/** Pagi account reference — the shared FIBI account shape. */
+export type IPagiAcct = IFibiAcct;
 
 /**
- * Pagi account reference. `accountType` (a session-level numeric code,
- * e.g. 105) rides both the balance URL path segment and the transactions
- * request body.
- */
-export interface IPagiAcct {
-  readonly accountNumber: string;
-  readonly branch: string;
-  readonly accountType: number;
-}
-
-interface IBalanceResp {
-  readonly currentBalance?: number;
-  readonly withdrawableBalance?: number;
-}
-
-/**
- * Fresh per-request correlation GUID for a `uid` query param.
- * @returns Random UUID string.
- */
-export function uid(): Uid {
-  return randomUUID() as Uid;
-}
-
-/**
- * Current balance — `currentBalance`, falling back to withdrawable then 0.
- * @param body - Unwrapped balances response.
- * @returns Current account balance.
- */
-export function balanceExtract(body: ApiBody): AccountBalance {
-  const resp = body as unknown as IBalanceResp;
-  return (resp.currentBalance ?? resp.withdrawableBalance ?? 0) as AccountBalance;
-}
-
-/**
- * Balance URL — balances/<accountType> (path segment = numeric type).
+ * Balance URL — balances/<accountType> on the Pagi origin.
  * @param acct - Pagi account.
  * @returns Literal balances URL for the account.
  */
 export function balanceUrl(acct: IPagiAcct): WKUrlOrLiteral {
-  const path = `${BFF_BASE}/balances/${String(acct.accountType)}`;
-  return literalUrl(`${PAGI_API}${path}?uid=${uid()}`);
-}
-
-/**
- * No-op variables builder — GET calls carry params in the URL.
- * @returns Empty variables map.
- */
-export function noVars(): VarsMap {
-  return {};
+  return fibiBalanceUrl(PAGI_CONFIG, acct);
 }
