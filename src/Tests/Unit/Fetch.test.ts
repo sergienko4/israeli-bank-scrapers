@@ -8,6 +8,7 @@ import {
   fetchPost,
   fetchPostWithinPage,
 } from '../../Common/Fetch.js';
+import { NETWORK_FETCH_PAGE_TIMEOUT_MS } from '../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
 import { createMockPage } from '../MockPage.js';
 
 const MOCK_FETCH = jest.fn();
@@ -227,6 +228,7 @@ describe('fetchPostWithinPage', () => {
       innerUrl: 'https://bank.co.il/api',
       innerDataJson: '{}',
       innerExtraHeaders: { 'X-Custom': 'val', 'content-type': 'application/json' },
+      timeoutMs: NETWORK_FETCH_PAGE_TIMEOUT_MS,
     });
   });
 

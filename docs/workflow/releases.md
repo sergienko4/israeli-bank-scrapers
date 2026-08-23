@@ -35,7 +35,7 @@ Both live in [`.github/workflows/release.yml`](https://github.com/sergienko4/isr
 | --- | --- | --- |
 | Provenance attestation | `publishConfig.provenance` + Trusted Publishing OIDC | Release workflow fails if the published version has no attestation |
 | `dist-tags.latest` | `npm publish` | Polled back from the registry after every publish |
-| Supported Node range | `engines.node` | Unit suite runs on the floor, latest 22.x, latest 24.x and latest 26.x; `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
+| Supported Node range | `engines.node` | Unit matrix covers the floor, latest 22.x, latest 24.x and latest 26.x (see [Node support policy](#node-support-policy) for when it runs); `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
 | Upgrade notes | `compatibility.json` | `npm run compat:check` diffs the generated page against its source |
 
 ## Node support policy
@@ -58,8 +58,16 @@ syntax the advertised floor cannot parse.
 | Node | Upstream status | Our position |
 | --- | --- | --- |
 | 22.x | Maintenance LTS, EOL 2027-04-30 | The `engines.node` floor; supported for all of `8.x` |
-| 24.x | Active LTS since 2025-10-28 | Tested on every PR; the intended floor after the next major |
-| 26.x | Current, LTS from 2026-10-28 | In the unit matrix, on the same trigger as 22.x and 24.x; not a candidate floor until it reaches LTS |
+| 24.x | Active LTS since 2025-10-28 | In the unit matrix; the intended floor after the next major |
+| 26.x | Current, LTS from 2026-10-28 | In the unit matrix; not a candidate floor until it reaches LTS |
+
+Every leg in that matrix runs under one shared condition rather than on every
+PR: the `unit-tests` job fires when a PR touches source, dependencies, Jest
+config or the CI definitions themselves, and is skipped otherwise — a
+docs-only PR does not run it. The condition lives on that job in
+[`.github/workflows/pr.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/workflows/pr.yml),
+which is the authority; this page deliberately describes it rather than
+restating the flag list, so the two cannot drift apart.
 
 So the roadmap is: **a future major raises the floor to `>= 24` and drops 22.x.**
 It is announced in the README rather than done quietly at the moment 22 goes

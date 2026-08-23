@@ -10,8 +10,31 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
+import { timeoutPromise } from '../../Timing/TimingActions.js';
+import { NETWORK_FETCH_PAGE_TIMEOUT_MS, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
 import { logApiCall, logResponseIssues } from './Logging.js';
 import { parseGetResult } from './ParseResult.js';
+
+/** Args for the in-page GET evaluate callback. */
+interface IGetArgs {
+  url: string;
+  timeoutMs: number;
+}
+
+/**
+ * In-page evaluator for {@link evaluateGet} — runs inside the browser context.
+ *
+ * Serialised into the page, so it may reference only its argument and browser
+ * globals; the timeout arrives as data rather than a closed-over import.
+ * @param args - URL + abort budget.
+ * @returns [responseText, statusCode].
+ */
+async function evalGetBody(args: IGetArgs): Promise<readonly [string, number]> {
+  const signal = AbortSignal.timeout(args.timeoutMs);
+  const response = await fetch(args.url, { credentials: 'include', signal });
+  const text = response.status === 204 ? '' : await response.text();
+  return [text, response.status] as const;
+}
 
 /**
  * GET request inside the browser context (cookies + CORS handled by browser).
@@ -20,31 +43,32 @@ import { parseGetResult } from './ParseResult.js';
  * @returns A tuple of [responseBody, httpStatus].
  */
 async function evaluateGet(context: Page | Frame, url: string): Promise<readonly [string, number]> {
-  return context.evaluate(async (innerUrl: string): Promise<readonly [string, number]> => {
-    const response = await fetch(innerUrl, { credentials: 'include' });
-    if (response.status === 204) return ['', response.status] as const;
-    return [await response.text(), response.status] as const;
-  }, url);
+  const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
+  const pending = context.evaluate(evalGetBody, { url, timeoutMs });
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${url}`);
 }
 
 /** Args for the in-page GET-with-headers evaluate callback. */
 interface IGetWithHeadersArgs {
   url: string;
   headers: Record<string, string>;
+  timeoutMs: number;
 }
 
 /**
  * In-page evaluator for {@link evaluateGetWithHeaders} — runs inside
  * the browser context. Pulled to module scope so the caller fits cap.
- * @param args - URL + extra headers bundle.
+ * @param args - URL + extra headers + abort budget.
  * @returns [responseText, statusCode].
  */
 async function evalGetWithHeadersBody(
   args: IGetWithHeadersArgs,
 ): Promise<readonly [string, number]> {
-  const response = await fetch(args.url, { credentials: 'include', headers: args.headers });
-  if (response.status === 204) return ['', response.status] as const;
-  return [await response.text(), response.status] as const;
+  const signal = AbortSignal.timeout(args.timeoutMs);
+  const init = { credentials: 'include' as const, headers: args.headers, signal };
+  const response = await fetch(args.url, init);
+  const text = response.status === 204 ? '' : await response.text();
+  return [text, response.status] as const;
 }
 
 /**
@@ -59,7 +83,9 @@ async function evaluateGetWithHeaders(
   url: string,
   headers: Record<string, string>,
 ): Promise<readonly [string, number]> {
-  return context.evaluate(evalGetWithHeadersBody, { url, headers });
+  const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
+  const pending = context.evaluate(evalGetWithHeadersBody, { url, headers, timeoutMs });
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${url}`);
 }
 
 /**

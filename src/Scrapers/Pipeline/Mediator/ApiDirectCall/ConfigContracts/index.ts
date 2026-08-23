@@ -9,10 +9,6 @@
  * (`./TemplateTypes.js`, `./SignerTypes.js`, `./CarryTypes.js`,
  * `./EnvelopeTypes.js`, `./FlowTypes.js`,
  * `./ApiDirectCallConfig.js`) when call-sites only need a slice.
- *
- * The legacy `../IApiDirectCallConfig.js` shim re-exports through
- * this barrel for backward compatibility with the 53 historical
- * importers; that shim is deprecated and slated for removal in v8.6.
  */
 
 export * from './ApiDirectCallConfig.js';

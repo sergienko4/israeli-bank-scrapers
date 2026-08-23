@@ -56,7 +56,7 @@
     "test:ci": "ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs && node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --ci --coverage",
     "validate:all": "npm run type-check && npm run test:unit && npm run test:e2e:mock && npm run lint",
     "check-exports": "publint",
-    "lint": "eslint src --max-warnings 0 && npm run lint:architecture src/Scrapers/Pipeline && bash src/Scrapers/Pipeline/EslintCanaries/verify.sh && npm run format:check",
+    "lint": "eslint src --max-warnings 0 && npm run lint:architecture src/Scrapers/Pipeline && npm run lint:retired-shims && bash src/Scrapers/Pipeline/EslintCanaries/verify.sh && npm run format:check",
     "lint:biome": "biome lint src --max-diagnostics=50",
     "lint:canaries": "bash src/Scrapers/Pipeline/EslintCanaries/verify.sh",
     "lint:dead-code": "npx tsx src/Tests/Tools/detect-dead-code.ts",
@@ -86,7 +86,8 @@
     "prepare": "tsup && rimraf lib/Common lib/Scrapers lib/Tests",
     "reset": "git reset --hard && npm ci",
     "docs": "typedoc",
-    "lint:architecture": "npx tsx src/Tests/Tools/lint-and-validate.ts"
+    "lint:architecture": "npx tsx src/Tests/Tools/lint-and-validate.ts",
+    "lint:retired-shims": "npx tsx src/Tests/Tools/lint-and-validate.ts --only \"Rule #17\" src"
   },
   "repository": {
     "type": "git",

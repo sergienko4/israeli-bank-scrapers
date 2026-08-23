@@ -57,6 +57,98 @@ const PATH_SHAPE = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+$/;
 const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
 
 /**
+ * Reduce a path to one structural spelling for the checks that follow.
+ *
+ * Converts `\` to `/`, then drops empty and `.` segments everywhere except
+ * index 0. A leading `.` is kept: it is what marks `./README.md` as a path
+ * rather than prose, and `PATH_SHAPE` needs that slash to match. A leading
+ * empty segment is kept too, so an absolute path stays absolute and is still
+ * rejected downstream. `..` is never touched — the containment check must see
+ * it.
+ *
+ * Dropping *trailing* separators is a deliberate leniency, not an oversight:
+ * `Browser.ts/` reduces to `Browser.ts`. Under POSIX those denote different
+ * things, so this is the one case where the spelling's meaning is not
+ * preserved. It cannot admit a phantom path — a citation of a file that does
+ * not exist still fails whether or not it carries a trailing slash — and
+ * rejecting the form instead would report "path does not exist" against a file
+ * that plainly does, which is the more misleading of the two failures.
+ * @param entry - Path as written in a manifest or a document.
+ * @returns Same path, forward slashes, no redundant separators or interior
+ * `.` segments. A separator-only input reduces to the empty string, which
+ * `PATH_SHAPE` then rejects.
+ */
+function normaliseSeparators(entry) {
+  const parts = entry.split('\\').join('/').split('/');
+  const kept = parts.filter((part, index) => index === 0 || (part !== '' && part !== '.'));
+  return kept.join('/');
+}
+
+/**
+ * Reduce a path to the one spelling everything downstream compares against.
+ *
+ * Three spellings denote the same file. A manifest writes `lib/index.cjs` for
+ * `main` but must write `./lib/index.cjs` under `exports`; a document may cite
+ * either; and a Windows author may write separators as `\`. Git, by contrast,
+ * always reports one form — no prefix, forward slashes — so that is the form
+ * chosen here.
+ *
+ * `existsSync`, the removed-path set and the ignored-prefix list all compare
+ * against this. Canonicalising for only one of them is what made a `./`-spelled
+ * deletion report as drift.
+ *
+ * Callers that also need to *recognise* the path must normalise separators
+ * first and canonicalise only afterwards: stripping the `./` from a root-level
+ * citation leaves a bare filename, which `PATH_SHAPE` deliberately rejects.
+ * @param entry - Path as written in a manifest or a document.
+ * @returns Repo-relative path: forward slashes, no leading `./`.
+ */
+function canonicalisePath(entry) {
+  const normalised = normaliseSeparators(entry);
+  return normalised.replace(/^\.\//, '');
+}
+
+/**
+ * Collect every string *target* under `exports`, at any nesting depth.
+ *
+ * Deliberately reads values only. A subpath key such as `"./widget"` is a
+ * public specifier, not a file on disk; exempting one would let a citation of
+ * a nonexistent path pass and reinstate the fail-open behaviour this whole
+ * change exists to remove.
+ * @param node - An `exports` subtree: string, array, object, or null.
+ * @returns Declared target paths, unnormalised.
+ */
+function exportTargets(node) {
+  if (typeof node === 'string') return [node];
+  if (Array.isArray(node)) return node.flatMap(exportTargets);
+  if (node !== null && typeof node === 'object') return Object.values(node).flatMap(exportTargets);
+  return [];
+}
+
+/**
+ * The published entry points, read from the manifest rather than listed here.
+ *
+ * These are build output: present on any machine that has run a build, absent
+ * on a fresh CI checkout. A PR body asserting the published surface is
+ * unchanged is a legitimate citation, and must not depend on whether a build
+ * happens to have run — that is the pass-locally/fail-in-CI flake described
+ * below, and it is what motivated this.
+ *
+ * Derived, not hardcoded, so the gate cannot drift from what npm actually
+ * publishes. Exempting the whole `lib/` directory instead would be the easy
+ * fix and the wrong one: it would silently accept a one-character typo in a
+ * citation, turning something a reviewer wants flagged into a pass.
+ * @returns Declared entry-point paths, repo-relative and canonical.
+ */
+function publishedEntryPoints() {
+  const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+  const fromExports = exportTargets(manifest.exports ?? {});
+  const flat = [manifest.main, manifest.module, manifest.types];
+  const declared = [...flat, ...fromExports].filter(entry => typeof entry === 'string');
+  return declared.map(canonicalisePath);
+}
+
+/**
  * Artefacts created at run time, which a doc may legitimately cite while
  * they are absent. The PR-body handoff file is the motivating case: the
  * pre-push hook *searches* these locations, so documenting them is
@@ -64,7 +156,7 @@ const IGNORED_PREFIXES = ['node_modules/', 'http://', 'https://', '.git/'];
  * gate would pass on a machine that happens to have one lying around and
  * fail in CI — a flake, which is worse than no gate at all.
  */
-const OPTIONAL_PATHS = new Set(['.github/PR_BODY.md']);
+const OPTIONAL_PATHS = new Set(['.github/PR_BODY.md', ...publishedEntryPoints()]);
 
 /**
  * Strip a trailing locator (`:42`, `:analyze`, `#L17`) so `file.ts:12` and
@@ -75,7 +167,7 @@ const OPTIONAL_PATHS = new Set(['.github/PR_BODY.md']);
  * @returns Token without a trailing locator.
  */
 function stripLocator(token) {
-  const cut = [token.indexOf(':'), token.indexOf('#')].filter((i) => i !== -1);
+  const cut = [token.indexOf(':'), token.indexOf('#')].filter(i => i !== -1);
   return cut.length === 0 ? token : token.slice(0, Math.min(...cut));
 }
 
@@ -102,6 +194,11 @@ function withinRepo(token) {
  * — are skipped. `docs/` deliberately shortens the label relative to a
  * documented base while the link target carries the full repo path, so
  * treating the label as repo-relative reports drift that is not there.
+ *
+ * Separators are normalised before the shape and containment checks so a
+ * `\`-separated citation is recognised at all, but the `./` prefix is stripped
+ * only afterwards: `./README.md` needs its slash to look like a path, and would
+ * vanish if reduced to a bare filename first.
  * @param body - Markdown text.
  * @returns Sorted unique candidate repo-relative paths.
  */
@@ -109,10 +206,12 @@ function extractPaths(body) {
   const found = new Set();
   for (const match of body.matchAll(CODE_SPAN)) {
     if (body.startsWith('](', match.index + match[0].length)) continue;
-    const token = stripLocator(match[1].trim());
-    if (!PATH_SHAPE.test(token)) continue;
-    if (!withinRepo(token)) continue;
-    if (IGNORED_PREFIXES.some((p) => token.startsWith(p))) continue;
+    const stripped = stripLocator(match[1].trim());
+    const shaped = normaliseSeparators(stripped);
+    if (!PATH_SHAPE.test(shaped)) continue;
+    if (!withinRepo(shaped)) continue;
+    const token = canonicalisePath(shaped);
+    if (IGNORED_PREFIXES.some(p => token.startsWith(p))) continue;
     if (OPTIONAL_PATHS.has(token)) continue;
     found.add(token);
   }
@@ -167,7 +266,7 @@ function deletedInDiff(base) {
 function checkFile(file, deleted) {
   const body = readFileSync(file, 'utf8');
   const candidates = extractPaths(body);
-  const missing = candidates.filter((p) => !existsSync(p) && !deleted.has(p));
+  const missing = candidates.filter(p => !existsSync(p) && !deleted.has(p));
   stdout.write(`${file}: ${candidates.length} cited, ${missing.length} unresolved\n`);
   for (const p of missing) stdout.write(`  ✗ ${p}\n`);
   return missing.length;

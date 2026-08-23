@@ -272,6 +272,97 @@ describe('issuesFromCode — Rule #10 Playwright leak', () => {
   });
 });
 
+// Rule #16 guards a tree that is already clean: zero selector-based
+// interaction calls exist inside src/Scrapers/Pipeline today. A guard over a
+// clean tree is exactly the kind of rule that can silently guard nothing, so
+// the table pins both directions.
+//
+// The three `expected: 0` structural rows are the ones that make the rule
+// satisfiable at all. The helpers are DEFINED inside the Pipeline tree
+// (ElementWaitAction.ts, ElementsInteractions.ts) and are re-exported to
+// legacy callers through src/Common/ElementsInteractions.ts, so a naive
+// "name appears in a Pipeline file" check would flag the definitions and the
+// export list and could never reach zero.
+//
+// Only the declaration row is load-bearing today: mutation testing showed the
+// import and export rows pass because the pattern demands an opening paren,
+// not because of any import handling. They are kept as a tripwire — broaden
+// the pattern beyond call shape and these two rows fail immediately.
+//
+// The legacy row encodes the maintainer's pipeline-only ruling: Mizrahi and
+// friends keep calling these helpers with literal CSS and must not fail the
+// build. Ignoring legacy is not the same as breaking it.
+const RULE_16_CASES = [
+  {
+    label: 'clickButton call, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: "await clickButton(ctx, '#submit');\n",
+    expected: 1,
+  },
+  {
+    label: 'clickLink call, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: "await clickLink(page, 'a.next');\n",
+    expected: 1,
+  },
+  {
+    label: 'waitUntilElementFound call, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: "await waitUntilElementFound(page, '#tzId');\n",
+    expected: 1,
+  },
+  {
+    label: 'waitUntilElementDisappear call, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: "await waitUntilElementDisappear(page, 'div.overlay');\n",
+    expected: 1,
+  },
+  {
+    label: 'clickButton call, Phase',
+    file: SYNTHETIC_PHASE,
+    code: "await clickButton(ctx, '#submit');\n",
+    expected: 1,
+  },
+  {
+    label: 'helper declaration, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: 'async function clickButton(ctx: Page, sel: string): Promise<boolean> {\n',
+    expected: 0,
+  },
+  {
+    label: 'helper import, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: "import { clickButton } from './ElementsInteractions.js';\n",
+    expected: 0,
+  },
+  {
+    label: 'helper re-export, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: "export { clickButton, waitUntilElementFound } from './Elements.js';\n",
+    expected: 0,
+  },
+  {
+    label: 'text-based location, Pipeline',
+    file: SYNTHETIC_PIPELINE,
+    code: "await page.getByRole('button', { name: 'המשך' }).click();\n",
+    expected: 0,
+  },
+  {
+    label: 'clickButton call, legacy (out of scope)',
+    file: SYNTHETIC_OTHER,
+    code: "await clickButton(ctx, '#submit');\n",
+    expected: 0,
+  },
+];
+
+describe('issuesFromCode — Rule #16 zero-CSS interaction guard', () => {
+  it.each(RULE_16_CASES)('$label → $expected issue(s)', ({ file, code, expected }) => {
+    const issues = issuesFromCode(file, code, new Map());
+    const r16 = issues.filter((i): boolean => i.rule === 'Rule #16');
+    expect(r16).toHaveLength(expected);
+  });
+});
+
 describe('loadAllowlist', () => {
   it('returns an empty map when no file exists', () => {
     const map = loadAllowlist('non-existent-allowlist-xyz.json');

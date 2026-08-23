@@ -76,13 +76,34 @@ Returned as `result.errorType` when `result.success` is `false`.
 | `CHANGE_PASSWORD` | The bank is forcing a password change — log in manually first |
 | `ACCOUNT_BLOCKED` | The bank locked the account |
 | `WAF_BLOCKED` | Cloudflare block — read `errorDetails.suggestions` |
-| `TIMEOUT` | Page load timeout — raise `defaultTimeout` |
+| `TIMEOUT` | Page load, or an in-page request that exceeded its budget — see [Request deadlines](#request-deadlines) |
 | `NETWORK_ERROR` | Transport failure reaching the bank |
 | `GENERIC` | Pipeline phase failure — read `errorMessage` |
 | `GENERAL_ERROR` | Deprecated alias of `GENERIC`, kept for older consumers |
 
 `errorDetails` is populated for `WAF_BLOCKED` only; every other type carries its
 context in `errorMessage`.
+
+## Request deadlines
+
+Some banks are driven by `fetch` calls issued inside the page rather than by
+navigation. Those requests are bounded twice, and the two budgets are
+deliberately not equal.
+
+The deadline that decides the outcome is enforced in Node, at
+`NETWORK_FETCH_TIMEOUT_MS`. Node owns that timer, so when it expires the scraper
+knows the budget was exceeded and reports `TIMEOUT`. A second, later abort runs
+inside the page at `NETWORK_FETCH_PAGE_TIMEOUT_MS` — `NETWORK_FETCH_TIMEOUT_MS`
+plus `NETWORK_FETCH_PAGE_GRACE_MS` — purely so an abandoned request releases
+browser-side resources.
+
+The grace is what makes the ordering deterministic: Node always reaches its
+deadline first, so the error you receive is the classified one. The in-page abort
+only fires if the Node timer was starved, which in practice means the event loop
+was blocked.
+
+A `TIMEOUT` from this path usually means the bank is slow or the request never
+settled, not that `defaultTimeout` is too low — that option governs page loads.
 
 ## Still stuck?
 

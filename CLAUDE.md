@@ -18,7 +18,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
   "Function too long"](./CLEAN_CODE.md#1-function-too-long-max-lines-per-function)
   for the per-cluster table + how to refactor)
 - TypeScript strict mode — no `any`, no unused vars
-- Follow existing style: Prettier (120 width, single quotes, trailing commas) + ESLint 9 flat config
+- Follow existing style: Prettier (100 width, single quotes, trailing commas) + ESLint 10 flat config
 - Generic over duplication — use factories, shared helpers, config arrays
 - Constants from configuration — never hardcode values inline
 

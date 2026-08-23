@@ -24,14 +24,30 @@ interface IFileReport {
   readonly violations: string[];
 }
 
-const ARGV_PATHS = process.argv.slice(2);
+/** Flag selecting a single rule, so one guard can run at a wider scope. */
+const ONLY_FLAG = '--only';
+
+/**
+ * The rule key requested via `--only`, if any.
+ * @returns The rule key, or an empty string when the flag is absent.
+ */
+function requestedRule(): string {
+  const at = process.argv.indexOf(ONLY_FLAG);
+  if (at === -1) return '';
+  return process.argv[at + 1] ?? '';
+}
+
+const ONLY_RULE = requestedRule();
+const RAW_ARGV = process.argv.slice(2);
+const ARGV_PATHS = RAW_ARGV.filter((a): boolean => a !== ONLY_FLAG && a !== ONLY_RULE);
 const ALLOWLIST = loadAllowlist();
 const FILES = expandToFiles(ARGV_PATHS);
 const REPORTS: IFileReport[] = [];
 
 for (const filePath of FILES) {
   if (isExcluded(filePath)) continue;
-  const issues = analyzeFile(filePath, ALLOWLIST);
+  const found = analyzeFile(filePath, ALLOWLIST);
+  const issues = ONLY_RULE === '' ? found : found.filter((i): boolean => i.rule === ONLY_RULE);
   if (issues.length === 0) continue;
   const messages = issues.map((i): string => i.message);
   REPORTS.push({ file: filePath, violations: messages });

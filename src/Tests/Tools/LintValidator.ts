@@ -7,6 +7,8 @@
  *
  * Rule enforcement:
  *   Rule #15  — primitive return types in Pipeline/Phases
+ *   Rule #16  — selector-based interaction inside the Pipeline tree
+ *   Rule #17  — module specifiers retired by the shim sweep
  *   Rule #10  — Playwright imports in Phase files
  *   [Async]   — unawaited execute/fetch/run/step calls
  *   PII-Log   — raw PII identifier or full payload bucket in LOG.*
@@ -16,15 +18,50 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import * as ts from 'typescript';
+
 /** Path fragment that marks a file as part of the Pipeline tree. */
 const PIPELINE_DIR = 'Scrapers/Pipeline';
 /** Path fragment that marks a file as a Phase. */
 const PHASE_DIR = 'Phases';
 
+/** The four interaction helpers whose contract is "give me a CSS selector". */
+const SELECTOR_INTERACTION_RE =
+  /\b(?:clickButton|clickLink|waitUntilElementFound|waitUntilElementDisappear)\s*\(/;
+/** Declaration site of those helpers — matched so it can be skipped. */
+const SELECTOR_INTERACTION_DECL_RE =
+  /\bfunction\s+(?:clickButton|clickLink|waitUntilElementFound|waitUntilElementDisappear)\s*\(/;
+
+/**
+ * Decide whether a line CALLS a selector-based interaction helper.
+ *
+ * Requiring an opening paren is what separates a call from a mention, and it
+ * is why no import/export guard is needed: `import { clickButton } from …`
+ * and `export { clickButton } from …` spell the name followed by `,` or `}`,
+ * never `(`. An explicit boundary check was written here first and removed
+ * once mutation testing showed it could never fire — a guard that cannot fail
+ * reads as load-bearing while protecting nothing. The import and export rows
+ * in RULE_16_CASES stay, so that broadening the pattern above re-tests them.
+ *
+ * Neither regex carries the `g` flag: `.test()` on a global regex advances
+ * `lastIndex` between calls, so a per-line predicate would skip every other
+ * match. Rule #15 works around that with explicit resets; not opting in is
+ * simpler and removes the failure mode entirely.
+ *
+ * @param line - One source line.
+ * @returns True when the line is a call site rather than a declaration.
+ */
+function isSelectorInteractionCall(line: string): boolean {
+  if (!SELECTOR_INTERACTION_RE.test(line)) return false;
+  return !SELECTOR_INTERACTION_DECL_RE.test(line);
+}
+
 /** Rule key enum — any future rule must be listed here. */
 export type RuleKey =
   | 'Rule #15'
   | 'Rule #10'
+  | 'Rule #16'
+  | 'Rule #17'
   | '[Async]'
   | 'PII-Log'
   | 'S6564-Canary'
@@ -35,6 +72,12 @@ export type RuleKey =
 export interface IIssue {
   readonly rule: RuleKey;
   readonly message: string;
+}
+
+/** A module specifier paired with the 1-based line it appears on. */
+interface IModuleSpecifier {
+  readonly text: string;
+  readonly line: number;
 }
 
 /** Whether a path should be skipped before analysis. */
@@ -162,6 +205,8 @@ export function loadAllowlist(
       (v): v is RuleKey =>
         v === 'Rule #15' ||
         v === 'Rule #10' ||
+        v === 'Rule #16' ||
+        v === 'Rule #17' ||
         v === '[Async]' ||
         v === 'PII-Log' ||
         v === 'S6564-Canary' ||
@@ -185,6 +230,126 @@ export function loadAllowlist(
  * also exempt.
  */
 const PRIMITIVE_RETURN_RE = /\)\s*:\s(?:boolean|string|number|void)(?=\s*\{)/g;
+/**
+ * Extract every statically-analysable module specifier with its 1-based line.
+ *
+ * Parses rather than scans. A line-based regex cannot separate an import from
+ * a string or comment that merely contains the text of one, and it misses
+ * forms where the keyword and the specifier are on different lines. Both
+ * failure modes were real here: the fixtures in `LintAndValidate.test.ts` are
+ * import-shaped strings that had to be exempted by path, and a dynamic
+ * `import(\n  '...'\n)` was silently skipped.
+ *
+ * A template-literal specifier with no substitutions is resolved like any other
+ * string, because it names exactly one path. Only an interpolated specifier is
+ * out of reach: its target is not known until runtime, so no path-based rule
+ * can judge it either way.
+ *
+ * Covers static imports and exports, type-position imports, dynamic `import()`
+ * and `require()`.
+ * @param code - Source text.
+ * @returns One entry per specifier, in source order.
+ */
+function moduleSpecifiers(code: string): IModuleSpecifier[] {
+  const source = ts.createSourceFile(
+    'probe.ts',
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const out: IModuleSpecifier[] = [];
+  /**
+   * Collect any specifier on this node, then descend.
+   *
+   * Returns false deliberately: `ts.forEachChild` treats a truthy callback
+   * result as "found it" and stops walking, which would silently truncate the
+   * traversal at the first child and miss every nested specifier.
+   * @param node - Node being visited.
+   * @returns False, so the walk continues across the whole tree.
+   */
+  const visit = (node: ts.Node): boolean => {
+    const literals = specifierLiteral(node);
+    const mapped = literals.map(literal => toModuleSpecifier(source, literal));
+    out.push(...mapped);
+    ts.forEachChild(node, visit);
+    return false;
+  };
+  visit(source);
+  return out;
+}
+
+/**
+ * Return the string-literal specifier a node carries, if it carries one.
+ *
+ * Returns a 0-or-1 list rather than a nullable literal so every helper here
+ * hands back a real value, per the project's no-null-return rule.
+ * @param node - Any AST node.
+ * @returns A single-entry list, or empty when the node is not a module reference.
+ */
+function specifierLiteral(node: ts.Node): ts.StringLiteralLike[] {
+  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+    const spec = node.moduleSpecifier;
+    const isLiteral = spec !== undefined && ts.isStringLiteralLike(spec);
+    return isLiteral ? [spec] : [];
+  }
+  if (ts.isImportTypeNode(node)) return importTypeLiteral(node);
+  if (ts.isCallExpression(node)) return callSpecifierLiteral(node);
+  return [];
+}
+
+/**
+ * Return the literal of a type-position `import('...')`.
+ * @param node - An import-type node.
+ * @returns A single-entry list, or empty.
+ */
+function importTypeLiteral(node: ts.ImportTypeNode): ts.StringLiteralLike[] {
+  const arg = node.argument;
+  if (!ts.isLiteralTypeNode(arg)) return [];
+  if (!ts.isStringLiteralLike(arg.literal)) return [];
+  return [arg.literal];
+}
+
+/**
+ * Report whether a call expression loads a module by name.
+ *
+ * Covers dynamic `import(...)` and CommonJS `require(...)`. `require` is
+ * included because the rule's promise is that a retired path cannot be
+ * reached, and that promise should not depend on which module syntax the
+ * caller happened to use.
+ * @param node - A call expression.
+ * @returns True when the callee loads a module.
+ */
+function isModuleLoadingCall(node: ts.CallExpression): boolean {
+  if (node.expression.kind === ts.SyntaxKind.ImportKeyword) return true;
+  const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+  return isRequire;
+}
+
+/**
+ * Return the literal specifier of an `import(...)` or `require(...)` call.
+ * @param node - A call expression.
+ * @returns A single-entry list, or empty.
+ */
+function callSpecifierLiteral(node: ts.CallExpression): ts.StringLiteralLike[] {
+  if (!isModuleLoadingCall(node)) return [];
+  if (node.arguments.length === 0) return [];
+  const first = node.arguments[0];
+  if (!ts.isStringLiteralLike(first)) return [];
+  return [first];
+}
+
+/**
+ * Pair a specifier literal with its 1-based source line.
+ * @param source - The parsed file.
+ * @param literal - The specifier literal.
+ * @returns The specifier record.
+ */
+function toModuleSpecifier(source: ts.SourceFile, literal: ts.StringLiteralLike): IModuleSpecifier {
+  const start = literal.getStart(source);
+  const position = source.getLineAndCharacterOfPosition(start);
+  return { text: literal.text, line: position.line + 1 };
+}
 /**
  * Regex: bare-primitive type alias declaration (S6564 canary).
  * Matches `type X = string;` / `= number;` / `= boolean;` / `= unknown;`.
@@ -423,6 +588,154 @@ function ruleFifteenIssues(code: string): IIssue[] {
 }
 
 /**
+ * Emit Rule #16 (zero-CSS interaction) issues for a file.
+ *
+ * The zero-CSS rule is absolute for Pipeline interaction code: elements are
+ * located by what a user can read (`getByText`/`getByRole`/`getByPlaceholder`),
+ * never by a CSS selector. The Pipeline tree honours that today with zero
+ * violations, but until now nothing enforced it, so a single `clickButton(ctx,
+ * '#submit')` could reintroduce brittle selector coupling unnoticed. This is a
+ * regression guard, not a cleanup.
+ *
+ * Scope is deliberately narrow — the four selector-taking interaction helpers,
+ * and only their CALL sites:
+ *
+ *  - Declarations are skipped. `ElementWaitAction.ts` and
+ *    `ElementsInteractions.ts` define these helpers inside the Pipeline tree;
+ *    flagging a definition would make the rule unsatisfiable.
+ *  - Import/export lines are skipped by construction: the pattern requires an
+ *    opening paren, and `import { clickButton } from …` never has one. The
+ *    helpers stay exported because `src/Common/ElementsInteractions.ts`
+ *    re-exports them to legacy callers. Ignoring legacy is the ruling;
+ *    breaking it is not.
+ *  - Raw DOM APIs (`querySelector`, `waitForSelector`, `pageEvalAll`) are NOT
+ *    covered. Inside Pipeline they appear only in parsing/extraction code and
+ *    in these helpers' own implementations — the documented exception. Banning
+ *    them would flag eleven compliant files and force an allowlist.
+ *  - The `css` candidate kind is NOT flagged, but not because those selectors
+ *    are metadata-derived — `WELL_KNOWN_LOGIN_SELECTORS` is a table of
+ *    developer-authored literals (`'#username'`, `'#password'`). It is not
+ *    flagged because `CLAUDE.md` names that registry as the sanctioned
+ *    fallback once visible-text lookup fails: one curated, reviewable table
+ *    rather than selectors scattered through interaction code.
+ *
+ * What this rule therefore enforces is narrower than "zero CSS selectors":
+ * it stops a selector literal being passed at one of four interaction call
+ * sites. It does not inspect the registry, and `page.locator('#submit')` is
+ * outside its reach. Treat it as one guard among several, not as proof the
+ * policy holds.
+ *
+ * @param code - Source text.
+ * @returns Rule #16 issues (may be empty).
+ */
+function ruleSixteenIssues(code: string): IIssue[] {
+  const out: IIssue[] = [];
+  const lines = code.split('\n');
+  for (const [idx, line] of lines.entries()) {
+    if (!isSelectorInteractionCall(line)) continue;
+    const where = String(idx + 1);
+    out.push({
+      rule: 'Rule #16',
+      message: `[Rule #16] Selector-based interaction at line ${where}: ${line.trim()}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * Module specifiers retired during the Phase 3 shim sweep, mapped to what
+ * replaced them. Each was a deprecated re-export whose importers have all
+ * moved; the files are deleted.
+ *
+ * Deleting a shim is not self-enforcing. A revert, a merge from a long-lived
+ * branch, or an editor auto-import working from a stale index can recreate
+ * the file and quietly restore the indirection. Type-check only catches the
+ * window where the file is absent — recreate it and the tree compiles again.
+ * This map closes that window and, more usefully, answers "what do I import
+ * instead?" at the point of failure.
+ */
+const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
+  [
+    'src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js',
+    'Mediator/ApiDirectCall/ConfigContracts/index.js',
+  ],
+  ['src/Scrapers/Pipeline/Mediator/Network/Fetch.js', 'Mediator/Network/Fetch/index.js'],
+  [
+    'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
+    'Mediator/Network/AuthDiscovery/index.js',
+  ],
+  [
+    'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
+    'Mediator/Network/AuthFailureWatcher/index.js',
+  ],
+]);
+
+/**
+ * Resolve a relative module specifier to a repo-relative path.
+ *
+ * Comparing specifier TEXT cannot work: the same module is written
+ * `./AuthDiscovery.js` from a sibling, `../AuthDiscovery.js` from a child and
+ * `../Mediator/Network/AuthDiscovery.js` from further out. Matching on a
+ * `Mediator/Network/` prefix catches only the last form — and the sibling form
+ * is the one a recreated shim is most likely to use.
+ *
+ * Resolving also removes the need to special-case `src/Common/Fetch.ts`: that
+ * file's own `./Fetch.js` resolves under `src/Common/`, which is not a retired
+ * path, so a live legacy shim keeps working without an exemption.
+ * @param fromFile - Repo-relative path of the importing file.
+ * @param specifier - Raw specifier text as written.
+ * @returns Repo-relative target, or an empty string when not resolvable.
+ */
+function resolveSpecifier(fromFile: string, specifier: string): string {
+  if (!specifier.startsWith('.')) return '';
+  const dir = path.posix.dirname(fromFile);
+  return path.posix.join(dir, specifier);
+}
+
+/**
+ * Emit Rule #17 (retired module specifier) issues for a file.
+ *
+ * Resolves each specifier against the importing file and compares canonical
+ * paths, rather than matching specifier text. The same retired module is
+ * written at least four ways — `./`, `../`, and two `../../../` depths — and
+ * undercounting those spellings is what made the original migration estimate
+ * low by a factor of three. Resolution collapses all of them to one path, and
+ * removes the need to special-case `src/Common/Fetch.ts`: its own `./Fetch.js`
+ * resolves under `src/Common/`, which is not retired.
+ *
+ * Specifiers come from the parser, not a line scan, so a path appearing in
+ * prose, in a data structure, or inside a test fixture's import-shaped string
+ * is not a dependency and is not flagged.
+ *
+ * Scope is whatever the CLI is pointed at, and the gate points it twice: the
+ * full rule set at `src/Scrapers/Pipeline`, then this rule alone at `src` via
+ * `lint:retired-shims`. The second pass is what makes the guard meaningful —
+ * most importers of the retired shims were tests, which the Pipeline-scoped
+ * pass never sees. Running one rule at the wider scope avoids activating the
+ * 27 pre-existing violations of other rules in non-Pipeline code, which are
+ * tracked separately rather than smuggled into this change.
+ *
+ * @param filePath - Repo-relative path of the file being scanned.
+ * @param code - Source text.
+ * @returns Rule #17 issues (may be empty).
+ */
+function ruleSeventeenIssues(filePath: string, code: string): IIssue[] {
+  const out: IIssue[] = [];
+  for (const { text, line } of moduleSpecifiers(code)) {
+    const target = resolveSpecifier(filePath, text);
+    if (target === '') continue;
+    const replacement = RETIRED_SPECIFIERS.get(target);
+    if (replacement === undefined) continue;
+    const where = String(line);
+    out.push({
+      rule: 'Rule #17',
+      message: `[Rule #17] Retired specifier at line ${where}: ${text} — use ${replacement}`,
+    });
+  }
+  return out;
+}
+
+/**
  * Emit PII-Log issues for a file. Catches T09 (PII identifier in LOG.*
  * template literal) and T16 (forbidden payload bucket passed to LOG.*).
  * Runs on ALL files (not Pipeline-scoped) — PII can leak from Common/,
@@ -513,6 +826,38 @@ function hasRuntimePlaywrightImport(code: string): boolean {
 }
 
 /**
+ * Files that necessarily spell the retired specifiers: the rule's own lookup
+ * table, and the tests that prove it fires.
+ *
+ * Retained only for the rule's own source. Parsing removed the need to exempt
+ * the test fixtures — they embed `import … from '…'` inside string literals,
+ * which the AST reports as strings, not as module references. This entry
+ * covers the one remaining case that parsing cannot help with: were the
+ * validator ever to import a retired path for its own use, that is a genuine
+ * self-reference rather than a fixture.
+ */
+const RULE_17_OWN_MACHINERY: readonly string[] = ['Tests/Tools/LintValidator.ts'];
+
+/**
+ * True when the file IS the retired-specifier machinery.
+ * @param fwd - Normalised (forward-slash) file path.
+ * @returns Whether Rule #17 must skip this file.
+ */
+function isRuleSeventeenMachinery(fwd: string): boolean {
+  return RULE_17_OWN_MACHINERY.some((p): boolean => fwd.includes(p));
+}
+
+/**
+ * Pipeline-scoped structural rules, grouped to keep the dispatcher under the
+ * ten-statement helper cap.
+ * @param code - Full source text.
+ * @returns Rule #15 and Rule #16 issues.
+ */
+function pipelineStructureIssues(code: string): IIssue[] {
+  return [...ruleFifteenIssues(code), ...ruleSixteenIssues(code)];
+}
+
+/**
  * Analyse code text and produce raw issues (unfiltered by allowlist).
  * @param filePath - For scope detection (Pipeline/Phase).
  * @param code - Full source text.
@@ -522,7 +867,8 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   const issues: IIssue[] = [];
   const fwd = normalisePath(filePath);
   const isInPipeline = fwd.includes(PIPELINE_DIR) || fwd.includes(PHASE_DIR);
-  if (isInPipeline) issues.push(...ruleFifteenIssues(code));
+  if (isInPipeline) issues.push(...pipelineStructureIssues(code));
+  if (!isRuleSeventeenMachinery(fwd)) issues.push(...ruleSeventeenIssues(fwd, code));
   if (fwd.includes(PHASE_DIR) && hasRuntimePlaywrightImport(code)) {
     issues.push({ rule: 'Rule #10', message: '[Rule #10] Playwright leaked into Phase.' });
   }
