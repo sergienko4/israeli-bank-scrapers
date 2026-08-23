@@ -11,17 +11,17 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
+import type {
+  IAesSignerConfig,
+  IApiDirectCallConfig,
+  IStepConfig,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   applyCryptoField,
   attachBodySignature,
   primeStepCarry,
   writeAtPointer,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStepBodySigning.js';
-import type {
-  IAesSignerConfig,
-  IApiDirectCallConfig,
-  IStepConfig,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 
 const PLAIN_CONFIG: IApiDirectCallConfig = {

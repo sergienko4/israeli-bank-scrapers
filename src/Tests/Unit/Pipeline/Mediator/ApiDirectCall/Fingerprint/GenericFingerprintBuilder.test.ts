@@ -5,11 +5,11 @@
  */
 
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
-import { buildCollectionResult } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Fingerprint/GenericFingerprintBuilder.js';
 import type {
   IApiDirectCallConfig,
   IFingerprintConfig,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { buildCollectionResult } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Fingerprint/GenericFingerprintBuilder.js';
 
 /** Throwaway API-direct-call config used only to satisfy scope.config. */
 const CONFIG_STUB = {

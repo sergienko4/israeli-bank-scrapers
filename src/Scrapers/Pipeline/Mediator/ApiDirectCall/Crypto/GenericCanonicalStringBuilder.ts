@@ -11,7 +11,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { JsonValue } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import type { CanonicalPart, ICanonicalStringConfig } from '../IApiDirectCallConfig.js';
+import type { CanonicalPart, ICanonicalStringConfig } from '../ConfigContracts/index.js';
 
 /**
  * Carry slot names read by the symmetric-canonical resolvers. The

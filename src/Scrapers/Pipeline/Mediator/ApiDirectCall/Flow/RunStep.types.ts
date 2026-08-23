@@ -4,9 +4,9 @@
 
 import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
+import type { IAsymmetricSignerConfig, IStepConfig } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IAsymmetricSignerConfig, IStepConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 
 /** Header map emitted by buildStepHeaders. */
@@ -142,7 +142,7 @@ interface IHeadersAndFireArgs {
 /** Re-exports for siblings — keeps direct config-type imports out of helpers. */
 
 export { type Procedure } from '../../../Types/Procedure.js';
-export type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
+export type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 export type {
   CarryMap,
   HeaderMap,

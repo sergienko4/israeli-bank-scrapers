@@ -10,7 +10,7 @@ import {
   fetchGetWithinPage,
   fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
 
 /** Response script for synthetic fetch. */
 interface IFetchResponse {

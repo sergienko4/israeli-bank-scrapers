@@ -9,7 +9,7 @@ import {
   fetchGetWithinPage,
   fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
 
 /**
  * Build a mock Page whose evaluate() returns a scripted [body, status] tuple.

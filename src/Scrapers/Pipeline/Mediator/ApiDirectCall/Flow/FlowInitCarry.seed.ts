@@ -6,8 +6,8 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import type { IApiDirectCallConfig, ISeedCarrySource } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IApiDirectCallConfig, ISeedCarrySource } from '../IApiDirectCallConfig.js';
 import { evalBootstrap } from './FlowInitCarry.bootstrap.js';
 import type { CarryMut, Creds, IReduceSeedCtx, SeedSourceEntry } from './FlowInitCarry.types.js';
 

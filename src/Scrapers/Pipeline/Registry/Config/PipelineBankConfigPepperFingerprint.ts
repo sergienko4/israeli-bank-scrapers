@@ -5,7 +5,7 @@
  * pure data (Rule #11 compliant).
  */
 
-import type { IFingerprintConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IFingerprintConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   APP_PERMISSIONS_LITERAL,
   CAPABILITIES_LITERAL,

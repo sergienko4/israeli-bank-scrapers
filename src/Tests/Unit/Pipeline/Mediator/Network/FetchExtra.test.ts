@@ -7,7 +7,7 @@ import type { Page } from 'playwright-core';
 import {
   detectWafBlock,
   fetchGetWithinPageWithHeaders,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
 
 /**
  * Build a mock Page whose evaluate returns a scripted tuple.

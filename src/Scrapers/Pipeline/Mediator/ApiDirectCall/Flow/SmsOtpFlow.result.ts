@@ -6,9 +6,9 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { AsymmetricSignerAlgorithm } from '../ConfigContracts/SignerTypes.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { createSimpleCookieJar } from './RunStep.js';
 import { createPreHookCache } from './SmsOtpFlow.prehookCache.js';

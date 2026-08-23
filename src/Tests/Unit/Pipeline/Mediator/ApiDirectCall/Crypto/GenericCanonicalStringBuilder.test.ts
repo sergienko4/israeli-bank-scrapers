@@ -4,8 +4,8 @@
  * by ICanonicalStringConfig data. Zero bank knowledge.
  */
 
+import type { ICanonicalStringConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { buildCanonical } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCanonicalStringBuilder.js';
-import type { ICanonicalStringConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 
 /** Reusable 3-part Pepper-shape canonical config. */
 const PEPPER_SHAPE: ICanonicalStringConfig = {

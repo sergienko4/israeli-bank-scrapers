@@ -6,8 +6,8 @@ import type { LoginKind } from '../../Types/LoginKind.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import type { GenericCreds } from './Flow/TokenStrategyFromConfig.js';
-import type { IApiDirectCallConfig } from './IApiDirectCallConfig.js';
 import { isJwtFresh } from './Jwt/GenericJwtClaims.js';
 
 /**

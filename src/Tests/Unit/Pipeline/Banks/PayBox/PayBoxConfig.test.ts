@@ -17,7 +17,7 @@
  * `WaveOBranchGaps.test.ts:PipelineBankConfig guard`).
  */
 
-import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 const CALL_PATH = '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPayBox.js';
 const CRYPTO_PATH =

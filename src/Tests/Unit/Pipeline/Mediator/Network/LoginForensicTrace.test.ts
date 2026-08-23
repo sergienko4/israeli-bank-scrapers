@@ -14,7 +14,7 @@ import type { ConsoleMessage, Page, Request } from 'playwright-core';
 import {
   AUTH_REQ_TRACE_ENV_VAR,
   createAuthFailureWatcher,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/index.js';
 import {
   buildConsoleHandler,
   buildPageErrorHandler,

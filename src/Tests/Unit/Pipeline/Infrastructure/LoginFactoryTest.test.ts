@@ -37,7 +37,7 @@ import type {
   AuthFailureClassifier,
   IAuthFailure,
   IAuthFailureWatcher,
-} from '../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js';
+} from '../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/index.js';
 import type { INetworkDiscovery } from '../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscoveryTypes.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {

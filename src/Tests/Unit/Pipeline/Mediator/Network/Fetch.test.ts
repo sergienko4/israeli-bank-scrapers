@@ -11,7 +11,7 @@ import {
   fetchGraphql,
   fetchPost,
   fetchPostWithinPage,
-} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
 
 /** Global fetch captured for restoration. */
 const REAL_FETCH = globalThis.fetch;

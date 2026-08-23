@@ -9,12 +9,12 @@ import type { ScraperOptions } from '../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { executePipeline } from '../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from '../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
-import type { JsonValue } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
-import { walkPointer } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 import type {
   IApiDirectCallConfig,
   JsonValueTemplate,
-} from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+} from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { JsonValue } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
+import { walkPointer } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 import { hydrate } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { IActionContext } from '../../../Scrapers/Pipeline/Types/PipelineContext.js';

@@ -3,14 +3,14 @@
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type {
   IApiDirectCallConfig,
   IDerivedCarry,
   ISeedCarrySource,
   RefToken,
   SeedCarryBootstrapKind,
-} from '../IApiDirectCallConfig.js';
+} from '../ConfigContracts/index.js';
+import type { JsonValue } from '../Envelope/JsonPointer.js';
 
 /** Mutable carry accumulator used while flow-init runs. */
 type CarryMut = Record<string, JsonValue>;

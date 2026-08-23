@@ -6,7 +6,7 @@
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import {
   formatAuthValue,

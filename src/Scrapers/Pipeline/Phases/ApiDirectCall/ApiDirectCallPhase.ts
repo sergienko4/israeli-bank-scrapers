@@ -13,7 +13,7 @@ import {
   runApiDirectCallPost,
   runApiDirectCallPre,
 } from '../../Mediator/ApiDirectCall/ApiDirectCallActions.js';
-import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

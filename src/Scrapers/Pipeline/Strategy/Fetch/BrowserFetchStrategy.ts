@@ -14,7 +14,8 @@ import {
   fetchGetWithinPage,
   fetchGetWithinPageWithHeaders,
   fetchPostWithinPage,
-} from '../../Mediator/Network/Fetch.js';
+} from '../../Mediator/Network/Fetch/index.js';
+import { TimeoutError } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand } from '../../Types/Brand.js';
 import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
@@ -53,11 +54,17 @@ function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Proc
 
 /**
  * Build a failure from a caught fetch exception.
+ *
+ * The deadline is enforced in Node by `timeoutPromise`, so the timeout arrives
+ * as a real {@link TimeoutError} rather than engine-specific abort text — the
+ * classification is a type check, not a string match.
  * @param error - The caught error.
- * @returns A Generic failure Procedure.
+ * @returns A Timeout failure for an expired deadline, otherwise Generic.
  */
 function catchError(error: Error): Procedure<never> {
   const message = toErrorMessage(error);
+  const isTimeout = error instanceof TimeoutError;
+  if (isTimeout) return fail(ScraperErrorTypes.Timeout, message);
   return fail(ScraperErrorTypes.Generic, message);
 }
 

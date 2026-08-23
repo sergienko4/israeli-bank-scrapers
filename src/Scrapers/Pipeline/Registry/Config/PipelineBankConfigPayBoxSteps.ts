@@ -26,7 +26,7 @@
  * lives in this data literal.
  */
 
-import type { IStepConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** PayBox Android device fingerprint — public constants from the APK. */
 const DEVICE_INFO = {

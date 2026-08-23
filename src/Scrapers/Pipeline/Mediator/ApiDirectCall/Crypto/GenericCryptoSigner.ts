@@ -10,7 +10,7 @@ import { createSign } from 'node:crypto';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import type { IAsymmetricSignerConfig, SignerEncoding } from '../IApiDirectCallConfig.js';
+import type { IAsymmetricSignerConfig, SignerEncoding } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from './CryptoKeyFactory.js';
 
 /** Lookup table — Partial wrapper makes lookups safely undefined-able at runtime. */

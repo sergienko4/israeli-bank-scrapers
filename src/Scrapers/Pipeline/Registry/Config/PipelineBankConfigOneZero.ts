@@ -15,7 +15,7 @@
  * the whole bank surface for login.
  */
 
-import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /** OneZero config literal — seeded into PIPELINE_BANK_CONFIG[OneZero]. */
 const ONEZERO_API_DIRECT_CALL: IApiDirectCallConfig = {

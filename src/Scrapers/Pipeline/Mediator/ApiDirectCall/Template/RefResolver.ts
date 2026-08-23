@@ -11,10 +11,10 @@ import { randomUUID } from 'node:crypto';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import type { IApiDirectCallConfig, RefToken } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { walkPointer } from '../Envelope/JsonPointer.js';
-import type { IApiDirectCallConfig, RefToken } from '../IApiDirectCallConfig.js';
 
 /** Hydrated fingerprint payload — an opaque JsonValue. Defined here (where
  *  ITemplateScope lives) so the fingerprint builder depends on this leaf,

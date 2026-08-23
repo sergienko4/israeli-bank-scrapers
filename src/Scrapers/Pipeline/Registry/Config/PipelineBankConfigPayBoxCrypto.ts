@@ -18,7 +18,7 @@ import type {
   IAesSignerConfig,
   ICanonicalStringConfig,
   IHmacHeaderSignerConfig,
-} from '../../Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 /**
  * AES-256 request-body signing key (32 ASCII bytes). Selected on the

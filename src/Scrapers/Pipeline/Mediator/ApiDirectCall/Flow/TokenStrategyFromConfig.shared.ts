@@ -8,8 +8,8 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
-import type { IApiDirectCallConfig } from '../IApiDirectCallConfig.js';
 import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
 import type { GenericCreds, IMakeWarmArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 

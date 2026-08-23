@@ -6,7 +6,7 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
-import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
+import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { createApiDirectCallPhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.js';
 import type { WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';

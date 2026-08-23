@@ -5,7 +5,7 @@
 
 import type { Frame, JSHandle, Page } from 'playwright-core';
 
-import { discoverAuthThreeTier } from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js';
+import { discoverAuthThreeTier } from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthDiscovery/index.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 
 /** Frame scripting knobs. */

@@ -8,11 +8,11 @@
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   createTokenStrategyFromConfig,
   type GenericCreds,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
-import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js';
 import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';

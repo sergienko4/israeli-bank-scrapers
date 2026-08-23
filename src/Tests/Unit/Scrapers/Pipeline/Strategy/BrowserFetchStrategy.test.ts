@@ -5,19 +5,27 @@
 
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js', () => ({
-  fetchPostWithinPage: jest.fn(),
-  fetchGetWithinPage: jest.fn(),
-  fetchGetWithinPageWithHeaders: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js',
+  () => ({
+    fetchPostWithinPage: jest.fn(),
+    fetchGetWithinPage: jest.fn(),
+    fetchGetWithinPageWithHeaders: jest.fn(),
+  }),
+);
 
-const FETCH_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Network/Fetch.js');
+const FETCH_MOD = await import('../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js');
 const STRATEGY_MOD =
   await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js');
 const { makeMockFullPage: MAKE_MOCK_FULL_PAGE } = await import('../MockPipelineFactories.js');
 
 const { DEFAULT_FETCH_OPTS } =
   await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js');
+
+const { TimeoutError: TIMEOUT_ERROR } =
+  await import('../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js');
+const { ScraperErrorTypes: ERROR_TYPES } =
+  await import('../../../../../Scrapers/Base/ErrorTypes.js');
 
 const OPTS_NO_HEADERS = DEFAULT_FETCH_OPTS;
 const OPTS_WITH_HEADERS = { extraHeaders: { Authorization: 'Bearer tok' } };
@@ -64,6 +72,24 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe('network error');
+  });
+
+  it('classifies an expired fetch deadline as Timeout, not Generic', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockRejectedValue(new TIMEOUT_ERROR('deadline exceeded'));
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorType).toBe(ERROR_TYPES.Timeout);
+  });
+
+  it('leaves an unmarked failure classified as Generic', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    postFn.mockRejectedValue(new Error('connection reset'));
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorType).toBe(ERROR_TYPES.Generic);
   });
 
   it('truncates long URL in empty response error at 80 chars', async () => {
@@ -131,17 +157,14 @@ describe('BrowserFetchStrategy/fetchGet', () => {
 
 // ── resolveContext (cross-origin frame resolution) ────────
 
-/** Page or frame URL string. */
-type FrameUrl = string;
-
 /** Frame fixture passed to makePageWithFrames. */
 interface IFrameFixture {
-  readonly url: FrameUrl;
+  readonly url: string;
 }
 
 /** Frame stub exposing only .url() (used by resolveContext). */
 interface IFrameStub {
-  url: () => FrameUrl;
+  url: () => string;
 }
 
 /** Page mock type — re-exports playwright Page from MAKE_MOCK_FULL_PAGE. */
@@ -161,12 +184,12 @@ function makePageWithFrames(pageUrl: string, frames: readonly IFrameFixture[]): 
    * @param fxUrl - Fixture URL.
    * @returns URL getter that returns the captured fixture URL.
    */
-  const stubUrlGetter = (fxUrl: FrameUrl): (() => FrameUrl) => {
+  const stubUrlGetter = (fxUrl: string): (() => string) => {
     /**
      * Frame URL getter — captures the fixture URL.
      * @returns The captured fixture URL.
      */
-    const getter = (): FrameUrl => fxUrl;
+    const getter = (): string => fxUrl;
     return getter;
   };
   /**
@@ -184,7 +207,7 @@ function makePageWithFrames(pageUrl: string, frames: readonly IFrameFixture[]): 
    * Page URL getter override.
    * @returns Configured pageUrl.
    */
-  const urlFn = (): FrameUrl => pageUrl;
+  const urlFn = (): string => pageUrl;
   return { ...base, url: urlFn, frames: framesFn } as MockPage;
 }
 
