@@ -42,7 +42,7 @@ import {
 } from '../../../../Transactions.js';
 import { makeMockContext, makeMockPage } from '../../Pipeline/Infrastructure/MockFactories.js';
 
-export { makeMockContext, makeMockPage };
+export { makeMockContext, makeMockPage } from '../../Pipeline/Infrastructure/MockFactories.js';
 
 // ── Browser mocks ─────────────────────────────────────────
 

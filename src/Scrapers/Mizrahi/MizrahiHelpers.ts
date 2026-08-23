@@ -5,23 +5,21 @@ import { getDebug } from '../../Common/Debug.js';
 import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
-import {
-  GENERIC_DESCRIPTIONS,
-  MEMO_PREFIXES,
-  PENDING_TRANSACTIONS_IFRAME,
-} from './Config/MizrahiHelpersConfig.js';
+import { MEMO_PREFIXES } from './Config/MizrahiHelpersConfig.js';
 import type { IMizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
 import type { IMoreDetails } from './Interfaces/MoreDetails.js';
 import type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
 
+export {
+  GENERIC_DESCRIPTIONS,
+  PENDING_TRANSACTIONS_IFRAME,
+} from './Config/MizrahiHelpersConfig.js';
 export type { IConvertOneRowOpts } from './Interfaces/ConvertOneRowOpts.js';
 export type { IConvertTxnsOpts } from './Interfaces/ConvertTxnsOpts.js';
 export type { IMizrahiRequestData } from './Interfaces/MizrahiRequestData.js';
 export type { IMoreDetails } from './Interfaces/MoreDetails.js';
 export type { IScrapedTransaction } from './Interfaces/ScrapedTransaction.js';
 export type { IScrapedTransactionsResult } from './Interfaces/ScrapedTransactionsResult.js';
-
-export { GENERIC_DESCRIPTIONS, PENDING_TRANSACTIONS_IFRAME };
 
 const LOG = getDebug('mizrahi');
 

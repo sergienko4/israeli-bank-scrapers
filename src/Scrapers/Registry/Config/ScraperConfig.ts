@@ -12,7 +12,7 @@ import {
   SIMPLE_LOGIN,
 } from './ScraperConfigDefaults.js';
 
-export type { IBankScraperConfig };
+export type { IBankScraperConfig } from './ScraperConfigDefaults.js';
 
 /** Central per-bank scraper configuration — URLs, API, auth, format, timing, selectors. */
 export const SCRAPER_CONFIGURATION = {

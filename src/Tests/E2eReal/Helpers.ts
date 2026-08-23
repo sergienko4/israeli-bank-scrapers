@@ -3,7 +3,7 @@ import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
-import { CI_BROWSER_ARGS, SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';
+import { CI_BROWSER_ARGS } from '../Config/TestTimingConfig.js';
 
 /**
  * Playwright internal teardown error: `_Page.addPageError` (in
@@ -75,7 +75,7 @@ function installPlaywrightAddPageErrorFilter(): boolean {
 
 installPlaywrightAddPageErrorFilter();
 
-export { SCRAPE_TIMEOUT };
+export { SCRAPE_TIMEOUT } from '../Config/TestTimingConfig.js';
 export const isCiEnvironment = !!process.env.CI;
 export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
 
