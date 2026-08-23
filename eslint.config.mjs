@@ -2558,10 +2558,12 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/EslintCanaries/**',
       // …except the one canary that exists to certify THIS block. The
       // directory-wide ignore above means no canary can normally resolve
-      // through §19.0, so the strict 10/10 baseline — the declaration that
-      // actually governs every production file — would have no canary
-      // coverage at all. Un-ignoring this single file lets it resolve
-      // exactly as production does, so relaxing §19.0 silences it.
+      // through §19.0, so the strict 10/10 baseline — the last-wins
+      // declaration for the 65 `Mediator/Scrape` production files, and
+      // the default that the §19.1-§19.3 grandfathers override elsewhere
+      // — would have no canary coverage at all. Un-ignoring this single
+      // file lets it resolve exactly as those 65 do, so relaxing §19.0
+      // silences it.
       '!src/Scrapers/Pipeline/EslintCanaries/scrape-cluster-fn-over-cap.canary.ts',
       'src/Scrapers/Registry/**',
     ],

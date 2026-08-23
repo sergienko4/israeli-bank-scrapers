@@ -63,11 +63,12 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     // The §6 label is the config section, not the whole Pipeline tree: the
-    // 787 files under `src/Scrapers/Pipeline` span eight cap regimes, and
-    // this row measures only the `Phases/**` one that its representative
-    // sits in (15 per function, granted by the §19.3 grandfather rather
-    // than the canonical 10). The other seven regimes are covered by the
-    // per-file sweep in `lint:guideline-coverage`, not by this row.
+    // 787 production TypeScript files under `src/Scrapers/Pipeline` (863
+    // total, less the 76 canaries) span eight cap regimes, and this row
+    // measures only the `Phases/**` one that its representative sits in
+    // (15 per function, granted by the §19.3 grandfather rather than the
+    // canonical 10). The other seven regimes are covered by the per-file
+    // sweep in `lint:guideline-coverage`, not by this row.
     clusterName: 'Pipeline Phases regime (§6)',
     representativeFile: 'src/Scrapers/Pipeline/Phases/AccountResolve/AccountResolvePhase.ts',
     expectations: [
