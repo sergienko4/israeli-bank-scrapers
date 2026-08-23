@@ -102,15 +102,43 @@ describe('BeinleumiShape accounts', () => {
     const body = { accounts: [{ selected: true }] };
     const secondary = { accountType: [{ accountType: 105 }] };
     const args = accountsArgs(body, secondary);
-    expect(() => extractAccounts(args)).toThrow(/missing its account number/);
+    expect(() => extractAccounts(args)).toThrow(/no wire-usable account number/);
   });
 
-  it('extractAccounts defaults a missing branch to an empty string', () => {
+  it('extractAccounts rejects a userData row carrying no branch', () => {
     const body = { accounts: [{ account: '555001', selected: true }] };
     const secondary = { accountType: [{ accountType: 105 }] };
     const args = accountsArgs(body, secondary);
+    expect(() => extractAccounts(args)).toThrow(/missing its branch code/);
+  });
+
+  it('extractAccounts keeps a leading-zero branch as a string', () => {
+    const body = { accounts: [{ account: '555001', branch: '099', selected: true }] };
+    const secondary = { accountType: [{ accountType: 105 }] };
+    const args = accountsArgs(body, secondary);
     const accounts = extractAccounts(args);
-    expect(accounts).toEqual([{ accountNumber: '555001', branch: '', accountType: 105 }]);
+    expect(accounts).toEqual([{ accountNumber: '555001', branch: '099', accountType: 105 }]);
+  });
+
+  it.each([
+    ['whitespace-only', '   '],
+    ['non-numeric', 'abc'],
+    ['empty', ''],
+  ])('extractAccounts rejects a %s account number', (_label, account) => {
+    const body = { accounts: [{ account, branch: '770', selected: true }] };
+    const secondary = { accountType: [{ accountType: 105 }] };
+    const args = accountsArgs(body, secondary);
+    expect(() => extractAccounts(args)).toThrow(/no wire-usable account number/);
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negative', -105],
+    ['fractional', 10.5],
+  ])('extractAccounts rejects a %s accountType', (_label, accountType) => {
+    const body = { accounts: [{ account: '555001', branch: '770', selected: true }] };
+    const args = accountsArgs(body, { accountType: [{ accountType }] });
+    expect(() => extractAccounts(args)).toThrow(/no usable type code/);
   });
 
   it('accountNumberOf returns the display account number', () => {

@@ -49,20 +49,21 @@ interface IAccountTypeResp {
 /**
  * Rejection messages for unusable identity fields.
  *
- * <p>Both fields are load-bearing on the wire: `accountType` is a path
- * segment of the balances URL and a transactions body field, and
- * `accountNumber` is coerced with `Number()` into the transactions body.
- * Defaulting them to `0` / `''` produced a *well-formed* request for a
- * non-existent account, so a degraded identity response surfaced as an
- * empty scrape that was indistinguishable from a genuinely empty account.
- * Since the FIBI group factory serves four brands, that failure mode is
- * now shared. Rejecting here turns a silent mis-scrape into a loud stop.
+ * <p>All three fields identify the account on the wire: `accountType` is a
+ * path segment of the balances URL and a transactions body field, `branch`
+ * is a transactions body field, and `accountNumber` is `Number()`-coerced
+ * into that same body. Defaulting any of them produced a *well-formed*
+ * request aimed at a non-existent account, so a degraded identity response
+ * surfaced as an empty scrape indistinguishable from a genuinely empty
+ * account. Since the FIBI group factory serves four brands, that failure
+ * mode is shared. Rejecting turns a silent mis-scrape into a loud stop.
  *
  * <p>Messages name the field only, never its value — see
  * `logging-pii-guidlines.md`.
  */
 const NO_ACCOUNT_TYPE = 'FIBI accountType lookup returned no usable type code';
-const NO_ACCOUNT_NUMBER = 'FIBI userData row is missing its account number';
+const NO_ACCOUNT_NUMBER = 'FIBI userData row has no wire-usable account number';
+const NO_BRANCH = 'FIBI userData row is missing its branch code';
 
 /**
  * Sentinel for "the accountType lookup did not run". Deliberately empty so
@@ -71,15 +72,53 @@ const NO_ACCOUNT_NUMBER = 'FIBI userData row is missing its account number';
 const EMPTY_SECONDARY: ApiBody = Object.freeze({});
 
 /**
+ * Guard for a positive identity code.
+ *
+ * <p>`0` is rejected on purpose: it is the exact value this module used to
+ * invent as a default, so accepting a bank-sent `0` would rebuild the same
+ * wrong request the rejection exists to prevent.
+ * @param value - Candidate code.
+ * @returns True when the value is a positive safe integer.
+ */
+function isPositiveInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+/**
+ * Guard for a string carrying non-whitespace content.
+ * @param value - Candidate string.
+ * @returns True when the value is a non-blank string.
+ */
+function isFilledText(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+/**
+ * Guard for an account number that survives the wire coercion.
+ *
+ * <p>The transactions body sends `Number(accountNumber)`, and both `''` and
+ * a whitespace-only string coerce to `0` while a non-numeric string coerces
+ * to `NaN`. A blank-check alone therefore still let a wrong account through,
+ * so the coerced value is what gets validated.
+ * @param value - Candidate account number.
+ * @returns True when the value coerces to a positive integer.
+ */
+function isWireNumber(value: unknown): value is string {
+  if (!isFilledText(value)) return false;
+  const numeric = Number(value);
+  return isPositiveInt(numeric);
+}
+
+/**
  * Session-level account type (`accountType[0].accountType`).
  * @param secondary - accountType-lookup response body.
  * @returns Numeric account type code.
- * @throws ScraperError when the lookup yielded no usable numeric code.
+ * @throws ScraperError when the lookup yielded no usable positive code.
  */
 function typeOf(secondary: ApiBody): number {
   const resp = secondary as unknown as IAccountTypeResp;
   const code = resp.accountType?.[0]?.accountType;
-  if (typeof code !== 'number' || !Number.isFinite(code)) throw new ScraperError(NO_ACCOUNT_TYPE);
+  if (!isPositiveInt(code)) throw new ScraperError(NO_ACCOUNT_TYPE);
   return code;
 }
 
@@ -97,21 +136,22 @@ function chooseAccounts(rows: readonly IRawAccount[]): readonly IRawAccount[] {
 /**
  * Build one account reference from a raw row + session account type.
  *
- * <p>`branch` keeps its empty-string default deliberately. The review
- * finding named `accountType` and `accountNumber`, and only those two
- * redirect a request at the wrong account; there is no captured evidence
- * that `branch` is ever absent, so rejecting on it would risk failing a
- * live payload to guard a case that may not exist.
+ * <p>`branch` is rejected when absent rather than defaulted. Every captured
+ * FIBI transactions request carries a concrete zero-padded branch (e.g.
+ * `"099"`), and no captured `userData` row omits one, so requiring it
+ * cannot fail a payload the bank actually sends — while an empty branch
+ * would ride along in the transactions body and address the wrong account.
+ * The value stays a string so leading zeros survive.
  * @param row - Raw userData account.
  * @param accountType - Session-level numeric type code.
  * @returns FIBI account reference.
- * @throws ScraperError when the row carries no usable account number.
+ * @throws ScraperError when the row carries no usable account number or branch.
  */
 function toAcct(row: IRawAccount, accountType: number): IFibiAcct {
-  const accountNumber = row.account;
-  const isUsable = typeof accountNumber === 'string' && accountNumber !== '';
-  if (!isUsable) throw new ScraperError(NO_ACCOUNT_NUMBER);
-  return { accountNumber, branch: row.branch ?? '', accountType };
+  const { account, branch } = row;
+  if (!isWireNumber(account)) throw new ScraperError(NO_ACCOUNT_NUMBER);
+  if (!isFilledText(branch)) throw new ScraperError(NO_BRANCH);
+  return { accountNumber: account, branch, accountType };
 }
 
 /**

@@ -151,16 +151,24 @@ describe.each(SIBLINGS)('$name FIBI-sibling shape', bank => {
       { accounts: [{ selected: true }] },
       { accountType: [{ accountType: 105 }] },
     );
-    expect(() => bank.mod.extractAccounts(args)).toThrow(/missing its account number/);
+    expect(() => bank.mod.extractAccounts(args)).toThrow(/no wire-usable account number/);
   });
 
-  it('extractAccounts defaults a missing branch to an empty string', () => {
+  it('extractAccounts rejects a userData row carrying no branch', () => {
     const args = accountsArgs(
       { accounts: [{ account: '555001', selected: true }] },
       { accountType: [{ accountType: 105 }] },
     );
+    expect(() => bank.mod.extractAccounts(args)).toThrow(/missing its branch code/);
+  });
+
+  it('extractAccounts keeps a leading-zero branch as a string', () => {
+    const args = accountsArgs(
+      { accounts: [{ account: '555001', branch: '099', selected: true }] },
+      { accountType: [{ accountType: 105 }] },
+    );
     const accounts = bank.mod.extractAccounts(args);
-    expect(accounts).toEqual([{ accountNumber: '555001', branch: '', accountType: 105 }]);
+    expect(accounts).toEqual([{ accountNumber: '555001', branch: '099', accountType: 105 }]);
   });
 
   it('balanceExtract prefers currentBalance, then withdrawable, then 0', () => {

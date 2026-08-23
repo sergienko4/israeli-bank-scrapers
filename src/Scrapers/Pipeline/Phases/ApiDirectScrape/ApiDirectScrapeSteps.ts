@@ -5,6 +5,7 @@
  * paginated transactions. Zero bank-name coupling.
  */
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type {
   ICoverageResult,
   OwnsRow,
@@ -16,8 +17,9 @@ import {
 import { auditDeclaredRows } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../Types/Brand.js';
+import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk, succeed } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
 import {
   buildBalanceDispatchArgs,
@@ -51,6 +53,36 @@ async function fetchSecondaryBody<TAcct, TCursor>(
 }
 
 /**
+ * Run a shape's `extractAccounts` and convert a throw into a typed failure.
+ *
+ * <p>Shapes reject an unusable account identity by throwing (see the FIBI
+ * group factory). An escaping exception would bypass
+ * `runScrapeWithRecovery`, so a warm session serving a degraded identity
+ * body would abort the scrape instead of re-logging in and retrying. A
+ * failed `Procedure` is what `isScrapeSuspicious` reads, so converting here
+ * keeps the documented recover-once path reachable and honours the
+ * Result-Pattern contract every other step in this module follows.
+ * @param d - Driver context.
+ * @param body - Primary customer-fetch body.
+ * @param secondaryBody - Secondary identity body.
+ * @returns Account refs procedure.
+ */
+function runExtract<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  body: ApiBody,
+  secondaryBody: ApiBody,
+): Procedure<readonly TAcct[]> {
+  const sessionContext = d.bus.getSessionContext();
+  try {
+    const accts = d.shape.customer.extractAccounts({ body, secondaryBody, sessionContext });
+    return succeed(accts);
+  } catch (error) {
+    const message = toErrorMessage(error as Error);
+    return fail(ScraperErrorTypes.Generic, `extractAccounts threw: ${message}`);
+  }
+}
+
+/**
  * Run `extractAccounts` against a primary body plus the optional
  * secondary-identity body and the post-login session-context.
  * @param d - Driver context.
@@ -63,10 +95,7 @@ async function extractAccts<TAcct, TCursor>(
 ): Promise<Procedure<readonly TAcct[]>> {
   const secondary = await fetchSecondaryBody(d);
   if (!isOk(secondary)) return secondary;
-  const sessionContext = d.bus.getSessionContext();
-  const args = { body, secondaryBody: secondary.value, sessionContext };
-  const accts = d.shape.customer.extractAccounts(args);
-  return succeed(accts);
+  return runExtract(d, body, secondary.value);
 }
 
 /**
