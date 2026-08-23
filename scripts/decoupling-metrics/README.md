@@ -96,8 +96,13 @@ Both snapshots are gitignored, so this leaves the committed baseline untouched.
 
 The ESLint figure counts **distinct rule names**, not declaration lines, so
 re-scoping a rule cannot register as deleting one. It answers "did a rule leave
-the config?" only; whether each cluster's caps are still strict enough is
-asserted directly by `lint:guideline-coverage` and pinned by the canaries.
+the config?" only. Whether each cluster's caps are still strict enough is
+asserted directly by `lint:guideline-coverage`, which resolves the effective
+config per cluster and fails by name when a cap goes missing or laxer — that is
+what catches a deleted *scoped* declaration, which this count cannot see. That
+gate checks four numeric caps against seven representative files, so a scoped
+`no-restricted-syntax` or `max-statements` declaration is outside the reach of
+both measures; removing one needs review to catch.
 
 The `lib/index.cjs` hash detects whether the **built bundle** changed. It is an
 implementation-bundle hash, not a declaration-level API diff: a purely internal

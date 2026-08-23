@@ -32,13 +32,16 @@ interface IClusterExpectations {
   readonly representativeFile: string;
   readonly expectations: readonly IRuleExpectation[];
   /**
-   * Phase 8.5c / Commit C5 — clusters not yet drained to the canonical
-   * ≤10-LoC cap. When true the gate REPORTS the cluster's resolved
-   * state in the status table but does NOT fail on missing/relaxed
-   * rules. Source-of-truth for the deferral is the per-section
-   * "STATUS" column of the CLEAN_CODE.md per-cluster table.
+   * Rules this cluster does not yet satisfy, named individually.
+   *
+   * Deferring a whole cluster surrenders every OTHER rule in it: a cluster
+   * held back for one un-drained cap stops being checked for file size,
+   * complexity and parameter count too, so a scoped declaration can be
+   * deleted there unnoticed. Naming the exception keeps the rest enforced.
+   * Source-of-truth for a deferral is the per-section "STATUS" column of
+   * the CLEAN_CODE.md per-cluster table.
    */
-  readonly pendingPhase2?: boolean;
+  readonly deferredRules?: readonly string[];
 }
 
 /** A single per-rule cap that must hold for the cluster's resolved config. */
@@ -59,7 +62,8 @@ interface ICoverageFailure {
 interface IClusterStatusRow {
   readonly cluster: string;
   readonly file: string;
-  readonly status: 'enforced' | 'pending-phase-2';
+  readonly status: 'enforced' | 'partial';
+  readonly deferred: readonly string[];
 }
 
 /** Sentinel for "no failure" — production code bans null/undefined returns. */
@@ -68,14 +72,13 @@ type FailureReason = string;
 
 /**
  * Canonical caps from CLEAN_CODE.md (the single source of truth).
- * Phase 8.5c / Commit C5 — table extended from 5 to 7 clusters:
- *   • §3 Main Source Strict + §6 Pipeline Logic are marked
- *     `pendingPhase2: true`; the gate REPORTS their resolved state
- *     without failing (these clusters still hold legacy ≥15-LoC
- *     functions whose surgical extraction is deferred to a future
- *     phase — see CLEAN_CODE.md per-cluster footnote).
  *   • Every drained cluster (§11/§12/§12B/§13/§14) holds the
  *     canonical ≤10 LoC per function HARD CAP (post Phase 8.5a/b/c).
+ *   • §3 Main Source Strict still resolves `max-lines` to 300, so that
+ *     ONE rule is deferred by name; its other three caps are enforced.
+ *   • §6 Pipeline Logic already resolves every cap it declares, so it
+ *     is enforced outright. That is what makes deleting a per-cluster
+ *     declaration fail this gate rather than pass unnoticed.
  * Per-cluster overrides are allowed to be STRICTER but never laxer.
  */
 const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
@@ -88,7 +91,7 @@ const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],
-    pendingPhase2: true,
+    deferredRules: ['max-lines'],
   },
   {
     clusterName: 'Pipeline Logic (§6)',
@@ -99,7 +102,6 @@ const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],
-    pendingPhase2: true,
   },
   {
     clusterName: 'PiiRedactor (§13)',
@@ -217,31 +219,48 @@ async function resolveRulesForFile(eslint: ESLint, file: string): Promise<Record
 }
 
 /**
+ * Audit ONE expectation against a cluster's resolved config.
+ * @param resolved - Effective rules for the cluster's representative file.
+ * @param cluster - Cluster the expectation belongs to.
+ * @param expectation - Single rule cap being checked.
+ * @returns One failure record, or nothing when the cap holds.
+ */
+function failuresFor(
+  resolved: Record<string, unknown>,
+  cluster: IClusterExpectations,
+  expectation: IRuleExpectation,
+): readonly ICoverageFailure[] {
+  const reason = checkExpectation(resolved, expectation);
+  if (reason === NO_FAILURE) return [];
+  const failure: ICoverageFailure = {
+    cluster: cluster.clusterName,
+    file: cluster.representativeFile,
+    ruleId: expectation.ruleId,
+    reason,
+  };
+  return [failure];
+}
+
+/**
  * Audit ONE Pipeline cluster against its expectation list.
- * Phase 8.5c / C5 — clusters marked `pendingPhase2: true` short-circuit
- * to zero failures (the gate STILL resolves their config and emits a
- * status row in `printReport`, but never blocks pre-commit on the
- * relaxation).
+ *
+ * Only the rules named in `deferredRules` are skipped. Every other cap in
+ * the cluster is enforced, so removing a scoped declaration lowers the
+ * resolved cap and fails here.
  * @param eslint - ESLint instance loading `eslint.config.mjs`.
  * @param cluster - Cluster definition (name + representative file + caps).
- * @returns Failure records (empty when all expectations hold).
+ * @returns Failure records (empty when all enforced expectations hold).
  */
 async function auditCluster(
   eslint: ESLint,
   cluster: IClusterExpectations,
 ): Promise<readonly ICoverageFailure[]> {
-  if (cluster.pendingPhase2 === true) return [];
   const resolved = await resolveRulesForFile(eslint, cluster.representativeFile);
+  const deferred = cluster.deferredRules ?? [];
   return cluster.expectations.flatMap((expectation): readonly ICoverageFailure[] => {
-    const reason = checkExpectation(resolved, expectation);
-    if (reason === NO_FAILURE) return [];
-    const failure: ICoverageFailure = {
-      cluster: cluster.clusterName,
-      file: cluster.representativeFile,
-      ruleId: expectation.ruleId,
-      reason,
-    };
-    return [failure];
+    const isDeferred = deferred.includes(expectation.ruleId);
+    if (isDeferred) return [];
+    return failuresFor(resolved, cluster, expectation);
   });
 }
 
@@ -251,11 +270,25 @@ async function auditCluster(
  * @returns Single status row with cluster name + representative file + state.
  */
 function buildStatusRow(cluster: IClusterExpectations): IClusterStatusRow {
+  const deferred = cluster.deferredRules ?? [];
+  const status: IClusterStatusRow['status'] = deferred.length === 0 ? 'enforced' : 'partial';
   return {
     cluster: cluster.clusterName,
     file: cluster.representativeFile,
-    status: cluster.pendingPhase2 === true ? 'pending-phase-2' : 'enforced',
+    status,
+    deferred,
   };
+}
+
+/**
+ * Render a status cell, naming any rules the cluster still defers.
+ * @param row - Status row being rendered.
+ * @returns Cell text for the Status column.
+ */
+function statusCell(row: IClusterStatusRow): string {
+  if (row.deferred.length === 0) return row.status;
+  const names = row.deferred.join(', ');
+  return `${row.status} — ${names} deferred`;
 }
 
 /**
@@ -269,7 +302,8 @@ function printStatusTable(rows: readonly IClusterStatusRow[]): number {
   process.stdout.write('\n| Cluster | Representative file | Status |\n');
   process.stdout.write('|---------|---------------------|--------|\n');
   for (const r of rows) {
-    process.stdout.write(`| ${r.cluster} | ${r.file} | ${r.status} |\n`);
+    const cell = statusCell(r);
+    process.stdout.write(`| ${r.cluster} | ${r.file} | ${cell} |\n`);
   }
   process.stdout.write('\n');
   return rows.length;

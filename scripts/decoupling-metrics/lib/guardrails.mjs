@@ -38,13 +38,19 @@ function countCanaries(root) {
  * The trade-off is deliberate. This config declares some rules many times with
  * different per-cluster options (`max-lines`, `max-lines-per-function`), and a
  * name-based count no longer notices one of those scoped declarations being
- * deleted. That case is not left unguarded: `lint:guideline-coverage` resolves
- * the effective config for a representative file in every cluster and fails if
- * a cap is missing or laxer than CLEAN_CODE.md, and each numeric rule is
- * additionally pinned by a canary. Those gates judge enforced strictness
- * directly, which a line count only ever approximated. What stays with this
- * ratchet is the coarse question it answers well: did a rule disappear from
- * the config altogether?
+ * deleted. `lint:guideline-coverage` covers the important half of that gap: it
+ * resolves the effective config for a representative file in each of the seven
+ * clusters and fails when any of the four numeric caps is missing or laxer than
+ * CLEAN_CODE.md. Deleting a scoped declaration lowers the resolved cap, so that
+ * gate names the rule and the cluster and exits non-zero.
+ *
+ * It is not a complete substitute, and the residue is worth stating plainly:
+ * that gate checks four numeric rules against seven representative files, so a
+ * scoped `no-restricted-syntax` or `max-statements` declaration can still be
+ * removed without either measure noticing. Telling "consolidated, so scope
+ * widened" apart from "deleted, so scope shrank" needs glob resolution, which
+ * no text count can do. What stays with this ratchet is the coarse question it
+ * answers reliably: did a rule disappear from the config altogether?
  */
 function countEslintRules(root) {
   const cfg = join(root, 'eslint.config.mjs');

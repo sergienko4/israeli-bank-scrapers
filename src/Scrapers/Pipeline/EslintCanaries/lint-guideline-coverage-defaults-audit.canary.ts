@@ -3,7 +3,8 @@
 //
 // Commit C5 extended `src/Tests/Tools/lint-guideline-coverage.ts`
 // from 5 to 7 cluster expectations (added §3 Main Source Strict
-// + §6 Pipeline Logic, both flagged `pendingPhase2: true`). The
+// + §6 Pipeline Logic). Deferrals are now named per rule: §3 defers
+// only `max-lines`, and §6 is enforced outright. The
 // tool drives `ESLint.calculateConfigForFile` against a
 // representative file per cluster and asserts the resolved rule
 // set matches the canonical CLEAN_CODE.md caps.
