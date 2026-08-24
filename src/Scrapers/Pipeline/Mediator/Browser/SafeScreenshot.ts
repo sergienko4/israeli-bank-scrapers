@@ -1,6 +1,6 @@
 import type { Page } from 'playwright-core';
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 
 const LOG = getDebug(import.meta.url);
 

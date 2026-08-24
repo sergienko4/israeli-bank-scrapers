@@ -6,8 +6,8 @@
  */
 
 import type { ITransactionsAccount } from '../../../../../Transactions.js';
+import { getDebug as createLogger } from '../../../Logging/Debug.js';
 import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
-import { getDebug as createLogger } from '../../../Types/Debug.js';
 import { redactAccount } from '../../../Types/PiiRedactor.js';
 import type { ITxnEndpoint } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';

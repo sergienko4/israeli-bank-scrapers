@@ -8,8 +8,8 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';

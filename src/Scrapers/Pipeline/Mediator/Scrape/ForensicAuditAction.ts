@@ -3,7 +3,7 @@
  * Phase 23: Lifecycle separation.
  */
 
-import { getDebug as createLogger } from '../../Types/Debug.js';
+import { getDebug as createLogger } from '../../Logging/Debug.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import { redactAccount, redactAmount, redactMerchant } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';

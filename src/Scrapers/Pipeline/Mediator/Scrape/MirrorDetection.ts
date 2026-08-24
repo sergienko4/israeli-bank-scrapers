@@ -4,7 +4,7 @@
  * (same dates, amounts, descriptions) across different card IDs.
  */
 
-import { getDebug as createLogger } from '../../Types/Debug.js';
+import { getDebug as createLogger } from '../../Logging/Debug.js';
 
 const LOG = createLogger('scrape-phase');
 

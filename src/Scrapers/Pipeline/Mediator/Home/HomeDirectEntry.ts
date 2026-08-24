@@ -27,8 +27,8 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_HOME } from '../../Registry/WK/HomeWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type {
   IElementIdentity,

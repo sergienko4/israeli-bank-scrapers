@@ -5,11 +5,11 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { getDebug as createLogger } from '../../../Logging/Debug.js';
 import type { INetworkDiscovery } from '../../../Mediator/Network/NetworkDiscovery.js';
 import { findFieldValue, matchField } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
-import { getDebug as createLogger } from '../../../Types/Debug.js';
 import type { IAccountIdentity, IFieldMatch } from '../../../Types/FieldMatch.js';
 import { buildFallbackMatch } from '../../../Types/FieldMatch.js';
 import type { JsonValue } from '../../../Types/JsonValue.js';

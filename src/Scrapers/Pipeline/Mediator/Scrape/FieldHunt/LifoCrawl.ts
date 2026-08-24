@@ -8,7 +8,7 @@
  * pipeline-decoupling-master-2026-05-28 / phase-5).
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { type ApiRecord, type UntypedValue } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { flattenObjectTree } from '../BfsFieldSearch/BfsFieldSearch.js';
 import { MIN_TXN_SCORE, scoreTxnSignature } from '../BfsFieldSearch/TxnSignature.js';

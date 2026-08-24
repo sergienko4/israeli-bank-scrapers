@@ -4,7 +4,7 @@
  * under the per-file LoC cap (phase-2e-residue).
  */
 
-import type { ScraperLogger } from '../../Types/Debug.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import type { IActionMediator } from '../Elements/ElementMediator.js';

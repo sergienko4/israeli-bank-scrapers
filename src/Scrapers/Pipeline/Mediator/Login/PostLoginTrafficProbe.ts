@@ -4,8 +4,8 @@
  * Uses WK patterns via mediator — zero hardcoded patterns in Phase code.
  */
 
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';

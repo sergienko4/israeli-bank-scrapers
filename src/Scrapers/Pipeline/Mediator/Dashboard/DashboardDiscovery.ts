@@ -6,9 +6,9 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint, INetworkDiscovery } from '../Network/NetworkDiscovery.js';
 import { hasTxnArray } from '../Scrape/TxnShape.js';

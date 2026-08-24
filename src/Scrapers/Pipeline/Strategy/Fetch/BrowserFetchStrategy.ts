@@ -11,6 +11,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { getDebug } from '../../Logging/Debug.js';
 import {
   fetchGetWithinPage,
   fetchGetWithinPageWithHeaders,
@@ -18,7 +19,6 @@ import {
 } from '../../Mediator/Network/Fetch/index.js';
 import { TimeoutError } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand } from '../../Types/Brand.js';
-import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';

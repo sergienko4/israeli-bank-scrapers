@@ -3,9 +3,9 @@
  * Extracted from DashboardNavigation.ts to respect max-lines.
  */
 
+import { getDebug } from '../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from '../../Strategy/Fetch/FetchStrategy.js';
-import { getDebug } from '../../Types/Debug.js';
 import { redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { IApiFetchContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

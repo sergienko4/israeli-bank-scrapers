@@ -3,7 +3,7 @@
  * field, AES body-pointer signing, fire-args assembly, log-context.
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';

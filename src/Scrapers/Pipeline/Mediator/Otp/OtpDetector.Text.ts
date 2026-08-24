@@ -5,7 +5,7 @@
 
 import { type Frame, type Page } from 'playwright-core';
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { tryInContext } from '../Selector/SelectorResolver.js';
 import { OTP_INPUT_CANDIDATES, OTP_TEXT_PATTERNS, PHONE_PATTERN } from './OtpDetectorConfig.js';
 

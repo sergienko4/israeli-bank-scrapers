@@ -10,7 +10,7 @@
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

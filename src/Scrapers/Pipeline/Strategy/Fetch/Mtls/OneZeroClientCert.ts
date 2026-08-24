@@ -34,7 +34,7 @@ import { readFileSync } from 'node:fs';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';

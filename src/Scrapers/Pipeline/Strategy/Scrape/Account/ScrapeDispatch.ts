@@ -7,8 +7,8 @@ import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import type { ITransactionsAccount } from '../../../../../Transactions.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import type { Brand } from '../../../Types/Brand.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { redactErrorMessage } from '../../../Types/PiiRedactor.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk } from '../../../Types/Procedure.js';

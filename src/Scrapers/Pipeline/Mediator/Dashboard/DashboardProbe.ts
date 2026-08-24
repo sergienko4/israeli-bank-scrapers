@@ -5,8 +5,8 @@
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';

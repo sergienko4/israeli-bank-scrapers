@@ -4,7 +4,7 @@
  * per-file LoC cap is honoured (phase-2e-residue split).
  */
 
-import { getDebug as createLogger } from '../../Types/Debug.js';
+import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { some } from '../../Types/Option.js';
 import type { IBalanceExtracted, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

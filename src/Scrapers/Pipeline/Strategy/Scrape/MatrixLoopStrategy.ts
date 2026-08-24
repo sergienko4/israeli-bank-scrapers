@@ -13,6 +13,7 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import {
   buildMonthBody,
@@ -20,7 +21,6 @@ import {
   isMonthlyEndpoint,
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
-import { getDebug } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IBillingCycle } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';

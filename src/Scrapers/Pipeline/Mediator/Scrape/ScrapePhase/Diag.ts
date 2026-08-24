@@ -6,7 +6,7 @@
  * from ScrapePhaseActions.ts in Phase 8.5b C4 (split for §12 cap).
  */
 
-import { getDebug as createLogger } from '../../../Types/Debug.js';
+import { getDebug as createLogger } from '../../../Logging/Debug.js';
 import { some } from '../../../Types/Option.js';
 import type { IPipelineContext } from '../../../Types/PipelineContext.js';
 import { type Procedure, succeed } from '../../../Types/Procedure.js';

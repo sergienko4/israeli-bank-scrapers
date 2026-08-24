@@ -7,7 +7,7 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { tryInContext } from '../Selector/SelectorResolver.js';
 import tryClickTextInContexts from './OtpDetector.ClickText.js';
 import runSequential from './OtpDetector.Sequential.js';

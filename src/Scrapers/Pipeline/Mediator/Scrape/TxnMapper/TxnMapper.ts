@@ -12,8 +12,8 @@
 
 import type { ITransaction } from '../../../../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../../../../Transactions.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
-import { getDebug } from '../../../Types/Debug.js';
 import {
   type ApiRecord,
   DEFAULT_CURRENCY,

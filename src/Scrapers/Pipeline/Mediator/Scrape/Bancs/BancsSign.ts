@@ -10,7 +10,7 @@
  * (matches the library's `resolveAmount` credit−debit convention).
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { readDateIso, readMagnitude, readRunningBalance, readTypeCode } from './BancsFields.js';
 

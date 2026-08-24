@@ -4,8 +4,8 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
+import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
-import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';

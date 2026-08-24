@@ -8,10 +8,10 @@
  * Best-effort: never fails the pipeline. Popup absence is valid.
  */
 
+import type { ScraperLogger } from '../Logging/Debug.js';
 import type { IElementMediator } from '../Mediator/Elements/ElementMediator.js';
 import { dismissPopups } from '../Mediator/Elements/PopupDismiss.js';
 import type { Brand } from '../Types/Brand.js';
-import type { ScraperLogger } from '../Types/Debug.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { Procedure } from '../Types/Procedure.js';

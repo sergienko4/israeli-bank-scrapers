@@ -3,8 +3,8 @@
  */
 
 import type { ScraperCredentials } from '../../Base/Interface.js';
+import { getDebug as createLogger } from '../Logging/Debug.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
-import { getDebug as createLogger } from '../Types/Debug.js';
 import { none } from '../Types/Option.js';
 import type { IDiagnosticsState, IPipelineContext } from '../Types/PipelineContext.js';
 import { resolveHeadlessApiMediator } from './HeadlessMediatorWiring.js';

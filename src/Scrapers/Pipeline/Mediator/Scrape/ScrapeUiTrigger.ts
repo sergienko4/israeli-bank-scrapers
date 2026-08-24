@@ -6,9 +6,9 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';

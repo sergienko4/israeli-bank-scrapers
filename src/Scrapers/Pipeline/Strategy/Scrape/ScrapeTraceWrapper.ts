@@ -6,7 +6,7 @@
  */
 
 import type { ITransaction } from '../../../../Transactions.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 
 /** Trace outcome status. */
 type TraceOutcome = 'ok' | 'empty' | 'error';

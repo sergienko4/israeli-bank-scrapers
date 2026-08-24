@@ -551,7 +551,9 @@ default) it never runs and adds zero fingerprint surface.
 
 Every line described above is emitted through `getDebug()`, which lives in
 `src/Scrapers/Pipeline/Logging/Debug.ts`. The `AuthFailureWatcher` files
-import it from there directly; they previously reached it through the
+import `getDebug()` from there directly, and `NavigationDiagnostics.ts` and
+`EnvSnapshot.ts` take the `ScraperLogger` type from the same module. All of
+them previously reached it through the
 deprecated `Pipeline/Types/Debug.ts` re-export shim, which is being
 retired. Import-only change — logger names, levels, gating and the log
 envelopes above are all unchanged.

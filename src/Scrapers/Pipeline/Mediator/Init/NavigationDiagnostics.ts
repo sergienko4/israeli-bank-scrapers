@@ -20,7 +20,7 @@
 
 import type { Page, Request } from 'playwright-core';
 
-import type { ScraperLogger } from '../../Types/Debug.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { INavInFlightRequest } from './NavigationRequestLifecycle.js';

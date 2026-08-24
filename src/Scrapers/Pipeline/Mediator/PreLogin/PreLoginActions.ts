@@ -7,8 +7,8 @@
 import type { Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_PRELOGIN } from '../../Registry/WK/PreLoginWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';

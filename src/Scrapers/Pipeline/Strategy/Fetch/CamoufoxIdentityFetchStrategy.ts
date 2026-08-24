@@ -13,11 +13,11 @@ import type { Browser, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { LifecyclePromise, Nullable } from '../../../Base/Interfaces/CallbackTypes.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
 import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
-import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';

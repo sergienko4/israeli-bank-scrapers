@@ -3,8 +3,8 @@
  * Infrastructure concern — lives in Core/, not Types/.
  */
 
+import type { ScraperLogger } from '../Logging/Debug.js';
 import type { Brand } from '../Types/Brand.js';
-import type { ScraperLogger } from '../Types/Debug.js';
 
 /** Phase index tag string (e.g. '1/7') — branded for Rule #15. */
 type PhaseIndexTag = Brand<string, 'PhaseIndexTag'>;

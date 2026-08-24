@@ -6,8 +6,8 @@
 
 import type { Locator, Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_HOME } from '../../Registry/WK/HomeWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type {
   IActionMediator,

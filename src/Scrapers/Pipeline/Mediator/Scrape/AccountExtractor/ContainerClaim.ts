@@ -10,8 +10,8 @@
  * plan pipeline-decoupling-master-2026-05-28 / phase-5).
  */
 
+import { getDebug } from '../../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../../Registry/WK/ScrapeWK.js';
-import { getDebug } from '../../../Types/Debug.js';
 import type { ApiRecord, UntypedValue } from '../AutoMapperFacade/AutoMapperTypes.js';
 import {
   findFieldValue,

@@ -10,6 +10,7 @@
  * data.
  */
 
+import { getDebug as createLogger } from '../../Logging/Debug.js';
 import type { IElementMediator } from '../../Mediator/Elements/ElementMediator.js';
 import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.js';
 import {
@@ -17,7 +18,6 @@ import {
   readDedupKeyFields,
 } from '../../Mediator/Scrape/ScrapePhase/PreDiscovery.js';
 import type { Brand } from '../../Types/Brand.js';
-import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { redactUrlFull } from '../../Types/PiiRedactor.js';
 import type { IDashboardTxnHarvest, ITxnEndpoint } from '../../Types/PipelineContext.js';

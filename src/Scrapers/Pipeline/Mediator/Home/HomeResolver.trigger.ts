@@ -35,8 +35,8 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_HOME } from '../../Registry/WK/HomeWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import { HOME_RESOLVER_ENTRY_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 

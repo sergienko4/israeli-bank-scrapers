@@ -11,7 +11,7 @@
  */
 
 import type { ITransaction } from '../../../../../Transactions.js';
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { unwrapWcfEnvelope } from '../../Network/Indexing/ResponseEnvelope.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
 import normalizeBancsRecords from '../Bancs/BancsNormalizer.js';

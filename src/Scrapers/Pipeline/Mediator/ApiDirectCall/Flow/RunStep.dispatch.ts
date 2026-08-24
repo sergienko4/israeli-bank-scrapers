@@ -3,7 +3,7 @@
  * merge carry, and the top-level `runStep` entrypoint.
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';

@@ -45,7 +45,7 @@
 
 import type { Browser, Page } from 'playwright-core';
 
-import type { ScraperLogger } from '../../Types/Debug.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { isSome, none, type Option, some } from '../../Types/Option.js';
 import { readInitForensicsGate } from './InitForensicsGate.js';
 

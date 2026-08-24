@@ -5,9 +5,9 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { getDebug } from '../../Logging/Debug.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
-import { getDebug } from '../../Types/Debug.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';

@@ -6,7 +6,7 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { toXpathLiteral } from '../Selector/SelectorResolver.js';
 import runSequential from './OtpDetector.Sequential.js';
 import { OTP_FORCE_CLICK_TIMEOUT_MS } from './OtpDetectorConfig.js';
