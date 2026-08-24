@@ -748,6 +748,7 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
     'src/Common/ElementsInteractions.js',
     'Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
   ],
+  ['src/Scrapers/Pipeline/Types/BasePhase.js', 'Scrapers/Pipeline/Phases/Base/BasePhase.js'],
 ]);
 
 /**

@@ -4,7 +4,7 @@
  * Split off from BasePhase.test.ts to honor max-lines (300).
  */
 
-import { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {

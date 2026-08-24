@@ -7,7 +7,7 @@
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { sanitizationPulse } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineSanitizationPulse.js';
-import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import type { IPipelineInterceptor } from '../../../../Scrapers/Pipeline/Types/Interceptor.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';

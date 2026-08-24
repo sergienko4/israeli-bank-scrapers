@@ -15,10 +15,10 @@ import {
   executeTriggerPre,
 } from '../../Mediator/OtpTrigger/OtpTriggerPhaseActions.js';
 import { OTP_TRIGGER_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 /**
  * Compat step — use createOtpTriggerPhase() for new code.

@@ -3,11 +3,10 @@
  * Template Method emits at every stage boundary so structured log
  * consumers (Pino, pipeline diagnostics) can pivot on a single discriminator.
  *
- * <p>Extracted during Phase 12b from `Pipeline/Types/BasePhase.ts` along
- * with the other pure helpers in this folder. Public re-export through
- * {@link "../../Types/BasePhase.js"} keeps the v8.5 release-window shim
- * byte-identical so every external importer continues to work without
- * a path change.
+ * <p>Extracted during Phase 12b from the original monolithic phase
+ * module along with the other pure helpers in this folder. Re-exported
+ * through {@link "./BasePhase.js"} so callers reach it by the same
+ * path as the class itself.
  *
  * @see "./BasePhase.ts" — the Template Method that emits these tags.
  * @see "./HandoffHelpers.ts" — sibling helper file that consumes

@@ -19,7 +19,7 @@ import { jest } from '@jest/globals';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { reducePhases } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineReducer.js';
 import { failAuthDiscovery } from '../../../../Scrapers/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryTelemetry.js';
-import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';

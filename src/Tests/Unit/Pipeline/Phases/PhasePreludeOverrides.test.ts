@@ -24,12 +24,12 @@ import {
   OTP_FILL_PRELUDE_TIMEOUT_MS,
   OTP_TRIGGER_PRELUDE_TIMEOUT_MS,
 } from '../../../../Scrapers/Pipeline/Mediator/Timing/TimingConfig.js';
+import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { createDashboardPhase } from '../../../../Scrapers/Pipeline/Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../../../Scrapers/Pipeline/Phases/Home/HomePhase.js';
 import { createLoginPhaseFromConfig } from '../../../../Scrapers/Pipeline/Phases/Login/LoginPhase.js';
 import { createOtpFillPhase } from '../../../../Scrapers/Pipeline/Phases/OtpFill/OtpFillPhase.js';
 import { createOtpTriggerPhase } from '../../../../Scrapers/Pipeline/Phases/OtpTrigger/OtpTriggerPhase.js';
-import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
 
 const STUB_LOGIN_CONFIG = {} as unknown as ILoginConfig;
 

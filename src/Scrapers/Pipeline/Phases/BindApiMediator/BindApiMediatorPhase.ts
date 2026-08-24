@@ -14,10 +14,10 @@
  * bank coupling per Rule #11.
  */
 
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 import { bindBrowserPageMediator } from './BindApiMediatorActions.js';
 
 /** BIND-API-MEDIATOR phase - binds a browser-page mediator in PRE. */

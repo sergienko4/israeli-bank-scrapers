@@ -12,11 +12,11 @@ import {
   executeStampAccounts,
   executeValidateResults,
 } from '../../Mediator/Scrape/ScrapePhaseActions.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IPipelineStep } from '../../Types/Phase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 import { type ActionExecFn } from './ScrapeStepFactory.js';
 
 /**

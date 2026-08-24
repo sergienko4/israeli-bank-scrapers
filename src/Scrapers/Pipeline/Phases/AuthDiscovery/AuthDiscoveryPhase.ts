@@ -20,9 +20,9 @@ import {
   executeAuthDiscoveryPre,
   executeHardModelAuthDiscoveryFinal,
 } from '../../Mediator/AuthDiscovery/AuthDiscoveryActions.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 /** AUTH-DISCOVERY phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class AuthDiscoveryPhase extends BasePhase {

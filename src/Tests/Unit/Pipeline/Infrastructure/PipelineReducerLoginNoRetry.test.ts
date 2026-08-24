@@ -19,7 +19,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { reducePhases } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineReducer.js';
-import type { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { LOGIN_NOT_COMPLETED_CODE } from '../../../../Scrapers/Pipeline/Types/Domain/LoginTypes.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';

@@ -24,6 +24,7 @@
 import { createAccountResolvePhase } from '../../Phases/AccountResolve/AccountResolvePhase.js';
 import { createAuthDiscoveryPhase } from '../../Phases/AuthDiscovery/AuthDiscoveryPhase.js';
 import { createBalanceResolvePhase } from '../../Phases/BalanceResolve/BalanceResolvePhase.js';
+import type { BasePhase } from '../../Phases/Base/BasePhase.js';
 import { createBindApiMediatorPhase } from '../../Phases/BindApiMediator/BindApiMediatorPhase.js';
 import { createDashboardPhase } from '../../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../Phases/Home/HomePhase.js';
@@ -32,7 +33,6 @@ import { createOtpFillPhase } from '../../Phases/OtpFill/OtpFillPhase.js';
 import { createOtpTriggerPhase } from '../../Phases/OtpTrigger/OtpTriggerPhase.js';
 import { createPreLoginPhase } from '../../Phases/PreLogin/FindLoginAreaPhase.js';
 import { createTerminatePhase } from '../../Phases/Terminate/TerminatePhase.js';
-import type { BasePhase } from '../../Types/BasePhase.js';
 import { buildLoginPhase, buildScrapePhase, type IBuilderState } from './StepResolvers.js';
 
 /** Factory + predicate pair for a single phase slot in the chain. */

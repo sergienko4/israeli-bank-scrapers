@@ -14,7 +14,6 @@
  */
 
 import { logForensicAudit } from '../../Mediator/Scrape/ForensicAuditAction.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import { some } from '../../Types/Option.js';
 import type {
   IActionContext,
@@ -23,6 +22,7 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 import { buildGenericHeadlessScrape } from './ApiDirectScrapeActions.js';
 import type { ApiDirectScrapeFn } from './ApiDirectScrapeTypes.js';
 import type {

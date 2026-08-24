@@ -9,10 +9,9 @@
  * <p>Phase 12b sub-step 4/4 (2026-06): the class body now lives beside
  * its module-private helpers under `Pipeline/Phases/Base/` — the more
  * semantically correct home for a phase-runtime collaborator. The
- * legacy import path {@link "../../Types/BasePhase.js"} continues to
- * resolve via a 5-line shim that re-exports `BasePhase` (default +
- * named) and the `IsPrePayloadValid` brand so external callers stay
- * source-compatible across the v8.5 release window.
+ * legacy `Types` import path was retired in v8.6, making this module
+ * the single source for `BasePhase` (default + named) and the
+ * `IsPrePayloadValid` brand.
  */
 
 import type { Page } from 'playwright-core';

@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import { BasePhase } from '../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {

@@ -15,9 +15,9 @@ import {
 import type { IPreludeSpec } from '../../Mediator/Elements/PagePrelude.js';
 import { PRELUDE_NONE } from '../../Mediator/Elements/PagePrelude.js';
 import { DASHBOARD_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 export { probeDashboardReveal } from '../../Mediator/Dashboard/DashboardDiscovery.js';
 

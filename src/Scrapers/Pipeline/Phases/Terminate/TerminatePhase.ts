@@ -13,11 +13,11 @@ import {
   executeSignalDone,
   executeStartCleanup,
 } from '../../Mediator/Terminate/TerminateActions.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import { none } from '../../Types/Option.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 /**
  * Build sealed action context from full pipeline context for terminate.

@@ -13,10 +13,10 @@ import {
   executeSignalToLogin,
   executeValidateForm,
 } from '../../Mediator/PreLogin/PreLoginPhaseActions.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 /** PRE-LOGIN phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class PreLoginPhase extends BasePhase {

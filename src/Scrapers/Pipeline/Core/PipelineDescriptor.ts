@@ -4,7 +4,7 @@
  */
 
 import type { ScraperOptions } from '../../Base/Interface.js';
-import type { BasePhase } from '../Types/BasePhase.js';
+import type { BasePhase } from '../Phases/Base/BasePhase.js';
 import type { IPipelineInterceptor } from '../Types/Interceptor.js';
 import type { Procedure } from '../Types/Procedure.js';
 

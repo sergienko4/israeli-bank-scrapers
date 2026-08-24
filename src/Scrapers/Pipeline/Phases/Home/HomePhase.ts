@@ -17,10 +17,10 @@ import {
 import { resolveHomeWithRecovery, toRecoveryArgs } from '../../Mediator/Home/HomeCrashRecovery.js';
 import type { IHomeDiscovery } from '../../Mediator/Home/HomeResolver.js';
 import { HOME_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 /** HOME prelude spec — SPA-ready, single source for PRE + ACTION. */
 const HOME_PRELUDE_SPA: IPreludeSpec = { level: 'spa', timeoutMs: HOME_PRELUDE_TIMEOUT_MS };

@@ -12,7 +12,7 @@
 import type { IBuilderState } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineAssembly.js';
 import { assemblePhases } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineAssembly.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import type { BasePhase } from '../../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import type { BasePhase } from '../../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 
 /** Truthy shape stub — only `.resultGuard` is read at construction. */
 const SHAPE_STUB = {} as unknown as IApiDirectScrapeShape<unknown, unknown>;

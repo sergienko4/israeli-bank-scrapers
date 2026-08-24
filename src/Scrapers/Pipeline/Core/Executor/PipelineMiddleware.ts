@@ -4,8 +4,8 @@
  */
 
 import { createSnapshotInterceptor } from '../../Interceptors/SnapshotInterceptor.js';
+import type { BasePhase } from '../../Phases/Base/BasePhase.js';
 import { runAllCleanups } from '../../Phases/Terminate/TerminatePhase.js';
-import type { BasePhase } from '../../Types/BasePhase.js';
 import type { IPipelineInterceptor } from '../../Types/Interceptor.js';
 import type { PhaseName } from '../../Types/Phase.js';
 import type { IBrowserState, IPipelineContext } from '../../Types/PipelineContext.js';

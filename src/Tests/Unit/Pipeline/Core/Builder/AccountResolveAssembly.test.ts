@@ -9,7 +9,7 @@
 import type { IBuilderState } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineAssembly.js';
 import { assemblePhases } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineAssembly.js';
 import { resolveTraceBoundaryPhase } from '../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderHelpers.js';
-import type { BasePhase } from '../../../../../Scrapers/Pipeline/Types/BasePhase.js';
+import type { BasePhase } from '../../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 
 /**
  * Build a builder-state stub. Defaults model a non-OTP browser bank

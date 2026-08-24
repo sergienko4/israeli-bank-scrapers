@@ -4,7 +4,7 @@
  * Replaces the old `actionOnly()` pattern.
  */
 
-import { BasePhase } from './BasePhase.js';
+import { BasePhase } from '../Phases/Base/BasePhase.js';
 import type { PhaseName } from './Phase.js';
 import type { IActionContext } from './PipelineContext.js';
 import type { Procedure } from './Procedure.js';

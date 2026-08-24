@@ -14,10 +14,10 @@ import {
   runApiDirectCallPre,
 } from '../../Mediator/ApiDirectCall/ApiDirectCallActions.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 /** API-DIRECT-CALL phase — BasePhase bound to a config literal. */
 class ApiDirectCallPhase extends BasePhase {

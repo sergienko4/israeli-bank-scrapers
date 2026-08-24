@@ -20,9 +20,9 @@ import {
   executeAccountResolvePost,
   executeAccountResolvePre,
 } from '../../Mediator/AccountResolve/AccountResolveActions.js';
-import { BasePhase } from '../../Types/BasePhase.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import { BasePhase } from '../Base/BasePhase.js';
 
 /** ACCOUNT-RESOLVE phase — BasePhase with PRE/ACTION/POST/FINAL. */
 class AccountResolvePhase extends BasePhase {
