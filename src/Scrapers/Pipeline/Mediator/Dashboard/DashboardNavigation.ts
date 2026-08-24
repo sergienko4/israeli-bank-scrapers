@@ -13,7 +13,7 @@ import type { IElementMediator } from '../Elements/ElementMediator.js';
 import {
   DASHBOARD_DATE_FILTER_TIMEOUT_MS,
   DASHBOARD_ORGANIC_IDLE_MS,
-} from '../Timing/TimingConfig.js';
+} from '../Timing/DashboardTimingConfig.js';
 import { resolveAbsoluteHref } from './DashboardHref.js';
 import { extractTransactionHref } from './DashboardHrefExtraction.js';
 

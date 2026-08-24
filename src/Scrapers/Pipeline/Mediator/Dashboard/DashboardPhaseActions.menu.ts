@@ -16,7 +16,7 @@ import type {
   IResolvedTarget,
 } from '../../Types/PipelineContext.js';
 import type { IActionMediator, IElementMediator } from '../Elements/ElementMediator.js';
-import { DASHBOARD_MENU_SETTLE_MS } from '../Timing/TimingConfig.js';
+import { DASHBOARD_MENU_SETTLE_MS } from '../Timing/DashboardTimingConfig.js';
 import { buildApiContext } from './DashboardDiscovery.js';
 
 /** Should force-click for hidden menu toggles. */

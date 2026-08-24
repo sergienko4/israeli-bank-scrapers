@@ -14,7 +14,7 @@ import type { IActionContext, IResolvedTarget } from '../../Types/PipelineContex
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IActionMediator } from '../Elements/ElementMediator.js';
-import { DASHBOARD_POST_MATCH_TXN_WAIT_MS } from '../Timing/TimingConfig.js';
+import { DASHBOARD_POST_MATCH_TXN_WAIT_MS } from '../Timing/DashboardTimingConfig.js';
 
 /** Bundled args for the two-stage walker — fits 3-param ceiling. */
 interface IIterateArgs {

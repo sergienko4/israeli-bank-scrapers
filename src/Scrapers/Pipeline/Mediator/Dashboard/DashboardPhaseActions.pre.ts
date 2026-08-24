@@ -14,7 +14,7 @@ import type { IApiFetchContext, IPipelineContext } from '../../Types/PipelineCon
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { DASHBOARD_SETTLE_MS } from '../Timing/TimingConfig.js';
+import { DASHBOARD_SETTLE_MS } from '../Timing/DashboardTimingConfig.js';
 import { countTxnTraffic, NO_HREF, probeSuccessIndicators } from './DashboardDiscovery.js';
 import { buildApiIfAvailable, dumpDashboardText } from './DashboardPhaseActions.menu.js';
 import { buildPreSummary } from './DashboardPhaseActions.pre.log.js';

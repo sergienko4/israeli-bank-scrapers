@@ -13,7 +13,7 @@ import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import { candidateToSelector, raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
-import { DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS } from '../Timing/DashboardTimingConfig.js';
 import { NO_HREF, resolveHrefFromRaw } from './DashboardDiscovery.js';
 import { extractHrefLayer3, extractTransactionHrefPrecise } from './DashboardHrefExtraction.js';
 import { tryDashboardSequentialNav } from './DashboardPhaseActions.sequential.js';

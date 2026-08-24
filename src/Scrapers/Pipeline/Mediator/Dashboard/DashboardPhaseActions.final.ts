@@ -15,7 +15,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { isBancsTxnCapture } from '../Scrape/Bancs/BancsTxnRequest.js';
-import { DASHBOARD_FINAL_TXN_WAIT_MS } from '../Timing/TimingConfig.js';
+import { DASHBOARD_FINAL_TXN_WAIT_MS } from '../Timing/DashboardTimingConfig.js';
 import { buildApiContext } from './DashboardDiscovery.js';
 import { commitTxnEndpoint } from './DashboardPhaseActions.final.commit.js';
 import { extractAuthFromContext } from './DashboardProbe.js';

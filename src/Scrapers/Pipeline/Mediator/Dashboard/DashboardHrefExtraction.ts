@@ -9,7 +9,7 @@ import { WK_DASHBOARD } from '../../Registry/WK/DashboardWK.js';
 import { getDebug as createLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { DASHBOARD_TRIGGER_RENDER_TIMEOUT_MS } from '../Timing/DashboardTimingConfig.js';
 
 const LOG = createLogger('dashboard-href');
 /** Sentinel for "no href found". */

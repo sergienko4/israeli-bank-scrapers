@@ -15,7 +15,7 @@ import { hasTxnArray } from '../Scrape/TxnShape.js';
 import {
   DASHBOARD_REVEAL_TIMEOUT_MS,
   DASHBOARD_SUCCESS_TIMEOUT_MS,
-} from '../Timing/TimingConfig.js';
+} from '../Timing/DashboardTimingConfig.js';
 import { buildDateCandidates } from './DashboardDateCandidates.js';
 
 export { resolveAbsoluteHref, resolveHrefFromRaw } from './DashboardHref.js';
