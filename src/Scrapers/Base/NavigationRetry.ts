@@ -1,7 +1,7 @@
 import type { Page } from 'playwright-core';
 
-import type { getDebug } from '../../Common/Debug.js';
 import type { WaitUntilState } from '../../Common/Navigation.js';
+import type { getDebugByName as getDebug } from '../Pipeline/Logging/Debug.js';
 import { MAX_403_RETRIES, WAF_RETRY_DELAY_MS } from './Config/LoginFlowConfig.js';
 import ScraperError from './ScraperError.js';
 

@@ -6,6 +6,24 @@ import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Scrapers/Base/Interface.js';
 import ScraperError from '../Scrapers/Base/ScraperError.js';
+import { getDebugByName as getDebug } from '../Scrapers/Pipeline/Logging/Debug.js';
+import { safeScreenshot } from '../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
+import {
+  clickButton,
+  fillInput,
+} from '../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js';
+import {
+  clickFromCandidates,
+  clickOtpTriggerIfPresent,
+  detectOtpScreen,
+  extractPhoneHint,
+  OTP_SUBMIT_CANDIDATES,
+} from '../Scrapers/Pipeline/Mediator/Otp/OtpDetector.js';
+import {
+  candidateToCss,
+  resolveFieldContext,
+  tryInContext,
+} from '../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js';
 import {
   OTP_ANIMATION_DELAY_MS,
   OTP_CHAR_INPUT_DELAY_MS,
@@ -13,18 +31,7 @@ import {
   OTP_TRIGGER_DELAY_MS,
   OTP_VERIFY_DELAY_MS,
 } from './Config/OtpConfig.js';
-import { getDebug } from './Debug.js';
-import { clickButton, fillInput } from './ElementsInteractions.js';
 import type { IParsedLoginPage } from './LoginMiddleware.js';
-import {
-  clickFromCandidates,
-  clickOtpTriggerIfPresent,
-  detectOtpScreen,
-  extractPhoneHint,
-  OTP_SUBMIT_CANDIDATES,
-} from './OtpDetector.js';
-import { safeScreenshot } from './SafeScreenshot.js';
-import { candidateToCss, resolveFieldContext, tryInContext } from './SelectorResolver.js';
 
 const LOG = getDebug('otp-handler');
 

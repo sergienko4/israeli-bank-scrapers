@@ -1,18 +1,23 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
-
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  pageEval: jest.fn().mockResolvedValue(null),
-  pageEvalAll: jest.fn().mockResolvedValue([]),
-
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-
-  capturePageText: jest.fn().mockResolvedValue(''),
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js', () => ({
+  launchCamoufox: jest.fn(),
 }));
+
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    clickButton: jest.fn().mockResolvedValue(undefined),
+    fillInput: jest.fn().mockResolvedValue(undefined),
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+    pageEval: jest.fn().mockResolvedValue(null),
+    pageEvalAll: jest.fn().mockResolvedValue([]),
+
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
+
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
 
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.hist.org.il/'),
@@ -35,13 +40,27 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
 }));
 
 jest.unstable_mockModule(
-  '../../Common/Debug.js',
+  '../../Scrapers/Pipeline/Logging/Debug.js',
   /**
    * Mock Debug module.
    * @returns mocked debug exports
    */
-  () => ({
-    getDebug:
+  async () => ({
+    ...(await import('../../Scrapers/Pipeline/Types/MockTiming.js')),
+    ...(await import('../../Scrapers/Pipeline/Logging/BankContext.js')),
+    /**
+     * Pipeline-internal callers derive their module name from `import.meta.url`,
+     * so mocking the canonical module means this entry point must exist too.
+     * @returns A mock debug logger object.
+     */
+    getDebug: (): Record<string, jest.Mock> => ({
+      trace: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    }),
+    getDebugByName:
       /**
        * Debug factory.
        * @returns mock logger
@@ -64,9 +83,10 @@ jest.unstable_mockModule(
 );
 
 const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Common/Browser.js');
-const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
+const { launchCamoufox: LAUNCH_CAMOUFOX } =
+  await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const { pageEval: PAGE_EVAL, pageEvalAll: PAGE_EVAL_ALL } =
-  await import('../../Common/ElementsInteractions.js');
+  await import('../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js');
 const { filterOldTransactions: FILTER_OLD } = await import('../../Common/Transactions.js');
 const { default: BEYAHAD_SCRAPER } =
   await import('../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.js');

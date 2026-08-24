@@ -9,7 +9,7 @@ import {
 } from '../../Scrapers/Base/Interface.js';
 
 jest.unstable_mockModule(
-  '../../Common/CamoufoxLauncher.js',
+  '../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js',
   /**
    * Mock CamoufoxLauncher.
    * @returns Mocked module.
@@ -18,7 +18,7 @@ jest.unstable_mockModule(
 );
 
 jest.unstable_mockModule(
-  '../../Common/ElementsInteractions.js',
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
   /**
    * Mock ElementsInteractions.
    * @returns Mocked module.
@@ -48,13 +48,27 @@ jest.unstable_mockModule(
 );
 
 jest.unstable_mockModule(
-  '../../Common/Debug.js',
+  '../../Scrapers/Pipeline/Logging/Debug.js',
   /**
    * Mock Debug.
    * @returns Mocked module.
    */
-  () => ({
-    getDebug:
+  async () => ({
+    ...(await import('../../Scrapers/Pipeline/Types/MockTiming.js')),
+    ...(await import('../../Scrapers/Pipeline/Logging/BankContext.js')),
+    /**
+     * Pipeline-internal callers derive their module name from `import.meta.url`,
+     * so mocking the canonical module means this entry point must exist too.
+     * @returns A mock debug logger object.
+     */
+    getDebug: (): Record<string, jest.Mock> => ({
+      trace: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    }),
+    getDebugByName:
       /**
        * Debug factory.
        * @returns Mock logger.
@@ -85,8 +99,10 @@ jest.unstable_mockModule(
   () => ({ buildContextOptions: jest.fn().mockReturnValue({}) }),
 );
 
-const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
-const { fillInput: FILL_INPUT } = await import('../../Common/ElementsInteractions.js');
+const { launchCamoufox: LAUNCH_CAMOUFOX } =
+  await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
+const { fillInput: FILL_INPUT } =
+  await import('../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js');
 const { getCurrentUrl: GET_CURRENT_URL, waitForNavigation: WAIT_NAV } =
   await import('../../Common/Navigation.js');
 const { ScraperProgressTypes: PROGRESS_TYPES, CompanyTypes: COMPANY_TYPES } =

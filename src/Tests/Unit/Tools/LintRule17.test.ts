@@ -41,7 +41,7 @@ const RULE_17_CASES = [
     expected: 0,
   },
   {
-    label: 'live legacy Common/Fetch shim is untouched',
+    label: 'specifier resolving outside src/ is left alone',
     file: SYNTHETIC_OTHER,
     code: "import { fetchPostWithinPage } from '../../Common/Fetch.js';\n",
     expected: 0,
@@ -119,9 +119,9 @@ const RULE_17_CASES = [
     expected: 1,
   },
   {
-    label: 'live Common shim re-exporting its own neighbour',
-    file: 'src/Common/Fetch.ts',
-    code: "export * from './Fetch.js';\n",
+    label: 'live Common module re-exporting its own neighbour',
+    file: 'src/Common/Browser.ts',
+    code: "export * from './Browser.js';\n",
     expected: 0,
   },
 ];
@@ -132,26 +132,36 @@ const RETIRED_PATHS: readonly string[] = [
   'src/Scrapers/Pipeline/Mediator/Network/Fetch.js',
   'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
   'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
+  'src/Common/Config/OtpDetectorConfig.js',
+  'src/Common/FormAnchor.js',
+  'src/Common/SelectorResolver.js',
+  'src/Common/OtpDetector.js',
+  'src/Common/SafeScreenshot.js',
+  'src/Common/Fetch.js',
+  'src/Common/Waiting.js',
+  'src/Common/Debug.js',
+  'src/Common/CamoufoxLauncher.js',
+  'src/Common/ElementsInteractions.js',
 ];
 
 /** Root the Rule #17 replacement paths are written relative to. */
-const PIPELINE_ROOT = 'src/Scrapers/Pipeline';
+const SRC_ROOT = 'src';
 
 /**
  * Turn a Rule #17 recommendation into the source file it names.
  *
- * Recommendations are runtime specifiers (`.js`) relative to the Pipeline
- * root; on disk the file is the TypeScript source. Only the `.js` → `.ts`
- * mapping is handled, which covers every current row; a future row naming a
- * `.tsx`, a `.mts`, or a bare directory would need this widened, and the
- * caller's `isFile` assertion is what would catch that.
+ * Recommendations are runtime specifiers (`.js`) relative to `src`; on disk the
+ * file is the TypeScript source. Only the `.js` → `.ts` mapping is handled,
+ * which covers every current row; a future row naming a `.tsx`, a `.mts`, or a
+ * bare directory would need this widened, and the caller's `isFile` assertion
+ * is what would catch that.
  * @param recommended - Specifier fragment taken from the rule message.
  * @returns Path to the source file the recommendation points at.
  */
 function resolveRecommended(recommended: string): string {
   const asSource = recommended.replace(/\.js$/, '.ts');
   const repoRoot = process.cwd();
-  return path.join(repoRoot, PIPELINE_ROOT, asSource);
+  return path.join(repoRoot, SRC_ROOT, asSource);
 }
 
 /**

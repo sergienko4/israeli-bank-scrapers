@@ -1,5 +1,6 @@
 /**
- * Drift canary for `Common/CamoufoxLauncher.buildLaunchOptions` —
+ * Drift canary for
+ * `Pipeline/Mediator/Browser/CamoufoxLauncher.buildLaunchOptions` —
  * locks in the three anti-detect knobs (`humanize`, `disable_coop`,
  * `block_webrtc`) so they cannot be silently removed again the way
  * commit `1708ba39` was lost from main between 2026-05-18 and the
@@ -21,7 +22,10 @@
  * cannot regress to "string compared to true" or similar typo bugs.
  */
 
-import { buildLaunchOptions, envFlag } from '../../../Common/CamoufoxLauncher.js';
+import {
+  buildLaunchOptions,
+  envFlag,
+} from '../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 
 /** Anti-detect knobs that MUST stay `true` by default. */
 const ANTI_DETECT_KNOBS = ['humanize', 'disable_coop', 'block_webrtc'] as const;

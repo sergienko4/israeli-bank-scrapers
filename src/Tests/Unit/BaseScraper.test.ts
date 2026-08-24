@@ -1,4 +1,3 @@
-import { TimeoutError } from '../../Common/Waiting.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
 import BaseScraper from '../../Scrapers/Base/BaseScraper.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
@@ -7,6 +6,7 @@ import type {
   IScraperScrapingResult,
   ScraperCredentials,
 } from '../../Scrapers/Base/Interface.js';
+import { TimeoutError } from '../../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
 import { createMockScraperOptions } from '../MockPage.js';
 
 /** Test scraper subclass that exposes configurable login/fetch behavior. */

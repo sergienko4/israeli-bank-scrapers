@@ -2,10 +2,10 @@
 
 import { jest } from '@jest/globals';
 
-import { waitUntilElementDisappear } from '../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { waitUntilElementDisappear } from '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js';
 import { INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import { BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 import { selectorErrorFor, VALID_REACHED_BANK } from './SelectorFallbackHelpers.js';

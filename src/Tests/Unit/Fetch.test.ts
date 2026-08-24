@@ -7,7 +7,7 @@ import {
   fetchGraphql,
   fetchPost,
   fetchPostWithinPage,
-} from '../../Common/Fetch.js';
+} from '../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
 import { NETWORK_FETCH_PAGE_TIMEOUT_MS } from '../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
 import { createMockPage } from '../MockPage.js';
 

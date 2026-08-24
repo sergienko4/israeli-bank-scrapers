@@ -1,8 +1,8 @@
 import { type Frame, type Page } from 'playwright-core';
 
+import { getDebugByName as getDebug } from '../Scrapers/Pipeline/Logging/Debug.js';
+import { waitUntil } from '../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
 import { NAVIGATION_TIMEOUT_MS, URL_POLL_INTERVAL_MS } from './Config/NavigationConfig.js';
-import { getDebug } from './Debug.js';
-import { waitUntil } from './Waiting.js';
 
 const LOG = getDebug('navigation');
 

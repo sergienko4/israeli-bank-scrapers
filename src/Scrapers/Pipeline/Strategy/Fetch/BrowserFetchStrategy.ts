@@ -1,6 +1,7 @@
 /**
  * Browser-based fetch strategy — runs through Playwright page session.
- * Wraps fetchPostWithinPage/fetchGetWithinPage from Common/Fetch.ts.
+ * Wraps fetchPostWithinPage/fetchGetWithinPage from
+ * Scrapers/Pipeline/Mediator/Network/Fetch/index.ts.
  * Returns Procedure<T> — never throws.
  *
  * After the .ashx removal there is no proxy session activation; every

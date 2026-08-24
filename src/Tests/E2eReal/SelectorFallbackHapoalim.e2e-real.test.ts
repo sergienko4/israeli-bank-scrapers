@@ -2,11 +2,11 @@ import { jest } from '@jest/globals';
 /** Selector-fallback: Hapoalim — Round 2 (main page fallback CSS id) + Round 1 (iframe injection). */
 import { type Page } from 'playwright-core';
 
-import { waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { waitForRedirect } from '../../Common/Navigation.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { ConcreteGenericScraper } from '../../Scrapers/Base/ConcreteGenericScraper.js';
 import { type ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
+import { waitUntilElementFound } from '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js';
 import { INVALID_CREDS_HAPOALIM } from '../TestConstants.js';
 import { BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 import {

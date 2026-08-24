@@ -30,16 +30,13 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 ### Legacy utilities
 
-| Path                                                   | Replacement under Pipeline                           |
-| ------------------------------------------------------ | ---------------------------------------------------- |
-| `src/Common/Browser.ts`                                | `src/Scrapers/Pipeline/Mediator/Browser/`            |
-| `src/Common/CamoufoxLauncher.ts`                       | Same — used at the boundary                          |
-| `src/Common/Fetch.ts`                                  | `src/Scrapers/Pipeline/Mediator/Network/`            |
-| `src/Common/SelectorResolver*.ts`                      | `src/Scrapers/Pipeline/Mediator/Selector/`           |
-| `src/Common/OtpDetector.ts`, `OtpHandler.ts`           | `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/`  |
-| `src/Common/Navigation.ts`, `Waiting.ts`, `Storage.ts` | Mediator zones own these directly                    |
-| `src/Common/ResultFormatter.ts`                        | `src/Scrapers/Pipeline/Core/PipelineResult.ts`       |
-| `src/Common/Debug.ts`                                  | **Still used by Pipeline** — exempt from deprecation |
+| Path                                     | Replacement under Pipeline                          |
+| ---------------------------------------- | --------------------------------------------------- |
+| `src/Common/Browser.ts`                  | `src/Scrapers/Pipeline/Mediator/Browser/`           |
+| `src/Common/SelectorFieldResolver.ts`    | `src/Scrapers/Pipeline/Mediator/Selector/`          |
+| `src/Common/OtpHandler.ts`               | `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/` |
+| `src/Common/Navigation.ts`, `Storage.ts` | Mediator zones own these directly                   |
+| `src/Common/ResultFormatter.ts`          | `src/Scrapers/Pipeline/Core/PipelineResult.ts`      |
 
 ## Why ship deprecated code?
 
@@ -51,7 +48,8 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 - ❌ `BaseScraper.ts` or any of the 5 legacy base classes
 - ❌ Adding a new bank to `src/Scrapers/<Name>/` (use `src/Scrapers/Pipeline/Banks/<Name>/` instead)
-- ❌ Importing from `src/Common/` _except_ `Debug.ts`
+- ❌ Importing from `src/Common/` — the one allowlisted edge is
+  `src/Common/Config/BrowserConfig.ts` (browser bootstrap, no Pipeline duplicate)
 - ❌ Extending `SCRAPER_REGISTRY_LEUMI_TO_YAHAV` or `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`
 
 ## What new code MAY touch

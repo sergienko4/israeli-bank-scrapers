@@ -1,6 +1,5 @@
 import moment from 'moment';
 
-import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
@@ -8,6 +7,7 @@ import { createGenericError } from '../Base/Errors.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Base/Interface.js';
 import type { Nullable } from '../Base/Interfaces/CallbackTypes.js';
+import { fetchPostWithinPage } from '../Pipeline/Mediator/Network/Fetch/index.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { BEHATSDAA_CONFIG } from './Config/BehatsdaaLoginConfig.js';
 

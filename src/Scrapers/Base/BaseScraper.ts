@@ -3,10 +3,14 @@ import { EventEmitter } from 'node:events';
 import moment from 'moment-timezone';
 
 import { ISRAEL_TIMEZONE } from '../../Common/Config/BrowserConfig.js';
-import { getDebug, runWithBankContext, type ScraperLogger } from '../../Common/Debug.js';
 import { formatResultSummary } from '../../Common/ResultFormatter.js';
-import { TimeoutError } from '../../Common/Waiting.js';
 import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
+import {
+  getDebugByName as getDebug,
+  runWithBankContext,
+  type ScraperLogger,
+} from '../Pipeline/Logging/Debug.js';
+import { TimeoutError } from '../Pipeline/Mediator/Timing/Waiting.js';
 import {
   createGenericError,
   createTimeoutError,
