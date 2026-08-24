@@ -161,6 +161,17 @@ push to the array — no `if` / `else` ladder, no caller changes.
 | `tls`         | `ERR_SSL_PROTOCOL_ERROR`, `ERR_CERT_*`, `SSL handshake failed`                         |
 | `unknown`     | Everything else (DEFAULT — keeps the log line uniform when a new failure mode appears) |
 
+A `timeout` category does not mean Playwright's default fired. `executeNavigateToBank`
+passes an explicit budget, so the number in the error string is ours:
+
+| Constant                        | Module                                                          | Governs                                    |
+| ------------------------------- | --------------------------------------------------------------- | ------------------------------------------ |
+| `INIT_NAV_COMMIT_TIMEOUT_MS`    | `src/Scrapers/Pipeline/Mediator/Timing/InitTimingConfig.ts`     | `page.goto` commit budget for the bank URL |
+| `ELEMENTS_DOM_READY_TIMEOUT_MS` | `src/Scrapers/Pipeline/Mediator/Timing/ElementsTimingConfig.ts` | INIT's FINAL `dom`-level prelude wait      |
+
+Read the current values from those modules before concluding a run was slow —
+they are tuned per domain and change independently of this page.
+
 ## Request lifecycle observer
 
 `attachRequestLifecycleObserver(page)` subscribes to the four Playwright
@@ -243,44 +254,44 @@ Use this to decide what to investigate first when a log line lands:
 
 ## Public surface
 
-| Symbol                           | Module                       | Role                                                                                                                                                                                      |
-| -------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `classifyNavError`               | `NavigationDiagnostics`      | Maps a Playwright error message to a `NavErrorCategory`                                                                                                                                   |
-| `attachFailedRequestCollector`   | `NavigationDiagnostics`      | Subscribes to `page.on('requestfailed')`; returns `{ collected, detach }`                                                                                                                 |
-| `buildNavFailureSnapshot`        | `NavigationDiagnostics`      | Composes an `INavFailureSnapshot` from the input bundle                                                                                                                                   |
-| `wrapProbeAsOption`              | `NavigationDiagnostics`      | Wraps a probe result as `Some` for the snapshot field                                                                                                                                     |
-| `logNavFailureSnapshot`          | `NavigationDiagnostics`      | Emits the warn log line and returns the snapshot for echo/test inspection                                                                                                                 |
-| `attachRequestLifecycleObserver` | `NavigationRequestLifecycle` | Subscribes to the four request/response lifecycle events; returns `{ snapshot, detach }`                                                                                                  |
-| `probeTransport`                 | `NavigationTransportProbe`   | Production entry point — always resolves, runs DNS → TCP → TLS within budget                                                                                                              |
-| `probeTransportWithDeps`         | `NavigationTransportProbe`   | DI seam — same logic with injectable `ITransportProbeDeps`                                                                                                                                |
-| `IFailedRequestCollector`        | `NavigationDiagnostics`      | Lifecycle handle returned by `attachFailedRequestCollector` (field: `collected`)                                                                                                          |
-| `INavFailedRequest`              | `NavigationDiagnostics`      | Shape of one entry in `failedRequests`                                                                                                                                                    |
-| `INavFailureInput`               | `NavigationDiagnostics`      | Options-object input to `buildNavFailureSnapshot` (respects `max-params: 3`)                                                                                                              |
-| `INavFailureSnapshot`            | `NavigationDiagnostics`      | The full warn envelope written to the logger                                                                                                                                              |
-| `NavErrorCategory`               | `NavigationDiagnostics`      | Union of the six category literals                                                                                                                                                        |
-| `INavInFlightRequest`            | `NavigationRequestLifecycle` | Shape of one entry in `inFlightRequests`                                                                                                                                                  |
-| `INavInFlightSnapshot`           | `NavigationRequestLifecycle` | Result of `IRequestLifecycleObserver.snapshot()`                                                                                                                                          |
-| `IRequestLifecycleObserver`      | `NavigationRequestLifecycle` | Lifecycle handle returned by `attachRequestLifecycleObserver`                                                                                                                             |
-| `RequestLifecycleState`          | `NavigationRequestLifecycle` | Union of `'started' \| 'response-received'`                                                                                                                                               |
-| `INavTransportProbe`             | `NavigationTransportProbe`   | Shape of the probe envelope written to the snapshot                                                                                                                                       |
-| `IProbeRunInput`                 | `NavigationTransportProbe`   | Per-run inputs (`targetUrl`, `totalBudgetMs`, `startedMsAfterGotoFailure`)                                                                                                                |
-| `IProbeTransportInput`           | `NavigationTransportProbe`   | DI bundle for `probeTransportWithDeps`                                                                                                                                                    |
-| `ITransportProbeDeps`            | `NavigationTransportProbe`   | Injectable `dns` / `net` / `tls` triad                                                                                                                                                    |
-| `IDnsLookupResult`               | `NavigationTransportProbe`   | Resolved address + `family` returned by the injectable `dnsLookup` dep                                                                                                                    |
-| `ITcpHandshakeResult`            | `NavigationTransportProbe`   | Socket handle returned by the injectable `tcpConnect` dep                                                                                                                                 |
-| `TransportProbeOutcome`          | `NavigationTransportProbe`   | Union of the eight outcome literals                                                                                                                                                       |
-| `captureFrameTree`               | `PageObservers`              | Sync snapshot of `page.frames()` → `IFrameInfo[]`. Catch-block safe.                                                                                                                      |
-| `attachConsoleErrorBuffer`       | `PageObservers`              | Subscribes to `console.error`/`console.warn`/`pageerror`; returns `IConsoleErrorBuffer` with `{ collected, detach }`. Source kind is one of `ConsoleErrorSource`.                         |
-| `attachLandingResponseCollector` | `PageObservers`              | Subscribes to `page.on('response')` for the main-frame landing URL; returns `ILandingResponseCollector` with `{ getResponse, detach }`. Allowlists headers + redacts `set-cookie` values. |
-| `IFrameInfo`                     | `PageObservers`              | Shape of one entry in `frameTree` (`name`, `url`, `isAttached`)                                                                                                                           |
-| `IConsoleErrorEntry`             | `PageObservers`              | Shape of one entry in `consoleErrors` (`kind`, `text`, `urlLocation`, `lineNumber`, `columnNumber`)                                                                                       |
-| `IResponseInfo`                  | `PageObservers`              | Shape of `landingResponse.value` (`url`, `status`, `headers`, `bodyByteLength`, `redirectChainLength`)                                                                                    |
-| `logEnvSnapshot`                 | `EnvSnapshot`                | Success-path-only emitter — captures `IEnvSnapshot` and emits the `PIPELINE-ENV` log via `ILogEnvInput`                                                                                   |
-| `IEnvSnapshot`                   | `EnvSnapshot`                | Bundle of browser + process + viewport groups (no page-side fields — see "Forensics gate" below)                                                                                          |
-| `ILogEnvInput`                   | `EnvSnapshot`                | Options-object input to `logEnvSnapshot` (`browser`, `page`, `logger`)                                                                                                                    |
-| `INIT_FORENSICS_ENV_VAR`         | `InitForensicsGate`          | Name of the env-var that opts into the L7/env forensics envelope. Constant string `PIPELINE_INIT_FORENSICS`.                                                                              |
+| Symbol                           | Module                       | Role                                                                                                                                                                                                  |
+| -------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `classifyNavError`               | `NavigationDiagnostics`      | Maps a Playwright error message to a `NavErrorCategory`                                                                                                                                               |
+| `attachFailedRequestCollector`   | `NavigationDiagnostics`      | Subscribes to `page.on('requestfailed')`; returns `{ collected, detach }`                                                                                                                             |
+| `buildNavFailureSnapshot`        | `NavigationDiagnostics`      | Composes an `INavFailureSnapshot` from the input bundle                                                                                                                                               |
+| `wrapProbeAsOption`              | `NavigationDiagnostics`      | Wraps a probe result as `Some` for the snapshot field                                                                                                                                                 |
+| `logNavFailureSnapshot`          | `NavigationDiagnostics`      | Emits the warn log line and returns the snapshot for echo/test inspection                                                                                                                             |
+| `attachRequestLifecycleObserver` | `NavigationRequestLifecycle` | Subscribes to the four request/response lifecycle events; returns `{ snapshot, detach }`                                                                                                              |
+| `probeTransport`                 | `NavigationTransportProbe`   | Production entry point — always resolves, runs DNS → TCP → TLS within budget                                                                                                                          |
+| `probeTransportWithDeps`         | `NavigationTransportProbe`   | DI seam — same logic with injectable `ITransportProbeDeps`                                                                                                                                            |
+| `IFailedRequestCollector`        | `NavigationDiagnostics`      | Lifecycle handle returned by `attachFailedRequestCollector` (field: `collected`)                                                                                                                      |
+| `INavFailedRequest`              | `NavigationDiagnostics`      | Shape of one entry in `failedRequests`                                                                                                                                                                |
+| `INavFailureInput`               | `NavigationDiagnostics`      | Options-object input to `buildNavFailureSnapshot` (respects `max-params: 3`)                                                                                                                          |
+| `INavFailureSnapshot`            | `NavigationDiagnostics`      | The full warn envelope written to the logger                                                                                                                                                          |
+| `NavErrorCategory`               | `NavigationDiagnostics`      | Union of the six category literals                                                                                                                                                                    |
+| `INavInFlightRequest`            | `NavigationRequestLifecycle` | Shape of one entry in `inFlightRequests`                                                                                                                                                              |
+| `INavInFlightSnapshot`           | `NavigationRequestLifecycle` | Result of `IRequestLifecycleObserver.snapshot()`                                                                                                                                                      |
+| `IRequestLifecycleObserver`      | `NavigationRequestLifecycle` | Lifecycle handle returned by `attachRequestLifecycleObserver`                                                                                                                                         |
+| `RequestLifecycleState`          | `NavigationRequestLifecycle` | Union of `'started' \| 'response-received'`                                                                                                                                                           |
+| `INavTransportProbe`             | `NavigationTransportProbe`   | Shape of the probe envelope written to the snapshot                                                                                                                                                   |
+| `IProbeRunInput`                 | `NavigationTransportProbe`   | Per-run inputs (`targetUrl`, `totalBudgetMs`, `startedMsAfterGotoFailure`)                                                                                                                            |
+| `IProbeTransportInput`           | `NavigationTransportProbe`   | DI bundle for `probeTransportWithDeps`                                                                                                                                                                |
+| `ITransportProbeDeps`            | `NavigationTransportProbe`   | Injectable `dns` / `net` / `tls` triad                                                                                                                                                                |
+| `IDnsLookupResult`               | `NavigationTransportProbe`   | Resolved address + `family` returned by the injectable `dnsLookup` dep                                                                                                                                |
+| `ITcpHandshakeResult`            | `NavigationTransportProbe`   | Socket handle returned by the injectable `tcpConnect` dep                                                                                                                                             |
+| `TransportProbeOutcome`          | `NavigationTransportProbe`   | Union of the eight outcome literals                                                                                                                                                                   |
+| `captureFrameTree`               | `PageObservers`              | Sync snapshot of `page.frames()` → `IFrameInfo[]`. Catch-block safe.                                                                                                                                  |
+| `attachConsoleErrorBuffer`       | `PageObservers`              | Subscribes to `console.error`/`console.warn`/`pageerror`; returns `IConsoleErrorBuffer` with `{ collected, detach }`. Source kind is one of `ConsoleErrorSource`.                                     |
+| `attachLandingResponseCollector` | `PageObservers`              | Subscribes to `page.on('response')` for the main-frame landing URL; returns `ILandingResponseCollector` with `{ getResponse, detach }`. Allowlists headers + redacts `set-cookie` values.             |
+| `IFrameInfo`                     | `PageObservers`              | Shape of one entry in `frameTree` (`name`, `url`, `isAttached`)                                                                                                                                       |
+| `IConsoleErrorEntry`             | `PageObservers`              | Shape of one entry in `consoleErrors` (`kind`, `text`, `urlLocation`, `lineNumber`, `columnNumber`)                                                                                                   |
+| `IResponseInfo`                  | `PageObservers`              | Shape of `landingResponse.value` (`url`, `status`, `headers`, `bodyByteLength`, `redirectChainLength`)                                                                                                |
+| `logEnvSnapshot`                 | `EnvSnapshot`                | Success-path-only emitter — captures `IEnvSnapshot` and emits the `PIPELINE-ENV` log via `ILogEnvInput`                                                                                               |
+| `IEnvSnapshot`                   | `EnvSnapshot`                | Bundle of browser + process + viewport groups (no page-side fields — see "Forensics gate" below)                                                                                                      |
+| `ILogEnvInput`                   | `EnvSnapshot`                | Options-object input to `logEnvSnapshot` (`browser`, `page`, `logger`)                                                                                                                                |
+| `INIT_FORENSICS_ENV_VAR`         | `InitForensicsGate`          | Name of the env-var that opts into the L7/env forensics envelope. Constant string `PIPELINE_INIT_FORENSICS`.                                                                                          |
 | `readInitForensicsGate`          | `InitForensicsGate`          | Reader returning `IInitForensicsGateState` (`{ enabled: boolean }`). `enabled` is `true` only when the env-var is `'1'` or `'true'`. Default is OFF so the WAF-passing baseline stays byte-identical. |
-| `IInitForensicsGateState`        | `InitForensicsGate`          | Branded gate-state interface — frozen `{ enabled: boolean }` singleton consumed by every observer in `Mediator/Init/**` that needs to self-gate.                                          |
+| `IInitForensicsGateState`        | `InitForensicsGate`          | Branded gate-state interface — frozen `{ enabled: boolean }` singleton consumed by every observer in `Mediator/Init/**` that needs to self-gate.                                                      |
 
 ## Lifecycle invariants
 
@@ -328,7 +339,7 @@ in or out, then move up the stack with the matching envelope.
 
 There is one check that runs **outside** this envelope entirely:
 the landing-status gate. Everything documented on this page fires
-on the failure path, but a bank that answers `404` is a *success*
+on the failure path, but a bank that answers `404` is a _success_
 as far as `page.goto` is concerned — nothing throws, so none of
 these observers ever run. INIT therefore reads the status off the
 `Response` that `page.goto` returns and fails fast on a terminal
@@ -380,11 +391,11 @@ Camoufox identifies as residential Windows, so the bank challenges.
 
 `IEnvSnapshot` carries the host-side fields split into three groups:
 
-| Group    | Fields                                                                                                                                              |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Browser  | `browserName`, `browserVersion`                                                                                                                     |
-| Process  | `nodeVersion`, `platform`, `arch`, `pid`, `processTimezone`, `processLocale`, `camoufoxHumanize`, `camoufoxDisableCoop`, `camoufoxBlockWebrtc`      |
-| Viewport | `viewportWidth`, `viewportHeight`                                                                                                                   |
+| Group    | Fields                                                                                                                                         |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser  | `browserName`, `browserVersion`                                                                                                                |
+| Process  | `nodeVersion`, `platform`, `arch`, `pid`, `processTimezone`, `processLocale`, `camoufoxHumanize`, `camoufoxDisableCoop`, `camoufoxBlockWebrtc` |
+| Viewport | `viewportWidth`, `viewportHeight`                                                                                                              |
 
 Process fields are read from `process.versions.node`, `process.platform`,
 `process.arch`, `process.pid`, `Intl.DateTimeFormat().resolvedOptions()`.
@@ -415,9 +426,9 @@ The L7 observers (`captureFrameTree`, `attachConsoleErrorBuffer`,
 `attachLandingResponseCollector`) AND the `PIPELINE-ENV` emitter
 are now **gated by an env-var** and **default OFF**.
 
-| Gate state                           | Behavior                                                                                                            |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `PIPELINE_INIT_FORENSICS` unset      | Observers return frozen no-op sentinels. No `page.on(...)` listeners registered. `logEnvSnapshot` emits no log line. |
+| Gate state                              | Behavior                                                                                                                                                   |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PIPELINE_INIT_FORENSICS` unset         | Observers return frozen no-op sentinels. No `page.on(...)` listeners registered. `logEnvSnapshot` emits no log line.                                       |
 | `PIPELINE_INIT_FORENSICS=1` (or `true`) | Observers attach real listeners and capture frame tree / console errors / landing response. `logEnvSnapshot` emits one `PIPELINE-ENV` log line per launch. |
 
 ### Why the gate exists
@@ -475,10 +486,10 @@ it.
 ### Auth-request events
 
 | Event                  | Fires when                                                  |
-| ---------------------- | ---------------------------------------------------------- |
+| ---------------------- | ----------------------------------------------------------- |
 | `login.authreq.sent`   | A request matching the well-known auth POST/PUT egresses.   |
 | `login.authreq.failed` | That same auth POST/PUT fails (`page.on('requestfailed')`). |
-| `login.jsd.failed`     | A Cloudflare JSD challenge-platform sub-request fails.       |
+| `login.jsd.failed`     | A Cloudflare JSD challenge-platform sub-request fails.      |
 
 Each line carries only `{ host, method, ms, errorText }` — `host` via a safe
 URL parse, never the full URL or any query string (see
@@ -527,10 +538,10 @@ the GREEN control for the `web.americanexpress.co.il` row (same `/24`,
 shared backend), so a trace can tell "host did not resolve" apart from
 "host resolved but the auth window never opened" from logs alone.
 
-| Symbol          | Role                                                                          |
-| --------------- | ----------------------------------------------------------------------------- |
+| Symbol          | Role                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `probeLoginDns` | Fire-and-forget async entry; resolves `AUTH_HOSTS` and emits `login.dns`. Never throws; takes an injectable resolver for tests. |
-| `AUTH_HOSTS`    | The four `web.`/`he.` × `americanexpress`/`isracard` hosts the handshake needs. |
+| `AUTH_HOSTS`    | The four `web.`/`he.` × `americanexpress`/`isracard` hosts the handshake needs.                                                 |
 
 Like the egress trace, this uses **no** `page.on()` listener — it is a
 pure Node `dns.resolve4` call — so with the gate OFF (production

@@ -25,10 +25,8 @@ import {
 import createElementMediator from '../Elements/CreateElementMediator.js';
 import type { IPreludeSpec } from '../Elements/PagePrelude.js';
 import { awaitPagePrelude, probeFirefoxNeterror } from '../Elements/PagePrelude.js';
-import {
-  ELEMENTS_DOM_READY_TIMEOUT_MS,
-  INIT_NAV_COMMIT_TIMEOUT_MS,
-} from '../Timing/TimingConfig.js';
+import { ELEMENTS_DOM_READY_TIMEOUT_MS } from '../Timing/ElementsTimingConfig.js';
+import { INIT_NAV_COMMIT_TIMEOUT_MS } from '../Timing/InitTimingConfig.js';
 import { logEnvSnapshot } from './EnvSnapshot.js';
 import {
   isTerminalLandingStatus,

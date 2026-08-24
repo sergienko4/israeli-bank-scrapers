@@ -17,13 +17,13 @@
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPreludeSpec } from '../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
 import { PRELUDE_NONE } from '../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
+import { DASHBOARD_PRELUDE_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Timing/DashboardTimingConfig.js';
+import { HOME_PRELUDE_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Timing/HomeTimingConfig.js';
+import { LOGIN_PRELUDE_POST_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Timing/LoginTimingConfig.js';
 import {
-  DASHBOARD_PRELUDE_TIMEOUT_MS,
-  HOME_PRELUDE_TIMEOUT_MS,
-  LOGIN_PRELUDE_POST_TIMEOUT_MS,
   OTP_FILL_PRELUDE_TIMEOUT_MS,
   OTP_TRIGGER_PRELUDE_TIMEOUT_MS,
-} from '../../../../Scrapers/Pipeline/Mediator/Timing/TimingConfig.js';
+} from '../../../../Scrapers/Pipeline/Mediator/Timing/OtpTimingConfig.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { createDashboardPhase } from '../../../../Scrapers/Pipeline/Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../../../Scrapers/Pipeline/Phases/Home/HomePhase.js';
