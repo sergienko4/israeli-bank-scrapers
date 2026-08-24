@@ -40,11 +40,14 @@ export function getDebug(metaUrl: string): Logger {
  * manual module name string (e.g. `getDebug('leumi-scraper')`) or a
  * dynamic bank identifier (e.g. `getDebug(options.companyId)`). Pipeline
  * code MUST keep using {@link getDebug} with `import.meta.url`; this
- * adapter exists only so the Common shim at `src/Common/Debug.ts`
- * preserves verbatim `module:` log values during the Phase-3 unification
- * window, without forcing the legacy scrapers (BaseScraper, Leumi,
- * Mizrahi, BeyahadBishvilha, …) to migrate to `import.meta.url` in this
- * commit.
+ * adapter is imported directly by the legacy scrapers (BaseScraper, Leumi,
+ * Mizrahi, BeyahadBishvilha, …), conventionally as
+ * `import { getDebugByName as getDebug }`, so their `module:` log values stay
+ * verbatim without rewriting every call site to `import.meta.url`.
+ *
+ * Binding a string-name caller to {@link getDebug} instead is silent: both are
+ * callable and both return a logger, so the only symptom is a `module:` field
+ * derived from the caller's own path. Keep the alias at the import.
  * @param name - Verbatim module name written into the `module:` log field.
  * @returns A pino-shaped logger that defers child creation.
  */

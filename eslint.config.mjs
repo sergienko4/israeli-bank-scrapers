@@ -73,8 +73,9 @@ const RESTRICTED_SYNTAX_RULES = [
     message: "🚫 FORBIDDEN METHOD: Usage of 'isStuckOnLoginPage' is globally banned.",
   },
   // Note: the `getDebug(import.meta.url)` Architectural Force lives in
-  // RESTRICTED_SYNTAX_RULES_NEW (Pipeline-scoped). Common/legacy scrapers
-  // use a separate `Common/Debug.js` and are intentionally exempt.
+  // RESTRICTED_SYNTAX_RULES_NEW (Pipeline-scoped). Common/legacy scrapers call
+  // `getDebugByName` (imported from the canonical Logging/Debug.js, usually
+  // aliased to `getDebug`) with a verbatim name and are intentionally exempt.
 
   // 6. Security & Logging
   {
@@ -225,7 +226,7 @@ const RESTRICTED_SYNTAX_RULES = [
 const NO_DIRECT_SCREENSHOT_RULE = {
   selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
   message:
-    'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The src/Common/SafeScreenshot.ts shim is deprecated since v8.5; new imports MUST use the canonical Pipeline path.',
+    'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The former src/Common/SafeScreenshot.ts shim has been removed; import the canonical Pipeline path.',
 };
 
 // SHAPE WINDOW-END FROM THE CLOCK — added 2026-06 with the window-coverage

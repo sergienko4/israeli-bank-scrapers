@@ -711,20 +711,29 @@ function ruleSixteenIssues(code: string): IIssue[] {
  * window where the file is absent — recreate it and the tree compiles again.
  * This map closes that window and, more usefully, answers "what do I import
  * instead?" at the point of failure.
+ *
+ * Both sides are repo-relative runtime (`.js`) paths: the key from the repo
+ * root, the replacement from `src/`. Keeping one base for every row is what
+ * lets the Rule #17 suite assert that each replacement resolves to a real file
+ * — a per-row base would make that check unwritable, and a typo in a
+ * replacement would then ship as advice pointing nowhere.
  */
 const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   [
     'src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js',
-    'Mediator/ApiDirectCall/ConfigContracts/index.js',
+    'Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js',
   ],
-  ['src/Scrapers/Pipeline/Mediator/Network/Fetch.js', 'Mediator/Network/Fetch/index.js'],
+  [
+    'src/Scrapers/Pipeline/Mediator/Network/Fetch.js',
+    'Scrapers/Pipeline/Mediator/Network/Fetch/index.js',
+  ],
   [
     'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
-    'Mediator/Network/AuthDiscovery/index.js',
+    'Scrapers/Pipeline/Mediator/Network/AuthDiscovery/index.js',
   ],
   [
     'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
-    'Mediator/Network/AuthFailureWatcher/index.js',
+    'Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/index.js',
   ],
   ['src/Common/Config/OtpDetectorConfig.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.js'],
   ['src/Common/FormAnchor.js', 'Scrapers/Pipeline/Mediator/Form/FormAnchor.js'],
@@ -771,9 +780,10 @@ function resolveSpecifier(fromFile: string, specifier: string): string {
  * paths, rather than matching specifier text. The same retired module is
  * written at least four ways — `./`, `../`, and two `../../../` depths — and
  * undercounting those spellings is what made the original migration estimate
- * low by a factor of three. Resolution collapses all of them to one path, and
- * removes the need to special-case `src/Common/Fetch.ts`: its own `./Fetch.js`
- * resolves under `src/Common/`, which is not retired.
+ * low by a factor of three. Resolution collapses all of them to one path, so a
+ * specifier is judged by where it lands rather than how it is spelled: from
+ * `src/Common/`, `./Fetch.js` lands on the retired `src/Common/Fetch.js` and is
+ * flagged, while `../../Common/Fetch.js` lands outside `src/` and is left alone.
  *
  * Specifiers come from the parser, not a line scan, so a path appearing in
  * prose, in a data structure, or inside a test fixture's import-shaped string

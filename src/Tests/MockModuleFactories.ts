@@ -8,7 +8,7 @@
  * Usage:
  * ```ts
  * import { createDebugMock, createNavigationMock } from '../MockModuleFactories.js';
- * jest.unstable_mockModule('../../Common/Debug.js', createDebugMock);
+ * jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', createDebugMock);
  * jest.unstable_mockModule('../../Common/Navigation.js',
  *   () => createNavigationMock('https://success.url'));
  * ```
