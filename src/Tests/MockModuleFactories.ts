@@ -32,6 +32,13 @@ function mockLogger(): MockLogger {
   };
 }
 
+/** Shape of the Debug module mock. */
+interface IDebugMockModule {
+  getDebug: () => MockLogger;
+  getDebugByName: () => MockLogger;
+  runWithBankContext: <T>(_b: string, fn: () => T) => T;
+}
+
 /**
  * Debug module mock with passthrough bank context.
  *
@@ -45,11 +52,7 @@ function mockLogger(): MockLogger {
  * that omits it fails to load any legacy consumer.
  * @returns Debug mock module
  */
-export function createDebugMock(): {
-  getDebug: () => MockLogger;
-  getDebugByName: () => MockLogger;
-  runWithBankContext: <T>(_b: string, fn: () => T) => T;
-} {
+export function createDebugMock(): IDebugMockModule {
   return {
     getDebug: mockLogger,
     getDebugByName: mockLogger,

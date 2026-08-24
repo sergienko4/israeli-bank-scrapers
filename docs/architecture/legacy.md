@@ -48,7 +48,8 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 - ❌ `BaseScraper.ts` or any of the 5 legacy base classes
 - ❌ Adding a new bank to `src/Scrapers/<Name>/` (use `src/Scrapers/Pipeline/Banks/<Name>/` instead)
-- ❌ Importing from `src/Common/`
+- ❌ Importing from `src/Common/` — the one allowlisted edge is
+  `src/Common/Config/BrowserConfig.ts` (browser bootstrap, no Pipeline duplicate)
 - ❌ Extending `SCRAPER_REGISTRY_LEUMI_TO_YAHAV` or `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`
 
 ## What new code MAY touch
