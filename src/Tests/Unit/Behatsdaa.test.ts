@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js', () => ({
+  launchCamoufox: jest.fn(),
+}));
 
 jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js', () => ({
   fetchPostWithinPage: jest.fn(),
@@ -106,7 +108,7 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', async () =>
 }));
 
 const BROWSER_MOD = await import('../../Common/Browser.js');
-const CAMOUFOX_MOD = await import('../../Common/CamoufoxLauncher.js');
+const CAMOUFOX_MOD = await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const FETCH_MOD = await import('../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js');
 const NAVIGATION_MOD = await import('../../Common/Navigation.js');
 const BEHATSDAA_MOD = await import('../../Scrapers/Behatsdaa/BehatsdaaScraper.js');

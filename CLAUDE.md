@@ -89,7 +89,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 - `src/Common/Browser.ts` — `buildContextOptions()`: Israel locale + timezone, `viewport: null` so the render surface follows the Camoufox launch window
 - `src/Scrapers/Base/Errors.ts` — `WafBlockError` with structured `IWafErrorDetails` (provider, httpStatus, pageTitle, pageUrl, suggestions)
-- `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts` — `launchCamoufox()`; re-exported by `src/Common/CamoufoxLauncher.ts`
+- `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts` — `launchCamoufox()`
 - `src/Scrapers/Pipeline/Mediator/Network/Fetch/PageFetchPost.ts` — `fetchPostWithinPage()` with HTTP status capture
 - `src/Scrapers/Pipeline/Mediator/Network/Fetch/WafDetection.ts` — `detectWafBlock()`: classifies a response as a WAF block
 - `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `humanDelay(min, max)`, the source of every human-like pause

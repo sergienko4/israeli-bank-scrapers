@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js', () => ({
+  launchCamoufox: jest.fn(),
+}));
 
 jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   clickButton: jest.fn().mockResolvedValue(undefined),
@@ -78,7 +80,8 @@ jest.unstable_mockModule(
 );
 
 const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Common/Browser.js');
-const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
+const { launchCamoufox: LAUNCH_CAMOUFOX } =
+  await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const { pageEval: PAGE_EVAL, pageEvalAll: PAGE_EVAL_ALL } =
   await import('../../Common/ElementsInteractions.js');
 const { filterOldTransactions: FILTER_OLD } = await import('../../Common/Transactions.js');

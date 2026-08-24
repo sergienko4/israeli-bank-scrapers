@@ -4,7 +4,9 @@ import type { ILoginConfig } from '../../Scrapers/Base/Config/LoginConfig.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import { mockToXpathLiteral } from '../MockModuleFactories.js';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js', () => ({
+  launchCamoufox: jest.fn(),
+}));
 
 jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
@@ -99,7 +101,8 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', (
   SECOND: 1000,
 }));
 
-const LAUNCH_CAMOUFOX_MODULE = await import('../../Common/CamoufoxLauncher.js');
+const LAUNCH_CAMOUFOX_MODULE =
+  await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const NAV_MODULE = await import('../../Common/Navigation.js');
 const SCRAPER_MODULE = await import('../../Scrapers/Base/ConcreteGenericScraper.js');
 const MOCK_MODULE = await import('../MockPage.js');

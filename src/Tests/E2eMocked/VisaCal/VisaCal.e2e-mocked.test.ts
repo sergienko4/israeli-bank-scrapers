@@ -12,10 +12,10 @@
 import { jest } from '@jest/globals';
 import type { Browser, BrowserContext } from 'playwright-core';
 
-import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { createScraper } from '../../../index.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import { launchCamoufox } from '../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 import { INVALID_CREDS_USERNAME_PASSWORD } from '../../TestConstants.js';
 import { createBankFixtures, type IBankFixtures } from '../Helpers/BankFixtureLoader.js';
 import { installOfflineInterceptor } from '../Helpers/OfflineRouteInterceptor.js';

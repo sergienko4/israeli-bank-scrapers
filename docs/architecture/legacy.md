@@ -30,14 +30,13 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 ### Legacy utilities
 
-| Path                                     | Replacement under Pipeline                           |
-| ---------------------------------------- | ---------------------------------------------------- |
-| `src/Common/Browser.ts`                  | `src/Scrapers/Pipeline/Mediator/Browser/`            |
-| `src/Common/CamoufoxLauncher.ts`         | Same — used at the boundary                          |
-| `src/Common/SelectorFieldResolver.ts`    | `src/Scrapers/Pipeline/Mediator/Selector/`           |
-| `src/Common/OtpHandler.ts`               | `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/`  |
-| `src/Common/Navigation.ts`, `Storage.ts` | Mediator zones own these directly                    |
-| `src/Common/ResultFormatter.ts`          | `src/Scrapers/Pipeline/Core/PipelineResult.ts`       |
+| Path                                     | Replacement under Pipeline                          |
+| ---------------------------------------- | --------------------------------------------------- |
+| `src/Common/Browser.ts`                  | `src/Scrapers/Pipeline/Mediator/Browser/`           |
+| `src/Common/SelectorFieldResolver.ts`    | `src/Scrapers/Pipeline/Mediator/Selector/`          |
+| `src/Common/OtpHandler.ts`               | `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/` |
+| `src/Common/Navigation.ts`, `Storage.ts` | Mediator zones own these directly                   |
+| `src/Common/ResultFormatter.ts`          | `src/Scrapers/Pipeline/Core/PipelineResult.ts`      |
 
 ## Why ship deprecated code?
 

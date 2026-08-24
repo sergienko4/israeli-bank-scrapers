@@ -9,7 +9,7 @@ import {
 } from '../../Scrapers/Base/Interface.js';
 
 jest.unstable_mockModule(
-  '../../Common/CamoufoxLauncher.js',
+  '../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js',
   /**
    * Mock CamoufoxLauncher.
    * @returns Mocked module.
@@ -99,7 +99,8 @@ jest.unstable_mockModule(
   () => ({ buildContextOptions: jest.fn().mockReturnValue({}) }),
 );
 
-const { launchCamoufox: LAUNCH_CAMOUFOX } = await import('../../Common/CamoufoxLauncher.js');
+const { launchCamoufox: LAUNCH_CAMOUFOX } =
+  await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const {
   clickButton: CLICK_BUTTON,
   fillInput: FILL_INPUT,

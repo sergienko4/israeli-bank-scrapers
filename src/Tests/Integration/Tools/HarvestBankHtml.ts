@@ -43,9 +43,9 @@ import { fileURLToPath } from 'node:url';
 import type { Browser, BrowserContext, Frame, Page } from 'playwright-core';
 
 import { buildContextOptions } from '../../../Common/Browser.js';
-import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import { launchCamoufox } from '../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 import BANK_LOGIN_CONFIGS from '../Banks/BankLoginConfigs.js';
 import type { BankCredentials } from './CredentialLoader.js';
 import { hasCredentials, loadCredentials } from './CredentialLoader.js';

@@ -1,6 +1,6 @@
 import { type Browser } from 'playwright-core';
 
-import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
+import { launchCamoufox } from '../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 
 let sharedBrowser: Browser | null = null;
 
