@@ -9,7 +9,7 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
-import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../Timing/LoginTimingConfig.js';
 
 /**
  * Post-login traffic gate — Phase 7e R-AUTH-CLEANUP: no WK_API.transactions

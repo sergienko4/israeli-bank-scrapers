@@ -23,7 +23,7 @@ import { API_STRATEGY } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { ICookieSnapshot } from '../Elements/ElementMediator.js';
-import { LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS } from '../Timing/TimingConfig.js';
+import { LOGIN_COOKIE_AUDIT_NETWORK_IDLE_MS } from '../Timing/LoginTimingConfig.js';
 
 /** Fail-loud message emitted when the cookie audit observes zero session cookies. */
 const COOKIE_AUDIT_EMPTY_MSG = 'LOGIN SIGNAL: AUTH_SESSION_INVALID — 0 cookies';

@@ -9,7 +9,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { LOGIN_PER_FRAME_SCAN_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { LOGIN_PER_FRAME_SCAN_TIMEOUT_MS } from '../Timing/LoginTimingConfig.js';
 
 /** Minimal error-scan result shape for the all-frames helper. */
 interface IFramesScanResult {
