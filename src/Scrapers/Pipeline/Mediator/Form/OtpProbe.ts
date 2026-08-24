@@ -17,7 +17,7 @@ import {
   OTP_ERROR_PROBE_TIMEOUT_MS,
   OTP_FORM_PROBE_TIMEOUT_MS,
   OTP_SUBMIT_PROBE_TIMEOUT_MS,
-} from '../Timing/TimingConfig.js';
+} from '../Timing/OtpTimingConfig.js';
 
 /**
  * Detect if an OTP code input is present on the page.

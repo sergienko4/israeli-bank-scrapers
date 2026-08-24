@@ -14,12 +14,12 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IActionMediator } from '../Elements/ElementMediator.js';
 import { readDiagString, readDiagTarget } from '../Otp/OtpShared.js';
-import { RACE_TIMED_OUT, raceTimeout } from '../Timing/TimingActions.js';
 import {
   DEFAULT_OTP_TIMEOUT_MS,
   OTP_PHASE_SETTLE_TIMEOUT_MS,
   OTP_RETRIEVER_SETTLE_MS,
-} from '../Timing/TimingConfig.js';
+} from '../Timing/OtpTimingConfig.js';
+import { RACE_TIMED_OUT, raceTimeout } from '../Timing/TimingActions.js';
 
 /**
  * False-returning catch handler — silences expected Playwright rejects.

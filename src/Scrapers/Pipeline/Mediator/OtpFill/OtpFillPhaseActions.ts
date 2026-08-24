@@ -4,7 +4,7 @@
  * the strict Mediator overlay (max-lines:150, max-lines-per-function:10).
  */
 
-export { DEFAULT_OTP_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+export { DEFAULT_OTP_TIMEOUT_MS } from '../Timing/OtpTimingConfig.js';
 export { default as executeFillAction } from './OtpFillPhaseActions.Fill.js';
 export { executeFillFinal, executeFillPost } from './OtpFillPhaseActions.PostFinal.js';
 export { default as executeFillPre } from './OtpFillPhaseActions.Pre.js';

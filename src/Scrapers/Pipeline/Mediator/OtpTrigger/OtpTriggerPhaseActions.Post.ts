@@ -9,7 +9,7 @@ import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
 import { readDiagTarget } from '../Otp/OtpShared.js';
-import { OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS } from '../Timing/OtpTimingConfig.js';
 
 /**
  * Read the `triggerClickedAt` timestamp the action stamped in

@@ -14,7 +14,7 @@ import {
   executeFillPost,
   executeFillPre,
 } from '../../Mediator/OtpFill/OtpFillPhaseActions.js';
-import { OTP_FILL_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
+import { OTP_FILL_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/OtpTimingConfig.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';

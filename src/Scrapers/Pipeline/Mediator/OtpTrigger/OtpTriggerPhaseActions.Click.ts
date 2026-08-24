@@ -13,7 +13,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IActionMediator } from '../Elements/ElementMediator.js';
 import { readDiagTarget } from '../Otp/OtpShared.js';
-import { OTP_PHASE_SETTLE_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { OTP_PHASE_SETTLE_TIMEOUT_MS } from '../Timing/OtpTimingConfig.js';
 
 /** Bundled args for {@link clickOtpTrigger}. */
 interface IClickTriggerArgs {

@@ -14,7 +14,7 @@ import {
   executeTriggerPost,
   executeTriggerPre,
 } from '../../Mediator/OtpTrigger/OtpTriggerPhaseActions.js';
-import { OTP_TRIGGER_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
+import { OTP_TRIGGER_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/OtpTimingConfig.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
