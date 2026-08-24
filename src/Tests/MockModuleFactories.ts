@@ -15,6 +15,8 @@
  */
 import { jest } from '@jest/globals';
 
+import { MOCK_TIMEOUT_MS } from '../Scrapers/Pipeline/Types/MockTiming.js';
+
 /** Logger mock with all pino levels. */
 type MockLogger = Record<string, jest.Mock>;
 
@@ -58,6 +60,10 @@ interface IDebugMockModule {
  * `getDebugByName` is the entry point legacy scrapers use — they pass a
  * verbatim module name rather than `import.meta.url` — so a mock of this module
  * that omits it fails to load any legacy consumer.
+ *
+ * `MOCK_TIMEOUT_MS` is re-exported from the real `Types/MockTiming.ts` rather
+ * than restated, so the two can never drift. That module is never itself
+ * mocked, so the import always resolves to the genuine value.
  * @returns Debug mock module
  */
 export function createDebugMock(): IDebugMockModule {
@@ -87,7 +93,7 @@ export function createDebugMock(): IDebugMockModule {
      * @returns false
      */
     isMockTimingActive: (): boolean => false,
-    MOCK_TIMEOUT_MS: 5000,
+    MOCK_TIMEOUT_MS,
   };
 }
 
