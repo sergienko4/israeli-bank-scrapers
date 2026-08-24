@@ -2,7 +2,7 @@ import { PassThrough } from 'node:stream';
 
 import pino from 'pino';
 
-import { getDebug } from '../../Common/Debug.js';
+import { getDebugByName as getDebug } from '../../Scrapers/Pipeline/Logging/Debug.js';
 
 const SENSITIVE_PATHS = [
   'password',

@@ -38,8 +38,22 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
 function stubLogger(): Record<string, jest.Mock> {
   return { trace: jest.fn(), debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 }
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
-  getDebug: stubLogger,
+jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
+  ...(await import('../../Scrapers/Pipeline/Types/MockTiming.js')),
+  ...(await import('../../Scrapers/Pipeline/Logging/BankContext.js')),
+  /**
+   * Pipeline-internal callers derive their module name from `import.meta.url`,
+   * so mocking the canonical module means this entry point must exist too.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
+  getDebugByName: stubLogger,
   /**
    * Passthrough mock for bank context.
    * @param _b - unused.

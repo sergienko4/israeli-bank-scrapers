@@ -9,12 +9,26 @@ import type { ILoginStepContext } from '../../Scrapers/Base/LoginSteps.js';
 const MOCK_HANDLE_OTP_CODE = jest.fn().mockResolvedValue({ success: true });
 const MOCK_WAIT_FOR_NAV = jest.fn().mockResolvedValue(undefined);
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
+  ...(await import('../../Scrapers/Pipeline/Types/MockTiming.js')),
+  ...(await import('../../Scrapers/Pipeline/Logging/BankContext.js')),
+  /**
+   * Pipeline-internal callers derive their module name from `import.meta.url`,
+   * so mocking the canonical module means this entry point must exist too.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
   /**
    * Mock debug factory.
    * @returns A mock logger object.
    */
-  getDebug: (): Record<string, jest.Mock> => ({
+  getDebugByName: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),

@@ -1,4 +1,4 @@
-import { getDebug } from '../../Common/Debug.js';
+import { getDebugByName as getDebug } from '../../Scrapers/Pipeline/Logging/Debug.js';
 
 describe('Debug', () => {
   describe('getDebug', () => {

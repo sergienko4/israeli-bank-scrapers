@@ -38,7 +38,6 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 | `src/Common/OtpHandler.ts`               | `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/`  |
 | `src/Common/Navigation.ts`, `Storage.ts` | Mediator zones own these directly                    |
 | `src/Common/ResultFormatter.ts`          | `src/Scrapers/Pipeline/Core/PipelineResult.ts`       |
-| `src/Common/Debug.ts`                    | **Still used by Pipeline** — exempt from deprecation |
 
 ## Why ship deprecated code?
 

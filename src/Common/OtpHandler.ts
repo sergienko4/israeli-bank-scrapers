@@ -6,6 +6,7 @@ import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Scrapers/Base/Interface.js';
 import ScraperError from '../Scrapers/Base/ScraperError.js';
+import { getDebugByName as getDebug } from '../Scrapers/Pipeline/Logging/Debug.js';
 import { safeScreenshot } from '../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
 import {
   clickFromCandidates,
@@ -26,7 +27,6 @@ import {
   OTP_TRIGGER_DELAY_MS,
   OTP_VERIFY_DELAY_MS,
 } from './Config/OtpConfig.js';
-import { getDebug } from './Debug.js';
 import { clickButton, fillInput } from './ElementsInteractions.js';
 import type { IParsedLoginPage } from './LoginMiddleware.js';
 

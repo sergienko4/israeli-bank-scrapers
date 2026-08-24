@@ -733,6 +733,7 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   ['src/Common/SafeScreenshot.js', 'Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js'],
   ['src/Common/Fetch.js', 'Scrapers/Pipeline/Mediator/Network/Fetch/index.js'],
   ['src/Common/Waiting.js', 'Scrapers/Pipeline/Mediator/Timing/Waiting.js'],
+  ['src/Common/Debug.js', 'Scrapers/Pipeline/Logging/Debug.js'],
 ]);
 
 /**

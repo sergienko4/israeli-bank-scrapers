@@ -12,13 +12,27 @@ const MOCK_RESOLVE_FIELD_WITH_CACHE = jest.fn();
 const MOCK_EXTRACT_CREDENTIAL_KEY = jest.fn((s: string) => s);
 
 jest.unstable_mockModule(
-  '../../Common/Debug.js',
+  '../../Scrapers/Pipeline/Logging/Debug.js',
   /**
    * Mock Debug module.
    * @returns mocked debug exports
    */
-  () => ({
-    getDebug:
+  async () => ({
+    ...(await import('../../Scrapers/Pipeline/Types/MockTiming.js')),
+    ...(await import('../../Scrapers/Pipeline/Logging/BankContext.js')),
+    /**
+     * Pipeline-internal callers derive their module name from `import.meta.url`,
+     * so mocking the canonical module means this entry point must exist too.
+     * @returns A mock debug logger object.
+     */
+    getDebug: (): Record<string, jest.Mock> => ({
+      trace: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    }),
+    getDebugByName:
       /**
        * Debug factory.
        * @returns mock logger

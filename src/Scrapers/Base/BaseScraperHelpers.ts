@@ -1,8 +1,8 @@
 import { type Page } from 'playwright-core';
 
-import { getDebug } from '../../Common/Debug.js';
 import { getCurrentUrl, type WaitUntilState } from '../../Common/Navigation.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import { getDebugByName as getDebug } from '../Pipeline/Logging/Debug.js';
 import { runSerial } from '../Pipeline/Mediator/Timing/Waiting.js';
 import { redactUrl } from '../Pipeline/Types/PiiRedactor.js';
 import { createChangePasswordError, ScraperErrorTypes } from './Errors.js';
