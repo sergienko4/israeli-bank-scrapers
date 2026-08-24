@@ -25,7 +25,7 @@ import { resolve } from 'node:path';
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
-import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
+import { safeScreenshot } from '../../../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
 
 const REPO_ROOT = process.cwd();
 const PR_YML_PATH = resolve(REPO_ROOT, '.github', 'workflows', 'pr.yml');

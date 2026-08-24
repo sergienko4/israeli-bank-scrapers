@@ -1,13 +1,13 @@
 import type { Browser, Frame, Page } from 'playwright-core';
 
 import { buildContextOptions } from '../../Common/Browser.js';
-import { launchCamoufox } from '../../Common/CamoufoxLauncher.js';
 import { runLoggedChain } from '../../Common/ChainLogger.js';
-import { getDebug } from '../../Common/Debug.js';
 import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddleware.js';
 import type { WaitUntilState } from '../../Common/Navigation.js';
-import { safeScreenshot } from '../../Common/SafeScreenshot.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import { getDebugByName as getDebug } from '../Pipeline/Logging/Debug.js';
+import { launchCamoufox } from '../Pipeline/Mediator/Browser/CamoufoxLauncher.js';
+import { safeScreenshot } from '../Pipeline/Mediator/Browser/SafeScreenshot.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import BaseScraper from './BaseScraper.js';
 import {

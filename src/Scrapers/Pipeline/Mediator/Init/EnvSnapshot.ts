@@ -27,8 +27,9 @@
  * + `pagePlatform: 'Win32'` on a Linux runner = stealth working;
  * `pageWebdriver: 'true'` = stealth broken).
  *
- * <p>Stack reminder (`src/Common/CamoufoxLauncher.ts`): this fork
- * uses Camoufox (Firefox + C++-level anti-detect stealth) via
+ * <p>Stack reminder
+ * (`src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts`): this
+ * fork uses Camoufox (Firefox + C++-level anti-detect stealth) via
  * `@hieutran094/camoufox-js`, NOT Chromium. `browser.version()`
  * returns the underlying Firefox build string;
  * `browser.browserType().name()` returns `'firefox'`.

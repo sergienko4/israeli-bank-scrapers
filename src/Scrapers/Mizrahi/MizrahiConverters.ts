@@ -1,11 +1,11 @@
 import moment from 'moment';
 import type { Frame } from 'playwright-core';
 
-import { pageEvalAll } from '../../Common/ElementsInteractions.js';
 import { getRawTransaction } from '../../Common/Transactions.js';
 import { SHEKEL_CURRENCY } from '../../Constants.js';
 import { CompanyTypes } from '../../Definitions.js';
 import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../Transactions.js';
+import { pageEvalAll } from '../Pipeline/Mediator/Elements/ElementsInteractions.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import {
   getTransactionIdentifier,

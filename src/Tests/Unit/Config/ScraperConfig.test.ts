@@ -5,12 +5,26 @@ import { mockToXpathLiteral } from '../../MockModuleFactories.js';
 
 // ── Mocks (required by transitive imports from ILoginConfig files) ────────────
 
-jest.unstable_mockModule('../../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
+  ...(await import('../../../Scrapers/Pipeline/Types/MockTiming.js')),
+  ...(await import('../../../Scrapers/Pipeline/Logging/BankContext.js')),
+  /**
+   * Pipeline-internal callers derive their module name from `import.meta.url`,
+   * so mocking the canonical module means this entry point must exist too.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
   /**
    * Creates a mock debug logger.
    * @returns mock debug logger with all methods stubbed.
    */
-  getDebug: (): Record<string, jest.Mock> => ({
+  getDebugByName: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -26,21 +40,24 @@ jest.unstable_mockModule('../../../Common/Debug.js', () => ({
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
-  waitUntilElementFound: jest.fn(),
-  waitUntilElementDisappear: jest.fn(),
-  clickButton: jest.fn(),
-  clickLink: jest.fn(),
-  dropdownElements: jest.fn(),
-  dropdownSelect: jest.fn(),
-  fillInput: jest.fn(),
-  elementPresentOnPage: jest.fn(),
-  waitUntilIframeFound: jest.fn(),
-  pageEval: jest.fn(),
-  pageEvalAll: jest.fn(),
-  setValue: jest.fn(),
-  capturePageText: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    waitUntilElementFound: jest.fn(),
+    waitUntilElementDisappear: jest.fn(),
+    clickButton: jest.fn(),
+    clickLink: jest.fn(),
+    dropdownElements: jest.fn(),
+    dropdownSelect: jest.fn(),
+    fillInput: jest.fn(),
+    elementPresentOnPage: jest.fn(),
+    waitUntilIframeFound: jest.fn(),
+    pageEval: jest.fn(),
+    pageEvalAll: jest.fn(),
+    setValue: jest.fn(),
+    capturePageText: jest.fn(),
+  }),
+);
 
 jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn(),
@@ -50,7 +67,7 @@ jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigationAndDomLoad: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
+jest.unstable_mockModule('../../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', () => ({
   sleep: jest.fn(),
   humanDelay: jest.fn(),
   waitUntil: jest.fn(),
@@ -60,21 +77,24 @@ jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
   SECOND: 1000,
 }));
 
-jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
-  resolveFieldContext: jest.fn(),
-  resolveFieldWithCache: jest.fn(),
-  candidateToCss: jest.fn(),
-  extractCredentialKey: jest.fn(),
-  tryInContext: jest.fn(),
-  toXpathLiteral: mockToXpathLiteral,
-  resolveDashboardField: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js',
+  () => ({
+    resolveFieldContext: jest.fn(),
+    resolveFieldWithCache: jest.fn(),
+    candidateToCss: jest.fn(),
+    extractCredentialKey: jest.fn(),
+    tryInContext: jest.fn(),
+    toXpathLiteral: mockToXpathLiteral,
+    resolveDashboardField: jest.fn(),
+  }),
+);
 
 jest.unstable_mockModule('../../../Common/Storage.js', () => ({
   getFromSessionStorage: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../../Common/Fetch.js', () => ({
+jest.unstable_mockModule('../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js', () => ({
   fetchPost: jest.fn(),
   fetchPostWithinPage: jest.fn(),
 }));

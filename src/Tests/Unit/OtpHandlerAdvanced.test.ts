@@ -13,12 +13,26 @@ const MOCK_TRY_IN_CONTEXT = jest.fn();
 const MOCK_RESOLVE_FIELD_CONTEXT = jest.fn();
 const MOCK_CANDIDATE_TO_CSS = jest.fn((c: { value: string }) => c.value);
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
+  ...(await import('../../Scrapers/Pipeline/Types/MockTiming.js')),
+  ...(await import('../../Scrapers/Pipeline/Logging/BankContext.js')),
+  /**
+   * Pipeline-internal callers derive their module name from `import.meta.url`,
+   * so mocking the canonical module means this entry point must exist too.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
   /**
    * Creates a mock debug logger.
    * @returns A mock debug logger object.
    */
-  getDebug: (): Record<string, jest.Mock> => ({
+  getDebugByName: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -34,7 +48,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   waitUntil: jest.fn().mockResolvedValue(undefined),
@@ -44,15 +58,18 @@ jest.unstable_mockModule('../../Common/Waiting.js', () => ({
   SECOND: 1000,
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  fillInput: MOCK_FILL_INPUT,
-  clickButton: MOCK_CLICK_BUTTON,
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    fillInput: MOCK_FILL_INPUT,
+    clickButton: MOCK_CLICK_BUTTON,
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
 
-jest.unstable_mockModule('../../Common/OtpDetector.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Otp/OtpDetector.js', () => ({
   detectOtpScreen: MOCK_DETECT_OTP_SCREEN,
   extractPhoneHint: MOCK_EXTRACT_PHONE_HINT,
   clickOtpTriggerIfPresent: MOCK_CLICK_OTP_TRIGGER_IF_PRESENT,
@@ -61,7 +78,7 @@ jest.unstable_mockModule('../../Common/OtpDetector.js', () => ({
   OTP_SUBMIT_CANDIDATES: [{ kind: 'xpath' as const, value: '//button[contains(.,"send")]' }],
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   tryInContext: MOCK_TRY_IN_CONTEXT,
   resolveFieldWithCache: jest
     .fn()

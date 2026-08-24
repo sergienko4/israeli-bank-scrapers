@@ -7,7 +7,7 @@ import {
   sleep as waitForMs,
   TimeoutError,
   waitUntil,
-} from '../../Common/Waiting.js';
+} from '../../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
 
 describe('SECOND', () => {
   it('equals 1000', () => {

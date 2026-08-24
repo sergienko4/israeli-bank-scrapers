@@ -1,8 +1,12 @@
 import { jest } from '@jest/globals';
 
-jest.unstable_mockModule('../../Common/CamoufoxLauncher.js', () => ({ launchCamoufox: jest.fn() }));
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js', () => ({
+  launchCamoufox: jest.fn(),
+}));
 
-jest.unstable_mockModule('../../Common/Fetch.js', () => ({ fetchPostWithinPage: jest.fn() }));
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js', () => ({
+  fetchPostWithinPage: jest.fn(),
+}));
 
 jest.unstable_mockModule('../../Common/Browser.js', () => ({
   buildContextOptions: jest.fn().mockReturnValue({}),
@@ -19,17 +23,26 @@ jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   waitForUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    clickButton: jest.fn().mockResolvedValue(undefined),
+    fillInput: jest.fn().mockResolvedValue(undefined),
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
 
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
 
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
 
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+// `RACE_TIMED_OUT` is a Symbol sentinel compared by identity. The stub below
+// neutralises sleeping, but Pipeline's `SelectorResolver.probe` also reaches
+// this module for the sentinel — so it is re-exported from the real (unmocked)
+// `TimingActions` rather than minted fresh, keeping that comparison honest.
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', async () => ({
+  RACE_TIMED_OUT: (await import('../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js'))
+    .RACE_TIMED_OUT,
   sleep: jest.fn().mockResolvedValue(undefined),
   /**
    * Executes async actions sequentially, collecting results.
@@ -62,12 +75,26 @@ jest.unstable_mockModule('../../Common/Transactions.js', () => ({
   getRawTransaction: jest.fn((data: Record<string, string>) => data),
 }));
 
-jest.unstable_mockModule('../../Common/Debug.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
+  ...(await import('../../Scrapers/Pipeline/Types/MockTiming.js')),
+  ...(await import('../../Scrapers/Pipeline/Logging/BankContext.js')),
+  /**
+   * Pipeline-internal callers derive their module name from `import.meta.url`,
+   * so mocking the canonical module means this entry point must exist too.
+   * @returns A mock debug logger object.
+   */
+  getDebug: (): Record<string, jest.Mock> => ({
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
   /**
    * Creates a mock debug logger.
    * @returns A mock debug logger object.
    */
-  getDebug: (): Record<string, jest.Mock> => ({
+  getDebugByName: (): Record<string, jest.Mock> => ({
     trace: jest.fn(),
     debug: jest.fn(),
     info: jest.fn(),
@@ -84,8 +111,8 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
 }));
 
 const BROWSER_MOD = await import('../../Common/Browser.js');
-const CAMOUFOX_MOD = await import('../../Common/CamoufoxLauncher.js');
-const FETCH_MOD = await import('../../Common/Fetch.js');
+const CAMOUFOX_MOD = await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
+const FETCH_MOD = await import('../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js');
 const NAVIGATION_MOD = await import('../../Common/Navigation.js');
 const BEHATSDAA_MOD = await import('../../Scrapers/Behatsdaa/BehatsdaaScraper.js');
 const TRANSACTIONS_MOD = await import('../../Transactions.js');

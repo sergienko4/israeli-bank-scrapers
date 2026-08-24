@@ -28,9 +28,9 @@ import * as process from 'node:process';
 
 import type { Browser, BrowserContext, Frame, Locator, Page } from 'playwright-core';
 
-import { launchCamoufox } from '../../../Common/CamoufoxLauncher.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import { launchCamoufox } from '../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 import { PIPELINE_BANK_CONFIG } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js';
 import { getDebug } from '../../../Scrapers/Pipeline/Types/Debug.js';
 

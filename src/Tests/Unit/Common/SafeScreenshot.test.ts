@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
-import { safeScreenshot } from '../../../Common/SafeScreenshot.js';
+import { safeScreenshot } from '../../../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
 
 /**
  * Creates a mock Playwright Page exposing only `screenshot` as a jest mock.

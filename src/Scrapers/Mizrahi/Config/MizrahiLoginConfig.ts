@@ -1,10 +1,10 @@
 import { type Page } from 'playwright-core';
 
-import { waitUntilElementDisappear } from '../../../Common/ElementsInteractions.js';
 import { waitForNavigation } from '../../../Common/Navigation.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
 import type { LifecyclePromise } from '../../Base/Interfaces/CallbackTypes.js';
+import { waitUntilElementDisappear } from '../../Pipeline/Mediator/Elements/ElementsInteractions.js';
 import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../../Registry/WellKnownSelectors.js';
 

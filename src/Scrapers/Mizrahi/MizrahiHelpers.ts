@@ -1,9 +1,9 @@
 import moment from 'moment';
 import { type Page, type Request } from 'playwright-core';
 
-import { getDebug } from '../../Common/Debug.js';
-import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { CompanyTypes } from '../../Definitions.js';
+import { getDebugByName as getDebug } from '../Pipeline/Logging/Debug.js';
+import { fetchPostWithinPage } from '../Pipeline/Mediator/Network/Fetch/index.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { MEMO_PREFIXES } from './Config/MizrahiHelpersConfig.js';
 import type { IMizrahiRequestData } from './Interfaces/MizrahiRequestData.js';

@@ -72,5 +72,4 @@ Each wave is a separate PR, gated by:
 ## What stays after migration
 
 - `src/Scrapers/Base/Interface.ts` and the rest of layer 5 — that's the public API surface, not legacy.
-- `src/Common/Debug.ts` — the only `Common/` helper Pipeline uses (1 import). Will be moved into `Pipeline/Types/Debug.ts` as part of wave 3.
 - The two registries in `src/Scrapers/Registry/` simplify down to a single `PIPELINE_REGISTRY` after wave 2.

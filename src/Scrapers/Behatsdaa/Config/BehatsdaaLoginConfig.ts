@@ -1,8 +1,8 @@
 import { type Page } from 'playwright-core';
 
-import { elementPresentOnPage } from '../../../Common/ElementsInteractions.js';
 import { CompanyTypes } from '../../../Definitions.js';
 import { type ILoginConfig } from '../../Base/Config/LoginConfig.js';
+import { elementPresentOnPage } from '../../Pipeline/Mediator/Elements/ElementsInteractions.js';
 import { SCRAPER_CONFIGURATION } from '../../Registry/Config/ScraperConfig.js';
 
 const CFG = SCRAPER_CONFIGURATION.banks[CompanyTypes.Behatsdaa];

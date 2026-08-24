@@ -41,7 +41,7 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorReso
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
-const OTP_MODULE = await import('../../Common/OtpDetector.js');
+const OTP_MODULE = await import('../../Scrapers/Pipeline/Mediator/Otp/OtpDetector.js');
 
 interface IOtpMockPage {
   evaluate: jest.Mock;
