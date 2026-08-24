@@ -1,6 +1,9 @@
 import { jest } from '@jest/globals';
 
-import { fetchGetWithinPage, fetchPostWithinPage } from '../../Common/Fetch.js';
+import {
+  fetchGetWithinPage,
+  fetchPostWithinPage,
+} from '../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
 import { createMockPage } from '../MockPage.js';
 
 /**

@@ -2,7 +2,6 @@ import moment from 'moment';
 import type { Page } from 'playwright-core';
 
 import { waitUntilIframeFound } from '../../Common/ElementsInteractions.js';
-import { fetchPostWithinPage } from '../../Common/Fetch.js';
 import { runSerial } from '../../Common/Waiting.js';
 import { CompanyTypes } from '../../Definitions.js';
 import {
@@ -14,6 +13,7 @@ import { ScraperErrorTypes } from '../Base/Errors.js';
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import type { IScraperScrapingResult, ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
+import { fetchPostWithinPage } from '../Pipeline/Mediator/Network/Fetch/index.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { WELL_KNOWN_DASHBOARD_SELECTORS } from '../Registry/WellKnownSelectors.js';
 import { MIZRAHI_CONFIG } from './Config/MizrahiLoginConfig.js';

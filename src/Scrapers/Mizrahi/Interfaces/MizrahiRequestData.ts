@@ -1,4 +1,4 @@
-import type { JsonValue } from '../../../Common/Fetch.js';
+import type { JsonValue } from '../../Pipeline/Mediator/Network/Fetch/index.js';
 
 /** Data payload for Mizrahi bank API requests. */
 export interface IMizrahiRequestData {

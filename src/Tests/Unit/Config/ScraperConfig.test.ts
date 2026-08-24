@@ -77,7 +77,7 @@ jest.unstable_mockModule('../../../Common/Storage.js', () => ({
   getFromSessionStorage: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../../Common/Fetch.js', () => ({
+jest.unstable_mockModule('../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js', () => ({
   fetchPost: jest.fn(),
   fetchPostWithinPage: jest.fn(),
 }));

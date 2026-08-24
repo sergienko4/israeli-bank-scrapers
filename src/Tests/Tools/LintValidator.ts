@@ -731,6 +731,7 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   ['src/Common/SelectorResolver.js', 'Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js'],
   ['src/Common/OtpDetector.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetector.js'],
   ['src/Common/SafeScreenshot.js', 'Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js'],
+  ['src/Common/Fetch.js', 'Scrapers/Pipeline/Mediator/Network/Fetch/index.js'],
 ]);
 
 /**
@@ -742,9 +743,10 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
  * `Mediator/Network/` prefix catches only the last form — and the sibling form
  * is the one a recreated shim is most likely to use.
  *
- * Resolving also removes the need to special-case `src/Common/Fetch.ts`: that
- * file's own `./Fetch.js` resolves under `src/Common/`, which is not a retired
- * path, so a live legacy shim keeps working without an exemption.
+ * Resolving also keeps the map honest about scope. `src/Common/Fetch.js` is
+ * retired, but a Pipeline-internal `./Fetch.js` inside
+ * `Mediator/Network/Fetch/` resolves somewhere else entirely and is left
+ * alone — no prefix match could make that distinction.
  * @param fromFile - Repo-relative path of the importing file.
  * @param specifier - Raw specifier text as written.
  * @returns Repo-relative target, or an empty string when not resolvable.
