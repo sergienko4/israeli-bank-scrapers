@@ -7,7 +7,8 @@
  * <p>Conventions and rationale for each constant are preserved from
  * the original file; the only change is physical location. The barrel
  * was retired once every importer moved to a domain file, so this is
- * now the only path to these constants.
+ * now the canonical definition for these constants. `Waiting.ts` still
+ * re-exports `SECOND` for its own consumers.
  */
 
 /** One second in milliseconds — base unit for timeout arithmetic. */

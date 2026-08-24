@@ -82,11 +82,14 @@ function readHomeResolverSource(): string {
  * so an unrelated re-export from another module cannot accidentally
  * satisfy the centralisation invariant.
  *
- * <p>`[\s\S]` (not `.`) keeps the brace-balanced segment portable
- * across the lint rule that bans the `s` (dotAll) flag.
+ * <p>`[^}]` (not `[\s\S]`) confines each half of the match to a
+ * single brace block. A lazy `[\s\S]*?` would happily run past one
+ * import's closing brace and pair the constant with a *later*
+ * import's specifier, so the guard would pass while the constant
+ * still came from the retired barrel.
  */
 const HOME_RESOLVER_ENTRY_TIMEOUT_IMPORT_REGEX =
-  /import\s*\{[\s\S]*?\bHOME_RESOLVER_ENTRY_TIMEOUT_MS\b[\s\S]*?\}\s*from\s*['"][^'"]*Timing\/HomeTimingConfig\.js['"]/;
+  /import\s*\{[^}]*\bHOME_RESOLVER_ENTRY_TIMEOUT_MS\b[^}]*\}\s*from\s*['"][^'"]*Timing\/HomeTimingConfig\.js['"]/;
 
 describe('TimingHomePreludeBudget', () => {
   it('[HOME-PRELUDE-BUDGET-001] HomePreludeBudget_TimingConfig_ShouldStayAboveCiRaceFloor', () => {
