@@ -1726,19 +1726,13 @@ export default tseslint.config(
   //     artifact 7128234088 leaked 18+ post-auth PNGs (run 26207506594).
   //     The SafeScreenshot helper is the only sanctioned call site —
   //     it short-circuits in CI to keep rendered bank pixels out of
-  //     public-readable artifacts. As of Phase-3 Commit 5 the canonical
-  //     implementation lives at
-  //     `src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts`;
-  //     `src/Common/SafeScreenshot.ts` is now a deprecated re-export
-  //     shim. Both files remain allow-listed so the helper itself can
-  //     call `page.screenshot()` without tripping the rule.
+  //     public-readable artifacts. The canonical implementation lives
+  //     at `src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts`
+  //     and is allow-listed so the helper itself can call
+  //     `page.screenshot()` without tripping the rule.
   {
     files: ['src/**/*.ts'],
-    ignores: [
-      'src/Common/SafeScreenshot.ts',
-      'src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts',
-      'src/Tests/**',
-    ],
+    ignores: ['src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts', 'src/Tests/**'],
     rules: {
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
     },

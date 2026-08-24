@@ -6,8 +6,8 @@ import { runLoggedChain } from '../../Common/ChainLogger.js';
 import { getDebug } from '../../Common/Debug.js';
 import type { ILoginContext, INamedLoginStep } from '../../Common/LoginMiddleware.js';
 import type { WaitUntilState } from '../../Common/Navigation.js';
-import { safeScreenshot } from '../../Common/SafeScreenshot.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import { safeScreenshot } from '../Pipeline/Mediator/Browser/SafeScreenshot.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import BaseScraper from './BaseScraper.js';
 import {

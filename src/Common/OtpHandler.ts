@@ -6,6 +6,7 @@ import type { SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
 import { ScraperErrorTypes } from '../Scrapers/Base/Errors.js';
 import { type IScraperScrapingResult, type ScraperOptions } from '../Scrapers/Base/Interface.js';
 import ScraperError from '../Scrapers/Base/ScraperError.js';
+import { safeScreenshot } from '../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
 import {
   clickFromCandidates,
   clickOtpTriggerIfPresent,
@@ -28,7 +29,6 @@ import {
 import { getDebug } from './Debug.js';
 import { clickButton, fillInput } from './ElementsInteractions.js';
 import type { IParsedLoginPage } from './LoginMiddleware.js';
-import { safeScreenshot } from './SafeScreenshot.js';
 
 const LOG = getDebug('otp-handler');
 
