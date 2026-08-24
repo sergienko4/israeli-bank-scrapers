@@ -701,9 +701,9 @@ function ruleSixteenIssues(code: string): IIssue[] {
 }
 
 /**
- * Module specifiers retired during the Phase 3 shim sweep, mapped to what
- * replaced them. Each was a deprecated re-export whose importers have all
- * moved; the files are deleted.
+ * Module specifiers retired during the Phase 3 and arch5 shim sweeps, mapped
+ * to what replaced them. Each was a deprecated re-export whose importers have
+ * all moved; the files are deleted.
  *
  * Deleting a shim is not self-enforcing. A revert, a merge from a long-lived
  * branch, or an editor auto-import working from a stale index can recreate
@@ -726,6 +726,8 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
     'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
     'Mediator/Network/AuthFailureWatcher/index.js',
   ],
+  ['src/Common/Config/OtpDetectorConfig.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.js'],
+  ['src/Common/FormAnchor.js', 'Scrapers/Pipeline/Mediator/Form/FormAnchor.js'],
 ]);
 
 /**

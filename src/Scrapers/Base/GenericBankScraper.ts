@@ -1,13 +1,17 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import { clickButton, fillInput } from '../../Common/ElementsInteractions.js';
-import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from '../../Common/FormAnchor.js';
 import {
   candidateToCss,
   type IFieldContext,
   resolveFieldContext,
 } from '../../Common/SelectorResolver.js';
 import { runSerial } from '../../Common/Waiting.js';
+import {
+  discoverFormAnchor,
+  type IFormAnchor,
+  scopeCandidates,
+} from '../Pipeline/Mediator/Form/FormAnchor.js';
 import {
   BaseScraperWithBrowser,
   type ILoginOptions,
