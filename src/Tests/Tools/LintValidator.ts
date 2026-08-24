@@ -663,8 +663,8 @@ function ruleFifteenIssues(code: string): IIssue[] {
  *    flagging a definition would make the rule unsatisfiable.
  *  - Import/export lines are skipped by construction: the pattern requires an
  *    opening paren, and `import { clickButton } from …` never has one. The
- *    helpers stay exported because `src/Common/ElementsInteractions.ts`
- *    re-exports them to legacy callers. Ignoring legacy is the ruling;
+ *    helpers stay exported because callers outside the Elements zone — legacy
+ *    scrapers included — import them by name. Ignoring legacy is the ruling;
  *    breaking it is not.
  *  - Raw DOM APIs (`querySelector`, `waitForSelector`, `pageEvalAll`) are NOT
  *    covered. Inside Pipeline they appear only in parsing/extraction code and
@@ -735,6 +735,10 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   ['src/Common/Waiting.js', 'Scrapers/Pipeline/Mediator/Timing/Waiting.js'],
   ['src/Common/Debug.js', 'Scrapers/Pipeline/Logging/Debug.js'],
   ['src/Common/CamoufoxLauncher.js', 'Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js'],
+  [
+    'src/Common/ElementsInteractions.js',
+    'Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  ],
 ]);
 
 /**

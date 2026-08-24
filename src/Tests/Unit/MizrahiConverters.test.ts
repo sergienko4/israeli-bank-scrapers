@@ -34,12 +34,16 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', async () =>
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  pageEvalAll: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    pageEvalAll: jest.fn(),
+  }),
+);
 
 const CONVERTERS = await import('../../Scrapers/Mizrahi/MizrahiConverters.js');
-const INTERACTIONS = await import('../../Common/ElementsInteractions.js');
+const INTERACTIONS =
+  await import('../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js');
 const TX = await import('../../Transactions.js');
 
 /** Valid date string in ISO 8601 local-seconds format. */

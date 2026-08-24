@@ -58,13 +58,16 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', (
   SECOND: 1000,
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  fillInput: MOCK_FILL_INPUT,
-  clickButton: MOCK_CLICK_BUTTON,
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    fillInput: MOCK_FILL_INPUT,
+    clickButton: MOCK_CLICK_BUTTON,
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
 
 jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Otp/OtpDetector.js', () => ({
   detectOtpScreen: MOCK_DETECT_OTP_SCREEN,

@@ -1,7 +1,6 @@
 import moment from 'moment';
 import { type Page } from 'playwright-core';
 
-import { pageEval, pageEvalAll, waitUntilElementFound } from '../../Common/ElementsInteractions.js';
 import { filterOldTransactions, getRawTransaction } from '../../Common/Transactions.js';
 import {
   DOLLAR_CURRENCY,
@@ -16,6 +15,11 @@ import { type ITransaction, TransactionStatuses, TransactionTypes } from '../../
 import GenericBankScraper from '../Base/GenericBankScraper.js';
 import { type ScraperOptions } from '../Base/Interface.js';
 import { getDebugByName as getDebug } from '../Pipeline/Logging/Debug.js';
+import {
+  pageEval,
+  pageEvalAll,
+  waitUntilElementFound,
+} from '../Pipeline/Mediator/Elements/ElementsInteractions.js';
 import { candidateToCss } from '../Pipeline/Mediator/Selector/SelectorResolver.js';
 import { SCRAPER_CONFIGURATION } from '../Registry/Config/ScraperConfig.js';
 import { BEYAHAD_CONFIG } from './Config/BeyahadBishvilhaLoginConfig.js';

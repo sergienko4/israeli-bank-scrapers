@@ -282,8 +282,8 @@ describe('issuesFromCode — Rule #10 Playwright leak', () => {
 //
 // The three `expected: 0` structural rows are the ones that make the rule
 // satisfiable at all. The helpers are DEFINED inside the Pipeline tree
-// (ElementWaitAction.ts, ElementsInteractions.ts) and are re-exported to
-// legacy callers through src/Common/ElementsInteractions.ts, so a naive
+// (ElementWaitAction.ts, ElementsInteractions.ts) and are imported by name
+// from outside the Elements zone, so a naive
 // "name appears in a Pipeline file" check would flag the definitions and the
 // export list and could never reach zero.
 //

@@ -1,6 +1,6 @@
 import { type Frame, type Page } from 'playwright-core';
 
-import { clickButton, fillInput } from '../../Common/ElementsInteractions.js';
+import { clickButton, fillInput } from '../Pipeline/Mediator/Elements/ElementsInteractions.js';
 import {
   discoverFormAnchor,
   type IFormAnchor,

@@ -10,15 +10,18 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Network/Fetch/index.j
 }));
 const FRAME_LOC = mockFrameLocator();
 const MOCK_IFRAME = { locator: jest.fn().mockReturnValue(FRAME_LOC) };
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementDisappear: jest.fn().mockResolvedValue(undefined),
-  waitUntilIframeFound: jest.fn().mockResolvedValue(MOCK_IFRAME),
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-  pageEvalAll: jest.fn().mockResolvedValue([]),
-}));
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    clickButton: jest.fn().mockResolvedValue(undefined),
+    fillInput: jest.fn().mockResolvedValue(undefined),
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+    waitUntilElementDisappear: jest.fn().mockResolvedValue(undefined),
+    waitUntilIframeFound: jest.fn().mockResolvedValue(MOCK_IFRAME),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    pageEvalAll: jest.fn().mockResolvedValue([]),
+  }),
+);
 const DASHBOARD_URL = 'https://mto.mizrahi-tefahot.co.il/OnlineApp/dashboard';
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue(DASHBOARD_URL),
@@ -68,7 +71,8 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', async () =>
 const { buildContextOptions: BUILD_CTX } = await import('../../Common/Browser.js');
 const { launchCamoufox: LAUNCH } =
   await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
-const { elementPresentOnPage: EL_PRESENT } = await import('../../Common/ElementsInteractions.js');
+const { elementPresentOnPage: EL_PRESENT } =
+  await import('../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js');
 const { fetchPostWithinPage: FETCH_POST } =
   await import('../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js');
 const { getCurrentUrl: GET_URL } = await import('../../Common/Navigation.js');

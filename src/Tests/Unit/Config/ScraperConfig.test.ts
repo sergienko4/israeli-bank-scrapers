@@ -40,21 +40,24 @@ jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', async ()
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
-  waitUntilElementFound: jest.fn(),
-  waitUntilElementDisappear: jest.fn(),
-  clickButton: jest.fn(),
-  clickLink: jest.fn(),
-  dropdownElements: jest.fn(),
-  dropdownSelect: jest.fn(),
-  fillInput: jest.fn(),
-  elementPresentOnPage: jest.fn(),
-  waitUntilIframeFound: jest.fn(),
-  pageEval: jest.fn(),
-  pageEvalAll: jest.fn(),
-  setValue: jest.fn(),
-  capturePageText: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    waitUntilElementFound: jest.fn(),
+    waitUntilElementDisappear: jest.fn(),
+    clickButton: jest.fn(),
+    clickLink: jest.fn(),
+    dropdownElements: jest.fn(),
+    dropdownSelect: jest.fn(),
+    fillInput: jest.fn(),
+    elementPresentOnPage: jest.fn(),
+    waitUntilIframeFound: jest.fn(),
+    pageEval: jest.fn(),
+    pageEvalAll: jest.fn(),
+    setValue: jest.fn(),
+    capturePageText: jest.fn(),
+  }),
+);
 
 jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn(),

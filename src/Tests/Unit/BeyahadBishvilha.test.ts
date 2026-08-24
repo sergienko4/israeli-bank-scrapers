@@ -4,17 +4,20 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLaunc
   launchCamoufox: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  pageEval: jest.fn().mockResolvedValue(null),
-  pageEvalAll: jest.fn().mockResolvedValue([]),
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    clickButton: jest.fn().mockResolvedValue(undefined),
+    fillInput: jest.fn().mockResolvedValue(undefined),
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+    pageEval: jest.fn().mockResolvedValue(null),
+    pageEvalAll: jest.fn().mockResolvedValue([]),
 
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
 
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
 
 jest.unstable_mockModule('../../Common/Navigation.js', () => ({
   getCurrentUrl: jest.fn().mockResolvedValue('https://www.hist.org.il/'),
@@ -83,7 +86,7 @@ const { buildContextOptions: BUILD_CONTEXT_OPTIONS } = await import('../../Commo
 const { launchCamoufox: LAUNCH_CAMOUFOX } =
   await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 const { pageEval: PAGE_EVAL, pageEvalAll: PAGE_EVAL_ALL } =
-  await import('../../Common/ElementsInteractions.js');
+  await import('../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js');
 const { filterOldTransactions: FILTER_OLD } = await import('../../Common/Transactions.js');
 const { default: BEYAHAD_SCRAPER } =
   await import('../../Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.js');

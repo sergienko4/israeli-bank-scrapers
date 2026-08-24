@@ -39,16 +39,19 @@ jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', async ()
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-jest.unstable_mockModule('../../../Common/ElementsInteractions.js', () => ({
-  waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
-  waitUntilElementDisappear: MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR,
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-  waitUntilIframeFound: jest.fn().mockResolvedValue(undefined),
-  pageEval: jest.fn().mockResolvedValue(''),
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
+jest.unstable_mockModule(
+  '../../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    waitUntilElementFound: MOCK_WAIT_UNTIL_ELEMENT_FOUND,
+    waitUntilElementDisappear: MOCK_WAIT_UNTIL_ELEMENT_DISAPPEAR,
+    clickButton: jest.fn().mockResolvedValue(undefined),
+    fillInput: jest.fn().mockResolvedValue(undefined),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    waitUntilIframeFound: jest.fn().mockResolvedValue(undefined),
+    pageEval: jest.fn().mockResolvedValue(''),
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
 
 jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
   waitForNavigation: jest.fn().mockResolvedValue(undefined),

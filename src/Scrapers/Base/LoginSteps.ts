@@ -1,11 +1,6 @@
 import type { Frame, Page } from 'playwright-core';
 
 import {
-  clickButton,
-  fillInput,
-  waitUntilElementFound,
-} from '../../Common/ElementsInteractions.js';
-import {
   CONTINUE,
   type ILoginContext,
   type IParsedLoginPage,
@@ -15,6 +10,11 @@ import {
 import { waitForNavigation } from '../../Common/Navigation.js';
 import { handleOtpCode, handleOtpConfirm } from '../../Common/OtpHandler.js';
 import { ScraperProgressTypes } from '../../Definitions.js';
+import {
+  clickButton,
+  fillInput,
+  waitUntilElementFound,
+} from '../Pipeline/Mediator/Elements/ElementsInteractions.js';
 import {
   extractCredentialKey,
   type IFieldContext,

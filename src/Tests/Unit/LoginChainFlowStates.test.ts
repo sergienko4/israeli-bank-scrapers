@@ -63,13 +63,16 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', (
   TimeoutError: Error,
   SECOND: 1000,
 }));
-jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
-  fillInput: jest.fn().mockResolvedValue(undefined),
-  clickButton: jest.fn().mockResolvedValue(undefined),
-  waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
-  elementPresentOnPage: jest.fn().mockResolvedValue(false),
-  capturePageText: jest.fn().mockResolvedValue(''),
-}));
+jest.unstable_mockModule(
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
+  () => ({
+    fillInput: jest.fn().mockResolvedValue(undefined),
+    clickButton: jest.fn().mockResolvedValue(undefined),
+    waitUntilElementFound: jest.fn().mockResolvedValue(undefined),
+    elementPresentOnPage: jest.fn().mockResolvedValue(false),
+    capturePageText: jest.fn().mockResolvedValue(''),
+  }),
+);
 jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   resolveFieldContext: jest
     .fn()

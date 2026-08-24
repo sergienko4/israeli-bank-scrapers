@@ -9,6 +9,10 @@ import ScraperError from '../Scrapers/Base/ScraperError.js';
 import { getDebugByName as getDebug } from '../Scrapers/Pipeline/Logging/Debug.js';
 import { safeScreenshot } from '../Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js';
 import {
+  clickButton,
+  fillInput,
+} from '../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js';
+import {
   clickFromCandidates,
   clickOtpTriggerIfPresent,
   detectOtpScreen,
@@ -27,7 +31,6 @@ import {
   OTP_TRIGGER_DELAY_MS,
   OTP_VERIFY_DELAY_MS,
 } from './Config/OtpConfig.js';
-import { clickButton, fillInput } from './ElementsInteractions.js';
 import type { IParsedLoginPage } from './LoginMiddleware.js';
 
 const LOG = getDebug('otp-handler');

@@ -18,7 +18,7 @@ jest.unstable_mockModule(
 );
 
 jest.unstable_mockModule(
-  '../../Common/ElementsInteractions.js',
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
   /**
    * Mock ElementsInteractions.
    * @returns Mocked module.
@@ -105,7 +105,7 @@ const {
   clickButton: CLICK_BUTTON,
   fillInput: FILL_INPUT,
   waitUntilElementFound: WAIT_FOR_ELEMENT,
-} = await import('../../Common/ElementsInteractions.js');
+} = await import('../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js');
 const { getCurrentUrl: GET_CURRENT_URL } = await import('../../Common/Navigation.js');
 const { BaseScraperWithBrowser: BASE_SCRAPER_WITH_BROWSER, LOGIN_RESULTS } =
   await import('../../Scrapers/Base/BaseScraperWithBrowser.js');

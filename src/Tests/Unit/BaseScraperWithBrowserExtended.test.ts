@@ -18,7 +18,7 @@ jest.unstable_mockModule(
 );
 
 jest.unstable_mockModule(
-  '../../Common/ElementsInteractions.js',
+  '../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
   /**
    * Mock ElementsInteractions.
    * @returns Mocked module.
@@ -101,7 +101,8 @@ jest.unstable_mockModule(
 
 const { launchCamoufox: LAUNCH_CAMOUFOX } =
   await import('../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
-const { fillInput: FILL_INPUT } = await import('../../Common/ElementsInteractions.js');
+const { fillInput: FILL_INPUT } =
+  await import('../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js');
 const { getCurrentUrl: GET_CURRENT_URL, waitForNavigation: WAIT_NAV } =
   await import('../../Common/Navigation.js');
 const { ScraperProgressTypes: PROGRESS_TYPES, CompanyTypes: COMPANY_TYPES } =
