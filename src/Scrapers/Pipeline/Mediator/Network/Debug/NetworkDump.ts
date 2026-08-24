@@ -12,8 +12,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { getDebug } from '../../../Logging/Debug.js';
 import { getActivePhase, getActiveStage } from '../../../Types/ActiveState.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { redactJsonBody, redactUrl, redactUrlFull } from '../../../Types/PiiRedactor.js';
 import { getSubStepNetworkDumpDir } from '../../../Types/TraceConfig.js';

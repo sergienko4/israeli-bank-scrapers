@@ -5,7 +5,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type {
   IFieldContext,

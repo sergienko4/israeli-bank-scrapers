@@ -5,7 +5,7 @@
 
 import type { Frame, Locator } from 'playwright-core';
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { none, type Option, some } from '../../Types/Option.js';
 import {
   buildIdSelector,

@@ -34,9 +34,9 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
-import { isMockTimingActive } from '../../Types/Debug.js';
+import { isMockTimingActive } from '../../Types/MockTiming.js';
 import type { Option } from '../../Types/Option.js';
 import { PRELUDE_NONE_BUDGET_MS } from '../Timing/SharedTimingConstants.js';
 import { waitForDomReady, waitForSpaReady } from './PageReadiness.js';

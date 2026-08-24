@@ -7,8 +7,8 @@
 
 import type { Page } from 'playwright-core';
 
+import { getDebug } from '../../../Logging/Debug.js';
 import type { IFetchOpts } from '../../../Strategy/Fetch/FetchStrategy.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { discoverAuthThreeTier } from '../AuthDiscovery/index.js';
 import buildDiscoveredHeadersFromCapture from '../DiscoveryHeaders/DiscoveryHeaders.js';

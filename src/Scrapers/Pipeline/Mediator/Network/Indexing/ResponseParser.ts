@@ -19,7 +19,7 @@
 
 import type { Response } from 'playwright-core';
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { dumpResponseBody } from '../Debug/NetworkDump.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';

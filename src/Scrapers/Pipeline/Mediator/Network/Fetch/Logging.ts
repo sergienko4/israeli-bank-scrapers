@@ -6,8 +6,8 @@
  * effective LoC per the canonical-10 cap.
  */
 
+import { getDebug } from '../../../Logging/Debug.js';
 import type { Brand } from '../../../Types/Brand.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { BODY_PREVIEW_LIMIT } from '../FetchConfig.js';
 import { detectWafBlock } from './WafDetection.js';

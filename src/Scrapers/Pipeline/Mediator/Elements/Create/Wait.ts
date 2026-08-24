@@ -20,8 +20,8 @@
 
 import type { Frame, Locator, Page } from 'playwright-core';
 
+import { getDebug } from '../../../Logging/Debug.js';
 import { WK_LOADING } from '../../../Registry/WK/SharedWK.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { isOk, type Procedure, succeed } from '../../../Types/Procedure.js';
 import { ELEMENTS_LOADING_DELAY_MS } from '../ActionExecutors.js';
 import type { IElementMediator } from '../ElementMediator.js';

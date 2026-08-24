@@ -16,8 +16,9 @@
 import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../../Base/Config/LoginConfigTypes.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { WK_LOGIN_FORM } from '../../../Registry/WK/LoginWK.js';
-import { capTimeout, getDebug } from '../../../Types/Debug.js';
+import { capTimeout } from '../../../Types/MockTiming.js';
 import { isSome, none, type Option, some } from '../../../Types/Option.js';
 import { type Procedure, succeed } from '../../../Types/Procedure.js';
 import { type IElementMediator, type IRaceResult, NOT_FOUND_RESULT } from '../ElementMediator.js';

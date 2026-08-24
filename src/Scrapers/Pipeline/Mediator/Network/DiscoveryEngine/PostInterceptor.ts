@@ -10,8 +10,8 @@
 
 import type { Page, Request, Response } from 'playwright-core';
 
+import { getDebug } from '../../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { NETWORK_POST_INTERCEPT_TIMEOUT_MS } from '../../Timing/NetworkTimingConfig.js';
 import { parseResponse } from '../Indexing/Indexing.js';

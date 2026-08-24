@@ -27,7 +27,7 @@
  * headers that ride alongside it.
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
 const LOG = getDebug(import.meta.url);

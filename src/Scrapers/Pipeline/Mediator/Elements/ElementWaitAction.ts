@@ -6,7 +6,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import ScraperError from '../../../Base/ScraperError.js';
-import { getDebug as createLogger } from '../../Types/Debug.js';
+import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { waitUntil } from '../Timing/Waiting.js';
 import type { IWaitOptions } from './ElementsActionTypes.js';

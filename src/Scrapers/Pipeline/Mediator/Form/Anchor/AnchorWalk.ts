@@ -8,7 +8,7 @@
 import { type Frame, type Locator, type Page } from 'playwright-core';
 
 import { type Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { escapeCssAttr, escapeCssIdent } from './AnchorEscape.js';
 import {

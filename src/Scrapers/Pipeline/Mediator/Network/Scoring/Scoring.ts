@@ -18,8 +18,8 @@
  * per PR #276 review-fix (CR #9 / Section 11 LoC cap).
  */
 
+import { getDebug } from '../../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { isBancsTxnCapture } from '../../Scrape/Bancs/BancsTxnRequest.js';
 import { BROWSER_STANDARD_HEADERS, extractBaseUrl } from '../Indexing/Indexing.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';

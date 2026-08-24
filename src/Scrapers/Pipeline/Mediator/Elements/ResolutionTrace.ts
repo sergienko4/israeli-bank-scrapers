@@ -6,7 +6,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import type { ScraperLogger } from '../../Types/Debug.js';
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IRaceResult } from './ElementMediator.js';
 

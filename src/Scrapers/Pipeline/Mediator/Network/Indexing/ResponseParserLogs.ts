@@ -5,7 +5,7 @@
  * file cap and each log helper stays a thin, single-call function.
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';

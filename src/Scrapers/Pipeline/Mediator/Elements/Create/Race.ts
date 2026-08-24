@@ -27,7 +27,8 @@
 import type { Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../../Base/Config/LoginConfigTypes.js';
-import { capTimeout, getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
+import { capTimeout } from '../../../Types/MockTiming.js';
 import { type IElementIdentity, type IRaceResult, NOT_FOUND_RESULT } from '../ElementMediator.js';
 import { buildLocatorEntriesAll, type ILocatorEntry } from './Entries.js';
 import { type IRaceDiagnostic, raceLocatorsFirstHit } from './Hittest.js';

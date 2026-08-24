@@ -6,7 +6,7 @@
 
 import { type Frame, type Page } from 'playwright-core';
 
-import { getDebug as createLogger } from '../../Types/Debug.js';
+import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { humanDelay } from '../Timing/Waiting.js';
 import {

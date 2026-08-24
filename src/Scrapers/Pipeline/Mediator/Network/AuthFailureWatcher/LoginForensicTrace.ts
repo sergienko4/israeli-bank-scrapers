@@ -15,7 +15,7 @@
 
 import type { ConsoleMessage, Page } from 'playwright-core';
 
-import type { ScraperLogger } from '../../../Types/Debug.js';
+import type { ScraperLogger } from '../../../Logging/Debug.js';
 
 /** Console types that warrant forensic capture; log/info/debug are noise. */
 const EMIT_CONSOLE_TYPES = new Set(['error', 'warning']);

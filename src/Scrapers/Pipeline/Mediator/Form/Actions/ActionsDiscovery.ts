@@ -8,7 +8,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { ScraperLogger } from '../../../Types/Debug.js';
+import type { ScraperLogger } from '../../../Logging/Debug.js';
 import { type MaskedText, maskVisibleText } from '../../../Types/LogEvent.js';
 import type { ILoginFieldDiscovery, IResolvedTarget } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';

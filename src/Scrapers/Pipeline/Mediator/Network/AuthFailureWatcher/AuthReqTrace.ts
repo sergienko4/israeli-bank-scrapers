@@ -5,7 +5,7 @@
 
 import type { Request } from 'playwright-core';
 
-import type { ScraperLogger } from '../../../Types/Debug.js';
+import type { ScraperLogger } from '../../../Logging/Debug.js';
 import { WK_AUTH_POST_OR_PUT_REQUEST } from '../DiscoveryEngine/PostInterceptor.js';
 
 /** Request listener signature attached when auth request tracing is ON. */

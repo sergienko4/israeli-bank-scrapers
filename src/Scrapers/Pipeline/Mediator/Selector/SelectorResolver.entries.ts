@@ -11,7 +11,7 @@ import {
   WELL_KNOWN_DASHBOARD_SELECTORS,
   WELL_KNOWN_LOGIN_SELECTORS,
 } from '../../../Registry/WellKnownSelectors.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { isPage } from './SelectorResolver.credKey.js';
 import type { ICachedResolveOpts, IDashboardFieldOpts } from './SelectorResolver.types.js';

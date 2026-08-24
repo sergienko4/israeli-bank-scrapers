@@ -25,7 +25,7 @@
  * Extracted from CreateElementMediator.ts (Phase 12a §5).
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { type IElementIdentity, type IRaceResult } from '../ElementMediator.js';
 import type { ILocatorEntry } from './Entries.js';

@@ -10,8 +10,8 @@
  * clear obstructions without a phase reaching into `Interceptors/`.
  */
 
+import type { ScraperLogger } from '../../Logging/Debug.js';
 import { WK_CLOSE_POPUP } from '../../Registry/WK/SharedWK.js';
-import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IElementMediator } from './ElementMediator.js';
 

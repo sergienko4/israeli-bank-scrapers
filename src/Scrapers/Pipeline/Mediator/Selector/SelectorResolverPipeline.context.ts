@@ -2,7 +2,7 @@
  * Map an IFieldMatch → fully populated IFieldContext, with trace logging.
  */
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IFieldContext, IFieldMatch } from './SelectorResolverPipeline.types.js';
 

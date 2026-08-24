@@ -11,7 +11,7 @@
 
 import type { Page } from 'playwright-core';
 
-import { getDebug, type ScraperLogger } from '../../Types/Debug.js';
+import { getDebug, type ScraperLogger } from '../../Logging/Debug.js';
 import { createNetworkDiscovery } from '../Network/NetworkDiscovery.js';
 import { assembleElementMediator, type IFormCache, NO_FORM_ANCHOR } from './Create/index.js';
 import { type IElementMediator } from './ElementMediator.js';

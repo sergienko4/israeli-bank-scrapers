@@ -4,7 +4,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { emptyMatch } from './HeuristicResolver.probes.js';
 import { STRATEGY_HANDLERS } from './HeuristicResolver.strategies.js';
 import { HEURISTIC_MAP } from './HeuristicResolver.types.js';

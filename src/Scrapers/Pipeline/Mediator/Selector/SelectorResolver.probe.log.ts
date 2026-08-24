@@ -3,7 +3,7 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IProbeResult } from './SelectorResolver.types.js';
 

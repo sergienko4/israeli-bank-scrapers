@@ -6,7 +6,7 @@
 import type { Frame, Locator, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfigTypes.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import {
   ELEMENTS_CLICK_TIMEOUT_MS,

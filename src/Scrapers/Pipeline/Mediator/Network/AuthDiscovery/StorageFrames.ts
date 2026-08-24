@@ -7,7 +7,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { prefixToken, STORAGE_AUTH_KEYS, tryParseJsonToken } from './Tokens.js';
 

@@ -2,7 +2,7 @@
  * Diagnostic logging helpers for PipelineFieldResolver.
  */
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import type { Option } from '../../Types/Option.js';
 import { EMPTY_METADATA } from '../Elements/MetadataExtractors.js';
 import type { IPipelineFieldContext } from './PipelineFieldResolver.types.js';

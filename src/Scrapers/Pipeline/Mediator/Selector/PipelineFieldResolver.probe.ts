@@ -4,7 +4,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { none, type Option, some } from '../../Types/Option.js';
 import { LOGIN_FIELD_RERESOLVE_WAIT } from '../Timing/LoginTimingConfig.js';
 import { waitUntil } from '../Timing/Waiting.js';

@@ -11,7 +11,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import { heuristicResolveInFrame, toHeuristicContext } from './HeuristicResolver.context.js';
 import { isPage } from './SelectorResolver.js';

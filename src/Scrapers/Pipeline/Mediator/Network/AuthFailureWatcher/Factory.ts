@@ -8,7 +8,7 @@
 
 import type { Page } from 'playwright-core';
 
-import { getDebug, type ScraperLogger } from '../../../Types/Debug.js';
+import { getDebug, type ScraperLogger } from '../../../Logging/Debug.js';
 import { buildAuthRequestFailedHandler, buildAuthRequestHandler } from './AuthReqTrace.js';
 import { readAuthReqTraceGate } from './AuthReqTraceGate.js';
 import { buildResponseHandler } from './Inspector.js';

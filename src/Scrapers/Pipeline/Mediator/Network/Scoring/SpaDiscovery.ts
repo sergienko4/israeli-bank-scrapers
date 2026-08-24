@@ -12,8 +12,8 @@
  * banks no longer crash the discovery tier.
  */
 
+import { getDebug } from '../../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../../Registry/WK/ScrapeWK.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import { isConfigOrSettingsUrl } from './ConfigUrlMatcher.js';

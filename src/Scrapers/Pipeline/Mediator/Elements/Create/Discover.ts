@@ -23,7 +23,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../../Base/Config/LoginConfigTypes.js';
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { none, type Option, some } from '../../../Types/Option.js';
 import { discoverFormAnchor, type IFormAnchor, scopeCandidates } from '../../Form/FormAnchor.js';

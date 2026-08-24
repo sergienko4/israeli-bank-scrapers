@@ -11,7 +11,7 @@
  * CR PR #276 #9.
  */
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 import { isConfigOrSettingsUrl } from './ConfigUrlMatcher.js';

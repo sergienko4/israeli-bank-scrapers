@@ -12,7 +12,7 @@
 
 import { promises as dns } from 'node:dns';
 
-import type { ScraperLogger } from '../../../Types/Debug.js';
+import type { ScraperLogger } from '../../../Logging/Debug.js';
 
 /** Hosts the Amex/Isracard `he.->web.` auth handshake depends on. */
 export const AUTH_HOSTS = [

@@ -5,7 +5,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { tryInContextInternal } from './SelectorResolver.try.js';
 import { toFieldContext } from './SelectorResolverPipeline.context.js';
 import type {

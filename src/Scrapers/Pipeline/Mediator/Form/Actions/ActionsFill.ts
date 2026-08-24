@@ -8,7 +8,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { IFieldConfig } from '../../../../Base/Interfaces/Config/FieldConfig.js';
-import type { ScraperLogger } from '../../../Types/Debug.js';
+import type { ScraperLogger } from '../../../Logging/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { succeed } from '../../../Types/Procedure.js';

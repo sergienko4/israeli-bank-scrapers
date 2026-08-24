@@ -7,7 +7,7 @@
 
 import type { Frame, JSHandle, Page } from 'playwright-core';
 
-import { getDebug } from '../../../Types/Debug.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import {
   AUTH_MODULE_STORAGE_KEY,
   AUTH_POLL_INTERVAL,

@@ -2,8 +2,8 @@
  * AuthFailureWatcher State — captured-failure recording + read helpers.
  */
 
+import { getDebug } from '../../../Logging/Debug.js';
 import type { Brand } from '../../../Types/Brand.js';
-import { getDebug } from '../../../Types/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import type { IAuthFailure, IWatcherState } from './Types.js';
 

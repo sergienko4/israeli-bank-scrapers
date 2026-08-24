@@ -6,7 +6,7 @@
 
 import type { Locator } from 'playwright-core';
 
-import { getDebug } from '../../Types/Debug.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { isFillableInput } from './SelectorLabelStrategies.elements.js';
 import type { IProbeFillableOpts } from './SelectorLabelStrategies.types.js';
 

@@ -11,7 +11,7 @@ import type { Frame, Page } from 'playwright-core';
 import type { SelectorCandidate } from '../../../../Base/Config/LoginConfigTypes.js';
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../../Base/Interfaces/Config/LoginConfig.js';
-import type { ScraperLogger } from '../../../Types/Debug.js';
+import type { ScraperLogger } from '../../../Logging/Debug.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import type { ILoginFieldDiscovery } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
