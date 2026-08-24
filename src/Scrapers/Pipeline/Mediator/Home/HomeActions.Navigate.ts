@@ -8,7 +8,7 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
 import type { IActionMediator } from '../Elements/ElementMediator.js';
-import { HOME_SETTLE_TIMEOUT_MS, HOME_SPA_NAV_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { HOME_SETTLE_TIMEOUT_MS, HOME_SPA_NAV_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 import { executeModalClick } from './HomeActions.Modal.js';
 import type { IHomeDiscovery } from './HomeResolver.js';
 import { NAV_STRATEGY } from './HomeResolver.js';

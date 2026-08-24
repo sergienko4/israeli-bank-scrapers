@@ -35,7 +35,7 @@ import type {
   IElementMediator,
   IRaceResult,
 } from '../Elements/ElementMediator.js';
-import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 import type { NavStrategy } from './HomeStrategyClassify.js';
 import { classifyStrategy, NAV_STRATEGY } from './HomeStrategyClassify.js';
 

@@ -16,7 +16,7 @@ import {
 } from '../../Mediator/Home/HomeActions.js';
 import { resolveHomeWithRecovery, toRecoveryArgs } from '../../Mediator/Home/HomeCrashRecovery.js';
 import type { IHomeDiscovery } from '../../Mediator/Home/HomeResolver.js';
-import { HOME_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/TimingConfig.js';
+import { HOME_PRELUDE_TIMEOUT_MS } from '../../Mediator/Timing/HomeTimingConfig.js';
 import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';

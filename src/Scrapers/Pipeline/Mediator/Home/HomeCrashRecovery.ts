@@ -28,7 +28,7 @@ import type { ScraperLogger } from '../../Logging/Debug.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { HOME_PRELUDE_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { HOME_PRELUDE_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 import { type IHomeDiscovery, resolveHomeStrategy } from './HomeResolver.js';
 
 /**

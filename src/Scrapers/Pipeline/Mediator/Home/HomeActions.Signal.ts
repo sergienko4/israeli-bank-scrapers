@@ -12,7 +12,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { HOME_FORM_READY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { HOME_FORM_READY_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 
 /**
  * Probe the FORM_GATE visibility race once and unwrap to a boolean.

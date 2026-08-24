@@ -14,7 +14,7 @@ import type {
   IElementMediator,
   IRaceResult,
 } from '../Elements/ElementMediator.js';
-import { HOME_ENTRY_TIMEOUT_MS, HOME_MODAL_SETTLE_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { HOME_ENTRY_TIMEOUT_MS, HOME_MODAL_SETTLE_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 import type { IHomeDiscovery } from './HomeResolver.js';
 
 /**

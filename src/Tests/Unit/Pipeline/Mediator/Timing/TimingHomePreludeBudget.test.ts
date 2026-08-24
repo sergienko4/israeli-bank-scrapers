@@ -43,7 +43,7 @@ import { fileURLToPath } from 'node:url';
 import {
   HOME_PRELUDE_TIMEOUT_MS,
   HOME_RESOLVER_ENTRY_TIMEOUT_MS,
-} from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingConfig.js';
+} from '../../../../../Scrapers/Pipeline/Mediator/Timing/HomeTimingConfig.js';
 
 /** Minimum SPA-prelude budget required to absorb Hapoalim CI `load` delay. */
 const MIN_HOME_PRELUDE_TIMEOUT_MS = 25_000;

@@ -12,7 +12,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/TimingConfig.js';
+import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 import { type DidNavigate, hasLeftHomepage } from './HomeNavigationTruth.js';
 
 /** Bundled args for login area validation. */
