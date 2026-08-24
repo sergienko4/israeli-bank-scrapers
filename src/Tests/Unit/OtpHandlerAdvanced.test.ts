@@ -52,7 +52,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.unstable_mockModule('../../Common/OtpDetector.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Otp/OtpDetector.js', () => ({
   detectOtpScreen: MOCK_DETECT_OTP_SCREEN,
   extractPhoneHint: MOCK_EXTRACT_PHONE_HINT,
   clickOtpTriggerIfPresent: MOCK_CLICK_OTP_TRIGGER_IF_PRESENT,
