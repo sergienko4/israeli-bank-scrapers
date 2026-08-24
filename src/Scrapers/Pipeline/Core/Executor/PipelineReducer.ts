@@ -3,7 +3,7 @@
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { PHASE_SETTLE_MS } from '../../Mediator/Timing/TimingConfig.js';
+import { PHASE_SETTLE_MS } from '../../Mediator/Timing/SharedTimingConstants.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { AUTH_DISCOVERY_NOT_READY_CODE } from '../../Types/Domain/AuthDiscoveryTypes.js';
 import { LOGIN_NOT_COMPLETED_CODE } from '../../Types/Domain/LoginTypes.js';

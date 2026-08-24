@@ -1,14 +1,13 @@
 /**
  * Cross-cutting timing primitives — shared across every phase and not
- * owned by any single phase folder. Split out of {@link "./TimingConfig.js"}
- * during Phase 12b (KG-driven decoupling of the 481-LoC config hub).
+ * owned by any single phase folder. Split out of the TimingConfig
+ * barrel during Phase 12b (KG-driven decoupling of the 481-LoC config
+ * hub).
  *
  * <p>Conventions and rationale for each constant are preserved from
- * the original file; the only change is physical location. Importers
- * may continue to use the {@link "./TimingConfig.js"} barrel during
- * the v8.5 release window — that barrel re-exports every constant
- * here verbatim. New code SHOULD import directly from this domain
- * file to make the cross-cutting nature explicit.
+ * the original file; the only change is physical location. The barrel
+ * was retired once every importer moved to a domain file, so this is
+ * now the only path to these constants.
  */
 
 /** One second in milliseconds — base unit for timeout arithmetic. */

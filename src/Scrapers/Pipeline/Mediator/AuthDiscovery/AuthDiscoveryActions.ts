@@ -23,7 +23,7 @@ import type {
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
-import { AUTH_DISCOVERY_PRE_SETTLE_MS } from '../Timing/TimingConfig.js';
+import { AUTH_DISCOVERY_PRE_SETTLE_MS } from '../Timing/AuthDiscoveryTimingConfig.js';
 import {
   auditSessionCookies,
   collectAuthChannels,
@@ -210,7 +210,7 @@ async function executeAuthDiscoveryPost(
   return commitAuthDiscovery(input, snapshot);
 }
 
-export { AUTH_DISCOVERY_DASHBOARD_WAIT_MS } from '../Timing/TimingConfig.js';
+export { AUTH_DISCOVERY_DASHBOARD_WAIT_MS } from '../Timing/AuthDiscoveryTimingConfig.js';
 export {
   executeAuthDiscoveryFinal,
   executeHardModelAuthDiscoveryFinal,

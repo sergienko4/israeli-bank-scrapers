@@ -1,6 +1,6 @@
 /**
  * Regression pins for the HOME wait-chain budgets owned by
- * `TimingConfig.ts`.
+ * `HomeTimingConfig.ts`.
  *
  * <p>Background — I-3 surfaced 2026-05-13 on PR #227 / release PR #172
  * CI run: Hapoalim's `E2E Real` job intermittently failed (~73-82% pass
@@ -78,7 +78,7 @@ function readHomeResolverSource(): string {
  * Structural detector for the `HOME_RESOLVER_ENTRY_TIMEOUT_MS`
  * import — tolerates multi-line import formatting, whitespace
  * variants, sibling named imports, and single- or double-quoted
- * specifiers. Anchored to the `Timing/TimingConfig.js` specifier
+ * specifiers. Anchored to the `Timing/HomeTimingConfig.js` specifier
  * so an unrelated re-export from another module cannot accidentally
  * satisfy the centralisation invariant.
  *
@@ -86,7 +86,7 @@ function readHomeResolverSource(): string {
  * across the lint rule that bans the `s` (dotAll) flag.
  */
 const HOME_RESOLVER_ENTRY_TIMEOUT_IMPORT_REGEX =
-  /import\s*\{[\s\S]*?\bHOME_RESOLVER_ENTRY_TIMEOUT_MS\b[\s\S]*?\}\s*from\s*['"][^'"]*Timing\/TimingConfig\.js['"]/;
+  /import\s*\{[\s\S]*?\bHOME_RESOLVER_ENTRY_TIMEOUT_MS\b[\s\S]*?\}\s*from\s*['"][^'"]*Timing\/HomeTimingConfig\.js['"]/;
 
 describe('TimingHomePreludeBudget', () => {
   it('[HOME-PRELUDE-BUDGET-001] HomePreludeBudget_TimingConfig_ShouldStayAboveCiRaceFloor', () => {
@@ -96,7 +96,7 @@ describe('TimingHomePreludeBudget', () => {
     );
   });
 
-  it('[HOME-PRELUDE-BUDGET-002] HomeResolver_NoLocalEntryTimeout_ShouldImportFromTimingConfig', () => {
+  it('[HOME-PRELUDE-BUDGET-002] HomeResolver_NoLocalEntryTimeout_ShouldImportFromHomeTimingConfig', () => {
     const source = readHomeResolverSource();
     const hasTimingConfigImport = HOME_RESOLVER_ENTRY_TIMEOUT_IMPORT_REGEX.test(source);
     const hasLocalEntryTimeoutLiteral = /const\s+ENTRY_TIMEOUT\s*=/.test(source);

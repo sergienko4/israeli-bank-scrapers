@@ -16,7 +16,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import type { IDiscoveredEndpoint } from '../Network/NetworkDiscoveryTypes.js';
-import { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/TimingConfig.js';
+import { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/AccountResolveTimingConfig.js';
 import { discoverAccountsInPool } from './AccountFromPool.js';
 import { nudgeToCardsView } from './AccountResolveActions.Nudge.js';
 

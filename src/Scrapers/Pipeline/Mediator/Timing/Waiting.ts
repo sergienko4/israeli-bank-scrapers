@@ -4,10 +4,11 @@
  * Timing utilities (sleep, humanDelay, raceTimeout, runSerial) in TimingActions.ts.
  */
 
+import { DEFAULT_WAIT_INTERVAL_MS, DEFAULT_WAIT_TIMEOUT_MS } from './SharedTimingConstants.js';
 import { createTimeoutError, TimeoutError, timeoutPromise } from './TimingActions.js';
-import { DEFAULT_WAIT_INTERVAL_MS, DEFAULT_WAIT_TIMEOUT_MS } from './TimingConfig.js';
 import { buildWaitPromise, type ICancellablePoll } from './WaitTickFactory.js';
 
+export { SECOND } from './SharedTimingConstants.js';
 export {
   humanDelay,
   RACE_TIMED_OUT,
@@ -16,7 +17,6 @@ export {
   sleep,
   TimeoutError,
 } from './TimingActions.js';
-export { SECOND } from './TimingConfig.js';
 
 /** Serializable poll value for diagnostics. */
 type PollValue = string | number | boolean;

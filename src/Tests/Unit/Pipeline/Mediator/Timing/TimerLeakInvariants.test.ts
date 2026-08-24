@@ -24,11 +24,11 @@ import { jest } from '@jest/globals';
 
 import executeFillAction from '../../../../../Scrapers/Pipeline/Mediator/OtpFill/OtpFillPhaseActions.Fill.js';
 import { runAllCleanups } from '../../../../../Scrapers/Pipeline/Mediator/Terminate/TerminateActions.js';
+import { TERMINATE_CLEANUP_BUDGET_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TerminateTimingConfig.js';
 import {
   humanDelay,
   sleep as delayFor,
 } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
-import { TERMINATE_CLEANUP_BUDGET_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingConfig.js';
 import { waitUntil } from '../../../../../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

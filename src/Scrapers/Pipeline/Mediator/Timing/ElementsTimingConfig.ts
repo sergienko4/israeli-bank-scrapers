@@ -5,7 +5,7 @@
  * (click, evaluate, network-idle, URL-wait) rather than per-phase
  * walls.
  *
- * <p>Split out of {@link "./TimingConfig.js"} during Phase 12b.
+ * <p>Split out of the TimingConfig barrel during Phase 12b.
  */
 
 /**

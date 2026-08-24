@@ -749,6 +749,10 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
     'Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
   ],
   ['src/Scrapers/Pipeline/Types/BasePhase.js', 'Scrapers/Pipeline/Phases/Base/BasePhase.js'],
+  [
+    'src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.js',
+    'the owning Scrapers/Pipeline/Mediator/Timing/<Domain>TimingConfig.js module',
+  ],
 ]);
 
 /**

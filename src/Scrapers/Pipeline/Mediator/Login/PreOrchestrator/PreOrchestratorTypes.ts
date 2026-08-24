@@ -11,7 +11,7 @@ import type { IPipelineContext } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import type { IElementMediator } from '../../Elements/ElementMediator.js';
 import type { IPreludeSpec } from '../../Elements/PagePrelude.js';
-import { ELEMENTS_DOM_READY_TIMEOUT_MS } from '../../Timing/TimingConfig.js';
+import { ELEMENTS_DOM_READY_TIMEOUT_MS } from '../../Timing/ElementsTimingConfig.js';
 
 /** Failure message for the LOGIN PRE missing-browser early gate. */
 export const LOGIN_PRE_NO_BROWSER = 'LOGIN PRE: no browser';

@@ -7,7 +7,7 @@ import { randomInt } from 'node:crypto';
 
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
-import { HUMAN_DELAY_MAX_MS, HUMAN_DELAY_MIN_MS } from './TimingConfig.js';
+import { HUMAN_DELAY_MAX_MS, HUMAN_DELAY_MIN_MS } from './SharedTimingConstants.js';
 
 /** Error thrown when an async wait operation exceeds its timeout. */
 export class TimeoutError extends Error {}

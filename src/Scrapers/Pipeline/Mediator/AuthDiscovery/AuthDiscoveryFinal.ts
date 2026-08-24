@@ -11,7 +11,7 @@ import { AUTH_DISCOVERY_NOT_READY_CODE } from '../../Types/Domain/AuthDiscoveryT
 import type { IAuthDiscovery, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
-import { AUTH_DISCOVERY_FINAL_SETTLE_MS } from '../Timing/TimingConfig.js';
+import { AUTH_DISCOVERY_FINAL_SETTLE_MS } from '../Timing/AuthDiscoveryTimingConfig.js';
 import type { DashboardGateReason } from './AuthDiscoveryInterstitial.js';
 import { dashboardGateReason } from './AuthDiscoveryInterstitial.js';
 import {

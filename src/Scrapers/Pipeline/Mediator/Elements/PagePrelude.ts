@@ -38,7 +38,7 @@ import { getActivePhase, getActiveStage } from '../../Types/ActiveState.js';
 import type { ScraperLogger } from '../../Types/Debug.js';
 import { isMockTimingActive } from '../../Types/Debug.js';
 import type { Option } from '../../Types/Option.js';
-import { PRELUDE_NONE_BUDGET_MS } from '../Timing/TimingConfig.js';
+import { PRELUDE_NONE_BUDGET_MS } from '../Timing/SharedTimingConstants.js';
 import { waitForDomReady, waitForSpaReady } from './PageReadiness.js';
 
 /** Closed enum of readiness levels — matches the OCP pattern used by AuthDiscoveryFailCode. */

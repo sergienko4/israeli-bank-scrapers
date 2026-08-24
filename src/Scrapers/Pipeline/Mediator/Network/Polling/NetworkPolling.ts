@@ -17,11 +17,11 @@
 import type { Page, Response } from 'playwright-core';
 import { errors } from 'playwright-core';
 
-import { createPromise } from '../../Timing/TimingActions.js';
 import {
   NETWORK_BODY_SETTLE_MS,
   NETWORK_WAIT_FIRST_ID_POLL_MS,
-} from '../../Timing/TimingConfig.js';
+} from '../../Timing/NetworkTimingConfig.js';
+import { createPromise } from '../../Timing/TimingActions.js';
 import type { IDiscoveredEndpoint } from '../NetworkDiscoveryTypes.js';
 
 /** Predicate signature — caller-owned shape detector. */

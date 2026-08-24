@@ -12,10 +12,10 @@ import {
   ELEMENTS_CLICK_TIMEOUT_MS,
   ELEMENTS_EVALUATE_TIMEOUT_MS,
   ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS,
-} from '../Timing/TimingConfig.js';
+} from '../Timing/ElementsTimingConfig.js';
 import { humanDelay } from '../Timing/Waiting.js';
 
-export { ELEMENTS_LOADING_DELAY_MS } from '../Timing/TimingConfig.js';
+export { ELEMENTS_LOADING_DELAY_MS } from '../Timing/ElementsTimingConfig.js';
 
 const LOG = getDebug(import.meta.url);
 

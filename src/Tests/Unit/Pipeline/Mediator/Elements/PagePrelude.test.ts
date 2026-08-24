@@ -158,10 +158,11 @@ function buildPagePreludeScenario(resolveFor: ReadonlySet<string>): IPagePrelude
 }
 
 // PR #221 review (id 3217306133): the suite previously hard-coded
-// `timeoutMs: 5_000` for both specs. Sourced from `TimingConfig.ts`
-// instead so the central ceilings remain the single source of truth —
-// `HOME_PRELUDE_TIMEOUT_MS` is a representative SPA-level budget;
-// `OTP_FILL_PRELUDE_TIMEOUT_MS` is a representative DOM-level budget.
+// `timeoutMs: 5_000` for both specs. Sourced from the per-phase timing
+// modules instead so the central ceilings remain the single source of
+// truth — `HOME_PRELUDE_TIMEOUT_MS` is a representative SPA-level
+// budget; `OTP_FILL_PRELUDE_TIMEOUT_MS` is a representative DOM-level
+// budget.
 const SPA_SPEC: IPreludeSpec = { level: 'spa', timeoutMs: HOME_PRELUDE_TIMEOUT_MS };
 const DOM_SPEC: IPreludeSpec = { level: 'dom', timeoutMs: OTP_FILL_PRELUDE_TIMEOUT_MS };
 const DOM_ONLY = new Set(['domcontentloaded']);

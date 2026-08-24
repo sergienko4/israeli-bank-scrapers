@@ -1,8 +1,7 @@
 /**
- * LOGIN-phase timing budgets. Split out of
- * {@link "./TimingConfig.js"} during Phase 12b — see file for the
- * rollout window during which the {@link "./TimingConfig.js"} barrel
- * still re-exports these names.
+ * LOGIN-phase timing budgets. Split out of the TimingConfig barrel during
+ * Phase 12b. The barrel was retired once every importer moved to a
+ * domain file.
  */
 
 /** LOGIN form-frame scan budget per frame. */

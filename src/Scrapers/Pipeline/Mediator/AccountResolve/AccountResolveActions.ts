@@ -12,7 +12,7 @@
  * predicate (`discoverAccountsInPool`).
  */
 
-export { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/TimingConfig.js';
+export { ACCOUNT_RESOLVE_BUDGET_MS } from '../Timing/AccountResolveTimingConfig.js';
 export { executeAccountResolveFinal } from './AccountResolveActions.Final.js';
 export { executeAccountResolvePost } from './AccountResolveActions.Post.js';
 export {

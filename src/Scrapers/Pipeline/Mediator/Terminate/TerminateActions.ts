@@ -18,8 +18,8 @@ import type {
 } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { TERMINATE_CLEANUP_BUDGET_MS } from '../Timing/TerminateTimingConfig.js';
 import { RACE_TIMED_OUT, raceTimeout } from '../Timing/TimingActions.js';
-import { TERMINATE_CLEANUP_BUDGET_MS } from '../Timing/TimingConfig.js';
 
 /** Type alias for the cleanup function signature from IBrowserState. */
 type CleanupFn = IBrowserState['cleanups'][number];

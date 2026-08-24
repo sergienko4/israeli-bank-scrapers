@@ -376,15 +376,15 @@ buildPinoOptions
 buildSilentOptions
 buildActiveOptions
 
-# --- Phase 12b: Mediator/Timing split (PR TBD) ---
+# --- Phase 12b: Mediator/Timing split ---
 # These 69 timing-budget constants were previously declared in
 # src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts and are NOT new
-# public API. Phase 12b decomposed that 481-LoC hub into 13 per-phase
+# public API. Phase 12b decomposed that 481-LoC hub into per-phase
 # domain files (HomeTimingConfig.ts, OtpTimingConfig.ts, etc.) plus a
-# shared cross-cutting module. The original TimingConfig.ts now re-exports
-# every name verbatim via export * from for one release window, so the
-# external symbol surface emitted into lib/index.{cjs,mjs} is unchanged
-# (lib/index.d.ts hash byte-identical: 14819 bytes).
+# shared cross-cutting module. TimingConfig.ts re-exported every name
+# verbatim for one release window and has since been removed; the
+# external symbol surface emitted into lib/index.{cjs,mjs} was unchanged
+# throughout (lib/index.d.ts hash byte-identical: 14819 bytes).
 #
 # The docs-coverage scanner cannot distinguish "moved to a new file"
 # from "newly introduced" via export * from barrels, so it sees every
@@ -394,8 +394,7 @@ buildActiveOptions
 # Pipeline-internal wait-budget ceilings consumed by the phase mediator,
 # not part of the @sergienko4/israeli-bank-scrapers public surface.
 # Allowlisting them keeps the perimeter honest without forcing 69 entries
-# into docs/ for symbols that are scheduled for further consolidation in
-# v8.6 alongside the barrel removal.
+# into docs/ for symbols that were never exported to users.
 ACCOUNT_RESOLVE_BUDGET_MS
 ACCOUNT_RESOLVE_POLL_MS
 AUTH_DISCOVERY_DASHBOARD_WAIT_MS
@@ -452,16 +451,7 @@ OTP_SUBMIT_PROBE_TIMEOUT_MS
 OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS
 OTP_TRIGGER_PRELUDE_TIMEOUT_MS
 PHASE_SETTLE_MS
-PRELOGIN_CRED_AREA_TIMEOUT_MS
-PRELOGIN_DISCOVER_TIMEOUT_MS
-PRELOGIN_FORM_GATE_TIMEOUT_MS
-PRELOGIN_FORM_POST_TIMEOUT_MS
-PRELOGIN_FORM_PROBE_TIMEOUT_MS
-PRELOGIN_RESOLVE_TARGET_TIMEOUT_MS
-PRELOGIN_REVEAL_NAV_TIMEOUT_MS
 PRELUDE_NONE_BUDGET_MS
-SCRAPE_UI_TRAFFIC_TIMEOUT_MS
-SCRAPE_UI_WK_TIMEOUT_MS
 SECOND
 STRONG_AUTH_COOKIE_FLOOR
 TERMINATE_CLEANUP_BUDGET_MS

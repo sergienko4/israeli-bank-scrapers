@@ -847,7 +847,7 @@ describe('Mission 3 — R-OTP-FILL-SEAL: OTP-FILL imports nothing from Dashboard
  * (`IFRAME_DEFAULT_TIMEOUT_MS` — Playwright iframe), and the entire
  * `Mediator/Timing/` directory — the centralised timing-budget owner.
  * Phase 12b (2026-06) split the original monolithic `TimingConfig.ts`
- * into 13 per-phase domain files; the allowlist now matches the whole
+ * into per-phase domain files; the allowlist now matches the whole
  * directory so the per-domain split is structural (not a behaviour
  * change) and the rule remains a tight perimeter around the rest of
  * `Mediator/`.
