@@ -5,8 +5,8 @@ import moment from 'moment-timezone';
 import { ISRAEL_TIMEZONE } from '../../Common/Config/BrowserConfig.js';
 import { getDebug, runWithBankContext, type ScraperLogger } from '../../Common/Debug.js';
 import { formatResultSummary } from '../../Common/ResultFormatter.js';
-import { TimeoutError } from '../../Common/Waiting.js';
 import { type CompanyTypes, ScraperProgressTypes } from '../../Definitions.js';
+import { TimeoutError } from '../Pipeline/Mediator/Timing/Waiting.js';
 import {
   createGenericError,
   createTimeoutError,

@@ -22,7 +22,7 @@ jest.unstable_mockModule(
 );
 
 jest.unstable_mockModule(
-  '../../Common/Waiting.js',
+  '../../Scrapers/Pipeline/Mediator/Timing/Waiting.js',
   /**
    * Mock Waiting with real rejection behavior.
    * @returns Mocked module.
@@ -38,7 +38,8 @@ jest.unstable_mockModule(
   }),
 );
 
-const { waitUntil: WAIT_UNTIL } = await import('../../Common/Waiting.js');
+const { waitUntil: WAIT_UNTIL } =
+  await import('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js');
 const { waitForRedirect: WAIT_FOR_REDIRECT, waitForUrl: WAIT_FOR_URL } =
   await import('../../Common/Navigation.js');
 const { createMockPage: CREATE_MOCK_PAGE } = await import('../MockPage.js');

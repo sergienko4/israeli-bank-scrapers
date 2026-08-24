@@ -119,9 +119,9 @@ const RULE_17_CASES = [
     expected: 1,
   },
   {
-    label: 'live Common shim re-exporting its own neighbour',
-    file: 'src/Common/Fetch.ts',
-    code: "export * from './Fetch.js';\n",
+    label: 'live Common module re-exporting its own neighbour',
+    file: 'src/Common/Browser.ts',
+    code: "export * from './Browser.js';\n",
     expected: 0,
   },
 ];

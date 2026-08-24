@@ -31,7 +31,13 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+// `RACE_TIMED_OUT` is a Symbol sentinel compared by identity. The stub below
+// neutralises sleeping, but Pipeline's `SelectorResolver.probe` also reaches
+// this module for the sentinel — so it is re-exported from the real (unmocked)
+// `TimingActions` rather than minted fresh, keeping that comparison honest.
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', async () => ({
+  RACE_TIMED_OUT: (await import('../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js'))
+    .RACE_TIMED_OUT,
   sleep: jest.fn().mockResolvedValue(undefined),
   /**
    * Executes async actions sequentially, collecting results.

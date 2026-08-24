@@ -64,7 +64,7 @@ jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorReso
   resolveDashboardField: jest.fn().mockResolvedValue(null),
 }));
 
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   runSerial: jest.fn().mockImplementation(

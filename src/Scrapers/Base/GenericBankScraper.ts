@@ -1,7 +1,6 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import { clickButton, fillInput } from '../../Common/ElementsInteractions.js';
-import { runSerial } from '../../Common/Waiting.js';
 import {
   discoverFormAnchor,
   type IFormAnchor,
@@ -12,6 +11,7 @@ import {
   type IFieldContext,
   resolveFieldContext,
 } from '../Pipeline/Mediator/Selector/SelectorResolver.js';
+import { runSerial } from '../Pipeline/Mediator/Timing/Waiting.js';
 import {
   BaseScraperWithBrowser,
   type ILoginOptions,

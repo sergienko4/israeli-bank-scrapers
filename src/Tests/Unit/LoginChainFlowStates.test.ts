@@ -29,7 +29,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
    */
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
-jest.unstable_mockModule('../../Common/Waiting.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', () => ({
   sleep: jest.fn().mockResolvedValue(undefined),
   humanDelay: jest.fn().mockResolvedValue(undefined),
   waitUntil: jest.fn().mockResolvedValue(undefined),
