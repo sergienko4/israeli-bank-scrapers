@@ -1,5 +1,5 @@
 /**
- * Unit tests for Types/BasePhase — Template Method orchestration for phases.
+ * Unit tests for Phases/Base/BasePhase — Template Method orchestration for phases.
  */
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';

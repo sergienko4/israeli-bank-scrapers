@@ -13,17 +13,16 @@ import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import {
+  SCRAPE_UI_TRAFFIC_TIMEOUT_MS,
+  SCRAPE_UI_WK_TIMEOUT_MS,
+} from '../Timing/ScrapeTimingConfig.js';
 
 /**
  * Slim traffic-hit shape derived from the mediator surface without
  * importing the forbidden `IDiscoveredEndpoint` symbol (R-NET-SCRAPE).
  */
 type TrafficHit = Awaited<ReturnType<IElementMediator['network']['waitForTraffic']>>;
-
-/** Best-effort timeout — don't block, traffic captured in LOGIN.POST. */
-const TRAFFIC_TIMEOUT = 5000;
-/** Timeout for WK element discovery. */
-const WK_TIMEOUT = 5000;
 
 /** Combined patterns for traffic-first matching. */
 const TXN_PATTERNS: readonly RegExp[] = [
@@ -41,7 +40,7 @@ async function tryWkClick(
   mediator: IElementMediator,
   candidates: readonly SelectorCandidate[],
 ): Promise<string | false> {
-  const result = await mediator.resolveAndClick(candidates, WK_TIMEOUT);
+  const result = await mediator.resolveAndClick(candidates, SCRAPE_UI_WK_TIMEOUT_MS);
   if (!result.success || !result.value.found) return false;
   return result.value.value;
 }
@@ -72,7 +71,7 @@ async function waitAndTrace(
   logger?: ScraperLogger,
 ): Promise<boolean> {
   logger?.debug({ message: maskVisibleText(`Clicked '${label}'`) });
-  const hit = await mediator.network.waitForTraffic(TXN_PATTERNS, TRAFFIC_TIMEOUT);
+  const hit = await mediator.network.waitForTraffic(TXN_PATTERNS, SCRAPE_UI_TRAFFIC_TIMEOUT_MS);
   const logged = logTrafficHit(hit, logger);
   return logged.success && logged.value;
 }

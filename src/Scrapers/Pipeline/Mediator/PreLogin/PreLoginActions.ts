@@ -12,17 +12,12 @@ import type { ScraperLogger } from '../../Types/Debug.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
-
-/** Timeout for reveal click. */
-const REVEAL_NAV_TIMEOUT = 15_000;
-/** Timeout for credential-area tab. */
-const CRED_AREA_TIMEOUT = 10_000;
-/** Timeout for password field to appear after reveal click. */
-const FORM_GATE_TIMEOUT = 5000;
-/** Quick timeout for PRE probe (form already visible?). */
-const FORM_PROBE_TIMEOUT = 3000;
-/** Long timeout for POST validation (15s for slow SPAs). */
-const FORM_POST_TIMEOUT = 15000;
+import {
+  PRELOGIN_CRED_AREA_TIMEOUT_MS,
+  PRELOGIN_FORM_GATE_TIMEOUT_MS,
+  PRELOGIN_FORM_POST_TIMEOUT_MS,
+  PRELOGIN_FORM_PROBE_TIMEOUT_MS,
+} from '../Timing/PreLoginTimingConfig.js';
 
 /** Cast WK_PRELOGIN.FORM_GATE to SelectorCandidate[]. */
 const FORM_GATE = WK_PRELOGIN.FORM_GATE as unknown as readonly SelectorCandidate[];
@@ -35,7 +30,7 @@ const FORM_GATE = WK_PRELOGIN.FORM_GATE as unknown as readonly SelectorCandidate
  */
 async function waitForFormGate(mediator: IElementMediator): Promise<boolean> {
   const result = await mediator
-    .resolveVisible(FORM_GATE, FORM_GATE_TIMEOUT)
+    .resolveVisible(FORM_GATE, PRELOGIN_FORM_GATE_TIMEOUT_MS)
     .catch((): false => false);
   if (!result) return false;
   return result.found;
@@ -57,7 +52,7 @@ async function probeGateVisible(
   candidates: readonly SelectorCandidate[],
 ): Promise<boolean> {
   const result = await mediator
-    .resolveVisible(candidates, FORM_PROBE_TIMEOUT)
+    .resolveVisible(candidates, PRELOGIN_FORM_PROBE_TIMEOUT_MS)
     .catch((): false => false);
   if (result === false) return false;
   return result.found;
@@ -102,7 +97,7 @@ async function isFormAlreadyVisible(
  */
 async function validateFormGatePost(mediator: IElementMediator): Promise<boolean> {
   const result = await mediator
-    .resolveVisible(FORM_GATE, FORM_POST_TIMEOUT)
+    .resolveVisible(FORM_GATE, PRELOGIN_FORM_POST_TIMEOUT_MS)
     .catch((): false => false);
   if (!result) return false;
   return result.found;
@@ -257,7 +252,7 @@ async function tryClickCredentialArea(
   mediator: IElementMediator,
   logger: ScraperLogger,
 ): Promise<Procedure<IRaceResult>> {
-  const result = await mediator.resolveAndClick(WK_PRELOGIN.REVEAL, CRED_AREA_TIMEOUT);
+  const result = await mediator.resolveAndClick(WK_PRELOGIN.REVEAL, PRELOGIN_CRED_AREA_TIMEOUT_MS);
   if (!result.success) return result;
   if (result.value.found) await logCredentialAreaHit(result.value, mediator, logger);
   else logger.debug({ message: 'credentialArea: NOT FOUND' });
@@ -265,9 +260,7 @@ async function tryClickCredentialArea(
 }
 
 export {
-  CRED_AREA_TIMEOUT,
   isFormAlreadyVisible,
-  REVEAL_NAV_TIMEOUT,
   tryClickCredentialArea,
   tryClickPrivateCustomers,
   validateFormGatePost,

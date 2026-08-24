@@ -1,5 +1,5 @@
 /**
- * Unit tests for Types/BasePhase — MOCK_MODE short-circuits + empty-discovery early returns.
+ * Unit tests for Phases/Base/BasePhase — MOCK_MODE short-circuits + empty-discovery early returns.
  *
  * Split off from BasePhase.test.ts to honor max-lines (300).
  */

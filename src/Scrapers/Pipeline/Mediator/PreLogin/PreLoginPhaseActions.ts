@@ -18,15 +18,13 @@ import type { IPipelineContext, IPreLoginDiscovery } from '../../Types/PipelineC
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import { PRELOGIN_REVEAL_NAV_TIMEOUT_MS } from '../Timing/PreLoginTimingConfig.js';
 import {
   isFormAlreadyVisible,
   tryClickCredentialArea,
   tryClickPrivateCustomers,
   validateFormGatePost,
 } from './PreLoginActions.js';
-
-/** Timeout for private-customers reveal navigation. */
-const REVEAL_NAV_TIMEOUT = 15_000;
 
 /** Bundled args for `executeFireRevealClicks` reveal-click probes. */
 interface IFireRevealArgs {
@@ -45,7 +43,8 @@ interface IFireRevealArgs {
 async function runPrivateCustomersBranch(args: IFireRevealArgs): Promise<boolean> {
   const { mediator, page, logger, disc } = args;
   if (!disc || disc.privateCustomers === 'NOT_FOUND') return false;
-  const clickArgs = { mediator, browserPage: page, navTimeout: REVEAL_NAV_TIMEOUT, logger };
+  const navTimeout = PRELOGIN_REVEAL_NAV_TIMEOUT_MS;
+  const clickArgs = { mediator, browserPage: page, navTimeout, logger };
   await tryClickPrivateCustomers(clickArgs);
   return true;
 }

@@ -23,12 +23,11 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
+import {
+  PRELOGIN_DISCOVER_TIMEOUT_MS,
+  PRELOGIN_RESOLVE_TARGET_TIMEOUT_MS,
+} from '../Timing/PreLoginTimingConfig.js';
 import { probeRevealStatus } from './PreLoginRevealProbe.js';
-
-/** Timeout for reveal discovery. */
-const DISCOVER_TIMEOUT = 15_000;
-/** Timeout for resolve to get reveal target. */
-const RESOLVE_TARGET_TIMEOUT = 5000;
 
 /**
  * Race the WK_PRELOGIN.REVEAL candidates against the visible-resolver,
@@ -38,7 +37,9 @@ const RESOLVE_TARGET_TIMEOUT = 5000;
  */
 async function probeRevealVisible(mediator: IElementMediator): Promise<IRaceResult | false> {
   const candidates = WK_PRELOGIN.REVEAL as unknown as readonly SelectorCandidate[];
-  return mediator.resolveVisible(candidates, RESOLVE_TARGET_TIMEOUT).catch((): false => false);
+  return mediator
+    .resolveVisible(candidates, PRELOGIN_RESOLVE_TARGET_TIMEOUT_MS)
+    .catch((): false => false);
 }
 
 /**
@@ -115,8 +116,8 @@ async function runRevealProbes(
   mediator: IElementMediator,
   logger: IPipelineContext['logger'],
 ): Promise<readonly [RevealStatus, RevealStatus]> {
-  const privateCustomers = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
-  const credentialArea = await probeRevealStatus(mediator, DISCOVER_TIMEOUT, logger);
+  const privateCustomers = await probeRevealStatus(mediator, PRELOGIN_DISCOVER_TIMEOUT_MS, logger);
+  const credentialArea = await probeRevealStatus(mediator, PRELOGIN_DISCOVER_TIMEOUT_MS, logger);
   return [privateCustomers, credentialArea];
 }
 

@@ -1,5 +1,5 @@
 /**
- * Unit tests for Types/BasePhase — HANDOFF log present-cases.
+ * Unit tests for Phases/Base/BasePhase — HANDOFF log present-cases.
  *
  * Split off from BasePhase.test.ts to honor max-lines (300).
  */
