@@ -60,15 +60,18 @@ jest.unstable_mockModule('../../../Common/Waiting.js', () => ({
   SECOND: 1000,
 }));
 
-jest.unstable_mockModule('../../../Common/SelectorResolver.js', () => ({
-  resolveFieldContext: jest.fn(),
-  resolveFieldWithCache: jest.fn(),
-  candidateToCss: jest.fn(),
-  extractCredentialKey: jest.fn(),
-  tryInContext: jest.fn(),
-  toXpathLiteral: mockToXpathLiteral,
-  resolveDashboardField: jest.fn(),
-}));
+jest.unstable_mockModule(
+  '../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js',
+  () => ({
+    resolveFieldContext: jest.fn(),
+    resolveFieldWithCache: jest.fn(),
+    candidateToCss: jest.fn(),
+    extractCredentialKey: jest.fn(),
+    tryInContext: jest.fn(),
+    toXpathLiteral: mockToXpathLiteral,
+    resolveDashboardField: jest.fn(),
+  }),
+);
 
 jest.unstable_mockModule('../../../Common/Storage.js', () => ({
   getFromSessionStorage: jest.fn(),

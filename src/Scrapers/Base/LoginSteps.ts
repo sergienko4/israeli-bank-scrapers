@@ -14,13 +14,13 @@ import {
 } from '../../Common/LoginMiddleware.js';
 import { waitForNavigation } from '../../Common/Navigation.js';
 import { handleOtpCode, handleOtpConfirm } from '../../Common/OtpHandler.js';
+import { ScraperProgressTypes } from '../../Definitions.js';
 import {
   extractCredentialKey,
   type IFieldContext,
   resolveFieldContext,
   resolveFieldWithCache,
-} from '../../Common/SelectorResolver.js';
-import { ScraperProgressTypes } from '../../Definitions.js';
+} from '../Pipeline/Mediator/Selector/SelectorResolver.js';
 import {
   buildLoginResult,
   getKeyByValue,

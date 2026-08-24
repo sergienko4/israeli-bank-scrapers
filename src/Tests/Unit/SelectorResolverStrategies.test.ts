@@ -24,7 +24,7 @@ jest.unstable_mockModule('../../Common/Debug.js', () => ({
   runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
 }));
 
-const SELECTOR_MOD = await import('../../Common/SelectorResolver.js');
+const SELECTOR_MOD = await import('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js');
 
 // ── resolveLabelText strategies ─────────────────────────────────────────────
 

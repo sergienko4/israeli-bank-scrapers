@@ -56,7 +56,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   elementPresentOnPage: jest.fn().mockResolvedValue(false),
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   resolveFieldContext: jest
     .fn()
     .mockResolvedValue({ isResolved: false, selector: '', context: {} }),

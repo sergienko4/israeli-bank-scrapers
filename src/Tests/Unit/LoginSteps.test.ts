@@ -62,7 +62,7 @@ jest.unstable_mockModule('../../Common/ElementsInteractions.js', () => ({
   capturePageText: jest.fn().mockResolvedValue(''),
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   resolveFieldContext: MOCK_RESOLVE_FIELD_CONTEXT,
   resolveFieldWithCache: MOCK_RESOLVE_FIELD_WITH_CACHE,
   candidateToCss: jest.fn((c: { value: string }) => c.value),

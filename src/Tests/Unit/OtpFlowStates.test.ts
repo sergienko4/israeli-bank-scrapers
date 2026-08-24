@@ -60,7 +60,7 @@ jest.unstable_mockModule('../../Common/OtpDetector.js', () => ({
   OTP_SUBMIT_CANDIDATES: [{ kind: 'xpath' as const, value: '//button[contains(.,"send")]' }],
 }));
 
-jest.unstable_mockModule('../../Common/SelectorResolver.js', () => ({
+jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
   tryInContext: MOCK_TRY_IN_CONTEXT,
   resolveFieldWithCache: jest
     .fn()

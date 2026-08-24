@@ -728,6 +728,7 @@ const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   ],
   ['src/Common/Config/OtpDetectorConfig.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.js'],
   ['src/Common/FormAnchor.js', 'Scrapers/Pipeline/Mediator/Form/FormAnchor.js'],
+  ['src/Common/SelectorResolver.js', 'Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js'],
 ]);
 
 /**

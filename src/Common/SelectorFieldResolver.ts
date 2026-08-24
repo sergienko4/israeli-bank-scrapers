@@ -1,8 +1,8 @@
 import { type Frame, type Page } from 'playwright-core';
 
 import { type IFieldConfig, type SelectorCandidate } from '../Scrapers/Base/Config/LoginConfig.js';
+import type { IFieldContext } from '../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js';
 import { getDebug } from './Debug.js';
-import type { IFieldContext } from './SelectorResolver.js';
 
 const LOG = getDebug('selector-field');
 

@@ -35,7 +35,7 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 | `src/Common/Browser.ts`                                | `src/Scrapers/Pipeline/Mediator/Browser/`            |
 | `src/Common/CamoufoxLauncher.ts`                       | Same — used at the boundary                          |
 | `src/Common/Fetch.ts`                                  | `src/Scrapers/Pipeline/Mediator/Network/`            |
-| `src/Common/SelectorResolver*.ts`                      | `src/Scrapers/Pipeline/Mediator/Selector/`           |
+| `src/Common/SelectorFieldResolver.ts`                   | `src/Scrapers/Pipeline/Mediator/Selector/`           |
 | `src/Common/OtpDetector.ts`, `OtpHandler.ts`           | `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/`  |
 | `src/Common/Navigation.ts`, `Waiting.ts`, `Storage.ts` | Mediator zones own these directly                    |
 | `src/Common/ResultFormatter.ts`                        | `src/Scrapers/Pipeline/Core/PipelineResult.ts`       |

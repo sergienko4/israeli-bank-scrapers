@@ -1,5 +1,5 @@
-import { candidateToCss } from '../../Common/SelectorResolver.js';
 import type { SelectorCandidate } from '../Base/Config/LoginConfig.js';
+import { candidateToCss } from '../Pipeline/Mediator/Selector/SelectorResolver.js';
 
 /** Selector config entry type. */
 type SelectorConfig = Record<string, SelectorCandidate[]>;
