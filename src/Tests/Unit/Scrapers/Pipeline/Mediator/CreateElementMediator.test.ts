@@ -6,6 +6,8 @@
 
 import { jest } from '@jest/globals';
 
+import { createDebugMock } from '../../../../MockModuleFactories.js';
+
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Selector/PipelineFieldResolver.js',
   () => ({ resolveFieldPipeline: jest.fn() }),
@@ -31,37 +33,8 @@ jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Mediator/Form/FormAnc
   scopeCandidates: jest.fn((_scope: string, candidates: unknown[]) => candidates),
 }));
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Types/Debug.js', () => ({
-  /**
-   * Mock getDebug — returns a no-op logger.
-   * @returns Logger with jest.fn() for all methods.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    debug: jest.fn(),
-    trace: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Mock runWithBankContext — passthrough.
-   * @param _b - Ignored bank name.
-   * @param fn - Function to call.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-  /**
-   * Mock capTimeout — passthrough; no MOCK_MODE capping in unit tests.
-   * @param t - Requested timeout.
-   * @returns The timeout unchanged.
-   */
-  capTimeout: <T>(t: T): T => t,
-  /**
-   * Mock isMockTimingActive — always false for unit tests.
-   * @returns false literal.
-   */
-  isMockTimingActive: (): false => false,
-  MOCK_TIMEOUT_MS: 1000 as const,
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Logging/Debug.js', () => ({
+  ...createDebugMock(),
 }));
 
 const PFR_MOD =

@@ -36,16 +36,24 @@ function mockLogger(): MockLogger {
 interface IDebugMockModule {
   getDebug: () => MockLogger;
   getDebugByName: () => MockLogger;
+  getActiveLogContext: () => Record<string, string>;
   runWithBankContext: <T>(_b: string, fn: () => T) => T;
+  capTimeout: (requested: number) => number;
+  isMockTimingActive: () => boolean;
+  MOCK_TIMEOUT_MS: number;
 }
 
 /**
- * Debug module mock with passthrough bank context.
+ * Debug module mock covering the full public surface of
+ * `Pipeline/Logging/Debug.ts`.
  *
- * Covers the two logger entry points and the bank-context wrapper. Callers
- * importing the timing exports (`capTimeout`, `isMockTimingActive`,
- * `MOCK_TIMEOUT_MS`) need those spread in from the real module on top of this,
- * since mocking a module replaces all of its bindings.
+ * Every binding the module exports is stubbed here on purpose. Mocking a module
+ * replaces *all* of its bindings, so a partial mock breaks any module that
+ * re-exports the missing names — notably the `Types/Debug.ts` shim, whose
+ * `export { … } from '../Logging/Debug.js'` fails to link with
+ * `does not provide an export named …` the moment one is absent. Keeping this
+ * factory complete makes it safe to mock the real module regardless of whether
+ * the module under test reaches it directly or through the shim.
  *
  * `getDebugByName` is the entry point legacy scrapers use — they pass a
  * verbatim module name rather than `import.meta.url` — so a mock of this module
@@ -57,12 +65,29 @@ export function createDebugMock(): IDebugMockModule {
     getDebug: mockLogger,
     getDebugByName: mockLogger,
     /**
+     * Empty pino mixin record — unit tests assert on call args, not context.
+     * @returns empty context
+     */
+    getActiveLogContext: (): Record<string, string> => ({}),
+    /**
      * Pass-through bank context for tests.
      * @param _b - bank name (unused)
      * @param fn - callback to execute
      * @returns fn() result
      */
     runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+    /**
+     * Pass-through timeout — unit tests never apply MOCK_MODE capping.
+     * @param requested - requested timeout in ms
+     * @returns the timeout unchanged
+     */
+    capTimeout: (requested: number): number => requested,
+    /**
+     * Mock-timing is inert under unit tests.
+     * @returns false
+     */
+    isMockTimingActive: (): boolean => false,
+    MOCK_TIMEOUT_MS: 5000,
   };
 }
 

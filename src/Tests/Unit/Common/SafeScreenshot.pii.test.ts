@@ -10,12 +10,15 @@
 import { jest } from '@jest/globals';
 import type { Page } from 'playwright-core';
 
+import { createDebugMock } from '../../MockModuleFactories.js';
+
 const DEBUG_SPY = jest.fn();
 const MOCK_LOGGER = { debug: DEBUG_SPY };
 const GET_DEBUG = jest.fn();
 GET_DEBUG.mockReturnValue(MOCK_LOGGER);
 
-jest.unstable_mockModule('../../../Scrapers/Pipeline/Types/Debug.js', () => ({
+jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', () => ({
+  ...createDebugMock(),
   getDebug: GET_DEBUG,
 }));
 

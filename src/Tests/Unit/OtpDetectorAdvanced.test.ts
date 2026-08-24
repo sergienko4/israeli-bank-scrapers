@@ -1,29 +1,16 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
-import { createClickableLocatorMock, mockToXpathLiteral } from '../MockModuleFactories.js';
+import {
+  createClickableLocatorMock,
+  createDebugMock,
+  mockToXpathLiteral,
+} from '../MockModuleFactories.js';
 
 const MOCK_TRY_IN_CONTEXT = jest.fn();
 
-jest.unstable_mockModule('../../Scrapers/Pipeline/Types/Debug.js', () => ({
-  /**
-   * Creates a mock debug logger with all methods stubbed.
-   * @returns Mock debug logger object.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
+jest.unstable_mockModule('../../Scrapers/Pipeline/Logging/Debug.js', () => ({
+  ...createDebugMock(),
 }));
 
 jest.unstable_mockModule('../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js', () => ({
