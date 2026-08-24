@@ -34,14 +34,25 @@ function mockLogger(): MockLogger {
 
 /**
  * Debug module mock with passthrough bank context.
+ *
+ * Covers the two logger entry points and the bank-context wrapper. Callers
+ * importing the timing exports (`capTimeout`, `isMockTimingActive`,
+ * `MOCK_TIMEOUT_MS`) need those spread in from the real module on top of this,
+ * since mocking a module replaces all of its bindings.
+ *
+ * `getDebugByName` is the entry point legacy scrapers use — they pass a
+ * verbatim module name rather than `import.meta.url` — so a mock of this module
+ * that omits it fails to load any legacy consumer.
  * @returns Debug mock module
  */
 export function createDebugMock(): {
   getDebug: () => MockLogger;
+  getDebugByName: () => MockLogger;
   runWithBankContext: <T>(_b: string, fn: () => T) => T;
 } {
   return {
     getDebug: mockLogger,
+    getDebugByName: mockLogger,
     /**
      * Pass-through bank context for tests.
      * @param _b - bank name (unused)
