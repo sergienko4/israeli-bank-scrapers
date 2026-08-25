@@ -2,7 +2,9 @@
  * Max scrape shape — card-list extractor + the getHomePageData customer GET
  * URL, plus the shared client-version reader both steps use to append Max's
  * SPA build-version `?v=` param (discovered at BIND-API-MEDIATOR).
- * balanceKind=card-cycle (no account balance — `balance.skipFetch` yields 0);
+ * balanceKind=card-cycle: the per-card ILS cycle debit rides the same
+ * getHomePageData card object, so `balance.skipFetch` stays on and the shape
+ * reads the figure off the account (see MaxShapeBalance.ts);
  * auth=session-cookie (the WAF-bypassing browser login's first-party cookies
  * ride BrowserFetchStrategy). Transactions helpers live in MaxShapeTxns.ts;
  * row filtering in MaxShapeExtract.ts.
@@ -22,6 +24,7 @@ import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js'
 import type { Brand } from '../../../Types/Brand.js';
 import { isSome } from '../../../Types/Option.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
+import { ilsCycleDebit, type IMaxRawCycle } from './MaxShapeBalance.js';
 
 /** Max registered API origin — the post-login SPA host. */
 export const MAX_API = 'https://www.max.co.il/api/registered';
@@ -38,9 +41,14 @@ type VersionedUrl = Brand<string, 'MaxVersionedUrl'>;
 /** Max card reference — `last4` matches a txn row's `shortCardNumber`. */
 export interface IMaxCard {
   readonly last4: string;
+  /**
+   * Outstanding ILS billing-cycle debit, carried from the same card object
+   * the list was built from so the balance step needs no second call.
+   */
+  readonly cycleDebit: number;
 }
 
-interface IRawCard {
+interface IRawCard extends IMaxRawCycle {
   readonly Last4Digits?: string;
 }
 interface IUserCards {
@@ -96,12 +104,13 @@ export function customerUrl(ctx: IActionContext): WKUrlOrLiteral {
 }
 
 /**
- * Map one raw card to a card reference (Last4Digits → last4).
+ * Map one raw card to a card reference (Last4Digits → last4), carrying the
+ * card's own ILS cycle debit so the balance step reads it without a fetch.
  * @param c - Raw card entry from Result.UserCards.Cards.
  * @returns Card reference.
  */
 function toCard(c: IRawCard): IMaxCard {
-  return { last4: c.Last4Digits ?? '' };
+  return { last4: c.Last4Digits ?? '', cycleDebit: ilsCycleDebit(c) };
 }
 
 /**

@@ -24,8 +24,20 @@ import {
 import { txnsExtractPage, txnsUrl, txnsVars } from './VisaCalShapeTxns.js';
 
 /**
- * Card-cycle balance — always 0 (VisaCal exposes no account-level
- * balance; `balance.skipFetch` bypasses the fetch, extract reads {}).
+ * Card-cycle balance — a deliberate 0, not a missing implementation.
+ *
+ * CAL's only billing figure is `getBigNumberAndDetails`, whose
+ * `result.bigNumbers[].totalDebits[].totalDebit` is keyed by the
+ * `bankAccountUniqueId` the request supplies — a BANK ACCOUNT, not a card.
+ * `account/init` returns the cards and the bank accounts as two independent
+ * lists with no mapping between them, and the card entries carry no balance
+ * field, so there is no way to attribute a bank account's debit to the card
+ * this account represents. Adopting it would report one bank account's total
+ * on unrelated cards; the 0 sentinel is honest by comparison.
+ *
+ * Contrast Max, which publishes a genuine per-card cycle debit on the card
+ * object itself and therefore does resolve a real balance.
+ *
  * Module-private so it never crosses a boundary (architecture Rule #15).
  * @returns Zero balance.
  */

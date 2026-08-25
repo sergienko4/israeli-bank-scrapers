@@ -30,7 +30,7 @@ import type {
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
-const CARD: IMaxCard = { last4: '1234' };
+const CARD: IMaxCard = { last4: '1234', cycleDebit: 0 };
 
 /**
  * Wrap a raw response body in the extractAccounts args bundle.
@@ -70,7 +70,23 @@ describe('MaxShape helpers', () => {
     const cards = [{ Last4Digits: '1234' }, { Last4Digits: '9999' }];
     const args = accountsArgs({ Result: { UserCards: { Cards: cards } } });
     const accounts = extractCards(args);
-    expect(accounts).toEqual([{ last4: '1234' }, { last4: '9999' }]);
+    expect(accounts).toEqual([
+      { last4: '1234', cycleDebit: 0 },
+      { last4: '9999', cycleDebit: 0 },
+    ]);
+  });
+
+  it('extractCards carries each card its own ILS cycle debit', () => {
+    const cards = [
+      { Last4Digits: '1234', CycleSummary: [{ Currency: 376, TotalDebitSum: 13.84 }] },
+      { Last4Digits: '9999', CycleSummary: [{ Currency: 376, TotalDebitSum: 250.5 }] },
+    ];
+    const args = accountsArgs({ Result: { UserCards: { Cards: cards } } });
+    const accounts = extractCards(args);
+    expect(accounts).toEqual([
+      { last4: '1234', cycleDebit: 13.84 },
+      { last4: '9999', cycleDebit: 250.5 },
+    ]);
   });
 
   it('extractCards returns empty list when UserCards is absent', () => {
@@ -84,8 +100,21 @@ describe('MaxShape helpers', () => {
     expect(number).toBe('1234');
   });
 
-  it('balance extract is a deterministic 0 (card-cycle, no balance call)', () => {
-    const balance = MAX_SHAPE.balance.extract({});
+  it('balance extract reports the card its own outstanding ILS cycle debit', () => {
+    const card: IMaxCard = { last4: '1234', cycleDebit: 13.84 };
+    const balance = MAX_SHAPE.balance.extract({}, card);
+    expect(balance).toBe(13.84);
+  });
+
+  it('balance extract distinguishes two cards rather than repeating a total', () => {
+    const first = MAX_SHAPE.balance.extract({}, { last4: '1234', cycleDebit: 13.84 });
+    const second = MAX_SHAPE.balance.extract({}, { last4: '9999', cycleDebit: 250.5 });
+    expect(first).toBe(13.84);
+    expect(second).toBe(250.5);
+  });
+
+  it('balance extract falls back to 0 when the card carries no cycle debit', () => {
+    const balance = MAX_SHAPE.balance.extract({}, CARD);
     expect(balance).toBe(0);
   });
 

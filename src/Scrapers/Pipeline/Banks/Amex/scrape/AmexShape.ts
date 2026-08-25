@@ -29,9 +29,22 @@ import {
 import { txnsExtractPage, txnsUrl, txnsVars } from './AmexShapeTxns.js';
 
 /**
- * Card-cycle balance — always 0 (Amex exposes no account-level balance;
- * `balance.skipFetch` bypasses the fetch, extract reads {}). Module-private
- * so it never crosses a boundary (architecture Rule #15).
+ * Card-cycle balance — a deliberate 0, not a missing implementation.
+ *
+ * Amex's only billing figure is `GetBillingsForMonthsOverview`, whose
+ * `data[]` rows are one per BILLING MONTH carrying
+ * `billingAmounts.billingAmountIls/Usd/Eur`. The request submits every card
+ * at once and the response carries no card dimension at all, so the figure
+ * is a household total that cannot be attributed to the single card this
+ * account represents. Adopting it would report the same total on every card
+ * and silently multiply the user's debt by their card count; the 0 sentinel
+ * is honest by comparison. Per-card `GetTransactionsList` likewise offers
+ * only `approvals.totalEstimatedAmount` — pending approvals, not a balance.
+ *
+ * Contrast Max, which publishes a genuine per-card cycle debit on the card
+ * object itself and therefore does resolve a real balance.
+ *
+ * Module-private so it never crosses a boundary (architecture Rule #15).
  * @returns Zero balance.
  */
 function balanceZero(): number {

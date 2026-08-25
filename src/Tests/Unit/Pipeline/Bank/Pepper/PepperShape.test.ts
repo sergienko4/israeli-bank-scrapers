@@ -29,14 +29,16 @@ describe('PEPPER_SHAPE customer extractor', () => {
 });
 
 describe('PEPPER_SHAPE balance extractor', () => {
+  const acct = { accountId: 'acct-1' };
+
   it('returns currentBalance when present', () => {
     const body = { accounts: { balance: { currentBalance: 42.5 } } };
-    const got = PEPPER_SHAPE.balance.extract(body);
+    const got = PEPPER_SHAPE.balance.extract(body, acct);
     expect(got).toBe(42.5);
   });
 
   it('falls back to 0 when currentBalance absent', () => {
-    const got = PEPPER_SHAPE.balance.extract({});
+    const got = PEPPER_SHAPE.balance.extract({}, acct);
     expect(got).toBe(0);
   });
 });

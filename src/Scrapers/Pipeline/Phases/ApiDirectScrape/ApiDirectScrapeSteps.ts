@@ -118,6 +118,10 @@ export async function fetchAccounts<TAcct, TCursor>(
 
 /**
  * Fetch one account's balance, honouring fallbackOnFail when set.
+ *
+ * `extract` receives the account as well as the response so a shape whose
+ * balance already rode an earlier step can answer from it (Max) rather than
+ * issue a second call.
  * @param a - Per-account context.
  * @returns Balance outcome procedure (value + degraded flag).
  */
@@ -125,11 +129,13 @@ export async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<IBalanceOutcome>> {
   if (a.shape.balance.skipFetch === true) {
-    return succeed({ value: a.shape.balance.extract(EMPTY_BODY), degraded: false });
+    return succeed({ value: a.shape.balance.extract(EMPTY_BODY, a.acct), degraded: false });
   }
   const dispatchArgs = buildBalanceDispatchArgs(a);
   const resp = await dispatchStep(dispatchArgs);
-  if (isOk(resp)) return succeed({ value: a.shape.balance.extract(resp.value), degraded: false });
+  if (isOk(resp)) {
+    return succeed({ value: a.shape.balance.extract(resp.value, a.acct), degraded: false });
+  }
   const fb = a.shape.balance.fallbackOnFail;
   if (fb === undefined) return resp;
   return succeed({ value: fb, degraded: true });
