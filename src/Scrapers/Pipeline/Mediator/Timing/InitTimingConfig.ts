@@ -20,14 +20,3 @@
  * is slow to establish the bank's TLS session.
  */
 export const INIT_NAV_COMMIT_TIMEOUT_MS = 30_000;
-
-/**
- * INIT.FINAL `domcontentloaded` ceiling — Mission M4.F1 follow-up.
- *
- * @deprecated Mission M4.F2.0: use {@link "./ElementsTimingConfig.js".ELEMENTS_DOM_READY_TIMEOUT_MS}.
- *   The wait pattern is shared by INIT.FINAL and LOGIN.PRE (both use
- *   {@link "../Elements/PageReadiness.js"} `waitForDomReady`) so the
- *   constant moved to the cross-phase ELEMENTS namespace. Re-exported
- *   here only so external callers do not break in a single commit.
- */
-export const INIT_DOM_READY_TIMEOUT_MS = 10_000;

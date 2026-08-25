@@ -172,6 +172,11 @@ passes an explicit budget, so the number in the error string is ours:
 Read the current values from those modules before concluding a run was slow —
 they are tuned per domain and change independently of this page.
 
+`ELEMENTS_DOM_READY_TIMEOUT_MS` is the only name for the FINAL prelude wait.
+An `INIT_DOM_READY_TIMEOUT_MS` alias once re-exported it from
+`InitTimingConfig.ts`; it has been removed. If you meet that name in an older
+branch or in `git log`, it refers to the same budget.
+
 ## Request lifecycle observer
 
 `attachRequestLifecycleObserver(page)` subscribes to the four Playwright

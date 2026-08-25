@@ -349,7 +349,7 @@ describe('executeWireComponents', () => {
     }
   });
 
-  it('fails loud when domcontentloaded never fires within INIT_DOM_READY_TIMEOUT_MS', async () => {
+  it('fails loud when domcontentloaded never fires within ELEMENTS_DOM_READY_TIMEOUT_MS', async () => {
     // Mission M4.F1 follow-up — INIT.FINAL must signal LOUD when
     // the page never reached DOMContentLoaded. We make
     // `waitForLoadState` reject (Playwright's TimeoutError shape)

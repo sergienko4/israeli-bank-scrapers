@@ -674,7 +674,7 @@ const INIT_FINAL_PRELUDE: IPreludeSpec = { level: 'dom', timeoutMs: ELEMENTS_DOM
  * FINAL: Validate the DOM finished parsing
  * (`page.waitForLoadState('domcontentloaded')`), then wire
  * `fetchStrategy` + `mediator` + `diagnostics.loginUrl` so HOME
- * has its inputs. Uses {@link INIT_DOM_READY_TIMEOUT_MS} (10 s);
+ * has its inputs. Uses {@link ELEMENTS_DOM_READY_TIMEOUT_MS} (10 s);
  * fails loud when the page never reaches DOMContentLoaded.
  *
  * <p>We deliberately do NOT wait for the `load` event — empirical
