@@ -55,5 +55,4 @@ export function getDebugByName(name: string): Logger {
   return buildDeferredLogger(name);
 }
 
-export { capTimeout, isMockTimingActive, MOCK_TIMEOUT_MS } from '../Types/MockTiming.js';
 export { getActiveLogContext, runWithBankContext } from './BankContext.js';

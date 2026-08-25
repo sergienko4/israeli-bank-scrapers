@@ -1,5 +1,5 @@
 /**
- * Unit tests for Logging/Debug — child logger factory, runWithBankContext, re-exports.
+ * Unit tests for Logging/Debug — child logger factory and runWithBankContext.
  */
 
 import * as os from 'node:os';
@@ -7,13 +7,7 @@ import * as path from 'node:path';
 
 import { jest } from '@jest/globals';
 
-import {
-  capTimeout,
-  getDebug,
-  isMockTimingActive,
-  MOCK_TIMEOUT_MS,
-  runWithBankContext,
-} from '../../../../Scrapers/Pipeline/Logging/Debug.js';
+import { getDebug, runWithBankContext } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 
 /** Portable test-only RUNS_ROOT prefixes — avoids hard-coding a Windows
  *  path so Linux CI runners do not create directories named `C:\tmp\...`. */
@@ -57,19 +51,9 @@ describe('Feature — WithBankContext', () => {
 // TraceConfig.getLogFile() (gated by FORENSIC_TRACE). See
 // `Tests/Unit/Pipeline/Types/TraceConfig.test.ts` for coverage.
 
-describe('Debug re-exports from MockTiming', () => {
-  it('re-exports capTimeout', () => {
-    expect(typeof capTimeout).toBe('function');
-  });
-
-  it('re-exports isMockTimingActive', () => {
-    expect(typeof isMockTimingActive).toBe('function');
-  });
-
-  it('re-exports MOCK_TIMEOUT_MS constant', () => {
-    expect(MOCK_TIMEOUT_MS).toBeGreaterThan(0);
-  });
-});
+// The MockTiming re-export was removed from Debug.ts — every consumer
+// imports from `Types/MockTiming.js` directly. Those symbols are covered by
+// `Tests/Unit/Pipeline/Types/MockTiming.test.ts`.
 
 // ── Redaction / censor behaviour via pino integration ──────────────
 
