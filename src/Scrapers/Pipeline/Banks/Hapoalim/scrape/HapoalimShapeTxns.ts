@@ -58,6 +58,14 @@ const SERVER_PAGE_SIZE_FIELD = 'numItemsPerPage';
 const ROW_DATE_FIELD = 'eventDate';
 /** A usable date token: exactly eight digits, matching {@link HAPOALIM_DATE_FMT}. */
 const DATE_TOKEN = /^\d{8}$/;
+/** Diagnostic label the walk guard reports this endpoint's verdicts under. */
+const WALK_GUARD_LABEL = 'hapoalim/txns';
+
+/** Per-page extract bundle for this endpoint, named to keep signatures short. */
+type TxnPageArgs = IExtractPageArgs<IHapoalimAcct, HapoalimCursor>;
+
+/** One page's worth of rows, named to keep signatures short. */
+type TxnRows = readonly HapoalimTxn[];
 /** Fixed anti-replay pageUuid (upstream fetchPoalimXSRFWithinPage). */
 const TXN_PAGE_UUID = '/current-account/transactions';
 /** X-XSRF-TOKEN header value — cookie-echo sentinel resolved at dispatch. */
@@ -265,20 +273,16 @@ function oldestOrEmpty(rows: readonly HapoalimTxn[]): string {
  *
  * @param args - Bundle carrying the unwrapped response body and the context.
  * @param rows - Rows this page returned.
- * @param wasCapped - Whether the page came back full at the bank's own limit.
+ * @param capped - Whether the page came back full at the bank's own limit.
  * @returns The ordering verdict, already reported to the log.
  */
-function checkWalkOrder(
-  args: IExtractPageArgs<IHapoalimAcct, HapoalimCursor>,
-  rows: readonly HapoalimTxn[],
-  wasCapped: boolean,
-): IWalkOrderResult {
+function checkWalkOrder(args: TxnPageArgs, rows: TxnRows, capped: boolean): IWalkOrderResult {
   return assessWalkOrder({
     asked: args.cursor,
     newest: newestDay(rows),
     oldest: oldestOrEmpty(rows),
-    capped: wasCapped,
-    label: 'hapoalim/txns',
+    capped,
+    label: WALK_GUARD_LABEL,
   });
 }
 
@@ -288,9 +292,7 @@ function checkWalkOrder(
  * @param args - Bundle carrying the unwrapped response body and the context.
  * @returns Page rows, plus the next window's end date when the bank truncated.
  */
-export function txnsExtractPage(
-  args: IExtractPageArgs<IHapoalimAcct, HapoalimCursor>,
-): IPage<object, HapoalimCursor> {
+export function txnsExtractPage(args: TxnPageArgs): IPage<object, HapoalimCursor> {
   const resp = args.body as unknown as ITxnsResp;
   const rows = resp.transactions ?? [];
   const wasCapped = pageWasCapped(resp, rows.length);

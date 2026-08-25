@@ -174,16 +174,16 @@ function stopAt(state: IWalkState, coverage: IWindowResult): ICollectedRows {
   return { rows: state.rows, isBackfillExhausted: didAsk && isShort };
 }
 
+/** What one walk round settles on, named to keep the recursive signature short. */
+type WalkOutcome = Promise<Procedure<ICollectedRows>>;
+
 /**
  * Assess what is held, then either stop or narrow the bound and ask again.
  * @param a - Per-account context.
  * @param state - Rows held and the bound that produced them.
  * @returns Every raw row the account yielded, plus the exhaustion fact.
  */
-async function walk<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  state: IWalkState,
-): Promise<Procedure<ICollectedRows>> {
+async function walk<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, state: IWalkState): WalkOutcome {
   const round = planFor(a, state);
   if (!round.plan.shouldAsk) {
     const collected = stopAt(state, round.coverage);

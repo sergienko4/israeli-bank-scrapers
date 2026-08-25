@@ -9,15 +9,16 @@
  *
  * <p>Without the handoff a `skipFetch` shape sees only `{}` and can do no
  * better than a constant — which is how every card issuer previously reported
- * 0 for every account. These tests pin the account through both branches, so
- * a regression that drops it (or hands over the wrong account while iterating)
- * fails here rather than silently reporting one card's balance for all of them.
+ * 0 for every account. These tests pin the account through both branches —
+ * the `skipFetch` shortcut and the dispatched-response path — so a regression
+ * that drops it (or hands over the wrong account while iterating) fails here
+ * rather than silently reporting one card's balance for all of them.
  */
 
 import type { IAcctCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
 import { fetchBalance } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.js';
 import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Account stand-in carrying its own balance, mirroring Max's card ref. */
 interface ITestAcct {
@@ -25,7 +26,16 @@ interface ITestAcct {
   readonly carried: number;
 }
 
+/** One recorded handoff: what `extract` was actually given. */
+interface IHandoff {
+  readonly body: ApiBody;
+  readonly id: string;
+}
+
 type Extractor = (body: ApiBody, acct: ITestAcct) => number;
+
+/** Response body the fake bus answers the balance query with. */
+const FETCHED_BODY = { balance: 'from-the-wire' } as unknown as ApiBody;
 
 /**
  * Build a per-account context whose balance step skips the fetch, so the test
@@ -56,6 +66,49 @@ function balanceOf(result: Awaited<ReturnType<typeof fetchBalance<ITestAcct, num
  */
 function readCarried(_body: ApiBody, got: ITestAcct): number {
   return got.carried;
+}
+
+/**
+ * Fake bus query answering every balance dispatch with {@link FETCHED_BODY}.
+ * @returns Successful procedure carrying the fetched body.
+ */
+function fakeApiQuery(): Promise<Procedure<ApiBody>> {
+  const answered = succeed(FETCHED_BODY);
+  return Promise.resolve(answered);
+}
+
+/**
+ * Variable builder stand-in; this balance query takes no variables.
+ * @returns Empty variable map.
+ */
+function noVars(): Record<string, never> {
+  return {};
+}
+
+/**
+ * Build a per-account context whose balance step really dispatches, so the
+ * fetched-response branch is exercised. No `urlTag` is declared, which routes
+ * the step through `apiQuery` and reaches `extract` without a body template.
+ * @param acct - Account under assembly.
+ * @param extract - Extractor stand-in.
+ * @returns Minimal per-account context wired to a fake bus.
+ */
+function fetchingCtxWith(acct: ITestAcct, extract: Extractor): IAcctCtx<ITestAcct, number> {
+  const shape = { balance: { extract, buildVars: noVars } };
+  const bus = { apiQuery: fakeApiQuery };
+  return { shape, acct, bus, ctx: {} } as unknown as IAcctCtx<ITestAcct, number>;
+}
+
+/**
+ * Extractor that records every handoff before answering from the account.
+ * @param seen - Sink the handoffs are appended to.
+ * @returns Recording extractor.
+ */
+function recordingExtractor(seen: IHandoff[]): Extractor {
+  return (body, got): number => {
+    seen.push({ body, id: got.id });
+    return got.carried;
+  };
 }
 
 describe('fetchBalance hands the account to extract', () => {
@@ -103,5 +156,33 @@ describe('fetchBalance hands the account to extract', () => {
     const result = await fetchBalance(a);
     const isDegraded = isOk(result) ? result.value.degraded : true;
     expect(isDegraded).toBe(false);
+  });
+});
+
+describe('fetchBalance hands the account to extract on the fetched branch', () => {
+  it('passes the account alongside the fetched response', async () => {
+    const seen: IHandoff[] = [];
+    const extract = recordingExtractor(seen);
+    const a = fetchingCtxWith({ id: 'card-9999', carried: 250.5 }, extract);
+    await fetchBalance(a);
+    const ids = seen.map((h): string => h.id);
+    expect(ids).toEqual(['card-9999']);
+  });
+
+  it('yields the dispatched body to extract, not the empty stand-in', async () => {
+    const seen: IHandoff[] = [];
+    const extract = recordingExtractor(seen);
+    const a = fetchingCtxWith({ id: 'card-1234', carried: 13.84 }, extract);
+    await fetchBalance(a);
+    const bodies = seen.map((h): ApiBody => h.body);
+    expect(bodies).toEqual([FETCHED_BODY]);
+  });
+
+  it('returns the extracted balance undegraded once the fetch succeeds', async () => {
+    const a = fetchingCtxWith({ id: 'card-1234', carried: 13.84 }, readCarried);
+    const result = await fetchBalance(a);
+    const isDegraded = isOk(result) ? result.value.degraded : true;
+    const balance = balanceOf(result);
+    expect([balance, isDegraded]).toEqual([13.84, false]);
   });
 });
