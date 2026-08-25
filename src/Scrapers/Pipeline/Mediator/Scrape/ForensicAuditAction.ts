@@ -10,6 +10,7 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
 import { detectMirroredAccounts } from './MirrorDetection.js';
+import { logWindowCompleteness } from './WindowCompletenessAudit.js';
 
 /** Account record with txn list for audit lookup. */
 interface IAuditAccount {
@@ -276,10 +277,10 @@ function logForensicHeader(accounts: readonly IAuditAccount[]): true {
 
 /**
  * Log the forensic audit table. Always emits the table header, mirror
- * check, and per-account txn summary (with unmasked txn preview) so
- * EVERY scrape path leaves a record in pipeline.log — browser-driven
- * (qualified/pruned cards present) and api-direct-call (cards block
- * skipped, summary still fires).
+ * check, window-completeness verdict, and per-account txn summary (with
+ * unmasked txn preview) so EVERY scrape path leaves a record in
+ * pipeline.log — browser-driven (qualified/pruned cards present) and
+ * api-direct-call (cards block skipped, summary still fires).
  * @param input - Pipeline context.
  * @returns True after logging.
  */
@@ -288,6 +289,7 @@ function logForensicAudit(input: IPipelineContext): boolean {
   if (input.scrape.has) accounts = input.scrape.value.accounts;
   logCardClassification(input, accounts);
   logForensicHeader(accounts);
+  if (input.scrape.has) logWindowCompleteness(input.scrape.value);
   accounts.map(logAccountTxnSummary);
   return true;
 }
