@@ -21,7 +21,7 @@ The hook spawns each gate as a background process and `wait`s for them all. Cach
 | 4 | npm audit | `audit` | `npm audit --omit=dev` |
 | 5 | Phase isolation | `lint:phases:strict` | `eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0` |
 | 6 | Architecture | `architecture` | `lint:architecture src/Scrapers/Pipeline` |
-| 7 | Build | `build` | `lint + tsup` |
+| 7 | Build | `build` | `lint + tsup`, then [`lint:public-surface`](public-surface.md) against the freshly built `lib/` |
 | 8 | Canaries | `canaries` | `lint:canaries` |
 | 9 | Dead code | `dead-code` | `lint:dead-code` |
 | 10 | Guideline coverage | `guideline-coverage` | `lint:guideline-coverage` (asserts `eslint.config.mjs` enforces CLEAN_CODE.md caps for every Pipeline cluster) |
@@ -62,7 +62,7 @@ The summary at the end names every failing gate. Detail logs are written to `.pr
 | `guideline-coverage` | Process invariant — fails when `eslint.config.mjs` drifts from CLEAN_CODE.md canonical caps |
 | `docs-strict` | Docs build correctness — fails on broken internal links / missing pages that would break `mkdocs --strict` on CI |
 | `docs-coverage` | Docs/code consistency — fails when a new `src/Scrapers/Pipeline/` export ships without a `docs/` mention or allowlist entry |
-| `build` | Produces the actual `lib/` ESM + CJS bundle, ensuring `tsup` can reach a green state |
+| `build` | Produces the actual `lib/` ESM + CJS bundle, ensuring `tsup` can reach a green state, and asserts the exported API still matches `api-surface.d.ts` |
 | `test:pipeline` + `bank-tests` + `test:mock` | Functional regression — every PR proves all tests still pass and coverage hits the gate |
 
 ## Skipping the hook (don't)

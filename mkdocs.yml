@@ -195,6 +195,7 @@ nav:
       - Code-review tooling (CodeRabbit + SonarCloud): workflow/code-review-tooling.md
       - LSP (code intelligence): workflow/lsp.md
       - Doc path gate: workflow/doc-paths.md
+      - Public API surface gate: workflow/public-surface.md
   - Contributing:
       - Overview: contributing/index.md
       - Adding a new bank: contributing/new-bank.md

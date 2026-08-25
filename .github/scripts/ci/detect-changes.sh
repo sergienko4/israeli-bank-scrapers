@@ -19,8 +19,9 @@
 #                 renderer let it bypass the `--check` drift gate.
 #   pipeline_ts — `src/Scrapers/Pipeline/**/*.ts` was modified
 #                 (drives the docs-coverage canary)
-#   ci_scripts  — `.github/scripts/ci/**` or `.github/workflows/**`
-#                 was modified (drives the CI scripts smoke test)
+#   ci_scripts  — `.github/scripts/ci/**`, `.github/workflows/**`,
+#                 `.github/actions/**` or `.husky/**` was modified (drives
+#                 the CI scripts smoke test, which pins the gate wiring)
 #   metrics     — `scripts/decoupling-metrics/**` was modified. That tree
 #                 sits outside both `src/` and `.github/`, so it matched NO
 #                 other group: the tool that measures architectural
@@ -73,8 +74,10 @@ set -euo pipefail
 
 ZERO_SHA="0000000000000000000000000000000000000000"
 
-if [ -z "${BASE_SHA:-}" ] || [ "${BASE_SHA}" = "${ZERO_SHA}" ]; then
-  echo "[detect-changes] No usable BASE_SHA — assuming all groups touched (full validate)."
+# Emit every flag as true and stop. Used whenever we cannot establish
+# what changed: over-running the suite is recoverable, silently skipping
+# every gate is not.
+emit_fail_open() {
   {
     echo "src=true"
     echo "md=true"
@@ -85,8 +88,14 @@ if [ -z "${BASE_SHA:-}" ] || [ "${BASE_SHA}" = "${ZERO_SHA}" ]; then
     echo "test_config=true"
     echo "critical_deps=true"
     echo "metrics=true"
+    echo "public_surface=true"
     echo "full_suite=true"
   } >> "$GITHUB_OUTPUT"
+}
+
+if [ -z "${BASE_SHA:-}" ] || [ "${BASE_SHA}" = "${ZERO_SHA}" ]; then
+  echo "[detect-changes] No usable BASE_SHA — assuming all groups touched (full validate)."
+  emit_fail_open
   exit 0
 fi
 
@@ -102,9 +111,24 @@ fi
 # `...HEAD` (three dots) compares HEAD against the merge-base with
 # BASE_SHA, which is what we want for PRs: files the PR added/changed,
 # not files main moved meanwhile.
-changed_files=$(git diff --name-only "${BASE_SHA}...HEAD" 2>/dev/null || \
-                git diff --name-only "${BASE_SHA}" HEAD 2>/dev/null || \
-                echo "")
+#
+# `--no-renames` keeps a rename visible as a delete plus an add. Git
+# detects renames by default and `--name-only` then prints only the
+# destination, so moving a guarded file to an unwatched path would
+# leave its flag false and skip the job that would notice it had gone.
+#
+# A failed diff is not an empty diff. If the base is unreachable and the
+# fetch above did not recover it, both commands fail; treating that as
+# "nothing changed" would skip every gate on a green run, so fail open.
+if changed_files=$(git diff --name-only --no-renames "${BASE_SHA}...HEAD" 2>/dev/null); then
+  :
+elif changed_files=$(git diff --name-only --no-renames "${BASE_SHA}" HEAD 2>/dev/null); then
+  :
+else
+  echo "[detect-changes] Cannot diff against ${BASE_SHA} — assuming all groups touched." >&2
+  emit_fail_open
+  exit 0
+fi
 
 if [ -z "${changed_files}" ]; then
   echo "[detect-changes] No changed files between BASE_SHA and HEAD — leaving all flags false."
@@ -118,6 +142,7 @@ if [ -z "${changed_files}" ]; then
     echo "test_config=false"
     echo "critical_deps=false"
     echo "metrics=false"
+    echo "public_surface=false"
     echo "full_suite=false"
   } >> "$GITHUB_OUTPUT"
   exit 0
@@ -133,7 +158,7 @@ done <<< "${changed_files}"
 echo
 
 has() {
-  printf '%s\n' "${changed_files}" | grep -qE "$1"
+  grep -qE "$1" <<< "${changed_files}"
 }
 
 # The browser stack — `playwright-core` + Camoufox — is the runtime for
@@ -196,16 +221,30 @@ deps=false
 test_config=false
 critical_deps=false
 metrics=false
+public_surface=false
 full_suite=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
 if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
-if has '^\.github/scripts/ci/|^\.github/workflows/'; then ci_scripts=true; fi
+if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi
+# Everything that defines the published API surface or the check that guards
+# it. `full_suite` is `src OR critical_deps` and so misses a snapshot-only,
+# checker-only or build-config-only change — exactly the edits most able to
+# disable the guard. `tsconfig.json` is included because `tsconfig.build.json`
+# extends it, and `package-lock.json` because it pins the resolved tsup and
+# TypeScript versions that generate the declarations.
+public_surface_paths='^api-surface\.d\.ts$'
+public_surface_paths="${public_surface_paths}|^scripts/check-public-surface\.mjs$"
+public_surface_paths="${public_surface_paths}|^tsup\.config\.ts$"
+public_surface_paths="${public_surface_paths}|^tsconfig\.build\.json$|^tsconfig\.json$"
+public_surface_paths="${public_surface_paths}|^\.github/actions/build-package/"
+public_surface_paths="${public_surface_paths}|^package\.json$|^package-lock\.json$"
+if has "${public_surface_paths}"; then public_surface=true; fi
 
 # Compare against the merge-base, mirroring the `...HEAD` semantics used
 # for `changed_files`: main bumping playwright-core meanwhile must not be
@@ -227,6 +266,7 @@ if [ "${src}" = "true" ] || [ "${critical_deps}" = "true" ]; then full_suite=tru
   echo "test_config=${test_config}"
   echo "critical_deps=${critical_deps}"
   echo "metrics=${metrics}"
+  echo "public_surface=${public_surface}"
   echo "full_suite=${full_suite}"
 } >> "$GITHUB_OUTPUT"
 
@@ -240,4 +280,5 @@ echo "  deps=${deps}"
 echo "  test_config=${test_config}"
 echo "  critical_deps=${critical_deps}"
 echo "  metrics=${metrics}"
+echo "  public_surface=${public_surface}"
 echo "  full_suite=${full_suite}"

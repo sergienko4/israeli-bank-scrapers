@@ -190,7 +190,7 @@ else
     log "  ⏭️  architecture skipped — no Pipeline/Phases files staged"
 fi
 
-bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs'
+bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs && npm run lint:public-surface'
 bg_gate "canaries"          "yes" npm run lint:canaries
 bg_gate "dead-code"         "yes" npm run lint:dead-code
 bg_gate "cycles"            "yes" npm run lint:cycles

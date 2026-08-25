@@ -69,6 +69,12 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - The `.husky/pre-push` hook auto-runs the same validation when it finds
   `PR_BODY_FILE`, `.git/PR_BODY.md`, or `.github/PR_BODY.md`
 - Open the PR with `gh pr create --body-file .git/PR_BODY.md`
+- Claiming "public API unchanged" means `npm run build && npm run lint:public-surface`
+  (exit 0) plus a read of `git diff origin/main...HEAD -- api-surface.d.ts`,
+  **not** a byte-diff of `lib/index.cjs` — `lib/` is gitignored, so
+  `git show origin/main:lib/index.cjs` has no baseline, `$diff` is never
+  assigned and the `if ($diff)` guard passes without comparing anything. See
+  [docs/workflow/public-surface.md](./docs/workflow/public-surface.md)
 - See [docs/workflow/pre-push.md](./docs/workflow/pre-push.md) for the full workflow
 
 ## Workflow
