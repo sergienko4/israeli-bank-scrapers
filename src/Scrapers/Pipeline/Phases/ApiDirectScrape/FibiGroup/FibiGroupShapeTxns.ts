@@ -89,6 +89,23 @@ export function txnsVars(acct: IFibiAcct, _cursor: false, ctx: IActionContext): 
 }
 
 /**
+ * Rows carried by one transactions response.
+ *
+ * Narrows from `unknown` rather than trusting the declared type: `?? []`
+ * alone only substitutes for `null`/`undefined`, so a `transactions` that
+ * arrived as anything other than an array would flow onward typed as rows
+ * and be iterated as garbage by the mapper. Anything non-array yields no
+ * rows, which the coverage audit then reports as an uncovered window
+ * instead of silently mapping nonsense.
+ * @param resp - Unwrapped transactions response.
+ * @returns Rows, or empty when the field is absent or not an array.
+ */
+function rowsOf(resp: ITxnsResp): readonly FibiTxn[] {
+  const rows: unknown = resp.transactions;
+  return Array.isArray(rows) ? (rows as readonly FibiTxn[]) : [];
+}
+
+/**
  * Extract the single transactions page — raw rows, no next cursor (the
  * full-window call returns the whole range).
  * @param args - Bundle carrying the unwrapped response body.
@@ -96,7 +113,7 @@ export function txnsVars(acct: IFibiAcct, _cursor: false, ctx: IActionContext): 
  */
 export function txnsExtractPage(args: IExtractPageArgs<IFibiAcct, never>): IPage<object, never> {
   const resp = args.body as unknown as ITxnsResp;
-  return { items: resp.transactions ?? [], nextCursor: false };
+  return { items: rowsOf(resp), nextCursor: false };
 }
 
 /**

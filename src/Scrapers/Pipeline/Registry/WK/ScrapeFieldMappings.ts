@@ -145,6 +145,25 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'identifier',
     'id',
     'referenceNumber',
+    // Beinleumi (FIBI group) — account-scoped running sequence number on
+    // `transactions/list` rows. Ranked above `reference` because measurement
+    // on captured responses shows `reference` is a counterparty/instruction
+    // reference, not a per-row key: one response carried 42 rows sharing only
+    // 9 distinct values, the worst repeating 15 times (a recurring salary
+    // transfer keeps one reference across months). `counter` was unique in
+    // every capture that carries it (41/41, 44/44) and named the same
+    // transaction across two runs of differing windows (41/41 matched), so it
+    // must win when both are present — the same precedence rule FITID has
+    // over ReferenceNumberLong below.
+    //
+    // `reference` stays as the fallback: the provider only began emitting
+    // `counter` between the 2026-08-08 and 2026-08-10 captures, so older
+    // responses still resolve through it.
+    //
+    // Safe to rank globally despite the generic name: `"counter"` appears as
+    // a JSON key in 2 of 10,471 captured response files, both Beinleumi, and
+    // in none of the 9,357 files captured from the other eleven banks.
+    'counter',
     'reference',
     'txnId',
     'confirmationNumber',

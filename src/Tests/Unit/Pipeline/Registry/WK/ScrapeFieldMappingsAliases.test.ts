@@ -28,13 +28,21 @@ describe('WK.identifier — cross-bank per-txn identifier aliases', () => {
     'Urn', // Discount — operation URN
     'runtimeReferenceId', // Max — runtimeReference.id top-level alias
     'trnIntId', // VisaCal — already present
-    'reference', // Beinleumi — already present
+    'counter', // Beinleumi — per-row running sequence number
+    'reference', // Beinleumi — coarse fallback for pre-2026-08-10 responses
     'referenceNumber', // Hapoalim — already present
   ];
   const aliasRows = requiredAliases.map((alias): readonly [string] => [alias]);
 
   it.each(aliasRows)('WK_identifier_%s_ShouldBeListed', alias => {
     expect(WK.identifier).toContain(alias);
+  });
+
+  it('WK_identifier_Counter_ShouldOutrankReference', () => {
+    const counterRank = WK.identifier.indexOf('counter');
+    const referenceRank = WK.identifier.indexOf('reference');
+    expect(counterRank).toBeGreaterThanOrEqual(0);
+    expect(counterRank).toBeLessThan(referenceRank);
   });
 });
 

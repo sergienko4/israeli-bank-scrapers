@@ -207,6 +207,14 @@ describe('BeinleumiShape transactions', () => {
     const page = txnsExtractPage({ body: {}, cursor: false, acct: ACCT, ctx });
     expect(page.items).toEqual([]);
   });
+
+  it('txnsExtractPage yields an empty page when transactions is not an array', () => {
+    const ctx = ctxWithStart();
+    const body = { transactions: '[<44 redacted items>]' };
+    const page = txnsExtractPage({ body, cursor: false, acct: ACCT, ctx });
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toBe(false);
+  });
 });
 
 describe('BEINLEUMI_SHAPE wiring', () => {

@@ -105,12 +105,34 @@ const BANK_ROWS: readonly IBankRowFixture[] = [
     },
   },
   {
+    // Beinleumi's `transactions/list` rows carry BOTH `counter` and
+    // `reference`. `counter` is the account-scoped running sequence number
+    // and is unique per row; `reference` is a counterparty reference that
+    // repeats across rows — see the uniqueness suite below.
     bank: 'beinleumi',
+    identifierField: 'counter',
+    identifierValue: 684,
+    row: {
+      dateOfRegistration: '2026-05-10T00:00:00',
+      description: '<merchant:beinleumi-1>',
+      creditAmount: 0,
+      debitAmount: 15000,
+      counter: 684,
+      reference: 99380,
+    },
+  },
+  {
+    // DELIBERATE fallback coverage — do NOT add `counter` to this row.
+    // The provider only began emitting `counter` between the 2026-08-08 and
+    // 2026-08-10 captures, so responses predating that change resolve through
+    // the coarser `reference`. This fixture is the only place proving that
+    // fallback alias still resolves once `counter` outranks it.
+    bank: 'beinleumi-legacy',
     identifierField: 'reference',
     identifierValue: 99380,
     row: {
       dateOfRegistration: '2026-05-10T00:00:00',
-      description: '<merchant:beinleumi-1>',
+      description: '<merchant:beinleumi-legacy>',
       creditAmount: 0,
       debitAmount: 15000,
       reference: 99380,
@@ -192,6 +214,40 @@ const LEUMI_COLLIDING_ROWS: readonly Record<string, unknown>[] = [
 ];
 
 /**
+ * Beinleumi rows whose `reference` repeats but whose `counter` does not.
+ *
+ * <p>Modelled on the measured capture: a recurring salary transfer keeps one
+ * `reference` across months, so keying identity on it would collapse three
+ * distinct debits of different dates and amounts into one.
+ */
+const BEINLEUMI_COLLIDING_ROWS: readonly Record<string, unknown>[] = [
+  {
+    dateOfRegistration: '2026-06-05T00:00:00',
+    description: '<merchant:beinleumi-salary>',
+    creditAmount: 0,
+    debitAmount: 3200,
+    counter: 662,
+    reference: 99380,
+  },
+  {
+    dateOfRegistration: '2026-07-05T00:00:00',
+    description: '<merchant:beinleumi-salary>',
+    creditAmount: 0,
+    debitAmount: 3200,
+    counter: 671,
+    reference: 99380,
+  },
+  {
+    dateOfRegistration: '2026-08-05T00:00:00',
+    description: '<merchant:beinleumi-salary>',
+    creditAmount: 0,
+    debitAmount: 15000,
+    counter: 684,
+    reference: 99380,
+  },
+];
+
+/**
  * Wrap a single row in a 1-element array under a generic key so
  * `huntTransactions` BFS picks it up as a txn array.
  *
@@ -232,5 +288,18 @@ describe('CrossBank — per-txn identifiers are unique within one response', () 
     expect(hasEveryIdentifier).toBe(true);
     const distinct = new Set(identifiers);
     expect(distinct.size).toBe(LEUMI_COLLIDING_ROWS.length);
+  });
+
+  it('extractTransactions_BeinleumiRepeatedReference_ShouldStillEmitUniqueIdentifiers', () => {
+    const body = { txns: BEINLEUMI_COLLIDING_ROWS };
+
+    const txns = extractTransactions(body);
+
+    expect(txns).toHaveLength(BEINLEUMI_COLLIDING_ROWS.length);
+    const identifiers = txns.map((t): unknown => t.identifier);
+    const hasEveryIdentifier = identifiers.every((id): boolean => id !== undefined);
+    expect(hasEveryIdentifier).toBe(true);
+    const distinct = new Set(identifiers);
+    expect(distinct.size).toBe(BEINLEUMI_COLLIDING_ROWS.length);
   });
 });
