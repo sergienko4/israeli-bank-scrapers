@@ -27,7 +27,8 @@
  * activates for card banks whose endpoint is a monthly template.
  *
  * <p>Fixture values are synthetic + PII-safe (zero monetary amounts,
- * redacted descriptions, short non-ID reference numbers).
+ * redacted descriptions, short non-ID reference numbers, and opaque
+ * date-prefixed `FITID`s that match no card / Israeli-ID shape).
  */
 
 import { readFileSync } from 'node:fs';
@@ -63,9 +64,18 @@ const FIXTURE = join(
 const EXPECTED_TXN_COUNT = 2;
 /** Folded `BalanceDisplay` in the fixture (synthetic zero). */
 const EXPECTED_BALANCE = 0;
-/** Synthetic reference numbers (short — not Israeli-ID shaped). */
-const REF_FIRST = 1000001;
-const REF_SECOND = 1000002;
+/**
+ * Synthetic `FITID`s — the identifier the mapper MUST resolve.
+ *
+ * <p>Real UC_SO_27 rows always carry `FITID` alongside the coarser
+ * `ReferenceNumberLong`, and `PIPELINE_SCRAPE_FIELD_ALIASES.identifier`
+ * ranks `FITID` first because `ReferenceNumberLong` repeats within a
+ * single response. Asserting the `FITID` here proves the fixture drives
+ * the SAME primary alias production resolves — before this fixture
+ * carried `FITID`, the suite silently proved the fallback instead.
+ */
+const FITID_FIRST = '20260110000000000001';
+const FITID_SECOND = '20260120000000000002';
 
 /**
  * Load the committed UC_SO_27 WCF envelope fixture.
@@ -102,8 +112,8 @@ describe('Leumi contract extraction — Slice 1 + Slice 2 on the committed fixtu
     const txns = extractTransactions(env);
     expect(txns).toHaveLength(EXPECTED_TXN_COUNT);
     const ids = txns.map((t): unknown => t.identifier);
-    expect(ids).toContain(REF_FIRST);
-    expect(ids).toContain(REF_SECOND);
+    expect(ids).toContain(FITID_FIRST);
+    expect(ids).toContain(FITID_SECOND);
   });
 
   it('resolves the folded BalanceDisplay (the value BALANCE-RESOLVE reads)', () => {

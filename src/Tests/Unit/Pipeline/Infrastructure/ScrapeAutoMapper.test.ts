@@ -243,6 +243,13 @@ describe('extractTransactions', () => {
     expect(txns.length).toBeGreaterThanOrEqual(0);
   });
 
+  // DELIBERATE fallback coverage — do NOT add `FITID` to this row.
+  // `PIPELINE_SCRAPE_FIELD_ALIASES.identifier` ranks `FITID` above
+  // `ReferenceNumberLong`, so this row (which omits `FITID`, as some
+  // legacy UC_SO_27 payloads do) is the only place proving the
+  // fallback alias still resolves. The primary `FITID` path is proven
+  // by `Leumi.contractExtraction.test.ts` against the on-disk fixture
+  // and by the precedence suite in `CrossBankIdentifierExtraction.test.ts`.
   it('unwraps the Leumi WCF envelope and maps the inner txn', () => {
     const inner = {
       HistoryTransactionsItems: [
