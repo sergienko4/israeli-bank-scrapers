@@ -11,7 +11,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { issuesFromCode } from '../../../Tests/Tools/LintValidator.js';
+import { issuesFromCode, RETIRED_SPECIFIERS } from '../../../Tests/Tools/LintValidator.js';
 
 /** Synthetic Pipeline path — forces scope-sensitive rules to fire. */
 const SYNTHETIC_PIPELINE = 'src/Scrapers/Pipeline/TestOnly/synthetic.ts';
@@ -126,24 +126,112 @@ const RULE_17_CASES = [
   },
 ];
 
-/** The retired modules, as repo-relative runtime specifiers. */
-const RETIRED_PATHS: readonly string[] = [
-  'src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js',
-  'src/Scrapers/Pipeline/Mediator/Network/Fetch.js',
-  'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
-  'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
+/**
+ * The retired modules, as repo-relative runtime specifiers.
+ *
+ * Derived from the guard's own registry rather than restated. The hand-kept
+ * copy this replaces had drifted to fifteen of seventeen rows, leaving two of
+ * the shims guarded by the tool but unasserted by these tests — the exact gap a
+ * hand-kept mirror invites.
+ */
+const RETIRED_PATHS: readonly string[] = [...RETIRED_SPECIFIERS.keys()];
+
+/**
+ * The retired modules this suite expects to be guarding, owned by the tests.
+ *
+ * Deriving the cases above covers a new row automatically, but it cannot notice
+ * a row being *removed*: the case simply stops being generated and the suite
+ * still passes. Comparing both directions against this list restores that
+ * signal — adding or dropping a shim fails here until the list is updated on
+ * purpose. Unlike the mirror it replaces, this is asserted rather than used as
+ * the only input, so it cannot silently fall behind.
+ */
+const EXPECTED_RETIRED_INVENTORY: readonly string[] = [
+  'src/Common/CamoufoxLauncher.js',
   'src/Common/Config/OtpDetectorConfig.js',
+  'src/Common/Debug.js',
+  'src/Common/ElementsInteractions.js',
+  'src/Common/Fetch.js',
   'src/Common/FormAnchor.js',
-  'src/Common/SelectorResolver.js',
   'src/Common/OtpDetector.js',
   'src/Common/SafeScreenshot.js',
-  'src/Common/Fetch.js',
+  'src/Common/SelectorResolver.js',
   'src/Common/Waiting.js',
-  'src/Common/Debug.js',
-  'src/Common/CamoufoxLauncher.js',
-  'src/Common/ElementsInteractions.js',
+  'src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js',
+  'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
+  'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
+  'src/Scrapers/Pipeline/Mediator/Network/Fetch.js',
+  'src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.js',
+  'src/Scrapers/Pipeline/Types/BasePhase.js',
   'src/Scrapers/Pipeline/Types/Debug.js',
 ];
+
+/**
+ * Every Jest API the guard is expected to treat as a module load.
+ *
+ * Listed here rather than imported from the guard on purpose: deriving it would
+ * mean deleting an API from the production set also deletes its test input, so
+ * the removal would pass unnoticed — the same trap the retired inventory above
+ * exists to close.
+ */
+const JEST_MODULE_APIS: readonly string[] = [
+  'createMockFromModule',
+  'deepUnmock',
+  'doMock',
+  'dontMock',
+  'mock',
+  'requireActual',
+  'requireMock',
+  'setMock',
+  'unmock',
+  'unstable_mockModule',
+  'unstable_unmockModule',
+];
+
+/**
+ * Rows whose replacement is prose rather than one importable path.
+ *
+ * `TimingConfig.js` split into several per-domain modules, so the correct
+ * replacement depends on which constant the caller wanted. These rows are still
+ * flagged and still name a replacement; only the resolves-on-disk assertion is
+ * inapplicable, so they are partitioned out rather than weakening that check
+ * for every other row.
+ */
+const PROSE_REPLACEMENTS: readonly string[] = [
+  'src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.js',
+];
+
+/** Rows whose replacement is a single path expected to exist on disk. */
+const RESOLVABLE_PATHS: readonly string[] = RETIRED_PATHS.filter(
+  (retired): boolean => !PROSE_REPLACEMENTS.includes(retired),
+);
+
+/**
+ * Rule #17 messages raised by importing a retired module from its own folder.
+ *
+ * Returns messages rather than issues so the caller needs no issue type, and
+ * imports from the sibling directory so the specifier is the shortest spelling
+ * that still resolves onto the retired path.
+ * @param retired - Repo-relative runtime specifier of a retired module.
+ * @returns Every Rule #17 message the import raised.
+ */
+function retiredMessages(retired: string): readonly string[] {
+  const dir = path.posix.dirname(retired);
+  const base = path.posix.basename(retired);
+  const code = `import { x } from './${base}';\n`;
+  const issues = issuesFromCode(`${dir}/synthetic.ts`, code, new Map());
+  return issues.filter((i): boolean => i.rule === 'Rule #17').map((i): string => i.message);
+}
+
+/**
+ * The replacement a Rule #17 message recommends.
+ * @param message - A Rule #17 message.
+ * @returns The recommended specifier named after the message's separator.
+ */
+function recommendedFrom(message: string): string {
+  const parts = message.split(' — use ');
+  return parts[1];
+}
 
 /** Root the Rule #17 replacement paths are written relative to. */
 const SRC_ROOT = 'src';
@@ -178,6 +266,22 @@ function isRegularFile(candidate: string): boolean {
   if (!fs.existsSync(candidate)) return false;
   const stats = fs.statSync(candidate);
   return stats.isFile();
+}
+
+/**
+ * The directory a prose recommendation points into.
+ *
+ * A prose row names a module family (`…/Timing/<Domain>TimingConfig.js`) rather
+ * than one file, so the file cannot be resolved — but the folder it lives in
+ * can, which is enough to catch the typo the resolve check exists to prevent.
+ * @param recommended - Specifier fragment taken from the rule message.
+ * @returns Path to the directory named, or an empty string when none is.
+ */
+function namedDirectory(recommended: string): string {
+  const named = /([\w/-]+)\/[\w<>-]+\.js/.exec(recommended);
+  if (named === null) return '';
+  const repoRoot = process.cwd();
+  return path.join(repoRoot, SRC_ROOT, named[1]);
 }
 
 describe('issuesFromCode — Rule #17 retired specifier guard', () => {
@@ -278,18 +382,61 @@ describe('issuesFromCode — Rule #17 retired specifier guard', () => {
     expect(interpolatedHits).toHaveLength(0);
   });
 
-  it.each(RETIRED_PATHS)('recommends a path that resolves on disk for %s', retired => {
-    const dir = path.posix.dirname(retired);
-    const base = path.posix.basename(retired);
-    const importer = `${dir}/synthetic.ts`;
-    const code = `import { x } from './${base}';\n`;
-    const issues = issuesFromCode(importer, code, new Map());
+  it.each(JEST_MODULE_APIS)('catches a retired path passed to jest.%s', api => {
+    const code = `jest.${api}('../Mediator/Network/Fetch.js');\n`;
+    const issues = issuesFromCode(SYNTHETIC_PIPELINE, code, new Map());
     const hits = issues.filter((i): boolean => i.rule === 'Rule #17');
     expect(hits).toHaveLength(1);
-    const recommended = hits[0].message.split(' — use ')[1];
+  });
+
+  it('leaves Jest calls alone when they name no retired module', () => {
+    const spy = "const fn = jest.fn('../Mediator/Network/Fetch.js');\n";
+    const live = "jest.unstable_mockModule('../Mediator/Network/Fetch/index.js', () => ({}));\n";
+    const spyHits = issuesFromCode(SYNTHETIC_PIPELINE, spy, new Map()).filter(
+      (i): boolean => i.rule === 'Rule #17',
+    );
+    const liveHits = issuesFromCode(SYNTHETIC_PIPELINE, live, new Map()).filter(
+      (i): boolean => i.rule === 'Rule #17',
+    );
+    expect(spyHits).toHaveLength(0);
+    expect(liveHits).toHaveLength(0);
+  });
+
+  it('accounts for every retired specifier exactly once', () => {
+    const partitioned = RESOLVABLE_PATHS.length + PROSE_REPLACEMENTS.length;
+    expect(partitioned).toBe(RETIRED_PATHS.length);
+    const unknownProse = PROSE_REPLACEMENTS.filter(
+      (retired): boolean => !RETIRED_PATHS.includes(retired),
+    );
+    expect(unknownProse).toEqual([]);
+  });
+
+  it('guards exactly the inventory of shims these tests expect', () => {
+    const guarded = [...RETIRED_PATHS].sort();
+    const expected = [...EXPECTED_RETIRED_INVENTORY].sort();
+    expect(guarded).toEqual(expected);
+  });
+
+  it.each(RETIRED_PATHS)('flags %s when it is imported', retired => {
+    const messages = retiredMessages(retired);
+    expect(messages).toHaveLength(1);
+  });
+
+  it.each(RESOLVABLE_PATHS)('recommends a path that resolves on disk for %s', retired => {
+    const messages = retiredMessages(retired);
+    const recommended = recommendedFrom(messages[0]);
     expect(recommended).toBeDefined();
     const sourcePath = resolveRecommended(recommended);
     const isResolved = isRegularFile(sourcePath);
     expect(isResolved).toBe(true);
+  });
+
+  it.each(PROSE_REPLACEMENTS)('names a real module family for %s', retired => {
+    const messages = retiredMessages(retired);
+    const recommended = recommendedFrom(messages[0]);
+    expect(recommended).toMatch(/\.js\b/);
+    const directory = namedDirectory(recommended);
+    const isRealDirectory = directory !== '' && fs.existsSync(directory);
+    expect(isRealDirectory).toBe(true);
   });
 });

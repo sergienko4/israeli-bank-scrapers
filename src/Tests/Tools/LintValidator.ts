@@ -303,8 +303,8 @@ const PRIMITIVE_RETURN_RE = /\)\s*:\s(?:boolean|string|number|void)(?=\s*\{)/g;
  * out of reach: its target is not known until runtime, so no path-based rule
  * can judge it either way.
  *
- * Covers static imports and exports, type-position imports, dynamic `import()`
- * and `require()`.
+ * Covers static imports and exports, type-position imports, dynamic `import()`,
+ * `require()` and the Jest module-path APIs.
  * @param code - Source text.
  * @returns One entry per specifier, in source order.
  */
@@ -369,23 +369,73 @@ function importTypeLiteral(node: ts.ImportTypeNode): ts.StringLiteralLike[] {
 }
 
 /**
+ * Jest APIs whose first argument is a module path.
+ *
+ * Every entry is declared `(moduleName: string)` by the installed Jest types,
+ * so the first argument is always a specifier. Only `unstable_mockModule` is
+ * actually called in this repo — 118 sites, because ESM targets must use it —
+ * but the guard's promise is that a retired path cannot be reached, and that
+ * promise should not depend on which API a caller reached for. `jest.mock` and
+ * friends remain available for CommonJS targets from an ESM test, so they are
+ * covered too.
+ */
+const JEST_MODULE_PATH_APIS: ReadonlySet<string> = new Set([
+  'createMockFromModule',
+  'deepUnmock',
+  'doMock',
+  'dontMock',
+  'mock',
+  'requireActual',
+  'requireMock',
+  'setMock',
+  'unmock',
+  'unstable_mockModule',
+  'unstable_unmockModule',
+]);
+
+/**
+ * Report whether a call is a Jest module-path API.
+ *
+ * Matches the `jest.<api>('./Module.js', …)` shape. The specifier binds a test
+ * to a module exactly as an import does, so a mock left pointing at a retired
+ * path is the same defect as a stale import — and the easier one to miss, since
+ * nothing type-checks a specifier written as a string.
+ *
+ * The receiver must be the plain identifier `jest`, which is how every call in
+ * this repo is written. `import.meta.jest`, a renamed import from
+ * `@jest/globals`, and `jest['mock']` are out of scope: recognising them needs
+ * binding resolution, which is disproportionate here and would still not be
+ * exhaustive. The cost of that boundary is a missed call, not a false alarm on
+ * a real dependency.
+ * @param node - A call expression.
+ * @returns True when the callee is `jest.` plus a module-path API.
+ */
+function isJestModuleCall(node: ts.CallExpression): boolean {
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee)) return false;
+  const isJestReceiver = ts.isIdentifier(callee.expression) && callee.expression.text === 'jest';
+  return isJestReceiver && JEST_MODULE_PATH_APIS.has(callee.name.text);
+}
+
+/**
  * Report whether a call expression loads a module by name.
  *
- * Covers dynamic `import(...)` and CommonJS `require(...)`. `require` is
- * included because the rule's promise is that a retired path cannot be
- * reached, and that promise should not depend on which module syntax the
- * caller happened to use.
+ * Covers dynamic `import(...)`, CommonJS `require(...)` and the Jest
+ * module-path APIs. `require` is included because the rule's promise is that a
+ * retired path cannot be reached, and that promise should not depend on which
+ * module syntax the caller happened to use; the Jest APIs are included for the
+ * same reason.
  * @param node - A call expression.
  * @returns True when the callee loads a module.
  */
 function isModuleLoadingCall(node: ts.CallExpression): boolean {
   if (node.expression.kind === ts.SyntaxKind.ImportKeyword) return true;
   const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
-  return isRequire;
+  return isRequire || isJestModuleCall(node);
 }
 
 /**
- * Return the literal specifier of an `import(...)` or `require(...)` call.
+ * Return the literal specifier of a module-loading call.
  * @param node - A call expression.
  * @returns A single-entry list, or empty.
  */
@@ -717,8 +767,20 @@ function ruleSixteenIssues(code: string): IIssue[] {
  * lets the Rule #17 suite assert that each replacement resolves to a real file
  * — a per-row base would make that check unwritable, and a typo in a
  * replacement would then ship as advice pointing nowhere.
+ *
+ * One row is deliberately prose instead of a path: `Mediator/Timing/TimingConfig.js`
+ * split into several per-domain modules, so the right replacement depends on
+ * which constant the caller wanted and no single path is correct. The suite
+ * partitions the rows accordingly rather than weakening the resolve check for
+ * everyone.
+ *
+ * Exported so the Rule #17 suite derives its coverage from this map rather than
+ * restating it. A hand-kept copy drifted to fifteen of seventeen rows once
+ * already, which left two of the shims guarded in the tool but unasserted in
+ * the tests. Deriving cannot notice a row being *deleted*, so the suite also
+ * compares these keys against an inventory it owns.
  */
-const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
+export const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   [
     'src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js',
     'Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js',
