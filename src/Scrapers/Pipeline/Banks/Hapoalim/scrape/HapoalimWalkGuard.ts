@@ -16,45 +16,45 @@
  * read, and it was. Nothing anywhere inspects the window's recent end, so the
  * loss would land exactly where no guard is looking.
  *
- * <p>This module closes that blind spot with facts the walk already proved.
+ * <p>This module narrows that blind spot, but only with facts the walk can
+ * actually prove. The distinction matters: an oracle that fires on healthy
+ * traffic is worse than no oracle, because a warning nobody trusts is a
+ * warning nobody reads.
  *
- * <p>On a page that carried a cursor, two separate things are checked.
+ * <p>One thing on a cursor page is provable: the newest row. A cursor is only
+ * ever minted from a day that carried rows, and the next request ends on that
+ * day *inclusively* — so those rows must come back, and the next page's newest
+ * row must be that same day. A newest row older than the cursor means the bank
+ * withheld rows between the two, which is the inverted-ordering signature. A
+ * newest row *newer* than the cursor is a different fault — the bank ignored
+ * the bound it was given — and is graded apart from it rather than waved
+ * through.
  *
- * <p>First, the newest row. A cursor is only ever minted from a day that
- * carried rows, and the next request ends on that day *inclusively* — so the
- * next page's newest row must be that same day. A newest row older than the
- * cursor means the bank withheld rows between the two, which is the
- * inverted-ordering signature. A newest row *newer* than the cursor is a
- * different fault — the bank ignored the bound it was given — and is graded
- * apart from it rather than waved through.
+ * <p>Two things that look provable are not, and both are graded accordingly.
  *
- * <p>Second, whether the walk advanced. A cursor page always follows a capped
- * one, so rows were known to exist *below* the cursor day. Under the assumed
- * ordering this page must therefore reach below it. A page whose oldest row is
- * the cursor day itself did not: the next request would repeat this exact
- * window. That is what inversion looks like from page two — the bank keeps
- * returning the oldest slice, so the cursor never moves — and it is the
- * detection that does not depend on which day the caller asked to start from.
+ * <p>First, a page reaching the requested start. It is tempting to read a
+ * capped page that still reaches the start as proof the cap fell at the recent
+ * end. It is not: `pageWasCapped` means the page is *full*, not that rows were
+ * dropped, and the cap counts rows rather than days, so the boundary can fall
+ * part-way through the start day itself. A window holding 149 newer rows and
+ * two rows on the start day fills a 150-row page correctly, oldest-first
+ * ordering nowhere in sight. `HapoalimTxnPaging` pins that exact shape as
+ * healthy. A first page therefore reports `unknown`: with no cursor to compare
+ * against, a response body carries no ordering evidence at all.
  *
- * <p>On the first page there is no cursor. A page capped at the bank's own
- * limit asserts that more rows existed than were returned, and under the
- * assumed ordering a cap drops the *oldest* of them — so a capped page cannot
- * also reach back to the requested start. Reaching it means the cap fell at
- * the recent end instead.
+ * <p>Second, a cursor page whose oldest row is the cursor day. When that page
+ * is *uncapped* the walk simply ends — the window held nothing older, which is
+ * how a normal walk finishes. Only when the page is also full does it mean
+ * something: a single day is carrying at least a whole page of rows, so the
+ * next request would repeat this window unchanged. That is a completeness risk
+ * worth reporting, and it is graded `stalled` rather than `violated` because
+ * it does not prove the ordering inverted. `Pagination` independently halts a
+ * repeated cursor, so the walk does not spin on it.
  *
- * <p>Two limits on that first-page test are worth stating plainly, because it
- * reads stronger than it is. It misfires for an account whose entire window
- * holds exactly the cap's worth of rows, which is indistinguishable from a
- * truncated one since the bank states only the page size it applied. And it
- * stays silent far more often than it fires: the request is bounded at the
- * requested start, so no row can predate it, and the test therefore needs the
- * account to hold a transaction on that exact calendar day. An account whose
- * earliest row in the window falls even one day later reports `unknown` here
- * and is caught on the next page by the stalled-cursor test above instead.
- *
- * <p>Neither test observes the window's *recent* end directly; nothing in a
- * response body does. Proving that end would take a separate probe request,
- * which is a change to the fetch layer rather than to this guard.
+ * <p>Nothing here observes the window's *recent* end directly; no response body
+ * reports it. Proving that end would take a separate probe request, which is a
+ * change to the fetch layer rather than to this guard, and until that exists
+ * this guard narrows the gap rather than closing it.
  *
  * <p>A spurious warning costs one log line. The loss these catch cost a real
  * account four weeks of history with no error and no flag (PR #489).
@@ -72,14 +72,16 @@ const LOG = getDebug(import.meta.url);
  * Whether a page honoured the ordering the walk depends on.
  *
  * `honoured` means the page's newest row is exactly the day that was asked
- * for. `violated` means the bank truncated at the recent end — either the
- * newest row is older than the cursor, or a capped first page reached back to
- * the requested start. `beyond` means the page carried rows newer than the
- * bound the request gave, which honours no bound at all. `unknown` means the
- * page proves nothing — no row carried a usable date, or a first page offered
- * no truncation evidence.
+ * for. `violated` means the bank truncated at the recent end: the newest row
+ * is older than the cursor, so rows that were proven to exist did not come
+ * back. `beyond` means the page carried rows newer than the bound the request
+ * gave, which honours no bound at all. `stalled` means a full page held only
+ * the cursor day, so the cursor cannot advance — a completeness risk, not
+ * proof of inverted ordering. `unknown` means the page proves nothing — no row
+ * carried a usable date, or it was a first page, which carries no cursor to
+ * compare against and so no ordering evidence.
  */
-export type WalkOrderVerdict = 'honoured' | 'violated' | 'beyond' | 'unknown';
+export type WalkOrderVerdict = 'honoured' | 'violated' | 'beyond' | 'stalled' | 'unknown';
 
 /** Inputs for one ordering check. Days only — never row content. */
 export interface IWalkOrderArgs {
@@ -89,10 +91,8 @@ export interface IWalkOrderArgs {
   readonly newest: string;
   /** Oldest usable day on the page (`YYYYMMDD`), or empty when none. */
   readonly oldest: string;
-  /** Whether the bank truncated this page at its own cap. */
+  /** Whether the page came back full at the bank's own stated page size. */
   readonly capped: boolean;
-  /** Day the caller asked the window to start at (`YYYYMMDD`). */
-  readonly requestedStart: string;
   /** Bank + step identity for the log line. */
   readonly label: string;
 }
@@ -147,10 +147,10 @@ function reportOrder(label: string, result: IWalkOrderResult): IWalkOrderResult 
 /**
  * Grade a page whose newest row matched the day it asked from.
  *
- * <p>Matching the cursor is necessary but not sufficient. A cursor page always
- * follows a capped one, so rows were known to exist below the cursor day; this
- * page must reach below it or the next request repeats the same window. See
- * the module header for why a stalled cursor is inversion's page-two shape.
+ * <p>An oldest row on the cursor day is only a fault when the page is also
+ * full. Uncapped, it is how a normal walk ends: nothing older was left. Full,
+ * it means one day carries a whole page, so the cursor cannot move — see the
+ * module header for why that is graded `stalled` and not `violated`.
  *
  * @param args - The page's days.
  * @param asked - Day the request ended on.
@@ -158,10 +158,11 @@ function reportOrder(label: string, result: IWalkOrderResult): IWalkOrderResult 
  */
 function gradeAdvance(args: IWalkOrderArgs, asked: string): IWalkOrderResult {
   const base = { newest: args.newest, asked };
-  if (args.oldest !== asked) return { ...base, verdict: 'honoured', detail: '' };
+  const didAdvance = args.oldest !== asked;
+  if (didAdvance || !args.capped) return { ...base, verdict: 'honoured', detail: '' };
   const seen = `asked=${asked} oldest=${args.oldest}`;
-  const stalled = `${seen}; page never reached below the day it asked from`;
-  return { ...base, verdict: 'violated', detail: stalled };
+  const stalled = `${seen}; a full page held one day, so the cursor cannot advance`;
+  return { ...base, verdict: 'stalled', detail: stalled };
 }
 
 /**
@@ -186,29 +187,17 @@ function gradeCursorPage(args: IWalkOrderArgs, asked: string): IWalkOrderResult 
 }
 
 /**
- * Grade the first page, which carries no cursor to compare against.
- *
- * <p>See the module header for why "capped and yet reaching the requested
- * start" is the inversion signature, and for the one case it can misread.
- *
- * @param args - The page's days plus its truncation evidence.
- * @returns Verdict, or `unknown` when the page offers no evidence.
- */
-function gradeFirstPage(args: IWalkOrderArgs): IWalkOrderResult {
-  const hasReachedStart = args.oldest !== '' && args.oldest <= args.requestedStart;
-  if (!args.capped || !hasReachedStart) return UNKNOWN;
-  const seen = `oldest=${args.oldest} start=${args.requestedStart}`;
-  const detail = `${seen}; a capped page cannot also reach the requested start`;
-  return { verdict: 'violated', newest: args.newest, asked: '', detail };
-}
-
-/**
  * Route the page to the grader its evidence supports.
- * @param args - The page's days plus its truncation evidence.
+ *
+ * <p>A first page carries no cursor, and so no ordering evidence — see the
+ * module header for why a capped page reaching the requested start does not
+ * supply any.
+ *
+ * @param args - The page's days plus its fullness.
  * @returns Verdict plus the evidence behind it.
  */
 function gradePage(args: IWalkOrderArgs): IWalkOrderResult {
-  if (args.asked === false) return gradeFirstPage(args);
+  if (args.asked === false) return UNKNOWN;
   return gradeCursorPage(args, args.asked);
 }
 

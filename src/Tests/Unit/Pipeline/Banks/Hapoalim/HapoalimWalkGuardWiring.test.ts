@@ -64,14 +64,15 @@ function row(eventDate: number): Record<string, unknown> {
 }
 
 /**
- * Build the extractor argument bundle for an uncapped page.
+ * Build the extractor argument bundle.
  * @param dates - Transaction dates the page carried, as the bank reports them.
  * @param cursor - Day the request ended on.
+ * @param pageSize - Page size the bank states, which decides fullness.
  * @returns Args for txnsExtractPage.
  */
-function argsFor(dates: readonly number[], cursor: string): ExtractArgs {
+function argsFor(dates: readonly number[], cursor: string, pageSize = 150): ExtractArgs {
   const transactions = dates.map(row);
-  const body = { numItemsPerPage: 150, transactions };
+  const body = { numItemsPerPage: pageSize, transactions };
   const ctx = { options: { startDate: new Date('2026-02-20') } };
   const acct = { composite: '12-613-000000' };
   return { body, cursor, acct, ctx } as unknown as ExtractArgs;
@@ -92,12 +93,33 @@ describe('Hapoalim/transactions — walk-order guard wiring', () => {
     expect(said).toContain('walk-order');
   });
 
-  it('warns when a cursor page never reaches below its own cursor', () => {
-    // Every row lands on the cursor day, so re-asking would repeat this window.
-    const args = argsFor([20260401, 20260401], '20260401');
+  it('warns when a full page holds only its cursor day', () => {
+    // Two rows against a stated cap of two, all on the cursor day: the next
+    // request would repeat this window unchanged.
+    const args = argsFor([20260401, 20260401], '20260401', 2);
     SHAPE.txnsExtractPage(args);
     const said = warnings();
-    expect(said).toContain('never reached below');
+    expect(said).toContain('cursor cannot advance');
+  });
+
+  it('stays quiet when the last page holds only its cursor day', () => {
+    // The window held nothing older than the cursor, so the page comes back
+    // short and the walk ends. This is how every normal walk finishes, and it
+    // reaches the guard with oldest === newest === the cursor — the shape an
+    // earlier revision warned on, firing on healthy traffic.
+    const args = argsFor([20260225], '20260225');
+    const page = SHAPE.txnsExtractPage(args);
+    expect(page.nextCursor).toBe(false);
+    expect(LOG.warn).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet on a full first page that reached the requested start', () => {
+    // The cap counts rows, so it can cut through the start day; the walk
+    // recovers the withheld rows by re-asking that day inclusively. Warning
+    // here would fire on the shape HapoalimTxnPaging pins as healthy.
+    const args = argsFor([20260220, 20260405], false as unknown as string, 2);
+    SHAPE.txnsExtractPage(args);
+    expect(LOG.warn).not.toHaveBeenCalled();
   });
 
   it('stays quiet on a page that walked backwards as expected', () => {

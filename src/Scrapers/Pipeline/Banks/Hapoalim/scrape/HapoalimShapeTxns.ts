@@ -259,12 +259,13 @@ function oldestOrEmpty(rows: readonly HapoalimTxn[]): string {
 /**
  * Check this page against the walk's ordering assumption.
  *
- * The truncation flag and the requested start are passed because the first
- * page carries no cursor to compare against — see the guard's module header.
+ * The fullness flag is passed because a page that came back full at the bank's
+ * own page size is the only case where an unmoved cursor means anything — see
+ * the guard's module header.
  *
  * @param args - Bundle carrying the unwrapped response body and the context.
  * @param rows - Rows this page returned.
- * @param wasCapped - Whether the bank truncated this page at its own limit.
+ * @param wasCapped - Whether the page came back full at the bank's own limit.
  * @returns The ordering verdict, already reported to the log.
  */
 function checkWalkOrder(
@@ -277,7 +278,6 @@ function checkWalkOrder(
     newest: newestDay(rows),
     oldest: oldestOrEmpty(rows),
     capped: wasCapped,
-    requestedStart: startOf(args.ctx),
     label: 'hapoalim/txns',
   });
 }

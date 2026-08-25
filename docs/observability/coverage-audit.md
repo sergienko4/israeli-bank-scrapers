@@ -176,9 +176,11 @@ Hapoalim's backwards date-walk (`HapoalimShapeTxns.ts`) rests on an assumption a
 
 If that ordering ever inverted — the bank capping from the recent end instead — **not one of the checks above would notice**. A page truncated at its recent end still reaches the requested start, so `assessWindowCoverage` grades it `covered`. Every row in the body was still read, so `auditCoverage` is perfect. The loss would land precisely where nothing is looking, and the run would score clean.
 
-`assessWalkOrder()` (`src/Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimWalkGuard.ts`) narrows that blind spot using facts the walk has already proved. It takes an `IWalkOrderArgs` — the day the request `asked` the window to end on, the `newest` and `oldest` days the page carried, whether the bank `capped` it, the `requestedStart`, and a bank/step `label` — and returns an `IWalkOrderResult` carrying a `WalkOrderVerdict`.
+`assessWalkOrder()` (`src/Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimWalkGuard.ts`) narrows that blind spot using facts the walk has already proved. It takes an `IWalkOrderArgs` — the day the request `asked` the window to end on, the `newest` and `oldest` days the page carried, whether the page came back full (`capped`), and a bank/step `label` — and returns an `IWalkOrderResult` carrying a `WalkOrderVerdict`.
 
 It narrows rather than closes: none of its tests observes the window's recent end directly, because nothing in a response body reports it. They infer a fault from the walk's own arithmetic instead. Observing that end would take a separate probe request, which is a change to the fetch layer rather than to this guard.
+
+The guard is deliberately conservative about what it will call a fault, because a warning that fires on healthy traffic is worse than no warning: it teaches the reader to ignore the line. The section below on what it **cannot** prove is as load-bearing as the section on what it can.
 
 ### Why the newest row is a sound oracle
 
@@ -186,36 +188,39 @@ A cursor is never invented. It is only ever minted from a day that carried rows 
 
 A newest row **older** than the day asked for means the bank withheld everything between the two. That is the inverted-ordering signature, and nothing else produces it. A newest row **newer** than the day asked for honours no bound at all, and reports separately as `beyond`; grading it as honouring the ordering, which an inequality comparison did, would let a bank ignore the window silently. The comparison is lexicographic on `YYYYMMDD`, which needs no date parsing and orders correctly across a year boundary.
 
-### Why a cursor page must also reach below its cursor
+### What a full page does not prove
 
-Matching the cursor is necessary but not sufficient. Every cursor page follows a **capped** one — an uncapped page ends the walk with `nextCursor: false` — and a cap asserts that more rows existed in the window than were returned. Under the assumed ordering those extras are strictly older than the cursor day, so this page must reach below it.
+One premise has to be stated carefully, because getting it wrong produced two false detectors that an earlier revision of this guard shipped.
 
-A page whose **oldest** row is the cursor day itself did not. The next request would ask for the identical window and get the identical answer: the walk cannot advance. That is exactly what inversion looks like from page two — the bank keeps returning the oldest slice of whatever window it is handed, so the cursor never moves — and it reports `violated`. The other way to produce it is a single day holding more rows than the page cap, which deadlocks the walk against `MAX_PAGES` and is equally worth a warning.
+`pageWasCapped` compares `rowCount >= serverPageSize`. That means the page came back **full**. It does _not_ mean rows were dropped: a window holding exactly the cap's worth of rows fills the page and leaves nothing behind. And the cap counts **rows**, not days, so its boundary can fall part-way through any single calendar day — including the first day of the window and the last.
 
-This test is the guard's general detector: it depends only on the cursor and the page, never on which day the caller asked to start from.
+Two shapes therefore look like inverted ordering and are not.
 
-### Why the first page needs a different oracle
+### Why a stalled cursor is graded apart from a violation
 
-The cursor oracle alone would never fire on the fault it exists for. Under inverted ordering, page one's oldest row already reaches back past the requested start, so `nextEndFor` terminates the walk immediately and **no cursor is ever minted** — the walk ends on the one page the cursor comparison cannot grade.
+A cursor page whose **oldest** row is the cursor day itself did not reach below its cursor. Whether that matters depends entirely on whether the page was full.
 
-So page one is graded on its own evidence instead. A cap asserts that more rows existed than were returned; under the assumed ordering the cap drops the **oldest** of them. A page that was capped and _yet_ reaches back to the requested start therefore contradicts the ordering the walk depends on, and reports `violated`.
+When the page is **not** full, this is how every ordinary walk ends. The previous page was full and ended on day D; re-asking `[start, D]` inclusively returns that day's rows and nothing older, because the window held nothing older. `txnsExtractPage` returns `nextCursor: false` and the walk stops. Warning here would fire on the normal termination of a healthy account.
 
-Two limits on that test are worth stating plainly, because it reads stronger than it is.
+When the page **is** full and every row lands on one day, the cursor genuinely cannot move: the next request would repeat the identical window. That is worth reporting, and reports as `stalled`. But it is a date-cursor granularity limit — one day carrying at least a whole page of rows — not proof that the ordering inverted, so it does not report `violated`. The walk does not spin on it either: `haltReason` in `src/Scrapers/Pipeline/Strategy/Fetch/Pagination.ts` detects the repeated cursor and stops the walk immediately, before the `MAX_PAGES` ceiling is ever relevant.
 
-The first is a false positive: an account whose entire window holds exactly the cap's worth of rows. `pageWasCapped` compares `rowCount >= serverPageSize` and cannot distinguish it from a truncated page. That is accepted — the guard only warns, so it costs a log line, whereas the miss it closes cost a real account four weeks of history.
+### Why the first page reports `unknown`
 
-The second is how rarely it fires. The request is bounded at `retrievalStartDate`, so no returned row can predate the requested start, and "reaches back to the start" therefore means _lands on that exact calendar day_. An account whose earliest row in the window falls even one day later reports `unknown` here. Such an account is caught on the next page by the stalled-cursor test above, which is why both tests exist rather than either alone.
+Page one carries no cursor, and a cursor is the only ordering evidence a response body holds.
+
+It is tempting to grade it on its cap instead: under the assumed ordering a cap drops the **oldest** rows, so a page that was full and _yet_ reached back to the requested start looks like a contradiction. It is not one. With a 150-row cap, a window holding 149 newer rows and two rows on the start day returns the 149 plus one start-day row — full, reaching the start, and perfectly newest-first. `HapoalimTxnPaging.test.ts` pins that exact shape as healthy, and the walk recovers the withheld second row by re-asking the start day inclusively.
+
+So the first page reports `unknown`. This is a real gap, and naming it is more useful than filling it with a detector that fires on ordinary traffic: under inverted ordering the walk can terminate on page one, and no oracle available from a single response body would catch it. Closing it needs the recent-end probe described above.
 
 ### Why the remaining cases report `unknown`
 
-A page on which no row carried a usable date proves nothing. Nor does a first page that offers no truncation evidence — either it was not capped, or it was capped and stopped short of the start, which is the ordinary shape of a walk with more pages to fetch. All yield `unknown` rather than `honoured` — the same rule the window check applies: absence of evidence is not evidence the ordering held.
+A page on which no row carried a usable date proves nothing, and neither does any first page. Both yield `unknown` rather than `honoured` — the same rule the window check applies: absence of evidence is not evidence the ordering held.
 
 ```text
 walk-order hapoalim/txns: honoured
 walk-order hapoalim/txns: unknown
 walk-order hapoalim/txns: VIOLATED — asked=20260715 newest=20260701; page truncated at its recent end
-walk-order hapoalim/txns: VIOLATED — asked=20260715 oldest=20260715; page never reached below the day it asked from
-walk-order hapoalim/txns: VIOLATED — oldest=20260601 start=20260601; a capped page cannot also reach the requested start
+walk-order hapoalim/txns: STALLED — asked=20260715 oldest=20260715; a full page held one day, so the cursor cannot advance
 walk-order hapoalim/txns: BEYOND — asked=20260715 newest=20260716; page carried rows newer than the bound it was given
 ```
 
@@ -229,6 +234,8 @@ A faulting verdict warns rather than throws, matching `assessWindowCoverage`. Th
 
 `assessWindowCoverage` is covered in `src/Tests/Unit/Pipeline/Mediator/Scrape/WindowCoverage.test.ts`, which pins the two `unproven` cases above and carries the real numbers from the captured Hapoalim trace. Two cases exist solely to pin subtle correctness points. The first: the caller holds `startDate` as a `Date`, so the start arrives as a UTC instant while row dates are local calendar days. Reducing only one side to a calendar day truncates the difference by a partial day and understates `gapDays` by one — enough for a backfill bound derived from `oldest` to skip a day. The second pins the per-account unit: two month-slices that are each `unproven` alone are `covered` in union, which is the whole reason the call site sits after pagination.
 
-`assessWalkOrder` is covered in `src/Tests/Unit/Pipeline/Banks/Hapoalim/HapoalimWalkGuard.test.ts`. Beyond the four verdicts, four cases exist to pin correctness points that are easy to break: the year-boundary comparison (`asked=20260101`, `newest=20251231`) fails for any implementation that compares day-of-month or string length instead of the whole `YYYYMMDD` token; the `beyond` case fails for any implementation that relaxes the cursor comparison to an inequality; the first-page cases fail for any implementation that returns `unknown` whenever no cursor is present, which is what left the guard unable to fire on the fault it was written for; and the stalled-cursor cases fail for any implementation that grades a cursor page on its newest row alone, which misses every account holding no transaction on the exact requested start day.
+`assessWalkOrder` is covered in `src/Tests/Unit/Pipeline/Banks/Hapoalim/HapoalimWalkGuard.test.ts`. Beyond the five verdicts, several cases exist to pin correctness points that are easy to break: the year-boundary comparison (`asked=20260101`, `newest=20251231`) fails for any implementation that compares day-of-month or string length instead of the whole `YYYYMMDD` token; the `beyond` case fails for any implementation that relaxes the cursor comparison to an inequality; and two cases pin the guard's silence rather than its noise — a short page holding only its cursor day, and a full first page reaching the requested start. Both are healthy shapes that an earlier revision graded `violated`, so both fail for any implementation that reads a full page as proof rows were dropped.
+
+Those two silence cases are the ones worth keeping honest. A detector that fires on ordinary traffic is worse than no detector, so they assert `not.toHaveBeenCalled()` on the logger through the real extractor, not merely a verdict string.
 
 Whether the guard is _called_ is a separate question from whether it is correct, and it needs its own coverage: the guard reports and never repairs, so deleting its call site changes no return value anywhere. `src/Tests/Unit/Pipeline/Banks/Hapoalim/HapoalimWalkGuardWiring.test.ts` reads the emitted warning through the real extractor, and `src/Tests/Unit/Pipeline/Infrastructure/ForensicAuditWindowWiring.test.ts` does the same for the run-level `WINDOW` verdict. Both go red if the call is removed.

@@ -7,10 +7,11 @@
  * page by its OLDEST row, so a page truncated at its recent end still reaches
  * the requested start and scores `covered`.
  *
- * <p>The first-page cases matter most. Under inversion the walk stops on page
- * one — its oldest row already reaches the requested start, so no cursor is
- * ever minted — which means a guard that only reads cursors can never fire on
- * the very fault it exists for.
+ * <p>They also pin what the guard must NOT claim. A full page is merely full,
+ * not proof that rows were dropped, and the cap counts rows rather than days —
+ * so two shapes that look like inversion are ordinary healthy traffic. Both
+ * are covered below, because a guard that cries wolf on a normal walk is worse
+ * than no guard at all.
  */
 
 import {
@@ -37,34 +38,28 @@ const ADVANCED = '20260605';
  */
 function args(asked: string | false, newest: string): IWalkOrderArgs {
   const oldest = newest === '' ? '' : ADVANCED;
-  return { asked, newest, oldest, capped: false, requestedStart: START, label: 'hapoalim/txns' };
+  return { asked, newest, oldest, capped: false, label: 'hapoalim/txns' };
 }
 
 /**
  * Build guard inputs for a cursor page that never reached below its cursor.
  * @param asked - Day the request ended on, which is also its oldest row.
+ * @param capped - Whether the page came back full at the bank's page size.
  * @returns Guard arguments for a page that did not advance the walk.
  */
-function stalledAt(asked: string): IWalkOrderArgs {
-  return {
-    asked,
-    newest: asked,
-    oldest: asked,
-    capped: false,
-    requestedStart: START,
-    label: 'hapoalim/txns',
-  };
+function stalledAt(asked: string, capped: boolean): IWalkOrderArgs {
+  return { asked, newest: asked, oldest: asked, capped, label: 'hapoalim/txns' };
 }
 
 /**
  * Build guard inputs for a first page, which carries no cursor.
  * @param oldest - Oldest usable day the page carried.
  * @param newest - Newest usable day the page carried.
- * @param capped - Whether the bank truncated the page at its own limit.
+ * @param capped - Whether the page came back full at the bank's page size.
  * @returns Guard arguments with no cursor.
  */
 function firstPage(oldest: string, newest: string, capped: boolean): IWalkOrderArgs {
-  return { asked: false, newest, oldest, capped, requestedStart: START, label: 'hapoalim/txns' };
+  return { asked: false, newest, oldest, capped, label: 'hapoalim/txns' };
 }
 
 describe('Hapoalim walk-order guard — ordering honoured', () => {
@@ -78,31 +73,47 @@ describe('Hapoalim walk-order guard — ordering honoured', () => {
 /**
  * A cursor page that never reached below the day it asked from.
  *
- * This is the detection that does not depend on the requested start day, and
- * the one that catches the case the first-page test misses: an account whose
- * earliest row in the window falls after the requested start.
+ * <p>This means something only when the page is also full. Uncapped, it is how
+ * every normal walk ends — the window held nothing older — and warning on it
+ * would fire on healthy traffic. Full, one day is carrying a whole page and
+ * the cursor cannot move, which is a completeness risk rather than proof that
+ * the ordering inverted.
  */
-describe('Hapoalim walk-order guard — walk did not advance', () => {
-  it('a page whose oldest row is the cursor day is violated', () => {
-    const page = stalledAt('20260715');
+describe('Hapoalim walk-order guard — cursor did not advance', () => {
+  it('a full page holding only its cursor day is stalled', () => {
+    const page = stalledAt('20260715', true);
     const out = assessWalkOrder(page);
-    expect(out.verdict).toBe('violated');
+    expect(out.verdict).toBe('stalled');
   });
 
-  it('says the page never reached below its cursor', () => {
-    const page = stalledAt('20260715');
+  it('says the cursor cannot advance', () => {
+    const page = stalledAt('20260715', true);
     const out = assessWalkOrder(page);
-    expect(out.detail).toContain('never reached below');
+    expect(out.detail).toContain('cursor cannot advance');
   });
 
-  it('catches inversion when no row falls on the requested start day', () => {
-    // The account's earliest row in the window is the day after the start, so
-    // the first page's oldest never reaches the start and that test stays
-    // silent. Re-asking [start, 20260602] returns the same oldest slice, so
-    // the cursor does not move — which is what this test reads.
-    const pageTwo = stalledAt('20260602');
-    const out = assessWalkOrder(pageTwo);
-    expect(out.verdict).toBe('violated');
+  it('does not call a stalled cursor an ordering violation', () => {
+    // A full day is a date-cursor granularity limit, not evidence that the
+    // bank returned the oldest slice. Grading it `violated` would put an
+    // unprovable claim in the log.
+    const page = stalledAt('20260715', true);
+    const out = assessWalkOrder(page);
+    expect(out.verdict).not.toBe('violated');
+  });
+
+  it('an uncapped page holding only its cursor day is the ordinary walk end', () => {
+    // The previous page was full and ended on this day; re-asking inclusively
+    // returned that day alone and nothing older, so the window is exhausted
+    // and the caller stops. Nothing is wrong and nothing may be logged.
+    const page = stalledAt('20260225', false);
+    const out = assessWalkOrder(page);
+    expect(out.verdict).toBe('honoured');
+  });
+
+  it('reports no detail for that ordinary walk end', () => {
+    const page = stalledAt('20260225', false);
+    const out = assessWalkOrder(page);
+    expect(out.detail).toBe('');
   });
 
   it('a page that did reach below its cursor is honoured', () => {
@@ -163,33 +174,38 @@ describe('Hapoalim walk-order guard — bound ignored', () => {
 });
 
 /**
- * The first page — the only page the inverted-ordering fault ever reaches.
+ * The first page, which carries no cursor and so no ordering evidence.
  *
- * A cap asserts more rows existed than were returned; under the assumed
- * ordering the cap drops the oldest of them, so a capped page cannot also
- * reach back to the requested start.
+ * <p>A capped page that reaches the requested start looks like the inversion
+ * signature and is not. `pageWasCapped` means the page came back *full*, not
+ * that rows were dropped, and the cap counts rows rather than days — so the
+ * boundary can fall part-way through the start day. `HapoalimTxnPaging` pins
+ * that exact shape as healthy and the walk recovers the withheld rows by
+ * re-asking the start day inclusively. Every case here must therefore report
+ * `unknown`.
  */
 describe('Hapoalim walk-order guard — first page', () => {
-  it('a capped page reaching the requested start is violated', () => {
+  it('a full page reaching the requested start proves nothing', () => {
+    // 149 newer rows plus one of the two rows on the start day fills a
+    // 150-row page under correct newest-first ordering.
     const page = firstPage(START, '20260610', true);
     const out = assessWalkOrder(page);
-    expect(out.verdict).toBe('violated');
+    expect(out.verdict).toBe('unknown');
   });
 
-  it('a capped page reaching past the requested start is violated', () => {
+  it('never warns about a full page reaching the requested start', () => {
+    const page = firstPage(START, '20260610', true);
+    const out = assessWalkOrder(page);
+    expect(out.detail).toBe('');
+  });
+
+  it('a full page reaching past the requested start proves nothing', () => {
     const page = firstPage('20260501', '20260610', true);
     const out = assessWalkOrder(page);
-    expect(out.verdict).toBe('violated');
+    expect(out.verdict).toBe('unknown');
   });
 
-  it('names the days behind the first-page verdict', () => {
-    const page = firstPage(START, '20260610', true);
-    const out = assessWalkOrder(page);
-    expect(out.detail).toContain(`oldest=${START}`);
-    expect(out.detail).toContain(`start=${START}`);
-  });
-
-  it('a capped page stopping short of the start proves nothing', () => {
+  it('a full page stopping short of the start proves nothing', () => {
     const page = firstPage('20260620', '20260715', true);
     const out = assessWalkOrder(page);
     expect(out.verdict).toBe('unknown');
