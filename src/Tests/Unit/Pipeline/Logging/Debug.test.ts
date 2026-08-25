@@ -1,5 +1,5 @@
 /**
- * Unit tests for Types/Debug — child logger factory, runWithBankContext, re-exports.
+ * Unit tests for Logging/Debug — child logger factory, runWithBankContext, re-exports.
  */
 
 import * as os from 'node:os';
@@ -13,7 +13,7 @@ import {
   isMockTimingActive,
   MOCK_TIMEOUT_MS,
   runWithBankContext,
-} from '../../../../Scrapers/Pipeline/Types/Debug.js';
+} from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 
 /** Portable test-only RUNS_ROOT prefixes — avoids hard-coding a Windows
  *  path so Linux CI runners do not create directories named `C:\tmp\...`. */
@@ -104,7 +104,7 @@ describe('Pino censor integration (PII redaction)', () => {
 
   it('runWithBankContext injects bank into log mixin (no throw)', async () => {
     const { runWithBankContext: run } =
-      await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+      await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = getDebug(import.meta.url);
     const didRun = run('bankHapoalim', (): boolean => {
       log.info({ msg: 'hello' });
@@ -181,7 +181,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.setActiveBank('beinleumi');
-    const mod = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = mod.getDebug(import.meta.url);
     expect(() => {
       log.info({ msg: 'hello' });
@@ -197,7 +197,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.setActiveBank('beinleumi');
-    const mod = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = mod.getDebug(import.meta.url);
     expect(() => {
       log.info({ msg: 'hi' });
@@ -209,7 +209,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.NODE_ENV = 'production';
     delete process.env.LOG_LEVEL;
     jest.resetModules();
-    const mod = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = mod.getDebug(import.meta.url);
     expect(() => {
       log.info({ msg: 'x' });
@@ -221,7 +221,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.NODE_ENV = 'development';
     delete process.env.LOG_LEVEL;
     jest.resetModules();
-    const mod = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = mod.getDebug(import.meta.url);
     expect(() => {
       log.info({ msg: 'dev pretty only' });
@@ -233,7 +233,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.NODE_ENV = 'development';
     process.env.LOG_LEVEL = 'info';
     jest.resetModules();
-    const mod = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = mod.getDebug(import.meta.url);
     expect(() => {
       log.info({ msg: 'info ok' });
@@ -246,7 +246,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.setActiveBank('beinleumi');
-    const dbg = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const dbg = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const fields = dbg.getActiveLogContext();
     const expectedRunId = tc.getActiveRunId();
     expect(expectedRunId).not.toBe('');
@@ -261,7 +261,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
     tc.resetTraceConfigCache();
-    const dbg = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const dbg = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const fields = dbg.getActiveLogContext();
     expect(fields.runId).toBeUndefined();
   });
@@ -274,7 +274,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CACHE;
     jest.resetModules();
     const tc = await import('../../../../Scrapers/Pipeline/Types/TraceConfig.js');
-    const dbg = await import('../../../../Scrapers/Pipeline/Types/Debug.js');
+    const dbg = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
     const log = dbg.getDebug(import.meta.url);
     const preFile = tc.getLogFile();
     expect(preFile).toBe('');
