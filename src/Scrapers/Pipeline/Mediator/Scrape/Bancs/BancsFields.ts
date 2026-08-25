@@ -4,8 +4,8 @@
  * <p>Each reader pulls one `ITransaction`-shaped scalar out of a raw
  * BaNCS `DataEntity[]` record, flattening the nested TCS BaNCS envelope
  * (`OrigDt {Day,Month,Year}` → ISO, `TotalCurAmt.Amt.Value` → magnitude
- * string, `TxnId.TxnIds.TRANSACTIONID` → id) so the shared generic
- * mapper can consume them via the prepended `bancs*` WK aliases.
+ * string, `TxnRef.TrnRefSrcTrns.TrnIdentLst[0].Id.Id` → id) so the shared
+ * generic mapper can consume them via the prepended `bancs*` WK aliases.
  */
 
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
@@ -69,21 +69,37 @@ function readCurrency(root: ApiRecord): string {
 }
 
 /**
- * Read the per-transaction unique identifier.
- * @param root - BaNCS record.
- * @returns `TxnId.TxnIds.TRANSACTIONID`, or empty string.
- */
-function readIdentifier(root: ApiRecord): string {
-  return readString(root, ['TxnId', 'TxnIds', 'TRANSACTIONID']);
-}
-
-/**
  * First non-empty string in a preference list.
  * @param values - Ordered candidates.
  * @returns The first non-empty value, or empty string.
  */
 function firstNonEmpty(values: readonly string[]): string {
   return values.find((v): boolean => v.length > 0) ?? '';
+}
+
+/**
+ * Read the per-transaction unique identifier.
+ *
+ * <p>Prefers the source-transaction reference over `TRANSACTIONID`. BaNCS
+ * assigns `TRANSACTIONID` per *batch*, not per row: a single fee batch charges
+ * several lines that all carry the same value — measured on a live Yahav
+ * capture, where two same-day commission rows of different amounts shared one
+ * `TRANSACTIONID`, and each row's `Memo` quotes that batch reference. Used
+ * alone it collides, so distinct transactions would deduplicate into one.
+ *
+ * <p>`TrnRefSrcTrns.TrnIdentLst[0].Id.Id` is assigned per row and was distinct
+ * across every row of that capture. `TRANSACTIONID` remains the fallback so a
+ * row lacking the source reference is no worse off than before.
+ *
+ * @param root - BaNCS record.
+ * @returns `TxnRef…TrnIdentLst[0].Id.Id`, else `TxnId.TxnIds.TRANSACTIONID`,
+ *   else empty string.
+ */
+function readIdentifier(root: ApiRecord): string {
+  return firstNonEmpty([
+    readString(root, ['TxnRef', 'TrnRefSrcTrns', 'TrnIdentLst', '0', 'Id', 'Id']),
+    readString(root, ['TxnId', 'TxnIds', 'TRANSACTIONID']),
+  ]);
 }
 
 /**
