@@ -5,11 +5,11 @@
 
 import { jest } from '@jest/globals';
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import {
   runAllCleanups,
   TERMINATE_STEP,
 } from '../../../../../Scrapers/Pipeline/Phases/Terminate/TerminatePhase.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IBrowserState } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';

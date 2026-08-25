@@ -30,9 +30,9 @@
 import type { Browser, BrowserType, Page } from 'playwright-core';
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import { logEnvSnapshot } from '../../../../../Scrapers/Pipeline/Mediator/Init/EnvSnapshot.js';
 import { INIT_FORENSICS_ENV_VAR } from '../../../../../Scrapers/Pipeline/Mediator/Init/InitForensicsGate.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { isSome, none, type Option, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
 /* ─── Generic scripted-value helpers ───────────────────────── */

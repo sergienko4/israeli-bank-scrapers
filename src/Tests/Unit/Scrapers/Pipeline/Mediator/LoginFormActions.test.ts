@@ -25,12 +25,12 @@ const FACTORY = await import('../MockPipelineFactories.js');
 
 import type { SelectorCandidate } from '../../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IElementMediator,
   IRaceResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 

@@ -3,6 +3,7 @@
  */
 
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IActionMediator,
   IElementMediator,
@@ -13,7 +14,6 @@ import {
   fillAndSubmit,
   fillFromDiscovery,
 } from '../../../../../Scrapers/Pipeline/Mediator/Form/LoginFormActions.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type {
   ILoginFieldDiscovery,
   IResolvedTarget,

@@ -2,13 +2,13 @@
  * Shared mediator + executor factories for HomeActionsExtra split test files.
  */
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IActionMediator,
   IElementMediator,
   IRaceResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Silent logger for assertions. */

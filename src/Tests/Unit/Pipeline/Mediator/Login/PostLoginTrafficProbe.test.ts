@@ -2,11 +2,11 @@
  * Unit tests for PostLoginTrafficProbe — wait for organic SPA traffic.
  */
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import waitForPostLoginTraffic from '../../../../../Scrapers/Pipeline/Mediator/Login/PostLoginTrafficProbe.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
 import { LOGIN_TRAFFIC_WAIT_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/LoginTimingConfig.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 
 /** Script for mediator behaviour. */
 interface IScript {

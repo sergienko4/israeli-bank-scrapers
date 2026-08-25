@@ -16,6 +16,7 @@
 import type { Page } from 'playwright-core';
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IElementMediator,
   IRaceResult,
@@ -27,7 +28,6 @@ import {
   NAV_STRATEGY,
   resolveHomeStrategy,
 } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeResolver.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type { IResolvedTarget } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeRecordingExecutor } from './HomeActionSrpRecorder.js';

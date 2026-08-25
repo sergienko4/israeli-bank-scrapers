@@ -10,7 +10,7 @@ import pino from 'pino';
 import type { Page } from 'playwright-core';
 
 import { WAF_INTERCEPTOR_DISABLED_ENV } from '../../../../../Scrapers/Pipeline/Interceptors/WafChallenge/WafChallengeConfig.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 
 /**
  * Reset the WAF_INTERCEPTOR_DISABLED env var to an absent state.

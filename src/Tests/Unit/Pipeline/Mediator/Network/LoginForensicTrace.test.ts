@@ -11,6 +11,7 @@
 
 import type { ConsoleMessage, Page, Request } from 'playwright-core';
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import {
   AUTH_REQ_TRACE_ENV_VAR,
   createAuthFailureWatcher,
@@ -20,7 +21,6 @@ import {
   buildPageErrorHandler,
   buildPopupHandler,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/LoginForensicTrace.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 
 // ---------------------------------------------------------------------------
 // Shared types

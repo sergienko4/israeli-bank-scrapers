@@ -10,11 +10,11 @@
  *                   its name.
  */
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import {
   AUTH_HOSTS,
   probeLoginDns,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/LoginDnsProbe.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 
 // ---------------------------------------------------------------------------
 // Shared types

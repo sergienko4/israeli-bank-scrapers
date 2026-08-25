@@ -14,8 +14,8 @@ import type { Page } from 'playwright-core';
 
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import type { ScraperLogger } from '../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { executeDiscoverFields } from '../../../Scrapers/Pipeline/Mediator/Login/LoginFieldDiscovery.js';
-import type { ScraperLogger } from '../../../Scrapers/Pipeline/Types/Debug.js';
 
 /**
  * Silent logger satisfying the ScraperLogger contract — keeps drive

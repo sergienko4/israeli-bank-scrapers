@@ -16,7 +16,7 @@ import * as readline from 'node:readline';
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import ScraperError from '../../Scrapers/Base/ScraperError.js';
-import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
+import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { fetchOtpFromTelegram } from './TelegramOtpFetcher.js';
 
 const POLL_INTERVAL_MS = 1000;

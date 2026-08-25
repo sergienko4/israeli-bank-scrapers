@@ -5,8 +5,8 @@
 
 import type { Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IActionMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,

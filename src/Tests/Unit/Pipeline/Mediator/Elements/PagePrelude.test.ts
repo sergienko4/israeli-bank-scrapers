@@ -15,6 +15,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IPreludeSpec } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
 import {
   awaitFramePrelude,
@@ -23,7 +24,6 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
 import { HOME_PRELUDE_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/HomeTimingConfig.js';
 import { OTP_FILL_PRELUDE_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/OtpTimingConfig.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
 /** Captured logger event payload — keyed by structured-log field name. */

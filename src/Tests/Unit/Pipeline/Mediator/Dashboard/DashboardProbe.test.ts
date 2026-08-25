@@ -3,6 +3,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import checkChangePassword, {
   extractAuthFromContext,
   extractDashboardAuth,
@@ -12,7 +13,6 @@ import type {
   IRaceResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';

@@ -15,12 +15,12 @@
  * than any widened wait, at no idle cost.
  */
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import {
   dismissPopups,
   MAX_POPUP_ATTEMPTS,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PopupDismiss.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Silent logger — assertions carry the diagnostics. */

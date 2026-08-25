@@ -7,13 +7,13 @@
 
 import type { Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import { tryFormRequestSubmit } from '../../../../../../Scrapers/Pipeline/Mediator/Form/Actions/ActionsFill.js';
 import { logSubmitResult } from '../../../../../../Scrapers/Pipeline/Mediator/Form/Actions/ActionsTypes.js';
 import {
   readSubmitMode,
   SUBMIT_MODE_ENV_VAR,
 } from '../../../../../../Scrapers/Pipeline/Mediator/Form/Actions/SubmitModeGate.js';
-import type { ScraperLogger } from '../../../../../../Scrapers/Pipeline/Types/Debug.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

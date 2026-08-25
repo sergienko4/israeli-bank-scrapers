@@ -9,9 +9,9 @@
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { executeValidateLoginArea } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,

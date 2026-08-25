@@ -19,13 +19,13 @@
  */
 
 import type { SelectorCandidate } from '../../../../../Scrapers/Base/Config/LoginConfigTypes.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IElementMediator,
   IRaceResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { preferDirectEntry } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeDirectEntry.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Max's revealed private-customers link carries no href at all. */

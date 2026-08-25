@@ -17,6 +17,7 @@
 import { jest } from '@jest/globals';
 import type { Page, Request } from 'playwright-core';
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import {
   attachFailedRequestCollector,
   buildNavFailureSnapshot,
@@ -28,7 +29,6 @@ import {
   type NavErrorCategory,
   wrapProbeAsOption,
 } from '../../../../../Scrapers/Pipeline/Mediator/Init/NavigationDiagnostics.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
 /** Handler shape Playwright's `requestfailed` listener delivers. */

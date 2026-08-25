@@ -11,10 +11,10 @@ import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigType
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IRecoveryMethods } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Types/Debug.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,

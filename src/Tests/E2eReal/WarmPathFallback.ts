@@ -17,7 +17,7 @@
  */
 
 import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
+import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import type { ITokenCacheHandle } from './TokenCache.js';
 
 /** One scrape attempt against a given credential shape. */

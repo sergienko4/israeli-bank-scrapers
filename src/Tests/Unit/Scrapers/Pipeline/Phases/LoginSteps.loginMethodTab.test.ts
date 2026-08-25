@@ -4,10 +4,10 @@
  * resolveAndClick returns Procedure<IRaceResult> per Rule #15.
  */
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { tryClickCredentialArea } from '../../../../../Scrapers/Pipeline/Mediator/PreLogin/PreLoginActions.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockFullPage, makeMockMediator } from '../MockPipelineFactories.js';
@@ -23,14 +23,11 @@ const FOUND: IRaceResult = {
   identity: false,
 };
 
-/** Whether mock logger call succeeded. */
-type LoggerNoop = boolean;
-
 /**
  * No-op function for mock logger methods.
  * @returns true.
  */
-const NOOP = (): LoggerNoop => true;
+const NOOP = (): boolean => true;
 
 /** No-op mock logger for tests — all methods return true. */
 const MOCK_LOGGER = {

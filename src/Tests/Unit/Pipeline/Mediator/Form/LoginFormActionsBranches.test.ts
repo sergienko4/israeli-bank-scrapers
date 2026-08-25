@@ -12,6 +12,7 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IFieldConfig } from '../../../../../Scrapers/Base/Interfaces/Config/FieldConfig.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IActionMediator,
   IElementMediator,
@@ -28,7 +29,6 @@ import {
   validateCredentials,
 } from '../../../../../Scrapers/Pipeline/Mediator/Form/LoginFormFill.js';
 import { fillFieldStep } from '../../../../../Scrapers/Pipeline/Mediator/Form/LoginScopeResolver.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type {
   ILoginFieldDiscovery,
   IResolvedTarget,

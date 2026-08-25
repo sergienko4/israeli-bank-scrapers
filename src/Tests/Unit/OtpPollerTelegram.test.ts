@@ -12,7 +12,7 @@
 
 import { jest } from '@jest/globals';
 
-import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
+import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 
 const MOCK_TELEGRAM = jest.fn();
 

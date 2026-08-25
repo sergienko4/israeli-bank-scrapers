@@ -30,9 +30,9 @@ import type { Browser, BrowserContext, Frame, Locator, Page } from 'playwright-c
 
 import { CompanyTypes } from '../../../Definitions.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import { getDebug } from '../../../Scrapers/Pipeline/Logging/Debug.js';
 import { launchCamoufox } from '../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
 import { PIPELINE_BANK_CONFIG } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js';
-import { getDebug } from '../../../Scrapers/Pipeline/Types/Debug.js';
 
 const LOG = getDebug(import.meta.url);
 

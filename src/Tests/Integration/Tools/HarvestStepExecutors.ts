@@ -26,9 +26,9 @@ import type { Page } from 'playwright-core';
 
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import type { ScraperLogger } from '../../../Scrapers/Pipeline/Logging/Debug.js';
 import createElementMediator from '../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
 import { fillAndSubmit } from '../../../Scrapers/Pipeline/Mediator/Form/LoginFormActions.js';
-import type { ScraperLogger } from '../../../Scrapers/Pipeline/Types/Debug.js';
 import type { Option } from '../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { BankCredentials } from './CredentialLoader.js';

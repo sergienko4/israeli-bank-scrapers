@@ -25,11 +25,11 @@ import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IPostFormScanArgs } from '../../../../../Scrapers/Pipeline/Mediator/Login/PostValidate/PostValidateGates.js';
 import { runPostFormScanAndCallback } from '../../../../../Scrapers/Pipeline/Mediator/Login/PostValidate/PostValidateGates.js';
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 /** Stub frame-scan result shape. */

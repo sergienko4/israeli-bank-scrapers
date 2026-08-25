@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv';
 
 import { CompanyTypes } from '../../index.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import { getDebug } from '../../Scrapers/Pipeline/Types/Debug.js';
+import { getDebug } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { assertSuccessfulScrape, logScrapedTransactions, SCRAPE_TIMEOUT } from './Helpers.js';
 import { createBankOtpPoller } from './OtpPoller.js';
 import { createScrapeAttempt } from './ScrapeAttempt.js';

@@ -22,9 +22,9 @@ import * as fsSync from 'node:fs';
 import type { Page } from 'playwright-core';
 
 import ScraperError from '../../Scrapers/Base/ScraperError.js';
+import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import createElementMediator from '../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
 import { collectLoginAreaSignals } from '../../Scrapers/Pipeline/Mediator/Home/HomeActions.Validate.js';
-import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
 import { some } from '../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../Scrapers/Pipeline/Types/PipelineContext.js';
 import {

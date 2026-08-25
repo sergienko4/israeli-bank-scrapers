@@ -15,7 +15,7 @@
 import { jest } from '@jest/globals';
 
 import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
-import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
+import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import type { ITokenCacheHandle } from '../E2eReal/TokenCache.js';
 import { scrapeWithWarmFallback } from '../E2eReal/WarmPathFallback.js';
 

@@ -14,8 +14,8 @@
  * Pure-additive `it()` cases — no existing test bodies modified.
  */
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import { executeFireRevealClicksSealed } from '../../../../../Scrapers/Pipeline/Mediator/PreLogin/PreLoginPhaseActions.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IPreLoginDiscovery,

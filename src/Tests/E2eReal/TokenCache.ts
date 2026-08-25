@@ -23,7 +23,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { IAuthFlowInfo } from '../../Scrapers/Base/Interface.js';
-import type { ScraperLogger } from '../../Scrapers/Pipeline/Types/Debug.js';
+import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 
 /** Supported bank keys — matches the BankPlugin taxonomy. */
 type BankKey = 'onezero' | 'pepper' | 'paybox';

@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
-import { getDebug } from '../../Scrapers/Pipeline/Types/Debug.js';
+import { getDebug } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
 import {
   assertFailedLogin,

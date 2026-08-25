@@ -4,6 +4,7 @@
  * margins enough that this gap blocks the gate). Pure mediator unit.
  */
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IActionMediator,
   IElementMediator,
@@ -16,7 +17,6 @@ import {
   executeStoreLoginSignal,
   tryClickLoginLink,
 } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';

@@ -5,6 +5,7 @@
 import type { Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type {
   IElementMediator,
   IRaceResult,
@@ -14,7 +15,6 @@ import {
   NAV_STRATEGY,
   resolveHomeStrategy,
 } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeResolver.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 import { fail, isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 const LOG: ScraperLogger = {

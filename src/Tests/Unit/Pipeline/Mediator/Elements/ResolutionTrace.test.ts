@@ -4,10 +4,10 @@
 
 import type { Frame, Locator, Page } from 'playwright-core';
 
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IRaceResult } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import traceResolution from '../../../../../Scrapers/Pipeline/Mediator/Elements/ResolutionTrace.js';
-import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Types/Debug.js';
 
 /** Captured log entries for assertion. */
 interface ITraceRecord {
