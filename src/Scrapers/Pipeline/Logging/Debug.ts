@@ -6,9 +6,9 @@
  * This file is the cluster's outward facade; sibling files
  * ({@link ./BankContext.ts}, {@link ./RootLogger.ts},
  * {@link ./LoggerNaming.ts}, {@link ./ChildLoggerProxy.ts}) hold the
- * implementation. The legacy {@link ../Types/Debug.ts} import path stays
- * working via a thin re-export shim — every pipeline module continues
- * to import logger primitives from the same symbol names.
+ * implementation. Pipeline consumers import the public logger
+ * primitives from here; the `Types/Debug.ts` re-export shim that
+ * bridged the Phase 12c move is now retired.
  */
 
 import type { Logger } from 'pino';

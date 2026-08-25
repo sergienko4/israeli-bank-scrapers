@@ -197,8 +197,9 @@ Both helpers route through the same lazy-resolved root logger, so
 ## Logger cluster anatomy
 
 The pipeline's logger primitives live in `src/Scrapers/Pipeline/Logging/`
-(extracted from the legacy `Types/Debug.ts` blob during Phase 12c). Each
-file owns one concern so the moving parts are independently testable:
+(extracted from the legacy `Types/Debug.ts` blob during Phase 12c; that
+file became a re-export shim and has since been deleted). Each file owns
+one concern so the moving parts are independently testable:
 
 - `Logging/Debug.ts` — public facade. Exports `getDebug`,
   `getDebugByName`, and the `ScraperLogger` type alias used as the

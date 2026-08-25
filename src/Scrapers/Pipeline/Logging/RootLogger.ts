@@ -7,7 +7,7 @@
  * without resolving the file destination too early — file transport
  * only resolves after `executePipeline` has called `setActiveBank`.
  *
- * Extracted from the legacy {@link ../Types/Debug.ts} blob during
+ * Extracted from the legacy `Types/Debug.ts` blob during
  * Phase 12c.
  */
 

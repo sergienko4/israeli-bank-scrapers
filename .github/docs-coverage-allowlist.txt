@@ -658,30 +658,6 @@ setupAllVisibleRace
 #         entry and wrap as IRaceResult; shared by raceEntriesToResult,
 #         resolveVisibleInContextImpl, and tryAttachedClickFallback.
 enrichWinnerToResult
-# --- Phase 12a sub-step 4 (transitional): Debug.ts shim lag ---
-# Main has advanced to Phase 12c which migrated the logger cluster from
-# src/Scrapers/Pipeline/Types/Debug.ts into src/Scrapers/Pipeline/Logging/Debug.ts,
-# leaving Types/Debug.ts as a re-export shim. This branch is based off
-# pre-12c main (017eb7e2) so Types/Debug.ts still carries the inline
-# export function Ã¢â‚¬Â¦ declarations. The docs-coverage gate diffs us against
-# CURRENT main (post-12c shim) and sees these three symbols as "introduced
-# in HEAD" because the extractor treats inline export function as a new
-# symbol distinct from the shim's export { Ã¢â‚¬Â¦ } from '../Logging/Debug.js'.
-#
-# These three entries unblock the Phase 12a CreateElementMediator refactor
-# from a Phase 12c side effect that the orchestrator will resolve by
-# rebasing this branch onto post-12c main before merge. They should be
-# REMOVED in the rebase commit alongside the inline declarations.
-#
-# Reason: ScraperLogger Ã¢â‚¬â€ pre-existing logger type alias, surfaced as
-#         "new" only because main inlined the re-export shim.
-ScraperLogger
-# Reason: getActiveLogContext Ã¢â‚¬â€ pre-existing context accessor, surfaced as
-#         "new" only because main inlined the re-export shim.
-getActiveLogContext
-# Reason: runWithBankContext Ã¢â‚¬â€ pre-existing context binder, surfaced as
-#         "new" only because main inlined the re-export shim.
-runWithBankContext
 # --- Phase 12a sub-step 5: FieldResolve+Wait+Discover extraction ---
 # Eight NEW exports landed by Phase 12a sub-step-5 (FieldResolve.ts,
 # Wait.ts, Discover.ts under Mediator/Elements/Create/). All eight are

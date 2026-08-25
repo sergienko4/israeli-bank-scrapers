@@ -3,7 +3,7 @@
  *
  * Owns the per-run `bank` / `phase` / `stage` / `runId` ambient context
  * that pino's mixin hook merges into every emitted line. Extracted from
- * the legacy {@link ../Types/Debug.ts} blob during Phase 12c so the
+ * the legacy `Types/Debug.ts` blob during Phase 12c so the
  * logging cluster lives at `Pipeline/Logging/` instead of being hidden
  * under `Pipeline/Types/`.
  */

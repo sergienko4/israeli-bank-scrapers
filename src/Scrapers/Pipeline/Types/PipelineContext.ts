@@ -6,11 +6,11 @@
 
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js';
+import type { ScraperLogger } from '../Logging/Debug.js';
 import type { IApiMediator } from '../Mediator/Api/ApiMediator.js';
 import type { IActionMediator, IElementMediator } from '../Mediator/Elements/ElementMediator.js';
 import type { IPipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import type { IFetchStrategy } from '../Strategy/Fetch/FetchStrategy.js';
-import type { ScraperLogger } from './Debug.js';
 import type { IAccountDiscovery } from './Domain/AccountDiscoveryTypes.js';
 import type { IApiFetchContext } from './Domain/ApiFetchContext.js';
 import type { IAuthDiscovery } from './Domain/AuthDiscoveryTypes.js';

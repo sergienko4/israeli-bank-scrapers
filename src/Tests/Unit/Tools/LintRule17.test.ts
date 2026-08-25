@@ -142,6 +142,7 @@ const RETIRED_PATHS: readonly string[] = [
   'src/Common/Debug.js',
   'src/Common/CamoufoxLauncher.js',
   'src/Common/ElementsInteractions.js',
+  'src/Scrapers/Pipeline/Types/Debug.js',
 ];
 
 /** Root the Rule #17 replacement paths are written relative to. */

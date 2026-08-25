@@ -35,7 +35,7 @@ const MALICIOUS_CODE = [
  * file's content is not read; ESLint lints stdin, treating it as if it lived
  * at this path. Pipeline-tier rules apply because the path matches the
  * Pipeline `files` glob. */
-const STDIN_PATH = 'src/Scrapers/Pipeline/Types/Debug.ts';
+const STDIN_PATH = 'src/Scrapers/Pipeline/Types/DebugConfig.ts';
 
 /** Minimal ESLint JSON record needed for assertions. */
 interface IEslintMessage {

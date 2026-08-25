@@ -7,7 +7,7 @@
  * `getLogFile()` returns a real path, so the lazy root logger gets the
  * file transport.
  *
- * Extracted from the legacy {@link ../Types/Debug.ts} blob during
+ * Extracted from the legacy `Types/Debug.ts` blob during
  * Phase 12c.
  */
 

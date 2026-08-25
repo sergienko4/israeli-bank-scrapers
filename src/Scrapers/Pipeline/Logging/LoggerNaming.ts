@@ -1,7 +1,7 @@
 /**
  * Derive a stable kebab-case logger name from the caller's `import.meta.url`.
  *
- * Extracted from the legacy {@link ../Types/Debug.ts} blob during Phase
+ * Extracted from the legacy `Types/Debug.ts` blob during Phase
  * 12c. Architectural Force: callers MUST pass `import.meta.url`; the
  * logger name is derived from the source filename — no manual name
  * strings — so logs are guaranteed to point at a real file on disk.

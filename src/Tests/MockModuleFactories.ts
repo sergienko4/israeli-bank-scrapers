@@ -51,11 +51,9 @@ interface IDebugMockModule {
  *
  * Every binding the module exports is stubbed here on purpose. Mocking a module
  * replaces *all* of its bindings, so a partial mock breaks any module that
- * re-exports the missing names — notably the `Types/Debug.ts` shim, whose
- * `export { … } from '../Logging/Debug.js'` fails to link with
+ * re-exports the missing names: the re-export fails to link with
  * `does not provide an export named …` the moment one is absent. Keeping this
- * factory complete makes it safe to mock the real module regardless of whether
- * the module under test reaches it directly or through the shim.
+ * factory complete makes it safe to mock the real module from any suite.
  *
  * `getDebugByName` is the entry point legacy scrapers use — they pass a
  * verbatim module name rather than `import.meta.url` — so a mock of this module
