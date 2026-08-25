@@ -123,9 +123,22 @@ describe('Hapoalim walk-order guard — cursor did not advance', () => {
   });
 });
 
+/**
+ * Day pairs whose newest row falls below the day the request asked for.
+ *
+ * Each row is the same fault reached by a different distance — a fortnight, a
+ * single day, and across a year boundary, the last of which a string-length
+ * comparison would miss.
+ */
+const VIOLATED_CASES = [
+  { why: 'a newest row a fortnight older than asked', asked: '20260715', newest: '20260701' },
+  { why: 'a newest row a single day older than asked', asked: '20260715', newest: '20260714' },
+  { why: 'a newest row older across a year boundary', asked: '20260101', newest: '20251231' },
+] as const;
+
 describe('Hapoalim walk-order guard — ordering violated', () => {
-  it('newest row older than the asked day is violated', () => {
-    const page = args('20260715', '20260701');
+  it.each(VIOLATED_CASES)('$why is violated', ({ asked, newest }) => {
+    const page = args(asked, newest);
     const out = assessWalkOrder(page);
     expect(out.verdict).toBe('violated');
   });
@@ -135,18 +148,6 @@ describe('Hapoalim walk-order guard — ordering violated', () => {
     const out = assessWalkOrder(page);
     expect(out.asked).toBe('20260715');
     expect(out.newest).toBe('20260701');
-  });
-
-  it('a single day older than asked is still violated', () => {
-    const page = args('20260715', '20260714');
-    const out = assessWalkOrder(page);
-    expect(out.verdict).toBe('violated');
-  });
-
-  it('compares calendar days, not string length, across a year boundary', () => {
-    const page = args('20260101', '20251231');
-    const out = assessWalkOrder(page);
-    expect(out.verdict).toBe('violated');
   });
 });
 
