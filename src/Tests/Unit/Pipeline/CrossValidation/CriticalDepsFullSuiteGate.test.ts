@@ -41,11 +41,51 @@ const HEAVY_JOB_KEYS = [
 /** Runtime packages whose version defines the browser stack. */
 const CRITICAL_PACKAGES = ['playwright-core', '@hieutran094/camoufox-js'] as const;
 
+/**
+ * Paths that define the published API surface or the gate guarding it.
+ *
+ * <p>`full_suite` is `src OR critical_deps`, so a snapshot-only or
+ * checker-only edit left the Build job — and with it the public-surface
+ * gate — skipped. These must keep feeding the separate `public_surface`
+ * flag.
+ */
+const PUBLIC_SURFACE_PATHS = [
+  '^api-surface\\.d\\.ts$',
+  '^scripts/check-public-surface\\.mjs$',
+  '^tsup\\.config\\.ts$',
+  '^tsconfig\\.build\\.json$',
+  '^tsconfig\\.json$',
+  '^package\\.json$',
+  '^package-lock\\.json$',
+  '\\.github/actions/build-package/',
+] as const;
+
+/**
+ * Every surface that must keep invoking the public-API checker.
+ *
+ * The gate is only as real as its wiring. Deleting the invocation from
+ * any one of these would leave the whole apparatus in place and green
+ * while nothing was actually compared — the exact failure mode this
+ * checker was introduced to end.
+ */
+const CHECKER_CALL_SITES = [
+  ['.github/actions/build-package/action.yml', 'npm run lint:public-surface'],
+  ['.husky/pre-commit', 'npm run lint:public-surface'],
+] as const;
+
+/**
+ * The exact command `lint:public-surface` must run. Asserting the whole
+ * string rather than a substring matters: `api:update` invokes the same
+ * script with `--update`, so a `toContain('check-public-surface.mjs')`
+ * check on package.json passes even if `lint:public-surface` is gutted.
+ */
+const CHECK_SCRIPT_COMMAND = 'node scripts/check-public-surface.mjs --check';
+
 /** The three `$GITHUB_OUTPUT` branches detect-changes.sh can take. */
 const DETECTOR_OUTPUT_BRANCHES = 3;
 
 /** Flags that must be emitted on every one of those branches. */
-const DETECTOR_FLAGS = ['critical_deps', 'full_suite'] as const;
+const DETECTOR_FLAGS = ['critical_deps', 'full_suite', 'public_surface'] as const;
 
 /** Steps that must also fire on a lockfile-only bump, not just `full_suite`. */
 const AUDIT_STEP_NAMES = [
@@ -217,5 +257,70 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(changesOutputs).toContain('full_suite');
     expect(changesOutputs).toContain('critical_deps');
     expect(validateOutputs).toContain('full_suite');
+  });
+
+  it('[CI-CRIT-GATE] PrYaml_Build_ShouldAlsoGateOnPublicSurface', () => {
+    const changesOutputs = jobOutputKeys('changes');
+    const condition = jobCondition('build');
+    expect(changesOutputs).toContain('public_surface');
+    expect(condition).toContain("public_surface == 'true'");
+  });
+
+  it.each(PUBLIC_SURFACE_PATHS)(
+    '[CI-CRIT-GATE] Detector_PublicSurfacePath_%s_ShouldFeedPublicSurface',
+    pattern => {
+      const script = read(DETECTOR);
+      expect(script).toContain(pattern);
+    },
+  );
+
+  it('[CI-CRIT-GATE] PrYaml_Build_ShouldUnionNotIntersectTheFlags', () => {
+    const condition = jobCondition('build');
+    const isConjunction = condition.includes('&&');
+    expect(condition).toContain('||');
+    expect(isConjunction).toBe(false);
+  });
+
+  it('[CI-CRIT-GATE] Detector_UnknownState_ShouldFailOpenNotClosed', () => {
+    const script = read(DETECTOR);
+    const failOpenReferences = countOf(script, 'emit_fail_open');
+    expect(script).toContain('echo "public_surface=true"');
+    expect(script).toContain('echo "public_surface=false"');
+    expect(script).toContain('--no-renames');
+    expect(failOpenReferences).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(CHECKER_CALL_SITES)(
+    '[CI-CRIT-GATE] Wiring_%s_ShouldStillInvokeTheChecker',
+    (relativePath, needle) => {
+      const absolutePath = join(REPO_ROOT, relativePath);
+      const contents = read(absolutePath);
+      expect(contents).toContain(needle);
+    },
+  );
+
+  it('[CI-CRIT-GATE] Wiring_PackageJson_ShouldRunCheckerInCheckMode', () => {
+    const manifestSource = read(PACKAGE_JSON);
+    const manifest = JSON.parse(manifestSource) as {
+      scripts: Record<string, string>;
+    };
+    const checkScript = manifest.scripts['lint:public-surface'];
+    expect(checkScript).toBe(CHECK_SCRIPT_COMMAND);
+  });
+
+  it('[CI-CRIT-GATE] Wiring_HuskyBuildGate_ShouldChainTheChecker', () => {
+    const hookPath = join(REPO_ROOT, '.husky/pre-commit');
+    const hook = read(hookPath);
+    const buildGate = hook.split('\n').find(line => line.includes('bg_gate "build"')) ?? '';
+    const hasCheckerChained = buildGate.trimEnd().endsWith("&& npm run lint:public-surface'");
+    expect(hasCheckerChained).toBe(true);
+  });
+
+  it('[CI-CRIT-GATE] Detector_HuskyChange_ShouldRunTheWiringTests', () => {
+    const script = read(DETECTOR);
+    const ciScriptsRule =
+      script.split('\n').find(line => line.includes('has') && line.includes('ci_scripts=true')) ??
+      '';
+    expect(ciScriptsRule).toContain('husky');
   });
 });

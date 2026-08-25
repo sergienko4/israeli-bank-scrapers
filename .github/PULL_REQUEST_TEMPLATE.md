@@ -25,8 +25,13 @@ CLAUDE.md (ZERO CSS selectors), agent-contract.md §A3.5 (exit-gate
 GREEN + timestamp), agent-contract.md §Test safety net (bodies
 unchanged), spec.txt (commit-message contract), before-commit-guidlines.md
 (6-step + husky 20 gates), commit-guidlines.md (Conventional
-Commits + Co-authored-by trailer), Public API byte-identical at
-lib/index.cjs, Coverage 97/95/97/98 preserved, `lint:canaries` count
+Commits + Co-authored-by trailer), public API surface unchanged
+(`npm run build && npm run lint:public-surface`, then review
+`git diff origin/main...HEAD -- api-surface.d.ts` — NOT a byte-diff of
+lib/index.cjs; `lib/` is gitignored, so `git show origin/main:lib/index.cjs`
+has no baseline, `$diff` is never assigned and the `if ($diff)` guard
+passes without comparing anything — see docs/workflow/public-surface.md),
+Coverage 97/95/97/98 preserved, `lint:canaries` count
 matches status.txt declared, `madge --circular` returns zero new cycles.
 
 Each row format: | <#> | <Guideline (source)> | ✅ <verification method> |

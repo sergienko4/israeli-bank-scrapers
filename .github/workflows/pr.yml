@@ -165,6 +165,10 @@ jobs:
       test_config: ${{ steps.changes.outputs.test_config }}
       critical_deps: ${{ steps.changes.outputs.critical_deps }}
       metrics: ${{ steps.changes.outputs.metrics }}
+      # Everything that defines the published API surface or the gate that
+      # guards it. Kept separate from `full_suite` because that is pinned to
+      # `src OR critical_deps` by CriticalDepsFullSuiteGate.test.ts.
+      public_surface: ${{ steps.changes.outputs.public_surface }}
       # `full_suite` = src OR critical_deps. Every heavy job gates on THIS,
       # so a playwright-core / Camoufox bump runs the same flow a src/ PR
       # does — those packages are the runtime for all 17 banks.
@@ -748,7 +752,10 @@ jobs:
   build:
     name: Build
     needs: changes
-    if: needs.changes.outputs.full_suite == 'true'
+    # `public_surface` is here so a snapshot-only, checker-only or
+    # build-config-only change still runs `Check public API surface`. Gating
+    # this job on `full_suite` alone let exactly those edits skip the gate.
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.public_surface == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

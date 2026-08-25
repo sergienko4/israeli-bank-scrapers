@@ -103,6 +103,9 @@ scripts/**
 # Run by `npm run lint:node-support` from the pre-commit hook and the
 # Lint & Types job, so it has to be in the tree for either to work.
 !scripts/check-node-support.mjs
+# Run by `npm run lint:public-surface` from the pre-commit build gate and
+# the Build & Package job, so it has to be in the tree for either to work.
+!scripts/check-public-surface.mjs
 !scripts/check-staged-pii.cjs
 # Published tooling: named in package.json "files", so it ships in the
 # tarball and runs from postinstall on every consumer install.

@@ -1,5 +1,5 @@
 name: Build Package
-description: Build dual CJS+ESM package with tsup, clean internals, verify outputs, and validate exports
+description: Build dual CJS+ESM package with tsup, clean internals, verify outputs, check the public API surface, and validate exports
 
 runs:
   using: composite
@@ -17,6 +17,9 @@ runs:
         test -f lib/index.mjs || (echo "ERROR: lib/index.mjs not found" && exit 1)
         test -f lib/index.d.ts || (echo "ERROR: lib/index.d.ts not found" && exit 1)
         test -f lib/index.d.cts || (echo "ERROR: lib/index.d.cts not found" && exit 1)
+    - name: Check public API surface
+      run: npm run lint:public-surface
+      shell: bash
     - name: Validate package exports
       run: npm run check-exports
       shell: bash
