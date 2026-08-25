@@ -11,6 +11,7 @@ import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api
 import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Pagination.js';
+import type { IScrapeState } from '../../../../../Scrapers/Pipeline/Types/Domain/ScrapeState.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -146,6 +147,12 @@ function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): I
 
 /**
  * Wrap a bus into an IActionContext for the driver.
+ *
+ * <p>`windowEnd` is set explicitly because it lives on `IActionContext`, not on
+ * the `IPipelineContext` the shared factory builds — the cast below would
+ * otherwise hand the driver `undefined` where every real context carries an
+ * Option, and the backfill planner would fault on the first narrowed round.
+ *
  * @param bus - Mock mediator.
  * @returns Action context.
  */
@@ -155,7 +162,7 @@ function ctxOf(bus: IApiMediator): IActionContext {
     ...base,
     apiMediator: some(bus),
   };
-  return withBus as unknown as IActionContext;
+  return { ...withBus, windowEnd: none() } as unknown as IActionContext;
 }
 
 describe('buildGenericHeadlessScrape', () => {
@@ -256,6 +263,93 @@ describe('buildGenericHeadlessScrape', () => {
     const ctx2 = ctxOf(bus2);
     const result2 = await scrape2(ctx2);
     assertOk(result2);
+  });
+});
+
+/**
+ * Backfill exhaustion, observed where a caller would see it.
+ *
+ * <p>The flag is only worth carrying if it survives the whole chain — the
+ * account walk, the per-account result, and the fold into the scrape slot.
+ * Asserting it on a hand-built state instead would pass even with every
+ * propagation step deleted, which is exactly the silence the flag exists to
+ * break. These drive the real driver and read the committed slot.
+ *
+ * <p>Exhaustion is provoked through the "bound did not move" refusal rather
+ * than the twelve-ask ceiling: both set the same fact, and the short path
+ * keeps the stub queue readable.
+ */
+describe('buildGenericHeadlessScrape reports window completeness', () => {
+  /** A row dated long after the mock context's 2024-01-01 start. */
+  const lateRow = { date: '2026-07-15' };
+
+  /** A row dated before that start, which proves the window covered. */
+  const earlyRow = { date: '2023-12-01' };
+
+  /**
+   * Drive the real driver over a bus and read the committed scrape state.
+   * @param bus - Mock mediator carrying the scripted responses.
+   * @returns Committed scrape state.
+   */
+  async function stateFrom(bus: IApiMediator): Promise<IScrapeState> {
+    const shape = makeShape();
+    const scrape = buildGenericHeadlessScrape(shape);
+    const ctx = ctxOf(bus);
+    const result = await scrape(ctx);
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    return scr.value;
+  }
+
+  /**
+   * Drive one account with a scripted transactions queue.
+   * @param pages - Ordered transactions responses.
+   * @returns Committed scrape state.
+   */
+  async function scrapeWith(pages: readonly Procedure<unknown>[]): Promise<IScrapeState> {
+    const bus = makeRouterBus({
+      customer: [succeed({ accts: [{ id: 'a1', num: 'num-1' }] })],
+      balance: [succeed({ balance: 42 })],
+      transactions: [...pages],
+    });
+    return stateFrom(bus);
+  }
+
+  it('flags the window as exhausted when backfill asks and still falls short', async () => {
+    const stalled = succeed({ items: [lateRow], nextCursor: false });
+    const state = await scrapeWith([stalled, stalled]);
+    expect(state.backfillExhausted).toBe(true);
+  });
+
+  it('leaves the window unflagged when the rows already cover it', async () => {
+    const covering = succeed({ items: [earlyRow], nextCursor: false });
+    const state = await scrapeWith([covering]);
+    expect(state.backfillExhausted).toBe(false);
+  });
+
+  it('still returns the rows it did gather when the backfill fell short', async () => {
+    const stalled = succeed({ items: [lateRow], nextCursor: false });
+    const state = await scrapeWith([stalled, stalled]);
+    expect(state.accounts[0].txns).toHaveLength(1);
+  });
+
+  it('flags the scrape when any one account fell short', async () => {
+    const accts = [
+      { id: 'quiet', num: 'num-1' },
+      { id: 'short', num: 'num-2' },
+    ];
+    const bus = makeRouterBus({
+      customer: [succeed({ accts })],
+      balance: [succeed({ balance: 1 }), succeed({ balance: 2 })],
+      transactions: [
+        succeed({ items: [earlyRow], nextCursor: false }),
+        succeed({ items: [lateRow], nextCursor: false }),
+        succeed({ items: [lateRow], nextCursor: false }),
+      ],
+    });
+    const state = await stateFrom(bus);
+    expect(state.backfillExhausted).toBe(true);
   });
 });
 
