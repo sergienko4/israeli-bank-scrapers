@@ -6,7 +6,8 @@
  *
  * `extractPage` returns the raw `HistoryTransactionsItems` (completed)
  * rows verbatim; they normalise downstream via the field-mapping Data
- * Mapper (`DateUTC` → date, `ReferenceNumberLong` → identifier). Same-day
+ * Mapper (`DateUTC` → date, `FITID` → identifier, falling back to
+ * `ReferenceNumberLong`). Same-day
  * `TodayTransactionsItems` (pending) is out of scope for the hard model —
  * the driver marks every row Completed — and is `null` in every captured
  * sample. Split from `LeumiShapeHelpers.ts` to respect the 150-LOC cap.

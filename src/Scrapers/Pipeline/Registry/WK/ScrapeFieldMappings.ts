@@ -162,7 +162,13 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'authorizationNumber', // Max — bank authorization id
     'Urn', // Discount — operation-record URN
     'runtimeReferenceId', // Max — runtimeReference.id top-level alias
-    'ReferenceNumberLong', // Leumi — UC_SO_27 per-txn reference (numeric)
+    // Leumi — OFX "Financial Institution Transaction ID". Measured against
+    // captured UC_SO_27 responses: FITID is unique per row in every
+    // response, whereas the coarser `ReferenceNumberLong` below repeats
+    // within any response carrying five or more rows. FITID must therefore
+    // win when both are present.
+    'FITID',
+    'ReferenceNumberLong', // Leumi — UC_SO_27 reference; NOT per-txn unique
   ],
   currency: [
     'bancsCurrency',

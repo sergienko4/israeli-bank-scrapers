@@ -43,7 +43,7 @@ Leumi is a **real-browser** Pipeline bank: Camoufox drives `https://www.leumi.co
 | ------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ScrapeWK.ts`            | `/GetBusinessAccountTrx/i` list-endpoint pattern                         | (legacy) generic-discovery pattern for Leumi's `Trx`-abbreviated WCF txn module; the hard-model shape now calls this module directly                                                                   |
 | `DashboardWK.ts`         | `/\bBusinessAccountTrx\b/i` route pattern                                | (legacy) Leumi's SPA hash-route for the transactions view; unused now that the hard-model path has no DASHBOARD phase                                                                                  |
-| `ScrapeFieldMappings.ts` | `accountsItems` container · `DateUTC` date alias · `ReferenceNumberLong` | maps Leumi's WCF `UC_SO_27_GetBusinessAccountTrx` rows (and the accounts container) onto the canonical shape — without the `DateUTC` alias, `autoMapTransaction` rejects every Leumi txn as empty-date |
+| `ScrapeFieldMappings.ts` | `accountsItems` container · `DateUTC` date alias · `FITID` (fallback `ReferenceNumberLong`) | maps Leumi's WCF `UC_SO_27_GetBusinessAccountTrx` rows (and the accounts container) onto the canonical shape — without the `DateUTC` alias, `autoMapTransaction` rejects every Leumi txn as empty-date |
 | `ScrapeIdFields.ts`      | `MaskedNumber` · `AccountIndex`                                          | Leumi's account display-id / query-id field names                                                                                                                                                      |
 | `SharedWK.ts`            | `'סגירה'` close-popup text (ariaLabel + exactText)                       | dismiss Leumi's cookie-consent overlay so HOME can reach the login link                                                                                                                                |
 
@@ -53,7 +53,7 @@ To add a bank like this, see [Adding a new bank](../contributing/new-bank.md) �
 
 - HOME dismisses Leumi's cookie-consent overlay (the `'סגירה'` close control added to `SharedWK`) before it can reach the login link.
 - No OTP — plain `username`/`password` login. The login flow is generic (visible-text WK candidates); post-auth uses the hard-model shape (see below), **not** generic network-traffic discovery.
-- Transactions come from Leumi's WCF module `UC_SO_27_GetBusinessAccountTrx`, which the hard-model shape POSTs directly; its rows carry the date as `DateUTC` and the per-txn reference as `ReferenceNumberLong`, normalized via the field mappings above.
+- Transactions come from Leumi's WCF module `UC_SO_27_GetBusinessAccountTrx`, which the hard-model shape POSTs directly; its rows carry the date as `DateUTC` and the per-txn identifier as `FITID` (the OFX "Financial Institution Transaction ID"), normalized via the field mappings above. `ReferenceNumberLong` is kept only as a fallback alias — it is not unique per transaction and repeats within a single response.
 - Balance is per-bank-account (`balanceKind: ACCOUNT`), resolved by the hard-model balance step.
 
 ## Hard-model post-auth

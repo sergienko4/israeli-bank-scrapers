@@ -147,6 +147,48 @@ const BANK_ROWS: readonly IBankRowFixture[] = [
       Urn: '20260510205818648884PMS0P110',
     },
   },
+  {
+    // Leumi's UC_SO_27 rows carry BOTH `ReferenceNumberLong` and `FITID`.
+    // `FITID` (OFX "Financial Institution Transaction ID") is the per-txn
+    // unique key; `ReferenceNumberLong` is coarser and repeats within a
+    // single response — see the uniqueness suite below.
+    bank: 'leumi',
+    identifierField: 'FITID',
+    identifierValue: '20260510000000000001',
+    row: {
+      DateUTC: '2026-05-10T00:00:00',
+      Description: '<merchant:leumi-1>',
+      Amount: -250,
+      RunningBalance: 1000,
+      FITID: '20260510000000000001',
+      ReferenceNumberLong: 5001,
+    },
+  },
+];
+
+/** Leumi rows whose `ReferenceNumberLong` repeats but whose `FITID` does not. */
+const LEUMI_COLLIDING_ROWS: readonly Record<string, unknown>[] = [
+  {
+    DateUTC: '2026-05-10T00:00:00',
+    Description: '<merchant:leumi-a>',
+    Amount: -250,
+    FITID: '20260510000000000001',
+    ReferenceNumberLong: 5001,
+  },
+  {
+    DateUTC: '2026-05-10T00:00:00',
+    Description: '<merchant:leumi-b>',
+    Amount: -60,
+    FITID: '20260510000000000002',
+    ReferenceNumberLong: 5001,
+  },
+  {
+    DateUTC: '2026-05-11T00:00:00',
+    Description: '<merchant:leumi-c>',
+    Amount: -75,
+    FITID: '20260510000000000003',
+    ReferenceNumberLong: 5002,
+  },
 ];
 
 /**
@@ -176,4 +218,19 @@ describe('CrossBank — extractTransactions surfaces the bank-specific per-txn i
       expect(emitted.identifier).toBe(fixture.identifierValue);
     },
   );
+});
+
+describe('CrossBank — per-txn identifiers are unique within one response', () => {
+  it('extractTransactions_LeumiRepeatedReferenceNumber_ShouldStillEmitUniqueIdentifiers', () => {
+    const body = { txns: LEUMI_COLLIDING_ROWS };
+
+    const txns = extractTransactions(body);
+
+    expect(txns).toHaveLength(LEUMI_COLLIDING_ROWS.length);
+    const identifiers = txns.map((t): unknown => t.identifier);
+    const hasEveryIdentifier = identifiers.every((id): boolean => id !== undefined);
+    expect(hasEveryIdentifier).toBe(true);
+    const distinct = new Set(identifiers);
+    expect(distinct.size).toBe(LEUMI_COLLIDING_ROWS.length);
+  });
 });
