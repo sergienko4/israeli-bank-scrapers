@@ -92,3 +92,35 @@ describe('ilsCycleDebit — degrades to the 0 sentinel', () => {
     expect(debit).toBe(0);
   });
 });
+
+/**
+ * Malformed *elements*, as opposed to a malformed container.
+ *
+ * `Array.isArray` proves only that the summary is a list; it says nothing
+ * about what sits in each slot. A JSON null or a bare primitive there used to
+ * fault the field read and take down an otherwise good scrape — the one way
+ * this reader could still throw despite promising never to.
+ */
+describe('ilsCycleDebit — tolerates malformed rows inside the summary', () => {
+  /** Element shapes that are not records, cast at the single unsafe boundary. */
+  const badRows: readonly unknown[] = [null, undefined, 'x', 7, true, []];
+
+  it.each(badRows)('returns 0 rather than throwing for the element %p', row => {
+    const card = { CycleSummary: [row] } as unknown as { CycleSummary?: null };
+    const debit = ilsCycleDebit(card);
+    expect(debit).toBe(0);
+  });
+
+  it('still finds the ILS row when a malformed element precedes it', () => {
+    const rows = [null, { Currency: 376, TotalDebitSum: 42.5 }];
+    const card = { CycleSummary: rows } as unknown as { CycleSummary?: null };
+    const debit = ilsCycleDebit(card);
+    expect(debit).toBe(42.5);
+  });
+
+  it('returns 0 when every element is malformed', () => {
+    const card = { CycleSummary: [null, undefined, 3] } as unknown as { CycleSummary?: null };
+    const debit = ilsCycleDebit(card);
+    expect(debit).toBe(0);
+  });
+});

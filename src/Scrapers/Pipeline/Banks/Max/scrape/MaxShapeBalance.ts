@@ -36,31 +36,49 @@ export interface IMaxRawCycle {
 }
 
 /**
- * Read a card's cycle rows, tolerating a payload that is not the array the
- * contract promises. `Array.isArray` alone widens a readonly element type to
- * `any`, so the narrowing is done once here behind a typed boundary.
+ * Read a card's cycle rows without trusting their element type.
+ *
+ * The declared element type describes what the bank documents, not what the
+ * wire can carry: `Array.isArray` proves only the container, and a JSON null
+ * or a primitive sitting in one slot would still satisfy it. Elements stay
+ * `unknown` so every field read goes through {@link isIlsRow} first.
  * @param card - Raw card entry.
- * @returns Cycle rows, or an empty list when unusable.
+ * @returns Cycle rows as unvalidated elements, or an empty list.
  */
-function cycleRows(card: IMaxRawCycle): readonly IMaxCycleRow[] {
+function cycleRows(card: IMaxRawCycle): readonly unknown[] {
   const rows: unknown = card.CycleSummary;
-  return Array.isArray(rows) ? (rows as readonly IMaxCycleRow[]) : [];
+  return Array.isArray(rows) ? (rows as readonly unknown[]) : [];
+}
+
+/**
+ * Whether one element is the ILS row.
+ *
+ * Rejects null and primitives before reading a field, so a malformed slot
+ * costs the row rather than the scrape.
+ * @param row - One unvalidated element of the cycle summary.
+ * @returns True when the element is a record whose currency is ILS.
+ */
+function isIlsRow(row: unknown): row is IMaxCycleRow {
+  if (typeof row !== 'object' || row === null) return false;
+  const record = row as IMaxCycleRow;
+  return record.Currency === ILS_CURRENCY_CODE;
 }
 
 /**
  * Read one card's outstanding ILS cycle debit.
  *
  * Returns 0 — the sentinel a card-cycle bank has always reported — whenever
- * the summary is missing, is not the array the contract promises, carries no
- * ILS row, or holds a non-finite figure. Degrading to the historical value
- * rather than throwing or surfacing NaN keeps a wire-shape change from
- * failing a scrape that has otherwise succeeded.
+ * the summary is missing, is not the array the contract promises, carries a
+ * malformed row in place of the ILS one, carries no ILS row at all, or holds
+ * a non-finite figure. Degrading to the historical value rather than throwing
+ * or surfacing NaN keeps a wire-shape change from failing a scrape that has
+ * otherwise succeeded.
  * @param card - Raw card entry (reads `CycleSummary` only).
  * @returns Outstanding ILS cycle debit, or 0 when unavailable.
  */
 export function ilsCycleDebit(card: IMaxRawCycle): MaxCardCycleBalance {
   const rows = cycleRows(card);
-  const ils = rows.find(r => r.Currency === ILS_CURRENCY_CODE);
+  const ils = rows.find(isIlsRow);
   const total = ils?.TotalDebitSum;
   if (typeof total !== 'number' || !Number.isFinite(total)) return NO_CYCLE_DEBIT;
   return total as MaxCardCycleBalance;
