@@ -168,8 +168,40 @@ So the verdict names the doubt rather than a diagnosis, and warns rather than er
 
 Two cases deliberately report `unproven` rather than `covered`: an account that returned no rows, and one whose rows carry no resolvable date. Absence of evidence is not evidence the window was served — treating either as covered would reintroduce the exact silence this check exists to break.
 
+## The check `assessWindowCoverage` cannot make: the window's recent end
+
+Every check above grades a page by how far **back** it reaches. `auditCoverage` asks whether each row in the body was read; `auditDeclaredRows` compares the count the provider declares; `assessWindowCoverage` compares the **oldest** row against the requested start. All three look at the same end of the window.
+
+Hapoalim's backwards date-walk (`HapoalimShapeTxns.ts`) rests on an assumption about the other end. It sends `sortCode=1` and takes the bank at its word: when a page is capped at the bank's own `numItemsPerPage`, the rows returned are the most **recent** N of the requested window and the older remainder is dropped. The walk then re-asks with the window ending on the oldest day it just saw, and marches backwards until the caller's start is reached.
+
+If that ordering ever inverted — the bank capping from the recent end instead — **not one of the checks above would notice**. A page truncated at its recent end still reaches the requested start, so `assessWindowCoverage` grades it `covered`. Every row in the body was still read, so `auditCoverage` is perfect. The loss would land precisely where nothing is looking, and the run would score clean.
+
+`assessWalkOrder()` (`src/Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimWalkGuard.ts`) closes that blind spot using a fact the walk has already proved. It takes an `IWalkOrderArgs` — the day the request `asked` the window to end on, the `newest` day the page carried, and a bank/step `label` — and returns an `IWalkOrderResult` carrying a `WalkOrderVerdict`.
+
+### Why the newest row is a sound oracle
+
+A cursor is never invented. It is only ever minted from a day that carried rows — the `oldestDay` of the previous page — and the next request ends on that day _inclusively_. The bank has therefore already shown that the day holds at least one row, and has been asked for it again. The next page's newest row must be that same day.
+
+A newest row **older** than the day asked for means the bank withheld everything between the two. That is the inverted-ordering signature, and nothing else produces it. The comparison is lexicographic on `YYYYMMDD`, which needs no date parsing and orders correctly across a year boundary.
+
+### Why two cases report `unknown`
+
+The first page of a walk carries no cursor, so there is no day to compare against and the page proves nothing. A page on which no row carried a usable date proves nothing either. Both yield `unknown` rather than `honoured` — the same rule the window check applies: absence of evidence is not evidence the ordering held.
+
+```text
+walk-order hapoalim/txns: honoured
+walk-order hapoalim/txns: unknown
+walk-order hapoalim/txns: VIOLATED — asked=20260715 newest=20260701; page truncated at its recent end
+```
+
+### Why it reports and never repairs
+
+`violated` warns rather than throws, matching `assessWindowCoverage`. Throwing would discard the rows already gathered, which is a larger loss than the one being reported — and the rows on a violated page are still real rows, they are simply not all of them.
+
 ## Verifying a change to it
 
 `auditCoverage` is a pure function over a body and a row list, so it is unit-tested in isolation in `src/Tests/Unit/Pipeline/Mediator/Scrape/CoverageAudit.test.ts` — including the transforming-extractor case that pins the mapped-key decision, and the mapper-reject case that pins the over-collection decision. Both exist to fail loudly if someone "simplifies" the comparison back to reference equality or raw counts. `reportMapRejects` is covered alongside it in `src/Tests/Unit/Pipeline/Mediator/Scrape/MapRejects.test.ts`, and `auditDeclaredRows` in `src/Tests/Unit/Pipeline/Mediator/Scrape/DeclaredRows.test.ts` — where the surplus case and the declares-nothing case pin the two decisions above.
 
 `assessWindowCoverage` is covered in `src/Tests/Unit/Pipeline/Mediator/Scrape/WindowCoverage.test.ts`, which pins the two `unproven` cases above and carries the real numbers from the captured Hapoalim trace. Two cases exist solely to pin subtle correctness points. The first: the caller holds `startDate` as a `Date`, so the start arrives as a UTC instant while row dates are local calendar days. Reducing only one side to a calendar day truncates the difference by a partial day and understates `gapDays` by one — enough for a backfill bound derived from `oldest` to skip a day. The second pins the per-account unit: two month-slices that are each `unproven` alone are `covered` in union, which is the whole reason the call site sits after pagination.
+
+`assessWalkOrder` is covered in `src/Tests/Unit/Pipeline/Banks/Hapoalim/HapoalimWalkGuard.test.ts`. Beyond the three verdicts, one case exists to pin a correctness point that is easy to break: the year-boundary comparison (`asked=20260101`, `newest=20251231`) fails for any implementation that compares day-of-month or string length instead of the whole `YYYYMMDD` token.

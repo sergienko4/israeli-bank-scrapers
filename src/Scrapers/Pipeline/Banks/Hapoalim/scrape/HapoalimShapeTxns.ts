@@ -45,6 +45,7 @@ import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { HAPOALIM_API, type IHapoalimAcct } from './HapoalimShapeHelpers.js';
+import { assessWalkOrder } from './HapoalimWalkGuard.js';
 
 /** Retrieval date format (YYYYMMDD, no separators). */
 const HAPOALIM_DATE_FMT = 'YYYYMMDD';
@@ -159,6 +160,24 @@ function pageWasCapped(resp: ITxnsResp, rowCount: number): boolean {
 }
 
 /**
+ * Well-formed date tokens on a page, in row order.
+ *
+ * <p>Only eight-digit tokens are dated transactions. A row carrying `0`, an
+ * empty string, or a differently-formatted date is not one, and `String`
+ * renders each of those below every real `YYYYMMDD` token — so letting one
+ * through would win a minimum reduction and read as older than any real row.
+ *
+ * @param rows - Rows on the current page.
+ * @returns Every usable `YYYYMMDD` token the page carried.
+ */
+function usableDates(rows: readonly HapoalimTxn[]): readonly string[] {
+  return rows
+    .map((row): unknown => row[ROW_DATE_FIELD])
+    .map(String)
+    .filter((value): boolean => DATE_TOKEN.test(value));
+}
+
+/**
  * The oldest day on this page, as the next window's end.
  *
  * <p>Inclusive of that day. The bank caps a page by **row count**
@@ -183,10 +202,7 @@ function pageWasCapped(resp: ITxnsResp, rowCount: number): boolean {
  * @returns Next end date (YYYYMMDD), or false when no row carried a usable date.
  */
 function oldestDay(rows: readonly HapoalimTxn[]): HapoalimCursor | false {
-  const dates = rows
-    .map((row): unknown => row[ROW_DATE_FIELD])
-    .map(String)
-    .filter((value): boolean => DATE_TOKEN.test(value));
+  const dates = usableDates(rows);
   if (dates.length === 0) return false;
   const [firstDate] = dates;
   const oldest = dates.reduce((a, b): string => (a < b ? a : b), firstDate);
@@ -213,6 +229,24 @@ function nextEndFor(rows: readonly HapoalimTxn[], ctx: IActionContext): Hapoalim
 }
 
 /**
+ * The newest day on this page.
+ *
+ * <p>Counterpart to {@link oldestDay}, and subject to the same well-formedness
+ * filter for the mirrored reason: a maximum reduction is corrupted by a token
+ * that sorts *above* every real day, and `String` renders a missing field as
+ * `undefined` — letters, which outrank every digit in ASCII.
+ *
+ * @param rows - Rows on the current page.
+ * @returns Newest day (YYYYMMDD), or empty when no row carried a usable date.
+ */
+function newestDay(rows: readonly HapoalimTxn[]): string {
+  const dates = usableDates(rows);
+  if (dates.length === 0) return '';
+  const [firstDate] = dates;
+  return dates.reduce((a, b): string => (a > b ? a : b), firstDate);
+}
+
+/**
  * Extract one transactions page and say whether another is owed.
  *
  * @param args - Bundle carrying the unwrapped response body and the context.
@@ -223,6 +257,7 @@ export function txnsExtractPage(
 ): IPage<object, HapoalimCursor> {
   const resp = args.body as unknown as ITxnsResp;
   const rows = resp.transactions ?? [];
+  assessWalkOrder({ asked: args.cursor, newest: newestDay(rows), label: 'hapoalim/txns' });
   if (!pageWasCapped(resp, rows.length)) return { items: rows, nextCursor: false };
   return { items: rows, nextCursor: nextEndFor(rows, args.ctx) };
 }
