@@ -21,15 +21,39 @@ import {
 /** Requested window start shared by every case here. */
 const START = '20260601';
 
+/** A day comfortably older than every `newest` used below, so pages advance. */
+const ADVANCED = '20260605';
+
 /**
  * Build guard inputs for a page reached through a cursor.
+ *
+ * The page is given an oldest day well below its newest, which is what a page
+ * that advanced the walk looks like. Cases about stalling pass `oldest`
+ * explicitly through {@link stalledAt}.
+ *
  * @param asked - Day the request ended on, or false on the first page.
  * @param newest - Newest usable day the page carried.
- * @returns Guard arguments for an uncapped page.
+ * @returns Guard arguments for an uncapped page that advanced.
  */
 function args(asked: string | false, newest: string): IWalkOrderArgs {
-  const oldest = newest === '' ? '' : newest;
+  const oldest = newest === '' ? '' : ADVANCED;
   return { asked, newest, oldest, capped: false, requestedStart: START, label: 'hapoalim/txns' };
+}
+
+/**
+ * Build guard inputs for a cursor page that never reached below its cursor.
+ * @param asked - Day the request ended on, which is also its oldest row.
+ * @returns Guard arguments for a page that did not advance the walk.
+ */
+function stalledAt(asked: string): IWalkOrderArgs {
+  return {
+    asked,
+    newest: asked,
+    oldest: asked,
+    capped: false,
+    requestedStart: START,
+    label: 'hapoalim/txns',
+  };
 }
 
 /**
@@ -45,6 +69,43 @@ function firstPage(oldest: string, newest: string, capped: boolean): IWalkOrderA
 
 describe('Hapoalim walk-order guard — ordering honoured', () => {
   it('newest row equal to the asked day is honoured', () => {
+    const page = args('20260715', '20260715');
+    const out = assessWalkOrder(page);
+    expect(out.verdict).toBe('honoured');
+  });
+});
+
+/**
+ * A cursor page that never reached below the day it asked from.
+ *
+ * This is the detection that does not depend on the requested start day, and
+ * the one that catches the case the first-page test misses: an account whose
+ * earliest row in the window falls after the requested start.
+ */
+describe('Hapoalim walk-order guard — walk did not advance', () => {
+  it('a page whose oldest row is the cursor day is violated', () => {
+    const page = stalledAt('20260715');
+    const out = assessWalkOrder(page);
+    expect(out.verdict).toBe('violated');
+  });
+
+  it('says the page never reached below its cursor', () => {
+    const page = stalledAt('20260715');
+    const out = assessWalkOrder(page);
+    expect(out.detail).toContain('never reached below');
+  });
+
+  it('catches inversion when no row falls on the requested start day', () => {
+    // The account's earliest row in the window is the day after the start, so
+    // the first page's oldest never reaches the start and that test stays
+    // silent. Re-asking [start, 20260602] returns the same oldest slice, so
+    // the cursor does not move — which is what this test reads.
+    const pageTwo = stalledAt('20260602');
+    const out = assessWalkOrder(pageTwo);
+    expect(out.verdict).toBe('violated');
+  });
+
+  it('a page that did reach below its cursor is honoured', () => {
     const page = args('20260715', '20260715');
     const out = assessWalkOrder(page);
     expect(out.verdict).toBe('honoured');

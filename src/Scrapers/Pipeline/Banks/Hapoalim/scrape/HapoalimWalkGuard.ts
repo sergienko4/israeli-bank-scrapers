@@ -18,26 +18,46 @@
  *
  * <p>This module closes that blind spot with facts the walk already proved.
  *
- * <p>On a page that carried a cursor: a cursor is only ever minted from a day
- * that carried rows, and the next request ends on that day *inclusively* — so
- * the next page's newest row must be that same day. A newest row older than
- * the cursor means the bank withheld rows between the two, which is the
+ * <p>On a page that carried a cursor, two separate things are checked.
+ *
+ * <p>First, the newest row. A cursor is only ever minted from a day that
+ * carried rows, and the next request ends on that day *inclusively* — so the
+ * next page's newest row must be that same day. A newest row older than the
+ * cursor means the bank withheld rows between the two, which is the
  * inverted-ordering signature. A newest row *newer* than the cursor is a
  * different fault — the bank ignored the bound it was given — and is graded
  * apart from it rather than waved through.
  *
- * <p>On the first page there is no cursor, and that page is the whole problem:
- * under inversion the walk never reaches a second one. A page capped at the
- * bank's own limit asserts that more rows existed than were returned, and
- * under the assumed ordering a cap drops the *oldest* of them — so a capped
- * page cannot also reach back to the requested start. Reaching it means the
- * cap fell at the recent end instead.
+ * <p>Second, whether the walk advanced. A cursor page always follows a capped
+ * one, so rows were known to exist *below* the cursor day. Under the assumed
+ * ordering this page must therefore reach below it. A page whose oldest row is
+ * the cursor day itself did not: the next request would repeat this exact
+ * window. That is what inversion looks like from page two — the bank keeps
+ * returning the oldest slice, so the cursor never moves — and it is the
+ * detection that does not depend on which day the caller asked to start from.
  *
- * <p>That first-page test can misfire in one narrow case: an account whose
- * entire window holds exactly the cap's worth of rows is indistinguishable
- * from a truncated one, because the bank states only the page size it applied.
- * A spurious warning there costs one log line; the loss this catches cost a
- * real account four weeks of history with no error and no flag (PR #489).
+ * <p>On the first page there is no cursor. A page capped at the bank's own
+ * limit asserts that more rows existed than were returned, and under the
+ * assumed ordering a cap drops the *oldest* of them — so a capped page cannot
+ * also reach back to the requested start. Reaching it means the cap fell at
+ * the recent end instead.
+ *
+ * <p>Two limits on that first-page test are worth stating plainly, because it
+ * reads stronger than it is. It misfires for an account whose entire window
+ * holds exactly the cap's worth of rows, which is indistinguishable from a
+ * truncated one since the bank states only the page size it applied. And it
+ * stays silent far more often than it fires: the request is bounded at the
+ * requested start, so no row can predate it, and the test therefore needs the
+ * account to hold a transaction on that exact calendar day. An account whose
+ * earliest row in the window falls even one day later reports `unknown` here
+ * and is caught on the next page by the stalled-cursor test above instead.
+ *
+ * <p>Neither test observes the window's *recent* end directly; nothing in a
+ * response body does. Proving that end would take a separate probe request,
+ * which is a change to the fetch layer rather than to this guard.
+ *
+ * <p>A spurious warning costs one log line. The loss these catch cost a real
+ * account four weeks of history with no error and no flag (PR #489).
  *
  * <p>It reports and never repairs, matching `WindowCoverage`. Throwing would
  * discard the rows already gathered, which is a larger loss than the one being
@@ -125,20 +145,40 @@ function reportOrder(label: string, result: IWalkOrderResult): IWalkOrderResult 
 }
 
 /**
+ * Grade a page whose newest row matched the day it asked from.
+ *
+ * <p>Matching the cursor is necessary but not sufficient. A cursor page always
+ * follows a capped one, so rows were known to exist below the cursor day; this
+ * page must reach below it or the next request repeats the same window. See
+ * the module header for why a stalled cursor is inversion's page-two shape.
+ *
+ * @param args - The page's days.
+ * @param asked - Day the request ended on.
+ * @returns Verdict plus the days compared.
+ */
+function gradeAdvance(args: IWalkOrderArgs, asked: string): IWalkOrderResult {
+  const base = { newest: args.newest, asked };
+  if (args.oldest !== asked) return { ...base, verdict: 'honoured', detail: '' };
+  const seen = `asked=${asked} oldest=${args.oldest}`;
+  const stalled = `${seen}; page never reached below the day it asked from`;
+  return { ...base, verdict: 'violated', detail: stalled };
+}
+
+/**
  * Grade a page against the day its request asked the window to end on.
  *
- * <p>Equality is the only clean outcome. The cursor was minted from a day
- * proven to carry rows and the request includes that day, so anything else is
- * the bank declining the bound in one direction or the other.
+ * <p>Equality is the only outcome that can be clean. The cursor was minted
+ * from a day proven to carry rows and the request includes that day, so
+ * anything else is the bank declining the bound in one direction or the other.
  *
  * @param args - The page's days.
  * @param asked - Day the request ended on.
  * @returns Verdict plus the days compared.
  */
 function gradeCursorPage(args: IWalkOrderArgs, asked: string): IWalkOrderResult {
+  if (args.newest === asked) return gradeAdvance(args, asked);
   const seen = `asked=${asked} newest=${args.newest}`;
   const base = { newest: args.newest, asked };
-  if (args.newest === asked) return { ...base, verdict: 'honoured', detail: '' };
   const truncated = `${seen}; page truncated at its recent end`;
   if (args.newest < asked) return { ...base, verdict: 'violated', detail: truncated };
   const beyond = `${seen}; page carried rows newer than the bound it was given`;
