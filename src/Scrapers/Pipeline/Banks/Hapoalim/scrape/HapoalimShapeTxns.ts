@@ -45,7 +45,7 @@ import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { HAPOALIM_API, type IHapoalimAcct } from './HapoalimShapeHelpers.js';
-import { assessWalkOrder } from './HapoalimWalkGuard.js';
+import { assessWalkOrder, type IWalkOrderResult } from './HapoalimWalkGuard.js';
 
 /** Retrieval date format (YYYYMMDD, no separators). */
 const HAPOALIM_DATE_FMT = 'YYYYMMDD';
@@ -247,6 +247,42 @@ function newestDay(rows: readonly HapoalimTxn[]): string {
 }
 
 /**
+ * The oldest day on this page, in the empty-when-absent form the guard reads.
+ * @param rows - Rows on the current page.
+ * @returns Oldest day (YYYYMMDD), or empty when no row carried a usable date.
+ */
+function oldestOrEmpty(rows: readonly HapoalimTxn[]): string {
+  const oldest = oldestDay(rows);
+  return oldest === false ? '' : oldest;
+}
+
+/**
+ * Check this page against the walk's ordering assumption.
+ *
+ * The truncation flag and the requested start are passed because the first
+ * page carries no cursor to compare against — see the guard's module header.
+ *
+ * @param args - Bundle carrying the unwrapped response body and the context.
+ * @param rows - Rows this page returned.
+ * @param wasCapped - Whether the bank truncated this page at its own limit.
+ * @returns The ordering verdict, already reported to the log.
+ */
+function checkWalkOrder(
+  args: IExtractPageArgs<IHapoalimAcct, HapoalimCursor>,
+  rows: readonly HapoalimTxn[],
+  wasCapped: boolean,
+): IWalkOrderResult {
+  return assessWalkOrder({
+    asked: args.cursor,
+    newest: newestDay(rows),
+    oldest: oldestOrEmpty(rows),
+    capped: wasCapped,
+    requestedStart: startOf(args.ctx),
+    label: 'hapoalim/txns',
+  });
+}
+
+/**
  * Extract one transactions page and say whether another is owed.
  *
  * @param args - Bundle carrying the unwrapped response body and the context.
@@ -257,8 +293,9 @@ export function txnsExtractPage(
 ): IPage<object, HapoalimCursor> {
   const resp = args.body as unknown as ITxnsResp;
   const rows = resp.transactions ?? [];
-  assessWalkOrder({ asked: args.cursor, newest: newestDay(rows), label: 'hapoalim/txns' });
-  if (!pageWasCapped(resp, rows.length)) return { items: rows, nextCursor: false };
+  const wasCapped = pageWasCapped(resp, rows.length);
+  checkWalkOrder(args, rows, wasCapped);
+  if (!wasCapped) return { items: rows, nextCursor: false };
   return { items: rows, nextCursor: nextEndFor(rows, args.ctx) };
 }
 
