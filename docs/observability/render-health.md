@@ -41,6 +41,19 @@ Stylesheet count deliberately does not vote. A document whose CSS was blocked bu
 
 Nothing here decides whether a phase passes. The probe is best-effort by design: one that throws or times out reports the unknown result rather than propagating, because a diagnostic must never be able to fail the phase it is describing.
 
+### Exports
+
+| Export | What it gives you |
+|---|---|
+| `measureRenderHealth` | Reads the counters from a page and returns the verdict. Never throws — an unreadable page yields `UNKNOWN_RENDER` |
+| `isRenderedFrom` | Applies the two thresholds to an already-read `IRenderCounts`. Pure, so the verdict is testable without a browser |
+| `UNKNOWN_RENDER` | The `status: 'unknown'` result. Its `isRendered: false` records absence of evidence, not a blank page |
+| `BLANK_PAGE_MAX_ELEMENTS` | The element-count threshold a document must exceed |
+| `BLANK_PAGE_MAX_BODY_HEIGHT_PX` | The body-height threshold, in pixels, a document must exceed |
+| `IRenderCounts` | The raw counters: element count, body height, stylesheet count |
+| `IRenderHealth` | The counters plus `isRendered` and `status` |
+| `RenderProbeStatus` | The `'observed' \| 'unknown'` discriminant — read it before trusting `isRendered` |
+
 ## Element identity
 
 Selector strings are a poor proxy for identity, and they fail in **both** directions:
