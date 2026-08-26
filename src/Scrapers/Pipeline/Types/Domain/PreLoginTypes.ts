@@ -22,9 +22,11 @@ interface IResolvedTarget {
   /**
    * Position of the element in its document tree — identity, not a selector.
    *
-   * <p>Optional because it is read from a live page: a target built from a
-   * config or a fixture has none, and a read that failed leaves it unset.
-   * Absent means "identity unknown", never "a distinct element".
+   * <p>Optional because not every target is read from a live page: one built
+   * from a config or a fixture carries no identity at all. A read that ran but
+   * could not resolve records the empty token instead, so both the absent and
+   * the empty case mean "identity unknown" and neither ever means "a distinct
+   * element".
    */
   readonly elementId?: string;
 }
