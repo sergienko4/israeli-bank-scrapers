@@ -197,6 +197,7 @@ nav:
       - LSP (code intelligence): workflow/lsp.md
       - Doc path gate: workflow/doc-paths.md
       - Public API surface gate: workflow/public-surface.md
+      - TypeScript compilers (TS 6 + TS 7): workflow/typescript-compilers.md
   - Contributing:
       - Overview: contributing/index.md
       - Adding a new bank: contributing/new-bank.md

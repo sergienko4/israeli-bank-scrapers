@@ -326,6 +326,17 @@ jobs:
         if: needs.changes.outputs.full_suite == 'true'
         run: npm run type-check
 
+      # The published .d.ts is emitted by TS 6 (tsup DTS), and ts-jest
+      # and typescript-eslint also read the tree through TS 6 — but the
+      # step above gates types with TS 7. Two compilers, one of them
+      # ungated, is a place where the build can disagree with what
+      # consumers install. This gate closes that: types must satisfy
+      # BOTH. It costs ~10s, and it is a distinct step rather than a
+      # `&&` so the log names which compiler objected.
+      - name: Type check (TS 6 API — the compiler that emits our .d.ts)
+        if: needs.changes.outputs.full_suite == 'true'
+        run: npm run type-check:ts6
+
       - name: Acyclic-dependencies gate
         if: needs.changes.outputs.full_suite == 'true'
         run: npm run lint:cycles
