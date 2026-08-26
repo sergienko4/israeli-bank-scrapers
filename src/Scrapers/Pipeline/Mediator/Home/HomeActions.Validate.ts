@@ -12,6 +12,8 @@ import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IElementMediator } from '../Elements/ElementMediator.js';
+import type { IRenderHealth } from '../Elements/RenderHealth.js';
+import { measureRenderHealth, UNKNOWN_RENDER } from '../Elements/RenderHealth.js';
 import { HOME_ENTRY_TIMEOUT_MS } from '../Timing/HomeTimingConfig.js';
 import { type DidNavigate, hasLeftHomepage } from './HomeNavigationTruth.js';
 
@@ -76,8 +78,26 @@ function loginAreaDetected(signals: ILoginAreaSignals): boolean {
 }
 
 /**
+ * Measure render health when a browser is attached.
+ *
+ * <p>Skipped without a browser, where {@link UNKNOWN_RENDER} correctly says
+ * "not observed" rather than claiming the page failed to paint.
+ * @param input - Pipeline context with an Option-shaped browser handle.
+ * @returns Render counters plus the blank-page verdict.
+ */
+async function probeRenderHealth(input: IPipelineContext): Promise<IRenderHealth> {
+  if (!input.browser.has) return UNKNOWN_RENDER;
+  return measureRenderHealth(input.browser.value.page);
+}
+
+/**
  * Collect the login-area presence signals. `frameCount` is retained as a
  * diagnostic only — see {@link loginAreaDetected} for why it no longer votes.
+ *
+ * <p>Render health is logged alongside them so a blank or unstyled page is
+ * readable straight from the trace. It does not vote either: HOME's job is to
+ * find the login area, and a page that painted nothing will fail that test on
+ * its own merits.
  * @param args - Bundled validation arguments.
  * @returns Aggregated nav / frame / form signals.
  */
@@ -86,7 +106,8 @@ async function collectLoginAreaSignals(args: IValidateLoginAreaArgs): Promise<IL
   const didNavigate = hasLeftHomepage(currentUrl, args.homepageUrl);
   const frameCount = countBrowserFrames(args.input);
   const hasLoginForm = await probeLoginForm(args.mediator);
-  args.logger.debug({ didNavigate, frames: frameCount, loginForm: hasLoginForm });
+  const render = await probeRenderHealth(args.input);
+  args.logger.debug({ didNavigate, frames: frameCount, loginForm: hasLoginForm, render });
   return { didNavigate, frameCount, hasLoginForm };
 }
 
