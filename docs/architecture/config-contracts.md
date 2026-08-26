@@ -122,7 +122,7 @@ canonical **150 LoC** file ceiling enforced everywhere else under
    (after `PiiRedactor`) with the canonical per-cluster profile
    (file 150 / per-fn 10 / complexity 10 / params 3).
 3. **Preserved the public surface.** `lib/index.cjs` was
-   **byte-identical** pre- and post-split — the barrel re-export
+   **byte-identical** pre- and post-split[^byte-identical] — the barrel re-export
    kept every existing name, and while the shim existed every
    historical path through `IApiDirectCallConfig.ts` still resolved,
    so every importer compiled unchanged until it was migrated.
@@ -137,7 +137,27 @@ indication at every import site. The v8.6 sweep then:
   barrel (`ConfigContracts/index.js`) or the narrow per-bucket form.
 - Deleted `IApiDirectCallConfig.ts`.
 - Confirmed `lib/index.cjs` remained byte-identical (only import paths in
-  the type-tree changed — no public name was removed).
+  the type-tree changed — no public name was removed).[^byte-identical]
+
+[^byte-identical]:
+    Both byte-identical claims on this page are **historical records of what
+    the author certified at the time**, kept as written. Neither should be
+    read as evidence, and neither should be used as a template.
+
+    The pre-PR contract in force then asked authors to verify the public
+    surface by diffing `lib/index.cjs` against `main`. That check could not
+    have run: `lib/` is gitignored and has never been tracked, so the
+    `git show main:lib/index.cjs` half produced nothing and the comparison
+    silently reported success. See
+    [Public API surface gate](../workflow/public-surface.md#why-this-gate-exists)
+    for exactly how it failed open.
+
+    What the claims assert is still *plausible* — a barrel re-export that
+    preserves every name would not change the emitted surface — but it was
+    never demonstrated. The real check is now
+    `npm run lint:public-surface`, which compares the exported API against
+    the committed `api-surface.d.ts` snapshot and is enforced in the
+    pre-commit `build` gate.
 
 Deleting a file does not stop it being recreated, so the retired specifier is
 now also held down by a lint rule (`Rule #17` in `LintValidator.ts`), which
