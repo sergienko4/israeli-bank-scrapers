@@ -45,6 +45,27 @@ stays active across `src/Tests` — including test tooling. Only the seven
 `E2eMocked` suites that block 19.7 names are exempt, and they are tracked debt
 awaiting fixture capture (`tasks/phase-7-5-T8-T12`), not false positives.
 
+### One list, three consumers
+
+Three places need the same answer to "what is in scope?": `eslint.config.mjs`
+enforces the rules, `src/Tests/Tools/LintValidator.ts` shadows them, and
+`src/Tests/Unit/Tools/LintCanaryScope.test.ts` pins the behaviour. They read it
+from `eslint.canary-scope.mjs`:
+
+| Export                          | Consumer                                   |
+| ------------------------------- | ------------------------------------------ |
+| `SONAR_PARITY_IGNORE_PREFIXES`  | `LintValidator.ts` path matching, and the test |
+| `SONAR_PARITY_IGNORE_GLOBS`     | Block 11 `ignores` — derived from the prefixes |
+| `SKIP_ALLOWLIST_FILES`          | Block 19.7 `files`, and `LintValidator.ts` |
+
+Hand-maintained copies made drift a matter of time, and a canary mirroring a
+stale scope reports on files ESLint no longer covers. Sharing the list makes
+that drift impossible rather than merely detectable. Edit that file and every
+consumer moves together.
+
+An entry ending in `/` is a directory prefix; anything else must match a path
+exactly, so an allowlisted suite cannot exempt a longer sibling filename.
+
 **Scope changes, strength does not.** No file loses a canary that its ESLint
 rule still covers, and the canaries now reach **70 production files that were
 previously invisible** to them.

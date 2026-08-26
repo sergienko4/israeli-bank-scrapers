@@ -6,7 +6,16 @@
  * rule's scope exactly — never stricter, never weaker. These tests pin that
  * correspondence to `eslint.config.mjs` blocks 11 (S6564 / S3735) and
  * 19.6 / 19.7 (S1607). See `docs/workflow/architecture-linter.md`.
+ *
+ * The scope lists come from `eslint.canary-scope.mjs`, the single source both
+ * ESLint and the linter consume. These tests therefore assert *behaviour* —
+ * which paths the canaries fire on — rather than restating the lists, which
+ * would only re-check a literal against itself.
  */
+import {
+  SKIP_ALLOWLIST_FILES,
+  SONAR_PARITY_IGNORE_PREFIXES,
+} from '../../../../eslint.canary-scope.mjs';
 import { type IIssue, issuesFromCode } from '../../../Tests/Tools/LintValidator.js';
 
 /** Source that trips S6564 (bare-primitive alias) and S3735 (`void <expr>;`). */
@@ -17,19 +26,12 @@ const SKIP_SOURCE = ["describe.skip('probe', () => {", "  it('x', () => undefine
   '\n',
 );
 
-/** Paths block 11 excludes from the SonarJS parity rules. */
-const PARITY_IGNORED_PATHS = [
-  'src/Tests/Unit/Pipeline/Something.test.ts',
-  'src/Tests/Tools/SomeTool.ts',
-  'src/Common/Browser.ts',
-  'src/Scrapers/Mizrahi/Mizrahi.ts',
-  'src/Scrapers/Leumi/Leumi.ts',
-  'src/Scrapers/Behatsdaa/Behatsdaa.ts',
-  'src/Scrapers/BeyahadBishvilha/Bank.ts',
-  'src/Scrapers/Yahav/Yahav.ts',
-  'src/Scrapers/Registry/ScraperRegistry.ts',
-  'src/scrapers/legacy.ts',
-];
+/**
+ * A representative file inside every path block 11 excludes. Derived from the
+ * shared prefixes so a newly excluded directory is covered automatically
+ * rather than silently untested.
+ */
+const PARITY_IGNORED_PATHS = SONAR_PARITY_IGNORE_PREFIXES.map(prefix => `${prefix}Probe.ts`);
 
 /** Production paths block 11 covers, so the canaries must fire there. */
 const PARITY_COVERED_PATHS = [
@@ -38,15 +40,7 @@ const PARITY_COVERED_PATHS = [
 ];
 
 /** The seven suites block 19.7 exempts from `sonarjs/no-skipped-tests`. */
-const SKIP_ALLOWLISTED_PATHS = [
-  'src/Tests/E2eMocked/Amex.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/Isracard.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/ErrorScenarios.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/ExternalBrowser.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts',
-];
+const SKIP_ALLOWLISTED_PATHS = SKIP_ALLOWLIST_FILES;
 
 /**
  * Collect the canary rule keys raised for a synthetic file.

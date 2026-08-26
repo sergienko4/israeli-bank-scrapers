@@ -12,6 +12,10 @@ import jsdoc from 'eslint-plugin-jsdoc';
 import regexpPlugin from 'eslint-plugin-regexp';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
+import {
+  SKIP_ALLOWLIST_FILES,
+  SONAR_PARITY_IGNORE_GLOBS,
+} from './eslint.canary-scope.mjs';
 
 /**
  * GLOBAL ARCHITECTURAL GUARDRAILS
@@ -1500,19 +1504,13 @@ export default tseslint.config(
   //     are out of Sonar's scope, so they're out of these rules' scope
   //     too — keeps ESLint and SonarCloud aligned without surfacing
   //     thousands of test-stub issues that don't exist in Sonar.
+  //
+  //     The list lives in `eslint.canary-scope.mjs` so the parity
+  //     canaries in `LintValidator.ts` police exactly this set. See
+  //     that file for why it is shared rather than duplicated.
   {
     files: ['src/**/*.ts'],
-    ignores: [
-      'src/Tests/**',
-      'src/Common/**',
-      'src/Scrapers/Behatsdaa/**',
-      'src/Scrapers/BeyahadBishvilha/**',
-      'src/Scrapers/Leumi/**',
-      'src/Scrapers/Mizrahi/**',
-      'src/Scrapers/Yahav/**',
-      'src/Scrapers/Registry/**',
-      'src/scrapers/**',
-    ],
+    ignores: [...SONAR_PARITY_IGNORE_GLOBS],
     rules: {
       // SonarJS — Sonar's own rules
       'sonarjs/no-alphabetical-sort': 'error', // S2871
@@ -2840,17 +2838,10 @@ export default tseslint.config(
   // unconditional `describe.skip(...)` awaiting fixture capture
   // (tasks/phase-7-5-T8-T12). Each entry MUST be removed from this
   // list when its test is unskipped (the rule then fires if any
-  // `.skip` remains, blocking the merge).
+  // `.skip` remains, blocking the merge). Shared with the parity
+  // canaries via `eslint.canary-scope.mjs`.
   {
-    files: [
-      'src/Tests/E2eMocked/Amex.e2e-mocked.test.ts',
-      'src/Tests/E2eMocked/Isracard.e2e-mocked.test.ts',
-      'src/Tests/E2eMocked/ErrorScenarios.e2e-mocked.test.ts',
-      'src/Tests/E2eMocked/ExternalBrowser.e2e-mocked.test.ts',
-      'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts',
-      'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts',
-      'src/Tests/E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts',
-    ],
+    files: [...SKIP_ALLOWLIST_FILES],
     rules: {
       'sonarjs/no-skipped-tests': 'off',
     },

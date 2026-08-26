@@ -20,6 +20,11 @@ import * as path from 'node:path';
 
 import * as ts from 'typescript';
 
+import {
+  SKIP_ALLOWLIST_FILES,
+  SONAR_PARITY_IGNORE_PREFIXES,
+} from '../../../eslint.canary-scope.mjs';
+
 /** Path fragment that marks a file as part of the Pipeline tree. */
 const PIPELINE_DIR = 'Scrapers/Pipeline';
 /** Path fragment that marks a file as a Phase. */
@@ -578,21 +583,11 @@ const PII_PAYLOAD_RE = new RegExp(
  * Paths ESLint block 11 excludes from the SonarJS parity rules
  * `redundant-type-aliases` (S6564) and `void-use` (S3735). That block
  * mirrors `sonar-project.properties` `sonar.exclusions`, so SonarCloud
- * does not report these paths either. Mirroring the same list here keeps
+ * does not report these paths either. Sharing the list with ESLint keeps
  * each canary a faithful shadow of the rule it re-asserts, rather than a
  * stricter policy that no configuration states.
  */
-const SONAR_PARITY_IGNORES: readonly string[] = [
-  'src/Tests/',
-  'src/Common/',
-  'src/Scrapers/Behatsdaa/',
-  'src/Scrapers/BeyahadBishvilha/',
-  'src/Scrapers/Leumi/',
-  'src/Scrapers/Mizrahi/',
-  'src/Scrapers/Yahav/',
-  'src/Scrapers/Registry/',
-  'src/scrapers/',
-];
+const SONAR_PARITY_IGNORES: readonly string[] = SONAR_PARITY_IGNORE_PREFIXES;
 
 /**
  * The seven e2e-mocked suites ESLint block 19.7 permits to keep an
@@ -600,15 +595,7 @@ const SONAR_PARITY_IGNORES: readonly string[] = [
  * stays active everywhere else — including the rest of `src/Tests` — because
  * skipped tests are precisely what it exists to find.
  */
-const SKIP_ALLOWLIST: readonly string[] = [
-  'src/Tests/E2eMocked/Amex.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/Isracard.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/ErrorScenarios.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/ExternalBrowser.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts',
-];
+const SKIP_ALLOWLIST: readonly string[] = SKIP_ALLOWLIST_FILES;
 
 /** Repo root, forward-slash form, for relativising absolute inputs. */
 const CWD = process.cwd();
