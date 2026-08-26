@@ -42,6 +42,7 @@ interface ITxnsLike {
   readonly buildVars: (acct: never, cursor: never, ctx: IActionContext) => unknown;
   readonly urlTag?: unknown;
   readonly extraHeaders?: unknown;
+  readonly bodyTemplate?: unknown;
 }
 
 /** Signature the contract calls a shape's request builders through. */
@@ -250,29 +251,91 @@ function resolveHeaders(extraHeaders: unknown, ctx: IActionContext): unknown {
   return build(ctx);
 }
 
+/** Stand-in for a value that changes between two identical renders. */
+const VOLATILE = '[volatile]';
+
+/**
+ * Whether a value is a plain object worth walking key by key.
+ * @param value - Candidate value.
+ * @returns True for non-null, non-array objects.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  const isObject = typeof value === 'object' && value !== null;
+  return isObject && !Array.isArray(value);
+}
+
+/**
+ * Replace every leaf that differs between two same-context renders.
+ *
+ * Some shapes mint a fresh value on every call — Pepper stamps a per-call
+ * `x-transaction-id`, Hapoalim a per-call `uuid`. Those differ between *any*
+ * two renders, so a fingerprint carrying them differs under a fixed bound
+ * too, and every narrowability assertion built on it would pass without
+ * proving anything.
+ *
+ * Masking by differencing calibrates itself: it needs no list of volatile
+ * keys, so a shape that adds one later is neutralised the same way. Only
+ * leaves that survive two identical renders reach the fingerprint.
+ *
+ * Clock-derived values are NOT caught here — two reads inside one render
+ * fall in the same millisecond and agree. The suite freezes the clock for
+ * those; see the `fingerprint determinism` control.
+ * @param first - Render under the context.
+ * @param second - Second render under that same context.
+ * @returns Shape of the first render with unstable leaves replaced.
+ */
+function maskUnstable(first: unknown, second: unknown): unknown {
+  if (Array.isArray(first) && Array.isArray(second)) {
+    return first.map((item, i): unknown => maskUnstable(item, second[i]));
+  }
+  if (isPlainObject(first) && isPlainObject(second)) {
+    const pairs = Object.keys(first).map(k => [k, maskUnstable(first[k], second[k])] as const);
+    return Object.fromEntries(pairs);
+  }
+  return stableString(first) === stableString(second) ? first : VOLATILE;
+}
+
+/**
+ * Resolve all three request surfaces once.
+ * @param txns - Transactions step under test.
+ * @param ctx - Context carrying the window upper bound.
+ * @param cursor - Position in the walk; `false` is the first call.
+ * @returns URL, variables, and headers as one structure.
+ */
+function resolveSurfaces(txns: ITxnsLike, ctx: IActionContext, cursor: number | false): unknown {
+  const buildVars = txns.buildVars as LooseBuilder;
+  return {
+    url: resolveUrl(txns.urlTag, ctx, cursor),
+    vars: buildVars(STUB_ACCOUNT, cursor, ctx),
+    headers: resolveHeaders(txns.extraHeaders, ctx),
+  };
+}
+
 /**
  * Build the transactions request a shape would send at one cursor position.
  *
  * All three request surfaces matter: some banks put the window in the URL
  * (Hapoalim, Max), others in the body (Leumi, Yahav), and a header builder
  * sees the whole context. A contract that inspected only one would clear a
- * bank it never actually checked. The fourth surface, `bodyTemplate`, needs
- * no rendering: its `$ref` tokens are a closed set that cannot name the
- * window, so it is structurally incapable of carrying the bound.
+ * bank it never actually checked. The fourth surface, `bodyTemplate`, is not
+ * rendered here: no transactions step in the registry declares one, so there
+ * is nothing to walk. Should one appear, its `carry.*` tokens could project
+ * a window value, and this contract would need to render it too.
+ *
+ * The request is resolved twice under the same context so per-call values
+ * can be masked; see {@link maskUnstable}. A leaf that is volatile *and*
+ * bound-carrying would be masked with the rest, so the determinism control
+ * in the suite asserts the masking actually holds.
  * @param txns - Transactions step under test.
  * @param ctx - Context carrying the window upper bound.
  * @param cursor - Position in the walk; `false` is the first call.
- * @returns Serialized URL, variables, and headers.
+ * @returns Serialized URL, variables, and headers, minus unstable leaves.
  */
 function renderRequest(txns: ITxnsLike, ctx: IActionContext, cursor: number | false): string {
-  const url = resolveUrl(txns.urlTag, ctx, cursor);
-  const buildVars = txns.buildVars as LooseBuilder;
-  const vars = buildVars(STUB_ACCOUNT, cursor, ctx);
-  const headers = resolveHeaders(txns.extraHeaders, ctx);
-  const urlText = stableString(url);
-  const varsText = stableString(vars);
-  const headersText = stableString(headers);
-  return `${urlText}||${varsText}||${headersText}`;
+  const first = resolveSurfaces(txns, ctx, cursor);
+  const second = resolveSurfaces(txns, ctx, cursor);
+  const stable = maskUnstable(first, second);
+  return stableString(stable);
 }
 
 /**
