@@ -11,7 +11,7 @@
 # Exit 0 = every scenario extracted the expected symbol set; 1 = a
 # scenario regressed.
 
-set -o pipefail
+set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 # shellcheck source=.github/scripts/ci/extract-exports.sh
@@ -23,7 +23,7 @@ FAIL=0
 # Asserts that `source` yields exactly `expected` (a space-separated,
 # alphabetically sorted symbol list; "" means "no symbols").
 run_scenario() {
-    local name="$1" source="$2" expected="$3"
+    local name="$1" source="$2" expected="${3-}"
     local actual
     actual="$(printf '%s\n' "$source" | extract_symbols | tr '\n' ' ')"
     actual="$(echo "$actual" | sed 's/[[:space:]]*$//')"
@@ -69,6 +69,11 @@ run_scenario "inline type modifier inside list" \
     'export { type Alpha, Beta };' 'Alpha Beta'
 run_scenario "alias publishes the public name only" \
     'export { internalName as Alpha };' 'Alpha'
+# `default` is the module default, not a documentable named export.
+run_scenario "alias to default is not a documentable symbol" \
+    'export { internalName as default };' ''
+run_scenario "alias to default alongside a real named export" \
+    'export { internalName as default, Beta };' 'Beta'
 run_scenario "empty list yields nothing" \
     'export {};' ''
 

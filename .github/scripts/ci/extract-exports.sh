@@ -63,6 +63,9 @@ function emit(s,   ob, cb, body, after, n, i, parts, sym) {
     # `export { internal as Public }` publishes `Public`, not `internal`.
     if (sym ~ /[ \t]as[ \t]/) sub(/^.*[ \t]as[ \t]+/, "", sym)
     gsub(/^[ \t]+|[ \t]+$/, "", sym)
+    # `export { x as default }` publishes the module default, which has no
+    # documentable symbol name. Drop it rather than demand docs for "default".
+    if (sym == "default") continue
     # Drops the empty slot left by a trailing comma and anything that is
     # not a plain identifier.
     if (sym ~ /^[A-Za-z_][A-Za-z0-9_]*$/) print sym
