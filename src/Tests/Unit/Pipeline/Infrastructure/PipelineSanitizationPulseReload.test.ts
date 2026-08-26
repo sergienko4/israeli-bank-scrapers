@@ -27,6 +27,7 @@ const CURRENT_URL = 'https://bank.test/login';
 /** Records the navigations a pulse performed. */
 interface IReloadProbe {
   readonly navigations: string[];
+  readonly navOptions: unknown[];
 }
 
 /**
@@ -34,7 +35,7 @@ interface IReloadProbe {
  * @returns Probe with an empty navigation log.
  */
 function makeProbe(): IReloadProbe {
-  return { navigations: [] };
+  return { navigations: [], navOptions: [] };
 }
 
 /**
@@ -74,10 +75,12 @@ function makeRecordingMediator(probe: IReloadProbe, outcome: 'ok' | 'fail'): IEl
   /**
    * Record the navigation and report the scripted outcome.
    * @param url - Target URL.
+   * @param options - Wait condition and budget the caller asked for.
    * @returns Navigation procedure.
    */
-  const navigateTo: IElementMediator['navigateTo'] = (url: string) => {
+  const navigateTo: IElementMediator['navigateTo'] = (url, options) => {
     probe.navigations.push(url);
+    probe.navOptions.push(options);
     const nav =
       outcome === 'ok' ? succeed(undefined) : fail(ScraperErrorTypes.Generic, 'nav failed');
     return Promise.resolve(nav);
@@ -155,6 +158,12 @@ describe('PipelineSanitizationPulse — reload before retry', () => {
   it('spends the reload within the existing single-pulse budget', async () => {
     const { probe } = await runPulse({ phase: 'pre-login', navOutcome: 'ok' });
     expect(probe.navigations).toHaveLength(1);
+  });
+
+  it('waits for a document mount, not for every subresource', async () => {
+    const { probe } = await runPulse({ phase: 'pre-login', navOutcome: 'ok' });
+    const expected = [{ waitUntil: 'domcontentloaded', timeout: 30_000 }];
+    expect(probe.navOptions).toEqual(expected);
   });
 
   it('leaves a phase outside the opt-in set retrying without a reload', async () => {
