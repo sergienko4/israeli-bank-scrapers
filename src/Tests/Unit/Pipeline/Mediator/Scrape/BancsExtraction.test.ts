@@ -27,6 +27,7 @@ interface IBancsArgs {
   readonly magnitude: string;
   readonly runBal: string;
   readonly typeCode: string;
+  readonly srcId?: string;
 }
 
 /**
@@ -36,6 +37,17 @@ interface IBancsArgs {
  */
 function calDate(day: number): Record<string, number> {
   return { Day: day, Month: 1, Year: 2026 };
+}
+
+/**
+ * Build the `TxnRef` envelope carrying a per-row source-transaction id,
+ * shaped as the live BaNCS capture emits it.
+ * @param srcId - Synthetic source-transaction reference; empty when absent.
+ * @returns Nested `TxnRef` object, or `{}` when no reference is given.
+ */
+function txnRefFor(srcId = ''): Record<string, unknown> {
+  if (srcId === '') return {};
+  return { TxnRef: { TrnRefSrcTrns: { TrnIdentLst: [{ Id: { Id: srcId } }] } } };
 }
 
 /**
@@ -55,6 +67,7 @@ function buildBancsRecord(args: IBancsArgs): Record<string, unknown> {
   const runningBal = [{ CurrAmt: { Amt: { Value: args.runBal } }, BalType: { CDE: 'CURRENT' } }];
   const txnId = { TxnIds: { TRANSACTIONID: args.id } };
   return {
+    ...txnRefFor(args.srcId),
     OrigDt: date,
     PostedDt: date,
     TotalCurAmt: amount,
@@ -141,6 +154,49 @@ describe('BaNCS extraction — sign resolution', () => {
     expect(amtA).toBe(-200);
     expect(amtB).toBe(200);
     expect(amtC).toBe(-300);
+  });
+});
+
+describe('BaNCS extraction — per-row identifier', () => {
+  it('distinguishes two rows that share one batch TRANSACTIONID', () => {
+    const feeA = buildBancsRecord({
+      id: 'FAKE-BATCH-1',
+      day: 5,
+      magnitude: '2.8',
+      runBal: '1000',
+      typeCode: 'InvcApplication',
+      srcId: 'FAKE-SRC-1',
+    });
+    const feeB = buildBancsRecord({
+      id: 'FAKE-BATCH-1',
+      day: 5,
+      magnitude: '1.2',
+      runBal: '998.8',
+      typeCode: 'InvcApplication',
+      srcId: 'FAKE-SRC-2',
+    });
+    const env = bancsEnvelope([feeA, feeB]);
+    const txns = extractTransactions(env);
+    expect(txns).toHaveLength(2);
+    const ids = txns.map((t): string => String(t.identifier));
+    const unique = new Set(ids);
+    expect(unique.size).toBe(2);
+    expect(ids).toContain('FAKE-SRC-1');
+    expect(ids).toContain('FAKE-SRC-2');
+  });
+
+  it('falls back to TRANSACTIONID when no source reference is present', () => {
+    const record = buildBancsRecord({
+      id: 'FAKE-NO-SRC',
+      day: 9,
+      magnitude: '50',
+      runBal: '700',
+      typeCode: 'OutPymntOrd',
+    });
+    const env = bancsEnvelope([record]);
+    const txns = extractTransactions(env);
+    expect(txns).toHaveLength(1);
+    expect(txns[0].identifier).toBe('FAKE-NO-SRC');
   });
 });
 

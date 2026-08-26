@@ -45,6 +45,7 @@ import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { HAPOALIM_API, type IHapoalimAcct } from './HapoalimShapeHelpers.js';
+import { assessWalkOrder, type IWalkOrderResult } from './HapoalimWalkGuard.js';
 
 /** Retrieval date format (YYYYMMDD, no separators). */
 const HAPOALIM_DATE_FMT = 'YYYYMMDD';
@@ -57,6 +58,14 @@ const SERVER_PAGE_SIZE_FIELD = 'numItemsPerPage';
 const ROW_DATE_FIELD = 'eventDate';
 /** A usable date token: exactly eight digits, matching {@link HAPOALIM_DATE_FMT}. */
 const DATE_TOKEN = /^\d{8}$/;
+/** Diagnostic label the walk guard reports this endpoint's verdicts under. */
+const WALK_GUARD_LABEL = 'hapoalim/txns';
+
+/** Per-page extract bundle for this endpoint, named to keep signatures short. */
+type TxnPageArgs = IExtractPageArgs<IHapoalimAcct, HapoalimCursor>;
+
+/** One page's worth of rows, named to keep signatures short. */
+type TxnRows = readonly HapoalimTxn[];
 /** Fixed anti-replay pageUuid (upstream fetchPoalimXSRFWithinPage). */
 const TXN_PAGE_UUID = '/current-account/transactions';
 /** X-XSRF-TOKEN header value — cookie-echo sentinel resolved at dispatch. */
@@ -159,6 +168,24 @@ function pageWasCapped(resp: ITxnsResp, rowCount: number): boolean {
 }
 
 /**
+ * Well-formed date tokens on a page, in row order.
+ *
+ * <p>Only eight-digit tokens are dated transactions. A row carrying `0`, an
+ * empty string, or a differently-formatted date is not one, and `String`
+ * renders each of those below every real `YYYYMMDD` token — so letting one
+ * through would win a minimum reduction and read as older than any real row.
+ *
+ * @param rows - Rows on the current page.
+ * @returns Every usable `YYYYMMDD` token the page carried.
+ */
+function usableDates(rows: readonly HapoalimTxn[]): readonly string[] {
+  return rows
+    .map((row): unknown => row[ROW_DATE_FIELD])
+    .map(String)
+    .filter((value): boolean => DATE_TOKEN.test(value));
+}
+
+/**
  * The oldest day on this page, as the next window's end.
  *
  * <p>Inclusive of that day. The bank caps a page by **row count**
@@ -183,10 +210,7 @@ function pageWasCapped(resp: ITxnsResp, rowCount: number): boolean {
  * @returns Next end date (YYYYMMDD), or false when no row carried a usable date.
  */
 function oldestDay(rows: readonly HapoalimTxn[]): HapoalimCursor | false {
-  const dates = rows
-    .map((row): unknown => row[ROW_DATE_FIELD])
-    .map(String)
-    .filter((value): boolean => DATE_TOKEN.test(value));
+  const dates = usableDates(rows);
   if (dates.length === 0) return false;
   const [firstDate] = dates;
   const oldest = dates.reduce((a, b): string => (a < b ? a : b), firstDate);
@@ -213,17 +237,67 @@ function nextEndFor(rows: readonly HapoalimTxn[], ctx: IActionContext): Hapoalim
 }
 
 /**
+ * The newest day on this page.
+ *
+ * <p>Counterpart to {@link oldestDay}, and subject to the same well-formedness
+ * filter for the mirrored reason: a maximum reduction is corrupted by a token
+ * that sorts *above* every real day, and `String` renders a missing field as
+ * `undefined` — letters, which outrank every digit in ASCII.
+ *
+ * @param rows - Rows on the current page.
+ * @returns Newest day (YYYYMMDD), or empty when no row carried a usable date.
+ */
+function newestDay(rows: readonly HapoalimTxn[]): string {
+  const dates = usableDates(rows);
+  if (dates.length === 0) return '';
+  const [firstDate] = dates;
+  return dates.reduce((a, b): string => (a > b ? a : b), firstDate);
+}
+
+/**
+ * The oldest day on this page, in the empty-when-absent form the guard reads.
+ * @param rows - Rows on the current page.
+ * @returns Oldest day (YYYYMMDD), or empty when no row carried a usable date.
+ */
+function oldestOrEmpty(rows: readonly HapoalimTxn[]): string {
+  const oldest = oldestDay(rows);
+  return oldest === false ? '' : oldest;
+}
+
+/**
+ * Check this page against the walk's ordering assumption.
+ *
+ * The fullness flag is passed because a page that came back full at the bank's
+ * own page size is the only case where an unmoved cursor means anything — see
+ * the guard's module header.
+ *
+ * @param args - Bundle carrying the unwrapped response body and the context.
+ * @param rows - Rows this page returned.
+ * @param capped - Whether the page came back full at the bank's own limit.
+ * @returns The ordering verdict, already reported to the log.
+ */
+function checkWalkOrder(args: TxnPageArgs, rows: TxnRows, capped: boolean): IWalkOrderResult {
+  return assessWalkOrder({
+    asked: args.cursor,
+    newest: newestDay(rows),
+    oldest: oldestOrEmpty(rows),
+    capped,
+    label: WALK_GUARD_LABEL,
+  });
+}
+
+/**
  * Extract one transactions page and say whether another is owed.
  *
  * @param args - Bundle carrying the unwrapped response body and the context.
  * @returns Page rows, plus the next window's end date when the bank truncated.
  */
-export function txnsExtractPage(
-  args: IExtractPageArgs<IHapoalimAcct, HapoalimCursor>,
-): IPage<object, HapoalimCursor> {
+export function txnsExtractPage(args: TxnPageArgs): IPage<object, HapoalimCursor> {
   const resp = args.body as unknown as ITxnsResp;
   const rows = resp.transactions ?? [];
-  if (!pageWasCapped(resp, rows.length)) return { items: rows, nextCursor: false };
+  const wasCapped = pageWasCapped(resp, rows.length);
+  checkWalkOrder(args, rows, wasCapped);
+  if (!wasCapped) return { items: rows, nextCursor: false };
   return { items: rows, nextCursor: nextEndFor(rows, args.ctx) };
 }
 

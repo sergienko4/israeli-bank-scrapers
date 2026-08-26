@@ -96,8 +96,8 @@ describe('VisaCalShape helpers', () => {
     expect(number).toBe('1234');
   });
 
-  it('balance extract is a deterministic 0 (card-cycle, no balance call)', () => {
-    const balance = VISACAL_SHAPE.balance.extract({});
+  it('balance extract is a deterministic 0 — bigNumbers is keyed by bank account, not card', () => {
+    const balance = VISACAL_SHAPE.balance.extract({}, CARD);
     expect(balance).toBe(0);
   });
 

@@ -129,7 +129,17 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
    * session-context. Shapes that ignore it keep their `(acct) => …` form.
    */
   readonly buildVars: (acct: TAcct, ctx: IActionContext) => VarsMap;
-  readonly extract: (body: ApiBody) => number;
+  /**
+   * Read the balance for one account.
+   *
+   * Receives the account alongside the response — symmetric with
+   * `buildVars` and {@link IExtractPageArgs} — so a shape whose balance
+   * already rode an earlier step's payload can answer without a second
+   * call. Max carries its per-card cycle debit this way and pairs it with
+   * `skipFetch`. Shapes that only need the response keep their
+   * `(body) => …` form.
+   */
+  readonly extract: (body: ApiBody, acct: TAcct) => number;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** Value to return on failure; undefined → propagate. */
   readonly fallbackOnFail?: number;
@@ -140,12 +150,14 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   /** Optional body template — same semantics as customer.bodyTemplate. */
   readonly bodyTemplate?: JsonValueTemplate;
   /**
-   * Skip the balance-step network call entirely — for `card-cycle` banks
-   * (VisaCal, Max, Amex, Isracard) that expose no account-level balance,
-   * only per-cycle credit-card billing aggregates. `extract` still runs
-   * but with `body: {}`, so a card-cycle shape declares `extract: () => 0`
-   * for a deterministic zero balance. Mirrors
-   * {@link IApiDirectScrapeCustomerStep.skipFetch}.
+   * Skip the balance-step network call entirely.
+   *
+   * Two kinds of shape use it. Most `card-cycle` issuers (VisaCal, Amex,
+   * Isracard) publish no figure attributable to a single card, so they
+   * declare `extract: () => 0` for a deterministic zero. Max instead
+   * carries its per-card cycle debit on the account itself, so it skips
+   * the fetch because the value is already in hand — not because none
+   * exists. Mirrors {@link IApiDirectScrapeCustomerStep.skipFetch}.
    */
   readonly skipFetch?: boolean;
 }

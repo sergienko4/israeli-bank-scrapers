@@ -26,10 +26,12 @@ import { fetchAccounts, fetchBalance } from './ApiDirectScrapeSteps.js';
 import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
-/** One account plus whether its balance fetch fell back to a default. */
+/** One account plus the outcome facts its walk produced. */
 interface IAccountResult {
   readonly account: ITransactionsAccount;
   readonly degraded: boolean;
+  /** Backfill was asked for the missing slice and did not get it. */
+  readonly backfillExhausted: boolean;
 }
 
 /** Accumulator for per-account scrape results. */
@@ -92,25 +94,36 @@ function refineTxns<TAcct, TCursor>(
   return applyStartWindow({ txns: unique.kept, startDate: a.ctx.options.startDate, label }).kept;
 }
 
-/**
- * Fetch + map one account's paginated transactions.
- *
- * @param a - Per-account context.
- * @returns Mapped, in-window transactions procedure.
- */
-async function fetchAccountTxns<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<readonly ITransaction[]>> {
-  const collected = await collectAccountRows(a);
-  if (!isOk(collected)) return collected;
-  const refined = refineTxns(a, collected.value);
-  return succeed(refined);
+/** One account's transactions plus the facts its walk produced. */
+interface IAccountTxns {
+  readonly txns: readonly ITransaction[];
+  /** Backfill was asked for the missing slice and did not get it. */
+  readonly backfillExhausted: boolean;
 }
 
 /**
- * Assemble one account — balance + txns + degraded flag.
+ * Fetch + map one account's paginated transactions.
+ *
+ * Carries the backfill outcome out with the rows: a short window and a
+ * complete one yield the same transaction list, so dropping the flag here
+ * would put the loss back out of reach of every caller above.
+ *
  * @param a - Per-account context.
- * @returns Account-result procedure (account + balance outcome).
+ * @returns Mapped, in-window transactions plus the backfill outcome.
+ */
+async function fetchAccountTxns<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+): Promise<Procedure<IAccountTxns>> {
+  const collected = await collectAccountRows(a);
+  if (!isOk(collected)) return collected;
+  const txns = refineTxns(a, collected.value.rows);
+  return succeed({ txns, backfillExhausted: collected.value.isBackfillExhausted });
+}
+
+/**
+ * Assemble one account — balance + txns + outcome flags.
+ * @param a - Per-account context.
+ * @returns Account-result procedure (account + balance and backfill outcomes).
  */
 async function fetchOneAccount<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
@@ -120,8 +133,9 @@ async function fetchOneAccount<TAcct, TCursor>(
   const txns = await fetchAccountTxns(a);
   if (!isOk(txns)) return txns;
   const accountNumber = a.shape.accountNumberOf(a.acct);
-  const account = { accountNumber, balance: bal.value.value, txns: [...txns.value] };
-  return succeed({ account, degraded: bal.value.degraded });
+  const account = { accountNumber, balance: bal.value.value, txns: [...txns.value.txns] };
+  const wasExhausted = txns.value.backfillExhausted;
+  return succeed({ account, degraded: bal.value.degraded, backfillExhausted: wasExhausted });
 }
 
 /**
@@ -148,14 +162,16 @@ async function iterateAccounts<TAcct, TCursor>(
 /**
  * Fold per-account results into the scrape slot, surfacing whether any
  * account's balance fetch fell back (the degraded warm-session signal a
- * shape's resultGuard inspects).
+ * shape's resultGuard inspects) and whether any account's backfill was
+ * spent without covering the requested window.
  * @param results - Per-account results from the sequential walk.
- * @returns Scrape state with accounts + balanceDegraded flag.
+ * @returns Scrape state with accounts + the two outcome flags.
  */
 function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
   const accounts = results.map(r => r.account);
   const hasDegraded = results.some(r => r.degraded);
-  return { accounts, balanceDegraded: hasDegraded };
+  const hasExhausted = results.some(r => r.backfillExhausted);
+  return { accounts, balanceDegraded: hasDegraded, backfillExhausted: hasExhausted };
 }
 
 /**

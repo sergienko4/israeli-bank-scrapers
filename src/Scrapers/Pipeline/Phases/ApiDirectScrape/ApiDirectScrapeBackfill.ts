@@ -16,10 +16,12 @@
  * predates the start.
  */
 
+import type { IWindowResult } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import type { PageMerge } from '../../Mediator/Scrape/OverlapMerge.js';
 import { buildOverlapMerge } from '../../Mediator/Scrape/OverlapMerge.js';
 import { dropOverlap } from '../../Mediator/Scrape/RawOverlap.js';
+import type { IBackfillPlan } from '../../Mediator/Scrape/WindowBackfill.js';
 import { planBackfill } from '../../Mediator/Scrape/WindowBackfill.js';
 import { concatPages, fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
 import type { Option } from '../../Types/Option.js';
@@ -36,6 +38,40 @@ interface IWalkState {
   readonly end: Option<Date>;
   /** Extra requests issued beyond the first. */
   readonly attempt: number;
+}
+
+/**
+ * One account's rows, plus whether backfill fell short of the window.
+ *
+ * <p>The rows alone cannot carry this: a truncated result and a complete one
+ * are the same shape. Separating them is the point of the walk — the module
+ * already logs "we asked and could not get more" distinctly from "we never
+ * asked", and this contract makes that same distinction available to callers
+ * rather than only to whoever is reading the log.
+ */
+export interface ICollectedRows {
+  /** Raw rows from the first request and any backfill it earned. */
+  readonly rows: readonly object[];
+  /**
+   * True when at least one backfill ask was issued and the window is still
+   * not covered: the provider was asked for the missing slice and did not
+   * serve it.
+   *
+   * <p>False when the window is covered, and — deliberately — also false when
+   * no ask was ever possible: a stance that forbids backfill, a page carrying
+   * no usable date, or the operator kill-switch. Those are "we never asked",
+   * which is a different fact this flag does not claim. A quiet account must
+   * never be reported as a truncated one.
+   */
+  readonly isBackfillExhausted: boolean;
+}
+
+/** One round of the walk: what the rows prove, and what to do next. */
+interface IRound {
+  /** Verdict for everything held at the start of this round. */
+  readonly coverage: IWindowResult;
+  /** What the planner decided to do about it. */
+  readonly plan: IBackfillPlan;
 }
 
 /**
@@ -102,34 +138,58 @@ async function extend<TAcct, TCursor>(
 
 /**
  * Decide whether the window is already covered, and under what bound to re-ask.
+ *
+ * Returns the coverage verdict alongside the plan because the walk needs both:
+ * the plan to decide whether to continue, the verdict to record why it stopped.
+ * Re-deriving the verdict at the stop site would emit the audit's log line a
+ * second time and break the one-line-per-round correlation.
+ *
  * @param a - Per-account context.
  * @param state - Rows held and the bound that produced them.
- * @returns The backfill plan for this round.
+ * @returns The coverage verdict and the backfill plan for this round.
  */
-function planFor<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  state: IWalkState,
-): ReturnType<typeof planBackfill> {
+function planFor<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, state: IWalkState): IRound {
   const label = labelOf(a);
   const requestedStart = a.ctx.options.startDate.toISOString();
   const coverage = assessWindowCoverage({ requestedStart, rows: state.rows, label });
   const spent = { attempt: state.attempt, previousEnd: state.end };
-  return planBackfill({ stance: a.shape.transactions.windowNarrowing, coverage, label, ...spent });
+  const stance = a.shape.transactions.windowNarrowing;
+  const plan = planBackfill({ stance, coverage, label, ...spent });
+  return { coverage, plan };
 }
+
+/**
+ * Close the walk, recording whether backfill was spent without covering.
+ *
+ * Both conditions are required. A short window that was never asked about is
+ * not exhaustion, and a covered window is not short however many asks it took.
+ *
+ * @param state - Rows held and the asks spent reaching them.
+ * @param coverage - Verdict for those rows.
+ * @returns The account's rows plus the exhaustion fact.
+ */
+function stopAt(state: IWalkState, coverage: IWindowResult): ICollectedRows {
+  const didAsk = state.attempt > 0;
+  const isShort = coverage.verdict !== 'covered';
+  return { rows: state.rows, isBackfillExhausted: didAsk && isShort };
+}
+
+/** What one walk round settles on, named to keep the recursive signature short. */
+type WalkOutcome = Promise<Procedure<ICollectedRows>>;
 
 /**
  * Assess what is held, then either stop or narrow the bound and ask again.
  * @param a - Per-account context.
  * @param state - Rows held and the bound that produced them.
- * @returns Every raw row the account yielded.
+ * @returns Every raw row the account yielded, plus the exhaustion fact.
  */
-async function walk<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  state: IWalkState,
-): Promise<Procedure<readonly object[]>> {
-  const plan = planFor(a, state);
-  if (!plan.shouldAsk) return succeed(state.rows);
-  const next = await extend(a, { ...state, end: plan.nextEnd });
+async function walk<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, state: IWalkState): WalkOutcome {
+  const round = planFor(a, state);
+  if (!round.plan.shouldAsk) {
+    const collected = stopAt(state, round.coverage);
+    return succeed(collected);
+  }
+  const next = await extend(a, { ...state, end: round.plan.nextEnd });
   return isOk(next) ? walk(a, next.value) : next;
 }
 
@@ -137,11 +197,12 @@ async function walk<TAcct, TCursor>(
  * Collect every raw transaction row for one account.
  *
  * @param a - Per-account context.
- * @returns Raw rows from the first request and any backfill it earned.
+ * @returns Raw rows from the first request and any backfill it earned,
+ *          plus whether that backfill fell short of the requested window.
  */
 export async function collectAccountRows<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<readonly object[]>> {
+): Promise<Procedure<ICollectedRows>> {
   const first = await fetchOnce(a);
   if (!isOk(first)) return first;
   const seed: IWalkState = { rows: first.value, end: a.ctx.windowEnd, attempt: 0 };

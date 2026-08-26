@@ -4,6 +4,47 @@
 
 > **Lands in v8.4.0** (commit `c267d48b`). The architectural shift that **closes the v4 "universal-empty" gate** and removes ~370 LOC of v5 attribution code from SCRAPE.
 
+## Card-issuer balances under the direct-API model
+
+With `BALANCE-RESOLVE` retired for pipeline banks, each shape's `balance` step
+owns the figure. For a card issuer the pipeline's account unit is the **card**,
+so a balance is only publishable when the provider attributes it to a card.
+The four issuers split two ways:
+
+| Bank | Provider figure | Attributable to a card? | `balance.extract` |
+|---|---|---|---|
+| **Max** | `getHomePageData` → `Result.UserCards.Cards[].CycleSummary[]`, sitting on the same object as `Last4Digits` | ✅ yes | real per-card debit |
+| Isracard / Amex | `GetBillingsForMonthsOverview` → `data[]` is one row per **billing month**; the request submits every card at once and the response has no card dimension | ❌ household aggregate | `0` |
+| Visa Cal | `getBigNumberAndDetails` → `result.bigNumbers[].totalDebits[].totalDebit`, keyed by `bankAccountUniqueId`; `account/init` maps no card to a bank account | ❌ bank-account level | `0` |
+
+The `0` on the three aggregate issuers is a **deliberate sentinel, not a stub**.
+Their only figure covers the whole household, so publishing it per card would
+repeat one total across every card and multiply the user's apparent debt by
+their card count. An honest `0` is preferable to fabricated attribution.
+
+Max is the exception because its figure rides the card object itself. Reading
+it costs **no extra request** — the customer step already fetches
+`getHomePageData` to enumerate cards — so the shape keeps `balance.skipFetch:
+true` and answers from the account instead of a response body. `skipFetch`
+therefore means *"the value is already in hand"*, not *"no value exists"*.
+
+That handoff is why `IApiDirectScrapeShape`'s balance `extract` receives
+`(body, acct)`: a skipped fetch yields an empty body, so the account is the
+only channel through which a pre-fetched figure can reach the extractor.
+
+| Symbol | Role |
+|---|---|
+| [`ilsCycleDebit`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Max/scrape/MaxShapeBalance.ts) | Selects the ILS row of one card's cycle summary and returns its outstanding debit, degrading to `0` on any unusable shape |
+| `MaxCardCycleBalance` | Nominal brand for that debit, per the Rule&nbsp;#15 boundary convention every peer bank shape follows |
+| `IMaxRawCycle` | The slice of a raw Max card entry that carries `CycleSummary` |
+| `IMaxCycleRow` | One per-currency cycle row (`Currency`, `TotalDebitSum`) |
+
+`ilsCycleDebit` never throws: a missing summary, a non-array payload, an
+absent ILS row or a non-finite figure all degrade to `0`, so a wire-shape
+change cannot fail a scrape that has otherwise succeeded. Captures show the
+redaction writer can itself replace `Cards` with a string, so the non-array
+case is observed in practice rather than defensive.
+
 ## What changed
 
 | | v5 (before) | v6 (now) |

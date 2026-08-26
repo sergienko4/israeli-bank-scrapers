@@ -381,12 +381,12 @@ describe('YAHAV_SHAPE step callables', () => {
     const payload = vars.Payload as Record<string, unknown>;
     expect(payload.Category).toEqual(['portfolioBalance']);
     const body = accountsBody('321.5');
-    const balance = YAHAV_SHAPE.balance.extract(body);
+    const balance = YAHAV_SHAPE.balance.extract(body, ACCT);
     expect(balance).toBe(321.5);
   });
 
   it('balance step extracts 0 when no CURRENT balance is present', () => {
-    const balance = YAHAV_SHAPE.balance.extract({});
+    const balance = YAHAV_SHAPE.balance.extract({}, ACCT);
     expect(balance).toBe(0);
   });
 

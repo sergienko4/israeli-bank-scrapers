@@ -246,6 +246,10 @@ Two limits are worth stating plainly, because neither raises an error:
 - **A `covered` verdict is not a guarantee the bank never truncates.** It says the rows in hand reach the requested start on this run. An account quiet enough to fit under a provider's cap will read `covered` every time until it is not.
 - **`periodEnumeration` gaps are reported, not closed.** The loop refuses with the bank's own reason and the shortfall stays in the log rather than being silently absorbed.
 
+Both limits concern what the loop cannot recover. What it can always report is whether it tried and fell short. `collectAccountRows` returns an `ICollectedRows` — the rows plus `isBackfillExhausted` — so an exhausted walk is distinguishable from a covered one at the call site, not only in the log. Exhaustion means the loop **did** ask and the window still came back short, whether it ran out of asks or the bound stopped moving. A walk that never asked is **not** exhausted: that covers both the stance-forbidden case above and the ordinary case where the first response already reached the start. Conflating the two would mark every `periodEnumeration` bank and every quiet account as short, which is the same false-positive the audit avoids by saying `unproven` instead of `truncated`.
+
+The flag folds per account into `IScrapeState.backfillExhausted` — `some` across the accounts, mirroring how `balanceDegraded` folds — and the POST audit (`Mediator/Scrape/WindowCompletenessAudit.ts`) raises it to a **warning**, so a shortfall is visible in `pipeline.log` without reading every per-round line. It deliberately does not feed `isDegradedScrapeState`: a short window is a reporting fact, not a reason to re-run the scrape.
+
 ### Where the audit cannot see
 
 The audit reads the rows a shape returns. Two known cases sit upstream of that, so a gap there is invisible to it:

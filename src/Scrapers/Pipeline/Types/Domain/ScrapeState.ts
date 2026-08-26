@@ -61,6 +61,23 @@ interface IScrapeState {
    * only when this is explicitly `true`).
    */
   readonly balanceDegraded?: boolean;
+  /**
+   * True when at least one account's backfill was spent without covering the
+   * requested window: the provider was re-asked for the missing older slice
+   * and did not serve it.
+   *
+   * <p>Records the outcome the transaction list cannot. A truncated window and
+   * a quiet account produce the same rows, so only the walk that re-asked can
+   * tell them apart — and until this flag existed that answer reached the log
+   * and nothing else.
+   *
+   * <p>Deliberately narrow. It is not set when no ask was possible (a stance
+   * that forbids backfill, a page carrying no usable date, the operator
+   * kill-switch), because "we never asked" is a different fact from "we asked
+   * and could not get more". Absent (`undefined`) ⇒ no walk reported
+   * exhaustion; consumers treat only an explicit `true` as a shortfall.
+   */
+  readonly backfillExhausted?: boolean;
 }
 
 export type { IScrapeState };

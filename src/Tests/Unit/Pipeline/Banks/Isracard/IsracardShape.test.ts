@@ -101,8 +101,8 @@ describe('IsracardShape helpers', () => {
     expect(number).toBe('1234');
   });
 
-  it('balance extract is a deterministic 0 (card-cycle, no balance call)', () => {
-    const balance = ISRACARD_SHAPE.balance.extract({});
+  it('balance extract is a deterministic 0 — the monthly billing overview is a household aggregate', () => {
+    const balance = ISRACARD_SHAPE.balance.extract({}, CARD);
     expect(balance).toBe(0);
   });
 

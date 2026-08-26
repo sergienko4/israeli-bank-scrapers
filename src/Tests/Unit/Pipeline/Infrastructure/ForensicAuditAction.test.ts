@@ -8,6 +8,8 @@ import {
   resolveAuditLabel,
   scrapePostDiagnostics,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.js';
+import { logWindowCompleteness } from '../../../../Scrapers/Pipeline/Mediator/Scrape/WindowCompletenessAudit.js';
+import type { IScrapeState } from '../../../../Scrapers/Pipeline/Types/Domain/ScrapeState.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IScrapeDiscovery } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -51,6 +53,48 @@ function makeAccount(accountNumber: string, txnCount: number): ITransactionsAcco
   }));
   return { accountNumber, balance: 0, txns };
 }
+
+/**
+ * Build a scrape state carrying only the completeness flag under test.
+ * @param isExhausted - Whether backfill was spent without covering the window.
+ * @returns Scrape state with no accounts and the given flag.
+ */
+function makeScrapeState(isExhausted: boolean): IScrapeState {
+  return { accounts: [], backfillExhausted: isExhausted };
+}
+
+describe('logWindowCompleteness', () => {
+  it('records NOT_EXHAUSTED when backfill was not exhausted', () => {
+    const scrape = makeScrapeState(false);
+    const verdict = logWindowCompleteness(scrape);
+    expect(verdict).toBe('NOT_EXHAUSTED');
+  });
+
+  it('records EXHAUSTED when backfill was spent short of the window', () => {
+    const scrape = makeScrapeState(true);
+    const verdict = logWindowCompleteness(scrape);
+    expect(verdict).toBe('EXHAUSTED');
+  });
+
+  it('treats an absent flag as no shortfall, never as a shortfall', () => {
+    // Legacy/browser scrape paths never set the flag. Absence must read as
+    // "no shortfall observed", not as an unproven shortfall, or every
+    // non-ApiDirect bank would warn on every run.
+    const scrape = { accounts: [] } as IScrapeState;
+    const verdict = logWindowCompleteness(scrape);
+    expect(verdict).toBe('NOT_EXHAUSTED');
+  });
+
+  it('never claims coverage, because one flag cannot prove it', () => {
+    // The never-asked and the asked-and-succeeded runs leave the flag clear
+    // for different reasons and are indistinguishable here. Actual coverage
+    // is read from the per-account WINDOW lines — see
+    // docs/observability/coverage-audit.md.
+    const scrape = makeScrapeState(false);
+    const verdict = logWindowCompleteness(scrape);
+    expect(verdict).not.toBe('COVERED');
+  });
+});
 
 describe('logForensicAudit', () => {
   it('emits audit even without scrapeDiscovery (api-direct-call path)', () => {
