@@ -439,6 +439,38 @@ describe('validateActionScopeIntact — URL guard + form probe matrix', () => {
     expect(probedSelector).toBe('#password');
   });
 
+  it('succeeds when the password element persists in the DOM but is off screen', async () => {
+    let visibilityProbed = '';
+    /**
+     * Node survives — an SPA tears its login view down asynchronously.
+     *
+     * @returns 1 (still in the DOM).
+     */
+    const countBySelector = (): Promise<number> => Promise.resolve(1);
+    /**
+     * Records the probed selector — form is hidden behind the overlay.
+     *
+     * @param selector - Probed selector.
+     * @returns False (not on screen).
+     */
+    const isVisibleBySelector = (selector: string): Promise<boolean> => {
+      visibilityProbed = selector;
+      return Promise.resolve(false);
+    };
+    /**
+     * Mock URL — a single-page app never changes it.
+     *
+     * @returns The login URL.
+     */
+    const getCurrentUrl = (): string => LOGIN_URL;
+    const mediator = makeMockMediator({ countBySelector, getCurrentUrl, isVisibleBySelector });
+    const ctx = buildScopeCtx({ mediator, discovery: makeDiscoveryWithPassword('#password') });
+    const result = await executeValidateLogin(TEST_CONFIG_LOGIN_URL, mediator, ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(true);
+    expect(visibilityProbed).toBe('#password');
+  });
+
   /**
    * Stubbed URL accessor that returns the login URL.
    *

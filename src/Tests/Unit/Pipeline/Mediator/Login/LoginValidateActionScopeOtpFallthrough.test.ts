@@ -110,6 +110,15 @@ function makeMediator(config: IMediatorConfig): IElementMediator {
       return config.passwordCount;
     },
     /**
+     * Mirrors the scripted count — in these scenarios a password element
+     * that persists is one the user can still see.
+     * @returns True when the scripted count is non-zero.
+     */
+    isVisibleBySelector: async (): Promise<boolean> => {
+      await Promise.resolve();
+      return config.passwordCount > 0;
+    },
+    /**
      * Yields the next scripted probe answer in call order. Falls back
      * to `not-found` once the script is exhausted so a misconfigured
      * scenario fails as "no OTP" rather than hanging.

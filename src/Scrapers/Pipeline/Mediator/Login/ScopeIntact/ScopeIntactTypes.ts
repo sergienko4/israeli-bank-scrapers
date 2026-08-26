@@ -13,6 +13,10 @@ export const SCOPE_OTP_VISIBLE_LOG = 'POST: scope intact but OTP screen rendered
 /** Diagnostic log: OTP probe failed → unknown verdict (fall-through). */
 export const SCOPE_OTP_UNKNOWN_LOG = 'POST: OTP probe failed — fall through (unknown ≠ invalid)';
 
+/** Diagnostic log: password input still in the DOM but off screen (fall-through). */
+export const SCOPE_HIDDEN_FALLTHROUGH_LOG =
+  'POST: login form present but not visible — fall through (mid-transition ≠ invalid)';
+
 /** Failure message: scope intact + URL unchanged → invalid credentials. */
 export const SCOPE_INTACT_FAIL_MSG =
   'LOGIN POST: scope intact + URL unchanged — credentials likely invalid';

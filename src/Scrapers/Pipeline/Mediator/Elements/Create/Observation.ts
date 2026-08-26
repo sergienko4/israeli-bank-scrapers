@@ -7,8 +7,8 @@
  * Two micro-clusters share this file:
  *   - **Attr** — `getAttributeValue` / `checkAttribute` bound to
  *     a locator carried by an upstream `IRaceResult`.
- *   - **Count** — `countByText` / `countBySelector` / `collectAllHrefs`
- *     bound to a Page reference.
+ *   - **Count** — `countByText` / `countBySelector` / `isVisibleBySelector` /
+ *     `collectAllHrefs` bound to a Page reference.
  */
 
 import type { Locator, Page } from 'playwright-core';
@@ -77,6 +77,26 @@ function buildCountBySelector(page: Page): IElementMediator['countBySelector'] {
 }
 
 /**
+ * Build isVisibleBySelector — the visibility-aware counterpart to
+ * {@link buildCountBySelector}. `Locator.count()` reports DOM presence, which
+ * outlives on-screen presence in a single-page app: after a *successful*
+ * submit the login input can linger in the DOM behind a loading overlay
+ * while the view tears down. Probing presence there reads a mid-transition
+ * page as a rejected one, so callers asking "is the user still looking at
+ * this?" use this instead. Returns `false` on any error (absent = not visible).
+ * @param page - The Playwright page.
+ * @returns Mediator isVisibleBySelector function.
+ */
+function buildIsVisibleBySelector(page: Page): IElementMediator['isVisibleBySelector'] {
+  return (selector: string): Promise<boolean> =>
+    page
+      .locator(selector)
+      .first()
+      .isVisible()
+      .catch((): boolean => false);
+}
+
+/**
  * Extract all href attributes from anchor elements in one shot.
  * Uses evaluateAll to avoid await-in-loop — single DOM round-trip.
  * @param anchors - Locator for all anchor elements.
@@ -112,7 +132,7 @@ export type AttrBundle = Pick<IElementMediator, 'checkAttribute' | 'getAttribute
 /** Counting + href-collection surfaces. */
 export type CountBundle = Pick<
   IElementMediator,
-  'countByText' | 'countBySelector' | 'collectAllHrefs'
+  'countByText' | 'countBySelector' | 'isVisibleBySelector' | 'collectAllHrefs'
 >;
 
 /**
@@ -128,7 +148,7 @@ export function buildAttrCluster(): AttrBundle {
 }
 
 /**
- * Build the 3-method counting + href-collection cluster.
+ * Build the 4-method counting + href-collection cluster.
  * @param page - The Playwright page to count/collect against.
  * @returns Count / href method bundle.
  */
@@ -136,6 +156,7 @@ export function buildCountCluster(page: Page): CountBundle {
   return {
     countByText: buildCountByText(page),
     countBySelector: buildCountBySelector(page),
+    isVisibleBySelector: buildIsVisibleBySelector(page),
     collectAllHrefs: buildCollectAllHrefs(page),
   };
 }

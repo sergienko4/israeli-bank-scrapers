@@ -420,6 +420,32 @@ const MEDIATOR_FAIL_RESULT = fail(ScraperErrorTypes.Generic, 'mock: not found');
 const EMPTY_FORM_ANCHOR: IElementMediator['getFormAnchor'] = () => '';
 
 /**
+ * Default the visibility probe to mirror the effective count probe.
+ *
+ * <p>Legacy mocks script element *presence* only, and in those scenarios a
+ * form that is present is one the user can still see. Tests that exercise
+ * the present-but-hidden case (an SPA mid-teardown after a successful
+ * submit) override `isVisibleBySelector` explicitly.
+ * @param merged - Mediator after applying caller overrides.
+ * @param overrides - Caller-supplied overrides.
+ * @returns Patch supplying `isVisibleBySelector`, or an empty patch.
+ */
+function visibilityDefault(
+  merged: IElementMediator,
+  overrides: Partial<IElementMediator>,
+): Partial<IElementMediator> {
+  if (overrides.isVisibleBySelector) return {};
+  /**
+   * Mirror the effective count probe.
+   * @param sel - Probed selector.
+   * @returns True when the count probe reports a match.
+   */
+  const isVisibleBySelector = async (sel: string): Promise<boolean> =>
+    (await merged.countBySelector(sel)) > 0;
+  return { isVisibleBySelector };
+}
+
+/**
  * Create a mock IElementMediator.
  * resolveField and resolveClickable return failure by default.
  * Override methods via overrides parameter for success tests.
@@ -539,6 +565,11 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
      * @returns Zero.
      */
     countBySelector: (): Promise<number> => Promise.resolve(0),
+    /**
+     * Visibility-by-selector mock — returns false (nothing on screen).
+     * @returns False.
+     */
+    isVisibleBySelector: (): Promise<boolean> => Promise.resolve(false),
     /**
      * No-op phase setter in mock.
      * @returns True.
@@ -723,7 +754,8 @@ export function makeMockMediator(overrides: Partial<IElementMediator> = {}): IEl
       authFailureWatcher: createFrozenAuthFailureWatcher(),
     },
   };
-  return { ...base, ...overrides };
+  const merged: IElementMediator = { ...base, ...overrides };
+  return { ...merged, ...visibilityDefault(merged, overrides) };
 }
 
 // ── Scrape config mocks ───────────────────────────────────

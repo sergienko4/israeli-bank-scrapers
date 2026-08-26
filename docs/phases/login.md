@@ -66,6 +66,34 @@ resolves on the first pass and costs nothing.
 | `TIMEOUT` | Submit succeeded but post-login navigation didn't complete |
 | `CHANGE_PASSWORD` | Bank requires password change before continuing |
 
+## POST scope-intact guard — judge the page by what the user can see
+
+`.post` asks a blunt question: *is the user still looking at the login form?* If the
+password field is still on screen **and** the URL never moved, the submit was rejected and
+LOGIN fails with `INVALID_PASSWORD`. That inference is only sound when both halves are
+true.
+
+On a single-page bank the URL half is always true — the path never changes — so the whole
+verdict rests on the form probe. `countBySelector` counts DOM nodes, not pixels, so a
+successful SPA login that has covered the form with a loading overlay (but not yet removed
+it from the DOM) reads as "form still there" and gets misreported as a wrong password.
+The run then retries onto an already-authenticated dashboard and dies looking for a login
+form that is no longer there.
+
+`isVisibleBySelector` closes the gap. The probe now requires the password target to be
+both present **and** visible before it will call the login invalid:
+
+| Password field | URL | Verdict |
+|---|---|---|
+| Visible | Unchanged | Scope intact — fail `INVALID_PASSWORD` |
+| Present but off screen | Unchanged | **Unknown** — log `SCOPE_HIDDEN_FALLTHROUGH_LOG`, fall through |
+| Gone | Any | Not scope-intact — fall through |
+
+Falling through is not a pass. It hands the decision to the remaining `.post` checks
+(bounce detection, then the phase's own success criteria), which are the checks that can
+actually tell a mid-transition page from a rejected one. This mirrors the existing
+`SCOPE_OTP_UNKNOWN_LOG` rule that already governs this module: **unknown is not invalid.**
+
 ## Phase 12d — `Form/Anchor/` & `Form/ErrorDiscovery/` sub-modules
 
 Phase 12d split `FormAnchor.ts` and `FormErrorDiscovery.ts` into focused sub-modules under

@@ -11,7 +11,11 @@ import {
 } from '../../../Types/PipelineContext.js';
 import type { IElementMediator } from '../../Elements/ElementMediator.js';
 import { hasStayedOnLoginUrl } from '../LoginUrlHelpers.js';
-import type { IScopeIntactArgs, ScopeProbe } from './ScopeIntactTypes.js';
+import {
+  type IScopeIntactArgs,
+  SCOPE_HIDDEN_FALLTHROUGH_LOG,
+  type ScopeProbe,
+} from './ScopeIntactTypes.js';
 
 /**
  * Get the password target from the pipeline context if discovery has it.
@@ -40,6 +44,31 @@ export async function probeCountTarget(
 }
 
 /**
+ * Drop a probe whose password input is in the DOM but not on screen.
+ *
+ * <p>A single-page app that ACCEPTED the credentials tears its login view
+ * down asynchronously — the input survives in the DOM behind the loading
+ * overlay for a moment after a *successful* submit, and the URL never
+ * changes. Presence alone therefore reads that page as a rejected login and
+ * aborts a session that in fact authenticated. Only a form the user can
+ * still see proves the scope really is intact.
+ * @param mediator - Element mediator (visibility probe).
+ * @param input - Pipeline context (for the trace log).
+ * @param probe - Outcome of the presence probe.
+ * @returns The probe when the form is on screen, otherwise `false`.
+ */
+async function requireOnScreen(
+  mediator: IElementMediator,
+  input: IPipelineContext,
+  probe: ScopeProbe,
+): Promise<ScopeProbe> {
+  if (probe === false) return false;
+  if (await mediator.isVisibleBySelector(probe.target.selector)) return probe;
+  input.logger.debug({ message: SCOPE_HIDDEN_FALLTHROUGH_LOG });
+  return false;
+}
+
+/**
  * Run the cheap structural pre-checks for the scope-intact validator.
  * @param mediator - Element mediator.
  * @param input - Pipeline context.
@@ -52,7 +81,8 @@ export async function probeScopeIntact(
   if (!hasStayedOnLoginUrl(mediator, input)) return false;
   const target = getPasswordTarget(input);
   if (target === false) return false;
-  return probeCountTarget(mediator, target);
+  const probe = await probeCountTarget(mediator, target);
+  return requireOnScreen(mediator, input, probe);
 }
 
 /**

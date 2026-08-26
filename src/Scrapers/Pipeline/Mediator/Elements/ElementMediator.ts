@@ -316,6 +316,18 @@ interface IElementMediator {
   countBySelector(selector: string): Promise<number>;
 
   /**
+   * Report whether the FIRST element matching a raw CSS/XPath selector is
+   * actually rendered on screen. Complements {@link countBySelector}, which
+   * counts DOM nodes regardless of visibility: a single-page app tears its
+   * view down asynchronously, so an element can outlive its own screen for
+   * a moment. Callers that mean "is the user still looking at this?" must
+   * ask here, not by counting. Returns `false` on error or absence.
+   * @param selector - CSS or XPath selector string.
+   * @returns True when the first match is visible.
+   */
+  isVisibleBySelector(selector: string): Promise<boolean>;
+
+  /**
    * Check if a resolved element has a specific HTML attribute (passive, no click).
    * Used by HOME.PRE to detect toggle vs navigation link (href presence).
    * @param result - The resolved race result from resolveVisible.
