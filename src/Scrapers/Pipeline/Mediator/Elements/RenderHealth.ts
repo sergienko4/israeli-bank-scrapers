@@ -23,9 +23,13 @@ interface IRenderCounts {
   readonly bodyHeight: number;
 }
 
+/** Whether the counters were actually read, or stood in for a failed probe. */
+type RenderProbeStatus = 'observed' | 'unknown';
+
 /** Render counters plus the blank-page verdict derived from them. */
 interface IRenderHealth extends IRenderCounts {
   readonly isRendered: boolean;
+  readonly status: RenderProbeStatus;
 }
 
 /**
@@ -42,12 +46,20 @@ const BLANK_PAGE_MAX_BODY_HEIGHT_PX = 100;
 /** Budget for the probe. It is a synchronous DOM read, so this is generous. */
 const RENDER_PROBE_TIMEOUT_MS = 5_000;
 
-/** Reported when the probe could not run — never mistaken for a healthy page. */
+/**
+ * Reported when the probe could not run.
+ *
+ * <p>Its counters are zeroed, which is also what a document with no body
+ * yields — so `status` is what separates "the probe failed" from "the page
+ * is definitely blank". Without it the two are byte-identical in the trace,
+ * and telling them apart is the whole point of this module.
+ */
 const UNKNOWN_RENDER: IRenderHealth = {
   elements: 0,
   styleSheets: 0,
   bodyHeight: 0,
   isRendered: false,
+  status: 'unknown',
 };
 
 /**
@@ -115,10 +127,10 @@ async function measureRenderHealth(page: Page): Promise<IRenderHealth> {
   const counts = await readCountsSafely(page);
   if (counts === false) return UNKNOWN_RENDER;
   const isRendered = isRenderedFrom(counts);
-  return { ...counts, isRendered };
+  return { ...counts, isRendered, status: 'observed' };
 }
 
-export type { IRenderCounts, IRenderHealth };
+export type { IRenderCounts, IRenderHealth, RenderProbeStatus };
 export {
   BLANK_PAGE_MAX_BODY_HEIGHT_PX,
   BLANK_PAGE_MAX_ELEMENTS,

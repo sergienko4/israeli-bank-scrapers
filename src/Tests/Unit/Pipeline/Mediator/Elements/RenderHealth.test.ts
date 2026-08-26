@@ -25,6 +25,15 @@ const HEALTHY_COUNTS: IRenderCounts = { elements: 842, styleSheets: 6, bodyHeigh
 const BLANK_COUNTS: IRenderCounts = { elements: 3, styleSheets: 0, bodyHeight: 0 };
 
 /**
+ * Counters from a document with no body — the worst case for ambiguity.
+ *
+ * <p>These are the exact counters {@link UNKNOWN_RENDER} carries, so a
+ * verdict built from them is what a failed probe would look like if the two
+ * were not tagged apart.
+ */
+const EMPTY_COUNTS: IRenderCounts = { elements: 0, styleSheets: 0, bodyHeight: 0 };
+
+/**
  * Build a page stub whose evaluate resolves with fixed counters.
  * @param counts - Counters the in-page read should report.
  * @returns Page stub exposing only `evaluate`.
@@ -106,13 +115,23 @@ describe('RenderHealth — measurement', () => {
   it('surfaces the counters alongside the verdict', async () => {
     const page = makeCountingPage(HEALTHY_COUNTS);
     const health = await measureRenderHealth(page);
-    expect(health).toEqual({ ...HEALTHY_COUNTS, isRendered: true });
+    expect(health).toEqual({ ...HEALTHY_COUNTS, isRendered: true, status: 'observed' });
   });
 
   it('surfaces a failed render with its counters intact', async () => {
     const page = makeCountingPage(BLANK_COUNTS);
     const health = await measureRenderHealth(page);
-    expect(health).toEqual({ ...BLANK_COUNTS, isRendered: false });
+    expect(health).toEqual({ ...BLANK_COUNTS, isRendered: false, status: 'observed' });
+  });
+
+  it('separates a blank page from a probe that could not run', async () => {
+    const emptyPage = makeCountingPage(EMPTY_COUNTS);
+    const failingPage = makeFailingPage();
+    const blank = await measureRenderHealth(emptyPage);
+    const unknown = await measureRenderHealth(failingPage);
+    expect(blank).not.toEqual(unknown);
+    expect(blank.status).toBe('observed');
+    expect(unknown.status).toBe('unknown');
   });
 
   it('reports unknown rather than throwing when the probe cannot run', async () => {
