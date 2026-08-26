@@ -159,7 +159,14 @@ log ""
 log "⚡ Phase 2: All gates parallel..."
 
 bg_gate "tsc"          "yes" npm run type-check
-bg_gate "eslint"       "yes" npx eslint src/Scrapers/Pipeline --max-warnings=0
+
+# Named for its scope, not for the tool. This gate lints ONLY the
+# Pipeline tree. The whole tree (`eslint src --max-warnings 0`) is
+# linted inside the "build" gate below, via `npm run build` →
+# `npm run lint`. Before the rename this ran as plain "eslint", so a
+# lint error under src/Tests/ reported as "build FAILED" while the
+# gate called "eslint" stayed green — accurate, but unreadable.
+bg_gate "eslint:pipeline" "yes" npx eslint src/Scrapers/Pipeline --max-warnings=0
 bg_gate "biome"        "yes" npx biome lint src --max-diagnostics=50
 bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
 
