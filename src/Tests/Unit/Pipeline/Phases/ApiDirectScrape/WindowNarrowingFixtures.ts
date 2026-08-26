@@ -41,6 +41,7 @@ interface ITxnsLike {
   readonly windowNarrowing: WindowNarrowing;
   readonly buildVars: (acct: never, cursor: never, ctx: IActionContext) => unknown;
   readonly urlTag?: unknown;
+  readonly extraHeaders?: unknown;
 }
 
 /** Signature the contract calls a shape's request builders through. */
@@ -232,23 +233,46 @@ function resolveUrl(urlTag: unknown, ctx: IActionContext, cursor: number | false
 }
 
 /**
+ * Resolve a step's extra headers, which a shape may declare as a fixed map
+ * or as a builder over the whole action context.
+ *
+ * The builder form receives `windowEnd`, so a bank can fold the upper bound
+ * into a header without touching its URL or variables. Rendering headers
+ * keeps that third route inside the contract instead of outside it.
+ * @param extraHeaders - Declared map, builder, or nothing at all.
+ * @param ctx - Context carrying the window upper bound.
+ * @returns Resolved headers, or a marker when the step declares none.
+ */
+function resolveHeaders(extraHeaders: unknown, ctx: IActionContext): unknown {
+  if (extraHeaders === undefined) return '[no-headers]';
+  if (typeof extraHeaders !== 'function') return extraHeaders;
+  const build = extraHeaders as (headerCtx: IActionContext) => unknown;
+  return build(ctx);
+}
+
+/**
  * Build the transactions request a shape would send at one cursor position.
  *
- * Both halves matter: some banks put the window in the URL (Hapoalim, Max)
- * and others in the body (Leumi, Yahav), so a contract that inspected only
- * one would clear a bank it never actually checked.
+ * All three request surfaces matter: some banks put the window in the URL
+ * (Hapoalim, Max), others in the body (Leumi, Yahav), and a header builder
+ * sees the whole context. A contract that inspected only one would clear a
+ * bank it never actually checked. The fourth surface, `bodyTemplate`, needs
+ * no rendering: its `$ref` tokens are a closed set that cannot name the
+ * window, so it is structurally incapable of carrying the bound.
  * @param txns - Transactions step under test.
  * @param ctx - Context carrying the window upper bound.
  * @param cursor - Position in the walk; `false` is the first call.
- * @returns Serialized URL and variables.
+ * @returns Serialized URL, variables, and headers.
  */
 function renderRequest(txns: ITxnsLike, ctx: IActionContext, cursor: number | false): string {
   const url = resolveUrl(txns.urlTag, ctx, cursor);
   const buildVars = txns.buildVars as LooseBuilder;
   const vars = buildVars(STUB_ACCOUNT, cursor, ctx);
+  const headers = resolveHeaders(txns.extraHeaders, ctx);
   const urlText = stableString(url);
   const varsText = stableString(vars);
-  return `${urlText}||${varsText}`;
+  const headersText = stableString(headers);
+  return `${urlText}||${varsText}||${headersText}`;
 }
 
 /**
