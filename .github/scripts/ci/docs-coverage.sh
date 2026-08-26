@@ -41,28 +41,12 @@ ALLOWLIST_FILE="${REPO_ROOT}/.github/docs-coverage-allowlist.txt"
 DOCS_DIR="${REPO_ROOT}/docs"
 SCOPE_PREFIX='src/Scrapers/Pipeline/'
 
-# Public top-level exports we care about. Matches:
-#   export function Foo
-#   export const Foo
-#   export class Foo
-#   export type Foo
-#   export interface Foo
-#   export enum Foo
-#   export abstract class Foo
-# Does NOT match:
-#   export { Foo } from './bar.js'   (re-export barrel)
-#   export default ...               (no symbol name to grep)
-#   export async function Foo        (covered — `async` between
-#                                     keyword + name handled by [^=]*)
-# Regex anchors at column 0 so functions inside namespaces or
-# classes aren't accidentally picked up.
-EXPORT_REGEX='^export (abstract +)?(async +)?(function|const|class|type|interface|enum)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)'
-
-extract_symbols() {
-  # Reads a TS file's content on stdin, prints one export name per line.
-  # Uses `sed -E` (extended regex) since EXPORT_REGEX uses groups.
-  sed -nE "s/${EXPORT_REGEX}.*/\4/p" | sort -u
-}
+# Public top-level exports we care about. The extractor lives in its own
+# sourceable file so `tests/extract-exports.test.sh` can drive the REAL
+# implementation instead of a copy that can drift from it. See that file's
+# header for which export forms count as a definition site and which do not.
+# shellcheck source=.github/scripts/ci/extract-exports.sh
+. "$(dirname "${BASH_SOURCE[0]}")/extract-exports.sh"
 
 load_allowlist() {
   if [ ! -f "$ALLOWLIST_FILE" ]; then

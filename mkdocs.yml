@@ -197,6 +197,7 @@ nav:
       - Code-review tooling (CodeRabbit + SonarCloud): workflow/code-review-tooling.md
       - LSP (code intelligence): workflow/lsp.md
       - Doc path gate: workflow/doc-paths.md
+      - Docs coverage gate: workflow/docs-coverage.md
       - Public API surface gate: workflow/public-surface.md
       - TypeScript compilers (TS 6 + TS 7): workflow/typescript-compilers.md
   - Contributing:

@@ -1,6 +1,6 @@
 # Pre-commit hook
 
-Driven by [husky](https://typicode.github.io/husky/). Runs every quality gate in parallel before any commit lands locally.
+Driven by [husky](https://typicode.github.io/husky/). Runs 19 quality gates in parallel before any commit lands locally. Three further gates (the test suites) are currently commented out — see [Currently disabled](#currently-disabled).
 
 | Source | [`.husky/pre-commit`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.husky/pre-commit) |
 |---|---|
@@ -9,27 +9,43 @@ Driven by [husky](https://typicode.github.io/husky/). Runs every quality gate in
 
 Runs first and auto-fixes whitespace / quote style / trailing commas. If anything changes, the gate cache key is recomputed *after* this step so cosmetic fixes don't invalidate the cache.
 
-## Phase 2 — 15 gates in parallel
+## Phase 2 — 19 gates in parallel
 
 The hook spawns each gate as a background process and `wait`s for them all. Cache key per gate is `git write-tree` (the SHA of the staged tree); when the same SHA passes a gate, the next commit on the same content set skips it.
 
-| # | Gate | Hook label | npm script |
+| # | Gate | Hook label | What it runs |
 |---|---|---|---|
 | 1 | TypeScript | `tsc` | `type-check` |
-| 2 | ESLint | `eslint` | `lint` (eslint + architecture + canaries + format:check) |
-| 3 | Biome | `biome` | `biome lint src --max-diagnostics=50` |
-| 4 | npm audit | `audit` | `npm audit --omit=dev` |
-| 5 | Phase isolation | `lint:phases:strict` | `eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0` |
+| 2 | ESLint (Pipeline) | `eslint:pipeline` | `npx eslint src/Scrapers/Pipeline --max-warnings=0` — Pipeline only; CI lints all of `src` |
+| 3 | Biome | `biome` | `npx biome lint src --max-diagnostics=50` |
+| 4 | npm audit | `audit` | `npm audit --audit-level=high --omit=dev` |
+| 5 | Phase isolation | `lint:phases:strict` | `lint:phases:strict` |
 | 6 | Architecture | `architecture` | `lint:architecture src` (see [architecture-linter.md](architecture-linter.md)) |
-| 7 | Build | `build` | `lint + tsup`, then [`lint:public-surface`](public-surface.md) against the freshly built `lib/` |
+| 7 | Build | `build` | `npm run build` + [`lint:public-surface`](public-surface.md) against the freshly built `lib/` |
 | 8 | Canaries | `canaries` | `lint:canaries` |
 | 9 | Dead code | `dead-code` | `lint:dead-code` |
-| 10 | Guideline coverage | `guideline-coverage` | `lint:guideline-coverage` (asserts `eslint.config.mjs` enforces CLEAN_CODE.md caps for every Pipeline cluster) |
-| 11 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `mkdocs build --strict` — soft-skips when Python/mkdocs not on PATH locally, CI is the hard gate) |
-| 12 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against `origin/main`/`main` and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate) |
-| 13 | Pipeline tests + coverage | `test:pipeline` | `test:pipeline` |
-| 14 | Bank tests | `bank-tests` | `test:e2e-factory-tests` |
-| 15 | Mock suite | `test:mock` | `test:mock` |
+| 10 | Import cycles | `cycles` | `lint:cycles` |
+| 11 | Guideline coverage | `guideline-coverage` | `lint:guideline-coverage` (asserts `eslint.config.mjs` enforces CLEAN_CODE.md caps for every Pipeline cluster) |
+| 12 | Test duplication | `test-duplication` | `lint:test-duplication` |
+| 13 | Bank coverage | `bank-coverage` | `lint:bank-coverage` |
+| 14 | Fixture PII | `fixtures-pii` | `lint:fixtures-pii` |
+| 15 | Staged PII | `pii-staged` | `lint:pii-staged` |
+| 16 | Node support | `node-support` | `lint:node-support` |
+| 17 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `mkdocs build --strict` — soft-skips when Python/mkdocs not on PATH locally, CI is the hard gate) |
+| 18 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against `origin/main`/`main` and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate). See [Docs coverage gate](docs-coverage.md) for which export forms count. |
+| 19 | Docs staleness | `docs-staleness` | `.github/scripts/ci/docs-staleness.sh` |
+
+### Currently disabled
+
+These three are commented out in the hook. They still run in CI, which is the
+gate that counts — but a local commit does **not** execute them, so do not read
+a green hook as "all tests passed".
+
+| Gate | Hook label | Status |
+|---|---|---|
+| Pipeline tests + coverage | `test:pipeline` | commented out |
+| Bank tests | `bank-tests` | commented out |
+| Mock suite | `test:mock` | commented out |
 
 Total wall-clock: **3-5 minutes** on a modern laptop (everything is parallelised; the gate that takes the longest gates the whole run).
 
@@ -43,7 +59,7 @@ Total wall-clock: **3-5 minutes** on a modern laptop (everything is parallelised
 
 ⚡ Phase 2: All gates parallel...
   ❌ tsc FAILED
-  ✅ eslint passed
+  ✅ eslint:pipeline passed
   ❌ biome FAILED
   ✅ audit passed
   ...
@@ -52,18 +68,19 @@ Total wall-clock: **3-5 minutes** on a modern laptop (everything is parallelised
 
 The summary at the end names every failing gate. Detail logs are written to `.pre-commit-output.log` at repo root (overwritten each run).
 
-## Why these particular 15?
+## Why these particular gates?
 
 | Gate | Role |
 |---|---|
-| `tsc` + `eslint` + `biome` | Static correctness — catches type errors and rule violations before they reach review |
+| `tsc` + `eslint:pipeline` + `biome` | Static correctness — catches type errors and rule violations before they reach review |
 | `audit` | Supply-chain hygiene — fails on known CVEs in dependencies |
-| `architecture` + `canaries` + `lint:phases:strict` + `dead-code` | Architectural invariants — fails when a PR reaches across a layer boundary, breaks a canary fixture, or leaves a dead export |
+| `architecture` + `canaries` + `lint:phases:strict` + `dead-code` + `cycles` | Architectural invariants — fails when a PR reaches across a layer boundary, breaks a canary fixture, leaves a dead export, or adds an import cycle |
 | `guideline-coverage` | Process invariant — fails when `eslint.config.mjs` drifts from CLEAN_CODE.md canonical caps |
-| `docs-strict` | Docs build correctness — fails on broken internal links / missing pages that would break `mkdocs --strict` on CI |
+| `fixtures-pii` + `pii-staged` | Privacy — fails when captured fixtures or staged files carry real account data |
+| `test-duplication` + `bank-coverage` + `node-support` | Suite health — duplicate test bodies, uncovered banks, unsupported Node syntax |
+| `docs-strict` + `docs-staleness` | Docs build correctness and freshness |
 | `docs-coverage` | Docs/code consistency — fails when a new `src/Scrapers/Pipeline/` export ships without a `docs/` mention or allowlist entry |
 | `build` | Produces the actual `lib/` ESM + CJS bundle, ensuring `tsup` can reach a green state, and asserts the exported API still matches `api-surface.d.ts` |
-| `test:pipeline` + `bank-tests` + `test:mock` | Functional regression — every PR proves all tests still pass and coverage hits the gate |
 
 ## Skipping the hook (don't)
 

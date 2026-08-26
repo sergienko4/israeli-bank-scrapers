@@ -301,6 +301,9 @@ jobs:
         if: needs.changes.outputs.docs == 'true'
         run: python -m mkdocs build --strict
 
+      - name: Docs coverage extractor unit test
+        if: needs.changes.outputs.ci_scripts == 'true'
+        run: bash .github/scripts/ci/tests/extract-exports.test.sh
       - name: Docs coverage canary
         if: github.event_name == 'pull_request' && needs.changes.outputs.pipeline_ts == 'true'
         env:
@@ -326,16 +329,25 @@ jobs:
         if: needs.changes.outputs.full_suite == 'true'
         run: npm run type-check
 
-      # The published .d.ts is emitted by TS 6 (tsup DTS), and ts-jest
-      # and typescript-eslint also read the tree through TS 6 — but the
-      # step above gates types with TS 7. Two compilers, one of them
-      # ungated, is a place where the build can disagree with what
-      # consumers install. This gate closes that: types must satisfy
-      # BOTH. It costs ~10s, and it is a distinct step rather than a
-      # `&&` so the log names which compiler objected.
+      # The published .d.ts is emitted by TS 6 (tsup DTS), and ts-jest and
+      # typescript-eslint also read the tree through TS 6. The Build job
+      # already gates the emission itself, but it does so through
+      # tsconfig.build.json, which excludes src/Tests and *.test.ts — so
+      # most of the repo was only ever seen by TS 7. This gate closes that:
+      # the WHOLE tree must satisfy BOTH compilers. It costs ~10s, and it is
+      # a distinct step rather than a `&&` so the log names which objected.
       - name: Type check (TS 6 API — the compiler that emits our .d.ts)
         if: needs.changes.outputs.full_suite == 'true'
         run: npm run type-check:ts6
+
+      # Rules ESLint cannot express: Pipeline structure, Phase isolation,
+      # PII-in-logs, retired shims and the SonarJS canaries. It ran only in
+      # the pre-commit hook, so `git commit --no-verify` landed code on which
+      # it had never run — and no CI step would say so. Running it here makes
+      # it a gate in the sense the docs already claimed it was.
+      - name: Architecture linter
+        if: needs.changes.outputs.full_suite == 'true'
+        run: npm run lint:architecture src
 
       - name: Acyclic-dependencies gate
         if: needs.changes.outputs.full_suite == 'true'

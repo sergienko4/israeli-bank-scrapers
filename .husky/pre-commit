@@ -436,5 +436,5 @@ run-e2e-happy-path() {
 #run-e2e-happy-path
 
 log "══════════════════════════════════════════════════════"
-log "✅  ALL GATES PASSED (incl. Mock + Live E2E). COMMITTING..."
+log "✅  ALL LOCAL GATES PASSED. COMMITTING..."
 log ""
