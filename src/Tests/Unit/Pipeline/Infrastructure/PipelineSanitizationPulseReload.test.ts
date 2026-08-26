@@ -154,7 +154,7 @@ describe('PipelineSanitizationPulse — reload before retry', () => {
 
   it('spends the reload within the existing single-pulse budget', async () => {
     const { probe } = await runPulse({ phase: 'pre-login', navOutcome: 'ok' });
-    expect(probe.navigations.length).toBe(1);
+    expect(probe.navigations).toHaveLength(1);
   });
 
   it('leaves a phase outside the opt-in set retrying without a reload', async () => {
