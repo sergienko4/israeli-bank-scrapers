@@ -58,6 +58,50 @@ const TWO_PULSE_BUDGET = 2 as const;
 const ONE_PULSE_BUDGET = 1 as const;
 
 /**
+ * Phases whose retry is preceded by a reload of the current document.
+ *
+ * <p>Re-running interceptors cannot re-bootstrap a page. When an SPA serves
+ * its shell but never hydrates, PRE-LOGIN's form gate finds no password field,
+ * and a retry that only re-queries the same dead document is structurally
+ * guaranteed to fail — every pulse is spent on a page that could not recover.
+ * Reloading first is what makes recovery possible at all.
+ *
+ * <p>Deliberately narrow, like {@link TWO_PULSE_PHASES}. A reload is only
+ * sound before credentials exist: it is idempotent for a discovery phase, but
+ * would discard a submitted form or a delivered OTP. Every phase outside this
+ * set keeps its exact retry behaviour, and the budget is unchanged either way.
+ */
+const RELOAD_BEFORE_RETRY_PHASES: ReadonlySet<PhaseName> = new Set<PhaseName>(['pre-login']);
+
+/**
+ * Budget for the pre-retry reload. Sized for a full document load rather than
+ * a probe, since the point is to let a stalled SPA bootstrap.
+ */
+const RELOAD_TIMEOUT_MS = 30_000;
+
+/**
+ * Reload the current document so a phase listed in
+ * {@link RELOAD_BEFORE_RETRY_PHASES} retries against a fresh mount.
+ *
+ * <p>Best-effort: `navigateTo` reports failure rather than throwing, and a
+ * failed reload simply leaves the retry to run exactly as it did before. The
+ * URL is read back from the page rather than rebuilt from config, so a bank
+ * that redirected during the phase reloads where it actually is.
+ * @param args - Bundled pulse arguments.
+ * @returns True when a reload was attempted, false when the phase opts out.
+ */
+async function reloadBeforeRetry(args: IPulseArgs): Promise<boolean> {
+  const { ctx, step } = args;
+  if (!RELOAD_BEFORE_RETRY_PHASES.has(step.name)) return false;
+  if (!ctx.mediator.has) return false;
+  const mediator = ctx.mediator.value;
+  const url = mediator.getCurrentUrl();
+  ctx.logger.debug({ message: `sanitization-pulse: reload before ${step.name}` });
+  await mediator.navigateTo(url, { waitUntil: 'domcontentloaded', timeout: RELOAD_TIMEOUT_MS });
+  return true;
+}
+
+/**
  * Recovery pulses a failed phase may consume.
  * @param name - Phase that failed.
  * @returns Pulse budget for that phase.
@@ -90,6 +134,7 @@ function logPulse(args: IPulseArgs, attempt: number): boolean {
 async function pulseOnce(args: IPulseArgs, attempt: number): Promise<IPipelineContext | false> {
   const { tracker, ctx, step } = args;
   logPulse(args, attempt);
+  await reloadBeforeRetry(args);
   const pulsed = await applyInterceptors(tracker, ctx, step.name);
   if (!isOk(pulsed)) return false;
   primeRetry(step.name, ctx.logger);
