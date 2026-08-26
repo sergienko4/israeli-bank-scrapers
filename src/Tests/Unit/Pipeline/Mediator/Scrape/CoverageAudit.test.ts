@@ -13,6 +13,8 @@ import {
   auditCoverage,
   type ICoverageArgs,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/CoverageAudit.js';
+import { huntTransactionGroups } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/FieldHunt/TxnHunt.js';
+import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnMapper.js';
 
 /**
  * One transaction row in the shape the auto-mapper recognises.
@@ -73,6 +75,18 @@ function ownsCard1111(row: object): boolean {
  */
 function auditOwned(body: object, extracted: readonly object[]): ReturnType<typeof auditCoverage> {
   return auditCoverage({ body, extracted, label: 'max/txns', ownsRow: ownsCard1111 });
+}
+
+/**
+ * A row in a provider vocabulary the canonical mapper does not recognise —
+ * PayBox's `ts` / `amt` / `merchantName`, which carries no WK date or amount
+ * alias and so maps to nothing on its own.
+ * @param name - Merchant name.
+ * @param amount - Unsigned magnitude, as PayBox sends it.
+ * @returns A synthetic raw row.
+ */
+function payBoxish(name: string, amount: number): Record<string, unknown> {
+  return { transactionId: name, ts: '2026-06-02T09:00:00.000Z', merchantName: name, amt: amount };
 }
 
 describe('Coverage/auditCoverage', () => {
@@ -144,6 +158,61 @@ describe('Coverage/auditCoverage', () => {
     const result = audit({ data: { errorCode: '0' } }, []);
     expect(result.hunted).toBe(0);
     expect(result.unread).toBe(0);
+    expect(result.unaudited).toBe(false);
+  });
+
+  it('refuses to call a round complete when it hunted nothing to compare', () => {
+    // Measured live on PayBox: `complete (extracted=43 hunted=0)`. An empty hunt
+    // set folds `unread` to zero, so the round reads exactly like a clean
+    // reconciliation while having proven nothing at all. A shape in this state
+    // can drop a whole container and still log green.
+    const rows = [txn('SHOP', 10), txn('CAFE', 20)];
+    const result = audit({ data: { errorCode: '0' } }, rows);
+    expect(result.extracted).toBe(2);
+    expect(result.hunted).toBe(0);
+    expect(result.unaudited).toBe(true);
+  });
+
+  it('reports UNAUDITED when the body speaks a vocabulary the mapper cannot read', () => {
+    // The live PayBox failure in miniature, and the reason the verdict is needed
+    // rather than merely nice: the body is full of transactions, the shape read
+    // every one of them, and the round still compares against nothing because
+    // the hunted rows name their fields `ts` / `amt`. Both sides are healthy;
+    // only the audit is blind. `unread === 0` here means "proven nothing".
+    const raw = [payBoxish('SHOP', 10), payBoxish('CAFE', 20)];
+    const extracted = [txn('SHOP', 10), txn('CAFE', 20)];
+    const result = audit({ content: { nc: raw } }, extracted);
+    expect(result.hunted).toBe(0);
+    expect(result.unread).toBe(0);
+    expect(result.unaudited).toBe(true);
+  });
+
+  it('reports UNAUDITED when neither side survived the comparability filter', () => {
+    // The same blindness one step further along: a shape that hands back rows
+    // still in the provider's vocabulary leaves *both* sides unmappable, so the
+    // mapped extracted total folds to zero too. Keying the verdict off that
+    // total would read the round as an empty response and log `complete
+    // (extracted=0 hunted=0)` — the identical false green, reached by a second
+    // route. The shape returned rows, so there was something to prove.
+    const rows = [payBoxish('SHOP', 10), payBoxish('CAFE', 20)];
+    const result = audit({ content: { nc: rows } }, rows);
+    expect(result.extracted).toBe(0);
+    expect(result.hunted).toBe(0);
+    expect(result.unaudited).toBe(true);
+  });
+
+  it('reaches those rows and rejects them, rather than never finding them', () => {
+    // Pins the mechanism the case above only observes the outcome of. Without
+    // this, the same totals would appear if the hunter simply stopped
+    // recognising PayBox containers — a different defect with an identical
+    // signature. Asserting both halves separates "found, then unreadable" from
+    // "never found", which is what decides where the eventual repair belongs.
+    const raw = [payBoxish('SHOP', 10), payBoxish('CAFE', 20)];
+    const groups = huntTransactionGroups({ content: { nc: raw } });
+    const found = groups.flat();
+    const mapped = autoMapTransaction(raw[0]);
+    expect(found).toHaveLength(2);
+    expect(mapped).toBe(false);
   });
 
   it('does not accuse a merged-response bank of losing another card rows', () => {

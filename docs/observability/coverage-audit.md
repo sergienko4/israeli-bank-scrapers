@@ -16,11 +16,12 @@ date | chargedAmount | description
 
 Comparing object references instead would report a false 100% loss for every _transforming_ extractor. Yahav's BaNCS normaliser returns new objects, so not one of its rows is reference-equal to the row it came from. The mapped key compares what actually reaches the caller, which is the only thing a consumer can observe.
 
-| Field of `ICoverageResult` | Meaning                                                        |
-| -------------------------- | -------------------------------------------------------------- |
-| `extracted`                | Transaction copies the bank shape returned                     |
-| `hunted`                   | Transaction copies discoverable anywhere in the body           |
-| `unread`                   | Hunted copies the shape did not return — above zero means loss |
+| Field of `ICoverageResult` | Meaning                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `extracted`                | Transaction copies the bank shape returned                                      |
+| `hunted`                   | Transaction copies discoverable in the body that the mapper could read          |
+| `unread`                   | Hunted copies the shape did not return — above zero means loss                  |
+| `unaudited`                | Rows were returned but nothing comparable was hunted — the round proved nothing |
 
 The call takes an `ICoverageArgs`: the raw `body` exactly as received, the `extracted` rows the shape produced from it, an `isCardIssuer` hint forwarded to the mapper so charge signs match, and a `label` naming the bank and step for the log line. The label is caller-supplied and must stay free of row content.
 
@@ -37,13 +38,61 @@ The correction cannot be a naive sum across the whole body, though, because a tr
 
 ## Why unmappable rows are dropped first
 
-The hunter deliberately over-collects: it scores arrays heuristically and will return schema descriptors, summary blocks and pagination envelopes alongside real rows. A row the mapper rejects is not a transaction, so it can never be a lost one. Excluding it **before** the comparison is what keeps the guardrail silent on healthy banks — without that step, every bank would warn on every page and the signal would be worthless within a day.
+The hunter deliberately over-collects: it scores arrays heuristically and will return schema descriptors, summary blocks and pagination envelopes alongside real rows. Excluding what the mapper cannot read **before** the comparison is what keeps the guardrail silent on healthy banks — without that step, every bank would warn on every page and the signal would be worthless within a day.
+
+That exclusion is a comparability filter, not a ruling on what counts as a transaction. A genuine charge written in the provider's own vocabulary is dropped by it too, which is why the filter can empty the hunt set entirely — the case `UNAUDITED` exists to report.
 
 Max is the sharpest case for the reverse reason: one `getTransactionsAndGraphs` response carries **every** card merged, and the extractor legitimately narrows to the account's own card. Hunting the unnarrowed body would therefore report every _other_ card's rows as loss — a WARN on every page of every run, forever, which is precisely the discredited-warning-channel failure this guardrail exists to end.
 
 The fix is a declaration, not an inference. A shape whose response carries every account merged declares `auditOwnsRow` (`IApiDirectScrapeTxnsStep`), and the audit narrows hunted rows through it — the driver binds it to the account under audit and passes it as `ownsRow` (`OwnsRow` in `CoverageAudit.ts`). A shape that declares nothing gets `OWNS_EVERY_ROW`, the exported every-row default, so per-account banks need declare nothing and there is only ever one definition of "this row is mine". Max declares `OWNS_MAX_ROW`, which delegates to the same private predicate `filterMaxRows` uses, so the audit's notion of "this card's rows" cannot drift from the extractor's. Every other bank omits it, because every other bank's response is already scoped to one account.
 
 Crucially the narrowing happens **after** the hunt, not before it. Auditing a pre-filtered slice would compare the extractor against itself and always report zero — switching the guardrail off for Max while looking like it was on. Hunting first means a container the shape never reads is still discovered, and the rows in it that belong to this card still count as loss.
+
+## When dropping unmappable rows empties the hunt
+
+That drop is applied to the hunted side **after** the shape has already produced its own. The two sides therefore reach the comparison by different routes: `extracted` is whatever the shape handed back, while `hunted` is re-read from the **raw** body. A shape that merely slices its response leaves both sides speaking one vocabulary, and the drop removes only the descriptors and envelopes it was written for.
+
+A shape that **transforms or decodes** breaks that symmetry, in one of two ways. Either the hunter cannot reach the rows at all — they sit inside a value it does not traverse — or it finds them and the mapper then rejects every one, because the provider's field names carry no recognised date or amount alias. Both empty the hunt set, so `unread` has nothing left to be above zero about and the round reports `complete` having compared against nothing.
+
+That is not hypothetical. It was measured on a live PayBox run, which before this verdict existed reported:
+
+```text
+coverage payBox/txns: complete (extracted=43 hunted=0)
+```
+
+Forty-three rows returned, zero rows hunted, and a green verdict. A shape in that state can drop an entire container and still read clean — precisely the loss the audit exists to surface, reported as success.
+
+`unread === 0` is therefore not on its own a pass. `isUnaudited` separates the two readings by asking whether anything comparable survived the hunt, and `ICoverageResult.unaudited` carries the answer, so `unread === 0` means _the comparison ran and found no shortfall_ only when `unaudited` is `false`. This is the same distinction `auditDeclaredRows` draws with `checked=0`: _nothing was verifiable_ is a different answer from _everything agreed_, and conflating them hid the defect.
+
+Note the limit of the claim. `unaudited` detects a **total** absence of comparable rows, not a partial one: a round that hunted three comparable rows out of forty still reports `unaudited=false`. So a `false` here means the comparison ran, not that it was exhaustive.
+
+The same round now reads:
+
+```text
+coverage payBox/txns: UNAUDITED — no comparable hunted rows (extracted=43 hunted=0)
+```
+
+The guard counts the rows the shape **returned**, not the mappable subset of them, and that distinction is load-bearing. A shape that hands back rows still in the provider's own vocabulary empties _both_ sides of the comparison, so the mapped `extracted` total folds to zero as well; keying the verdict off that total would read the round as an empty response and log `complete (extracted=0 hunted=0)` — the identical false green, reached by a second route. A genuinely empty response returns no rows at all, so it still reads `complete`, which is the right answer for a period with no activity.
+
+### Which banks this currently names
+
+A sweep of every pipeline bank found three whose extractor does something the audit's re-hunt cannot follow. All three are **healthy scrapes**; it is the audit that is blind, and until this verdict existed that blindness was indistinguishable from a clean result.
+
+| Bank   | What the extractor does that the re-hunt does not                               | Why nothing comparable survives                                                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Leumi  | Decodes a string-valued `jsonResp` before reading rows (`parseJsonResp`)        | The hunter does not traverse into JSON held in a string, so it never reaches the array — no rows are hunted at all                                                                           |
+| PayBox | Canonicalises each row (`mapWalletTxn`)                                         | Rows **are** hunted, then rejected: the response names its fields `ts` and `amt`, and neither is a recognised date or amount alias                                                           |
+| Yahav  | Synthesises scalar `bancs*` fields from BaNCS records (`normalizeBancsRecords`) | Rows **are** hunted, then rejected: date and amount arrive nested (`OrigDt {Day,Month,Year}`, `TotalCurAmt.Amt.Value`) and no recognised alias resolves to a scalar until normalisation runs |
+
+### Why the verdict does not also repair it
+
+Naming the vacuum and filling it are separate problems, and the second is harder than it first appears.
+
+The tempting fix is to let such a shape hand the audit the same normaliser its extractor uses, so both sides speak one vocabulary. That is not sufficient, because a bank shape is rarely _only_ a normaliser. It is also a **decoder** (Leumi), a **selector** (PayBox drops rows an earlier page already returned; Max narrows to one card) and a **grouper** (Yahav flattens every hunted container before it signs, so a sign derived per container would not match). Re-deriving the normalisation alone, from a different starting set, produces a comparison that is differently wrong rather than right — and its failure mode is a false `INCOMPLETE`, which asserts a data loss that did not happen.
+
+That is strictly worse than the silence it replaces. A guardrail that cries loss on healthy traffic is discredited within a week, and the one true positive it eventually finds is then ignored too. So the verdict reports the gap and stops, on the same principle as every other check on this page: it never repairs, and it never guesses.
+
+Closing each gap is a per-bank change with its own evidence — a body decoder for Leumi, page-aware row selection for PayBox, and grouping-faithful normalisation for Yahav.
 
 ## Why it never repairs
 
@@ -58,18 +107,20 @@ The verdict carries counts and a bank/step label only — never row content, per
 ```text
 coverage isracard/txns: complete (extracted=278 hunted=278)
 coverage isracard/txns: INCOMPLETE — unread=111 (extracted=165 hunted=276)
+coverage payBox/txns: UNAUDITED — no comparable hunted rows (extracted=43 hunted=0)
 ```
 
-`complete` is emitted at `debug`, so healthy runs stay quiet. `INCOMPLETE` is emitted at `warn` and is the line to search for first when a total looks low.
+`complete` is emitted at `debug`, so healthy runs stay quiet. `INCOMPLETE` and `UNAUDITED` are both emitted at `warn`: the first says rows were lost, the second says the round could not tell either way, and both are lines to search for when a total looks low.
 
-| Observation                                      | Signal                                                             |
-| ------------------------------------------------ | ------------------------------------------------------------------ |
-| `unread` above zero, on one step                 | The shape is missing a container **on that endpoint**              |
-| `unread` above zero, every step of one bank      | Suspect a provider-wide response change                            |
-| `unread` above zero across several banks at once | Suspect a regression in the mapper, not in the shapes              |
-| Totals low but `unread=0`                        | The rows never arrived — look at the request window, not the shape |
+| Observation                                      | Signal                                                                            |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `unread` above zero, on one step                 | The shape is missing a container **on that endpoint**                             |
+| `unread` above zero, every step of one bank      | Suspect a provider-wide response change                                           |
+| `unread` above zero across several banks at once | Suspect a regression in the mapper, not in the shapes                             |
+| Totals low but `unread=0`, `complete`            | The rows never arrived — look at the request window, not the shape                |
+| Totals low but `UNAUDITED`                       | The round proved nothing — this bank's coverage is unverified, not verified-clean |
 
-That last row is the useful half of a silent verdict: it separates _we failed to read it_ from _the bank did not send it_, which is the same ambiguity the [response digest](response-digest.md) resolves one layer lower down.
+That penultimate row is the useful half of a silent verdict: it separates _we failed to read it_ from _the bank did not send it_, which is the same ambiguity the [response digest](response-digest.md) resolves one layer lower down. The last row is the reminder that a silent verdict is only informative once the round is known to have run.
 
 ## The blind spot: rows the mapper refuses
 
