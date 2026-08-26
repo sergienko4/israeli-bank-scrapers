@@ -36,27 +36,32 @@ function identityOf(t: IResolvedTarget): string {
 /**
  * Whether two resolutions point at the same element.
  *
- * <p>Prefers the position token both targets carry, because selector strings
- * answer this question wrongly in both directions: two distinct inputs can
- * share one string, and one input can be described by two. Comparing strings
- * therefore both rejects fields that never collided and admits fields that
- * did — the second silently overwriting the first.
+ * <p>Selector strings answer this wrongly in one direction: one input can be
+ * described by two strings — an id and a placeholder match reaching the same
+ * node — so comparing strings admits a pair that did collide, the second fill
+ * silently overwriting the first. The position token both targets carry
+ * catches that pair.
  *
- * <p>Falls back to the selector comparison when either token is unknown,
- * which preserves the previous behaviour rather than declaring two unknowns
- * distinct. `contextId` gates both paths: a position token only identifies an
- * element within its own frame.
+ * <p>Identity may only *add* collisions, never clear one. Two targets sharing
+ * a selector are filled through `locator(selector).first()`, so they address
+ * one element whatever their tokens say; DOM churn between the two reads can
+ * still produce differing tokens, and trusting those would re-admit the exact
+ * overwrite this guard exists to stop. A shared selector is therefore a
+ * collision outright, before identity is consulted.
+ *
+ * <p>`contextId` gates both paths: a position token only identifies an element
+ * within its own frame.
  * @param a - First resolution.
  * @param b - Second resolution.
  * @returns True when both resolutions point at one element.
  */
 function sameTarget(a: IResolvedTarget, b: IResolvedTarget): boolean {
   if (a.contextId !== b.contextId) return false;
+  if (a.selector === b.selector) return true;
   const idA = identityOf(a);
   const idB = identityOf(b);
   const isComparable = idA !== UNKNOWN_IDENTITY && idB !== UNKNOWN_IDENTITY;
-  if (isComparable) return idA === idB;
-  return a.selector === b.selector;
+  return isComparable && idA === idB;
 }
 
 /**

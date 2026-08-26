@@ -110,7 +110,12 @@ const PASSWORD_FIELD: IResolvedTarget = {
   elementId: 'BODY:1/FORM:0/INPUT:2',
 };
 
-/** A genuinely different input that answers the very same selector. */
+/**
+ * A different input answering the very same selector.
+ *
+ * Its position differs, but that changes nothing: a fill runs through
+ * `locator(selector).first()`, so both targets reach the *first* match.
+ */
 const CONFIRM_FIELD: IResolvedTarget = {
   ...PASSWORD_FIELD,
   candidateValue: 'passwordConfirm',
@@ -138,10 +143,10 @@ const USERNAME_BY_PLACEHOLDER: IResolvedTarget = {
 };
 
 describe('findClaimingField — element identity', () => {
-  it('accepts a distinct element that merely shares a selector string', () => {
+  it('rejects a shared selector even when the positions differ', () => {
     const targets = makeTargetMap(PASSWORD_FIELD);
     const owner = findClaimingField(targets, CONFIRM_FIELD);
-    expect(owner.has).toBe(false);
+    expect(owner.has).toBe(true);
   });
 
   it('rejects the same element reached by a different selector', () => {
@@ -157,17 +162,24 @@ describe('findClaimingField — element identity', () => {
     expect(owner.has).toBe(false);
   });
 
-  it('falls back to the selector when one side has no identity', () => {
+  it('rejects a shared selector when one side has no identity', () => {
     const targets = makeTargetMap(PASSWORD_FIELD);
     const unread: IResolvedTarget = { ...CONFIRM_FIELD, elementId: UNKNOWN_IDENTITY };
     const owner = findClaimingField(targets, unread);
     expect(owner.has).toBe(true);
   });
 
-  it('falls back to the selector for a target that carries no identity field', () => {
+  it('rejects a shared selector for a target that carries no identity field', () => {
     const targets = makeTargetMap(OWNED);
     const owner = findClaimingField(targets, OWNED);
     expect(owner.has).toBe(true);
+  });
+
+  it('accepts different selectors when identity cannot be compared', () => {
+    const targets = makeTargetMap(USERNAME_BY_ID);
+    const unread: IResolvedTarget = { ...USERNAME_BY_PLACEHOLDER, elementId: UNKNOWN_IDENTITY };
+    const owner = findClaimingField(targets, unread);
+    expect(owner.has).toBe(false);
   });
 });
 
