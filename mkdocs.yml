@@ -184,6 +184,7 @@ nav:
       - INIT navigation forensics: observability/init-navigation-forensics.md
       - Response digest: observability/response-digest.md
       - Coverage audit: observability/coverage-audit.md
+      - Render health & element identity: observability/render-health.md
   - Workflow:
       - Overview: workflow/index.md
       - CI gates: workflow/ci.md
