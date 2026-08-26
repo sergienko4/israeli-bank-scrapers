@@ -16,6 +16,11 @@ import type { LifecyclePromise, Nullable } from '../../../Base/Interfaces/Callba
 import { getDebug } from '../../Logging/Debug.js';
 import { buildContextOptions } from '../../Mediator/Browser/BrowserContextBuilder.js';
 import { launchCamoufox } from '../../Mediator/Browser/CamoufoxLauncher.js';
+import {
+  NETWORK_FETCH_PAGE_TIMEOUT_MS,
+  NETWORK_FETCH_TIMEOUT_MS,
+} from '../../Mediator/Network/FetchConfig.js';
+import { TimeoutError, timeoutPromise } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
@@ -54,6 +59,7 @@ interface IInPageFetchArgs {
   readonly method: HttpVerb;
   readonly headers: Record<string, string>;
   readonly body: string | null;
+  readonly timeoutMs: number;
 }
 
 /** Args bundle for the dispatch helper (verb + url + body + opts). */
@@ -89,20 +95,41 @@ function mergeHeaders(extraHeaders: Record<string, string>): Record<string, stri
 }
 
 /**
+ * In-page evaluator for {@link runFetchInPage} — runs inside the browser.
+ *
+ * Serialised into the page, so it may reference only its argument and browser
+ * globals; the abort budget arrives as data rather than a closed-over import.
+ * @param input - URL + method + headers + body + abort budget.
+ * @returns Serialized envelope from the in-page fetch().
+ */
+async function evalFetchBody(input: IInPageFetchArgs): Promise<IPageFetchEnvelope> {
+  const signal = AbortSignal.timeout(input.timeoutMs);
+  const init: RequestInit = { method: input.method, headers: input.headers, signal };
+  if (input.body !== null) init.body = input.body;
+  const response = await fetch(input.url, init);
+  const bodyText = await response.text();
+  const setCookies = response.headers.getSetCookie();
+  return { ok: response.ok, status: response.status, bodyText, setCookies };
+}
+
+/**
  * Runs the fetch wrapper inside the Camoufox page context.
+ *
+ * <p>The deadline is enforced here in Node rather than in the page, because
+ * that is the only realm where the rejection can be classified: a page-realm
+ * `AbortSignal.timeout` rejects with a `DOMException` that does not survive
+ * `page.evaluate`. The in-page abort is kept as a later backstop so an
+ * abandoned request still releases browser-side resources — see
+ * {@link NETWORK_FETCH_PAGE_GRACE_MS} for why the ordering is deterministic.
  * @param page - Active Camoufox page sharing origin with args.url.
  * @param args - URL + method + headers + body (null for GET).
  * @returns Serialized envelope from the in-page fetch().
+ * @throws TimeoutError when the Node-side deadline expires first.
  */
 async function runFetchInPage(page: Page, args: IInPageFetchArgs): Promise<IPageFetchEnvelope> {
-  return page.evaluate(async (input: IInPageFetchArgs): Promise<IPageFetchEnvelope> => {
-    const init: RequestInit = { method: input.method, headers: input.headers };
-    if (input.body !== null) init.body = input.body;
-    const response = await fetch(input.url, init);
-    const bodyText = await response.text();
-    const setCookies = response.headers.getSetCookie();
-    return { ok: response.ok, status: response.status, bodyText, setCookies };
-  }, args);
+  const pending = page.evaluate(evalFetchBody, args);
+  const description = `in-page ${args.method} ${safeUrlForLog(args.url)}`;
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, description);
 }
 
 /**
@@ -260,6 +287,27 @@ function logFetchStatus(verb: string, safeUrl: string, env: IPageFetchEnvelope):
 }
 
 /**
+ * Build a failure from an in-page fetch exception.
+ *
+ * <p>An expired deadline arrives as a real {@link TimeoutError} because
+ * {@link runFetchInPage} enforces it in Node, so the classification is a type
+ * check rather than a match against engine-authored abort text. The URL is
+ * redacted to origin + path: a bank URL carries the bearer token in its query,
+ * and this message is what a caller logs.
+ * @param error - The caught error.
+ * @param args - Dispatch args bundle, for message context.
+ * @returns A Timeout failure for an expired deadline, otherwise Generic.
+ */
+function toDispatchFailure(error: unknown, args: IDispatchArgs): Procedure<never> {
+  const reason = toErrorMessage(error as Error);
+  const safeUrl = safeUrlForLog(args.url);
+  const message = `${args.verb} ${safeUrl} network error: ${reason}`;
+  const isTimeout = error instanceof TimeoutError;
+  if (isTimeout) return fail(ScraperErrorTypes.Timeout, message);
+  return fail(ScraperErrorTypes.Generic, message);
+}
+
+/**
  * Fires the in-page fetch and routes the envelope through parse/classify.
  * @param page - Active Camoufox page.
  * @param args - Dispatch args bundle.
@@ -274,13 +322,13 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
     method: args.verb,
     headers,
     body: args.body,
+    timeoutMs: NETWORK_FETCH_PAGE_TIMEOUT_MS,
   };
   let env: IPageFetchEnvelope;
   try {
     env = await runFetchInPage(page, fetchArgs);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${args.verb} ${args.url} network error: ${reason}`);
+    return toDispatchFailure(error, args);
   }
   logFetchStatus(args.verb, safeUrl, env);
   emitSetCookies(env.setCookies, args.opts.onSetCookie);

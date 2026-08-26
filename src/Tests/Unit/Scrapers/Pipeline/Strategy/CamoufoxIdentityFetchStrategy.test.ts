@@ -7,6 +7,14 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import {
+  NETWORK_FETCH_PAGE_TIMEOUT_MS,
+  NETWORK_FETCH_TIMEOUT_MS,
+} from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
+import {
+  createPromise,
+  createTimeoutError,
+} from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Envelope returned by the in-page fetch wrapper. */
@@ -24,6 +32,9 @@ interface IMockState {
   navThrows: boolean;
   evaluateThrows: boolean;
   evaluateRunsCallback: boolean;
+  evaluateHangs: boolean;
+  evaluateRejection: Error | null;
+  evaluateArgs: unknown[];
   closeThrows: boolean;
   closeCalls: number;
   pageGotos: string[];
@@ -42,11 +53,22 @@ const STATE: IMockState = {
   navThrows: false,
   evaluateThrows: false,
   evaluateRunsCallback: false,
+  evaluateHangs: false,
+  evaluateRejection: null,
+  evaluateArgs: [],
   closeThrows: false,
   closeCalls: 0,
   pageGotos: [],
   launchCalls: 0,
 };
+
+/**
+ * A promise that never settles — models a page-realm fetch that hangs, so the
+ * only thing that can end the wait is the Node-side deadline.
+ */
+const HANGING_EVALUATE: Promise<IPageFetchEnvelope> = createPromise<IPageFetchEnvelope>(
+  (): boolean => true,
+);
 
 /**
  * Resets the shared mock state to default success behaviour.
@@ -59,6 +81,9 @@ function resetState(): boolean {
     navThrows: false,
     evaluateThrows: false,
     evaluateRunsCallback: false,
+    evaluateHangs: false,
+    evaluateRejection: null,
+    evaluateArgs: [],
     closeThrows: false,
     closeCalls: 0,
     pageGotos: [],
@@ -93,6 +118,9 @@ function buildMockBrowser(): unknown {
    * @returns Resolved envelope.
    */
   const evaluatePage = (fn?: EvaluateCallback, args?: unknown): Promise<IPageFetchEnvelope> => {
+    STATE.evaluateArgs.push(args);
+    if (STATE.evaluateRejection !== null) return Promise.reject(STATE.evaluateRejection);
+    if (STATE.evaluateHangs) return HANGING_EVALUATE;
     if (STATE.evaluateThrows) return Promise.reject(new Error('evaluate-boom'));
     if (STATE.evaluateRunsCallback && typeof fn === 'function') return fn(args);
     return Promise.resolve(STATE.envelope);
@@ -411,5 +439,69 @@ describe('CamoufoxIdentityFetchStrategy/coverage edges', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+// A hung identity fetch used to wait forever: page.evaluate is not an
+// auto-retrying Playwright action, so it carries no default timeout, and every
+// throw was flattened to Generic. Both halves are pinned here — the deadline
+// that ends the wait, and the classification that tells a caller it was a
+// deadline rather than an unknown fault.
+describe('CamoufoxIdentityFetchStrategy/fetch deadline', () => {
+  it('OZ-CIT-18 — an expired deadline is classified Timeout, not Generic', async () => {
+    STATE.evaluateRejection = createTimeoutError('in-page POST deadline exceeded');
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
+    const wasOk = isOk(r);
+    expect(wasOk).toBe(false);
+    if (!isOk(r)) expect(r.errorType).toBe(ScraperErrorTypes.Timeout);
+  });
+
+  it('OZ-CIT-18b — an unmarked in-page failure stays Generic', async () => {
+    STATE.evaluateThrows = true;
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
+    const wasOk = isOk(r);
+    expect(wasOk).toBe(false);
+    if (!isOk(r)) expect(r.errorType).toBe(ScraperErrorTypes.Generic);
+  });
+
+  it('OZ-CIT-19 — the in-page abort budget is the strictly-later page budget', async () => {
+    STATE.envelope = ENV_OK;
+    await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
+    const sent = STATE.evaluateArgs[0] as { timeoutMs: number };
+    expect(sent.timeoutMs).toBe(NETWORK_FETCH_PAGE_TIMEOUT_MS);
+    expect(NETWORK_FETCH_PAGE_TIMEOUT_MS).toBeGreaterThan(NETWORK_FETCH_TIMEOUT_MS);
+  });
+
+  describe('when the page never answers', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('OZ-CIT-20 — the Node deadline ends the wait instead of hanging', async () => {
+      STATE.evaluateHangs = true;
+      const pending = new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
+      await jest.advanceTimersByTimeAsync(NETWORK_FETCH_TIMEOUT_MS);
+      const r = await pending;
+      const wasOk = isOk(r);
+      expect(wasOk).toBe(false);
+      if (!isOk(r)) expect(r.errorType).toBe(ScraperErrorTypes.Timeout);
+    });
+
+    it('OZ-CIT-20b — the timeout message names the request without its query', async () => {
+      STATE.evaluateHangs = true;
+      const pending = new STRATEGY(ORIGIN, false).fetchPost(`${URL_OK}?token=secret`, {}, OPTS);
+      await jest.advanceTimersByTimeAsync(NETWORK_FETCH_TIMEOUT_MS);
+      const r = await pending;
+      const wasOk = isOk(r);
+      expect(wasOk).toBe(false);
+      if (!isOk(r)) {
+        expect(r.errorMessage).toContain('in-page POST');
+        expect(r.errorMessage).not.toContain('secret');
+      }
+    });
   });
 });
