@@ -99,6 +99,22 @@ describe('SonarJS-mirror canary scope', () => {
       expect(win).not.toContain('S6564-Canary');
     });
 
+    // Regression: `path.sep` alone is POSIX-blind, so this passed on Windows
+    // and failed on Linux CI until normalisation stopped depending on host.
+    it('treats a Windows-separator allowlisted suite the same on any host', () => {
+      const win = 'src\\Tests\\E2eMocked\\Max\\Max.e2e-mocked.test.ts';
+      const rules = canaryRules(win, SKIP_SOURCE);
+      expect(rules).not.toContain('S1607-Canary');
+    });
+
+    // A file entry is an exact match, never a prefix — otherwise a longer
+    // sibling name would inherit an exemption it was never granted.
+    it('does not let a file entry exempt a longer sibling name', () => {
+      const sibling = 'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts.bak';
+      const rules = canaryRules(sibling, SKIP_SOURCE);
+      expect(rules).toContain('S1607-Canary');
+    });
+
     it('exempts an absolute path inside this checkout', () => {
       const cwdFwd = process.cwd().split('\\').join('/');
       const abs = `${cwdFwd}/src/Common/Browser.ts`;

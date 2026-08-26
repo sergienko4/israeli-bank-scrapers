@@ -222,11 +222,15 @@ type AllowlistMap = Map<string, ReadonlySet<RuleKey>>;
 
 /**
  * Normalise a candidate path to forward-slash form.
+ *
+ * Converts backslashes on every host, not just Windows. `path.sep` alone is
+ * POSIX-blind: on Linux it is `/`, so a Windows-style path would pass through
+ * unchanged and silently fail every prefix test downstream.
  * @param p - Path using any OS separator.
  * @returns Path with forward slashes only.
  */
 function normalisePath(p: string): string {
-  return p.split(path.sep).join('/');
+  return p.split(path.sep).join('/').split('\\').join('/');
 }
 
 /**
@@ -607,7 +611,8 @@ const SKIP_ALLOWLIST: readonly string[] = [
 ];
 
 /** Repo root, forward-slash form, for relativising absolute inputs. */
-const REPO_ROOT_FWD = process.cwd().split(path.sep).join('/');
+const CWD = process.cwd();
+const REPO_ROOT_FWD = normalisePath(CWD);
 
 /**
  * Reduce a path to repo-relative form when it sits inside this checkout.
@@ -621,16 +626,21 @@ function toRepoRelative(fwd: string): string {
 }
 
 /**
- * Whether a path sits under any of the given repo-relative prefixes.
- * Anchors at the start of the repo-relative path, so an unrelated checkout
- * whose ancestor happens to be named `src/Tests` is never silently exempted.
+ * Whether a path sits under any of the given repo-relative entries.
+ *
+ * An entry ending in `/` is a directory prefix; any other entry must match
+ * the whole path exactly, so a file entry cannot exempt a longer sibling
+ * name that merely starts with it. Anchoring at the start of the
+ * repo-relative path keeps an unrelated checkout whose ancestor happens to
+ * be named `src/Tests` from being silently exempted.
  * @param fwd - Forward-slash normalised file path.
- * @param prefixes - Repo-relative directory or file prefixes.
- * @returns True on the first prefix that matches.
+ * @param entries - Repo-relative directory prefixes or exact file paths.
+ * @returns True on the first entry that matches.
  */
-function matchesAny(fwd: string, prefixes: readonly string[]): boolean {
-  const rel = toRepoRelative(fwd);
-  return prefixes.some(p => rel.startsWith(p));
+function matchesAny(fwd: string, entries: readonly string[]): boolean {
+  const normalised = normalisePath(fwd);
+  const rel = toRepoRelative(normalised);
+  return entries.some(e => (e.endsWith('/') ? rel.startsWith(e) : rel === e));
 }
 
 /**
