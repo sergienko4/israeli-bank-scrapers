@@ -104,6 +104,28 @@ function makeFailingContext(): Page | Frame {
   return makeContext(locator);
 }
 
+/**
+ * Attach a host whose shadow tree holds a form wrapping one input.
+ *
+ * <p>The input is nested one level down on purpose: an input placed directly
+ * under the shadow root has no `parentElement` at all, so the interesting case
+ * — a non-empty path that two separate components can both answer — only
+ * appears once there is an element between the input and the boundary.
+ * @param id - Host element id, so the two hosts are distinguishable.
+ * @returns The input living inside the host's shadow tree.
+ */
+function makeShadowInput(id: string): Element {
+  const host = document.createElement('div');
+  host.id = id;
+  document.body.appendChild(host);
+  const shadow = host.attachShadow({ mode: 'open' });
+  const form = document.createElement('form');
+  const input = document.createElement('input');
+  form.appendChild(input);
+  shadow.appendChild(form);
+  return input;
+}
+
 describe('elementPathToken', () => {
   beforeEach(() => {
     document.body.innerHTML = FORM_HTML;
@@ -146,6 +168,21 @@ describe('elementPathToken', () => {
     form?.insertBefore(extra, passEl);
     const after = elementPathToken(confirmEl);
     expect(after).not.toBe(before);
+  });
+
+  it('separates equally placed inputs in two shadow trees', () => {
+    const firstEl = makeShadowInput('first-host');
+    const secondEl = makeShadowInput('second-host');
+    const first = elementPathToken(firstEl);
+    const second = elementPathToken(secondEl);
+    expect(first).not.toBe(second);
+  });
+
+  it('roots a shadow token in the document, not in its shadow tree', () => {
+    const shadowEl = makeShadowInput('lone-host');
+    const token = elementPathToken(shadowEl);
+    const isRooted = token.startsWith('BODY:');
+    expect(isRooted).toBe(true);
   });
 });
 

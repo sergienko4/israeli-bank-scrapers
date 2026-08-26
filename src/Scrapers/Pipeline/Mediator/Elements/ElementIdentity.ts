@@ -21,6 +21,13 @@ const IDENTITY_TIMEOUT_MS = 5_000;
 /** Token returned when identity could not be established. */
 const UNKNOWN_IDENTITY = '';
 
+/** Result of walking up a single tree: where it stopped, and the path below. */
+interface IWalkResult {
+  readonly root: Node;
+  readonly top: Element;
+  readonly parts: string[];
+}
+
 /**
  * Build a position token for an element, inside the page.
  *
@@ -30,22 +37,43 @@ const UNKNOWN_IDENTITY = '';
  * element — so a detached element yields {@link UNKNOWN_IDENTITY}. Two
  * elements can never share a path; one element always keeps its own.
  *
- * <p>Self-contained by necessity: this runs in the browser realm.
+ * <p>A shadow boundary stops `parentElement`, so a walk that ignored it would
+ * end at the shadow root and describe an element by its position *within its
+ * own shadow tree*. Two components of the same kind — two copies of one custom
+ * element, each holding an input — would then answer the same path and be read
+ * as one element. The walk therefore crosses the boundary through the host, so
+ * the host's own path prefixes the inner one.
+ *
+ * <p>Self-contained by necessity: this runs in the browser realm, which is
+ * also why the walk is nested and the boundary hop recurses — only this
+ * function's own source is sent to the page.
  * @param el - The element to describe.
  * @returns Slash-separated path from the root, empty when detached.
  */
 function elementPathToken(el: Element): string {
-  const parts: string[] = [];
-  let node = el;
-  let parent = node.parentElement;
-  while (parent !== null) {
-    const siblings = Array.from(parent.children);
-    const index = siblings.indexOf(node);
-    parts.unshift(`${node.tagName}:${String(index)}`);
-    node = parent;
-    parent = node.parentElement;
+  /**
+   * Walk up one tree, collecting a segment per step.
+   * @param start - Element to walk from.
+   * @returns The tree root, the element the walk stopped at, and the segments.
+   */
+  function walkUp(start: Element): IWalkResult {
+    const parts: string[] = [];
+    let node = start;
+    let parent = node.parentElement;
+    while (parent !== null) {
+      const siblings = Array.from(parent.children);
+      const index = siblings.indexOf(node);
+      parts.unshift(`${node.tagName}:${String(index)}`);
+      node = parent;
+      parent = node.parentElement;
+    }
+    return { root: node.getRootNode(), top: node, parts };
   }
-  return parts.join('/');
+  const { root, top, parts } = walkUp(el);
+  if (!(root instanceof ShadowRoot)) return parts.join('/');
+  const index = [...root.children].indexOf(top);
+  parts.unshift(`${top.tagName}:${String(index)}`);
+  return `${elementPathToken(root.host)}/#shadow/${parts.join('/')}`;
 }
 
 /**
