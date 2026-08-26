@@ -20,7 +20,7 @@ The hook spawns each gate as a background process and `wait`s for them all. Cach
 | 3 | Biome | `biome` | `biome lint src --max-diagnostics=50` |
 | 4 | npm audit | `audit` | `npm audit --omit=dev` |
 | 5 | Phase isolation | `lint:phases:strict` | `eslint src/Tests/Unit/Pipeline/CrossValidation/Phases --max-warnings 0` |
-| 6 | Architecture | `architecture` | `lint:architecture src/Scrapers/Pipeline` |
+| 6 | Architecture | `architecture` | `lint:architecture src` (see [architecture-linter.md](architecture-linter.md)) |
 | 7 | Build | `build` | `lint + tsup`, then [`lint:public-surface`](public-surface.md) against the freshly built `lib/` |
 | 8 | Canaries | `canaries` | `lint:canaries` |
 | 9 | Dead code | `dead-code` | `lint:dead-code` |

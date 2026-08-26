@@ -190,6 +190,7 @@ nav:
       - CI gates: workflow/ci.md
       - Main pipeline (post-merge CI): workflow/main-pipeline.md
       - Pre-commit hook: workflow/pre-commit.md
+      - Architecture linter scope: workflow/architecture-linter.md
       - Pre-push hook: workflow/pre-push.md
       - Branch flow & release-please: workflow/branch-flow.md
       - Releases & consumer signals: workflow/releases.md

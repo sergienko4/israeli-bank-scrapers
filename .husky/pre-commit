@@ -178,23 +178,23 @@ bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
 # fails loud + quickly rather than hiding behind the slower test gates.
 bg_gate "lint:phases:strict" "yes" npm run lint:phases:strict
 
-# Architectural Guardrails (Rules #10, #14, #15) — only fire on
-# Pipeline / Phases files. Pre-filter so we don't waste work iterating
-# test files, and so we don't blow Windows CreateProcess 32 KB
-# command-line limit on a large staged set.
-ARCH_FILES=$(echo "$CODE_FILES" | grep -E '(Scrapers/Pipeline/|/Phases/)' || true)
+# Architectural Guardrails — the linter's scope is the whole `src` tree
+# (widened from Pipeline-only), matching `npm run lint`. Filter to `src/`
+# so we don't hand it scripts/ or config files, and so we don't blow the
+# Windows CreateProcess 32 KB command-line limit on a large staged set.
+ARCH_FILES=$(echo "$CODE_FILES" | grep -E '^src/' || true)
 if [ -n "$ARCH_FILES" ]; then
     ARCH_FILE_COUNT=$(echo "$ARCH_FILES" | wc -l)
     if [ "$ARCH_FILE_COUNT" -gt 50 ]; then
-        log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole Pipeline directory (cmdline-safe)"
-        bg_gate "architecture" "yes" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src/Scrapers/Pipeline"
+        log "  ℹ️  architecture: $ARCH_FILE_COUNT files staged — invoking on whole src directory (cmdline-safe)"
+        bg_gate "architecture" "yes" bash -c "npx tsx src/Tests/Tools/lint-and-validate.ts src"
     else
         ARCH_LIST=$(mktemp)
         echo "$ARCH_FILES" > "$ARCH_LIST"
         bg_gate "architecture" "yes" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
     fi
 else
-    log "  ⏭️  architecture skipped — no Pipeline/Phases files staged"
+    log "  ⏭️  architecture skipped — no src/ files staged"
 fi
 
 bg_gate "build"             "yes" bash -c 'npm run build && npx rimraf lib/Common lib/Scrapers lib/Tests && test -f lib/index.cjs && npm run lint:public-surface'

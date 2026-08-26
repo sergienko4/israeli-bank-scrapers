@@ -570,6 +570,32 @@ const PII_PAYLOAD_RE = new RegExp(
   'g',
 );
 
+/** Path fragment that marks a file as living under the test tree. */
+const TESTS_DIR = 'src/Tests/';
+/** Regex: a `*.test.ts` / `*.spec.ts` module filename. */
+const TEST_FILE_RE = /\.(?:test|spec)\.ts$/;
+
+/** Whether ESLint, not the canaries, owns this file's style policy. */
+type IsTestOwnedFlag = boolean;
+
+/**
+ * Decide whether a file's SonarJS-mirror policy belongs to ESLint.
+ *
+ * The three canaries below are defence-in-depth for *production* code:
+ * they re-assert SonarJS rules by regex so an `eslint --no-verify` bypass
+ * still trips the architecture gate. Under `src/Tests` that reasoning does
+ * not hold, because ESLint already states a deliberate — and different —
+ * per-directory test policy there (see `eslint.config.mjs`). Running the
+ * regexes over tests would therefore override a considered decision with a
+ * heuristic. Scope, not strength, is what changes here: no production file
+ * loses a canary.
+ * @param fwd - Forward-slash normalised file path.
+ * @returns True when the canaries must not run on this file.
+ */
+function isTestOwned(fwd: string): IsTestOwnedFlag {
+  return fwd.includes(TESTS_DIR) || TEST_FILE_RE.test(fwd);
+}
+
 /**
  * Emit S6564-Canary issues for a file. Catches bare-primitive aliases
  * even when ESLint is bypassed.
@@ -1026,7 +1052,10 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   issues.push(...piiLogIssues(code));
   // Defence-in-depth canaries: re-affirm the SonarJS rules via regex
   // so a `--no-verify` ESLint bypass still trips the architecture gate.
-  issues.push(...s6564CanaryIssues(code), ...s3735CanaryIssues(code), ...s1607CanaryIssues(code));
+  // Skipped under `src/Tests`, where ESLint states the test policy itself.
+  if (!isTestOwned(fwd)) {
+    issues.push(...s6564CanaryIssues(code), ...s3735CanaryIssues(code), ...s1607CanaryIssues(code));
+  }
   return issues;
 }
 
