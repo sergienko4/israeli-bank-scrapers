@@ -11,6 +11,7 @@ import { jest } from '@jest/globals';
 import pino from 'pino';
 
 import type { IFieldConfig } from '../../../../../Scrapers/Base/Interfaces/Config/FieldConfig.js';
+import { UNKNOWN_IDENTITY } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementIdentity.js';
 import {
   findClaimingField,
   rejectClaimedTarget,
@@ -82,6 +83,91 @@ describe('findClaimingField', () => {
   it('reports free when the same selector lives in another frame', () => {
     const owner = findClaimingField(makeAccum().targets, OTHER_FRAME);
     expect(owner.has).toBe(false);
+  });
+});
+
+/**
+ * Build a one-entry target map claimed by {@link CLAIMED_KEY}.
+ * @param target - The target the claimed key already owns.
+ * @returns Map with a single claimed target.
+ */
+function makeTargetMap(target: IResolvedTarget): ReadonlyMap<LoginFieldKey, IResolvedTarget> {
+  return new Map([[CLAIMED_KEY, target]]);
+}
+
+/** Frame every identity fixture below lives in. */
+const IDENTITY_FRAME = 'iframe:https://login.example.co.il/login/';
+
+/** Selector a password field and its confirmation both answer. */
+const SHARED_SELECTOR = 'input[type="password"]';
+
+/** The password input — third child input of the form. */
+const PASSWORD_FIELD: IResolvedTarget = {
+  selector: SHARED_SELECTOR,
+  contextId: IDENTITY_FRAME,
+  kind: 'wellKnown',
+  candidateValue: 'password',
+  elementId: 'BODY:1/FORM:0/INPUT:2',
+};
+
+/** A genuinely different input that answers the very same selector. */
+const CONFIRM_FIELD: IResolvedTarget = {
+  ...PASSWORD_FIELD,
+  candidateValue: 'passwordConfirm',
+  elementId: 'BODY:1/FORM:0/INPUT:3',
+};
+
+/** Position of the single username input. */
+const USERNAME_PATH = 'BODY:1/FORM:0/INPUT:0';
+
+/** The username input, reached by its id. */
+const USERNAME_BY_ID: IResolvedTarget = {
+  selector: '#user',
+  contextId: IDENTITY_FRAME,
+  kind: 'bankConfig',
+  candidateValue: 'username',
+  elementId: USERNAME_PATH,
+};
+
+/** The same input, reached by a placeholder match. */
+const USERNAME_BY_PLACEHOLDER: IResolvedTarget = {
+  ...USERNAME_BY_ID,
+  selector: '[placeholder="קוד משתמש"]',
+  kind: 'placeholder',
+  candidateValue: 'nationalID',
+};
+
+describe('findClaimingField — element identity', () => {
+  it('accepts a distinct element that merely shares a selector string', () => {
+    const targets = makeTargetMap(PASSWORD_FIELD);
+    const owner = findClaimingField(targets, CONFIRM_FIELD);
+    expect(owner.has).toBe(false);
+  });
+
+  it('rejects the same element reached by a different selector', () => {
+    const targets = makeTargetMap(USERNAME_BY_ID);
+    const owner = findClaimingField(targets, USERNAME_BY_PLACEHOLDER);
+    expect(owner.has).toBe(true);
+  });
+
+  it('keeps identical positions in different frames apart', () => {
+    const targets = makeTargetMap(USERNAME_BY_ID);
+    const elsewhere: IResolvedTarget = { ...USERNAME_BY_ID, contextId: 'main' };
+    const owner = findClaimingField(targets, elsewhere);
+    expect(owner.has).toBe(false);
+  });
+
+  it('falls back to the selector when one side has no identity', () => {
+    const targets = makeTargetMap(PASSWORD_FIELD);
+    const unread: IResolvedTarget = { ...CONFIRM_FIELD, elementId: UNKNOWN_IDENTITY };
+    const owner = findClaimingField(targets, unread);
+    expect(owner.has).toBe(true);
+  });
+
+  it('falls back to the selector for a target that carries no identity field', () => {
+    const targets = makeTargetMap(OWNED);
+    const owner = findClaimingField(targets, OWNED);
+    expect(owner.has).toBe(true);
   });
 });
 

@@ -11,25 +11,46 @@ import type { Option } from '../../../Types/Option.js';
 import type { IResolvedTarget } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { computeContextId } from '../../Elements/ActionExecutors.js';
+import { readElementIdentity } from '../../Elements/ElementIdentity.js';
 import type { IFormAnchor } from '../../Form/FormAnchor.js';
 import type { IFieldContext } from '../../Selector/SelectorResolverPipeline.js';
 import type { IDiscoverFieldsArgs } from '../LoginFieldDiscovery.types.js';
 import type { IResolveOneArgs } from './FieldDiscoveryTypes.js';
 
 /**
- * Assemble an {@link IResolvedTarget} from a resolved {@link IFieldContext}.
+ * Assemble the selector-derived part of a resolved target.
  * @param value - Successful field-resolver value.
  * @param page - Browser page (for frame-id derivation).
  * @param key - Original credential key recorded as `candidateValue`.
- * @returns Fully populated resolved target.
+ * @returns Resolved target without an identity token.
  */
-export function buildPreTarget(value: IFieldContext, page: Page, key: string): IResolvedTarget {
+function buildTargetBase(value: IFieldContext, page: Page, key: string): IResolvedTarget {
   return {
     selector: value.selector,
     contextId: computeContextId(value.context, page),
     kind: value.resolvedKind ?? value.resolvedVia,
     candidateValue: key,
   };
+}
+
+/**
+ * Assemble an {@link IResolvedTarget} from a resolved {@link IFieldContext}.
+ *
+ * <p>Reads the element's position token while the resolution is still fresh,
+ * so the collision guard can later compare identity instead of selector text.
+ * @param value - Successful field-resolver value.
+ * @param page - Browser page (for frame-id derivation).
+ * @param key - Original credential key recorded as `candidateValue`.
+ * @returns Fully populated resolved target.
+ */
+export async function buildPreTarget(
+  value: IFieldContext,
+  page: Page,
+  key: string,
+): Promise<IResolvedTarget> {
+  const base = buildTargetBase(value, page, key);
+  const elementId = await readElementIdentity(value.context, value.selector);
+  return { ...base, elementId };
 }
 
 /**
@@ -50,12 +71,13 @@ function pickFormSelector(anchor: Option<IFormAnchor>): string {
  * @param key - Credential key being resolved.
  * @returns Resolved target on success, `false` otherwise.
  */
-export function preTargetOrFalse(
+export async function preTargetOrFalse(
   r: Procedure<IFieldContext>,
   args: IDiscoverFieldsArgs,
   key: string,
-): IResolvedTarget | false {
-  return r.success ? buildPreTarget(r.value, args.page, key) : false;
+): Promise<IResolvedTarget | false> {
+  if (!r.success) return false;
+  return buildPreTarget(r.value, args.page, key);
 }
 
 /**

@@ -9,6 +9,7 @@ import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { none, type Option, some } from '../../../Types/Option.js';
 import type { IResolvedTarget, LoginFieldKey } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
+import { UNKNOWN_IDENTITY } from '../../Elements/ElementIdentity.js';
 import type { IFormAnchor } from '../../Form/FormAnchor.js';
 import type { IFieldContext } from '../../Selector/SelectorResolverPipeline.js';
 import type { IDiscoverFieldsArgs } from '../LoginFieldDiscovery.types.js';
@@ -24,13 +25,38 @@ import {
 type TargetMap = ReadonlyMap<LoginFieldKey, IResolvedTarget>;
 
 /**
+ * Read a target's identity token, treating an absent one as unknown.
+ * @param t - Resolved target.
+ * @returns Position token, or {@link UNKNOWN_IDENTITY} when it has none.
+ */
+function identityOf(t: IResolvedTarget): string {
+  return t.elementId ?? UNKNOWN_IDENTITY;
+}
+
+/**
  * Whether two resolutions point at the same element.
+ *
+ * <p>Prefers the position token both targets carry, because selector strings
+ * answer this question wrongly in both directions: two distinct inputs can
+ * share one string, and one input can be described by two. Comparing strings
+ * therefore both rejects fields that never collided and admits fields that
+ * did — the second silently overwriting the first.
+ *
+ * <p>Falls back to the selector comparison when either token is unknown,
+ * which preserves the previous behaviour rather than declaring two unknowns
+ * distinct. `contextId` gates both paths: a position token only identifies an
+ * element within its own frame.
  * @param a - First resolution.
  * @param b - Second resolution.
- * @returns True when selector and context match.
+ * @returns True when both resolutions point at one element.
  */
 function sameTarget(a: IResolvedTarget, b: IResolvedTarget): boolean {
-  return a.selector === b.selector && a.contextId === b.contextId;
+  if (a.contextId !== b.contextId) return false;
+  const idA = identityOf(a);
+  const idB = identityOf(b);
+  const isComparable = idA !== UNKNOWN_IDENTITY && idB !== UNKNOWN_IDENTITY;
+  if (isComparable) return idA === idB;
+  return a.selector === b.selector;
 }
 
 /**
