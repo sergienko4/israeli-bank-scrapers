@@ -15,42 +15,47 @@ has always passed `src` explicitly.
 
 |                                  | analysable `.ts` files |
 | -------------------------------- | ---------------------- |
-| before (`src/Scrapers/Pipeline`) | 788                    |
-| after (`src`)                    | 1666                   |
+| before (`src/Scrapers/Pipeline`) | 790                    |
+| after (`src`)                    | 1671                   |
 
-## The three canaries are production-only
+Reproduce the counts with the walker the linter itself uses (`isExcluded()`
+skips `EslintCanaries/`, `*.canary.ts`, `node_modules/`, `lib/`, `dist/` and
+non-`.ts` files).
 
-`S6564-Canary` (bare-primitive type alias), `S3735-Canary` (`void <expr>;`)
-and `S1607-Canary` (skipped test without a `#nnn` rationale) do **not** run on
-`src/Tests`. See `isTestOwned()` in
-[`LintValidator.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/src/Tests/Tools/LintValidator.ts).
+## Each canary mirrors the scope of the rule it shadows
 
-These three are _defence-in-depth_: they re-assert SonarJS rules by regex so an
-`eslint --no-verify` bypass still trips the architecture gate. That reasoning
-holds for production code. It does not hold under `src/Tests`, where
-`eslint.config.mjs` already states a deliberate — and deliberately different —
-per-directory test policy. Letting a regex overrule that would replace a
-considered decision with a heuristic.
+`S6564-Canary` (bare-primitive type alias), `S3735-Canary` (`void <expr>;`) and
+`S1607-Canary` (skipped test without a `#nnn` rationale) re-assert three SonarJS
+rules by regex, so the gate still fires if those rules are reconfigured or
+dropped. A canary is only meaningful while it shadows a rule that is actually
+in force — so each one is scoped exactly like its ESLint counterpart:
 
-**This narrows scope, never strength.** No production file loses a canary. The
-canaries ran on zero test files before the widening (the old scope contained
-none), and now cover **70 production files that were previously invisible** to
-them.
+| Canary  | ESLint rule                     | Scope mirrored                                                                     |
+| ------- | ------------------------------- | ---------------------------------------------------------------------------------- |
+| `S6564` | `sonarjs/redundant-type-aliases` | Block 11 — all `src`, minus `src/Tests`, `src/Common`, `Registry` and legacy banks |
+| `S3735` | `sonarjs/void-use`              | Block 11 — same exclusions                                                         |
+| `S1607` | `sonarjs/no-skipped-tests`      | Block 19.6 — **on** across `src/Tests`; block 19.7 exempts 7 named files           |
 
-### Why each canary is wrong about tests
+Block 11's exclusion list is not arbitrary: it mirrors `sonar.exclusions` in
+`sonar-project.properties`, so SonarCloud does not report those paths either.
+A canary that fired there would enforce a policy no configuration states.
 
-Widening the linter surfaced 26 pre-existing hits, every one under `src/Tests`,
-and every one a false positive against the canary's own documented intent.
+`S1607` is the opposite case. Skipped tests are what it exists to find, so it
+stays active across `src/Tests` — including test tooling. Only the seven
+`E2eMocked` suites that block 19.7 names are exempt, and they are tracked debt
+awaiting fixture capture (`tasks/phase-7-5-T8-T12`), not false positives.
 
-| Canary  | Hits | Why the match is spurious                                                                                                                                                                                                       |
-| ------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `S6564` | 14   | Documented semantic aliases (`/** Whether a WK predicate matches. */ type WkMatch = boolean;`). ESLint does not configure `sonarjs/no-redundant-type-aliases` anywhere; two files were already allowlisted for this exact rule. |
-| `S3735` | 5    | The rule targets the discard-promise antipattern. Every hit is `void unusedParam;` — the standard idiom for a parameter kept for interface conformance. The regex cannot tell the two apart.                                    |
-| `S1607` | 7    | All in `E2eMocked`, where ESLint sets `sonarjs/no-skipped-tests: 0` on purpose. Each skip carries a multi-line JSDoc rationale; the canary only accepts a `//` comment containing `#nnn`, so it cannot see prose.               |
+**Scope changes, strength does not.** No file loses a canary that its ESLint
+rule still covers, and the canaries now reach **70 production files that were
+previously invisible** to them.
 
-`S1607` loses nothing on unit tests: ESLint sets `sonarjs/no-skipped-tests: 2`
-there, a _stricter_ policy than the canary's (no skips at all, rationale or
-not).
+### What widening surfaced
+
+Widening the linter surfaced 26 pre-existing hits, every one under `src/Tests`:
+14 `S6564`, 5 `S3735`, 7 `S1607`. None is a rule violation — each sits outside
+the scope of the ESLint rule the canary mirrors, as set out in the table above.
+Mirroring those scopes resolves all 26 without weakening a rule or adding a
+single per-file exemption.
 
 ## Per-file exemptions
 
@@ -75,5 +80,7 @@ Detail for any failure is written to `.architecture-violations.log` as JSON;
 the console prints only a count.
 
 To confirm the canaries still fire on newly-covered production code, plant a
-`type Probe = string;` in `src/Common/` and re-run — it must be reported, and
-must disappear when reverted.
+`type Probe = string;` in `src/Scrapers/Base/` and re-run — it must be
+reported, and must disappear when reverted. Planting the same line under
+`src/Common/` must **not** be reported: block 11 excludes that path, and the
+canary deliberately mirrors it.

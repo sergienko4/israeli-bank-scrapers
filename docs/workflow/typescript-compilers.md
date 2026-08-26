@@ -19,9 +19,11 @@ explicit `@typescript/native` name.
 The published `.d.ts` is emitted by **tsup's DTS rollup, which runs on TS 6**.
 Consumers therefore install types produced by TS 6.
 
-Until recently only TS 7 gated the tree. That left the compiler that actually
-emits our published types ungated — so the build could disagree with what
-consumers install, and nothing would say so.
+That emission was already gated: CI's Build job runs `npx tsup`, then asserts
+the emitted `lib/index.d.ts` / `lib/index.d.cts` exist and that the public
+surface is unchanged. What was missing is a TS 6 check over the **whole tree**.
+`tsup` reads `tsconfig.build.json`, which excludes `src/Tests/**` and `*.test.ts`
+— so TS 6 never saw most of the repo, and only TS 7 did.
 
 `pr.yml` now runs both as separate steps:
 
@@ -32,6 +34,11 @@ consumers install, and nothing would say so.
 - name: Type check (TS 6 API — the compiler that emits our .d.ts)
   run: npm run type-check:ts6      # TS 6 — the `typescript` alias
 ```
+
+These two steps are whole-tree compatibility checks over `tsconfig.json`. They
+are **not** configuration-equivalent to the DTS build, which uses
+`tsconfig.build.json` and a narrower file set; the Build job remains what gates
+actual declaration emission. The pair is complementary, not redundant.
 
 They are two steps rather than one `&&` so the CI log names which compiler
 objected. TS 6 costs about ten seconds, which is not worth optimising away.
@@ -50,9 +57,9 @@ with the same `TS2322`, so neither is a no-op.
 Not a choice we control. The blockers are third-party, and all three are
 verifiable from installed metadata rather than from release notes:
 
-| Package | Installed | Declared `peerDependencies.typescript` | Admits TS 7? |
+| Package | Locked | Declared `peerDependencies.typescript` | Admits TS 7? |
 |---|---|---|---|
-| `typescript-eslint` | 8.66.0 | `>=4.8.4 <6.1.0` | No |
+| `typescript-eslint` | 8.67.0 | `>=4.8.4 <6.1.0` | No |
 | `ts-jest` | 29.4.12 | `>=4.3 <7` | No — excluded by an explicit upper bound |
 | `tsup` | 8.5.1 | `>=4.5.0` | No upper bound, but its DTS rollup needs the TS API |
 

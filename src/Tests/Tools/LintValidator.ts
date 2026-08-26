@@ -570,35 +570,90 @@ const PII_PAYLOAD_RE = new RegExp(
   'g',
 );
 
-/** Path fragment that marks a file as living under the test tree. */
-const TESTS_DIR = 'src/Tests/';
-/** Regex: a `*.test.ts` / `*.spec.ts` module filename. */
-const TEST_FILE_RE = /\.(?:test|spec)\.ts$/;
-
-/** Whether ESLint, not the canaries, owns this file's style policy. */
-type IsTestOwnedFlag = boolean;
+/**
+ * Paths ESLint block 11 excludes from the SonarJS parity rules
+ * `redundant-type-aliases` (S6564) and `void-use` (S3735). That block
+ * mirrors `sonar-project.properties` `sonar.exclusions`, so SonarCloud
+ * does not report these paths either. Mirroring the same list here keeps
+ * each canary a faithful shadow of the rule it re-asserts, rather than a
+ * stricter policy that no configuration states.
+ */
+const SONAR_PARITY_IGNORES: readonly string[] = [
+  'src/Tests/',
+  'src/Common/',
+  'src/Scrapers/Behatsdaa/',
+  'src/Scrapers/BeyahadBishvilha/',
+  'src/Scrapers/Leumi/',
+  'src/Scrapers/Mizrahi/',
+  'src/Scrapers/Yahav/',
+  'src/Scrapers/Registry/',
+  'src/scrapers/',
+];
 
 /**
- * Decide whether a file's SonarJS-mirror policy belongs to ESLint.
- *
- * The three canaries below are defence-in-depth for *production* code:
- * they re-assert SonarJS rules by regex so an `eslint --no-verify` bypass
- * still trips the architecture gate. Under `src/Tests` that reasoning does
- * not hold, because ESLint already states a deliberate — and different —
- * per-directory test policy there (see `eslint.config.mjs`). Running the
- * regexes over tests would therefore override a considered decision with a
- * heuristic. Scope, not strength, is what changes here: no production file
- * loses a canary.
- * @param fwd - Forward-slash normalised file path.
- * @returns True when the canaries must not run on this file.
+ * The seven e2e-mocked suites ESLint block 19.7 permits to keep an
+ * unconditional `describe.skip` while their fixtures are captured. S1607
+ * stays active everywhere else — including the rest of `src/Tests` — because
+ * skipped tests are precisely what it exists to find.
  */
-function isTestOwned(fwd: string): IsTestOwnedFlag {
-  return fwd.includes(TESTS_DIR) || TEST_FILE_RE.test(fwd);
+const SKIP_ALLOWLIST: readonly string[] = [
+  'src/Tests/E2eMocked/Amex.e2e-mocked.test.ts',
+  'src/Tests/E2eMocked/Isracard.e2e-mocked.test.ts',
+  'src/Tests/E2eMocked/ErrorScenarios.e2e-mocked.test.ts',
+  'src/Tests/E2eMocked/ExternalBrowser.e2e-mocked.test.ts',
+  'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts',
+  'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts',
+  'src/Tests/E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts',
+];
+
+/** Repo root, forward-slash form, for relativising absolute inputs. */
+const REPO_ROOT_FWD = process.cwd().split(path.sep).join('/');
+
+/**
+ * Reduce a path to repo-relative form when it sits inside this checkout.
+ * A path from an unrelated checkout is returned unchanged, so it fails the
+ * prefix tests below and keeps every canary — the fail-closed direction.
+ * @param fwd - Forward-slash normalised file path.
+ * @returns Repo-relative path where possible, otherwise `fwd` unchanged.
+ */
+function toRepoRelative(fwd: string): string {
+  return fwd.startsWith(`${REPO_ROOT_FWD}/`) ? fwd.slice(REPO_ROOT_FWD.length + 1) : fwd;
+}
+
+/**
+ * Whether a path sits under any of the given repo-relative prefixes.
+ * Anchors at the start of the repo-relative path, so an unrelated checkout
+ * whose ancestor happens to be named `src/Tests` is never silently exempted.
+ * @param fwd - Forward-slash normalised file path.
+ * @param prefixes - Repo-relative directory or file prefixes.
+ * @returns True on the first prefix that matches.
+ */
+function matchesAny(fwd: string, prefixes: readonly string[]): boolean {
+  const rel = toRepoRelative(fwd);
+  return prefixes.some(p => rel.startsWith(p));
+}
+
+/**
+ * Run whichever SonarJS-mirror canaries are in scope for this file.
+ *
+ * Each canary mirrors the scope of the ESLint rule it shadows, so the gate
+ * can never enforce a policy stricter than the configuration it defends.
+ * @param fwd - Forward-slash normalised file path.
+ * @param code - Source text.
+ * @returns Issues from every canary that applies to this path.
+ */
+function sonarCanaryIssues(fwd: string, code: string): IIssue[] {
+  const issues: IIssue[] = [];
+  if (!matchesAny(fwd, SONAR_PARITY_IGNORES)) {
+    issues.push(...s6564CanaryIssues(code), ...s3735CanaryIssues(code));
+  }
+  if (!matchesAny(fwd, SKIP_ALLOWLIST)) issues.push(...s1607CanaryIssues(code));
+  return issues;
 }
 
 /**
  * Emit S6564-Canary issues for a file. Catches bare-primitive aliases
- * even when ESLint is bypassed.
+ * should the ESLint rule be reconfigured or dropped.
  * @param code - Source text.
  * @returns S6564-Canary issues (may be empty).
  */
@@ -619,7 +674,7 @@ function s6564CanaryIssues(code: string): IIssue[] {
 
 /**
  * Emit S3735-Canary issues for a file. Catches the `void <expr>;`
- * discard-promise antipattern.
+ * statement form; SonarJS exempts `void <promise>`, which stays legal.
  * @param code - Source text.
  * @returns S3735-Canary issues (may be empty).
  */
@@ -1050,12 +1105,10 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   }
   if (isInPipeline) issues.push(...asyncIssues(code));
   issues.push(...piiLogIssues(code));
-  // Defence-in-depth canaries: re-affirm the SonarJS rules via regex
-  // so a `--no-verify` ESLint bypass still trips the architecture gate.
-  // Skipped under `src/Tests`, where ESLint states the test policy itself.
-  if (!isTestOwned(fwd)) {
-    issues.push(...s6564CanaryIssues(code), ...s3735CanaryIssues(code), ...s1607CanaryIssues(code));
-  }
+  // Defence-in-depth canaries: re-assert three SonarJS rules by regex, each
+  // scoped exactly like the ESLint rule it shadows (config blocks 11, 19.6
+  // and 19.7), so the gate never enforces an undocumented stricter policy.
+  issues.push(...sonarCanaryIssues(fwd, code));
   return issues;
 }
 
