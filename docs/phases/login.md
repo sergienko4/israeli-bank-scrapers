@@ -94,6 +94,36 @@ Falling through is not a pass. It hands the decision to the remaining `.post` ch
 actually tell a mid-transition page from a rejected one. This mirrors the existing
 `SCOPE_OTP_UNKNOWN_LOG` rule that already governs this module: **unknown is not invalid.**
 
+### Re-reading at verdict time
+
+The table above describes a *sample*: URL, node count and visibility are all read roughly
+200 ms after submit. The verdict is not reached there — the OTP-screen probe runs first,
+for up to three seconds. Anything the bank does inside that window is invisible to the
+sample.
+
+Discount does exactly that. It answers a **successful** submit with a `301` to its
+authenticated app about 370 ms after submit — 170 ms after the sample was taken. The
+sample therefore records "still on the login page", and three seconds later that stale
+reading condemns a session that had in fact authenticated. The captured failure logs
+*"URL unchanged"* while the response beacon shows the browser moving from `/login/` to
+`/apollo/retail3/`.
+
+So before failing, the guard re-reads the page and keys the verdict to where the browser
+actually is when the verdict is made:
+
+| Re-read at verdict | Verdict |
+|---|---|
+| URL has moved off the login path | **Navigated** — log `SCOPE_LEFT_LOGIN_URL_LOG`, fall through |
+| URL held, password field no longer observable | **Unknown** — log `SCOPE_TORN_DOWN_FALLTHROUGH_LOG`, fall through |
+| URL held and password field still visible | Scope really is intact — fail `INVALID_PASSWORD` |
+
+The URL is checked **first, and the order matters**. A moved URL is positive evidence that
+navigation happened. An unobservable form is only ever absence of evidence:
+`isVisibleBySelector` also answers `false` when the probe itself errors — a detached frame
+mid-navigation, for example — so it can never separate "the form went away because we
+logged in" from "we could not look". Reading the weaker signal first would report a
+genuine navigation as merely unknown, losing the one signal that can be trusted.
+
 ## Phase 12d — `Form/Anchor/` & `Form/ErrorDiscovery/` sub-modules
 
 Phase 12d split `FormAnchor.ts` and `FormErrorDiscovery.ts` into focused sub-modules under

@@ -17,6 +17,14 @@ export const SCOPE_OTP_UNKNOWN_LOG = 'POST: OTP probe failed — fall through (u
 export const SCOPE_HIDDEN_FALLTHROUGH_LOG =
   'POST: login form present but not visible — fall through (mid-transition ≠ invalid)';
 
+/** Diagnostic log: browser left the login URL while the OTP probe ran (fall-through). */
+export const SCOPE_LEFT_LOGIN_URL_LOG =
+  'POST: browser left the login URL during the OTP probe — fall through (navigated ≠ invalid)';
+
+/** Diagnostic log: password input no longer observable after the OTP probe (fall-through). */
+export const SCOPE_TORN_DOWN_FALLTHROUGH_LOG =
+  'POST: login form no longer observable after the OTP probe — fall through (unknown ≠ invalid)';
+
 /** Failure message: scope intact + URL unchanged → invalid credentials. */
 export const SCOPE_INTACT_FAIL_MSG =
   'LOGIN POST: scope intact + URL unchanged — credentials likely invalid';

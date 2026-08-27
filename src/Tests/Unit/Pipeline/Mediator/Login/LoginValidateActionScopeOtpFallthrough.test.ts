@@ -15,13 +15,26 @@
  *   - LOGIN-POST-OTP-005: password absent → fall through immediately (no probe)
  *   - LOGIN-POST-OTP-006 (PR #221 review id 3216542548): OTP probe REJECTS
  *     → fall through (probe-failure is unknown, not INVALID_PASSWORD)
+ *   - LOGIN-POST-OTP-007: BOTH probes reject → fall through (unknown)
+ *   - LOGIN-POST-OTP-008: browser navigates while the OTP probe runs
+ *     → fall through (the URL sample is stale by the time it is used)
+ *   - LOGIN-POST-OTP-009: form leaves the screen while the OTP probe runs
+ *     → fall through (same staleness, for banks that do not navigate)
+ *   - LOGIN-POST-OTP-011: URL evidence outranks visibility evidence
+ *   - LOGIN-POST-OTP-012: scope still holds at the verdict → INVALID_PASSWORD
+ *     (mutation guard for 008 + 009)
  */
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type {
   IElementMediator,
   IRaceResult,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { validateActionScopeIntact } from '../../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
+import {
+  SCOPE_LEFT_LOGIN_URL_LOG,
+  SCOPE_TORN_DOWN_FALLTHROUGH_LOG,
+} from '../../../../../Scrapers/Pipeline/Mediator/Login/ScopeIntact/ScopeIntactTypes.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   ILoginFieldDiscovery,
@@ -29,6 +42,7 @@ import type {
   IResolvedTarget,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { LOGIN_FIELDS } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /**
  * Scripted answer for a single `resolveVisible` call. PR #221 review
@@ -82,6 +96,39 @@ interface IMediatorConfig {
   readonly passwordCount: number;
   /** Per-call answers consumed in invocation order. */
   readonly probeAnswers: readonly ProbeAnswer[];
+  /**
+   * Per-call on-screen answers consumed in invocation order. Omit to mirror
+   * {@link IMediatorConfig.passwordCount} on every call (the steady-state
+   * page). Supply a script to model a page that changes mid-verdict.
+   */
+  readonly visibilityAnswers?: readonly boolean[];
+  /**
+   * Per-call URL answers consumed in invocation order. Omit to return
+   * {@link IMediatorConfig.currentUrl} on every call. Supply a script to
+   * model a browser that navigates while the OTP probe is running.
+   */
+  readonly urlAnswers?: readonly string[];
+}
+
+/**
+ * Invocation counters exposed by the stub so a scenario can assert *which*
+ * production reads it exercised, not merely the verdict. Without this a test
+ * that scripts answers positionally stays green when an unrelated change
+ * inserts an extra read and shifts the script under it.
+ */
+interface ICallCounts {
+  url: number;
+  visibility: number;
+  probe: number;
+}
+
+/**
+ * Read the invocation counters off a stub built by {@link makeMediator}.
+ * @param mediator - Stub mediator.
+ * @returns Live counters for this stub.
+ */
+function callCountsOf(mediator: IElementMediator): ICallCounts {
+  return (mediator as unknown as { readonly callCounts: ICallCounts }).callCounts;
 }
 
 /**
@@ -94,13 +141,18 @@ interface IMediatorConfig {
  * @returns IElementMediator stub.
  */
 function makeMediator(config: IMediatorConfig): IElementMediator {
-  let callIndex = 0;
+  const counts: ICallCounts = { url: 0, visibility: 0, probe: 0 };
   return {
+    callCounts: counts,
     /**
-     * Returns the scripted current URL.
+     * Yields the next scripted URL, falling back to the steady-state one.
      * @returns Scripted URL string.
      */
-    getCurrentUrl: (): string => config.currentUrl,
+    getCurrentUrl: (): string => {
+      const scriptedUrl = config.urlAnswers?.[counts.url];
+      counts.url += 1;
+      return scriptedUrl ?? config.currentUrl;
+    },
     /**
      * Returns the scripted password-selector count.
      * @returns Scripted count.
@@ -110,13 +162,17 @@ function makeMediator(config: IMediatorConfig): IElementMediator {
       return config.passwordCount;
     },
     /**
-     * Mirrors the scripted count — in these scenarios a password element
-     * that persists is one the user can still see.
-     * @returns True when the scripted count is non-zero.
+     * Yields the next scripted on-screen answer, falling back to mirroring
+     * the scripted count — a password element that persists is one the user
+     * can still see unless the scenario says otherwise.
+     * @returns True when the form is on screen for this call.
      */
     isVisibleBySelector: async (): Promise<boolean> => {
       await Promise.resolve();
-      return config.passwordCount > 0;
+      const isScripted = config.visibilityAnswers?.[counts.visibility];
+      counts.visibility += 1;
+      const isPresent = config.passwordCount > 0;
+      return isScripted ?? isPresent;
     },
     /**
      * Yields the next scripted probe answer in call order. Falls back
@@ -125,8 +181,8 @@ function makeMediator(config: IMediatorConfig): IElementMediator {
      * @returns Race result per the scripted answer.
      */
     resolveVisible: (): Promise<IRaceResult> => {
-      const answer = config.probeAnswers[callIndex] ?? 'not-found';
-      callIndex += 1;
+      const answer = config.probeAnswers[counts.probe] ?? 'not-found';
+      counts.probe += 1;
       return answerToRace(answer);
     },
   } as unknown as IElementMediator;
@@ -136,11 +192,21 @@ function makeMediator(config: IMediatorConfig): IElementMediator {
  * Build a minimal IPipelineContext stub with the fields
  * {@link validateActionScopeIntact} reads.
  *
+ * <p>The debug sink records every message so a scenario can assert *which*
+ * diagnostic route the validator took. Two fall-through routes both return
+ * `false`, so a verdict-only assertion cannot tell them apart — swapping the
+ * URL and visibility checks would leave the return value unchanged.
+ *
  * @param loginUrl - The login URL stored in diagnostics.
  * @param passwordSelector - Selector string used by the validator.
+ * @param logSink - Array the debug sink appends every message to.
  * @returns Pipeline-context-shaped stub.
  */
-function makeContext(loginUrl: string, passwordSelector: string): IPipelineContext {
+function makeContext(
+  loginUrl: string,
+  passwordSelector: string,
+  logSink: string[] = [],
+): IPipelineContext {
   const passwordTarget: IResolvedTarget = {
     selector: passwordSelector,
     contextId: 'frame-0',
@@ -158,13 +224,18 @@ function makeContext(loginUrl: string, passwordSelector: string): IPipelineConte
     loginFieldDiscovery: some(discovery),
     logger: {
       /**
-       * No-op debug sink — discards diagnostics produced by the
-       * validator so the test asserts only on the return value.
+       * Recording debug sink — appends each message to `logSink` so a
+       * scenario can pin which diagnostic route ran.
        * Returns a non-undefined value to satisfy the architecture
        * `no-return-void` rule; the validator never reads it.
+       * @param entry - Structured log entry emitted by the validator.
+       * @param entry.message - Diagnostic text to record.
        * @returns Constant false sentinel.
        */
-      debug: (): false => false,
+      debug: (entry: { readonly message: string }): false => {
+        logSink.push(entry.message);
+        return false;
+      },
       /**
        * No-op trace sink — same intent as the debug sink.
        * @returns Constant false sentinel.
@@ -172,6 +243,24 @@ function makeContext(loginUrl: string, passwordSelector: string): IPipelineConte
       trace: (): false => false,
     },
   } as unknown as IPipelineContext;
+}
+
+/**
+ * Assert a verdict is the INVALID_PASSWORD failure, not merely "not false".
+ *
+ * <p>`expect(result).not.toBe(false)` accepts any {@link Procedure} — a
+ * success included — so it cannot tell a correct rejection from a validator
+ * that returned the wrong verdict entirely.
+ * @param result - Verdict under test.
+ * @returns Constant false sentinel (architecture `no-return-void` rule).
+ */
+function expectInvalidPassword(result: Procedure<IPipelineContext> | false): false {
+  expect(result).not.toBe(false);
+  if (result === false) return false;
+  expect(result.success).toBe(false);
+  if (result.success) return false;
+  expect(result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+  return false;
 }
 
 describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', () => {
@@ -263,5 +352,89 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     const ctx = makeContext(loginUrl, passwordSelector);
     const result = await validateActionScopeIntact(mediator, ctx);
     expect(result).toBe(false);
+  });
+
+  // Discount, CI run 33016514628 — the failure this suite exists to prevent.
+  // The login SUCCEEDED (`Login.Status=SUCCESS` in the captured body) and the
+  // bank answered with a 301 to its authenticated app at submit+0.36s. But
+  // the URL is sampled at submit+0.19s, 170ms too early, and the verdict is
+  // only reached at submit+3.2s once both OTP races time out. By then the
+  // browser had been off the login URL for 2.66s, yet the verdict read the
+  // stale sample and condemned a session that had authenticated. That 170ms
+  // window is why Discount failed 6 of 14 CI runs, flipping red↔green on
+  // consecutive commits of the SAME branch.
+  // Discount, CI run 33016514628 attempt 2 — the failure this suite exists to
+  // prevent. The login SUCCEEDED (`Login.Status=SUCCESS` in the captured body)
+  // and the bank answered with a 301 to its authenticated app at submit+0.36s.
+  // But the URL is sampled at submit+0.19s, 170ms too early, and the verdict is
+  // only reached at submit+3.2s once both OTP races time out. By then the
+  // browser had been off the login URL for 2.66s, yet the verdict read the
+  // stale sample and condemned a session that had authenticated.
+  //
+  // This 170ms ordering explains that captured attempt and is consistent with
+  // the observed intermittent LOGIN failures; the remaining red runs were NOT
+  // traced to this mechanism (one failed at HOME PRE, a different stage).
+  const noOtpScenario: IMediatorConfig = {
+    currentUrl: loginUrl,
+    passwordCount: 1,
+    probeAnswers: ['not-found', 'not-found'],
+  };
+  const authenticatedUrl = 'https://login.bank.fake.example/apollo/retail3/';
+
+  it('LOGIN-POST-OTP-008: browser navigates during the OTP probe → fall through', async () => {
+    const mediator = makeMediator({ ...noOtpScenario, urlAnswers: [loginUrl, authenticatedUrl] });
+    const logs: string[] = [];
+    const ctx = makeContext(loginUrl, passwordSelector, logs);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+    const counts = callCountsOf(mediator);
+    expect(counts).toMatchObject({ url: 2, probe: 2 });
+    expect(logs).toContain(SCOPE_LEFT_LOGIN_URL_LOG);
+  });
+
+  // Companion to 008 for banks that authenticate without navigating: the
+  // form leaves the screen while the URL stays put. Weaker evidence than a
+  // moved URL — absence is only ever read as unknown — but it must still
+  // stop the verdict.
+  it('LOGIN-POST-OTP-009: form leaves the screen during the OTP probe → fall through', async () => {
+    const mediator = makeMediator({ ...noOtpScenario, visibilityAnswers: [true, false] });
+    const logs: string[] = [];
+    const ctx = makeContext(loginUrl, passwordSelector, logs);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+    const counts = callCountsOf(mediator);
+    expect(counts).toMatchObject({ visibility: 2, probe: 2 });
+    expect(logs).toContain(SCOPE_TORN_DOWN_FALLTHROUGH_LOG);
+  });
+
+  // Pins URL-before-visibility precedence. Both signals say "gone", and the
+  // URL must win: it is positive evidence of navigation, while an
+  // unobservable form is only ever unknown. Without this, swapping the two
+  // checks is invisible — both routes return false, so a verdict-only
+  // assertion cannot tell them apart.
+  it('LOGIN-POST-OTP-011: URL evidence outranks visibility evidence', async () => {
+    const scripted = { urlAnswers: [loginUrl, authenticatedUrl], visibilityAnswers: [true, false] };
+    const mediator = makeMediator({ ...noOtpScenario, ...scripted });
+    const logs: string[] = [];
+    const ctx = makeContext(loginUrl, passwordSelector, logs);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expect(result).toBe(false);
+    expect(logs).toContain(SCOPE_LEFT_LOGIN_URL_LOG);
+    expect(logs).not.toContain(SCOPE_TORN_DOWN_FALLTHROUGH_LOG);
+  });
+
+  // Mutation guard for 008 and 009: the re-reads must not disarm the gate.
+  // A login scope that STILL holds at the verdict is a real rejection and
+  // must fail with INVALID_PASSWORD, or 008/009 would pass against a
+  // validator that simply never fails. The call-count assertion pins that
+  // both re-reads actually ran, so an inserted extra read cannot shift the
+  // scripts under 008/009 and leave them green while covering nothing.
+  it('LOGIN-POST-OTP-012: scope still holds at the verdict → INVALID_PASSWORD', async () => {
+    const mediator = makeMediator({ ...noOtpScenario, visibilityAnswers: [true, true] });
+    const ctx = makeContext(loginUrl, passwordSelector);
+    const result = await validateActionScopeIntact(mediator, ctx);
+    expectInvalidPassword(result);
+    const counts = callCountsOf(mediator);
+    expect(counts).toMatchObject({ url: 2, visibility: 2 });
   });
 });
