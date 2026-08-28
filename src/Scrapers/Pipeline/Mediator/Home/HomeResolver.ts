@@ -18,6 +18,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { raceResultToTarget } from '../Elements/ActionExecutors.js';
 import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.js';
 import { preferDirectEntry } from './HomeDirectEntry.js';
+import { errorDocumentMessage, isErrorDocument } from './HomeErrorDocument.js';
 import { resolveHomeTrigger } from './HomeResolver.trigger.js';
 import type { NavStrategy } from './HomeStrategyClassify.js';
 import { classifyStrategy, NAV_STRATEGY } from './HomeStrategyClassify.js';
@@ -73,6 +74,28 @@ async function classifyAndBuild(args: IClassifyAndBuildArgs): Promise<IHomeDisco
 const NO_LOGIN_LINK_FAIL = fail(ScraperErrorTypes.Generic, 'HOME PRE: no login nav link found');
 
 /**
+ * Explain a missing login entry.
+ *
+ * <p>"No login nav link" is the honest report of what discovery saw, but it
+ * names the symptom. When the bank served an error document instead of its
+ * homepage there was never a link to find, and saying so turns a failure that
+ * reads like scraper breakage into one that reads like what it is. The error
+ * type is left untouched so no consumer's branching changes.
+ *
+ * <p>Reached only once discovery has already failed, so a wrong guess here can
+ * cost a word in a message and nothing else.
+ * @param mediator - Element mediator for the read-only document probe.
+ * @returns The attributed failure, or the plain one when the page looks real.
+ */
+async function noLoginEntryFailure(mediator: IElementMediator): Promise<Procedure<IHomeDiscovery>> {
+  const isError = await isErrorDocument(mediator);
+  if (!isError) return NO_LOGIN_LINK_FAIL;
+  const landedUrl = mediator.getCurrentUrl();
+  const message = errorDocumentMessage(landedUrl);
+  return fail(ScraperErrorTypes.Generic, message);
+}
+
+/**
  * Resolve the home login entry, then prefer a navigable DIRECT link over
  * an href-less SEQUENTIAL trigger (see {@link preferDirectEntry}). Returns
  * `false` when no visible trigger is found at all.
@@ -103,7 +126,7 @@ async function resolveHomeStrategy(
   page: Page,
 ): Promise<Procedure<IHomeDiscovery>> {
   const visible = await resolveHomeEntry(mediator, logger);
-  if (visible === false || !visible.found) return NO_LOGIN_LINK_FAIL;
+  if (visible === false || !visible.found) return noLoginEntryFailure(mediator);
   const discovery = await classifyAndBuild({ mediator, visible, page, logger });
   return succeed(discovery);
 }

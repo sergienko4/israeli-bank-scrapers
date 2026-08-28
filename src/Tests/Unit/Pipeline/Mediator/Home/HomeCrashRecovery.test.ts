@@ -117,6 +117,17 @@ function makeRecoveryMediator(script: IRecoveryScript, calls: IRecoveryCalls): I
      * @returns Configured href value.
      */
     getAttributeValue: (): Promise<string> => Promise.resolve(script.hrefValue ?? ''),
+    /**
+     * countBySelector — no error-status heading, so a discovery failure keeps
+     * its original message and these tests stay about crash recovery.
+     * @returns Zero.
+     */
+    countBySelector: (): Promise<number> => Promise.resolve(0),
+    /**
+     * getCurrentUrl — stable URL for failure attribution.
+     * @returns Bank URL.
+     */
+    getCurrentUrl: (): string => 'https://bank.example.com',
   } as unknown as IElementMediator;
 }
 

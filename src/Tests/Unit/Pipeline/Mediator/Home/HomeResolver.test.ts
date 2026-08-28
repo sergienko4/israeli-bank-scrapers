@@ -45,12 +45,19 @@ const LOG: ScraperLogger = {
   error: (): boolean => true,
 } as unknown as ScraperLogger;
 
+/** URL the mock mediator reports the page is on. */
+const BANK_URL = 'https://bank.example.com';
+
 /** Options for the mock mediator. */
 interface IMediatorScript {
   readonly visibleResult?: IRaceResult;
   readonly visibleRejects?: boolean;
   readonly attrsByName?: Record<string, boolean>;
   readonly hrefValue?: string;
+  /** Element count the error-document probe sees (default: none). */
+  readonly errorHeadingCount?: number;
+  /** Selectors the error-document probe asked about. */
+  readonly probedSelectors?: string[];
 }
 
 /**
@@ -94,6 +101,20 @@ function makeMediator(script: IMediatorScript = {}): IElementMediator {
      * @returns Scripted.
      */
     getAttributeValue: (): Promise<string> => Promise.resolve(script.hrefValue ?? ''),
+    /**
+     * countBySelector — backs the error-document probe on the failing path.
+     * @param selector - Selector the probe asked about.
+     * @returns Scripted element count.
+     */
+    countBySelector: (selector: string): Promise<number> => {
+      script.probedSelectors?.push(selector);
+      return Promise.resolve(script.errorHeadingCount ?? 0);
+    },
+    /**
+     * getCurrentUrl — the URL an attributed failure names.
+     * @returns Fixed bank URL.
+     */
+    getCurrentUrl: (): string => BANK_URL,
   } as unknown as IElementMediator;
 }
 
@@ -245,5 +266,51 @@ describe('resolveHomeStrategy', () => {
     const isOkResult14 = isOk(result);
     expect(isOkResult14).toBe(true);
     if (result.success) expect(result.value.strategy).toBe(NAV_STRATEGY.SEQUENTIAL);
+  });
+});
+
+describe('resolveHomeStrategy — error-document attribution', () => {
+  it('attributes the failure to the bank when the landed page is an error document', async () => {
+    const mediator = makeMediator({ errorHeadingCount: 1 });
+    const page = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, page);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('error document');
+  });
+
+  it('names the URL that served the error document', async () => {
+    const mediator = makeMediator({ errorHeadingCount: 1 });
+    const page = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, page);
+    if (!result.success) expect(result.errorMessage).toContain(BANK_URL);
+  });
+
+  it('keeps the original message when the page is a real page missing the link', async () => {
+    const mediator = makeMediator({ errorHeadingCount: 0 });
+    const page = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, page);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('HOME PRE: no login nav link found');
+  });
+
+  it('keeps the Generic error type, so no consumer branch changes', async () => {
+    const mediator = makeMediator({ errorHeadingCount: 1 });
+    const page = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, page);
+    if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+  });
+
+  it('never probes the document when an entry was found', async () => {
+    const probedSelectors: string[] = [];
+    const visible: IRaceResult = { ...NOT_FOUND_RESULT, found: true as const, value: 'Login' };
+    const hrefValue = 'https://bank.example.com/l';
+    const mediator = makeMediator({ visibleResult: visible, hrefValue, probedSelectors });
+    const page = makePage();
+    const result = await resolveHomeStrategy(mediator, LOG, page);
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(true);
+    expect(probedSelectors).toEqual([]);
   });
 });
