@@ -344,6 +344,46 @@ fi
 if ! command -v node >/dev/null 2>&1; then
   echo "  ! node not installed — skipping rule-count assertions"
 else
+  # This step runs whenever `ci_scripts` is true. `setup-node-deps` now runs for
+  # those PRs too, so this deliberately does not lean on the job being
+  # dependency-free — it constructs that condition itself. The metrics library
+  # has to stay reachable from Node alone, because a bare specifier anywhere in
+  # its import graph makes the import throw, print nothing, and leave every
+  # count below comparing against an empty string rather than failing. A
+  # `typescript` import reached through `graph.mjs` did exactly that, turning
+  # workflow-only PRs red for a reason nothing on the failing job ever named.
+  isolated_import() {
+    local iso parent out
+    iso="$(mktemp -d "$DEC_DIR/iso.XXXXXX")" || { printf 'mktemp failed'; return 1; }
+    cp "$REPO_ROOT"/scripts/decoupling-metrics/lib/*.mjs "$iso/" ||
+      { printf 'cp failed'; return 1; }
+    # Node resolves bare specifiers by walking the importing module's ancestors,
+    # so the isolation holds only while none of them carries a node_modules.
+    # Asserting that beats assuming it: TMPDIR is not ours to choose.
+    parent="$iso"
+    while [ "$parent" != "$(dirname "$parent")" ]; do
+      if [ -d "$parent/node_modules" ]; then
+        printf 'not isolated: %s/node_modules' "$parent"
+        return 1
+      fi
+      parent="$(dirname "$parent")"
+    done
+    # One real `: any` and one in prose. `stripComments` is the only reason
+    # guardrails reached into `graph.mjs` at all, so counting 1 and not 2 proves
+    # both that the module resolved and that the moved helper still works.
+    printf '// prose mentioning : any that must not count\nexport const x: any = 1;\n' \
+      > "$iso/probe.ts"
+    out="$(node --input-type=module -e "
+      import { pathToFileURL } from 'node:url';
+      const { guardrails } = await import(pathToFileURL(process.argv[1]).href);
+      process.stdout.write(String(guardrails(process.argv[2], ['probe.ts']).anyUsages));
+    " "$iso/guardrails.mjs" "$iso" 2>&1)" || { printf '%s' "${out%%$'\n'*}"; return 1; }
+    printf '%s' "$out"
+  }
+
+  assert_eq "metrics library resolves and strips comments with no node_modules" \
+    "1" "$(isolated_import)"
+
   # Both paths are passed as arguments, never interpolated into the script
   # text: a shell that rewrites POSIX paths for a native node binary converts
   # arguments correctly but mangles the same path inside a string literal.

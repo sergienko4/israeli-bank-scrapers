@@ -223,8 +223,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # `ci_scripts` is here because the CI scripts smoke test below exercises
+      # `scripts/decoupling-metrics`, and a workflow-only PR would otherwise run
+      # it against an empty `node_modules`. That is belt-and-braces, not the
+      # fix: the modules themselves are dependency-free, and the smoke test
+      # proves it in an isolated copy rather than relying on this step. The
+      # cost is a full `npm ci` (including `prepare`, which runs `tsup`) on
+      # workflow-only PRs such as dependabot action bumps.
       - uses: ./.github/actions/setup-node-deps
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
       - if: needs.changes.outputs.full_suite == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
