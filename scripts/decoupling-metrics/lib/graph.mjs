@@ -13,20 +13,6 @@ import ts from 'typescript';
 
 const SOURCE_EXT = /\.(ts|tsx|mts|cts)$/;
 const SKIP_DIRS = /^(node_modules|lib|dist|coverage)\//;
-const COMMENTS_RE = /\/\*[\s\S]*?\*\/|(^|[^:])\/\/[^\n]*/g;
-
-/**
- * Strips block and line comments so downstream regexes never match prose.
- *
- * <p>Without this, JSDoc phrasing such as "Best-effort: any throw is
- * swallowed" is counted as a real `: any` type annotation.
- *
- * @param text raw source text
- * @returns the same text with comment bodies removed
- */
-export function stripComments(text) {
-  return text.replace(COMMENTS_RE, '$1');
-}
 
 export const RUNTIME = 'runtime';
 export const TYPE_ONLY = 'type';

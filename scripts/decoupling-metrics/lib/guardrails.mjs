@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { stripComments } from './graph.mjs';
+import { stripComments } from './strip-comments.mjs';
 
 const ANY_RE = /:\s*any\b|<any>|as\s+any\b/g;
 const RULE_RE = /^\s*'([\w@/-]+(?:\/[\w-]+)*)':\s*\[?\s*'(?:error|warn)'/gm;
