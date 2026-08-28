@@ -117,3 +117,80 @@ describe('buildFrameRegistry + resolveFrame', () => {
     expect(resolveFrameResult7).toBe(page);
   });
 });
+
+describe('FrameRegistry — sibling frames that share a base contextId', () => {
+  it('gives two same-URL siblings distinct contextIds', () => {
+    const frameA = makeFrame('https://bank.co.il/otp?session=A');
+    const frameB = makeFrame('https://bank.co.il/otp?session=B');
+    const page = makePage([frameA, frameB]);
+    const idA = computeContextId(frameA, page);
+    const idB = computeContextId(frameB, page);
+    expect(idA).not.toBe(idB);
+  });
+
+  it('keeps every colliding sibling reachable in the registry', () => {
+    const frameA = makeFrame('https://bank.co.il/otp?session=A');
+    const frameB = makeFrame('https://bank.co.il/otp?session=B');
+    const frameC = makeFrame('https://bank.co.il/otp?session=C');
+    const page = makePage([frameA, frameB, frameC]);
+    const registry = buildFrameRegistry(page);
+    const ids = [frameA, frameB, frameC].map((f): string => computeContextId(f, page));
+    const resolved = ids.map((id): Page | Frame => resolveFrame(registry, id));
+    expect(resolved).toStrictEqual([frameA, frameB, frameC]);
+  });
+
+  it('resolves a PRE contextId to the SAME frame at ACTION time', () => {
+    const frameA = makeFrame('https://bank.co.il/otp?session=A');
+    const frameB = makeFrame('https://bank.co.il/otp?session=B');
+    const page = makePage([frameA, frameB]);
+    const preId = computeContextId(frameA, page);
+    const registry = buildFrameRegistry(page);
+    const actionFrame = resolveFrame(registry, preId);
+    expect(actionFrame).toBe(frameA);
+  });
+
+  it('separates two unnamed about:blank siblings', () => {
+    const frameA = makeFrame('about:blank');
+    const frameB = makeFrame('about:blank');
+    const page = makePage([frameA, frameB]);
+    const registry = buildFrameRegistry(page);
+    const idA = computeContextId(frameA, page);
+    const resolveFrameResult8 = resolveFrame(registry, idA);
+    expect(resolveFrameResult8).toBe(frameA);
+  });
+
+  it('leaves non-colliding frames on their bare contextId', () => {
+    const frameA = makeFrame('https://bank.co.il/otp');
+    const frameB = makeFrame('https://bank.co.il/menu');
+    const page = makePage([frameA, frameB]);
+    const idA = computeContextId(frameA, page);
+    expect(idA).toBe('iframe:https://bank.co.il/otp');
+  });
+
+  it('leaves a lone frame on its bare contextId', () => {
+    const frameA = makeFrame('https://bank.co.il/otp?session=A');
+    const page = makePage([frameA]);
+    const idA = computeContextId(frameA, page);
+    expect(idA).toBe('iframe:https://bank.co.il/otp');
+  });
+
+  it('still resolves the bare base id when siblings collide', () => {
+    const frameA = makeFrame('https://bank.co.il/otp?session=A');
+    const frameB = makeFrame('https://bank.co.il/otp?session=B');
+    const page = makePage([frameA, frameB]);
+    const registry = buildFrameRegistry(page);
+    const resolveFrameResult9 = resolveFrame(registry, 'iframe:https://bank.co.il/otp');
+    expect(resolveFrameResult9).toBe(frameB);
+  });
+
+  it('falls back to the base id when the colliding sibling detached', () => {
+    const frameA = makeFrame('https://bank.co.il/otp?session=A');
+    const frameB = makeFrame('https://bank.co.il/otp?session=B');
+    const prePage = makePage([frameA, frameB]);
+    const preId = computeContextId(frameB, prePage);
+    const actionPage = makePage([frameB]);
+    const registry = buildFrameRegistry(actionPage);
+    const actionFrame = resolveFrame(registry, preId);
+    expect(actionFrame).toBe(frameB);
+  });
+});

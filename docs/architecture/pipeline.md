@@ -75,6 +75,38 @@ Key slots (v8.6+):
 
 The two paths converge on `balanceResolution` — that's the single source of truth read by [`PipelineResult.combineWithBalance`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts).
 
+## contextIds — addressing a frame across the PRE→ACTION seal
+
+`buildActionContext` seals the raw `Page` away before `action()` runs, so
+ACTION cannot hold a `Frame` reference that PRE discovered. Instead PRE mints
+an opaque **contextId** for the frame it resolved, and ACTION rebuilds a
+registry from the live page and looks the id back up.
+
+| Stage | Call | What happens |
+|---|---|---|
+| PRE | `computeContextId(frame, page)` | Mints the id, stored on `IResolvedTarget.contextId` |
+| ACTION | `buildFrameRegistry(page)` | Snapshots `page.frames()` at action-entry |
+| ACTION | `resolveFrame(registry, id)` | Maps the id back to a live `Frame` |
+
+The id is **content-derived** — `iframe:<origin><pathname>` for a real URL,
+`iframe:<frame.name()>` for `about:blank`. The query string is stripped on
+purpose: a session token in the URL changes between PRE and ACTION, and an id
+that embedded it would stop resolving.
+
+Content is stable but not unique. Two sibling iframes can share an
+origin+pathname (differing only in the stripped query), and two unnamed
+`about:blank` frames both reduce to the bare prefix. When a base id collides,
+the frame's ordinal among its colliding siblings is appended
+(`iframe:https://bank.co.il/otp#1`) so PRE and ACTION address the *same*
+frame. Without it the registry silently kept only the last writer, and a
+credential could be typed into a frame that was never resolved.
+
+Non-colliding frames keep their bare id, and every colliding frame is *also*
+registered under the bare id, so an id minted when the frame set looked
+different still resolves rather than throwing.
+
+Source: [`FrameRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Elements/FrameRegistry.ts).
+
 ## Interceptors — cross-cutting, no data
 
 | Interceptor | Runs between | Job |
