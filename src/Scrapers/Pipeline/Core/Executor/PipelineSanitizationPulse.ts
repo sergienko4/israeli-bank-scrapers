@@ -58,20 +58,72 @@ const TWO_PULSE_BUDGET = 2 as const;
 const ONE_PULSE_BUDGET = 1 as const;
 
 /**
- * Phases whose retry is preceded by a reload of the current document.
+ * Decides whether a reload is safe for one phase given where the page landed.
+ * @param ctx - Pipeline context, for the bank's configured base URL.
+ * @param currentUrl - URL the page reports itself to be on.
+ * @returns True when the retry should be preceded by a reload.
+ */
+type ReloadGate = (ctx: IPipelineContext, currentUrl: string) => boolean;
+
+/**
+ * Gate for phases whose reload is safe wherever the page ended up.
+ * @returns Always true.
+ */
+const ALWAYS_RELOAD: ReloadGate = (): boolean => true;
+
+/**
+ * Compare origins without throwing on the URLs a browser can genuinely report
+ * — `about:blank`, `data:`, or the empty string a page has before first load.
+ * @param a - First URL.
+ * @param b - Second URL.
+ * @returns True when both parse and share an origin.
+ */
+function sameOrigin(a: string, b: string): boolean {
+  if (!URL.canParse(a) || !URL.canParse(b)) return false;
+  return new URL(a).origin === new URL(b).origin;
+}
+
+/**
+ * Gate for phases that may only reload while still on the bank's own site.
+ * @param ctx - Pipeline context, for the bank's configured base URL.
+ * @param currentUrl - URL the page reports itself to be on.
+ * @returns True when the page is still on the bank's origin.
+ */
+const ONLY_ON_BANK_SITE: ReloadGate = (ctx, currentUrl): boolean =>
+  sameOrigin(currentUrl, ctx.config.urls.base);
+
+/**
+ * Phases whose retry is preceded by a reload of the current document, each
+ * mapped to the condition that makes the reload safe.
  *
  * <p>Re-running interceptors cannot re-bootstrap a page. When an SPA serves
  * its shell but never hydrates, PRE-LOGIN's form gate finds no password field,
  * and a retry that only re-queries the same dead document is structurally
  * guaranteed to fail — every pulse is spent on a page that could not recover.
- * Reloading first is what makes recovery possible at all.
+ * Reloading first is what makes recovery possible at all. The same holds when
+ * a bank's edge answers the homepage with an error document under HTTP 200:
+ * INIT sees a healthy status, HOME scans an error page, and no amount of
+ * re-querying will produce a login link that the document never contained.
  *
  * <p>Deliberately narrow, like {@link TWO_PULSE_PHASES}. A reload is only
  * sound before credentials exist: it is idempotent for a discovery phase, but
  * would discard a submitted form or a delivered OTP. Every phase outside this
- * set keeps its exact retry behaviour, and the budget is unchanged either way.
+ * map keeps its exact retry behaviour, and the budget is unchanged either way.
+ *
+ * <p>HOME carries a gate rather than reloading unconditionally because a pulse
+ * retries the whole phase. Once HOME's ACTION has navigated to the login page,
+ * reloading there would re-run home discovery against a document that never
+ * had a home login link — converting a recoverable failure into a certain one.
+ * The check is by origin, not exact URL, so a canonicalising redirect such as
+ * `/` to `/he/` still counts as being on the bank's site.
  */
-const RELOAD_BEFORE_RETRY_PHASES: ReadonlySet<PhaseName> = new Set<PhaseName>(['pre-login']);
+const RELOAD_BEFORE_RETRY_PHASES: ReadonlyMap<PhaseName, ReloadGate> = new Map<
+  PhaseName,
+  ReloadGate
+>([
+  ['pre-login', ALWAYS_RELOAD],
+  ['home', ONLY_ON_BANK_SITE],
+]);
 
 /**
  * Budget for the pre-retry reload. Sized for a full document load rather than
@@ -86,16 +138,18 @@ const RELOAD_TIMEOUT_MS = 30_000;
  * <p>Best-effort: `navigateTo` reports failure rather than throwing, and a
  * failed reload simply leaves the retry to run exactly as it did before. The
  * URL is read back from the page rather than rebuilt from config, so a bank
- * that redirected during the phase reloads where it actually is.
+ * that redirected during the phase reloads where it actually is — and so the
+ * gate judges where the page really landed rather than where it was sent.
  * @param args - Bundled pulse arguments.
  * @returns True when a reload was attempted, false when the phase opts out.
  */
 async function reloadBeforeRetry(args: IPulseArgs): Promise<boolean> {
   const { ctx, step } = args;
-  if (!RELOAD_BEFORE_RETRY_PHASES.has(step.name)) return false;
-  if (!ctx.mediator.has) return false;
+  const gate = RELOAD_BEFORE_RETRY_PHASES.get(step.name);
+  if (!gate || !ctx.mediator.has) return false;
   const mediator = ctx.mediator.value;
   const url = mediator.getCurrentUrl();
+  if (!gate(ctx, url)) return false;
   ctx.logger.debug({ message: `sanitization-pulse: reload before ${step.name}` });
   await mediator.navigateTo(url, { waitUntil: 'domcontentloaded', timeout: RELOAD_TIMEOUT_MS });
   return true;
