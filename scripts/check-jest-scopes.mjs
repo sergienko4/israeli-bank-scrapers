@@ -208,9 +208,12 @@ const INTENTIONAL_ESCAPES = {
  * `package.json`, so `--listTests` cannot be appended to it.
  *
  * This is the one place the gate takes a declaration on trust instead of asking
- * Jest, so it is deliberately narrow: the named file must exist and must still
- * construct a Jest command, which forces the declaration to be revisited if the
- * orchestrator is ever rewritten into something else.
+ * Jest, so it is deliberately narrow: the script must still name the file, and
+ * the file — when this checkout has it — must still construct a Jest command,
+ * which forces the declaration to be revisited if the orchestrator is ever
+ * rewritten into something else. `run-real-suite.ts` is gitignored and so is
+ * absent from a fresh clone; see `assertOrchestratorSource` for how that is
+ * told apart from a deletion.
  */
 const ORCHESTRATORS = {
   'test:e2e:real': {
@@ -418,11 +421,49 @@ function assertEveryRouteReadable(scripts) {
 function assertOrchestratorsIntact(scripts) {
   for (const [name, entry] of Object.entries(ORCHESTRATORS)) {
     if (!(name in scripts)) fail(staleDeclaration(name, 'ORCHESTRATORS', 'no such script exists'));
-    if (!existsSync(entry.source)) fail(staleDeclaration(name, 'ORCHESTRATORS', `${entry.source} is gone`));
-    if (!readFileSync(entry.source, 'utf8').includes(JEST_BIN)) {
-      fail(staleDeclaration(name, 'ORCHESTRATORS', `${entry.source} no longer builds a Jest command`));
+    if (!scripts[name].includes(entry.source)) {
+      fail(staleDeclaration(name, 'ORCHESTRATORS', `it no longer runs ${entry.source}`));
     }
+    assertOrchestratorSource(name, entry.source);
   }
+}
+
+/**
+ * Hold a declared orchestrator's file to still building a Jest command.
+ *
+ * The file can be legitimately absent: `scripts/**` is gitignored, and
+ * `run-real-suite.ts` carries no negation, so it exists on the machine that
+ * runs the real suite and nowhere else. Failing on that would block every
+ * commit made from a fresh clone over a file the repo never had. Absence is
+ * therefore only a failure when Git says the path is tracked, which is the one
+ * case that means someone deleted it. The declaration is still held to the
+ * script body naming the file, so it cannot rot unnoticed either way.
+ * @param {string} name - The declared script.
+ * @param {string} source - The file it delegates to.
+ * @returns {void}
+ */
+function assertOrchestratorSource(name, source) {
+  if (!existsSync(source)) {
+    if (isTracked(source)) fail(staleDeclaration(name, 'ORCHESTRATORS', `${source} is gone`));
+    return;
+  }
+  if (!readFileSync(source, 'utf8').includes(JEST_BIN)) {
+    fail(staleDeclaration(name, 'ORCHESTRATORS', `${source} no longer builds a Jest command`));
+  }
+}
+
+/**
+ * Whether Git tracks a path, used only to tell a deletion from a gitignored file.
+ *
+ * A missing `git` answers "not tracked", which skips the content check rather
+ * than blocking the commit. The stronger guard — the script body still naming
+ * the file — does not depend on Git and always runs.
+ * @param {string} path - Repo-relative path to test.
+ * @returns {boolean} True when the path is in the index.
+ */
+function isTracked(path) {
+  const args = ['ls-files', '--error-unmatch', '--', path];
+  return spawnSync('git', args, { cwd: ROOT_DIR, encoding: 'utf8' }).status === 0;
 }
 
 /**
