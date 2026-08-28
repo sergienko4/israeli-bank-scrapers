@@ -55,9 +55,10 @@
  * an over-broad exclusion from a deliberate one: the old `test:unit` hid three
  * ordinary unit suites whose names merely began with `E2eReal`, and this gate
  * would not have noticed. And a script that builds its Jest command inside a
- * source file cannot have `--listTests` appended to it, so its selection is
- * declared rather than derived — one bounded exception, named in ORCHESTRATORS,
- * and the gate fails if such a script appears without a declaration.
+ * source file cannot have `--listTests` appended to it, so its scope is not
+ * checked at all — it is named in ORCHESTRATORS and taken on trust, with the
+ * gate failing if such a script appears without a declaration. Two exist, both
+ * operator-run; see that table for why an unchecked scope is tolerable there.
  *
  * What it does NOT protect against: the pre-commit hook runs it against the
  * working tree, like every other gate in that hook, so a scope repaired in the
@@ -208,23 +209,31 @@ const INTENTIONAL_ESCAPES = {
  * `package.json`, so `--listTests` cannot be appended to it.
  *
  * This is the one place the gate takes a declaration on trust instead of asking
- * Jest, so it is deliberately narrow: the script must still name the file, and
- * the file — when this checkout has it — must still construct a Jest command,
- * which forces the declaration to be revisited if the orchestrator is ever
- * rewritten into something else. `run-real-suite.ts` is gitignored and so is
- * absent from a fresh clone; see `assertOrchestratorSource` for how that is
- * told apart from a deletion.
+ * Jest, so what it does and does not check is worth being blunt about. It holds
+ * the script to still naming the file, and the file — when this checkout has it
+ * — to still constructing a Jest command, which forces the declaration to be
+ * revisited if the orchestrator is rewritten into something else.
+ *
+ * It does NOT check what an orchestrator selects. It cannot: the scope is
+ * assembled inside the source file, and `memory:profile`'s `custom` mode takes
+ * the pattern from whoever runs it, so there is no fixed answer to compare
+ * against. A pattern list here would read as a constraint while enforcing
+ * nothing, so the reachable suites are recorded in `why` as prose instead —
+ * the gate should not appear to promise more than it verifies. Both scripts are
+ * operator-run, never part of an unattended run, which is what makes an
+ * unverified scope acceptable here and nowhere else.
+ *
+ * `run-real-suite.ts` is gitignored and so is absent from a fresh clone; see
+ * `assertOrchestratorSource` for how that is told apart from a deletion.
  */
 const ORCHESTRATORS = {
   'test:e2e:real': {
     source: 'scripts/run-real-suite.ts',
-    patterns: ['E2eReal/'],
-    why: 'builds a per-bank Jest command in TypeScript, so its scope is declared here rather than listed',
+    why: 'builds a per-bank Jest command in TypeScript, reaching E2eReal/ suites, so its scope is not listable here',
   },
   'memory:profile': {
     source: 'scripts/memory-profile/profile-bank.mjs',
-    patterns: ['E2eReal/', 'E2eMocked/'],
-    why: 'assembles a Jest command per profiling mode; its `custom` mode takes an operator-supplied pattern, so the scope is bounded by the operator rather than by this table — it is a supervised profiling tool, never part of an unattended run',
+    why: 'assembles a Jest command per profiling mode, reaching E2eReal/ and E2eMocked/; its `custom` mode takes an operator-supplied pattern, so the scope is bounded by the operator rather than by this table — it is a supervised profiling tool, never part of an unattended run',
   },
 };
 
@@ -357,16 +366,22 @@ function toRepoPath(absolute) {
 
 /**
  * How a script reaches Jest, if it does.
+ *
+ * A script that reaches Jest by two routes at once is refused rather than
+ * listed: `--listTests` can be appended to the direct call, but not to a
+ * sibling `npx jest` or to a source file that builds its own command, so
+ * listing only the readable half would report a narrower scope than the script
+ * actually runs. Declaring it `unreadable` fails closed instead.
  * @param {string} name - The script's name.
  * @param {string} body - The script's body.
  * @param {Record<string, string>} scripts - Every script, for following `npm run`.
  * @returns {'direct'|'orchestrator'|'unreadable'|'none'} The route taken.
  */
 function routeOf(name, body, scripts) {
-  if (jestCommandsOf(body).length > 0) return 'direct';
-  if (INDIRECT_JEST.test(body)) return 'unreadable';
+  const hidden = INDIRECT_JEST.test(body) || reachesJestInSource(body);
+  if (jestCommandsOf(body).length > 0) return hidden ? 'unreadable' : 'direct';
   if (name in ORCHESTRATORS) return 'orchestrator';
-  if (reachesJestInSource(body)) return 'unreadable';
+  if (hidden) return 'unreadable';
   return forwardsToJest(body, scripts) ? 'unreadable' : 'none';
 }
 
@@ -388,16 +403,22 @@ function reachesJestInSource(body) {
 
 /**
  * Whether a script delegates, directly or transitively, to a Jest-running one.
+ *
+ * The chain is followed to its end, not one step: `outer` -> `middle` -> a Jest
+ * script must be refused as firmly as `outer` -> a Jest script. `seen` stops a
+ * pair of scripts that forward to each other from recursing forever.
  * @param {string} body - The script's body.
  * @param {Record<string, string>} scripts - Every script, for following `npm run`.
+ * @param {Set<string>} [seen] - Script names already visited on this chain.
  * @returns {boolean} True when the delegation chain ends at Jest.
  */
-function forwardsToJest(body, scripts) {
+function forwardsToJest(body, scripts, seen = new Set()) {
   const target = FORWARDING.exec(body)?.[1];
-  if (!target || !(target in scripts)) return false;
+  if (!target || seen.has(target) || !(target in scripts)) return false;
+  seen.add(target);
   const targetBody = scripts[target];
   if (jestCommandsOf(targetBody).length > 0 || INDIRECT_JEST.test(targetBody)) return true;
-  return reachesJestInSource(targetBody);
+  return reachesJestInSource(targetBody) || forwardsToJest(targetBody, scripts, seen);
 }
 
 /**
@@ -409,7 +430,7 @@ function assertEveryRouteReadable(scripts) {
   const unreadable = scripts.find((script) => script.route === 'unreadable');
   if (!unreadable) return;
   fail(
-    `${unreadable.name} reaches Jest by a route this gate cannot list: ${unreadable.body}. Its scope is decided somewhere this script cannot append \`--listTests\` — a launcher that re-enters the script layer, or a source file that builds the command itself — so a scope-changing flag arriving that way would be invisible here. Invoke Jest directly, or declare the script in ORCHESTRATORS with the paths it is allowed to reach.`,
+    `${unreadable.name} reaches Jest by a route this gate cannot list: ${unreadable.body}. Its scope is decided somewhere this script cannot append \`--listTests\` — a launcher that re-enters the script layer, or a source file that builds the command itself — so a scope-changing flag arriving that way would be invisible here. Invoke Jest directly, or declare the script in ORCHESTRATORS with the reason its scope cannot be listed.`,
   );
 }
 
@@ -424,6 +445,7 @@ function assertOrchestratorsIntact(scripts) {
     if (!scripts[name].includes(entry.source)) {
       fail(staleDeclaration(name, 'ORCHESTRATORS', `it no longer runs ${entry.source}`));
     }
+    assertReasonGiven('ORCHESTRATORS', name, entry.why);
     assertOrchestratorSource(name, entry.source);
   }
 }
@@ -478,6 +500,19 @@ function staleDeclaration(name, table, reason) {
 }
 
 /**
+ * Reject a declaration whose reason is blank.
+ * @param {string} label - The table's name, for diagnostics.
+ * @param {string} name - The declared script.
+ * @param {string} why - The stated reason.
+ * @returns {void}
+ */
+function assertReasonGiven(label, name, why) {
+  if (!why?.trim()) {
+    fail(`${label} declares ${name} without a reason. The reason is the whole value of the declaration: it is what tells the next reader whether the escape is still deliberate.`);
+  }
+}
+
+/**
  * Reject declarations that cannot fail: a blank reason, or a catch-all pattern.
  * @param {Record<string, {patterns: string[], why: string}>} table - A declaration table.
  * @param {string} label - The table's name, for diagnostics.
@@ -485,9 +520,7 @@ function staleDeclaration(name, table, reason) {
  */
 function assertDeclarationsMeaningful(table, label) {
   for (const [name, entry] of Object.entries(table)) {
-    if (!entry.why?.trim()) {
-      fail(`${label} declares ${name} without a reason. The reason is the whole value of the declaration: it is what tells the next reader whether the escape is still deliberate.`);
-    }
+    assertReasonGiven(label, name, entry.why);
     const catchAll = entry.patterns.find((pattern) => CATCH_ALL.test(pattern));
     if (catchAll) {
       fail(`${label} declares ${name} with the catch-all pattern ${JSON.stringify(catchAll)}, which matches every path and therefore excuses every future drift. Name the paths the script is actually meant to reach.`);
@@ -609,7 +642,6 @@ function main() {
   assertEveryRouteReadable(audited);
   assertOrchestratorsIntact(scripts);
   assertDeclarationsMeaningful(INTENTIONAL_ESCAPES, 'INTENTIONAL_ESCAPES');
-  assertDeclarationsMeaningful(ORCHESTRATORS, 'ORCHESTRATORS');
   report(audit(audited, scripts));
 }
 
@@ -661,7 +693,7 @@ function report(findings) {
   const declared = Object.keys(INTENTIONAL_ESCAPES).length;
   const orchestrated = Object.keys(ORCHESTRATORS).length;
   stdout.write(
-    `check-jest-scopes: ${findings.direct} jest scripts listed by Jest itself, ${declared} declared escapes, ${orchestrated} declared orchestrator(s), no silent ones, ${LOCAL_SCRIPT} runs nothing ${GATED_SCRIPT} excludes ✓\n`,
+    `check-jest-scopes: ${findings.direct} jest scripts listed by Jest itself, ${declared} declared escapes, ${orchestrated} orchestrator(s) taken on trust, no silent ones, ${LOCAL_SCRIPT} runs nothing ${GATED_SCRIPT} excludes ✓\n`,
   );
 }
 
