@@ -412,6 +412,12 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
   // unobservable form is only ever unknown. Without this, swapping the two
   // checks is invisible — both routes return false, so a verdict-only
   // assertion cannot tell them apart.
+  //
+  // `visibility: 1` is the load-bearing count: only the initial scope sample
+  // read the DOM. Once the URL proves the browser navigated, the verdict must
+  // short-circuit rather than probe a form that now lives on a detached
+  // frame — the read most likely to hang or throw mid-navigation, and the one
+  // whose answer could not be trusted anyway.
   it('LOGIN-POST-OTP-011: URL evidence outranks visibility evidence', async () => {
     const scripted = { urlAnswers: [loginUrl, authenticatedUrl], visibilityAnswers: [true, false] };
     const mediator = makeMediator({ ...noOtpScenario, ...scripted });
@@ -419,6 +425,8 @@ describe('LOGIN.POST validateActionScopeIntact — M4.F2.b OTP discriminator', (
     const ctx = makeContext(loginUrl, passwordSelector, logs);
     const result = await validateActionScopeIntact(mediator, ctx);
     expect(result).toBe(false);
+    const counts = callCountsOf(mediator);
+    expect(counts).toMatchObject({ url: 2, visibility: 1, probe: 2 });
     expect(logs).toContain(SCOPE_LEFT_LOGIN_URL_LOG);
     expect(logs).not.toContain(SCOPE_TORN_DOWN_FALLTHROUGH_LOG);
   });
