@@ -33,7 +33,7 @@
   "scripts": {
     "clean": "rimraf lib",
     "test": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js",
-    "test:unit": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked --testPathIgnorePatterns=E2eFull",
+    "test:unit": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --config=jest.unit.config.js",
     "test:memory": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --config=jest.pipeline.config.cjs --testPathPatterns=TimerLeakInvariants --testPathPatterns=TimingRetention --testPathPatterns=RaceTimeoutCancellation --testPathPatterns=Account/ScrapeDispatch",
     "memory:profile": "node scripts/memory-profile/profile-bank.mjs",
     "test:pipeline": "node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --config=jest.pipeline.config.cjs --ci --coverage --maxWorkers=2 --testPathIgnorePatterns=E2eReal/ --testPathIgnorePatterns=E2eMocked/ --testPathIgnorePatterns=E2eFull/ --testPathIgnorePatterns=E2e.test --testPathIgnorePatterns=Tests/Integration/",
@@ -72,6 +72,7 @@
     "lint:pr-body": "node scripts/validate-pr-body.mjs",
     "lint:doc-paths": "node scripts/check-doc-paths.mjs README.md CLAUDE.md CLEAN_CODE.md CONTRIBUTING.md .github/copilot-instructions.md",
     "lint:node-support": "node scripts/check-node-support.mjs",
+    "lint:jest-scopes": "node scripts/check-jest-scopes.mjs",
     "lint:public-surface": "node scripts/check-public-surface.mjs --check",
     "compat:build": "node scripts/build-compatibility.mjs",
     "compat:check": "node scripts/build-compatibility.mjs --check",

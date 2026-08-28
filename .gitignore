@@ -100,6 +100,9 @@ scripts/**
 # Same: run by the PR-body workflow and by the pre-push hook, and by
 # `npm run lint:doc-paths` over the agent docs.
 !scripts/check-doc-paths.mjs
+# Run by `npm run lint:jest-scopes` from the pre-commit hook, so it has to be
+# in the tree for the hook to work.
+!scripts/check-jest-scopes.mjs
 # Run by `npm run lint:node-support` from the pre-commit hook and the
 # Lint & Types job, so it has to be in the tree for either to work.
 !scripts/check-node-support.mjs
