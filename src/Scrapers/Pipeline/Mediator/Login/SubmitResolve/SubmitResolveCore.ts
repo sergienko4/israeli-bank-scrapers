@@ -6,7 +6,7 @@
 
 import { none, type Option } from '../../../Types/Option.js';
 import type { IResolvedTarget } from '../../../Types/PipelineContext.js';
-import { computeContextId } from '../../Elements/ActionExecutors.js';
+import { computeContextId, isSameContext } from '../../Elements/ActionExecutors.js';
 import type { IRaceResult } from '../../Elements/ElementMediator.js';
 import type { IDiscoverFieldsArgs } from '../LoginFieldDiscovery.types.js';
 import { buildSubmitSelector, normalizeSubmitConfig } from '../LoginFormAnchor.js';
@@ -18,6 +18,7 @@ import {
   logFrameMismatch,
 } from './SubmitResolveFrameMatch.js';
 import {
+  type IFrameMatchArgs,
   type IFrameScope,
   type IResolveInFrameArgs,
   STRUCTURAL_SUBMIT_WK,
@@ -33,6 +34,23 @@ export async function resolveVisibleCandidates(input: IResolveInFrameArgs): Prom
 }
 
 /**
+ * Accept a race result that landed in the required frame.
+ * @param input - Bundled args + candidates + frame + formAnchor.
+ * @param result - The winning race result.
+ * @param matchArgs - Frame-match bundle carrying both context ids.
+ * @returns Resolved target wrapping the matched element.
+ */
+function acceptFrameMatch(
+  input: IResolveInFrameArgs,
+  result: IRaceResult,
+  matchArgs: IFrameMatchArgs,
+): Option<IResolvedTarget> {
+  logFrameMatch(matchArgs);
+  const selector = buildSubmitSelector(result, input.formAnchor);
+  return buildSuccessTarget(matchArgs, selector);
+}
+
+/**
  * Resolve a visible element strictly within a specific frame.
  * @param input - Bundled args + candidates + frame + formAnchor.
  * @returns Resolved target in the correct frame, or none.
@@ -42,10 +60,9 @@ export async function resolveInFrame(input: IResolveInFrameArgs): Promise<Option
   if (!result.found || !result.context) return none();
   const contextId = computeContextId(result.context, input.args.page);
   const matchArgs = buildFrameMatchArgs(input, result, contextId);
-  if (contextId !== matchArgs.requiredFrameId) return logFrameMismatch(matchArgs);
-  logFrameMatch(matchArgs);
-  const selector = buildSubmitSelector(result, input.formAnchor);
-  return buildSuccessTarget(matchArgs, selector);
+  const isMatch = isSameContext(input.args.page, contextId, matchArgs.requiredFrameId);
+  if (!isMatch) return logFrameMismatch(matchArgs);
+  return acceptFrameMatch(input, result, matchArgs);
 }
 
 /**

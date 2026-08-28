@@ -4,6 +4,8 @@
  * <p>Phase 12d split: extracted from {@link ../LoginFieldDiscovery.ts}.
  */
 
+import type { Page } from 'playwright-core';
+
 import type { IFieldConfig } from '../../../../Base/Interfaces/Config/FieldConfig.js';
 import type { Option } from '../../../Types/Option.js';
 import type {
@@ -36,6 +38,7 @@ export interface IAccumulateCallArgs {
   readonly field: IFieldConfig;
   readonly resolved: IResolvedTarget | false;
   readonly logger: IPipelineContext['logger'];
+  readonly page: Page;
 }
 
 /** Bundle for {@link maybeDiscoverAnchor}. */

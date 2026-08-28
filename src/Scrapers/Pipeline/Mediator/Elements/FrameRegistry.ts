@@ -15,8 +15,35 @@ const MAIN_CONTEXT_ID = 'main';
 /** Iframe context identifier prefix. */
 const IFRAME_PREFIX = 'iframe:';
 
-/** Separates a base contextId from its positional disambiguator. */
-const ORDINAL_SEP = '#';
+/** Separates a per-frame identity token from the content-derived base id. */
+const TOKEN_SEP = '|';
+
+/** Shape of a generated identity token — `f` followed by digits. */
+const TOKEN_RE = /^f\d+$/;
+
+/** Monotonic counter backing the per-frame identity tokens. */
+let tokenSeq = 0;
+
+/** Per-frame identity tokens; entries die with their Frame. */
+const FRAME_TOKENS = new WeakMap<Frame, string>();
+
+/**
+ * Return a stable identity token for a live Frame object.
+ *
+ * <p>Keyed on the Frame instance, so the token never changes when a
+ * sibling frame attaches or detaches — unlike anything derived from the
+ * frame's position in, or the current population of, `page.frames()`.
+ * @param frame - The frame to identify.
+ * @returns A token unique to this Frame instance.
+ */
+function frameToken(frame: Frame): string {
+  const existing = FRAME_TOKENS.get(frame);
+  if (existing !== undefined) return existing;
+  tokenSeq += 1;
+  const minted = `f${String(tokenSeq)}`;
+  FRAME_TOKENS.set(frame, minted);
+  return minted;
+}
 
 /**
  * Strip query params from a URL for stable identification.
@@ -63,25 +90,19 @@ function baseContextId(context: Page | Frame, page: Page): string {
 }
 
 /**
- * List the child frames sharing a base contextId, in Playwright's frame order.
- * @param baseId - The base contextId to match.
- * @param page - The main page.
- * @returns Every child frame whose base contextId equals `baseId`.
- */
-function siblingsOf(baseId: string, page: Page): Frame[] {
-  const children = childFramesOf(page);
-  return children.filter((f): boolean => baseContextId(f, page) === baseId);
-}
-
-/**
  * Compute a stable opaque contextId for a Page or Frame.
  *
- * <p>The base id is content-derived so it survives a frame navigating
- * between PRE and ACTION. Content alone is NOT unique: two sibling
- * iframes can share an origin+pathname (session token stripped) or both
- * be unnamed `about:blank`. When that happens the id gains a positional
- * suffix so PRE and ACTION address the same frame instead of silently
- * collapsing onto whichever one the registry wrote last.
+ * <p>Two halves, and each covers the other's blind spot. The identity
+ * token pins the exact Frame instance, so two sibling iframes that share
+ * an origin+pathname (session token stripped) or are both unnamed
+ * `about:blank` no longer collapse onto one id. The content-derived base
+ * survives a frame detaching and re-attaching as a new object, which is
+ * the case identity alone cannot express.
+ *
+ * <p>A base a sibling already shares describes neither frame, so such a
+ * frame is minted with its token alone. Content can then never be used to
+ * resolve it, closing the one path by which a stale id could reach a
+ * surviving sibling once the frame it named detached.
  * @param context - The Page or Frame to identify.
  * @param page - The main page (for main-frame detection).
  * @returns Stable opaque contextId string.
@@ -89,12 +110,10 @@ function siblingsOf(baseId: string, page: Page): Frame[] {
 function computeContextId(context: Page | Frame, page: Page): string {
   const baseId = baseContextId(context, page);
   if (baseId === MAIN_CONTEXT_ID) return baseId;
-  const siblings = siblingsOf(baseId, page);
-  if (siblings.length < 2) return baseId;
-  const ordinal = siblings.indexOf(context as Frame);
-  if (ordinal < 0) return baseId;
-  const suffix = String(ordinal);
-  return `${baseId}${ORDINAL_SEP}${suffix}`;
+  const token = frameToken(context as Frame);
+  const isShared = isSharedBase(page, baseId);
+  if (isShared) return token;
+  return `${token}${TOKEN_SEP}${baseId}`;
 }
 
 /** Immutable frame registry — maps contextId → actual Frame. */
@@ -120,46 +139,210 @@ function childFramesOf(page: Page): Frame[] {
 }
 
 /**
+ * List every alias under which a frame must be resolvable.
+ *
+ * <p>The token is read from the frame itself rather than parsed back out
+ * of its id: an id minted for an ambiguous frame is the bare token, so
+ * parsing it for a token would yield nothing and register the frame under
+ * the empty string.
+ * @param frame - The frame to describe.
+ * @param page - The main page.
+ * @returns The frame's aliases, in registration order.
+ */
+function frameAliases(frame: Frame, page: Page): [string, string, string] {
+  const exactId = computeContextId(frame, page);
+  const baseId = baseContextId(frame, page);
+  const token = frameToken(frame);
+  return [baseId, token, exactId];
+}
+
+/**
+ * Count how many child frames claim each content-derived base id.
+ * @param frames - The page's child frames.
+ * @param page - The main page.
+ * @returns Base id → number of frames claiming it.
+ */
+function baseIdCounts(frames: Frame[], page: Page): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const frame of frames) {
+    const baseId = baseContextId(frame, page);
+    const seen = counts.get(baseId) ?? 0;
+    counts.set(baseId, seen + 1);
+  }
+  return counts;
+}
+
+/**
+ * Whether more than one live frame claims a content-derived base id.
+ * @param page - The main page.
+ * @param baseId - The content-derived base id to test.
+ * @returns True when a sibling frame claims the same base.
+ */
+function isSharedBase(page: Page, baseId: string): boolean {
+  const frames = childFramesOf(page);
+  const counts = baseIdCounts(frames, page);
+  const claimants = counts.get(baseId) ?? 0;
+  return claimants > 1;
+}
+
+/**
+ * Choose the content key a frame is allowed to claim.
+ *
+ * <p>A base id several frames share identifies none of them. Registering it
+ * anyway would hand back whichever sibling was written last, so an ambiguous
+ * frame claims its own exact id instead — a key it already owns. Content
+ * resolution then finds nothing and {@link resolveFrame} throws, turning a
+ * silent wrong-frame fill into a loud failure.
+ * @param baseId - The frame's content-derived base id.
+ * @param exactId - The frame's tokenised id.
+ * @param isShared - Whether a sibling claims the same base id.
+ * @returns The key to register this frame's content alias under.
+ */
+function contentKeyOf(baseId: string, exactId: string, isShared: boolean): string {
+  return isShared ? exactId : baseId;
+}
+
+/**
  * Build an immutable frame registry from the current page state.
  * Called IMMEDIATELY before action() — captures exact frame state.
  *
- * <p>Colliding frames are registered under BOTH their disambiguated id
- * and their bare base id. The bare alias keeps the pre-existing
- * last-write-wins resolution reachable for a contextId minted when the
- * frame set looked different, so this fix can only ever add a correct
- * mapping — it never removes one that used to resolve.
+ * <p>Every frame is registered under its tokenised id and its bare identity
+ * token, and — only when no sibling shares it — its bare base id.
  * @param page - The Playwright page.
  * @returns Immutable map of contextId → Frame.
  */
 function buildFrameRegistry(page: Page): FrameRegistryMap {
   const registry = new Map<string, Page | Frame>();
   registry.set(MAIN_CONTEXT_ID, page);
-  for (const frame of childFramesOf(page)) {
-    const baseId = baseContextId(frame, page);
-    const exactId = computeContextId(frame, page);
-    registry.set(baseId, frame);
+  const frames = childFramesOf(page);
+  const counts = baseIdCounts(frames, page);
+  for (const frame of frames) {
+    const [baseId, token, exactId] = frameAliases(frame, page);
+    const isShared = counts.get(baseId) !== 1;
+    const contentKey = contentKeyOf(baseId, exactId, isShared);
+    registry.set(contentKey, frame);
+    registry.set(token, frame);
     registry.set(exactId, frame);
   }
   return registry;
 }
 
 /**
+ * Extract the leading identity token from a contextId, if it carries one.
+ *
+ * <p>Only reports a token when the prefix looks like a generated one AND
+ * the remainder is a real base id, so a frame whose own name contains the
+ * separator is never mistaken for a tokenised id.
+ * @param contextId - A possibly tokenised contextId.
+ * @returns The token, or an empty string when the id carries none.
+ */
+function tokenOf(contextId: string): string {
+  const cut = contextId.indexOf(TOKEN_SEP);
+  if (cut < 0) return '';
+  const token = contextId.slice(0, cut);
+  const isToken = TOKEN_RE.test(token);
+  const isBaseId = contextId.slice(cut + 1).startsWith(IFRAME_PREFIX);
+  return isToken && isBaseId ? token : '';
+}
+
+/**
+ * Strip a leading identity token, if the id carries one.
+ * @param contextId - A possibly tokenised contextId.
+ * @returns The bare base contextId.
+ */
+function stripToken(contextId: string): string {
+  const token = tokenOf(contextId);
+  if (token.length === 0) return contextId;
+  return contextId.slice(token.length + TOKEN_SEP.length);
+}
+
+/**
+ * Ask which contextId a stored id's frame carries right now.
+ * @param page - The live page.
+ * @param contextId - A stored contextId.
+ * @returns The frame's current contextId, or '' when it no longer resolves.
+ */
+function liveContextId(page: Page, contextId: string): string {
+  const registry = buildFrameRegistry(page);
+  const found = lookupFrame(registry, contextId);
+  if (!found) return '';
+  return computeContextId(found, page);
+}
+
+/**
+ * Whether two contextIds name the same live frame.
+ *
+ * <p>Comparing the strings cannot answer this. An identity token pins one
+ * Frame object, so a frame that re-attached mid-phase carries two ids for
+ * one logical frame; but ignoring the token instead collapses two live
+ * siblings that share a base onto each other. Neither reading is safe:
+ * the first makes the field-collision guard miss a duplicate and the
+ * submit gate reject a button in the right frame, the second makes the
+ * guard drop a real second field and the submit gate accept a button in
+ * the wrong one.
+ *
+ * <p>Resolving both ids against the live page removes the ambiguity. Every
+ * id for a frame that is still there collapses onto that frame's current
+ * id, while two live siblings keep the distinct tokens they were minted
+ * with. An id that no longer resolves cannot be proven equal to anything.
+ * @param page - The live page both ids are read against.
+ * @param a - First contextId.
+ * @param b - Second contextId.
+ * @returns True when both ids name one live frame.
+ */
+function isSameContext(page: Page, a: string, b: string): boolean {
+  if (a === b) return true;
+  const liveA = liveContextId(page, a);
+  const liveB = liveContextId(page, b);
+  const isResolved = liveA.length > 0 && liveB.length > 0;
+  return isResolved && liveA === liveB;
+}
+
+/**
+ * Choose the registry key that matches a frame on identity alone.
+ * @param contextId - The opaque contextId.
+ * @returns The bare identity token, or the id itself when it carries none —
+ * which cannot match, since the bare id was already tried.
+ */
+function tokenKeyOf(contextId: string): string {
+  const token = tokenOf(contextId);
+  return token.length > 0 ? token : contextId;
+}
+
+/**
+ * Look a contextId up through the three narrowing steps.
+ * @param registry - The frame registry.
+ * @param contextId - The opaque contextId.
+ * @returns The Page or Frame, or false when nothing matches.
+ */
+function lookupFrame(registry: FrameRegistryMap, contextId: string): Page | Frame | false {
+  const exact = registry.get(contextId);
+  if (exact) return exact;
+  const tokenKey = tokenKeyOf(contextId);
+  const sameFrame = registry.get(tokenKey);
+  if (sameFrame) return sameFrame;
+  const baseId = stripToken(contextId);
+  return registry.get(baseId) ?? false;
+}
+
+/**
  * Resolve a Frame from the registry by contextId.
  *
- * <p>Falls back to the bare base id when a disambiguated id misses,
- * which happens if a colliding sibling detached between PRE and ACTION.
+ * <p>Three narrowing attempts. The full id is an exact content+identity
+ * match. The bare token still pins the same live Frame after it navigated
+ * and its content-derived base changed. Only once identity is gone — the
+ * frame detached and re-attached as a new object — does resolution fall
+ * back to matching on content alone, and then only when exactly one frame
+ * claims that content; an ambiguous base throws rather than guess.
  * @param registry - The frame registry.
  * @param contextId - The opaque contextId.
  * @returns The actual Page or Frame.
  */
 function resolveFrame(registry: FrameRegistryMap, contextId: string): Page | Frame {
-  const frame = registry.get(contextId);
-  if (frame) return frame;
-  const [baseId] = contextId.split(ORDINAL_SEP);
-  const fallback = registry.get(baseId);
-  if (!fallback) throw new ScraperError(`Unknown contextId: ${contextId}`);
-  return fallback;
+  const found = lookupFrame(registry, contextId);
+  if (!found) throw new ScraperError(`Unknown contextId: ${contextId}`);
+  return found;
 }
 
 export type { FrameRegistryMap };
-export { buildFrameRegistry, computeContextId, MAIN_CONTEXT_ID, resolveFrame };
+export { buildFrameRegistry, computeContextId, isSameContext, MAIN_CONTEXT_ID, resolveFrame };

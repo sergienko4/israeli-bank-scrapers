@@ -551,6 +551,7 @@ export type { FrameRegistryMap } from './FrameRegistry.js';
 export {
   buildFrameRegistry,
   computeContextId,
+  isSameContext,
   MAIN_CONTEXT_ID,
   resolveFrame,
 } from './FrameRegistry.js';

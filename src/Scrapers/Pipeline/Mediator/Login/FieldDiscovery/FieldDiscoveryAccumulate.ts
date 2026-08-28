@@ -4,11 +4,14 @@
  * <p>Phase 12d split: extracted from {@link ../LoginFieldDiscovery.ts}.
  */
 
+import type { Page } from 'playwright-core';
+
 import type { IFieldConfig } from '../../../../Base/Interfaces/Config/FieldConfig.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { none, type Option, some } from '../../../Types/Option.js';
 import type { IResolvedTarget, LoginFieldKey } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
+import { isSameContext } from '../../Elements/ActionExecutors.js';
 import { UNKNOWN_IDENTITY } from '../../Elements/ElementIdentity.js';
 import type { IFormAnchor } from '../../Form/FormAnchor.js';
 import type { IFieldContext } from '../../Selector/SelectorResolverPipeline.js';
@@ -50,13 +53,19 @@ function identityOf(t: IResolvedTarget): string {
  * collision outright, before identity is consulted.
  *
  * <p>`contextId` gates both paths: a position token only identifies an element
- * within its own frame.
+ * within its own frame. The two ids are resolved against the live page before
+ * being compared, so a frame that re-attached between the two reads is still
+ * one frame — reading it as two would let the duplicate through — while two
+ * live siblings that share a base stay distinct, so a real second field is
+ * not mistaken for a duplicate and dropped.
+ * @param page - The live page both contextIds are read against.
  * @param a - First resolution.
  * @param b - Second resolution.
  * @returns True when both resolutions point at one element.
  */
-function sameTarget(a: IResolvedTarget, b: IResolvedTarget): boolean {
-  if (a.contextId !== b.contextId) return false;
+function sameTarget(page: Page, a: IResolvedTarget, b: IResolvedTarget): boolean {
+  const isSameFrame = isSameContext(page, a.contextId, b.contextId);
+  if (!isSameFrame) return false;
   if (a.selector === b.selector) return true;
   const idA = identityOf(a);
   const idB = identityOf(b);
@@ -71,16 +80,18 @@ function sameTarget(a: IResolvedTarget, b: IResolvedTarget): boolean {
  * fallback claimed an input a semantically-resolved field already owns.
  * Filling both silently overwrites the first, leaving the real field
  * empty and the form invalid — with no error raised anywhere.
+ * @param page - The live page contextIds are read against.
  * @param targets - Targets accumulated so far.
  * @param resolved - Candidate resolution to check.
  * @returns Some(owner) when already claimed, none() when free.
  */
 export function findClaimingField(
+  page: Page,
   targets: TargetMap,
   resolved: IResolvedTarget,
 ): Option<LoginFieldKey> {
   const entries = [...targets];
-  const hit = entries.find(([, target]): boolean => sameTarget(target, resolved));
+  const hit = entries.find(([, target]): boolean => sameTarget(page, target, resolved));
   return hit === undefined ? none() : some(hit[0]);
 }
 
@@ -95,7 +106,7 @@ export function findClaimingField(
  */
 export function rejectClaimedTarget(call: IAccumulateCallArgs): IResolvedTarget | false {
   if (!call.resolved) return false;
-  const owner = findClaimingField(call.accum.targets, call.resolved);
+  const owner = findClaimingField(call.page, call.accum.targets, call.resolved);
   if (!owner.has) return call.resolved;
   const field = maskVisibleText(call.field.credentialKey);
   call.logger.warn({ event: 'login.field_collision', field, claimedBy: owner.value });
@@ -174,7 +185,7 @@ async function resolveUnclaimed(
   field: IFieldConfig,
 ): Promise<IResolvedTarget | false> {
   const resolved = await resolveOneField({ args, field, anchor: accum.formAnchor });
-  return rejectClaimedTarget({ accum, field, resolved, logger: args.logger });
+  return rejectClaimedTarget({ accum, field, resolved, logger: args.logger, page: args.page });
 }
 
 /**
@@ -190,7 +201,7 @@ export async function resolveAndAccumulate(
   field: IFieldConfig,
 ): Promise<IFieldAccum> {
   const resolved = await resolveUnclaimed(args, accum, field);
-  accumulateField({ accum, field, resolved, logger: args.logger });
+  accumulateField({ accum, field, resolved, logger: args.logger, page: args.page });
   const formAnchor = await maybeDiscoverAnchor(args, { accum, field, resolved });
   return { targets: accum.targets, formAnchor };
 }
