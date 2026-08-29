@@ -15,6 +15,8 @@ import {
   NETWORK_FETCH_PAGE_TIMEOUT_MS,
   NETWORK_FETCH_TIMEOUT_MS,
 } from '../FetchConfig.js';
+import type { PageFetchTuple } from './Bounce.js';
+import { assertNotBounced, toResponseFacts } from './Bounce.js';
 import type { JsonValue } from './Headers.js';
 import { LOG, logApiCall, logResponseIssues } from './Logging.js';
 import { parsePostResult } from './ParseResult.js';
@@ -40,9 +42,9 @@ interface IPostEvaluateArgs {
  * Serialised into the page, so it may reference only its argument and browser
  * globals; the timeout arrives as data rather than a closed-over import.
  * @param args - The URL, data, extra headers, and abort budget.
- * @returns [responseText, statusCode].
+ * @returns [responseText, statusCode, contentType, redirected, finalUrl].
  */
-async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, number]> {
+async function doPostFetch(args: IPostEvaluateArgs): Promise<PageFetchTuple> {
   // No hardcoded headers: `args.innerExtraHeaders` (built by
   // `buildDiscoveredHeaders` from captured SPA traffic) is the
   // single source of truth for Content-Type / Referer / X-XSRF-
@@ -56,7 +58,8 @@ async function doPostFetch(args: IPostEvaluateArgs): Promise<readonly [string, n
   const init = { method: 'POST', body: args.innerDataJson, credentials: 'include' as const };
   const response = await fetch(args.innerUrl, { ...init, headers, signal });
   const text = response.status === 204 ? '' : await response.text();
-  return [text, response.status] as const;
+  const type = response.headers.get('content-type') ?? '';
+  return [text, response.status, type, response.redirected, response.url] as const;
 }
 
 /** Pino payload shape for the doPostFetch.headers diagnostic. */
@@ -108,12 +111,12 @@ function logDoPostFetchHeaders(args: IPostEvaluateArgs): boolean {
  * The SPA pivot in ScrapePhase.PRE ensures the page is on the correct origin.
  * @param context - The Playwright page or frame to execute the fetch in.
  * @param args - The URL, data, and extra headers.
- * @returns A tuple of [responseBody, httpStatus].
+ * @returns The evaluator response tuple.
  */
 async function runPostEvaluate(
   context: Page | Frame,
   args: IPostEvaluateArgs,
-): Promise<readonly [string, number]> {
+): Promise<PageFetchTuple> {
   logDoPostFetchHeaders(args);
   const pending = context.evaluate(doPostFetch, args);
   const description = `in-page POST ${redactUrlFull(args.innerUrl)}`;
@@ -170,22 +173,28 @@ function buildPostArgs(url: string, opts: IFetchPostOptions): IPostEvaluateArgs 
 
 /** Bundled args for {@link finalisePagePost} — keeps the sig under max-params. */
 interface IFinalisePagePostArgs {
-  text: string;
-  status: number;
+  response: PageFetchTuple;
   url: string;
   startMs: number;
   opts: IFetchPostOptions;
 }
 
 /**
- * Common tail for {@link fetchPostWithinPage} — log + parse.
- * @param args - Bundled response text + status + url + start + opts.
+ * Common tail for {@link fetchPostWithinPage} — log, bounce-check, parse.
+ *
+ * The bounce check sits before the parser so a WAF interstitial or login
+ * redirect is reported as a typed {@link WafBlockError} rather than as the
+ * `Unexpected token '<'` parse failure it would otherwise become.
+ * @param args - Bundled response tuple + url + start + opts.
  * @returns Parsed JSON or EMPTY_RESULT on swallowed parse error.
  */
 function finalisePagePost<TResult>(args: IFinalisePagePostArgs): Nullable<TResult> {
-  const { text, status, url, startMs, opts } = args;
+  const { response, url, startMs, opts } = args;
+  const [text, status] = response;
   logApiCall(`POST(page) ${redactUrlFull(url).slice(-100)}`, status, Date.now() - startMs);
   logResponseIssues(status, text, url);
+  const facts = toResponseFacts(response, url);
+  assertNotBounced(facts, opts.shouldIgnoreErrors === true);
   return parsePostResult({ text, status, url, opts }) as TResult;
 }
 
@@ -203,6 +212,6 @@ export async function fetchPostWithinPage<TResult>(
 ): Promise<Nullable<TResult>> {
   const startMs = Date.now();
   const postArgs = buildPostArgs(url, opts);
-  const [text, status] = await runPostEvaluate(page, postArgs);
-  return finalisePagePost<TResult>({ text, status, url, startMs, opts });
+  const response = await runPostEvaluate(page, postArgs);
+  return finalisePagePost<TResult>({ response, url, startMs, opts });
 }

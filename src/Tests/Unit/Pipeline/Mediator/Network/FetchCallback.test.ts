@@ -18,6 +18,33 @@ interface IFetchResponse {
   readonly body: string;
 }
 
+/** Origin the synthetic responses report as their final URL. */
+const RESPONSE_URL = 'https://api/x';
+
+/**
+ * Build the DOM `Response` surface the in-page bodies read.
+ *
+ * A real `Response` always carries `headers`, `redirected` and `url`, and the
+ * bounce classifier reads all three before handing the body to the parser.
+ * Modelling them keeps this double aligned with the platform contract rather
+ * than drifting behind it — an omission throws here while production works.
+ * @param script - Response script.
+ * @returns Minimal Response-shaped stub.
+ */
+function makeInPageResponse(script: IFetchResponse): unknown {
+  /**
+   * Content-type accessor — reports JSON so the body reads as parseable.
+   * @returns The content-type value.
+   */
+  const get = (): string => 'application/json';
+  /**
+   * Return scripted body text.
+   * @returns Body.
+   */
+  const text = (): Promise<string> => Promise.resolve(script.body);
+  return { status: script.status, headers: { get }, redirected: false, url: RESPONSE_URL, text };
+}
+
 /**
  * Install a synthetic global fetch returning scripted responses.
  * @param script - Response script.
@@ -27,19 +54,13 @@ function installFetch(script: IFetchResponse): () => boolean {
   const g = globalThis as unknown as { fetch?: unknown };
   const prev = g.fetch;
   /**
-   * Test helper.
-   *
+   * Resolve the scripted response.
    * @returns Result.
    */
-  g.fetch = (): Promise<unknown> =>
-    Promise.resolve({
-      status: script.status,
-      /**
-       * Return scripted body text.
-       * @returns Body.
-       */
-      text: (): Promise<string> => Promise.resolve(script.body),
-    });
+  g.fetch = (): Promise<unknown> => {
+    const response = makeInPageResponse(script);
+    return Promise.resolve(response);
+  };
   return (): boolean => {
     g.fetch = prev;
     return true;

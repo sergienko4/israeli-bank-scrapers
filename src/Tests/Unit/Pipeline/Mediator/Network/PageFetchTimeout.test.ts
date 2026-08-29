@@ -98,6 +98,31 @@ function stubTimeoutFactory(): boolean {
   return true;
 }
 
+/** Final URL the synthetic responses report. Equal to the request target, so
+ *  `redirected` stays the only thing that could raise a redirect signal. */
+const RESPONSE_URL = 'https://bank.co.il/api';
+
+/**
+ * Build the DOM `Response` surface the in-page bodies read.
+ *
+ * A real `Response` always carries `headers`, `redirected` and `url`, and the
+ * bounce classifier reads all three before the body reaches the parser. A
+ * double that omits them throws here while production works — drift in exactly
+ * the direction this suite exists to catch.
+ * @param status - HTTP status to report.
+ * @param text - Body-text accessor.
+ * @returns Minimal Response-shaped stub.
+ */
+function makeInPageResponse(status: number, text: () => Promise<string>): Response {
+  /**
+   * Content-type accessor — reports JSON so the body reads as parseable.
+   * @returns The content-type value.
+   */
+  const get = (): string => 'application/json';
+  const headers = { get };
+  return { status, headers, redirected: false, url: RESPONSE_URL, text } as unknown as Response;
+}
+
 /**
  * Stub fetch with a successful JSON response, capturing the init it received.
  * @param body - Response body text.
@@ -117,7 +142,8 @@ function stubRespondingFetch(body: string): boolean {
      * @returns Resolved body string.
      */
     const text = (): Promise<string> => Promise.resolve(body);
-    return Promise.resolve({ status: 200, text } as unknown as Response);
+    const response = makeInPageResponse(200, text);
+    return Promise.resolve(response);
   };
   globalThis.fetch = stub as unknown as typeof fetch;
   return true;
@@ -183,7 +209,7 @@ function stubNoContentFetch(): boolean {
    */
   const stub = (_url: string, init: RequestInit): Promise<Response> => {
     capturedInit = init;
-    const response = { status: 204, text: rejectBodyRead } as unknown as Response;
+    const response = makeInPageResponse(204, rejectBodyRead);
     return Promise.resolve(response);
   };
   globalThis.fetch = stub as unknown as typeof fetch;
