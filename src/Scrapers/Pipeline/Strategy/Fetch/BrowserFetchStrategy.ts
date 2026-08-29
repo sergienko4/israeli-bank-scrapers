@@ -22,7 +22,7 @@ import { TimeoutError } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand } from '../../Types/Brand.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
+import { fail, failWithDetails, succeed } from '../../Types/Procedure.js';
 import { hasCookieSentinel, substituteCookieHeaders } from './CookieHeaderSentinel.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
@@ -62,13 +62,16 @@ function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Proc
  * classification is a type check, not a string match. A {@link WafBlockError}
  * is preserved for the same reason: `ApiMediator` treats `WafBlocked` as
  * terminal, and flattening it to `Generic` would hide the block behind a retry.
+ * Its `details` ride along, because `toLegacy` forwards them to the caller —
+ * plain `fail` would return the right type with none of the evidence.
  * @param error - The caught error.
  * @returns The narrowest failure type the error supports.
  */
 function catchError(error: Error): Procedure<never> {
   const message = toErrorMessage(error);
   if (error instanceof TimeoutError) return fail(ScraperErrorTypes.Timeout, message);
-  if (error instanceof WafBlockError) return fail(ScraperErrorTypes.WafBlocked, message);
+  const blockType = ScraperErrorTypes.WafBlocked;
+  if (error instanceof WafBlockError) return failWithDetails(blockType, message, error.details);
   return fail(ScraperErrorTypes.Generic, message);
 }
 

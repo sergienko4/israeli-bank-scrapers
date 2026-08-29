@@ -106,6 +106,29 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     if (!result.success) expect(result.errorType).toBe(ERROR_TYPES.WafBlocked);
   });
 
+  // `toLegacy` forwards `errorDetails` onto the public result, so dropping it
+  // here would strip the redacted URL and body snippet that this whole path
+  // exists to surface — the caller would get the right type and no evidence.
+  it('carries the structured WAF details onto the failure', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    const blocked = WAF_BLOCK_ERROR.apiBlock(200, 'https://api.test/post');
+    postFn.mockRejectedValue(blocked);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorDetails.has).toBe(true);
+  });
+
+  it('keeps the blocked page URL in the forwarded details', async () => {
+    const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
+    const blocked = WAF_BLOCK_ERROR.apiBlock(200, 'https://api.test/post');
+    postFn.mockRejectedValue(blocked);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
+    const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
+    const details = result.success ? undefined : result.errorDetails;
+    expect(details?.has === true ? details.value.pageUrl : '').toBe('https://api.test/post');
+  });
+
   it('truncates long URL in empty response error at 80 chars', async () => {
     const postFn = FETCH_MOD.fetchPostWithinPage as jest.Mock;
     postFn.mockResolvedValue(null);
