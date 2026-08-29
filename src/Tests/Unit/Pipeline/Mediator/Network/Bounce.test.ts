@@ -99,6 +99,44 @@ describe('describeBounce — leaves a usable JSON body alone', () => {
     const reason = describeBounce(noContent);
     expect(reason).toBe('');
   });
+
+  // The gate answers one question: "would the parser have succeeded?" Prefix
+  // sniffing only ever answered it for objects and arrays, but `JSON.parse`
+  // also accepts the four primitive forms. A redirected endpoint replying
+  // `true` as text/plain parses today, so condition 1 must stay false for it
+  // or the redirect signal would turn a working call terminal.
+  it('accepts a redirected numeric primitive served as text/plain', () => {
+    const primitive = facts({ text: '123', contentType: 'text/plain', redirected: true });
+    const reason = describeBounce(primitive);
+    expect(reason).toBe('');
+  });
+
+  it('accepts a redirected boolean primitive served as text/plain', () => {
+    const primitive = facts({ text: 'true', contentType: 'text/plain', redirected: true });
+    const reason = describeBounce(primitive);
+    expect(reason).toBe('');
+  });
+
+  it('accepts a redirected null primitive served as text/plain', () => {
+    const primitive = facts({ text: 'null', contentType: 'text/plain', redirected: true });
+    const reason = describeBounce(primitive);
+    expect(reason).toBe('');
+  });
+
+  it('accepts a redirected quoted string served as text/plain', () => {
+    const primitive = facts({ text: '"ok"', contentType: 'text/plain', redirected: true });
+    const reason = describeBounce(primitive);
+    expect(reason).toBe('');
+  });
+
+  // The mirror of the four above: a body that merely *starts* like JSON but
+  // cannot parse must still be caught, or prefix sniffing has just been
+  // swapped for a laxer version of itself.
+  it('still flags a redirected body that opens with a brace but cannot parse', () => {
+    const brokenJson = facts({ text: '{not json', contentType: 'text/plain', redirected: true });
+    const reason = describeBounce(brokenJson);
+    expect(reason).not.toBe('');
+  });
 });
 
 describe('assertNotBounced', () => {

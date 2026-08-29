@@ -20,7 +20,7 @@ import { WafBlockError } from '../../../../Base/Errors.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { redactHtml, redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { BounceReason } from './BounceConfig.js';
-import { JSON_BODY_PREFIXES, JSON_TYPE_MARKER } from './BounceConfig.js';
+import { JSON_TYPE_MARKER } from './BounceConfig.js';
 import { detectWafBlock } from './WafDetection.js';
 
 /** Branded marker returned by {@link assertNotBounced} so Rule #15 passes. */
@@ -89,6 +89,27 @@ export interface IBounceSignal {
 }
 
 /**
+ * Ask the parser itself whether a body is JSON.
+ *
+ * Sniffing for a `{` or `[` prefix only ever answered this for objects and
+ * arrays, but `JSON.parse` also accepts the four primitive forms, and it
+ * rejects a body that merely opens like a document. Delegating makes the
+ * gate exact rather than approximate, which is what the no-regression
+ * property depends on. The caller checks the content-type first, so a large
+ * legitimate payload never reaches this and is not parsed twice.
+ * @param trimmed - Whitespace-trimmed, non-empty response body.
+ * @returns True when the body would survive `JSON.parse`.
+ */
+function canParseAsJson(trimmed: string): boolean {
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Decide whether the body could still be parsed as JSON.
  * @param facts - The response under classification.
  * @returns True when the parser should be allowed to proceed.
@@ -98,8 +119,7 @@ function isUsableJsonBody(facts: IResponseFacts): IsUsableJsonBody {
   if (type.includes(JSON_TYPE_MARKER)) return true as IsUsableJsonBody;
   const trimmed = facts.text.trim();
   if (trimmed === '') return true as IsUsableJsonBody;
-  const isJsonPrefixed = JSON_BODY_PREFIXES.some((p): boolean => trimmed.startsWith(p));
-  return isJsonPrefixed as IsUsableJsonBody;
+  return canParseAsJson(trimmed) as IsUsableJsonBody;
 }
 
 /** Reuses the status/body heuristic already used for WAF diagnostics. */

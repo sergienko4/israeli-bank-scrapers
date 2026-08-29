@@ -33,11 +33,3 @@ export type BounceReason = Brand<string, 'BounceReason'>;
  * `application/problem+json` and `text/json` all qualify.
  */
 export const JSON_TYPE_MARKER = 'json';
-
-/**
- * First non-whitespace characters of a JSON document.
- *
- * Used only when the server sent no usable content-type — several banks answer
- * XHR calls with `text/plain` or omit the header entirely.
- */
-export const JSON_BODY_PREFIXES = ['{', '['] as const;
