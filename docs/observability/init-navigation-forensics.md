@@ -48,6 +48,13 @@ All three are wired into `InitActions.ts` via ≤10-LoC private helpers
 `maybeRunTransportProbe`). Public exports unchanged — every new symbol is
 internal to the `Mediator/Init` cluster.
 
+`executeWireComponents` gained a sibling pair (`wireUnlessErrorDocument`,
+`buildErrorDocumentFail`) that classifies the landed document before the
+context is wired. That path is orthogonal to the forensics envelope: it fires
+when navigation *succeeded* but the edge served an error page under a success
+status, so none of the surface described above is reached. See
+[INIT → Landing document](../phases/init.md#landing-document).
+
 Sibling helpers in `InitActions.ts` (`applyPostLaunchSetup`,
 `coldStartIfDumping`) handle pre-navigation context setup; Phase 7.5
 removed the obsolete `MOCK_MODE` route-install branch from

@@ -28,6 +28,7 @@ import { awaitPagePrelude, probeFirefoxNeterror } from '../Elements/PagePrelude.
 import { ELEMENTS_DOM_READY_TIMEOUT_MS } from '../Timing/ElementsTimingConfig.js';
 import { INIT_NAV_COMMIT_TIMEOUT_MS } from '../Timing/InitTimingConfig.js';
 import { logEnvSnapshot } from './EnvSnapshot.js';
+import { errorDocumentMessage, isErrorDocument } from './LandingDocument.js';
 import {
   isTerminalLandingStatus,
   landingFailureMessage,
@@ -689,6 +690,16 @@ const INIT_FINAL_PRELUDE: IPreludeSpec = { level: 'dom', timeoutMs: ELEMENTS_DOM
  * functions. Reads `input.browser` + `input.diagnostics`; emits
  * the new fields above.
  *
+ * <p>Once the DOM is parsed this is also the first point at which the
+ * landed document can be classified, so {@link isErrorDocument} runs
+ * here — before anything is wired, so a mediator and a `loginUrl` are
+ * never built from an error page. It closes the gap
+ * {@link "./LandingStatusConfig.js"} cannot: Discount's edge serves the
+ * bank's own branded 404 under HTTP 200, which the status gate is
+ * structurally unable to see. The probe is silent on every captured
+ * page fixture in the repo and fails open on any driver refusal, so no
+ * existing failure mode changes.
+ *
  * @param input - Pipeline context with browser.
  * @returns Updated context with mediator + fetchStrategy, or fail.
  */
@@ -699,8 +710,43 @@ async function executeWireComponents(
   const page = input.browser.value.page;
   const wasReady = await awaitPagePrelude(input, INIT_FINAL_PRELUDE);
   if (!wasReady) return fail(ScraperErrorTypes.Generic, WIRE_NO_DOM_MSG);
+  return wireUnlessErrorDocument(input, page);
+}
+
+/**
+ * Wire the context unless the parsed document is an error page.
+ *
+ * <p>Split from {@link executeWireComponents} so both halves stay ≤10
+ * LoC. The order matters and is the point of the split: the probe runs
+ * before {@link buildWiredContext}, so a mediator and a `loginUrl` are
+ * never derived from a document that is not the bank's page.
+ *
+ * @param input - Pipeline context with browser (caller already validated).
+ * @param page - Playwright page handle, DOM already parsed.
+ * @returns Wired context, or the attributed error-document failure.
+ */
+async function wireUnlessErrorDocument(
+  input: IPipelineContext,
+  page: Page,
+): Promise<Procedure<IPipelineContext>> {
+  const isError = await isErrorDocument(page);
+  if (isError) return buildErrorDocumentFail(page);
   const wired = buildWiredContext(input, page);
   return succeed(wired);
+}
+
+/**
+ * Build the structured `fail` for the error-document branch of
+ * {@link wireUnlessErrorDocument}. Pulled out so the host stays ≤10 LoC
+ * and the message format lives in one audit point.
+ *
+ * @param page - Page whose committed document was classified as an error.
+ * @returns Failure `Procedure` describing the served error document.
+ */
+function buildErrorDocumentFail(page: Page): IProcedureFailure {
+  const currentUrl = page.url();
+  const message = errorDocumentMessage(currentUrl);
+  return fail(ScraperErrorTypes.Generic, message);
 }
 
 /**

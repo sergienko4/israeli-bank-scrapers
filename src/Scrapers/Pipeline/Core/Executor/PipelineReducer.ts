@@ -3,6 +3,7 @@
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { INIT_ERROR_DOCUMENT_CODE } from '../../Mediator/Init/LandingDocumentConfig.js';
 import { PHASE_SETTLE_MS } from '../../Mediator/Timing/SharedTimingConstants.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
 import { AUTH_DISCOVERY_NOT_READY_CODE } from '../../Types/Domain/AuthDiscoveryTypes.js';
@@ -131,13 +132,18 @@ interface IFailureArgs {
 /**
  * Decide whether a failed phase must skip the sanitization-pulse retry.
  *
- * <p>Two non-retryable cases: (1) the side-effecting NO_RETRY phases —
+ * <p>Three non-retryable cases: (1) the side-effecting NO_RETRY phases —
  * re-running them fires real-world side-effects (e.g. api-direct-call
  * sends a fresh SMS OTP on every retry); (2) AUTH-DISCOVERY's honest
  * dashboard-not-ready failure — the page is stuck on login, so a retry
- * only re-reads the same still-login page. One try is enough. Other
- * browser failures (incl. AUTH_DISCOVERY_SESSION_INVALID) stay retryable
- * so a transient WAF challenge can clear on the pulse.
+ * only re-reads the same still-login page; (3) INIT's error-document
+ * failure — the edge served its own error page, which the evidence says
+ * clears in minutes rather than seconds, and re-running INIT re-enters
+ * the non-idempotent browser launch while the tracker's last context
+ * predates the phase and so cannot dispose what the retry creates.
+ * One try is enough in each. Other browser failures (incl.
+ * AUTH_DISCOVERY_SESSION_INVALID) stay retryable so a transient WAF
+ * challenge can clear on the pulse.
  * @param step - The failed phase step.
  * @param result - The failed phase result (carries the fail code).
  * @returns True when the phase must not be retried.
@@ -146,6 +152,7 @@ function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): 
   if (NO_RETRY_PHASES.has(step.name)) return true;
   if (isOk(result)) return false;
   if (step.name === 'login' && result.errorMessage.includes(LOGIN_NOT_COMPLETED_CODE)) return true;
+  if (step.name === 'init' && result.errorMessage.includes(INIT_ERROR_DOCUMENT_CODE)) return true;
   return (
     step.name === 'auth-discovery' && result.errorMessage.includes(AUTH_DISCOVERY_NOT_READY_CODE)
   );

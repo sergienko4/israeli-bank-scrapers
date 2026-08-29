@@ -52,6 +52,7 @@ function isFailurePayload(value: unknown): value is IFailureLogPayload {
  * @param script.gotoErrorMessage - Custom error message for the goto rejection (default `nav-fail`).
  * @param script.gotoStatus - HTTP status the scripted goto response reports (default `200`).
  * @param script.titleThrows - Whether title throws.
+ * @param script.errorHeadings - Status-code headings the scripted locator reports (default `0`).
  * @returns Mock Page.
  */
 function makePage(script: {
@@ -61,6 +62,7 @@ function makePage(script: {
   gotoErrorMessage?: string;
   gotoStatus?: number;
   titleThrows?: boolean;
+  errorHeadings?: number;
 }): Page {
   let currentUrl = script.url ?? 'https://bank.co.il';
   const self = {
@@ -126,6 +128,18 @@ function makePage(script: {
      * @returns Resolved void.
      */
     waitForLoadState: (): Promise<void> => Promise.resolve(undefined),
+    /**
+     * locator — INIT.FINAL classifies the landed document by counting
+     * bare status-code headings before it wires anything.
+     * @returns Locator stand-in reporting the scripted match count.
+     */
+    locator: (): { count: () => Promise<number> } => ({
+      /**
+       * Report the scripted number of status-code headings.
+       * @returns Scripted count, defaulting to a healthy zero.
+       */
+      count: (): Promise<number> => Promise.resolve(script.errorHeadings ?? 0),
+    }),
     /**
      * context — bag with on/off hooks.
      * @returns Self.
@@ -372,5 +386,54 @@ describe('executeWireComponents', () => {
     if (!result.success) {
       expect(result.errorMessage).toContain('domcontentloaded not observed');
     }
+  });
+
+  // The Discount failure this gate exists for: the edge served the
+  // bank's own branded 404 under HTTP 200, so the landing-status gate
+  // could not see it, INIT reported all-OK, and the run failed three
+  // phases later at HOME with "no login nav link found".
+  it('fails when the landed document is an error page served under a healthy status', async () => {
+    const page = makePage({ errorHeadings: 1, url: 'https://bank.co.il' });
+    const ctx = ctxWithPage(page);
+    const result = await executeWireComponents(ctx);
+    const isOkResult18 = isOk(result);
+    expect(isOkResult18).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('error document');
+  });
+
+  it('names the URL so the error document is attributable from the log alone', async () => {
+    const page = makePage({ errorHeadings: 1, url: 'https://bank.co.il' });
+    const ctx = ctxWithPage(page);
+    const result = await executeWireComponents(ctx);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('https://bank.co.il');
+  });
+
+  // Guard the blast radius: the probe runs on the success path of every
+  // bank, so a healthy document must wire exactly as it did before.
+  it('wires normally when the document carries no status-code heading', async () => {
+    const page = makePage({ errorHeadings: 0, url: 'https://bank.co.il/login' });
+    const ctx = ctxWithPage(page);
+    const result = await executeWireComponents(ctx);
+    const isOkResult19 = isOk(result);
+    expect(isOkResult19).toBe(true);
+  });
+
+  // Silence is the fallback: a driver that refuses to answer must leave
+  // every existing failure mode exactly as it was.
+  it('wires normally when the driver refuses to count headings', async () => {
+    const page = makePage({ url: 'https://bank.co.il/login' });
+    /**
+     * Fail the way a disposed driver channel does.
+     * @returns Never — always throws.
+     */
+    const throwingLocator = (): never => {
+      throw new ScraperError('Target page, context or browser has been closed');
+    };
+    (page as unknown as { locator: () => never }).locator = throwingLocator;
+    const ctx = ctxWithPage(page);
+    const result = await executeWireComponents(ctx);
+    const isOkResult20 = isOk(result);
+    expect(isOkResult20).toBe(true);
   });
 });
