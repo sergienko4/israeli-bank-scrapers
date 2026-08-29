@@ -29,14 +29,22 @@ cannot tell "the bank changed its schema" from "we were blocked".
 The block was in fact already **detected** — `logResponseIssues` ran
 `detectWafBlock` one line earlier and wrote a debug line — and then the result
 was discarded. This module keeps that verdict and raises it as a typed
-`WafBlockError`, which `BaseScraper` maps to `ScraperErrorTypes.WafBlocked`.
+`WafBlockError`.
+
+Two layers then map that error to `ScraperErrorTypes.WafBlocked`, depending on
+which path the caller came in on, and both preserve `details`:
+
+| Layer | Path | Mapping |
+|---|---|---|
+| `Strategy/Fetch/BrowserFetchStrategy.ts` | Pipeline — the throw crosses into a `Procedure` | `failWithDetails(WafBlocked, message, error.details)` |
+| `Base/BaseScraper.ts` | Legacy — the throw reaches the scraper's top-level handler | `createWafBlockedError(error.message, error.details)` |
 
 ## The gated rule
 
 A response is classified as a **bounce** only when **both** conditions hold:
 
 1. **The body is not usable as JSON** — the `content-type` does not contain
-   `json`, *and* the trimmed body does not start with `{` or `[`. An empty body
+   `json`, *and* the trimmed body does not survive `JSON.parse`. An empty body
    counts as usable, because the parser turns it into `{}`.
 2. **A signal fired** — the status/body WAF heuristic recognised a provider, or
    the browser followed a redirect.
@@ -74,7 +82,8 @@ a schema drift.
 | `429` + `{"error":"rate_limited"}` | no | Usable JSON — stays retryable |
 | `503` + `{"maintenance":true}` | no | Usable JSON — stays retryable |
 | `204` + empty body | no | Empty body parses to `{}` |
-| `200` + `[1,2,3]`, no `content-type` | no | JSON body prefix recognised |
+| `200` + `[1,2,3]`, no `content-type` | no | Body parses as JSON |
+| `302` + `123` as `text/plain` | no | A JSON primitive still parses |
 
 > **Why the redirect signal is gated, never standalone.** The only redirect this
 > repository has captured on the fetch path is the Hapoalim header-mismatch
@@ -94,7 +103,6 @@ already are.
 |---|---|---|
 | `BounceReason` | `BounceConfig.ts` | Branded reason string; the empty string is the "not bounced" value, matching the `WafBlockDescription` convention in `WafDetection.ts` |
 | `JSON_TYPE_MARKER` | `BounceConfig.ts` | Content-type substring (`json`) matched case-insensitively, so `application/json`, `application/problem+json` and `text/json` all qualify |
-| `JSON_BODY_PREFIXES` | `BounceConfig.ts` | First non-whitespace characters of a JSON document (`{`, `[`); consulted only when the server sent no usable content-type |
 | `PageFetchTuple` | `Bounce.ts` | Wire format every in-page evaluator returns: `[text, status, contentType?, redirected?, finalUrl?]` |
 | `IResponseFacts` | `Bounce.ts` | Plain-data classifier input — no `Response`, no `Page`, so classification is pure and testable without a browser |
 | `toResponseFacts` | `Bounce.ts` | Converts a `PageFetchTuple` plus the requested URL into `IResponseFacts` |
@@ -136,7 +144,7 @@ to be thrown away.
 The trailing three slots of `PageFetchTuple` were appended after the fact. Any
 evaluator — or test double — that still yields a two-element `[text, status]`
 tuple reads the missing slots as `undefined`, which leaves it on its original
-behaviour: no content-type means the body prefix decides, and an absent
+behaviour: no content-type means the body itself decides, and an absent
 `redirected` flag never fires the redirect signal. A regression test pins this.
 
 ## PII
