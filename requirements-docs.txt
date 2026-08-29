@@ -1,4 +1,4 @@
-GitPython==3.1.59
+GitPython==3.1.60
 Jinja2==3.1.6
 Markdown==3.10.3
 Pygments==2.21.0
@@ -12,4 +12,4 @@ mkdocs-material==9.7.7
 mkdocs-mermaid2-plugin==1.2.3
 mkdocs-minify-plugin==0.8.0
 mkdocs==1.6.1
-pymdown-extensions==11.0.1
+pymdown-extensions==11.0.2
