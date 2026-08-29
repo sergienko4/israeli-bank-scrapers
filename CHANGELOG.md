@@ -1,5 +1,25 @@
 # Changelog
 
+## [8.6.9](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.8...v8.6.9) (2026-08-29)
+
+
+### Bug Fixes
+
+* anchor CodeRabbit lib path filter to root ([#529](https://github.com/sergienko4/israeli-bank-scrapers/issues/529)) ([6893a3a](https://github.com/sergienko4/israeli-bank-scrapers/commit/6893a3aa893cec94ade2f7c8ca3a7af4f950618b))
+* blind coverage rounds and a stale login URL ([#519](https://github.com/sergienko4/israeli-bank-scrapers/issues/519)) ([99f1bc8](https://github.com/sergienko4/israeli-bank-scrapers/commit/99f1bc8beb9b188d0fce26a061ea798dfcd27b47))
+* **ci:** add a real public-API surface gate ([#512](https://github.com/sergienko4/israeli-bank-scrapers/issues/512)) ([58bdbfa](https://github.com/sergienko4/israeli-bank-scrapers/commit/58bdbfa08e637df21e71ef1e9ce06afff9d582a1))
+* **ci:** decouple guardrails from typescript ([#524](https://github.com/sergienko4/israeli-bank-scrapers/issues/524)) ([c888503](https://github.com/sergienko4/israeli-bank-scrapers/commit/c8885030f20efa1dd2222d8f9e52aa230b4887cb))
+* **fetch:** raise a WAF bounce as a typed block error ([#531](https://github.com/sergienko4/israeli-bank-scrapers/issues/531)) ([ce7b5b5](https://github.com/sergienko4/israeli-bank-scrapers/commit/ce7b5b5a7948eee0b1e83c5648703df941730b70))
+* **frames:** give colliding iframes distinct ids ([#520](https://github.com/sergienko4/israeli-bank-scrapers/issues/520)) ([552558f](https://github.com/sergienko4/israeli-bank-scrapers/commit/552558fd6f6114358444477c9d0a0b51359673e4))
+* **frames:** key iframes by identity, not position ([#521](https://github.com/sergienko4/israeli-bank-scrapers/issues/521)) ([8e0e3fb](https://github.com/sergienko4/israeli-bank-scrapers/commit/8e0e3fb1acf806adc106372315fc7de2b8d02c3e))
+* **init:** fail on soft-404 landing documents ([#530](https://github.com/sergienko4/israeli-bank-scrapers/issues/530)) ([440f5a4](https://github.com/sergienko4/israeli-bank-scrapers/commit/440f5a4f00dec5bc4870645d2f9263fe57009910))
+* **leumi:** emit FITID as the per-txn identifier ([#511](https://github.com/sergienko4/israeli-bank-scrapers/issues/511)) ([0e479dc](https://github.com/sergienko4/israeli-bank-scrapers/commit/0e479dc80635c3823c283d5581db95af0533bd23))
+* **lint:** close Rule [#17](https://github.com/sergienko4/israeli-bank-scrapers/issues/17) guard coverage gaps ([#510](https://github.com/sergienko4/israeli-bank-scrapers/issues/510)) ([a26659d](https://github.com/sergienko4/israeli-bank-scrapers/commit/a26659df705e97ac33873d1150f5c98174fab6c2))
+* **lint:** repair Playwright guard and remove layer inversion ([#495](https://github.com/sergienko4/israeli-bank-scrapers/issues/495)) ([3e2a907](https://github.com/sergienko4/israeli-bank-scrapers/commit/3e2a907df300ee1c7d661c23f64c7ecbdbebde12))
+* recover from stalls, blank pages and field collisions ([#517](https://github.com/sergienko4/israeli-bank-scrapers/issues/517)) ([bc12382](https://github.com/sergienko4/israeli-bank-scrapers/commit/bc12382b2c4d8214e017853b6353270f653aaf46))
+* **test:** keep serial suites out of unit pool ([#522](https://github.com/sergienko4/israeli-bank-scrapers/issues/522)) ([c72498e](https://github.com/sergienko4/israeli-bank-scrapers/commit/c72498e3d7b4835f86d8decbd461f48e074601d0))
+* transaction integrity across seven scrapers (Phase 1) ([#516](https://github.com/sergienko4/israeli-bank-scrapers/issues/516)) ([28b4a70](https://github.com/sergienko4/israeli-bank-scrapers/commit/28b4a702c7b160810693e21f0863b28ddb8cfae3))
+
 ## [8.6.8](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.7...v8.6.8) (2026-08-22)
 
 
