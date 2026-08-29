@@ -228,6 +228,13 @@ bg_gate "pii-staged"        "yes" npm run lint:pii-staged
 # unconditionally because a README-only commit is the likeliest way to
 # drift it.
 bg_gate "node-support"      "yes" npm run lint:node-support
+# CodeRabbit's exclusion filters must only skip generated output. An
+# unanchored glob (`!**/lib/**`) reads as a build directory but matches one
+# ANYWHERE, so `scripts/decoupling-metrics/lib/*.mjs` — hand-written — went
+# unreviewed with no error to notice. Runs unconditionally: the two ways to
+# trip it are editing the filter list and adding a file under a path some
+# filter already reaches, and the second touches no config at all.
+bg_gate "coderabbit-filters" "yes" npm run lint:coderabbit-filters
 # Test scripts must not silently widen their own scope. Jest's
 # --testPathIgnorePatterns CLI flag REPLACES the config's list instead of
 # extending it, so a script that passes it reads like it is adding an

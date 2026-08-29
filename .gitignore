@@ -97,6 +97,11 @@ scripts/**
 !scripts/build-compatibility.mjs
 # Enforced by the PR-body compliance workflow, so it must be in the tree.
 !scripts/check-breaking-note.mjs
+# Run by `npm run lint:coderabbit-filters` from the pre-commit hook, so it has
+# to be in the tree for the hook to work. The blanket `scripts/**` above is the
+# same class of over-broad pattern this script exists to catch in
+# .coderabbit.yaml — hence the negation, not an exception.
+!scripts/check-coderabbit-filters.mjs
 # Same: run by the PR-body workflow and by the pre-push hook, and by
 # `npm run lint:doc-paths` over the agent docs.
 !scripts/check-doc-paths.mjs

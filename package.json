@@ -72,6 +72,7 @@
     "lint:pr-body": "node scripts/validate-pr-body.mjs",
     "lint:doc-paths": "node scripts/check-doc-paths.mjs README.md CLAUDE.md CLEAN_CODE.md CONTRIBUTING.md .github/copilot-instructions.md",
     "lint:node-support": "node scripts/check-node-support.mjs",
+    "lint:coderabbit-filters": "node scripts/check-coderabbit-filters.mjs",
     "lint:jest-scopes": "node scripts/check-jest-scopes.mjs",
     "lint:public-surface": "node scripts/check-public-surface.mjs --check",
     "compat:build": "node scripts/build-compatibility.mjs",

@@ -126,7 +126,9 @@ reviews:
   # the maintainer already audits via husky gates.
   path_filters:
     - "!**/node_modules/**"
-    - "!**/lib/**"                        # esbuild output (CJS bundle)
+    - "!lib/**"                          # esbuild output (CJS bundle), root only —
+                                         # unanchored `**/lib/**` also hid the
+                                         # hand-written scripts/decoupling-metrics/lib/
     - "!**/dist/**"                       # alternative build output
     - "!**/coverage/**"                   # Jest coverage HTML
     - "!**/.nyc_output/**"
