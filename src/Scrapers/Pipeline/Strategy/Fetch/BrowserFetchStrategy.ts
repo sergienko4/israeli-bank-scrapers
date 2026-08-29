@@ -10,6 +10,7 @@
 
 import type { Frame, Page } from 'playwright-core';
 
+import { WafBlockError } from '../../../Base/Errors.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import {
@@ -58,14 +59,16 @@ function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Proc
  *
  * The deadline is enforced in Node by `timeoutPromise`, so the timeout arrives
  * as a real {@link TimeoutError} rather than engine-specific abort text — the
- * classification is a type check, not a string match.
+ * classification is a type check, not a string match. A {@link WafBlockError}
+ * is preserved for the same reason: `ApiMediator` treats `WafBlocked` as
+ * terminal, and flattening it to `Generic` would hide the block behind a retry.
  * @param error - The caught error.
- * @returns A Timeout failure for an expired deadline, otherwise Generic.
+ * @returns The narrowest failure type the error supports.
  */
 function catchError(error: Error): Procedure<never> {
   const message = toErrorMessage(error);
-  const isTimeout = error instanceof TimeoutError;
-  if (isTimeout) return fail(ScraperErrorTypes.Timeout, message);
+  if (error instanceof TimeoutError) return fail(ScraperErrorTypes.Timeout, message);
+  if (error instanceof WafBlockError) return fail(ScraperErrorTypes.WafBlocked, message);
   return fail(ScraperErrorTypes.Generic, message);
 }
 
