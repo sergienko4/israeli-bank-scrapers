@@ -2,6 +2,11 @@
 
 > **Status:** Shipped in PR #282 — generic background WAF challenge interceptor.
 > **Scope:** Bank-agnostic, phase-agnostic. Wired FIRST in every browser pipeline.
+>
+> **See also:** [WAF fetch bounce](waf-fetch-bounce.md) — the *other* half of WAF
+> handling, covering in-page `fetch` responses that come back as an HTML
+> interstitial instead of JSON. That page is about classifying a response; this
+> page is about clicking a challenge.
 
 ## Why this exists
 

@@ -134,6 +134,8 @@ nav:
       - Layer separation: architecture/layers.md
       - Config Contracts (api-direct-call): architecture/config-contracts.md
       - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
+      - WAF challenge interceptor: architecture/waf-interceptor.md
+      - WAF fetch bounce: architecture/waf-fetch-bounce.md
       - Legacy (deprecated): architecture/legacy.md
       - Migration strategy: architecture/migration.md
   - Phases:
