@@ -24,15 +24,17 @@
  * parse tree removes both failure modes; the last two cases below
  * pin exactly that.
  *
- * <p>The guard resolves unions and file-local `type` aliases, so
- * neither `JsonUnknown | null` nor `type Open = JsonUnknown` hides an
- * open input. It reads one file at a time and so stops at the module
- * boundary: an alias *imported* from another module is not followed.
- * Closing that last case needs a whole-program {@link ts.TypeChecker},
- * which would mean type-resolving ~870 files inside a unit test; the
- * cost is not justified while the algebra names are the vocabulary
- * reviewers already read for, and the single-declaration-site case
- * above keeps those names in one module.
+ * <p>The guard resolves unions and `type` aliases, so neither
+ * `JsonUnknown | null` nor `type Open = JsonUnknown` hides an open
+ * input. Aliases resolve lexically — from the scope that uses the name
+ * outward to the nearest declaration — so a `namespace` reusing a name
+ * shadows nothing outside itself. It reads one file at a time and so
+ * stops at the module boundary: an alias *imported* from another
+ * module is not followed. Closing that last case needs a whole-program
+ * {@link ts.TypeChecker}, which would mean type-resolving ~870 files
+ * inside a unit test; the cost is not justified while the algebra
+ * names are the vocabulary reviewers already read for, and the
+ * single-declaration-site case above keeps those names in one module.
  *
  * <p>Applicable guidelines:
  * <ul>
@@ -100,19 +102,26 @@ interface IUnsoundGuard {
   readonly detail: string;
 }
 
-/** One `type X = …` alias and the names its right-hand side references. */
+/** One `type X = …` alias, tagged with the scope that declares it. */
 interface IAlias {
   readonly name: string;
   readonly targets: readonly string[];
+  readonly scope: ts.Node;
 }
 
-/** Local alias name to the type names it references. */
-type AliasMap = ReadonlyMap<string, readonly string[]>;
+/** Every alias a file declares, in source order. */
+type AliasTable = readonly IAlias[];
+
+/** The alias table plus the names already expanded on this path. */
+interface IResolve {
+  readonly table: AliasTable;
+  readonly seen: Set<string>;
+}
 
 /** Everything the guard walk needs to know about the file it scans. */
 interface IScanCtx {
   readonly source: ts.SourceFile;
-  readonly aliases: AliasMap;
+  readonly aliases: AliasTable;
 }
 
 /**
@@ -228,59 +237,98 @@ function typeNamesOf(node: ts.Node): readonly string[] {
 
 /**
  * Collect every `type X = …` alias declared beneath a node.
+ *
+ * <p>An alias is otherwise a blind spot: `type Open = JsonUnknown`
+ * renames an open arm, and a check that compares bare identifier text
+ * stops matching. Each entry keeps the node that lexically contains it
+ * so a name can later be resolved from the scope that uses it rather
+ * than from whichever declaration the walk happens to reach last.
+ *
  * @param node - Subtree root.
  * @param source - Owning source file.
  * @returns Aliases found in this subtree, in source order.
  */
-function collectAliases(node: ts.Node, source: ts.SourceFile): readonly IAlias[] {
-  const own: readonly IAlias[] = ts.isTypeAliasDeclaration(node)
-    ? [{ name: node.name.text, targets: typeNamesOf(node.type) }]
+function collectAliases(node: ts.Node, source: ts.SourceFile): AliasTable {
+  const own: AliasTable = ts.isTypeAliasDeclaration(node)
+    ? [{ name: node.name.text, targets: typeNamesOf(node.type), scope: node.parent }]
     : [];
   const children = node.getChildren(source);
-  const nested = children.flatMap((c): readonly IAlias[] => collectAliases(c, source));
+  const nested = children.flatMap((c): AliasTable => collectAliases(c, source));
   return [...own, ...nested];
 }
 
 /**
- * Index the aliases a file declares.
- *
- * <p>An alias is otherwise a blind spot: `type Open = JsonUnknown`
- * renames an open arm, and a check that compares bare identifier text
- * stops matching.
- *
- * @param source - File to scan for alias declarations.
- * @returns Alias name to the type names its right-hand side references.
+ * List a node's enclosing scopes, innermost first.
+ * @param node - Node to start from.
+ * @returns The node and each of its ancestors, up to the file.
  */
-function aliasMapOf(source: ts.SourceFile): AliasMap {
-  const aliases = collectAliases(source, source);
-  const pairs = aliases.map((a): readonly [string, readonly string[]] => [a.name, a.targets]);
-  return new Map(pairs);
+function scopeChainOf(node: ts.Node): readonly ts.Node[] {
+  if (ts.isSourceFile(node)) return [node];
+  const outer = scopeChainOf(node.parent);
+  return [node, ...outer];
 }
 
 /**
- * Expand one type name through the alias table of its own file.
+ * Resolve one alias name as the code at a given node would see it.
+ *
+ * <p>A `namespace` may reuse a name the surrounding file already
+ * declares. Only declarations in an enclosing scope are visible, and
+ * the nearest of those wins, so a sibling block cannot redefine a name
+ * out from under its neighbours.
+ *
+ * @param name - Type name as written.
+ * @param from - Node whose scope the name is read in.
+ * @param table - Aliases declared by the owning file.
+ * @returns The visible declaration, or the empty list when none is.
+ */
+function aliasFor(name: string, from: ts.Node, table: AliasTable): AliasTable {
+  const chain = scopeChainOf(from);
+  const named = table.filter((a): boolean => a.name === name);
+  const perScope = chain.flatMap((scope): AliasTable => {
+    return named.filter((a): boolean => a.scope === scope);
+  });
+  return perScope.slice(0, 1);
+}
+
+/**
+ * Expand the right-hand side of one alias.
+ * @param alias - Alias whose targets are expanded.
+ * @param res - Alias table and the names already expanded.
+ * @returns The names the alias ultimately denotes.
+ */
+function expandAlias(alias: IAlias, res: IResolve): readonly string[] {
+  return alias.targets.flatMap((next): readonly string[] => expandName(next, alias.scope, res));
+}
+
+/**
+ * Expand one type name through the aliases visible where it is written.
  * @param name - Type name exactly as written in the annotation.
- * @param aliases - Alias table for the owning file.
- * @param seen - Names already expanded, which breaks alias cycles.
+ * @param from - Node whose scope the name is read in.
+ * @param res - Alias table and the names already expanded.
  * @returns The names the annotation ultimately denotes.
  */
-function expandName(name: string, aliases: AliasMap, seen: Set<string>): readonly string[] {
-  if (seen.has(name)) return [];
-  seen.add(name);
-  const targets = aliases.get(name);
-  if (targets === undefined) return [name];
-  return targets.flatMap((next): readonly string[] => expandName(next, aliases, seen));
+function expandName(name: string, from: ts.Node, res: IResolve): readonly string[] {
+  if (res.seen.has(name)) return [];
+  res.seen.add(name);
+  const found = aliasFor(name, from, res.table);
+  if (found.length === 0) return [name];
+  return found.flatMap((alias): readonly string[] => expandAlias(alias, res));
 }
 
 /**
  * Expand every name an annotation references.
  * @param names - Names read straight from the annotation.
- * @param aliases - Alias table for the owning file.
+ * @param from - Node whose scope the names are read in.
+ * @param table - Aliases declared by the owning file.
  * @returns Alias-free type names.
  */
-function expandNames(names: readonly string[], aliases: AliasMap): readonly string[] {
-  const seen = new Set<string>();
-  return names.flatMap((name): readonly string[] => expandName(name, aliases, seen));
+function expandNames(
+  names: readonly string[],
+  from: ts.Node,
+  table: AliasTable,
+): readonly string[] {
+  const res: IResolve = { table, seen: new Set<string>() };
+  return names.flatMap((name): readonly string[] => expandName(name, from, res));
 }
 
 /**
@@ -322,7 +370,7 @@ function narrowedParamNames(
 function assertedArmOf(predicate: ts.TypePredicateNode, ctx: IScanCtx): string {
   const declared = predicate.type ?? predicate;
   const written = typeNamesOf(declared);
-  const expanded = expandNames(written, ctx.aliases);
+  const expanded = expandNames(written, predicate, ctx.aliases);
   return firstArm(expanded, CLOSED_NAMES);
 }
 
@@ -339,7 +387,7 @@ function inputArmOf(
   ctx: IScanCtx,
 ): string {
   const written = narrowedParamNames(fn, predicate);
-  const expanded = expandNames(written, ctx.aliases);
+  const expanded = expandNames(written, fn, ctx.aliases);
   return firstArm(expanded, OPEN_NAMES);
 }
 
@@ -401,10 +449,10 @@ function collectGuards(node: ts.Node, ctx: IScanCtx): readonly IUnsoundGuard[] {
 /**
  * Build the scan context for a parsed file.
  * @param source - Parsed source file.
- * @returns The file paired with its local alias table.
+ * @returns The file paired with the aliases it declares.
  */
 function scanCtxOf(source: ts.SourceFile): IScanCtx {
-  return { source, aliases: aliasMapOf(source) };
+  return { source, aliases: collectAliases(source, source) };
 }
 
 /**
@@ -548,6 +596,37 @@ describe('RC-5 — JsonValue single source of truth', () => {
     const offender = [
       'type Open = JsonUnknown;',
       'function f(v: Open): v is IJsonObject { return true; }',
+    ].join('\n');
+    const details = guardDetailsIn(offender);
+    expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  /**
+   * An alias name is only meaningful together with the scope that
+   * declares it. Indexing a file's aliases into one flat table lets an
+   * unrelated `namespace` redefine a name the surrounding code already
+   * uses, and whichever declaration the parser reaches last silently
+   * wins. Both fixtures below place the decoy where a source-order
+   * table would prefer it, so each one fails unless resolution starts
+   * from the guard's own scope and stops at the nearest declaration.
+   */
+  it('ignores an alias redeclared by an unrelated namespace', () => {
+    const offender = [
+      'type Open = JsonUnknown;',
+      'function f(v: Open): v is IJsonObject { return true; }',
+      'namespace Shadow { export type Open = IJsonObject; }',
+    ].join('\n');
+    const details = guardDetailsIn(offender);
+    expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  it('prefers the nearest alias over a later outer declaration', () => {
+    const offender = [
+      'namespace Inner {',
+      '  type Open = JsonUnknown;',
+      '  export function f(v: Open): v is IJsonObject { return true; }',
+      '}',
+      'type Open = IJsonObject;',
     ].join('\n');
     const details = guardDetailsIn(offender);
     expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
