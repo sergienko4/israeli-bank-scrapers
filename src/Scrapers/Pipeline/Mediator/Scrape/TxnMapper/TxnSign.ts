@@ -9,7 +9,7 @@
 
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 import { type ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
-import { findFieldValue } from '../BfsFieldSearch/BfsFieldSearch.js';
+import { findFieldValue, matchFieldInRecord } from '../BfsFieldSearch/BfsFieldSearch.js';
 
 /** Per-record sign context shared by both amounts of one transaction. */
 interface ICardSignContext {
@@ -51,25 +51,131 @@ export interface ISignedAmounts {
  */
 function maybeNegateAmount(amount: number, isCardTxn: boolean): number {
   if (!isCardTxn) return amount;
-  // Guarded so zero cannot become -0, which serialises as "-0" and is unequal
-  // to a stored 0 under Object.is.
+  // Guarded so zero cannot become -0: it passes `=== 0` but is distinguishable
+  // through Object.is and 1 / x, so it is unequal to a stored 0.
   if (amount === 0) return 0;
   return -amount;
 }
 
 /**
- * Apply WK.direction sign convention. Debit indicators flip a positive
- * amount to negative; missing / non-debit directions leave the amount
- * untouched.
+ * One bank's numeric direction-code convention.
+ *
+ * `field` names the property carrying the code; `inbound` and `outbound` are
+ * the exact numeric codes that field uses for money in and money out. Both
+ * halves are declared together so a registered field can never be missing its
+ * codes, and so two banks sharing a field name but not its values stay
+ * separately describable.
+ */
+interface IDirectionCodeConvention {
+  readonly field: string;
+  readonly inbound: number;
+  readonly outbound: number;
+}
+
+/**
+ * Direction-code conventions, one per bank field that carries one.
+ *
+ * Some banks send the amount as an unsigned MAGNITUDE and put the direction in
+ * a numeric activity code instead of a debit/credit word. Hapoalim is the
+ * reference case: `eventActivityTypeCode` is 1 for money in and 2 for money
+ * out, which is the rule the upstream per-institution scraper applies
+ * (`const isOutbound = txn.eventActivityTypeCode === 2`).
+ *
+ * This cannot live in the WK registry: that registry is contractually a map of
+ * field NAMES (`satisfies Record<string, string[]>`) with nowhere to put the
+ * code half of the rule.
+ */
+const DIRECTION_CODE_CONVENTIONS: readonly IDirectionCodeConvention[] = [
+  { field: 'eventActivityTypeCode', inbound: 1, outbound: 2 },
+];
+
+/** Which way money moved, or `unknown` when no code field decided it. */
+type CodedDirection = 'inbound' | 'outbound' | 'unknown';
+
+/**
+ * Read one convention against a record.
+ *
+ * The field is matched on the record ROOT only, never through the nested
+ * search the worded reader uses: a code buried in a sub-record — a
+ * counterparty, a beneficiary block — describes that sub-record, not this
+ * transaction, and must not decide the parent's sign. Codes are compared with
+ * strict numeric equality, matching upstream's `=== 2`, so a quoted or
+ * otherwise reformatted value is left undecided rather than guessed at.
+ *
+ * @param raw - Raw transaction record.
+ * @param convention - The bank convention to read.
+ * @returns The direction this convention proves, or `unknown`.
+ */
+function directionByConvention(
+  raw: ApiRecord,
+  convention: IDirectionCodeConvention,
+): CodedDirection {
+  const code = matchFieldInRecord(raw, [convention.field]);
+  if (code === convention.outbound) return 'outbound';
+  if (code === convention.inbound) return 'inbound';
+  return 'unknown';
+}
+
+/**
+ * The direction a record states numerically, if any.
+ * @param raw - Raw transaction record.
+ * @returns The first direction a known code field proves, else `unknown`.
+ */
+function codedDirectionOf(raw: ApiRecord): CodedDirection {
+  /**
+   * Read one convention against this record.
+   * @param convention - Convention to read.
+   * @returns The direction it proves, or `unknown`.
+   */
+  const read = (convention: IDirectionCodeConvention): CodedDirection =>
+    directionByConvention(raw, convention);
+  const results = DIRECTION_CODE_CONVENTIONS.map(read);
+  const decided = results.find((d): boolean => d !== 'unknown');
+  return decided ?? 'unknown';
+}
+
+/**
+ * Force a magnitude negative.
+ *
+ * Guarded so zero cannot become -0. Negative zero passes `=== 0` but is
+ * distinguishable through `Object.is` and `1 / x`, so letting it escape makes a
+ * zero-amount row unequal to a stored 0 — the same hazard
+ * {@link maybeNegateAmount} guards.
+ *
+ * @param amount - Amount to drive negative.
+ * @returns The negative magnitude, or 0 when there is no magnitude.
+ */
+function negativeMagnitude(amount: number): number {
+  if (amount === 0) return 0;
+  return -Math.abs(amount);
+}
+
+/**
+ * Apply the WK direction sign convention.
+ *
+ * A numeric direction code is AUTHORITATIVE and read first. It is an explicit
+ * statement by the bank, so it settles the sign outright rather than merely
+ * adding a negation: a coded inbound row keeps its magnitude positive even if a
+ * worded field or a card issuer's inverted convention would otherwise flip it.
+ * The worded reader below only ever matched strings, so a coded record used to
+ * fall through it and keep the unsigned magnitude the API sent.
+ *
+ * With no code present, behaviour is unchanged: debit indicators flip a
+ * positive amount to negative, and missing / non-debit directions leave the
+ * amount untouched.
+ *
  * @param raw - Raw transaction record.
  * @param amount - Amount already resolved via resolveAmount + maybeNegateAmount.
  * @returns Sign-corrected amount.
  */
 function applyDirectionWk(raw: ApiRecord, amount: number): number {
+  const coded = codedDirectionOf(raw);
+  if (coded === 'outbound') return negativeMagnitude(amount);
+  if (coded === 'inbound') return Math.abs(amount);
   const direction = findFieldValue(raw, WK.direction);
   if (typeof direction !== 'string') return amount;
   if (!/^debit$/i.test(direction)) return amount;
-  return -Math.abs(amount);
+  return negativeMagnitude(amount);
 }
 
 /**

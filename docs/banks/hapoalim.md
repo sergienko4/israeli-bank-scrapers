@@ -1,13 +1,13 @@
 # Bank Hapoalim
 
-| | |
-|---|---|
-| `CompanyTypes` | `Hapoalim` |
-| Engine | Browser (Pipeline) |
-| Credentials | `userCode`, `password` (plus `otpCodeRetriever` callback in options) |
-| OTP | **Conditional** — only on unrecognised devices |
-| Phase chain | INIT → HOME → LOGIN → (OTP-FILL conditional) → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE |
-| Source | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts) |
+|                |                                                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompanyTypes` | `Hapoalim`                                                                                                                                                           |
+| Engine         | Browser (Pipeline)                                                                                                                                                   |
+| Credentials    | `userCode`, `password` (plus `otpCodeRetriever` callback in options)                                                                                                 |
+| OTP            | **Conditional** — only on unrecognised devices                                                                                                                       |
+| Phase chain    | INIT → HOME → LOGIN → (OTP-FILL conditional) → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE                                                                     |
+| Source         | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts) |
 
 ## Quick example
 
@@ -38,6 +38,22 @@ BALANCE-RESOLVE chain, the `HAPOALIM_SHAPE` `IApiDirectScrapeShape`
 (`Banks/Hapoalim/scrape/HapoalimShape.ts`) declares the exact accounts, balance,
 and transactions API calls, issued directly through the live login page. See
 [api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
+
+## Transaction sign
+
+Hapoalim sends `eventAmount` as an **unsigned magnitude** and states the
+direction separately, in the numeric `eventActivityTypeCode`. Nothing in the
+amount says which way the money moved, so a mapper that reads only the value
+reports an outbound payment as income.
+
+The mapper therefore drives an outbound row's charged amount negative and takes
+an inbound row's as an absolute value. The code is authoritative — it is an
+explicit statement by the bank, so it outranks the worded `debit`/`credit`
+direction the generic reader falls back on. The two code values are registered
+once, in the
+[registered direction codes](../architecture/transaction-sign.md#registered-direction-codes)
+table; that page also carries the full resolution order and the reasons the code
+is read on the record root only, with strict numeric equality.
 
 ## Truncated transaction windows
 
