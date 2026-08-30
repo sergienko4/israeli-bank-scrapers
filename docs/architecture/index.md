@@ -9,9 +9,10 @@ The package is a **typed phase-based pipeline**. Banks register a declarative `P
 1. **[Pipeline architecture](pipeline.md)** — the browser phase chain (direct-API after login) + the 2 api-direct phases, the `IPipelineContext`, the `Procedure<T>` result pattern.
 2. **[Layer separation](layers.md)** — the 9 logical layers (public-api, orchestration, mediator, strategy-registry, types, legacy-scrapers, common-utilities, tests, build-ci) and how imports flow between them.
 3. **[Config Contracts (api-direct-call)](config-contracts.md)** — the 6-bucket type split that replaces the legacy `IApiDirectCallConfig.ts` god-file in v8.5; the example that defines how every type-tree should be carved into ≤150-LoC concern slices.
-4. **[BALANCE-RESOLVE (v6)](balance-resolve.md)** — the single-phase ownership rewrite that lands in v8.4; the example that defines how new phases should be structured.
-5. **[Legacy (deprecated)](legacy.md)** — what counts as legacy under the wide-net policy, why it still ships, and what to read instead.
-6. **[Migration strategy](migration.md)** — how legacy code folds into Pipeline; staging plan.
+4. **[JSON algebra](json-algebra.md)** — the single declaration site for JSON types, and why the closed (`JsonValue`) and open (`JsonUnknown`) arms stay distinct.
+5. **[BALANCE-RESOLVE (v6)](balance-resolve.md)** — the single-phase ownership rewrite that lands in v8.4; the example that defines how new phases should be structured.
+6. **[Legacy (deprecated)](legacy.md)** — what counts as legacy under the wide-net policy, why it still ships, and what to read instead.
+7. **[Migration strategy](migration.md)** — how legacy code folds into Pipeline; staging plan.
 
 ## At a glance
 
