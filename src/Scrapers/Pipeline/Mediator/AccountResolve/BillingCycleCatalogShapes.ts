@@ -18,7 +18,7 @@
  * pipeline.
  */
 
-import type { IJsonObject, JsonArray, JsonUnknown, JsonValue } from '../../Types/JsonValue.js';
+import type { JsonUnknown, JsonUnknownList, JsonUnknownRecord } from '../../Types/JsonValue.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { IBillingCycle, IBillingCycleCatalog } from '../../Types/PipelineContext.js';
@@ -29,13 +29,17 @@ interface IShapeProbeInput {
 }
 
 /**
- * Type guard — narrows {@link JsonValue} to a plain JSON object so
+ * Type guard — narrows {@link JsonUnknown} to a keyed container so
  * recognisers can read named properties without per-key casts.
+ *
+ * <p>Returns {@link JsonUnknownRecord}, not `IJsonObject`: the check
+ * inspects only the outer container, so it cannot promise that the
+ * nested values are closed JSON.
  *
  * @param value - Candidate JSON node.
  * @returns True when value is a non-null, non-array object.
  */
-function isPlainObject(value: JsonUnknown): value is IJsonObject {
+function isPlainObject(value: JsonUnknown): value is JsonUnknownRecord {
   if (value === null) return false;
   if (typeof value !== 'object') return false;
   if (Array.isArray(value)) return false;
@@ -43,13 +47,16 @@ function isPlainObject(value: JsonUnknown): value is IJsonObject {
 }
 
 /**
- * Type guard — narrows {@link JsonValue} to an array. Used to walk
+ * Type guard — narrows {@link JsonUnknown} to a list. Used to walk
  * the per-cycle records inside Backbase / Max / VisaCal responses.
+ *
+ * <p>Returns {@link JsonUnknownList} for the same reason as
+ * {@link isPlainObject}: the elements are still un-narrowed.
  *
  * @param value - Candidate JSON node.
  * @returns True when value is an array (possibly empty).
  */
-function isJsonArray(value: JsonUnknown): value is JsonArray {
+function isJsonArray(value: JsonUnknown): value is JsonUnknownList {
   return Array.isArray(value);
 }
 
@@ -75,7 +82,7 @@ function buildCatalog(cycles: readonly IBillingCycle[]): Option<IBillingCycleCat
  * @param entry - One element of the `data` array.
  * @returns Some-cycle on match; None on miss.
  */
-function readBackbaseEntry(entry: JsonValue): Option<IBillingCycle> {
+function readBackbaseEntry(entry: JsonUnknown): Option<IBillingCycle> {
   if (!isPlainObject(entry)) return none();
   const billingDate = entry.billingDate;
   const isFinal = entry.isFinalBillingDate;
@@ -107,13 +114,13 @@ function isSomeCycle(candidate: Option<IBillingCycle>): candidate is ISomeCycle 
  * accumulating only the entries that match. Extracted so each
  * recogniser stays at max-depth = 1 (no inner `if/continue` blocks).
  *
- * @param entries - Source array (typed as JsonArray for safety).
+ * @param entries - Source array of still-un-narrowed entries.
  * @param reader - Per-entry reader returning Option<IBillingCycle>.
  * @returns Harvested cycles.
  */
 function harvestCycles(
-  entries: JsonArray,
-  reader: (entry: JsonValue) => Option<IBillingCycle>,
+  entries: JsonUnknownList,
+  reader: (entry: JsonUnknown) => Option<IBillingCycle>,
 ): readonly IBillingCycle[] {
   const optioned = entries.map(reader);
   const hits = optioned.filter((c): c is ISomeCycle => isSomeCycle(c));
@@ -149,7 +156,7 @@ function tryBackbaseShape(input: IShapeProbeInput): Option<IBillingCycleCatalog>
  * @param entry - One element of the `CycleSummary` array.
  * @returns Some-cycle on match; None on miss.
  */
-function readMaxEntry(entry: JsonValue): Option<IBillingCycle> {
+function readMaxEntry(entry: JsonUnknown): Option<IBillingCycle> {
   if (!isPlainObject(entry)) return none();
   const date = entry.Date;
   const isFinnal = entry.IsFinnal;
@@ -166,7 +173,7 @@ function readMaxEntry(entry: JsonValue): Option<IBillingCycle> {
  * @param card - Candidate card record.
  * @returns The per-card cycle-summary array (empty on miss).
  */
-function readMaxCardCycleSummary(card: JsonValue): JsonArray {
+function readMaxCardCycleSummary(card: JsonUnknown): JsonUnknownList {
   if (!isPlainObject(card)) return [];
   const summary = card.CycleSummary;
   if (!isJsonArray(summary)) return [];
@@ -182,7 +189,7 @@ function readMaxCardCycleSummary(card: JsonValue): JsonArray {
  * @param body - Parsed `getHomePageData` response body.
  * @returns Flattened cycle-summary entries across every card.
  */
-function readMaxCycleSummary(body: IJsonObject): JsonArray {
+function readMaxCycleSummary(body: JsonUnknownRecord): JsonUnknownList {
   const result = body.Result;
   if (!isPlainObject(result)) return [];
   const userCards = result.UserCards;
@@ -248,7 +255,7 @@ function tryMaxShape(input: IShapeProbeInput): Option<IBillingCycleCatalog> {
  * @param entry - One element of the `bigNumbers` array.
  * @returns Cycles harvested from this entry.
  */
-function readVisaCalEntry(entry: JsonValue): readonly IBillingCycle[] {
+function readVisaCalEntry(entry: JsonUnknown): readonly IBillingCycle[] {
   if (!isPlainObject(entry)) return [];
   const out: IBillingCycle[] = [];
   const debitDate = entry.debitDate;
@@ -266,7 +273,7 @@ function readVisaCalEntry(entry: JsonValue): readonly IBillingCycle[] {
  * @param bigNumbers - Source array.
  * @returns Concatenated cycles.
  */
-function flattenVisaCalCycles(bigNumbers: JsonArray): readonly IBillingCycle[] {
+function flattenVisaCalCycles(bigNumbers: JsonUnknownList): readonly IBillingCycle[] {
   return bigNumbers.flatMap(readVisaCalEntry);
 }
 

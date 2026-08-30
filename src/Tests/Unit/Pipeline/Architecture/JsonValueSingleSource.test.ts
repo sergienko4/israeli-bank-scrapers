@@ -61,11 +61,33 @@ const OWNED_SYMBOLS = [
 /** Widened view of {@link OWNED_SYMBOLS} for membership tests. */
 const OWNED_NAMES: readonly string[] = OWNED_SYMBOLS;
 
+/**
+ * Arms of the algebra that promise a *recursively* closed document —
+ * every nested value is itself a {@link JsonValue}.
+ */
+const CLOSED_NAMES: readonly string[] = [
+  'JsonValue',
+  'IJsonObject',
+  'JsonArray',
+  'JsonScalar',
+  'JsonObject',
+];
+
+/** Arms that carry an un-narrowed value, e.g. straight from `JSON.parse`. */
+const OPEN_NAMES: readonly string[] = ['JsonUnknown', 'JsonUnknownRecord', 'JsonUnknownList'];
+
 /** One algebra declaration located in a source file. */
 interface ISymbolDecl {
   readonly file: string;
   readonly line: number;
   readonly symbol: string;
+}
+
+/** A type predicate that promises more than it verifies. */
+interface IUnsoundGuard {
+  readonly file: string;
+  readonly line: number;
+  readonly detail: string;
 }
 
 /**
@@ -159,6 +181,111 @@ function describeDecls(decls: readonly ISymbolDecl[]): string {
   return rendered.join('\n');
 }
 
+/**
+ * Read the symbol name of a bare type reference.
+ *
+ * <p>Takes a plain node so callers can pass a harmless stand-in when
+ * the annotation is absent — any non-type-reference yields `''`.
+ *
+ * @param node - Declared type node, or any stand-in node.
+ * @returns The referenced identifier, or the empty string.
+ */
+function typeNameOf(node: ts.Node): string {
+  if (!ts.isTypeReferenceNode(node)) return '';
+  if (!ts.isIdentifier(node.typeName)) return '';
+  return node.typeName.text;
+}
+
+/**
+ * Resolve the declared type of the parameter a predicate narrows.
+ * @param fn - Function-like node carrying a type-predicate return.
+ * @param predicate - The predicate return-type node.
+ * @returns Declared parameter type name, or the empty string.
+ */
+function narrowedParamType(fn: ts.SignatureDeclaration, predicate: ts.TypePredicateNode): string {
+  const target = predicate.parameterName;
+  if (!ts.isIdentifier(target)) return '';
+  const wanted = target.text;
+  const match = fn.parameters.find(
+    (p): boolean => ts.isIdentifier(p.name) && p.name.text === wanted,
+  );
+  if (match === undefined) return '';
+  return typeNameOf(match.type ?? match);
+}
+
+/**
+ * Identify a guard that asserts a closed JSON type from an open input.
+ *
+ * <p>`value is IJsonObject` promises that every nested value is a
+ * {@link JsonValue}. A guard that only inspects the outer container
+ * cannot establish that, so accepting {@link JsonUnknown} and
+ * asserting a closed arm re-introduces the very unsoundness this
+ * module's split removed.
+ *
+ * @param node - Any node in the parse tree.
+ * @param source - Owning source file, used to resolve line numbers.
+ * @returns Single-element list when the node is unsound, else empty.
+ */
+function unsoundGuardOf(node: ts.Node, source: ts.SourceFile): readonly IUnsoundGuard[] {
+  if (!ts.isFunctionLike(node)) return [];
+  const returned = node.type;
+  if (returned === undefined) return [];
+  if (!ts.isTypePredicateNode(returned)) return [];
+  const asserted = typeNameOf(returned.type ?? returned);
+  if (!CLOSED_NAMES.includes(asserted)) return [];
+  const input = narrowedParamType(node, returned);
+  if (!OPEN_NAMES.includes(input)) return [];
+  return [{ file: source.fileName, line: lineOf(node, source), detail: `${input} is ${asserted}` }];
+}
+
+/**
+ * Resolve the 1-based line a node starts on.
+ * @param node - Node to locate.
+ * @param source - Owning source file.
+ * @returns 1-based line number.
+ */
+function lineOf(node: ts.Node, source: ts.SourceFile): number {
+  const start = node.getStart(source);
+  const position = source.getLineAndCharacterOfPosition(start);
+  return position.line + 1;
+}
+
+/**
+ * Walk a parse tree collecting every unsound guard it contains.
+ * @param node - Subtree root.
+ * @param source - Owning source file.
+ * @returns Offending guards found in this subtree, in source order.
+ */
+function collectGuards(node: ts.Node, source: ts.SourceFile): readonly IUnsoundGuard[] {
+  const own = unsoundGuardOf(node, source);
+  const children = node.getChildren(source);
+  const nested = children.flatMap((c): readonly IUnsoundGuard[] => collectGuards(c, source));
+  return [...own, ...nested];
+}
+
+/**
+ * Collect unsound guards declared in a single source file.
+ * @param file - Absolute path of the file to inspect.
+ * @returns Every offending guard, with paths relative to the root.
+ */
+function findGuards(file: string): readonly IUnsoundGuard[] {
+  const raw = fs.readFileSync(file, 'utf8');
+  const source = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true);
+  const guards = collectGuards(source, source);
+  const rel = path.relative(PIPELINE_ROOT, file);
+  return guards.map((guard): IUnsoundGuard => ({ ...guard, file: rel }));
+}
+
+/**
+ * Render unsound guards as a stable, reviewable failure message.
+ * @param guards - Offending guards.
+ * @returns One `file:line — narrowing` entry per line.
+ */
+function describeGuards(guards: readonly IUnsoundGuard[]): string {
+  const rendered = guards.map((g): string => `  ${g.file}:${String(g.line)} — ${g.detail}`);
+  return rendered.join('\n');
+}
+
 describe('RC-5 — JsonValue single source of truth', () => {
   const sourceFiles = listSourceFiles(PIPELINE_ROOT);
 
@@ -220,5 +347,34 @@ describe('RC-5 — JsonValue single source of truth', () => {
     ].join('\n');
     const symbols = declaredSymbolsIn(inert);
     expect(symbols).toStrictEqual([]);
+  });
+
+  /**
+   * Closing the algebra made `x is IJsonObject` a strictly stronger
+   * claim than it was: every nested value must now be a `JsonValue`.
+   * A guard that only inspects the outer container cannot establish
+   * that, so `{ data: [undefined] }` would satisfy it and smuggle
+   * `undefined` into code typed to receive closed JSON. Narrowing an
+   * input that is *already* closed stays sound and is untouched here.
+   */
+  it('never asserts a closed JSON type from an un-narrowed input', () => {
+    const guards = sourceFiles.flatMap(findGuards);
+    const rendered = describeGuards(guards);
+    expect(rendered).toBe('');
+  });
+
+  it('flags an open-input guard that asserts a closed arm', () => {
+    const offender = 'function f(v: JsonUnknown): v is IJsonObject { return true; }';
+    const source = ts.createSourceFile('fixture.ts', offender, ts.ScriptTarget.Latest, true);
+    const guards = collectGuards(source, source);
+    const details = guards.map((guard): string => guard.detail);
+    expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  it('accepts narrowing that starts from an already-closed input', () => {
+    const sound = 'function f(v: JsonValue): v is IJsonObject { return true; }';
+    const source = ts.createSourceFile('fixture.ts', sound, ts.ScriptTarget.Latest, true);
+    const guards = collectGuards(source, source);
+    expect(guards).toStrictEqual([]);
   });
 });

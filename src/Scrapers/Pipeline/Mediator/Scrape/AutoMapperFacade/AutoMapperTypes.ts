@@ -12,7 +12,7 @@ export type ApiRecord = Record<string, unknown>;
 /**
  * Untyped value crossing module boundaries — alias of the shared
  * {@link JsonUnknown} structural union from
- * `Pipeline/Types/JsonUnknown.ts`. Closes Sonar S6564 (the prior
+ * `Pipeline/Types/JsonValue.ts`. Closes Sonar S6564 (the prior
  * `type UntypedValue = unknown` alias was redundant); the
  * structural union RHS is accepted as non-redundant because it is a
  * `TSUnionType`, not a bare `TSUnknownKeyword`. Domain
