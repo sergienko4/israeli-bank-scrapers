@@ -1018,8 +1018,6 @@ runPostPreamble
 IFormAnchor
 # Reason: Sub-module ancestor metadata interface Ã¢â‚¬â€ typed view of a single DOM ancestor.
 IAncestorMeta
-# Reason: Sub-module ancestor tuple type Ã¢â‚¬â€ wire-format from browser evaluate to Node.
-AncestorTuple
 # Reason: Sub-module sentinel Ã¢â‚¬â€ typed null for Nullable return types.
 EMPTY_RESULT
 # Reason: Sub-module constant Ã¢â‚¬â€ regex matching id-bearing form CSS selectors.
