@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.6.10](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.9...v8.6.10) (2026-08-30)
+
+
+### Bug Fixes
+
+* **scrape:** sign outbound rows by direction code ([#536](https://github.com/sergienko4/israeli-bank-scrapers/issues/536)) ([ac25586](https://github.com/sergienko4/israeli-bank-scrapers/commit/ac255867054fabfd9c68314dfecebe023ec58cbe))
+
 ## [8.6.9](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.8...v8.6.9) (2026-08-29)
 
 
