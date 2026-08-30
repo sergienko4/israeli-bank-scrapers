@@ -24,16 +24,18 @@
  * parse tree removes both failure modes; the last two cases below
  * pin exactly that.
  *
- * <p>The guard resolves unions and `type` aliases, so neither
- * `JsonUnknown | null` nor `type Open = JsonUnknown` hides an open
- * input. Aliases resolve lexically — from the scope that uses the name
- * outward to the nearest declaration — so a `namespace` reusing a name
- * shadows nothing outside itself. It reads one file at a time and so
- * stops at the module boundary: an alias *imported* from another
- * module is not followed. Closing that last case needs a whole-program
- * {@link ts.TypeChecker}, which would mean type-resolving ~870 files
- * inside a unit test; the cost is not justified while the algebra
- * names are the vocabulary reviewers already read for, and the
+ * <p>The guard resolves unions, `type` aliases and renamed imports, so
+ * none of `JsonUnknown | null`, `type Open = JsonUnknown` or
+ * `import type { JsonUnknown as Open }` hides an open input. Names
+ * resolve lexically — from the scope that uses the name outward to the
+ * nearest declaration — so a `namespace` reusing a name shadows nothing
+ * outside itself. A renamed import is read off the import clause, which
+ * spells the exported name, so no other module has to be parsed to
+ * resolve it. What remains outside reach is an alias re-exported under
+ * a *second* name by an intermediate module: following that needs a
+ * whole-program {@link ts.TypeChecker}, which would mean type-resolving
+ * ~870 files inside a unit test. The cost is not justified while the
+ * algebra names are the vocabulary reviewers already read for, and the
  * single-declaration-site case above keeps those names in one module.
  *
  * <p>Applicable guidelines:
@@ -236,7 +238,40 @@ function typeNamesOf(node: ts.Node): readonly string[] {
 }
 
 /**
- * Collect every `type X = …` alias declared beneath a node.
+ * Read a renamed import as an alias of the name it was exported under.
+ *
+ * <p>`import type { JsonUnknown as Open }` renames an open arm exactly
+ * as `type Open = JsonUnknown` does, but leaves no alias declaration
+ * for the walk below to find. The exported name is written in the
+ * clause, so recognising this case is a lookup on the specifier rather
+ * than a type resolution — the module the name travels from never has
+ * to be read. An import binds for the whole file, so the entry is
+ * scoped to the file and any nearer declaration still wins.
+ *
+ * @param node - Node to inspect.
+ * @param source - Owning source file, the scope an import binds in.
+ * @returns The single alias this import introduces, else nothing.
+ */
+function importAliasOf(node: ts.Node, source: ts.SourceFile): AliasTable {
+  if (!ts.isImportSpecifier(node)) return [];
+  const exported = node.propertyName;
+  if (exported === undefined) return [];
+  return [{ name: node.name.text, targets: [exported.text], scope: source }];
+}
+
+/**
+ * Read the alias, if any, that one node introduces.
+ * @param node - Node to inspect.
+ * @param source - Owning source file.
+ * @returns The alias declared by this node, else nothing.
+ */
+function aliasOf(node: ts.Node, source: ts.SourceFile): AliasTable {
+  if (!ts.isTypeAliasDeclaration(node)) return importAliasOf(node, source);
+  return [{ name: node.name.text, targets: typeNamesOf(node.type), scope: node.parent }];
+}
+
+/**
+ * Collect every alias declared beneath a node.
  *
  * <p>An alias is otherwise a blind spot: `type Open = JsonUnknown`
  * renames an open arm, and a check that compares bare identifier text
@@ -249,9 +284,7 @@ function typeNamesOf(node: ts.Node): readonly string[] {
  * @returns Aliases found in this subtree, in source order.
  */
 function collectAliases(node: ts.Node, source: ts.SourceFile): AliasTable {
-  const own: AliasTable = ts.isTypeAliasDeclaration(node)
-    ? [{ name: node.name.text, targets: typeNamesOf(node.type), scope: node.parent }]
-    : [];
+  const own = aliasOf(node, source);
   const children = node.getChildren(source);
   const nested = children.flatMap((c): AliasTable => collectAliases(c, source));
   return [...own, ...nested];
@@ -630,6 +663,45 @@ describe('RC-5 — JsonValue single source of truth', () => {
     ].join('\n');
     const details = guardDetailsIn(offender);
     expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  /**
+   * A renamed import is the cross-module twin of a local alias, and
+   * the one form of it that costs nothing to resolve: the import
+   * clause spells the exported name, so the guard reads it off the
+   * specifier instead of resolving the module. The third fixture pins
+   * the boundary that remains — a name re-exported under a *second*
+   * name by an intermediate module is not followed, because only a
+   * whole-program checker could say what it denotes.
+   */
+  it('flags an open input hidden behind a renamed import', () => {
+    const offender = [
+      "import type { JsonUnknown as Open } from '../../Types/JsonValue.js';",
+      'function f(v: Open): v is IJsonObject { return true; }',
+    ].join('\n');
+    const details = guardDetailsIn(offender);
+    expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  it('prefers a local alias over a renamed import of the same name', () => {
+    const offender = [
+      "import type { IJsonObject as Open } from '../../Types/JsonValue.js';",
+      'namespace Inner {',
+      '  type Open = JsonUnknown;',
+      '  export function f(v: Open): v is IJsonObject { return true; }',
+      '}',
+    ].join('\n');
+    const details = guardDetailsIn(offender);
+    expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  it('leaves a re-export renamed a second time to the type checker', () => {
+    const beyond = [
+      "import type { Open } from './Barrel.js';",
+      'function f(v: Open): v is IJsonObject { return true; }',
+    ].join('\n');
+    const details = guardDetailsIn(beyond);
+    expect(details).toStrictEqual([]);
   });
 
   /** Alias expansion must terminate: this gate runs on every commit. */
