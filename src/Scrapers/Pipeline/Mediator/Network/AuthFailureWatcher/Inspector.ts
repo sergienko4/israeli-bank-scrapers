@@ -5,7 +5,7 @@
 
 import type { Response } from 'playwright-core';
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import classifyBodyAsFailure from './BodyClassifier.js';
 import { safeBodyPreview, safeParsedBody } from './BodyReaders.js';
@@ -20,7 +20,7 @@ import { isAuthEndpointUrl, isFailureStatusCode } from './UrlMatchers.js';
  * @param body - Parsed JSON body.
  * @returns Truncated + masked preview.
  */
-function buildBodyErrorPreview(note: string, body: JsonValue): string {
+function buildBodyErrorPreview(note: string, body: JsonUnknown): string {
   const bodyJson = JSON.stringify(body);
   const bodyJsonClipped = bodyJson.slice(0, BODY_PREVIEW_LIMIT);
   return maskVisibleText(`${note}: ${bodyJsonClipped}`);
@@ -46,7 +46,7 @@ interface IL2FailureArgs {
   state: IWatcherState;
   response: Response;
   note: string;
-  body: JsonValue;
+  body: JsonUnknown;
 }
 
 /**

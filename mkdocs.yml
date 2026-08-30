@@ -133,6 +133,7 @@ nav:
       - Pipeline architecture: architecture/pipeline.md
       - Layer separation: architecture/layers.md
       - Config Contracts (api-direct-call): architecture/config-contracts.md
+      - JSON algebra: architecture/json-algebra.md
       - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
       - WAF challenge interceptor: architecture/waf-interceptor.md
       - WAF fetch bounce: architecture/waf-fetch-bounce.md

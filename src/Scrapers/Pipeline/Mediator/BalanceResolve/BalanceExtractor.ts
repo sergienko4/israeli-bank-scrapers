@@ -17,13 +17,11 @@ import {
   PIPELINE_BALANCE_ALIASES,
   PIPELINE_CURRENCY_DISCRIMINATORS,
 } from '../../Registry/WK/BalanceResolveWK.js';
-import type { JsonValue } from '../../Types/JsonValue.js';
+import type { JsonUnknown, JsonUnknownList, JsonUnknownRecord } from '../../Types/JsonValue.js';
 import { fail, type Procedure, succeed } from '../../Types/Procedure.js';
 import selectBancsBalance from '../Scrape/Bancs/BancsBalance.js';
 import { findFieldValue } from '../Scrape/ScrapeAutoMapper.js';
-
-type JsonObject = Record<string, JsonValue>;
-type MaybeRecord = JsonObject | null | undefined;
+type MaybeRecord = JsonUnknownRecord | null | undefined;
 
 /** Maximum depth for bounded BFS. Empirically covers every captured shape. */
 const MAX_BFS_DEPTH = 4;
@@ -33,7 +31,7 @@ const MAX_BFS_DEPTH = 4;
  * @param v - Value to test.
  * @returns True if v is a record.
  */
-export function isRecord(v: JsonValue): v is JsonObject {
+export function isRecord(v: JsonUnknown): v is JsonUnknownRecord {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
@@ -45,7 +43,7 @@ export function isRecord(v: JsonValue): v is JsonObject {
  * @param v - Candidate value.
  * @returns Finite number on success; `false` on rejection.
  */
-export function coerceToFiniteNumber(v: JsonValue): number | false {
+export function coerceToFiniteNumber(v: JsonUnknown): number | false {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v !== 'string') return false;
   return coerceStringToFinite(v);
@@ -72,7 +70,7 @@ function coerceStringToFinite(raw: string): number | false {
  * @param record - Record to inspect.
  * @returns True for ILS rows.
  */
-function isILSRow(record: JsonObject): boolean {
+function isILSRow(record: JsonUnknownRecord): boolean {
   const currency = findFieldValue(record, PIPELINE_CURRENCY_DISCRIMINATORS);
   if (currency === ILS_CURRENCY_CODE) return true;
   return currency === ILS_CURRENCY_SYMBOL;
@@ -86,7 +84,10 @@ function isILSRow(record: JsonObject): boolean {
  * @param aliases - Balance alias list.
  * @returns Finite balance or false.
  */
-function matchBalanceInRecord(record: JsonObject, aliases: readonly string[]): number | false {
+function matchBalanceInRecord(
+  record: JsonUnknownRecord,
+  aliases: readonly string[],
+): number | false {
   const balanceHit = findFieldValue(record, aliases);
   if (balanceHit === false) return false;
   return coerceToFiniteNumber(balanceHit);
@@ -98,7 +99,10 @@ function matchBalanceInRecord(record: JsonObject, aliases: readonly string[]): n
  * @param aliases - Balance alias list.
  * @returns First ILS match or false.
  */
-function scanIlsRows(records: readonly JsonObject[], aliases: readonly string[]): number | false {
+function scanIlsRows(
+  records: readonly JsonUnknownRecord[],
+  aliases: readonly string[],
+): number | false {
   const ilsRows = records.filter(isILSRow);
   const hits = ilsRows.map((r): number | false => matchBalanceInRecord(r, aliases));
   return hits.find((v): v is number => v !== false) ?? false;
@@ -111,7 +115,7 @@ function scanIlsRows(records: readonly JsonObject[], aliases: readonly string[])
  * @returns First non-zero match or false.
  */
 function scanNonZeroRows(
-  records: readonly JsonObject[],
+  records: readonly JsonUnknownRecord[],
   aliases: readonly string[],
 ): number | false {
   const hits = records.map((r): number | false => matchBalanceInRecord(r, aliases));
@@ -124,7 +128,10 @@ function scanNonZeroRows(
  * @param aliases - Balance alias list.
  * @returns First match (zero allowed) or false.
  */
-function scanAnyRow(records: readonly JsonObject[], aliases: readonly string[]): number | false {
+function scanAnyRow(
+  records: readonly JsonUnknownRecord[],
+  aliases: readonly string[],
+): number | false {
   const hits = records.map((r): number | false => matchBalanceInRecord(r, aliases));
   return hits.find((v): v is number => v !== false) ?? false;
 }
@@ -136,7 +143,7 @@ function scanAnyRow(records: readonly JsonObject[], aliases: readonly string[]):
  * @param aliases - Balance alias list.
  * @returns First finite balance found, or false.
  */
-function scanArrayILSFirst(arr: readonly JsonValue[], aliases: readonly string[]): number | false {
+function scanArrayILSFirst(arr: JsonUnknownList, aliases: readonly string[]): number | false {
   const records = arr.filter(isRecord);
   const ils = scanIlsRows(records, aliases);
   if (ils !== false) return ils;
@@ -159,7 +166,7 @@ interface IDescendArgs {
  * @param args - Aliases, depth, maxDepth bundle.
  * @returns First finite balance found, or false.
  */
-function descendNode(node: JsonValue, args: IDescendArgs): number | false {
+function descendNode(node: JsonUnknown, args: IDescendArgs): number | false {
   if (args.depth > args.maxDepth) return false;
   if (isRecord(node)) return descendRecord(node, args);
   if (Array.isArray(node)) return descendArray(node, args);
@@ -173,7 +180,7 @@ function descendNode(node: JsonValue, args: IDescendArgs): number | false {
  * @param args - Descend args.
  * @returns First finite balance found, or false.
  */
-function descendRecord(record: JsonObject, args: IDescendArgs): number | false {
+function descendRecord(record: JsonUnknownRecord, args: IDescendArgs): number | false {
   const directHit = matchBalanceInRecord(record, args.aliases);
   if (directHit !== false) return directHit;
   const children = Object.values(record);
@@ -189,7 +196,7 @@ function descendRecord(record: JsonObject, args: IDescendArgs): number | false {
  * @param args - Descend args.
  * @returns First finite balance found, or false.
  */
-function descendArray(arr: readonly JsonValue[], args: IDescendArgs): number | false {
+function descendArray(arr: JsonUnknownList, args: IDescendArgs): number | false {
   const ilsHit = scanArrayILSFirst(arr, args.aliases);
   if (ilsHit !== false) return ilsHit;
   const nextArgs: IDescendArgs = { ...args, depth: args.depth + 1 };
@@ -203,10 +210,10 @@ function descendArray(arr: readonly JsonValue[], args: IDescendArgs): number | f
  * balance value found. Stop-early on hit; bounded by maxDepth.
  *
  * Public entry point. Pure function — no side effects, never throws.
- * @param body - JSON response body (or arbitrary JsonValue).
+ * @param body - JSON response body (or arbitrary JsonUnknown).
  * @returns Finite balance number, or `false` when nothing matched.
  */
-export function runBalanceExtractor(body: JsonValue): number | false {
+export function runBalanceExtractor(body: JsonUnknown): number | false {
   const bancs = selectBancsBalance(body);
   if (bancs !== false) return bancs;
   const args: IDescendArgs = {

@@ -4,21 +4,21 @@
  * `Pipeline/Mediator/Scrape/` imports a single canonical home.
  */
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 
 /** API response record — wraps Record to hide `unknown` from function signatures. */
 export type ApiRecord = Record<string, unknown>;
 
 /**
  * Untyped value crossing module boundaries — alias of the shared
- * {@link JsonValue} structural union from
+ * {@link JsonUnknown} structural union from
  * `Pipeline/Types/JsonValue.ts`. Closes Sonar S6564 (the prior
  * `type UntypedValue = unknown` alias was redundant); the
  * structural union RHS is accepted as non-redundant because it is a
  * `TSUnionType`, not a bare `TSUnknownKeyword`. Domain
  * name retained (`UntypedValue`) so the call-sites do not need renaming.
  */
-export type UntypedValue = JsonValue;
+export type UntypedValue = JsonUnknown;
 
 /**
  * Result of probing a record for a scalar field — the raw scalar

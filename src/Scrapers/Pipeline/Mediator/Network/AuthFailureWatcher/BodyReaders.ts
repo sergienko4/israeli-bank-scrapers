@@ -4,7 +4,7 @@
 
 import type { Response } from 'playwright-core';
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { BODY_PREVIEW_LIMIT, NO_PARSED_BODY } from './Types.js';
 
@@ -25,11 +25,11 @@ export async function safeBodyPreview(response: Response): Promise<string> {
  * @param response - Playwright response object.
  * @returns Parsed value, or NO_PARSED_BODY sentinel on any error.
  */
-export async function safeParsedBody(response: Response): Promise<JsonValue> {
+export async function safeParsedBody(response: Response): Promise<JsonUnknown> {
   const text = await response.text().catch((): string => '');
   if (text.length === 0) return NO_PARSED_BODY;
   try {
-    return JSON.parse(text) as JsonValue;
+    return JSON.parse(text) as JsonUnknown;
   } catch {
     return NO_PARSED_BODY;
   }

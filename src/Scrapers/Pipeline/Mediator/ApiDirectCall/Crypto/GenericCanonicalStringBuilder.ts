@@ -8,7 +8,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { CanonicalPart, ICanonicalStringConfig } from '../ConfigContracts/index.js';
@@ -31,7 +31,7 @@ interface IBuildCanonicalArgs {
    * symmetric tag (`tsMs`, `deviceId`). Optional otherwise so existing
    * asymmetric callers (Pepper / OneZero) don't change.
    */
-  readonly carry?: Readonly<Record<string, JsonValue>>;
+  readonly carry?: Readonly<Record<string, JsonUnknown>>;
 }
 
 /** Canonical part resolver — returns the raw (pre-escape) string. */

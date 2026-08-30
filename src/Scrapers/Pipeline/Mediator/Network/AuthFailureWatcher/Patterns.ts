@@ -8,7 +8,7 @@
  * public default export consumed by BodyClassifier.
  */
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import type { IBodyFailurePattern } from './Types.js';
 
 /**
@@ -16,7 +16,7 @@ import type { IBodyFailurePattern } from './Types.js';
  * @param v - JSON value at the field.
  * @returns True when v is a non-zero number.
  */
-function isNonZeroNumber(v: JsonValue): boolean {
+function isNonZeroNumber(v: JsonUnknown): boolean {
   return typeof v === 'number' && v !== 0;
 }
 
@@ -26,7 +26,7 @@ function isNonZeroNumber(v: JsonValue): boolean {
  * @param v - JSON value at the field.
  * @returns True when v indicates failure.
  */
-function isErrorCodeFailure(v: JsonValue): boolean {
+function isErrorCodeFailure(v: JsonUnknown): boolean {
   if (typeof v === 'number') return v !== 0;
   if (typeof v === 'string') return v.length > 0 && v !== '0';
   return false;
@@ -38,7 +38,7 @@ function isErrorCodeFailure(v: JsonValue): boolean {
  * @param v - JSON value at the field.
  * @returns True when v indicates a populated error.
  */
-function isErrorObjectFailure(v: JsonValue): boolean {
+function isErrorObjectFailure(v: JsonUnknown): boolean {
   if (v === null || v === undefined) return false;
   if (typeof v === 'string') return v.length > 0;
   if (typeof v === 'object') return Object.keys(v).length > 0;
@@ -51,7 +51,7 @@ function isErrorObjectFailure(v: JsonValue): boolean {
  * @param v - JSON value at the field.
  * @returns True when v is a non-success status string.
  */
-function isNonSuccessStatus(v: JsonValue): boolean {
+function isNonSuccessStatus(v: JsonUnknown): boolean {
   return typeof v === 'string' && v !== 'SUCCESS' && v.length > 0;
 }
 

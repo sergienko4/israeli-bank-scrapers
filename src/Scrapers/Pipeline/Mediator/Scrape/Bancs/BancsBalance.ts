@@ -15,7 +15,7 @@
  * logged here — the module is a pure selector with no log sink.
  */
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { getIn, isCurrentBalType, isRecord, isStr } from './BancsShape.js';
 
@@ -102,7 +102,7 @@ function descend(node: unknown, depth: number): number {
  * @returns Finite CURRENT balance, or `false` (default-deny) when the
  *   body carries no BaNCS `BalanceList` with a `CURRENT` BalType.
  */
-function selectBancsBalance(body: JsonValue): number | false {
+function selectBancsBalance(body: JsonUnknown): number | false {
   const found = descend(body, MAX_DEPTH);
   if (Number.isFinite(found)) return found;
   return false;

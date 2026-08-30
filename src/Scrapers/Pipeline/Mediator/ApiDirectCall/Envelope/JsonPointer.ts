@@ -5,22 +5,12 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import type { IJsonObject, JsonArray, JsonScalar, JsonValue } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 
 /** JSON scalar subset — no `undefined`; null is the missing-marker from banks. */
-type JsonPrimitive = string | number | boolean | null;
-
-/** JSON array recursion node. */
-type JsonArray = readonly JsonValue[];
-
-/** JSON object recursion node — keys are always strings. */
-interface IJsonObject {
-  readonly [key: string]: JsonValue;
-}
-
-/** Full JSON-document algebra used by the walker. */
-type JsonValue = JsonPrimitive | JsonArray | IJsonObject;
+type JsonPrimitive = JsonScalar;
 
 /**
  * Produce the standardised "path miss" failure with a caller-facing
@@ -231,6 +221,7 @@ function walkPointer(doc: JsonValue, pointer: string): Procedure<JsonValue> {
   return reduceParts({ cursor: doc, parts, pointer });
 }
 
-export type { IJsonObject, JsonArray, JsonPrimitive, JsonValue };
+export type { JsonPrimitive };
+export type { IJsonObject, JsonArray, JsonValue } from '../../../Types/JsonValue.js';
 export default walkPointer;
 export { isPlainObject, walkPointer };

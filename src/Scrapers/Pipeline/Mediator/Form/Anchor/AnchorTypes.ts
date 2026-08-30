@@ -48,6 +48,3 @@ export interface IAncestorMeta {
   readonly name: string;
   readonly stableClass: string;
 }
-
-/** Ancestor tuple: [tag, id, isForm, fillCount, sibIndex, sibCount, name, stableClass]. */
-export type AncestorTuple = [string, string, boolean, number, number, number, string, string];
