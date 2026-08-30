@@ -23,6 +23,8 @@ import { fileURLToPath } from 'node:url';
 
 import * as ts from 'typescript';
 
+import enrolledSources from '../../../Helpers/DocsFrontMatter.js';
+
 const HERE_URL = fileURLToPath(import.meta.url);
 const HERE = path.dirname(HERE_URL);
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..', '..', '..');
@@ -151,22 +153,6 @@ function docPages(): readonly string[] {
 }
 
 /**
- * Reads the `- value` entries of a page's `source-files:` front-matter block.
- *
- * @param text - The page's full text.
- * @returns Each declared path, exactly as written.
- */
-function enrolledSources(text: string): readonly string[] {
-  const lines = text.split(/\r?\n/);
-  const start = lines.indexOf('source-files:');
-  if (start < 0) return [];
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((l): boolean => !l.trimStart().startsWith('-'));
-  const items = end < 0 ? rest : rest.slice(0, end);
-  return items.map((l): string => l.replace(/^\s*-/, '').trim());
-}
-
-/**
  * Reads one docs page from disk.
  *
  * @param relative - The page's path relative to `docs/`, POSIX-separated.
@@ -234,8 +220,8 @@ function columnsOf(rows: readonly (readonly string[])[]): readonly number[] {
  * @returns True when the row names the field and both codes in place.
  */
 function rowStates(cells: readonly string[], cols: readonly number[], row: IConvention): boolean {
-  const field = cells.at(cols[0]) ?? '';
-  if (!field.includes(row.field)) return false;
+  const field = (cells.at(cols[0]) ?? '').trim();
+  if (field !== row.field && field !== `\`${row.field}\``) return false;
   const inbound = cells.at(cols[1]) ?? '';
   if (inbound !== row.inbound) return false;
   return (cells.at(cols[2]) ?? '') === row.outbound;
