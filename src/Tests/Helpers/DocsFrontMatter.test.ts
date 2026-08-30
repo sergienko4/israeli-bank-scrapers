@@ -63,6 +63,26 @@ const SIBLING = makePage(
 
 const NESTED = makePage('---', 'source-files:', '  - group:', `      - ${MODULE}`, '---');
 
+const QUOTED = makePage('---', 'source-files:', `  - "'${MODULE}'"`, '---');
+
+const TRAILING = makePage('---', 'source-files:', `  - "${MODULE}"  `, '---');
+
+const REPEATED = makePage(
+  '---',
+  'source-files:',
+  `  - ${MODULE}`,
+  'title: T',
+  'source-files:',
+  '  - second.ts',
+  '---',
+);
+
+const EMPTY = makePage('---', 'source-files:', '  - ""', `  - ${MODULE}`, '---');
+
+const CR_AT_EOF = ['---', 'source-files:', `  - "${MODULE}"\r`].join('\r\n');
+
+const VTAB = makePage('---', 'source-files:\v', `  - ${MODULE}`, '---');
+
 const BARE = makePage('source-files:', `  - ${MODULE}`);
 
 describe('docs front-matter enrolment reader', () => {
@@ -102,5 +122,48 @@ describe('docs front-matter enrolment reader', () => {
   it('matches the gate on nested sequences rather than on YAML semantics', () => {
     const found = enrolledSources(NESTED);
     expect(found).toEqual(['group:', MODULE]);
+  });
+
+  // The gate strips one double quote then one single quote from each end, as
+  // four independent operations, so a doubly quoted entry loses both pairs.
+  it('strips double and single quotes independently, as the gate does', () => {
+    const found = enrolledSources(QUOTED);
+    expect(found).toEqual([MODULE]);
+  });
+
+  // The gate strips quotes before trimming, so a trailing space strands the
+  // closing quote inside the recorded path. Trimming first would yield a clean
+  // path the gate never registers — coverage the build would not enforce.
+  it('keeps a quote stranded by trailing space, as the gate does', () => {
+    const found = enrolledSources(TRAILING);
+    expect(found).toEqual([`${MODULE}"`]);
+  });
+
+  // A sibling key closes the list but does not end the page's enrolment: the
+  // gate tests every line for the key, so a later one reopens the list.
+  it('reopens the list when the key appears a second time', () => {
+    const found = enrolledSources(REPEATED);
+    expect(found).toEqual([MODULE, 'second.ts']);
+  });
+
+  // The gate emits only non-empty values, so an entry that is nothing but
+  // quotes enrols no file at all.
+  it('drops an entry that normalises to nothing', () => {
+    const found = enrolledSources(EMPTY);
+    expect(found).toEqual([MODULE]);
+  });
+
+  // The gate strips a trailing carriage return before it looks for quotes, so
+  // a CRLF page whose last line has no newline still yields a clean path.
+  it('strips a carriage return left at end of file', () => {
+    const found = enrolledSources(CR_AT_EOF);
+    expect(found).toEqual([MODULE]);
+  });
+
+  // POSIX [[:space:]] covers vertical tab and form feed, which the key and
+  // entry patterns must accept for the reader to see what the gate sees.
+  it('accepts the whole POSIX blank class after the key', () => {
+    const found = enrolledSources(VTAB);
+    expect(found).toEqual([MODULE]);
   });
 });
