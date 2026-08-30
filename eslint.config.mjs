@@ -2906,9 +2906,17 @@ export default tseslint.config(
     // 'src/Tests/Integration/Banks/**/*.ts' was too broad and grandfathered
     // every NEW Mode A bank test out of §19.10. Narrow to the only legacy
     // Phase 10 file under Banks/ so Mode A tests are enforced going forward.
+    //
+    // Same correction applied to Helpers/: the glob
+    // 'src/Tests/Integration/Helpers/**/*.ts' exempted every helper,
+    // including ones added later, so a new helper could exceed the cap
+    // while linting clean. Only MirrorInterceptor.ts actually needs the
+    // exemption (routeHandler 17, readCapturedSteps 11, installMirror 11);
+    // the other five helpers already comply, so naming the one file costs
+    // nothing and puts new helpers under the cap.
     ignores: [
       'src/Tests/Integration/Banks/LoginFormDiscovery.integration.test.ts',
-      'src/Tests/Integration/Helpers/**/*.ts',
+      'src/Tests/Integration/Helpers/MirrorInterceptor.ts',
       'src/Tests/Integration/Mirror/LoginNavigation.mirror.test.ts',
       'src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts',
     ],

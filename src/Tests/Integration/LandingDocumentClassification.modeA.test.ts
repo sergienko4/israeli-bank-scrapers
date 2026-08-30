@@ -24,8 +24,11 @@ import * as path from 'node:path';
 
 import type { Browser, Page } from 'playwright-core';
 
+import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import { isErrorDocument } from '../../Scrapers/Pipeline/Mediator/Init/LandingDocument.js';
 import { newFixturePage } from './Helpers/FixturePage.js';
+import type { IReplaySession } from './Helpers/FixtureReplay.js';
+import flaggedFixtures from './Helpers/FixtureReplay.js';
 import {
   closeIntegrationBrowser,
   getIntegrationBrowser,
@@ -33,7 +36,30 @@ import {
 
 const BROWSER_BOOT_TIMEOUT_MS = 120_000;
 const CASE_TIMEOUT_MS = 300_000;
-const SET_CONTENT_TIMEOUT_MS = 15_000;
+
+/**
+ * Deadline for loading one fixture into the page.
+ *
+ * <p>Sized as a hang detector, not a speed limit. Every request is
+ * aborted before it leaves the process, so nothing here can legitimately
+ * wait on a network; the only way to reach this deadline is a genuine
+ * stall. With the realm reset in place the slowest fixture in the corpus
+ * — Leumi's 2.6MB, 114-script account-resolve frame — loads in 631ms
+ * locally, so this leaves a ~47x margin.
+ *
+ * <p>It was previously 15s, which a contended CI runner could exceed on
+ * that same fixture. That made the verdict a function of runner load
+ * rather than of the markup, which is the one thing a classification
+ * spec must never assert.
+ *
+ * <p>Bounded below {@link CASE_TIMEOUT_MS} so a single stall is named by
+ * this deadline rather than swallowed by Jest's generic case timeout. A
+ * bank replays in a few seconds, so one stall fires here at ~30s against
+ * a 300s case. Many simultaneously slow-but-passing fixtures could still
+ * reach the case timeout first, but that is systemic degradation, where
+ * naming one fixture is not the useful signal anyway.
+ */
+const LOAD_TIMEOUT_MS = 30_000;
 
 /** Live-captured Discount error document, served under HTTP 200. */
 const SOFT_404_FIXTURE = path.join(
@@ -47,6 +73,24 @@ const SOFT_404_FIXTURE = path.join(
 
 /** Root holding every bank's captured page fixtures. */
 const BANKS_FIXTURE_ROOT = path.join('src', 'Tests', 'Integration', 'fixtures', 'banks');
+
+/**
+ * Markup whose only purpose is to leave state behind it.
+ *
+ * <p>Both halves are drawn from observed behaviour, not imagination:
+ * replaying Leumi's 66 captures through one document raises
+ * "redeclaration of non-configurable global property g", which is a real
+ * fixture's `var` colliding with an earlier fixture's.
+ */
+const REALM_LEAK_MARKUP = [
+  '<html><body><script>',
+  "  window.__leaked = 'yes';",
+  '  var g = 1;',
+  '</script></body></html>',
+].join('\n');
+
+/** Trivial healthy document, replayed after the leak to sample the realm. */
+const CLEAN_MARKUP = '<html><body><h1>ok</h1></body></html>';
 
 /**
  * Every bank with captured fixtures, discovered rather than listed.
@@ -116,7 +160,62 @@ async function findHtmlFilesFor(bankId: string): Promise<readonly string[]> {
 }
 
 /**
+ * Describe a fixture load failure without guessing at its cause.
+ *
+ * <p>`setContent` also rejects when the page closed, the browser died or
+ * the execution context went away. Reporting those as a timeout sends
+ * whoever reads the red build looking for a slow fixture that does not
+ * exist.
+ *
+ * @param file - Fixture path that failed.
+ * @param cause - Rejection Playwright raised.
+ * @returns Message naming the fixture and the failure it actually hit.
+ */
+function loadFailureMessage(file: string, cause: unknown): string {
+  const isTimeout = cause instanceof Error && cause.name === 'TimeoutError';
+  if (!isTimeout) return `fixture ${file} failed to load`;
+  return `fixture ${file} did not load within ${String(LOAD_TIMEOUT_MS)}ms`;
+}
+
+/**
+ * Reset the page's realm, then load one fixture into it.
+ *
+ * <p>The `about:blank` navigation is load-bearing, not hygiene.
+ * `setContent` swaps the document but keeps the window, so a fixture's
+ * globals, timers and observers outlive it and run against whatever is
+ * replayed next — measurably: Leumi's corpus raises a cross-fixture
+ * `var` collision without this line and none with it. Since
+ * `isErrorDocument` reports any probe failure as `false`, leaked state
+ * biases the suite toward silent false negatives.
+ *
+ * <p>It also costs nothing: a clean realm carries no accumulated timers,
+ * which drops the corpus's worst-case load from 3143ms to 631ms.
+ *
+ * <p>Playwright's own timeout says only that `setContent` expired, which
+ * in a 298-file replay identifies nothing. The fixture path is the first
+ * thing anyone reading a red build needs.
+ *
+ * @param page - Page to load into.
+ * @param file - Fixture path, used only for the failure message.
+ * @param html - Markup to load.
+ */
+async function loadFixture(page: Page, file: string, html: string): Promise<void> {
+  const timeout = LOAD_TIMEOUT_MS;
+  try {
+    await page.goto('about:blank', { timeout, waitUntil: 'domcontentloaded' });
+    await page.setContent(html, { timeout, waitUntil: 'domcontentloaded' });
+  } catch (cause) {
+    throw new ScraperError(loadFailureMessage(file, cause), { cause });
+  }
+}
+
+/**
  * Replay markup into a fresh offline page and ask the production probe.
+ *
+ * <p>Used by the single positive case, which is worth its own context:
+ * one page is negligible, and the case that proves the probe fires
+ * should not depend on anything replayed before it.
+ *
  * @param browser - Shared Camoufox browser.
  * @param html - Markup to replay.
  * @returns The probe's verdict for that markup.
@@ -124,7 +223,7 @@ async function findHtmlFilesFor(bankId: string): Promise<readonly string[]> {
 async function classify(browser: Browser, html: string): Promise<boolean> {
   const page: Page = await newFixturePage(browser);
   try {
-    await page.setContent(html, { timeout: SET_CONTENT_TIMEOUT_MS, waitUntil: 'domcontentloaded' });
+    await loadFixture(page, '<inline>', html);
     return await isErrorDocument(page);
   } finally {
     await page.context().close();
@@ -132,27 +231,65 @@ async function classify(browser: Browser, html: string): Promise<boolean> {
 }
 
 /**
- * Classify one captured fixture file.
- *
- * <p>Split out so {@link flaggedFilesFor} stays inside the §19.10 line
- * cap, and so the awaited unit — read markup, run the probe — is named.
- *
- * @param browser - Shared integration browser.
+ * Read one fixture off disk and classify it into an already-open page.
+ * @param page - Page reused across this bank's corpus.
  * @param file - Fixture path to classify.
  * @returns True when the probe flags this file as an error document.
  */
-async function classifyFile(browser: Browser, file: string): Promise<boolean> {
+async function classifyInto(page: Page, file: string): Promise<boolean> {
   const html = await fs.readFile(file, 'utf8');
-  return classify(browser, html);
+  await loadFixture(page, file, html);
+  return isErrorDocument(page);
+}
+
+/**
+ * Bind the classify half of a session to one page.
+ * @param page - Page to replay every fixture into.
+ * @returns Classifier over that page.
+ */
+function classifierFor(page: Page): IReplaySession['classify'] {
+  return (file: string): Promise<boolean> => classifyInto(page, file);
+}
+
+/**
+ * Bind the close half of a session to one page's context.
+ * @param page - Page whose context owns the session.
+ * @returns Closer for that context.
+ */
+function closerFor(page: Page): IReplaySession['close'] {
+  return (): Promise<void> => page.context().close();
+}
+
+/**
+ * Open one page and expose it as a reusable replay session.
+ *
+ * <p>The whole cost of this suite lives here: a context costs ~1.5s to
+ * open, against ~12ms to parse the median fixture. One session per bank
+ * replaces one per file.
+ *
+ * @param browser - Shared Camoufox browser.
+ * @returns Session that classifies fixtures into a single page.
+ */
+async function openReplaySession(browser: Browser): Promise<IReplaySession> {
+  const page: Page = await newFixturePage(browser);
+  return { classify: classifierFor(page), close: closerFor(page) };
+}
+
+/**
+ * Bind a replay-session factory to one browser.
+ * @param browser - Shared Camoufox browser.
+ * @returns Factory opening a session on demand.
+ */
+function sessionFactory(browser: Browser): () => Promise<IReplaySession> {
+  return (): Promise<IReplaySession> => openReplaySession(browser);
 }
 
 /**
  * Classify every captured fixture of one bank.
  *
- * <p>Sequential by construction: each file opens its own browser
- * context, and replaying the whole corpus concurrently would open
- * hundreds at once. The `reduce` chain is the repo's established way to
- * keep that ordering without awaiting inside a loop.
+ * <p>Sequential and single-session: each fixture replaces the document
+ * of the one before it, which is exactly what the probe reads, so
+ * nothing is carried forward that the next fixture does not overwrite.
  *
  * @param bankId - Bank fixture id.
  * @returns Fixture paths the probe flagged as error documents.
@@ -160,12 +297,24 @@ async function classifyFile(browser: Browser, file: string): Promise<boolean> {
 async function flaggedFilesFor(bankId: string): Promise<readonly string[]> {
   const browser = await getIntegrationBrowser();
   const files = await findHtmlFilesFor(bankId);
-  const seed: Promise<string[]> = Promise.resolve([]);
-  return files.reduce(async (prev, file): Promise<string[]> => {
-    const flagged = await prev;
-    const isError = await classifyFile(browser, file);
-    return isError ? [...flagged, file] : flagged;
-  }, seed);
+  const open = sessionFactory(browser);
+  return flaggedFixtures(open, files);
+}
+
+/**
+ * One captured page from every bank, for the session-reuse guard.
+ *
+ * <p>Breadth matters more than depth here: one page per bank exercises
+ * 13 different inline-script payloads against a single reused document,
+ * which is the widest contamination surface the corpus can offer for
+ * the cost of 13 parses.
+ *
+ * @returns One fixture path per bank that has any.
+ */
+async function oneFixturePerBank(): Promise<readonly string[]> {
+  const pending = BANK_IDS.map(findHtmlFilesFor);
+  const perBank = await Promise.all(pending);
+  return perBank.flatMap((files): string[] => files.slice(0, 1));
 }
 
 describe('INIT error-document probe vs real markup (T-LANDDOC)', () => {
@@ -198,6 +347,46 @@ describe('INIT error-document probe vs real markup (T-LANDDOC)', () => {
       const html = await fs.readFile(SOFT_404_FIXTURE, 'utf8');
       const isError = await classify(browser, html);
       expect(isError).toBe(true);
+    },
+    CASE_TIMEOUT_MS,
+  );
+
+  // The lock on realm isolation. `setContent` swaps the document but
+  // keeps the window, so one fixture's globals, timers and observers
+  // outlive the page that created them and run against the next
+  // fixture's markup. `isErrorDocument` turns any probe error into
+  // `false`, so leaked state biases this suite toward silent false
+  // negatives — the one failure a classification guard must never have.
+  it(
+    'starts every fixture in a clean realm',
+    async () => {
+      const browser = await getIntegrationBrowser();
+      const page = await newFixturePage(browser);
+      try {
+        await loadFixture(page, '<leak>', REALM_LEAK_MARKUP);
+        await loadFixture(page, '<clean>', CLEAN_MARKUP);
+        const hasLeaked = await page.evaluate((): boolean => '__leaked' in globalThis);
+        expect(hasLeaked).toBe(false);
+      } finally {
+        await page.context().close();
+      }
+    },
+    CASE_TIMEOUT_MS,
+  );
+
+  // The lock on session reuse. Replaying every bank's markup through one
+  // document must leave the verdict of the next fixture untouched — in
+  // both directions: the healthy pages stay silent, and the error
+  // document still fires after all of them have run before it.
+  it(
+    'keeps its verdict when fixtures share one replay session',
+    async () => {
+      const browser = await getIntegrationBrowser();
+      const healthy = await oneFixturePerBank();
+      const open = sessionFactory(browser);
+      expect(healthy).toHaveLength(BANK_IDS.length);
+      const flagged = await flaggedFixtures(open, [...healthy, SOFT_404_FIXTURE]);
+      expect(flagged).toEqual([SOFT_404_FIXTURE]);
     },
     CASE_TIMEOUT_MS,
   );
