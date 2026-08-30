@@ -24,6 +24,16 @@
  * parse tree removes both failure modes; the last two cases below
  * pin exactly that.
  *
+ * <p>The guard resolves unions and file-local `type` aliases, so
+ * neither `JsonUnknown | null` nor `type Open = JsonUnknown` hides an
+ * open input. It reads one file at a time and so stops at the module
+ * boundary: an alias *imported* from another module is not followed.
+ * Closing that last case needs a whole-program {@link ts.TypeChecker},
+ * which would mean type-resolving ~870 files inside a unit test; the
+ * cost is not justified while the algebra names are the vocabulary
+ * reviewers already read for, and the single-declaration-site case
+ * above keeps those names in one module.
+ *
  * <p>Applicable guidelines:
  * <ul>
  *   <li>`test-guidlines.md` — "Every failure must be actionable":
@@ -88,6 +98,21 @@ interface IUnsoundGuard {
   readonly file: string;
   readonly line: number;
   readonly detail: string;
+}
+
+/** One `type X = …` alias and the names its right-hand side references. */
+interface IAlias {
+  readonly name: string;
+  readonly targets: readonly string[];
+}
+
+/** Local alias name to the type names it references. */
+type AliasMap = ReadonlyMap<string, readonly string[]>;
+
+/** Everything the guard walk needs to know about the file it scans. */
+interface IScanCtx {
+  readonly source: ts.SourceFile;
+  readonly aliases: AliasMap;
 }
 
 /**
@@ -182,35 +207,140 @@ function describeDecls(decls: readonly ISymbolDecl[]): string {
 }
 
 /**
- * Read the symbol name of a bare type reference.
+ * Read every type name a declared annotation references.
  *
- * <p>Takes a plain node so callers can pass a harmless stand-in when
- * the annotation is absent — any non-type-reference yields `''`.
+ * <p>Parentheses and unions are unwrapped so an author cannot dodge
+ * the check by widening the input: `JsonUnknown | null` still reports
+ * `JsonUnknown`. Takes a plain node so callers can pass a harmless
+ * stand-in when the annotation is absent — anything that is not a type
+ * reference contributes nothing.
  *
  * @param node - Declared type node, or any stand-in node.
- * @returns The referenced identifier, or the empty string.
+ * @returns Referenced identifiers, in source order.
  */
-function typeNameOf(node: ts.Node): string {
-  if (!ts.isTypeReferenceNode(node)) return '';
-  if (!ts.isIdentifier(node.typeName)) return '';
-  return node.typeName.text;
+function typeNamesOf(node: ts.Node): readonly string[] {
+  if (ts.isParenthesizedTypeNode(node)) return typeNamesOf(node.type);
+  if (ts.isUnionTypeNode(node)) return node.types.flatMap(typeNamesOf);
+  if (!ts.isTypeReferenceNode(node)) return [];
+  if (!ts.isIdentifier(node.typeName)) return [];
+  return [node.typeName.text];
 }
 
 /**
- * Resolve the declared type of the parameter a predicate narrows.
+ * Collect every `type X = …` alias declared beneath a node.
+ * @param node - Subtree root.
+ * @param source - Owning source file.
+ * @returns Aliases found in this subtree, in source order.
+ */
+function collectAliases(node: ts.Node, source: ts.SourceFile): readonly IAlias[] {
+  const own: readonly IAlias[] = ts.isTypeAliasDeclaration(node)
+    ? [{ name: node.name.text, targets: typeNamesOf(node.type) }]
+    : [];
+  const children = node.getChildren(source);
+  const nested = children.flatMap((c): readonly IAlias[] => collectAliases(c, source));
+  return [...own, ...nested];
+}
+
+/**
+ * Index the aliases a file declares.
+ *
+ * <p>An alias is otherwise a blind spot: `type Open = JsonUnknown`
+ * renames an open arm, and a check that compares bare identifier text
+ * stops matching.
+ *
+ * @param source - File to scan for alias declarations.
+ * @returns Alias name to the type names its right-hand side references.
+ */
+function aliasMapOf(source: ts.SourceFile): AliasMap {
+  const aliases = collectAliases(source, source);
+  const pairs = aliases.map((a): readonly [string, readonly string[]] => [a.name, a.targets]);
+  return new Map(pairs);
+}
+
+/**
+ * Expand one type name through the alias table of its own file.
+ * @param name - Type name exactly as written in the annotation.
+ * @param aliases - Alias table for the owning file.
+ * @param seen - Names already expanded, which breaks alias cycles.
+ * @returns The names the annotation ultimately denotes.
+ */
+function expandName(name: string, aliases: AliasMap, seen: Set<string>): readonly string[] {
+  if (seen.has(name)) return [];
+  seen.add(name);
+  const targets = aliases.get(name);
+  if (targets === undefined) return [name];
+  return targets.flatMap((next): readonly string[] => expandName(next, aliases, seen));
+}
+
+/**
+ * Expand every name an annotation references.
+ * @param names - Names read straight from the annotation.
+ * @param aliases - Alias table for the owning file.
+ * @returns Alias-free type names.
+ */
+function expandNames(names: readonly string[], aliases: AliasMap): readonly string[] {
+  const seen = new Set<string>();
+  return names.flatMap((name): readonly string[] => expandName(name, aliases, seen));
+}
+
+/**
+ * Find the first name belonging to one arm of the algebra.
+ * @param names - Alias-expanded type names.
+ * @param arms - Arm names to match against.
+ * @returns The matching name, or the empty string when none match.
+ */
+function firstArm(names: readonly string[], arms: readonly string[]): string {
+  const match = names.find((name): boolean => arms.includes(name));
+  return match ?? '';
+}
+
+/**
+ * Resolve the declared type names of the parameter a predicate narrows.
  * @param fn - Function-like node carrying a type-predicate return.
  * @param predicate - The predicate return-type node.
- * @returns Declared parameter type name, or the empty string.
+ * @returns Declared parameter type names, before alias expansion.
  */
-function narrowedParamType(fn: ts.SignatureDeclaration, predicate: ts.TypePredicateNode): string {
+function narrowedParamNames(
+  fn: ts.SignatureDeclaration,
+  predicate: ts.TypePredicateNode,
+): readonly string[] {
   const target = predicate.parameterName;
-  if (!ts.isIdentifier(target)) return '';
-  const wanted = target.text;
+  if (!ts.isIdentifier(target)) return [];
   const match = fn.parameters.find(
-    (p): boolean => ts.isIdentifier(p.name) && p.name.text === wanted,
+    (p): boolean => ts.isIdentifier(p.name) && p.name.text === target.text,
   );
-  if (match === undefined) return '';
-  return typeNameOf(match.type ?? match);
+  if (match === undefined) return [];
+  return typeNamesOf(match.type ?? match);
+}
+
+/**
+ * Read the closed arm a predicate asserts, following aliases.
+ * @param predicate - The predicate return-type node.
+ * @param ctx - Owning file and its alias table.
+ * @returns The asserted closed arm, or the empty string.
+ */
+function assertedArmOf(predicate: ts.TypePredicateNode, ctx: IScanCtx): string {
+  const declared = predicate.type ?? predicate;
+  const written = typeNamesOf(declared);
+  const expanded = expandNames(written, ctx.aliases);
+  return firstArm(expanded, CLOSED_NAMES);
+}
+
+/**
+ * Read the open arm a predicate narrows from, following aliases.
+ * @param fn - Function-like node carrying the type-predicate return.
+ * @param predicate - The predicate return-type node.
+ * @param ctx - Owning file and its alias table.
+ * @returns The narrowed open arm, or the empty string.
+ */
+function inputArmOf(
+  fn: ts.SignatureDeclaration,
+  predicate: ts.TypePredicateNode,
+  ctx: IScanCtx,
+): string {
+  const written = narrowedParamNames(fn, predicate);
+  const expanded = expandNames(written, ctx.aliases);
+  return firstArm(expanded, OPEN_NAMES);
 }
 
 /**
@@ -222,20 +352,25 @@ function narrowedParamType(fn: ts.SignatureDeclaration, predicate: ts.TypePredic
  * asserting a closed arm re-introduces the very unsoundness this
  * module's split removed.
  *
+ * <p>Both sides are read through {@link expandNames}, so a union arm
+ * or a local alias is resolved to the algebra name it denotes rather
+ * than compared as bare text.
+ *
  * @param node - Any node in the parse tree.
- * @param source - Owning source file, used to resolve line numbers.
+ * @param ctx - Owning file and its alias table.
  * @returns Single-element list when the node is unsound, else empty.
  */
-function unsoundGuardOf(node: ts.Node, source: ts.SourceFile): readonly IUnsoundGuard[] {
+function unsoundGuardOf(node: ts.Node, ctx: IScanCtx): readonly IUnsoundGuard[] {
   if (!ts.isFunctionLike(node)) return [];
   const returned = node.type;
   if (returned === undefined) return [];
   if (!ts.isTypePredicateNode(returned)) return [];
-  const asserted = typeNameOf(returned.type ?? returned);
-  if (!CLOSED_NAMES.includes(asserted)) return [];
-  const input = narrowedParamType(node, returned);
-  if (!OPEN_NAMES.includes(input)) return [];
-  return [{ file: source.fileName, line: lineOf(node, source), detail: `${input} is ${asserted}` }];
+  const closed = assertedArmOf(returned, ctx);
+  if (closed === '') return [];
+  const open = inputArmOf(node, returned, ctx);
+  if (open === '') return [];
+  const line = lineOf(node, ctx.source);
+  return [{ file: ctx.source.fileName, line, detail: `${open} is ${closed}` }];
 }
 
 /**
@@ -253,14 +388,23 @@ function lineOf(node: ts.Node, source: ts.SourceFile): number {
 /**
  * Walk a parse tree collecting every unsound guard it contains.
  * @param node - Subtree root.
- * @param source - Owning source file.
+ * @param ctx - Owning file and its alias table.
  * @returns Offending guards found in this subtree, in source order.
  */
-function collectGuards(node: ts.Node, source: ts.SourceFile): readonly IUnsoundGuard[] {
-  const own = unsoundGuardOf(node, source);
-  const children = node.getChildren(source);
-  const nested = children.flatMap((c): readonly IUnsoundGuard[] => collectGuards(c, source));
+function collectGuards(node: ts.Node, ctx: IScanCtx): readonly IUnsoundGuard[] {
+  const own = unsoundGuardOf(node, ctx);
+  const children = node.getChildren(ctx.source);
+  const nested = children.flatMap((c): readonly IUnsoundGuard[] => collectGuards(c, ctx));
   return [...own, ...nested];
+}
+
+/**
+ * Build the scan context for a parsed file.
+ * @param source - Parsed source file.
+ * @returns The file paired with its local alias table.
+ */
+function scanCtxOf(source: ts.SourceFile): IScanCtx {
+  return { source, aliases: aliasMapOf(source) };
 }
 
 /**
@@ -271,9 +415,22 @@ function collectGuards(node: ts.Node, source: ts.SourceFile): readonly IUnsoundG
 function findGuards(file: string): readonly IUnsoundGuard[] {
   const raw = fs.readFileSync(file, 'utf8');
   const source = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true);
-  const guards = collectGuards(source, source);
+  const ctx = scanCtxOf(source);
+  const guards = collectGuards(source, ctx);
   const rel = path.relative(PIPELINE_ROOT, file);
   return guards.map((guard): IUnsoundGuard => ({ ...guard, file: rel }));
+}
+
+/**
+ * Parse an inline fixture and list the unsound guards it contains.
+ * @param code - TypeScript source text.
+ * @returns One `input is asserted` entry per offending guard.
+ */
+function guardDetailsIn(code: string): readonly string[] {
+  const source = ts.createSourceFile('fixture.ts', code, ts.ScriptTarget.Latest, true);
+  const ctx = scanCtxOf(source);
+  const guards = collectGuards(source, ctx);
+  return guards.map((guard): string => guard.detail);
 }
 
 /**
@@ -365,16 +522,45 @@ describe('RC-5 — JsonValue single source of truth', () => {
 
   it('flags an open-input guard that asserts a closed arm', () => {
     const offender = 'function f(v: JsonUnknown): v is IJsonObject { return true; }';
-    const source = ts.createSourceFile('fixture.ts', offender, ts.ScriptTarget.Latest, true);
-    const guards = collectGuards(source, source);
-    const details = guards.map((guard): string => guard.detail);
+    const details = guardDetailsIn(offender);
     expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
   });
 
   it('accepts narrowing that starts from an already-closed input', () => {
     const sound = 'function f(v: JsonValue): v is IJsonObject { return true; }';
-    const source = ts.createSourceFile('fixture.ts', sound, ts.ScriptTarget.Latest, true);
-    const guards = collectGuards(source, source);
-    expect(guards).toStrictEqual([]);
+    const details = guardDetailsIn(sound);
+    expect(details).toStrictEqual([]);
+  });
+
+  /**
+   * The two evasions a bare-identifier comparison cannot see: an open
+   * arm widened into a union, and one renamed by a local alias. Both
+   * reach `expandNames`, so the reported detail names the algebra arm
+   * rather than the text the author happened to write.
+   */
+  it('flags an open input widened by a union', () => {
+    const offender = 'function f(v: JsonUnknown | null): v is IJsonObject { return true; }';
+    const details = guardDetailsIn(offender);
+    expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  it('flags an open input hidden behind a local type alias', () => {
+    const offender = [
+      'type Open = JsonUnknown;',
+      'function f(v: Open): v is IJsonObject { return true; }',
+    ].join('\n');
+    const details = guardDetailsIn(offender);
+    expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  /** Alias expansion must terminate: this gate runs on every commit. */
+  it('terminates on a cyclic alias chain', () => {
+    const cyclic = [
+      'type A = B;',
+      'type B = A;',
+      'function f(v: A): v is IJsonObject { return true; }',
+    ].join('\n');
+    const details = guardDetailsIn(cyclic);
+    expect(details).toStrictEqual([]);
   });
 });
