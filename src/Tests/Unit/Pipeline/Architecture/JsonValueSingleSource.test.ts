@@ -31,11 +31,14 @@
  * nearest declaration — so a `namespace` reusing a name shadows nothing
  * outside itself. A renamed import is read off the import clause, which
  * spells the exported name, so no other module has to be parsed to
- * resolve it. What remains outside reach is an alias re-exported under
- * a *second* name by an intermediate module: following that needs a
- * whole-program {@link ts.TypeChecker}, which would mean type-resolving
- * ~870 files inside a unit test. The cost is not justified while the
- * algebra names are the vocabulary reviewers already read for, and the
+ * resolve it — only named, and it must name the canonical module: an
+ * unrelated module may export its own `JsonValue`, and stopping a
+ * commit over that would cost more than the rename it caught. What
+ * remains outside reach is an alias re-exported under a *second* name
+ * by an intermediate module: following that needs a whole-program
+ * {@link ts.TypeChecker}, which would mean type-resolving ~870 files
+ * inside a unit test. The cost is not justified while the algebra names
+ * are the vocabulary reviewers already read for, and the
  * single-declaration-site case above keeps those names in one module.
  *
  * <p>Applicable guidelines:
@@ -59,6 +62,12 @@ const HERE = path.dirname(HERE_URL);
 const PIPELINE_ROOT = path.join(HERE, '..', '..', '..', '..', 'Scrapers', 'Pipeline');
 const CANONICAL_REL = path.join('Types', 'JsonValue.ts');
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'] as const;
+
+/** Module suffix a renamed import must carry to name the algebra. */
+const CANONICAL_MODULE = 'Types/JsonValue';
+
+/** Extension an import specifier may end with, stripped before matching. */
+const MODULE_EXTENSION = /\.[cm]?[jt]s$/;
 
 /** Algebra members that may only be declared by the canonical module. */
 const OWNED_SYMBOLS = [
@@ -238,6 +247,26 @@ function typeNamesOf(node: ts.Node): readonly string[] {
 }
 
 /**
+ * Decide whether an import specifier names the canonical module.
+ *
+ * <p>The name a specifier carries is only the algebra's when it came
+ * from the algebra's module. Nothing stops an unrelated module — in
+ * this repo or a dependency — from exporting its own `JsonValue`, and
+ * resolving a rename of *that* would fail the gate over code the gate
+ * has no claim on. A false stop on every commit costs more than the
+ * rename it would have caught, so the module is checked.
+ *
+ * @param node - Import specifier to inspect.
+ * @returns True when the enclosing declaration imports the algebra.
+ */
+function canonicalImport(node: ts.ImportSpecifier): boolean {
+  const specifier = node.parent.parent.parent.moduleSpecifier;
+  if (!ts.isStringLiteral(specifier)) return false;
+  const withoutExtension = specifier.text.replace(MODULE_EXTENSION, '');
+  return withoutExtension.endsWith(CANONICAL_MODULE);
+}
+
+/**
  * Read a renamed import as an alias of the name it was exported under.
  *
  * <p>`import type { JsonUnknown as Open }` renames an open arm exactly
@@ -245,8 +274,8 @@ function typeNamesOf(node: ts.Node): readonly string[] {
  * for the walk below to find. The exported name is written in the
  * clause, so recognising this case is a lookup on the specifier rather
  * than a type resolution — the module the name travels from never has
- * to be read. An import binds for the whole file, so the entry is
- * scoped to the file and any nearer declaration still wins.
+ * to be read, only named. An import binds for the whole file, so the
+ * entry is scoped to the file and any nearer declaration still wins.
  *
  * @param node - Node to inspect.
  * @param source - Owning source file, the scope an import binds in.
@@ -256,6 +285,7 @@ function importAliasOf(node: ts.Node, source: ts.SourceFile): AliasTable {
   if (!ts.isImportSpecifier(node)) return [];
   const exported = node.propertyName;
   if (exported === undefined) return [];
+  if (!canonicalImport(node)) return [];
   return [{ name: node.name.text, targets: [exported.text], scope: source }];
 }
 
@@ -669,10 +699,12 @@ describe('RC-5 — JsonValue single source of truth', () => {
    * A renamed import is the cross-module twin of a local alias, and
    * the one form of it that costs nothing to resolve: the import
    * clause spells the exported name, so the guard reads it off the
-   * specifier instead of resolving the module. The third fixture pins
-   * the boundary that remains — a name re-exported under a *second*
-   * name by an intermediate module is not followed, because only a
-   * whole-program checker could say what it denotes.
+   * specifier instead of resolving the module. The last two fixtures
+   * pin the two boundaries. A rename is only read when it names the
+   * canonical module, because a foreign export sharing an algebra name
+   * would otherwise stop a commit the guard has no claim on. And a name
+   * re-exported under a *second* name is not followed at all, because
+   * only a whole-program checker could say what it denotes.
    */
   it('flags an open input hidden behind a renamed import', () => {
     const offender = [
@@ -693,6 +725,15 @@ describe('RC-5 — JsonValue single source of truth', () => {
     ].join('\n');
     const details = guardDetailsIn(offender);
     expect(details).toStrictEqual(['JsonUnknown is IJsonObject']);
+  });
+
+  it('ignores a renamed import from a module other than the canonical one', () => {
+    const foreign = [
+      "import type { JsonUnknown as Open } from '../Foreign/Json.js';",
+      'function f(v: Open): v is IJsonObject { return true; }',
+    ].join('\n');
+    const details = guardDetailsIn(foreign);
+    expect(details).toStrictEqual([]);
   });
 
   it('leaves a re-export renamed a second time to the type checker', () => {
