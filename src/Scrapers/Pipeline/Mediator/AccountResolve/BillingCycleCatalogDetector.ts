@@ -14,9 +14,10 @@
  * step in {@link BillingCycleCatalogShapes} — never a branch here.
  */
 
+import type { JsonUnknown } from '../../Types/JsonValue.js';
 import { isSome, none, type Option } from '../../Types/Option.js';
 import type { IBillingCycleCatalog } from '../../Types/PipelineContext.js';
-import { type JsonValue, SHAPE_RECOGNISERS } from './BillingCycleCatalogShapes.js';
+import { SHAPE_RECOGNISERS } from './BillingCycleCatalogShapes.js';
 
 type CatalogOption = Option<IBillingCycleCatalog>;
 
@@ -26,8 +27,9 @@ type CatalogOption = Option<IBillingCycleCatalog>;
  * <p>Mirrors the field names of `IDiscoveredEndpoint` so a pool from
  * `MediatorNetwork.getPreNavCaptures()` is structurally assignable.
  * The `responseBody` arrives as `unknown` from the network surface;
- * the detector narrows it to {@link JsonValue} at the call boundary
- * before handing it to typed recognisers.
+ * the detector hands it to the recognisers as {@link JsonUnknown},
+ * which is what an un-narrowed capture actually is. The recognisers
+ * are guard-driven, so no assertion is needed at this boundary.
  */
 interface IPreNavCapture {
   readonly url: string;
@@ -41,13 +43,13 @@ interface IPreNavCapture {
  *
  * @param accumulator - Result accumulated by prior recognisers.
  * @param recogniser - Next shape recogniser in the registry.
- * @param body - Capture body, already narrowed to JsonValue.
+ * @param body - Capture body, still un-narrowed.
  * @returns The accumulated hit, or the recogniser's output.
  */
 function foldRecogniser(
   accumulator: CatalogOption,
-  recogniser: (input: { readonly responseBody: JsonValue }) => CatalogOption,
-  body: JsonValue,
+  recogniser: (input: { readonly responseBody: JsonUnknown }) => CatalogOption,
+  body: JsonUnknown,
 ): CatalogOption {
   if (isSome(accumulator)) return accumulator;
   return recogniser({ responseBody: body });
@@ -62,7 +64,7 @@ function foldRecogniser(
  *   when no recogniser claims the capture.
  */
 function probeOne(capture: IPreNavCapture): CatalogOption {
-  const body: JsonValue = capture.responseBody as JsonValue;
+  const body: JsonUnknown = capture.responseBody;
   const seed: CatalogOption = none();
   return SHAPE_RECOGNISERS.reduce<CatalogOption>(
     (acc, recogniser): CatalogOption => foldRecogniser(acc, recogniser, body),

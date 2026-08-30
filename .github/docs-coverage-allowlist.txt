@@ -100,6 +100,12 @@ JsonScalar
 JsonArray
 # Reason: IJsonObject Ã¢â‚¬â€ `{readonly [k:string]: JsonValue}` shape; component of JsonValue, used only by JsonBody walker.
 IJsonObject
+# Reason: JsonUnknown - boundary arm of the canonical JSON algebra (Types/JsonValue.ts); the un-narrowed value at JSON.parse / captured-response-body / type-guard-parameter positions. Internal to the Pipeline; not part of the public API.
+JsonUnknown
+# Reason: JsonUnknownRecord - Record<string, JsonUnknown>; the result of an isRecord-style guard, whose values are still un-narrowed. Replaces three divergent local "type JsonObject" declarations in BalanceExtractor / TxnShape / ScrapeIdExtraction.
+JsonUnknownRecord
+# Reason: JsonUnknownList - readonly JsonUnknown[]; array counterpart of JsonUnknownRecord, used by the BalanceExtractor array-descent helpers.
+JsonUnknownList
 # Reason: REDACTED_HINT Ã¢â‚¬â€ `[REDACTED]` literal sentinel returned by default-deny; held in Types.ts so every per-category module can import it without a Facade dependency cycle.
 REDACTED_HINT
 # Reason: REDACTION_ERROR_HINT Ã¢â‚¬â€ `[REDACTION_ERROR]` literal sentinel returned by the unified `redact()` catch block; same anti-cycle reason as REDACTED_HINT.

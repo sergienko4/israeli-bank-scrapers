@@ -12,7 +12,7 @@ import { PIPELINE_WELL_KNOWN_ACCOUNT_FIELDS as WK_ACCT } from '../../../Registry
 import type { Brand } from '../../../Types/Brand.js';
 import type { IAccountIdentity, IFieldMatch } from '../../../Types/FieldMatch.js';
 import { buildFallbackMatch } from '../../../Types/FieldMatch.js';
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown, JsonUnknownRecord } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 
@@ -129,17 +129,16 @@ function extractCardId(record: Record<string, unknown>): string | false {
 /** Error message when no captured endpoint carries a displayId. */
 const NO_DISPLAY_ID_IN_STORE = 'no displayId field in any captured endpoint';
 
-/** Plain-record alias — composes JsonValue to keep function sigs clean. */
-type JsonObject = Record<string, JsonValue>;
+/** Plain-record alias — composes JsonUnknown to keep function sigs clean. */
 
 /**
  * Extract displayId candidate from one captured endpoint body.
  * @param body - Captured responseBody (opaque shape).
  * @returns String displayId or false when body has no match.
  */
-function extractDisplayFromBody(body: JsonValue): string | false {
+function extractDisplayFromBody(body: JsonUnknown): string | false {
   if (body === null || typeof body !== 'object') return false;
-  const hit = findFieldValue(body as JsonObject, WK_ACCT.displayId);
+  const hit = findFieldValue(body as JsonUnknownRecord, WK_ACCT.displayId);
   if (hit === false || typeof hit === 'boolean') return false;
   return String(hit);
 }

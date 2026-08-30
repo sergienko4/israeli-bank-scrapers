@@ -43,7 +43,7 @@ import { unwrapWcfEnvelope } from '../../../../../Scrapers/Pipeline/Mediator/Net
 import type { IDiscoveredEndpoint } from '../../../../../Scrapers/Pipeline/Mediator/Network/Types/Endpoint.js';
 import type { ApiRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 import { extractTransactions } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ContainerPicker/ContainerPicker.js';
-import type { JsonValue } from '../../../../../Scrapers/Pipeline/Types/JsonValue.js';
+import type { JsonUnknown } from '../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 
 const HERE_URL = fileURLToPath(import.meta.url);
 const HERE = dirname(HERE_URL);
@@ -92,7 +92,7 @@ function loadEnvelope(): ApiRecord {
  * @param env - WCF envelope.
  * @returns Inner JSON payload.
  */
-function innerBody(env: ApiRecord): JsonValue {
+function innerBody(env: ApiRecord): JsonUnknown {
   return unwrapWcfEnvelope(env);
 }
 

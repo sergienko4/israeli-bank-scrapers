@@ -83,15 +83,4 @@ export type PiiCategory =
   | 'unknown';
 
 /** Concrete JSON scalar union — used by the walker; no `unknown` leakage. */
-export type JsonScalar = string | number | boolean | null;
-
-/** JSON object — readonly map of strings to JsonValue. */
-export interface IJsonObject {
-  readonly [key: string]: JsonValue;
-}
-
-/** JSON array — readonly tuple of JsonValue. */
-export type JsonArray = readonly JsonValue[];
-
-/** Recursive JSON value union — scalar, object, or array. */
-export type JsonValue = JsonScalar | IJsonObject | JsonArray;
+export type { IJsonObject, JsonArray, JsonScalar, JsonValue } from '../JsonValue.js';

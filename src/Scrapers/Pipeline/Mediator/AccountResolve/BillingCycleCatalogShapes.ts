@@ -18,27 +18,14 @@
  * pipeline.
  */
 
+import type { IJsonObject, JsonArray, JsonUnknown, JsonValue } from '../../Types/JsonValue.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { IBillingCycle, IBillingCycleCatalog } from '../../Types/PipelineContext.js';
 
-/** JSON scalar subset — what shape probes treat as leaf values. */
-type JsonScalar = string | number | boolean | null;
-
-/** JSON array recursion node consumed by the recognisers. */
-type JsonArray = readonly JsonValue[];
-
-/** JSON object recursion node — keys are always strings. */
-interface IJsonObject {
-  readonly [key: string]: JsonValue;
-}
-
-/** Full JSON-document algebra used by the recognisers. */
-type JsonValue = JsonScalar | JsonArray | IJsonObject;
-
 /** Subset of `IDiscoveredEndpoint` the recognisers read. */
 interface IShapeProbeInput {
-  readonly responseBody: JsonValue;
+  readonly responseBody: JsonUnknown;
 }
 
 /**
@@ -48,7 +35,7 @@ interface IShapeProbeInput {
  * @param value - Candidate JSON node.
  * @returns True when value is a non-null, non-array object.
  */
-function isPlainObject(value: JsonValue): value is IJsonObject {
+function isPlainObject(value: JsonUnknown): value is IJsonObject {
   if (value === null) return false;
   if (typeof value !== 'object') return false;
   if (Array.isArray(value)) return false;
@@ -62,7 +49,7 @@ function isPlainObject(value: JsonValue): value is IJsonObject {
  * @param value - Candidate JSON node.
  * @returns True when value is an array (possibly empty).
  */
-function isJsonArray(value: JsonValue): value is JsonArray {
+function isJsonArray(value: JsonUnknown): value is JsonArray {
   return Array.isArray(value);
 }
 
@@ -311,5 +298,5 @@ const SHAPE_RECOGNISERS: readonly ((input: IShapeProbeInput) => Option<IBillingC
   tryVisaCalShape,
 ];
 
-export type { IShapeProbeInput, JsonValue };
+export type { IShapeProbeInput };
 export { SHAPE_RECOGNISERS, tryBackbaseShape, tryMaxShape, tryVisaCalShape };

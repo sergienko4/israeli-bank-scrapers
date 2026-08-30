@@ -3,7 +3,7 @@
  * the shared AUTH_BODY_FAILURE_PATTERNS table.
  */
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import AUTH_BODY_FAILURE_PATTERNS from './Patterns.js';
 import type { IBodyFailurePattern } from './Types.js';
 
@@ -13,7 +13,7 @@ import type { IBodyFailurePattern } from './Types.js';
  * @param pattern - Body-failure pattern row.
  * @returns True when the pattern's field is present and predicate fires.
  */
-function patternFits(record: Record<string, JsonValue>, pattern: IBodyFailurePattern): boolean {
+function patternFits(record: Record<string, JsonUnknown>, pattern: IBodyFailurePattern): boolean {
   if (!(pattern.field in record)) return false;
   return pattern.isFailure(record[pattern.field]);
 }
@@ -23,7 +23,7 @@ function patternFits(record: Record<string, JsonValue>, pattern: IBodyFailurePat
  * @param record - Object to inspect.
  * @returns Note from the matching pattern, or false.
  */
-function matchInRecord(record: Record<string, JsonValue>): string | false {
+function matchInRecord(record: Record<string, JsonUnknown>): string | false {
   const hit = AUTH_BODY_FAILURE_PATTERNS.find((pattern): boolean => patternFits(record, pattern));
   if (!hit) return false;
   return hit.note;
@@ -34,9 +34,9 @@ function matchInRecord(record: Record<string, JsonValue>): string | false {
  * @param value - Nested JSON value.
  * @returns Note when matched, false otherwise.
  */
-function matchNestedValue(value: JsonValue): string | false {
+function matchNestedValue(value: JsonUnknown): string | false {
   if (value === null || typeof value !== 'object') return false;
-  return matchInRecord(value as Record<string, JsonValue>);
+  return matchInRecord(value as Record<string, JsonUnknown>);
 }
 
 /**
@@ -44,7 +44,7 @@ function matchNestedValue(value: JsonValue): string | false {
  * @param values - Nested values from the top record.
  * @returns Note when matched, false otherwise.
  */
-function findNestedMatch(values: readonly JsonValue[]): string | false {
+function findNestedMatch(values: readonly JsonUnknown[]): string | false {
   const hit = values.find((v): boolean => matchNestedValue(v) !== false);
   if (hit === undefined) return false;
   return matchNestedValue(hit);
@@ -56,9 +56,9 @@ function findNestedMatch(values: readonly JsonValue[]): string | false {
  * @param body - Parsed JSON response body.
  * @returns Matching pattern note when failure detected, false otherwise.
  */
-function classifyBodyAsFailure(body: JsonValue): string | false {
+function classifyBodyAsFailure(body: JsonUnknown): string | false {
   if (body === null || typeof body !== 'object') return false;
-  const topRecord = body as Record<string, JsonValue>;
+  const topRecord = body as Record<string, JsonUnknown>;
   const topHit = matchInRecord(topRecord);
   if (topHit !== false) return topHit;
   const nestedValues = Object.values(topRecord);

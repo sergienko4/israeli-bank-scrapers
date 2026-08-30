@@ -7,7 +7,7 @@
 
 import type { ConsoleMessage, Page, Request, Response } from 'playwright-core';
 
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 
 /** Body preview is masked + truncated to this length before logging. */
 export const BODY_PREVIEW_LIMIT = 256;
@@ -29,7 +29,7 @@ export interface IBodyFailurePattern {
   /** JSON field name to inspect on the parsed response body. */
   readonly field: string;
   /** Predicate — true means this value denotes an auth failure. */
-  readonly isFailure: (value: JsonValue) => boolean;
+  readonly isFailure: (value: JsonUnknown) => boolean;
   /** Documents which bank's contract motivated the row. */
   readonly note: string;
 }

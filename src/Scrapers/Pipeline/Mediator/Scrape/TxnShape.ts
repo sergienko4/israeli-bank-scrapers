@@ -16,7 +16,7 @@
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK_FIELDS } from '../../Registry/WK/ScrapeFieldMappings.js';
 import { PIPELINE_WELL_KNOWN_API } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
-import type { JsonValue } from '../../Types/JsonValue.js';
+import type { JsonUnknown, JsonUnknownRecord } from '../../Types/JsonValue.js';
 
 /** Whether a response body carries a non-empty txn array. */
 type HasTxnArray = Brand<boolean, 'HasTxnArray'>;
@@ -24,8 +24,7 @@ type HasTxnArray = Brand<boolean, 'HasTxnArray'>;
 /** Whether a URL matches a known dashboard-PREVIEW / widget pattern. */
 type IsTxnWidgetUrl = Brand<boolean, 'IsTxnWidgetUrl'>;
 
-/** Record alias — composes the shared JsonValue union. */
-type JsonObject = Record<string, JsonValue>;
+/** Record alias — composes the shared JsonUnknown union. */
 
 /** Max BFS depth when scanning a captured body for a txn array.
  *  Banks nest: body.result.bankAccounts[].debitDates[].transactions[]
@@ -38,7 +37,7 @@ const TXN_SCAN_MAX_DEPTH = 8;
  * @param v - Candidate value.
  * @returns True when v is a non-null, non-array object.
  */
-export function isPlainRecord(v: JsonValue): v is JsonObject {
+export function isPlainRecord(v: JsonUnknown): v is JsonUnknownRecord {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
@@ -48,10 +47,10 @@ export function isPlainRecord(v: JsonValue): v is JsonObject {
  * @param record - Record to inspect.
  * @returns True when any container key holds a non-empty Array.
  */
-function recordCarriesTxnArray(record: JsonObject): boolean {
+function recordCarriesTxnArray(record: JsonUnknownRecord): boolean {
   const hit = WK_FIELDS.txnContainers
-    .map((key): JsonValue => record[key])
-    .find((v): v is readonly JsonValue[] => Array.isArray(v) && v.length > 0);
+    .map((key): JsonUnknown => record[key])
+    .find((v): v is readonly JsonUnknown[] => Array.isArray(v) && v.length > 0);
   return hit !== undefined;
 }
 
@@ -63,7 +62,7 @@ function recordCarriesTxnArray(record: JsonObject): boolean {
  * @param head - First record of a candidate nested array.
  * @returns True when at least one amount alias is present.
  */
-function headHasAmountAlias(head: JsonObject): boolean {
+function headHasAmountAlias(head: JsonUnknownRecord): boolean {
   if (WK_FIELDS.amount.some((key): boolean => head[key] !== undefined)) return true;
   if (WK_FIELDS.creditAmount.some((key): boolean => head[key] !== undefined)) return true;
   return WK_FIELDS.debitAmount.some((key): boolean => head[key] !== undefined);
@@ -75,12 +74,12 @@ function headHasAmountAlias(head: JsonObject): boolean {
  * amount alias. Pulled out so the parent `Object.values(...).some(...)`
  * fits inside the LoC budget.
  *
- * @param value - Candidate nested value (any JsonValue).
+ * @param value - Candidate nested value (any JsonUnknown).
  * @returns True when value is a shaped txn list.
  */
-function isShapedNestedArray(value: JsonValue): boolean {
+function isShapedNestedArray(value: JsonUnknown): boolean {
   if (!Array.isArray(value) || value.length === 0) return false;
-  const items = value as readonly JsonValue[];
+  const items = value as readonly JsonUnknown[];
   const first = items[0];
   if (!isPlainRecord(first)) return false;
   const hasDate = WK_FIELDS.date.some((key): boolean => first[key] !== undefined);
@@ -100,7 +99,7 @@ function isShapedNestedArray(value: JsonValue): boolean {
  * @returns True when any nested array holds records exposing date AND
  *   amount aliases.
  */
-function recordCarriesShapedArray(record: JsonObject): boolean {
+function recordCarriesShapedArray(record: JsonUnknownRecord): boolean {
   return Object.values(record).some(isShapedNestedArray);
 }
 
@@ -109,15 +108,15 @@ function recordCarriesShapedArray(record: JsonObject): boolean {
  * @param v - Candidate value.
  * @returns Flattened children to enqueue at the next BFS depth.
  */
-function expandForBfs(v: JsonValue): readonly JsonValue[] {
-  if (Array.isArray(v)) return v as readonly JsonValue[];
+function expandForBfs(v: JsonUnknown): readonly JsonUnknown[] {
+  if (Array.isArray(v)) return v as readonly JsonUnknown[];
   if (isPlainRecord(v)) return Object.values(v);
   return [];
 }
 
 /** BFS frontier state — one depth level of values to probe. */
 interface IBfsFrontier {
-  readonly level: readonly JsonValue[];
+  readonly level: readonly JsonUnknown[];
   readonly found: boolean;
 }
 
@@ -143,7 +142,7 @@ function bfsStep(state: IBfsFrontier): IBfsFrontier {
  * @param body - Captured JSON response body (any shape).
  * @returns True when a non-empty txn array is reachable within the depth budget.
  */
-export function hasTxnArray(body: JsonValue): HasTxnArray {
+export function hasTxnArray(body: JsonUnknown): HasTxnArray {
   const depths = Array.from({ length: TXN_SCAN_MAX_DEPTH }, (_, i): number => i);
   const initial: IBfsFrontier = { level: [body], found: false };
   const final = depths.reduce((acc): IBfsFrontier => bfsStep(acc), initial);

@@ -9,7 +9,7 @@
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 
 /** Typed null value for Nullable return types — avoids the no-restricted-syntax rule on `return null`. */
 export const EMPTY_RESULT: Nullable<never> = JSON.parse('null') as Nullable<never>;
@@ -36,12 +36,12 @@ function buildParseErrorMessage(opts: IParseErrorOpts): string {
 
 /**
  * Handle a JSON parse error — throw ScraperError or return EMPTY_RESULT.
- * Returns {@link Nullable}<{@link JsonValue}> so callers can safely receive
+ * Returns {@link Nullable}<{@link JsonUnknown}> so callers can safely receive
  * objects, arrays, or top-level primitives without an unsafe cast.
  * @param opts - Error details and handling options.
  * @returns EMPTY_RESULT when errors are ignored.
  */
-export function handleParseError(opts: IParseErrorOpts): Nullable<JsonValue> {
+export function handleParseError(opts: IParseErrorOpts): Nullable<JsonUnknown> {
   if (opts.shouldIgnore) return EMPTY_RESULT;
   throw new ScraperError(buildParseErrorMessage(opts));
 }
@@ -53,9 +53,9 @@ export function handleParseError(opts: IParseErrorOpts): Nullable<JsonValue> {
  * @param opts - Parse-error routing options (ignore-flag + url + status + context).
  * @returns Parsed JSON or EMPTY_RESULT when errors are ignored.
  */
-function tryParseOrHandle(body: string, opts: Omit<IParseErrorOpts, 'err'>): Nullable<JsonValue> {
+function tryParseOrHandle(body: string, opts: Omit<IParseErrorOpts, 'err'>): Nullable<JsonUnknown> {
   try {
-    return JSON.parse(body) as JsonValue;
+    return JSON.parse(body) as JsonUnknown;
   } catch (error) {
     return handleParseError({ ...opts, err: error as Error });
   }
@@ -74,7 +74,7 @@ export interface IParseGetOpts {
  * @param opts - The response text, status, URL, and error handling flag.
  * @returns The parsed JSON value (object, array, or primitive), null if parse fails and errors are ignored, or empty object for empty responses.
  */
-export function parseGetResult(opts: IParseGetOpts): Nullable<JsonValue> {
+export function parseGetResult(opts: IParseGetOpts): Nullable<JsonUnknown> {
   const { result, status, url, shouldIgnoreErrors } = opts;
   if (result === '') return {};
   return tryParseOrHandle(result, {
@@ -114,7 +114,7 @@ function postParseOpts(
  * @param pOpts - The response text, status, URL, and fetch options.
  * @returns The parsed JSON value (object, array, or primitive), null if parse fails and errors are ignored, or empty object for empty responses.
  */
-export function parsePostResult(pOpts: IParsePostOpts): Nullable<JsonValue> {
+export function parsePostResult(pOpts: IParsePostOpts): Nullable<JsonUnknown> {
   const { text, status, url, opts } = pOpts;
   const { shouldIgnoreErrors = false } = opts;
   if (text === '') return {};
