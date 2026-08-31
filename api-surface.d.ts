@@ -438,9 +438,10 @@ type ScraperOptions = ScraperBrowserOptions & {
      * Include the raw transaction object as received from the scraper source for debugging purposes.
      * @default false
      * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-     * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed. For
-     * raw provider payloads on the Pipeline, use the `FORENSIC_TRACE` capture instead —
+     * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
      * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
+     * For raw provider payloads on the Pipeline, use the `FORENSIC_TRACE` capture instead —
+     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/ Forensic capture}.
      */
     includeRawTransaction?: boolean;
     /**
