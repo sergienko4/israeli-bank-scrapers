@@ -27,11 +27,11 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: ./.github/actions/setup-node-deps
+    - uses: $/.github/actions/setup-node-deps
       with:
         node-version: ${{ inputs.node-version }}
     - if: inputs.camoufox == 'true'
-      uses: ./.github/actions/install-camoufox
+      uses: $/.github/actions/install-camoufox
       with:
         gh-token: ${{ inputs.gh-token }}
     - if: inputs.tests-config == 'true'

@@ -74,11 +74,11 @@ jobs:
 
       - name: Setup Node + Dependencies
         if: steps.changes.outputs.src == 'true'
-        uses: ./.github/actions/setup-node-deps
+        uses: $/.github/actions/setup-node-deps
 
       - name: Install Camoufox
         if: steps.changes.outputs.src == 'true'
-        uses: ./.github/actions/install-camoufox
+        uses: $/.github/actions/install-camoufox
         with:
           gh-token: ${{ github.token }}
 

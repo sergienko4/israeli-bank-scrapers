@@ -33,10 +33,15 @@ jobs:
       - name: Install zizmor
         run: pipx install zizmor
 
-      - name: Run zizmor on every workflow file
+      - name: Run zizmor on every workflow and action file
         run: |
           set -euo pipefail
-          zizmor --format sarif .github/workflows > zizmor.sarif || true
+          # Both paths. The `pull_request` trigger above already watches
+          # `.github/actions/**`, but the scan itself only covered
+          # `.github/workflows`, so composite actions were never audited.
+          # That blind spot hid two `self-repository` findings in
+          # setup-test-runner until a manual scan surfaced them.
+          zizmor --format sarif .github/workflows .github/actions > zizmor.sarif || true
 
       - name: Upload SARIF to code-scanning
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4

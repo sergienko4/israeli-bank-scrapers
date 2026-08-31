@@ -104,14 +104,14 @@ jobs:
 
   codeql:
     name: CodeQL
-    uses: ./.github/workflows/codeql.yml
+    uses: $/.github/workflows/codeql.yml
     permissions:
       contents: read
       security-events: write
 
   sonarcloud:
     name: SonarCloud
-    uses: ./.github/workflows/sonarcloud.yml
+    uses: $/.github/workflows/sonarcloud.yml
     permissions:
       contents: read
       pull-requests: read
@@ -125,7 +125,7 @@ jobs:
 
   workflow-security:
     name: Workflow security
-    uses: ./.github/workflows/workflow-security.yml
+    uses: $/.github/workflows/workflow-security.yml
     permissions:
       contents: read
       security-events: write
@@ -135,7 +135,7 @@ jobs:
     name: Docs
     needs: changes
     if: needs.changes.outputs.docs_publish == 'true'
-    uses: ./.github/workflows/docs.yml
+    uses: $/.github/workflows/docs.yml
     permissions:
       contents: read
       pages: write
@@ -147,7 +147,7 @@ jobs:
   # flips to true.
   release:
     name: Release
-    uses: ./.github/workflows/release.yml
+    uses: $/.github/workflows/release.yml
     # The union of what the called jobs need: release-please writes release
     # commits and PRs, publish exchanges the OIDC token. A called workflow
     # cannot exceed the permissions granted here, and each of its jobs

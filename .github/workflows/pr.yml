@@ -240,7 +240,7 @@ jobs:
       # `syntax_guardrails=true` without setting `full_suite`/`deps`, so without
       # this the gate would run against an empty `node_modules` and fail on a
       # clean runner. That is the exact PR shape most able to disarm the guard.
-      - uses: ./.github/actions/setup-node-deps
+      - uses: $/.github/actions/setup-node-deps
         if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
       - if: needs.changes.outputs.full_suite == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
@@ -482,7 +482,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-test-runner
+      - uses: $/.github/actions/setup-test-runner
         with:
           camoufox: 'false'
           node-version: ${{ matrix.node }}
@@ -529,7 +529,7 @@ jobs:
           # commit has to be present locally rather than just the tip.
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/setup-test-runner
+      - uses: $/.github/actions/setup-test-runner
         with:
           camoufox: 'false'
       - name: Ensure GNU time is available
@@ -633,7 +633,7 @@ jobs:
           # commit has to be present locally rather than just the tip.
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/setup-node-deps
+      - uses: $/.github/actions/setup-node-deps
       # HEAD's `node_modules` serves both measurements: the tool is always
       # HEAD's copy, so `typescript` resolves from HEAD's tree even when the
       # target is the base worktree. The base tree needs no install of its own.
@@ -709,7 +709,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-test-runner
+      - uses: $/.github/actions/setup-test-runner
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: E2E factory tests
@@ -738,7 +738,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-test-runner
+      - uses: $/.github/actions/setup-test-runner
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: E2E mocked tests
@@ -759,7 +759,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-test-runner
+      - uses: $/.github/actions/setup-test-runner
         with:
           camoufox: 'false'
           tests-config: 'false'
@@ -812,7 +812,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-test-runner
+      - uses: $/.github/actions/setup-test-runner
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Integration Mode ${{ matrix.mode }} — bank=${{ matrix.bank }}
@@ -838,11 +838,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-test-runner
+      - uses: $/.github/actions/setup-test-runner
         with:
           camoufox: 'false'
           tests-config: 'false'
-      - uses: ./.github/actions/build-package
+      - uses: $/.github/actions/build-package
       - name: Dry-run publish (catch packaging errors early)
         run: npm pack --dry-run
       - name: Upload build artifact
@@ -1095,8 +1095,8 @@ jobs:
       # Fail-loud — exits 1 if the host doesn't resolve.
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
+      - uses: $/.github/actions/setup-node-deps
+      - uses: $/.github/actions/install-camoufox
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
@@ -1227,8 +1227,8 @@ jobs:
       # the hostname for THIS matrix bank only.
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
+      - uses: $/.github/actions/setup-node-deps
+      - uses: $/.github/actions/install-camoufox
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
@@ -1376,8 +1376,8 @@ jobs:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
+      - uses: $/.github/actions/setup-node-deps
+      - uses: $/.github/actions/install-camoufox
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
@@ -1493,8 +1493,8 @@ jobs:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
+      - uses: $/.github/actions/setup-node-deps
+      - uses: $/.github/actions/install-camoufox
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
@@ -1651,8 +1651,8 @@ jobs:
           persist-credentials: false
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
-      - uses: ./.github/actions/setup-node-deps
-      - uses: ./.github/actions/install-camoufox
+      - uses: $/.github/actions/setup-node-deps
+      - uses: $/.github/actions/install-camoufox
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
