@@ -14,6 +14,8 @@
  *   <li>`dependency-updates-guidlines.md` — distinguish core
  *       vs third-party.</li>
  * </ul>
+ *
+ * canary-expects-rule: unicorn/prefer-node-protocol
  */
 
 // Deliberate violation — built-in import without `node:` prefix.

@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — prefer-isok-helper.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: isOk(result)
+ */
+
 // Canary fixture for the PR-261-V5 rule (eslint.config.mjs § "PR #261
 // REVIEW VALIDATORS" / CR-P3 selector). MUST exhibit the forbidden
 // `.success === true` pattern so the canary harness sees a non-zero

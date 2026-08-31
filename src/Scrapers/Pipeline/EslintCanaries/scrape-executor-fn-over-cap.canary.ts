@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — scrape-executor-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 12e per-function size guard — asserts
 // `max-lines-per-function: 10` (skipBlankLines + skipComments) fires on
 // the Strategy/Scrape/Executor/** drained sub-cluster + the

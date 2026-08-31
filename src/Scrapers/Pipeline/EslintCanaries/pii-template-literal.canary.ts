@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — pii-template-literal.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 PII LEAK (T09c): Credential-class ide
+ */
+
 // Canary: T09 — PII identifier in LOG.* template literal
 // MUST trigger ≥1 ESLint error (PII LEAK T09 selector). PiiRedactor is the
 // single source of truth for redaction; embedding raw PII into a template

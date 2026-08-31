@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — test-helper-over-10-stmts.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 §19.9 TEST HELPER CAP: Named test hel
+ */
+
 // Canary: §19.9 — test-helper FunctionDeclaration ≤10-statement cap.
 //
 // The §19.9 rule (in eslint.config.mjs, inlined into §4 + §5 via

@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — mediator-auth-file-over-cap.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 2 lockdown per-file size guard - asserts max-lines: 150
 // (skipBlankLines + skipComments) fires on Mediator/Login + Mediator/PreLogin + Mediator/AuthDiscovery cluster files.
 // Phase 2 split the big phase-action files into co-located <=150-LoC

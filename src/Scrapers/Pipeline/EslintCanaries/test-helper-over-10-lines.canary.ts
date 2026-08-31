@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — test-helper-over-10-lines.
+ *
+ * canary-expects-rule: phase9-local/fn-declaration-max-lines
+ */
+
 // Canary: §19.10 — test-helper FunctionDeclaration ≤10-line cap.
 //
 // The §19.10 rule (defined as `phase9-local/fn-declaration-max-lines`

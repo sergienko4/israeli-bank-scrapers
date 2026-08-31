@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — mediator-api-selector-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 2b lockdown per-function size guard — asserts the
 // §14b.1 full three-rule lock (`max-statements: 10` +
 // `max-lines-per-function: 10` + `max-lines: 150`) fires on

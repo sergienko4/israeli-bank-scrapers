@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — types-domain-fn-over-10.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 8.5c / Commit C2 + C6 — §7b Types/Domain per-fn
 // ≤10-LoC cap guard.
 //

@@ -14,6 +14,8 @@
  *       guards, validation, or thresholds."</li>
  *   <li>`design-patterns-guidlines.md` — "Avoid duplication."</li>
  * </ul>
+ *
+ * canary-expects-rule: sonarjs/redundant-type-aliases
  */
 
 /** Deliberate violation — single-keyword RHS triggers S6564. */

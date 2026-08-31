@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — pii-errorlog-bypass.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 SECURITY (CodeQL #28 / CR cycle-1 #3)
+ */
+
 // Canary: Phase 6 §13C ErrorLog no-bypass lock — asserts the
 // `no-restricted-syntax` rule banning `isPiiRedactionDisabled`
 // in ErrorLog.ts fires on any reference (import OR identifier

@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — test-pipeline-hardening-fn-over-cap.
+ *
+ * canary-expects-rule: phase9-local/fn-declaration-max-lines
+ */
+
 // Canary: §19.11 — Phase 10 wave 2 pipeline-hardening test cap.
 //
 // The §19.11 wave 2 block (eslint.config.mjs §19.11) re-arms the

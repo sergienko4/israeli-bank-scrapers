@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — mediator-dashboard-file-over-cap.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 2 lockdown per-file size guard - asserts max-lines: 150
 // (skipBlankLines + skipComments) fires on Mediator/Dashboard cluster files.
 // Phase 2 split the big phase-action files into co-located <=150-LoC

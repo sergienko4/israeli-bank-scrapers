@@ -29,6 +29,9 @@
  *       additive (open–closed principle)."</li>
  *   <li>`coding-principle-guidlines.md` §5 — SOLID Open/Closed.</li>
  * </ul>
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 V5 ISOLATION (T50): The literal 'balance' is forbidden
  */
 
 // Deliberate violation #1 — SCRAPE must not import balance aliases.

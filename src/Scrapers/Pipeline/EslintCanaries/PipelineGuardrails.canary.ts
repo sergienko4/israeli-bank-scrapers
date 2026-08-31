@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — PipelineGuardrails.
+ *
+ * canary-expects-rule: max-classes-per-file
+ */
+
 // Canary: Pipeline Section 6 guardrails — DI, mediator, result pattern, guard clauses
 // Each section must trigger at least 1 Pipeline-specific ESLint error.
 

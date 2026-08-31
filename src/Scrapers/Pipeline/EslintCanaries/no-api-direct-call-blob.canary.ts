@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-api-direct-call-blob.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 8 Section 14 file-size guard — re-imposes
 // max-lines: 150 (skipBlankLines + skipComments) on
 // Mediator/ApiDirectCall/ConfigContracts sub-modules so future

@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — network-cluster-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 4 / PR #276 Section 11 per-function size guard —
 // asserts `max-lines-per-function: 10` fires on Network/ sub-modules.
 // Phase 8.5a tightened the cap from 20 → 10 after draining the three

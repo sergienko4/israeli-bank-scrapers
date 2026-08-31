@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — pii-facade-no-grandfather.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 8.5c / Commit C2 + C6 — §13A grandfather drain
 // guard.
 //

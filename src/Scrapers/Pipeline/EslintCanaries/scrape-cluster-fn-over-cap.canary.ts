@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — scrape-cluster-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: asserts the strict per-function cap of the §19.0 baseline —
 // `max-lines-per-function: 10` (skipBlankLines + skipComments) — is
 // live for the Mediator/Scrape cluster.

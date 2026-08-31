@@ -22,6 +22,9 @@
  * if §12C is ever silently removed.</p>
  *
  * @canary scrape-canonical10-lookup-array-shouldbe-set
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: lower*Keys
  */
 
 const HAYSTACK = ['ALPHA', 'BETA', 'GAMMA'];
@@ -34,7 +37,6 @@ const NEEDLES = ['beta', 'delta'];
  *
  * @returns First needle present in HAYSTACK or null.
  */
-// eslint-disable-next-line max-lines-per-function -- canary deliberately exhibits §12C anti-pattern; cap not the point
 function findFirstHitAntiPattern(): string | null {
   const lowerKeys = HAYSTACK.map((k): string => k.toLowerCase());
   for (const needle of NEEDLES) {

@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — pii-cluster-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 6 §13 per-function size guard — asserts
 // `max-lines-per-function: 10` (skipBlankLines + skipComments +
 // IIFEs) fires on the PiiRedactor cluster. The single function

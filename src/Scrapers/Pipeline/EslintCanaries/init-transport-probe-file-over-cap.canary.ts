@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — init-transport-probe-file-over-cap.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 12e per-file size guard — asserts max-lines: 150
 // (skipBlankLines + skipComments) fires on the
 // Mediator/Init/TransportProbe/** sub-cluster + the

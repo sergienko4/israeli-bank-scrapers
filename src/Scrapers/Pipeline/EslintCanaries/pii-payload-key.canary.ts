@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — pii-payload-key.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 PII LEAK (T16): Do not pass object/ar
+ */
+
 // Canary: T16 — full-object payload passed to LOG.*
 // MUST trigger ≥1 ESLint error (PII LEAK T16 selectors). Banned shapes:
 //   T16a: forbidden bucket key with object/array/spread RHS.

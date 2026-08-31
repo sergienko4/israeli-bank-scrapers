@@ -1,10 +1,20 @@
+/**
+ * ESLint canary — ArchitectureGlobal.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 'void' is forbidden
+ */
+
 // Canary: Global RESTRICTED_SYNTAX_RULES_NEW — tests MethodDefinition-level rules
 // Each section must trigger at least 1 ESLint error.
 
 export class CanaryGlobal {
   public _data!: string; // 🚫 TYPE SKIP: Non-null assertion
 
-  // Return Value Integrity (MethodDefinition — updated from TSMethodDefinition)
+  // Return Value Integrity at method level. These selectors are queued in
+  // PIPELINE_SYNTAX_PENDING_DRAIN, so they are armed on canaries only — which
+  // is the point: the canary proves a queued rule still works before it is
+  // armed on production.
   public getNull(): null {
     return null;
   } // 🚫 null return + literal null

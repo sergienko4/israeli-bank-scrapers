@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-pii-redactor-blob.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 6 Section 13 file-size guard — re-imposes
 // `max-lines: 200` (skipBlankLines + skipComments) on
 // Types/PiiRedactor sub-modules so future commits cannot quietly

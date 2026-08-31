@@ -31,6 +31,8 @@
  * removed.</p>
  *
  * @canary scrape-canonical10-negated-condition
+ *
+ * canary-expects-rule: no-negated-condition
  */
 
 interface ICanaryInput {
@@ -47,7 +49,6 @@ const SENTINEL = { url: '<NONE>', id: '<NONE>' } as const;
  * @param input - Candidate input.
  * @returns Input when usable, SENTINEL otherwise.
  */
-// eslint-disable-next-line max-lines-per-function -- canary deliberately exhibits §12D anti-pattern; cap not the point
 function pickInputAntiPatternTernary(input: ICanaryInput): ICanaryInput {
   return input.url !== '' ? input : SENTINEL;
 }
@@ -59,7 +60,6 @@ function pickInputAntiPatternTernary(input: ICanaryInput): ICanaryInput {
  * @param input - Candidate input.
  * @returns The input id when usable, '<NONE>' otherwise.
  */
-// eslint-disable-next-line max-lines-per-function -- canary deliberately exhibits §12D anti-pattern; cap not the point
 function pickInputAntiPatternIfElse(input: ICanaryInput): string {
   if (!input.id) {
     return '<NONE>';

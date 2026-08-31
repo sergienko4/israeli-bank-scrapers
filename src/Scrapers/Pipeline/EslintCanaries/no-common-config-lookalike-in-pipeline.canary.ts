@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-common-config-lookalike-in-pipeline.
+ *
+ * canary-expects-rule: no-restricted-imports
+ */
+
 // Canary: Phase 3 (CR PR #286 finding F3) — the PHASE3_COMMON_IMPORT_BAN_PATTERN
 // allowlist must be an EXACT-MATCH for `Common/Config/BrowserConfig`. Lookalikes
 // in the same directory (e.g. `Common/Config/NavigationConfig`,

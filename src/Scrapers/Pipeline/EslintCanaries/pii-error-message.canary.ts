@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — pii-error-message.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 PII LEAK (T09c): Credential-class ide
+ */
+
 // Canary: T09 + T09b + T09c — `errorMessage` in logger template literals.
 // MUST trigger ≥1 ESLint error per pattern. Closes CodeQL #28 class —
 // bank-side errorMessage strings can echo credentials, and Pino's

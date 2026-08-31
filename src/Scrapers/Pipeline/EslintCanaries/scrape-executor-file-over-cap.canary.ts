@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — scrape-executor-file-over-cap.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 12e per-file size guard — asserts max-lines: 150
 // (skipBlankLines + skipComments) fires on the
 // Strategy/Scrape/Executor/** sub-cluster + the ScrapeExecutor

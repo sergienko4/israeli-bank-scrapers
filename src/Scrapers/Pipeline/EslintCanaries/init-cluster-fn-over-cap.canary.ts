@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — init-cluster-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: PR #288 Section 14 per-function size guard — asserts
 // `max-lines-per-function: 10` fires on Mediator/Init/ sub-modules.
 // The Init/ cluster was tightened from the lax 20-cap default to 10

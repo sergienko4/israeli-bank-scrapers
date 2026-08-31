@@ -7,6 +7,9 @@
  *
  * This file deliberately violates the rule so the eslint canary
  * harness reports a non-zero error count.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 BALANCE-RESOLVE CONSTANTS (CR #264 Ma
  */
 
 /**

@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — scrape-canonical10-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 8.5b Section 12B per-function size guard — asserts
 // `max-lines-per-function: 10` (skipBlankLines + skipComments) fires
 // on the canonical-10 sub-folders of Mediator/Scrape (ScrapePhase/**,

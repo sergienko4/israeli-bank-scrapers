@@ -6,6 +6,9 @@
  * is now active in the Pipeline production scope (extended by the
  * same commit). Deliberate violation so verify.sh confirms the
  * guardrail fires.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 TYPE BYPASS (Pipeline rule): 'expr as
  */
 
 interface Payload {

@@ -25,6 +25,8 @@
  *       transformation unit."</li>
  *   <li>`coding-principle-guidlines.md` §5 — SOLID Open/Closed.</li>
  * </ul>
+ *
+ * canary-expects-rule: no-restricted-imports
  */
 
 // Deliberate violation #1 — BalanceResolve must not pull SCRAPE types.

@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-scrape-mapper-blob.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 5 Section 12 file-size guard — re-imposes
 // `max-lines: 150` (skipBlankLines + skipComments) on
 // Mediator/Scrape sub-modules so future commits cannot quietly

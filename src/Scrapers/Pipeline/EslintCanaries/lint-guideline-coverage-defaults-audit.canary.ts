@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — lint-guideline-coverage-defaults-audit.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 8.5c / Commit C5 + C6 — lint-guideline-coverage
 // tool default-set drift guard.
 //
