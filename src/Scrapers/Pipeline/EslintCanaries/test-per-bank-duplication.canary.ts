@@ -42,6 +42,9 @@
  * BOTH lowercase (`hapoalim`/`discount`/`max`) and camelCase
  * (`visaCal`) enum-casing paths — non-null ruleId for every line =>
  * verify.sh satisfied.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 PHASE-7 DIAMOND: per-bank duplication
  */
 
 declare function describe(name: string, fn: () => unknown): void;

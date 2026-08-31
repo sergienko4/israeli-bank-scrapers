@@ -219,6 +219,15 @@ bg_gate "canaries"          "yes" npm run lint:canaries
 bg_gate "dead-code"         "yes" npm run lint:dead-code
 bg_gate "cycles"            "yes" npm run lint:cycles
 bg_gate "guideline-coverage" "yes" npm run lint:guideline-coverage
+# ESLint flat config REPLACES `no-restricted-syntax` options instead of
+# merging them, so the last matching block wins outright and every selector
+# unique to an earlier block evaporates with no error to notice. That is
+# invisible to `eslint src` — the rule still "runs", it just runs a smaller
+# set. This gate reads the RESOLVED config per production Pipeline file and
+# asserts every armed selector actually reached it. Runs unconditionally: the
+# collision is created by editing eslint.config.mjs, but it is also created by
+# adding a file under a path some later block already narrows.
+bg_gate "syntax-guardrails" "yes" npm run lint:syntax-guardrails
 bg_gate "test-duplication"  "yes" npm run lint:test-duplication
 bg_gate "bank-coverage"     "yes" npm run lint:bank-coverage
 bg_gate "fixtures-pii"      "yes" npm run lint:fixtures-pii

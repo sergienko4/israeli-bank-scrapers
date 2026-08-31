@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — test-helper-over-10-lines.
+ *
+ * canary-expects-rule: phase9-local/fn-declaration-max-lines
+ */
+
 // Canary: §19.10 — test-helper FunctionDeclaration ≤10-line cap.
 //
 // The §19.10 rule (defined as `phase9-local/fn-declaration-max-lines`
@@ -12,16 +18,19 @@
 // back in by the §19.10-canary single-file block so `verify.sh` can
 // confirm the guardrail stays armed.
 //
-// The function body below spans exactly 12 LINES and contains only
-// 5 STATEMENTS — proving §19.10 fires where §19.9 would miss. Do NOT
-// shrink this body. Do NOT add suppression directives — the project's
-// no-suppression rule (and the §19.10 contract) bars silencing this
-// canary.
+// The function below spans exactly 11 LINES and contains only
+// 5 STATEMENTS — proving §19.10 fires where §19.9 would miss. 11 is
+// one over the 10-line cap: the tightest size that still fires. Do NOT
+// resize it in either direction — at 10 it stops firing, and at 12+ a
+// commit could raise the cap to 11 and this canary would stay silent.
+// `assert-numeric-canaries` enforces the exact size. Do NOT add
+// suppression directives — the project's no-suppression rule (and the
+// §19.10 contract) bars silencing this canary.
 
 /**
  * Padded helper used purely as an ESLint fixture for the §19.10
  * test-helper FunctionDeclaration ≤10-line cap. Proves the rule
- * fires on a function §19.9 would miss (5 statements, 12 lines).
+ * fires on a function §19.9 would miss (5 statements, 11 lines).
  * @returns The literal 42 (irrelevant — value is unused).
  */
 function canaryTestHelperOverTenLines(): number {

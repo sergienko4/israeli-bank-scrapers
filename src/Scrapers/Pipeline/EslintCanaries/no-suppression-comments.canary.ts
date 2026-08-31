@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-suppression-comments.
+ *
+ * canary-expects-rule: no-warning-comments
+ */
+
 // Canary fixture for the no-suppression-comments rule (eslint.config.mjs
 // block #15). MUST contain at least one line matching the rule's `terms`
 // array so the canary harness reports a non-zero error count.

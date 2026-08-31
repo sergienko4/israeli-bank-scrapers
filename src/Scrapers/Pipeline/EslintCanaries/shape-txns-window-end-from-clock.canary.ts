@@ -10,6 +10,9 @@
  *
  * Every construct below is the banned form — `verify.sh` asserts ESLint reports
  * at least one real rule ID for this file on every commit.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: Reading the clock in a *ShapeTxns.ts fil
  */
 
 /**

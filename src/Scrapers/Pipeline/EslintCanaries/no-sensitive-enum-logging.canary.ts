@@ -15,6 +15,9 @@
  *   <li>`testing-organization-guidlines.md` — "Use clear test
  *       names describing behavior and expected outcome."</li>
  * </ul>
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 PII LEAK (T09d): Sensitive scraper-er
  */
 
 /** Stub object whose property names match the T09d selector regex. */

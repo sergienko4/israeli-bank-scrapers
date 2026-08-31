@@ -18,6 +18,8 @@
  *   <li>`design-patterns-guidlines.md` — "Avoid duplication."</li>
  *   <li>`coding-principle-guidlines.md` §5 — SOLID Open/Closed.</li>
  * </ul>
+ *
+ * canary-expects-rule: unicorn/prefer-export-from
  */
 
 import { redactAccount } from '../Types/PiiRedactor.js';

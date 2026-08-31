@@ -7,6 +7,9 @@
  * must be typed as `ReadonlySet<PhaseName>` with `as const` so
  * typos fail at compile time. This file deliberately violates the
  * rule so verify.sh can confirm the guardrail fires.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 PIPELINE TYPE: Type literal sets via
  */
 
 const PHASES: ReadonlySet<string> = new Set(['home', 'login', 'dashboard']);

@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-common-import-in-pipeline.
+ *
+ * canary-expects-rule: no-restricted-imports
+ */
+
 // Canary: Phase 3 — Pipeline production code must not import from Common/*
 // (Pipeline is canonical; Common/* are deprecated re-export shims). Allowlist:
 // Common/Config/BrowserConfig (browser-bootstrap-only). The import below MUST

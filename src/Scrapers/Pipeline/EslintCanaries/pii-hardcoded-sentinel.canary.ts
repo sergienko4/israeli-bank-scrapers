@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — pii-hardcoded-sentinel.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 PII CONSTANT: Import { REDACTED_HINT
+ */
+
 // Canary: Phase 6 §13 sentinel-literal ban — asserts the
 // `no-restricted-syntax` rules covering `'[REDACTED]'` /
 // `'[OTP]'` / `'[REDACTION_ERROR]'` / `'[ANY_BRACKET_NAME]'` /

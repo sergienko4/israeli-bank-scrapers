@@ -14,6 +14,8 @@
  *   <li>`general-rules-guidlines.md` P6 — "DI: dependencies
  *       resolved at construction time."</li>
  * </ul>
+ *
+ * canary-expects-rule: @typescript-eslint/prefer-readonly
  */
 
 /**

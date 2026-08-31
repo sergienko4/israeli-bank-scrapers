@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-prettier-ignore.
+ *
+ * canary-expects-rule: no-warning-comments
+ */
+
 // Canary fixture for the prettier-ignore ban (eslint.config.mjs
 // block #3 + block #15 `no-warning-comments` terms list). MUST contain
 // at least one line matching the rule's `terms` array so the canary

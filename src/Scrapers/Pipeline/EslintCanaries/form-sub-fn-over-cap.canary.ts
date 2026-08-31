@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — form-sub-fn-over-cap.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 12d lockdown per-function size guard — asserts the
 // §19.4a three-rule lock (`max-statements: 10` +
 // `max-lines-per-function: 10` with skipBlankLines+skipComments+
@@ -8,6 +14,15 @@
 // this canary + the eslint.config.mjs §19.4a override block
 // guarantees no regression can reintroduce a >10-statement /
 // >10-LoC function in any of the three Form sub-clusters.
+//
+// SIZED DELIBERATELY — exactly 11 effective lines, not 28. At 28 the
+// body broke the fallback Pipeline cap of 15 as well as the §19.4a cap
+// of 10, so the canary stayed red even with the §19.4a override
+// deleted: it certified "some cap exists", not "the cap is 10". At
+// cap + 1 only the exact cap of 10 can flag it, so losing the override
+// — or raising the cap by even one step — turns this file green and
+// the ratchet red. `assert-numeric-canaries.cjs` enforces the size.
+// Do not pad this function.
 
 function canaryFormSubFunctionOverCap(): number {
   const s1 = 1;
@@ -18,24 +33,7 @@ function canaryFormSubFunctionOverCap(): number {
   const s6 = s5 + 1;
   const s7 = s6 + 1;
   const s8 = s7 + 1;
-  const s9 = s8 + 1;
-  const s10 = s9 + 1;
-  const s11 = s10 + 1;
-  const s12 = s11 + 1;
-  const s13 = s12 + 1;
-  const s14 = s13 + 1;
-  const s15 = s14 + 1;
-  const s16 = s15 + 1;
-  const s17 = s16 + 1;
-  const s18 = s17 + 1;
-  const s19 = s18 + 1;
-  const s20 = s19 + 1;
-  const s21 = s20 + 1;
-  const s22 = s21 + 1;
-  const s23 = s22 + 1;
-  const s24 = s23 + 1;
-  const s25 = s24 + 1;
-  return s25;
+  return s8;
 }
 
 export { canaryFormSubFunctionOverCap };

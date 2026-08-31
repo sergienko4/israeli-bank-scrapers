@@ -23,6 +23,8 @@
  *       must be isolated behind contracts/interfaces."</li>
  *   <li>`coding-principle-guidlines.md` §5 — SOLID Open/Closed.</li>
  * </ul>
+ *
+ * canary-expects-rule: no-restricted-imports
  */
 
 // Deliberate violation — only BalanceResolveActions may import this.

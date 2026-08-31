@@ -20,9 +20,19 @@
 # Two defences:
 #   1. `EslintCanaries/tsconfig.json` (new) feeds typescript-eslint
 #      via `projectService`, so canaries parse cleanly.
-#   2. The Node assertion below now demands at least one message with
-#      a non-null `ruleId` per file — Parsing errors no longer mask
+#   2. The assertion harness demands at least one message with a
+#      non-null `ruleId` per file — Parsing errors no longer mask
 #      a dead canary.
+#
+# 2026-06 — Target hardening. Both defences above still passed a canary
+# that errored on INCIDENTAL lint noise (jsdoc, prefer-default-export)
+# after its real target had been overwritten by a later flat-config
+# block. `canary-expects-rule:` is now MANDATORY, and a canary whose
+# target is `no-restricted-syntax` must also declare
+# `canary-expects-message:` — that rule is a ~58-selector bundle, so a
+# bare rule-ID match proves only that SOME selector fired. The
+# assertion moved to `assert-canaries.cjs`; it had outgrown a shell
+# string.
 set -euo pipefail
 
 CANARY_DIR="src/Scrapers/Pipeline/EslintCanaries"
@@ -35,52 +45,7 @@ echo "🔍 Running Canary Validation..."
 # Run ESLint specifically on canaries
 npx eslint "$CANARY_DIR"/*.canary.ts --no-ignore --format json 2>/dev/null > "$TMPFILE" || true
 
-node -e "
-  const fs = require('fs');
-  const data = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
-  const dead = [];
-  const parsingOnly = [];
-  const wrongRule = [];
-
-  data.forEach(f => {
-    const name = f.filePath.replace(/.*[\\\\/]/, '');
-    if (f.errorCount === 0) { dead.push(name); return; }
-    // T1 hardening — at least one message must have a real ruleId.
-    // Messages with ruleId === null are Parsing errors / syntax issues
-    // emitted before any rule evaluates, which historically silently
-    // satisfied this harness.
-    const realRuleHit = (f.messages || []).some(m => m.ruleId !== null);
-    if (!realRuleHit) { parsingOnly.push(name); return; }
-    // T2 hardening — a canary may name the single rule it exists to
-    // certify via a \`canary-expects-rule: <id>\` comment. Without this,
-    // a canary that stopped triggering its target rule still passes on
-    // an incidental hit (jsdoc, prefer-default-export, …). Opt-in, so
-    // canaries that predate the annotation keep the T1 behaviour.
-    const src = fs.readFileSync(f.filePath, 'utf8');
-    const want = /canary-expects-rule:\s*([\w@/-]+)/.exec(src);
-    if (want === null) { return; }
-    const hitTarget = (f.messages || []).some(m => m.ruleId === want[1]);
-    if (!hitTarget) { wrongRule.push(name + ' (expected ' + want[1] + ')'); }
-  });
-
-  if (dead.length > 0) {
-    console.error('\n❌ ARCHITECTURAL FAILURE — Guardrails are inactive for:', dead.join(', '));
-    process.exit(1);
-  }
-  if (parsingOnly.length > 0) {
-    console.error('\n❌ SILENT-PASS FAILURE — Only Parsing errors (ruleId=null) for:', parsingOnly.join(', '));
-    console.error('   These canaries triggered errors but NO real ESLint rule fired.');
-    console.error('   Check tsconfig coverage + scope overrides for the targeted rule.');
-    process.exit(1);
-  }
-  if (wrongRule.length > 0) {
-    console.error('\n❌ WRONG-RULE FAILURE — declared target rule did not fire for:', wrongRule.join(', '));
-    console.error('   The canary errored, but on some OTHER rule than the one it certifies.');
-    console.error('   The guardrail it names is no longer active for this file.');
-    process.exit(1);
-  }
-  console.log('\n✅ All ' + data.length + ' TS canaries triggered at least one real rule');
-" "$TMPFILE"
+node "$CANARY_DIR/assert-canaries.cjs" "$TMPFILE"
 
 rm -f "$TMPFILE"
 
@@ -136,57 +101,27 @@ if [[ "$bash_canary_count" -gt 0 ]]; then
   echo "✅ All $bash_canary_count bash canaries reject + accept their fixtures"
 fi
 
+# ── Rule #10 layer boundary (armed / exempt / grandfathered) ──────
+# Asserted from the RESOLVED config rather than by linting a probe file: the
+# Mediator's contract is that Rule #10 does NOT fire there, and "no error on a
+# file that contains no `page.*` call" is true whether the rule is scoped
+# correctly or deleted outright. See assert-rule10-boundary.cjs.
+node "$(dirname "$0")/assert-rule10-boundary.cjs" || exit 1
 
-rm -f "$TMPFILE"
+# ── Numeric canaries must be anchored to their OWN scoped cap ─────
+# A size fixture padded far past every declared cap stays red even if its
+# guard were loosened to the loosest cap in the config, so it would certify
+# only "some cap exists" rather than the tightened one it is named for.
+# assert-numeric-canaries.cjs re-lints each numeric canary with its own
+# scoped cap — resolved per file, never a global maximum — raised by exactly
+# one, and requires a clean result. Together with assert-canaries.cjs, which
+# requires the declared rule to fire at the real cap, this pins every fixture
+# to exactly cap + 1: the only size at which any raise is caught.
+node "$(dirname "$0")/assert-numeric-canaries.cjs" || exit 1
 
-# ── Bash canary loop (RC-2, RC-3, RC-4) ───────────────────────────
-# Each `*.canary.sh` sibling MUST exit non-zero on its rejected fixture
-# and zero on its accepted fixture. Fixture extensions are discovered
-# (.yml or .dockerfile) so the same loop covers workflows + Dockerfiles.
-
-assert_canary() {
-  local script="$1"
-  local fixture="$2"
-  local expected_exit="$3"
-  local actual_exit=0
-  bash "$script" "$fixture" >/dev/null 2>&1 || actual_exit=$?
-  if [[ "$actual_exit" != "$expected_exit" ]]; then
-    echo "❌ canary mismatch: $script $fixture — expected exit $expected_exit, got $actual_exit" >&2
-    return 1
-  fi
-  return 0
-}
-
-bash_canary_count=0
-for sh_canary in "$CANARY_DIR"/verify-*.canary.sh; do
-  [[ -e "$sh_canary" ]] || continue
-  bash_canary_count=$((bash_canary_count + 1))
-  slug="$(basename "$sh_canary" .canary.sh)"
-  slug="${slug#verify-}"
-
-  # Find the rejected + accepted fixtures. Discovered extensions:
-  # .yml (workflow canaries), .dockerfile (Dockerfile pin canaries),
-  # .md (README / markdown canaries — added PR #261 / V7).
-  rejected=""
-  accepted=""
-  for ext in yml dockerfile md; do
-    if [[ -f "$FIXTURE_DIR/$slug.rejected.$ext" ]]; then
-      rejected="$FIXTURE_DIR/$slug.rejected.$ext"
-    fi
-    if [[ -f "$FIXTURE_DIR/$slug.accepted.$ext" ]]; then
-      accepted="$FIXTURE_DIR/$slug.accepted.$ext"
-    fi
-  done
-
-  if [[ -z "$rejected" || -z "$accepted" ]]; then
-    echo "❌ fixture pair missing for $sh_canary (slug=$slug)" >&2
-    exit 1
-  fi
-
-  assert_canary "$sh_canary" "$rejected" 1 || exit 1
-  assert_canary "$sh_canary" "$accepted" 0 || exit 1
-done
-
-if [[ "$bash_canary_count" -gt 0 ]]; then
-  echo "✅ All $bash_canary_count bash canaries reject + accept their fixtures"
-fi
+# ── Every drain-queued selector must still match a canary ─────────
+# A selector in PIPELINE_SYNTAX_PENDING_DRAIN is not armed on production yet,
+# so the canary suite is the only thing proving it still works. If it matches
+# no canary it is inert, and the config carries a guard that would find nothing
+# on the day it is finally armed. See assert-drain-coverage.cjs.
+node "$(dirname "$0")/assert-drain-coverage.cjs" || exit 1

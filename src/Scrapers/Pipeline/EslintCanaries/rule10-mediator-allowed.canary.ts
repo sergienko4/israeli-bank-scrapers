@@ -7,6 +7,9 @@
  * must pass with zero Rule #10 errors. If it doesn't, the Mediator exemption is broken.
  *
  * This file exists as documentation of the boundary, not as an active canary.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: Rule #10
  */
 
 import type { Page } from 'playwright-core';

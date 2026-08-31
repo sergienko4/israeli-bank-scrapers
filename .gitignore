@@ -115,6 +115,11 @@ scripts/**
 # the Build & Package job, so it has to be in the tree for either to work.
 !scripts/check-public-surface.mjs
 !scripts/check-staged-pii.cjs
+# Run by `npm run lint:syntax-guardrails` from the pre-commit hook and the
+# Lint & Types job, so it has to be in the tree for either to work. It is the
+# only instrument that can see a flat-config `no-restricted-syntax` override
+# collision, which had left the Pipeline selector set unenforced.
+!scripts/check-syntax-guardrails.mjs
 # Published tooling: named in package.json "files", so it ships in the
 # tarball and runs from postinstall on every consumer install.
 !scripts/patch-playwright-core.mjs

@@ -1,3 +1,10 @@
+/**
+ * ESLint canary — no-direct-screenshot.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: safeScreenshot
+ */
+
 // Canary: NO_DIRECT_SCREENSHOT — direct `page.screenshot()` calls bypass
 // the SafeScreenshot helper which short-circuits in CI, causing rendered
 // post-auth bank pixels to leak into public CI artifacts (PR #248, CI run

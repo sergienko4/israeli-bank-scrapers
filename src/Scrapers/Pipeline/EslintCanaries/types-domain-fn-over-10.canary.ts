@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — types-domain-fn-over-10.
+ *
+ * canary-expects-rule: max-lines-per-function
+ */
+
 // Canary: Phase 8.5c / Commit C2 + C6 — §7b Types/Domain per-fn
 // ≤10-LoC cap guard.
 //
@@ -17,18 +23,15 @@
 // T1).
 
 function canaryTypesDomainFunctionOverTen(): number {
-  const a = 1;
-  const b = a + 1;
-  const c = b + 1;
-  const d = c + 1;
-  const e = d + 1;
-  const f = e + 1;
-  const g = f + 1;
-  const h = g + 1;
-  const i = h + 1;
-  const j = i + 1;
-  const k = j + 1;
-  return k;
+  const s1 = 1;
+  const s2 = s1 + 1;
+  const s3 = s2 + 1;
+  const s4 = s3 + 1;
+  const s5 = s4 + 1;
+  const s6 = s5 + 1;
+  const s7 = s6 + 1;
+  const s8 = s7 + 1;
+  return s8;
 }
 
 export { canaryTypesDomainFunctionOverTen };

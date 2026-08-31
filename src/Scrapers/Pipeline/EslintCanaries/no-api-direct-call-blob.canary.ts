@@ -1,3 +1,9 @@
+/**
+ * ESLint canary — no-api-direct-call-blob.
+ *
+ * canary-expects-rule: max-lines
+ */
+
 // Canary: Phase 8 Section 14 file-size guard — re-imposes
 // max-lines: 150 (skipBlankLines + skipComments) on
 // Mediator/ApiDirectCall/ConfigContracts sub-modules so future
@@ -21,218 +27,155 @@
 // Body padded above the 150 effective-LoC ceiling
 // (71 × 3 = 213 effective LoC; raw file ~225 lines).
 
-function canaryFunction0(): number {
-  return 0;
+function canaryFunction0(): boolean {
+  return true;
 }
-function canaryFunction1(): number {
-  return 1;
+function canaryFunction1(): boolean {
+  return canaryFunction0();
 }
-function canaryFunction2(): number {
-  return 2;
+function canaryFunction2(): boolean {
+  return canaryFunction1();
 }
-function canaryFunction3(): number {
-  return 3;
+function canaryFunction3(): boolean {
+  return canaryFunction2();
 }
-function canaryFunction4(): number {
-  return 4;
+function canaryFunction4(): boolean {
+  return canaryFunction3();
 }
-function canaryFunction5(): number {
-  return 5;
+function canaryFunction5(): boolean {
+  return canaryFunction4();
 }
-function canaryFunction6(): number {
-  return 6;
+function canaryFunction6(): boolean {
+  return canaryFunction5();
 }
-function canaryFunction7(): number {
-  return 7;
+function canaryFunction7(): boolean {
+  return canaryFunction6();
 }
-function canaryFunction8(): number {
-  return 8;
+function canaryFunction8(): boolean {
+  return canaryFunction7();
 }
-function canaryFunction9(): number {
-  return 9;
+function canaryFunction9(): boolean {
+  return canaryFunction8();
 }
-function canaryFunction10(): number {
-  return 10;
+function canaryFunction10(): boolean {
+  return canaryFunction9();
 }
-function canaryFunction11(): number {
-  return 11;
+function canaryFunction11(): boolean {
+  return canaryFunction10();
 }
-function canaryFunction12(): number {
-  return 12;
+function canaryFunction12(): boolean {
+  return canaryFunction11();
 }
-function canaryFunction13(): number {
-  return 13;
+function canaryFunction13(): boolean {
+  return canaryFunction12();
 }
-function canaryFunction14(): number {
-  return 14;
+function canaryFunction14(): boolean {
+  return canaryFunction13();
 }
-function canaryFunction15(): number {
-  return 15;
+function canaryFunction15(): boolean {
+  return canaryFunction14();
 }
-function canaryFunction16(): number {
-  return 16;
+function canaryFunction16(): boolean {
+  return canaryFunction15();
 }
-function canaryFunction17(): number {
-  return 17;
+function canaryFunction17(): boolean {
+  return canaryFunction16();
 }
-function canaryFunction18(): number {
-  return 18;
+function canaryFunction18(): boolean {
+  return canaryFunction17();
 }
-function canaryFunction19(): number {
-  return 19;
+function canaryFunction19(): boolean {
+  return canaryFunction18();
 }
-function canaryFunction20(): number {
-  return 20;
+function canaryFunction20(): boolean {
+  return canaryFunction19();
 }
-function canaryFunction21(): number {
-  return 21;
+function canaryFunction21(): boolean {
+  return canaryFunction20();
 }
-function canaryFunction22(): number {
-  return 22;
+function canaryFunction22(): boolean {
+  return canaryFunction21();
 }
-function canaryFunction23(): number {
-  return 23;
+function canaryFunction23(): boolean {
+  return canaryFunction22();
 }
-function canaryFunction24(): number {
-  return 24;
+function canaryFunction24(): boolean {
+  return canaryFunction23();
 }
-function canaryFunction25(): number {
-  return 25;
+function canaryFunction25(): boolean {
+  return canaryFunction24();
 }
-function canaryFunction26(): number {
-  return 26;
+function canaryFunction26(): boolean {
+  return canaryFunction25();
 }
-function canaryFunction27(): number {
-  return 27;
+function canaryFunction27(): boolean {
+  return canaryFunction26();
 }
-function canaryFunction28(): number {
-  return 28;
+function canaryFunction28(): boolean {
+  return canaryFunction27();
 }
-function canaryFunction29(): number {
-  return 29;
+function canaryFunction29(): boolean {
+  return canaryFunction28();
 }
-function canaryFunction30(): number {
-  return 30;
+function canaryFunction30(): boolean {
+  return canaryFunction29();
 }
-function canaryFunction31(): number {
-  return 31;
+function canaryFunction31(): boolean {
+  return canaryFunction30();
 }
-function canaryFunction32(): number {
-  return 32;
+function canaryFunction32(): boolean {
+  return canaryFunction31();
 }
-function canaryFunction33(): number {
-  return 33;
+function canaryFunction33(): boolean {
+  return canaryFunction32();
 }
-function canaryFunction34(): number {
-  return 34;
+function canaryFunction34(): boolean {
+  return canaryFunction33();
 }
-function canaryFunction35(): number {
-  return 35;
+function canaryFunction35(): boolean {
+  return canaryFunction34();
 }
-function canaryFunction36(): number {
-  return 36;
-}
-function canaryFunction37(): number {
-  return 37;
-}
-function canaryFunction38(): number {
-  return 38;
-}
-function canaryFunction39(): number {
-  return 39;
-}
-function canaryFunction40(): number {
-  return 40;
-}
-function canaryFunction41(): number {
-  return 41;
-}
-function canaryFunction42(): number {
-  return 42;
-}
-function canaryFunction43(): number {
-  return 43;
-}
-function canaryFunction44(): number {
-  return 44;
-}
-function canaryFunction45(): number {
-  return 45;
-}
-function canaryFunction46(): number {
-  return 46;
-}
-function canaryFunction47(): number {
-  return 47;
-}
-function canaryFunction48(): number {
-  return 48;
-}
-function canaryFunction49(): number {
-  return 49;
-}
-function canaryFunction50(): number {
-  return 50;
-}
-function canaryFunction51(): number {
-  return 51;
-}
-function canaryFunction52(): number {
-  return 52;
-}
-function canaryFunction53(): number {
-  return 53;
-}
-function canaryFunction54(): number {
-  return 54;
-}
-function canaryFunction55(): number {
-  return 55;
-}
-function canaryFunction56(): number {
-  return 56;
-}
-function canaryFunction57(): number {
-  return 57;
-}
-function canaryFunction58(): number {
-  return 58;
-}
-function canaryFunction59(): number {
-  return 59;
-}
-function canaryFunction60(): number {
-  return 60;
-}
-function canaryFunction61(): number {
-  return 61;
-}
-function canaryFunction62(): number {
-  return 62;
-}
-function canaryFunction63(): number {
-  return 63;
-}
-function canaryFunction64(): number {
-  return 64;
-}
-function canaryFunction65(): number {
-  return 65;
-}
-function canaryFunction66(): number {
-  return 66;
-}
-function canaryFunction67(): number {
-  return 67;
-}
-function canaryFunction68(): number {
-  return 68;
-}
-function canaryFunction69(): number {
-  return 69;
-}
-function canaryFunction70(): number {
-  return 70;
+function canaryFunction36(): boolean {
+  const previous = canaryFunction35();
+  return previous;
 }
 
-export { canaryFunction70 };
+export {
+  canaryFunction0,
+  canaryFunction1,
+  canaryFunction2,
+  canaryFunction3,
+  canaryFunction4,
+  canaryFunction5,
+  canaryFunction6,
+  canaryFunction7,
+  canaryFunction8,
+  canaryFunction9,
+  canaryFunction10,
+  canaryFunction11,
+  canaryFunction12,
+  canaryFunction13,
+  canaryFunction14,
+  canaryFunction15,
+  canaryFunction16,
+  canaryFunction17,
+  canaryFunction18,
+  canaryFunction19,
+  canaryFunction20,
+  canaryFunction21,
+  canaryFunction22,
+  canaryFunction23,
+  canaryFunction24,
+  canaryFunction25,
+  canaryFunction26,
+  canaryFunction27,
+  canaryFunction28,
+  canaryFunction29,
+  canaryFunction30,
+  canaryFunction31,
+  canaryFunction32,
+  canaryFunction33,
+  canaryFunction34,
+  canaryFunction35,
+  canaryFunction36,
+};

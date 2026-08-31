@@ -8,6 +8,9 @@
  *
  * This file deliberately violates the rule so the eslint canary
  * harness reports a non-zero error count.
+ *
+ * canary-expects-rule: no-restricted-syntax
+ * canary-expects-message: 🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical)
  */
 
 import type { Procedure } from '../Types/Procedure.js';

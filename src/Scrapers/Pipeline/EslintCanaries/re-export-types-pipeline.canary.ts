@@ -27,6 +27,8 @@
  *   <li>{@code coding-principle-guidlines.md} §5 — SOLID Open/Closed.</li>
  *   <li>{@code before-commit-guidlines.md} — canary is a permanent guard.</li>
  * </ul>
+ *
+ * canary-expects-rule: unicorn/prefer-export-from
  */
 
 import type { Option } from '../Types/Option.js';
