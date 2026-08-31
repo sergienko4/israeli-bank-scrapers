@@ -21,12 +21,7 @@ function canaryCanonical10FunctionOverCap(): number {
   const s6 = s5 + 1;
   const s7 = s6 + 1;
   const s8 = s7 + 1;
-  const s9 = s8 + 1;
-  const s10 = s9 + 1;
-  const s11 = s10 + 1;
-  const s12 = s11 + 1;
-  const s13 = s12 + 1;
-  return s13;
+  return s8;
 }
 
 export { canaryCanonical10FunctionOverCap };

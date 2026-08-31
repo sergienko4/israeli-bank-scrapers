@@ -27,15 +27,18 @@
 // opted back in by the §19.11-canary single-file block so `verify.sh`
 // can confirm the guardrail stays armed.
 //
-// The function body below spans 14 LINES (>10 cap) — breaches the
-// §19.11 rule. Do NOT shrink this body. Do NOT add suppression
-// directives — the project's no-suppression rule (and the §19.11
-// contract) bars silencing this canary.
+// The function below spans exactly 11 LINES — one over the 10-line
+// cap, the tightest size that still fires. Do NOT resize it in either
+// direction: at 10 it stops firing, and at 12+ a commit could raise the
+// cap to 11 and this canary would stay silent. `assert-numeric-canaries`
+// enforces the exact size. Do NOT add suppression directives — the
+// project's no-suppression rule (and the §19.11 contract) bars
+// silencing this canary.
 
 /**
  * Padded helper used purely as an ESLint fixture for the §19.11
  * Phase 10 wave 2 pipeline-hardening test cap. Breaches the
- * `phase9-local/fn-declaration-max-lines:10` rule (14 lines).
+ * `phase9-local/fn-declaration-max-lines:10` rule at 11 lines.
  * @returns The sum (irrelevant — value is unused).
  */
 function canaryPipelineHardeningFnOverCap(): number {
@@ -47,10 +50,7 @@ function canaryPipelineHardeningFnOverCap(): number {
   const s6 = s5 + 1;
   const s7 = s6 + 1;
   const s8 = s7 + 1;
-  const s9 = s8 + 1;
-  const s10 = s9 + 1;
-  const s11 = s10 + 1;
-  return s11;
+  return s8;
 }
 
 /** Second named export — keeps `import-x/prefer-default-export` quiet. */

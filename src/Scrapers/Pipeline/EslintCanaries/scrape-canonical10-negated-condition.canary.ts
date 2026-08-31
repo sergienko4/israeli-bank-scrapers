@@ -20,10 +20,10 @@
  * <h2>Expected behavior</h2>
  *
  * Running `npx eslint --no-ignore <this-file>` MUST report at least one
- * `no-negated-condition` error. The canary harness in `verify.sh` checks
- * `errorCount > 0` — a parsing error (because canaries are excluded from
- * tsconfig) counts, so this file is guaranteed to satisfy the canary even
- * when the rule's reporting evolves.
+ * error whose `ruleId` is exactly `no-negated-condition`. The harness in
+ * `assert-canaries.cjs` matches on the declared rule id, so neither a
+ * parsing error nor an unrelated rule can satisfy this canary — if §12D is
+ * removed, no other diagnostic will stand in for it.
  *
  * <p>NOTE: §12B's `max-lines-per-function` cap is disabled here so the
  * cap rule does NOT pre-empt §12D. The canary's purpose is to document

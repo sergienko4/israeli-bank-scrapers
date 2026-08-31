@@ -10,15 +10,15 @@
 // successors) back toward four-digit line counts.
 //
 // SIZING CONTRACT — do not pad this file.
-// The body below is 60 three-line functions plus one export, i.e.
-// 181 effective lines (skipBlankLines + skipComments). That is
-// deliberately just over the 150-line cap it guards and far under 600,
-// the loosest `max-lines` cap declared anywhere in eslint.config.mjs.
-// A fixture large enough to breach EVERY declared cap would stay red
-// even if Section 11 were loosened to 600, so it would certify only
-// "some cap exists" rather than the 150 this canary is named for.
-// assert-numeric-canaries.cjs enforces that by re-linting this file at
-// the loosest declared cap and requiring it to come back clean.
+// The body below is 37 functions plus one export, i.e. exactly 151
+// effective lines (skipBlankLines + skipComments) — one line over the
+// 150-line cap it guards. A fixture large enough to breach EVERY
+// declared cap would stay red even if Section 11 were loosened to 600,
+// so it would certify only "some cap exists" rather than the 150 this
+// canary is named for; at cap + 1 a raise of even one step turns it
+// green and fails the suite. assert-numeric-canaries.cjs enforces that
+// by re-linting this file at its own scoped cap plus one and requiring
+// it to come back clean.
 
 function canaryFunction0(): boolean {
   return true;
@@ -129,76 +129,46 @@ function canaryFunction35(): boolean {
   return canaryFunction34();
 }
 function canaryFunction36(): boolean {
-  return canaryFunction35();
-}
-function canaryFunction37(): boolean {
-  return canaryFunction36();
-}
-function canaryFunction38(): boolean {
-  return canaryFunction37();
-}
-function canaryFunction39(): boolean {
-  return canaryFunction38();
-}
-function canaryFunction40(): boolean {
-  return canaryFunction39();
-}
-function canaryFunction41(): boolean {
-  return canaryFunction40();
-}
-function canaryFunction42(): boolean {
-  return canaryFunction41();
-}
-function canaryFunction43(): boolean {
-  return canaryFunction42();
-}
-function canaryFunction44(): boolean {
-  return canaryFunction43();
-}
-function canaryFunction45(): boolean {
-  return canaryFunction44();
-}
-function canaryFunction46(): boolean {
-  return canaryFunction45();
-}
-function canaryFunction47(): boolean {
-  return canaryFunction46();
-}
-function canaryFunction48(): boolean {
-  return canaryFunction47();
-}
-function canaryFunction49(): boolean {
-  return canaryFunction48();
-}
-function canaryFunction50(): boolean {
-  return canaryFunction49();
-}
-function canaryFunction51(): boolean {
-  return canaryFunction50();
-}
-function canaryFunction52(): boolean {
-  return canaryFunction51();
-}
-function canaryFunction53(): boolean {
-  return canaryFunction52();
-}
-function canaryFunction54(): boolean {
-  return canaryFunction53();
-}
-function canaryFunction55(): boolean {
-  return canaryFunction54();
-}
-function canaryFunction56(): boolean {
-  return canaryFunction55();
-}
-function canaryFunction57(): boolean {
-  return canaryFunction56();
-}
-function canaryFunction58(): boolean {
-  return canaryFunction57();
-}
-function canaryFunction59(): boolean {
-  return canaryFunction58();
+  const previous = canaryFunction35();
+  return previous;
 }
 
-export { canaryFunction59 };
+export {
+  canaryFunction0,
+  canaryFunction1,
+  canaryFunction2,
+  canaryFunction3,
+  canaryFunction4,
+  canaryFunction5,
+  canaryFunction6,
+  canaryFunction7,
+  canaryFunction8,
+  canaryFunction9,
+  canaryFunction10,
+  canaryFunction11,
+  canaryFunction12,
+  canaryFunction13,
+  canaryFunction14,
+  canaryFunction15,
+  canaryFunction16,
+  canaryFunction17,
+  canaryFunction18,
+  canaryFunction19,
+  canaryFunction20,
+  canaryFunction21,
+  canaryFunction22,
+  canaryFunction23,
+  canaryFunction24,
+  canaryFunction25,
+  canaryFunction26,
+  canaryFunction27,
+  canaryFunction28,
+  canaryFunction29,
+  canaryFunction30,
+  canaryFunction31,
+  canaryFunction32,
+  canaryFunction33,
+  canaryFunction34,
+  canaryFunction35,
+  canaryFunction36,
+};

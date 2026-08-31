@@ -17,19 +17,21 @@
 //
 // This canary defends the cluster-cap invariant from the OTHER
 // direction: it sits inside the §13 PiiRedactor cluster scope
-// (added via `eslint.config.mjs` §13 `files: [...]`) with a
-// 12-LoC function that exceeds the ≤10 cap. If a future commit
+// (added via `eslint.config.mjs` §13 `files: [...]`) with an
+// 11-LoC function that exceeds the ≤10 cap. If a future commit
 // relaxes §13's `max-lines-per-function` rule (i.e. lifts the
 // canonical default that the coverage tool asserts at gate
 // time), THIS canary would stop firing AND the coverage gate
 // would simultaneously flag the mismatch — providing a
 // double-defence against silent default drift.
 //
-// Sibling guarantees:
-//   • `pii-cluster-fn-over-cap.canary.ts` — 25-LoC, broad margin.
-//   • `pii-facade-no-grandfather.canary.ts` — 15-LoC, threshold
-//      that used to be admissible under §13A.
-//   • THIS canary — 12-LoC, tightest margin above the cap.
+// Sibling guarantees — every §13 canary is pinned to cap + 1 by
+// `assert-numeric-canaries.cjs`, so each detects a raise of even one
+// step rather than only a wholesale removal of the cap:
+//   • `pii-cluster-fn-over-cap.canary.ts` — the cluster at large.
+//   • `pii-facade-no-grandfather.canary.ts` — the path that carried
+//      the §13A grandfather.
+//   • THIS canary — the coverage tool's canonical default.
 
 function canaryLintGuidelineCoverageDefaultsAudit(): number {
   const p1 = 1;
@@ -40,11 +42,7 @@ function canaryLintGuidelineCoverageDefaultsAudit(): number {
   const p6 = p5 + 1;
   const p7 = p6 + 1;
   const p8 = p7 + 1;
-  const p9 = p8 + 1;
-  const p10 = p9 + 1;
-  const p11 = p10 + 1;
-  const p12 = p11 + 1;
-  return p12;
+  return p8;
 }
 
 export { canaryLintGuidelineCoverageDefaultsAudit };

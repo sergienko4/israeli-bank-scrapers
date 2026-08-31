@@ -15,12 +15,13 @@
 // guarantees no regression can reintroduce a >10-statement /
 // >10-LoC function in any of the three Form sub-clusters.
 //
-// SIZED DELIBERATELY — 13 effective lines, not 28. At 28 the body
-// broke the fallback Pipeline cap of 15 as well as the §19.4a cap of
-// 10, so the canary stayed red even with the §19.4a override deleted:
-// it certified "some cap exists", not "the cap is 10". Kept just over
-// 10 and comfortably under 15, only a cap of ≤12 can flag it, so
-// losing the override turns this file green and the ratchet red.
+// SIZED DELIBERATELY — exactly 11 effective lines, not 28. At 28 the
+// body broke the fallback Pipeline cap of 15 as well as the §19.4a cap
+// of 10, so the canary stayed red even with the §19.4a override
+// deleted: it certified "some cap exists", not "the cap is 10". At
+// cap + 1 only the exact cap of 10 can flag it, so losing the override
+// — or raising the cap by even one step — turns this file green and
+// the ratchet red. `assert-numeric-canaries.cjs` enforces the size.
 // Do not pad this function.
 
 function canaryFormSubFunctionOverCap(): number {
@@ -32,9 +33,7 @@ function canaryFormSubFunctionOverCap(): number {
   const s6 = s5 + 1;
   const s7 = s6 + 1;
   const s8 = s7 + 1;
-  const s9 = s8 + 1;
-  const s10 = s9 + 1;
-  return s10;
+  return s8;
 }
 
 export { canaryFormSubFunctionOverCap };

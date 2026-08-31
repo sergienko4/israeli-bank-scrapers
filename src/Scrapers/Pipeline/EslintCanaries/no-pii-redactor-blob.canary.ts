@@ -121,212 +121,46 @@ function canaryFunction35(): boolean {
   return canaryFunction34();
 }
 function canaryFunction36(): boolean {
-  return canaryFunction35();
-}
-function canaryFunction37(): boolean {
-  return canaryFunction36();
-}
-function canaryFunction38(): boolean {
-  return canaryFunction37();
-}
-function canaryFunction39(): boolean {
-  return canaryFunction38();
-}
-function canaryFunction40(): boolean {
-  return canaryFunction39();
-}
-function canaryFunction41(): boolean {
-  return canaryFunction40();
-}
-function canaryFunction42(): boolean {
-  return canaryFunction41();
-}
-function canaryFunction43(): boolean {
-  return canaryFunction42();
-}
-function canaryFunction44(): boolean {
-  return canaryFunction43();
-}
-function canaryFunction45(): boolean {
-  return canaryFunction44();
-}
-function canaryFunction46(): boolean {
-  return canaryFunction45();
-}
-function canaryFunction47(): boolean {
-  return canaryFunction46();
-}
-function canaryFunction48(): boolean {
-  return canaryFunction47();
-}
-function canaryFunction49(): boolean {
-  return canaryFunction48();
-}
-function canaryFunction50(): boolean {
-  return canaryFunction49();
-}
-function canaryFunction51(): boolean {
-  return canaryFunction50();
-}
-function canaryFunction52(): boolean {
-  return canaryFunction51();
-}
-function canaryFunction53(): boolean {
-  return canaryFunction52();
-}
-function canaryFunction54(): boolean {
-  return canaryFunction53();
-}
-function canaryFunction55(): boolean {
-  return canaryFunction54();
-}
-function canaryFunction56(): boolean {
-  return canaryFunction55();
-}
-function canaryFunction57(): boolean {
-  return canaryFunction56();
-}
-function canaryFunction58(): boolean {
-  return canaryFunction57();
-}
-function canaryFunction59(): boolean {
-  return canaryFunction58();
-}
-function canaryFunction60(): boolean {
-  return canaryFunction59();
-}
-function canaryFunction61(): boolean {
-  return canaryFunction60();
-}
-function canaryFunction62(): boolean {
-  return canaryFunction61();
-}
-function canaryFunction63(): boolean {
-  return canaryFunction62();
-}
-function canaryFunction64(): boolean {
-  return canaryFunction63();
-}
-function canaryFunction65(): boolean {
-  return canaryFunction64();
-}
-function canaryFunction66(): boolean {
-  return canaryFunction65();
-}
-function canaryFunction67(): boolean {
-  return canaryFunction66();
-}
-function canaryFunction68(): boolean {
-  return canaryFunction67();
-}
-function canaryFunction69(): boolean {
-  return canaryFunction68();
-}
-function canaryFunction70(): boolean {
-  return canaryFunction69();
-}
-function canaryFunction71(): boolean {
-  return canaryFunction70();
-}
-function canaryFunction72(): boolean {
-  return canaryFunction71();
-}
-function canaryFunction73(): boolean {
-  return canaryFunction72();
-}
-function canaryFunction74(): boolean {
-  return canaryFunction73();
-}
-function canaryFunction75(): boolean {
-  return canaryFunction74();
-}
-function canaryFunction76(): boolean {
-  return canaryFunction75();
-}
-function canaryFunction77(): boolean {
-  return canaryFunction76();
-}
-function canaryFunction78(): boolean {
-  return canaryFunction77();
-}
-function canaryFunction79(): boolean {
-  return canaryFunction78();
-}
-function canaryFunction80(): boolean {
-  return canaryFunction79();
-}
-function canaryFunction81(): boolean {
-  return canaryFunction80();
-}
-function canaryFunction82(): boolean {
-  return canaryFunction81();
-}
-function canaryFunction83(): boolean {
-  return canaryFunction82();
-}
-function canaryFunction84(): boolean {
-  return canaryFunction83();
-}
-function canaryFunction85(): boolean {
-  return canaryFunction84();
-}
-function canaryFunction86(): boolean {
-  return canaryFunction85();
-}
-function canaryFunction87(): boolean {
-  return canaryFunction86();
-}
-function canaryFunction88(): boolean {
-  return canaryFunction87();
-}
-function canaryFunction89(): boolean {
-  return canaryFunction88();
-}
-function canaryFunction90(): boolean {
-  return canaryFunction89();
-}
-function canaryFunction91(): boolean {
-  return canaryFunction90();
-}
-function canaryFunction92(): boolean {
-  return canaryFunction91();
-}
-function canaryFunction93(): boolean {
-  return canaryFunction92();
-}
-function canaryFunction94(): boolean {
-  return canaryFunction93();
-}
-function canaryFunction95(): boolean {
-  return canaryFunction94();
-}
-function canaryFunction96(): boolean {
-  return canaryFunction95();
-}
-function canaryFunction97(): boolean {
-  return canaryFunction96();
-}
-function canaryFunction98(): boolean {
-  return canaryFunction97();
-}
-function canaryFunction99(): boolean {
-  return canaryFunction98();
-}
-function canaryFunction100(): boolean {
-  return canaryFunction99();
-}
-function canaryFunction101(): boolean {
-  return canaryFunction100();
-}
-function canaryFunction102(): boolean {
-  return canaryFunction101();
-}
-function canaryFunction103(): boolean {
-  return canaryFunction102();
-}
-function canaryFunction104(): boolean {
-  return canaryFunction103();
-}
-function canaryFunction105(): boolean {
-  return canaryFunction104();
-}
+  const previous = canaryFunction35();
+  return previous;
+}
+
+export {
+  canaryFunction0,
+  canaryFunction1,
+  canaryFunction2,
+  canaryFunction3,
+  canaryFunction4,
+  canaryFunction5,
+  canaryFunction6,
+  canaryFunction7,
+  canaryFunction8,
+  canaryFunction9,
+  canaryFunction10,
+  canaryFunction11,
+  canaryFunction12,
+  canaryFunction13,
+  canaryFunction14,
+  canaryFunction15,
+  canaryFunction16,
+  canaryFunction17,
+  canaryFunction18,
+  canaryFunction19,
+  canaryFunction20,
+  canaryFunction21,
+  canaryFunction22,
+  canaryFunction23,
+  canaryFunction24,
+  canaryFunction25,
+  canaryFunction26,
+  canaryFunction27,
+  canaryFunction28,
+  canaryFunction29,
+  canaryFunction30,
+  canaryFunction31,
+  canaryFunction32,
+  canaryFunction33,
+  canaryFunction34,
+  canaryFunction35,
+  canaryFunction36,
+};

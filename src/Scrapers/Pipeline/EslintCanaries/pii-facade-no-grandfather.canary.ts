@@ -15,17 +15,16 @@
 // §13A entirely so the canonical §13 ≤10-LoC cap now applies to
 // every file in `Types/PiiRedactor/**`.
 //
-// This canary is sized to **15 effective LoC** — the EXACT
-// threshold that USED to be admissible under §13A but is now
-// caught by §13's ≤10 cap. The size differential gives the
-// canary its semantic value: if a future commit re-introduces
-// the §13A grandfather (or otherwise relaxes the cap above 10),
-// `max-lines-per-function` would stop firing here and verify.sh
-// would flag this canary as "Guardrails inactive".
+// This canary is sized to **exactly 11 effective LoC** — one over the
+// canonical ≤10 cap, the tightest size that still fires. Any relaxation
+// of the cap, whether a one-step raise to 11 or a full re-introduction
+// of the §13A 20-LoC grandfather, stops `max-lines-per-function` firing
+// here and verify.sh flags this canary as "Guardrails inactive".
+// `assert-numeric-canaries.cjs` enforces the exact size; an earlier
+// revision sat at 15 LoC and so could not detect a raise to 11-15.
 //
-// Sibling canary: `pii-cluster-fn-over-cap.canary.ts` proves
-// the same cap fires on a 25-LoC function (broader margin); this
-// canary specifically guards the legacy escape threshold.
+// Sibling canary: `pii-cluster-fn-over-cap.canary.ts` proves the same
+// cap fires in the broader `Types/PiiRedactor/**` cluster.
 
 function canaryPiiFacadeNoGrandfather(): number {
   const v1 = 1;
@@ -36,14 +35,7 @@ function canaryPiiFacadeNoGrandfather(): number {
   const v6 = v5 + 1;
   const v7 = v6 + 1;
   const v8 = v7 + 1;
-  const v9 = v8 + 1;
-  const v10 = v9 + 1;
-  const v11 = v10 + 1;
-  const v12 = v11 + 1;
-  const v13 = v12 + 1;
-  const v14 = v13 + 1;
-  const v15 = v14 + 1;
-  return v15;
+  return v8;
 }
 
 export { canaryPiiFacadeNoGrandfather };

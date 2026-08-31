@@ -112,6 +112,9 @@ node "$(dirname "$0")/assert-rule10-boundary.cjs" || exit 1
 # A size fixture padded far past every declared cap stays red even if its
 # guard were loosened to the loosest cap in the config, so it would certify
 # only "some cap exists" rather than the tightened one it is named for.
-# assert-numeric-canaries.cjs re-lints each numeric canary with its rule
-# forced to that loosest declared cap and requires a clean result.
+# assert-numeric-canaries.cjs re-lints each numeric canary with its own
+# scoped cap — resolved per file, never a global maximum — raised by exactly
+# one, and requires a clean result. Together with assert-canaries.cjs, which
+# requires the declared rule to fire at the real cap, this pins every fixture
+# to exactly cap + 1: the only size at which any raise is caught.
 node "$(dirname "$0")/assert-numeric-canaries.cjs" || exit 1
