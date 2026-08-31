@@ -118,3 +118,10 @@ node "$(dirname "$0")/assert-rule10-boundary.cjs" || exit 1
 # requires the declared rule to fire at the real cap, this pins every fixture
 # to exactly cap + 1: the only size at which any raise is caught.
 node "$(dirname "$0")/assert-numeric-canaries.cjs" || exit 1
+
+# ── Every drain-queued selector must still match a canary ─────────
+# A selector in PIPELINE_SYNTAX_PENDING_DRAIN is not armed on production yet,
+# so the canary suite is the only thing proving it still works. If it matches
+# no canary it is inert, and the config carries a guard that would find nothing
+# on the day it is finally armed. See assert-drain-coverage.cjs.
+node "$(dirname "$0")/assert-drain-coverage.cjs" || exit 1
