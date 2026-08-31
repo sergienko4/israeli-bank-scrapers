@@ -233,6 +233,32 @@ const NO_DIRECT_SCREENSHOT_RULE = {
     'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The former src/Common/SafeScreenshot.ts shim has been removed; import the canonical Pipeline path.',
 };
 
+// RULE #10 — RAW `page` OUT OF PIPELINE BUSINESS LOGIC. Added 2026-08 after the
+// post-#538 knowledge-graph refresh found the ban had never applied to
+// production: the only `page` selector in this file lived inside the
+// `src/Tests/**/Pipeline/**` block (§5), so `npx eslint` on a production file
+// calling `page.goto()` exited 0, and rule10-phase-violation.canary.ts stayed
+// green on unrelated lint noise. Browser access belongs to the Mediator (P7,
+// general-rules-guidlines.md); Phases/Core/Banks/Registry/Logging reach it
+// through `ctx.mediator`. Shared by §5 (tests) and §21 (production) so the two
+// scopes cannot drift apart into two different meanings of "Rule #10".
+//
+// KNOWN LIMITS — this selector matches a call whose receiver is literally an
+// identifier spelled `page`. It therefore MISSES: `this.page.click()` and
+// `this._page.context()`; an alias (`const p = page; p.click()`); a
+// differently-named parameter (`loginPage.click()`); a nested receiver
+// (`args.page.click()`); a sub-namespace (`page.keyboard.press()`); and
+// destructured or `.bind()`-detached methods. It also FALSELY flags any
+// unrelated object that happens to be named `page`. It bans one spelling, not
+// the capability. Closing that gap needs a type-aware custom rule that resolves
+// the receiver to Playwright's `Page` — tracked as a follow-up, deliberately
+// out of scope here (eslint-rules-guidlines.md §5: one guardrail per commit).
+const RULE10_NO_RAW_PAGE_RULE = {
+  selector: "CallExpression[callee.object.name='page']",
+  message:
+    "🚫 Rule #10: Direct calls to 'page' are forbidden in Pipeline business logic. Browser access belongs to the Mediator — use ctx.mediator instead.",
+};
+
 // SHAPE WINDOW-END FROM THE CLOCK — added 2026-06 with the window-coverage
 // backfill. Every api-direct bank that bounds its transactions request used to
 // derive that bound from a bare `moment()` / `new Date()`, once per shape, in
@@ -982,10 +1008,7 @@ export default tseslint.config(
           message:
             "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline/Strategy files.",
         },
-        {
-          selector: "CallExpression[callee.object.name='page']",
-          message: "🚫 Rule #10: Direct calls to 'page' are forbidden. Use ctx.mediator instead.",
-        },
+        RULE10_NO_RAW_PAGE_RULE,
         TEST_HELPER_OVER_10_STMTS_RULE,
       ],
     },
@@ -2980,6 +3003,87 @@ export default tseslint.config(
     },
   },
 
+  // 21. RULE #10 — NO RAW `page` IN PIPELINE BUSINESS LOGIC.
+  //     The ban existed only under `src/Tests/**/Pipeline/**` (§5), so it had
+  //     never once run against production. Selector + its known blind spots are
+  //     documented on `RULE10_NO_RAW_PAGE_RULE` above — read that before
+  //     assuming this glob makes a layer Playwright-free.
+  //
+  //     SCOPE — the five layers that are business logic: Phases, Core, Banks,
+  //     Registry, Logging. One production file is trapped and grandfathered in
+  //     §21a, so this is NOT a ratchet over wholly clean ground.
+  //
+  //     EXCLUDED, and why each is a judgement call rather than a settled fact:
+  //       • Mediator — is the browser boundary by definition (P7). Settled.
+  //       • Strategy — `IFetchStrategy` implementations the ApiMediator selects
+  //         at runtime (P4). Being *chosen by* the Mediator is not the same as
+  //         *being* the Mediator, so this exclusion is arguable; 5 call sites.
+  //       • Interceptors — DOM-snapshot / WAF capture, inherently page-bound;
+  //         8 call sites.
+  //       • Types — NOT a principled exclusion. `Types/FixtureCapture.ts` is a
+  //         misplaced capture helper with 2 call sites; it belongs under
+  //         Mediator or Interceptors. Excluded only to keep this commit to one
+  //         guardrail change (eslint-rules-guidlines.md §5).
+  //     Bringing any of the three latter layers in-scope is a follow-up worth
+  //     doing; it needs ~15 grandfather entries and a maintainer decision.
+  //
+  //     `RESTRICTED_SYNTAX_RULES` and `NO_DIRECT_SCREENSHOT_RULE` are re-spread
+  //     because flat config REPLACES a rule's options rather than merging them
+  //     — omitting them would strip the guards that the `src/**/*.ts` block
+  //     (§14) establishes for these files. NOTE: that earlier block already
+  //     overrides §6's richer `RESTRICTED_SYNTAX_RULES_NEW` set for all of
+  //     `src/**`, so §6's extra selectors are not in force here either before
+  //     or after this change. This block neither causes nor repairs that.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Phases/**/*.ts',
+      'src/Scrapers/Pipeline/Core/**/*.ts',
+      'src/Scrapers/Pipeline/Banks/**/*.ts',
+      'src/Scrapers/Pipeline/Registry/**/*.ts',
+      'src/Scrapers/Pipeline/Logging/**/*.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/rule10-phase-violation.canary.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...RESTRICTED_SYNTAX_RULES,
+        NO_DIRECT_SCREENSHOT_RULE,
+        RULE10_NO_RAW_PAGE_RULE,
+      ],
+    },
+  },
+
+  // 21a. RULE #10 GRANDFATHER — BindApiMediatorClientVersion.ts.
+  //     The one production file the §21 ratchet trapped. `discoverClientVersion`
+  //     takes a raw `Page` and calls `page.evaluate(...)` to read the SPA build
+  //     version out of the resource-timing buffer. It is a genuine P7 breach:
+  //     browser access belongs to the Mediator.
+  //
+  //     NOT fixed here on purpose. `IApiMediator` exposes no evaluate-style
+  //     capability, so closing it means adding one to the Mediator surface and
+  //     reshaping the 7 assertions in
+  //     src/Tests/Unit/Pipeline/Phases/BindApiMediator/BindApiMediatorClientVersion.test.ts.
+  //     eslint-rules-guidlines.md §5 requires a guardrail commit to touch only
+  //     the config + canaries and stay separable from the refactor that drains
+  //     it. TARGET: move the scan behind a Mediator method, then DELETE this
+  //     block — it must never be widened (§4: narrow scope, never raise a cap).
+  //
+  //     Grandfathered by re-declaring the array WITHOUT RULE10_NO_RAW_PAGE_RULE
+  //     rather than switching the rule `off`, so the §14 screenshot guard and
+  //     the shared restricted-syntax set stay enforced on this file.
+  //     `eslint-disable` is banned outright (§3 + §15).
+  //
+  //     ACCEPTED RISK: this exempts the FILE, not the one known call. A second
+  //     `page.*` call added here would not be caught. A per-occurrence cap
+  //     needs the type-aware custom rule noted on RULE10_NO_RAW_PAGE_RULE;
+  //     until then the mitigation is to drain this block, not to widen it.
+  {
+    files: ['src/Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorClientVersion.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
+    },
+  },
+
   // 20. SHAPE TRANSACTIONS WINDOW-END LOCK — added 2026-06 with the
   //     window-coverage backfill.
   //
@@ -3023,6 +3127,7 @@ export default tseslint.config(
         ...RESTRICTED_SYNTAX_RULES,
         NO_DIRECT_SCREENSHOT_RULE,
         SHAPE_TXNS_WINDOW_END_RULE,
+        RULE10_NO_RAW_PAGE_RULE,
       ],
     },
   },
