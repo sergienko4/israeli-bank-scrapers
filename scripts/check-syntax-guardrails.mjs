@@ -303,7 +303,9 @@ if (strays.length > 0) {
   for (const selector of strays) stdout.write(`\n  ✗ names no real selector: ${selector}\n`);
   stderr.write(
     `\ncheck-syntax-guardrails: ${strays.length} entr(y|ies) name no real selector.\n` +
-      'Drain-queue entries must appear verbatim in RESTRICTED_SYNTAX_RULES_NEW;\n' +
+      'Drain-queue entries must appear verbatim in RESTRICTED_SYNTAX_RULES_NEW\n' +
+      'or PIPELINE_REVIEW_RULES — the two arrays PIPELINE_KNOWN_NEW_SELECTORS\n' +
+      'is built from;\n' +
       'exemptions must name a selector that is actually armed;\n' +
       'canary extras must name a canary that exists on disk.\n',
   );
