@@ -63,23 +63,47 @@ const firstFile = (dir, skip) => {
 };
 
 /**
- * Whether Rule #10 is armed as an ERROR in the resolved config for a file.
+ * How Rule #10 resolves for a file: whether it is present, and whether it errors.
  *
- * Presence alone is not enough: `no-restricted-syntax` demoted to `'warn'`
- * still carries the Rule #10 entry, so a presence-only check would pass while
- * nothing failed CI. Severity is part of the guarantee.
+ * The two are reported separately on purpose. A positive control needs both —
+ * `no-restricted-syntax` demoted to `'warn'` still carries the Rule #10 entry,
+ * so a presence-only check would pass while nothing failed CI. A negative
+ * control needs `carries === false` alone, because a Rule #10 entry sitting on
+ * an exempt path at warning severity is still a leak.
+ * @param eslint - Configured ESLint instance.
+ * @param file - Repo-relative file path.
+ * @returns `{ carries, isError }` for the resolved config.
+ */
+const ruleTenState = async (eslint, file) => {
+  const config = await eslint.calculateConfigForFile(path.join(REPO_ROOT, file));
+  const options = config.rules?.['no-restricted-syntax'] ?? [];
+  const isError = options[0] === 2 || options[0] === 'error';
+  const carries = options
+    .slice(1)
+    .some(entry => typeof entry === 'object' && String(entry.message).includes(NEEDLE));
+  return { carries, isError };
+};
+
+/**
+ * Whether Rule #10 is armed as an error for a file.
  * @param eslint - Configured ESLint instance.
  * @param file - Repo-relative file path.
  * @returns True when Rule #10 is present AND the rule is set to error.
  */
-const hasRuleTen = async (eslint, file) => {
-  const config = await eslint.calculateConfigForFile(path.join(REPO_ROOT, file));
-  const options = config.rules?.['no-restricted-syntax'] ?? [];
-  const errors = options[0] === 2 || options[0] === 'error';
-  const carries = options
-    .slice(1)
-    .some(entry => typeof entry === 'object' && String(entry.message).includes(NEEDLE));
-  return carries && errors;
+const isArmedOn = async (eslint, file) => {
+  const state = await ruleTenState(eslint, file);
+  return state.carries && state.isError;
+};
+
+/**
+ * Whether Rule #10 is absent for a file, at any severity.
+ * @param eslint - Configured ESLint instance.
+ * @param file - Repo-relative file path.
+ * @returns True when no Rule #10 entry is present.
+ */
+const isExemptOn = async (eslint, file) => {
+  const state = await ruleTenState(eslint, file);
+  return !state.carries;
 };
 
 /** Report one expectation. @param ok - Whether it held. @param label - Description. @param out - Failures. */
@@ -109,13 +133,13 @@ const main = async () => {
     }
     probes.push(probe);
     expect(
-      await hasRuleTen(eslint, probe),
+      await isArmedOn(eslint, probe),
       `POSITIVE CONTROL: Rule #10 not an error on ${probe}`,
       out,
     );
   }
-  expect(!(await hasRuleTen(eslint, MEDIATOR)), `Rule #10 leaked onto ${MEDIATOR}`, out);
-  expect(!(await hasRuleTen(eslint, GRANDFATHER)), `§21a grandfather lost on ${GRANDFATHER}`, out);
+  expect(await isExemptOn(eslint, MEDIATOR), `Rule #10 leaked onto ${MEDIATOR}`, out);
+  expect(await isExemptOn(eslint, GRANDFATHER), `§21a grandfather lost on ${GRANDFATHER}`, out);
 
   if (out.length > 0) {
     console.error(`\n❌ RULE #10 BOUNDARY FAILURE:\n   - ${out.join('\n   - ')}`);

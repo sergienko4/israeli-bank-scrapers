@@ -10,15 +10,26 @@
 const NO_CAP = { found: false, max: 0, options: {} };
 
 /**
+ * Whether a flat-config severity means the rule fails a build.
+ *
+ * Only `error` counts. A cap demoted to `warn` still carries its number, so
+ * reading the number alone would report a guardrail as armed while a weakening
+ * commit sailed past it — the guarantee is the failure, not the threshold.
+ * @param severity - First element of a flat-config rule value.
+ * @returns True for `'error'` and `2`.
+ */
+const isArmed = severity => severity === 'error' || severity === 2;
+
+/**
  * Cap and options from a resolved flat-config rule value.
  *
  * Returns a `found` flag rather than null, so every caller and every test can
  * name the capless case without a null return.
  * @param value - Rule value, `['error', 150]` or `['error', { max: 150 }]`.
- * @returns `{ found, max, options }`; `found` is false when off or capless.
+ * @returns `{ found, max, options }`; `found` is false when unarmed or capless.
  */
 const capOf = value => {
-  if (!Array.isArray(value) || value[0] === 'off' || value[0] === 0) return NO_CAP;
+  if (!Array.isArray(value) || !isArmed(value[0])) return NO_CAP;
   const options = value[1];
   if (typeof options === 'number') return { found: true, max: options, options: { max: options } };
   if (options && typeof options.max === 'number') return { found: true, max: options.max, options };

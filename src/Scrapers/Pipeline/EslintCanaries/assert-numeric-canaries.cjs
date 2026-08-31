@@ -113,6 +113,9 @@ const main = async () => {
     const outcome = await survivorsOf(resolver, rule);
     checked += outcome.checked;
     failures.push(...outcome.failures);
+    if (outcome.checked === 0) {
+      failures.push(`${rule} — declared numeric rule with no canary; nothing defends its cap`);
+    }
   }
 
   if (failures.length > 0) {

@@ -56,6 +56,16 @@ describe('assert-numeric-canaries capOf', () => {
     const cap = CAP_OF(['error', { skipBlankLines: true }]);
     expect(cap.found).toBe(false);
   });
+
+  it('reports no cap when the rule is demoted to a warning by name', () => {
+    const cap = CAP_OF(['warn', { max: 10 }]);
+    expect(cap.found).toBe(false);
+  });
+
+  it('reports no cap when the rule is demoted to a warning by severity', () => {
+    const cap = CAP_OF([1, { max: 10 }]);
+    expect(cap.found).toBe(false);
+  });
 });
 
 describe('assert-numeric-canaries verdict', () => {

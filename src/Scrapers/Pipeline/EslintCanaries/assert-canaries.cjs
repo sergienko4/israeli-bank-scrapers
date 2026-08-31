@@ -57,12 +57,14 @@ const checkErrors = (file, name, out) => {
   return true;
 };
 
-/** Assertion 3: the declared target fired, precisely enough to mean something. */
+/** Assertion 3: the declared target fired as an error, precisely enough to mean something. */
 const checkTarget = (file, name, want, out) => {
   const messages = file.messages ?? [];
-  const onTarget = messages.filter(m => m.ruleId === want.rule);
+  const onTarget = messages.filter(m => m.ruleId === want.rule && m.severity === 2);
   if (onTarget.length === 0) {
-    out.wrongRule.push(`${name} (declared ${want.rule}, never fired)`);
+    const demoted = messages.some(m => m.ruleId === want.rule);
+    const why = demoted ? 'fired only as a warning' : 'never fired';
+    out.wrongRule.push(`${name} (declared ${want.rule}, ${why})`);
     return;
   }
   if (want.rule !== BUNDLED_RULE) return;
