@@ -46,19 +46,28 @@ interface IStep {
   readonly run?: string;
   readonly uses?: string;
   readonly if?: string;
+  readonly shell?: string;
+  readonly 'working-directory'?: string;
   readonly 'continue-on-error'?: unknown;
+}
+
+/** Job-level defaults, which can override the workflow shell for every step. */
+interface IDefaults {
+  readonly run?: { readonly shell?: string; readonly 'working-directory'?: string };
 }
 
 /** Workflow job shape this test reads. */
 interface IJob {
   readonly if?: string;
   readonly steps?: readonly IStep[];
+  readonly defaults?: IDefaults;
   readonly 'continue-on-error'?: unknown;
 }
 
 /** Parsed workflow document. */
 interface IPrYamlDoc {
   readonly jobs?: Readonly<Record<string, IJob>>;
+  readonly defaults?: IDefaults;
 }
 
 /**
@@ -131,12 +140,17 @@ function canaryNpmScript(): string {
 /**
  * Collapse a workflow run block to a single normalized line.
  *
+ * <p>Horizontal whitespace only. A YAML literal block preserves its newlines,
+ * and each surviving line is a separate shell command: collapsing them would
+ * read `npm run\nlint:canaries` — two commands, neither of which runs the
+ * suite — as the approved one.
+ *
  * @param run - Raw `run:` body.
- * @returns The body with surrounding and repeated whitespace removed.
+ * @returns The body trimmed, with runs of spaces and tabs collapsed.
  */
 function normalizeRun(run: string): string {
   const trimmed = run.trim();
-  return trimmed.replace(/\s+/gu, ' ');
+  return trimmed.replace(/[ \t]+/gu, ' ');
 }
 
 /**
@@ -165,28 +179,110 @@ function isUnmaskedJob(job: IJob): boolean {
   return job['continue-on-error'] === undefined;
 }
 
+/** One positive change-detection term, the only shape a run condition may hold. */
+const FLAG_TERM = /^needs\.changes\.outputs\.[a-z_]+ == 'true'$/u;
+
+/** The term that must appear for a guardrail-only edit to reach the suite. */
+const GUARDRAIL_TERM = `needs.changes.outputs.${GUARDRAIL_FLAG} == 'true'`;
+
+/**
+ * Whether a condition admits a change touching only the guardrails.
+ *
+ * <p>Naming the flag is not enough. A skipped job or step reports success to
+ * the aggregator, so `false && needs.changes.outputs.syntax_guardrails ==
+ * 'true'` contains the flag, never runs, and blocks nothing — the same
+ * masking this suite exists to reject, spelled as a condition rather than a
+ * shell construct.
+ *
+ * <p>So the contract is positive and structural: a disjunction of positive
+ * flag comparisons, one of which is the guardrail's. An OR-chain of that
+ * shape is true whenever the guardrail flag is, whatever else is added to it.
+ * Any conjunction, negation, literal or event test fails, because each can
+ * make the flag being true insufficient.
+ *
+ * @param condition - Raw `if:` expression, absent meaning always-run.
+ * @returns True when a guardrail-only change reaches this job or step.
+ */
+function admitsGuardrailOnlyChange(condition?: string): boolean {
+  if (condition === undefined) return true;
+  const normalized = normalizeRun(condition);
+  const terms = normalized.split('||').map(term => term.trim());
+  const isPureOrChain = terms.every(term => FLAG_TERM.test(term));
+  if (!isPureOrChain) return false;
+  return terms.includes(GUARDRAIL_TERM);
+}
+
+/** The hardened shell every canary step must inherit, unmodified. */
+const REQUIRED_SHELL = 'bash --noprofile --norc -euo pipefail {0}';
+
+/**
+ * Whether a step runs under the workflow's own hardened shell.
+ *
+ * <p>A step-level `shell:` is a template, not a name: `bash -c true -- {0}`
+ * discards the generated script and exits zero while `run:` still reads
+ * exactly right. Pinning the command without pinning the interpreter leaves
+ * the command unexecuted, so an override of either the shell or the working
+ * directory is refused outright.
+ *
+ * @param step - Step definition.
+ * @returns True when the step overrides neither shell nor working directory.
+ */
+function runsUnderDefaultShell(step: IStep): boolean {
+  return step.shell === undefined && step['working-directory'] === undefined;
+}
+
+/**
+ * Read the shell the workflow applies to every `run:` block by default.
+ *
+ * @returns The declared default shell, or an empty string.
+ */
+function workflowShell(): string {
+  const doc = loadPrYaml();
+  return doc.defaults?.run?.shell ?? '';
+}
+
 /**
  * Run blocks that must never be accepted as canary wiring.
  *
  * <p>Written out literally rather than derived from the detector: a table
  * generated from the implementation shrinks whenever the implementation does,
  * so it would pass vacuously on the day the detector stopped rejecting
- * anything. Every entry below exits zero after a failed suite, never runs it,
- * or runs something else entirely.
+ * anything. Each entry either discards the exit status, never runs the suite,
+ * runs something else, or splits the command across shell lines. Some are
+ * refused by policy rather than because they mask on today's shell — an exact
+ * contract does not weigh each variant, which is the point of having one.
  */
-const MASKED_RUN_BLOCKS: readonly string[] = [
+const REJECTED_RUN_BLOCKS: readonly string[] = [
   'npm run lint:canaries || true',
   'npm run lint:canaries || :',
   'npm run lint:canaries || exit 0',
   'npm run lint:canaries || echo ignored',
   'npm run lint:canaries; true',
   'npm run lint:canaries | cat',
+  'set +e; npm run lint:canaries; echo ignored',
   'set +e\nnpm run lint:canaries',
   'if ! npm run lint:canaries; then echo soft; fi',
   'npm run lint:canaries &',
   'npm run --if-present lint:canaries',
   '# npm run lint:canaries',
   'echo npm run lint:canaries',
+  'npm run lint:canaries\nexit 0',
+  'npm run\nlint:canaries',
+];
+
+/**
+ * Conditions that name the guardrail flag yet cannot admit a guardrail-only
+ * change, written out literally for the same reason as the run table.
+ */
+const REJECTED_CONDITIONS: readonly string[] = [
+  'false',
+  `false && ${GUARDRAIL_TERM}`,
+  `${GUARDRAIL_TERM} && false`,
+  `github.event_name == 'schedule' && ${GUARDRAIL_TERM}`,
+  `${GUARDRAIL_TERM} && github.ref == 'refs/heads/main'`,
+  `!cancelled() && ${GUARDRAIL_TERM}`,
+  "needs.changes.outputs.full_suite == 'true'",
+  `needs.changes.outputs.${GUARDRAIL_FLAG} == 'false'`,
 ];
 
 /**
@@ -265,13 +361,36 @@ describe('CanarySuiteCiGate', () => {
   });
 
   it('[CI-CANARY] Detector_ShellMaskedCanaryStep_ShouldNotCountAsWired', () => {
-    const verdicts = MASKED_RUN_BLOCKS.map(run => isCanaryStep({ run }));
+    const verdicts = REJECTED_RUN_BLOCKS.map(run => isCanaryStep({ run }));
     const hasAnyAccepted = verdicts.some(verdict => verdict);
     expect(hasAnyAccepted).toBe(false);
   });
 
-  it('[CI-CANARY] Detector_MaskTable_ShouldStayNonEmpty', () => {
-    expect(MASKED_RUN_BLOCKS.length).toBeGreaterThanOrEqual(12);
+  it('[CI-CANARY] Detector_RejectionTables_ShouldStayBroadAndDistinct', () => {
+    expect(REJECTED_RUN_BLOCKS.length).toBeGreaterThanOrEqual(15);
+    const distinctRuns = new Set(REJECTED_RUN_BLOCKS);
+    expect(distinctRuns.size).toBe(REJECTED_RUN_BLOCKS.length);
+    expect(REJECTED_CONDITIONS.length).toBeGreaterThanOrEqual(8);
+    const distinctConditions = new Set(REJECTED_CONDITIONS);
+    expect(distinctConditions.size).toBe(REJECTED_CONDITIONS.length);
+  });
+
+  it('[CI-CANARY] Detector_SkippedCondition_ShouldNotAdmitGuardrailChange', () => {
+    const verdicts = REJECTED_CONDITIONS.map(condition => admitsGuardrailOnlyChange(condition));
+    const hasAnyAccepted = verdicts.some(verdict => verdict);
+    expect(hasAnyAccepted).toBe(false);
+  });
+
+  it('[CI-CANARY] Detector_PositiveOrChain_ShouldAdmitGuardrailChange', () => {
+    const condition = `needs.changes.outputs.full_suite == 'true' || ${GUARDRAIL_TERM}`;
+    const isAdmitted = admitsGuardrailOnlyChange(condition);
+    expect(isAdmitted).toBe(true);
+  });
+
+  it('[CI-CANARY] Detector_CustomStepShell_ShouldNotCountAsDefaultShell', () => {
+    const step: IStep = { run: CANARY_RUN, shell: 'bash -c true -- {0}' };
+    const isDefault = runsUnderDefaultShell(step);
+    expect(isDefault).toBe(false);
   });
 
   it('[CI-CANARY] Detector_UnmaskedCanaryStep_ShouldCountAsWired', () => {
@@ -302,21 +421,49 @@ describe('CanarySuiteCiGate', () => {
   it('[CI-CANARY] PrYaml_CanaryOwningJob_ShouldAdmitGuardrailOnlyChanges', () => {
     const jobs = canaryJobs();
     expect(jobs.length).toBeGreaterThan(0);
-    for (const job of jobs) expect(job.if ?? '').toContain(GUARDRAIL_FLAG);
+    const verdicts = jobs.map(job => admitsGuardrailOnlyChange(job.if));
+    const hasAnyGated = verdicts.some(verdict => !verdict);
+    expect(hasAnyGated).toBe(false);
   });
 
   it('[CI-CANARY] PrYaml_CanaryStep_ShouldAdmitGuardrailOnlyChanges', () => {
     const steps = canaryJobSteps();
     const canaries = steps.filter(isCanaryStep);
     expect(canaries.length).toBeGreaterThan(0);
-    for (const step of canaries) expect(step.if ?? '').toContain(GUARDRAIL_FLAG);
+    const verdicts = canaries.map(step => admitsGuardrailOnlyChange(step.if));
+    const hasAnyGated = verdicts.some(verdict => !verdict);
+    expect(hasAnyGated).toBe(false);
+  });
+
+  it('[CI-CANARY] PrYaml_CanaryStep_ShouldRunUnderHardenedDefaultShell', () => {
+    const steps = canaryJobSteps();
+    const canaries = steps.filter(isCanaryStep);
+    expect(canaries.length).toBeGreaterThan(0);
+    const verdicts = canaries.map(step => runsUnderDefaultShell(step));
+    const hasAnyOverride = verdicts.some(verdict => !verdict);
+    expect(hasAnyOverride).toBe(false);
+  });
+
+  it('[CI-CANARY] PrYaml_DefaultShell_ShouldBeHardenedBash', () => {
+    const shell = workflowShell();
+    expect(shell).toBe(REQUIRED_SHELL);
+  });
+
+  it('[CI-CANARY] PrYaml_CanaryOwningJob_ShouldNotOverrideDefaultShell', () => {
+    const jobs = canaryJobs();
+    expect(jobs.length).toBeGreaterThan(0);
+    const verdicts = jobs.map(job => job.defaults === undefined);
+    const hasAnyOverride = verdicts.some(verdict => !verdict);
+    expect(hasAnyOverride).toBe(false);
   });
 
   it('[CI-CANARY] PrYaml_DependencyInstall_ShouldAdmitGuardrailOnlyChanges', () => {
     const steps = canaryJobSteps();
     const installs = steps.filter(isInstallStep);
     expect(installs.length).toBeGreaterThan(0);
-    for (const step of installs) expect(step.if ?? '').toContain(GUARDRAIL_FLAG);
+    const verdicts = installs.map(step => admitsGuardrailOnlyChange(step.if));
+    const hasAnyGated = verdicts.some(verdict => !verdict);
+    expect(hasAnyGated).toBe(false);
   });
 
   it('[CI-CANARY] Detector_GuardrailFlag_ShouldEmitAtEverySiblingExitPath', () => {
