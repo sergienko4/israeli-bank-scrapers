@@ -2,6 +2,15 @@
 
 ## Parallel scraping with a shared browser
 
+> **Legacy (deprecated) path only.** `browserContext` is read solely by the
+> [Legacy (deprecated)](architecture/legacy.md) scrapers. The Pipeline launches
+> and closes its own Camoufox instance per scraper and reads neither `browser`
+> nor `browserContext`, so this pattern does not reduce startup cost for a
+> Pipeline bank — see
+> [Browser lifecycle options](configuration.md#browser-lifecycle-options).
+> On the Pipeline the lever is concurrency rather than sharing: each scrape in
+> flight holds its own ~1.3 GB browser process, so cap how many run at once.
+
 Launching one Camoufox instance and giving each bank its own
 `BrowserContext` avoids paying the ~1.3 GB browser startup cost per bank, while
 keeping cookies and storage isolated between them.
@@ -66,13 +75,18 @@ createScraper({
   companyId: CompanyTypes.Leumi,
   startDate,
   defaultTimeout: 60000,
-  navigationRetryCount: 2,
 });
 ```
 
 `defaultTimeout` bounds **each phase** independently, not the run as a whole.
-`navigationRetryCount` retries a phase that failed with `TIMEOUT`; it does not
-retry authentication failures, which are terminal by design.
+
+!!! warning "`navigationRetryCount` is Legacy-only — it does nothing here"
+    `navigationRetryCount` retries a phase that failed with `TIMEOUT`, but it is
+    read only by the [Legacy (deprecated)](architecture/legacy.md) scrapers.
+    Every Pipeline bank ignores it — including Leumi, above — and `createScraper`
+    emits a `ScraperOptionsWarning` when you pass one. Even on the legacy path it
+    never retries authentication failures, which are terminal by design. See
+    [Options the Pipeline ignores](configuration.md#options-the-pipeline-ignores).
 
 ## Migrating from upstream `israeli-bank-scrapers`
 

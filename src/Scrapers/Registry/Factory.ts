@@ -2,6 +2,7 @@ import { type CompanyTypes } from '../../Definitions.js';
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
 import PIPELINE_REGISTRY from '../Pipeline/Banks/PipelineRegistry.js';
+import { warnLegacyOnlyOptions } from '../Pipeline/Core/LegacyOnlyOptions.js';
 import { PipelineScraper } from '../Pipeline/Core/PipelineScraper.js';
 import SCRAPER_REGISTRY_AMEX_TO_ISRACARD, {
   type ScraperFactory,
@@ -16,12 +17,17 @@ const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
 
 /**
  * Try creating a pipeline scraper for banks registered in PIPELINE_REGISTRY.
+ *
+ * <p>Warns here rather than inside {@link PipelineScraper} because this is the
+ * only point that knows the bank resolved to the Pipeline: the same options are
+ * legitimate on the legacy path, so the warning must not fire there.
  * @param options - Scraper configuration.
  * @returns A PipelineScraper if registered, false otherwise.
  */
 function tryPipeline(options: ScraperOptions): IScraper<ScraperCredentials> | false {
   const pipelineFactory = PIPELINE_REGISTRY[options.companyId];
   if (!pipelineFactory) return false;
+  warnLegacyOnlyOptions(options);
   return new PipelineScraper(options, pipelineFactory);
 }
 
