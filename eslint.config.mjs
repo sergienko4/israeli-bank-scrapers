@@ -380,10 +380,18 @@ const TEST_INTEGRITY_NO_AS_NEVER_RULE = {
 // Named exports only. Declared as a const rather than inline so the canary
 // contract (§22) can arm the exact same entry — `default-export.canary.ts`
 // certified this rule while resolving to a config that never contained it.
+//
+// Armed on Pipeline TESTS and the canary directory only, never on production:
+// `src/**` runs `import-x/prefer-default-export`, which requires the opposite
+// on a single-export file, and 271 `src/` files export a default accordingly.
+// The message named "Pipeline/Strategy files" while firing on neither, so it
+// read as a production guarantee that no production file has ever been held
+// to. Whether to reconcile the two rules is a convention decision, not a
+// guardrail repair; until it is taken, the message states its real reach.
 const NO_EXPORT_DEFAULT_RULE = {
   selector: 'ExportDefaultDeclaration',
   message:
-    "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline/Strategy files.",
+    "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline test or canary files.",
 };
 
 // §19.9 TEST-HELPER STATEMENT CAP — fires on any `function foo() { ...11+ stmts }`
@@ -1367,12 +1375,19 @@ export default tseslint.config(
     },
     rules: {
       'no-console': 'error',
+      // §15 declares this same rule for `src/**/*.ts(x)` — the identical glob,
+      // later in the array — so flat config replaces these options wholesale
+      // rather than merging them. Every term below is also in §15's list,
+      // except `todo` and `fixme`, which were therefore unreachable: a probe
+      // file carrying both drew zero reports. They are not restored, because
+      // the tree deliberately carries nine `TODO (scope): reason` markers in
+      // the harvest-milestone fixtures, in the form `comments-in-code-
+      // guidlines.md` §9 prescribes. Declaring a ban the tree is built to
+      // violate is the claim to drop, not the convention.
       'no-warning-comments': [
         'error',
         {
           terms: [
-            'todo',
-            'fixme',
             'istanbul ignore',
             'c8 ignore',
             'v8 ignore',
