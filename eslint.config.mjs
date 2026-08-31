@@ -3685,4 +3685,48 @@ export default tseslint.config(
     files: [file],
     rules: { 'no-restricted-syntax': pipelineSyntaxExcept(exempt, file) },
   })),
+
+  // 24. LEGACY READERS OF LEGACY-ONLY SCRAPER OPTIONS
+  //
+  //     Sits after §23 without weakening it. §23's "last" invariant governs
+  //     `no-restricted-syntax`; this block sets a different rule
+  //     (`@typescript-eslint/no-deprecated`) on a file set disjoint from every
+  //     Pipeline path §22/§22a/§23 match, so neither can narrow the other.
+  //
+  //     Eight fields on the public `ScraperOptions` type carry `@deprecated`
+  //     (src/Scrapers/Base/Interface.ts) because only the Legacy (deprecated)
+  //     scrapers read them — every Pipeline bank ignores them, which issue #540
+  //     reported as a silent drop. The tag is the point: it strikes the option
+  //     through in a consumer's editor before their code ever runs, which the
+  //     runtime `ScraperOptionsWarning` cannot do.
+  //
+  //     The cost is that the legacy files IMPLEMENTING those options now read a
+  //     deprecated symbol, so `@typescript-eslint/no-deprecated` (inherited from
+  //     `strictTypeChecked`) fires 13 times across the six files below. That is
+  //     the rule working as designed on code that is deprecated by definition.
+  //
+  //     Scope is enumerated file-by-file, never a glob, so the rule keeps full
+  //     force everywhere else — in particular across all of
+  //     `src/Scrapers/Pipeline/**`, where a file reading one of these options
+  //     would be a genuine defect and must still fail lint. Per
+  //     eslint-rules-guidlines.md §3 this is a `files: […]` override, not an
+  //     `eslint-disable` header (which §15 `no-warning-comments` bans outright).
+  //
+  //     Removal condition: this block loses an entry every time a legacy bank
+  //     migrates to the Pipeline (docs/architecture/migration.md step 6), and
+  //     disappears when the legacy path is deleted. It may only ever be
+  //     narrowed, never widened (eslint-rules-guidlines.md §4).
+  {
+    files: [
+      'src/Common/OtpHandler.ts',
+      'src/Scrapers/Base/BaseScraperWithBrowser.ts',
+      'src/Scrapers/Behatsdaa/BehatsdaaScraper.ts',
+      'src/Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.ts',
+      'src/Scrapers/Mizrahi/MizrahiConverters.ts',
+      'src/Scrapers/Mizrahi/MizrahiScraper.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-deprecated': 'off',
+    },
+  },
 );

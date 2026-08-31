@@ -92,6 +92,9 @@ interface IExternalBrowserOptions {
 
   /**
    * If true, the browser will not be closed by the library after the scraper finishes
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   skipCloseBrowser?: boolean;
 }
@@ -114,6 +117,10 @@ export type ScraperOptions = ScraperBrowserOptions & {
 
   /**
    * include more debug info about in the output
+   *
+   * Not implemented: no scraper on either path reads this option. Use the
+   * `FORENSIC_TRACE` capture for diagnostics instead —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/observability/ Observability}.
    */
   verbose?: boolean;
 
@@ -129,6 +136,9 @@ export type ScraperOptions = ScraperBrowserOptions & {
 
   /**
    * if set to true, all installment transactions will be combine into the first one
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   shouldCombineInstallments?: boolean;
 
@@ -140,6 +150,9 @@ export type ScraperOptions = ScraperBrowserOptions & {
 
   /**
    * if set, store a screenshot if failed to scrape. Used for debug purposes
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   storeFailureScreenShotPath?: string;
 
@@ -150,24 +163,36 @@ export type ScraperOptions = ScraperBrowserOptions & {
 
   /**
    * Options for manipulation of output data
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   outputData?: IOutputDataOptions;
 
   /**
    * Perform additional operation for each transaction to get more information (Like category) about it.
    * Please note: It will take more time to finish the process.
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   shouldAddTransactionInformation?: boolean;
 
   /**
    * Include the raw transaction object as received from the scraper source for debugging purposes.
    * @default false
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed. For
+   * raw provider payloads on the Pipeline, use the `FORENSIC_TRACE` capture instead —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   includeRawTransaction?: boolean;
 
   /**
    * Adjust the viewport size of the browser page.
-   * If not set, the default viewport size of 1024x768 will be used.
+   *
+   * Not implemented: no scraper on either path reads this option. The Pipeline
+   * launches with `viewport: null` so the render surface follows the browser window.
    */
   viewportSize?: {
     width: number;
@@ -176,11 +201,17 @@ export type ScraperOptions = ScraperBrowserOptions & {
 
   /**
    * The number of times to retry the navigation in case of a failure (default 0)
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   navigationRetryCount?: number;
 
   /**
    * Opt-in features for the scrapers, allowing safe rollout of new breaking changes.
+   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
+   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
+   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
    */
   optInFeatures?: OptInFeatures[];
 

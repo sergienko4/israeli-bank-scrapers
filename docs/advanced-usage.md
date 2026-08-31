@@ -66,13 +66,18 @@ createScraper({
   companyId: CompanyTypes.Leumi,
   startDate,
   defaultTimeout: 60000,
-  navigationRetryCount: 2,
 });
 ```
 
 `defaultTimeout` bounds **each phase** independently, not the run as a whole.
-`navigationRetryCount` retries a phase that failed with `TIMEOUT`; it does not
-retry authentication failures, which are terminal by design.
+
+!!! warning "`navigationRetryCount` is Legacy-only — it does nothing here"
+    `navigationRetryCount` retries a phase that failed with `TIMEOUT`, but it is
+    read only by the [Legacy (deprecated)](architecture/legacy.md) scrapers.
+    Every Pipeline bank ignores it — including Leumi, above — and `createScraper`
+    emits a `ScraperOptionsWarning` when you pass one. Even on the legacy path it
+    never retries authentication failures, which are terminal by design. See
+    [Options the Pipeline ignores](configuration.md#options-the-pipeline-ignores).
 
 ## Migrating from upstream `israeli-bank-scrapers`
 

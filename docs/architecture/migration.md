@@ -26,10 +26,11 @@ For each legacy bank, the porting PR does:
 | 3 | Register in the matching `src/Scrapers/Pipeline/Banks/PipelineRegistry{AmexToMax,MercantileToVisaCal}.ts` half — `[CT.<Bank>]: buildXxxPipeline` (never edit `Core/**`) |
 | 4 | Write fixtures under `src/Tests/E2eMocked/<Bank>/fixtures/` from a captured real-bank run |
 | 5 | Verify with `npm run test:e2e:mock --testPathPatterns=<Bank>` and `npm run test:e2e:real:single -- --testPathPatterns=<Bank>` |
-| 6 | Once green, delete `src/Scrapers/<Bank>/` and remove from `SCRAPER_REGISTRY_LEUMI_TO_YAHAV.ts` or its sibling |
-| 7 | Re-run `lint:dead-code` to confirm no unused exports remain |
+| 6 | **Options parity** — for each option in `LEGACY_ONLY_OPTIONS` (`src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`), decide *implement on the Pipeline* or *drop*. Implementing one removes its manifest entry; dropping it is a behaviour change for that bank's callers and belongs in the PR body |
+| 7 | Once green, delete `src/Scrapers/<Bank>/` and remove from `SCRAPER_REGISTRY_LEUMI_TO_YAHAV.ts` or its sibling |
+| 8 | Re-run `lint:dead-code` to confirm no unused exports remain |
 
-The 16 banks already on Pipeline followed exactly this sequence.
+The 16 banks already on Pipeline followed exactly this sequence — except step 6, which was added after [#540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540) showed that a migration can silently drop an option its callers relied on.
 
 ## Per-utility migration sequence
 
