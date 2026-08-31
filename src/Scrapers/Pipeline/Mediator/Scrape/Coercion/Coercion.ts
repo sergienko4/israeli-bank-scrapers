@@ -7,10 +7,9 @@
  * pipeline-decoupling-master-2026-05-28 / phase-5).
  */
 
-import moment from 'moment';
-
 import { KNOWN_DATE_FORMATS } from '../../../Registry/WK/ScrapeWK.js';
 import type { ScalarFieldHit } from '../AutoMapperFacade/AutoMapperTypes.js';
+import { parseInBankZone } from '../BankCalendar.js';
 
 /**
  * Pick the raw string from a {@link ScalarFieldHit}, stringifying numbers.
@@ -65,11 +64,19 @@ function coerceNumber(val: ScalarFieldHit, fallback: number): number {
 
 /**
  * Parse a date string using known bank formats.
+ *
+ * Resolved in the bank's calendar rather than the ambient zone: most Israeli
+ * providers state a *day* with no time and no offset, so the instant we emit is
+ * a choice, and leaving that choice to the host — or to whatever
+ * `moment.tz.setDefault` a Legacy scraper set earlier in the process — made the
+ * same row produce different public values on different machines and in
+ * different scrape orders. See {@link parseInBankZone} and issue #545.
+ *
  * @param dateStr - Raw date string from API response.
  * @returns ISO date string, or original if no match.
  */
 function parseAutoDate(dateStr: string): string {
-  const parsed = moment(dateStr, KNOWN_DATE_FORMATS, true);
+  const parsed = parseInBankZone(dateStr, KNOWN_DATE_FORMATS, true);
   if (parsed.isValid()) return parsed.toISOString();
   return dateStr;
 }

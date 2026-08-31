@@ -24,10 +24,14 @@
  * diagnosis. See docs/observability/coverage-audit.md.
  */
 
-import moment from 'moment';
-
 import { getDebug } from '../../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
+import {
+  BANK_DAY_FORMAT,
+  bankDayOfInstant,
+  bankMomentOfInstant,
+  parseInBankZone,
+} from '../BankCalendar.js';
 import { findFieldValue } from '../BfsFieldSearch/BfsFieldSearch.js';
 import { parseAutoDate } from '../Coercion/Coercion.js';
 
@@ -66,11 +70,16 @@ export interface IWindowResult {
 const UNPROVEN_EMPTY: IWindowResult = { verdict: 'unproven', oldest: '', gapDays: 0 };
 
 /**
- * Calendar-day form. Banks reason in local calendar days, not instants, and an
- * instant would shift the day across the UTC boundary — enough to re-request or
+ * Calendar-day form. Banks reason in calendar days, not instants, and an
+ * instant would shift the day across a zone boundary — enough to re-request or
  * skip a day once the backfill bound is derived from `oldest`.
+ *
+ * <p>Reduced in {@link BANK_CALENDAR_TIMEZONE} rather than the ambient zone.
+ * `requestedStart` reaches {@link gapOf} as a full UTC instant, so read west of
+ * UTC it named the previous day, inflating the gap by one and turning a covered
+ * window into a spurious backfill ask. See issue #545.
  */
-const DAY = 'YYYY-MM-DD';
+const DAY = BANK_DAY_FORMAT;
 
 /**
  * One row's transaction day, resolved through the shared WK aliases.
@@ -87,7 +96,7 @@ function rowDay(row: object): string {
   if (hit === false) return '';
   const raw = String(hit);
   const iso = parseAutoDate(raw);
-  const asMoment = moment(iso, moment.ISO_8601, true);
+  const asMoment = bankMomentOfInstant(iso, true);
   return asMoment.isValid() ? asMoment.format(DAY) : '';
 }
 
@@ -117,9 +126,9 @@ function oldestOf(rows: readonly object[]): string {
  * @returns Day count, never negative.
  */
 function gapOf(requestedStart: string, oldest: string): number {
-  const startDay = moment(requestedStart).format(DAY);
-  const from = moment(startDay, DAY);
-  const to = moment(oldest, DAY);
+  const startDay = bankDayOfInstant(requestedStart);
+  const from = parseInBankZone(startDay, DAY);
+  const to = parseInBankZone(oldest, DAY);
   const days = to.diff(from, 'days');
   return Math.max(days, 0);
 }
