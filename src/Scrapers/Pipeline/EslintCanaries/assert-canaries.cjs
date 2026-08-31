@@ -45,12 +45,14 @@ const readAnnotations = filePath => {
 const baseName = filePath => filePath.replace(/.*[\\/]/, '');
 
 /** Assertions 1 + 2: the file errors, and on a real rule rather than a parse failure. */
-const checkErrors = (file, name, out) => {
+const checkErrors = (file, name, wants, out) => {
+  const messages = file.messages ?? [];
   if (file.errorCount === 0) {
-    out.dead.push(name);
+    const isDemoted = wants.some(want => messages.some(m => m.ruleId === want.rule));
+    out[isDemoted ? 'demoted' : 'dead'].push(name);
     return false;
   }
-  if (!(file.messages ?? []).some(m => m.ruleId !== null)) {
+  if (!messages.some(m => m.ruleId !== null)) {
     out.parsingOnly.push(name);
     return false;
   }
@@ -130,7 +132,7 @@ const checkOne = (file, out, subjectsByFile) => {
     out.unannotated.push(name);
     return;
   }
-  if (!checkErrors(file, name, out)) return;
+  if (!checkErrors(file, name, wants, out)) return;
   wants.forEach(want => checkTarget(file, name, want, out));
   checkSubject(name, wants, subjectsByFile[configKey(file.filePath)] ?? NO_SUBJECT, out);
 };
@@ -140,6 +142,11 @@ const FAILURES = [
     'dead',
     '❌ ARCHITECTURAL FAILURE — guardrails are inactive for',
     'These canaries produced no errors at all: the rule they certify is gone.',
+  ],
+  [
+    'demoted',
+    '❌ DEMOTED GUARDRAIL — declared rule fired only as a warning for',
+    'The rule still exists and still matches; it no longer fails a build.',
   ],
   [
     'parsingOnly',
@@ -228,6 +235,7 @@ const main = async () => {
   const subjectsByFile = await loadSubjects();
   const out = {
     dead: [],
+    demoted: [],
     parsingOnly: [],
     unannotated: [],
     needMessage: [],
