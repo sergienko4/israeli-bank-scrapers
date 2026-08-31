@@ -17,6 +17,18 @@ const MODULE_PATH = fileURLToPath(MODULE_URL);
 const HERE = dirname(MODULE_PATH);
 const CANARY_DIR = '../../../../Scrapers/Pipeline/EslintCanaries';
 const VERDICT_MODULE = join(HERE, CANARY_DIR, 'numeric-canary-verdict.cjs');
+const HARNESS_MODULE = join(HERE, CANARY_DIR, 'assert-numeric-canaries.cjs');
+
+/**
+ * The numeric rules the harness is expected to anchor, written out rather than
+ * read from the harness: a table derived from the implementation shrinks with
+ * it, and an emptied `NUMERIC_RULES` would then pass while measuring nothing.
+ */
+const EXPECTED_NUMERIC_RULES = [
+  'max-lines',
+  'max-lines-per-function',
+  'phase9-local/fn-declaration-max-lines',
+];
 
 const LOAD_COMMON_JS = createRequire(MODULE_URL);
 
@@ -30,6 +42,15 @@ const { capOf: CAP_OF, verdict: VERDICT_OF } = LOAD_COMMON_JS(VERDICT_MODULE) as
   capOf: (value: unknown) => ICap;
   verdict: (cap: ICap, stillRed: boolean) => string;
 };
+
+describe('assert-numeric-canaries rule table', () => {
+  it('still declares every numeric rule it is expected to anchor', () => {
+    const { NUMERIC_RULES: declaredRules } = LOAD_COMMON_JS(HARNESS_MODULE) as {
+      NUMERIC_RULES: string[];
+    };
+    expect(declaredRules).toEqual(EXPECTED_NUMERIC_RULES);
+  });
+});
 
 describe('assert-numeric-canaries capOf', () => {
   it('reads a bare numeric cap', () => {

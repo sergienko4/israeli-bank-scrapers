@@ -56,7 +56,8 @@ const canariesFor = rule =>
  * @param resolver - A plain ESLint instance.
  * @param file - Canary path.
  * @param rule - Rule id.
- * @returns `{ max, options }` for that file, or null when the rule is off.
+ * @returns `{ found, max, options }`; callers must read `found` before `max`,
+ *   which is 0 when the rule resolves to no cap on this path.
  */
 const scopedCapFor = async (resolver, file, rule) => {
   const config = await resolver.calculateConfigForFile(file);
@@ -105,7 +106,21 @@ const survivorsOf = async (resolver, rule) => {
   return { checked: files.length, failures };
 };
 
+/**
+ * The rule table is the harness's entire subject. Emptied, every loop below
+ * runs zero times and the run reports success having measured nothing — so it
+ * is checked first, where the failure names the actual cause.
+ * @returns Nothing; exits 1 when there is no rule to measure.
+ */
+const requireRulesToMeasure = () => {
+  if (NUMERIC_RULES.length > 0) return;
+  console.error('\n❌ NO NUMERIC RULE DECLARED — the harness has nothing to measure.');
+  console.error('   NUMERIC_RULES is empty, so no cap is anchored by any canary.');
+  process.exit(1);
+};
+
 const main = async () => {
+  requireRulesToMeasure();
   const resolver = new ESLint({ ignore: false });
   const failures = [];
   let checked = 0;
@@ -126,13 +141,9 @@ const main = async () => {
     console.error('   A fixture sized to cap + 1 is the only one no raise can survive.');
     process.exit(1);
   }
-  if (checked === 0) {
-    console.error('\n❌ NO NUMERIC CANARY MEASURED — the harness proved nothing.');
-    process.exit(1);
-  }
   console.log(`✅ All ${checked} numeric canaries die on a one-step raise of their own cap`);
 };
 
-module.exports = { capOf, verdict };
+module.exports = { NUMERIC_RULES, capOf, verdict };
 
 if (require.main === module) main();
