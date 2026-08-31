@@ -186,30 +186,66 @@ const FLAG_TERM = /^needs\.changes\.outputs\.[a-z_]+ == 'true'$/u;
 const GUARDRAIL_TERM = `needs.changes.outputs.${GUARDRAIL_FLAG} == 'true'`;
 
 /**
- * Whether a condition admits a change touching only the guardrails.
+ * Whether a condition admits a change that sets one given flag.
  *
- * <p>Naming the flag is not enough. A skipped job or step reports success to
+ * <p>Naming a flag is not enough. A skipped job or step reports success to
  * the aggregator, so `false && needs.changes.outputs.syntax_guardrails ==
  * 'true'` contains the flag, never runs, and blocks nothing — the same
  * masking this suite exists to reject, spelled as a condition rather than a
  * shell construct.
  *
  * <p>So the contract is positive and structural: a disjunction of positive
- * flag comparisons, one of which is the guardrail's. An OR-chain of that
- * shape is true whenever the guardrail flag is, whatever else is added to it.
- * Any conjunction, negation, literal or event test fails, because each can
- * make the flag being true insufficient.
+ * flag comparisons, one of which is the caller's. An OR-chain of that shape
+ * is true whenever that flag is, whatever else is added to it. Any
+ * conjunction, negation, literal or event test fails, because each can make
+ * the flag being true insufficient.
+ *
+ * @param term - The flag comparison that must be present.
+ * @param condition - Raw `if:` expression, absent meaning always-run.
+ * @returns True when a change setting only that flag reaches this job or step.
+ */
+function admitsTerm(term: string, condition?: string): boolean {
+  if (condition === undefined) return true;
+  const normalized = normalizeRun(condition);
+  const terms = normalized.split('||').map(entry => entry.trim());
+  const isPureOrChain = terms.every(entry => FLAG_TERM.test(entry));
+  if (!isPureOrChain) return false;
+  return terms.includes(term);
+}
+
+/**
+ * Whether a condition admits a change touching only the guardrails.
  *
  * @param condition - Raw `if:` expression, absent meaning always-run.
  * @returns True when a guardrail-only change reaches this job or step.
  */
 function admitsGuardrailOnlyChange(condition?: string): boolean {
-  if (condition === undefined) return true;
-  const normalized = normalizeRun(condition);
-  const terms = normalized.split('||').map(term => term.trim());
-  const isPureOrChain = terms.every(term => FLAG_TERM.test(term));
-  if (!isPureOrChain) return false;
-  return terms.includes(GUARDRAIL_TERM);
+  return admitsTerm(GUARDRAIL_TERM, condition);
+}
+
+/**
+ * The term set by a dependency-only change.
+ *
+ * <p>A bump to `eslint`, `typescript-eslint` or a lint plugin decides which
+ * selectors still resolve and which canaries still fire, yet it sets neither
+ * `full_suite` — pinned to `src OR critical_deps` — nor `syntax_guardrails`,
+ * which covers this config and its checker. A guardrail step that omits this
+ * term is skipped on the one PR shape most able to disarm it silently.
+ */
+const DEPS_TERM = "needs.changes.outputs.deps == 'true'";
+
+/** Every step whose job it is to prove the guardrails are still armed. */
+const GUARDRAIL_RUNS: readonly string[] = [CANARY_RUN, 'npm run lint:syntax-guardrails'];
+
+/**
+ * Identify a step that verifies guardrail integrity.
+ *
+ * @param step - Step definition.
+ * @returns True when the step runs one of the guardrail commands.
+ */
+function isGuardrailStep(step: IStep): boolean {
+  const normalized = normalizeRun(step.run ?? '');
+  return GUARDRAIL_RUNS.includes(normalized);
 }
 
 /** The hardened shell every canary step must inherit, unmodified. */
@@ -350,7 +386,7 @@ function emitSiteCount(flag: string): number {
 describe('CanarySuiteCiGate', () => {
   it('[CI-CANARY] PrYaml_CanarySuite_ShouldRunInExactlyOneJob', () => {
     const jobs = canaryJobs();
-    expect(jobs.length).toBe(1);
+    expect(jobs).toHaveLength(1);
   });
 
   it('[CI-CANARY] PrYaml_CanaryStep_ShouldNotBeMaskedByContinueOnError', () => {
@@ -379,6 +415,14 @@ describe('CanarySuiteCiGate', () => {
     const verdicts = REJECTED_CONDITIONS.map(condition => admitsGuardrailOnlyChange(condition));
     const hasAnyAccepted = verdicts.some(verdict => verdict);
     expect(hasAnyAccepted).toBe(false);
+  });
+
+  it('[CI-CANARY] PrYaml_GuardrailSteps_ShouldRunOnDependencyBumps', () => {
+    const steps = canaryJobSteps().filter(isGuardrailStep);
+    expect(steps).toHaveLength(GUARDRAIL_RUNS.length);
+    const verdicts = steps.map(step => admitsTerm(DEPS_TERM, step.if));
+    const skipped = verdicts.filter(verdict => !verdict);
+    expect(skipped).toHaveLength(0);
   });
 
   it('[CI-CANARY] Detector_PositiveOrChain_ShouldAdmitGuardrailChange', () => {

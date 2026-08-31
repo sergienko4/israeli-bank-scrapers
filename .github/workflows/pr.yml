@@ -255,8 +255,14 @@ jobs:
       # see that — the rule still runs, it just runs a smaller set. This reads
       # the RESOLVED config per production Pipeline file and asserts every
       # armed selector actually reached it.
+      # `deps` is here for the same reason the install step above carries it: a
+      # bump to `eslint`, `typescript-eslint` or a lint plugin is precisely the
+      # change able to alter which selectors resolve, and it sets neither
+      # `full_suite` (= src OR critical_deps) nor `syntax_guardrails` (= this
+      # config and its checker). Without it the resolution gate is skipped on
+      # the one PR shape most able to silently shrink the armed set.
       - name: Restricted-syntax guardrails resolve
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.deps == 'true'
         run: npm run lint:syntax-guardrails
 
       # The canary suite proves each guardrail still FIRES; the step above only
@@ -271,8 +277,10 @@ jobs:
       # was the local pre-commit hook — which `--no-verify` bypasses and which
       # never runs for a fork PR. The PR template asked the author to tick a
       # box attesting it passed. That is an honour system, not a gate.
+      # `deps` for the reason given on the resolution gate above: a lint-toolchain
+      # bump can stop a canary firing without touching src/ or this config.
       - name: Architectural canaries fire
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.deps == 'true'
         run: npm run lint:canaries
       - name: Prettier check
         if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
